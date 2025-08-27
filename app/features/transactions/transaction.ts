@@ -200,6 +200,11 @@ export type Transaction = {
    */
   reversedTransactionId?: string | null;
   /**
+   * Whether the transaction has been seen by the user.
+   * @default false
+   */
+  seen: boolean;
+  /**
    * Date and time the transaction was created in ISO 8601 format.
    */
   createdAt: string;

@@ -105,6 +105,71 @@ export class TransactionRepository {
     };
   }
 
+  async hasUnseenTransactions(
+    {
+      userId,
+      transactionTypes,
+      transactionStates,
+      transactionDirections,
+    }: {
+      userId: string;
+      transactionTypes: Transaction['type'][];
+      transactionStates: Transaction['state'][];
+      transactionDirections: Transaction['direction'][];
+    },
+    options?: Options,
+  ) {
+    const query = this.db
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('seen', false)
+      .in('type', transactionTypes)
+      .in('state', transactionStates)
+      .in('direction', transactionDirections);
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { count, error } = await query;
+
+    if (error) {
+      throw new Error('Failed to check for unseen transactions', {
+        cause: error,
+      });
+    }
+
+    return (count ?? 0) > 0;
+  }
+
+  async markTransactionsAsSeen(
+    {
+      userId,
+      transactionIds,
+    }: {
+      userId: string;
+      transactionIds: string[];
+    },
+    options?: Options,
+  ) {
+    const query = this.db
+      .from('transactions')
+      .update({ seen: true })
+      .in('id', transactionIds)
+      .eq('user_id', userId);
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { error } = await query;
+
+    if (error) {
+      throw new Error('Failed to mark transactions as seen', { cause: error });
+    }
+  }
+
   async toTransaction(data: AgicashDbTransaction): Promise<Transaction> {
     const details = await this.encryption.decrypt<UnifiedTransactionDetails>(
       data.encrypted_transaction_details,
@@ -120,6 +185,7 @@ export class TransactionRepository {
       failedAt: data.failed_at,
       reversedTransactionId: data.reversed_transaction_id,
       reversedAt: data.reversed_at,
+      seen: data.seen,
     };
 
     const { state, direction, type } = data;

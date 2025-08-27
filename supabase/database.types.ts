@@ -504,6 +504,7 @@ export type Database = {
           pending_at: string | null
           reversed_at: string | null
           reversed_transaction_id: string | null
+          seen: boolean
           state: string
           state_sort_order: number | null
           type: string
@@ -521,6 +522,7 @@ export type Database = {
           pending_at?: string | null
           reversed_at?: string | null
           reversed_transaction_id?: string | null
+          seen?: boolean
           state: string
           state_sort_order?: number | null
           type: string
@@ -538,6 +540,7 @@ export type Database = {
           pending_at?: string | null
           reversed_at?: string | null
           reversed_transaction_id?: string | null
+          seen?: boolean
           state?: string
           state_sort_order?: number | null
           type?: string
@@ -945,6 +948,7 @@ export type Database = {
           pending_at: string | null
           reversed_at: string | null
           reversed_transaction_id: string | null
+          seen: boolean
           state: string
           state_sort_order: number | null
           type: string

@@ -86,6 +86,53 @@ export function useTransactions() {
   return result;
 }
 
+export function useHasUnseenTransactions({
+  transactionTypes,
+  transactionStates,
+  transactionDirections,
+}: {
+  transactionTypes: Transaction['type'][];
+  transactionStates: Transaction['state'][];
+  transactionDirections: Transaction['direction'][];
+}) {
+  const transactionRepository = useTransactionRepository();
+  const userId = useUser((user) => user.id);
+
+  return useQuery({
+    queryKey: ['has-unseen-transactions', transactionTypes, transactionStates],
+    queryFn: () =>
+      transactionRepository.hasUnseenTransactions({
+        userId,
+        transactionTypes,
+        transactionStates,
+        transactionDirections,
+      }),
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
+    retry: 1,
+  });
+}
+
+export function useMarkTransactionsAsSeen() {
+  const transactionRepository = useTransactionRepository();
+  const userId = useUser((user) => user.id);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ transactionIds }: { transactionIds: string[] }) => {
+      await transactionRepository.markTransactionsAsSeen({
+        userId,
+        transactionIds,
+      });
+      queryClient.invalidateQueries({ queryKey: ['has-unseen-transactions'] });
+    },
+    retry: 1,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['has-unseen-transactions'] });
+    },
+  });
+}
+
 export function isTransactionReversable(transaction: Transaction) {
   return (
     transaction.state === 'PENDING' &&
