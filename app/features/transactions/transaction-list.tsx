@@ -162,9 +162,10 @@ function TransactionRow({
               </span>
             </div>
             <div className="flex h-4 w-2 items-center justify-center">
-              {!transaction.seen && (
-                <div className="h-[6px] w-[6px] rounded-full bg-green-500" />
-              )}
+              {!transaction.seen &&
+                ['COMPLETED', 'REVERSED'].includes(transaction.state) && (
+                  <div className="h-[6px] w-[6px] rounded-full bg-green-500" />
+                )}
             </div>
           </div>
         </div>
