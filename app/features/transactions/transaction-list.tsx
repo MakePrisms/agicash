@@ -1,12 +1,13 @@
 import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { type Ref, useCallback, useEffect, useRef, useState } from 'react';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
+import { useIsVisible } from '~/hooks/use-is-visible';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
 import {
-  useMarkTransactionsAsSeen,
+  useMarkCompletedTransactionsAsSeen,
   useTransactions,
 } from './transaction-hooks';
 
@@ -114,13 +115,36 @@ const getTransactionTypeIcon = (transaction: Transaction) => {
   return transactionTypeIconMap[transaction.type];
 };
 
-function TransactionRow({ transaction }: { transaction: Transaction }) {
+function TransactionRow({
+  transaction,
+  onVisibilityChange,
+}: {
+  transaction: Transaction;
+  onVisibilityChange: (transactionId: string, isVisible: boolean) => void;
+}) {
+  const { ref, isVisible } = useIsVisible({
+    threshold: 0.5, // Consider visible when 50% of the element is in view
+    rootMargin: '0px 0px -10% 0px', // Add some margin to avoid marking items too early
+  });
+
+  useEffect(() => {
+    onVisibilityChange(transaction.id, isVisible);
+  }, [transaction.id, isVisible, onVisibilityChange]);
+
+  useEffect(() => {
+    // Mark as not visible when component unmounts
+    return () => {
+      onVisibilityChange(transaction.id, false);
+    };
+  }, [transaction.id, onVisibilityChange]);
+
   return (
     <LinkWithViewTransition
       to={`/transactions/${transaction.id}`}
       transition="slideUp"
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
+      ref={ref as Ref<HTMLAnchorElement>}
     >
       {getTransactionTypeIcon(transaction)}
       <div className="flex w-full flex-grow flex-col gap-0">
@@ -155,9 +179,11 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
 function TransactionSection({
   title,
   transactions,
+  onVisibilityChange,
 }: {
   title: string;
   transactions: Transaction[];
+  onVisibilityChange: (transactionId: string, isVisible: boolean) => void;
 }) {
   if (transactions.length === 0) return null;
 
@@ -167,7 +193,11 @@ function TransactionSection({
         <span className="font-medium text-lg">{title}</span>
       </div>
       {transactions.map((transaction) => (
-        <TransactionRow key={transaction.id} transaction={transaction} />
+        <TransactionRow
+          key={transaction.id}
+          transaction={transaction}
+          onVisibilityChange={onVisibilityChange}
+        />
       ))}
     </div>
   );
@@ -219,31 +249,34 @@ export function TransactionList() {
     status,
   } = useTransactions();
 
-  const { mutate: markTransactionsAsSeen } = useMarkTransactionsAsSeen();
-
   const allTransactions =
     data?.pages.flatMap((page) => page.transactions) ?? [];
 
-  const unseenTransactionIds = useMemo(() => {
-    return allTransactions
-      .filter(
-        (tx) =>
-          tx.direction === 'RECEIVE' && tx.state === 'COMPLETED' && !tx.seen,
-      )
-      .map((tx) => tx.id);
-  }, [allTransactions]);
+  const [visibleTransactionIds, setVisibleTransactionIds] = useState<
+    Set<string>
+  >(new Set());
 
-  // Convert to stable string to avoid infinite re-renders due to array reference changes
-  const unseenTransactionIdsString = unseenTransactionIds.join(',');
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: still figuring out how to make it useEffect only runs once
-  useEffect(() => {
-    if (unseenTransactionIds.length > 0) {
-      markTransactionsAsSeen({
-        transactionIds: unseenTransactionIds,
+  const handleVisibilityChange = useCallback(
+    (transactionId: string, isVisible: boolean) => {
+      setVisibleTransactionIds((prev) => {
+        const newSet = new Set(prev);
+        if (isVisible) {
+          newSet.add(transactionId);
+        } else {
+          newSet.delete(transactionId);
+        }
+        return newSet;
       });
-    }
-  }, [unseenTransactionIdsString, markTransactionsAsSeen]);
+    },
+    [],
+  );
+
+  const visibleTransactions = allTransactions.filter((transaction) =>
+    visibleTransactionIds.has(transaction.id),
+  );
+
+  // Automatically mark visible unseen received transactions as seen
+  useMarkCompletedTransactionsAsSeen(visibleTransactions);
 
   const {
     pendingTransactions,
@@ -287,13 +320,23 @@ export function TransactionList() {
         <TransactionSection
           title="Pending"
           transactions={pendingTransactions}
+          onVisibilityChange={handleVisibilityChange}
         />
-        <TransactionSection title="Today" transactions={todayTransactions} />
+        <TransactionSection
+          title="Today"
+          transactions={todayTransactions}
+          onVisibilityChange={handleVisibilityChange}
+        />
         <TransactionSection
           title="This Week"
           transactions={thisWeekTransactions}
+          onVisibilityChange={handleVisibilityChange}
         />
-        <TransactionSection title="Older" transactions={olderTransactions} />
+        <TransactionSection
+          title="Older"
+          transactions={olderTransactions}
+          onVisibilityChange={handleVisibilityChange}
+        />
       </div>
       {hasNextPage && (
         <LoadMore

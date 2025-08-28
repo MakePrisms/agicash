@@ -32,6 +32,7 @@ import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
   isTransactionReversable,
+  useMarkCompletedTransactionsAsSeen,
   useReverseTransaction,
 } from './transaction-hooks';
 
@@ -101,6 +102,8 @@ export function TransactionDetails({
 }) {
   const account = useAccount(transaction.accountId);
   const { toast } = useToast();
+
+  useMarkCompletedTransactionsAsSeen([transaction]);
 
   const {
     mutate: reverseTransaction,

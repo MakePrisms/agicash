@@ -6,7 +6,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   type AgicashDbTransaction,
   agicashDb,
@@ -24,6 +24,7 @@ import {
 
 const transactionQueryKey = 'transaction';
 const allTransactionsQueryKey = 'all-transactions';
+const hasUnseenTransactionsQueryKey = 'has-unseen-transactions';
 
 export function useTransaction({
   transactionId,
@@ -99,7 +100,11 @@ export function useHasUnseenTransactions({
   const userId = useUser((user) => user.id);
 
   return useQuery({
-    queryKey: ['has-unseen-transactions', transactionTypes, transactionStates],
+    queryKey: [
+      hasUnseenTransactionsQueryKey,
+      transactionTypes,
+      transactionStates,
+    ],
     queryFn: () =>
       transactionRepository.hasUnseenTransactions({
         userId,
@@ -113,7 +118,7 @@ export function useHasUnseenTransactions({
   });
 }
 
-export function useMarkTransactionsAsSeen() {
+function useMarkTransactionsAsSeen() {
   const transactionRepository = useTransactionRepository();
   const userId = useUser((user) => user.id);
   const queryClient = useQueryClient();
@@ -124,13 +129,44 @@ export function useMarkTransactionsAsSeen() {
         userId,
         transactionIds,
       });
-      queryClient.invalidateQueries({ queryKey: ['has-unseen-transactions'] });
     },
     retry: 1,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['has-unseen-transactions'] });
+      queryClient.invalidateQueries({
+        queryKey: [hasUnseenTransactionsQueryKey],
+      });
     },
   });
+}
+
+/**
+ * Hook that automatically marks unseen completed or reversed transactions as seen.
+ */
+export function useMarkCompletedTransactionsAsSeen(
+  transactions: Transaction[],
+) {
+  const { mutate: markTransactionsAsSeen } = useMarkTransactionsAsSeen();
+  const processedTransactionIds = useRef(new Set<string>());
+
+  useEffect(() => {
+    const unseen = transactions.filter(
+      (tx) =>
+        ['COMPLETED', 'REVERSED'].includes(tx.state) &&
+        !tx.seen &&
+        !processedTransactionIds.current.has(tx.id),
+    );
+
+    if (unseen.length > 0) {
+      const newUnseenIds = unseen.map((tx) => tx.id);
+
+      // Mark these as processed immediately to prevent duplicate processing
+      newUnseenIds.forEach((id) => processedTransactionIds.current.add(id));
+
+      markTransactionsAsSeen({
+        transactionIds: newUnseenIds,
+      });
+    }
+  }, [transactions, markTransactionsAsSeen]);
 }
 
 export function isTransactionReversable(transaction: Transaction) {
