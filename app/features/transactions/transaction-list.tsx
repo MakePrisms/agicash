@@ -6,10 +6,8 @@ import { useIsVisible } from '~/hooks/use-is-visible';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
-import {
-  useMarkCompletedTransactionsAsSeen,
-  useTransactions,
-} from './transaction-hooks';
+import { useAcknowledgeTransaction } from './transaction-hooks';
+import { useTransactions } from './transaction-hooks';
 
 function LoadMore({
   onEndReached,
@@ -117,26 +115,29 @@ const getTransactionTypeIcon = (transaction: Transaction) => {
 
 function TransactionRow({
   transaction,
-  onVisibilityChange,
 }: {
   transaction: Transaction;
-  onVisibilityChange: (transactionId: string, isVisible: boolean) => void;
 }) {
-  const { ref, isVisible } = useIsVisible({
+  const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
+  const [showNotification, _] = useState(
+    !transaction.seen && ['COMPLETED', 'REVERSED'].includes(transaction.state),
+  );
+
+  const { ref } = useIsVisible({
     threshold: 0.5, // Consider visible when 50% of the element is in view
-    rootMargin: '0px 0px -10% 0px', // Add some margin to avoid marking items too early
+    onVisibilityChange: useCallback(
+      (isVisible: boolean) => {
+        if (
+          isVisible &&
+          !transaction.seen &&
+          ['COMPLETED', 'REVERSED'].includes(transaction.state)
+        ) {
+          acknowledgeTransaction({ transaction });
+        }
+      },
+      [transaction, acknowledgeTransaction],
+    ),
   });
-
-  useEffect(() => {
-    onVisibilityChange(transaction.id, isVisible);
-  }, [transaction.id, isVisible, onVisibilityChange]);
-
-  useEffect(() => {
-    // Mark as not visible when component unmounts
-    return () => {
-      onVisibilityChange(transaction.id, false);
-    };
-  }, [transaction.id, onVisibilityChange]);
 
   return (
     <LinkWithViewTransition
@@ -162,10 +163,9 @@ function TransactionRow({
               </span>
             </div>
             <div className="flex h-4 w-2 items-center justify-center">
-              {!transaction.seen &&
-                ['COMPLETED', 'REVERSED'].includes(transaction.state) && (
-                  <div className="h-[6px] w-[6px] rounded-full bg-green-500" />
-                )}
+              {showNotification && (
+                <div className="h-[6px] w-[6px] rounded-full bg-green-500" />
+              )}
             </div>
           </div>
         </div>
@@ -180,11 +180,9 @@ function TransactionRow({
 function TransactionSection({
   title,
   transactions,
-  onVisibilityChange,
 }: {
   title: string;
   transactions: Transaction[];
-  onVisibilityChange: (transactionId: string, isVisible: boolean) => void;
 }) {
   if (transactions.length === 0) return null;
 
@@ -194,11 +192,7 @@ function TransactionSection({
         <span className="font-medium text-lg">{title}</span>
       </div>
       {transactions.map((transaction) => (
-        <TransactionRow
-          key={transaction.id}
-          transaction={transaction}
-          onVisibilityChange={onVisibilityChange}
-        />
+        <TransactionRow key={transaction.id} transaction={transaction} />
       ))}
     </div>
   );
@@ -253,32 +247,6 @@ export function TransactionList() {
   const allTransactions =
     data?.pages.flatMap((page) => page.transactions) ?? [];
 
-  const [visibleTransactionIds, setVisibleTransactionIds] = useState<
-    Set<string>
-  >(new Set());
-
-  const handleVisibilityChange = useCallback(
-    (transactionId: string, isVisible: boolean) => {
-      setVisibleTransactionIds((prev) => {
-        const newSet = new Set(prev);
-        if (isVisible) {
-          newSet.add(transactionId);
-        } else {
-          newSet.delete(transactionId);
-        }
-        return newSet;
-      });
-    },
-    [],
-  );
-
-  const visibleTransactions = allTransactions.filter((transaction) =>
-    visibleTransactionIds.has(transaction.id),
-  );
-
-  // Automatically mark visible unseen received transactions as seen
-  useMarkCompletedTransactionsAsSeen(visibleTransactions);
-
   const {
     pendingTransactions,
     todayTransactions,
@@ -321,23 +289,13 @@ export function TransactionList() {
         <TransactionSection
           title="Pending"
           transactions={pendingTransactions}
-          onVisibilityChange={handleVisibilityChange}
         />
-        <TransactionSection
-          title="Today"
-          transactions={todayTransactions}
-          onVisibilityChange={handleVisibilityChange}
-        />
+        <TransactionSection title="Today" transactions={todayTransactions} />
         <TransactionSection
           title="This Week"
           transactions={thisWeekTransactions}
-          onVisibilityChange={handleVisibilityChange}
         />
-        <TransactionSection
-          title="Older"
-          transactions={olderTransactions}
-          onVisibilityChange={handleVisibilityChange}
-        />
+        <TransactionSection title="Older" transactions={olderTransactions} />
       </div>
       {hasNextPage && (
         <LoadMore

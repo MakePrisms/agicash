@@ -143,20 +143,20 @@ export class TransactionRepository {
     return (count ?? 0) > 0;
   }
 
-  async markTransactionsAsSeen(
+  async acknowledgeTransaction(
     {
       userId,
-      transactionIds,
+      transactionId,
     }: {
       userId: string;
-      transactionIds: string[];
+      transactionId: string;
     },
     options?: Options,
   ) {
     const query = this.db
       .from('transactions')
       .update({ seen: true })
-      .in('id', transactionIds)
+      .eq('id', transactionId)
       .eq('user_id', userId);
 
     if (options?.abortSignal) {
@@ -166,7 +166,7 @@ export class TransactionRepository {
     const { error } = await query;
 
     if (error) {
-      throw new Error('Failed to mark transactions as seen', { cause: error });
+      throw new Error('Failed to mark transaction as seen', { cause: error });
     }
   }
 

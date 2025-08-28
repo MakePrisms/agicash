@@ -1,9 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 
 export type UseIsVisibleOptions = {
+  /**
+   * Number between 0.0 and 1.0 indicating what percentage of the element
+   * must be visible to trigger the callback. Can also be an array of thresholds
+   * to trigger at multiple visibility percentages.
+   * @default undefined
+   */
   threshold?: number | number[];
+  /**
+   * Margin around the root element. Values work like CSS margin property
+   * (top, right, bottom, left). Positive values shrink the root's bounding box,
+   * negative values expand it.
+   * @default undefined
+   */
   rootMargin?: string;
+  /**
+   * Element used as the viewport for checking visibility. If null, uses the
+   * browser's viewport.
+   * @default null
+   */
   root?: Element | null;
+  /**
+   * Callback fired when visibility changes.
+   */
+  onVisibilityChange?: (isVisible: boolean) => void;
 };
 
 /**
@@ -16,16 +37,19 @@ export function useIsVisible(options: UseIsVisibleOptions = {}) {
   const ref = useRef<HTMLDivElement>(null);
 
   const {
-    threshold = 0.5,
-    rootMargin = '0px 0px -10% 0px',
+    threshold = undefined,
+    rootMargin = undefined,
     root = null,
+    onVisibilityChange,
   } = options;
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        setIsVisible(entry.isIntersecting);
+        const newIsVisible = entry.isIntersecting;
+        setIsVisible(newIsVisible);
+        onVisibilityChange?.(newIsVisible);
       },
       {
         threshold,
@@ -43,7 +67,7 @@ export function useIsVisible(options: UseIsVisibleOptions = {}) {
         observer.unobserve(ref.current);
       }
     };
-  }, [threshold, rootMargin, root]);
+  }, [threshold, rootMargin, root, onVisibilityChange]);
 
   return { ref, isVisible };
 }

@@ -1,12 +1,13 @@
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
+  type InfiniteData,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import {
   type AgicashDbTransaction,
   agicashDb,
@@ -118,16 +119,35 @@ export function useHasUnseenTransactions({
   });
 }
 
-function useMarkTransactionsAsSeen() {
+export function useAcknowledgeTransaction() {
   const transactionRepository = useTransactionRepository();
   const userId = useUser((user) => user.id);
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ transactionIds }: { transactionIds: string[] }) => {
-      await transactionRepository.markTransactionsAsSeen({
+    mutationFn: async ({ transaction }: { transaction: Transaction }) => {
+      await transactionRepository.acknowledgeTransaction({
         userId,
-        transactionIds,
+        transactionId: transaction.id,
+      });
+
+      // Find the transaction in the cache and update it
+      queryClient.setQueryData<
+        InfiniteData<{
+          transactions: Transaction[];
+          nextCursor: string | null;
+        }>
+      >([allTransactionsQueryKey], (old) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            transactions: page.transactions.map((tx) =>
+              tx.id === transaction.id ? { ...tx, seen: true } : tx,
+            ),
+          })),
+        };
       });
     },
     retry: 1,
@@ -137,36 +157,6 @@ function useMarkTransactionsAsSeen() {
       });
     },
   });
-}
-
-/**
- * Hook that automatically marks unseen completed or reversed transactions as seen.
- */
-export function useMarkCompletedTransactionsAsSeen(
-  transactions: Transaction[],
-) {
-  const { mutate: markTransactionsAsSeen } = useMarkTransactionsAsSeen();
-  const processedTransactionIds = useRef(new Set<string>());
-
-  useEffect(() => {
-    const unseen = transactions.filter(
-      (tx) =>
-        ['COMPLETED', 'REVERSED'].includes(tx.state) &&
-        !tx.seen &&
-        !processedTransactionIds.current.has(tx.id),
-    );
-
-    if (unseen.length > 0) {
-      const newUnseenIds = unseen.map((tx) => tx.id);
-
-      // Mark these as processed immediately to prevent duplicate processing
-      newUnseenIds.forEach((id) => processedTransactionIds.current.add(id));
-
-      markTransactionsAsSeen({
-        transactionIds: newUnseenIds,
-      });
-    }
-  }, [transactions, markTransactionsAsSeen]);
 }
 
 export function isTransactionReversable(transaction: Transaction) {
