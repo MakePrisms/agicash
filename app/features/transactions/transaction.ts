@@ -200,10 +200,13 @@ export type Transaction = {
    */
   reversedTransactionId?: string | null;
   /**
-   * Whether the transaction has been seen by the user.
-   * @default false
+   * Whether or not the transaction has been acknowledged by the user.
+   *
+   * - `null`: There is nothing to acknowledge.
+   * - `pending`: The transaction has entered a state where the user should acknowledge it.
+   * - `acknowledged`: The transaction has been acknowledged by the user.
    */
-  seen: boolean;
+  acknowledgmentStatus: null | 'pending' | 'acknowledged';
   /**
    * Date and time the transaction was created in ISO 8601 format.
    */

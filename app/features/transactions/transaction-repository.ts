@@ -105,17 +105,16 @@ export class TransactionRepository {
     };
   }
 
-  async hasUnseenTransactions(
+  /**
+   * Counts the number of transactions where the acknowledgment status is pending.
+   *
+   * @returns The number of unacknowledged transactions.
+   */
+  async countUnacknowledgedTransactions(
     {
       userId,
-      transactionTypes,
-      transactionStates,
-      transactionDirections,
     }: {
       userId: string;
-      transactionTypes: Transaction['type'][];
-      transactionStates: Transaction['state'][];
-      transactionDirections: Transaction['direction'][];
     },
     options?: Options,
   ) {
@@ -123,10 +122,7 @@ export class TransactionRepository {
       .from('transactions')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
-      .eq('seen', false)
-      .in('type', transactionTypes)
-      .in('state', transactionStates)
-      .in('direction', transactionDirections);
+      .eq('acknowledgment_status', 'pending');
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -134,15 +130,19 @@ export class TransactionRepository {
 
     const { count, error } = await query;
 
-    if (error) {
-      throw new Error('Failed to check for unseen transactions', {
+    if (error || count === null) {
+      throw new Error('Failed to count unacknowledged transactions', {
         cause: error,
       });
     }
 
-    return (count ?? 0) > 0;
+    return count;
   }
 
+  /**
+   * Sets a transaction's acknowledgment status to acknowledged.
+   * @throws {Error} If the transaction is not found or the acknowledgment status cannot be set.
+   */
   async acknowledgeTransaction(
     {
       userId,
@@ -155,7 +155,7 @@ export class TransactionRepository {
   ) {
     const query = this.db
       .from('transactions')
-      .update({ seen: true })
+      .update({ acknowledgment_status: 'acknowledged' })
       .eq('id', transactionId)
       .eq('user_id', userId);
 
@@ -185,7 +185,7 @@ export class TransactionRepository {
       failedAt: data.failed_at,
       reversedTransactionId: data.reversed_transaction_id,
       reversedAt: data.reversed_at,
-      seen: data.seen,
+      acknowledgmentStatus: data.acknowledgment_status,
     };
 
     const { state, direction, type } = data;

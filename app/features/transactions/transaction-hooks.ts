@@ -25,7 +25,7 @@ import {
 
 const transactionQueryKey = 'transaction';
 const allTransactionsQueryKey = 'all-transactions';
-const hasUnseenTransactionsQueryKey = 'has-unseen-transactions';
+const hasUnacknowledgedTransactionsQueryKey = 'has-unacknowledged-transactions';
 
 export function useTransaction({
   transactionId,
@@ -88,31 +88,15 @@ export function useTransactions() {
   return result;
 }
 
-export function useHasUnseenTransactions({
-  transactionTypes,
-  transactionStates,
-  transactionDirections,
-}: {
-  transactionTypes: Transaction['type'][];
-  transactionStates: Transaction['state'][];
-  transactionDirections: Transaction['direction'][];
-}) {
+export function useHasUnacknowledgedTransactions() {
   const transactionRepository = useTransactionRepository();
   const userId = useUser((user) => user.id);
 
   return useQuery({
-    queryKey: [
-      hasUnseenTransactionsQueryKey,
-      transactionTypes,
-      transactionStates,
-    ],
+    queryKey: [hasUnacknowledgedTransactionsQueryKey],
     queryFn: () =>
-      transactionRepository.hasUnseenTransactions({
-        userId,
-        transactionTypes,
-        transactionStates,
-        transactionDirections,
-      }),
+      transactionRepository.countUnacknowledgedTransactions({ userId }),
+    select: (data) => data > 0,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     retry: 1,
@@ -144,7 +128,9 @@ export function useAcknowledgeTransaction() {
           pages: old.pages.map((page) => ({
             ...page,
             transactions: page.transactions.map((tx) =>
-              tx.id === transaction.id ? { ...tx, seen: true } : tx,
+              tx.id === transaction.id
+                ? { ...tx, acknowledgmentStatus: 'acknowledged' }
+                : tx,
             ),
           })),
         };
@@ -153,7 +139,7 @@ export function useAcknowledgeTransaction() {
     retry: 1,
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: [hasUnseenTransactionsQueryKey],
+        queryKey: [hasUnacknowledgedTransactionsQueryKey],
       });
     },
   });

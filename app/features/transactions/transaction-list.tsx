@@ -120,18 +120,14 @@ function TransactionRow({
 }) {
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
   const [showNotification, _] = useState(
-    !transaction.seen && ['COMPLETED', 'REVERSED'].includes(transaction.state),
+    transaction.acknowledgmentStatus === 'pending',
   );
 
   const { ref } = useIsVisible({
     threshold: 0.5, // Consider visible when 50% of the element is in view
     onVisibilityChange: useCallback(
       (isVisible: boolean) => {
-        if (
-          isVisible &&
-          !transaction.seen &&
-          ['COMPLETED', 'REVERSED'].includes(transaction.state)
-        ) {
+        if (isVisible && transaction.acknowledgmentStatus === 'pending') {
           acknowledgeTransaction({ transaction });
         }
       },

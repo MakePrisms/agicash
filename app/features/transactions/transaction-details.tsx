@@ -106,10 +106,7 @@ export function TransactionDetails({
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
 
   useEffect(() => {
-    if (
-      !transaction.seen &&
-      ['COMPLETED', 'REVERSED'].includes(transaction.state)
-    ) {
+    if (transaction.acknowledgmentStatus === 'pending') {
       acknowledgeTransaction({ transaction });
     }
   }, [transaction, acknowledgeTransaction]);
