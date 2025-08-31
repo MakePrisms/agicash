@@ -67,7 +67,7 @@ class PaginatedTransactionCache {
 
   /**
    * Update a transaction across all pages.
-   * If no cache exists, let the query load normally listTransactions is called.
+   * If no cache exists, let the query load normally when listTransactions is called.
    */
   updateTransaction(transaction: Transaction) {
     this.queryClient.setQueryData<

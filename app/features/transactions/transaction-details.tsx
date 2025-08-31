@@ -6,7 +6,6 @@ import {
   UndoIcon,
   XIcon,
 } from 'lucide-react';
-
 import { useEffect } from 'react';
 import { PageContent, PageFooter } from '~/components/page';
 import { Button } from '~/components/ui/button';
