@@ -297,9 +297,8 @@ function useOnTransactionChange({
         },
       ),
     onConnected: () => {
-      // Invalidate transaction-related queries so they are re-fetched and the cache is updated.
+      // Invalidate the transaction count query so it's re-fetched and the cache is updated.
       // This is needed to get any data that might have been updated while the re-connection was in progress.
-      queryClient.invalidateQueries({ queryKey: [allTransactionsQueryKey] });
       queryClient.invalidateQueries({
         queryKey: [unacknowledgedTransactionsCountQueryKey],
       });
