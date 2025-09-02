@@ -7,7 +7,7 @@ import {
 } from '~/components/page';
 import { TransactionDetails } from '~/features/transactions/transaction-details';
 import { useSuspenseTransaction } from '~/features/transactions/transaction-hooks';
-import type { Route } from './+types/_protected.transactions.$transactionId';
+import type { Route } from './+types/_protected.transactions.$transactionId_';
 
 export default function TransactionDetailsPage({
   params: { transactionId },

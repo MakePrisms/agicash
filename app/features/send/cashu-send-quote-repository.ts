@@ -464,6 +464,32 @@ export class CashuSendQuoteRepository {
       : null;
   }
 
+  async getByTransactionId(
+    transactionId: string,
+    options?: Options,
+  ): Promise<CashuSendQuote | null> {
+    const query = this.db
+      .from('cashu_send_quotes')
+      .select()
+      .eq('transaction_id', transactionId);
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      throw new Error('Failed to get cashu send quote by transaction id', {
+        cause: error,
+      });
+    }
+
+    return data
+      ? CashuSendQuoteRepository.toSend(data, this.encryption.decrypt)
+      : null;
+  }
+
   /**
    * Gets all unresolved (UNPAID or PENDING) cashu send quotes for the given user.
    * @param userId - The id of the user to get the cashu send quotes for.

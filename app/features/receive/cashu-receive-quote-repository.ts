@@ -400,6 +400,30 @@ export class CashuReceiveQuoteRepository {
     return data ? CashuReceiveQuoteRepository.toQuote(data) : null;
   }
 
+  async getByTransactionId(
+    transactionId: string,
+    options?: Options,
+  ): Promise<CashuReceiveQuote | null> {
+    const query = this.db
+      .from('cashu_receive_quotes')
+      .select()
+      .eq('transaction_id', transactionId);
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      throw new Error('Failed to get cashu receive quote by transaction id', {
+        cause: error,
+      });
+    }
+
+    return data ? CashuReceiveQuoteRepository.toQuote(data) : null;
+  }
+
   /**
    * Gets all pending (unpaid or expired) cashu receive quotes for the given user.
    * @param userId - The id of the user to get the cashu receive quotes for.
