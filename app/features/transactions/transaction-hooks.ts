@@ -174,7 +174,7 @@ export function useHasTransactionsPendingAck() {
   const transactionRepository = useTransactionRepository();
   const userId = useUser((user) => user.id);
 
-  return useQuery({
+  const result = useQuery({
     queryKey: [unacknowledgedTransactionsCountQueryKey],
     queryFn: () =>
       transactionRepository.countTransactionsPendingAck({ userId }),
@@ -184,6 +184,8 @@ export function useHasTransactionsPendingAck() {
     refetchOnReconnect: 'always',
     retry: 1,
   });
+
+  return result.data ?? false;
 }
 
 export function useAcknowledgeTransaction() {

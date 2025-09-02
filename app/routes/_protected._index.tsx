@@ -64,7 +64,7 @@ export default function Index() {
   const balanceBTC = useBalance('BTC');
   const balanceUSD = useBalance('USD');
   const defaultCurrency = useDefaultAccount().currency;
-  const { data: hasTransactionsPendingAck } = useHasTransactionsPendingAck();
+  const hasTransactionsPendingAck = useHasTransactionsPendingAck();
 
   return (
     <Page>
