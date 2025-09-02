@@ -7,6 +7,7 @@ import { useTrackPendingCashuTokenSwaps } from '../receive/cashu-token-swap-hook
 import { useTrackUnresolvedCashuSendQuotes } from '../send/cashu-send-quote-hooks';
 import { useTrackUnresolvedCashuSendSwaps } from '../send/cashu-send-swap-hooks';
 import { useTheme } from '../theme';
+import { useTrackTransactions } from '../transactions/transaction-hooks';
 import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
 import { TaskProcessor, useTakeTaskProcessingLead } from './task-processing';
@@ -57,6 +58,7 @@ export const Wallet = ({ children }: PropsWithChildren) => {
   const isLead = useTakeTaskProcessingLead();
 
   useTrackAccounts();
+  useTrackTransactions();
   useTrackPendingCashuReceiveQuotes();
   useTrackPendingCashuTokenSwaps();
   useTrackUnresolvedCashuSendQuotes();

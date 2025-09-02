@@ -494,6 +494,7 @@ export type Database = {
       transactions: {
         Row: {
           account_id: string
+          acknowledgment_status: string | null
           completed_at: string | null
           created_at: string
           currency: string
@@ -511,6 +512,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          acknowledgment_status?: string | null
           completed_at?: string | null
           created_at?: string
           currency: string
@@ -528,6 +530,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          acknowledgment_status?: string | null
           completed_at?: string | null
           created_at?: string
           currency?: string
@@ -935,6 +938,7 @@ export type Database = {
         }
         Returns: {
           account_id: string
+          acknowledgment_status: string | null
           completed_at: string | null
           created_at: string
           currency: string

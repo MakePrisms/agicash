@@ -105,6 +105,71 @@ export class TransactionRepository {
     };
   }
 
+  /**
+   * Counts the number of transactions where the acknowledgment status is pending.
+   *
+   * @returns The number of unacknowledged transactions.
+   */
+  async countTransactionsPendingAck(
+    {
+      userId,
+    }: {
+      userId: string;
+    },
+    options?: Options,
+  ) {
+    const query = this.db
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('acknowledgment_status', 'pending');
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { count, error } = await query;
+
+    if (error || count === null) {
+      throw new Error('Failed to count transactions pending acknowledgment', {
+        cause: error,
+      });
+    }
+
+    return count;
+  }
+
+  /**
+   * Sets a transaction's acknowledgment status to acknowledged.
+   * @throws {Error} If the transaction is not found or the acknowledgment status cannot be set.
+   */
+  async acknowledgeTransaction(
+    {
+      userId,
+      transactionId,
+    }: {
+      userId: string;
+      transactionId: string;
+    },
+    options?: Options,
+  ) {
+    const query = this.db
+      .from('transactions')
+      .update({ acknowledgment_status: 'acknowledged' })
+      .eq('id', transactionId)
+      .eq('user_id', userId);
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { error } = await query;
+
+    if (error) {
+      throw new Error('Failed to mark transaction as seen', { cause: error });
+    }
+  }
+
   async toTransaction(data: AgicashDbTransaction): Promise<Transaction> {
     const details = await this.encryption.decrypt<UnifiedTransactionDetails>(
       data.encrypted_transaction_details,
@@ -120,6 +185,7 @@ export class TransactionRepository {
       failedAt: data.failed_at,
       reversedTransactionId: data.reversed_transaction_id,
       reversedAt: data.reversed_at,
+      acknowledgmentStatus: data.acknowledgment_status,
     };
 
     const { state, direction, type } = data;

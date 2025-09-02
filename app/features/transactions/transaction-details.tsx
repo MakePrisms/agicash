@@ -6,7 +6,7 @@ import {
   UndoIcon,
   XIcon,
 } from 'lucide-react';
-
+import { useEffect } from 'react';
 import { PageContent, PageFooter } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import {
@@ -32,6 +32,7 @@ import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
   isTransactionReversable,
+  useAcknowledgeTransaction,
   useReverseTransaction,
 } from './transaction-hooks';
 
@@ -101,6 +102,13 @@ export function TransactionDetails({
 }) {
   const account = useAccount(transaction.accountId);
   const { toast } = useToast();
+  const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
+
+  useEffect(() => {
+    if (transaction.acknowledgmentStatus === 'pending') {
+      acknowledgeTransaction({ transaction });
+    }
+  }, [transaction, acknowledgeTransaction]);
 
   const {
     mutate: reverseTransaction,

@@ -1,10 +1,12 @@
 import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { type Ref, useCallback, useEffect, useRef } from 'react';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
+import { useIsVisible } from '~/hooks/use-is-visible';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
+import { useAcknowledgeTransaction } from './transaction-hooks';
 import { useTransactions } from './transaction-hooks';
 
 function LoadMore({
@@ -111,13 +113,32 @@ const getTransactionTypeIcon = (transaction: Transaction) => {
   return transactionTypeIconMap[transaction.type];
 };
 
-function TransactionRow({ transaction }: { transaction: Transaction }) {
+function TransactionRow({
+  transaction,
+}: {
+  transaction: Transaction;
+}) {
+  const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
+
+  const { ref } = useIsVisible({
+    threshold: 0.5, // Consider visible when 50% of the element is in view
+    onVisibilityChange: useCallback(
+      (isVisible: boolean) => {
+        if (isVisible && transaction.acknowledgmentStatus === 'pending') {
+          acknowledgeTransaction({ transaction });
+        }
+      },
+      [transaction, acknowledgeTransaction],
+    ),
+  });
+
   return (
     <LinkWithViewTransition
       to={`/transactions/${transaction.id}`}
       transition="slideUp"
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
+      ref={ref as Ref<HTMLAnchorElement>}
     >
       {getTransactionTypeIcon(transaction)}
       <div className="flex w-full flex-grow flex-col gap-0">
@@ -128,9 +149,18 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
               unit: getDefaultUnit(transaction.amount.currency),
             })}
           </p>
-          <span className="text-muted-foreground text-xs">
-            {formatRelativeTime(new Date(transaction.createdAt).getTime())}
-          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="w-12 text-right">
+              <span className="text-muted-foreground text-xs">
+                {formatRelativeTime(new Date(transaction.createdAt).getTime())}
+              </span>
+            </div>
+            <div className="flex h-4 w-2 items-center justify-center">
+              {transaction.acknowledgmentStatus === 'pending' && (
+                <div className="h-[6px] w-[6px] rounded-full bg-green-500" />
+              )}
+            </div>
+          </div>
         </div>
         <p className="text-muted-foreground text-xs">
           {getTransactionDescription(transaction)}

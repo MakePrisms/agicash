@@ -18,6 +18,7 @@ import {
 import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-switcher';
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
+import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
 import { useExchangeRates } from '~/hooks/use-exchange-rate';
 import type { Ticker } from '~/lib/exchange-rate';
 import { Money } from '~/lib/money';
@@ -63,6 +64,7 @@ export default function Index() {
   const balanceBTC = useBalance('BTC');
   const balanceUSD = useBalance('USD');
   const defaultCurrency = useDefaultAccount().currency;
+  const hasTransactionsPendingAck = useHasTransactionsPendingAck();
 
   return (
     <Page>
@@ -72,8 +74,12 @@ export default function Index() {
             to="/transactions"
             transition="slideLeft"
             applyTo="newView"
+            className="relative"
           >
             <Clock className="text-muted-foreground" />
+            {hasTransactionsPendingAck && (
+              <div className="-right-0 -top-0 absolute h-[8px] w-[8px] rounded-full bg-green-500" />
+            )}
           </LinkWithViewTransition>
           <LinkWithViewTransition
             to="/settings"
