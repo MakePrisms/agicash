@@ -250,6 +250,32 @@ export class CashuTokenSwapRepository {
     }
   }
 
+  async getByTransactionId(
+    transactionId: string,
+    options?: Options,
+  ): Promise<CashuTokenSwap | null> {
+    const query = this.db
+      .from('cashu_token_swaps')
+      .select()
+      .eq('transaction_id', transactionId);
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      throw new Error('Failed to get cashu token swap by transaction id', {
+        cause: error,
+      });
+    }
+
+    return data
+      ? CashuTokenSwapRepository.toTokenSwap(data, this.encryption.decrypt)
+      : null;
+  }
+
   /**
    * Gets all pending token swaps for a given user.
    * @returns All token swaps in a PENDING state for the given user.
