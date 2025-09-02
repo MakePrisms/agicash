@@ -1,13 +1,17 @@
 import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
 import { type Ref, useCallback, useEffect, useRef } from 'react';
+import { useOutletContext } from 'react-router';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { useIsVisible } from '~/hooks/use-is-visible';
 import { LinkWithViewTransition } from '~/lib/transitions';
+import type { TransactionsLayoutContext } from '~/routes/_protected.transactions';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
-import { useAcknowledgeTransaction } from './transaction-hooks';
-import { useTransactions } from './transaction-hooks';
+import {
+  useAckTransactionInCache,
+  useAcknowledgeTransaction,
+} from './transaction-hooks';
 
 function LoadMore({
   onEndReached,
@@ -119,6 +123,7 @@ function TransactionRow({
   transaction: Transaction;
 }) {
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
+  const ackTransactionInCache = useAckTransactionInCache();
 
   const { ref } = useIsVisible({
     threshold: 0.5, // Consider visible when 50% of the element is in view
@@ -139,6 +144,7 @@ function TransactionRow({
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
       ref={ref as Ref<HTMLAnchorElement>}
+      onClick={() => ackTransactionInCache(transaction.id)}
     >
       {getTransactionTypeIcon(transaction)}
       <div className="flex w-full flex-grow flex-col gap-0">
@@ -235,7 +241,7 @@ export function TransactionList() {
     hasNextPage,
     isFetchingNextPage,
     status,
-  } = useTransactions();
+  } = useOutletContext<TransactionsLayoutContext>();
 
   const allTransactions =
     data?.pages.flatMap((page) => page.transactions) ?? [];
