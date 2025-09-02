@@ -74,6 +74,10 @@ Then run the app in production mode:
 bun start
 ```
 
+This starts an Express server that runs the React Router framework app. However, this is not what we are currently using in our
+hosted environments. We are using Vercel instead, but this gives us the option to deploy the app to a "full server" if we ever
+need to.
+
 Currently, we have `next` and `alpha` environments and temporary preview deployments for individual features. The app is deployed to
 Vercel. Every push to GitHub triggers a new Vercel deployment. Pushes to `master` branch are deploying a new next version. Pushes to
 `alpha` branch are deploying a new alpha version.
