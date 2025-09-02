@@ -216,7 +216,9 @@ export class TransactionRepository {
       const incompleteDetails =
         details as IncompleteCashuLightningSendTransactionDetails;
       return createTransaction(
-        incompleteDetails.amountReserved,
+        incompleteDetails.amountToReceive
+          .add(incompleteDetails.lightningFeeReserve)
+          .add(incompleteDetails.cashuSendFee),
         incompleteDetails,
       );
     }
