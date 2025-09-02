@@ -1,5 +1,5 @@
 import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
-import { type Ref, useCallback, useEffect, useRef, useState } from 'react';
+import { type Ref, useCallback, useEffect, useRef } from 'react';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { useIsVisible } from '~/hooks/use-is-visible';
@@ -119,9 +119,6 @@ function TransactionRow({
   transaction: Transaction;
 }) {
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
-  const [showNotification, _] = useState(
-    transaction.acknowledgmentStatus === 'pending',
-  );
 
   const { ref } = useIsVisible({
     threshold: 0.5, // Consider visible when 50% of the element is in view
@@ -159,7 +156,7 @@ function TransactionRow({
               </span>
             </div>
             <div className="flex h-4 w-2 items-center justify-center">
-              {showNotification && (
+              {transaction.acknowledgmentStatus === 'pending' && (
                 <div className="h-[6px] w-[6px] rounded-full bg-green-500" />
               )}
             </div>

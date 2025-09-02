@@ -1,6 +1,5 @@
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
-  type InfiniteData,
   type QueryClient,
   useInfiniteQuery,
   useMutation,
@@ -31,79 +30,13 @@ const unacknowledgedTransactionsCountQueryKey =
   'unacknowledged-transactions-count';
 
 /**
- * Cache that manages infinite query pagination for transactions.
- */
-class PaginatedTransactionCache {
-  constructor(private readonly queryClient: QueryClient) {}
-
-  /**
-   * Add a transaction to the beginning of the first page.
-   * If no cache exists, let the query load normally listTransactions is called.
-   */
-  addTransaction(transaction: Transaction) {
-    this.queryClient.setQueryData<
-      InfiniteData<{
-        transactions: Transaction[];
-        nextCursor: string | null;
-      }>
-    >([allTransactionsQueryKey], (old) => {
-      if (!old?.pages || old.pages.length === 0) {
-        return old;
-      }
-
-      // Add to the beginning of the first page
-      return {
-        ...old,
-        pages: [
-          {
-            ...old.pages[0],
-            transactions: [transaction, ...old.pages[0].transactions],
-          },
-          ...old.pages.slice(1),
-        ],
-      };
-    });
-  }
-
-  /**
-   * Update a transaction across all pages.
-   * If no cache exists, let the query load normally when listTransactions is called.
-   */
-  updateTransaction(transaction: Transaction) {
-    this.queryClient.setQueryData<
-      InfiniteData<{
-        transactions: Transaction[];
-        nextCursor: string | null;
-      }>
-    >([allTransactionsQueryKey], (old) => {
-      if (!old?.pages || old.pages.length === 0) {
-        return old;
-      }
-      return {
-        ...old,
-        pages: old.pages.map((page) => ({
-          ...page,
-          transactions: page.transactions.map((tx) =>
-            tx.id === transaction.id ? transaction : tx,
-          ),
-        })),
-      };
-    });
-  }
-}
-
-/**
  * Cache that manages transaction data and acknowledgment counts.
  */
 export class TransactionsCache {
-  private readonly paginatedCache: PaginatedTransactionCache;
-
-  constructor(private readonly queryClient: QueryClient) {
-    this.paginatedCache = new PaginatedTransactionCache(queryClient);
-  }
+  constructor(private readonly queryClient: QueryClient) {}
 
   /**
-   * Update a transaction in the transactions list cache.
+   * Update a transaction in the individual transaction cache.
    * @param transaction - The updated transaction.
    */
   update(transaction: Transaction) {
@@ -113,12 +46,10 @@ export class TransactionsCache {
       [transactionQueryKey, transaction.id],
       transaction,
     );
-
-    this.paginatedCache.updateTransaction(transaction);
   }
 
   /**
-   * Add a new transaction to the transactions list cache.
+   * Add a new transaction to the individual transaction cache.
    * @param transaction - The new transaction to add.
    */
   add(transaction: Transaction) {
@@ -130,8 +61,6 @@ export class TransactionsCache {
       [transactionQueryKey, transaction.id],
       transaction,
     );
-
-    this.paginatedCache.addTransaction(transaction);
   }
 
   private handleAcknowledgmentStatusChange(newTransaction: Transaction) {
@@ -233,7 +162,6 @@ export function useTransactions() {
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     retry: 1,
