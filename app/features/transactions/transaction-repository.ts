@@ -110,7 +110,7 @@ export class TransactionRepository {
    *
    * @returns The number of unacknowledged transactions.
    */
-  async countUnacknowledgedTransactions(
+  async countTransactionsPendingAck(
     {
       userId,
     }: {
@@ -131,7 +131,7 @@ export class TransactionRepository {
     const { count, error } = await query;
 
     if (error || count === null) {
-      throw new Error('Failed to count unacknowledged transactions', {
+      throw new Error('Failed to count transactions pending acknowledgment', {
         cause: error,
       });
     }

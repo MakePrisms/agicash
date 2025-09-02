@@ -242,14 +242,14 @@ export function useTransactions() {
   return result;
 }
 
-export function useHasUnacknowledgedTransactions() {
+export function useHasTransactionsPendingAck() {
   const transactionRepository = useTransactionRepository();
   const userId = useUser((user) => user.id);
 
   return useQuery({
     queryKey: [unacknowledgedTransactionsCountQueryKey],
     queryFn: () =>
-      transactionRepository.countUnacknowledgedTransactions({ userId }),
+      transactionRepository.countTransactionsPendingAck({ userId }),
     select: (data) => data > 0,
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
