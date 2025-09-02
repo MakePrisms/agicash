@@ -45,7 +45,7 @@ export default function SendScanner() {
   const handleDecode = async (input: string) => {
     const selectDestinationResult = await selectDestination(input);
     if (!selectDestinationResult.success) {
-      // TODO: implement this https://github.com/MakePrisms/boardwalkcash/pull/331#discussion_r2024690976
+      // TODO: implement this https://github.com/MakePrisms/agicash/pull/331#discussion_r2024690976
       return toast({
         title: 'Invalid input',
         description: selectDestinationResult.error,

@@ -224,7 +224,7 @@ export function TransactionDetails({
           unit,
         }),
         // NOTE: these should never be undefined, but there's a bug we need to fix
-        // see https://github.com/MakePrisms/boardwalkcash/pull/541
+        // see https://github.com/MakePrisms/agicash/pull/541
         tokenAmount: receiveSwapDetails.tokenAmount?.toLocaleString({
           unit: tokenUnit,
         }),

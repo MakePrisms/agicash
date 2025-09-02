@@ -1,4 +1,4 @@
-# BoardwalkCash Agent Guidelines
+# Agicash Agent Guidelines
 
 ## Project Overview
 
