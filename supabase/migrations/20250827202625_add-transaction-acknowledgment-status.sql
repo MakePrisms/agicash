@@ -1,7 +1,7 @@
 alter table "wallet"."transactions" add column "acknowledgment_status" text default null;
 
--- Add index for querying pending acknowledgment transactions by user
-create index "idx_transactions_user_acknowledgment_pending" on "wallet"."transactions" ("user_id") where "acknowledgment_status" = 'pending';
+-- Add composite index for querying pending acknowledgment transactions by user
+create index "idx_transactions_user_acknowledgment_pending" on "wallet"."transactions" ("user_id", "acknowledgment_status") where "acknowledgment_status" = 'pending';
 
 
 set check_function_bodies = off;
