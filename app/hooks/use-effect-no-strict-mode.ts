@@ -5,7 +5,7 @@ import {
   useRef,
 } from 'react';
 
-// When running in Strict mode initial run of the effect is done twice. This causes some bug with Remix routing. See
+// When running in Strict mode initial run of the effect is done twice. This causes some bug with React Router routing. See
 // here https://github.com/remix-run/remix/issues/10320. More on strict mode can be seen here
 // https://react.dev/reference/react/StrictMode.
 /**
