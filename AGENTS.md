@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-- **Framework**: Remix on Express server
+- **Framework**: React Router framework mode (hosted on Vercel but in development running on Express server)
 - **Development**: Nix + devenv, Bun for scripts/tests
 - **Database**: Supabase with migrations in `supabase/migrations`
 
