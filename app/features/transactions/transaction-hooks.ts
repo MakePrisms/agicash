@@ -1,5 +1,6 @@
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
+  type InfiniteData,
   type QueryClient,
   useInfiniteQuery,
   useMutation,
@@ -7,7 +8,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   type AgicashDbTransaction,
   agicashDb,
@@ -202,6 +203,39 @@ export function useAcknowledgeTransaction() {
     retry: 1,
   });
 }
+
+/**
+ * @returns a function that marks a transaction as acknowledged in the infinite query cache.
+ * Only marks a transaction as acknowledged if it is pending acknowledgement.
+ */
+export const useAckTransactionInCache = () => {
+  const queryClient = useQueryClient();
+
+  return useCallback(
+    (transactionId: string) => {
+      queryClient.setQueryData<
+        InfiniteData<{
+          transactions: Transaction[];
+          nextCursor: string | null;
+        }>
+      >([allTransactionsQueryKey], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            transactions: page.transactions.map((tx) =>
+              tx.id === transactionId && tx.acknowledgmentStatus === 'pending'
+                ? { ...tx, acknowledgmentStatus: 'acknowledged' }
+                : tx,
+            ),
+          })),
+        };
+      });
+    },
+    [queryClient],
+  );
+};
 
 export function isTransactionReversable(transaction: Transaction) {
   return (
