@@ -8,7 +8,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   type AgicashDbTransaction,
   agicashDb,
@@ -189,9 +189,35 @@ export function useHasTransactionsPendingAck() {
   return result.data ?? false;
 }
 
+const acknowledgeTransactionInHistoryCache = (
+  queryClient: QueryClient,
+  transaction: Transaction,
+) => {
+  queryClient.setQueryData<
+    InfiniteData<{
+      transactions: Transaction[];
+      nextCursor: Cursor | null;
+    }>
+  >([allTransactionsQueryKey], (old) => {
+    if (!old) return old;
+    return {
+      ...old,
+      pages: old.pages.map((page) => ({
+        ...page,
+        transactions: page.transactions.map((tx) =>
+          tx.id === transaction.id && tx.acknowledgmentStatus === 'pending'
+            ? { ...tx, acknowledgmentStatus: 'acknowledged' }
+            : tx,
+        ),
+      })),
+    };
+  });
+};
+
 export function useAcknowledgeTransaction() {
   const transactionRepository = useTransactionRepository();
   const userId = useUser((user) => user.id);
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ transaction }: { transaction: Transaction }) => {
@@ -200,42 +226,12 @@ export function useAcknowledgeTransaction() {
         transactionId: transaction.id,
       });
     },
+    onSuccess: (_, { transaction }) => {
+      acknowledgeTransactionInHistoryCache(queryClient, transaction);
+    },
     retry: 1,
   });
 }
-
-/**
- * @returns a function that marks a transaction as acknowledged in the infinite query cache.
- * Only marks a transaction as acknowledged if it is pending acknowledgement.
- */
-export const useAckTransactionInCache = () => {
-  const queryClient = useQueryClient();
-
-  return useCallback(
-    (transactionId: string) => {
-      queryClient.setQueryData<
-        InfiniteData<{
-          transactions: Transaction[];
-          nextCursor: string | null;
-        }>
-      >([allTransactionsQueryKey], (old) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            transactions: page.transactions.map((tx) =>
-              tx.id === transactionId && tx.acknowledgmentStatus === 'pending'
-                ? { ...tx, acknowledgmentStatus: 'acknowledged' }
-                : tx,
-            ),
-          })),
-        };
-      });
-    },
-    [queryClient],
-  );
-};
 
 export function isTransactionReversable(transaction: Transaction) {
   return (

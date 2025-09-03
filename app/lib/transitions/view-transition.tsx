@@ -216,7 +216,7 @@ export function LinkWithViewTransition<
     prefetch: props.prefetch ?? 'viewport',
     onClick: props.onClick,
     viewTransition: true,
-    state: linkState,
+    state: { ...props.state, ...linkState },
   };
 
   if (as === NavLink) {

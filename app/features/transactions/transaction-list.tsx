@@ -14,8 +14,8 @@ import { useLatest } from '~/lib/use-latest';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
 import {
-  useAckTransactionInCache,
   useAcknowledgeTransaction,
+  useTransactions,
 } from './transaction-hooks';
 
 function LoadMore({
@@ -146,7 +146,8 @@ function TransactionRow({
   transaction: Transaction;
 }) {
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
-  const ackTransactionInCache = useAckTransactionInCache();
+  const { setAckStatus, statuses: ackStatuses } =
+    useTransactionAckStatusStore();
 
   const { ref } = useIsVisible({
     threshold: 0.5, // Consider visible when 50% of the element is in view
@@ -167,7 +168,7 @@ function TransactionRow({
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
       ref={ref as Ref<HTMLAnchorElement>}
-      onClick={() => ackTransactionInCache(transaction.id)}
+      onClick={() => setAckStatus(transaction)}
     >
       {getTransactionTypeIcon(transaction)}
       <div className="flex w-full flex-grow flex-col gap-0">
@@ -185,7 +186,7 @@ function TransactionRow({
               </span>
             </div>
             <div className="flex h-4 w-2 items-center justify-center">
-              {transaction.acknowledgmentStatus === 'pending' && (
+              {ackStatuses.get(transaction.id) === 'pending' && (
                 <div className="h-[6px] w-[6px] rounded-full bg-green-500" />
               )}
             </div>
@@ -257,6 +258,8 @@ function usePartitionTransactions(transactions: Transaction[]) {
 }
 
 export function TransactionList() {
+  const { setIfMissing: setAckStatusIfMissing } =
+    useTransactionAckStatusStore();
   const {
     data,
     error,
@@ -264,10 +267,18 @@ export function TransactionList() {
     hasNextPage,
     isFetchingNextPage,
     status,
-  } = useOutletContext<TransactionsLayoutContext>();
+  } = useTransactions();
 
-  const allTransactions =
-    data?.pages.flatMap((page) => page.transactions) ?? [];
+  const allTransactions = useMemo(
+    () => data?.pages.flatMap((page) => page.transactions) ?? [],
+    [data?.pages],
+  );
+
+  useEffect(() => {
+    for (const transaction of allTransactions) {
+      setAckStatusIfMissing(transaction);
+    }
+  }, [allTransactions, setAckStatusIfMissing]);
 
   const {
     pendingTransactions,
