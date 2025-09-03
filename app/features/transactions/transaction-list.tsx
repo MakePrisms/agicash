@@ -168,7 +168,9 @@ function TransactionRow({
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
       ref={ref as Ref<HTMLAnchorElement>}
-      onClick={() => setAckStatus(transaction)}
+      onClick={() =>
+        setTimeout(() => setAckStatus(transaction), VIEW_TRANSITION_DURATION_MS)
+      }
     >
       {getTransactionTypeIcon(transaction)}
       <div className="flex w-full flex-grow flex-col gap-0">
