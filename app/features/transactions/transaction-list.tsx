@@ -1,28 +1,39 @@
 import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
-import { type Ref, useCallback, useEffect, useRef } from 'react';
+import {
+  type Ref,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { useIsVisible } from '~/hooks/use-is-visible';
 import { LinkWithViewTransition } from '~/lib/transitions';
+import { useLatest } from '~/lib/use-latest';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
 import { useAcknowledgeTransaction } from './transaction-hooks';
 import { useTransactions } from './transaction-hooks';
 
 function LoadMore({
-  onEndReached,
+  onReached,
   isLoading,
 }: {
-  onEndReached: () => void;
+  onReached: () => void;
   isLoading?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const onReachedRef = useLatest(onReached);
 
-  useEffect(() => {
+  // This effect handles the case when viewport is smaller than the content.
+  // In that case we want to load the next page when the load more element becomes visible.
+  // useLayoutEffect is used because we need access to the DOM ref in effect cleanup which is not possible with useEffect.
+  useLayoutEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          onEndReached();
+          onReachedRef.current();
         }
       },
       { threshold: 0 },
@@ -37,7 +48,21 @@ function LoadMore({
         observer.unobserve(ref.current);
       }
     };
-  }, [onEndReached]);
+  }, []);
+
+  // This useEffect handles the case when viewport is bigger than the content.
+  // In that case we want to load as many pages as can fit to the viewport.
+  useEffect(() => {
+    if (isLoading || !ref.current) {
+      return;
+    }
+    const isVisible =
+      ref.current.getBoundingClientRect().bottom <= window.innerHeight;
+
+    if (isVisible) {
+      onReachedRef.current();
+    }
+  }, [isLoading]);
 
   return (
     <div ref={ref} className="h-4 w-full">
@@ -292,7 +317,7 @@ export function TransactionList() {
       </div>
       {hasNextPage && (
         <LoadMore
-          onEndReached={() => !isFetchingNextPage && fetchNextPage()}
+          onReached={() => !isFetchingNextPage && fetchNextPage()}
           isLoading={isFetchingNextPage}
         />
       )}
