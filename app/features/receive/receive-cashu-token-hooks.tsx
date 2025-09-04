@@ -332,7 +332,7 @@ export function useReceiveCashuTokenAccounts(
     selectableAccounts,
     receiveAccount,
     isCrossMintSwapDisabled,
-    sourceAccount: selectableAccounts.find((a) => a.id === sourceAccount.id),
+    sourceAccount: selectableAccounts[0],
     setReceiveAccount,
     addAndSetReceiveAccount,
   };

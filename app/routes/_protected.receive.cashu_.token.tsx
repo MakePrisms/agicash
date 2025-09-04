@@ -3,6 +3,7 @@ import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
+import { ClaimAsGuestReceiveCashuToken } from '~/features/receive/receive-cashu-token';
 import { extractCashuToken } from '~/lib/cashu';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
@@ -36,13 +37,18 @@ export default function ProtectedReceiveCashuToken({
 
   return (
     <Page>
-      <Suspense fallback={<ReceiveCashuTokenSkeleton />}>
-        <ReceiveCashuToken
-          token={token}
-          autoClaimToken={autoClaim}
-          preferredReceiveAccountId={selectedAccountId}
-        />
-      </Suspense>
+      {autoClaim ? (
+        <ClaimAsGuestReceiveCashuToken token={token} />
+      ) : (
+        <>
+          <Suspense fallback={<ReceiveCashuTokenSkeleton />}>
+            <ReceiveCashuToken
+              token={token}
+              preferredReceiveAccountId={selectedAccountId}
+            />
+          </Suspense>
+        </>
+      )}
     </Page>
   );
 }
