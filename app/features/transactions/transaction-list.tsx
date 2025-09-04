@@ -4,17 +4,24 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
 } from 'react';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
+import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
 import { useIsVisible } from '~/hooks/use-is-visible';
-import { LinkWithViewTransition } from '~/lib/transitions';
+import {
+  LinkWithViewTransition,
+  VIEW_TRANSITION_DURATION_MS,
+} from '~/lib/transitions';
 import { useLatest } from '~/lib/use-latest';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
-import { useAcknowledgeTransaction } from './transaction-hooks';
-import { useTransactions } from './transaction-hooks';
+import {
+  useAcknowledgeTransaction,
+  useTransactions,
+} from './transaction-hooks';
 
 function LoadMore({
   onReached,
@@ -144,6 +151,8 @@ function TransactionRow({
   transaction: Transaction;
 }) {
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
+  const { setAckStatus, statuses: ackStatuses } =
+    useTransactionAckStatusStore();
 
   const { ref } = useIsVisible({
     threshold: 0.5, // Consider visible when 50% of the element is in view
@@ -164,6 +173,9 @@ function TransactionRow({
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
       ref={ref as Ref<HTMLAnchorElement>}
+      onClick={() =>
+        setTimeout(() => setAckStatus(transaction), VIEW_TRANSITION_DURATION_MS)
+      }
     >
       {getTransactionTypeIcon(transaction)}
       <div className="flex w-full flex-grow flex-col gap-0">
@@ -181,7 +193,7 @@ function TransactionRow({
               </span>
             </div>
             <div className="flex h-4 w-2 items-center justify-center">
-              {transaction.acknowledgmentStatus === 'pending' && (
+              {ackStatuses.get(transaction.id) === 'pending' && (
                 <div className="h-[6px] w-[6px] rounded-full bg-green-500" />
               )}
             </div>
@@ -253,6 +265,8 @@ function usePartitionTransactions(transactions: Transaction[]) {
 }
 
 export function TransactionList() {
+  const { setIfMissing: setAckStatusIfMissing } =
+    useTransactionAckStatusStore();
   const {
     data,
     error,
@@ -262,8 +276,16 @@ export function TransactionList() {
     status,
   } = useTransactions();
 
-  const allTransactions =
-    data?.pages.flatMap((page) => page.transactions) ?? [];
+  const allTransactions = useMemo(
+    () => data?.pages.flatMap((page) => page.transactions) ?? [],
+    [data?.pages],
+  );
+
+  useEffect(() => {
+    for (const transaction of allTransactions) {
+      setAckStatusIfMissing(transaction);
+    }
+  }, [allTransactions, setAckStatusIfMissing]);
 
   const {
     pendingTransactions,

@@ -1,5 +1,6 @@
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
+  type InfiniteData,
   type QueryClient,
   useInfiniteQuery,
   useMutation,
@@ -40,8 +41,6 @@ export class TransactionsCache {
    * @param transaction - The updated transaction.
    */
   update(transaction: Transaction) {
-    this.handleAcknowledgmentStatusChange(transaction);
-
     this.queryClient.setQueryData<Transaction>(
       [transactionQueryKey, transaction.id],
       transaction,
@@ -63,20 +62,14 @@ export class TransactionsCache {
     );
   }
 
-  private handleAcknowledgmentStatusChange(newTransaction: Transaction) {
-    const oldTransaction = this.queryClient.getQueryData<Transaction>([
-      transactionQueryKey,
-      newTransaction.id,
-    ]);
+  incrementUnacknowledgedCount() {
+    const currentCount = this.getUnacknowledgedCount();
+    this.setUnacknowledgedCount(currentCount + 1);
+  }
 
-    const oldStatus = oldTransaction?.acknowledgmentStatus;
-    const newStatus = newTransaction.acknowledgmentStatus;
-
-    if (oldStatus !== 'pending' && newStatus === 'pending') {
-      this.incrementUnacknowledgedCount();
-    } else if (oldStatus === 'pending' && newStatus === 'acknowledged') {
-      this.decrementUnacknowledgedCount();
-    }
+  decrementUnacknowledgedCount() {
+    const currentCount = this.getUnacknowledgedCount();
+    this.setUnacknowledgedCount(currentCount - 1);
   }
 
   private getUnacknowledgedCount(): number {
@@ -92,16 +85,6 @@ export class TransactionsCache {
       [unacknowledgedTransactionsCountQueryKey],
       Math.max(0, count), // Ensure count never goes negative
     );
-  }
-
-  private incrementUnacknowledgedCount() {
-    const currentCount = this.getUnacknowledgedCount();
-    this.setUnacknowledgedCount(currentCount + 1);
-  }
-
-  private decrementUnacknowledgedCount() {
-    const currentCount = this.getUnacknowledgedCount();
-    this.setUnacknowledgedCount(currentCount - 1);
   }
 }
 
@@ -188,9 +171,35 @@ export function useHasTransactionsPendingAck() {
   return result.data ?? false;
 }
 
+const acknowledgeTransactionInHistoryCache = (
+  queryClient: QueryClient,
+  transaction: Transaction,
+) => {
+  queryClient.setQueryData<
+    InfiniteData<{
+      transactions: Transaction[];
+      nextCursor: Cursor | null;
+    }>
+  >([allTransactionsQueryKey], (old) => {
+    if (!old) return old;
+    return {
+      ...old,
+      pages: old.pages.map((page) => ({
+        ...page,
+        transactions: page.transactions.map((tx) =>
+          tx.id === transaction.id && tx.acknowledgmentStatus === 'pending'
+            ? { ...tx, acknowledgmentStatus: 'acknowledged' }
+            : tx,
+        ),
+      })),
+    };
+  });
+};
+
 export function useAcknowledgeTransaction() {
   const transactionRepository = useTransactionRepository();
   const userId = useUser((user) => user.id);
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ transaction }: { transaction: Transaction }) => {
@@ -198,6 +207,9 @@ export function useAcknowledgeTransaction() {
         userId,
         transactionId: transaction.id,
       });
+    },
+    onSuccess: (_, { transaction }) => {
+      acknowledgeTransactionInHistoryCache(queryClient, transaction);
     },
     retry: 1,
   });
@@ -262,13 +274,19 @@ export function useReverseTransaction({
 function useOnTransactionChange({
   onCreated,
   onUpdated,
+  onAckStatusChange,
 }: {
   onCreated: (transaction: Transaction) => void;
   onUpdated: (transaction: Transaction) => void;
+  onAckStatusChange: (
+    newStatus: Transaction['acknowledgmentStatus'],
+    prevStatus: Transaction['acknowledgmentStatus'],
+  ) => void;
 }) {
   const transactionRepository = useTransactionRepository();
   const onCreatedRef = useLatest(onCreated);
   const onUpdatedRef = useLatest(onUpdated);
+  const onAckStatusChangeRef = useLatest(onAckStatusChange);
   const queryClient = useQueryClient();
 
   return useSupabaseRealtimeSubscription({
@@ -293,6 +311,16 @@ function useOnTransactionChange({
               await transactionRepository.toTransaction(payload.new);
 
             onUpdatedRef.current(updatedTransaction);
+
+            if (
+              payload.new.acknowledgment_status !==
+              payload.old.acknowledgment_status
+            ) {
+              onAckStatusChangeRef.current(
+                updatedTransaction.acknowledgmentStatus,
+                payload.old.acknowledgment_status ?? null,
+              );
+            }
           }
         },
       ),
@@ -319,6 +347,13 @@ export function useTrackTransactions() {
     },
     onUpdated: (transaction) => {
       transactionsCache.update(transaction);
+    },
+    onAckStatusChange: (newStatus, prevStatus) => {
+      if (prevStatus === null && newStatus === 'pending') {
+        transactionsCache.incrementUnacknowledgedCount();
+      } else if (prevStatus === 'pending' && newStatus === 'acknowledged') {
+        transactionsCache.decrementUnacknowledgedCount();
+      }
     },
   });
 }
