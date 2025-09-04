@@ -4,13 +4,17 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
 } from 'react';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
 import { useIsVisible } from '~/hooks/use-is-visible';
-import { LinkWithViewTransition } from '~/lib/transitions';
+import {
+  LinkWithViewTransition,
+  VIEW_TRANSITION_DURATION_MS,
+} from '~/lib/transitions';
 import { useLatest } from '~/lib/use-latest';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
