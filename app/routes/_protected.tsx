@@ -1,4 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { EventStore } from 'applesauce-core';
+import { EventStoreProvider } from 'applesauce-react/providers';
 import { Outlet, redirect } from 'react-router';
 import { accountsQueryKey } from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
@@ -164,6 +166,8 @@ export function HydrateFallback() {
   return <LoadingScreen />;
 }
 
+const eventStore = new EventStore();
+
 export default function ProtectedRoute() {
   const { user } = useAuthState();
 
@@ -173,8 +177,10 @@ export default function ProtectedRoute() {
   }
 
   return (
-    <Wallet>
-      <Outlet />
-    </Wallet>
+    <EventStoreProvider eventStore={eventStore}>
+      <Wallet>
+        <Outlet />
+      </Wallet>
+    </EventStoreProvider>
   );
 }

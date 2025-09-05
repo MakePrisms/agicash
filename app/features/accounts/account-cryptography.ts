@@ -1,5 +1,6 @@
 const derivationPathIndexes: Record<string, number> = {
   cashu: 0,
+  nostr: 1,
 };
 
 /**
@@ -12,7 +13,7 @@ const derivationPathIndexes: Record<string, number> = {
  * - `index` denotes the index for unique seed phrases
  */
 export function getSeedPhraseDerivationPath(
-  accountType: 'cashu',
+  accountType: keyof typeof derivationPathIndexes,
   words: 12 | 24,
 ) {
   const index = derivationPathIndexes[accountType];
