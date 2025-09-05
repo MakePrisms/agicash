@@ -192,6 +192,14 @@ export type Transaction = {
    */
   amount: Money;
   /**
+   * Amount that was reserved for the transaction.
+   */
+  reservedAmount: Money;
+  /**
+   * The difference between the reserved amount and the amount.
+   */
+  changeAmount: Money;
+  /**
    * Transaction details.
    */
   details: object;

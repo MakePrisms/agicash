@@ -1,4 +1,4 @@
-import type { Money } from '~/lib/money';
+import { Money } from '~/lib/money';
 import {
   type AgicashDb,
   type AgicashDbTransaction,
@@ -192,6 +192,8 @@ export class TransactionRepository {
 
     const createTransaction = <T extends Transaction>(
       amount: Money,
+      reservedAmount: Money,
+      changeAmount: Money,
       transactionDetails: T['details'],
     ): T =>
       ({
@@ -200,6 +202,8 @@ export class TransactionRepository {
         type,
         state,
         amount,
+        reservedAmount,
+        changeAmount,
         details: transactionDetails,
       }) as T;
 
@@ -210,30 +214,55 @@ export class TransactionRepository {
           details as CompletedCashuLightningSendTransactionDetails;
         return createTransaction(
           completedDetails.amountSpent,
+          completedDetails.amountReserved,
+          completedDetails.amountReserved.subtract(
+            completedDetails.amountSpent,
+          ),
           completedDetails,
         );
       }
+
       const incompleteDetails =
         details as IncompleteCashuLightningSendTransactionDetails;
+      const estimatedAmount = incompleteDetails.amountToReceive
+        .add(incompleteDetails.cashuSendFee)
+        .add(incompleteDetails.lightningFeeReserve);
       return createTransaction(
+        estimatedAmount,
         incompleteDetails.amountReserved,
+        estimatedAmount.subtract(incompleteDetails.amountReserved),
         incompleteDetails,
       );
     }
 
     if (type === 'CASHU_LIGHTNING' && direction === 'RECEIVE') {
       const receiveDetails = details as CashuLightningReceiveTransactionDetails;
-      return createTransaction(receiveDetails.amountReceived, receiveDetails);
+      return createTransaction(
+        receiveDetails.amountReceived,
+        receiveDetails.amountReceived,
+        Money.zero(receiveDetails.amountReceived.currency),
+        receiveDetails,
+      );
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'SEND') {
       const sendDetails = details as CashuTokenSendTransactionDetails;
-      return createTransaction(sendDetails.amountSpent, sendDetails);
+      return createTransaction(
+        sendDetails.amountSpent,
+        sendDetails.amountSpent,
+        Money.zero(sendDetails.amountSpent.currency),
+        sendDetails,
+      );
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
       const receiveDetails = details as CashuTokenReceiveTransactionDetails;
-      return createTransaction(receiveDetails.amountReceived, receiveDetails);
+      return createTransaction(
+        receiveDetails.amountReceived,
+        receiveDetails.amountReceived,
+        Money.zero(receiveDetails.amountReceived.currency),
+        receiveDetails,
+      );
     }
 
     throw new Error('Invalid transaction data', { cause: data });
