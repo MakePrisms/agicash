@@ -186,7 +186,7 @@ function TransactionRow({
               unit: getDefaultUnit(transaction.amount.currency),
             })}
           </p>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1">
             <div className="w-12 text-right">
               <span className="text-muted-foreground text-xs">
                 {formatRelativeTime(new Date(transaction.createdAt).getTime())}
