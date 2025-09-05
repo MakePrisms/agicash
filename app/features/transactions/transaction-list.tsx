@@ -180,13 +180,25 @@ function TransactionRow({
       {getTransactionTypeIcon(transaction)}
       <div className="flex w-full flex-grow flex-col gap-0">
         <div className="flex items-center justify-between">
-          <p className="text-sm">
-            {transaction.direction === 'RECEIVE' && '+'}
-            {transaction.amount.toLocaleString({
-              unit: getDefaultUnit(transaction.amount.currency),
-            })}
-          </p>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="text-sm">
+            <span>
+              {transaction.direction === 'RECEIVE' && '+'}
+              {transaction.amount.toLocaleString({
+                unit: getDefaultUnit(transaction.amount.currency),
+              })}
+            </span>
+            {!transaction.amount.equals(transaction.reservedAmount) &&
+              transaction.state === 'PENDING' && (
+                <span className="ml-1">
+                  (Reserved:{' '}
+                  {transaction.reservedAmount.toLocaleString({
+                    unit: getDefaultUnit(transaction.reservedAmount.currency),
+                  })}
+                  )
+                </span>
+              )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <div className="w-12 text-right">
               <span className="text-muted-foreground text-xs">
                 {formatRelativeTime(new Date(transaction.createdAt).getTime())}
