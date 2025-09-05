@@ -25,6 +25,7 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
+import { useLatest } from '~/lib/use-latest';
 import { useDefaultAccount } from '../accounts/account-hooks';
 import { AccountSelector } from '../accounts/account-selector';
 import { tokenToMoney } from '../shared/cashu';
@@ -46,7 +47,6 @@ import {
 
 type Props = {
   token: Token;
-  autoClaimToken: boolean;
   /** The initially selected receive account will be set to this account if it exists.*/
   preferredReceiveAccountId?: string;
 };
@@ -102,55 +102,39 @@ function TokenErrorDisplay({
   );
 }
 
-export default function ReceiveToken({
+type UseClaimTokenMutationProps = {
+  onTransactionCreated: (transactionId: string) => void;
+  token: Token;
+  isAutoClaim: boolean;
+};
+
+function useClaimTokenMutation({
+  onTransactionCreated,
   token,
-  autoClaimToken,
-  preferredReceiveAccountId,
-}: Props) {
+  isAutoClaim,
+}: UseClaimTokenMutationProps) {
   const { toast } = useToast();
-  const navigate = useNavigateWithViewTransition();
   const defaultAccount = useDefaultAccount();
   const setDefaultAccount = useSetDefaultAccount();
   const setDefaultCurrency = useSetDefaultCurrency();
-  const { claimableToken, cannotClaimReason } =
-    useCashuTokenWithClaimableProofs({
-      token,
-    });
-  const {
-    selectableAccounts,
-    receiveAccount,
-    isCrossMintSwapDisabled,
-    sourceAccount,
-    setReceiveAccount,
-    addAndSetReceiveAccount,
-  } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
-
-  const isReceiveAccountAdded = receiveAccount.id !== '';
-
-  const onTransactionCreated = (transactionId: string) => {
-    navigate(`/transactions/${transactionId}?redirectTo=/`, {
-      transition: 'slideLeft',
-      applyTo: 'newView',
-    });
-  };
-
   const { mutateAsync: createCashuTokenSwap } = useCreateCashuTokenSwap();
   const {
     mutateAsync: createCrossAccountReceiveQuotes,
     data: crossAccountReceiveQuotes,
   } = useCreateCrossAccountReceiveQuotes();
   const { mutate: failCashuReceiveQuote } = useFailCashuReceiveQuote();
+  const onTransactionCreatedRef = useLatest(onTransactionCreated);
+  const { addAndSetReceiveAccount, sourceAccount, receiveAccount } =
+    useReceiveCashuTokenAccounts(token);
 
-  const { mutate: claimTokenMutation, status: claimTokenStatus } = useMutation({
+  return useMutation({
     mutationFn: async ({
       token,
-      isAutoClaim,
     }: {
       token: Token;
-      isAutoClaim: boolean;
     }) => {
       const preferredAccount =
-        isAutoClaim && sourceAccount?.selectable
+        isAutoClaim && sourceAccount.selectable
           ? sourceAccount
           : receiveAccount;
 
@@ -169,11 +153,11 @@ export default function ReceiveToken({
           token,
           accountId: account.id,
         });
-        onTransactionCreated(transactionId);
+        onTransactionCreatedRef.current(transactionId);
       } else {
         const { sourceWallet, cashuMeltQuote, cashuReceiveQuote } =
           await createCrossAccountReceiveQuotes({ token, account });
-        onTransactionCreated(cashuReceiveQuote.transactionId);
+        onTransactionCreatedRef.current(cashuReceiveQuote.transactionId);
         await sourceWallet.meltProofs(cashuMeltQuote, token.proofs);
       }
 
@@ -208,20 +192,49 @@ export default function ReceiveToken({
       });
     },
   });
+}
+
+export default function ReceiveToken({
+  token,
+  preferredReceiveAccountId,
+}: Props) {
+  const navigate = useNavigateWithViewTransition();
+  const { claimableToken, cannotClaimReason } =
+    useCashuTokenWithClaimableProofs({
+      token,
+    });
+  const {
+    selectableAccounts,
+    receiveAccount,
+    isCrossMintSwapDisabled,
+    setReceiveAccount,
+  } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
+
+  const isReceiveAccountAdded = receiveAccount.id !== '';
+
+  const onTransactionCreated = (transactionId: string) => {
+    navigate(`/transactions/${transactionId}?redirectTo=/`, {
+      transition: 'slideLeft',
+      applyTo: 'newView',
+    });
+  };
+
+  const { mutate: claimTokenMutation, status: claimTokenStatus } =
+    useClaimTokenMutation({
+      onTransactionCreated,
+      isAutoClaim: false,
+      token,
+    });
 
   const handleClaim = async () => {
     if (!claimableToken) {
       return;
     }
 
-    claimTokenMutation({ token: claimableToken, isAutoClaim: false });
+    claimTokenMutation({
+      token: claimableToken,
+    });
   };
-
-  useEffectNoStrictMode(() => {
-    if (!claimableToken || !autoClaimToken) return;
-
-    claimTokenMutation({ token: claimableToken, isAutoClaim: true });
-  }, [autoClaimToken, claimableToken, claimTokenMutation]);
 
   return (
     <>
@@ -275,11 +288,7 @@ export default function ReceiveToken({
   );
 }
 
-export function PublicReceiveCashuToken({ token }: { token: Token }) {
-  const [signingUpGuest, setSigningUpGuest] = useState(false);
-  const { signUpGuest } = useAuthActions();
-  const navigate = useNavigate();
-  const { toast } = useToast();
+function ClaimToSourceAccountPageContent({ token }: { token: Token }) {
   const {
     data: { sourceAccount },
   } = useCashuTokenSourceAccountQuery(token);
@@ -287,6 +296,40 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
     useCashuTokenWithClaimableProofs({
       token,
     });
+
+  return (
+    <PageContent className="flex flex-col items-center">
+      <TokenAmountDisplay
+        token={token}
+        claimableToken={claimableToken}
+        receiveAccountCurrency={sourceAccount.currency}
+      />
+
+      <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
+        {claimableToken ? (
+          <div className="w-full max-w-sm px-4">
+            <AccountSelector
+              accounts={[]}
+              selectedAccount={sourceAccount}
+              disabled={true}
+            />
+          </div>
+        ) : (
+          <TokenErrorDisplay cannotClaimReason={cannotClaimReason} />
+        )}
+      </div>
+    </PageContent>
+  );
+}
+
+export function PublicReceiveCashuToken({ token }: { token: Token }) {
+  const [signingUpGuest, setSigningUpGuest] = useState(false);
+  const { signUpGuest } = useAuthActions();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { claimableToken } = useCashuTokenWithClaimableProofs({
+    token,
+  });
   const location = useLocation();
 
   const encodedToken = getEncodedToken(claimableToken ?? token);
@@ -334,27 +377,8 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
         />
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
-      <PageContent className="flex flex-col items-center">
-        <TokenAmountDisplay
-          token={token}
-          claimableToken={claimableToken}
-          receiveAccountCurrency={sourceAccount.currency}
-        />
 
-        <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
-          {claimableToken ? (
-            <div className="w-full max-w-sm px-4">
-              <AccountSelector
-                accounts={[]}
-                selectedAccount={sourceAccount}
-                disabled={true}
-              />
-            </div>
-          ) : (
-            <TokenErrorDisplay cannotClaimReason={cannotClaimReason} />
-          )}
-        </div>
-      </PageContent>
+      <ClaimToSourceAccountPageContent token={token} />
 
       {claimableToken && (
         <PageFooter className="pb-14">
@@ -378,6 +402,59 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
             >
               <Button className="w-[200px]">Log In and Claim</Button>
             </LinkWithViewTransition>
+          </div>
+        </PageFooter>
+      )}
+    </>
+  );
+}
+
+export function ClaimAsGuestReceiveCashuToken({ token }: { token: Token }) {
+  const navigate = useNavigateWithViewTransition();
+  const { claimableToken } = useCashuTokenWithClaimableProofs({
+    token,
+  });
+
+  const onTransactionCreated = (transactionId: string) => {
+    navigate(`/transactions/${transactionId}?redirectTo=/`, {
+      transition: 'slideLeft',
+      applyTo: 'newView',
+    });
+  };
+
+  const { mutate: claimTokenMutation } = useClaimTokenMutation({
+    onTransactionCreated,
+    isAutoClaim: true,
+    token,
+  });
+
+  useEffectNoStrictMode(() => {
+    if (!claimableToken) return;
+
+    claimTokenMutation({ token: claimableToken });
+  }, [claimableToken, claimTokenMutation]);
+
+  return (
+    <>
+      <PageHeader className="z-10">
+        <ClosePageButton
+          to="/signup"
+          transition="slideDown"
+          applyTo="oldView"
+        />
+        <PageHeaderTitle>Receive</PageHeaderTitle>
+      </PageHeader>
+
+      <ClaimToSourceAccountPageContent token={token} />
+
+      {claimableToken && (
+        <PageFooter className="pb-14">
+          <div className="flex flex-col gap-4">
+            <Button className="w-[200px]" loading={true}>
+              Claim as Guest
+            </Button>
+
+            <Button className="w-[200px]">Log In and Claim</Button>
           </div>
         </PageFooter>
       )}
