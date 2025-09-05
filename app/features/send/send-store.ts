@@ -289,10 +289,11 @@ export const createSendStore = ({
             return { success: false, error: result.error };
           }
 
+          const cleanedDestination = destination.replace(/^lightning:/i, '');
           set({
             sendType: 'BOLT11_INVOICE',
-            destination: destination,
-            destinationDisplay: `${destination.slice(0, 6)}...${destination.slice(-4)}`,
+            destination: cleanedDestination,
+            destinationDisplay: `${cleanedDestination.slice(0, 6)}...${cleanedDestination.slice(-4)}`,
           });
 
           return {

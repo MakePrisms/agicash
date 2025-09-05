@@ -19,14 +19,18 @@ import {
   useCashuCryptography,
 } from '../shared/cashu';
 import { useEncryption } from '../shared/encryption';
-import type { Account } from './account';
+import type { Account, CashuAccount } from './account';
 
-type AccountInput<T extends Account> = DistributedOmit<
-  T,
-  'id' | 'createdAt' | 'version' | 'wallet'
-> & {
+type AccountOmit<
+  T extends Account,
+  AdditionalOmit extends keyof T = never,
+> = DistributedOmit<T, 'id' | 'createdAt' | 'version' | AdditionalOmit>;
+
+type AccountInput<T extends Account> = {
   userId: string;
-};
+} & (T extends CashuAccount
+  ? AccountOmit<CashuAccount, 'wallet'>
+  : AccountOmit<T>);
 
 type Options = {
   abortSignal?: AbortSignal;

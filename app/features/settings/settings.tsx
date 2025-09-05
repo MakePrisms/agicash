@@ -173,7 +173,7 @@ export default function Settings() {
             <img src={NostrLogo} alt="Nostr" className="h-5 w-5" />
           </a>
           <a
-            href="https://github.com/MakePrisms/boardwalkcash/tree/master"
+            href="https://github.com/MakePrisms/agicash"
             target="_blank"
             rel="noopener noreferrer"
           >

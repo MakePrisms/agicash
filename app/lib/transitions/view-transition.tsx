@@ -153,6 +153,9 @@ function getViewTransitionState(state: unknown): ViewTransitionState | null {
   return { transition: state.transition, applyTo };
 }
 
+// This value is repeated in transitions.css. When changing make sure to keep them in sync!
+export const VIEW_TRANSITION_DURATION_MS = 80;
+
 /**
  * Applies the animation direction styles based on the navigation state.
  * Must be used in the root component of the app.
@@ -174,7 +177,7 @@ export function useViewTransitionEffect() {
       // If we don't do this, then subsequent animations may reuse the old values.
 
       // Wait for current animation to finish before cleanup, otherwise the animation gets interrupted.
-      const animationDurationMs = 80; // This value is repeated in transitions.css. When changing make sure to keep them in sync!
+      const animationDurationMs = VIEW_TRANSITION_DURATION_MS;
       new Promise((resolve) => setTimeout(resolve, animationDurationMs)).then(
         () => {
           removeTransitionStyles();
@@ -216,7 +219,7 @@ export function LinkWithViewTransition<
     prefetch: props.prefetch ?? 'viewport',
     onClick: props.onClick,
     viewTransition: true,
-    state: linkState,
+    state: { ...props.state, ...linkState },
   };
 
   if (as === NavLink) {

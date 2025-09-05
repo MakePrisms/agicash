@@ -7,7 +7,6 @@ import {
   Links,
   type LinksFunction,
   Meta,
-  type MetaFunction,
   Outlet,
   Scripts,
   ScrollRestoration,
@@ -79,7 +78,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-export const meta: MetaFunction<typeof loader> = ({ loaderData }) => {
+export const meta = ({ loaderData }: Route.MetaArgs) => {
   const { origin } = loaderData || {};
 
   const title = 'Agicash';

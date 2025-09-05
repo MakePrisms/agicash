@@ -161,6 +161,7 @@ export type Database = MergeDeep<
             direction: Transaction['direction'];
             type: Transaction['type'];
             state: Transaction['state'];
+            acknowledgment_status: Transaction['acknowledgmentStatus'];
           };
         };
       };

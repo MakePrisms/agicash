@@ -1,16 +1,19 @@
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
+  type InfiniteData,
+  type QueryClient,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useMemo } from 'react';
 import {
   type AgicashDbTransaction,
   agicashDb,
 } from '~/features/agicash-db/database';
+import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
 import { useLatest } from '~/lib/use-latest';
 import { useGetLatestCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
@@ -24,6 +27,71 @@ import {
 
 const transactionQueryKey = 'transaction';
 const allTransactionsQueryKey = 'all-transactions';
+const unacknowledgedTransactionsCountQueryKey =
+  'unacknowledged-transactions-count';
+
+/**
+ * Cache that manages transaction data and acknowledgment counts.
+ */
+export class TransactionsCache {
+  constructor(private readonly queryClient: QueryClient) {}
+
+  /**
+   * Update a transaction in the individual transaction cache.
+   * @param transaction - The updated transaction.
+   */
+  update(transaction: Transaction) {
+    this.queryClient.setQueryData<Transaction>(
+      [transactionQueryKey, transaction.id],
+      transaction,
+    );
+  }
+
+  /**
+   * Add a new transaction to the individual transaction cache.
+   * @param transaction - The new transaction to add.
+   */
+  add(transaction: Transaction) {
+    if (transaction.acknowledgmentStatus === 'pending') {
+      this.incrementUnacknowledgedCount();
+    }
+
+    this.queryClient.setQueryData<Transaction>(
+      [transactionQueryKey, transaction.id],
+      transaction,
+    );
+  }
+
+  incrementUnacknowledgedCount() {
+    const currentCount = this.getUnacknowledgedCount();
+    this.setUnacknowledgedCount(currentCount + 1);
+  }
+
+  decrementUnacknowledgedCount() {
+    const currentCount = this.getUnacknowledgedCount();
+    this.setUnacknowledgedCount(currentCount - 1);
+  }
+
+  private getUnacknowledgedCount(): number {
+    return (
+      this.queryClient.getQueryData<number>([
+        unacknowledgedTransactionsCountQueryKey,
+      ]) ?? 0
+    );
+  }
+
+  private setUnacknowledgedCount(count: number) {
+    this.queryClient.setQueryData<number>(
+      [unacknowledgedTransactionsCountQueryKey],
+      Math.max(0, count), // Ensure count never goes negative
+    );
+  }
+}
+
+export function useTransactionsCache() {
+  const queryClient = useQueryClient();
+  return useMemo(() => new TransactionsCache(queryClient), [queryClient]);
+}
 
 export function useTransaction({
   transactionId,
@@ -32,8 +100,6 @@ export function useTransaction({
 }) {
   const enabled = !!transactionId;
   const transactionRepository = useTransactionRepository();
-
-  useTrackTransaction(transactionId);
 
   return useQuery({
     queryKey: [transactionQueryKey, transactionId],
@@ -47,8 +113,6 @@ export function useTransaction({
 
 export function useSuspenseTransaction(id: string) {
   const transactionRepository = useTransactionRepository();
-
-  useTrackTransaction(id);
 
   return useSuspenseQuery({
     queryKey: [transactionQueryKey, id],
@@ -81,9 +145,74 @@ export function useTransactions() {
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
+    retry: 1,
   });
 
   return result;
+}
+
+export function useHasTransactionsPendingAck() {
+  const transactionRepository = useTransactionRepository();
+  const userId = useUser((user) => user.id);
+
+  const result = useQuery({
+    queryKey: [unacknowledgedTransactionsCountQueryKey],
+    queryFn: () =>
+      transactionRepository.countTransactionsPendingAck({ userId }),
+    select: (data) => data > 0,
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
+    retry: 1,
+  });
+
+  return result.data ?? false;
+}
+
+const acknowledgeTransactionInHistoryCache = (
+  queryClient: QueryClient,
+  transaction: Transaction,
+) => {
+  queryClient.setQueryData<
+    InfiniteData<{
+      transactions: Transaction[];
+      nextCursor: Cursor | null;
+    }>
+  >([allTransactionsQueryKey], (old) => {
+    if (!old) return old;
+    return {
+      ...old,
+      pages: old.pages.map((page) => ({
+        ...page,
+        transactions: page.transactions.map((tx) =>
+          tx.id === transaction.id && tx.acknowledgmentStatus === 'pending'
+            ? { ...tx, acknowledgmentStatus: 'acknowledged' }
+            : tx,
+        ),
+      })),
+    };
+  });
+};
+
+export function useAcknowledgeTransaction() {
+  const transactionRepository = useTransactionRepository();
+  const userId = useUser((user) => user.id);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ transaction }: { transaction: Transaction }) => {
+      await transactionRepository.acknowledgeTransaction({
+        userId,
+        transactionId: transaction.id,
+      });
+    },
+    onSuccess: (_, { transaction }) => {
+      acknowledgeTransactionInHistoryCache(queryClient, transaction);
+    },
+    retry: 1,
+  });
 }
 
 export function isTransactionReversable(transaction: Transaction) {
@@ -143,57 +272,88 @@ export function useReverseTransaction({
 }
 
 function useOnTransactionChange({
-  transactionId,
+  onCreated,
   onUpdated,
+  onAckStatusChange,
 }: {
-  transactionId?: string;
+  onCreated: (transaction: Transaction) => void;
   onUpdated: (transaction: Transaction) => void;
+  onAckStatusChange: (
+    newStatus: Transaction['acknowledgmentStatus'],
+    prevStatus: Transaction['acknowledgmentStatus'],
+  ) => void;
 }) {
-  const onUpdatedRef = useLatest(onUpdated);
   const transactionRepository = useTransactionRepository();
+  const onCreatedRef = useLatest(onCreated);
+  const onUpdatedRef = useLatest(onUpdated);
+  const onAckStatusChangeRef = useLatest(onAckStatusChange);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!transactionId) return;
-
-    const channel = agicashDb
-      .channel(`transaction-${transactionId}`)
-      .on(
+  return useSupabaseRealtimeSubscription({
+    channelFactory: () =>
+      agicashDb.channel('transactions').on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'wallet',
           table: 'transactions',
-          filter: `id=eq.${transactionId}`,
         },
         async (
           payload: RealtimePostgresChangesPayload<AgicashDbTransaction>,
         ) => {
-          if (payload.eventType === 'UPDATE') {
+          if (payload.eventType === 'INSERT') {
+            const addedTransaction = await transactionRepository.toTransaction(
+              payload.new,
+            );
+            onCreatedRef.current(addedTransaction);
+          } else if (payload.eventType === 'UPDATE') {
             const updatedTransaction =
               await transactionRepository.toTransaction(payload.new);
+
             onUpdatedRef.current(updatedTransaction);
+
+            if (
+              payload.new.acknowledgment_status !==
+              payload.old.acknowledgment_status
+            ) {
+              onAckStatusChangeRef.current(
+                updatedTransaction.acknowledgmentStatus,
+                payload.old.acknowledgment_status ?? null,
+              );
+            }
           }
         },
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [transactionId, transactionRepository]);
+      ),
+    onConnected: () => {
+      // Invalidate the transaction count query so it's re-fetched and the cache is updated.
+      // This is needed to get any data that might have been updated while the re-connection was in progress.
+      queryClient.invalidateQueries({
+        queryKey: [unacknowledgedTransactionsCountQueryKey],
+      });
+    },
+  });
 }
 
-/** Listens for changes to a transaction in the Agicash DB and updates the query client with the latest transaction. */
-function useTrackTransaction(id?: string) {
-  const queryClient = useQueryClient();
+/**
+ * Hook that sets up realtime tracking for all transactions.
+ * This should be called once at the app level to ensure all transaction changes are tracked.
+ */
+export function useTrackTransactions() {
+  const transactionsCache = useTransactionsCache();
 
-  useOnTransactionChange({
-    transactionId: id,
-    onUpdated: (updatedTransaction) => {
-      queryClient.setQueryData<Transaction>(
-        [transactionQueryKey, updatedTransaction.id],
-        updatedTransaction,
-      );
+  return useOnTransactionChange({
+    onCreated: (transaction) => {
+      transactionsCache.add(transaction);
+    },
+    onUpdated: (transaction) => {
+      transactionsCache.update(transaction);
+    },
+    onAckStatusChange: (newStatus, prevStatus) => {
+      if (prevStatus === null && newStatus === 'pending') {
+        transactionsCache.incrementUnacknowledgedCount();
+      } else if (prevStatus === 'pending' && newStatus === 'acknowledged') {
+        transactionsCache.decrementUnacknowledgedCount();
+      }
     },
   });
 }

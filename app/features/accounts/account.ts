@@ -34,7 +34,6 @@ export type Account = {
   | {
       type: 'nwc';
       nwcUrl: string;
-      wallet: never;
     }
 );
 

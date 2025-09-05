@@ -1,26 +1,46 @@
 import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import {
+  type Ref,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
-import { LinkWithViewTransition } from '~/lib/transitions';
+import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
+import { useIsVisible } from '~/hooks/use-is-visible';
+import {
+  LinkWithViewTransition,
+  VIEW_TRANSITION_DURATION_MS,
+} from '~/lib/transitions';
+import { useLatest } from '~/lib/use-latest';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
-import { useTransactions } from './transaction-hooks';
+import {
+  useAcknowledgeTransaction,
+  useTransactions,
+} from './transaction-hooks';
 
 function LoadMore({
-  onEndReached,
+  onReached,
   isLoading,
 }: {
-  onEndReached: () => void;
+  onReached: () => void;
   isLoading?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const onReachedRef = useLatest(onReached);
 
-  useEffect(() => {
+  // This effect handles the case when viewport is smaller than the content.
+  // In that case we want to load the next page when the load more element becomes visible.
+  // useLayoutEffect is used because we need access to the DOM ref in effect cleanup which is not possible with useEffect.
+  useLayoutEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          onEndReached();
+          onReachedRef.current();
         }
       },
       { threshold: 0 },
@@ -35,7 +55,21 @@ function LoadMore({
         observer.unobserve(ref.current);
       }
     };
-  }, [onEndReached]);
+  }, []);
+
+  // This useEffect handles the case when viewport is bigger than the content.
+  // In that case we want to load as many pages as can fit to the viewport.
+  useEffect(() => {
+    if (isLoading || !ref.current) {
+      return;
+    }
+    const isVisible =
+      ref.current.getBoundingClientRect().bottom <= window.innerHeight;
+
+    if (isVisible) {
+      onReachedRef.current();
+    }
+  }, [isLoading]);
 
   return (
     <div ref={ref} className="h-4 w-full">
@@ -111,13 +145,37 @@ const getTransactionTypeIcon = (transaction: Transaction) => {
   return transactionTypeIconMap[transaction.type];
 };
 
-function TransactionRow({ transaction }: { transaction: Transaction }) {
+function TransactionRow({
+  transaction,
+}: {
+  transaction: Transaction;
+}) {
+  const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
+  const { setAckStatus, statuses: ackStatuses } =
+    useTransactionAckStatusStore();
+
+  const { ref } = useIsVisible({
+    threshold: 0.5, // Consider visible when 50% of the element is in view
+    onVisibilityChange: useCallback(
+      (isVisible: boolean) => {
+        if (isVisible && transaction.acknowledgmentStatus === 'pending') {
+          acknowledgeTransaction({ transaction });
+        }
+      },
+      [transaction, acknowledgeTransaction],
+    ),
+  });
+
   return (
     <LinkWithViewTransition
       to={`/transactions/${transaction.id}`}
       transition="slideUp"
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
+      ref={ref as Ref<HTMLAnchorElement>}
+      onClick={() =>
+        setTimeout(() => setAckStatus(transaction), VIEW_TRANSITION_DURATION_MS)
+      }
     >
       {getTransactionTypeIcon(transaction)}
       <div className="flex w-full flex-grow flex-col gap-0">
@@ -128,9 +186,18 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
               unit: getDefaultUnit(transaction.amount.currency),
             })}
           </p>
-          <span className="text-muted-foreground text-xs">
-            {formatRelativeTime(new Date(transaction.createdAt).getTime())}
-          </span>
+          <div className="flex shrink-0 items-center gap-1">
+            <div className="w-12 text-right">
+              <span className="text-muted-foreground text-xs">
+                {formatRelativeTime(new Date(transaction.createdAt).getTime())}
+              </span>
+            </div>
+            <div className="flex h-4 w-2 items-center justify-center">
+              {ackStatuses.get(transaction.id) === 'pending' && (
+                <div className="h-[6px] w-[6px] rounded-full bg-green-500" />
+              )}
+            </div>
+          </div>
         </div>
         <p className="text-muted-foreground text-xs">
           {getTransactionDescription(transaction)}
@@ -198,6 +265,8 @@ function usePartitionTransactions(transactions: Transaction[]) {
 }
 
 export function TransactionList() {
+  const { setIfMissing: setAckStatusIfMissing } =
+    useTransactionAckStatusStore();
   const {
     data,
     error,
@@ -207,8 +276,16 @@ export function TransactionList() {
     status,
   } = useTransactions();
 
-  const allTransactions =
-    data?.pages.flatMap((page) => page.transactions) ?? [];
+  const allTransactions = useMemo(
+    () => data?.pages.flatMap((page) => page.transactions) ?? [],
+    [data?.pages],
+  );
+
+  useEffect(() => {
+    for (const transaction of allTransactions) {
+      setAckStatusIfMissing(transaction);
+    }
+  }, [allTransactions, setAckStatusIfMissing]);
 
   const {
     pendingTransactions,
@@ -262,7 +339,7 @@ export function TransactionList() {
       </div>
       {hasNextPage && (
         <LoadMore
-          onEndReached={() => !isFetchingNextPage && fetchNextPage()}
+          onReached={() => !isFetchingNextPage && fetchNextPage()}
           isLoading={isFetchingNextPage}
         />
       )}
