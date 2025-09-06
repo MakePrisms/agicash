@@ -26,9 +26,13 @@ export function Page({ children, className, ...props }: PageProps) {
 
 interface ClosePageButtonProps extends ViewTransitionLinkProps {}
 
-export function ClosePageButton({ className, ...props }: ClosePageButtonProps) {
+export function ClosePageButton({
+  className,
+  replace = true,
+  ...props
+}: ClosePageButtonProps) {
   return (
-    <LinkWithViewTransition {...props}>
+    <LinkWithViewTransition replace={replace} {...props}>
       <X />
     </LinkWithViewTransition>
   );
@@ -36,9 +40,13 @@ export function ClosePageButton({ className, ...props }: ClosePageButtonProps) {
 
 export interface PageBackButtonProps extends ViewTransitionLinkProps {}
 
-export function PageBackButton({ className, ...props }: PageBackButtonProps) {
+export function PageBackButton({
+  className,
+  replace = true,
+  ...props
+}: PageBackButtonProps) {
   return (
-    <LinkWithViewTransition {...props}>
+    <LinkWithViewTransition replace={replace} {...props}>
       <ChevronLeft />
     </LinkWithViewTransition>
   );
