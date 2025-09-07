@@ -405,6 +405,7 @@ function useOnMeltQuoteStateChange({
 
   const handleMeltQuoteUpdate = useCallback(
     async (meltQuote: MeltQuoteResponse) => {
+      // TODO: remove (or mask) the sensitive data from this log (or see if we can configure sentry not to send sensitive data to server) or completely remove it.
       console.debug('Melt quote updated', meltQuote);
 
       const relatedSendQuote = sendQuotes.find(
@@ -625,8 +626,6 @@ export function useProcessCashuSendQuoteTasks() {
             });
           }
         });
-
-      await cashuSendService.markSendQuoteAsPending(sendQuote);
     },
     retry: 3,
     throwOnError: true,
