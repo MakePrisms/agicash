@@ -3,7 +3,7 @@ import type {
   MintQuoteResponse,
   Token,
 } from '@cashu/cashu-ts';
-import { getCashuUnit, getCashuWallet, getWalletCurrency } from '~/lib/cashu';
+import { getCashuUnit } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
@@ -13,6 +13,22 @@ import {
   type CashuReceiveQuoteService,
   useCashuReceiveQuoteService,
 } from './cashu-receive-quote-service';
+
+type CreateCrossAccountReceiveQuotesProps = {
+  /** ID of the receiving user. */
+  userId: string;
+  /** The token to claim */
+  token: Token;
+  /** The account to claim the token to */
+  destinationAccount: CashuAccount;
+  /**
+   * The account to claim the token from.
+   * May be a placeholder account if the token is from a mint that we do not have an account for.
+   */
+  sourceAccount: CashuAccount;
+  /** The exchange rate to use for the quotes */
+  exchangeRate: string;
+};
 
 type CrossMintQuotesResult = {
   /** Mint quote from the destination wallet */
@@ -35,24 +51,20 @@ export class ReceiveCashuTokenService {
   async createCrossAccountReceiveQuotes({
     userId,
     token,
-    account,
+    sourceAccount,
+    destinationAccount,
     exchangeRate,
-  }: {
-    userId: string;
-    token: Token;
-    account: CashuAccount;
-    exchangeRate: string;
-  }): Promise<{
+  }: CreateCrossAccountReceiveQuotesProps): Promise<{
     cashuReceiveQuote: CashuReceiveQuote;
     cashuMeltQuote: MeltQuoteResponse;
   }> {
     const tokenAmount = tokenToMoney(token);
-    const fromCashuUnit = getCashuUnit(tokenAmount.currency);
-    const toCashuUnit = getCashuUnit(account.currency);
+    const sourceCashuUnit = getCashuUnit(tokenAmount.currency);
+    const destinationCashuUnit = getCashuUnit(destinationAccount.currency);
 
     if (
-      this.areMintUrlsEqual(account.mintUrl, token.mint) &&
-      fromCashuUnit === toCashuUnit
+      this.areMintUrlsEqual(destinationAccount.mintUrl, token.mint) &&
+      sourceCashuUnit === destinationCashuUnit
     ) {
       throw new Error(
         'Must melt token to a different mint or currency than source',
@@ -60,20 +72,18 @@ export class ReceiveCashuTokenService {
     }
 
     const quotes = await this.getCrossMintQuotesWithinTargetAmount({
-      token,
-      account,
+      destinationAccount,
+      sourceAccount,
       targetAmount: tokenAmount,
       exchangeRate,
     });
 
-    const sourceWallet = account.wallet;
-    await sourceWallet.getKeys();
-    const cashuReceiveFee = sourceWallet.getFeesForProofs(token.proofs);
+    const cashuReceiveFee = sourceAccount.wallet.getFeesForProofs(token.proofs);
 
     const cashuReceiveQuote =
       await this.cashuReceiveQuoteService.createReceiveQuote({
         userId,
-        account,
+        account: destinationAccount,
         receiveType: 'TOKEN',
         receiveQuote: quotes.lightningQuote,
         cashuReceiveFee,
@@ -90,13 +100,13 @@ export class ReceiveCashuTokenService {
    * Gets mint and melt quotes for claiming a token from one mint to another.
    */
   private async getCrossMintQuotesWithinTargetAmount({
-    token,
-    account,
+    destinationAccount,
+    sourceAccount,
     targetAmount,
     exchangeRate,
   }: {
-    token: Token;
-    account: CashuAccount;
+    destinationAccount: CashuAccount;
+    sourceAccount: CashuAccount;
     targetAmount: Money;
     exchangeRate: string;
   }): Promise<
@@ -104,15 +114,8 @@ export class ReceiveCashuTokenService {
       lightningQuote: CashuReceiveLightningQuote;
     }
   > {
-    const tokenAmount = tokenToMoney(token);
-    const fromCashuUnit = getCashuUnit(tokenAmount.currency);
-
-    const sourceWallet = getCashuWallet(token.mint, {
-      unit: fromCashuUnit,
-    });
-
-    const sourceCurrency = getWalletCurrency(sourceWallet);
-    const destinationCurrency = account.currency;
+    const sourceCurrency = sourceAccount.currency;
+    const destinationCurrency = destinationAccount.currency;
 
     let attempts = 0;
     let amountToMelt = targetAmount;
@@ -134,11 +137,11 @@ export class ReceiveCashuTokenService {
 
       const lightningQuote =
         await this.cashuReceiveQuoteService.getLightningQuote({
-          account,
+          account: destinationAccount,
           amount: amountToMint,
         });
 
-      const meltQuote = await sourceWallet.createMeltQuote(
+      const meltQuote = await sourceAccount.wallet.createMeltQuote(
         lightningQuote.mintQuote.request,
       );
 
