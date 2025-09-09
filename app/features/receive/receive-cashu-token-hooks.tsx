@@ -328,11 +328,19 @@ export function useReceiveCashuTokenAccounts(
     return newAccount;
   };
 
+  const sourceAccountWithBadges = selectableAccounts.find(
+    (a) => a.id === sourceAccount.id,
+  );
+
+  if (!sourceAccountWithBadges) {
+    throw new Error('Source account not found');
+  }
+
   return {
     selectableAccounts,
     receiveAccount,
     isCrossMintSwapDisabled,
-    sourceAccount: selectableAccounts[0],
+    sourceAccount: sourceAccountWithBadges,
     setReceiveAccount,
     addAndSetReceiveAccount,
   };
@@ -342,7 +350,7 @@ type CreateCrossAccountReceiveQuotesProps = {
   /** The token to claim */
   token: Token;
   /** The account to claim the token to */
-  account: CashuAccount;
+  destinationAccount: CashuAccount;
   /**
    * The account to claim the token from.
    * This may be a placeholder account if the token is from a mint that we do not have an account for.
@@ -363,11 +371,11 @@ export function useCreateCrossAccountReceiveQuotes() {
   return useMutation({
     mutationFn: async ({
       token,
-      account,
+      destinationAccount,
       sourceAccount,
     }: CreateCrossAccountReceiveQuotesProps) => {
       const tokenCurrency = tokenToMoney(token).currency;
-      const accountCurrency = account.currency;
+      const accountCurrency = destinationAccount.currency;
       const exchangeRate = await getExchangeRate(
         `${tokenCurrency}-${accountCurrency}`,
       );
@@ -377,7 +385,7 @@ export function useCreateCrossAccountReceiveQuotes() {
           userId,
           token,
           sourceAccount,
-          destinationAccount: account,
+          destinationAccount,
           exchangeRate,
         });
 

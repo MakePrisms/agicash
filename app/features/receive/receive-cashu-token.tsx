@@ -174,7 +174,7 @@ export default function ReceiveToken({
         const { sourceWallet, cashuMeltQuote, cashuReceiveQuote } =
           await createCrossAccountReceiveQuotes({
             token,
-            account,
+            destinationAccount: account,
             sourceAccount,
           });
         onTransactionCreated(cashuReceiveQuote.transactionId);
