@@ -63,7 +63,7 @@ const maxRetries = 3;
  * 1. The hook listens to the changes of the channel status and acts accordingly:
  * - If the status is 'CLOSED', the hook unsubscribes from the channel.
  * - If the status is 'CHANNEL_ERROR' or 'TIMED_OUT':
- *   - If the tab is visible, the hook retries the subscription (up to {@link maxRetries} times). During the retries the hook status is set to 'reconnecting'. If all the
+ *   - If the tab is visible and the app is online, the hook retries the subscription (up to {@link maxRetries} times). During the retries the hook status is set to 'reconnecting'. If all the
  *     retries fail, the hook status is set to 'error' and the hook throws the error which is then caught by the error boundary.
  *   - If the tab is not visible (in the background) or the app is offline, the hook unsubscribes from the channel, which results in channel being closed and hook status being
  *     set to 'closed'.
@@ -247,6 +247,7 @@ export function useSupabaseRealtimeSubscription({
         channelRef.current?.state === 'joining';
 
       if (online && !isJoinedOrJoining) {
+        retryCountRef.current = 0;
         resubscribe();
       }
     }
@@ -268,6 +269,7 @@ export function useSupabaseRealtimeSubscription({
         channelRef.current?.state === 'joining';
 
       if (!isJoinedOrJoining) {
+        retryCountRef.current = 0;
         resubscribe();
       }
     }
