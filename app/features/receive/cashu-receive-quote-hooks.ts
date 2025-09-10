@@ -386,6 +386,7 @@ type TrackMintQuotesWithWebSocketProps = {
   quotesByMint: Record<string, CashuReceiveQuote[]>;
   getCashuAccount: (accountId: string) => Promise<CashuAccount>;
   onUpdate: (mintQuoteResponse: MintQuoteResponse) => void;
+  onSubscribeFailed?: (mintUrl: string, error: unknown) => void;
 };
 
 /**
@@ -395,6 +396,7 @@ const useTrackMintQuotesWithWebSocket = ({
   quotesByMint,
   getCashuAccount,
   onUpdate,
+  onSubscribeFailed,
 }: TrackMintQuotesWithWebSocketProps) => {
   const [subscriptionManager] = useState(
     () => new MintQuoteSubscriptionManager(),
@@ -404,12 +406,13 @@ const useTrackMintQuotesWithWebSocket = ({
   const { mutate: subscribe } = useMutation({
     mutationFn: (props: Parameters<typeof subscriptionManager.subscribe>[0]) =>
       subscriptionManager.subscribe(props),
-    retry: 5,
+    retry: 2,
     onError: (error, variables) => {
       console.error('Error subscribing to mint quote updates', {
         mintUrl: variables.mintUrl,
         cause: error,
       });
+      onSubscribeFailed?.(variables.mintUrl, error);
     },
   });
 
@@ -472,9 +475,14 @@ const useTrackMintQuotesWithWebSocket = ({
 const usePartitionQuotesByStateCheckType = ({
   quotes,
   accountsCache,
+  mintsToPoll,
 }: {
   quotes: CashuReceiveQuote[];
   accountsCache: ReturnType<typeof useAccountsCache>;
+  /**
+   * Mints that should be polled whether they support web sockets or not.
+   */
+  mintsToPoll?: Set<string>;
 }) => {
   const getCashuAccount = useCallback(
     (accountId: string) => {
@@ -499,7 +507,9 @@ const usePartitionQuotesByStateCheckType = ({
         account.currency,
       );
 
-      if (mintSupportsWebSockets) {
+      const forcePolling = mintsToPoll?.has(account.mintUrl) ?? false;
+
+      if (mintSupportsWebSockets && !forcePolling) {
         const quotesForMint = quotesToSubscribeTo[account.mintUrl] ?? [];
         quotesToSubscribeTo[account.mintUrl] = quotesForMint.concat(quote);
       } else {
@@ -508,7 +518,7 @@ const usePartitionQuotesByStateCheckType = ({
     });
 
     return { quotesToSubscribeTo, quotesToPoll };
-  }, [quotes, getCashuAccount]);
+  }, [quotes, getCashuAccount, mintsToPoll]);
 };
 
 type OnMintQuoteStateChangeProps = {
@@ -533,6 +543,9 @@ const useOnMintQuoteStateChange = ({
   const accountsCache = useAccountsCache();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
   const getCashuAccount = useGetLatestCashuAccount();
+  const [mintsToPoll, setMintsToPoll] = useState<Set<string>>(
+    () => new Set<string>(),
+  );
 
   const processMintQuote = useCallback(
     async (mintQuote: MintQuoteResponse) => {
@@ -577,12 +590,19 @@ const useOnMintQuoteStateChange = ({
     usePartitionQuotesByStateCheckType({
       quotes,
       accountsCache,
+      mintsToPoll,
     });
 
   useTrackMintQuotesWithWebSocket({
     quotesByMint: quotesToSubscribeTo,
     getCashuAccount,
     onUpdate: processMintQuote,
+    onSubscribeFailed: (mintUrl) =>
+      setMintsToPoll((prev) => {
+        const next = new Set(prev);
+        next.add(mintUrl);
+        return next;
+      }),
   });
 
   useTrackMintQuotesWithPolling({
