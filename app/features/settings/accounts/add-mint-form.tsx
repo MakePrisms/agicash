@@ -13,9 +13,9 @@ import {
 } from '~/components/ui/select';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
 import {
-  allMintKeysetsQuery,
+  allMintKeysetsQueryOptions,
   cashuMintValidator,
-  mintInfoQuery,
+  mintInfoQueryOptions,
 } from '~/features/shared/cashu';
 import { useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
@@ -41,8 +41,8 @@ const validateMint = async (
 ): Promise<string | true> => {
   const unit = getCashuProtocolUnit(formValues.currency);
   const [mintInfo, keysets] = await Promise.all([
-    queryClient.fetchQuery(mintInfoQuery(value)),
-    queryClient.fetchQuery(allMintKeysetsQuery(value)),
+    queryClient.fetchQuery(mintInfoQueryOptions(value)),
+    queryClient.fetchQuery(allMintKeysetsQueryOptions(value)),
   ]);
   return cashuMintValidator(value, unit, mintInfo, keysets.keysets);
 };

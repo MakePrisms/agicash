@@ -267,7 +267,7 @@ export function useCashuSendQuote(sendQuoteId: string) {
     refetchOnReconnect: 'always',
   });
 
-  const account = useAccount(result.data.accountId) as CashuAccount;
+  const account = useAccount<'cashu'>(result.data.accountId);
 
   return {
     ...result,

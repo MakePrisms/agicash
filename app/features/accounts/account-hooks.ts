@@ -2,18 +2,16 @@ import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
+  queryOptions,
   useMutation,
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
-import type { DistributedOmit } from 'type-fest';
-import { checkIsTestMint } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
 import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
 import { useLatest } from '~/lib/use-latest';
 import { type AgicashDbAccount, agicashDb } from '../agicash-db/database';
-import type { User } from '../user/user';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
@@ -22,7 +20,11 @@ import {
   type ExtendedAccount,
   getAccountBalance,
 } from './account';
-import { useAccountRepository } from './account-repository';
+import {
+  type AccountRepository,
+  useAccountRepository,
+} from './account-repository';
+import { AccountService, useAccountService } from './account-service';
 
 export const accountsQueryKey = 'accounts';
 const accountVersionsQueryKey = 'account-versions';
@@ -203,16 +205,6 @@ export function useAccountsCache() {
   return useMemo(() => new AccountsCache(queryClient), [queryClient]);
 }
 
-function isDefaultAccount(user: User, account: Account) {
-  if (account.currency === 'BTC') {
-    return user.defaultBtcAccountId === account.id;
-  }
-  if (account.currency === 'USD') {
-    return user.defaultUsdAccountId === account.id;
-  }
-  return false;
-}
-
 function useOnAccountChange({
   onCreated,
   onUpdated,
@@ -272,6 +264,17 @@ export function useTrackAccounts() {
   });
 }
 
+export const accountsQueryOptions = ({
+  userId,
+  accountRepository,
+}: { userId: string; accountRepository: AccountRepository }) => {
+  return queryOptions({
+    queryKey: [accountsQueryKey],
+    queryFn: () => accountRepository.getAll(userId),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+};
+
 export function useAccounts<T extends AccountType = AccountType>(select?: {
   currency?: Currency;
   type?: T;
@@ -280,37 +283,33 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
   const accountRepository = useAccountRepository();
 
   return useSuspenseQuery({
-    queryKey: [accountsQueryKey],
-    queryFn: () => accountRepository.getAll(user.id),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...accountsQueryOptions({ userId: user.id, accountRepository }),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
-    select: (data) => {
-      const extendedData = data
-        .map((x) => ({
-          ...x,
-          isDefault: isDefaultAccount(user, x),
-        }))
-        .sort((_, b) => (b.isDefault ? 1 : -1)); // Sort the default account to the top
+    select: useCallback(
+      (data: Account[]) => {
+        const extendedData = AccountService.getExtendedAccounts(user, data);
 
-      if (!select) {
-        return extendedData as ExtendedAccount<T>[];
-      }
+        if (!select?.currency && !select?.type) {
+          return extendedData as ExtendedAccount<T>[];
+        }
 
-      const filteredData = extendedData.filter(
-        (account): account is ExtendedAccount<T> => {
-          if (select.currency && account.currency !== select.currency) {
-            return false;
-          }
-          if (select.type && account.type !== select.type) {
-            return false;
-          }
-          return true;
-        },
-      );
+        const filteredData = extendedData.filter(
+          (account): account is ExtendedAccount<T> => {
+            if (select.currency && account.currency !== select.currency) {
+              return false;
+            }
+            if (select.type && account.type !== select.type) {
+              return false;
+            }
+            return true;
+          },
+        );
 
-      return filteredData;
-    },
+        return filteredData;
+      },
+      [select?.currency, select?.type, user],
+    ),
   });
 }
 
@@ -320,18 +319,15 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
  * @returns The specified account.
  * @throws Error if the account is not found.
  */
-export function useAccount<T extends ExtendedAccount = ExtendedAccount>(
-  id: string,
-) {
-  const user = useUser();
-  const { data: accounts } = useAccounts();
+export function useAccount<T extends AccountType = AccountType>(id: string) {
+  const { data: accounts } = useAccounts<T>();
   const account = accounts.find((x) => x.id === id);
 
   if (!account) {
     throw new Error(`Account with id ${id} not found`);
   }
 
-  return { ...account, isDefault: isDefaultAccount(user, account) } as T;
+  return account;
 }
 
 type AccountTypeMap = {
@@ -403,32 +399,13 @@ export function useDefaultAccount() {
 
 export function useAddCashuAccount() {
   const userId = useUser((x) => x.id);
-  const accountRepository = useAccountRepository();
   const accountCache = useAccountsCache();
+  const accountService = useAccountService();
 
   const { mutateAsync } = useMutation({
     mutationFn: async (
-      account: DistributedOmit<
-        CashuAccount,
-        | 'id'
-        | 'createdAt'
-        | 'isTestMint'
-        | 'keysetCounters'
-        | 'proofs'
-        | 'version'
-        | 'wallet'
-      >,
-    ): Promise<CashuAccount> => {
-      const isTestMint = await checkIsTestMint(account.mintUrl);
-
-      return accountRepository.create<CashuAccount>({
-        ...account,
-        userId,
-        isTestMint,
-        keysetCounters: {},
-        proofs: [],
-      });
-    },
+      account: Parameters<typeof accountService.addCashuAccount>[0]['account'],
+    ) => accountService.addCashuAccount({ userId, account }),
     onSuccess: (account) => {
       // We add the account as soon as it is created so that it is available in the cache immediately.
       // This is important when using other hooks that are trying to use the account immediately after it is created.

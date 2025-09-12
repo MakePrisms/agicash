@@ -13,9 +13,9 @@ import {
   agicashDb,
 } from '../agicash-db/database';
 import {
-  allMintKeysetsQuery,
-  mintInfoQuery,
-  mintKeysQuery,
+  allMintKeysetsQueryOptions,
+  mintInfoQueryOptions,
+  mintKeysQueryOptions,
   useCashuCryptography,
 } from '../shared/cashu';
 import { useEncryption } from '../shared/encryption';
@@ -189,9 +189,9 @@ export class AccountRepository {
     // TODO: handle fetching errors. If the mint is unreachable these will throw,
     // and the error will bubble up to the user and brick the app.
     const [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.all([
-      this.queryClient.fetchQuery(mintInfoQuery(mintUrl)),
-      this.queryClient.fetchQuery(allMintKeysetsQuery(mintUrl)),
-      this.queryClient.fetchQuery(mintKeysQuery(mintUrl)),
+      this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
+      this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
+      this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
     ]);
 
     const unitKeysets = allMintKeysets.keysets.filter(
