@@ -68,5 +68,11 @@
     entry = "bun run fix:staged";
   };
 
+  pre-commit.hooks.unit-tests = {
+    enable = true;
+    entry = "bash -c 'if bun run test > /dev/null 2>&1; then echo \"✓ Unit tests passed\"; else echo \"✗ Unit tests failed\"; exit 1; fi'";
+    pass_filenames = false;
+  };
+
   # See full reference at https://devenv.sh/reference/options/
 }
