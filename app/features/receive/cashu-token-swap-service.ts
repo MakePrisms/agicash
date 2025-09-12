@@ -32,7 +32,10 @@ export class CashuTokenSwapService {
     token: Token;
     account: CashuAccount;
     reversedTransactionId?: string;
-  }) {
+  }): Promise<{
+    tokenSwap: CashuTokenSwap;
+    account: CashuAccount;
+  }> {
     if (!areMintUrlsEqual(account.mintUrl, token.mint)) {
       throw new Error('Cannot swap a token to a different mint');
     }
@@ -62,7 +65,7 @@ export class CashuTokenSwapService {
     );
     const outputAmounts = amountsFromOutputData(outputData);
 
-    const tokenSwap = await this.tokenSwapRepository.create({
+    return await this.tokenSwapRepository.create({
       token,
       userId,
       accountId: account.id,
@@ -74,13 +77,17 @@ export class CashuTokenSwapService {
       accountVersion: account.version,
       reversedTransactionId,
     });
-
-    return tokenSwap;
   }
 
-  async completeSwap(account: CashuAccount, tokenSwap: CashuTokenSwap) {
+  async completeSwap(
+    account: CashuAccount,
+    tokenSwap: CashuTokenSwap,
+  ): Promise<{
+    tokenSwap: CashuTokenSwap;
+    account: CashuAccount;
+  }> {
     if (tokenSwap.state === 'COMPLETED') {
-      return;
+      return { tokenSwap, account };
     }
 
     if (tokenSwap.state !== 'PENDING') {
@@ -104,7 +111,7 @@ export class CashuTokenSwapService {
       const newProofs = await this.swapProofs(wallet, tokenSwap, outputData);
       const allProofs = [...account.proofs, ...newProofs];
 
-      await this.tokenSwapRepository.completeTokenSwap({
+      return await this.tokenSwapRepository.completeTokenSwap({
         tokenHash: tokenSwap.tokenHash,
         userId: tokenSwap.userId,
         swapVersion: tokenSwap.version,
@@ -119,9 +126,8 @@ export class CashuTokenSwapService {
           version: tokenSwap.version,
           reason: 'Token already claimed',
         });
-      } else {
-        throw error;
       }
+      throw error;
     }
   }
 

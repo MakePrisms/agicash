@@ -701,7 +701,7 @@ export type Database = {
           p_token_hash: string
           p_user_id: string
         }
-        Returns: undefined
+        Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_token_swap_result"]
       }
       create_cashu_receive_quote: {
         Args: {
@@ -971,6 +971,12 @@ export type Database = {
       cashu_receive_quote_payment_result: {
         updated_quote:
           | Database["wallet"]["Tables"]["cashu_receive_quotes"]["Row"]
+          | null
+        updated_account: Database["wallet"]["Tables"]["accounts"]["Row"] | null
+      }
+      complete_cashu_token_swap_result: {
+        updated_swap:
+          | Database["wallet"]["Tables"]["cashu_token_swaps"]["Row"]
           | null
         updated_account: Database["wallet"]["Tables"]["accounts"]["Row"] | null
       }

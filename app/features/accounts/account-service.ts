@@ -6,20 +6,17 @@ import {
   type AccountRepository,
   useAccountRepository,
 } from './account-repository';
-
-type Options = {
-  abortSignal?: AbortSignal;
-};
-
 export class AccountService {
   constructor(private readonly accountRepository: AccountRepository) {}
 
-  async getAll(user: User, options?: Options): Promise<ExtendedAccount[]> {
-    const accounts = await this.accountRepository.getAll(user.id, options);
+  static getExtendedAccounts(
+    user: User,
+    accounts: Account[],
+  ): ExtendedAccount[] {
     return accounts
       .map((account) => ({
         ...account,
-        isDefault: this.isDefaultAccount(user, account),
+        isDefault: AccountService.isDefaultAccount(user, account),
       }))
       .sort((_, b) => (b.isDefault ? 1 : -1)); // Sort the default account to the top;
   }
@@ -46,7 +43,7 @@ export class AccountService {
     });
   }
 
-  private isDefaultAccount(user: User, account: Account) {
+  private static isDefaultAccount(user: User, account: Account) {
     if (account.currency === 'BTC') {
       return user.defaultBtcAccountId === account.id;
     }

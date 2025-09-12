@@ -144,6 +144,10 @@ export const getDefaultReceiveAccount = (
   preferredReceiveAccountId?: string,
 ): CashuAccountWithFlags => {
   if (sourceAccount.isTestMint) {
+    if (!sourceAccount.isSelectable) {
+      // TODO: see what happens when this happens.
+      throw new Error('Source account is not selectable');
+    }
     // Tokens sourced from test mint can only be claimed to the same mint
     return sourceAccount;
   }
@@ -160,7 +164,16 @@ export const getDefaultReceiveAccount = (
     (account) => account.isDefault,
   );
 
-  return defaultAccount?.isSelectable ? defaultAccount : sourceAccount;
+  if (defaultAccount?.isSelectable) {
+    return defaultAccount;
+  }
+
+  if (!sourceAccount.isSelectable) {
+    // TODO: see what happens when this happens.
+    throw new Error('Source account is not selectable');
+  }
+
+  return sourceAccount;
 };
 
 export const getPossibleDestinationAccounts = (
@@ -169,12 +182,11 @@ export const getPossibleDestinationAccounts = (
 ) => {
   if (sourceAccount.isTestMint) {
     // Tokens sourced from test mint can only be claimed to the same mint
-    return [sourceAccount];
+    return sourceAccount.isSelectable ? [sourceAccount] : [];
   }
-  return [
-    sourceAccount,
-    ...otherAccounts.filter((account) => account.isSelectable),
-  ];
+  return [sourceAccount, ...otherAccounts].filter(
+    (account) => account.isSelectable,
+  );
 };
 
 const getBadges = (account: CashuAccountWithFlags): string[] => {

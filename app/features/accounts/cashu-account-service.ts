@@ -11,6 +11,7 @@ import {
   cashuMintValidator,
   isTestMintQuery,
   mintInfoQuery,
+  mintKeysQuery,
   tokenToMoney,
 } from '../shared/cashu';
 import type { ExtendedCashuAccount } from './account';
@@ -32,18 +33,48 @@ export class CashuAccountService {
       };
     }
 
-    const [info, keysets, isTestMint] = await Promise.all([
+    const [info, keysets, keys, isTestMint] = await Promise.all([
       this.queryClient.fetchQuery(mintInfoQuery(token.mint)),
       this.queryClient.fetchQuery(allMintKeysetsQuery(token.mint)),
+      this.queryClient.fetchQuery(mintKeysQuery(token.mint)),
       this.queryClient.fetchQuery(isTestMintQuery(token.mint)),
     ]);
 
+    const unit = getCashuProtocolUnit(tokenCurrency);
     const validationResult = cashuMintValidator(
       token.mint,
-      getCashuProtocolUnit(tokenCurrency),
+      unit,
       info,
       keysets.keysets,
     );
+
+    const unitKeysets = keysets.keysets.filter((ks) => ks.unit === unit);
+    const activeKeyset = unitKeysets.find((ks) => ks.active);
+
+    if (!activeKeyset) {
+      throw new Error(
+        `No active keyset found for ${tokenCurrency} on ${token.mint}`,
+      );
+    }
+
+    const activeKeysForUnit = keys.keysets.find(
+      (ks) => ks.id === activeKeyset.id,
+    );
+
+    if (!activeKeysForUnit) {
+      throw new Error(
+        `Got active keyset ${activeKeyset.id} from ${token.mint} but could not find keys for it`,
+      );
+    }
+
+    const wallet = getCashuWallet(token.mint, {
+      unit: getCashuUnit(tokenCurrency),
+      mintInfo: info,
+      keys: activeKeysForUnit,
+      keysets: unitKeysets,
+    });
+
+    wallet.keysetId = activeKeyset.id;
 
     return {
       isValid: validationResult === true,
@@ -60,10 +91,7 @@ export class CashuAccountService {
         keysetCounters: {},
         proofs: [],
         isDefault: false,
-        wallet: getCashuWallet(token.mint, {
-          unit: getCashuUnit(tokenCurrency),
-          mintInfo: info,
-        }),
+        wallet,
       } satisfies ExtendedCashuAccount,
     };
   }

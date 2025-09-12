@@ -43,6 +43,10 @@ export const buildMintValidator = (params: BuildMintValidatorOptions) => {
       return 'Must be a valid URL starting with http(s)://';
     }
 
+    if (mintUrl === 'https://mint.lnvoltz.com') {
+      return 'Mint currently disabled for testing purposes';
+    }
+
     const activeUnits = keysets.filter((ks) => ks.active).map((ks) => ks.unit);
 
     if (!activeUnits.includes(selectedUnit)) {

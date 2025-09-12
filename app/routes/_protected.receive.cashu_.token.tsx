@@ -4,7 +4,6 @@ import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import {
   AccountsCache,
-  accountsQueryKey,
   accountsQueryOptions,
 } from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
@@ -35,6 +34,7 @@ import {
   userQueryKey,
 } from '~/features/user/user-hooks';
 import { UserRepository } from '~/features/user/user-repository';
+import { exchangeRateQueryOptions } from '~/hooks/use-exchange-rate';
 import { areMintUrlsEqual, extractCashuToken } from '~/lib/cashu';
 import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/_protected.receive.cashu_.token';
@@ -87,49 +87,49 @@ const claimToken = async (
   const accountsCache = new AccountsCache(queryClient);
 
   const accounts = await queryClient.fetchQuery(
-    accountsQueryOptions({ user, accountService }),
+    accountsQueryOptions({ userId: user.id, accountRepository }),
   );
-  const cashuAccounts = accounts.filter((account) => account.type === 'cashu');
+  const extendedAccounts = AccountService.getExtendedAccounts(user, accounts);
+  const cashuAccounts = extendedAccounts.filter(
+    (account) => account.type === 'cashu',
+  );
 
-  let {
-    isNew,
-    data: sourceAccount,
-    isValid,
-  } = await cashuAccountService.getSourceAccount(token, cashuAccounts);
+  const { data: sourceAccount, isValid } =
+    await cashuAccountService.getSourceAccount(token, cashuAccounts);
 
-  if (!isValid) {
-    // TODO: see what to do here. Probably receive to default account
-    throw new Error('Invalid token');
-  }
+  // if (!isValid) {
+  //   // TODO: see what to do here. Probably receive to default account
+  //   throw new Error('Invalid token');
+  // }
 
-  if (isNew) {
-    const addedAccount = await accountService.addAccount({
-      ...sourceAccount,
-      userId: user.id,
-    });
-    accountsCache.upsert(addedAccount);
+  // if (isNew) {
+  //   const addedAccount = await accountService.addAccount({
+  //     ...sourceAccount,
+  //     userId: user.id,
+  //   });
+  //   accountsCache.upsert(addedAccount);
 
-    const updates =
-      addedAccount.currency === 'BTC'
-        ? {
-            defaultCurrency: addedAccount.currency,
-            defaultBtcAccountId: addedAccount.id,
-          }
-        : {
-            defaultCurrency: addedAccount.currency,
-            defaultUsdAccountId: addedAccount.id,
-          };
+  //   const updates =
+  //     addedAccount.currency === 'BTC'
+  //       ? {
+  //           defaultCurrency: addedAccount.currency,
+  //           defaultBtcAccountId: addedAccount.id,
+  //         }
+  //       : {
+  //           defaultCurrency: addedAccount.currency,
+  //           defaultUsdAccountId: addedAccount.id,
+  //         };
 
-    const updatedUser = await userRepository.update(user.id, updates);
-    queryClient.setQueryData([userQueryKey], updatedUser);
-    sourceAccount = { ...addedAccount, isDefault: true };
-  }
+  //   const updatedUser = await userRepository.update(user.id, updates);
+  //   queryClient.setQueryData([userQueryKey], updatedUser);
+  //   sourceAccount = { ...addedAccount, isDefault: true };
+  // }
 
   const sourceAccountWithFlags: CashuAccountWithFlags = {
     ...sourceAccount,
     isSource: true,
     isUnknown: false,
-    isSelectable: true,
+    isSelectable: isValid,
   };
   const otherAccounts = cashuAccounts
     .filter((account) => account.id !== sourceAccount.id)
@@ -144,11 +144,42 @@ const claimToken = async (
     sourceAccountWithFlags,
     otherAccounts,
   );
-  const receiveAccount = getDefaultReceiveAccount(
+  let receiveAccount = getDefaultReceiveAccount(
     sourceAccountWithFlags,
     possibleDestinationAccounts,
     preferredReceiveAccountId,
   );
+
+  const isNew = receiveAccount.id === '';
+  if (isNew) {
+    const addedAccount = await accountService.addAccount({
+      ...receiveAccount,
+      userId: user.id,
+    });
+    accountsCache.upsert(addedAccount);
+    receiveAccount = { ...receiveAccount, ...addedAccount };
+  }
+
+  if (
+    receiveAccount.currency !== user.defaultCurrency ||
+    (receiveAccount.currency === 'BTC' &&
+      user.defaultBtcAccountId !== receiveAccount.id) ||
+    (receiveAccount.currency === 'USD' &&
+      user.defaultUsdAccountId !== receiveAccount.id)
+  ) {
+    const updatedUser = await userRepository.update(user.id, {
+      defaultCurrency: receiveAccount.currency,
+      defaultBtcAccountId:
+        receiveAccount.currency === 'BTC'
+          ? receiveAccount.id
+          : user.defaultBtcAccountId,
+      defaultUsdAccountId:
+        receiveAccount.currency === 'USD'
+          ? receiveAccount.id
+          : user.defaultUsdAccountId,
+    });
+    queryClient.setQueryData([userQueryKey], updatedUser);
+  }
 
   const isSameAccountClaim =
     receiveAccount.currency === sourceAccount.currency &&
@@ -166,20 +197,25 @@ const claimToken = async (
     accountsCache.upsert(account);
     transactionId = tokenSwap.transactionId;
 
-    await tokenSwapService.completeSwap(account, tokenSwap);
-    await queryClient.invalidateQueries({
-      queryKey: [accountsQueryKey],
-      refetchType: 'all',
-    });
+    const { account: updatedAccount } = await tokenSwapService.completeSwap(
+      account,
+      tokenSwap,
+    );
+    accountsCache.upsert(updatedAccount);
   } else {
     // create a cross account receive quote and melt the proofs
+    const exchangeRate = await queryClient.fetchQuery(
+      exchangeRateQueryOptions(
+        `${sourceAccount.currency}-${receiveAccount.currency}`,
+      ),
+    );
     const { cashuMeltQuote, cashuReceiveQuote } =
       await receiveCashuTokenService.createCrossAccountReceiveQuotes({
         userId: user.id,
         token,
         sourceAccount,
         destinationAccount: receiveAccount,
-        exchangeRate: '1',
+        exchangeRate,
       });
     transactionId = cashuReceiveQuote.transactionId;
 

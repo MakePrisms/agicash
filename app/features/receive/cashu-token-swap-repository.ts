@@ -201,7 +201,10 @@ export class CashuTokenSwapRepository {
       accountVersion: number;
     },
     options?: Options,
-  ): Promise<void> {
+  ): Promise<{
+    tokenSwap: CashuTokenSwap;
+    account: CashuAccount;
+  }> {
     const encryptedProofs = await this.encryption.encrypt(proofs);
 
     const query = this.db.rpc('complete_cashu_token_swap', {
@@ -216,11 +219,28 @@ export class CashuTokenSwapRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { error } = await query;
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to complete token claim', error);
     }
+
+    if (!data) {
+      throw new Error('No data returned from complete_cashu_token_swap');
+    }
+
+    const [tokenSwap, account] = await Promise.all([
+      CashuTokenSwapRepository.toTokenSwap(
+        data.updated_swap,
+        this.encryption.decrypt,
+      ),
+      this.accountRepository.toAccount<CashuAccount>(data.updated_account),
+    ]);
+
+    return {
+      tokenSwap,
+      account,
+    };
   }
 
   /**

@@ -13,7 +13,6 @@ import { type Currency, Money } from '~/lib/money';
 import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
 import { useLatest } from '~/lib/use-latest';
 import { type AgicashDbAccount, agicashDb } from '../agicash-db/database';
-import type { User } from '../user/user';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
@@ -22,8 +21,11 @@ import {
   type ExtendedAccount,
   getAccountBalance,
 } from './account';
-import { useAccountRepository } from './account-repository';
-import { type AccountService, useAccountService } from './account-service';
+import {
+  type AccountRepository,
+  useAccountRepository,
+} from './account-repository';
+import { AccountService, useAccountService } from './account-service';
 
 export const accountsQueryKey = 'accounts';
 const accountVersionsQueryKey = 'account-versions';
@@ -264,12 +266,12 @@ export function useTrackAccounts() {
 }
 
 export const accountsQueryOptions = ({
-  user,
-  accountService,
-}: { user: User; accountService: AccountService }) => {
+  userId,
+  accountRepository,
+}: { userId: string; accountRepository: AccountRepository }) => {
   return queryOptions({
     queryKey: [accountsQueryKey],
-    queryFn: () => accountService.getAll(user),
+    queryFn: () => accountRepository.getAll(userId),
     staleTime: Number.POSITIVE_INFINITY,
   });
 };
@@ -279,19 +281,21 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
   type?: T;
 }): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
-  const accountService = useAccountService();
+  const accountRepository = useAccountRepository();
 
   return useSuspenseQuery({
-    ...accountsQueryOptions({ user, accountService }),
+    ...accountsQueryOptions({ userId: user.id, accountRepository }),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select: useCallback(
-      (data: ExtendedAccount[]) => {
+      (data: Account[]) => {
+        const extendedData = AccountService.getExtendedAccounts(user, data);
+
         if (!select?.currency && !select?.type) {
-          return data as ExtendedAccount<T>[];
+          return extendedData as ExtendedAccount<T>[];
         }
 
-        const filteredData = data.filter(
+        const filteredData = extendedData.filter(
           (account): account is ExtendedAccount<T> => {
             if (select.currency && account.currency !== select.currency) {
               return false;
@@ -305,7 +309,7 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
 
         return filteredData;
       },
-      [select?.currency, select?.type],
+      [select?.currency, select?.type, user],
     ),
   });
 }
