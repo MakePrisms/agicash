@@ -15,12 +15,16 @@ import {
   encryptionPublicKeyQuery,
   getEncryption,
 } from '~/features/shared/encryption';
-import { type AuthUser, authQuery, useAuthState } from '~/features/user/auth';
+import {
+  type AuthUser,
+  authQueryOptions,
+  useAuthState,
+} from '~/features/user/auth';
 import type { User } from '~/features/user/user';
 import {
   defaultAccounts,
   getUserFromCache,
-  userQuery,
+  userQueryOptions,
 } from '~/features/user/user-hooks';
 import { UserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
@@ -87,11 +91,11 @@ const ensureUserData = async (
       encryptionPublicKey,
     });
     user = upsertedUser;
-    const userQueryOptions = userQuery({
+    const { queryKey: userQueryKey } = userQueryOptions({
       userId: authUser.id,
       userRepository,
     });
-    queryClient.setQueryData(userQueryOptions.queryKey, user);
+    queryClient.setQueryData(userQueryKey, user);
     queryClient.setQueryData([accountsQueryKey], accounts);
   }
 
@@ -107,7 +111,7 @@ const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
   const hash = window.location.hash;
   const queryClient = getQueryClient();
   const { isLoggedIn, user: authUser } = await queryClient.ensureQueryData(
-    authQuery(),
+    authQueryOptions(),
   );
   const shouldRedirectToSignup = !isLoggedIn;
   const shouldVerifyEmail = authUser ? shouldUserVerifyEmail(authUser) : false;

@@ -114,6 +114,22 @@ const privateKeyQuery = ({
 });
 
 /**
+ * Gets Cashu cryptography functions.
+ * @returns The Cashu cryptography functions.
+ */
+export function getCashuCryptography(
+  queryClient: QueryClient,
+): CashuCryptography {
+  return {
+    getSeed: () => queryClient.fetchQuery(seedQuery()),
+    getXpub: (derivationPath?: string) =>
+      queryClient.fetchQuery(xpubQuery({ queryClient, derivationPath })),
+    getPrivateKey: (derivationPath?: string) =>
+      queryClient.fetchQuery(privateKeyQuery({ derivationPath })),
+  };
+}
+
+/**
  * Hook that provides the Cashu cryptography functions.
  * Reference of the returned data is stable and doesn't change between renders.
  * @returns The Cashu cryptography functions.
@@ -121,17 +137,7 @@ const privateKeyQuery = ({
 export function useCashuCryptography(): CashuCryptography {
   const queryClient = useQueryClient();
 
-  return useMemo(() => {
-    const getSeed = () => queryClient.fetchQuery(seedQuery());
-
-    const getXpub = (derivationPath?: string) =>
-      queryClient.fetchQuery(xpubQuery({ queryClient, derivationPath }));
-
-    const getPrivateKey = (derivationPath?: string) =>
-      queryClient.fetchQuery(privateKeyQuery({ derivationPath }));
-
-    return { getSeed, getPrivateKey, getXpub };
-  }, [queryClient]);
+  return useMemo(() => getCashuCryptography(queryClient), [queryClient]);
 }
 
 export function getTokenHash(token: Token | string): Promise<string> {

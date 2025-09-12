@@ -9,14 +9,16 @@ import { hexToUint8Array } from '~/lib/utils';
 // 10111099 is 'enc' (for encryption) in ascii
 const encryptionKeyDerivationPath = `m/10111099'/0'`;
 
-export const encryptionPrivateKeyQuery = () => ({
-  queryKey: ['encryption-private-key'],
-  queryFn: () =>
-    getPrivateKeyBytes({
-      private_key_derivation_path: encryptionKeyDerivationPath,
-    }).then((response) => hexToUint8Array(response.private_key)),
-  staleTime: Number.POSITIVE_INFINITY,
-});
+export const encryptionPrivateKeyQuery = () => {
+  return {
+    queryKey: ['encryption-private-key'],
+    queryFn: () =>
+      getPrivateKeyBytes({
+        private_key_derivation_path: encryptionKeyDerivationPath,
+      }).then((response) => hexToUint8Array(response.private_key)),
+    staleTime: Number.POSITIVE_INFINITY,
+  };
+};
 
 export const useEncryptionPrivateKey = () => {
   const { data } = useSuspenseQuery(encryptionPrivateKeyQuery());

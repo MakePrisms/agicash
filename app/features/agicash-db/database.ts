@@ -59,6 +59,11 @@ type UpdateCashuSendQuoteResult = {
   updated_account: AgicashDbAccount;
 };
 
+type CreateCashuTokenSwapResult = {
+  created_swap: AgicashDbCashuTokenSwap;
+  updated_account: AgicashDbAccount;
+};
+
 // Use when you need to fix/improve generated types
 // See https://supabase.com/docs/guides/api/rest/generating-types#helper-types-for-tables-and-joins
 export type Database = MergeDeep<
@@ -178,7 +183,7 @@ export type Database = MergeDeep<
           Returns: CashuReceiveQuotePaymentResult;
         };
         create_cashu_token_swap: {
-          Returns: AgicashDbCashuTokenSwap;
+          Returns: CreateCashuTokenSwapResult;
         };
         create_cashu_send_quote: {
           Returns: CreateCashuSendQuoteResult;
@@ -210,6 +215,7 @@ export type Database = MergeDeep<
         cashu_receive_quote_payment_result: CashuReceiveQuotePaymentResult;
         create_cashu_send_quote_result: CreateCashuSendQuoteResult;
         update_cashu_send_quote_result: UpdateCashuSendQuoteResult;
+        create_cashu_token_swap_result: CreateCashuTokenSwapResult;
       };
     };
   }

@@ -19,7 +19,7 @@ import {
   useUserRepository,
 } from './user-repository';
 
-const userQueryKey = 'user';
+export const userQueryKey = 'user';
 
 export const getUserFromCache = (
   queryClient: QueryClient = getQueryClient(),
@@ -35,7 +35,7 @@ export const getUserFromCacheOrThrow = () => {
   return user;
 };
 
-export const userQuery = <TData = User>({
+export const userQueryOptions = <TData = User>({
   userId,
   userRepository,
   select,
@@ -69,7 +69,7 @@ export const useUser = <TData = User>(
   const userRepository = useUserRepository();
 
   const { data } = useSuspenseQuery(
-    userQuery({ userId: authUser.id, userRepository, select }),
+    userQueryOptions({ userId: authUser.id, userRepository, select }),
   );
 
   return data;

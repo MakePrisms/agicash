@@ -1,6 +1,11 @@
 import type { Proof, Token } from '@cashu/cashu-ts';
 import { getCashuUnit } from '~/lib/cashu';
 import { Money } from '~/lib/money';
+import type { CashuAccount } from '../accounts/account';
+import {
+  type AccountRepository,
+  useAccountRepository,
+} from '../accounts/account-repository';
 import {
   type AgicashDb,
   type AgicashDbCashuTokenSwap,
@@ -69,6 +74,7 @@ export class CashuTokenSwapRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly encryption: Encryption,
+    private readonly accountRepository: AccountRepository,
   ) {}
 
   /**
@@ -90,7 +96,10 @@ export class CashuTokenSwapRepository {
       reversedTransactionId,
     }: CreateTokenSwap,
     options?: Options,
-  ): Promise<CashuTokenSwap> {
+  ): Promise<{
+    tokenSwap: CashuTokenSwap;
+    account: CashuAccount;
+  }> {
     const amount = tokenToMoney(token);
     const unit = getDefaultUnit(amount.currency);
     const tokenHash = await getTokenHash(token);
@@ -135,7 +144,7 @@ export class CashuTokenSwapRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query;
 
     if (error) {
       if (error.code === '23505') {
@@ -144,7 +153,18 @@ export class CashuTokenSwapRepository {
       throw new Error('Failed to create token swap', { cause: error });
     }
 
-    return CashuTokenSwapRepository.toTokenSwap(data, this.encryption.decrypt);
+    const [tokenSwap, account] = await Promise.all([
+      CashuTokenSwapRepository.toTokenSwap(
+        data.created_swap,
+        this.encryption.decrypt,
+      ),
+      this.accountRepository.toAccount<CashuAccount>(data.updated_account),
+    ]);
+
+    return {
+      tokenSwap,
+      account,
+    };
   }
 
   /**
@@ -338,5 +358,6 @@ export class CashuTokenSwapRepository {
 
 export function useCashuTokenSwapRepository() {
   const encryption = useEncryption();
-  return new CashuTokenSwapRepository(agicashDb, encryption);
+  const accountRepository = useAccountRepository();
+  return new CashuTokenSwapRepository(agicashDb, encryption, accountRepository);
 }

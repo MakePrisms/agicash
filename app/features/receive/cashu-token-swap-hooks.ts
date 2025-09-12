@@ -109,8 +109,8 @@ export function useCreateCashuTokenSwap() {
         account,
       });
     },
-    onSuccess: async (data) => {
-      tokenSwapCache.add(data);
+    onSuccess: async ({ tokenSwap }) => {
+      tokenSwapCache.add(tokenSwap);
     },
   });
 }

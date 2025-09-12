@@ -11,7 +11,6 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Money } from '~/lib/money';
 import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
 import { useLatest } from '~/lib/use-latest';
-import type { CashuAccount } from '../accounts/account';
 import {
   useAccount,
   useAccountsCache,
@@ -252,7 +251,7 @@ export function useCashuSendSwap(id: string) {
     refetchOnReconnect: 'always',
   });
 
-  const account = useAccount(result.data.accountId) as CashuAccount;
+  const account = useAccount<'cashu'>(result.data.accountId);
 
   return {
     ...result,

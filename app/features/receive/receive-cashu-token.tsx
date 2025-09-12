@@ -6,7 +6,6 @@ import {
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
 import { useCopyToClipboard } from 'usehooks-ts';
 import {
   ClosePageButton,
@@ -17,7 +16,6 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useToast } from '~/hooks/use-toast';
 import { areMintUrlsEqual } from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
@@ -25,16 +23,12 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { useDefaultAccount } from '../accounts/account-hooks';
+import type { CashuAccount } from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { useAuthActions } from '../user/auth';
-import {
-  useSetDefaultAccount,
-  useSetDefaultCurrency,
-} from '../user/user-hooks';
 import { useFailCashuReceiveQuote } from './cashu-receive-quote-hooks';
 import { useCreateCashuTokenSwap } from './cashu-token-swap-hooks';
 import {
@@ -46,7 +40,6 @@ import {
 
 type Props = {
   token: Token;
-  autoClaimToken: boolean;
   /** The initially selected receive account will be set to this account if it exists.*/
   preferredReceiveAccountId?: string;
 };
@@ -104,18 +97,12 @@ function TokenErrorDisplay({
 
 export default function ReceiveToken({
   token,
-  autoClaimToken,
   preferredReceiveAccountId,
 }: Props) {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
-  const defaultAccount = useDefaultAccount();
-  const setDefaultAccount = useSetDefaultAccount();
-  const setDefaultCurrency = useSetDefaultCurrency();
   const { claimableToken, cannotClaimReason } =
-    useCashuTokenWithClaimableProofs({
-      token,
-    });
+    useCashuTokenWithClaimableProofs({ token });
   const {
     selectableAccounts,
     receiveAccount,
@@ -144,18 +131,13 @@ export default function ReceiveToken({
   const { mutate: claimTokenMutation, status: claimTokenStatus } = useMutation({
     mutationFn: async ({
       token,
-      isAutoClaim,
     }: {
       token: Token;
-      isAutoClaim: boolean;
     }) => {
-      const preferredAccount =
-        isAutoClaim && sourceAccount?.selectable
-          ? sourceAccount
-          : receiveAccount;
+      const preferredAccount = receiveAccount;
 
       // Use the preferred account if it exists, otherwise create it
-      let account = preferredAccount;
+      let account: CashuAccount = preferredAccount;
       if (account.id === '') {
         account = await addAndSetReceiveAccount(preferredAccount);
       }
@@ -165,7 +147,9 @@ export default function ReceiveToken({
         areMintUrlsEqual(account.mintUrl, token.mint);
 
       if (isSameAccountClaim) {
-        const { transactionId } = await createCashuTokenSwap({
+        const {
+          tokenSwap: { transactionId },
+        } = await createCashuTokenSwap({
           token,
           accountId: account.id,
         });
@@ -181,20 +165,7 @@ export default function ReceiveToken({
         await sourceWallet.meltProofs(cashuMeltQuote, token.proofs);
       }
 
-      return { account, isAutoClaim };
-    },
-    onSuccess: async ({ account, isAutoClaim }) => {
-      // Only set defaults for auto claim and if the account is different from current default
-      if (isAutoClaim && account.id !== defaultAccount.id) {
-        try {
-          await setDefaultAccount(account);
-          await setDefaultCurrency(account.currency);
-        } catch (error) {
-          console.error('Error setting defaults after auto claim', {
-            cause: error,
-          });
-        }
-      }
+      return account;
     },
     onError: (error) => {
       if (error instanceof MintOperationError && crossAccountReceiveQuotes) {
@@ -218,14 +189,8 @@ export default function ReceiveToken({
       return;
     }
 
-    claimTokenMutation({ token: claimableToken, isAutoClaim: false });
+    claimTokenMutation({ token: claimableToken });
   };
-
-  useEffectNoStrictMode(() => {
-    if (!claimableToken || !autoClaimToken) return;
-
-    claimTokenMutation({ token: claimableToken, isAutoClaim: true });
-  }, [autoClaimToken, claimableToken, claimTokenMutation]);
 
   return (
     <>
@@ -263,7 +228,7 @@ export default function ReceiveToken({
       {claimableToken && (
         <PageFooter className="pb-14">
           <Button
-            disabled={receiveAccount.selectable === false}
+            disabled={receiveAccount.isSelectable === false}
             onClick={handleClaim}
             className="w-[200px]"
             // loading while the mutation is running or while waiting for navigation after mutation success
@@ -282,16 +247,14 @@ export default function ReceiveToken({
 export function PublicReceiveCashuToken({ token }: { token: Token }) {
   const [signingUpGuest, setSigningUpGuest] = useState(false);
   const { signUpGuest } = useAuthActions();
-  const navigate = useNavigate();
   const { toast } = useToast();
   const {
-    data: { sourceAccount },
+    data: { data: sourceAccount },
   } = useCashuTokenSourceAccountQuery(token);
   const { claimableToken, cannotClaimReason } =
     useCashuTokenWithClaimableProofs({
       token,
     });
-  const location = useLocation();
 
   const encodedToken = getEncodedToken(claimableToken ?? token);
 
@@ -302,17 +265,24 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
     setSigningUpGuest(true);
     try {
-      // Modify the URL before signing up because as soon as the user is logged in,
-      // they will be redirected to the protected receive cashu token page
-      const searchParams = new URLSearchParams(location.search);
-      searchParams.set('autoClaim', true.toString());
-      const newSearch = `?${searchParams.toString()}`;
+      // // Modify the URL before signing up because as soon as the user is logged in,
+      // // they will be redirected to the protected receive cashu token page
+      // const searchParams = new URLSearchParams(location.search);
+      // searchParams.set('autoClaim', true.toString());
+      // const newSearch = `?${searchParams.toString()}`;
+      // // replace current location with the new location
+      // window.history.replaceState(
+      //   null,
+      //   '',
+      //   `/receive/cashu/token${newSearch}${encodedToken}`,
+      // );
       await signUpGuest();
-      await navigate({
-        pathname: '/receive/cashu/token',
-        hash: encodedToken,
-        search: newSearch,
-      });
+      // await navigate({
+      //   pathname: '/receive/cashu/token',
+      //   hash: encodedToken,
+      //   search: newSearch,
+      // });
+
       // We are not setting signingUpGuest to false here because the navigation
       // will trigger a new render and the component will unmount. If we would
       // set it to false here, the component would show clickable button for a brief moment
