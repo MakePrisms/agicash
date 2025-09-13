@@ -265,6 +265,7 @@ export type Database = {
           receive_swap_fee: number
           send_output_amounts: number[] | null
           send_swap_fee: number
+          spending_condition_data: string | null
           state: string
           token_hash: string | null
           total_amount: number
@@ -290,6 +291,7 @@ export type Database = {
           receive_swap_fee: number
           send_output_amounts?: number[] | null
           send_swap_fee: number
+          spending_condition_data?: string | null
           state: string
           token_hash?: string | null
           total_amount: number
@@ -315,6 +317,7 @@ export type Database = {
           receive_swap_fee?: number
           send_output_amounts?: number[] | null
           send_swap_fee?: number
+          spending_condition_data?: string | null
           state?: string
           token_hash?: string | null
           total_amount?: number
@@ -364,6 +367,7 @@ export type Database = {
           token_proofs: string
           transaction_id: string
           unit: string
+          unlocking_data: string | null
           user_id: string
           version: number
         }
@@ -383,6 +387,7 @@ export type Database = {
           token_proofs: string
           transaction_id: string
           unit: string
+          unlocking_data?: string | null
           user_id: string
           version?: number
         }
@@ -402,6 +407,7 @@ export type Database = {
           token_proofs?: string
           transaction_id?: string
           unit?: string
+          unlocking_data?: string | null
           user_id?: string
           version?: number
         }
@@ -785,6 +791,7 @@ export type Database = {
           p_receive_swap_fee: number
           p_send_output_amounts?: number[]
           p_send_swap_fee: number
+          p_spending_condition_data?: string
           p_state: string
           p_token_hash?: string
           p_total_amount: number
@@ -809,6 +816,7 @@ export type Database = {
           receive_swap_fee: number
           send_output_amounts: number[] | null
           send_swap_fee: number
+          spending_condition_data: string | null
           state: string
           token_hash: string | null
           total_amount: number
@@ -834,6 +842,7 @@ export type Database = {
           p_token_hash: string
           p_token_proofs: string
           p_unit: string
+          p_unlocking_data?: string
           p_user_id: string
         }
         Returns: {
@@ -852,6 +861,7 @@ export type Database = {
           token_proofs: string
           transaction_id: string
           unit: string
+          unlocking_data: string | null
           user_id: string
           version: number
         }

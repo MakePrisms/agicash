@@ -1,4 +1,5 @@
 import type { Proof } from '@cashu/cashu-ts';
+import type { UnlockingData } from '~/lib/cashu/types';
 import type { Money } from '~/lib/money';
 
 /**
@@ -46,4 +47,6 @@ export type CashuTokenSwap = {
   version: number;
   /** Timestamp when the token swap was created */
   createdAt: string;
+  /** Data that will be used to satisfy the spending condition of the token proofs (signing keys, preimages, etc) */
+  unlockingData: UnlockingData | null;
 };

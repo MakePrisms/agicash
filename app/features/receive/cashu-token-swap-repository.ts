@@ -1,5 +1,7 @@
 import type { Proof, Token } from '@cashu/cashu-ts';
 import { getCashuUnit } from '~/lib/cashu';
+import type { UnlockingData } from '~/lib/cashu/types';
+import { UnlockingDataSchema } from '~/lib/cashu/types';
 import { Money } from '~/lib/money';
 import {
   type AgicashDb,
@@ -63,6 +65,10 @@ type CreateTokenSwap = {
    * ID of the transaction that this swap is reversing.
    */
   reversedTransactionId?: string;
+  /**
+   * Data that will be used to satisfy the spending condition of the token proofs (signing keys, preimages, etc)
+   */
+  unlockingData?: UnlockingData;
 };
 
 export class CashuTokenSwapRepository {
@@ -88,6 +94,7 @@ export class CashuTokenSwapRepository {
       outputAmounts,
       accountVersion,
       reversedTransactionId,
+      unlockingData,
     }: CreateTokenSwap,
     options?: Options,
   ): Promise<CashuTokenSwap> {
@@ -108,9 +115,14 @@ export class CashuTokenSwapRepository {
       tokenAmount: amount,
     };
 
-    const [encryptedTransactionDetails, encryptedProofs] = await Promise.all([
+    const [
+      encryptedTransactionDetails,
+      encryptedProofs,
+      encryptedUnlockingData,
+    ] = await Promise.all([
       this.encryption.encrypt(details),
       this.encryption.encrypt(token.proofs),
+      this.encryption.encrypt(unlockingData),
     ]);
 
     const query = this.db.rpc('create_cashu_token_swap', {
@@ -128,6 +140,7 @@ export class CashuTokenSwapRepository {
       p_fee_amount: cashuReceiveFee,
       p_account_version: accountVersion,
       p_reversed_transaction_id: reversedTransactionId,
+      p_unlocking_data: encryptedUnlockingData,
       p_encrypted_transaction_details: encryptedTransactionDetails,
     });
 
@@ -310,9 +323,30 @@ export class CashuTokenSwapRepository {
     data: AgicashDbCashuTokenSwap,
     decryptData: Encryption['decrypt'],
   ): Promise<CashuTokenSwap> {
+    const [tokenProofs, unlockingData] = await Promise.all([
+      decryptData<Proof[]>(data.token_proofs),
+      data.unlocking_data
+        ? decryptData<UnlockingData>(data.unlocking_data)
+        : null,
+    ]);
+
+    let validatedUnlockingData: UnlockingData | null = null;
+    if (unlockingData) {
+      const validationResult = UnlockingDataSchema.safeParse(unlockingData);
+      if (!validationResult.success) {
+        throw new Error('Invalid unlocking data structure', {
+          cause: {
+            data: unlockingData,
+            errors: validationResult.error.errors,
+          },
+        });
+      }
+      validatedUnlockingData = validationResult.data;
+    }
+
     const decryptedData = {
       ...data,
-      token_proofs: await decryptData<Proof[]>(data.token_proofs),
+      token_proofs: tokenProofs,
     };
 
     return {
@@ -332,6 +366,7 @@ export class CashuTokenSwapRepository {
       state: data.state as CashuTokenSwap['state'],
       version: data.version,
       transactionId: data.transaction_id,
+      unlockingData: validatedUnlockingData,
     };
   }
 }

@@ -193,6 +193,7 @@ type CreateSendStoreProps = {
     accountId: string;
     amount: Money<Currency>;
     senderPaysFee?: boolean;
+    requireSwap: boolean;
   }) => Promise<CashuSwapQuote>;
 };
 
@@ -334,6 +335,7 @@ export const createSendStore = ({
             const quote = await getCashuSendSwapQuote({
               accountId: account.id,
               amount: amountToSend,
+              requireSwap: false, // NOTE: this should be set to true when adding spending condition data
             });
 
             set({ quote });

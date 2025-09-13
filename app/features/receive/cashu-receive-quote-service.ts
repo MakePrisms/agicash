@@ -11,6 +11,7 @@ import {
   CashuErrorCodes,
   amountsFromOutputData,
   getCashuUnit,
+  isCashuError,
 } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
@@ -316,16 +317,10 @@ export class CashuReceiveQuoteService {
     } catch (error) {
       if (
         error instanceof MintOperationError &&
-        ([
+        isCashuError(error, [
           CashuErrorCodes.OUTPUT_ALREADY_SIGNED,
           CashuErrorCodes.QUOTE_ALREADY_ISSUED,
-        ].includes(error.code) ||
-          // Nutshell mint implementation did not conform to the spec up until version 0.16.5 (see https://github.com/cashubtc/nutshell/pull/693)
-          // so for earlier versions we need to check the message.
-          error.message
-            .toLowerCase()
-            .includes('outputs have already been signed before') ||
-          error.message.toLowerCase().includes('mint quote already issued.'))
+        ])
       ) {
         const { proofs } = await wallet.restore(
           quote.keysetCounter,

@@ -8,6 +8,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
+import type { UnlockingData } from '~/lib/cashu/types';
 import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
 import { useLatest } from '~/lib/use-latest';
 import { useGetLatestCashuAccount } from '../accounts/account-hooks';
@@ -27,6 +28,7 @@ import { useCashuTokenSwapService } from './cashu-token-swap-service';
 type CreateProps = {
   token: Token;
   accountId: string;
+  unlockingData?: UnlockingData;
 };
 
 // Query to track the active token swap for a given token hash. The active swap is the one that user created in current browser session, and we track it in order to show the current state of the swap on the receive page.
@@ -101,12 +103,13 @@ export function useCreateCashuTokenSwap() {
     scope: {
       id: 'create-cashu-token-swap',
     },
-    mutationFn: async ({ token, accountId }: CreateProps) => {
+    mutationFn: async ({ token, accountId, unlockingData }: CreateProps) => {
       const account = await getLatestAccount(accountId);
       return tokenSwapService.create({
         userId,
         token,
         account,
+        unlockingData,
       });
     },
     onSuccess: async (data) => {

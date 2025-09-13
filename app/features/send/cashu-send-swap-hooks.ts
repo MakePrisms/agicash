@@ -8,6 +8,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import type { SpendingConditionData } from '~/lib/cashu/types';
 import type { Money } from '~/lib/money';
 import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
 import { useLatest } from '~/lib/use-latest';
@@ -100,10 +101,12 @@ export function useGetCashuSendSwapQuote() {
     mutationFn: async ({
       amount,
       accountId,
+      requireSwap,
       senderPaysFee = true,
     }: {
       amount: Money;
       accountId: string;
+      requireSwap: boolean;
       senderPaysFee?: boolean;
     }) => {
       const account = await getLatestCashuAccount(accountId);
@@ -111,6 +114,7 @@ export function useGetCashuSendSwapQuote() {
         amount,
         account,
         senderPaysFee,
+        requireSwap,
       });
     },
   });
@@ -132,10 +136,12 @@ export function useCreateCashuSendSwap({
     mutationFn: async ({
       amount,
       accountId,
+      spendingConditionData,
       senderPaysFee = true,
     }: {
       amount: Money;
       accountId: string;
+      spendingConditionData?: SpendingConditionData;
       senderPaysFee?: boolean;
     }) => {
       const account = await getLatestCashuAccount(accountId);
@@ -144,6 +150,7 @@ export function useCreateCashuSendSwap({
         amount,
         account,
         senderPaysFee,
+        spendingConditionData,
       });
     },
     onSuccess: (swap) => {
