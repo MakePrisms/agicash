@@ -1,4 +1,9 @@
-import { MintOperationError, OutputData, type Proof } from '@cashu/cashu-ts';
+import {
+  MintOperationError,
+  OutputData,
+  type Proof,
+  type Token,
+} from '@cashu/cashu-ts';
 import type { CashuAccount } from '~/features/accounts/account';
 import {
   CashuErrorCodes,
@@ -8,9 +13,10 @@ import {
   getCashuUnit,
   isCashuError,
   sumProofs,
+  validateTokenSpendingConditions,
 } from '~/lib/cashu';
 import { createDeterministicP2PKData } from '~/lib/cashu/crypto';
-import type { SpendingConditionData } from '~/lib/cashu/types';
+import type { SpendingConditionData, UnlockingData } from '~/lib/cashu/types';
 import { Money } from '~/lib/money';
 import {
   type CashuTokenSwapService,
@@ -108,6 +114,7 @@ export class CashuSendSwapService {
     amount,
     senderPaysFee,
     spendingConditionData,
+    unlockingData,
   }: {
     /** The id of the user creating the swap */
     userId: string;
@@ -118,6 +125,7 @@ export class CashuSendSwapService {
     /** Whether the sender pays the fee for the swap by including the fee in the proofs to send */
     senderPaysFee: boolean;
     spendingConditionData?: SpendingConditionData;
+    unlockingData?: UnlockingData;
   }): Promise<CashuSendSwap> {
     if (account.currency !== amount.currency) {
       throw new Error(
@@ -204,6 +212,7 @@ export class CashuSendSwapService {
       keysetCounter: sendKeysetCounter,
       tokenHash,
       spendingConditionData,
+      unlockingData,
       outputAmounts: {
         send: amountsFromOutputData(sendOutputData),
         keep: amountsFromOutputData(keepOutputData),
@@ -300,15 +309,26 @@ export class CashuSendSwapService {
       throw new Error('Swap does not belong to account');
     }
 
+    const token: Token = {
+      mint: account.mintUrl,
+      proofs: swap.proofsToSend,
+      unit: getCashuProtocolUnit(swap.currency),
+    };
+
+    const unlockingData = swap.unlockingData ?? undefined;
+    if (unlockingData) {
+      const result = validateTokenSpendingConditions(token, unlockingData);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+    }
+
     return this.cashuTokenSwapService.create({
       account,
       userId: swap.userId,
-      token: {
-        mint: account.mintUrl,
-        proofs: swap.proofsToSend,
-        unit: getCashuProtocolUnit(swap.currency),
-      },
+      token,
       reversedTransactionId: swap.transactionId,
+      unlockingData,
     });
   }
 

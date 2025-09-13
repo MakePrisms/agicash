@@ -3,6 +3,8 @@ import { sumProofs } from '~/lib/cashu';
 import {
   type SpendingConditionData,
   SpendingConditionDataSchema,
+  type UnlockingData,
+  UnlockingDataSchema,
 } from '~/lib/cashu/types';
 import { Money } from '~/lib/money';
 import {
@@ -94,6 +96,10 @@ type CreateSendSwap = {
    * The version seen by the client for optimistic concurrency control.
    */
   accountVersion: number;
+  /**
+   * The unlocking data to reverse the swap.
+   */
+  unlockingData?: UnlockingData;
 };
 
 export class CashuSendSwapRepository {
@@ -120,6 +126,7 @@ export class CashuSendSwapRepository {
       keysetCounter,
       outputAmounts,
       accountVersion,
+      unlockingData,
     }: CreateSendSwap,
     options?: Options,
   ) {
@@ -139,6 +146,7 @@ export class CashuSendSwapRepository {
       encryptedProofsToSend,
       encryptedTransactionDetails,
       encryptedSpendingConditionData,
+      encryptedUnlockingData,
     ] = await Promise.all([
       this.encryption.encrypt(inputProofs),
       this.encryption.encrypt(accountProofs),
@@ -147,6 +155,7 @@ export class CashuSendSwapRepository {
       spendingConditionData
         ? this.encryption.encrypt(spendingConditionData)
         : undefined,
+      unlockingData ? this.encryption.encrypt(unlockingData) : undefined,
     ]);
 
     const updatedKeysetCounter =
@@ -181,6 +190,7 @@ export class CashuSendSwapRepository {
       p_proofs_to_send: encryptedProofsToSend,
       p_token_hash: tokenHash,
       p_spending_condition_data: encryptedSpendingConditionData,
+      p_unlocking_data: encryptedUnlockingData,
     });
 
     if (options?.abortSignal) {
@@ -368,12 +378,15 @@ export class CashuSendSwapRepository {
     data: AgicashDbCashuSendSwap,
     decrypt: Encryption['decrypt'],
   ): Promise<CashuSendSwap> {
-    const [inputProofs, proofsToSend, spendingConditionData] =
+    const [inputProofs, proofsToSend, spendingConditionData, unlockingData] =
       await Promise.all([
         decrypt<Proof[]>(data.input_proofs),
         data.proofs_to_send ? decrypt<Proof[]>(data.proofs_to_send) : undefined,
         data.spending_condition_data
           ? decrypt<SpendingConditionData>(data.spending_condition_data)
+          : undefined,
+        data.unlocking_data
+          ? decrypt<UnlockingData>(data.unlocking_data)
           : undefined,
       ]);
 
@@ -391,6 +404,20 @@ export class CashuSendSwapRepository {
         });
       }
       validatedSpendingConditionData = validationResult.data;
+    }
+
+    let validatedUnlockingData: UnlockingData | null = null;
+    if (unlockingData) {
+      const validationResult = UnlockingDataSchema.safeParse(unlockingData);
+      if (!validationResult.success) {
+        throw new Error('Invalid unlocking data', {
+          cause: {
+            data: unlockingData,
+            errors: validationResult.error.errors,
+          },
+        });
+      }
+      validatedUnlockingData = validationResult.data;
     }
 
     const toMoney = (amount: number) => {
@@ -414,6 +441,7 @@ export class CashuSendSwapRepository {
       inputProofs,
       inputAmount: toMoney(data.input_amount),
       spendingConditionData: validatedSpendingConditionData,
+      unlockingData: validatedUnlockingData,
       currency: data.currency,
       version: data.version,
       state: data.state,

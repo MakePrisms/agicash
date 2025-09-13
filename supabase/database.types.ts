@@ -271,6 +271,7 @@ export type Database = {
           total_amount: number
           transaction_id: string
           unit: string
+          unlocking_data: string | null
           user_id: string
           version: number
         }
@@ -297,6 +298,7 @@ export type Database = {
           total_amount: number
           transaction_id: string
           unit: string
+          unlocking_data?: string | null
           user_id: string
           version?: number
         }
@@ -323,6 +325,7 @@ export type Database = {
           total_amount?: number
           transaction_id?: string
           unit?: string
+          unlocking_data?: string | null
           user_id?: string
           version?: number
         }
@@ -796,6 +799,7 @@ export type Database = {
           p_token_hash?: string
           p_total_amount: number
           p_unit: string
+          p_unlocking_data?: string
           p_updated_keyset_counter?: number
           p_user_id: string
         }
@@ -822,6 +826,7 @@ export type Database = {
           total_amount: number
           transaction_id: string
           unit: string
+          unlocking_data: string | null
           user_id: string
           version: number
         }
