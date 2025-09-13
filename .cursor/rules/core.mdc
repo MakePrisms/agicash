@@ -60,3 +60,7 @@ When responding to questions, use the Chain of Thought method. Outline a detaile
 **Code change = potential for bugs and technical debt.**
 
 Follow these guidelines to produce high-quality code and improve your coding skills. If you have any questions or need clarification, don’t hesitate to ask!
+
+## Error logging
+
+When adding console.error logs create a short and meaningful error message, then an object with { cause: error , ...otherRelevantData}

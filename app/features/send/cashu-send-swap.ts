@@ -1,4 +1,5 @@
 import type { Proof } from '@cashu/cashu-ts';
+import type { SpendingConditionData } from '~/lib/cashu/types';
 import type { Currency, Money } from '~/lib/money';
 
 /**
@@ -62,6 +63,11 @@ export type CashuSendSwap = {
    * The currency of the account and all amounts.
    */
   currency: Currency;
+
+  /**
+   * All the data required to encumber the proofs with the specified spending conditions.
+   */
+  spendingConditionData: SpendingConditionData | null;
   /**
    * - DRAFT: The swap entity has been created, but there are no proofs to send yet. At this point,
    * we have only taken the inputProofs from the account

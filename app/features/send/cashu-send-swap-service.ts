@@ -1,9 +1,4 @@
-import {
-  type CashuWallet,
-  MintOperationError,
-  OutputData,
-  type Proof,
-} from '@cashu/cashu-ts';
+import { MintOperationError, OutputData, type Proof } from '@cashu/cashu-ts';
 import type { CashuAccount } from '~/features/accounts/account';
 import {
   CashuErrorCodes,
@@ -11,8 +6,10 @@ import {
   amountsFromOutputData,
   getCashuProtocolUnit,
   getCashuUnit,
+  isCashuError,
   sumProofs,
 } from '~/lib/cashu';
+import type { SpendingConditionData } from '~/lib/cashu/types';
 import { Money } from '~/lib/money';
 import {
   type CashuTokenSwapService,
@@ -51,6 +48,7 @@ export class CashuSendSwapService {
     account,
     amount,
     senderPaysFee,
+    requireSwap,
   }: {
     /** The account to send from. */
     account: CashuAccount;
@@ -58,6 +56,11 @@ export class CashuSendSwapService {
     amount: Money;
     /** Whether the sender pays the fee for the swap by including the fee in the proofs to send */
     senderPaysFee: boolean;
+    /**
+     * Whether this operatioon will require a swap whether there are exact proofs or not.
+     * If true, then always perform a swap to get the proofs to send.
+     */
+    requireSwap: boolean;
   }): Promise<CashuSwapQuote> {
     if (account.currency !== amount.currency) {
       throw new Error(
@@ -74,6 +77,7 @@ export class CashuSendSwapService {
       account.proofs,
       amount,
       senderPaysFee,
+      requireSwap,
     );
 
     const toMoney = (num: number) =>
@@ -102,6 +106,7 @@ export class CashuSendSwapService {
     account,
     amount,
     senderPaysFee,
+    spendingConditionData,
   }: {
     /** The id of the user creating the swap */
     userId: string;
@@ -111,6 +116,7 @@ export class CashuSendSwapService {
     amount: Money;
     /** Whether the sender pays the fee for the swap by including the fee in the proofs to send */
     senderPaysFee: boolean;
+    spendingConditionData?: SpendingConditionData;
   }): Promise<CashuSendSwap> {
     if (account.currency !== amount.currency) {
       throw new Error(
@@ -133,6 +139,7 @@ export class CashuSendSwapService {
       account.proofs,
       amount,
       senderPaysFee,
+      spendingConditionData !== undefined,
     );
 
     const totalAmountToSend = amountNumber + cashuReceiveFee;
@@ -145,32 +152,32 @@ export class CashuSendSwapService {
     let keysetId: string | undefined;
 
     const haveExactProofs = sumProofs(send) === totalAmountToSend;
-    if (haveExactProofs) {
+    const requiresSwap = !haveExactProofs || spendingConditionData;
+
+    if (requiresSwap) {
+      const keys = await wallet.getKeys();
+      keysetId = keys.id;
+      sendKeysetCounter = account.keysetCounters[keysetId] ?? 0;
+      sendOutputData = await this.createOutputData(wallet, {
+        amount: totalAmountToSend,
+        counter: sendKeysetCounter,
+        spendingConditionData,
+      });
+
+      const amountToKeep = sumProofs(send) - totalAmountToSend - cashuSendFee;
+      const keepKeysetCounter = sendKeysetCounter + sendOutputData.length;
+      keepOutputData = await this.createOutputData(wallet, {
+        amount: amountToKeep,
+        counter: keepKeysetCounter,
+        spendingConditionData,
+      });
+    } else {
       proofsToSend = send;
       tokenHash = await getTokenHash({
         mint: account.mintUrl,
         proofs: proofsToSend,
         unit: getCashuProtocolUnit(amount.currency),
       });
-    } else {
-      const keys = await wallet.getKeys();
-      keysetId = keys.id;
-      sendKeysetCounter = account.keysetCounters[keysetId] ?? 0;
-      sendOutputData = OutputData.createDeterministicData(
-        totalAmountToSend,
-        wallet.seed,
-        sendKeysetCounter,
-        keys,
-      );
-
-      const amountToKeep = sumProofs(send) - totalAmountToSend - cashuSendFee;
-      const keepKeysetCounter = sendKeysetCounter + sendOutputData.length;
-      keepOutputData = OutputData.createDeterministicData(
-        amountToKeep,
-        wallet.seed,
-        keepKeysetCounter,
-        keys,
-      );
     }
 
     const toMoney = (num: number) =>
@@ -195,6 +202,7 @@ export class CashuSendSwapService {
       keysetId,
       keysetCounter: sendKeysetCounter,
       tokenHash,
+      spendingConditionData,
       outputAmounts: {
         send: amountsFromOutputData(sendOutputData),
         keep: amountsFromOutputData(keepOutputData),
@@ -215,27 +223,23 @@ export class CashuSendSwapService {
 
     const wallet = account.wallet;
 
-    const keys = await wallet.getKeys(swap.keysetId);
     const sendAmount = swap.amountToSend.toNumber(getCashuUnit(swap.currency));
-    const sendOutputData = OutputData.createDeterministicData(
-      sendAmount,
-      wallet.seed,
-      swap.keysetCounter,
-      keys,
-      swap.outputAmounts.send,
-    );
+    const sendOutputData = await this.createOutputData(wallet, {
+      amount: sendAmount,
+      counter: swap.keysetCounter,
+      spendingConditionData: swap.spendingConditionData,
+      customSplit: swap.outputAmounts.send,
+    });
 
     const amountToKeep =
       sumProofs(swap.inputProofs) -
       sendAmount -
       swap.cashuSendFee.toNumber(getCashuUnit(swap.currency));
-    const keepOutputData = OutputData.createDeterministicData(
-      amountToKeep,
-      wallet.seed,
-      swap.keysetCounter + sendOutputData.length,
-      keys,
-      swap.outputAmounts.keep,
-    );
+    const keepOutputData = await this.createOutputData(wallet, {
+      amount: amountToKeep,
+      counter: swap.keysetCounter + sendOutputData.length,
+      customSplit: swap.outputAmounts.keep,
+    });
 
     const { send: proofsToSend, keep: newProofsToKeep } = await this.swapProofs(
       wallet,
@@ -312,6 +316,7 @@ export class CashuSendSwapService {
     allProofs: Proof[],
     requestedAmount: Money,
     includeFeesInSendAmount: boolean,
+    requireSwap: boolean,
   ): Promise<{
     keep: Proof[];
     send: Proof[];
@@ -321,6 +326,10 @@ export class CashuSendSwapService {
     if (includeFeesInSendAmount) {
       // If we want to do fee calculation, then the keys are required
       await wallet.getKeys();
+    } else {
+      throw new Error(
+        'Sender must pay fees - this feature is not yet implemented',
+      );
     }
 
     const currency = requestedAmount.currency;
@@ -334,12 +343,6 @@ export class CashuSendSwapService {
     );
     const feeToSwapSelectedProofs = wallet.getFeesForProofs(send);
 
-    if (!includeFeesInSendAmount) {
-      throw new Error(
-        'Sender must pay fees - this feature is not yet implemented',
-      );
-    }
-
     let proofAmountSelected = sumProofs(send);
     const amountToSend = requestedAmountNumber + feeToSwapSelectedProofs;
 
@@ -351,6 +354,15 @@ export class CashuSendSwapService {
     });
 
     if (proofAmountSelected === amountToSend) {
+      if (requireSwap && feeToSwapSelectedProofs > 0) {
+        // This is a current limitation of the selectProofsToSend function.
+        // selectProofsToSend will correctly consider receiveSwapFees, but
+        // there is no wasy to make it select enough proofs to swap in the case
+        // of adding spending conditions to the proofs where a swap is required.
+        throw new DomainError(
+          'Unable to select proofs to swap. Try a different amount or use amint with no fees.',
+        );
+      }
       return {
         keep,
         send,
@@ -410,7 +422,7 @@ export class CashuSendSwapService {
   }
 
   private async swapProofs(
-    wallet: CashuWallet,
+    wallet: ExtendedCashuWallet,
     swap: CashuSendSwap & { state: 'DRAFT' },
     outputData: {
       keep: OutputData[];
@@ -429,15 +441,10 @@ export class CashuSendSwapService {
     } catch (error) {
       if (
         error instanceof MintOperationError &&
-        ([
+        isCashuError(error, [
           CashuErrorCodes.OUTPUT_ALREADY_SIGNED,
           CashuErrorCodes.TOKEN_ALREADY_SPENT,
-        ].includes(error.code) ||
-          // Nutshell mint implementation did not conform to the spec up until version 0.16.5 (see https://github.com/cashubtc/nutshell/pull/693)
-          // so for earlier versions we need to check the message.
-          error.message
-            .toLowerCase()
-            .includes('outputs have already been signed before'))
+        ])
       ) {
         const totalOutputCount =
           outputData.send.length + outputData.keep.length;
@@ -466,6 +473,46 @@ export class CashuSendSwapService {
 
       throw error;
     }
+  }
+
+  private async createOutputData(
+    wallet: ExtendedCashuWallet,
+    {
+      amount,
+      counter,
+      customSplit,
+      spendingConditionData,
+    }: {
+      amount: number;
+      counter: number;
+      customSplit?: number[];
+      spendingConditionData?: SpendingConditionData | null;
+    },
+  ) {
+    const keys = await wallet.getKeys();
+    if (!spendingConditionData) {
+      return OutputData.createDeterministicData(
+        amount,
+        wallet.seed,
+        counter,
+        keys,
+        customSplit,
+      );
+    }
+    if (spendingConditionData.kind === 'P2PK') {
+      return OutputData.createP2PKData(
+        {
+          pubkey: spendingConditionData.data,
+          ...spendingConditionData.conditions,
+        },
+        amount,
+        keys,
+        customSplit,
+      );
+    }
+    throw new Error('Unsupported spending condition data', {
+      cause: spendingConditionData,
+    });
   }
 }
 

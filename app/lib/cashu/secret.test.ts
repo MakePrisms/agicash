@@ -73,7 +73,9 @@ describe('parseSecret', () => {
 
   describe('should return failure for invalid NUT10 secret if', () => {
     test('secret is not in WELL_KNOWN_SECRET_KINDS', () => {
-      const result = parseSecret('["HTLC",{"nonce":"0","data":"0","tags":[]}]');
+      const result = parseSecret(
+        '["UNKNOWN",{"nonce":"0","data":"0","tags":[]}]',
+      );
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toBeDefined();

@@ -8,8 +8,11 @@ import {
   CashuErrorCodes,
   amountsFromOutputData,
   areMintUrlsEqual,
+  isCashuError,
   sumProofs,
+  validateTokenSpendingConditions,
 } from '~/lib/cashu';
+import type { UnlockingData } from '~/lib/cashu/types';
 import { sum } from '~/lib/utils';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
@@ -27,14 +30,21 @@ export class CashuTokenSwapService {
     token,
     account,
     reversedTransactionId,
+    unlockingData,
   }: {
     userId: string;
     token: Token;
     account: CashuAccount;
     reversedTransactionId?: string;
+    unlockingData?: UnlockingData;
   }) {
     if (!areMintUrlsEqual(account.mintUrl, token.mint)) {
       throw new Error('Cannot swap a token to a different mint');
+    }
+
+    const result = validateTokenSpendingConditions(token, unlockingData);
+    if (!result.success) {
+      throw new Error(result.error);
     }
 
     const amount = tokenToMoney(token);
@@ -73,6 +83,7 @@ export class CashuTokenSwapService {
       cashuReceiveFee: fee,
       accountVersion: account.version,
       reversedTransactionId,
+      unlockingData,
     });
 
     return tokenSwap;
@@ -119,6 +130,20 @@ export class CashuTokenSwapService {
           version: tokenSwap.version,
           reason: 'Token already claimed',
         });
+      } else if (
+        error instanceof Error &&
+        error.message === 'TOKEN_UNSPENDABLE'
+      ) {
+        // TODO: we should delete the swap from the database here or chang ehow we hand the
+        // unique constraint on the token hash. Currenlty, now that this token hash
+        // is in the database, we can never try to claim it again
+        await this.tokenSwapRepository.fail({
+          tokenHash: tokenSwap.tokenHash,
+          userId: tokenSwap.userId,
+          version: tokenSwap.version,
+          reason: 'Token is unspendable',
+        });
+        throw error;
       } else {
         throw error;
       }
@@ -132,45 +157,58 @@ export class CashuTokenSwapService {
   ) {
     try {
       const amountToReceive = sum(tokenSwap.outputAmounts);
+      const privkey =
+        tokenSwap.unlockingData?.kind === 'P2PK'
+          ? tokenSwap.unlockingData.signingKeys[0]
+          : undefined;
+
       const { send: newProofs } = await wallet.swap(
         amountToReceive,
         tokenSwap.tokenProofs,
         {
           outputData: { send: outputData },
+          privkey,
         },
       );
+
       return newProofs;
     } catch (error) {
-      if (
-        error instanceof MintOperationError &&
-        ([
-          CashuErrorCodes.OUTPUT_ALREADY_SIGNED,
-          CashuErrorCodes.TOKEN_ALREADY_SPENT,
-        ].includes(error.code) ||
-          // Nutshell mint implementation did not conform to the spec up until version 0.16.5 (see https://github.com/cashubtc/nutshell/pull/693)
-          // so for earlier versions we need to check the message.
-          error.message
-            .toLowerCase()
-            .includes('outputs have already been signed before'))
-      ) {
-        const { proofs } = await wallet.restore(
-          tokenSwap.keysetCounter,
-          tokenSwap.outputAmounts.length,
-          {
-            keysetId: tokenSwap.keysetId,
-          },
-        );
-
-        if (
-          error.code === CashuErrorCodes.TOKEN_ALREADY_SPENT &&
-          proofs.length === 0
-        ) {
-          // If token is spent and we could not restore proofs, then we know someone else has claimed this token.
-          throw new Error('TOKEN_ALREADY_CLAIMED');
+      if (error instanceof MintOperationError) {
+        if (isCashuError(error, [CashuErrorCodes.WITNESS_MISSING_P2PK])) {
+          // The swap was created with invalid unlocking data. In the current state,
+          // the token cannot be claimed.
+          throw new Error('TOKEN_UNSPENDABLE');
         }
 
-        // TODO: make sure these proofs are not already in our balance and that they are not spent
-        return proofs;
+        if (
+          isCashuError(error, [
+            CashuErrorCodes.OUTPUT_ALREADY_SIGNED,
+            CashuErrorCodes.TOKEN_ALREADY_SPENT,
+          ])
+        ) {
+          // The swap failed because the mint already issued signatures for our
+          // specified outputs. We will now try to recover the swap by restoring the
+          // blinded signatures from the mint.
+          const { proofs } = await wallet.restore(
+            tokenSwap.keysetCounter,
+            tokenSwap.outputAmounts.length,
+            {
+              keysetId: tokenSwap.keysetId,
+            },
+          );
+
+          if (
+            error.code === CashuErrorCodes.TOKEN_ALREADY_SPENT &&
+            proofs.length === 0
+          ) {
+            // If token is spent and we could not restore proofs, then we know someone else has claimed this token.
+            throw new Error('TOKEN_ALREADY_CLAIMED');
+          }
+
+          // TODO: make sure these proofs are not already in our balance and that they are in the UNSPENT state.
+          // We should never put pending nor spent proofs in our main wallet balance.
+          return proofs;
+        }
       }
       throw error;
     }

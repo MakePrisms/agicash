@@ -163,4 +163,59 @@ export enum CashuErrorCodes {
    * Relevant nuts: @see [NUT-22](https://github.com/cashubtc/nuts/blob/main/22.md)
    */
   BAT_MINT_RATE_LIMIT_EXCEEDED = 31004,
+
+  /**
+   * Witness is missing for p2pk signature
+   * Relevant nuts: @see [NUT-11](https://github.com/cashubtc/nuts/blob/main/11.md)
+   */
+  WITNESS_MISSING_P2PK = 20008,
+}
+
+/**
+ * Custom error message mappings to standard error codes.
+ * These handle cases where different mint implementations return varying error messages
+ * for the same underlying error condition.
+ */
+export const CashuErrorMessageMappings: Record<string, CashuErrorCodes> = {
+  // Nutshell mint implementation did not conform to the spec up until version 0.16.5
+  // https://github.com/cashubtc/nutshell/pull/693
+  'outputs have already been signed before':
+    CashuErrorCodes.OUTPUT_ALREADY_SIGNED,
+  'mint quote already issued.': CashuErrorCodes.QUOTE_ALREADY_ISSUED,
+  'witness is missing for p2pk signature': CashuErrorCodes.WITNESS_MISSING_P2PK,
+  'signature missing or invalid': CashuErrorCodes.WITNESS_MISSING_P2PK,
+} as const;
+
+/**
+ * Checks if an error matches any of the specified error codes, either by direct code comparison
+ * or by matching known error message patterns.
+ *
+ * @param error The error to check (should be a MintOperationError)
+ * @param codes Array of CashuErrorCodes to match against
+ * @returns true if the error matches any of the specified codes
+ */
+export function isCashuError(
+  error: { code?: number; message?: string },
+  codes: CashuErrorCodes[],
+): boolean {
+  if (error.code && codes.includes(error.code)) {
+    return true;
+  }
+
+  if (error.message) {
+    const normalizedMessage = error.message.toLowerCase();
+
+    for (const [pattern, errorCode] of Object.entries(
+      CashuErrorMessageMappings,
+    )) {
+      if (
+        normalizedMessage.includes(pattern.toLowerCase()) &&
+        codes.includes(errorCode)
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }

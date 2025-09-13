@@ -1,5 +1,9 @@
 import type { Proof } from '@cashu/cashu-ts';
 import { sumProofs } from '~/lib/cashu';
+import {
+  type SpendingConditionData,
+  SpendingConditionDataSchema,
+} from '~/lib/cashu/types';
 import { Money } from '~/lib/money';
 import {
   type AgicashDb,
@@ -64,6 +68,10 @@ type CreateSendSwap = {
    */
   tokenHash?: string;
   /**
+   * All the data required to encumber the proofs with the specified spending conditions.
+   */
+  spendingConditionData?: SpendingConditionData;
+  /**
    * All remaining proofs to keep in the account.
    */
   accountProofs: Proof[];
@@ -106,6 +114,7 @@ export class CashuSendSwapRepository {
       inputProofs,
       proofsToSend,
       tokenHash,
+      spendingConditionData,
       accountProofs,
       keysetId,
       keysetCounter,
@@ -129,11 +138,15 @@ export class CashuSendSwapRepository {
       encryptedAccountProofs,
       encryptedProofsToSend,
       encryptedTransactionDetails,
+      encryptedSpendingConditionData,
     ] = await Promise.all([
       this.encryption.encrypt(inputProofs),
       this.encryption.encrypt(accountProofs),
       proofsToSend ? this.encryption.encrypt(proofsToSend) : undefined,
       this.encryption.encrypt(details),
+      spendingConditionData
+        ? this.encryption.encrypt(spendingConditionData)
+        : undefined,
     ]);
 
     const updatedKeysetCounter =
@@ -167,6 +180,7 @@ export class CashuSendSwapRepository {
       p_encrypted_transaction_details: encryptedTransactionDetails,
       p_proofs_to_send: encryptedProofsToSend,
       p_token_hash: tokenHash,
+      p_spending_condition_data: encryptedSpendingConditionData,
     });
 
     if (options?.abortSignal) {
@@ -354,10 +368,30 @@ export class CashuSendSwapRepository {
     data: AgicashDbCashuSendSwap,
     decrypt: Encryption['decrypt'],
   ): Promise<CashuSendSwap> {
-    const [inputProofs, proofsToSend] = await Promise.all([
-      decrypt<Proof[]>(data.input_proofs),
-      data.proofs_to_send ? decrypt<Proof[]>(data.proofs_to_send) : undefined,
-    ]);
+    const [inputProofs, proofsToSend, spendingConditionData] =
+      await Promise.all([
+        decrypt<Proof[]>(data.input_proofs),
+        data.proofs_to_send ? decrypt<Proof[]>(data.proofs_to_send) : undefined,
+        data.spending_condition_data
+          ? decrypt<SpendingConditionData>(data.spending_condition_data)
+          : undefined,
+      ]);
+
+    let validatedSpendingConditionData: SpendingConditionData | null = null;
+    if (spendingConditionData) {
+      const validationResult = SpendingConditionDataSchema.safeParse(
+        spendingConditionData,
+      );
+      if (!validationResult.success) {
+        throw new Error('Invalid spending condition data', {
+          cause: {
+            data: spendingConditionData,
+            errors: validationResult.error.errors,
+          },
+        });
+      }
+      validatedSpendingConditionData = validationResult.data;
+    }
 
     const toMoney = (amount: number) => {
       return new Money({
@@ -379,6 +413,7 @@ export class CashuSendSwapRepository {
       cashuSendFee: toMoney(data.send_swap_fee),
       inputProofs,
       inputAmount: toMoney(data.input_amount),
+      spendingConditionData: validatedSpendingConditionData,
       currency: data.currency,
       version: data.version,
       state: data.state,

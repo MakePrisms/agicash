@@ -7,9 +7,23 @@ import { extractCashuToken } from '~/lib/cashu';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
+function parseHashParams(hash: string): URLSearchParams | null {
+  const cleaned = hash.startsWith('#') ? hash.slice(1) : hash;
+
+  // Only parse as params if it contains = (parameter format)
+  if (!cleaned.includes('=')) {
+    return null;
+  }
+
+  return new URLSearchParams(cleaned);
+}
+
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // Request url doesn't include hash so we need to read it from the window location instead
-  const token = extractCashuToken(window.location.hash);
+  const hash = window.location.hash;
+  const hashParams = parseHashParams(hash);
+
+  const token = extractCashuToken(hash);
 
   if (!token) {
     throw redirect('/receive');
@@ -19,8 +33,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const selectedAccountId =
     location.searchParams.get('selectedAccountId') ?? undefined;
   const autoClaim = location.searchParams.get('autoClaim') === 'true';
+  const unlockingKey = hashParams?.get('unlockingKey');
 
-  return { token, autoClaim, selectedAccountId };
+  return { token, autoClaim, selectedAccountId, unlockingKey };
 }
 
 clientLoader.hydrate = true as const;
@@ -32,13 +47,14 @@ export function HydrateFallback() {
 export default function ProtectedReceiveCashuToken({
   loaderData,
 }: Route.ComponentProps) {
-  const { token, autoClaim, selectedAccountId } = loaderData;
+  const { token, autoClaim, selectedAccountId, unlockingKey } = loaderData;
 
   return (
     <Page>
       <Suspense fallback={<ReceiveCashuTokenSkeleton />}>
         <ReceiveCashuToken
           token={token}
+          unlockingKey={unlockingKey}
           autoClaimToken={autoClaim}
           preferredReceiveAccountId={selectedAccountId}
         />

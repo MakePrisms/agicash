@@ -21,6 +21,7 @@ import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useToast } from '~/hooks/use-toast';
 import { areMintUrlsEqual } from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
+import { getPublicKeyFromPrivateKey } from '~/lib/secp256k1';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
@@ -49,6 +50,8 @@ type Props = {
   autoClaimToken: boolean;
   /** The initially selected receive account will be set to this account if it exists.*/
   preferredReceiveAccountId?: string;
+  /** A private key that will unlock the token proofs */
+  unlockingKey?: string | null;
 };
 
 /**
@@ -106,6 +109,7 @@ export default function ReceiveToken({
   token,
   autoClaimToken,
   preferredReceiveAccountId,
+  unlockingKey,
 }: Props) {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
@@ -115,6 +119,9 @@ export default function ReceiveToken({
   const { claimableToken, cannotClaimReason } =
     useCashuTokenWithClaimableProofs({
       token,
+      cashuPubKey: unlockingKey
+        ? getPublicKeyFromPrivateKey(unlockingKey, { asBytes: false })
+        : undefined,
     });
   const {
     selectableAccounts,
@@ -168,6 +175,12 @@ export default function ReceiveToken({
         const { transactionId } = await createCashuTokenSwap({
           token,
           accountId: account.id,
+          unlockingData: unlockingKey
+            ? {
+                kind: 'P2PK',
+                signingKeys: [unlockingKey],
+              }
+            : undefined,
         });
         onTransactionCreated(transactionId);
       } else {
