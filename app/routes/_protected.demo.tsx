@@ -273,6 +273,10 @@ function useDemoActions(
       amount: amountMoney,
       accountId: account.id,
       spendingConditionData,
+      unlockingData: {
+        kind: 'P2PK',
+        signingKeys: [state.privateKey],
+      },
     });
   };
 

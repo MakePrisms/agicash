@@ -8,7 +8,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import type { SpendingConditionData } from '~/lib/cashu/types';
+import type { SpendingConditionData, UnlockingData } from '~/lib/cashu/types';
 import type { Money } from '~/lib/money';
 import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
 import { useLatest } from '~/lib/use-latest';
@@ -137,11 +137,13 @@ export function useCreateCashuSendSwap({
       amount,
       accountId,
       spendingConditionData,
+      unlockingData,
       senderPaysFee = true,
     }: {
       amount: Money;
       accountId: string;
       spendingConditionData?: SpendingConditionData;
+      unlockingData?: UnlockingData;
       senderPaysFee?: boolean;
     }) => {
       const account = await getLatestCashuAccount(accountId);
@@ -151,6 +153,7 @@ export function useCreateCashuSendSwap({
         account,
         senderPaysFee,
         spendingConditionData,
+        unlockingData,
       });
     },
     onSuccess: (swap) => {
