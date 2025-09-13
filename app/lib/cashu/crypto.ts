@@ -11,7 +11,7 @@ import {
 import { bytesToNumber } from '@cashu/cashu-ts/crypto/util';
 import type { WeierstrassPoint } from '@noble/curves/abstract/weierstrass';
 import { bytesToHex } from '@noble/hashes/utils';
-import { P2PKSecretSchema, type P2PKSpendingConditionData } from './types';
+import { type P2PKSpendingConditionData, RawP2PKSecretSchema } from './types';
 import { splitAmount } from './utils';
 
 /**
@@ -103,17 +103,14 @@ const createSingleDeterministicP2PKData = (
 
   const p2pkBytes = p2pkData.secret;
   const p2pkJson = JSON.parse(new TextDecoder().decode(p2pkBytes));
-  const p2pk = P2PKSecretSchema.parse({
-    kind: p2pkJson[0],
-    ...p2pkJson[1],
-  });
+  const p2pk = RawP2PKSecretSchema.parse(p2pkJson);
 
   const deterministicNonce = deriveSecret(seed, keysetId, counter);
   const deterministicR = bytesToNumber(
     deriveBlindingFactor(seed, keysetId, counter),
   );
 
-  p2pk.nonce = bytesToHex(deterministicNonce);
+  p2pk[1].nonce = bytesToHex(deterministicNonce);
 
   const deterministicP2PK = new TextEncoder().encode(JSON.stringify(p2pk));
   const { r, B_ } = blindMessage(deterministicP2PK, deterministicR);
