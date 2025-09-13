@@ -1,11 +1,7 @@
-import {
-  type CashuWallet,
-  MintOperationError,
-  OutputData,
-  type Token,
-} from '@cashu/cashu-ts';
+import { MintOperationError, OutputData, type Token } from '@cashu/cashu-ts';
 import {
   CashuErrorCodes,
+  type ExtendedCashuWallet,
   amountsFromOutputData,
   areMintUrlsEqual,
   isCashuError,
@@ -151,7 +147,7 @@ export class CashuTokenSwapService {
   }
 
   private async swapProofs(
-    wallet: CashuWallet,
+    wallet: ExtendedCashuWallet,
     tokenSwap: CashuTokenSwap,
     outputData: OutputData[],
   ) {
@@ -189,12 +185,12 @@ export class CashuTokenSwapService {
           // The swap failed because the mint already issued signatures for our
           // specified outputs. We will now try to recover the swap by restoring the
           // blinded signatures from the mint.
-          const { proofs } = await wallet.restore(
-            tokenSwap.keysetCounter,
-            tokenSwap.outputAmounts.length,
+          const { send: proofs } = await wallet.restoreFromOutputData(
             {
-              keysetId: tokenSwap.keysetId,
+              send: outputData,
+              keep: [],
             },
+            tokenSwap.keysetId,
           );
 
           if (

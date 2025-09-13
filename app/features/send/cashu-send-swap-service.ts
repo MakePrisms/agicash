@@ -9,6 +9,7 @@ import {
   isCashuError,
   sumProofs,
 } from '~/lib/cashu';
+import { createDeterministicP2PKData } from '~/lib/cashu/crypto';
 import type { SpendingConditionData } from '~/lib/cashu/types';
 import { Money } from '~/lib/money';
 import {
@@ -434,10 +435,12 @@ export class CashuSendSwapService {
     );
 
     try {
-      return await wallet.swap(amountToSend, swap.inputProofs, {
+      await wallet.swap(amountToSend, swap.inputProofs, {
         outputData,
         keysetId: swap.keysetId,
       });
+      // throw for now to trigger the restore path
+      throw new MintOperationError(CashuErrorCodes.OUTPUT_ALREADY_SIGNED, '');
     } catch (error) {
       if (
         error instanceof MintOperationError &&
@@ -446,29 +449,7 @@ export class CashuSendSwapService {
           CashuErrorCodes.TOKEN_ALREADY_SPENT,
         ])
       ) {
-        const totalOutputCount =
-          outputData.send.length + outputData.keep.length;
-        const { proofs } = await wallet.restore(
-          swap.keysetCounter,
-          totalOutputCount,
-          {
-            keysetId: swap.keysetId,
-          },
-        );
-
-        const textDecoder = new TextDecoder();
-        return {
-          send: proofs.filter((o) =>
-            outputData.send.some(
-              (s) => textDecoder.decode(s.secret) === o.secret,
-            ),
-          ),
-          keep: proofs.filter((o) =>
-            outputData.keep.some(
-              (s) => textDecoder.decode(s.secret) === o.secret,
-            ),
-          ),
-        };
+        return wallet.restoreFromOutputData(outputData, swap.keysetId);
       }
 
       throw error;
@@ -500,13 +481,12 @@ export class CashuSendSwapService {
       );
     }
     if (spendingConditionData.kind === 'P2PK') {
-      return OutputData.createP2PKData(
-        {
-          pubkey: spendingConditionData.data,
-          ...spendingConditionData.conditions,
-        },
+      return createDeterministicP2PKData(
         amount,
+        wallet.seed,
+        counter,
         keys,
+        spendingConditionData,
         customSplit,
       );
     }
