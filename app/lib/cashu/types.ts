@@ -60,6 +60,10 @@ export const NUT10SecretSchema = z.object({
   tags: z.array(NUT10SecretTagSchema).optional(),
 });
 
+export const P2PKSecretSchema = NUT10SecretSchema.extend({
+  kind: z.literal('P2PK'),
+});
+
 /**
  * A NUT-10 secret in a proof is stored as a JSON string of a tuple:
  * [kind, {nonce, data, tags?}]
@@ -138,7 +142,7 @@ export type ProofSecret =
  *
  * @see https://github.com/cashubtc/nuts/blob/main/11.md for Pay-to-Pub-Key (P2PK) spending condition
  */
-export type P2PKSecret = NUT10Secret & { kind: 'P2PK' };
+export type P2PKSecret = z.infer<typeof P2PKSecretSchema>;
 
 const AdditionalP2PKConditionsSchema = z.object({
   /**

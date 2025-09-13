@@ -4,11 +4,14 @@ import {
   type Keys,
   type MintKeyset,
   type OutputData,
+  type Proof,
+  type SerializedBlindedSignature,
 } from '@cashu/cashu-ts';
 import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
+import { sum } from '../utils';
 import { sumProofs } from './proof';
 import type { CashuProtocolUnit } from './types';
 
@@ -156,6 +159,55 @@ export class ExtendedCashuWallet extends CashuWallet {
     return fee;
   }
 
+  /**
+   * Restores proofs by getting the blinded signatures from the mint.
+   *
+   * @param outputData the output data to restore outputs from
+   * @param keysetId the keyset id used to deterministically create the output data
+   */
+  async restoreFromOutputData(
+    outputData: { send: OutputData[]; keep: OutputData[] },
+    keysetId: string,
+  ): Promise<
+    { send: Proof[]; keep: Proof[] } | { send: Proof[]; keep: Proof[] }
+  > {
+    const keys = await this.getKeys(keysetId);
+    const allOutputData = [...outputData.send, ...outputData.keep];
+
+    const { outputs, signatures } = await this.mint.restore({
+      outputs: allOutputData.map((d) => d.blindedMessage),
+    });
+
+    const signatureMap: { [sig: string]: SerializedBlindedSignature } = {};
+    outputs.forEach((o, i) => {
+      signatureMap[o.B_] = signatures[i];
+    });
+
+    const restoredProofs: Proof[] = [];
+
+    for (let i = 0; i < allOutputData.length; i++) {
+      const matchingSig = signatureMap[allOutputData[i].blindedMessage.B_];
+      if (matchingSig) {
+        allOutputData[i].blindedMessage.amount = matchingSig.amount;
+        restoredProofs.push(allOutputData[i].toProof(matchingSig, keys));
+      }
+    }
+
+    const textDecoder = new TextDecoder();
+    return {
+      send: restoredProofs.filter((proof) =>
+        outputData.send.some(
+          (s) => textDecoder.decode(s.secret) === proof.secret,
+        ),
+      ),
+      keep: restoredProofs.filter((proof) =>
+        outputData.keep.some(
+          (s) => textDecoder.decode(s.secret) === proof.secret,
+        ),
+      ),
+    };
+  }
+
   private getMinNumberOfProofsForAmount(keys: Keys, amount: Big) {
     const availableDenominations = Object.keys(keys).map((x) => new Big(x));
     const biggestDenomination = availableDenominations.reduce(
@@ -263,3 +315,60 @@ export const areMintUrlsEqual = (a: string, b: string) => {
     b.toLowerCase().replace(/\/+$/, '').trim()
   );
 };
+
+function getKeysetAmounts(
+  keyset: Keys,
+  order: 'asc' | 'desc' = 'desc',
+): number[] {
+  if (order === 'desc') {
+    return Object.keys(keyset)
+      .map((k: string) => Number.parseInt(k))
+      .sort((a: number, b: number) => b - a);
+  }
+  return Object.keys(keyset)
+    .map((k: string) => Number.parseInt(k))
+    .sort((a: number, b: number) => a - b);
+}
+
+/**
+ * Splits the amount into denominations of the provided @param keyset.
+ *
+ * @param value Amount to split.
+ * @param keyset Keys to look up split amounts.
+ * @param split? Optional custom split amounts.
+ * @param order? Optional order for split amounts (default: "asc")
+ * @returns Array of split amounts.
+ * @throws Error if @param split amount is greater than @param value amount.
+ */
+export function splitAmount(
+  amount: number,
+  keyset: Keys,
+  split?: number[],
+  order?: 'desc' | 'asc',
+): number[] {
+  let value = amount;
+  const result = split ? [...split] : [];
+
+  if (split) {
+    const totalSplitAmount = sum(split);
+    if (totalSplitAmount > value) {
+      throw new Error(
+        `Split is greater than total amount: ${totalSplitAmount} > ${value}`,
+      );
+    }
+    if (split.some((amt) => !(amt in keyset))) {
+      throw new Error(
+        'Provided amount preferences do not match the amounts of the mint keyset.',
+      );
+    }
+    value -= sum(split);
+  }
+
+  const sortedKeyAmounts = getKeysetAmounts(keyset, 'desc');
+  sortedKeyAmounts.forEach((amt: number) => {
+    const q = Math.floor(value / amt);
+    for (let i = 0; i < q; ++i) result.push(amt);
+    value %= amt;
+  });
+  return result.sort((a, b) => (order === 'desc' ? b - a : a - b));
+}
