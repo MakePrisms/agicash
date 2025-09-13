@@ -88,10 +88,21 @@ export const NUT10SecretSchema = z.object({
  */
 export type NUT10Secret = z.infer<typeof NUT10SecretSchema>;
 
+/**
+ * Base schema for raw NUT-10 secrets - accepts any well-known secret kind
+ */
 export const RawNUT10SecretSchema = z.tuple([
   WellKnownSecretKindSchema,
   NUT10SecretSchema.omit({ kind: true }),
 ]);
+
+/**
+ * P2PK-specific raw secret schema - constrains the first element to 'P2PK'
+ */
+export const RawP2PKSecretSchema = RawNUT10SecretSchema.refine(
+  ([kind]) => kind === 'P2PK',
+  { message: 'Expected P2PK secret kind' },
+);
 
 /**
  * The raw data format of a NUT-10 secret as stored in a proof's secret field.
