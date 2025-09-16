@@ -1,4 +1,5 @@
 import {
+  HttpResponseError,
   MintOperationError,
   OutputData,
   type Proof,
@@ -455,13 +456,14 @@ export class CashuSendSwapService {
     );
 
     try {
-      return wallet.swap(amountToSend, swap.inputProofs, {
+      return await wallet.swap(amountToSend, swap.inputProofs, {
         outputData,
         keysetId: swap.keysetId,
       });
     } catch (error) {
       if (
-        error instanceof MintOperationError &&
+        (error instanceof MintOperationError ||
+          error instanceof HttpResponseError) &&
         isCashuError(error, [
           CashuErrorCodes.OUTPUT_ALREADY_SIGNED,
           CashuErrorCodes.TOKEN_ALREADY_SPENT,

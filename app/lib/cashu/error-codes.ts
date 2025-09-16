@@ -181,6 +181,7 @@ export const CashuErrorMessageMappings: Record<string, CashuErrorCodes> = {
   // https://github.com/cashubtc/nutshell/pull/693
   'outputs have already been signed before':
     CashuErrorCodes.OUTPUT_ALREADY_SIGNED,
+  'Blinded Message is already signed': CashuErrorCodes.OUTPUT_ALREADY_SIGNED,
   'mint quote already issued.': CashuErrorCodes.QUOTE_ALREADY_ISSUED,
   'witness is missing for p2pk signature': CashuErrorCodes.WITNESS_MISSING_P2PK,
   'signature missing or invalid': CashuErrorCodes.WITNESS_MISSING_P2PK,
