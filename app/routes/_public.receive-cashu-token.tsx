@@ -36,11 +36,11 @@ export function HydrateFallback() {
 export default function ReceiveCashuTokenPage({
   loaderData,
 }: Route.ComponentProps) {
-  const { token } = loaderData;
+  const { token, unlockingKey } = loaderData;
 
   return (
     <Page>
-      <PublicReceiveCashuToken token={token} />
+      <PublicReceiveCashuToken token={token} unlockingKey={unlockingKey} />
     </Page>
   );
 }
