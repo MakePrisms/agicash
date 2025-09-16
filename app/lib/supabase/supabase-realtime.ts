@@ -69,8 +69,8 @@ const maxRetries = 3;
  *     set to 'closed'.
  * - If the status is 'SUBSCRIBED', the hook does nothing and waits for the system postgres_changes ok message to be received (see https://github.com/supabase/realtime/issues/282
  *   for explanation and {@link setupSystemMessageListener} for implementation). Only when this message is received, the postgres_changes subscription is fully established, so
- *   the hook state is set to 'subscribed'. If the system postgres_changes ok message is received after the initial subscription, the hook calls the {@link onReconnected}
- *   callback.
+ *   the hook state is set to 'subscribed'. Every time when the system postgres_changes ok message is received (after the initial subscription or after resubscription), the hook
+ *   calls the {@link onConnected} callback.
  *
  * 2. The hook listens for the visibility change of the tab and resubscribes to the channel if the tab is visible, the app is online and the channel is not already in 'joined'
  *    or 'joining' state. This makes sure that if the channel was closed while in background (either by our error/timeout handling or by the browser/machine), it will be
