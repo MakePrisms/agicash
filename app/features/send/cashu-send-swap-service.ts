@@ -455,12 +455,10 @@ export class CashuSendSwapService {
     );
 
     try {
-      await wallet.swap(amountToSend, swap.inputProofs, {
+      return wallet.swap(amountToSend, swap.inputProofs, {
         outputData,
         keysetId: swap.keysetId,
       });
-      // throw for now to trigger the restore path
-      throw new MintOperationError(CashuErrorCodes.OUTPUT_ALREADY_SIGNED, '');
     } catch (error) {
       if (
         error instanceof MintOperationError &&

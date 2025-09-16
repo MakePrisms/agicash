@@ -275,7 +275,9 @@ export function useCashuSendSwap(id: string) {
 
 type UseTrackCashuSendSwapProps = {
   id?: string;
-  onPending?: (swap: CashuSendSwap) => void;
+  onPending?: (
+    swap: CashuSendSwap & { state: 'PENDING' } & { account: CashuAccount },
+  ) => void;
   onCompleted?: (swap: CashuSendSwap) => void;
   onFailed?: (swap: CashuSendSwap) => void;
 };
@@ -287,7 +289,7 @@ type UseTrackCashuSendSwapResponse =
     }
   | {
       status: CashuSendSwap['state'];
-      swap: CashuSendSwap;
+      swap: CashuSendSwap & { account: CashuAccount };
     };
 
 export function useTrackCashuSendSwap({
@@ -311,29 +313,36 @@ export function useTrackCashuSendSwap({
     enabled,
   });
 
+  const account = useAccount(data?.accountId ?? '') as CashuAccount | undefined;
+
   useEffect(() => {
     if (!data) return;
 
     if (data.state === 'PENDING') {
-      onPendingRef.current?.(data);
+      onPendingRef.current?.({ ...data, account } as CashuSendSwap & {
+        state: 'PENDING';
+      } & { account: CashuAccount });
     } else if (data.state === 'COMPLETED') {
       onCompletedRef.current?.(data);
     } else if (data.state === 'FAILED') {
       onFailedRef.current?.(data);
     }
-  }, [data]);
+  }, [data, account]);
 
   if (!enabled) {
     return { status: 'DISABLED' };
   }
 
-  if (!data) {
+  if (!data || !account) {
     return { status: 'LOADING' };
   }
 
   return {
     status: data.state,
-    swap: data,
+    swap: {
+      ...data,
+      account,
+    },
   };
 }
 

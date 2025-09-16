@@ -4,6 +4,7 @@ import {
   ChartSpline,
   Clock,
   Cog,
+  Store,
 } from 'lucide-react';
 import { useState } from 'react';
 import type { LinksFunction } from 'react-router';
@@ -70,6 +71,13 @@ export default function Index() {
     <Page>
       <PageHeader className="z-10 flex w-full items-center justify-end gap-4 pr-4">
         <div className="flex items-center gap-6">
+          <LinkWithViewTransition
+            to="/merchant"
+            transition="slideLeft"
+            applyTo="newView"
+          >
+            <Store className="text-muted-foreground" />
+          </LinkWithViewTransition>
           <LinkWithViewTransition
             to="/transactions"
             transition="slideLeft"

@@ -37,7 +37,7 @@ export function ShareCashuToken({ token }: Props) {
   const [showOk, setShowOk] = useState(false);
 
   const encodedToken = getEncodedToken(token);
-  const shareableLink = `${origin}/receive-cashu-token#${encodedToken}`;
+  const shareableLink = `${origin}/receive-cashu-token#token=${encodedToken}`;
   const shortToken = `${encodedToken.slice(0, 6)}...${encodedToken.slice(-5)}`;
   const shortShareableLink = `${origin}/receive-cashu-token#${shortToken}`;
 

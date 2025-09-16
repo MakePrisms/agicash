@@ -40,7 +40,7 @@ export default function Scan() {
             }
 
             const encodedToken = getEncodedToken(token);
-            const hash = `#${encodedToken}`;
+            const hash = `#token=${encodedToken}`;
 
             // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
             // See https://github.com/remix-run/remix/discussions/10721

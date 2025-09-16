@@ -222,7 +222,17 @@ export const agicashDb = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-export type AgicashDb = typeof agicashDb;
+export const anonAgicashDb = createClient<Database>(
+  supabaseUrl,
+  supabaseAnonKey,
+  {
+    db: {
+      schema: 'wallet',
+    },
+  },
+);
+
+export type AgicashDb = typeof agicashDb | typeof anonAgicashDb;
 
 export type AgicashDbUser = Database['wallet']['Tables']['users']['Row'];
 export type AgicashDbAccount = Database['wallet']['Tables']['accounts']['Row'];
@@ -237,3 +247,5 @@ export type AgicashDbTransaction =
 export type AgicashDbContact = Database['wallet']['Tables']['contacts']['Row'];
 export type AgicashDbCashuSendSwap =
   Database['wallet']['Tables']['cashu_send_swaps']['Row'];
+export type AgicashDbLockedToken =
+  Database['wallet']['Tables']['locked_tokens']['Row'];
