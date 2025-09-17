@@ -107,6 +107,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
         title: 'Failed to claim the token',
         description: result.message,
         variant: 'destructive',
+        duration: 8000,
       });
     }
     throw redirect('/');
