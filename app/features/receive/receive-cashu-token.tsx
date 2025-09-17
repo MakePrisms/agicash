@@ -292,7 +292,10 @@ export default function ReceiveToken({
   );
 }
 
-export function PublicReceiveCashuToken({ token }: { token: Token }) {
+export function PublicReceiveCashuToken({
+  token,
+  unlockingKey,
+}: { token: Token; unlockingKey: string | undefined }) {
   const [signingUpGuest, setSigningUpGuest] = useState(false);
   const { signUpGuest } = useAuthActions();
   const navigate = useNavigate();
@@ -303,6 +306,9 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
   const { claimableToken, cannotClaimReason } =
     useCashuTokenWithClaimableProofs({
       token,
+      cashuPubKey: unlockingKey
+        ? getPublicKeyFromPrivateKey(unlockingKey, { asBytes: false })
+        : undefined,
     });
   const location = useLocation();
 

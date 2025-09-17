@@ -1,4 +1,5 @@
 import {
+  HttpResponseError,
   MintOperationError,
   OutputData,
   type Proof,
@@ -25,6 +26,7 @@ import {
 import { getTokenHash } from '../shared/cashu';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
+import type { CashuSendSwapType } from '../transactions/transaction';
 import type { CashuSendSwap } from './cashu-send-swap';
 import {
   type CashuSendSwapRepository,
@@ -113,6 +115,7 @@ export class CashuSendSwapService {
     account,
     amount,
     senderPaysFee,
+    type,
     spendingConditionData,
     unlockingData,
   }: {
@@ -124,6 +127,10 @@ export class CashuSendSwapService {
     amount: Money;
     /** Whether the sender pays the fee for the swap by including the fee in the proofs to send */
     senderPaysFee: boolean;
+    /**
+     * The type of the swap. Can be CASHU_TOKEN or GIFT.
+     */
+    type: CashuSendSwapType;
     spendingConditionData?: SpendingConditionData;
     unlockingData?: UnlockingData;
   }): Promise<CashuSendSwap> {
@@ -217,6 +224,7 @@ export class CashuSendSwapService {
         send: amountsFromOutputData(sendOutputData),
         keep: amountsFromOutputData(keepOutputData),
       },
+      type,
     });
   }
 
@@ -455,15 +463,14 @@ export class CashuSendSwapService {
     );
 
     try {
-      await wallet.swap(amountToSend, swap.inputProofs, {
+      return await wallet.swap(amountToSend, swap.inputProofs, {
         outputData,
         keysetId: swap.keysetId,
       });
-      // throw for now to trigger the restore path
-      throw new MintOperationError(CashuErrorCodes.OUTPUT_ALREADY_SIGNED, '');
     } catch (error) {
       if (
-        error instanceof MintOperationError &&
+        (error instanceof MintOperationError ||
+          error instanceof HttpResponseError) &&
         isCashuError(error, [
           CashuErrorCodes.OUTPUT_ALREADY_SIGNED,
           CashuErrorCodes.TOKEN_ALREADY_SPENT,

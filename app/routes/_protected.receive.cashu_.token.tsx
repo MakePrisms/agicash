@@ -3,29 +3,17 @@ import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
-import { extractCashuToken } from '~/lib/cashu';
+import { sharableCashuTokenSchema } from '~/features/shared/cashu';
+import { parseHashParams } from '~/lib/utils';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
-
-function parseHashParams(hash: string): URLSearchParams | null {
-  const cleaned = hash.startsWith('#') ? hash.slice(1) : hash;
-
-  // Only parse as params if it contains = (parameter format)
-  if (!cleaned.includes('=')) {
-    return null;
-  }
-
-  return new URLSearchParams(cleaned);
-}
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // Request url doesn't include hash so we need to read it from the window location instead
   const hash = window.location.hash;
-  const hashParams = parseHashParams(hash);
+  const hashParams = parseHashParams(hash, sharableCashuTokenSchema);
 
-  const token = extractCashuToken(hash);
-
-  if (!token) {
+  if (!hashParams) {
     throw redirect('/receive');
   }
 
@@ -33,9 +21,13 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const selectedAccountId =
     location.searchParams.get('selectedAccountId') ?? undefined;
   const autoClaim = location.searchParams.get('autoClaim') === 'true';
-  const unlockingKey = hashParams?.get('unlockingKey');
 
-  return { token, autoClaim, selectedAccountId, unlockingKey };
+  return {
+    token: hashParams.token,
+    autoClaim,
+    selectedAccountId,
+    unlockingKey: hashParams.unlockingKey,
+  };
 }
 
 clientLoader.hydrate = true as const;

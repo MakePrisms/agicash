@@ -21,6 +21,7 @@ import {
 import { type AgicashDbCashuSendSwap, agicashDb } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
 import { NotFoundError } from '../shared/error';
+import type { CashuSendSwapType } from '../transactions/transaction';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 import {
@@ -139,12 +140,14 @@ export function useCreateCashuSendSwap({
       spendingConditionData,
       unlockingData,
       senderPaysFee = true,
+      type = 'CASHU_TOKEN',
     }: {
       amount: Money;
       accountId: string;
       spendingConditionData?: SpendingConditionData;
       unlockingData?: UnlockingData;
       senderPaysFee?: boolean;
+      type?: CashuSendSwapType;
     }) => {
       const account = await getLatestCashuAccount(accountId);
       return cashuSendSwapService.create({
@@ -152,6 +155,7 @@ export function useCreateCashuSendSwap({
         amount,
         account,
         senderPaysFee,
+        type,
         spendingConditionData,
         unlockingData,
       });
@@ -275,7 +279,9 @@ export function useCashuSendSwap(id: string) {
 
 type UseTrackCashuSendSwapProps = {
   id?: string;
-  onPending?: (swap: CashuSendSwap) => void;
+  onPending?: (
+    swap: CashuSendSwap & { state: 'PENDING' } & { account: CashuAccount },
+  ) => void;
   onCompleted?: (swap: CashuSendSwap) => void;
   onFailed?: (swap: CashuSendSwap) => void;
 };
@@ -287,7 +293,7 @@ type UseTrackCashuSendSwapResponse =
     }
   | {
       status: CashuSendSwap['state'];
-      swap: CashuSendSwap;
+      swap: CashuSendSwap & { account: CashuAccount };
     };
 
 export function useTrackCashuSendSwap({
@@ -311,29 +317,36 @@ export function useTrackCashuSendSwap({
     enabled,
   });
 
+  const account = useAccount(data?.accountId ?? '') as CashuAccount | undefined;
+
   useEffect(() => {
     if (!data) return;
 
     if (data.state === 'PENDING') {
-      onPendingRef.current?.(data);
+      onPendingRef.current?.({ ...data, account } as CashuSendSwap & {
+        state: 'PENDING';
+      } & { account: CashuAccount });
     } else if (data.state === 'COMPLETED') {
       onCompletedRef.current?.(data);
     } else if (data.state === 'FAILED') {
       onFailedRef.current?.(data);
     }
-  }, [data]);
+  }, [data, account]);
 
   if (!enabled) {
     return { status: 'DISABLED' };
   }
 
-  if (!data) {
+  if (!data || !account) {
     return { status: 'LOADING' };
   }
 
   return {
     status: data.state,
-    swap: data,
+    swap: {
+      ...data,
+      account,
+    },
   };
 }
 

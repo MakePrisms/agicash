@@ -474,6 +474,41 @@ export type Database = {
           },
         ]
       }
+      locked_tokens: {
+        Row: {
+          access_code_hash: string | null
+          created_at: string
+          token: string
+          token_hash: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_code_hash?: string | null
+          created_at?: string
+          token: string
+          token_hash: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_code_hash?: string | null
+          created_at?: string
+          token?: string
+          token_hash?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "locked_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_processing_locks: {
         Row: {
           expires_at: string
@@ -798,6 +833,7 @@ export type Database = {
           p_state: string
           p_token_hash?: string
           p_total_amount: number
+          p_type: string
           p_unit: string
           p_unlocking_data?: string
           p_updated_keyset_counter?: number
@@ -943,12 +979,24 @@ export type Database = {
           username: string
         }[]
       }
+      get_locked_token: {
+        Args: { p_access_code_hash?: string; p_token_hash: string }
+        Returns: {
+          access_code_hash: string | null
+          created_at: string
+          token: string
+          token_hash: string
+          updated_at: string
+          user_id: string
+        }
+      }
       list_transactions: {
         Args: {
           p_cursor_created_at?: string
           p_cursor_id?: string
           p_cursor_state_sort_order?: number
           p_page_size?: number
+          p_types?: string[]
           p_user_id: string
         }
         Returns: {

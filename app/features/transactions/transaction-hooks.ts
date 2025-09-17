@@ -125,18 +125,19 @@ export function useSuspenseTransaction(id: string) {
 
 const PAGE_SIZE = 25;
 
-export function useTransactions() {
+export function useTransactions(types?: Transaction['type'][]) {
   const userId = useUser((user) => user.id);
   const transactionRepository = useTransactionRepository();
 
   const result = useInfiniteQuery({
-    queryKey: [allTransactionsQueryKey],
+    queryKey: [allTransactionsQueryKey, { types }],
     initialPageParam: null,
     queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
       const result = await transactionRepository.list({
         userId,
         cursor: pageParam,
         pageSize: PAGE_SIZE,
+        types,
       });
       return {
         transactions: result.transactions,
@@ -175,12 +176,13 @@ const acknowledgeTransactionInHistoryCache = (
   queryClient: QueryClient,
   transaction: Transaction,
 ) => {
-  queryClient.setQueryData<
+  // Update all transaction queries regardless of type filter
+  queryClient.setQueriesData<
     InfiniteData<{
       transactions: Transaction[];
       nextCursor: Cursor | null;
     }>
-  >([allTransactionsQueryKey], (old) => {
+  >({ queryKey: [allTransactionsQueryKey] }, (old) => {
     if (!old) return old;
     return {
       ...old,

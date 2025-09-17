@@ -17,9 +17,11 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { z } from 'zod';
 import {
   type MintInfo,
   checkIsTestMint,
+  extractCashuToken,
   getCashuWallet,
   sumProofs,
 } from '~/lib/cashu';
@@ -200,4 +202,15 @@ export const isTestMintQuery = (
   queryFn: async () => checkIsTestMint(mintUrl),
   staleTime: Number.POSITIVE_INFINITY,
   retry: 3,
+});
+
+export const sharableCashuTokenSchema = z.object({
+  token: z.string().transform((tokenString) => {
+    const token = extractCashuToken(tokenString);
+    if (!token) {
+      throw new Error('Invalid token');
+    }
+    return token;
+  }),
+  unlockingKey: z.string().optional(),
 });

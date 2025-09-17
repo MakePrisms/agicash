@@ -1,9 +1,9 @@
-import { getEncodedToken } from '@cashu/cashu-ts';
-import { ArrowUpDown, Clipboard, Scan } from 'lucide-react';
+import { ArrowUpDown, Clock } from 'lucide-react';
 import { MoneyDisplay, MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
   ClosePageButton,
+  Page,
   PageContent,
   PageFooter,
   PageHeader,
@@ -11,20 +11,19 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Skeleton } from '~/components/ui/skeleton';
+import { useAccounts } from '~/features/accounts/account-hooks';
 import { AccountSelector } from '~/features/accounts/account-selector';
+import { useMerchantStore } from '~/features/merchant';
 import { getDefaultUnit } from '~/features/shared/currencies';
+import { DomainError, getErrorMessage } from '~/features/shared/error';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useToast } from '~/hooks/use-toast';
-import { extractCashuToken } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
-import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { useAccount, useAccounts } from '../accounts/account-hooks';
-import { useReceiveStore } from './receive-provider';
 
 type ConvertedMoneySwitcherProps = {
   onSwitchInputCurrency: () => void;
@@ -55,19 +54,17 @@ const ConvertedMoneySwitcher = ({
   );
 };
 
-export default function ReceiveInput() {
+export default function MerchantAmountInput() {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
-
-  const receiveAccountId = useReceiveStore((s) => s.accountId);
-  const receiveAccount = useAccount(receiveAccountId);
-  const receiveAmount = useReceiveStore((s) => s.amount);
-  const receiveCurrencyUnit = getDefaultUnit(receiveAccount.currency);
-  const setReceiveAccount = useReceiveStore((s) => s.setAccount);
-  const setReceiveAmount = useReceiveStore((s) => s.setAmount);
   const { data: accounts } = useAccounts();
+
+  const status = useMerchantStore((s) => s.status);
+  const getQuote = useMerchantStore((s) => s.getQuote);
+  const receiveAccount = useMerchantStore((s) => s.getSourceAccount());
+  const setReceiveAccount = useMerchantStore((s) => s.setAccount);
 
   const {
     rawInputValue,
@@ -78,75 +75,63 @@ export default function ReceiveInput() {
     handleNumberInput,
     switchInputCurrency,
   } = useMoneyInput({
-    initialRawInputValue: receiveAmount?.toString(receiveCurrencyUnit) || '0',
+    initialRawInputValue: '0',
     initialInputCurrency: receiveAccount.currency,
     initialOtherCurrency: receiveAccount.currency === 'BTC' ? 'USD' : 'BTC',
   });
 
-  const handleContinue = async () => {
-    if (inputValue.currency === receiveAccount.currency) {
-      setReceiveAmount(inputValue);
-    } else {
+  const handleNext = async () => {
+    if (inputValue.isZero()) return;
+
+    // Determine the amount to use for the quote
+    let amountToQuote = inputValue;
+    if (inputValue.currency !== receiveAccount.currency) {
       if (!convertedValue) {
         // Can't happen because when there is no converted value, the toggle will not be shown so input currency and receive currency must be the same
         return;
       }
-      setReceiveAmount(convertedValue);
+      amountToQuote = convertedValue;
     }
 
-    if (receiveAccount.type === 'cashu') {
-      navigate('/receive/cashu', {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
-    } else {
-      toast({
-        title: 'Not implemented',
-        description: 'Choose a cashu account and try again.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handlePaste = async () => {
-    const clipboardContent = await readClipboard();
-    if (!clipboardContent) {
+    // validate the input and that we have sufficient funds
+    const result = await getQuote(amountToQuote, true);
+    if (!result.success) {
+      const toastOptions =
+        result.error instanceof DomainError
+          ? { description: result.error.message }
+          : {
+              title: 'Error',
+              description: getErrorMessage(
+                result.error,
+                'Failed to get quote. Please try again.',
+              ),
+              variant: 'destructive' as const,
+            };
+      toast(toastOptions);
       return;
     }
 
-    const token = extractCashuToken(clipboardContent);
-    if (!token) {
-      toast({
-        title: 'Invalid input',
-        description: 'Please paste a valid cashu token',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const encodedToken = getEncodedToken(token);
-    const hash = `#token=${encodedToken}`;
-
-    // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
-    // See https://github.com/remix-run/remix/discussions/10721
-    window.history.replaceState(null, '', hash);
-    navigate(
-      `/receive/cashu/token?selectedAccountId=${receiveAccountId}${hash}`,
-      {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      },
-    );
+    navigate('/merchant/card-code', {
+      transition: 'slideLeft',
+      applyTo: 'newView',
+    });
   };
 
   return (
-    <>
-      <PageHeader>
+    <Page>
+      <PageHeader className="z-10 pr-4">
         <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
-        <PageHeaderTitle>Receive</PageHeaderTitle>
+        <PageHeaderTitle>Merchant</PageHeaderTitle>
+        <LinkWithViewTransition
+          to="/merchant/transactions"
+          transition="slideLeft"
+          applyTo="newView"
+        >
+          <Clock className="text-muted-foreground" />
+        </LinkWithViewTransition>
       </PageHeader>
 
-      <PageContent className="mx-auto flex flex-col items-center justify-between">
+      <PageContent className="flex w-full flex-col items-center justify-between">
         <div className="flex h-[124px] flex-col items-center gap-2">
           <div className={shakeAnimationClass}>
             <MoneyInputDisplay
@@ -179,22 +164,14 @@ export default function ReceiveInput() {
 
         <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
           <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
-            <div className="flex items-center justify-start gap-4">
-              <button type="button" onClick={handlePaste}>
-                <Clipboard />
-              </button>
-
-              <LinkWithViewTransition
-                to="/receive/scan"
-                transition="slideUp"
-                applyTo="newView"
-              >
-                <Scan />
-              </LinkWithViewTransition>
-            </div>
             <div /> {/* spacer */}
-            <Button onClick={handleContinue} disabled={inputValue.isZero()}>
-              Continue
+            <div /> {/* spacer */}
+            <Button
+              onClick={handleNext}
+              disabled={inputValue.isZero()}
+              loading={status === 'quoting'}
+            >
+              Next
             </Button>
           </div>
         </div>
@@ -207,6 +184,6 @@ export default function ReceiveInput() {
           }}
         />
       </PageFooter>
-    </>
+    </Page>
   );
 }
