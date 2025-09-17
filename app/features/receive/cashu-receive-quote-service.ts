@@ -207,7 +207,7 @@ export class CashuReceiveQuoteService {
   async completeReceive(
     account: CashuAccount,
     quote: CashuReceiveQuote,
-  ): Promise<void> {
+  ): Promise<{ account: CashuAccount; quote: CashuReceiveQuote }> {
     if (quote.accountId !== account.id) {
       throw new Error('Quote does not belong to account');
     }
@@ -219,7 +219,7 @@ export class CashuReceiveQuoteService {
     }
 
     if (quote.state === 'COMPLETED') {
-      return;
+      return { account, quote };
     }
 
     const cashuUnit = getCashuUnit(quote.amount.currency);
@@ -265,12 +265,15 @@ export class CashuReceiveQuoteService {
 
     const allProofs = [...currentAccount.proofs, ...mintedProofs];
 
-    await this.cashuReceiveQuoteRepository.completeReceive({
-      quoteId: currentQuote.id,
-      quoteVersion: currentQuote.version,
-      proofs: allProofs,
-      accountVersion: currentAccount.version,
-    });
+    const { updatedAccount, updatedQuote } =
+      await this.cashuReceiveQuoteRepository.completeReceive({
+        quoteId: currentQuote.id,
+        quoteVersion: currentQuote.version,
+        proofs: allProofs,
+        accountVersion: currentAccount.version,
+      });
+
+    return { account: updatedAccount, quote: updatedQuote };
   }
 
   private async mintProofs(

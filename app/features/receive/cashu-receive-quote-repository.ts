@@ -356,7 +356,10 @@ export class CashuReceiveQuoteRepository {
       accountVersion: number;
     },
     options?: Options,
-  ): Promise<void> {
+  ): Promise<{
+    updatedQuote: CashuReceiveQuote;
+    updatedAccount: CashuAccount;
+  }> {
     const encryptedProofs = await this.encryption.encrypt(proofs);
 
     const query = this.db.rpc('complete_cashu_receive_quote', {
@@ -370,13 +373,25 @@ export class CashuReceiveQuoteRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { error } = await query;
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to complete cashu receive quote', {
         cause: error,
       });
     }
+
+    const updatedQuote = CashuReceiveQuoteRepository.toQuote(
+      data.updated_quote,
+    );
+    const updatedAccount = await this.accountRepository.toAccount<CashuAccount>(
+      data.updated_account,
+    );
+
+    return {
+      updatedQuote,
+      updatedAccount,
+    };
   }
 
   /**
