@@ -46,6 +46,7 @@ type Actions = {
     amount: Money,
     requireSwap: boolean,
   ) => Promise<{ success: true } | { success: false; error: unknown }>;
+  reset: () => void;
 };
 
 export type MerchantState = State & Actions;
@@ -165,6 +166,16 @@ export const createMerchantStore = ({
         return { success: false, error };
       }
     },
+
+    reset: () =>
+      set({
+        amount: null,
+        cardCode: '',
+        accountId: initialAccount.id,
+        quote: null,
+        status: 'idle',
+        privateKey: null,
+      }),
   }));
 };
 

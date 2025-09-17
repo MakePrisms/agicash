@@ -18,6 +18,7 @@ import { useToast } from '~/hooks/use-toast';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
 import { getDefaultUnit } from '../shared/currencies';
+import { useMerchantStore } from './merchant-provider';
 
 type Props = {
   tokenHash: string;
@@ -40,6 +41,7 @@ export function MerchantShareCashuToken({
   const { origin } = useLocationData();
   const [, copyToClipboard] = useCopyToClipboard();
   const [linkCopied, setLinkCopied] = useState(false);
+  const resetMerchantStore = useMerchantStore((s) => s.reset);
 
   const shareableLink = `${origin}/locked-token/${tokenHash}#unlockingKey=${privateKey}`;
   const shortShareableLink = `${origin}/locked-token/${tokenHash.slice(0, 8)}...${tokenHash.slice(-8)}&unlockingKey=${privateKey.slice(0, 20)}...${privateKey.slice(-4)}`;
@@ -121,6 +123,7 @@ export function MerchantShareCashuToken({
               to="/merchant"
               transition="slideRight"
               applyTo="oldView"
+              onClick={resetMerchantStore}
             >
               Create Another Payment
             </LinkWithViewTransition>
