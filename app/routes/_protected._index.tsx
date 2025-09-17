@@ -73,7 +73,7 @@ export default function Index() {
         <div className="flex items-center gap-6">
           <LinkWithViewTransition
             to="/merchant"
-            transition="slideLeft"
+            transition="slideUp"
             applyTo="newView"
           >
             <Store className="text-muted-foreground" />

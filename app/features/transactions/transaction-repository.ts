@@ -33,6 +33,7 @@ type ListOptions = Options & {
   userId: string;
   cursor?: Cursor;
   pageSize?: number;
+  types?: Transaction['type'][];
 };
 
 type UnifiedTransactionDetails =
@@ -68,6 +69,7 @@ export class TransactionRepository {
     userId,
     cursor = null,
     pageSize = 25,
+    types,
     abortSignal,
   }: ListOptions) {
     const query = this.db.rpc('list_transactions', {
@@ -76,6 +78,7 @@ export class TransactionRepository {
       p_cursor_created_at: cursor?.createdAt,
       p_cursor_id: cursor?.id,
       p_page_size: pageSize,
+      p_types: types,
     });
 
     if (abortSignal) {
@@ -228,12 +231,12 @@ export class TransactionRepository {
       return createTransaction(receiveDetails.amountReceived, receiveDetails);
     }
 
-    if (type === 'CASHU_TOKEN' && direction === 'SEND') {
+    if (['CASHU_TOKEN', 'GIFT'].includes(type) && direction === 'SEND') {
       const sendDetails = details as CashuTokenSendTransactionDetails;
       return createTransaction(sendDetails.amountSpent, sendDetails);
     }
 
-    if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
+    if (['CASHU_TOKEN', 'GIFT'].includes(type) && direction === 'RECEIVE') {
       const receiveDetails = details as CashuTokenReceiveTransactionDetails;
       return createTransaction(receiveDetails.amountReceived, receiveDetails);
     }

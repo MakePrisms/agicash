@@ -21,6 +21,7 @@ import {
 import { type AgicashDbCashuSendSwap, agicashDb } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
 import { NotFoundError } from '../shared/error';
+import type { CashuSendSwapType } from '../transactions/transaction';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 import {
@@ -139,12 +140,14 @@ export function useCreateCashuSendSwap({
       spendingConditionData,
       unlockingData,
       senderPaysFee = true,
+      type = 'CASHU_TOKEN',
     }: {
       amount: Money;
       accountId: string;
       spendingConditionData?: SpendingConditionData;
       unlockingData?: UnlockingData;
       senderPaysFee?: boolean;
+      type?: CashuSendSwapType;
     }) => {
       const account = await getLatestCashuAccount(accountId);
       return cashuSendSwapService.create({
@@ -152,6 +155,7 @@ export function useCreateCashuSendSwap({
         amount,
         account,
         senderPaysFee,
+        type,
         spendingConditionData,
         unlockingData,
       });

@@ -1,4 +1,4 @@
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, Clock } from 'lucide-react';
 import { MoneyDisplay, MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
@@ -20,7 +20,10 @@ import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
-import { useNavigateWithViewTransition } from '~/lib/transitions';
+import {
+  LinkWithViewTransition,
+  useNavigateWithViewTransition,
+} from '~/lib/transitions';
 
 type ConvertedMoneySwitcherProps = {
   onSwitchInputCurrency: () => void;
@@ -116,9 +119,16 @@ export default function MerchantAmountInput() {
 
   return (
     <Page>
-      <PageHeader>
+      <PageHeader className="z-10 pr-4">
         <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Merchant</PageHeaderTitle>
+        <LinkWithViewTransition
+          to="/merchant/transactions"
+          transition="slideLeft"
+          applyTo="newView"
+        >
+          <Clock className="text-muted-foreground" />
+        </LinkWithViewTransition>
       </PageHeader>
 
       <PageContent className="flex w-full flex-col items-center justify-between">

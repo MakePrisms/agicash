@@ -833,6 +833,7 @@ export type Database = {
           p_state: string
           p_token_hash?: string
           p_total_amount: number
+          p_type: string
           p_unit: string
           p_unlocking_data?: string
           p_updated_keyset_counter?: number
@@ -995,6 +996,7 @@ export type Database = {
           p_cursor_id?: string
           p_cursor_state_sort_order?: number
           p_page_size?: number
+          p_types?: string[]
           p_user_id: string
         }
         Returns: {

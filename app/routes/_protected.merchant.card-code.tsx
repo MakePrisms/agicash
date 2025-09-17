@@ -76,6 +76,7 @@ function MerchantCardCode() {
     createCashuSendSwap({
       amount: quote.amountRequested,
       accountId: account.id,
+      type: 'GIFT',
       spendingConditionData: {
         kind: 'P2PK',
         data: publicKey,

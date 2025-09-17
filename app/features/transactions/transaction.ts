@@ -170,7 +170,7 @@ export type Transaction = {
   /**
    * Type of the transaction.
    */
-  type: 'CASHU_LIGHTNING' | 'CASHU_TOKEN';
+  type: 'CASHU_LIGHTNING' | 'CASHU_TOKEN' | 'GIFT';
   /**
    * State of the transaction.
    * Transaction states are:
@@ -229,12 +229,12 @@ export type Transaction = {
   reversedAt?: string | null;
 } & (
   | {
-      type: 'CASHU_TOKEN';
+      type: CashuSendSwapType;
       direction: 'SEND';
       details: CashuTokenSendTransactionDetails;
     }
   | {
-      type: 'CASHU_TOKEN';
+      type: CashuSendSwapType;
       direction: 'RECEIVE';
       details: CashuTokenReceiveTransactionDetails;
     }
@@ -256,3 +256,5 @@ export type Transaction = {
       details: CashuLightningReceiveTransactionDetails;
     }
 );
+
+export type CashuSendSwapType = 'CASHU_TOKEN' | 'GIFT';

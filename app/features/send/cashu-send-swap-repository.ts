@@ -14,7 +14,10 @@ import {
 } from '../agicash-db/database';
 import { getDefaultUnit } from '../shared/currencies';
 import { useEncryption } from '../shared/encryption';
-import type { CashuTokenSendTransactionDetails } from '../transactions/transaction';
+import type {
+  CashuSendSwapType,
+  CashuTokenSendTransactionDetails,
+} from '../transactions/transaction';
 import type { CashuSendSwap } from './cashu-send-swap';
 
 type Options = {
@@ -100,6 +103,10 @@ type CreateSendSwap = {
    * The unlocking data to reverse the swap.
    */
   unlockingData?: UnlockingData;
+  /**
+   * The type of the swap.
+   */
+  type: CashuSendSwapType;
 };
 
 export class CashuSendSwapRepository {
@@ -127,6 +134,7 @@ export class CashuSendSwapRepository {
       outputAmounts,
       accountVersion,
       unlockingData,
+      type,
     }: CreateSendSwap,
     options?: Options,
   ) {
@@ -191,6 +199,7 @@ export class CashuSendSwapRepository {
       p_token_hash: tokenHash,
       p_spending_condition_data: encryptedSpendingConditionData,
       p_unlocking_data: encryptedUnlockingData,
+      p_type: type,
     });
 
     if (options?.abortSignal) {
