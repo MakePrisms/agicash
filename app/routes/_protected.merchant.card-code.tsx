@@ -69,13 +69,10 @@ function MerchantCardCode() {
     );
   }
 
-  console.log('STATUS', createSwapStatus);
-
   const handleGenerate = () => {
     if (!quote || cardCode.length !== CARD_CODE_LENGTH) return;
 
     const { privateKey, publicKey } = generateRandomKeyPair({ asBytes: false });
-    console.log('CREATING SWAP');
     createCashuSendSwap({
       amount: quote.amountRequested,
       accountId: account.id,
@@ -103,7 +100,8 @@ function MerchantCardCode() {
         />
         <PageHeaderTitle>Code</PageHeaderTitle>
       </PageHeader>
-      <PageContent className="mx-auto flex flex-col items-center gap-6">
+
+      <PageContent className="mx-auto flex flex-col items-center justify-between">
         <div className="flex h-[124px] flex-col items-center gap-2">
           <MoneyInputDisplay
             inputValue={amount.toString(unit)}
@@ -112,25 +110,24 @@ function MerchantCardCode() {
           />
         </div>
 
-        <div
-          className={`flex w-full max-w-sm flex-col gap-2 sm:max-w-none ${shakeAnimationClass}`}
-        >
-          <Input
-            id="cardCode"
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={CARD_CODE_LENGTH}
-            className="text-center font-numeric text-2xl"
-            placeholder="Enter card code"
-            value={cardCode}
-            readOnly={isMobile}
-            onChange={isMobile ? undefined : (e) => setCode(e.target.value)}
-          />
+        <div className="flex justify-center">
+          <div className={`w-48 ${shakeAnimationClass}`}>
+            <Input
+              id="cardCode"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={CARD_CODE_LENGTH}
+              className="text-center font-primary"
+              placeholder="Enter card code"
+              value={cardCode}
+              readOnly={isMobile}
+              onChange={isMobile ? undefined : (e) => setCode(e.target.value)}
+            />
+          </div>
         </div>
-      </PageContent>
-      <PageFooter className="sm:pb-14">
-        <div className="flex w-full flex-col gap-4">
+
+        <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
           <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
             <div /> {/* spacer */}
             <div /> {/* spacer */}
@@ -138,20 +135,21 @@ function MerchantCardCode() {
               onClick={handleGenerate}
               disabled={cardCode.length !== CARD_CODE_LENGTH}
               loading={['pending', 'success'].includes(createSwapStatus)}
-              className="w-full"
             >
               Generate
             </Button>
           </div>
-          {isMobile && (
-            <Numpad
-              showDecimal={false}
-              onButtonClick={(value) => {
-                handleCodeInput(value, startShakeAnimation);
-              }}
-            />
-          )}
         </div>
+      </PageContent>
+      <PageFooter className="sm:pb-14">
+        {isMobile && (
+          <Numpad
+            showDecimal={false}
+            onButtonClick={(value) => {
+              handleCodeInput(value, startShakeAnimation);
+            }}
+          />
+        )}
       </PageFooter>
     </Page>
   );

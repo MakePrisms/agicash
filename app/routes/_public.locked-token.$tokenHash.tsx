@@ -1,27 +1,29 @@
 import { getEncodedToken } from '@cashu/cashu-ts';
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { type SubmitHandler, useForm } from 'react-hook-form';
 import { redirect } from 'react-router';
 import { z } from 'zod';
+import { Numpad } from '~/components/numpad';
 import {
   ClosePageButton,
   Page,
   PageContent,
+  PageFooter,
   PageHeader,
-  PageHeaderTitle,
 } from '~/components/page';
 import { Redirect } from '~/components/redirect';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
 import { Input } from '~/components/ui/input';
-import { Label } from '~/components/ui/label';
 import { anonAgicashDb } from '~/features/agicash-db/database';
 import { AnonLockedTokenRepository } from '~/features/locked-tokens';
 import {
   lockedTokenQueryOptions,
   useGetLockedToken,
 } from '~/features/locked-tokens/locked-token-hooks';
+import useAnimation from '~/hooks/use-animation';
 import { useToast } from '~/hooks/use-toast';
+import useUserAgent from '~/hooks/use-user-agent';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { parseHashParams } from '~/lib/utils';
 import { getQueryClient } from '~/query-client';
@@ -60,7 +62,9 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   };
 }
 
-type FormValues = { accessCode: string };
+const ACCESS_CODE_LENGTH = 4;
+
+type FormValues = { cardCode: string };
 
 export default function LockedTokenPage({ loaderData }: Route.ComponentProps) {
   const {
@@ -72,22 +76,46 @@ export default function LockedTokenPage({ loaderData }: Route.ComponentProps) {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
   const getLockedToken = useGetLockedToken();
+  const { isMobile } = useUserAgent();
+  const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
+    useAnimation({ name: 'shake' });
+
+  const [cardCode, setAccessCode] = useState('');
+  const [isRedeeming, setIsRedeeming] = useState(false);
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isLoading, isSubmitSuccessful },
+    formState: { errors },
+    setValue,
   } = useForm<FormValues>();
 
-  useEffect(() => {
-    console.log('IS SUBMITTING', isSubmitting);
-  }, [isSubmitting]);
-  useEffect(() => {
-    console.log('IS SUBMIT SUCCESSFUL', isSubmitSuccessful);
-  }, [isSubmitSuccessful]);
-  useEffect(() => {
-    console.log('IS LOADING', isLoading);
-  }, [isLoading]);
+  const handleCodeInput = (input: string) => {
+    if (input === 'Backspace') {
+      if (cardCode.length === 0) {
+        startShakeAnimation();
+        return;
+      }
+      const newCode = cardCode.slice(0, -1);
+      setAccessCode(newCode);
+      setValue('cardCode', newCode);
+      return;
+    }
+
+    if (cardCode.length >= ACCESS_CODE_LENGTH) {
+      startShakeAnimation();
+      return;
+    }
+
+    if (!Number.isInteger(Number(input))) {
+      startShakeAnimation();
+      return;
+    }
+
+    const newCode = cardCode + input;
+    setAccessCode(newCode);
+    setValue('cardCode', newCode);
+  };
 
   if (initialTokenData) {
     const hashContent = `token=${getEncodedToken(initialTokenData.token)}&unlockingKey=${unlockingKey}`;
@@ -103,8 +131,9 @@ export default function LockedTokenPage({ loaderData }: Route.ComponentProps) {
   }
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
+    setIsRedeeming(true);
     try {
-      const lockedTokenData = await getLockedToken(tokenHash, data.accessCode);
+      const lockedTokenData = await getLockedToken(tokenHash, data.cardCode);
 
       if (lockedTokenData) {
         const hashContent = `token=${getEncodedToken(lockedTokenData.token)}&unlockingKey=${unlockingKey}`;
@@ -119,7 +148,9 @@ export default function LockedTokenPage({ loaderData }: Route.ComponentProps) {
             applyTo: 'newView',
           },
         );
+        // Don't set isRedeeming to false here since we're navigating away
       } else {
+        setIsRedeeming(false);
         toast({
           title: 'Invalid Access Code',
           description: 'Please try again',
@@ -128,10 +159,11 @@ export default function LockedTokenPage({ loaderData }: Route.ComponentProps) {
         });
       }
     } catch (error) {
-      console.error('Failed to unlock token', { cause: error, tokenHash });
+      setIsRedeeming(false);
+      console.error('Failed to redeem token', { cause: error, tokenHash });
       toast({
         title: 'Error',
-        description: 'Failed to unlock gift card. Please try again.',
+        description: 'Failed to redeem gift card. Please try again.',
         duration: 2000,
         variant: 'destructive',
       });
@@ -140,54 +172,81 @@ export default function LockedTokenPage({ loaderData }: Route.ComponentProps) {
 
   return (
     <Page>
-      <PageHeader className="z-10">
+      <PageHeader>
         <ClosePageButton to="/" transition="slideRight" applyTo="oldView" />
-        <PageHeaderTitle>Enter Access Code</PageHeaderTitle>
       </PageHeader>
-      <PageContent className="flex flex-col items-center gap-4">
-        <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
-          <Card className="m-4 w-full">
+
+      <PageContent className="flex flex-col justify-between">
+        <div /> {/* spacer */}
+        <div
+          className={`flex flex-1 items-center justify-center ${isMobile ? 'pb-8' : ''}`}
+        >
+          <Card className="w-full max-w-sm">
             <CardContent className="flex flex-col gap-6 pt-6">
               <div className="text-center">
-                <h3 className="mb-2 font-medium text-lg">
-                  Protected Gift Card
-                </h3>
+                <h3 className="mb-2 font-medium text-lg">Redeem Gift Card</h3>
                 <p className="text-muted-foreground text-sm">
-                  This gift card requires an access code to unlock
+                  Enter the code on the back of the card
                 </p>
               </div>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="accessCode">Access Code</Label>
-                  <Input
-                    {...register('accessCode', {
-                      required: 'Access code is required',
-                    })}
-                    id="accessCode"
-                    type="text"
-                    placeholder="Enter access code"
-                    autoFocus
-                    disabled={isSubmitting || isSubmitSuccessful}
-                  />
-                  {errors.accessCode && (
+                  <div className={`${shakeAnimationClass}`}>
+                    <Input
+                      {...register('cardCode', {
+                        required: 'Card code is required',
+                      })}
+                      id="cardCode"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={ACCESS_CODE_LENGTH}
+                      className="text-center font-primary"
+                      placeholder="Enter card code"
+                      value={cardCode}
+                      readOnly={isMobile}
+                      onChange={
+                        isMobile
+                          ? undefined
+                          : (e) => {
+                              setAccessCode(e.target.value);
+                              setValue('cardCode', e.target.value);
+                            }
+                      }
+                      autoFocus={!isMobile}
+                      disabled={isRedeeming}
+                    />
+                  </div>
+                  {errors.cardCode && (
                     <p className="text-destructive text-sm">
-                      {errors.accessCode.message}
+                      {errors.cardCode.message}
                     </p>
                   )}
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isSubmitting || isSubmitSuccessful}
-                  loading={isSubmitting || isSubmitSuccessful}
-                >
-                  Unlock Gift Card
-                </Button>
               </form>
             </CardContent>
           </Card>
         </div>
+        <div className="flex w-full flex-col items-center gap-4">
+          <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:w-auto">
+            <div /> {/* spacer */}
+            <div /> {/* spacer */}
+            <Button
+              onClick={handleSubmit(onSubmit)}
+              disabled={isRedeeming || cardCode.length !== ACCESS_CODE_LENGTH}
+              loading={isRedeeming}
+              className="h-full w-full"
+            >
+              Redeem
+            </Button>
+          </div>
+        </div>
       </PageContent>
+      <PageFooter className="sm:pb-14">
+        {isMobile && (
+          <Numpad showDecimal={false} onButtonClick={handleCodeInput} />
+        )}
+      </PageFooter>
     </Page>
   );
 }

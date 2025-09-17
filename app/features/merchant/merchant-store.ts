@@ -40,6 +40,7 @@ type Actions = {
   setQuote: (quote: CashuSwapQuote | null) => void;
   setStatus: (status: 'idle' | 'quoting') => void;
   setPrivateKey: (privateKey: string) => void;
+  setAccount: (account: Account) => void;
   getSourceAccount: () => Account;
   getQuote: (
     amount: Money,
@@ -119,6 +120,8 @@ export const createMerchantStore = ({
     setStatus: (status) => set({ status }),
 
     setPrivateKey: (privateKey) => set({ privateKey }),
+
+    setAccount: (account) => set({ accountId: account.id }),
 
     getSourceAccount: () => {
       const accountId = get().accountId;
