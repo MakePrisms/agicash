@@ -13,7 +13,11 @@ import {
   verifyEmail as osVerifyEmail,
 } from '@opensecret/react';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import {
+  queryOptions,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
@@ -37,28 +41,29 @@ type AuthState =
 
 export const authStateQueryKey = 'auth-state';
 
-export const authQuery = () => ({
-  queryKey: [authStateQueryKey],
-  queryFn: async () => {
-    const access_token = window.localStorage.getItem('access_token');
-    const refresh_token = window.localStorage.getItem('refresh_token');
-    if (!access_token || !refresh_token) {
-      return { isLoggedIn: false } as const;
-    }
+export const authQueryOptions = () =>
+  queryOptions({
+    queryKey: [authStateQueryKey],
+    queryFn: async () => {
+      const access_token = window.localStorage.getItem('access_token');
+      const refresh_token = window.localStorage.getItem('refresh_token');
+      if (!access_token || !refresh_token) {
+        return { isLoggedIn: false } as const;
+      }
 
-    try {
-      const response = await fetchUser();
-      return { isLoggedIn: true, user: response.user } as const;
-    } catch (error) {
-      console.error('Failed to fetch user:', error);
-      return { isLoggedIn: false } as const;
-    }
-  },
-  staleTime: Number.POSITIVE_INFINITY,
-});
+      try {
+        const response = await fetchUser();
+        return { isLoggedIn: true, user: response.user } as const;
+      } catch (error) {
+        console.error('Failed to fetch user:', error);
+        return { isLoggedIn: false } as const;
+      }
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+  });
 
 export const useAuthState = (): AuthState => {
-  const { data } = useSuspenseQuery(authQuery());
+  const { data } = useSuspenseQuery(authQueryOptions());
   return data;
 };
 

@@ -18,8 +18,9 @@ import {
   type UserRepository,
   useUserRepository,
 } from './user-repository';
+import { useUserService } from './user-service';
 
-const userQueryKey = 'user';
+export const userQueryKey = 'user';
 
 export const getUserFromCache = (
   queryClient: QueryClient = getQueryClient(),
@@ -35,7 +36,7 @@ export const getUserFromCacheOrThrow = () => {
   return user;
 };
 
-export const userQuery = <TData = User>({
+export const userQueryOptions = <TData = User>({
   userId,
   userRepository,
   select,
@@ -69,7 +70,7 @@ export const useUser = <TData = User>(
   const userRepository = useUserRepository();
 
   const { data } = useSuspenseQuery(
-    userQuery({ userId: authUser.id, userRepository, select }),
+    userQueryOptions({ userId: authUser.id, userRepository, select }),
   );
 
   return data;
@@ -232,24 +233,19 @@ export const useSetDefaultCurrency = () => {
 };
 
 export const useSetDefaultAccount = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const userService = useUserService();
+  const user = useUserRef();
+  const queryClient = useQueryClient();
 
-  return useCallback(
-    async (account: Account) => {
-      if (account.currency === 'BTC') {
-        return updateUser({
-          defaultBtcAccountId: account.id,
-        });
-      }
-      if (account.currency === 'USD') {
-        return updateUser({
-          defaultUsdAccountId: account.id,
-        });
-      }
-      throw new Error('Unsupported currency');
+  const { mutateAsync } = useMutation({
+    mutationFn: (account: Account) =>
+      userService.setDefaultAccount(user.current, account),
+    onSuccess: (data) => {
+      queryClient.setQueryData([userQueryKey], data);
     },
-    [updateUser],
-  );
+  });
+
+  return mutateAsync;
 };
 
 export const useUpdateUsername = () => {

@@ -1,31 +1,17 @@
 import type { Token } from '@cashu/cashu-ts';
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from '@tanstack/react-query';
+import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type {
-  Account,
   CashuAccount,
   ExtendedCashuAccount,
 } from '~/features/accounts/account';
 import {
   useAccounts,
   useAddCashuAccount,
-  useDefaultAccount,
 } from '~/features/accounts/account-hooks';
-import {
-  allMintKeysetsQuery,
-  cashuMintValidator,
-  isTestMintQuery,
-  mintInfoQuery,
-  tokenToMoney,
-} from '~/features/shared/cashu';
+import { tokenToMoney } from '~/features/shared/cashu';
 import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
 import {
-  areMintUrlsEqual,
-  getCashuProtocolUnit,
   getCashuUnit,
   getCashuWallet,
   getClaimableProofs,
@@ -33,9 +19,14 @@ import {
 } from '~/lib/cashu';
 import type { AccountWithBadges } from '../accounts/account-selector';
 import { useUser } from '../user/user-hooks';
-import { useReceiveCashuTokenService } from './receive-cashu-token-service';
+import type { CashuAccountWithTokenFlags } from './receive-cashu-token-models';
+import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
+import {
+  ReceiveCashuTokenService,
+  useReceiveCashuTokenService,
+} from './receive-cashu-token-service';
 
-type CashuAccountWithBadges = AccountWithBadges<CashuAccount>;
+type CashuAccountWithBadges = AccountWithBadges<CashuAccountWithTokenFlags>;
 
 type UseGetClaimableTokenProps = {
   token: Token;
@@ -55,68 +46,29 @@ type TokenQueryResult =
     };
 
 /**
- * Hook that uses a suspense query to fetch mint info and validates it against our required features.
- * If an existing account is provided, it will be used instead of fetching the mint info.
+ * Hook that uses a suspense query to get the token's source account.
+ * If the token's source is found in the existing accounts, the existing account will be returned.
+ * If the token's source is not found in the existing accounts, the mint data is fetched, the validity of the mint is validated and a placeholder account is returned.
  */
 export function useCashuTokenSourceAccountQuery(
   token: Token,
-  existingAccount?: ExtendedCashuAccount,
+  existingCashuAccounts: ExtendedCashuAccount[] = [],
 ) {
   const tokenCurrency = tokenToMoney(token).currency;
-  const queryClient = useQueryClient();
+  const receiveCashuTokenService = useReceiveCashuTokenService();
 
   return useSuspenseQuery({
     queryKey: [
       'token-source-account',
       token.mint,
       tokenCurrency,
-      existingAccount?.id,
+      existingCashuAccounts,
     ],
-    queryFn: async (): Promise<{
-      isValid: boolean;
-      sourceAccount: ExtendedCashuAccount;
-    }> => {
-      if (existingAccount) {
-        return {
-          isValid: true,
-          sourceAccount: existingAccount,
-        };
-      }
-
-      const [info, keysets, isTestMint] = await Promise.all([
-        queryClient.fetchQuery(mintInfoQuery(token.mint)),
-        queryClient.fetchQuery(allMintKeysetsQuery(token.mint)),
-        queryClient.fetchQuery(isTestMintQuery(token.mint)),
-      ]);
-
-      const validationResult = cashuMintValidator(
-        token.mint,
-        getCashuProtocolUnit(tokenCurrency),
-        info,
-        keysets.keysets,
-      );
-
-      return {
-        isValid: validationResult === true,
-        sourceAccount: {
-          id: '',
-          type: 'cashu',
-          mintUrl: token.mint,
-          createdAt: new Date().toISOString(),
-          name: info?.name ?? token.mint.replace('https://', ''),
-          currency: tokenToMoney(token).currency,
-          isTestMint,
-          version: 0,
-          keysetCounters: {},
-          proofs: [],
-          isDefault: false,
-          wallet: getCashuWallet(token.mint, {
-            unit: getCashuUnit(tokenCurrency),
-            mintInfo: info,
-          }),
-        },
-      };
-    },
+    queryFn: async () =>
+      receiveCashuTokenService.getSourceAndDestinationAccounts(
+        token,
+        existingCashuAccounts,
+      ),
     staleTime: 3 * 60 * 1000,
     retry: 1,
   });
@@ -127,14 +79,11 @@ export function useCashuTokenSourceAccountQuery(
  * If the account does not exist, we construct and return an account, but we do not store it in the database.
  */
 function useCashuTokenSourceAccount(token: Token) {
-  const tokenCurrency = tokenToMoney(token).currency;
-  const { data: allAccounts } = useAccounts({ type: 'cashu' });
-  const existingAccount = allAccounts.find(
-    (a) =>
-      areMintUrlsEqual(a.mintUrl, token.mint) && a.currency === tokenCurrency,
+  const { data: existingCashuAccounts } = useAccounts({ type: 'cashu' });
+  const { data } = useCashuTokenSourceAccountQuery(
+    token,
+    existingCashuAccounts,
   );
-
-  const { data } = useCashuTokenSourceAccountQuery(token, existingAccount);
 
   return data;
 }
@@ -180,89 +129,33 @@ export function useCashuTokenWithClaimableProofs({
   return tokenData;
 }
 
-const getDefaultReceiveAccount = (
-  selectableAccounts: CashuAccountWithBadges[],
-  sourceAccount: CashuAccount,
-  isCrossMintSwapDisabled: boolean,
-  defaultAccount: Account,
-): CashuAccount => {
-  const targetAccount =
-    isCrossMintSwapDisabled || defaultAccount.type !== 'cashu'
-      ? sourceAccount
-      : defaultAccount;
-
-  const matchingAccount = selectableAccounts.find(
-    (a) => a.id === targetAccount.id && a.selectable,
-  );
-
-  // If no matching selectable account found, get the first selectable account
-  if (!matchingAccount) {
-    const firstSelectable = selectableAccounts.find((a) => a.selectable);
-    if (firstSelectable) {
-      return firstSelectable;
-    }
-  }
-
-  // Fall back to source account if no match found
-  return matchingAccount ?? sourceAccount;
-};
-
-const getBadges = (
-  account: CashuAccount,
-  allAccounts: CashuAccount[],
-  sourceAccount: CashuAccount,
-  defaultAccount: Account,
-  isSourceAccountValid: boolean,
-) => {
+const getBadges = (account: CashuAccountWithTokenFlags): string[] => {
   const badges: string[] = [];
-
-  if (sourceAccount.isTestMint) {
+  if (account.isTestMint) {
     badges.push('Test Mint');
   }
-  if (account.id === sourceAccount.id) {
-    badges.push('Source');
-    if (!isSourceAccountValid) {
-      badges.push('Invalid');
-    }
-  }
-  if (account.id === defaultAccount.id) {
-    badges.push('Default');
-  }
-  if (!allAccounts.some((a) => areMintUrlsEqual(a.mintUrl, account.mintUrl))) {
+  if (account.isUnknown) {
     badges.push('Unknown');
+  }
+  if (account.isSource) {
+    badges.push('Source');
+  }
+  if (!account.isSelectable) {
+    badges.push('Invalid');
+  }
+  if (account.isDefault) {
+    badges.push('Default');
   }
 
   return badges;
 };
 
-const getSelectableAccounts = (
-  sourceAccount: CashuAccount,
-  isSourceAccountValid: boolean,
-  isCrossMintSwapDisabled: boolean,
-  accounts: CashuAccount[],
-  defaultAccount: Account,
-): CashuAccountWithBadges[] => {
-  const baseAccounts = isCrossMintSwapDisabled
-    ? [sourceAccount]
-    : [
-        sourceAccount,
-        ...accounts.filter(
-          (account) => !account.isTestMint && account.id !== sourceAccount.id,
-        ),
-      ];
-
-  return baseAccounts.map((account) => ({
-    ...account,
-    badges: getBadges(
-      account,
-      accounts,
-      sourceAccount,
-      defaultAccount,
-      isSourceAccountValid,
-    ),
-    selectable: account.id === sourceAccount.id ? isSourceAccountValid : true,
-  }));
-};
+const toAccountWithBadges = (
+  account: CashuAccountWithTokenFlags,
+): CashuAccountWithBadges => ({
+  ...account,
+  badges: getBadges(account),
+});
 
 /**
  * Lets the user select an account to receive the token and returns data about the
@@ -276,47 +169,26 @@ export function useReceiveCashuTokenAccounts(
   token: Token,
   preferredReceiveAccountId?: string,
 ) {
-  const { sourceAccount, isValid: isSourceAccountValid } =
-    useCashuTokenSourceAccount(token);
-  const { data: accounts } = useAccounts({ type: 'cashu' });
   const addCashuAccount = useAddCashuAccount();
-  const defaultAccount = useDefaultAccount();
+  const { sourceAccount, possibleDestinationAccounts } =
+    useCashuTokenSourceAccount(token);
 
-  const isCrossMintSwapDisabled = sourceAccount.isTestMint;
-  const selectableAccounts = getSelectableAccounts(
-    sourceAccount,
-    isSourceAccountValid,
-    isCrossMintSwapDisabled,
-    accounts,
-    defaultAccount,
-  );
-  const preferredReceiveAccount = selectableAccounts.find(
-    (account) => account.id === preferredReceiveAccountId,
-  );
-  const defaultReceiveAccount = getDefaultReceiveAccount(
-    selectableAccounts,
-    sourceAccount,
-    isCrossMintSwapDisabled,
-    preferredReceiveAccount?.selectable
-      ? preferredReceiveAccount
-      : defaultAccount,
-  );
+  const defaultReceiveAccount =
+    ReceiveCashuTokenService.getDefaultReceiveAccount(
+      sourceAccount,
+      possibleDestinationAccounts,
+      preferredReceiveAccountId,
+    );
 
-  const [receiveAccountId, setReceiveAccountId] = useState<string>(
-    defaultReceiveAccount.id,
+  const [receiveAccountId, setReceiveAccountId] = useState<string | null>(
+    defaultReceiveAccount?.id ?? null,
   );
-  const receiveAccount: CashuAccountWithBadges =
-    selectableAccounts.find((account) => account.id === receiveAccountId) ??
-    defaultReceiveAccount;
+  const receiveAccount =
+    possibleDestinationAccounts.find(
+      (account) => account.id === receiveAccountId,
+    ) ?? null;
 
   const setReceiveAccount = (account: CashuAccountWithBadges) => {
-    const selectableAccount = selectableAccounts.find(
-      (a) => a.id === account.id,
-    );
-    if (!selectableAccount || !selectableAccount.selectable) {
-      throw new Error('Account is not selectable');
-    }
-
     setReceiveAccountId(account.id);
   };
 
@@ -328,19 +200,11 @@ export function useReceiveCashuTokenAccounts(
     return newAccount;
   };
 
-  const sourceAccountWithBadges = selectableAccounts.find(
-    (a) => a.id === sourceAccount.id,
-  );
-
-  if (!sourceAccountWithBadges) {
-    throw new Error('Source account not found');
-  }
-
   return {
-    selectableAccounts,
-    receiveAccount,
-    isCrossMintSwapDisabled,
-    sourceAccount: sourceAccountWithBadges,
+    selectableAccounts: possibleDestinationAccounts.map(toAccountWithBadges),
+    receiveAccount: receiveAccount ? toAccountWithBadges(receiveAccount) : null,
+    isCrossMintSwapDisabled: sourceAccount.isTestMint,
+    sourceAccount: toAccountWithBadges(sourceAccount),
     setReceiveAccount,
     addAndSetReceiveAccount,
   };
@@ -366,7 +230,7 @@ type CreateCrossAccountReceiveQuotesProps = {
 export function useCreateCrossAccountReceiveQuotes() {
   const userId = useUser((user) => user.id);
   const getExchangeRate = useGetExchangeRate();
-  const receiveCashuTokenService = useReceiveCashuTokenService();
+  const receiveCashuTokenQuoteService = useReceiveCashuTokenQuoteService();
 
   return useMutation({
     mutationFn: async ({
@@ -381,7 +245,7 @@ export function useCreateCrossAccountReceiveQuotes() {
       );
 
       const { cashuReceiveQuote, cashuMeltQuote } =
-        await receiveCashuTokenService.createCrossAccountReceiveQuotes({
+        await receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes({
           userId,
           token,
           sourceAccount,

@@ -63,14 +63,14 @@ const maxRetries = 3;
  * 1. The hook listens to the changes of the channel status and acts accordingly:
  * - If the status is 'CLOSED', the hook unsubscribes from the channel.
  * - If the status is 'CHANNEL_ERROR' or 'TIMED_OUT':
- *   - If the tab is visible, the hook retries the subscription (up to {@link maxRetries} times). During the retries the hook status is set to 'reconnecting'. If all the
+ *   - If the tab is visible and the app is online, the hook retries the subscription (up to {@link maxRetries} times). During the retries the hook status is set to 'reconnecting'. If all the
  *     retries fail, the hook status is set to 'error' and the hook throws the error which is then caught by the error boundary.
  *   - If the tab is not visible (in the background) or the app is offline, the hook unsubscribes from the channel, which results in channel being closed and hook status being
  *     set to 'closed'.
  * - If the status is 'SUBSCRIBED', the hook does nothing and waits for the system postgres_changes ok message to be received (see https://github.com/supabase/realtime/issues/282
  *   for explanation and {@link setupSystemMessageListener} for implementation). Only when this message is received, the postgres_changes subscription is fully established, so
- *   the hook state is set to 'subscribed'. If the system postgres_changes ok message is received after the initial subscription, the hook calls the {@link onReconnected}
- *   callback.
+ *   the hook state is set to 'subscribed'. Every time when the system postgres_changes ok message is received (after the initial subscription or after resubscription), the hook
+ *   calls the {@link onConnected} callback.
  *
  * 2. The hook listens for the visibility change of the tab and resubscribes to the channel if the tab is visible, the app is online and the channel is not already in 'joined'
  *    or 'joining' state. This makes sure that if the channel was closed while in background (either by our error/timeout handling or by the browser/machine), it will be
@@ -247,6 +247,7 @@ export function useSupabaseRealtimeSubscription({
         channelRef.current?.state === 'joining';
 
       if (online && !isJoinedOrJoining) {
+        retryCountRef.current = 0;
         resubscribe();
       }
     }
@@ -268,6 +269,7 @@ export function useSupabaseRealtimeSubscription({
         channelRef.current?.state === 'joining';
 
       if (!isJoinedOrJoining) {
+        retryCountRef.current = 0;
         resubscribe();
       }
     }

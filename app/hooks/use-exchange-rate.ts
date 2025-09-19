@@ -1,8 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type Ticker, exchangeRateService } from '~/lib/exchange-rate';
 
-export const useExchangeRate = (ticker: Ticker) => {
-  return useQuery({
+export const exchangeRateQueryOptions = (ticker: Ticker) =>
+  queryOptions({
     queryKey: ['exchangeRate', ticker],
     queryFn: async ({ signal }) => {
       return exchangeRateService
@@ -12,6 +12,11 @@ export const useExchangeRate = (ticker: Ticker) => {
         })
         .then((rates) => rates[ticker]);
     },
+  });
+
+export const useExchangeRate = (ticker: Ticker) => {
+  return useQuery({
+    ...exchangeRateQueryOptions(ticker),
     refetchInterval: 15_000,
   });
 };
@@ -37,16 +42,6 @@ export const useGetExchangeRate = () => {
   const queryClient = useQueryClient();
 
   return async (ticker: Ticker): Promise<string> => {
-    return queryClient.fetchQuery({
-      queryKey: ['exchangeRate', ticker],
-      queryFn: async ({ signal }) => {
-        return exchangeRateService
-          .getRates({
-            tickers: [ticker],
-            signal,
-          })
-          .then((rates) => rates[ticker]);
-      },
-    });
+    return queryClient.fetchQuery(exchangeRateQueryOptions(ticker));
   };
 };

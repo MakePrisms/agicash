@@ -1,6 +1,6 @@
 import { getPrivateKeyBytes, getPublicKey } from '@opensecret/react';
 import { decode, encode } from '@stablelib/base64';
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { eciesDecrypt, eciesEncrypt } from '~/lib/ecies';
 import { Money } from '~/lib/money';
@@ -9,31 +9,33 @@ import { hexToUint8Array } from '~/lib/utils';
 // 10111099 is 'enc' (for encryption) in ascii
 const encryptionKeyDerivationPath = `m/10111099'/0'`;
 
-export const encryptionPrivateKeyQuery = () => ({
-  queryKey: ['encryption-private-key'],
-  queryFn: () =>
-    getPrivateKeyBytes({
-      private_key_derivation_path: encryptionKeyDerivationPath,
-    }).then((response) => hexToUint8Array(response.private_key)),
-  staleTime: Number.POSITIVE_INFINITY,
-});
+export const encryptionPrivateKeyQueryOptions = () =>
+  queryOptions({
+    queryKey: ['encryption-private-key'],
+    queryFn: () =>
+      getPrivateKeyBytes({
+        private_key_derivation_path: encryptionKeyDerivationPath,
+      }).then((response) => hexToUint8Array(response.private_key)),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
 
 export const useEncryptionPrivateKey = () => {
-  const { data } = useSuspenseQuery(encryptionPrivateKeyQuery());
+  const { data } = useSuspenseQuery(encryptionPrivateKeyQueryOptions());
   return data;
 };
 
-export const encryptionPublicKeyQuery = () => ({
-  queryKey: ['encryption-public-key'],
-  queryFn: () =>
-    getPublicKey('schnorr', {
-      private_key_derivation_path: encryptionKeyDerivationPath,
-    }).then((response) => response.public_key),
-  staleTime: Number.POSITIVE_INFINITY,
-});
+export const encryptionPublicKeyQueryOptions = () =>
+  queryOptions({
+    queryKey: ['encryption-public-key'],
+    queryFn: () =>
+      getPublicKey('schnorr', {
+        private_key_derivation_path: encryptionKeyDerivationPath,
+      }).then((response) => response.public_key),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
 
 export const useEncryptionPublicKeyHex = () => {
-  const { data } = useSuspenseQuery(encryptionPublicKeyQuery());
+  const { data } = useSuspenseQuery(encryptionPublicKeyQueryOptions());
   return data;
 };
 

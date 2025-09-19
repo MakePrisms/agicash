@@ -1,180 +1,214 @@
-import type {
-  MeltQuoteResponse,
-  MintQuoteResponse,
-  Token,
-} from '@cashu/cashu-ts';
-import { getCashuUnit } from '~/lib/cashu';
-import { Money } from '~/lib/money';
-import type { CashuAccount } from '../accounts/account';
-import { tokenToMoney } from '../shared/cashu';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
+import type { Token } from '@cashu/cashu-ts';
+import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import {
-  type CashuReceiveLightningQuote,
-  type CashuReceiveQuoteService,
-  useCashuReceiveQuoteService,
-} from './cashu-receive-quote-service';
-
-type CreateCrossAccountReceiveQuotesProps = {
-  /** ID of the receiving user. */
-  userId: string;
-  /** The token to claim */
-  token: Token;
-  /** The account to claim the token to */
-  destinationAccount: CashuAccount;
-  /**
-   * The account to claim the token from.
-   * May be a placeholder account if the token is from a mint that we do not have an account for.
-   */
-  sourceAccount: CashuAccount;
-  /** The exchange rate to use for the quotes */
-  exchangeRate: string;
-};
-
-type CrossMintQuotesResult = {
-  /** Mint quote from the destination wallet */
-  mintQuote: MintQuoteResponse;
-  /** Melt quote from the source wallet */
-  meltQuote: MeltQuoteResponse;
-  /** Amount to mint */
-  amountToMint: Money;
-};
+  areMintUrlsEqual,
+  getCashuProtocolUnit,
+  getCashuUnit,
+  getCashuWallet,
+} from '~/lib/cashu';
+import type { ExtendedCashuAccount } from '../accounts/account';
+import {
+  allMintKeysetsQueryOptions,
+  cashuMintValidator,
+  isTestMintQueryOptions,
+  mintInfoQueryOptions,
+  mintKeysQueryOptions,
+  tokenToMoney,
+} from '../shared/cashu';
+import type { CashuAccountWithTokenFlags } from './receive-cashu-token-models';
 
 export class ReceiveCashuTokenService {
-  constructor(
-    private readonly cashuReceiveQuoteService: CashuReceiveQuoteService,
-  ) {}
+  constructor(private readonly queryClient: QueryClient) {}
 
   /**
-   * Sets up quotes and prepares for cross mint/currency token claim.
-   * This will create a cashu-receive-quote in the database.
+   * Gets the source account of the token and possible destination accounts that can receive the token.
+   * @param token - The token to get the source and destination accounts for
+   * @param accounts - User's existing cashu accounts
+   * @returns The source account and the possible destination accounts
    */
-  async createCrossAccountReceiveQuotes({
-    userId,
-    token,
-    sourceAccount,
-    destinationAccount,
-    exchangeRate,
-  }: CreateCrossAccountReceiveQuotesProps): Promise<{
-    cashuReceiveQuote: CashuReceiveQuote;
-    cashuMeltQuote: MeltQuoteResponse;
+  async getSourceAndDestinationAccounts(
+    token: Token,
+    accounts: ExtendedCashuAccount[] = [],
+  ): Promise<{
+    sourceAccount: CashuAccountWithTokenFlags;
+    possibleDestinationAccounts: CashuAccountWithTokenFlags[];
   }> {
-    const tokenAmount = tokenToMoney(token);
-    const sourceCashuUnit = getCashuUnit(tokenAmount.currency);
-    const destinationCashuUnit = getCashuUnit(destinationAccount.currency);
+    const tokenCurrency = tokenToMoney(token).currency;
+    const existingAccount = accounts.find(
+      (a) =>
+        areMintUrlsEqual(a.mintUrl, token.mint) && a.currency === tokenCurrency,
+    );
 
-    if (
-      this.areMintUrlsEqual(destinationAccount.mintUrl, token.mint) &&
-      sourceCashuUnit === destinationCashuUnit
-    ) {
+    if (existingAccount) {
+      const sourceAccount = {
+        ...existingAccount,
+        isSource: true,
+        isUnknown: false,
+        isSelectable: true,
+      };
+      return {
+        sourceAccount,
+        possibleDestinationAccounts: this.getPossibleDestinationAccounts(
+          sourceAccount,
+          this.augmentNonSourceAccountsWithTokenFlags(
+            accounts.filter((account) => account.id !== sourceAccount.id),
+          ),
+        ),
+      };
+    }
+
+    const [info, keysets, keys, isTestMint] = await Promise.all([
+      this.queryClient.fetchQuery(mintInfoQueryOptions(token.mint)),
+      this.queryClient.fetchQuery(allMintKeysetsQueryOptions(token.mint)),
+      this.queryClient.fetchQuery(mintKeysQueryOptions(token.mint)),
+      this.queryClient.fetchQuery(isTestMintQueryOptions(token.mint)),
+    ]);
+
+    const unit = getCashuProtocolUnit(tokenCurrency);
+    const validationResult = cashuMintValidator(
+      token.mint,
+      unit,
+      info,
+      keysets.keysets,
+    );
+
+    const unitKeysets = keysets.keysets.filter((ks) => ks.unit === unit);
+    const activeKeyset = unitKeysets.find((ks) => ks.active);
+
+    if (!activeKeyset) {
       throw new Error(
-        'Must melt token to a different mint or currency than source',
+        `No active keyset found for ${tokenCurrency} on ${token.mint}`,
       );
     }
 
-    const quotes = await this.getCrossMintQuotesWithinTargetAmount({
-      destinationAccount,
-      sourceAccount,
-      targetAmount: tokenAmount,
-      exchangeRate,
+    const activeKeysForUnit = keys.keysets.find(
+      (ks) => ks.id === activeKeyset.id,
+    );
+
+    if (!activeKeysForUnit) {
+      throw new Error(
+        `Got active keyset ${activeKeyset.id} from ${token.mint} but could not find keys for it`,
+      );
+    }
+
+    const wallet = getCashuWallet(token.mint, {
+      unit: getCashuUnit(tokenCurrency),
+      mintInfo: info,
+      keys: activeKeysForUnit,
+      keysets: unitKeysets,
     });
 
-    const cashuReceiveFee = sourceAccount.wallet.getFeesForProofs(token.proofs);
+    wallet.keysetId = activeKeyset.id;
 
-    const cashuReceiveQuote =
-      await this.cashuReceiveQuoteService.createReceiveQuote({
-        userId,
-        account: destinationAccount,
-        receiveType: 'TOKEN',
-        receiveQuote: quotes.lightningQuote,
-        cashuReceiveFee,
-        tokenAmount,
-      });
+    const isValid = validationResult === true;
+    const sourceAccount = {
+      id: '',
+      type: 'cashu',
+      mintUrl: token.mint,
+      createdAt: new Date().toISOString(),
+      name: info?.name ?? token.mint.replace('https://', ''),
+      currency: tokenCurrency,
+      isTestMint,
+      version: 0,
+      keysetCounters: {},
+      proofs: [],
+      isDefault: false,
+      isSource: true,
+      isUnknown: true,
+      isSelectable: isValid,
+      wallet,
+    } satisfies CashuAccountWithTokenFlags;
 
     return {
-      cashuReceiveQuote,
-      cashuMeltQuote: quotes.meltQuote,
+      sourceAccount,
+      possibleDestinationAccounts: this.getPossibleDestinationAccounts(
+        sourceAccount,
+        this.augmentNonSourceAccountsWithTokenFlags(accounts),
+      ),
     };
   }
 
   /**
-   * Gets mint and melt quotes for claiming a token from one mint to another.
+   * Returns the default receive account, or null if the token cannot be received.
+   * If the token is from a test mint, the source account will be returned if it is selectable, because tokens from test mint can only be claimed to the same mint.
+   * If the token is not from a test mint, the preferred receive account will be returned if it is selectable.
+   * If the preferred receive account is not selectable, the default account will be returned.
+   * @param sourceAccount The source account of the token
+   * @param possibleDestinationAccounts The possible destination accounts
+   * @param preferredReceiveAccountId The preferred receive account id
+   * @returns
    */
-  private async getCrossMintQuotesWithinTargetAmount({
-    destinationAccount,
-    sourceAccount,
-    targetAmount,
-    exchangeRate,
-  }: {
-    destinationAccount: CashuAccount;
-    sourceAccount: CashuAccount;
-    targetAmount: Money;
-    exchangeRate: string;
-  }): Promise<
-    CrossMintQuotesResult & {
-      lightningQuote: CashuReceiveLightningQuote;
-    }
-  > {
-    const sourceCurrency = sourceAccount.currency;
-    const destinationCurrency = destinationAccount.currency;
-
-    let attempts = 0;
-    let amountToMelt = targetAmount;
-
-    while (attempts < 5) {
-      attempts++;
-
-      const amountToMint = amountToMelt.convert(
-        destinationCurrency,
-        exchangeRate,
-      );
-      const amountToMintNumber = amountToMint.toNumber(
-        getCashuUnit(destinationCurrency),
-      );
-
-      if (amountToMintNumber < 1) {
-        throw new Error('Amount is too small to get cross mint quotes');
+  static getDefaultReceiveAccount(
+    sourceAccount: CashuAccountWithTokenFlags,
+    possibleDestinationAccounts: CashuAccountWithTokenFlags[],
+    preferredReceiveAccountId?: string,
+  ): CashuAccountWithTokenFlags | null {
+    if (sourceAccount.isTestMint) {
+      if (!sourceAccount.isSelectable) {
+        return null;
       }
-
-      const lightningQuote =
-        await this.cashuReceiveQuoteService.getLightningQuote({
-          account: destinationAccount,
-          amount: amountToMint,
-        });
-
-      const meltQuote = await sourceAccount.wallet.createMeltQuote(
-        lightningQuote.mintQuote.request,
-      );
-
-      const amountRequired = new Money({
-        amount: meltQuote.amount + meltQuote.fee_reserve,
-        currency: sourceCurrency,
-        unit: getCashuUnit(sourceCurrency),
-      });
-
-      const diff = amountRequired.subtract(targetAmount);
-
-      if (diff.lessThanOrEqual(Money.zero(diff.currency))) {
-        return {
-          mintQuote: lightningQuote.mintQuote,
-          meltQuote,
-          amountToMint,
-          lightningQuote,
-        };
-      }
-
-      amountToMelt = amountToMelt.subtract(diff);
+      // Tokens sourced from test mint can only be claimed to the same mint
+      return sourceAccount;
     }
 
-    throw new Error('Failed to find valid quotes after 5 attempts.');
+    const preferredReceiveAccount = possibleDestinationAccounts.find(
+      (account) => account.id === preferredReceiveAccountId,
+    );
+
+    if (preferredReceiveAccount?.isSelectable) {
+      return preferredReceiveAccount;
+    }
+
+    if (sourceAccount.isSelectable) {
+      return sourceAccount;
+    }
+
+    const defaultAccount = possibleDestinationAccounts.find(
+      (account) =>
+        account.isDefault && account.currency === sourceAccount.currency,
+    );
+
+    if (!defaultAccount?.isSelectable) {
+      // This should not be possible because the default account must be selectable and every user must have a default account for each currency.
+      return null;
+    }
+
+    return defaultAccount;
   }
 
-  private areMintUrlsEqual(url1: string, url2: string): boolean {
-    const normalize = (url: string) => url.replace(/\/+$/, '').toLowerCase();
-    return normalize(url1) === normalize(url2);
+  private augmentNonSourceAccountsWithTokenFlags(
+    accounts: ExtendedCashuAccount[],
+  ): CashuAccountWithTokenFlags[] {
+    return accounts.map((account) => ({
+      ...account,
+      isSource: false,
+      isUnknown: false,
+      isSelectable: !account.isTestMint,
+    }));
+  }
+
+  /**
+   * Returns the possible destination accounts that can receive the token from the source account.
+   * If the source account is from a test mint, the only account that can receive the token is the same source account.
+   * @param sourceAccount The source account of the token
+   * @param otherAccounts The other user's accounts
+   * @returns The possible destination accounts
+   */
+  private getPossibleDestinationAccounts(
+    sourceAccount: CashuAccountWithTokenFlags,
+    otherAccounts: CashuAccountWithTokenFlags[],
+  ): CashuAccountWithTokenFlags[] {
+    if (sourceAccount.isTestMint) {
+      // Tokens sourced from test mint can only be claimed to the same mint
+      return sourceAccount.isSelectable ? [sourceAccount] : [];
+    }
+    return [sourceAccount, ...otherAccounts].filter(
+      (account) => account.isSelectable,
+    );
   }
 }
 
 export function useReceiveCashuTokenService() {
-  const cashuReceiveQuoteService = useCashuReceiveQuoteService();
-  return new ReceiveCashuTokenService(cashuReceiveQuoteService);
+  const queryClient = useQueryClient();
+  return new ReceiveCashuTokenService(queryClient);
 }

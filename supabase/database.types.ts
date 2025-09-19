@@ -654,28 +654,7 @@ export type Database = {
           p_quote_id: string
           p_quote_version: number
         }
-        Returns: {
-          account_id: string
-          amount: number
-          created_at: string
-          currency: string
-          description: string | null
-          expires_at: string
-          failure_reason: string | null
-          id: string
-          keyset_counter: number | null
-          keyset_id: string | null
-          locking_derivation_path: string
-          output_amounts: number[] | null
-          payment_request: string
-          quote_id: string
-          state: string
-          transaction_id: string
-          type: string
-          unit: string
-          user_id: string
-          version: number
-        }
+        Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_receive_quote_result"]
       }
       complete_cashu_send_quote: {
         Args: {
@@ -701,7 +680,7 @@ export type Database = {
           p_token_hash: string
           p_user_id: string
         }
-        Returns: undefined
+        Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_token_swap_result"]
       }
       create_cashu_receive_quote: {
         Args: {
@@ -836,25 +815,7 @@ export type Database = {
           p_unit: string
           p_user_id: string
         }
-        Returns: {
-          account_id: string
-          created_at: string
-          currency: string
-          failure_reason: string | null
-          fee_amount: number
-          input_amount: number
-          keyset_counter: number
-          keyset_id: string
-          output_amounts: number[]
-          receive_amount: number
-          state: string
-          token_hash: string
-          token_proofs: string
-          transaction_id: string
-          unit: string
-          user_id: string
-          version: number
-        }
+        Returns: Database["wallet"]["CompositeTypes"]["create_cashu_token_swap_result"]
       }
       expire_cashu_receive_quote: {
         Args: { p_quote_id: string; p_quote_version: number }
@@ -919,7 +880,25 @@ export type Database = {
           p_token_hash: string
           p_user_id: string
         }
-        Returns: undefined
+        Returns: {
+          account_id: string
+          created_at: string
+          currency: string
+          failure_reason: string | null
+          fee_amount: number
+          input_amount: number
+          keyset_counter: number
+          keyset_id: string
+          output_amounts: number[]
+          receive_amount: number
+          state: string
+          token_hash: string
+          token_proofs: string
+          transaction_id: string
+          unit: string
+          user_id: string
+          version: number
+        }
       }
       find_contact_candidates: {
         Args: { current_user_id: string; partial_username: string }
@@ -992,9 +971,27 @@ export type Database = {
           | null
         updated_account: Database["wallet"]["Tables"]["accounts"]["Row"] | null
       }
+      complete_cashu_receive_quote_result: {
+        updated_quote:
+          | Database["wallet"]["Tables"]["cashu_receive_quotes"]["Row"]
+          | null
+        updated_account: Database["wallet"]["Tables"]["accounts"]["Row"] | null
+      }
+      complete_cashu_token_swap_result: {
+        updated_swap:
+          | Database["wallet"]["Tables"]["cashu_token_swaps"]["Row"]
+          | null
+        updated_account: Database["wallet"]["Tables"]["accounts"]["Row"] | null
+      }
       create_cashu_send_quote_result: {
         created_quote:
           | Database["wallet"]["Tables"]["cashu_send_quotes"]["Row"]
+          | null
+        updated_account: Database["wallet"]["Tables"]["accounts"]["Row"] | null
+      }
+      create_cashu_token_swap_result: {
+        created_swap:
+          | Database["wallet"]["Tables"]["cashu_token_swaps"]["Row"]
           | null
         updated_account: Database["wallet"]["Tables"]["accounts"]["Row"] | null
       }

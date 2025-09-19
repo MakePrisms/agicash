@@ -7,20 +7,24 @@ import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-sessio
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import {
   BASE_CASHU_LOCKING_DERIVATION_PATH,
-  seedQuery,
-  xpubQuery,
+  seedQueryOptions,
+  xpubQueryOptions,
 } from '~/features/shared/cashu';
 import {
-  encryptionPrivateKeyQuery,
-  encryptionPublicKeyQuery,
+  encryptionPrivateKeyQueryOptions,
+  encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
-import { type AuthUser, authQuery, useAuthState } from '~/features/user/auth';
+import {
+  type AuthUser,
+  authQueryOptions,
+  useAuthState,
+} from '~/features/user/auth';
 import type { User } from '~/features/user/user';
 import {
   defaultAccounts,
   getUserFromCache,
-  userQuery,
+  userQueryOptions,
 } from '~/features/user/user-hooks';
 import { UserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
@@ -55,17 +59,17 @@ const ensureUserData = async (
   if (!user || hasUserChanged(user, authUser)) {
     const [encryptionPrivateKey, encryptionPublicKey, cashuLockingXpub] =
       await Promise.all([
-        queryClient.ensureQueryData(encryptionPrivateKeyQuery()),
-        queryClient.ensureQueryData(encryptionPublicKeyQuery()),
+        queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
+        queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
         queryClient.ensureQueryData(
-          xpubQuery({
+          xpubQueryOptions({
             queryClient,
             derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
           }),
         ),
       ]);
     const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-    const getCashuWalletSeed = () => queryClient.fetchQuery(seedQuery());
+    const getCashuWalletSeed = () => queryClient.fetchQuery(seedQueryOptions());
     const accountRepository = new AccountRepository(
       agicashDb,
       encryption,
@@ -87,11 +91,11 @@ const ensureUserData = async (
       encryptionPublicKey,
     });
     user = upsertedUser;
-    const userQueryOptions = userQuery({
+    const { queryKey: userQueryKey } = userQueryOptions({
       userId: authUser.id,
       userRepository,
     });
-    queryClient.setQueryData(userQueryOptions.queryKey, user);
+    queryClient.setQueryData(userQueryKey, user);
     queryClient.setQueryData([accountsQueryKey], accounts);
   }
 
@@ -107,7 +111,7 @@ const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
   const hash = window.location.hash;
   const queryClient = getQueryClient();
   const { isLoggedIn, user: authUser } = await queryClient.ensureQueryData(
-    authQuery(),
+    authQueryOptions(),
   );
   const shouldRedirectToSignup = !isLoggedIn;
   const shouldVerifyEmail = authUser ? shouldUserVerifyEmail(authUser) : false;

@@ -49,6 +49,11 @@ type CashuReceiveQuotePaymentResult = {
   updated_account: AgicashDbAccount;
 };
 
+type CompleteCashuReceiveQuoteResult = {
+  updated_quote: AgicashDbCashuReceiveQuote;
+  updated_account: AgicashDbAccount;
+};
+
 type CreateCashuSendQuoteResult = {
   created_quote: AgicashDbCashuSendQuote;
   updated_account: AgicashDbAccount;
@@ -56,6 +61,16 @@ type CreateCashuSendQuoteResult = {
 
 type UpdateCashuSendQuoteResult = {
   updated_quote: AgicashDbCashuSendQuote;
+  updated_account: AgicashDbAccount;
+};
+
+type CreateCashuTokenSwapResult = {
+  created_swap: AgicashDbCashuTokenSwap;
+  updated_account: AgicashDbAccount;
+};
+
+type CompleteCashuTokenSwapResult = {
+  updated_swap: AgicashDbCashuTokenSwap;
   updated_account: AgicashDbAccount;
 };
 
@@ -177,8 +192,14 @@ export type Database = MergeDeep<
         process_cashu_receive_quote_payment: {
           Returns: CashuReceiveQuotePaymentResult;
         };
+        complete_cashu_receive_quote: {
+          Returns: CompleteCashuReceiveQuoteResult;
+        };
         create_cashu_token_swap: {
-          Returns: AgicashDbCashuTokenSwap;
+          Returns: CreateCashuTokenSwapResult;
+        };
+        complete_cashu_token_swap: {
+          Returns: CompleteCashuTokenSwapResult;
         };
         create_cashu_send_quote: {
           Returns: CreateCashuSendQuoteResult;
@@ -191,6 +212,9 @@ export type Database = MergeDeep<
         };
         fail_cashu_send_quote: {
           Returns: UpdateCashuSendQuoteResult;
+        };
+        fail_cashu_token_swap: {
+          Returns: AgicashDbCashuTokenSwap;
         };
         create_cashu_send_swap: {
           Returns: AgicashDbCashuSendSwap;
@@ -208,8 +232,11 @@ export type Database = MergeDeep<
       };
       CompositeTypes: {
         cashu_receive_quote_payment_result: CashuReceiveQuotePaymentResult;
+        complete_cashu_receive_quote_result: CompleteCashuReceiveQuoteResult;
         create_cashu_send_quote_result: CreateCashuSendQuoteResult;
         update_cashu_send_quote_result: UpdateCashuSendQuoteResult;
+        create_cashu_token_swap_result: CreateCashuTokenSwapResult;
+        complete_cashu_token_swap_result: CompleteCashuTokenSwapResult;
       };
     };
   }

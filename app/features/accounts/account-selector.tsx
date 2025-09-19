@@ -18,7 +18,7 @@ export type AccountWithBadges<T extends Account = Account> = T & {
   /** Text to display as a badge in the account selector */
   badges?: string[];
   /** Whether the account is selectable */
-  selectable?: boolean;
+  isSelectable?: boolean;
 };
 
 function AccountItem({ account }: { account: AccountWithBadges }) {
@@ -97,14 +97,14 @@ export function AccountSelector<T extends Account>({
                 ...accounts.filter((a) => a.id !== selectedAccount.id),
               ].map((account) => (
                 <button
-                  disabled={account.selectable === false}
+                  disabled={account.isSelectable === false}
                   type="button"
                   key={account.id}
                   onClick={() => handleAccountSelect(account)}
                   className={cn(
                     'rounded-lg hover:bg-muted',
                     selectedAccount.id === account.id && 'bg-muted',
-                    account.selectable === false &&
+                    account.isSelectable === false &&
                       'pointer-events-none cursor-not-allowed opacity-50',
                   )}
                 >
