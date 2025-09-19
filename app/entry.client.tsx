@@ -35,12 +35,13 @@ Sentry.init({
   // Adds request headers and IP for users, for more info visit:
   // https://docs.sentry.io/platforms/javascript/guides/react-router/configuration/options/#sendDefaultPii
   sendDefaultPii: false,
-  integrations: [],
   enabled:
     process.env.NODE_ENV === 'production' &&
     !isServedLocally(window.location.hostname),
   environment: getEnvironment(),
   tunnel: '/api/logs',
+  enableLogs: true,
+  integrations: [Sentry.consoleLoggingIntegration()],
 });
 
 startTransition(() => {
