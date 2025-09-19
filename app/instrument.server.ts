@@ -29,4 +29,6 @@ Sentry.init({
   enabled:
     process.env.NODE_ENV === 'production' && !isServedLocally(hostname, ips),
   environment: getEnvironment(),
+  enableLogs: true,
+  integrations: [Sentry.consoleLoggingIntegration()],
 });
