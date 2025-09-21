@@ -1,6 +1,6 @@
 import { Outlet, redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
-import { authQuery } from '~/features/user/auth';
+import { authQueryOptions } from '~/features/user/auth';
 import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/_auth';
 
@@ -10,7 +10,9 @@ const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
 ) => {
   const location = new URL(request.url);
   const queryClient = getQueryClient();
-  const { isLoggedIn, user } = await queryClient.ensureQueryData(authQuery());
+  const { isLoggedIn, user } = await queryClient.ensureQueryData(
+    authQueryOptions(),
+  );
 
   console.debug('Rendering auth layout', {
     time: new Date().toISOString(),
