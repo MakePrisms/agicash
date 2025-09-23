@@ -88,6 +88,8 @@
     },
   },
   "patchedDependencies": {
+    "@supabase/supabase-js@2.56.0": "patches/@supabase%2Fsupabase-js@2.56.0.patch",
+    "@supabase/realtime-js@2.15.1": "patches/@supabase%2Frealtime-js@2.15.1.patch",
     "react-router@7.8.1": "patches/react-router@7.8.1.patch",
   },
   "packages": {
