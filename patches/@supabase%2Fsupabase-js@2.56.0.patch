@@ -1,0 +1,63 @@
+diff --git a/node_modules/@supabase/supabase-js/.bun-tag-21954aafe00111c7 b/.bun-tag-21954aafe00111c7
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@supabase/supabase-js/.bun-tag-59b5b0ee722cf4fb b/.bun-tag-59b5b0ee722cf4fb
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@supabase/supabase-js/.bun-tag-7df0bc76df7e091f b/.bun-tag-7df0bc76df7e091f
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/main/SupabaseClient.js b/dist/main/SupabaseClient.js
+index ba134270470d93177bbdef48507629bd08ad9ec2..5db812b5b423daeeca0d7b3403b7deae26a1e0f0 100644
+--- a/dist/main/SupabaseClient.js
++++ b/dist/main/SupabaseClient.js
+@@ -160,10 +160,11 @@ class SupabaseClient {
+      * Unsubscribes and removes Realtime channel from Realtime client.
+      *
+      * @param {RealtimeChannel} channel - The name of the Realtime channel.
++     * @param {string} resubscriptionId - The resubscription ID.
+      *
+      */
+-    removeChannel(channel) {
+-        return this.realtime.removeChannel(channel);
++    removeChannel(channel, resubscriptionId = undefined) {
++        return this.realtime.removeChannel(channel, resubscriptionId);
+     }
+     /**
+      * Unsubscribes and removes all Realtime channels from Realtime client.
+diff --git a/dist/module/SupabaseClient.js b/dist/module/SupabaseClient.js
+index 52207fc6f0557b6df1a78a0a9198d46f62ad17a7..d2ed3ec09e2174c79713faab19db80570010ef08 100644
+--- a/dist/module/SupabaseClient.js
++++ b/dist/module/SupabaseClient.js
+@@ -158,10 +158,10 @@ export default class SupabaseClient {
+      * Unsubscribes and removes Realtime channel from Realtime client.
+      *
+      * @param {RealtimeChannel} channel - The name of the Realtime channel.
+-     *
++     * @param {string} resubscriptionId - The resubscription ID.
+      */
+-    removeChannel(channel) {
+-        return this.realtime.removeChannel(channel);
++    removeChannel(channel, resubscriptionId = undefined) {
++        return this.realtime.removeChannel(channel, resubscriptionId);
+     }
+     /**
+      * Unsubscribes and removes all Realtime channels from Realtime client.
+diff --git a/src/SupabaseClient.ts b/src/SupabaseClient.ts
+index 1a0bb0ff8f61c4773fe0c66358dc610ec062678f..011bf87e13e6d3a20e855f7f82c9cfef516dece4 100644
+--- a/src/SupabaseClient.ts
++++ b/src/SupabaseClient.ts
+@@ -287,10 +287,11 @@ export default class SupabaseClient<
+    * Unsubscribes and removes Realtime channel from Realtime client.
+    *
+    * @param {RealtimeChannel} channel - The name of the Realtime channel.
++   * @param {string} resubscriptionId - The resubscription ID.
+    *
+    */
+-  removeChannel(channel: RealtimeChannel): Promise<'ok' | 'timed out' | 'error'> {
+-    return this.realtime.removeChannel(channel)
++  removeChannel(channel: RealtimeChannel, resubscriptionId: string | undefined = undefined): Promise<'ok' | 'timed out' | 'error'> {
++    return this.realtime.removeChannel(channel, resubscriptionId)
+   }
+ 
+   /**

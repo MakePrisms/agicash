@@ -116,42 +116,59 @@ export function useSupabaseRealtimeSubscription({
     });
   }, []);
 
-  const subscribe = useCallback(async () => {
-    await refreshSessionIfNeeded();
+  const subscribe = useCallback(
+    async (resubscriptionId?: string) => {
+      await refreshSessionIfNeeded();
 
-    const channel = channelFactoryRef.current();
-    channelRef.current = channel;
+      const channel = channelFactoryRef.current();
+      channelRef.current = channel;
 
-    console.debug('Realtime channel subscribe called', {
-      time: new Date().toISOString(),
-      topic: channel.topic,
-    });
+      console.debug('Realtime channel subscribe called', {
+        time: new Date().toISOString(),
+        topic: channel.topic,
+        resubscriptionId: resubscriptionId ?? '-',
+      });
 
-    setupSystemMessageListener(channel);
+      setupSystemMessageListener(channel);
 
-    channel.subscribe((status, err) =>
-      handleSubscriptionState(channel, status, err),
-    );
-  }, [setupSystemMessageListener]);
+      channel.subscribe((status, err) =>
+        handleSubscriptionState(channel, status, err),
+      );
+    },
+    [setupSystemMessageListener],
+  );
 
-  const unsubscribe = useCallback(() => {
+  const unsubscribe = useCallback(async (resubscriptionId?: string) => {
     if (channelRef.current) {
       console.debug('Realtime channel unsubscribe called', {
         time: new Date().toISOString(),
         topic: channelRef.current.topic,
+        resubscriptionId: resubscriptionId ?? '-',
       });
-      agicashDb.removeChannel(channelRef.current);
+      const result = await agicashDb.removeChannel(
+        channelRef.current,
+        // @ts-ignore - this was patched with bun patch but for some reason typescript is not picking it up.
+        resubscriptionId,
+      );
+      console.debug('Realtime channel unsubscribe result', {
+        time: new Date().toISOString(),
+        topic: channelRef.current.topic,
+        resubscriptionId: resubscriptionId ?? '-',
+        result,
+      });
       channelRef.current = null;
     }
   }, []);
 
-  const resubscribe = useCallback(() => {
+  const resubscribe = useCallback(async () => {
+    const resubscriptionId = crypto.randomUUID();
     console.debug('Realtime channel resubscribe called', {
       time: new Date().toISOString(),
       topic: channelRef.current?.topic,
+      id: resubscriptionId,
     });
-    unsubscribe();
-    subscribe();
+    await unsubscribe(resubscriptionId);
+    subscribe(resubscriptionId);
   }, [unsubscribe, subscribe]);
 
   const handleSubscriptionState = useCallback(

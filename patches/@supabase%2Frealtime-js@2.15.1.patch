@@ -1,0 +1,153 @@
+diff --git a/node_modules/@supabase/realtime-js/.bun-tag-1583c578e5eed439 b/.bun-tag-1583c578e5eed439
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@supabase/realtime-js/.bun-tag-22debecda0f47b2d b/.bun-tag-22debecda0f47b2d
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@supabase/realtime-js/.bun-tag-5eb9b0c4da1f864d b/.bun-tag-5eb9b0c4da1f864d
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/module/RealtimeChannel.js b/dist/module/RealtimeChannel.js
+index 5823fd7426c7b1487e14d3e9c61c8f89dfa7fea4..cdbfee685e79ea49e32c71cc66b1545fed8f9fa7 100644
+--- a/dist/module/RealtimeChannel.js
++++ b/dist/module/RealtimeChannel.js
+@@ -125,6 +125,7 @@ export default class RealtimeChannel {
+                 var _a;
+                 this.socket.setAuth();
+                 if (postgres_changes === undefined) {
++                    this.socket.log('custom', 'calling subscribe callback from subscribe method when postgres_changes is undefined');
+                     callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
+                     return;
+                 }
+@@ -146,21 +147,25 @@ export default class RealtimeChannel {
+                         else {
+                             this.unsubscribe();
+                             this.state = CHANNEL_STATES.errored;
++                            this.socket.log('custom', 'calling subscribe callback from subscribe method when error');
+                             callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, new Error('mismatch between server and client bindings for postgres changes'));
+                             return;
+                         }
+                     }
+                     this.bindings.postgres_changes = newPostgresBindings;
++                    this.socket.log('custom', 'calling subscribe callback from subscribe method when all ok');
+                     callback && callback(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
+                     return;
+                 }
+             })
+                 .receive('error', (error) => {
+                 this.state = CHANNEL_STATES.errored;
++                this.socket.log('custom', 'calling subscribe callback from subscribe method when received error');
+                 callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, new Error(JSON.stringify(Object.values(error).join(', ') || 'error')));
+                 return;
+             })
+                 .receive('timeout', () => {
++                this.socket.log('custom', 'calling subscribe callback from subscribe method when received timeout')
+                 callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.TIMED_OUT);
+                 return;
+             });
+@@ -264,10 +269,10 @@ export default class RealtimeChannel {
+      * To receive leave acknowledgements, use the a `receive` hook to bind to the server ack, ie:
+      * channel.unsubscribe().receive("ok", () => alert("left!") )
+      */
+-    unsubscribe(timeout = this.timeout) {
++    unsubscribe(timeout = this.timeout, resubscriptionId = undefined) {
+         this.state = CHANNEL_STATES.leaving;
+         const onClose = () => {
+-            this.socket.log('channel', `leave ${this.topic}`);
++            this.socket.log('channel', `leave ${this.topic} resubscriptionId:${resubscriptionId ?? '-'}`);
+             this._trigger(CHANNEL_EVENTS.close, 'leave', this._joinRef());
+         };
+         this.joinPush.destroy();
+diff --git a/dist/module/RealtimeClient.js b/dist/module/RealtimeClient.js
+index cac09587514c8f9d2535c27fb95ca368134a78bf..1a94ba9cbea6eec1f91f1852652d7ed0fad21ad8 100644
+--- a/dist/module/RealtimeClient.js
++++ b/dist/module/RealtimeClient.js
+@@ -198,9 +198,10 @@ export default class RealtimeClient {
+     /**
+      * Unsubscribes and removes a single channel
+      * @param channel A RealtimeChannel instance
++     * @param resubscriptionId The resubscription ID
+      */
+-    async removeChannel(channel) {
+-        const status = await channel.unsubscribe();
++    async removeChannel(channel, resubscriptionId = undefined) {
++        const status = await channel.unsubscribe(undefined, resubscriptionId);
+         if (this.channels.length === 0) {
+             this.disconnect();
+         }
+diff --git a/src/RealtimeChannel.ts b/src/RealtimeChannel.ts
+index 46eb68e17c3d188e5d38a70c13e5c4104ac616f4..ac2e1925f1564bbdb0dd40b330e974920e35ad25 100644
+--- a/src/RealtimeChannel.ts
++++ b/src/RealtimeChannel.ts
+@@ -267,6 +267,7 @@ export default class RealtimeChannel {
+         .receive('ok', async ({ postgres_changes }: PostgresChangesFilters) => {
+           this.socket.setAuth()
+           if (postgres_changes === undefined) {
++            this.socket.log('custom', 'calling subscribe callback from subscribe method when postgres_changes is undefined')
+             callback?.(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED)
+             return
+           } else {
+@@ -297,6 +298,7 @@ export default class RealtimeChannel {
+                 this.unsubscribe()
+                 this.state = CHANNEL_STATES.errored
+ 
++                this.socket.log('custom', 'calling subscribe callback from subscribe method when error')
+                 callback?.(
+                   REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR,
+                   new Error(
+@@ -309,12 +311,14 @@ export default class RealtimeChannel {
+ 
+             this.bindings.postgres_changes = newPostgresBindings
+ 
++            this.socket.log('custom', 'calling subscribe callback from subscribe method when all ok')
+             callback && callback(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED)
+             return
+           }
+         })
+         .receive('error', (error: { [key: string]: any }) => {
+           this.state = CHANNEL_STATES.errored
++          this.socket.log('custom', 'calling subscribe callback from subscribe method when received error')
+           callback?.(
+             REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR,
+             new Error(
+@@ -324,6 +328,7 @@ export default class RealtimeChannel {
+           return
+         })
+         .receive('timeout', () => {
++          this.socket.log('custom', 'calling subscribe callback from subscribe method when received timeout')
+           callback?.(REALTIME_SUBSCRIBE_STATES.TIMED_OUT)
+           return
+         })
+@@ -533,10 +538,10 @@ export default class RealtimeChannel {
+    * To receive leave acknowledgements, use the a `receive` hook to bind to the server ack, ie:
+    * channel.unsubscribe().receive("ok", () => alert("left!") )
+    */
+-  unsubscribe(timeout = this.timeout): Promise<'ok' | 'timed out' | 'error'> {
++  unsubscribe(timeout = this.timeout, resubscriptionId: string | undefined = undefined): Promise<'ok' | 'timed out' | 'error'> {
+     this.state = CHANNEL_STATES.leaving
+     const onClose = () => {
+-      this.socket.log('channel', `leave ${this.topic}`)
++      this.socket.log('channel', `leave ${this.topic} resubscriptionId:${resubscriptionId ?? '-'}`)
+       this._trigger(CHANNEL_EVENTS.close, 'leave', this._joinRef())
+     }
+ 
+diff --git a/src/RealtimeClient.ts b/src/RealtimeClient.ts
+index 008c4d5ad1f3533d87139936da595519b56e67d3..9fd8de2b11b65e8ed1760eb0766130d9768121d6 100755
+--- a/src/RealtimeClient.ts
++++ b/src/RealtimeClient.ts
+@@ -287,11 +287,13 @@ export default class RealtimeClient {
+   /**
+    * Unsubscribes and removes a single channel
+    * @param channel A RealtimeChannel instance
++   * @param resubscriptionId The resubscription ID.
+    */
+   async removeChannel(
+-    channel: RealtimeChannel
++    channel: RealtimeChannel,
++    resubscriptionId: string | undefined = undefined
+   ): Promise<RealtimeRemoveChannelResponse> {
+-    const status = await channel.unsubscribe()
++    const status = await channel.unsubscribe(undefined, resubscriptionId)
+ 
+     if (this.channels.length === 0) {
+       this.disconnect()
