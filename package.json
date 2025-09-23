@@ -49,7 +49,7 @@
     "@react-router/node": "7.8.1",
     "@scure/bip32": "1.7.0",
     "@scure/bip39": "1.6.0",
-    "@sentry/react-router": "10.5.0",
+    "@sentry/react-router": "10.14.0",
     "@supabase/supabase-js": "2.56.0",
     "@tanstack/react-query": "5.76.1",
     "@tanstack/react-query-devtools": "5.76.1",

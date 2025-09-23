@@ -40,7 +40,7 @@ type SubscriptionState =
  */
 const refreshSessionIfNeeded = async () => {
   // setAuth calls accessToken method on the Supabase client which fetches the existing token if still valid or fetches a new one if expired.
-  // It then sees if the token returned from accessToken method has changed if yes, it updates the realtime access token.
+  // It then sees if the token returned from accessToken method has changed and if it did, it updates the realtime access token.
   await agicashDb.realtime.setAuth();
 };
 

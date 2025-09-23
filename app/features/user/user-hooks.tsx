@@ -46,10 +46,7 @@ export const userQueryOptions = <TData = User>({
   select?: (data: User) => TData;
 }) => ({
   queryKey: [userQueryKey],
-  queryFn: () => {
-    console.debug('querying user', userId);
-    return userRepository.get(userId);
-  },
+  queryFn: () => userRepository.get(userId),
   select,
 });
 
