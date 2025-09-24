@@ -7,7 +7,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
 import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
 import { useLatest } from '~/lib/use-latest';
@@ -390,10 +390,25 @@ export function useDefaultAccount() {
       (x.currency === 'USD' && x.id === defaultUsdccountId),
   );
 
+  // In the case that there are multiple instances of the app open and the user creates a new account and sets it as default,
+  // the user's default account ID might be updated before the new account is propagated to other instances.
+  // This is a fallback to maintain the previous default account until the new account is propagated.
+  const previousDefaultAccountIdRef = useRef(defaultAccount?.id);
+
   if (!defaultAccount) {
-    throw new Error(`No default account found for currency ${defaultCurrency}`);
+    // prefer the previous default account if available, otherwise use first account with the user's default currency
+    const fallbackAccount =
+      accounts.find((x) => x.id === previousDefaultAccountIdRef.current) ??
+      accounts.find((x) => x.currency === defaultCurrency);
+    if (!fallbackAccount) {
+      throw new Error(
+        `No default account found for currency ${defaultCurrency}`,
+      );
+    }
+    return fallbackAccount;
   }
 
+  previousDefaultAccountIdRef.current = defaultAccount?.id;
   return defaultAccount;
 }
 
