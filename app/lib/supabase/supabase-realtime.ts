@@ -127,6 +127,7 @@ export function useSupabaseRealtimeSubscription({
         time: new Date().toISOString(),
         topic: channel.topic,
         resubscriptionId: resubscriptionId ?? '-',
+        socketConnectionState: channel.socket.connectionState,
       });
 
       setupSystemMessageListener(channel);
@@ -144,6 +145,7 @@ export function useSupabaseRealtimeSubscription({
         time: new Date().toISOString(),
         topic: channelRef.current.topic,
         resubscriptionId: resubscriptionId ?? '-',
+        socketConnectionState: channelRef.current.socket.connectionState,
       });
       const result = await agicashDb.removeChannel(
         channelRef.current,
@@ -178,6 +180,7 @@ export function useSupabaseRealtimeSubscription({
         time: new Date().toISOString(),
         topic,
         status,
+        socketConnectionState: channel.socket.connectionState,
         error: supabaseError,
       });
 
@@ -230,6 +233,7 @@ export function useSupabaseRealtimeSubscription({
             topic,
             status,
             error: supabaseError,
+            socketConnectionState: channel.socket.connectionState,
             attempt: `${retryCountRef.current}/${maxRetries}`,
           });
           resubscribe();
