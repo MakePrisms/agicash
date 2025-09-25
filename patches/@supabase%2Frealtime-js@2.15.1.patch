@@ -1,6 +1,9 @@
 diff --git a/node_modules/@supabase/realtime-js/.bun-tag-1583c578e5eed439 b/.bun-tag-1583c578e5eed439
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@supabase/realtime-js/.bun-tag-15ea7092a0eef47c b/.bun-tag-15ea7092a0eef47c
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/node_modules/@supabase/realtime-js/.bun-tag-22debecda0f47b2d b/.bun-tag-22debecda0f47b2d
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
@@ -8,9 +11,18 @@ diff --git a/node_modules/@supabase/realtime-js/.bun-tag-5eb9b0c4da1f864d b/.bun
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/module/RealtimeChannel.js b/dist/module/RealtimeChannel.js
-index 5823fd7426c7b1487e14d3e9c61c8f89dfa7fea4..cdbfee685e79ea49e32c71cc66b1545fed8f9fa7 100644
+index 5823fd7426c7b1487e14d3e9c61c8f89dfa7fea4..1e73970a23345e186c088808ce207dbe1f76e7da 100644
 --- a/dist/module/RealtimeChannel.js
 +++ b/dist/module/RealtimeChannel.js
+@@ -50,7 +50,7 @@ export default class RealtimeChannel {
+         }, params.config);
+         this.timeout = this.socket.timeout;
+         this.joinPush = new Push(this, CHANNEL_EVENTS.join, this.params, this.timeout);
+-        this.rejoinTimer = new Timer(() => this._rejoinUntilConnected(), this.socket.reconnectAfterMs);
++        this.rejoinTimer = new Timer(() => this._rejoinUntilConnected(), this.socket.reconnectAfterMs, `rejoin-channel-timer-${this.topic}`);
+         this.joinPush.receive('ok', () => {
+             this.state = CHANNEL_STATES.joined;
+             this.rejoinTimer.reset();
 @@ -125,6 +125,7 @@ export default class RealtimeChannel {
                  var _a;
                  this.socket.setAuth();
@@ -58,8 +70,19 @@ index 5823fd7426c7b1487e14d3e9c61c8f89dfa7fea4..cdbfee685e79ea49e32c71cc66b1545f
              this._trigger(CHANNEL_EVENTS.close, 'leave', this._joinRef());
          };
          this.joinPush.destroy();
+@@ -485,7 +490,9 @@ export default class RealtimeChannel {
+     /** @internal */
+     _rejoinUntilConnected() {
+         this.rejoinTimer.scheduleTimeout();
+-        if (this.socket.isConnected()) {
++        const isSocketConnected = this.socket.isConnected();
++        this.socket.log('custom', `_rejoinUntilConnected called for channel for ${this.topic}`, { isSocketConnected })
++        if (isSocketConnected) {
+             this._rejoin();
+         }
+     }
 diff --git a/dist/module/RealtimeClient.js b/dist/module/RealtimeClient.js
-index cac09587514c8f9d2535c27fb95ca368134a78bf..1a94ba9cbea6eec1f91f1852652d7ed0fad21ad8 100644
+index cac09587514c8f9d2535c27fb95ca368134a78bf..57981c8ae98da9fd2eb2d94378cd17adac2cd363 100644
 --- a/dist/module/RealtimeClient.js
 +++ b/dist/module/RealtimeClient.js
 @@ -198,9 +198,10 @@ export default class RealtimeClient {
@@ -75,11 +98,73 @@ index cac09587514c8f9d2535c27fb95ca368134a78bf..1a94ba9cbea6eec1f91f1852652d7ed0
          if (this.channels.length === 0) {
              this.disconnect();
          }
+@@ -649,10 +650,11 @@ export default class RealtimeClient {
+             setTimeout(async () => {
+                 await this._waitForAuthIfNeeded();
+                 if (!this.isConnected()) {
++                    this.log('reconnect', 'reconnecting socket');
+                     this.connect();
+                 }
+             }, CONNECTION_TIMEOUTS.RECONNECT_DELAY);
+-        }, this.reconnectAfterMs);
++        }, this.reconnectAfterMs, 'socket-reconnect-timer');
+     }
+     /**
+      * Initialize client options with defaults
+diff --git a/dist/module/lib/timer.js b/dist/module/lib/timer.js
+index fc386672b0074004314f404264fd86af3e74eee1..d996e4dc7711529fa3f5e30f3feb3c38ab5b041e 100644
+--- a/dist/module/lib/timer.js
++++ b/dist/module/lib/timer.js
+@@ -11,26 +11,31 @@
+  *    reconnectTimer.scheduleTimeout() // fires after 1000
+  */
+ export default class Timer {
+-    constructor(callback, timerCalc) {
++    constructor(callback, timerCalc, name) {
+         this.callback = callback;
+         this.timerCalc = timerCalc;
+         this.timer = undefined;
+         this.tries = 0;
+         this.callback = callback;
+         this.timerCalc = timerCalc;
++        this.name = name;
+     }
+     reset() {
+         this.tries = 0;
+         clearTimeout(this.timer);
+         this.timer = undefined;
++        console.log(`${this.name} timer reset`);
+     }
+     // Cancels any previous scheduleTimeout and schedules callback
+     scheduleTimeout() {
+         clearTimeout(this.timer);
++        const delay = this.timerCalc(this.tries + 1);
++        console.log(`Scheduling ${this.name} timer. Attempt: ${this.tries}. Delay: ${delay}`);
+         this.timer = setTimeout(() => {
+             this.tries = this.tries + 1;
++            console.log(`Executing ${this.name} timer. Attempt: ${this.tries}`);
+             this.callback();
+-        }, this.timerCalc(this.tries + 1));
++        }, delay);
+     }
+ }
+ //# sourceMappingURL=timer.js.map
+\ No newline at end of file
 diff --git a/src/RealtimeChannel.ts b/src/RealtimeChannel.ts
-index 46eb68e17c3d188e5d38a70c13e5c4104ac616f4..ac2e1925f1564bbdb0dd40b330e974920e35ad25 100644
+index 46eb68e17c3d188e5d38a70c13e5c4104ac616f4..05f5b74c330a78b032abdee0d7bc378961c46073 100644
 --- a/src/RealtimeChannel.ts
 +++ b/src/RealtimeChannel.ts
-@@ -267,6 +267,7 @@ export default class RealtimeChannel {
+@@ -172,7 +172,8 @@ export default class RealtimeChannel {
+     )
+     this.rejoinTimer = new Timer(
+       () => this._rejoinUntilConnected(),
+-      this.socket.reconnectAfterMs
++      this.socket.reconnectAfterMs,
++      `rejoin-channel-timer-${this.topic}`
+     )
+     this.joinPush.receive('ok', () => {
+       this.state = CHANNEL_STATES.joined
+@@ -267,6 +268,7 @@ export default class RealtimeChannel {
          .receive('ok', async ({ postgres_changes }: PostgresChangesFilters) => {
            this.socket.setAuth()
            if (postgres_changes === undefined) {
@@ -87,7 +172,7 @@ index 46eb68e17c3d188e5d38a70c13e5c4104ac616f4..ac2e1925f1564bbdb0dd40b330e97492
              callback?.(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED)
              return
            } else {
-@@ -297,6 +298,7 @@ export default class RealtimeChannel {
+@@ -297,6 +299,7 @@ export default class RealtimeChannel {
                  this.unsubscribe()
                  this.state = CHANNEL_STATES.errored
  
@@ -95,7 +180,7 @@ index 46eb68e17c3d188e5d38a70c13e5c4104ac616f4..ac2e1925f1564bbdb0dd40b330e97492
                  callback?.(
                    REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR,
                    new Error(
-@@ -309,12 +311,14 @@ export default class RealtimeChannel {
+@@ -309,12 +312,14 @@ export default class RealtimeChannel {
  
              this.bindings.postgres_changes = newPostgresBindings
  
@@ -110,7 +195,7 @@ index 46eb68e17c3d188e5d38a70c13e5c4104ac616f4..ac2e1925f1564bbdb0dd40b330e97492
            callback?.(
              REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR,
              new Error(
-@@ -324,6 +328,7 @@ export default class RealtimeChannel {
+@@ -324,6 +329,7 @@ export default class RealtimeChannel {
            return
          })
          .receive('timeout', () => {
@@ -118,7 +203,7 @@ index 46eb68e17c3d188e5d38a70c13e5c4104ac616f4..ac2e1925f1564bbdb0dd40b330e97492
            callback?.(REALTIME_SUBSCRIBE_STATES.TIMED_OUT)
            return
          })
-@@ -533,10 +538,10 @@ export default class RealtimeChannel {
+@@ -533,10 +539,10 @@ export default class RealtimeChannel {
     * To receive leave acknowledgements, use the a `receive` hook to bind to the server ack, ie:
     * channel.unsubscribe().receive("ok", () => alert("left!") )
     */
@@ -131,11 +216,30 @@ index 46eb68e17c3d188e5d38a70c13e5c4104ac616f4..ac2e1925f1564bbdb0dd40b330e97492
        this._trigger(CHANNEL_EVENTS.close, 'leave', this._joinRef())
      }
  
+@@ -813,7 +819,9 @@ export default class RealtimeChannel {
+   /** @internal */
+   private _rejoinUntilConnected() {
+     this.rejoinTimer.scheduleTimeout()
+-    if (this.socket.isConnected()) {
++    const isSocketConnected = this.socket.isConnected()
++    this.socket.log('custom', `_rejoinUntilConnected called for channel for ${this.topic}`, { isSocketConnected })
++    if (isSocketConnected) {
+       this._rejoin()
+     }
+   }
 diff --git a/src/RealtimeClient.ts b/src/RealtimeClient.ts
-index 008c4d5ad1f3533d87139936da595519b56e67d3..9fd8de2b11b65e8ed1760eb0766130d9768121d6 100755
+index 008c4d5ad1f3533d87139936da595519b56e67d3..92a566e7eb33038c3a6d967e8e3141afa8bec686 100755
 --- a/src/RealtimeClient.ts
 +++ b/src/RealtimeClient.ts
-@@ -287,11 +287,13 @@ export default class RealtimeClient {
+@@ -226,6 +226,7 @@ export default class RealtimeClient {
+         throw new Error(`WebSocket not available: ${errorMessage}`)
+       }
+     }
++    this.log('connect', 'socket connected')
+     this._setupConnectionHandlers()
+   }
+ 
+@@ -287,11 +288,13 @@ export default class RealtimeClient {
    /**
     * Unsubscribes and removes a single channel
     * @param channel A RealtimeChannel instance
@@ -151,3 +255,51 @@ index 008c4d5ad1f3533d87139936da595519b56e67d3..9fd8de2b11b65e8ed1760eb0766130d9
  
      if (this.channels.length === 0) {
        this.disconnect()
+@@ -833,10 +836,11 @@ export default class RealtimeClient {
+       setTimeout(async () => {
+         await this._waitForAuthIfNeeded()
+         if (!this.isConnected()) {
++          this.log('reconnect', 'reconnecting socket')
+           this.connect()
+         }
+       }, CONNECTION_TIMEOUTS.RECONNECT_DELAY)
+-    }, this.reconnectAfterMs)
++    }, this.reconnectAfterMs, 'socket-reconnect-timer')
+   }
+ 
+   /**
+diff --git a/src/lib/timer.ts b/src/lib/timer.ts
+index 9eeea06f4bbbabeda7dd628814c7b490d1c9d56e..47929d9dc88621be63d745f716fed13a8c42981e 100755
+--- a/src/lib/timer.ts
++++ b/src/lib/timer.ts
+@@ -14,7 +14,7 @@ export default class Timer {
+   timer: number | undefined = undefined
+   tries: number = 0
+ 
+-  constructor(public callback: Function, public timerCalc: Function) {
++  constructor(public callback: Function, public timerCalc: Function, public name: string | undefined = undefined) {
+     this.callback = callback
+     this.timerCalc = timerCalc
+   }
+@@ -23,15 +23,20 @@ export default class Timer {
+     this.tries = 0
+     clearTimeout(this.timer)
+     this.timer = undefined
++    console.log(`${this.name} timer reset`)
+   }
+ 
+   // Cancels any previous scheduleTimeout and schedules callback
+   scheduleTimeout() {
+     clearTimeout(this.timer)
+ 
++    const delay = this.timerCalc(this.tries + 1)
++    console.log(`Scheduling ${this.name} timer. Attempt: ${this.tries}. Delay: ${delay}`)
++
+     this.timer = <any>setTimeout(() => {
+       this.tries = this.tries + 1
++      console.log(`Executing ${this.name} timer. Attempt: ${this.tries}`)
+       this.callback()
+-    }, this.timerCalc(this.tries + 1))
++    }, delay)
+   }
+ }

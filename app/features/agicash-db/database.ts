@@ -249,8 +249,9 @@ export const agicashDb = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
   realtime: {
     logger: (kind: string, msg: unknown, data?: unknown) => {
+      const now = Date.now();
       console.log(
-        `Realtime (${new Date().toISOString()}) -> ${kind}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`,
+        `Realtime (${now} - ${new Date(now).toISOString()}) -> ${kind}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`,
         data,
       );
     },

@@ -108,8 +108,10 @@ export function useSupabaseRealtimeSubscription({
         setState({ status: 'subscribed' });
         retryCountRef.current = 0; // Reset retries on success
 
+        const now = Date.now();
         console.debug('Channel connected', {
-          time: new Date().toISOString(),
+          time: new Date(now).toISOString(),
+          timestamp: now,
           topic: channel.topic,
         });
       }
@@ -123,11 +125,13 @@ export function useSupabaseRealtimeSubscription({
       const channel = channelFactoryRef.current();
       channelRef.current = channel;
 
+      const now = Date.now();
       console.debug('Realtime channel subscribe called', {
-        time: new Date().toISOString(),
+        time: new Date(now).toISOString(),
+        timestamp: now,
         topic: channel.topic,
         resubscriptionId: resubscriptionId ?? '-',
-        socketConnectionState: channel.socket.connectionState,
+        socketConnectionState: channel.socket.connectionState().toString(),
       });
 
       setupSystemMessageListener(channel);
@@ -141,11 +145,15 @@ export function useSupabaseRealtimeSubscription({
 
   const unsubscribe = useCallback(async (resubscriptionId?: string) => {
     if (channelRef.current) {
+      const now = Date.now();
       console.debug('Realtime channel unsubscribe called', {
-        time: new Date().toISOString(),
+        time: new Date(now).toISOString(),
+        timestamp: now,
         topic: channelRef.current.topic,
         resubscriptionId: resubscriptionId ?? '-',
-        socketConnectionState: channelRef.current.socket.connectionState,
+        socketConnectionState: channelRef.current.socket
+          .connectionState()
+          .toString(),
       });
       const result = await agicashDb.removeChannel(
         channelRef.current,
@@ -153,10 +161,14 @@ export function useSupabaseRealtimeSubscription({
         resubscriptionId,
       );
       console.debug('Realtime channel unsubscribe result', {
-        time: new Date().toISOString(),
+        time: new Date(now).toISOString(),
+        timestamp: now,
         topic: channelRef.current.topic,
         resubscriptionId: resubscriptionId ?? '-',
         result,
+        socketConnectionState: channelRef.current.socket
+          .connectionState()
+          .toString(),
       });
       channelRef.current = null;
     }
@@ -164,8 +176,10 @@ export function useSupabaseRealtimeSubscription({
 
   const resubscribe = useCallback(async () => {
     const resubscriptionId = crypto.randomUUID();
+    const now = Date.now();
     console.debug('Realtime channel resubscribe called', {
-      time: new Date().toISOString(),
+      time: new Date(now).toISOString(),
+      timestamp: now,
       topic: channelRef.current?.topic,
       id: resubscriptionId,
     });
@@ -176,11 +190,13 @@ export function useSupabaseRealtimeSubscription({
   const handleSubscriptionState = useCallback(
     async (channel: RealtimeChannel, status: string, supabaseError?: Error) => {
       const { topic } = channel;
+      let now = Date.now();
       console.debug('Realtime channel subscription status changed', {
-        time: new Date().toISOString(),
+        time: new Date(now).toISOString(),
+        timestamp: now,
         topic,
         status,
-        socketConnectionState: channel.socket.connectionState,
+        socketConnectionState: channel.socket.connectionState().toString(),
         error: supabaseError,
       });
 
@@ -202,15 +218,20 @@ export function useSupabaseRealtimeSubscription({
         const online = isOnline();
 
         if (!online || !tabActive) {
+          now = Date.now();
           console.debug(
             `Channel ${event}, but tab is not active or app is offline. Unsubscribing.`,
             {
-              time: new Date().toISOString(),
+              time: new Date(now).toISOString(),
+              timestamp: now,
               topic,
               status,
               error: supabaseError,
               isTabActive: tabActive,
               isOnline: online,
+              socketConnectionState: channel.socket
+                .connectionState()
+                .toString(),
             },
           );
           unsubscribe();
@@ -228,12 +249,14 @@ export function useSupabaseRealtimeSubscription({
           });
 
           retryCountRef.current += 1;
+          now = Date.now();
           console.debug(`Retrying subscription after ${event}`, {
-            time: new Date().toISOString(),
+            time: new Date(now).toISOString(),
+            timestamp: now,
             topic,
             status,
             error: supabaseError,
-            socketConnectionState: channel.socket.connectionState,
+            socketConnectionState: channel.socket.connectionState().toString(),
             attempt: `${retryCountRef.current}/${maxRetries}`,
           });
           resubscribe();
@@ -254,12 +277,17 @@ export function useSupabaseRealtimeSubscription({
   const handleVisibilityChangeRef = useLatest(() => {
     if (isTabActive()) {
       const online = isOnline();
+      const now = Date.now();
 
       console.debug('Tab is active again', {
-        time: new Date().toISOString(),
+        time: new Date(now).toISOString(),
+        timestamp: now,
         status: state.status,
         topic: channelRef.current?.topic,
         channelState: channelRef.current?.state,
+        socketConnectionState: channelRef.current?.socket
+          .connectionState()
+          .toString(),
         isOnline: online,
       });
 
@@ -276,11 +304,16 @@ export function useSupabaseRealtimeSubscription({
 
   const handleOnlineRef = useLatest(() => {
     const tabActive = isTabActive();
+    const now = Date.now();
     console.debug('App is online again', {
-      time: new Date().toISOString(),
+      time: new Date(now).toISOString(),
+      timestamp: now,
       status: state.status,
       topic: channelRef.current?.topic,
       channelState: channelRef.current?.state,
+      socketConnectionState: channelRef.current?.socket
+        .connectionState()
+        .toString(),
       isTabActive: tabActive,
     });
 
