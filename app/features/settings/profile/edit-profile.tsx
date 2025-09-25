@@ -1,6 +1,6 @@
 import { PageContent } from '~/components/page';
 import { Separator } from '~/components/ui/separator';
-import { UpgradeGuestForm } from '~/features/settings/profile/upgrade-guest-form';
+import { UpgradeGuest } from '~/features/settings/profile/upgrade-guest';
 import { SettingsViewHeader } from '~/features/settings/ui/settings-view-header';
 import { useUser } from '~/features/user/user-hooks';
 import EditableUsername from './editable-username';
@@ -23,7 +23,7 @@ export default function EditProfile() {
         {isGuest && (
           <>
             <Separator />
-            <UpgradeGuestForm />
+            <UpgradeGuest />
           </>
         )}
       </PageContent>

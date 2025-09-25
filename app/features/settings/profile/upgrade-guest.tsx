@@ -1,16 +1,56 @@
+import { useState } from 'react';
 import { type SubmitHandler, useForm } from 'react-hook-form';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
+import { getErrorMessage } from '~/features/shared/error';
+import { useAuthActions } from '~/features/user/auth';
 import { useUpgradeGuestToFullAccount } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import { buildEmailValidator } from '~/lib/validation';
 
 type FormValues = { email: string; password: string; confirmPassword: string };
 
+type UpgradeOption = 'email' | 'google';
+
 const validateEmail = buildEmailValidator('Invalid email');
 
-export function UpgradeGuestForm() {
+function UpgradeOptions({
+  onSelect,
+}: { onSelect: (option: UpgradeOption) => Promise<void> }) {
+  const [submitting, setSubmitting] = useState<UpgradeOption | null>(null);
+
+  const handleSelect = async (option: UpgradeOption) => {
+    if (submitting) return;
+
+    try {
+      setSubmitting(option);
+      await onSelect(option);
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  return (
+    <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
+      <h2 className="font-semibold text-lg">Backup and Sync</h2>
+      <Button
+        onClick={() => handleSelect('email')}
+        loading={submitting === 'email'}
+      >
+        Upgrade with Email
+      </Button>
+      <Button
+        onClick={() => handleSelect('google')}
+        loading={submitting === 'google'}
+      >
+        Upgrade with Google
+      </Button>
+    </div>
+  );
+}
+
+function UpgradeWithEmailForm({ onBack }: { onBack: () => void }) {
   const { toast } = useToast();
   const upgradeGuestToFullAccount = useUpgradeGuestToFullAccount();
 
@@ -41,15 +81,9 @@ export function UpgradeGuestForm() {
   };
 
   return (
-    <div className="mx-auto max-w-sm">
-      <div className="mb-6">
-        <h2 className="font-semibold text-lg">Upgrade</h2>
-        <p className="text-muted-foreground text-sm">
-          Enter your email and password to backup your account and sync across
-          devices.
-        </p>
-      </div>
-      <div>
+    <div className="mx-auto w-full max-w-sm">
+      <h2 className="font-semibold text-lg">Backup and Sync</h2>
+      <div className="flex flex-col gap-4">
         <form
           className="mt-2 grid gap-4"
           onSubmit={handleSubmit(onSubmit)}
@@ -114,11 +148,55 @@ export function UpgradeGuestForm() {
               </span>
             )}
           </div>
-          <Button type="submit" className="w-full" loading={isSubmitting}>
-            Upgrade to full account
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button type="button" onClick={onBack}>
+              Back
+            </Button>
+            <Button type="submit" className="w-full" loading={isSubmitting}>
+              Upgrade
+            </Button>
+          </div>
         </form>
       </div>
     </div>
   );
+}
+
+type UpgradeStep = 'pick-option' | 'upgrade-with-email';
+
+export function UpgradeGuest() {
+  const [step, setStep] = useState<UpgradeStep>('pick-option');
+  const { initiateGoogleAuth } = useAuthActions();
+  const { toast } = useToast();
+
+  const handleUpgradeWithGoogle = async () => {
+    try {
+      const response = await initiateGoogleAuth();
+      console.debug('Initiate google upgrade response: ', response);
+      window.location.href = response.authUrl;
+    } catch (error) {
+      console.error('Failed to initiate google upgrade', { cause: error });
+      toast({
+        variant: 'destructive',
+        title: 'Error! Google upgrade failed',
+        description: getErrorMessage(error),
+      });
+    }
+  };
+
+  if (step === 'pick-option') {
+    return (
+      <UpgradeOptions
+        onSelect={async (option) => {
+          if (option === 'email') {
+            setStep('upgrade-with-email');
+          } else if (option === 'google') {
+            await handleUpgradeWithGoogle();
+          }
+        }}
+      />
+    );
+  }
+
+  return <UpgradeWithEmailForm onBack={() => setStep('pick-option')} />;
 }
