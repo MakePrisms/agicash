@@ -1,0 +1,56 @@
+diff --git a/build/cjs/utils/time.js b/build/cjs/utils/time.js
+index f1632bc0a634a108aba0237f8e53fe6452ab4265..e832293b25c6c34b0efa4a03c6a6eb095f46d29d 100644
+--- a/build/cjs/utils/time.js
++++ b/build/cjs/utils/time.js
+@@ -46,21 +46,11 @@ function createUnixTimestampInSecondsFunc() {
+   };
+ }
+ 
+-let _cachedTimestampInSeconds;
+-
+ /**
+- * Returns a timestamp in seconds since the UNIX epoch using either the Performance or Date APIs, depending on the
+- * availability of the Performance API.
+- *
+- * BUG: Note that because of how browsers implement the Performance API, the clock might stop when the computer is
+- * asleep. This creates a skew between `dateTimestampInSeconds` and `timestampInSeconds`. The
+- * skew can grow to arbitrary amounts like days, weeks or months.
+- * See https://github.com/getsentry/sentry-javascript/issues/2590.
++ * Returns a timestamp in seconds since the UNIX epoch using Date APIs.
+  */
+ function timestampInSeconds() {
+-  // We store this in a closure so that we don't have to create a new function every time this is called.
+-  const func = _cachedTimestampInSeconds ?? (_cachedTimestampInSeconds = createUnixTimestampInSecondsFunc());
+-  return func();
++  return dateTimestampInSeconds();
+ }
+ 
+ /**
+diff --git a/build/esm/utils/time.js b/build/esm/utils/time.js
+index 571c0d6278356a2c0ec6941760b8c0d951d4b074..05ab054b20849ee526d32d0d431b558e771e76a0 100644
+--- a/build/esm/utils/time.js
++++ b/build/esm/utils/time.js
+@@ -44,21 +44,11 @@ function createUnixTimestampInSecondsFunc() {
+   };
+ }
+ 
+-let _cachedTimestampInSeconds;
+-
+ /**
+- * Returns a timestamp in seconds since the UNIX epoch using either the Performance or Date APIs, depending on the
+- * availability of the Performance API.
+- *
+- * BUG: Note that because of how browsers implement the Performance API, the clock might stop when the computer is
+- * asleep. This creates a skew between `dateTimestampInSeconds` and `timestampInSeconds`. The
+- * skew can grow to arbitrary amounts like days, weeks or months.
+- * See https://github.com/getsentry/sentry-javascript/issues/2590.
++ * Returns a timestamp in seconds since the UNIX epoch using Date APIs.
+  */
+ function timestampInSeconds() {
+-  // We store this in a closure so that we don't have to create a new function every time this is called.
+-  const func = _cachedTimestampInSeconds ?? (_cachedTimestampInSeconds = createUnixTimestampInSecondsFunc());
+-  return func();
++  return dateTimestampInSeconds();
+ }
+ 
+ /**
