@@ -263,7 +263,6 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   useEffect(() => {
     if (errorDetails.shouldReport) {
       Sentry.captureException(error);
-      console.error(error, { time: new Date().toISOString() });
     }
   }, [errorDetails.shouldReport, error]);
 
