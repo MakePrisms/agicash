@@ -1,3 +1,6 @@
+diff --git a/node_modules/@supabase/realtime-js/.bun-tag-13d8f6bfa7f38636 b/.bun-tag-13d8f6bfa7f38636
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/node_modules/@supabase/realtime-js/.bun-tag-1583c578e5eed439 b/.bun-tag-1583c578e5eed439
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
@@ -8,6 +11,12 @@ diff --git a/node_modules/@supabase/realtime-js/.bun-tag-22debecda0f47b2d b/.bun
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/node_modules/@supabase/realtime-js/.bun-tag-5eb9b0c4da1f864d b/.bun-tag-5eb9b0c4da1f864d
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@supabase/realtime-js/.bun-tag-80a324cd3dd90d8c b/.bun-tag-80a324cd3dd90d8c
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@supabase/realtime-js/.bun-tag-ce8e05289eb20ff3 b/.bun-tag-ce8e05289eb20ff3
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/module/RealtimeChannel.js b/dist/module/RealtimeChannel.js
@@ -82,10 +91,43 @@ index 5823fd7426c7b1487e14d3e9c61c8f89dfa7fea4..1e73970a23345e186c088808ce207dbe
          }
      }
 diff --git a/dist/module/RealtimeClient.js b/dist/module/RealtimeClient.js
-index cac09587514c8f9d2535c27fb95ca368134a78bf..57981c8ae98da9fd2eb2d94378cd17adac2cd363 100644
+index cac09587514c8f9d2535c27fb95ca368134a78bf..4e08f628404306ee915e9036102e974333095574 100644
 --- a/dist/module/RealtimeClient.js
 +++ b/dist/module/RealtimeClient.js
-@@ -198,9 +198,10 @@ export default class RealtimeClient {
+@@ -116,6 +116,7 @@ export default class RealtimeClient {
+             (this.conn !== null && this.isConnected())) {
+             return;
+         }
++        this.log('transport', 'connecting socket', { usesCustomTransport: !!this.transport });
+         this._setConnectionState('connecting');
+         this._setAuthSafely('connect');
+         // Establish WebSocket connection
+@@ -131,6 +132,7 @@ export default class RealtimeClient {
+             catch (error) {
+                 this._setConnectionState('disconnected');
+                 const errorMessage = error.message;
++                this.log('transport', 'error creating WebSocket', { error: JSON.stringify(error), errorMessage });
+                 // Provide helpful error message based on environment
+                 if (errorMessage.includes('Node.js')) {
+                     throw new Error(`${errorMessage}\n\n` +
+@@ -166,6 +168,7 @@ export default class RealtimeClient {
+         if (this.isDisconnecting()) {
+             return;
+         }
++        this.log('transport', 'disconnecting socket', { code, reason, connectionExists: !!this.conn });
+         this._setConnectionState('disconnecting', true);
+         if (this.conn) {
+             // Setup fallback timer to prevent hanging in disconnecting state
+@@ -188,6 +191,8 @@ export default class RealtimeClient {
+         else {
+             this._setConnectionState('disconnected');
+         }
++        this.log('transport', 'disconnect socket performed', { code, reason, connectionExists: !!this.conn });
++
+     }
+     /**
+      * Returns all created channels
+@@ -198,9 +203,10 @@ export default class RealtimeClient {
      /**
       * Unsubscribes and removes a single channel
       * @param channel A RealtimeChannel instance
@@ -98,7 +140,25 @@ index cac09587514c8f9d2535c27fb95ca368134a78bf..57981c8ae98da9fd2eb2d94378cd17ad
          if (this.channels.length === 0) {
              this.disconnect();
          }
-@@ -649,10 +650,11 @@ export default class RealtimeClient {
+@@ -518,7 +524,7 @@ export default class RealtimeClient {
+     _onConnClose(event) {
+         var _a;
+         this._setConnectionState('disconnected');
+-        this.log('transport', 'close', event);
++        this.log('transport', 'close', { event: JSON.stringify(event), wasManualDisconnect: this._wasManualDisconnect });
+         this._triggerChanError();
+         this._clearTimer('heartbeat');
+         // Only schedule reconnection if it wasn't a manual disconnect
+@@ -530,7 +536,7 @@ export default class RealtimeClient {
+     /** @internal */
+     _onConnError(error) {
+         this._setConnectionState('disconnected');
+-        this.log('transport', `${error}`);
++        this.log('transport', `${JSON.stringify(error)}`, { source: 'socket error handler', wasManualDisconnect: this._wasManualDisconnect });
+         this._triggerChanError();
+         this._triggerStateCallbacks('error', error);
+     }
+@@ -649,10 +655,11 @@ export default class RealtimeClient {
              setTimeout(async () => {
                  await this._waitForAuthIfNeeded();
                  if (!this.isConnected()) {
@@ -228,10 +288,27 @@ index 46eb68e17c3d188e5d38a70c13e5c4104ac616f4..05f5b74c330a78b032abdee0d7bc3789
      }
    }
 diff --git a/src/RealtimeClient.ts b/src/RealtimeClient.ts
-index 008c4d5ad1f3533d87139936da595519b56e67d3..92a566e7eb33038c3a6d967e8e3141afa8bec686 100755
+index 008c4d5ad1f3533d87139936da595519b56e67d3..3f2502b008129ee750006e393662c038e787501f 100755
 --- a/src/RealtimeClient.ts
 +++ b/src/RealtimeClient.ts
-@@ -226,6 +226,7 @@ export default class RealtimeClient {
+@@ -192,7 +192,7 @@ export default class RealtimeClient {
+     ) {
+       return
+     }
+-
++    this.log('transport', 'connecting socket', { usesCustomTransport: !!this.transport })
+     this._setConnectionState('connecting')
+     this._setAuthSafely('connect')
+ 
+@@ -207,6 +207,7 @@ export default class RealtimeClient {
+       } catch (error) {
+         this._setConnectionState('disconnected')
+         const errorMessage = (error as Error).message
++        this.log('transport', 'error creating WebSocket', { error: JSON.stringify(error), errorMessage })
+ 
+         // Provide helpful error message based on environment
+         if (errorMessage.includes('Node.js')) {
+@@ -226,6 +227,7 @@ export default class RealtimeClient {
          throw new Error(`WebSocket not available: ${errorMessage}`)
        }
      }
@@ -239,7 +316,24 @@ index 008c4d5ad1f3533d87139936da595519b56e67d3..92a566e7eb33038c3a6d967e8e3141af
      this._setupConnectionHandlers()
    }
  
-@@ -287,11 +288,13 @@ export default class RealtimeClient {
+@@ -250,7 +252,7 @@ export default class RealtimeClient {
+     if (this.isDisconnecting()) {
+       return
+     }
+-
++    this.log('transport', 'disconnecting socket', { code, reason, connectionExists: !!this.conn })
+     this._setConnectionState('disconnecting', true)
+ 
+     if (this.conn) {
+@@ -275,6 +277,7 @@ export default class RealtimeClient {
+     } else {
+       this._setConnectionState('disconnected')
+     }
++    this.log('transport', 'disconnect socket performed', { code, reason, connectionExists: !!this.conn })
+   }
+ 
+   /**
+@@ -287,11 +290,13 @@ export default class RealtimeClient {
    /**
     * Unsubscribes and removes a single channel
     * @param channel A RealtimeChannel instance
@@ -255,7 +349,25 @@ index 008c4d5ad1f3533d87139936da595519b56e67d3..92a566e7eb33038c3a6d967e8e3141af
  
      if (this.channels.length === 0) {
        this.disconnect()
-@@ -833,10 +836,11 @@ export default class RealtimeClient {
+@@ -680,7 +685,7 @@ export default class RealtimeClient {
+   /** @internal */
+   private _onConnClose(event: any) {
+     this._setConnectionState('disconnected')
+-    this.log('transport', 'close', event)
++    this.log('transport', 'close', { event: JSON.stringify(event), wasManualDisconnect: this._wasManualDisconnect })
+     this._triggerChanError()
+     this._clearTimer('heartbeat')
+ 
+@@ -695,7 +700,7 @@ export default class RealtimeClient {
+   /** @internal */
+   private _onConnError(error: Event) {
+     this._setConnectionState('disconnected')
+-    this.log('transport', `${error}`)
++    this.log('transport', `${JSON.stringify(error)}`, { source: 'socket error handler', wasManualDisconnect: this._wasManualDisconnect })
+     this._triggerChanError()
+     this._triggerStateCallbacks('error', error)
+   }
+@@ -833,10 +838,11 @@ export default class RealtimeClient {
        setTimeout(async () => {
          await this._waitForAuthIfNeeded()
          if (!this.isConnected()) {
