@@ -7,6 +7,63 @@ import { agicashDb } from 'app/features/agicash-db/database';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLatest } from '../use-latest';
 
+// Global retry manager to coordinate all realtime subscriptions
+class RealtimeRetryManager {
+  private retryCount = 0;
+  private maxRetries = 5; // Increased from 3
+  private isRefreshingAuth = false;
+  private refreshPromise: Promise<void> | null = null;
+
+  async refreshSessionIfNeeded(): Promise<void> {
+    if (this.isRefreshingAuth && this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.isRefreshingAuth = true;
+    this.refreshPromise = agicashDb.realtime.setAuth().finally(() => {
+      this.isRefreshingAuth = false;
+      this.refreshPromise = null;
+    });
+
+    return this.refreshPromise;
+  }
+
+  canRetry(): boolean {
+    return this.retryCount < this.maxRetries;
+  }
+
+  incrementRetry(): void {
+    this.retryCount++;
+  }
+
+  resetRetries(): void {
+    this.retryCount = 0;
+  }
+
+  getRetryDelay(): number {
+    // Exponential backoff with jitter: base delay 1s, max 30s
+    const baseDelay = 1000;
+    const maxDelay = 30000;
+    const exponentialDelay = Math.min(
+      baseDelay * 2 ** this.retryCount,
+      maxDelay,
+    );
+    // Add jitter (±25%)
+    const jitter = exponentialDelay * 0.25 * (Math.random() - 0.5);
+    return exponentialDelay + jitter;
+  }
+
+  get currentRetryCount(): number {
+    return this.retryCount;
+  }
+
+  get currentMaxRetries(): number {
+    return this.maxRetries;
+  }
+}
+
+const globalRetryManager = new RealtimeRetryManager();
+
 interface Options {
   /**
    *  A function that returns the Supabase Realtime channel to subscribe to.
@@ -34,23 +91,11 @@ type SubscriptionState =
       status: 'error' | 'reconnecting';
       error: Error;
     };
-
-/**
- * Refreshes the realtime client access token if it has expired.
- */
-const refreshSessionIfNeeded = async () => {
-  // setAuth calls accessToken method on the Supabase client which fetches the existing token if still valid or fetches a new one if expired.
-  // It then sees if the token returned from accessToken method has changed and if it did, it updates the realtime access token.
-  await agicashDb.realtime.setAuth();
-};
-
 const isOnline = (): boolean =>
   typeof navigator !== 'undefined' && navigator.onLine !== false;
 
 const isTabActive = (): boolean =>
   typeof document !== 'undefined' && !document.hidden;
-
-const maxRetries = 3;
 
 /**
  * Subscribes to a Supabase Realtime channel when the component mounts and unsubscribes when the component unmounts.
@@ -60,10 +105,12 @@ const maxRetries = 3;
  * @description
  * Hook's lifecycle starts in the 'subscribing' status and subscription is triggered on mount. When the hook is unmounted, the subscription is unsubscribed.
  *
+ * Uses a global retry manager to coordinate retries across all realtime subscriptions, preventing race conditions and implementing exponential backoff.
+ *
  * 1. The hook listens to the changes of the channel status and acts accordingly:
  * - If the status is 'CLOSED', the hook unsubscribes from the channel.
  * - If the status is 'CHANNEL_ERROR' or 'TIMED_OUT':
- *   - If the tab is visible and the app is online, the hook retries the subscription (up to {@link maxRetries} times). During the retries the hook status is set to 'reconnecting'. If all the
+ *   - If the tab is visible and the app is online, the hook retries the subscription using global retry coordination with exponential backoff. During the retries the hook status is set to 'reconnecting'. If all the
  *     retries fail, the hook status is set to 'error' and the hook throws the error which is then caught by the error boundary.
  *   - If the tab is not visible (in the background) or the app is offline, the hook unsubscribes from the channel, which results in channel being closed and hook status being
  *     set to 'closed'.
@@ -72,12 +119,11 @@ const maxRetries = 3;
  *   the hook state is set to 'subscribed'. Every time when the system postgres_changes ok message is received (after the initial subscription or after resubscription), the hook
  *   calls the {@link onConnected} callback.
  *
- * 2. The hook listens for the visibility change of the tab and resubscribes to the channel if the tab is visible, the app is online and the channel is not already in 'joined'
- *    or 'joining' state. This makes sure that if the channel was closed while in background (either by our error/timeout handling or by the browser/machine), it will be
- *    reconnected when the tab is visible again.
+ * 2. The hook listens for the visibility change of the tab and resubscribes to the channel if the tab is visible, the app is online and the channel is in 'closed' or 'error' state.
+ *    This makes sure that if the channel was closed while in background, it will be reconnected when the tab is visible again.
  *
- * 3. The hook listens for the online status of the browser and resubscribes to the channel if the app comes back online, the tab is visible and the channel is not already
- *    in 'joined' or 'joining' state. This makes sure that if the channel was closed due to the lost network connection, it will be reconnected when the app comes back online.
+ * 3. The hook listens for the online status of the browser and resubscribes to the channel if the app comes back online, the tab is visible and the channel is in 'closed' or 'error' state.
+ *    This makes sure that if the channel was closed due to the lost network connection, it will be reconnected when the app comes back online.
  *
  * @param options - Subscription configuration.
  * @returns The status of the subscription.
@@ -93,7 +139,7 @@ export function useSupabaseRealtimeSubscription({
   const channelRef = useRef<RealtimeChannel | null>(null);
   const onConnectedRef = useLatest(onConnected);
   const channelFactoryRef = useLatest(channelFactory);
-  const retryCountRef = useRef(0);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
    * Listens for the system postgres_changes ok message and sets the subscription state to 'subscribed' when it is received.
@@ -106,7 +152,7 @@ export function useSupabaseRealtimeSubscription({
         onConnectedRef.current?.();
 
         setState({ status: 'subscribed' });
-        retryCountRef.current = 0; // Reset retries on success
+        globalRetryManager.resetRetries(); // Reset global retries on success
 
         const now = Date.now();
         console.debug('Channel connected', {
@@ -120,25 +166,36 @@ export function useSupabaseRealtimeSubscription({
 
   const subscribe = useCallback(
     async (resubscriptionId?: string) => {
-      await refreshSessionIfNeeded();
+      try {
+        await globalRetryManager.refreshSessionIfNeeded();
 
-      const channel = channelFactoryRef.current();
-      channelRef.current = channel;
+        const channel = channelFactoryRef.current();
+        channelRef.current = channel;
 
-      const now = Date.now();
-      console.debug('Realtime channel subscribe called', {
-        time: new Date(now).toISOString(),
-        timestamp: now,
-        topic: channel.topic,
-        resubscriptionId: resubscriptionId ?? '-',
-        socketConnectionState: channel.socket.connectionState().toString(),
-      });
+        const now = Date.now();
+        console.debug('Realtime channel subscribe called', {
+          time: new Date(now).toISOString(),
+          timestamp: now,
+          topic: channel.topic,
+          resubscriptionId: resubscriptionId ?? '-',
+          socketConnectionState: channel.socket.connectionState().toString(),
+        });
 
-      setupSystemMessageListener(channel);
+        setupSystemMessageListener(channel);
 
-      channel.subscribe((status, err) =>
-        handleSubscriptionState(channel, status, err),
-      );
+        channel.subscribe((status, err) =>
+          handleSubscriptionState(channel, status, err),
+        );
+      } catch (error) {
+        console.error('Failed to subscribe to channel:', error);
+        setState({
+          status: 'error',
+          error:
+            error instanceof Error
+              ? error
+              : new Error('Unknown subscription error'),
+        });
+      }
     },
     [setupSystemMessageListener],
   );
@@ -238,17 +295,27 @@ export function useSupabaseRealtimeSubscription({
           return;
         }
 
-        if (retryCountRef.current < maxRetries) {
+        // Clear any existing retry timeout
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = null;
+        }
+
+        if (globalRetryManager.canRetry()) {
+          const error =
+            supabaseError ??
+            new Error(
+              `Error with "${channel.topic}" channel subscription. Status: ${status}`,
+            );
+
           setState({
             status: 'reconnecting',
-            error:
-              supabaseError ??
-              new Error(
-                `Error with "${channel.topic}" channel subscription. Status: ${status}`,
-              ),
+            error,
           });
 
-          retryCountRef.current += 1;
+          globalRetryManager.incrementRetry();
+          const retryDelay = globalRetryManager.getRetryDelay();
+
           now = Date.now();
           console.debug(`Retrying subscription after ${event}`, {
             time: new Date(now).toISOString(),
@@ -257,16 +324,33 @@ export function useSupabaseRealtimeSubscription({
             status,
             error: supabaseError,
             socketConnectionState: channel.socket.connectionState().toString(),
-            attempt: `${retryCountRef.current}/${maxRetries}`,
+            attempt: `${globalRetryManager.currentRetryCount}/${globalRetryManager.currentMaxRetries}`,
+            retryDelay,
           });
-          resubscribe();
+
+          retryTimeoutRef.current = setTimeout(() => {
+            retryTimeoutRef.current = null;
+            resubscribe();
+          }, retryDelay);
         } else {
+          const finalError = new Error(
+            `Error with "${channel.topic}" channel subscription. Status: ${status}. All retries exhausted.`,
+            { cause: supabaseError },
+          );
+
           setState({
             status: 'error',
-            error: new Error(
-              `Error with "${channel.topic}" channel subscription. Status: ${status}`,
-              { cause: supabaseError },
-            ),
+            error: finalError,
+          });
+
+          now = Date.now();
+          console.error('Realtime subscription failed after all retries', {
+            time: new Date(now).toISOString(),
+            timestamp: now,
+            topic,
+            status,
+            error: supabaseError,
+            socketConnectionState: channel.socket.connectionState().toString(),
           });
         }
       }
@@ -295,8 +379,14 @@ export function useSupabaseRealtimeSubscription({
         channelRef.current?.state === 'joined' ||
         channelRef.current?.state === 'joining';
 
-      if (online && !isJoinedOrJoining) {
-        retryCountRef.current = 0;
+      // Only resubscribe if we're in a closed or error state and not already retrying
+      if (
+        online &&
+        !isJoinedOrJoining &&
+        (state.status === 'closed' || state.status === 'error') &&
+        !retryTimeoutRef.current
+      ) {
+        globalRetryManager.resetRetries();
         resubscribe();
       }
     }
@@ -322,8 +412,13 @@ export function useSupabaseRealtimeSubscription({
         channelRef.current?.state === 'joined' ||
         channelRef.current?.state === 'joining';
 
-      if (!isJoinedOrJoining) {
-        retryCountRef.current = 0;
+      // Only resubscribe if we're in a closed or error state and not already retrying
+      if (
+        !isJoinedOrJoining &&
+        (state.status === 'closed' || state.status === 'error') &&
+        !retryTimeoutRef.current
+      ) {
+        globalRetryManager.resetRetries();
         resubscribe();
       }
     }
@@ -340,6 +435,13 @@ export function useSupabaseRealtimeSubscription({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('online', handleOnline);
+
+      // Clean up retry timeout
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+
       unsubscribe();
     };
   }, [subscribe, unsubscribe]);
