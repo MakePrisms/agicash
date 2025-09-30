@@ -6,7 +6,7 @@ import {
   getCashuUnit,
   getCashuWallet,
 } from '~/lib/cashu';
-import type { ExtendedCashuAccount } from '../accounts/account';
+import { type ExtendedCashuAccount, isStarAccount } from '../accounts/account';
 import {
   allMintKeysetsQueryOptions,
   cashuMintValidator,
@@ -198,8 +198,9 @@ export class ReceiveCashuTokenService {
     sourceAccount: CashuAccountWithTokenFlags,
     otherAccounts: CashuAccountWithTokenFlags[],
   ): CashuAccountWithTokenFlags[] {
-    if (sourceAccount.isTestMint) {
+    if (sourceAccount.isTestMint || isStarAccount(sourceAccount)) {
       // Tokens sourced from test mint can only be claimed to the same mint
+      // Tokens sourced from Star accounts cannot pay external invoices
       return sourceAccount.isSelectable ? [sourceAccount] : [];
     }
     return [sourceAccount, ...otherAccounts].filter(
