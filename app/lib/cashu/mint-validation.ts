@@ -1,10 +1,6 @@
 import type { MintKeyset, WebSocketSupport } from '@cashu/cashu-ts';
-import type {
-  CashuProtocolUnit,
-  MintInfo,
-  NUT,
-  NUT17WebSocketCommand,
-} from './types';
+import type { MintInfo } from './mint-info';
+import type { CashuProtocolUnit, NUT, NUT17WebSocketCommand } from './types';
 
 type NutValidationResult =
   | { isValid: false; message: string }
