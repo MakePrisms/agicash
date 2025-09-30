@@ -7,6 +7,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router';
 import { type Currency, Money } from '~/lib/money';
 import type { AgicashDbAccount } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
@@ -448,4 +449,16 @@ export function useSelectItemsWithOnlineAccount() {
     },
     [accountsCache],
   );
+}
+
+/**
+ * Returns the account specified by the account ID in the URL.
+ * @param select - The type of the account to get.
+ */
+export function useGetAccountFromLocation(select?: { type?: AccountType }) {
+  const [searchParams] = useSearchParams();
+  const accountId = searchParams.get('accountId');
+  const { data: accounts } = useAccounts({ type: select?.type });
+  const account = accounts.find((account) => account.id === accountId);
+  return account;
 }
