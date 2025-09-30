@@ -69,8 +69,23 @@ export function AddMintForm() {
 
   const onSubmit = async (data: FormValues) => {
     try {
+      let accountName = data.name;
+
+      // If no name provided, fetch mint info to get the name
+      if (!accountName || accountName.trim() === '') {
+        const mintInfo = await queryClient.fetchQuery(
+          mintInfoQueryOptions(data.mintUrl),
+        );
+        accountName = mintInfo.name;
+        if (!accountName) {
+          throw new Error('Mint name is missing in mint info', {
+            cause: mintInfo,
+          });
+        }
+      }
+
       await addAccount({
-        name: data.name,
+        name: accountName,
         currency: data.currency,
         mintUrl: data.mintUrl,
         type: 'cashu',
@@ -108,9 +123,7 @@ export function AddMintForm() {
           id="name"
           type="text"
           aria-invalid={errors.name ? 'true' : 'false'}
-          {...register('name', {
-            required: 'Name is required',
-          })}
+          {...register('name')}
         />
         {errors.name && (
           <span
