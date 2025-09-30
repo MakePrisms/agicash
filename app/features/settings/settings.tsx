@@ -18,6 +18,7 @@ import { useToast } from '~/hooks/use-toast';
 import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
+import { isStarAccount } from '../accounts/account';
 import { useDefaultAccount } from '../accounts/account-hooks';
 import { AccountTypeIcon } from '../accounts/account-icons';
 import { ColorModeToggle } from '../theme/color-mode-toggle';
@@ -111,7 +112,9 @@ export default function Settings() {
         </SettingsNavButton>
 
         <SettingsNavButton to="/settings/accounts">
-          <AccountTypeIcon type={defaultAccount.type} />
+          <AccountTypeIcon
+            type={isStarAccount(defaultAccount) ? 'star' : defaultAccount.type}
+          />
           <span>{defaultAccount.name}</span>
         </SettingsNavButton>
 
