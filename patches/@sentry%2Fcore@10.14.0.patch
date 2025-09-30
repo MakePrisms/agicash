@@ -7,6 +7,12 @@ index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2
 diff --git a/node_modules/@sentry/core/.bun-tag-93df3377343ec96 b/.bun-tag-93df3377343ec96
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-a5eced411eedc26a b/.bun-tag-a5eced411eedc26a
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-a9ff31826d7647ad b/.bun-tag-a9ff31826d7647ad
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/node_modules/@sentry/core/.bun-tag-aa8768c77c3af962 b/.bun-tag-aa8768c77c3af962
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
@@ -20,17 +26,28 @@ diff --git a/node_modules/@sentry/core/.bun-tag-d02cf43cb32db12a b/.bun-tag-d02c
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/build/cjs/logs/console-integration.js b/build/cjs/logs/console-integration.js
-index 6d53aa83fb09cc78a9634dfc4d4313fec572e3ea..fa3dacade9927ce6e4ca2a29b7e4c3c1d15a1a5e 100644
+index 6d53aa83fb09cc78a9634dfc4d4313fec572e3ea..6e33229b97e66df9c4896d77f5bed49a3a9c4faf 100644
 --- a/build/cjs/logs/console-integration.js
 +++ b/build/cjs/logs/console-integration.js
-@@ -55,7 +55,12 @@ const _consoleLoggingIntegration = ((options = {}) => {
-           ...(shouldGenerateTemplate ? utils.createConsoleTemplateAttributes(firstArg, followingArgs) : {}),
-         };
+@@ -35,6 +35,10 @@ const _consoleLoggingIntegration = ((options = {}) => {
+         const firstArg = args[0];
+         const followingArgs = args.slice(1);
  
 +        const secondArg = args[1];
 +        const timestamp = secondArg && typeof secondArg === 'object' ? secondArg.timestamp : undefined;
 +        const timestampInSeconds = timestamp ? timestamp / 1000 : undefined;
 +
+         if (level === 'assert') {
+           if (!firstArg) {
+             const assertionMessage =
+@@ -53,9 +57,12 @@ const _consoleLoggingIntegration = ((options = {}) => {
+         const attributes = {
+           ...DEFAULT_ATTRIBUTES,
+           ...(shouldGenerateTemplate ? utils.createConsoleTemplateAttributes(firstArg, followingArgs) : {}),
++          patchSource: 'cjs',
++          timestampRecordedByApp: timestampInSeconds || '-',
+         };
+ 
          internal._INTERNAL_captureLog({
 +          timestamp: timestampInSeconds,
            level: isLevelLog ? 'info' : level,
@@ -78,17 +95,28 @@ index f1632bc0a634a108aba0237f8e53fe6452ab4265..e832293b25c6c34b0efa4a03c6a6eb09
  
  /**
 diff --git a/build/esm/logs/console-integration.js b/build/esm/logs/console-integration.js
-index 2811cc868dc1e36cec3a077a0893a0237d22e752..b6e043eafdc7df668b791a5514b5138b800615c1 100644
+index 2811cc868dc1e36cec3a077a0893a0237d22e752..8c9ae38e8270bbab308b75428bf75944eeb51deb 100644
 --- a/build/esm/logs/console-integration.js
 +++ b/build/esm/logs/console-integration.js
-@@ -53,7 +53,12 @@ const _consoleLoggingIntegration = ((options = {}) => {
-           ...(shouldGenerateTemplate ? createConsoleTemplateAttributes(firstArg, followingArgs) : {}),
-         };
+@@ -33,6 +33,10 @@ const _consoleLoggingIntegration = ((options = {}) => {
+         const firstArg = args[0];
+         const followingArgs = args.slice(1);
  
 +        const secondArg = args[1];
 +        const timestamp = secondArg && typeof secondArg === 'object' ? secondArg.timestamp : undefined;
-+        const timestampInSeconds = timestamp ? timestamp / 1000 : undefined;
++        const timestampInSeconds = timestamp ? (timestamp / 1000) : undefined;
 +
+         if (level === 'assert') {
+           if (!firstArg) {
+             const assertionMessage =
+@@ -51,9 +55,12 @@ const _consoleLoggingIntegration = ((options = {}) => {
+         const attributes = {
+           ...DEFAULT_ATTRIBUTES,
+           ...(shouldGenerateTemplate ? createConsoleTemplateAttributes(firstArg, followingArgs) : {}),
++          patchSource: 'esm',
++          timestampRecordedByApp: timestampInSeconds || '-',
+         };
+ 
          _INTERNAL_captureLog({
 +          timestamp: timestampInSeconds,
            level: isLevelLog ? 'info' : level,
