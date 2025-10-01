@@ -8,12 +8,12 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
-import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
+import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
 import { useGetLatestCashuAccount } from '../accounts/account-hooks';
 import {
   type AgicashDbCashuTokenSwap,
-  agicashDb,
+  agicashRealtime,
 } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
 import { useUser } from '../user/user-hooks';
@@ -177,36 +177,39 @@ function useOnCashuTokenSwapChange({
   onUpdated: (swap: CashuTokenSwap) => void;
 }) {
   const encryption = useEncryption();
-  const onCreatedRef = useLatest(onCreated);
-  const onUpdatedRef = useLatest(onUpdated);
   const queryClient = useQueryClient();
 
-  return useSupabaseRealtimeSubscription({
-    channelFactory: () =>
-      agicashDb.channel('cashu-token-swaps').on(
+  const changeHandlerRef = useLatest(
+    async (
+      payload: RealtimePostgresChangesPayload<AgicashDbCashuTokenSwap>,
+    ) => {
+      if (payload.eventType === 'INSERT') {
+        const swap = await CashuTokenSwapRepository.toTokenSwap(
+          payload.new,
+          encryption.decrypt,
+        );
+        onCreated(swap);
+      } else if (payload.eventType === 'UPDATE') {
+        const swap = await CashuTokenSwapRepository.toTokenSwap(
+          payload.new,
+          encryption.decrypt,
+        );
+        onUpdated(swap);
+      }
+    },
+  );
+
+  return useSupabaseRealtime({
+    channel: agicashRealtime
+      .channel('cashu-token-swaps')
+      .on<AgicashDbCashuTokenSwap>(
         'postgres_changes',
         {
           event: '*',
           schema: 'wallet',
           table: 'cashu_token_swaps',
         },
-        async (
-          payload: RealtimePostgresChangesPayload<AgicashDbCashuTokenSwap>,
-        ) => {
-          if (payload.eventType === 'INSERT') {
-            const swap = await CashuTokenSwapRepository.toTokenSwap(
-              payload.new,
-              encryption.decrypt,
-            );
-            onCreatedRef.current(swap);
-          } else if (payload.eventType === 'UPDATE') {
-            const swap = await CashuTokenSwapRepository.toTokenSwap(
-              payload.new,
-              encryption.decrypt,
-            );
-            onUpdatedRef.current(swap);
-          }
-        },
+        (payload) => changeHandlerRef.current(payload),
       ),
     onConnected: () => {
       // Invalidate the pending cashu token swaps query so that the swaps are re-fetched and the cache is updated.

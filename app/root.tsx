@@ -27,6 +27,7 @@ import { Toaster } from '~/components/ui/toaster';
 import { ThemeProvider, useTheme } from '~/features/theme';
 import { getBgColorForTheme } from '~/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
+import { SupabaseRealtimeError } from '~/lib/supabase/supabase-realtime-hooks';
 import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
 import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
@@ -231,6 +232,22 @@ const useErrorDetails = (error: unknown) => {
     };
   }
 
+  if (error instanceof SupabaseRealtimeError) {
+    return {
+      title: 'Connection lost',
+      additionalInfo: (
+        <p className="overflow-auto rounded-lg bg-muted">
+          Whoops, you lost your connection.
+        </p>
+      ),
+      footer: (
+        <Button variant="default" type="button" onClick={reload}>
+          Reload
+        </Button>
+      ),
+    };
+  }
+
   if (error instanceof Error) {
     return {
       message: 'An unexpected error occurred. Please try again later.',
@@ -269,7 +286,9 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   return (
     <Card className="m-4">
       <CardHeader>
-        <CardTitle>Oops, something went wrong</CardTitle>
+        <CardTitle>
+          {errorDetails.title || 'Oops, something went wrong'}
+        </CardTitle>
         <CardDescription>{errorDetails.message}</CardDescription>
       </CardHeader>
       {errorDetails.additionalInfo && (
