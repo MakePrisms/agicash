@@ -94,7 +94,7 @@ export class SupabaseRealtimeManager {
   private resubscribeQueue: ResubscribeQueueItem[] = [];
   private isProcessingResubscribeQueue = false;
   private readonly millisecondRetryDelays = [
-    100, 500, 1000, 3000, 6000, 10000, 20000, 30000,
+    0, 100, 500, 1000, 3000, 6000, 10000, 20000, 30000,
   ];
   private readonly maxRetries = this.millisecondRetryDelays.length;
   private readonly topicListeners = new Map<string, Set<() => void>>();
@@ -533,7 +533,7 @@ export class SupabaseRealtimeManager {
     logDebug('Realtime channel resubscribe retries finished', {
       topic: item.channelTopic,
       hasResubscribed: state?.status === 'subscribed',
-      attempts: `${attempt}/${this.maxRetries}`,
+      attempts: `${attempt - 1}/${this.maxRetries}`,
     });
 
     this.isProcessingResubscribeQueue = false;
