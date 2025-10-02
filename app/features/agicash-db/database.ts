@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database as DatabaseGenerated } from 'supabase/database.types';
 import type { MergeDeep } from 'type-fest';
 import type { Currency, CurrencyUnit } from '~/lib/money';
+import { SupabaseRealtimeManager } from '~/lib/supabase';
 import type { AccountType } from '../accounts/account';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
 import type { Transaction } from '../transactions/transaction';
@@ -250,7 +251,7 @@ export const agicashDb = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   realtime: {
     logger: (kind: string, msg: unknown, data?: unknown) => {
       const now = Date.now();
-      console.log(
+      console.debug(
         `Realtime -> ${kind}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`,
         {
           timestamp: now,
@@ -262,6 +263,12 @@ export const agicashDb = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     logLevel: 'info',
   },
 });
+
+export const agicashRealtime = new SupabaseRealtimeManager(agicashDb.realtime);
+if (typeof window !== 'undefined') {
+  // biome-ignore lint/suspicious/noExplicitAny: attaching to window for debugging
+  (window as any).agicashRealtime = agicashRealtime;
+}
 
 export type AgicashDb = typeof agicashDb;
 

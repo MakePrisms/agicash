@@ -3,7 +3,6 @@ import {
   type MintQuoteResponse,
   type WebSocketSupport,
 } from '@cashu/cashu-ts';
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type Query,
   type QueryClient,
@@ -15,7 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { areMintUrlsEqual, getCashuUnit } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
-import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
+import { useSupabaseRealtime } from '~/lib/supabase';
 import {
   type LongTimeout,
   clearLongTimeout,
@@ -29,7 +28,7 @@ import {
 } from '../accounts/account-hooks';
 import {
   type AgicashDbCashuReceiveQuote,
-  agicashDb,
+  agicashRealtime,
 } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
@@ -234,18 +233,17 @@ function useOnCashuReceiveQuoteChange({
   const onUpdatedRef = useLatest(onUpdated);
   const queryClient = useQueryClient();
 
-  return useSupabaseRealtimeSubscription({
-    channelFactory: () =>
-      agicashDb.channel('cashu-receive-quotes').on(
+  return useSupabaseRealtime({
+    channel: agicashRealtime
+      .channel('cashu-receive-quotes')
+      .on<AgicashDbCashuReceiveQuote>(
         'postgres_changes',
         {
           event: '*',
           schema: 'wallet',
           table: 'cashu_receive_quotes',
         },
-        (
-          payload: RealtimePostgresChangesPayload<AgicashDbCashuReceiveQuote>,
-        ) => {
+        (payload) => {
           if (payload.eventType === 'INSERT') {
             const addedQuote = CashuReceiveQuoteRepository.toQuote(payload.new);
             onCreatedRef.current(addedQuote);
