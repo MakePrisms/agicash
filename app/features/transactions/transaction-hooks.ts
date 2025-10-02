@@ -11,9 +11,9 @@ import {
 import { useMemo } from 'react';
 import {
   type AgicashDbTransaction,
-  agicashDb,
+  agicashRealtime,
 } from '~/features/agicash-db/database';
-import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
+import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
 import { useGetLatestCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
@@ -284,46 +284,45 @@ function useOnTransactionChange({
   ) => void;
 }) {
   const transactionRepository = useTransactionRepository();
-  const onCreatedRef = useLatest(onCreated);
-  const onUpdatedRef = useLatest(onUpdated);
-  const onAckStatusChangeRef = useLatest(onAckStatusChange);
   const queryClient = useQueryClient();
 
-  return useSupabaseRealtimeSubscription({
-    channelFactory: () =>
-      agicashDb.channel('transactions').on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'wallet',
-          table: 'transactions',
-        },
-        async (
-          payload: RealtimePostgresChangesPayload<AgicashDbTransaction>,
-        ) => {
-          if (payload.eventType === 'INSERT') {
-            const addedTransaction = await transactionRepository.toTransaction(
-              payload.new,
-            );
-            onCreatedRef.current(addedTransaction);
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedTransaction =
-              await transactionRepository.toTransaction(payload.new);
+  const changeHandlerRef = useLatest(
+    async (payload: RealtimePostgresChangesPayload<AgicashDbTransaction>) => {
+      if (payload.eventType === 'INSERT') {
+        const addedTransaction = await transactionRepository.toTransaction(
+          payload.new,
+        );
+        onCreated(addedTransaction);
+      } else if (payload.eventType === 'UPDATE') {
+        const updatedTransaction = await transactionRepository.toTransaction(
+          payload.new,
+        );
 
-            onUpdatedRef.current(updatedTransaction);
+        onUpdated(updatedTransaction);
 
-            if (
-              payload.new.acknowledgment_status !==
-              payload.old.acknowledgment_status
-            ) {
-              onAckStatusChangeRef.current(
-                updatedTransaction.acknowledgmentStatus,
-                payload.old.acknowledgment_status ?? null,
-              );
-            }
-          }
-        },
-      ),
+        if (
+          payload.new.acknowledgment_status !==
+          payload.old.acknowledgment_status
+        ) {
+          onAckStatusChange(
+            updatedTransaction.acknowledgmentStatus,
+            payload.old.acknowledgment_status ?? null,
+          );
+        }
+      }
+    },
+  );
+
+  return useSupabaseRealtime({
+    channel: agicashRealtime.channel('transactions').on<AgicashDbTransaction>(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'wallet',
+        table: 'transactions',
+      },
+      (payload) => changeHandlerRef.current(payload),
+    ),
     onConnected: () => {
       // Invalidate the transaction count query so it's re-fetched and the cache is updated.
       // This is needed to get any data that might have been updated while the re-connection was in progress.

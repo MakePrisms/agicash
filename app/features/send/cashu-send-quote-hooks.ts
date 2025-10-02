@@ -11,7 +11,7 @@ import type Big from 'big.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sumProofs } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
-import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
+import { useSupabaseRealtime } from '~/lib/supabase';
 import {
   type LongTimeout,
   clearLongTimeout,
@@ -26,7 +26,7 @@ import {
 } from '../accounts/account-hooks';
 import {
   type AgicashDbCashuSendQuote,
-  agicashDb,
+  agicashRealtime,
 } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
 import { DomainError, NotFoundError } from '../shared/error';
@@ -286,36 +286,39 @@ function useOnCashuSendQuoteChange({
   onUpdated: (send: CashuSendQuote) => void;
 }) {
   const encryption = useEncryption();
-  const onCreatedRef = useLatest(onCreated);
-  const onUpdatedRef = useLatest(onUpdated);
   const queryClient = useQueryClient();
 
-  return useSupabaseRealtimeSubscription({
-    channelFactory: () =>
-      agicashDb.channel('cashu-send-quotes').on(
+  const changeHandlerRef = useLatest(
+    async (
+      payload: RealtimePostgresChangesPayload<AgicashDbCashuSendQuote>,
+    ) => {
+      if (payload.eventType === 'INSERT') {
+        const addedQuote = await CashuSendQuoteRepository.toSend(
+          payload.new,
+          encryption.decrypt,
+        );
+        onCreated(addedQuote);
+      } else if (payload.eventType === 'UPDATE') {
+        const updatedQuote = await CashuSendQuoteRepository.toSend(
+          payload.new,
+          encryption.decrypt,
+        );
+        onUpdated(updatedQuote);
+      }
+    },
+  );
+
+  return useSupabaseRealtime({
+    channel: agicashRealtime
+      .channel('cashu-send-quotes')
+      .on<AgicashDbCashuSendQuote>(
         'postgres_changes',
         {
           event: '*',
           schema: 'wallet',
           table: 'cashu_send_quotes',
         },
-        async (
-          payload: RealtimePostgresChangesPayload<AgicashDbCashuSendQuote>,
-        ) => {
-          if (payload.eventType === 'INSERT') {
-            const addedQuote = await CashuSendQuoteRepository.toSend(
-              payload.new,
-              encryption.decrypt,
-            );
-            onCreatedRef.current(addedQuote);
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedQuote = await CashuSendQuoteRepository.toSend(
-              payload.new,
-              encryption.decrypt,
-            );
-            onUpdatedRef.current(updatedQuote);
-          }
-        },
+        (payload) => changeHandlerRef.current(payload),
       ),
     onConnected: () => {
       // Invalidate the unresolved cashu send quote query so that the quote is re-fetched and the cache is updated.

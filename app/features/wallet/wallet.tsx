@@ -1,7 +1,9 @@
 import * as Sentry from '@sentry/react-router';
 import { type PropsWithChildren, useEffect } from 'react';
 import { useToast } from '~/hooks/use-toast';
+import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
 import { useTrackAccounts } from '../accounts/account-hooks';
+import { agicashRealtime } from '../agicash-db/database';
 import { useTrackPendingCashuReceiveQuotes } from '../receive/cashu-receive-quote-hooks';
 import { useTrackPendingCashuTokenSwaps } from '../receive/cashu-token-swap-hooks';
 import { useTrackUnresolvedCashuSendQuotes } from '../send/cashu-send-quote-hooks';
@@ -54,6 +56,8 @@ export const Wallet = ({ children }: PropsWithChildren) => {
   });
 
   useSyncThemeWithDefaultCurrency();
+
+  useSupabaseRealtimeActivityTracking(agicashRealtime);
 
   const isLead = useTakeTaskProcessingLead();
 

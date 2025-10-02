@@ -9,14 +9,17 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { Money } from '~/lib/money';
-import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
+import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
 import {
   useAccount,
   useAccountsCache,
   useGetLatestCashuAccount,
 } from '../accounts/account-hooks';
-import { type AgicashDbCashuSendSwap, agicashDb } from '../agicash-db/database';
+import {
+  type AgicashDbCashuSendSwap,
+  agicashRealtime,
+} from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
 import { NotFoundError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
@@ -161,35 +164,34 @@ function useOnCashuSendSwapChange({
   onUpdated: (swap: CashuSendSwap) => void;
 }) {
   const encryption = useEncryption();
-  const onCreatedRef = useLatest(onCreated);
-  const onUpdatedRef = useLatest(onUpdated);
   const queryClient = useQueryClient();
 
-  return useSupabaseRealtimeSubscription({
-    channelFactory: () =>
-      agicashDb
-        .channel('cashu-send-swaps')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'wallet', table: 'cashu_send_swaps' },
-          async (
-            payload: RealtimePostgresChangesPayload<AgicashDbCashuSendSwap>,
-          ) => {
-            if (payload.eventType === 'INSERT') {
-              const addedSwap = await CashuSendSwapRepository.toSwap(
-                payload.new,
-                encryption.decrypt,
-              );
-              onCreatedRef.current(addedSwap);
-            } else if (payload.eventType === 'UPDATE') {
-              const updatedSwap = await CashuSendSwapRepository.toSwap(
-                payload.new,
-                encryption.decrypt,
-              );
-              onUpdatedRef.current(updatedSwap);
-            }
-          },
-        ),
+  const changeHandlerRef = useLatest(
+    async (payload: RealtimePostgresChangesPayload<AgicashDbCashuSendSwap>) => {
+      if (payload.eventType === 'INSERT') {
+        const addedSwap = await CashuSendSwapRepository.toSwap(
+          payload.new,
+          encryption.decrypt,
+        );
+        onCreated(addedSwap);
+      } else if (payload.eventType === 'UPDATE') {
+        const updatedSwap = await CashuSendSwapRepository.toSwap(
+          payload.new,
+          encryption.decrypt,
+        );
+        onUpdated(updatedSwap);
+      }
+    },
+  );
+
+  return useSupabaseRealtime({
+    channel: agicashRealtime
+      .channel('cashu-send-swaps')
+      .on<AgicashDbCashuSendSwap>(
+        'postgres_changes',
+        { event: '*', schema: 'wallet', table: 'cashu_send_swaps' },
+        (payload) => changeHandlerRef.current(payload),
+      ),
     onConnected: () => {
       // Invalidate the unresolved cashu send swap query so that the swaps are re-fetched and the cache is updated.
       // This is needed to get any data that might have been updated while the re-connection was in progress.

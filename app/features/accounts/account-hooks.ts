@@ -9,9 +9,9 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
-import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
+import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
-import { type AgicashDbAccount, agicashDb } from '../agicash-db/database';
+import { type AgicashDbAccount, agicashRealtime } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
@@ -213,37 +213,36 @@ function useOnAccountChange({
   onUpdated: (account: Account) => void;
 }) {
   const accountRepository = useAccountRepository();
-  const onCreatedRef = useLatest(onCreated);
-  const onUpdatedRef = useLatest(onUpdated);
   const accountCache = useAccountsCache();
   const queryClient = useQueryClient();
 
-  return useSupabaseRealtimeSubscription({
-    channelFactory: () =>
-      agicashDb.channel('accounts').on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'wallet',
-          table: 'accounts',
-        },
-        async (payload: RealtimePostgresChangesPayload<AgicashDbAccount>) => {
-          if (payload.eventType === 'INSERT') {
-            const addedAccount = await accountRepository.toAccount(payload.new);
-            onCreatedRef.current(addedAccount);
-          } else if (payload.eventType === 'UPDATE') {
-            // We are updating the latest known version of the account here so anyone who needs the latest version (who uses account cache `getLatest`)
-            // can know as soon as possible and thus can wait for the account data to be decrypted and updated in the cache instead of processing the old version.
-            accountCache.setLatestVersion(payload.new.id, payload.new.version);
+  const changeHandlerRef = useLatest(
+    async (payload: RealtimePostgresChangesPayload<AgicashDbAccount>) => {
+      if (payload.eventType === 'INSERT') {
+        const addedAccount = await accountRepository.toAccount(payload.new);
+        onCreated(addedAccount);
+      } else if (payload.eventType === 'UPDATE') {
+        // We are updating the latest known version of the account here so anyone who needs the latest version (who uses account cache `getLatest`)
+        // can know as soon as possible and thus can wait for the account data to be decrypted and updated in the cache instead of processing the old version.
+        accountCache.setLatestVersion(payload.new.id, payload.new.version);
 
-            const updatedAccount = await accountRepository.toAccount(
-              payload.new,
-            );
+        const updatedAccount = await accountRepository.toAccount(payload.new);
 
-            onUpdatedRef.current(updatedAccount);
-          }
-        },
-      ),
+        onUpdated(updatedAccount);
+      }
+    },
+  );
+
+  return useSupabaseRealtime({
+    channel: agicashRealtime.channel('accounts').on<AgicashDbAccount>(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'wallet',
+        table: 'accounts',
+      },
+      (payload) => changeHandlerRef.current(payload),
+    ),
     onConnected: () => {
       // Invalidate the accounts query so that the accounts are re-fetched and the cache is updated.
       // This is needed to get any data that might have been updated while the re-connection was in progress.
