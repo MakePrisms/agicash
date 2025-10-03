@@ -61,29 +61,29 @@ export function useSupabaseRealtime({
   const channelBuilderRef = useLatest(channelBuilder);
   const onConnectedRef = useLatest(onConnected);
 
-  const getSnapshot = useCallback(() => {
+  const getChannelStatus = useCallback(() => {
     const { topic, manager } = channelBuilderRef.current;
     return manager.getChannelStatus(topic) ?? 'idle';
   }, []);
 
-  const subscribeToTopicStatusChange = useCallback((listener: () => void) => {
+  const subscribeToChannelStatusChange = useCallback((listener: () => void) => {
     const { topic, manager } = channelBuilderRef.current;
-    return manager.subscribeToTopicStatusChange(topic, listener);
+    return manager.subscribeToChannelStatusChange(topic, listener);
   }, []);
 
   const status = useSyncExternalStore(
-    subscribeToTopicStatusChange,
-    getSnapshot,
+    subscribeToChannelStatusChange,
+    getChannelStatus,
   );
 
   useEffect(() => {
     const builder = channelBuilderRef.current;
     const { manager } = builder;
-    const { channel } = manager.addChannel(builder);
-    manager.subscribe(channel.topic, () => onConnectedRef.current?.());
+    const channel = manager.addChannel(builder);
+    channel.subscribe(() => onConnectedRef.current?.());
 
     return () => {
-      manager.removeChannel(channel.topic);
+      channel.unsubscribe();
     };
   }, []);
 

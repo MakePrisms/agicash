@@ -4,6 +4,7 @@ import {
   type RealtimeChannel,
   type RealtimeClient,
 } from '@supabase/supabase-js';
+import { SupabaseRealtimeChannel } from './supabase-realtime-channel';
 import { RealtimeChannelBuilder } from './supabase-realtime-channel-builder';
 
 export type ChannelStatus =
@@ -119,7 +120,9 @@ export class SupabaseRealtimeManager {
    * @param channelBuilder A builder that creates a realtime channel
    * @returns The state of the added channel
    */
-  public addChannel(channelBuilder: RealtimeChannelBuilder): ChannelState {
+  public addChannel(
+    channelBuilder: RealtimeChannelBuilder,
+  ): SupabaseRealtimeChannel {
     const channel = channelBuilder.build();
     const channelState: ChannelState = {
       channelId: crypto.randomUUID(),
@@ -128,7 +131,7 @@ export class SupabaseRealtimeManager {
       status: 'idle',
     };
     this.channels.set(channel.topic, channelState);
-    return channelState;
+    return new SupabaseRealtimeChannel(this, channel);
   }
 
   /**
@@ -341,12 +344,12 @@ export class SupabaseRealtimeManager {
   }
 
   /**
-   * Subscribes to status changes for a specific channel topic.
+   * Subscribes to status changes for a specific channel.
    * @param topic The topic of the channel to subscribe to
    * @param listener A callback that is called when the status of the channel changes
    * @returns A function that can be called to unsubscribe from the status changes
    */
-  public subscribeToTopicStatusChange(
+  public subscribeToChannelStatusChange(
     topic: string,
     listener: () => void,
   ): () => void {
@@ -552,7 +555,7 @@ export class SupabaseRealtimeManager {
     if (!state) return;
 
     await this.realtimeClient.removeChannel(state.channel);
-    const { channel } = this.addChannel(state.channelBuilder);
+    const channel = this.addChannel(state.channelBuilder);
     await this.subscribe(channel.topic, state.onConnected);
   }
 
