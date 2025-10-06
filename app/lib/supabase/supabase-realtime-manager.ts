@@ -4,6 +4,7 @@ import {
   type RealtimeChannel,
   type RealtimeClient,
 } from '@supabase/supabase-js';
+import { SupabaseRealtimeChannel } from './supabase-realtime-channel';
 import { RealtimeChannelBuilder } from './supabase-realtime-channel-builder';
 
 export type ChannelStatus =
@@ -11,13 +12,10 @@ export type ChannelStatus =
   | 'subscribing'
   | 'subscribed'
   | 'closed'
-  | 'error';
+  | 'error'
+  | 'reconnecting';
 
 interface ChannelState {
-  /**
-   * The UUID of the channel.
-   */
-  channelId: string;
   /**
    * The builder that was used to create the channel.
    */
@@ -98,6 +96,10 @@ export class SupabaseRealtimeManager {
   ];
   private readonly maxRetries = this.millisecondRetryDelays.length;
   private readonly topicListeners = new Map<string, Set<() => void>>();
+  private readonly subcribeCallbacks = new Map<
+    string,
+    (status: REALTIME_SUBSCRIBE_STATES, err?: Error) => void
+  >();
 
   private get isOfflineOrInactive(): boolean {
     return !this.isOnline || !this.isActive;
@@ -119,16 +121,17 @@ export class SupabaseRealtimeManager {
    * @param channelBuilder A builder that creates a realtime channel
    * @returns The state of the added channel
    */
-  public addChannel(channelBuilder: RealtimeChannelBuilder): ChannelState {
+  public addChannel(
+    channelBuilder: RealtimeChannelBuilder,
+  ): SupabaseRealtimeChannel {
     const channel = channelBuilder.build();
     const channelState: ChannelState = {
-      channelId: crypto.randomUUID(),
       channelBuilder,
       channel,
       status: 'idle',
     };
     this.channels.set(channel.topic, channelState);
-    return channelState;
+    return new SupabaseRealtimeChannel(this, channel);
   }
 
   /**
@@ -148,7 +151,11 @@ export class SupabaseRealtimeManager {
       throw new Error(`Channel ${channelTopic} not found`);
     }
 
-    if (state.status === 'subscribed' || state.status === 'subscribing') {
+    if (
+      state.status === 'subscribed' ||
+      state.status === 'subscribing' ||
+      state.status === 'reconnecting'
+    ) {
       return;
     }
 
@@ -203,7 +210,10 @@ export class SupabaseRealtimeManager {
         }
       });
 
-      channel.subscribe((status, error) => {
+      const subscribeCallback = (
+        status: REALTIME_SUBSCRIBE_STATES,
+        error?: Error,
+      ) => {
         logDebug('Realtime channel subscription status changed', {
           topic: channel.topic,
           status,
@@ -262,7 +272,10 @@ export class SupabaseRealtimeManager {
             this.resubscribe(channelTopic);
           }
         }
-      });
+      };
+
+      channel.subscribe(subscribeCallback);
+      this.subcribeCallbacks.set(channelTopic, subscribeCallback);
     });
   }
 
@@ -287,11 +300,8 @@ export class SupabaseRealtimeManager {
     const state = this.channels.get(channelTopic);
     if (!state) return;
 
-    const channelId = state.channelId;
-
     logDebug('Realtime channel remove called', {
-      topic: state.channel.topic,
-      channelId,
+      topic: channelTopic,
       socketConnectionState: state.channel.socket.connectionState().toString(),
     });
 
@@ -308,16 +318,15 @@ export class SupabaseRealtimeManager {
     if (options?.keepState) {
       this.updateChannelStatus(channelTopic, 'closed');
     } else {
-      // We are deleting the channel state here by id instead of doing "this.channels.delete(channelTopic)" because if removeChannel is called
-      // wihout being awaited, and then the channel for the same topic is added again, deleting by topic here could delete the newly added channel.
-      this.deleteChannelStateById(channelId);
+      this.channels.delete(channelTopic);
+      this.subcribeCallbacks.delete(channelTopic);
+      this.topicListeners.delete(channelTopic);
     }
 
     logDebug('Realtime channel remove result', {
       topic: channelTopic,
       result,
       keepState: options?.keepState === true,
-      channelId: channelId,
       socketConnectionState: state.channel.socket.connectionState().toString(),
     });
   }
@@ -341,12 +350,12 @@ export class SupabaseRealtimeManager {
   }
 
   /**
-   * Subscribes to status changes for a specific channel topic.
+   * Subscribes to status changes for a specific channel.
    * @param topic The topic of the channel to subscribe to
    * @param listener A callback that is called when the status of the channel changes
    * @returns A function that can be called to unsubscribe from the status changes
    */
-  public subscribeToTopicStatusChange(
+  public subscribeToChannelStatusChange(
     topic: string,
     listener: () => void,
   ): () => void {
@@ -356,9 +365,13 @@ export class SupabaseRealtimeManager {
 
     return () => {
       const listeners = this.topicListeners.get(topic);
-      if (!listeners) return;
+      if (!listeners) {
+        return;
+      }
       listeners.delete(listener);
-      if (listeners.size === 0) this.topicListeners.delete(topic);
+      if (listeners.size === 0) {
+        this.topicListeners.delete(topic);
+      }
     };
   }
 
@@ -387,6 +400,8 @@ export class SupabaseRealtimeManager {
     }
 
     this.resubscribeQueue.push({ channelTopic });
+    this.updateChannelStatus(channelTopic, 'reconnecting');
+
     this.processResubscribeQueue();
   }
 
@@ -436,6 +451,19 @@ export class SupabaseRealtimeManager {
     }
   }
 
+  public simulateChannelStatusChange(
+    channelTopic: string,
+    status: REALTIME_SUBSCRIBE_STATES,
+    error?: Error,
+  ): void {
+    const subscribeCallback = this.subcribeCallbacks.get(channelTopic);
+    if (!subscribeCallback) {
+      return;
+    }
+
+    subscribeCallback(status, error);
+  }
+
   /**
    * Refreshes the realtime client access token if it has expired.
    */
@@ -452,7 +480,8 @@ export class SupabaseRealtimeManager {
     const inactiveChannels = Array.from(this.channels.values()).filter(
       (channelState) =>
         channelState.status !== 'subscribed' &&
-        channelState.status !== 'subscribing',
+        channelState.status !== 'subscribing' &&
+        channelState.status !== 'reconnecting',
     );
 
     if (inactiveChannels.length > 0) {
@@ -552,7 +581,7 @@ export class SupabaseRealtimeManager {
     if (!state) return;
 
     await this.realtimeClient.removeChannel(state.channel);
-    const { channel } = this.addChannel(state.channelBuilder);
+    const channel = this.addChannel(state.channelBuilder);
     await this.subscribe(channel.topic, state.onConnected);
   }
 
@@ -591,19 +620,6 @@ export class SupabaseRealtimeManager {
     if (state.status !== status) {
       state.status = status;
       this.notifyStatusChange(channelTopic);
-    }
-  }
-
-  /**
-   * Deletes a channel state by its id
-   * @param channelId The id of the channel to delete
-   */
-  private deleteChannelStateById(channelId: string) {
-    const state = Array.from(this.channels.values()).find(
-      (state) => state.channelId === channelId,
-    );
-    if (state) {
-      this.channels.delete(state.channel.topic);
     }
   }
 }
