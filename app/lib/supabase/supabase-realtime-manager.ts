@@ -17,10 +17,6 @@ export type ChannelStatus =
 
 interface ChannelState {
   /**
-   * The UUID of the channel.
-   */
-  channelId: string;
-  /**
    * The builder that was used to create the channel.
    */
   channelBuilder: RealtimeChannelBuilder;
@@ -130,7 +126,6 @@ export class SupabaseRealtimeManager {
   ): SupabaseRealtimeChannel {
     const channel = channelBuilder.build();
     const channelState: ChannelState = {
-      channelId: crypto.randomUUID(),
       channelBuilder,
       channel,
       status: 'idle',
@@ -305,11 +300,8 @@ export class SupabaseRealtimeManager {
     const state = this.channels.get(channelTopic);
     if (!state) return;
 
-    const channelId = state.channelId;
-
     logDebug('Realtime channel remove called', {
-      topic: state.channel.topic,
-      channelId,
+      topic: channelTopic,
       socketConnectionState: state.channel.socket.connectionState().toString(),
     });
 
@@ -326,16 +318,15 @@ export class SupabaseRealtimeManager {
     if (options?.keepState) {
       this.updateChannelStatus(channelTopic, 'closed');
     } else {
-      // We are deleting the channel state here by id instead of doing "this.channels.delete(channelTopic)" because if removeChannel is called
-      // wihout being awaited, and then the channel for the same topic is added again, deleting by topic here could delete the newly added channel.
-      this.deleteChannelStateById(channelId);
+      this.channels.delete(channelTopic);
+      this.subcribeCallbacks.delete(channelTopic);
+      this.topicListeners.delete(channelTopic);
     }
 
     logDebug('Realtime channel remove result', {
       topic: channelTopic,
       result,
       keepState: options?.keepState === true,
-      channelId: channelId,
       socketConnectionState: state.channel.socket.connectionState().toString(),
     });
   }
@@ -374,9 +365,13 @@ export class SupabaseRealtimeManager {
 
     return () => {
       const listeners = this.topicListeners.get(topic);
-      if (!listeners) return;
+      if (!listeners) {
+        return;
+      }
       listeners.delete(listener);
-      if (listeners.size === 0) this.topicListeners.delete(topic);
+      if (listeners.size === 0) {
+        this.topicListeners.delete(topic);
+      }
     };
   }
 
@@ -625,20 +620,6 @@ export class SupabaseRealtimeManager {
     if (state.status !== status) {
       state.status = status;
       this.notifyStatusChange(channelTopic);
-    }
-  }
-
-  /**
-   * Deletes a channel state by its id
-   * @param channelId The id of the channel to delete
-   */
-  private deleteChannelStateById(channelId: string) {
-    const state = Array.from(this.channels.values()).find(
-      (state) => state.channelId === channelId,
-    );
-    if (state) {
-      this.channels.delete(state.channel.topic);
-      this.subcribeCallbacks.delete(state.channel.topic);
     }
   }
 }

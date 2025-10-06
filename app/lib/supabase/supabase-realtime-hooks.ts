@@ -47,6 +47,9 @@ interface Options {
   onConnected?: () => void;
 }
 
+const pendingSubscribeTopicPromises = new Map<string, Promise<void>>();
+const pendingCleanupTopicPromises = new Map<string, Promise<void>>();
+
 /**
  * Hook that subscribes to a Supabase Realtime channel to receive realtime updates.
  * The channel is created when the component mounts and unsubscribed when the component unmounts.
@@ -79,11 +82,63 @@ export function useSupabaseRealtime({
   useEffect(() => {
     const builder = channelBuilderRef.current;
     const { manager } = builder;
-    const channel = manager.addChannel(builder);
-    channel.subscribe(() => onConnectedRef.current?.());
+    let channel: ReturnType<typeof manager.addChannel> | undefined;
+    let cancelled = false;
+
+    const createAndSubscribeToChannel = async () => {
+      const pendingCleanupPromise = pendingCleanupTopicPromises.get(
+        builder.topic,
+      );
+      if (pendingCleanupPromise) {
+        await pendingCleanupPromise;
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      channel = manager.addChannel(builder);
+      await channel.subscribe(() => onConnectedRef.current?.());
+    };
+
+    const subscribePromise = createAndSubscribeToChannel()
+      .catch(() => {
+        console.error('Error subscribing to realtime channel', builder.topic);
+      })
+      .finally(() => {
+        pendingSubscribeTopicPromises.delete(builder.topic);
+      });
+    pendingSubscribeTopicPromises.set(builder.topic, subscribePromise);
 
     return () => {
-      channel.unsubscribe();
+      cancelled = true;
+
+      const cleanup = async () => {
+        if (!channel) {
+          return;
+        }
+
+        const pendingSubscribePromise = pendingSubscribeTopicPromises.get(
+          channel.topic,
+        );
+        if (pendingSubscribePromise) {
+          await pendingSubscribePromise;
+        }
+
+        await channel.unsubscribe();
+      };
+
+      const cleanupPromise = cleanup()
+        .catch(() => {
+          console.error('Error cleaning up realtime channel', channel?.topic);
+        })
+        .finally(() => {
+          channel && pendingCleanupTopicPromises.delete(channel.topic);
+        });
+
+      if (channel) {
+        pendingCleanupTopicPromises.set(channel.topic, cleanupPromise);
+      }
     };
   }, []);
 
