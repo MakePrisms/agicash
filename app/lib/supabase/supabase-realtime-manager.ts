@@ -12,7 +12,8 @@ export type ChannelStatus =
   | 'subscribing'
   | 'subscribed'
   | 'closed'
-  | 'error';
+  | 'error'
+  | 'reconnecting';
 
 interface ChannelState {
   /**
@@ -99,6 +100,10 @@ export class SupabaseRealtimeManager {
   ];
   private readonly maxRetries = this.millisecondRetryDelays.length;
   private readonly topicListeners = new Map<string, Set<() => void>>();
+  private readonly subcribeCallbacks = new Map<
+    string,
+    (status: REALTIME_SUBSCRIBE_STATES, err?: Error) => void
+  >();
 
   private get isOfflineOrInactive(): boolean {
     return !this.isOnline || !this.isActive;
@@ -151,7 +156,11 @@ export class SupabaseRealtimeManager {
       throw new Error(`Channel ${channelTopic} not found`);
     }
 
-    if (state.status === 'subscribed' || state.status === 'subscribing') {
+    if (
+      state.status === 'subscribed' ||
+      state.status === 'subscribing' ||
+      state.status === 'reconnecting'
+    ) {
       return;
     }
 
@@ -206,7 +215,10 @@ export class SupabaseRealtimeManager {
         }
       });
 
-      channel.subscribe((status, error) => {
+      const subscribeCallback = (
+        status: REALTIME_SUBSCRIBE_STATES,
+        error?: Error,
+      ) => {
         logDebug('Realtime channel subscription status changed', {
           topic: channel.topic,
           status,
@@ -265,7 +277,10 @@ export class SupabaseRealtimeManager {
             this.resubscribe(channelTopic);
           }
         }
-      });
+      };
+
+      channel.subscribe(subscribeCallback);
+      this.subcribeCallbacks.set(channelTopic, subscribeCallback);
     });
   }
 
@@ -390,6 +405,8 @@ export class SupabaseRealtimeManager {
     }
 
     this.resubscribeQueue.push({ channelTopic });
+    this.updateChannelStatus(channelTopic, 'reconnecting');
+
     this.processResubscribeQueue();
   }
 
@@ -439,6 +456,19 @@ export class SupabaseRealtimeManager {
     }
   }
 
+  public simulateChannelStatusChange(
+    channelTopic: string,
+    status: REALTIME_SUBSCRIBE_STATES,
+    error?: Error,
+  ): void {
+    const subscribeCallback = this.subcribeCallbacks.get(channelTopic);
+    if (!subscribeCallback) {
+      return;
+    }
+
+    subscribeCallback(status, error);
+  }
+
   /**
    * Refreshes the realtime client access token if it has expired.
    */
@@ -455,7 +485,8 @@ export class SupabaseRealtimeManager {
     const inactiveChannels = Array.from(this.channels.values()).filter(
       (channelState) =>
         channelState.status !== 'subscribed' &&
-        channelState.status !== 'subscribing',
+        channelState.status !== 'subscribing' &&
+        channelState.status !== 'reconnecting',
     );
 
     if (inactiveChannels.length > 0) {
@@ -607,6 +638,7 @@ export class SupabaseRealtimeManager {
     );
     if (state) {
       this.channels.delete(state.channel.topic);
+      this.subcribeCallbacks.delete(state.channel.topic);
     }
   }
 }
