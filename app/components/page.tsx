@@ -1,5 +1,6 @@
 import { ChevronLeft, X } from 'lucide-react';
 import React from 'react';
+import { useLocation } from 'react-router';
 import {
   LinkWithViewTransition,
   type ViewTransitionLinkProps,
@@ -27,8 +28,10 @@ export function Page({ children, className, ...props }: PageProps) {
 interface ClosePageButtonProps extends ViewTransitionLinkProps {}
 
 export function ClosePageButton({ className, ...props }: ClosePageButtonProps) {
+  const location = useLocation();
+  const redirectTo = new URLSearchParams(location.search).get('redirectTo');
   return (
-    <LinkWithViewTransition {...props}>
+    <LinkWithViewTransition {...props} to={redirectTo || props.to}>
       <X />
     </LinkWithViewTransition>
   );
