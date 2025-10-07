@@ -131,18 +131,19 @@ export function useSuspenseTransaction(id: string) {
 
 const PAGE_SIZE = 25;
 
-export function useTransactions() {
+export function useTransactions(select?: { accountId?: string }) {
   const userId = useUser((user) => user.id);
   const transactionRepository = useTransactionRepository();
 
   const result = useInfiniteQuery({
-    queryKey: [allTransactionsQueryKey],
+    queryKey: [allTransactionsQueryKey, select],
     initialPageParam: null,
     queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
       const result = await transactionRepository.list({
         userId,
         cursor: pageParam,
         pageSize: PAGE_SIZE,
+        select,
       });
       return {
         transactions: result.transactions,
