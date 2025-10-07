@@ -264,7 +264,7 @@ function usePartitionTransactions(transactions: Transaction[]) {
   };
 }
 
-export function TransactionList() {
+export function TransactionList({ accountId }: { accountId?: string }) {
   const { setIfMissing: setAckStatusIfMissing } =
     useTransactionAckStatusStore();
   const {
@@ -274,7 +274,7 @@ export function TransactionList() {
     hasNextPage,
     isFetchingNextPage,
     status,
-  } = useTransactions();
+  } = useTransactions({ accountId });
 
   const allTransactions = useMemo(
     () => data?.pages.flatMap((page) => page.transactions) ?? [],
