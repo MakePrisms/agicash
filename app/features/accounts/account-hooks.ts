@@ -19,6 +19,7 @@ import {
   type CashuAccount,
   type ExtendedAccount,
   getAccountBalance,
+  isStarAccount,
 } from './account';
 import {
   type AccountRepository,
@@ -277,6 +278,8 @@ export const accountsQueryOptions = ({
 export function useAccounts<T extends AccountType = AccountType>(select?: {
   currency?: Currency;
   type?: T;
+  excludeStarAccounts?: boolean;
+  starAccountsOnly?: boolean;
 }): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
@@ -301,13 +304,25 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
             if (select.type && account.type !== select.type) {
               return false;
             }
+            if (select.excludeStarAccounts && isStarAccount(account)) {
+              return false;
+            }
+            if (select.starAccountsOnly && !isStarAccount(account)) {
+              return false;
+            }
             return true;
           },
         );
 
         return filteredData;
       },
-      [select?.currency, select?.type, user],
+      [
+        select?.currency,
+        select?.type,
+        select?.excludeStarAccounts,
+        select?.starAccountsOnly,
+        user,
+      ],
     ),
   });
 }
@@ -430,14 +445,17 @@ export function useAddCashuAccount() {
   return mutateAsync;
 }
 
+/**
+ * @returns the total balance of all accounts for the given currency excluding Star accounts.
+ */
 export function useBalance(currency: Currency) {
-  const { data: accounts } = useAccounts({ currency });
-  const balance = accounts.reduce(
-    (acc, account) => {
-      const accountBalance = getAccountBalance(account);
-      return acc.add(accountBalance);
-    },
-    new Money({ amount: 0, currency }),
-  );
+  const { data: accounts } = useAccounts({
+    currency,
+    excludeStarAccounts: true,
+  });
+  const balance = accounts.reduce((acc, account) => {
+    const accountBalance = getAccountBalance(account);
+    return acc.add(accountBalance);
+  }, Money.zero(currency));
   return balance;
 }
