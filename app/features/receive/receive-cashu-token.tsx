@@ -208,7 +208,9 @@ export default function ReceiveToken({
               <AccountSelector
                 accounts={selectableAccounts}
                 selectedAccount={receiveAccount}
-                disabled={isCrossMintSwapDisabled}
+                disabled={
+                  isCrossMintSwapDisabled || selectableAccounts.length === 1
+                }
                 onSelect={setReceiveAccount}
               />
             </div>

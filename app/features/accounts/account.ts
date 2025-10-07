@@ -57,3 +57,6 @@ export const getAccountBalance = (account: Account) => {
   // TODO: implement balance logic for other account types
   return new Money({ amount: 0, currency: account.currency });
 };
+
+export const isStarAccount = (account: Account) =>
+  account.type === 'cashu' && account.wallet.cachedMintInfo.internalMeltsOnly;
