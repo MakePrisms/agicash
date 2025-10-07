@@ -4,11 +4,12 @@ import {
   ChartSpline,
   Clock,
   Cog,
+  Star,
 } from 'lucide-react';
 import { useState } from 'react';
 import type { LinksFunction } from 'react-router';
 import agicashIcon192 from '~/assets/icon-192x192.png';
-import { Page, PageContent, PageHeader } from '~/components/page';
+import { Page, PageContent } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Skeleton } from '~/components/ui/skeleton';
 import {
@@ -68,7 +69,15 @@ export default function Index() {
 
   return (
     <Page>
-      <PageHeader className="z-10 flex w-full items-center justify-end gap-4 pr-4">
+      <header className="z-10 mb-4 flex w-full items-center justify-between px-4">
+        <LinkWithViewTransition
+          to="/cards"
+          transition="slideRight"
+          applyTo="newView"
+        >
+          <Star className="text-muted-foreground" />
+        </LinkWithViewTransition>
+
         <div className="flex items-center gap-6">
           <LinkWithViewTransition
             to="/transactions"
@@ -89,7 +98,7 @@ export default function Index() {
             <Cog className="text-muted-foreground" />
           </LinkWithViewTransition>
         </div>
-      </PageHeader>
+      </header>
 
       <PageContent className="absolute inset-0 mx-auto flex flex-col items-center justify-center gap-24">
         <div className="flex h-[156px] flex-col items-center gap-4">
