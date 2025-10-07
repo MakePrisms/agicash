@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import { useLocation } from 'react-router';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
@@ -151,6 +152,7 @@ function TransactionRow({
   transaction: Transaction;
 }) {
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
+  const location = useLocation();
   const { setAckStatus, statuses: ackStatuses } =
     useTransactionAckStatusStore();
 
@@ -168,7 +170,7 @@ function TransactionRow({
 
   return (
     <LinkWithViewTransition
-      to={`/transactions/${transaction.id}`}
+      to={`/transactions/${transaction.id}?redirectTo=${location.pathname}`}
       transition="slideUp"
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
