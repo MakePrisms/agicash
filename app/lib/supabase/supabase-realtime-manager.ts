@@ -37,9 +37,13 @@ interface ChannelState {
    */
   retryTimeout?: ReturnType<typeof setTimeout>;
   /**
-   * A callback that is called when the channel is connected.
+   * Callbacks that are called when the channel is initially connected or reconnected.
    */
-  onConnected?: () => void;
+  onConnectedCallbacks: Set<() => void>;
+  /**
+   * The number of active subscribers to this channel.
+   */
+  subscribersCount: number;
 }
 
 interface ResubscribeQueueItem {
@@ -79,9 +83,11 @@ function logDebug(message: string, data: Record<string, unknown>): void {
  *   - Detect error and timeouts when app is inactive or offline and unsubscribe the channel. Then when the app becomes active and online again,
  *     resubcribe the channel.
  *
+ * The manager can handle multiple subscribers to the same channel. It tracks the number of active subscribers to determine when to remove the channel from the manager.
+ *
  * Resubcribe retry uses a queue to ensure that only one resubscribe is in progress at a time. So if channel A and B error in the same time,
  * they will be retried one after the other. So B will wait in the queue until A has been reconnected or all retries have failed. The reason
- * we did it this way is because when we initally allowed resubscription to be happening in parallel for multiple channels, sometimes all
+ * we did it this way is because when we initially allowed resubscription to be happening in parallel for multiple channels, sometimes all
  * resubscriptions would just fail and we suspected it might be caused by too many concurrent messages being shared of the the socket (Supabase client
  * use one socket for all channels).
  */
@@ -118,17 +124,25 @@ export class SupabaseRealtimeManager {
 
   /**
    * Creates a realtime channel and adds it to the manager in the idle status
+   * If the channel is already added to the manager, returns the existing channel.
    * @param channelBuilder A builder that creates a realtime channel
-   * @returns The state of the added channel
+   * @returns The added channel
    */
   public addChannel(
     channelBuilder: RealtimeChannelBuilder,
   ): SupabaseRealtimeChannel {
+    const existingChannel = this.channels.get(channelBuilder.topic);
+    if (existingChannel) {
+      return new SupabaseRealtimeChannel(this, existingChannel.channel);
+    }
+
     const channel = channelBuilder.build();
     const channelState: ChannelState = {
       channelBuilder,
       channel,
       status: 'idle',
+      subscribersCount: 0,
+      onConnectedCallbacks: new Set(),
     };
     this.channels.set(channel.topic, channelState);
     return new SupabaseRealtimeChannel(this, channel);
@@ -136,10 +150,10 @@ export class SupabaseRealtimeManager {
 
   /**
    * Subscribes to a realtime channel
-   * It throws if the channel with provided topic was not added to the manager before. It also throws if the channel is in the 'error' or 'closed' status.
-   * If the channel is already subscribed or subscribing, it is a no-op.
+   * It throws if the channel with provided topic was not added to the manager before.
+   * If the channel is already subscribed, subscribing, or reconnecting, it just registers the onConnected callback.
    * @param channelTopic The topic of the channel to subscribe to
-   * @param onConnected A callback that is called when the channel is initally connected or reconnected. Use if you need to refresh the data to catch up with the latest changes.
+   * @param onConnected A callback that is called when the channel is initially connected or reconnected. Use if you need to refresh the data to catch up with the latest changes.
    * @returns A promise that resolves when the channel is subscribed or the subscription fails.
    */
   public async subscribe(
@@ -151,139 +165,18 @@ export class SupabaseRealtimeManager {
       throw new Error(`Channel ${channelTopic} not found`);
     }
 
-    if (
-      state.status === 'subscribed' ||
-      state.status === 'subscribing' ||
-      state.status === 'reconnecting'
-    ) {
-      return;
+    if (onConnected) {
+      state.onConnectedCallbacks.add(onConnected);
     }
 
-    if (state.status === 'closed' || state.status === 'error') {
-      throw new Error(
-        `Channel ${channelTopic} is in ${state.status} state. Create a new channel to subscribe again.`,
-      );
-    }
+    state.subscribersCount++;
 
-    this.updateChannelStatus(channelTopic, 'subscribing');
-
-    // Persist onConnected for future resubscribe attempts
-    state.onConnected = onConnected;
-
-    await this.refreshSessionIfNeeded();
-
-    const channel = state.channel;
-
-    await new Promise<void>((resolve) => {
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-      logDebug('Realtime channel subscribe called', {
-        topic: channel.topic,
-        socketConnectionState: channel.socket.connectionState().toString(),
-      });
-
-      /**
-       * Listens for the system postgres_changes ok message and sets the subscription state to 'subscribed' when it is received.
-       * Only when this message is received, we can be sure that the connection is fully established for postgres_changes.
-       * See https://github.com/supabase/realtime/issues/282 for details.
-       */
-      channel.on(REALTIME_LISTEN_TYPES.SYSTEM, {}, (payload) => {
-        if (
-          payload.extension === 'postgres_changes' &&
-          payload.status === 'ok'
-        ) {
-          if (timeoutId) clearTimeout(timeoutId);
-          this.updateChannelStatus(channelTopic, 'subscribed');
-          resolve();
-          try {
-            onConnected?.();
-          } catch (error) {
-            console.error('Error calling onConnected callback', {
-              error,
-              topic: channel.topic,
-            });
-          }
-
-          logDebug('Realtime channel connected', {
-            topic: channel.topic,
-          });
-        }
-      });
-
-      const subscribeCallback = (
-        status: REALTIME_SUBSCRIBE_STATES,
-        error?: Error,
-      ) => {
-        logDebug('Realtime channel subscription status changed', {
-          topic: channel.topic,
-          status,
-          socketConnectionState: channel.socket.connectionState().toString(),
-          error,
-        });
-
-        if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
-          state.error = undefined;
-
-          timeoutId = setTimeout(() => {
-            // Fallback in case the channel never receives a postgres_changes ok message
-            state.error = new Error(
-              'Subscription timed out before establishing full database connection',
-            );
-            resolve();
-
-            this.resubscribe(channelTopic);
-          }, 60_000);
-        } else {
-          if (timeoutId) clearTimeout(timeoutId);
-          resolve();
-
-          if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
-            this.updateChannelStatus(channelTopic, 'closed');
-          } else if (
-            status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR ||
-            status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT
-          ) {
-            if (this.isOfflineOrInactive) {
-              const event =
-                status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR
-                  ? 'error'
-                  : 'timeout';
-              logDebug(
-                `Realtime channel ${event}, but tab is not active or app is offline. Unsubscribing.`,
-                {
-                  topic: channelTopic,
-                  status,
-                  error,
-                  socketConnectionState: channel.socket
-                    .connectionState()
-                    .toString(),
-                },
-              );
-              // Keep state so closed channel can be detected and resubscribed when app becomes online and active again
-              this.removeChannel(channelTopic, { keepState: true });
-              return;
-            }
-
-            state.error =
-              error ??
-              new Error(
-                `Error with "${channel.topic}" channel subscription. Status: ${status}`,
-              );
-            this.resubscribe(channelTopic);
-          }
-        }
-      };
-
-      channel.subscribe(subscribeCallback);
-      this.subcribeCallbacks.set(channelTopic, subscribeCallback);
-    });
+    await this.subscribeToChannel(state);
   }
 
   /**
    * Unsubscribes and removes a single channel from the Supabase realtime client.
-   * It also cancels and clears any pending retries in the manager for the channel.
-   * If keepState option is not provided or false, it also removes the channel from the
-   * manager. Otherwise, the channel is closed with realtime client but kept in the manager.
+   * Uses reference counting - only actually removes the channel when subscribersCount reaches 0.
    * @param channelTopic The topic of the channel to remove
    * @param options Options for the removal
    * @returns A promise that resolves when the channel is removed
@@ -292,18 +185,44 @@ export class SupabaseRealtimeManager {
     channelTopic: string,
     options?: {
       /**
-       * If true, the channel will closed but the channel state will be kept in the manager.
+       * The onConnected callback to remove from the set when unsubscribing.
        */
-      keepState?: boolean;
+      onConnected?: () => void;
     },
   ): Promise<void> {
     const state = this.channels.get(channelTopic);
-    if (!state) return;
 
     logDebug('Realtime channel remove called', {
       topic: channelTopic,
-      socketConnectionState: state.channel.socket.connectionState().toString(),
+      subscribersCount: state?.subscribersCount,
+      socketConnectionState: state?.channel.socket.connectionState().toString(),
     });
+
+    if (!state) {
+      logDebug('Realtime channel remove did not find the channel', {
+        topic: channelTopic,
+      });
+      return;
+    }
+
+    if (options?.onConnected) {
+      state.onConnectedCallbacks.delete(options.onConnected);
+    }
+    state.subscribersCount--;
+
+    if (state.subscribersCount > 0) {
+      logDebug(
+        'Realtime channel has more active subscribers so it will not be removed',
+        {
+          topic: channelTopic,
+          subscribersCount: state.subscribersCount,
+          socketConnectionState: state?.channel.socket
+            .connectionState()
+            .toString(),
+        },
+      );
+      return;
+    }
 
     if (state.retryTimeout) {
       clearTimeout(state.retryTimeout);
@@ -313,20 +232,19 @@ export class SupabaseRealtimeManager {
       (item) => item.channelTopic !== state.channel.topic,
     );
 
-    const result = await this.realtimeClient.removeChannel(state.channel);
+    // Delete from maps first to prevent addChannel from reusing this channel
+    // during the async removeChannel operation
+    this.channels.delete(channelTopic);
+    this.subcribeCallbacks.delete(channelTopic);
+    this.topicListeners.delete(channelTopic);
 
-    if (options?.keepState) {
-      this.updateChannelStatus(channelTopic, 'closed');
-    } else {
-      this.channels.delete(channelTopic);
-      this.subcribeCallbacks.delete(channelTopic);
-      this.topicListeners.delete(channelTopic);
-    }
+    // removeChannel never throws - it always resolves with 'ok' | 'timed out' | 'error'
+    // Even on error/timeout, the channel is cleaned up on the client side, so we proceed
+    const result = await this.realtimeClient.removeChannel(state.channel);
 
     logDebug('Realtime channel remove result', {
       topic: channelTopic,
       result,
-      keepState: options?.keepState === true,
       socketConnectionState: state.channel.socket.connectionState().toString(),
     });
   }
@@ -408,7 +326,7 @@ export class SupabaseRealtimeManager {
   /**
    * Sets the online status of the app.
    * If the app is online and active, it will resubscribe all inactive channels.
-   * @param status The online status of the app
+   * @param isOnline The online status of the app
    */
   public setOnlineStatus(isOnline: boolean): void {
     if (this.isOnline === isOnline) {
@@ -451,17 +369,40 @@ export class SupabaseRealtimeManager {
     }
   }
 
-  public simulateChannelStatusChange(
-    channelTopic: string,
-    status: REALTIME_SUBSCRIBE_STATES,
-    error?: Error,
-  ): void {
-    const subscribeCallback = this.subcribeCallbacks.get(channelTopic);
-    if (!subscribeCallback) {
-      return;
+  /**
+   * Closes a channel temporarily without removing it from the manager.
+   * Used when app goes offline or inactive. The channel can be resubscribed later.
+   * Cancels any pending retries and sets status to 'closed'.
+   * Does NOT decrement subscribersCount since this is internal cleanup.
+   * @param channelTopic The topic of the channel to close
+   * @returns A promise that resolves when the channel is closed
+   */
+  private async closeChannel(channelTopic: string): Promise<void> {
+    const state = this.channels.get(channelTopic);
+    if (!state) return;
+
+    logDebug('Realtime channel close called', {
+      topic: channelTopic,
+      subscribersCount: state.subscribersCount,
+      socketConnectionState: state.channel.socket.connectionState().toString(),
+    });
+
+    // Cancel any pending retries since we're closing
+    if (state.retryTimeout) {
+      clearTimeout(state.retryTimeout);
     }
 
-    subscribeCallback(status, error);
+    this.resubscribeQueue = this.resubscribeQueue.filter(
+      (item) => item.channelTopic !== state.channel.topic,
+    );
+
+    await this.realtimeClient.removeChannel(state.channel);
+    this.updateChannelStatus(channelTopic, 'closed');
+
+    logDebug('Realtime channel close result', {
+      topic: channelTopic,
+      socketConnectionState: state.channel.socket.connectionState().toString(),
+    });
   }
 
   /**
@@ -581,8 +522,146 @@ export class SupabaseRealtimeManager {
     if (!state) return;
 
     await this.realtimeClient.removeChannel(state.channel);
-    const channel = this.addChannel(state.channelBuilder);
-    await this.subscribe(channel.topic, state.onConnected);
+
+    // Rebuild the channel in place without changing subscribersCount or callbacks
+    const newChannel = state.channelBuilder.build();
+    state.channel = newChannel;
+
+    await this.subscribeToChannel(state);
+  }
+
+  /**
+   * Subscribes to a realtime channel.
+   * It is a no-op if the channel is already subscribed, subscribing, or reconnecting.
+   * @param state The state of the channel to subscribe to
+   * @returns A promise that resolves when the channel is subscribed
+   */
+  private async subscribeToChannel(state: ChannelState): Promise<void> {
+    if (
+      state.status === 'subscribed' ||
+      state.status === 'subscribing' ||
+      state.status === 'reconnecting'
+    ) {
+      return;
+    }
+
+    const channelTopic = state.channel.topic;
+
+    this.updateChannelStatus(channelTopic, 'subscribing');
+
+    await this.refreshSessionIfNeeded();
+
+    const channel = state.channel;
+
+    await new Promise<void>((resolve) => {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+      logDebug('Realtime channel subscribe called', {
+        topic: channel.topic,
+        socketConnectionState: channel.socket.connectionState().toString(),
+      });
+
+      /**
+       * Listens for the system postgres_changes ok message and sets the subscription state to 'subscribed' when it is received.
+       * Only when this message is received, we can be sure that the connection is fully established for postgres_changes.
+       * See https://github.com/supabase/realtime/issues/282 for details.
+       */
+      channel.on(REALTIME_LISTEN_TYPES.SYSTEM, {}, (payload) => {
+        if (
+          payload.extension === 'postgres_changes' &&
+          payload.status === 'ok'
+        ) {
+          if (timeoutId) clearTimeout(timeoutId);
+          this.updateChannelStatus(channelTopic, 'subscribed');
+          resolve();
+
+          // Call all registered onConnected callbacks
+          for (const callback of state.onConnectedCallbacks) {
+            try {
+              callback();
+            } catch (error) {
+              console.error('Error calling onConnected callback', {
+                error,
+                topic: channel.topic,
+              });
+            }
+          }
+
+          logDebug('Realtime channel connected', {
+            topic: channel.topic,
+          });
+        }
+      });
+
+      channel.bindings;
+
+      const subscribeCallback = (
+        status: REALTIME_SUBSCRIBE_STATES,
+        error?: Error,
+      ) => {
+        logDebug('Realtime channel subscription status changed', {
+          topic: channel.topic,
+          status,
+          socketConnectionState: channel.socket.connectionState().toString(),
+          error,
+        });
+
+        if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
+          state.error = undefined;
+
+          timeoutId = setTimeout(() => {
+            // Fallback in case the channel never receives a postgres_changes ok message
+            state.error = new Error(
+              'Subscription timed out before establishing full database connection',
+            );
+            resolve();
+
+            this.resubscribe(channelTopic);
+          }, 60_000);
+        } else {
+          if (timeoutId) clearTimeout(timeoutId);
+          resolve();
+
+          if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
+            this.updateChannelStatus(channelTopic, 'closed');
+          } else if (
+            status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR ||
+            status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT
+          ) {
+            if (this.isOfflineOrInactive) {
+              const event =
+                status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR
+                  ? 'error'
+                  : 'timeout';
+              logDebug(
+                `Realtime channel ${event}, but tab is not active or app is offline. Unsubscribing.`,
+                {
+                  topic: channelTopic,
+                  status,
+                  error,
+                  socketConnectionState: channel.socket
+                    .connectionState()
+                    .toString(),
+                },
+              );
+              // Keep state so closed channel can be detected and resubscribed when app becomes online and active again
+              this.closeChannel(channelTopic);
+              return;
+            }
+
+            state.error =
+              error ??
+              new Error(
+                `Error with "${channel.topic}" channel subscription. Status: ${status}`,
+              );
+            this.resubscribe(channelTopic);
+          }
+        }
+      };
+
+      channel.subscribe(subscribeCallback);
+      this.subcribeCallbacks.set(channelTopic, subscribeCallback);
+    });
   }
 
   /**
@@ -621,5 +700,26 @@ export class SupabaseRealtimeManager {
       state.status = status;
       this.notifyStatusChange(channelTopic);
     }
+  }
+
+  /**
+   * Simulates a channel status change for a specific channel.
+   * Use only for testing purposes.
+   * @internal
+   * @param channelTopic The topic of the channel to simulate the status change for
+   * @param status The new status of the channel
+   * @param error The error for the channel, if any
+   */
+  private simulateChannelStatusChange(
+    channelTopic: string,
+    status: REALTIME_SUBSCRIBE_STATES,
+    error?: Error,
+  ): void {
+    const subscribeCallback = this.subcribeCallbacks.get(channelTopic);
+    if (!subscribeCallback) {
+      return;
+    }
+
+    subscribeCallback(status, error);
   }
 }

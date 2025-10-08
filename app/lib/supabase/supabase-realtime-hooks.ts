@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useLatest } from '../use-latest';
 import type { RealtimeChannelBuilder } from './supabase-realtime-channel-builder';
 import type {
@@ -40,15 +40,12 @@ interface Options {
    */
   channel: RealtimeChannelBuilder;
   /**
-   * A callback that is called when the channel is initally connected or reconnected.
+   * A callback that is called when the channel is initially connected or reconnected.
    * Use if you need to refresh the data to catch up with the latest changes.
    * Doesn't require stable reference. The hook will always use the latest value of the callback.
    */
   onConnected?: () => void;
 }
-
-const pendingSubscribeTopicPromises = new Map<string, Promise<void>>();
-const pendingCleanupTopicPromises = new Map<string, Promise<void>>();
 
 /**
  * Hook that subscribes to a Supabase Realtime channel to receive realtime updates.
@@ -61,7 +58,7 @@ export function useSupabaseRealtime({
   channel: channelBuilder,
   onConnected,
 }: Options): ChannelStatus {
-  const channelBuilderRef = useLatest(channelBuilder);
+  const channelBuilderRef = useRef(channelBuilder);
   const onConnectedRef = useLatest(onConnected);
 
   const getChannelStatus = useCallback(() => {
@@ -82,63 +79,31 @@ export function useSupabaseRealtime({
   useEffect(() => {
     const builder = channelBuilderRef.current;
     const { manager } = builder;
-    let channel: ReturnType<typeof manager.addChannel> | undefined;
-    let cancelled = false;
 
-    const createAndSubscribeToChannel = async () => {
-      const pendingCleanupPromise = pendingCleanupTopicPromises.get(
-        builder.topic,
-      );
-      if (pendingCleanupPromise) {
-        await pendingCleanupPromise;
-      }
+    const onConnectedCallback = () => onConnectedRef.current?.();
 
-      if (cancelled) {
-        return;
-      }
-
-      channel = manager.addChannel(builder);
-      await channel.subscribe(() => onConnectedRef.current?.());
-    };
-
-    const subscribePromise = createAndSubscribeToChannel()
-      .catch(() => {
-        console.error('Error subscribing to realtime channel', builder.topic);
-      })
-      .finally(() => {
-        pendingSubscribeTopicPromises.delete(builder.topic);
+    const channel = manager.addChannel(builder);
+    const subscribePromise = channel
+      .subscribe(onConnectedCallback)
+      .catch((error) => {
+        console.error('Error subscribing to realtime channel', {
+          error,
+          topic: channel.topic,
+        });
       });
-    pendingSubscribeTopicPromises.set(builder.topic, subscribePromise);
 
     return () => {
-      cancelled = true;
-
       const cleanup = async () => {
-        if (!channel) {
-          return;
-        }
-
-        const pendingSubscribePromise = pendingSubscribeTopicPromises.get(
-          channel.topic,
-        );
-        if (pendingSubscribePromise) {
-          await pendingSubscribePromise;
-        }
-
-        await channel.unsubscribe();
+        await subscribePromise;
+        await channel.unsubscribe(onConnectedCallback);
       };
 
-      const cleanupPromise = cleanup()
-        .catch(() => {
-          console.error('Error cleaning up realtime channel', channel?.topic);
-        })
-        .finally(() => {
-          channel && pendingCleanupTopicPromises.delete(channel.topic);
+      cleanup().catch((error) => {
+        console.error('Error cleaning up realtime channel', {
+          error,
+          topic: channel.topic,
         });
-
-      if (channel) {
-        pendingCleanupTopicPromises.set(channel.topic, cleanupPromise);
-      }
+      });
     };
   }, []);
 
