@@ -1,19 +1,33 @@
 import { LoaderCircle } from 'lucide-react';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import type { Contact } from './contact';
 import { ContactAvatar } from './contact-avatar';
+import { useContacts } from './contact-hooks';
 
 type ContactsListProps = {
-  contacts: Contact[];
+  searchQuery?: string;
+  onSelect?: (contact: Contact) => Promise<void>;
+};
+
+type ContactsListContentProps = {
+  searchQuery: string;
   onSelect?: (contact: Contact) => Promise<void>;
 };
 
 type State = { status: 'idle' } | { status: 'selecting'; selected: Contact };
 
-export function ContactsList({ contacts, onSelect }: ContactsListProps) {
+function ContactsListContent({
+  searchQuery,
+  onSelect,
+}: ContactsListContentProps) {
   const [state, setState] = useState<State>({ status: 'idle' });
+  const contacts = useContacts((contacts) =>
+    contacts.filter((contact) =>
+      contact.username.toLowerCase().includes(searchQuery.toLowerCase()),
+    ),
+  );
   const hasContacts = contacts.length > 0;
 
   const handleClick = async (contact: Contact) => {
@@ -69,5 +83,21 @@ export function ContactsList({ contacts, onSelect }: ContactsListProps) {
         )}
       </div>
     </ScrollArea>
+  );
+}
+export function ContactsList({
+  searchQuery = '',
+  onSelect,
+}: ContactsListProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="text-center text-muted-foreground">
+          Loading contacts...
+        </div>
+      }
+    >
+      <ContactsListContent searchQuery={searchQuery} onSelect={onSelect} />
+    </Suspense>
   );
 }
