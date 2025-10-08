@@ -18,7 +18,8 @@ import {
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
+import type { Transaction } from '../transactions/transaction';
+import { useTrackTransaction } from '../transactions/transaction-hooks';
 import {
   useCashuReceiveQuote,
   useCreateCashuReceiveQuote,
@@ -27,7 +28,7 @@ import {
 type MintQuoteProps = {
   account: CashuAccount;
   amount: Money;
-  onPaid: (quote: CashuReceiveQuote) => void;
+  onPaid: (quote: Transaction) => void;
   onCopy?: (paymentRequest: string) => void;
 };
 
@@ -46,7 +47,11 @@ function MintQuoteCarouselItem({
 
   const { quote, status: quotePaymentStatus } = useCashuReceiveQuote({
     quoteId: createdQuote?.id,
-    onPaid: onPaid,
+  });
+
+  useTrackTransaction({
+    transactionId: createdQuote?.transactionId,
+    onCompleted: onPaid,
   });
 
   const isExpired = quotePaymentStatus === 'EXPIRED';
@@ -112,9 +117,9 @@ export default function ReceiveCashu({ amount, account }: Props) {
         <MintQuoteCarouselItem
           account={account}
           amount={amount}
-          onPaid={(quote) => {
-            navigate(`/transactions/${quote.transactionId}?redirectTo=/`, {
-              transition: 'fade',
+          onPaid={(transaction) => {
+            navigate(`/transactions/${transaction.id}?redirectTo=/`, {
+              transition: 'slideLeft',
               applyTo: 'newView',
             });
           }}

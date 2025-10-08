@@ -17,11 +17,15 @@ import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
+import { useTrackTransaction } from '../transactions/transaction-hooks';
 import {
   useInitiateCashuSendQuote,
   useTrackCashuSendQuote,
 } from './cashu-send-quote-hooks';
-import { useCreateCashuSendSwap } from './cashu-send-swap-hooks';
+import {
+  useCreateCashuSendSwap,
+  useTrackCashuSendSwap,
+} from './cashu-send-swap-hooks';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
 
 const ConfirmationRow = ({
@@ -142,8 +146,12 @@ export const PayBolt11Confirmation = ({
         description: 'Please try again',
       });
     },
-    onPending: () => {
-      navigate(`/transactions/${transactionId}?redirectTo=/`, {
+  });
+
+  useTrackTransaction({
+    transactionId,
+    onPending: (transaction) => {
+      navigate(`/transactions/${transaction.id}?redirectTo=/`, {
         transition: 'slideLeft',
         applyTo: 'newView',
       });
@@ -224,22 +232,29 @@ export const CreateCashuTokenConfirmation = ({
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
 
-  const { mutate: createCashuSendSwap, status: createSwapStatus } =
-    useCreateCashuSendSwap({
-      onSuccess: (swap) => {
-        navigate(`/send/share/${swap.id}`, {
-          transition: 'slideUp',
-          applyTo: 'newView',
-        });
-      },
-      onError: (error) => {
-        console.error('Error creating cashu send swap', { cause: error });
-        toast({
-          title: 'Error',
-          description: 'Failed to create cashu send swap. Please try again.',
-        });
-      },
-    });
+  const {
+    mutate: createCashuSendSwap,
+    data: createdCashuSendSwap,
+    status: createSwapStatus,
+  } = useCreateCashuSendSwap({
+    onError: (error) => {
+      console.error('Error creating cashu send swap', { cause: error });
+      toast({
+        title: 'Error',
+        description: 'Failed to create cashu send swap. Please try again.',
+      });
+    },
+  });
+
+  useTrackCashuSendSwap({
+    id: createdCashuSendSwap?.id,
+    onPending: (swap) => {
+      navigate(`/send/share/${swap.id}`, {
+        transition: 'slideUp',
+        applyTo: 'newView',
+      });
+    },
+  });
 
   return (
     <BaseConfirmation
