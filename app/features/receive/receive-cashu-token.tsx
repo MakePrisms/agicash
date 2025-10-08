@@ -32,6 +32,7 @@ import { AccountSelector } from '../accounts/account-selector';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
+import { useTrackTransaction } from '../transactions/transaction-hooks';
 import { useAuthActions } from '../user/auth';
 import { useFailCashuReceiveQuote } from './cashu-receive-quote-hooks';
 import { useCreateCashuTokenSwap } from './cashu-token-swap-hooks';
@@ -114,20 +115,26 @@ export default function ReceiveToken({
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
-
-  const onTransactionCreated = (transactionId: string) => {
-    navigate(`/transactions/${transactionId}?redirectTo=/`, {
-      transition: 'slideLeft',
-      applyTo: 'newView',
-    });
-  };
-
-  const { mutateAsync: createCashuTokenSwap } = useCreateCashuTokenSwap();
+  const { mutateAsync: createCashuTokenSwap, data: createdCashuTokenSwap } =
+    useCreateCashuTokenSwap();
   const {
     mutateAsync: createCrossAccountReceiveQuotes,
     data: crossAccountReceiveQuotes,
   } = useCreateCrossAccountReceiveQuotes();
   const { mutate: failCashuReceiveQuote } = useFailCashuReceiveQuote();
+
+  const trackingTransactionId =
+    createdCashuTokenSwap?.tokenSwap.transactionId ??
+    crossAccountReceiveQuotes?.cashuReceiveQuote.transactionId;
+  useTrackTransaction({
+    transactionId: trackingTransactionId,
+    onPending: (transaction) => {
+      navigate(`/transactions/${transaction.id}?redirectTo=/`, {
+        transition: 'slideLeft',
+        applyTo: 'newView',
+      });
+    },
+  });
 
   const { mutate: claimTokenMutation, status: claimTokenStatus } = useMutation({
     mutationFn: async ({
@@ -148,21 +155,17 @@ export default function ReceiveToken({
         account.mintUrl === sourceAccount.mintUrl;
 
       if (isSameAccountClaim) {
-        const {
-          tokenSwap: { transactionId },
-        } = await createCashuTokenSwap({
+        await createCashuTokenSwap({
           token,
           accountId: account.id,
         });
-        onTransactionCreated(transactionId);
       } else {
-        const { sourceWallet, cashuMeltQuote, cashuReceiveQuote } =
+        const { sourceWallet, cashuMeltQuote } =
           await createCrossAccountReceiveQuotes({
             token,
             destinationAccount: account,
             sourceAccount,
           });
-        onTransactionCreated(cashuReceiveQuote.transactionId);
         await sourceWallet.meltProofs(cashuMeltQuote, token.proofs);
       }
 

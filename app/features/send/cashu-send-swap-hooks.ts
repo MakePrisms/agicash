@@ -129,16 +129,13 @@ export function useGetCashuSendSwapQuote() {
 }
 
 export function useCreateCashuSendSwap({
-  onSuccess,
   onError,
 }: {
-  onSuccess: (swap: CashuSendSwap) => void;
-  onError: (error: Error) => void;
+  onError?: (error: Error) => void;
 }) {
   const cashuSendSwapService = useCashuSendSwapService();
   const userId = useUser((user) => user.id);
   const getLatestCashuAccount = useGetLatestCashuAccount();
-  const cashuSendSwapCache = useCashuSendSwapCache();
 
   return useMutation({
     mutationFn: async ({
@@ -157,10 +154,6 @@ export function useCreateCashuSendSwap({
         account,
         senderPaysFee,
       });
-    },
-    onSuccess: (swap) => {
-      cashuSendSwapCache.add(swap);
-      onSuccess(swap);
     },
     onError: onError,
   });
@@ -259,7 +252,7 @@ export function useTrackCashuSendSwap({
 
   const { data } = useQuery({
     queryKey: [CashuSendSwapCache.Key, id],
-    queryFn: () => cashuSendSwapCache.get(id),
+    queryFn: () => cashuSendSwapCache.get(id) ?? null,
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -352,6 +345,7 @@ export function useCashuSendSwapChangeHandler() {
         encryption.decrypt,
       );
       unresolvedSwapsCache.add(swap);
+      cashuSendSwapCache.add(swap);
     },
     onUpdate: async (payload: AgicashDbCashuSendSwap) => {
       const swap = await CashuSendSwapRepository.toSwap(

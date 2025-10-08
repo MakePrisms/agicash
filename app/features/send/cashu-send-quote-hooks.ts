@@ -150,7 +150,6 @@ export function useInitiateCashuSendQuote({
 }: { onError: (error: Error) => void }) {
   const userId = useUser((user) => user.id);
   const cashuSendQuoteService = useCashuSendQuoteService();
-  const cashuSendQuoteCache = useCashuSendQuoteCache();
   const getCashuAccount = useGetLatestCashuAccount();
 
   return useMutation({
@@ -174,9 +173,6 @@ export function useInitiateCashuSendQuote({
         sendQuote,
         destinationDetails,
       });
-    },
-    onSuccess: (data) => {
-      cashuSendQuoteCache.add(data);
     },
     onError: onError,
     retry: (failureCount, error) => {
