@@ -1,4 +1,3 @@
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type InfiniteData,
   type QueryClient,
@@ -9,11 +8,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import {
-  type AgicashDbTransaction,
-  agicashRealtime,
-} from '~/features/agicash-db/database';
-import { useSupabaseRealtime } from '~/lib/supabase';
+import type { AgicashDbTransaction } from '~/features/agicash-db/database';
 import { useLatest } from '~/lib/use-latest';
 import { useGetLatestCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
@@ -25,15 +20,15 @@ import {
   useTransactionRepository,
 } from './transaction-repository';
 
-const transactionQueryKey = 'transaction';
 const allTransactionsQueryKey = 'all-transactions';
-const unacknowledgedTransactionsCountQueryKey =
-  'unacknowledged-transactions-count';
 
 /**
  * Cache that manages transaction data and acknowledgment counts.
  */
-export class TransactionsCache {
+class TransactionsCache {
+  public static Key = 'transactions';
+  public static UnacknowledgedCountKey = 'unacknowledged-transactions-count';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   /**
@@ -42,7 +37,7 @@ export class TransactionsCache {
    */
   update(transaction: Transaction) {
     this.queryClient.setQueryData<Transaction>(
-      [transactionQueryKey, transaction.id],
+      [TransactionsCache.Key, transaction.id],
       transaction,
     );
   }
@@ -57,7 +52,7 @@ export class TransactionsCache {
     }
 
     this.queryClient.setQueryData<Transaction>(
-      [transactionQueryKey, transaction.id],
+      [TransactionsCache.Key, transaction.id],
       transaction,
     );
   }
@@ -75,16 +70,27 @@ export class TransactionsCache {
   private getUnacknowledgedCount(): number {
     return (
       this.queryClient.getQueryData<number>([
-        unacknowledgedTransactionsCountQueryKey,
+        TransactionsCache.UnacknowledgedCountKey,
       ]) ?? 0
     );
   }
 
   private setUnacknowledgedCount(count: number) {
     this.queryClient.setQueryData<number>(
-      [unacknowledgedTransactionsCountQueryKey],
+      [TransactionsCache.UnacknowledgedCountKey],
       Math.max(0, count), // Ensure count never goes negative
     );
+  }
+
+  invalidate() {
+    return Promise.all([
+      this.queryClient.invalidateQueries({
+        queryKey: [TransactionsCache.Key],
+      }),
+      this.queryClient.invalidateQueries({
+        queryKey: [TransactionsCache.UnacknowledgedCountKey],
+      }),
+    ]);
   }
 }
 
@@ -102,7 +108,7 @@ export function useTransaction({
   const transactionRepository = useTransactionRepository();
 
   return useQuery({
-    queryKey: [transactionQueryKey, transactionId],
+    queryKey: [TransactionsCache.Key, transactionId],
     queryFn: () => transactionRepository.get(transactionId ?? ''),
     enabled,
     staleTime: Number.POSITIVE_INFINITY,
@@ -115,7 +121,7 @@ export function useSuspenseTransaction(id: string) {
   const transactionRepository = useTransactionRepository();
 
   return useSuspenseQuery({
-    queryKey: [transactionQueryKey, id],
+    queryKey: [TransactionsCache.Key, id],
     queryFn: () => transactionRepository.get(id),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -158,7 +164,7 @@ export function useHasTransactionsPendingAck() {
   const userId = useUser((user) => user.id);
 
   const result = useQuery({
-    queryKey: [unacknowledgedTransactionsCountQueryKey],
+    queryKey: [TransactionsCache.UnacknowledgedCountKey],
     queryFn: () =>
       transactionRepository.countTransactionsPendingAck({ userId }),
     select: (data) => data > 0,
@@ -271,88 +277,41 @@ export function useReverseTransaction({
   });
 }
 
-function useOnTransactionChange({
-  onCreated,
-  onUpdated,
-  onAckStatusChange,
-}: {
-  onCreated: (transaction: Transaction) => void;
-  onUpdated: (transaction: Transaction) => void;
-  onAckStatusChange: (
-    newStatus: Transaction['acknowledgmentStatus'],
-    prevStatus: Transaction['acknowledgmentStatus'],
-  ) => void;
-}) {
+/**
+ * Hook that returns a transaction change handler.
+ */
+export function useTransactionChangeHandler() {
   const transactionRepository = useTransactionRepository();
-  const queryClient = useQueryClient();
+  const transactionsCache = useTransactionsCache();
 
-  const changeHandlerRef = useLatest(
-    async (payload: RealtimePostgresChangesPayload<AgicashDbTransaction>) => {
-      if (payload.eventType === 'INSERT') {
-        const addedTransaction = await transactionRepository.toTransaction(
-          payload.new,
-        );
-        onCreated(addedTransaction);
-      } else if (payload.eventType === 'UPDATE') {
-        const updatedTransaction = await transactionRepository.toTransaction(
-          payload.new,
-        );
+  return {
+    table: 'transactions',
+    onInsert: async (payload: AgicashDbTransaction) => {
+      const addedTransaction =
+        await transactionRepository.toTransaction(payload);
+      transactionsCache.add(addedTransaction);
+    },
+    onUpdate: async (
+      newPayload: AgicashDbTransaction,
+      oldPayload: AgicashDbTransaction,
+    ) => {
+      const updatedTransaction =
+        await transactionRepository.toTransaction(newPayload);
 
-        onUpdated(updatedTransaction);
+      transactionsCache.update(updatedTransaction);
 
-        if (
-          payload.new.acknowledgment_status !==
-          payload.old.acknowledgment_status
-        ) {
-          onAckStatusChange(
-            updatedTransaction.acknowledgmentStatus,
-            payload.old.acknowledgment_status ?? null,
-          );
+      if (
+        newPayload.acknowledgment_status !== oldPayload.acknowledgment_status
+      ) {
+        const newStatus = updatedTransaction.acknowledgmentStatus;
+        const prevStatus = oldPayload.acknowledgment_status ?? null;
+
+        if (prevStatus === null && newStatus === 'pending') {
+          transactionsCache.incrementUnacknowledgedCount();
+        } else if (prevStatus === 'pending' && newStatus === 'acknowledged') {
+          transactionsCache.decrementUnacknowledgedCount();
         }
       }
     },
-  );
-
-  return useSupabaseRealtime({
-    channel: agicashRealtime.channel('transactions').on<AgicashDbTransaction>(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'wallet',
-        table: 'transactions',
-      },
-      (payload) => changeHandlerRef.current(payload),
-    ),
-    onConnected: () => {
-      // Invalidate the transaction count query so it's re-fetched and the cache is updated.
-      // This is needed to get any data that might have been updated while the re-connection was in progress.
-      queryClient.invalidateQueries({
-        queryKey: [unacknowledgedTransactionsCountQueryKey],
-      });
-    },
-  });
-}
-
-/**
- * Hook that sets up realtime tracking for all transactions.
- * This should be called once at the app level to ensure all transaction changes are tracked.
- */
-export function useTrackTransactions() {
-  const transactionsCache = useTransactionsCache();
-
-  return useOnTransactionChange({
-    onCreated: (transaction) => {
-      transactionsCache.add(transaction);
-    },
-    onUpdated: (transaction) => {
-      transactionsCache.update(transaction);
-    },
-    onAckStatusChange: (newStatus, prevStatus) => {
-      if (prevStatus === null && newStatus === 'pending') {
-        transactionsCache.incrementUnacknowledgedCount();
-      } else if (prevStatus === 'pending' && newStatus === 'acknowledged') {
-        transactionsCache.decrementUnacknowledgedCount();
-      }
-    },
-  });
+  };
 }

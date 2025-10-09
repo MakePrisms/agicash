@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
-import { accountsQueryKey } from '~/features/accounts/account-hooks';
+import { AccountsCache } from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
 import { agicashDb } from '~/features/agicash-db/database';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
@@ -96,7 +96,7 @@ const ensureUserData = async (
       userRepository,
     });
     queryClient.setQueryData(userQueryKey, user);
-    queryClient.setQueryData([accountsQueryKey], accounts);
+    queryClient.setQueryData([AccountsCache.Key], accounts);
   }
 
   return user;

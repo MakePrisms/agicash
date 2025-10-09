@@ -2,17 +2,12 @@ import * as Sentry from '@sentry/react-router';
 import { type PropsWithChildren, useEffect } from 'react';
 import { useToast } from '~/hooks/use-toast';
 import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
-import { useTrackAccounts } from '../accounts/account-hooks';
 import { agicashRealtime } from '../agicash-db/database';
-import { useTrackPendingCashuReceiveQuotes } from '../receive/cashu-receive-quote-hooks';
-import { useTrackPendingCashuTokenSwaps } from '../receive/cashu-token-swap-hooks';
-import { useTrackUnresolvedCashuSendQuotes } from '../send/cashu-send-quote-hooks';
-import { useTrackUnresolvedCashuSendSwaps } from '../send/cashu-send-swap-hooks';
 import { useTheme } from '../theme';
-import { useTrackTransactions } from '../transactions/transaction-hooks';
 import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
 import { TaskProcessor, useTakeTaskProcessingLead } from './task-processing';
+import { useTrackWalletChanges } from './use-track-wallet-changes';
 
 /**
  * Syncs the theme settings stored in cookies to match the default currency
@@ -57,16 +52,10 @@ export const Wallet = ({ children }: PropsWithChildren) => {
 
   useSyncThemeWithDefaultCurrency();
 
+  useTrackWalletChanges();
   useSupabaseRealtimeActivityTracking(agicashRealtime);
 
   const isLead = useTakeTaskProcessingLead();
-
-  useTrackAccounts();
-  useTrackTransactions();
-  useTrackPendingCashuReceiveQuotes();
-  useTrackPendingCashuTokenSwaps();
-  useTrackUnresolvedCashuSendQuotes();
-  useTrackUnresolvedCashuSendSwaps();
 
   return (
     <>

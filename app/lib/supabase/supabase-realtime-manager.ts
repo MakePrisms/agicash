@@ -1,5 +1,4 @@
 import {
-  REALTIME_LISTEN_TYPES,
   REALTIME_SUBSCRIBE_STATES,
   type RealtimeChannel,
   type RealtimeClient,
@@ -116,10 +115,14 @@ export class SupabaseRealtimeManager {
   /**
    * Creates a channel builder for configuring a realtime channel
    * @param topicName The channel topic name
+   * @param config Optional channel configuration
    * @returns A builder for configuring a realtime channel
    */
-  public channel(topicName: string): RealtimeChannelBuilder {
-    return new RealtimeChannelBuilder(this, topicName);
+  public channel(
+    topicName: string,
+    config?: { private?: boolean },
+  ): RealtimeChannelBuilder {
+    return new RealtimeChannelBuilder(this, topicName, config);
   }
 
   /**
@@ -554,46 +557,10 @@ export class SupabaseRealtimeManager {
     const channel = state.channel;
 
     await new Promise<void>((resolve) => {
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
       logDebug('Realtime channel subscribe called', {
         topic: channel.topic,
         socketConnectionState: channel.socket.connectionState().toString(),
       });
-
-      /**
-       * Listens for the system postgres_changes ok message and sets the subscription state to 'subscribed' when it is received.
-       * Only when this message is received, we can be sure that the connection is fully established for postgres_changes.
-       * See https://github.com/supabase/realtime/issues/282 for details.
-       */
-      channel.on(REALTIME_LISTEN_TYPES.SYSTEM, {}, (payload) => {
-        if (
-          payload.extension === 'postgres_changes' &&
-          payload.status === 'ok'
-        ) {
-          if (timeoutId) clearTimeout(timeoutId);
-          this.updateChannelStatus(channelTopic, 'subscribed');
-          resolve();
-
-          // Call all registered onConnected callbacks
-          for (const callback of state.onConnectedCallbacks) {
-            try {
-              callback();
-            } catch (error) {
-              console.error('Error calling onConnected callback', {
-                error,
-                topic: channel.topic,
-              });
-            }
-          }
-
-          logDebug('Realtime channel connected', {
-            topic: channel.topic,
-          });
-        }
-      });
-
-      channel.bindings;
 
       const subscribeCallback = (
         status: REALTIME_SUBSCRIBE_STATES,
@@ -607,19 +574,21 @@ export class SupabaseRealtimeManager {
         });
 
         if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
+          this.updateChannelStatus(channelTopic, 'subscribed');
           state.error = undefined;
+          resolve();
 
-          timeoutId = setTimeout(() => {
-            // Fallback in case the channel never receives a postgres_changes ok message
-            state.error = new Error(
-              'Subscription timed out before establishing full database connection',
-            );
-            resolve();
-
-            this.resubscribe(channelTopic);
-          }, 60_000);
+          for (const callback of state.onConnectedCallbacks) {
+            try {
+              callback();
+            } catch (error) {
+              console.error('Error calling onConnected callback', {
+                error,
+                topic: channel.topic,
+              });
+            }
+          }
         } else {
-          if (timeoutId) clearTimeout(timeoutId);
           resolve();
 
           if (status === REALTIME_SUBSCRIBE_STATES.CLOSED) {
