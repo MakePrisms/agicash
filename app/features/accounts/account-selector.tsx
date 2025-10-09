@@ -12,6 +12,7 @@ import { ScrollArea } from '~/components/ui/scroll-area';
 import { cn } from '~/lib/utils';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { type Account, getAccountBalance } from './account';
+import { isStarAccount } from './account';
 import { AccountTypeIcon } from './account-icons';
 
 export type AccountWithBadges<T extends Account = Account> = T & {
@@ -26,7 +27,7 @@ function AccountItem({ account }: { account: AccountWithBadges }) {
 
   return (
     <div className="flex w-full items-center gap-4 px-3 py-4">
-      <AccountTypeIcon type={account.type} />
+      <AccountTypeIcon type={isStarAccount(account) ? 'star' : account.type} />
       <div className="flex w-full flex-col justify-between gap-2 text-start">
         <span className="font-medium">{account.name}</span>
         <div className="flex items-center justify-between text-xs">

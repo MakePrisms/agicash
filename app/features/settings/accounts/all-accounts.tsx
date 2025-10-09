@@ -14,7 +14,10 @@ import type { Currency } from '~/lib/money';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 function CurrencyAccounts({ currency }: { currency: Currency }) {
-  const { data: accounts } = useAccounts({ currency });
+  const { data: accounts } = useAccounts({
+    currency,
+    excludeStarAccounts: true,
+  });
 
   return (
     <div className="space-y-3">
