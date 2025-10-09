@@ -11,7 +11,10 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Skeleton } from '~/components/ui/skeleton';
-import { AccountSelector } from '~/features/accounts/account-selector';
+import {
+  AccountSelector,
+  applyOfflineBadge,
+} from '~/features/accounts/account-selector';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
@@ -24,6 +27,7 @@ import {
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
 import { useAccount, useAccounts } from '../accounts/account-hooks';
+import { accountOfflineToast } from '../shared/error';
 import { useReceiveStore } from './receive-provider';
 
 type ConvertedMoneySwitcherProps = {
@@ -84,6 +88,11 @@ export default function ReceiveInput() {
   });
 
   const handleContinue = async () => {
+    if (!receiveAccount.isOnline) {
+      toast(accountOfflineToast);
+      return;
+    }
+
     if (inputValue.currency === receiveAccount.currency) {
       setReceiveAmount(inputValue);
     } else {
@@ -166,8 +175,8 @@ export default function ReceiveInput() {
 
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
-            accounts={accounts}
-            selectedAccount={receiveAccount}
+            accounts={accounts.map(applyOfflineBadge)}
+            selectedAccount={applyOfflineBadge(receiveAccount)}
             onSelect={(account) => {
               setReceiveAccount(account);
               if (account.currency !== inputValue.currency) {

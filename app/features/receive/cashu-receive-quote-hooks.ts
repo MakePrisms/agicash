@@ -24,6 +24,7 @@ import { useLatest } from '~/lib/use-latest';
 import type { CashuAccount } from '../accounts/account';
 import {
   useAccountsCache,
+  useFilterOfflineAccounts,
   useGetLatestCashuAccount,
 } from '../accounts/account-hooks';
 import {
@@ -268,6 +269,7 @@ function useOnCashuReceiveQuoteChange({
 const usePendingCashuReceiveQuotes = () => {
   const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
   const userId = useUser((user) => user.id);
+  const filterOfflineAccounts = useFilterOfflineAccounts();
 
   const { data } = useQuery({
     queryKey: [pendingCashuReceiveQuotesQueryKey],
@@ -276,6 +278,7 @@ const usePendingCashuReceiveQuotes = () => {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
+    select: filterOfflineAccounts,
   });
 
   return data ?? [];

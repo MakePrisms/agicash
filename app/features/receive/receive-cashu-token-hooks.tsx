@@ -1,4 +1,4 @@
-import type { Token } from '@cashu/cashu-ts';
+import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type {
@@ -103,7 +103,22 @@ export function useCashuTokenWithClaimableProofs({
   const { data: tokenData } = useSuspenseQuery({
     queryKey: ['token-state', token],
     queryFn: async (): Promise<TokenQueryResult> => {
-      const unspentProofs = await getUnspentProofsFromToken(token);
+      let unspentProofs: Proof[];
+      try {
+        unspentProofs = await getUnspentProofsFromToken(token);
+      } catch (error) {
+        if (error instanceof NetworkError) {
+          return {
+            claimableToken: null,
+            cannotClaimReason: 'The mint that issued this ecash is offline',
+          };
+        }
+        return {
+          claimableToken: null,
+          cannotClaimReason: 'An error occurred while checking the token',
+        };
+      }
+
       if (unspentProofs.length === 0) {
         return {
           claimableToken: null,
@@ -139,6 +154,9 @@ const getBadges = (account: CashuAccountWithTokenFlags): string[] => {
   }
   if (account.isSource) {
     badges.push('Source');
+  }
+  if (!account.isOnline) {
+    badges.push('Offline');
   }
   if (!account.isSelectable) {
     badges.push('Invalid');

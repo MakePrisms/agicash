@@ -90,6 +90,13 @@ export const defaultAccounts = [
     mintUrl: 'https://mint.lnvoltz.com',
     isTestMint: false,
   },
+  {
+    type: 'cashu',
+    currency: 'BTC',
+    name: 'Offline Test',
+    mintUrl: 'http://localhost:8085',
+    isTestMint: true,
+  },
   ...(isDevelopmentMode
     ? ([
         {

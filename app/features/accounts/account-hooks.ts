@@ -277,6 +277,7 @@ export const accountsQueryOptions = ({
 export function useAccounts<T extends AccountType = AccountType>(select?: {
   currency?: Currency;
   type?: T;
+  isOnline?: boolean;
 }): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
@@ -301,13 +302,16 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
             if (select.type && account.type !== select.type) {
               return false;
             }
+            if (select.isOnline && account.isOnline !== select.isOnline) {
+              return false;
+            }
             return true;
           },
         );
 
         return filteredData;
       },
-      [select?.currency, select?.type, user],
+      [select, user],
     ),
   });
 }
@@ -440,4 +444,21 @@ export function useBalance(currency: Currency) {
     new Money({ amount: 0, currency }),
   );
   return balance;
+}
+
+/**
+ * Hook that returns a selector function to filter out items with offline accounts.
+ */
+export function useFilterOfflineAccounts() {
+  const accountsCache = useAccountsCache();
+
+  return useCallback(
+    <T extends { accountId: string }>(items: T[]): T[] => {
+      return items.filter((item) => {
+        const account = accountsCache.get(item.accountId);
+        return account?.isOnline;
+      });
+    },
+    [accountsCache],
+  );
 }

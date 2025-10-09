@@ -21,6 +21,21 @@ export type AccountWithBadges<T extends Account = Account> = T & {
   isSelectable?: boolean;
 };
 
+export function applyOfflineBadge<T extends Account | AccountWithBadges>(
+  account: T,
+): T {
+  const isOnline = account.isOnline;
+  const existingIsSelectable =
+    'isSelectable' in account ? account.isSelectable : true;
+  const existingBadges = 'badges' in account ? (account.badges ?? []) : [];
+
+  return {
+    ...account,
+    badges: isOnline ? existingBadges : [...existingBadges, 'Offline'],
+    isSelectable: isOnline && existingIsSelectable,
+  };
+}
+
 function AccountItem({ account }: { account: AccountWithBadges }) {
   const balance = getAccountBalance(account);
 

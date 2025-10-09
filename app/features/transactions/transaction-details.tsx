@@ -28,7 +28,7 @@ import { useToast } from '~/hooks/use-toast';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
 import { getDefaultUnit } from '../shared/currencies';
-import { getErrorMessage } from '../shared/error';
+import { accountOfflineToast, getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
   isTransactionReversable,
@@ -299,7 +299,13 @@ export function TransactionDetails({
         <PageFooter className="pb-14">
           <Button
             className="w-[100px]"
-            onClick={() => reverseTransaction({ transaction })}
+            onClick={() => {
+              if (!account.isOnline) {
+                toast(accountOfflineToast);
+                return;
+              }
+              reverseTransaction({ transaction });
+            }}
             loading={isReclaimInProgress}
           >
             Reclaim

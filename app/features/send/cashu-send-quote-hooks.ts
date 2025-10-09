@@ -22,6 +22,7 @@ import type { CashuAccount } from '../accounts/account';
 import {
   useAccount,
   useAccountsCache,
+  useFilterOfflineAccounts,
   useGetLatestCashuAccount,
 } from '../accounts/account-hooks';
 import {
@@ -333,6 +334,7 @@ function useOnCashuSendQuoteChange({
 function useUnresolvedCashuSendQuotes() {
   const cashuSendQuoteRepository = useCashuSendQuoteRepository();
   const userId = useUser((user) => user.id);
+  const filterOfflineAccounts = useFilterOfflineAccounts();
 
   const { data } = useQuery({
     queryKey: [unresolvedCashuSendQuotesQueryKey],
@@ -341,6 +343,7 @@ function useUnresolvedCashuSendQuotes() {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
+    select: filterOfflineAccounts,
   });
 
   return data ?? [];

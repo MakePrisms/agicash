@@ -154,6 +154,7 @@ export const mintInfoQueryOptions = (mintUrl: string) =>
     queryKey: ['mint-info', mintUrl],
     queryFn: async () => getCashuWallet(mintUrl).getMintInfo(),
     staleTime: 1000 * 60 * 60, // 1 hour
+    retry: 1,
   });
 
 /**
@@ -167,6 +168,7 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
     queryKey: ['all-mint-keysets', mintUrl],
     queryFn: async () => CashuMint.getKeySets(mintUrl),
     staleTime: 1000 * 60 * 60, // 1 hour
+    retry: 1,
   });
 
 /**
@@ -182,6 +184,7 @@ export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
     queryKey: ['mint-keys', mintUrl, keysetId],
     queryFn: async () => CashuMint.getKeys(mintUrl, keysetId),
     staleTime: 1000 * 60 * 60, // 1 hour
+    retry: 1,
   });
 
 export const isTestMintQueryOptions = (mintUrl: string) =>
@@ -189,4 +192,5 @@ export const isTestMintQueryOptions = (mintUrl: string) =>
     queryKey: ['is-test-mint', mintUrl],
     queryFn: async () => checkIsTestMint(mintUrl),
     staleTime: Number.POSITIVE_INFINITY,
+    retry: 1,
   });
