@@ -10,7 +10,10 @@ import {
 import { useEffect, useMemo } from 'react';
 import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
-import { useGetLatestCashuAccount } from '../accounts/account-hooks';
+import {
+  useFilterOfflineAccounts,
+  useGetLatestCashuAccount,
+} from '../accounts/account-hooks';
 import {
   type AgicashDbCashuTokenSwap,
   agicashRealtime,
@@ -224,6 +227,7 @@ function useOnCashuTokenSwapChange({
 function usePendingCashuTokenSwaps() {
   const userId = useUser((user) => user.id);
   const tokenSwapRepository = useCashuTokenSwapRepository();
+  const filterOfflineAccounts = useFilterOfflineAccounts();
 
   const { data } = useQuery({
     queryKey: [pendingCashuTokenSwapsQueryKey],
@@ -232,6 +236,7 @@ function usePendingCashuTokenSwaps() {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
+    select: filterOfflineAccounts,
   });
 
   return data ?? [];

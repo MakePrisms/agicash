@@ -116,6 +116,7 @@ export class ReceiveCashuTokenService {
       isSource: true,
       isUnknown: true,
       isSelectable: isValid,
+      isOnline: true,
       wallet,
     } satisfies CashuAccountWithTokenFlags;
 

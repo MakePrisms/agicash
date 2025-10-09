@@ -123,7 +123,13 @@ export class UserRepository {
        */
       accounts: DistributedOmit<
         Account,
-        'id' | 'createdAt' | 'version' | 'proofs' | 'keysetCounters' | 'wallet'
+        | 'id'
+        | 'createdAt'
+        | 'version'
+        | 'proofs'
+        | 'keysetCounters'
+        | 'wallet'
+        | 'isOnline'
       >[];
       /**
        * The extended public key used for locking proofs and mint quotes.
