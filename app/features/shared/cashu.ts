@@ -152,7 +152,7 @@ export const cashuMintValidator = buildMintValidator({
 export const mintInfoQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: ['mint-info', mintUrl],
-    queryFn: async () => getCashuWallet(mintUrl).getMintInfo(),
+    queryFn: async () => getCashuWallet(mintUrl).getExtendedMintInfo(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
