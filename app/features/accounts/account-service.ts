@@ -6,6 +6,7 @@ import {
   type AccountRepository,
   useAccountRepository,
 } from './account-repository';
+
 export class AccountService {
   constructor(private readonly accountRepository: AccountRepository) {}
 
@@ -52,6 +53,7 @@ export class AccountService {
       | 'proofs'
       | 'version'
       | 'wallet'
+      | 'isOnline'
     >;
   }) {
     const isTestMint = await checkIsTestMint(account.mintUrl);
@@ -62,6 +64,7 @@ export class AccountService {
       isTestMint,
       keysetCounters: {},
       proofs: [],
+      isOnline: true,
     });
   }
 }

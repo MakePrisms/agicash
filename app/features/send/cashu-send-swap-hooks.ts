@@ -12,6 +12,7 @@ import { useLatest } from '~/lib/use-latest';
 import {
   useAccount,
   useAccountsCache,
+  useFilterOfflineAccounts,
   useGetLatestCashuAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuSendSwap } from '../agicash-db/database';
@@ -169,6 +170,7 @@ export function useCreateCashuSendSwap({
 export function useUnresolvedCashuSendSwaps() {
   const cashuSendSwapRepository = useCashuSendSwapRepository();
   const userId = useUser((user) => user.id);
+  const filterOfflineAccounts = useFilterOfflineAccounts();
 
   const { data = [] } = useQuery({
     queryKey: [UnresolvedCashuSendSwapsCache.Key],
@@ -176,6 +178,7 @@ export function useUnresolvedCashuSendSwaps() {
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
+    select: filterOfflineAccounts,
   });
 
   return useMemo(() => {

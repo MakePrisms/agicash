@@ -28,7 +28,10 @@ import { DrawerTrigger } from '~/components/ui/drawer';
 import { Drawer } from '~/components/ui/drawer';
 import { Skeleton } from '~/components/ui/skeleton';
 import { useAccounts } from '~/features/accounts/account-hooks';
-import { AccountSelector } from '~/features/accounts/account-selector';
+import {
+  AccountSelector,
+  applyOfflineBadge,
+} from '~/features/accounts/account-selector';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useToast } from '~/hooks/use-toast';
@@ -42,7 +45,11 @@ import {
 import { AddContactDrawer, ContactsList } from '../contacts';
 import type { Contact } from '../contacts/contact';
 import { getDefaultUnit } from '../shared/currencies';
-import { DomainError, getErrorMessage } from '../shared/error';
+import {
+  DomainError,
+  accountOfflineToast,
+  getErrorMessage,
+} from '../shared/error';
 import { useSendStore } from './send-provider';
 
 type ConvertedMoneySwitcherProps = {
@@ -116,6 +123,10 @@ export function SendInput() {
     inputValue: Money,
     convertedValue: Money | undefined,
   ) => {
+    if (!sendAccount.isOnline) {
+      toast(accountOfflineToast);
+      return;
+    }
     if (sendAccount.type !== 'cashu') {
       toast({
         title: 'Not implemented',
@@ -233,8 +244,8 @@ export function SendInput() {
 
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
-            accounts={accounts}
-            selectedAccount={sendAccount}
+            accounts={accounts.map(applyOfflineBadge)}
+            selectedAccount={applyOfflineBadge(sendAccount)}
             onSelect={(account) => {
               selectSourceAccount(account);
               if (account.currency !== inputValue.currency) {

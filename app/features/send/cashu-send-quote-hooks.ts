@@ -20,6 +20,7 @@ import type { CashuAccount } from '../accounts/account';
 import {
   useAccount,
   useAccountsCache,
+  useFilterOfflineAccounts,
   useGetLatestCashuAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuSendQuote } from '../agicash-db/database';
@@ -291,6 +292,7 @@ export function useCashuSendQuote(sendQuoteId: string) {
 function useUnresolvedCashuSendQuotes() {
   const cashuSendQuoteRepository = useCashuSendQuoteRepository();
   const userId = useUser((user) => user.id);
+  const filterOfflineAccounts = useFilterOfflineAccounts();
 
   const { data } = useQuery({
     queryKey: [UnresolvedCashuSendQuotesCache.Key],
@@ -299,6 +301,7 @@ function useUnresolvedCashuSendQuotes() {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
+    select: filterOfflineAccounts,
   });
 
   return data ?? [];
