@@ -33,3 +33,5 @@ node_modules
 
 # Local SSL certificates
 /certs/
+!certs/localhost-cert.pem
+!certs/localhost-key.pem
