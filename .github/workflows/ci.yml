@@ -3,6 +3,10 @@ name: CI Pipeline
 on:
   pull_request:
 
+env:
+  SELF_SIGNED_CERT: ${{ vars.SELF_SIGNED_CERT }}
+  SELF_SIGNED_CERT_KEY: ${{ vars.SELF_SIGNED_CERT_KEY }}
+
 jobs:
   code-checks:
     name: "Format, Lint, and Types Check"
@@ -16,6 +20,14 @@ jobs:
 
       - name: Run Format, Lint, and Types Check
         run: bun run check:all
+
+      - name: Print SELF_SIGNED_CERT
+        shell: bash
+        run: echo $SELF_SIGNED_CERT
+
+      - name: Print SELF_SIGNED_CERT_KEY
+        shell: bash
+        run: echo $SELF_SIGNED_CERT_KEY
 
       - name: Database Types Check
         run: |
