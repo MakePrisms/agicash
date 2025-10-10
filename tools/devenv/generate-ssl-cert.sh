@@ -7,9 +7,9 @@ HOSTNAME=$(hostname)
 LOCAL_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}')
 
 # Check if SSL certificate already exist and cover current hostname and local IP
-if [ -f "certs/localhost-dev-cert.pem" ] && [ -f "certs/localhost-dev-key.pem" ]; then  
+if [ -f "certs/localhost-cert.pem" ] && [ -f "certs/localhost-key.pem" ]; then  
   # Extract Subject Alternative Names from the certificate
-  CERT_SANS=$(openssl x509 -in certs/localhost-dev-cert.pem -text -noout 2>/dev/null | grep -A 1 "Subject Alternative Name" | tail -1 | tr ',' '\n' | sed 's/^ *//' | grep -E "(DNS:|IP Address:)" | sed 's/DNS://g' | sed 's/IP Address://g' | tr '\n' ' ')
+  CERT_SANS=$(openssl x509 -in certs/localhost-cert.pem -text -noout 2>/dev/null | grep -A 1 "Subject Alternative Name" | tail -1 | tr ',' '\n' | sed 's/^ *//' | grep -E "(DNS:|IP Address:)" | sed 's/DNS://g' | sed 's/IP Address://g' | tr '\n' ' ')
   
   # Check if current hostname and IP are covered
   HOSTNAME_COVERED=false
@@ -56,7 +56,7 @@ echo "🔧 Generating SSL certificate for: localhost, $HOSTNAME and $LOCAL_IP"
 mkdir -p certs
 
 # Generate certificate with current hostname and local IP
-mkcert -key-file certs/localhost-dev-key.pem -cert-file certs/localhost-dev-cert.pem localhost 127.0.0.1 ::1 "$HOSTNAME" "$LOCAL_IP"
+mkcert -key-file certs/localhost-key.pem -cert-file certs/localhost-cert.pem localhost 127.0.0.1 ::1 "$HOSTNAME" "$LOCAL_IP"
 
 echo "✅ SSL certificate generated!"
 echo "🚀 You can now access your app at: https://localhost:3000, https://$HOSTNAME:3000 or https://$LOCAL_IP:3000" 
