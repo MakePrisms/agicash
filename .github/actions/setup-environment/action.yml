@@ -3,18 +3,11 @@ description: 'Sets up Agicash development environment'
 runs:
   using: composite
   steps:
-    - name: Install Nix
-      uses: cachix/install-nix-action@v31
-
-    - name: Setup Cache
-      uses: cachix/cachix-action@v16
+    - name: Install Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        name: devenv
-
-    - name: Install Devenv
-      shell: bash
-      run: nix profile install nixpkgs#devenv
+        bun-version: 1.2.22
 
     - name: Install Dependencies
-      shell: devenv shell bash -- -e {0}
+      shell: bash
       run: bun install --frozen-lockfile
