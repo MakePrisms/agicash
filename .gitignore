@@ -32,6 +32,6 @@ node_modules
 .react-router/
 
 # Local SSL certificates
-/certs/
-!certs/localhost-cert.pem
-!certs/localhost-key.pem
+/certs/*
+!/certs/localhost-cert.pem
+!/certs/localhost-key.pem

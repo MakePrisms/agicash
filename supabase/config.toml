@@ -21,8 +21,8 @@ max_rows = 1000
 # Enable HTTPS endpoints locally using a self-signed certificate.
 enabled = true
 # Paths to self-signed certificate pair.
-cert_path = "../certs/localhost-cert.pem"
-key_path = "../certs/localhost-key.pem"
+cert_path = "env(SELF_SIGNED_CERT)"
+key_path = "env(SELF_SIGNED_CERT_KEY)"
 
 [db]
 # Port to use for the local database URL.
