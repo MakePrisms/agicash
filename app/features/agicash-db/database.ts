@@ -8,34 +8,23 @@ import type { CashuSendSwap } from '../send/cashu-send-swap';
 import type { Transaction } from '../transactions/transaction';
 import { getSupabaseSessionToken } from './supabase-session';
 
-const isLocalServer = (hostname: string) => {
-  return (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname.endsWith('.local') ||
-    hostname.startsWith('192.168.')
-  );
-};
-
 const getSupabaseUrl = () => {
-  if (
-    typeof window === 'undefined' ||
-    window.location.protocol === 'http:' ||
-    (process.env.NODE_ENV === 'production' &&
-      !isLocalServer(window.location.hostname))
-  ) {
-    // Production version, development version server-side, or client-side with HTTP: use direct connection
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
-    if (!supabaseUrl) {
-      throw new Error('VITE_SUPABASE_URL is not set');
-    }
-    return supabaseUrl;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
+  if (!supabaseUrl) {
+    throw new Error('VITE_SUPABASE_URL is not set');
   }
 
-  // Client-side with https: use proxy through our trusted HTTPS server
-  const { protocol, host } = window.location;
+  if (
+    supabaseUrl.includes('127.0.0.1') &&
+    typeof window !== 'undefined' &&
+    window.location.protocol === 'https:' &&
+    (window.location.hostname.endsWith('.local') ||
+      window.location.hostname.startsWith('192.168.'))
+  ) {
+    return supabaseUrl.replace('127.0.0.1', window.location.hostname);
+  }
 
-  return `${protocol}//${host}/supabase`;
+  return supabaseUrl;
 };
 
 const supabaseUrl = getSupabaseUrl();
