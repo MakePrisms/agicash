@@ -14,7 +14,6 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { areMintUrlsEqual, getCashuUnit } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
-import { useSupabaseRealtime } from '~/lib/supabase';
 import {
   type LongTimeout,
   clearLongTimeout,
@@ -26,10 +25,7 @@ import {
   useAccountsCache,
   useGetLatestCashuAccount,
 } from '../accounts/account-hooks';
-import {
-  type AgicashDbCashuReceiveQuote,
-  agicashRealtime,
-} from '../agicash-db/database';
+import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
@@ -44,73 +40,79 @@ type CreateProps = {
   amount: Money;
   description?: string;
 };
-
-// Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
-// We want to track active quote even after it is expired and completed which is why we can't use pending quotes query.
-// Pending quotes query is used for active pending quote plus "background" pending quotes. "Background" quotes are quotes
-// that were created in previous browser sessions.
-const cashuReceiveQuoteQueryKey = 'cashu-receive-quote';
-// Query that tracks all pending cashu receive quotes (active and background ones).
-const pendingCashuReceiveQuotesQueryKey = 'pending-cashu-receive-quotes';
-
 class CashuReceiveQuoteCache {
+  // Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
+  // We want to track active quote even after it is expired and completed which is why we can't use pending quotes query.
+  // Pending quotes query is used for active pending quote plus "background" pending quotes. "Background" quotes are quotes
+  // that were created in previous browser sessions.
+  public static Key = 'cashu-receive-quote';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   get(quoteId: string) {
     return this.queryClient.getQueryData<CashuReceiveQuote>([
-      cashuReceiveQuoteQueryKey,
+      CashuReceiveQuoteCache.Key,
       quoteId,
     ]);
   }
 
   add(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote>(
-      [cashuReceiveQuoteQueryKey, quote.id],
+      [CashuReceiveQuoteCache.Key, quote.id],
       quote,
     );
   }
 
   updateIfExists(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote>(
-      [cashuReceiveQuoteQueryKey, quote.id],
+      [CashuReceiveQuoteCache.Key, quote.id],
       (curr) => (curr ? quote : undefined),
     );
   }
 }
 
-class PendingCashuReceiveQuotesCache {
+export class PendingCashuReceiveQuotesCache {
+  // Query that tracks all pending cashu receive quotes (active and background ones).
+  public static Key = 'pending-cashu-receive-quotes';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   add(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote[]>(
-      [pendingCashuReceiveQuotesQueryKey],
+      [PendingCashuReceiveQuotesCache.Key],
       (curr) => [...(curr ?? []), quote],
     );
   }
 
   update(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote[]>(
-      [pendingCashuReceiveQuotesQueryKey],
+      [PendingCashuReceiveQuotesCache.Key],
       (curr) => curr?.map((q) => (q.id === quote.id ? quote : q)),
     );
   }
 
   remove(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote[]>(
-      [pendingCashuReceiveQuotesQueryKey],
+      [PendingCashuReceiveQuotesCache.Key],
       (curr) => curr?.filter((q) => q.id !== quote.id),
     );
   }
 
   getByMintQuoteId(mintQuoteId: string) {
     const quotes = this.queryClient.getQueryData<CashuReceiveQuote[]>([
-      pendingCashuReceiveQuotesQueryKey,
+      PendingCashuReceiveQuotesCache.Key,
     ]);
     return quotes?.find((q) => q.quoteId === mintQuoteId);
   }
+
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [PendingCashuReceiveQuotesCache.Key],
+    });
+  }
 }
 
-function usePendingCashuReceiveQuotesCache() {
+export function usePendingCashuReceiveQuotesCache() {
   const queryClient = useQueryClient();
   return useMemo(
     () => new PendingCashuReceiveQuotesCache(queryClient),
@@ -194,7 +196,7 @@ export function useCashuReceiveQuote({
   const cache = useCashuReceiveQuoteCache();
 
   const { data } = useQuery({
-    queryKey: [cashuReceiveQuoteQueryKey, quoteId],
+    queryKey: [CashuReceiveQuoteCache.Key, quoteId],
     queryFn: () => cache.get(quoteId ?? ''),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -222,47 +224,32 @@ export function useCashuReceiveQuote({
   };
 }
 
-function useOnCashuReceiveQuoteChange({
-  onCreated,
-  onUpdated,
-}: {
-  onCreated: (quote: CashuReceiveQuote) => void;
-  onUpdated: (quote: CashuReceiveQuote) => void;
-}) {
-  const onCreatedRef = useLatest(onCreated);
-  const onUpdatedRef = useLatest(onUpdated);
-  const queryClient = useQueryClient();
+/**
+ * Hook that returns a cashu receive quote change handler.
+ */
+export function useCashuReceiveQuoteChangeHandler() {
+  const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
+  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
 
-  return useSupabaseRealtime({
-    channel: agicashRealtime
-      .channel('cashu-receive-quotes')
-      .on<AgicashDbCashuReceiveQuote>(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'wallet',
-          table: 'cashu_receive_quotes',
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const addedQuote = CashuReceiveQuoteRepository.toQuote(payload.new);
-            onCreatedRef.current(addedQuote);
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedQuote = CashuReceiveQuoteRepository.toQuote(
-              payload.new,
-            );
-            onUpdatedRef.current(updatedQuote);
-          }
-        },
-      ),
-    onConnected: () => {
-      // Invalidate the pending cashu receive quotes query so that the quotes are re-fetched and the cache is updated.
-      // This is needed to get any data that might have been updated while the re-connection was in progress.
-      queryClient.invalidateQueries({
-        queryKey: [pendingCashuReceiveQuotesQueryKey],
-      });
+  return {
+    table: 'cashu_receive_quotes',
+    onInsert: async (payload: AgicashDbCashuReceiveQuote) => {
+      const addedQuote = CashuReceiveQuoteRepository.toQuote(payload);
+      pendingQuotesCache.add(addedQuote);
     },
-  });
+    onUpdate: async (payload: AgicashDbCashuReceiveQuote) => {
+      const quote = CashuReceiveQuoteRepository.toQuote(payload);
+
+      cashuReceiveQuoteCache.updateIfExists(quote);
+
+      const isQuoteStillPending = ['UNPAID', 'PAID'].includes(quote.state);
+      if (isQuoteStillPending) {
+        pendingQuotesCache.update(quote);
+      } else {
+        pendingQuotesCache.remove(quote);
+      }
+    },
+  };
 }
 
 const usePendingCashuReceiveQuotes = () => {
@@ -270,7 +257,7 @@ const usePendingCashuReceiveQuotes = () => {
   const userId = useUser((user) => user.id);
 
   const { data } = useQuery({
-    queryKey: [pendingCashuReceiveQuotesQueryKey],
+    queryKey: [PendingCashuReceiveQuotesCache.Key],
     queryFn: () => cashuReceiveQuoteRepository.getPending(userId),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -589,27 +576,6 @@ const useOnMintQuoteStateChange = ({
     onFetched: processMintQuote,
   });
 };
-
-export function useTrackPendingCashuReceiveQuotes() {
-  const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
-  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-
-  return useOnCashuReceiveQuoteChange({
-    onCreated: (quote) => {
-      pendingQuotesCache.add(quote);
-    },
-    onUpdated: (quote) => {
-      cashuReceiveQuoteCache.updateIfExists(quote);
-
-      const isQuoteStillPending = ['UNPAID', 'PAID'].includes(quote.state);
-      if (isQuoteStillPending) {
-        pendingQuotesCache.update(quote);
-      } else {
-        pendingQuotesCache.remove(quote);
-      }
-    },
-  });
-}
 
 export function useProcessCashuReceiveQuoteTasks() {
   const cashuReceiveQuoteService = useCashuReceiveQuoteService();

@@ -1,5 +1,4 @@
 import { type MeltQuoteResponse, MintOperationError } from '@cashu/cashu-ts';
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type QueryClient,
   useMutation,
@@ -11,7 +10,6 @@ import type Big from 'big.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sumProofs } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
-import { useSupabaseRealtime } from '~/lib/supabase';
 import {
   type LongTimeout,
   clearLongTimeout,
@@ -24,10 +22,7 @@ import {
   useAccountsCache,
   useGetLatestCashuAccount,
 } from '../accounts/account-hooks';
-import {
-  type AgicashDbCashuSendQuote,
-  agicashRealtime,
-} from '../agicash-db/database';
+import type { AgicashDbCashuSendQuote } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
 import { DomainError, NotFoundError } from '../shared/error';
 import type { DestinationDetails } from '../transactions/transaction';
@@ -43,62 +38,77 @@ import {
 } from './cashu-send-quote-service';
 import { MeltQuoteSubscriptionManager } from './melt-quote-subscription-manager';
 
-// Query that tracks the "active" cashu send quote. Active one is the one that user created in current browser session.
-// We want to track active send quote even after it is completed or expired which is why we can't use unresolved send quotes query.
-// Unresolved send quotes query is used for active unresolved quotes plus "background" unresolved quotes. "Background" quotes are send quotes
-// that were created in previous browser sessions.
-const cashuSendQuoteQueryKey = 'cashu-send-quote';
-// Query that tracks all unresolved cashu send quotes (active and background ones).
-const unresolvedCashuSendQuotesQueryKey = 'unresolved-cashu-send-quotes';
-
 class CashuSendQuoteCache {
+  // Query that tracks the "active" cashu send quote. Active one is the one that user created in current browser session.
+  // We want to track active send quote even after it is completed or expired which is why we can't use unresolved send quotes query.
+  // Unresolved send quotes query is used for active unresolved quotes plus "background" unresolved quotes. "Background" quotes are send quotes
+  // that were created in previous browser sessions.
+  public static Key = 'cashu-send-quote';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   get(quoteId: string) {
     return this.queryClient.getQueryData<CashuSendQuote>([
-      cashuSendQuoteQueryKey,
+      CashuSendQuoteCache.Key,
       quoteId,
     ]);
   }
 
   add(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote>(
-      [cashuSendQuoteQueryKey, quote.id],
+      [CashuSendQuoteCache.Key, quote.id],
       quote,
     );
   }
 
   updateIfExists(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote>(
-      [cashuSendQuoteQueryKey, quote.id],
+      [CashuSendQuoteCache.Key, quote.id],
       (curr) => (curr ? quote : undefined),
     );
   }
 }
 
 class UnresolvedCashuSendQuotesCache {
+  // Query that tracks all unresolved cashu send quotes (active and background ones).
+  public static Key = 'unresolved-cashu-send-quotes';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   add(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote[]>(
-      [unresolvedCashuSendQuotesQueryKey],
+      [UnresolvedCashuSendQuotesCache.Key],
       (curr) => [...(curr ?? []), quote],
     );
   }
 
   update(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote[]>(
-      [unresolvedCashuSendQuotesQueryKey],
+      [UnresolvedCashuSendQuotesCache.Key],
       (curr) => curr?.map((q) => (q.id === quote.id ? quote : q)),
     );
   }
 
   remove(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote[]>(
-      [unresolvedCashuSendQuotesQueryKey],
+      [UnresolvedCashuSendQuotesCache.Key],
       (curr) => curr?.filter((q) => q.id !== quote.id),
     );
   }
+
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [UnresolvedCashuSendQuotesCache.Key],
+    });
+  }
+}
+
+export function useUnresolvedCashuSendQuotesCache() {
+  const queryClient = useQueryClient();
+  return useMemo(
+    () => new UnresolvedCashuSendQuotesCache(queryClient),
+    [queryClient],
+  );
 }
 
 function useCashuSendQuoteCache() {
@@ -208,7 +218,7 @@ export function useTrackCashuSendQuote({
   const cache = useCashuSendQuoteCache();
 
   const { data } = useQuery({
-    queryKey: [cashuSendQuoteQueryKey, sendQuoteId],
+    queryKey: [CashuSendQuoteCache.Key, sendQuoteId],
     queryFn: () => cache.get(sendQuoteId),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -246,7 +256,7 @@ export function useCashuSendQuote(sendQuoteId: string) {
   const cashuSendQuoteRepository = useCashuSendQuoteRepository();
 
   const result = useSuspenseQuery({
-    queryKey: [cashuSendQuoteQueryKey, sendQuoteId],
+    queryKey: [CashuSendQuoteCache.Key, sendQuoteId],
     queryFn: async () => {
       const quote = await cashuSendQuoteRepository.get(sendQuoteId);
       if (!quote) {
@@ -278,64 +288,12 @@ export function useCashuSendQuote(sendQuoteId: string) {
   };
 }
 
-function useOnCashuSendQuoteChange({
-  onCreated,
-  onUpdated,
-}: {
-  onCreated: (send: CashuSendQuote) => void;
-  onUpdated: (send: CashuSendQuote) => void;
-}) {
-  const encryption = useEncryption();
-  const queryClient = useQueryClient();
-
-  const changeHandlerRef = useLatest(
-    async (
-      payload: RealtimePostgresChangesPayload<AgicashDbCashuSendQuote>,
-    ) => {
-      if (payload.eventType === 'INSERT') {
-        const addedQuote = await CashuSendQuoteRepository.toSend(
-          payload.new,
-          encryption.decrypt,
-        );
-        onCreated(addedQuote);
-      } else if (payload.eventType === 'UPDATE') {
-        const updatedQuote = await CashuSendQuoteRepository.toSend(
-          payload.new,
-          encryption.decrypt,
-        );
-        onUpdated(updatedQuote);
-      }
-    },
-  );
-
-  return useSupabaseRealtime({
-    channel: agicashRealtime
-      .channel('cashu-send-quotes')
-      .on<AgicashDbCashuSendQuote>(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'wallet',
-          table: 'cashu_send_quotes',
-        },
-        (payload) => changeHandlerRef.current(payload),
-      ),
-    onConnected: () => {
-      // Invalidate the unresolved cashu send quote query so that the quote is re-fetched and the cache is updated.
-      // This is needed to get any data that might have been updated while the re-connection was in progress.
-      queryClient.invalidateQueries({
-        queryKey: [unresolvedCashuSendQuotesQueryKey],
-      });
-    },
-  });
-}
-
 function useUnresolvedCashuSendQuotes() {
   const cashuSendQuoteRepository = useCashuSendQuoteRepository();
   const userId = useUser((user) => user.id);
 
   const { data } = useQuery({
-    queryKey: [unresolvedCashuSendQuotesQueryKey],
+    queryKey: [UnresolvedCashuSendQuotesCache.Key],
     queryFn: () => cashuSendQuoteRepository.getUnresolved(userId),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -541,28 +499,38 @@ function useOnMeltQuoteStateChange({
   }, [sendQuotes, handleMeltQuoteUpdate, getMeltQuote]);
 }
 
-export function useTrackUnresolvedCashuSendQuotes() {
-  const queryClient = useQueryClient();
-  const unresolvedSendQuotesCache = useMemo(
-    () => new UnresolvedCashuSendQuotesCache(queryClient),
-    [queryClient],
-  );
+/**
+ * Hook that returns a cashu send quote change handler.
+ */
+export function useCashuSendQuoteChangeHandler() {
+  const encryption = useEncryption();
+  const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const cashuSendQuoteCache = useCashuSendQuoteCache();
 
-  return useOnCashuSendQuoteChange({
-    onCreated: (send) => {
-      unresolvedSendQuotesCache.add(send);
+  return {
+    table: 'cashu_send_quotes',
+    onInsert: async (payload: AgicashDbCashuSendQuote) => {
+      const quote = await CashuSendQuoteRepository.toSend(
+        payload,
+        encryption.decrypt,
+      );
+      unresolvedSendQuotesCache.add(quote);
     },
-    onUpdated: (send) => {
-      cashuSendQuoteCache.updateIfExists(send);
+    onUpdate: async (payload: AgicashDbCashuSendQuote) => {
+      const quote = await CashuSendQuoteRepository.toSend(
+        payload,
+        encryption.decrypt,
+      );
 
-      if (['UNPAID', 'PENDING'].includes(send.state)) {
-        unresolvedSendQuotesCache.update(send);
+      cashuSendQuoteCache.updateIfExists(quote);
+
+      if (['UNPAID', 'PENDING'].includes(quote.state)) {
+        unresolvedSendQuotesCache.update(quote);
       } else {
-        unresolvedSendQuotesCache.remove(send);
+        unresolvedSendQuotesCache.remove(quote);
       }
     },
-  });
+  };
 }
 
 export function useProcessCashuSendQuoteTasks() {

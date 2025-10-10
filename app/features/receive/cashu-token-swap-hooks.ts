@@ -1,5 +1,4 @@
 import type { Token } from '@cashu/cashu-ts';
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type QueryClient,
   useMutation,
@@ -8,13 +7,9 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
-import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
 import { useGetLatestCashuAccount } from '../accounts/account-hooks';
-import {
-  type AgicashDbCashuTokenSwap,
-  agicashRealtime,
-} from '../agicash-db/database';
+import type { AgicashDbCashuTokenSwap } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
 import { useUser } from '../user/user-hooks';
 import type { CashuTokenSwap } from './cashu-token-swap';
@@ -28,50 +23,50 @@ type CreateProps = {
   token: Token;
   accountId: string;
 };
-
-// Query to track the active token swap for a given token hash. The active swap is the one that user created in current browser session, and we track it in order to show the current state of the swap on the receive page.
-const cashuTokenSwapQueryKey = 'cashu-token-swap';
-// Query to track all pending token swaps for a given user (active and ones where recovery is being attempted).
-const pendingCashuTokenSwapsQueryKey = 'pending-cashu-token-swaps';
-
 class CashuTokenSwapCache {
+  // Query to track the active token swap for a given token hash. The active swap is the one that user created in current browser session, and we track it in order to show the current state of the swap on the receive page.
+  public static Key = 'cashu-token-swap';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   get(tokenHash: string) {
     return this.queryClient.getQueryData<CashuTokenSwap>([
-      cashuTokenSwapQueryKey,
+      CashuTokenSwapCache.Key,
       tokenHash,
     ]);
   }
 
   add(tokenSwap: CashuTokenSwap) {
     this.queryClient.setQueryData<CashuTokenSwap>(
-      [cashuTokenSwapQueryKey, tokenSwap.tokenHash],
+      [CashuTokenSwapCache.Key, tokenSwap.tokenHash],
       tokenSwap,
     );
   }
 
   updateIfExists(tokenSwap: CashuTokenSwap) {
     this.queryClient.setQueryData<CashuTokenSwap>(
-      [cashuTokenSwapQueryKey, tokenSwap.tokenHash],
+      [CashuTokenSwapCache.Key, tokenSwap.tokenHash],
       (curr) => (curr ? tokenSwap : undefined),
     );
   }
 }
 
 class PendingCashuTokenSwapsCache {
+  // Query to track all pending token swaps for a given user (active and ones where recovery is being attempted).
+  public static Key = 'pending-cashu-token-swaps';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   add(tokenSwap: CashuTokenSwap) {
     this.queryClient.setQueryData<CashuTokenSwap[]>(
-      [pendingCashuTokenSwapsQueryKey],
+      [PendingCashuTokenSwapsCache.Key],
       (curr) => [...(curr ?? []), tokenSwap],
     );
   }
 
   update(tokenSwap: CashuTokenSwap) {
     this.queryClient.setQueryData<CashuTokenSwap[]>(
-      [pendingCashuTokenSwapsQueryKey],
+      [PendingCashuTokenSwapsCache.Key],
       (curr) =>
         curr?.map((d) => (d.tokenHash === tokenSwap.tokenHash ? tokenSwap : d)),
     );
@@ -79,10 +74,24 @@ class PendingCashuTokenSwapsCache {
 
   remove(tokenSwap: CashuTokenSwap) {
     this.queryClient.setQueryData<CashuTokenSwap[]>(
-      [pendingCashuTokenSwapsQueryKey],
+      [PendingCashuTokenSwapsCache.Key],
       (curr) => curr?.filter((d) => d.tokenHash !== tokenSwap.tokenHash),
     );
   }
+
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [PendingCashuTokenSwapsCache.Key],
+    });
+  }
+}
+
+export function usePendingCashuTokenSwapsCache() {
+  const queryClient = useQueryClient();
+  return useMemo(
+    () => new PendingCashuTokenSwapsCache(queryClient),
+    [queryClient],
+  );
 }
 
 export function useCashuTokenSwapCache() {
@@ -141,7 +150,7 @@ export function useTokenSwap({
   const cache = useCashuTokenSwapCache();
 
   const { data } = useQuery({
-    queryKey: [cashuTokenSwapQueryKey, tokenHash],
+    queryKey: [CashuTokenSwapCache.Key, tokenHash],
     queryFn: () => cache.get(tokenHash ?? ''),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -169,64 +178,12 @@ export function useTokenSwap({
   };
 }
 
-function useOnCashuTokenSwapChange({
-  onCreated,
-  onUpdated,
-}: {
-  onCreated: (swap: CashuTokenSwap) => void;
-  onUpdated: (swap: CashuTokenSwap) => void;
-}) {
-  const encryption = useEncryption();
-  const queryClient = useQueryClient();
-
-  const changeHandlerRef = useLatest(
-    async (
-      payload: RealtimePostgresChangesPayload<AgicashDbCashuTokenSwap>,
-    ) => {
-      if (payload.eventType === 'INSERT') {
-        const swap = await CashuTokenSwapRepository.toTokenSwap(
-          payload.new,
-          encryption.decrypt,
-        );
-        onCreated(swap);
-      } else if (payload.eventType === 'UPDATE') {
-        const swap = await CashuTokenSwapRepository.toTokenSwap(
-          payload.new,
-          encryption.decrypt,
-        );
-        onUpdated(swap);
-      }
-    },
-  );
-
-  return useSupabaseRealtime({
-    channel: agicashRealtime
-      .channel('cashu-token-swaps')
-      .on<AgicashDbCashuTokenSwap>(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'wallet',
-          table: 'cashu_token_swaps',
-        },
-        (payload) => changeHandlerRef.current(payload),
-      ),
-    onConnected: () => {
-      // Invalidate the pending cashu token swaps query so that the swaps are re-fetched and the cache is updated.
-      // This is needed to get any data that might have been updated while the re-connection was in progress.
-      queryClient.invalidateQueries({
-        queryKey: [pendingCashuTokenSwapsQueryKey],
-      });
-    },
-  });
-}
-
 function usePendingCashuTokenSwaps() {
   const userId = useUser((user) => user.id);
   const tokenSwapRepository = useCashuTokenSwapRepository();
 
   const { data } = useQuery({
-    queryKey: [pendingCashuTokenSwapsQueryKey],
+    queryKey: [PendingCashuTokenSwapsCache.Key],
     queryFn: () => tokenSwapRepository.getPending(userId),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -237,19 +194,29 @@ function usePendingCashuTokenSwaps() {
   return data ?? [];
 }
 
-export function useTrackPendingCashuTokenSwaps() {
-  const queryClient = useQueryClient();
-  const pendingSwapsCache = useMemo(
-    () => new PendingCashuTokenSwapsCache(queryClient),
-    [queryClient],
-  );
+/**
+ * Hook that returns a cashu token swap change handler.
+ */
+export function useCashuTokenSwapChangeHandler() {
+  const encryption = useEncryption();
+  const pendingSwapsCache = usePendingCashuTokenSwapsCache();
   const tokenSwapCache = useCashuTokenSwapCache();
 
-  return useOnCashuTokenSwapChange({
-    onCreated: (swap) => {
+  return {
+    table: 'cashu_token_swaps',
+    onInsert: async (payload: AgicashDbCashuTokenSwap) => {
+      const swap = await CashuTokenSwapRepository.toTokenSwap(
+        payload,
+        encryption.decrypt,
+      );
       pendingSwapsCache.add(swap);
     },
-    onUpdated: (swap) => {
+    onUpdate: async (payload: AgicashDbCashuTokenSwap) => {
+      const swap = await CashuTokenSwapRepository.toTokenSwap(
+        payload,
+        encryption.decrypt,
+      );
+
       tokenSwapCache.updateIfExists(swap);
 
       const isSwapStillPending = swap.state === 'PENDING';
@@ -259,7 +226,7 @@ export function useTrackPendingCashuTokenSwaps() {
         pendingSwapsCache.remove(swap);
       }
     },
-  });
+  };
 }
 
 export function useProcessCashuTokenSwapTasks() {

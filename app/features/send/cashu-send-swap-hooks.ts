@@ -1,4 +1,3 @@
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type QueryClient,
   useMutation,
@@ -9,17 +8,13 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { Money } from '~/lib/money';
-import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
 import {
   useAccount,
   useAccountsCache,
   useGetLatestCashuAccount,
 } from '../accounts/account-hooks';
-import {
-  type AgicashDbCashuSendSwap,
-  agicashRealtime,
-} from '../agicash-db/database';
+import type { AgicashDbCashuSendSwap } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
 import { NotFoundError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
@@ -31,62 +26,77 @@ import {
 import { useCashuSendSwapService } from './cashu-send-swap-service';
 import { ProofStateSubscriptionManager } from './proof-state-subscription-manager';
 
-// Query that tracks the "active" cashu send swap. Active one is the one that user created in current browser session.
-// We want to track active send swap even after it is completed or expired which is why we can't use unresolved send swaps query.
-// Unresolved send swaps query is used for active unresolved swaps plus "background" unresolved swaps. "Background" swaps are send swaps
-// that were created in previous browser sessions.
-const cashuSendSwapQueryKey = 'cashu-send-swap';
-// Query that tracks all unresolved cashu send swaps (active and background ones).
-const unresolvedCashuSendSwapsQueryKey = 'unresolved-cashu-send-swaps';
-
 class CashuSendSwapCache {
+  // Query that tracks the "active" cashu send swap. Active one is the one that user created in current browser session.
+  // We want to track active send swap even after it is completed or expired which is why we can't use unresolved send swaps query.
+  // Unresolved send swaps query is used for active unresolved swaps plus "background" unresolved swaps. "Background" swaps are send swaps
+  // that were created in previous browser sessions.
+  public static Key = 'cashu-send-swap';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   add(swap: CashuSendSwap) {
     this.queryClient.setQueryData<CashuSendSwap>(
-      [cashuSendSwapQueryKey, swap.id],
+      [CashuSendSwapCache.Key, swap.id],
       swap,
     );
   }
 
   get(swapId: string) {
     return this.queryClient.getQueryData<CashuSendSwap>([
-      cashuSendSwapQueryKey,
+      CashuSendSwapCache.Key,
       swapId,
     ]);
   }
 
   updateIfExists(swap: CashuSendSwap) {
     this.queryClient.setQueryData<CashuSendSwap>(
-      [cashuSendSwapQueryKey, swap.id],
+      [CashuSendSwapCache.Key, swap.id],
       (curr) => (curr ? swap : undefined),
     );
   }
 }
 
 class UnresolvedCashuSendSwapsCache {
+  // Query that tracks all unresolved cashu send swaps (active and background ones).
+  public static Key = 'unresolved-cashu-send-swaps';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   add(swap: CashuSendSwap) {
     this.queryClient.setQueryData<CashuSendSwap[]>(
-      [unresolvedCashuSendSwapsQueryKey],
+      [UnresolvedCashuSendSwapsCache.Key],
       (curr) => [...(curr ?? []), swap],
     );
   }
 
   update(swap: CashuSendSwap) {
     this.queryClient.setQueryData<CashuSendSwap[]>(
-      [unresolvedCashuSendSwapsQueryKey],
+      [UnresolvedCashuSendSwapsCache.Key],
       (curr) => curr?.map((d) => (d.id === swap.id ? swap : d)),
     );
   }
 
   remove(swap: CashuSendSwap) {
     this.queryClient.setQueryData<CashuSendSwap[]>(
-      [unresolvedCashuSendSwapsQueryKey],
+      [UnresolvedCashuSendSwapsCache.Key],
       (curr) => curr?.filter((d) => d.id !== swap.id),
     );
   }
+
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [UnresolvedCashuSendSwapsCache.Key],
+    });
+  }
+}
+
+export function useUnresolvedCashuSendSwapsCache() {
+  const queryClient = useQueryClient();
+  return useMemo(
+    () => new UnresolvedCashuSendSwapsCache(queryClient),
+    [queryClient],
+  );
 }
 
 function useCashuSendSwapCache() {
@@ -156,58 +166,12 @@ export function useCreateCashuSendSwap({
   });
 }
 
-function useOnCashuSendSwapChange({
-  onCreated,
-  onUpdated,
-}: {
-  onCreated: (swap: CashuSendSwap) => void;
-  onUpdated: (swap: CashuSendSwap) => void;
-}) {
-  const encryption = useEncryption();
-  const queryClient = useQueryClient();
-
-  const changeHandlerRef = useLatest(
-    async (payload: RealtimePostgresChangesPayload<AgicashDbCashuSendSwap>) => {
-      if (payload.eventType === 'INSERT') {
-        const addedSwap = await CashuSendSwapRepository.toSwap(
-          payload.new,
-          encryption.decrypt,
-        );
-        onCreated(addedSwap);
-      } else if (payload.eventType === 'UPDATE') {
-        const updatedSwap = await CashuSendSwapRepository.toSwap(
-          payload.new,
-          encryption.decrypt,
-        );
-        onUpdated(updatedSwap);
-      }
-    },
-  );
-
-  return useSupabaseRealtime({
-    channel: agicashRealtime
-      .channel('cashu-send-swaps')
-      .on<AgicashDbCashuSendSwap>(
-        'postgres_changes',
-        { event: '*', schema: 'wallet', table: 'cashu_send_swaps' },
-        (payload) => changeHandlerRef.current(payload),
-      ),
-    onConnected: () => {
-      // Invalidate the unresolved cashu send swap query so that the swaps are re-fetched and the cache is updated.
-      // This is needed to get any data that might have been updated while the re-connection was in progress.
-      queryClient.invalidateQueries({
-        queryKey: [unresolvedCashuSendSwapsQueryKey],
-      });
-    },
-  });
-}
-
 export function useUnresolvedCashuSendSwaps() {
   const cashuSendSwapRepository = useCashuSendSwapRepository();
   const userId = useUser((user) => user.id);
 
   const { data = [] } = useQuery({
-    queryKey: [unresolvedCashuSendSwapsQueryKey],
+    queryKey: [UnresolvedCashuSendSwapsCache.Key],
     queryFn: () => cashuSendSwapRepository.getUnresolved(userId),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -234,7 +198,7 @@ export function useCashuSendSwap(id: string) {
   const cashuSendSwapRepository = useCashuSendSwapRepository();
 
   const result = useSuspenseQuery({
-    queryKey: [cashuSendSwapQueryKey, id],
+    queryKey: [CashuSendSwapCache.Key, id],
     queryFn: async () => {
       const swap = await cashuSendSwapRepository.get(id);
       if (!swap) {
@@ -294,7 +258,7 @@ export function useTrackCashuSendSwap({
   const cashuSendSwapCache = useCashuSendSwapCache();
 
   const { data } = useQuery({
-    queryKey: [cashuSendSwapQueryKey, id],
+    queryKey: [CashuSendSwapCache.Key, id],
     queryFn: () => cashuSendSwapCache.get(id),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -372,19 +336,29 @@ function useOnProofStateChange({ swaps, onSpent }: OnProofStateChangeProps) {
   }, [subscribe, swaps, accountsCache]);
 }
 
-export function useTrackUnresolvedCashuSendSwaps() {
+/**
+ * Hook that returns a cashu send quote change handler.
+ */
+export function useCashuSendSwapChangeHandler() {
   const cashuSendSwapCache = useCashuSendSwapCache();
-  const queryClient = useQueryClient();
-  const unresolvedSwapsCache = useMemo(
-    () => new UnresolvedCashuSendSwapsCache(queryClient),
-    [queryClient],
-  );
+  const encryption = useEncryption();
+  const unresolvedSwapsCache = useUnresolvedCashuSendSwapsCache();
 
-  return useOnCashuSendSwapChange({
-    onCreated: (swap) => {
+  return {
+    table: 'cashu_send_swaps',
+    onInsert: async (payload: AgicashDbCashuSendSwap) => {
+      const swap = await CashuSendSwapRepository.toSwap(
+        payload,
+        encryption.decrypt,
+      );
       unresolvedSwapsCache.add(swap);
     },
-    onUpdated: (swap) => {
+    onUpdate: async (payload: AgicashDbCashuSendSwap) => {
+      const swap = await CashuSendSwapRepository.toSwap(
+        payload,
+        encryption.decrypt,
+      );
+
       cashuSendSwapCache.updateIfExists(swap);
 
       if (['DRAFT', 'PENDING'].includes(swap.state)) {
@@ -393,7 +367,7 @@ export function useTrackUnresolvedCashuSendSwaps() {
         unresolvedSwapsCache.remove(swap);
       }
     },
-  });
+  };
 }
 
 export function useProcessCashuSendSwapTasks() {
