@@ -19,7 +19,7 @@ We use [Nix](https://nixos.org/) and [devenv](https://devenv.sh/) to set up the 
 1. Create `.env` file:
 
 ```sh
-mv .env.example .env
+cp .env.example .env
 ```
 
 If needed, update the `.env` file with alternative values. This file is ignored by git and used only for local development.
