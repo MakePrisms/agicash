@@ -428,6 +428,15 @@ export class CashuSendQuoteService {
       throw new Error('Account does not match the quote account');
     }
 
+    const latestMeltQuote = await account.wallet.checkMeltQuote(quote.quoteId);
+    if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
+      // If the call to melt proofs retries before the send quote is marked as pending in the agicash
+      // database, then the melt may have already been initiated, so we should not fail the send quote.
+      // If the mint fails to pay the melt quote, then the melt quote state will be changed to UNPAID again.
+      // The send quote will be in a pending state until the quote is paid or expired.
+      return;
+    }
+
     const updatedAccountProofs = account.proofs.concat(quote.proofs);
 
     await this.cashuSendRepository.fail({
