@@ -41,7 +41,6 @@ import {
 } from '~/lib/transitions';
 import { AddContactDrawer, ContactsList } from '../contacts';
 import type { Contact } from '../contacts/contact';
-import { useContacts } from '../contacts/contact-hooks';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
@@ -303,12 +302,6 @@ function SelectContactOrLud16Drawer({
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<'idle' | 'selecting'>('idle');
 
-  const contacts = useContacts((contacts) =>
-    contacts.filter((contact) =>
-      contact.username.toLowerCase().includes(input.toLowerCase()),
-    ),
-  );
-
   const handleSelect = async (selection: string | Contact) => {
     setStatus('selecting');
 
@@ -358,7 +351,7 @@ function SelectContactOrLud16Drawer({
               <p>Send to Lightning Address: {input}</p>
             </button>
           )}
-          <ContactsList contacts={contacts} onSelect={handleSelect} />
+          <ContactsList onSelect={handleSelect} searchQuery={input} />
         </div>
       </DrawerContent>
     </Drawer>
