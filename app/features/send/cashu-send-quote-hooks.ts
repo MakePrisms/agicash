@@ -21,6 +21,7 @@ import {
   useAccount,
   useAccountsCache,
   useGetLatestCashuAccount,
+  useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuSendQuote } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
@@ -291,6 +292,7 @@ export function useCashuSendQuote(sendQuoteId: string) {
 function useUnresolvedCashuSendQuotes() {
   const cashuSendQuoteRepository = useCashuSendQuoteRepository();
   const userId = useUser((user) => user.id);
+  const selectSendQuotesWithOnlineAccount = useSelectItemsWithOnlineAccount();
 
   const { data } = useQuery({
     queryKey: [UnresolvedCashuSendQuotesCache.Key],
@@ -299,6 +301,7 @@ function useUnresolvedCashuSendQuotes() {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
+    select: selectSendQuotesWithOnlineAccount,
   });
 
   return data ?? [];

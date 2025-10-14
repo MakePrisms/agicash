@@ -8,7 +8,10 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { useLatest } from '~/lib/use-latest';
-import { useGetLatestCashuAccount } from '../accounts/account-hooks';
+import {
+  useGetLatestCashuAccount,
+  useSelectItemsWithOnlineAccount,
+} from '../accounts/account-hooks';
 import type { AgicashDbCashuTokenSwap } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
 import { useUser } from '../user/user-hooks';
@@ -181,6 +184,7 @@ export function useTokenSwap({
 function usePendingCashuTokenSwaps() {
   const userId = useUser((user) => user.id);
   const tokenSwapRepository = useCashuTokenSwapRepository();
+  const selectReceiveSwapsWithOnlineAccount = useSelectItemsWithOnlineAccount();
 
   const { data } = useQuery({
     queryKey: [PendingCashuTokenSwapsCache.Key],
@@ -189,6 +193,7 @@ function usePendingCashuTokenSwaps() {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
+    select: selectReceiveSwapsWithOnlineAccount,
   });
 
   return data ?? [];

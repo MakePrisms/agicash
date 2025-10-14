@@ -5,6 +5,6 @@ export type CashuAccountWithTokenFlags = ExtendedCashuAccount & {
   isSource: boolean;
   /** Whether the account is unknown to the user */
   isUnknown: boolean;
-  /** Whether the account is selectable to receive the token */
-  isSelectable: boolean;
+  /** Whether the account is selectable can receive the token */
+  canReceive: boolean;
 };

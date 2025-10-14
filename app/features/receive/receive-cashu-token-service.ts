@@ -44,7 +44,7 @@ export class ReceiveCashuTokenService {
         ...existingAccount,
         isSource: true,
         isUnknown: false,
-        isSelectable: true,
+        canReceive: true,
       };
       return {
         sourceAccount,
@@ -115,7 +115,8 @@ export class ReceiveCashuTokenService {
       isDefault: false,
       isSource: true,
       isUnknown: true,
-      isSelectable: isValid,
+      canReceive: isValid,
+      isOnline: true,
       wallet,
     } satisfies CashuAccountWithTokenFlags;
 
@@ -144,7 +145,7 @@ export class ReceiveCashuTokenService {
     preferredReceiveAccountId?: string,
   ): CashuAccountWithTokenFlags | null {
     if (sourceAccount.isTestMint) {
-      if (!sourceAccount.isSelectable) {
+      if (!sourceAccount.canReceive) {
         return null;
       }
       // Tokens sourced from test mint can only be claimed to the same mint
@@ -155,11 +156,11 @@ export class ReceiveCashuTokenService {
       (account) => account.id === preferredReceiveAccountId,
     );
 
-    if (preferredReceiveAccount?.isSelectable) {
+    if (preferredReceiveAccount?.canReceive) {
       return preferredReceiveAccount;
     }
 
-    if (sourceAccount.isSelectable) {
+    if (sourceAccount.canReceive) {
       return sourceAccount;
     }
 
@@ -168,8 +169,8 @@ export class ReceiveCashuTokenService {
         account.isDefault && account.currency === sourceAccount.currency,
     );
 
-    if (!defaultAccount?.isSelectable) {
-      // This should not be possible because the default account must be selectable and every user must have a default account for each currency.
+    if (!defaultAccount?.canReceive) {
+      // This should not be possible because the default account must be able to receive and every user must have a default account for each currency.
       return null;
     }
 
@@ -183,7 +184,7 @@ export class ReceiveCashuTokenService {
       ...account,
       isSource: false,
       isUnknown: false,
-      isSelectable: !account.isTestMint,
+      canReceive: !account.isTestMint,
     }));
   }
 
@@ -200,10 +201,10 @@ export class ReceiveCashuTokenService {
   ): CashuAccountWithTokenFlags[] {
     if (sourceAccount.isTestMint) {
       // Tokens sourced from test mint can only be claimed to the same mint
-      return sourceAccount.isSelectable ? [sourceAccount] : [];
+      return sourceAccount.canReceive ? [sourceAccount] : [];
     }
     return [sourceAccount, ...otherAccounts].filter(
-      (account) => account.isSelectable,
+      (account) => account.canReceive,
     );
   }
 }

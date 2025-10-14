@@ -1,7 +1,13 @@
-import type { Proof } from '@cashu/cashu-ts';
+import {
+  type MintActiveKeys,
+  type MintAllKeysets,
+  NetworkError,
+  type Proof,
+} from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import {
+  type MintInfo,
   getCashuProtocolUnit,
   getCashuUnit,
   getCashuWallet,
@@ -24,7 +30,10 @@ import type { Account, CashuAccount } from './account';
 type AccountOmit<
   T extends Account,
   AdditionalOmit extends keyof T = never,
-> = DistributedOmit<T, 'id' | 'createdAt' | 'version' | AdditionalOmit>;
+> = DistributedOmit<
+  T,
+  'id' | 'createdAt' | 'version' | 'isOnline' | AdditionalOmit
+>;
 
 type AccountInput<T extends Account> = {
   userId: string;
@@ -155,13 +164,14 @@ export class AccountRepository {
         proofs: string;
       };
 
-      const wallet = await this.getPreloadedWallet(
+      const { wallet, isOnline } = await this.getPreloadedWallet(
         details.mint_url,
         data.currency,
       );
 
       return {
         ...commonData,
+        isOnline,
         type: 'cashu',
         mintUrl: details.mint_url,
         isTestMint: details.is_test_mint,
@@ -186,13 +196,26 @@ export class AccountRepository {
   private async getPreloadedWallet(mintUrl: string, currency: Currency) {
     const seed = await this.getCashuWalletSeed?.();
 
-    // TODO: handle fetching errors. If the mint is unreachable these will throw,
-    // and the error will bubble up to the user and brick the app.
-    const [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.all([
-      this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
-      this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
-      this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
-    ]);
+    let mintInfo: MintInfo;
+    let allMintKeysets: MintAllKeysets;
+    let mintActiveKeys: MintActiveKeys;
+
+    try {
+      [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.all([
+        this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
+        this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
+        this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
+      ]);
+    } catch (error) {
+      if (error instanceof NetworkError) {
+        const wallet = getCashuWallet(mintUrl, {
+          unit: getCashuUnit(currency),
+          bip39seed: seed ?? undefined,
+        });
+        return { wallet, isOnline: false };
+      }
+      throw error;
+    }
 
     const unitKeysets = allMintKeysets.keysets.filter(
       (ks) => ks.unit === getCashuProtocolUnit(currency),
@@ -224,7 +247,7 @@ export class AccountRepository {
     // The constructor does not set the keysetId, so we need to set it manually
     wallet.keysetId = activeKeyset.id;
 
-    return wallet;
+    return { wallet, isOnline: true };
   }
 }
 
