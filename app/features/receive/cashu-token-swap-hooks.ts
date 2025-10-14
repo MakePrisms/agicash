@@ -102,7 +102,6 @@ export function useCashuTokenSwapCache() {
 export function useCreateCashuTokenSwap() {
   const userId = useUser((user) => user.id);
   const tokenSwapService = useCashuTokenSwapService();
-  const tokenSwapCache = useCashuTokenSwapCache();
   const getLatestAccount = useGetLatestCashuAccount();
 
   return useMutation({
@@ -117,9 +116,6 @@ export function useCreateCashuTokenSwap() {
         token,
         account,
       });
-    },
-    onSuccess: async ({ tokenSwap }) => {
-      tokenSwapCache.add(tokenSwap);
     },
   });
 }

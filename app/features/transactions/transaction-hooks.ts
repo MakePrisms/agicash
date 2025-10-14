@@ -7,7 +7,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { AgicashDbTransaction } from '~/features/agicash-db/database';
 import { useLatest } from '~/lib/use-latest';
 import { useGetLatestCashuAccount } from '../accounts/account-hooks';
@@ -127,6 +127,72 @@ export function useSuspenseTransaction(id: string) {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
   });
+}
+
+type UseTrackTransactionProps = {
+  transactionId?: string;
+  onDraft?: (transaction: Transaction) => void;
+  onPending?: (transaction: Transaction) => void;
+  onCompleted?: (transaction: Transaction) => void;
+  onFailed?: (transaction: Transaction) => void;
+  onReversed?: (transaction: Transaction) => void;
+};
+
+type UseTrackTransactionResponse =
+  | { status: 'DISABLED' }
+  | { status: 'LOADING' }
+  | { status: Transaction['state']; transaction: Transaction };
+
+/**
+ * Hook to track a transaction's state and trigger callbacks when the state changes.
+ * @param transactionId - The ID of the transaction to track
+ * @returns The current status of the transaction and the transaction data
+ */
+export function useTrackTransaction({
+  transactionId = '',
+  onDraft,
+  onPending,
+  onCompleted,
+  onFailed,
+  onReversed,
+}: UseTrackTransactionProps): UseTrackTransactionResponse {
+  const enabled = !!transactionId;
+  const onDraftRef = useLatest(onDraft);
+  const onPendingRef = useLatest(onPending);
+  const onCompletedRef = useLatest(onCompleted);
+  const onFailedRef = useLatest(onFailed);
+  const onReversedRef = useLatest(onReversed);
+
+  const { data } = useTransaction({ transactionId });
+
+  useEffect(() => {
+    if (!data) return;
+
+    if (data.state === 'DRAFT') {
+      onDraftRef.current?.(data);
+    } else if (data.state === 'PENDING') {
+      onPendingRef.current?.(data);
+    } else if (data.state === 'COMPLETED') {
+      onCompletedRef.current?.(data);
+    } else if (data.state === 'FAILED') {
+      onFailedRef.current?.(data);
+    } else if (data.state === 'REVERSED') {
+      onReversedRef.current?.(data);
+    }
+  }, [data]);
+
+  if (!enabled) {
+    return { status: 'DISABLED' };
+  }
+
+  if (!data) {
+    return { status: 'LOADING' };
+  }
+
+  return {
+    status: data.state,
+    transaction: data,
+  };
 }
 
 const PAGE_SIZE = 25;
