@@ -132,8 +132,8 @@ export function useCreateCashuSendSwap({
   onSuccess,
   onError,
 }: {
-  onSuccess: (swap: CashuSendSwap) => void;
-  onError: (error: Error) => void;
+  onSuccess?: (swap: CashuSendSwap) => void;
+  onError?: (error: Error) => void;
 }) {
   const cashuSendSwapService = useCashuSendSwapService();
   const userId = useUser((user) => user.id);
@@ -160,7 +160,7 @@ export function useCreateCashuSendSwap({
     },
     onSuccess: (swap) => {
       cashuSendSwapCache.add(swap);
-      onSuccess(swap);
+      onSuccess?.(swap);
     },
     onError: onError,
   });
@@ -259,7 +259,7 @@ export function useTrackCashuSendSwap({
 
   const { data } = useQuery({
     queryKey: [CashuSendSwapCache.Key, id],
-    queryFn: () => cashuSendSwapCache.get(id),
+    queryFn: () => cashuSendSwapCache.get(id) ?? null,
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
