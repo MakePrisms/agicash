@@ -275,7 +275,10 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
             if (select.type && account.type !== select.type) {
               return false;
             }
-            if (select.isOnline && account.isOnline !== select.isOnline) {
+            if (
+              select.isOnline !== undefined &&
+              account.isOnline !== select.isOnline
+            ) {
               return false;
             }
             return true;
@@ -422,7 +425,7 @@ export function useBalance(currency: Currency) {
 /**
  * Hook that returns a selector function to filter out items with offline accounts.
  */
-export function useFilterOfflineAccounts() {
+export function useSelectItemsWithOnlineAccount() {
   const accountsCache = useAccountsCache();
 
   return useCallback(

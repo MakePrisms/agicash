@@ -16,23 +16,9 @@ import { LinkWithViewTransition } from '~/lib/transitions';
 function CurrencyAccounts({ currency }: { currency: Currency }) {
   const { data: accounts } = useAccounts({ currency });
 
-  const accountsWithBadges = accounts.map((account) => {
-    const badges = [];
-    if (account.isDefault) {
-      badges.push('Default');
-    }
-    if (!account.isOnline) {
-      badges.push('Offline');
-    }
-    return {
-      ...account,
-      badges,
-    };
-  });
-
   return (
     <div className="space-y-3">
-      {accountsWithBadges.map((account) => (
+      {accounts.map((account) => (
         <LinkWithViewTransition
           key={account.id}
           to={`/settings/accounts/${account.id}`}
@@ -48,13 +34,13 @@ function CurrencyAccounts({ currency }: { currency: Currency }) {
                 variant="inline"
               />
             </div>
-            {account.badges.length > 0 && (
-              <div className="mt-1 flex gap-2">
-                {account.badges.map((badge) => (
-                  <Badge key={badge}>{badge}</Badge>
-                ))}
-              </div>
-            )}
+            {account.isDefault ||
+              (!account.isOnline && (
+                <div className="mt-1 flex gap-2">
+                  {account.isDefault && <Badge>Default</Badge>}
+                  {!account.isOnline && <Badge>Offline</Badge>}
+                </div>
+              ))}
           </Card>
         </LinkWithViewTransition>
       ))}

@@ -23,8 +23,8 @@ import { useLatest } from '~/lib/use-latest';
 import type { CashuAccount } from '../accounts/account';
 import {
   useAccountsCache,
-  useFilterOfflineAccounts,
   useGetLatestCashuAccount,
+  useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
@@ -256,7 +256,8 @@ export function useCashuReceiveQuoteChangeHandler() {
 const usePendingCashuReceiveQuotes = () => {
   const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
   const userId = useUser((user) => user.id);
-  const filterOfflineAccounts = useFilterOfflineAccounts();
+  const selectReceiveQuotesWithOnlineAccount =
+    useSelectItemsWithOnlineAccount();
 
   const { data } = useQuery({
     queryKey: [PendingCashuReceiveQuotesCache.Key],
@@ -265,7 +266,7 @@ const usePendingCashuReceiveQuotes = () => {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
-    select: filterOfflineAccounts,
+    select: selectReceiveQuotesWithOnlineAccount,
   });
 
   return data ?? [];

@@ -127,14 +127,6 @@ export function SendInput() {
       toast(accountOfflineToast);
       return;
     }
-    if (sendAccount.type !== 'cashu') {
-      toast({
-        title: 'Not implemented',
-        description: 'Only sends from the cashu accounts are supported',
-        variant: 'destructive',
-      });
-      return;
-    }
 
     if (inputValue.isZero()) {
       return;

@@ -30,7 +30,10 @@ import type { Account, CashuAccount } from './account';
 type AccountOmit<
   T extends Account,
   AdditionalOmit extends keyof T = never,
-> = DistributedOmit<T, 'id' | 'createdAt' | 'version' | AdditionalOmit>;
+> = DistributedOmit<
+  T,
+  'id' | 'createdAt' | 'version' | 'isOnline' | AdditionalOmit
+>;
 
 type AccountInput<T extends Account> = {
   userId: string;

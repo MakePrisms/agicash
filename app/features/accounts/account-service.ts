@@ -64,7 +64,6 @@ export class AccountService {
       isTestMint,
       keysetCounters: {},
       proofs: [],
-      isOnline: true,
     });
   }
 }
