@@ -17,7 +17,10 @@ import {
   getClaimableProofs,
   getUnspentProofsFromToken,
 } from '~/lib/cashu';
-import type { AccountWithBadges } from '../accounts/account-selector';
+import {
+  type AccountSelectorOption,
+  toAccountSelectorOption,
+} from '../accounts/account-selector';
 import { useUser } from '../user/user-hooks';
 import type { CashuAccountWithTokenFlags } from './receive-cashu-token-models';
 import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
@@ -25,8 +28,6 @@ import {
   ReceiveCashuTokenService,
   useReceiveCashuTokenService,
 } from './receive-cashu-token-service';
-
-type CashuAccountWithBadges = AccountWithBadges<CashuAccountWithTokenFlags>;
 
 type UseGetClaimableTokenProps = {
   token: Token;
@@ -158,7 +159,7 @@ const getBadges = (account: CashuAccountWithTokenFlags): string[] => {
   if (!account.isOnline) {
     badges.push('Offline');
   }
-  if (!account.isSelectable) {
+  if (!account.canReceive) {
     badges.push('Invalid');
   }
   if (account.isDefault) {
@@ -168,12 +169,13 @@ const getBadges = (account: CashuAccountWithTokenFlags): string[] => {
   return badges;
 };
 
-const toAccountWithBadges = (
+const toOption = (
   account: CashuAccountWithTokenFlags,
-): CashuAccountWithBadges => ({
-  ...account,
-  badges: getBadges(account),
-});
+): AccountSelectorOption<CashuAccountWithTokenFlags> =>
+  toAccountSelectorOption(account, {
+    badges: getBadges(account),
+    isSelectable: account.isOnline && account.canReceive,
+  });
 
 /**
  * Lets the user select an account to receive the token and returns data about the
@@ -206,7 +208,9 @@ export function useReceiveCashuTokenAccounts(
       (account) => account.id === receiveAccountId,
     ) ?? null;
 
-  const setReceiveAccount = (account: CashuAccountWithBadges) => {
+  const setReceiveAccount = (
+    account: AccountSelectorOption<CashuAccountWithTokenFlags>,
+  ) => {
     setReceiveAccountId(account.id);
   };
 
@@ -219,10 +223,10 @@ export function useReceiveCashuTokenAccounts(
   };
 
   return {
-    selectableAccounts: possibleDestinationAccounts.map(toAccountWithBadges),
-    receiveAccount: receiveAccount ? toAccountWithBadges(receiveAccount) : null,
+    selectableAccounts: possibleDestinationAccounts.map(toOption),
+    receiveAccount: receiveAccount ? toOption(receiveAccount) : null,
     isCrossMintSwapDisabled: sourceAccount.isTestMint,
-    sourceAccount: toAccountWithBadges(sourceAccount),
+    sourceAccount: sourceAccount,
     setReceiveAccount,
     addAndSetReceiveAccount,
   };
