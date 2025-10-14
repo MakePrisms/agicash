@@ -13,7 +13,7 @@ import { Button } from '~/components/ui/button';
 import { Skeleton } from '~/components/ui/skeleton';
 import {
   AccountSelector,
-  applyOfflineBadge,
+  toAccountSelectorOption,
 } from '~/features/accounts/account-selector';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
@@ -175,8 +175,10 @@ export default function ReceiveInput() {
 
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
-            accounts={accounts.map(applyOfflineBadge)}
-            selectedAccount={applyOfflineBadge(receiveAccount)}
+            accounts={accounts.map((account) =>
+              toAccountSelectorOption(account),
+            )}
+            selectedAccount={toAccountSelectorOption(receiveAccount)}
             onSelect={(account) => {
               setReceiveAccount(account);
               if (account.currency !== inputValue.currency) {

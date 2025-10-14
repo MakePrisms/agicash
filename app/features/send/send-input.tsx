@@ -30,7 +30,7 @@ import { Skeleton } from '~/components/ui/skeleton';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import {
   AccountSelector,
-  applyOfflineBadge,
+  toAccountSelectorOption,
 } from '~/features/accounts/account-selector';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
@@ -245,8 +245,10 @@ export function SendInput() {
 
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
-            accounts={accounts.map(applyOfflineBadge)}
-            selectedAccount={applyOfflineBadge(sendAccount)}
+            accounts={accounts.map((account) =>
+              toAccountSelectorOption(account),
+            )}
+            selectedAccount={toAccountSelectorOption(sendAccount)}
             onSelect={(account) => {
               selectSourceAccount(account);
               if (account.currency !== inputValue.currency) {
