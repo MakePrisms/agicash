@@ -33,6 +33,10 @@ type ListOptions = Options & {
   userId: string;
   cursor?: Cursor;
   pageSize?: number;
+  /**
+   * Optional filters to apply to the transaction list.
+  bun */
+  select?: { accountId?: string };
 };
 
 type UnifiedTransactionDetails =
@@ -68,6 +72,7 @@ export class TransactionRepository {
     userId,
     cursor = null,
     pageSize = 25,
+    select,
     abortSignal,
   }: ListOptions) {
     const query = this.db.rpc('list_transactions', {
@@ -76,6 +81,7 @@ export class TransactionRepository {
       p_cursor_created_at: cursor?.createdAt,
       p_cursor_id: cursor?.id,
       p_page_size: pageSize,
+      p_account_id: select?.accountId,
     });
 
     if (abortSignal) {
