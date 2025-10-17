@@ -51,7 +51,6 @@ export default {
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))',
         },
-        currencySymbol: 'hsl(var(--currency-symbol))',
       },
       fontFamily: {
         numeric: ['Teko', 'sans-serif'],
