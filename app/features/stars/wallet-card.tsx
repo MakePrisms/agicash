@@ -62,9 +62,16 @@ async function loadCardAsset(mintUrl: string): Promise<string | null> {
 interface WalletCardProps {
   account: CashuAccount;
   hideHeader?: boolean;
+  hideFooter?: boolean;
+  showBalanceOnly?: boolean;
 }
 
-export function WalletCard({ account, hideHeader = false }: WalletCardProps) {
+export function WalletCard({
+  account,
+  hideHeader = false,
+  hideFooter = false,
+  showBalanceOnly = false,
+}: WalletCardProps) {
   const [customDesignPath, setCustomDesignPath] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,6 +80,7 @@ export function WalletCard({ account, hideHeader = false }: WalletCardProps) {
 
   const cardName = account.wallet.cachedMintInfo.name ?? account.name;
   const cardLogo = account.wallet.cachedMintInfo.iconUrl ?? null;
+  const cardType = account.wallet.cachedMintInfo.description ?? null;
 
   const balance = getAccountBalance(account);
 
@@ -117,7 +125,7 @@ export function WalletCard({ account, hideHeader = false }: WalletCardProps) {
           className={cn('flex items-center gap-4', hideHeader && 'opacity-0')}
         >
           {/* Logo */}
-          <div className="flex-shrink-0">
+          <div className={cn('flex-shrink-0', showBalanceOnly && 'opacity-0')}>
             {cardLogo ? (
               <img
                 src={cardLogo}
@@ -132,7 +140,7 @@ export function WalletCard({ account, hideHeader = false }: WalletCardProps) {
           </div>
 
           {/* Card Info */}
-          <div className="min-w-0 flex-1">
+          <div className={cn('min-w-0 flex-1', showBalanceOnly && 'opacity-0')}>
             <h3 className="truncate font-semibold text-base">{cardName}</h3>
           </div>
 
@@ -142,10 +150,22 @@ export function WalletCard({ account, hideHeader = false }: WalletCardProps) {
               money={balance}
               unit={getDefaultUnit(account.currency)}
               className="font-semibold text-base"
-              variant="secondary"
+              size="sm"
             />
           </div>
         </div>
+
+        {/* Card Footer with Card Type */}
+        {cardType && (
+          <div
+            className={cn(
+              'absolute bottom-0 left-0 px-4 pb-3',
+              hideFooter && 'opacity-0',
+            )}
+          >
+            <p className="font-semibold text-base">{cardType}</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -157,6 +177,9 @@ interface SelectableWalletCardProps {
   index: number;
   onSelect: (accountId: string, event?: React.MouseEvent) => void;
   selectedCardIndex: number | null;
+  hideHeader?: boolean;
+  hideFooter?: boolean;
+  showBalanceOnly?: boolean;
 }
 
 /**
@@ -170,6 +193,9 @@ export function SelectableWalletCard({
   index,
   onSelect,
   selectedCardIndex,
+  hideHeader = false,
+  hideFooter = false,
+  showBalanceOnly = false,
 }: SelectableWalletCardProps) {
   const handleCardClick = (e: React.MouseEvent) => {
     onSelect(account.id, e);
@@ -214,7 +240,12 @@ export function SelectableWalletCard({
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
     >
-      <WalletCard account={account} hideHeader={isSelected} />
+      <WalletCard
+        account={account}
+        hideHeader={hideHeader || isSelected}
+        hideFooter={hideFooter}
+        showBalanceOnly={showBalanceOnly}
+      />
     </div>
   );
 }

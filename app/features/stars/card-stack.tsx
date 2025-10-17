@@ -45,6 +45,7 @@ export function CardStack({
           index={index}
           onSelect={onCardSelect}
           selectedCardIndex={selectedCardIndex}
+          showBalanceOnly={index === accounts.length - 1}
         />
       ))}
     </div>

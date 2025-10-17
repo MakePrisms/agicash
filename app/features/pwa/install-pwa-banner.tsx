@@ -63,7 +63,7 @@ export default function InstallPwaBanner({
     <div
       className={cn(
         'fixed right-0 bottom-[env(safe-area-inset-bottom)] left-0 transform transition-all duration-300 ease-in-out',
-        'border-t bg-background p-4',
+        'z-20 border-t bg-background p-4',
         isVisible ? 'translate-y-0' : 'translate-y-full',
       )}
     >

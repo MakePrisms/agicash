@@ -1,75 +1,85 @@
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  ChartSpline,
-  Clock,
-  Cog,
-  Star,
-} from 'lucide-react';
-import { useState } from 'react';
+import { ArrowDownRight, ArrowUpRight, Clock, Cog, Star } from 'lucide-react';
+import { useMemo } from 'react';
 import type { LinksFunction } from 'react-router';
+import currencyCardBg from '~/assets/currency-card-bg.png';
 import agicashIcon192 from '~/assets/icon-192x192.png';
-import { Page, PageContent } from '~/components/page';
+import blockandBeanCard from '~/assets/star-cards/blockandbean.agi.cash.png';
+import fakeCard from '~/assets/star-cards/fake.agi.cash.png';
+import fake2Card from '~/assets/star-cards/fake2.agi.cash.png';
+import fake4Card from '~/assets/star-cards/fake4.agi.cash.png';
+import whiteLogoSmall from '~/assets/whitelogo-small.png';
+import { Page, PageContent, PageFooter } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { Skeleton } from '~/components/ui/skeleton';
+import { Card } from '~/components/ui/card';
+import { ScrollArea } from '~/components/ui/scroll-area';
+import { getAccountBalance } from '~/features/accounts/account';
 import {
-  useBalance,
+  useAccounts,
   useDefaultAccount,
 } from '~/features/accounts/account-hooks';
 import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-switcher';
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
+import { CurrencyCard } from '~/features/stars/currency-card';
+import { WalletCard } from '~/features/stars/wallet-card';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
-import { useExchangeRates } from '~/hooks/use-exchange-rate';
-import type { Ticker } from '~/lib/exchange-rate';
-import { Money } from '~/lib/money';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 export const links: LinksFunction = () => [
   // This icon is used in the PWA dialog and prefetched here to avoid a flash while loading
   { rel: 'preload', href: agicashIcon192, as: 'image' },
+  { rel: 'preload', href: currencyCardBg, as: 'image' },
+  { rel: 'preload', href: whiteLogoSmall, as: 'image' },
 ];
 
-const Price = () => {
-  const [showSatsPerDollar, setShowSatsPerDollar] = useState(false);
-  const { data: rates } = useExchangeRates(
-    (['BTC-USD', 'USD-BTC'] as Ticker[]).sort(),
-  );
-
-  if (!rates) return <Skeleton className="h-[24px] w-[81px]" />;
-
-  const moneyString = showSatsPerDollar
-    ? new Money({ amount: 1, currency: 'USD' })
-        .convert('BTC', rates['USD-BTC'])
-        .toLocaleString({ unit: 'sat' })
-    : new Money({ amount: rates['BTC-USD'], currency: 'USD' })
-        .toLocaleString({ unit: 'usd' })
-        .slice(0, -3);
-
-  return (
-    <button
-      type="button"
-      onClick={() => setShowSatsPerDollar(!showSatsPerDollar)}
-      className="flex items-center gap-2"
-    >
-      {showSatsPerDollar && <ChartSpline size={16} className="animate-pulse" />}
-      <span className="font-medium">{moneyString}</span>
-      {!showSatsPerDollar && (
-        <ChartSpline size={16} className="animate-pulse" />
-      )}
-    </button>
-  );
+type DiscoverMint = {
+  url: string;
+  name: string;
+  image: string;
 };
 
+const DISCOVER_MINTS: DiscoverMint[] = [
+  {
+    url: 'https://blockandbean.agi.cash',
+    name: 'Block and Bean',
+    image: blockandBeanCard,
+  },
+  {
+    url: 'https://fake.agi.cash',
+    name: 'Fake',
+    image: fakeCard,
+  },
+  {
+    url: 'https://fake2.agi.cash',
+    name: 'Fake2',
+    image: fake2Card,
+  },
+  {
+    url: 'https://fake4.agi.cash',
+    name: 'Fake4',
+    image: fake4Card,
+  },
+];
+
 export default function Index() {
-  const balanceBTC = useBalance('BTC');
-  const balanceUSD = useBalance('USD');
-  const defaultCurrency = useDefaultAccount().currency;
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
 
+  const { data: starAccounts } = useAccounts({
+    type: 'cashu',
+    starAccountsOnly: true,
+  });
+
+  const discoverMints = useMemo(() => {
+    const existingMintUrls = new Set(
+      starAccounts.map((account) => account.mintUrl),
+    );
+    return DISCOVER_MINTS.filter((mint) => !existingMintUrls.has(mint.url));
+  }, [starAccounts]);
+
   return (
-    <Page>
-      <header className="z-10 mb-4 flex w-full items-center justify-between px-4">
+    <Page className="relative overflow-hidden">
+      {/* Fixed header layer - positioned above scrolling content */}
+      <header className="absolute inset-x-0 top-0 z-20 flex w-full items-center justify-between px-4 pt-4 pb-4">
         <LinkWithViewTransition
           to="/cards"
           transition="slideRight"
@@ -100,17 +110,67 @@ export default function Index() {
         </div>
       </header>
 
-      <PageContent className="absolute inset-0 mx-auto flex flex-col items-center justify-center gap-24">
-        <div className="flex h-[156px] flex-col items-center gap-4">
-          <MoneyWithConvertedAmount
-            money={defaultCurrency === 'BTC' ? balanceBTC : balanceUSD}
-          />
-          {defaultCurrency === 'BTC' && <Price />}
+      {/* Fade gradient overlay - top (creates fade effect for scrolling content) */}
+      <div className="-left-4 -right-4 pointer-events-none absolute top-0 z-10 h-16 bg-gradient-to-b from-background via-background/70 to-transparent" />
+
+      <PageContent className="absolute inset-0 z-0 flex flex-col overflow-y-auto overflow-x-hidden pt-16 pb-44 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="w-full max-w-xs">
+          <HomePageCard />
         </div>
 
-        <DefaultCurrencySwitcher />
+        <h2 className="mt-4 mb-2 font-semibold text-lg">For You</h2>
+        <div className="-mx-4 relative">
+          <ScrollArea className="w-full" orientation="horizontal" hideScrollbar>
+            <div className="flex w-max gap-2 px-4">
+              {starAccounts.map((account) => (
+                <LinkWithViewTransition
+                  key={account.id}
+                  to={`/cards?accountId=${account.id}`}
+                  transition="slideUp"
+                  applyTo="newView"
+                  className="w-[40vw] shrink-0"
+                >
+                  <WalletCard
+                    account={account}
+                    hideHeader={true}
+                    hideFooter={true}
+                  />
+                  <MoneyWithConvertedAmount
+                    variant="inline"
+                    money={getAccountBalance(account)}
+                  />
+                </LinkWithViewTransition>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
 
-        <div className="grid grid-cols-2 gap-10 pt-3">
+        {discoverMints.length > 0 && (
+          <>
+            <h2 className="mt-4 mb-2 font-semibold text-lg">Discover</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {discoverMints.map((mint) => (
+                <div key={mint.url} className="flex flex-col gap-2">
+                  <Card className="relative overflow-hidden rounded-3xl border-none">
+                    <img
+                      src={mint.image}
+                      alt={mint.name}
+                      className="block w-full"
+                    />
+                  </Card>
+                  <span className="text-sm">{mint.name}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </PageContent>
+
+      {/* Fade gradient overlay - bottom (creates fade effect for scrolling content) */}
+
+      <PageFooter className="absolute inset-x-0 bottom-0 z-20 py-20">
+        <div className="-left-4 -right-4 pointer-events-none absolute bottom-0 z-10 h-full bg-gradient-to-t from-background via-background/90 to-transparent" />
+        <div className="z-10 grid w-full grid-cols-2 gap-10">
           <LinkWithViewTransition
             to="/receive"
             transition="slideUp"
@@ -130,9 +190,41 @@ export default function Index() {
             </Button>
           </LinkWithViewTransition>
         </div>
-      </PageContent>
+      </PageFooter>
 
       <InstallPwaPrompt />
     </Page>
+  );
+}
+
+export function HomePageCard() {
+  const defaultAccount = useDefaultAccount();
+  const currencies: Array<'BTC' | 'USD'> = ['BTC', 'USD'];
+
+  return (
+    <DefaultCurrencySwitcher>
+      <DefaultCurrencySwitcher.Trigger>
+        <button type="button" className="w-full">
+          <CurrencyCard
+            currency={defaultAccount.currency}
+            showUsername={true}
+          />
+        </button>
+      </DefaultCurrencySwitcher.Trigger>
+      <DefaultCurrencySwitcher.Content>
+        {currencies.map((currency) => (
+          <DefaultCurrencySwitcher.CurrencyCardWrapper
+            key={currency}
+            currency={currency}
+          >
+            <CurrencyCard
+              currency={currency}
+              showUsername={false}
+              className={currency === 'BTC' ? 'btc' : 'usd'}
+            />
+          </DefaultCurrencySwitcher.CurrencyCardWrapper>
+        ))}
+      </DefaultCurrencySwitcher.Content>
+    </DefaultCurrencySwitcher>
   );
 }
