@@ -173,7 +173,7 @@ export const PayBolt11Confirmation = ({
           label: 'Recipient gets',
           value: (
             <MoneyDisplay
-              variant="secondary"
+              size="sm"
               money={bolt11Quote.amountToReceive}
               unit={getDefaultUnit(bolt11Quote.amountToReceive.currency)}
             />
@@ -183,7 +183,7 @@ export const PayBolt11Confirmation = ({
           label: 'Estimated fee',
           value: (
             <MoneyDisplay
-              variant="secondary"
+              size="sm"
               money={bolt11Quote.estimatedTotalFee}
               unit={getDefaultUnit(bolt11Quote.estimatedTotalFee.currency)}
             />
@@ -259,7 +259,7 @@ export const CreateCashuTokenConfirmation = ({
           label: 'Recipient gets',
           value: (
             <MoneyDisplay
-              variant="secondary"
+              size="sm"
               money={quote.amountRequested}
               unit={getDefaultUnit(quote.amountRequested.currency)}
             />
@@ -269,7 +269,7 @@ export const CreateCashuTokenConfirmation = ({
           label: 'Estimated fee',
           value: (
             <MoneyDisplay
-              variant="secondary"
+              size="sm"
               money={quote.totalFee}
               unit={getDefaultUnit(quote.totalFee.currency)}
             />
