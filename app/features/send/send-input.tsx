@@ -69,9 +69,10 @@ const ConvertedMoneySwitcher = ({
       <MoneyDisplay
         money={money}
         unit={getDefaultUnit(money.currency)}
-        variant="secondary"
+        size="sm"
+        variant="muted"
       />
-      <ArrowUpDown className="mb-1" />
+      <ArrowUpDown className="mb-1 text-muted-foreground" />
     </button>
   );
 };

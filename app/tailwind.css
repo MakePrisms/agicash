@@ -42,7 +42,6 @@
     --border: 178 100% 21%;
     --muted-foreground: 178 30% 81%;
     --card: 178 100% 14%;
-    --currency-symbol: 177 42% 31%;
   }
 
   /* BTC theme - light mode */
@@ -57,7 +56,6 @@
     --border: 217 70% 45%;
     --muted-foreground: 217 30% 85%;
     --card: 217 68% 38%;
-    --currency-symbol: 217 44% 55%;
   }
 
   .dark,
@@ -87,7 +85,6 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --currency-symbol: 202 13% 30%;
   }
 }
 @layer base {

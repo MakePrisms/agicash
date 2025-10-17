@@ -79,7 +79,8 @@ export const MoneyWithConvertedAmount = ({
             <MoneyDisplay
               money={conversionData.convertedMoney}
               unit={conversionData.unit}
-              variant="secondary"
+              size="sm"
+              variant="muted"
             />
           )}
         </>
