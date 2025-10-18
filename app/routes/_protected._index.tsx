@@ -1,12 +1,12 @@
 import { ArrowDownRight, ArrowUpRight, Clock, Cog, Star } from 'lucide-react';
 import { useMemo } from 'react';
 import type { LinksFunction } from 'react-router';
-import currencyCardBg from '~/assets/currency-card-bg.png';
 import agicashIcon192 from '~/assets/icon-192x192.png';
 import blockandBeanCard from '~/assets/star-cards/blockandbean.agi.cash.png';
 import fakeCard from '~/assets/star-cards/fake.agi.cash.png';
 import fake2Card from '~/assets/star-cards/fake2.agi.cash.png';
 import fake4Card from '~/assets/star-cards/fake4.agi.cash.png';
+import transparentCardBg from '~/assets/transparent-card.png';
 import whiteLogoSmall from '~/assets/whitelogo-small.png';
 import { Page, PageContent, PageFooter } from '~/components/page';
 import { Button } from '~/components/ui/button';
@@ -23,12 +23,14 @@ import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted
 import { CurrencyCard } from '~/features/stars/currency-card';
 import { WalletCard } from '~/features/stars/wallet-card';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
+import { useIsDesktop } from '~/hooks/use-is-desktop';
+import { Money } from '~/lib/money';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 export const links: LinksFunction = () => [
   // This icon is used in the PWA dialog and prefetched here to avoid a flash while loading
   { rel: 'preload', href: agicashIcon192, as: 'image' },
-  { rel: 'preload', href: currencyCardBg, as: 'image' },
+  { rel: 'preload', href: transparentCardBg, as: 'image' },
   { rel: 'preload', href: whiteLogoSmall, as: 'image' },
 ];
 
@@ -36,6 +38,7 @@ type DiscoverMint = {
   url: string;
   name: string;
   image: string;
+  currency: 'BTC' | 'USD';
 };
 
 const DISCOVER_MINTS: DiscoverMint[] = [
@@ -43,31 +46,44 @@ const DISCOVER_MINTS: DiscoverMint[] = [
     url: 'https://blockandbean.agi.cash',
     name: 'Block and Bean',
     image: blockandBeanCard,
+    currency: 'BTC',
   },
   {
     url: 'https://fake.agi.cash',
     name: 'Fake',
     image: fakeCard,
+    currency: 'BTC',
   },
   {
     url: 'https://fake2.agi.cash',
     name: 'Fake2',
     image: fake2Card,
+    currency: 'BTC',
   },
   {
     url: 'https://fake4.agi.cash',
     name: 'Fake4',
     image: fake4Card,
+    currency: 'BTC',
   },
 ];
 
 export default function Index() {
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
+  const isDesktop = useIsDesktop();
 
   const { data: starAccounts } = useAccounts({
     type: 'cashu',
     starAccountsOnly: true,
   });
+
+  const sortedStarAccounts = useMemo(() => {
+    return [...starAccounts].sort((a, b) => {
+      const balanceA = getAccountBalance(a);
+      const balanceB = getAccountBalance(b);
+      return Money.compare(balanceB, balanceA);
+    });
+  }, [starAccounts]);
 
   const discoverMints = useMemo(() => {
     const existingMintUrls = new Set(
@@ -113,64 +129,86 @@ export default function Index() {
       {/* Fade gradient overlay - top (creates fade effect for scrolling content) */}
       <div className="-left-4 -right-4 pointer-events-none absolute top-0 z-10 h-16 bg-gradient-to-b from-background via-background/70 to-transparent" />
 
-      <PageContent className="absolute inset-0 z-0 flex flex-col overflow-y-auto overflow-x-hidden pt-16 pb-44 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="w-full max-w-xs">
+      <PageContent className="absolute inset-0 z-0 mx-auto flex flex-col items-center overflow-y-auto overflow-x-hidden pt-16 pb-44 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="w-full max-w-sm md:max-w-md">
           <HomePageCard />
         </div>
 
-        <h2 className="mt-4 mb-2 font-semibold text-lg">For You</h2>
-        <div className="-mx-4 relative">
-          <ScrollArea className="w-full" orientation="horizontal" hideScrollbar>
-            <div className="flex w-max gap-2 px-4">
-              {starAccounts.map((account) => (
-                <LinkWithViewTransition
-                  key={account.id}
-                  to={`/cards?accountId=${account.id}`}
-                  transition="slideUp"
-                  applyTo="newView"
-                  className="w-[40vw] shrink-0"
-                >
-                  <WalletCard
-                    account={account}
-                    hideHeader={true}
-                    hideFooter={true}
-                  />
-                  <MoneyWithConvertedAmount
-                    variant="inline"
-                    money={getAccountBalance(account)}
-                  />
-                </LinkWithViewTransition>
-              ))}
+        {sortedStarAccounts.length > 0 && (
+          <div className="mt-4 w-full max-w-sm md:max-w-2xl">
+            <h2 className="mb-2 font-semibold text-lg">For You</h2>
+            <div className="-mx-4 relative md:mx-0">
+              <ScrollArea
+                className="w-full"
+                orientation="horizontal"
+                hideScrollbar={!isDesktop}
+              >
+                <div className="flex w-max gap-2 px-4 md:px-0 md:pb-3">
+                  {sortedStarAccounts.map((account) => (
+                    <LinkWithViewTransition
+                      key={account.id}
+                      to={`/cards?accountId=${account.id}`}
+                      transition="slideUp"
+                      applyTo="newView"
+                      className="w-40 shrink-0"
+                    >
+                      <WalletCard
+                        account={account}
+                        hideHeader={true}
+                        hideFooter={true}
+                      />
+                      <span className="pl-2">
+                        <MoneyWithConvertedAmount
+                          variant="inline"
+                          money={getAccountBalance(account)}
+                        />
+                      </span>
+                    </LinkWithViewTransition>
+                  ))}
+                </div>
+              </ScrollArea>
             </div>
-          </ScrollArea>
-        </div>
+          </div>
+        )}
 
         {discoverMints.length > 0 && (
-          <>
-            <h2 className="mt-4 mb-2 font-semibold text-lg">Discover</h2>
-            <div className="grid grid-cols-2 gap-4">
-              {discoverMints.map((mint) => (
-                <div key={mint.url} className="flex flex-col gap-2">
-                  <Card className="relative overflow-hidden rounded-3xl border-none">
-                    <img
-                      src={mint.image}
-                      alt={mint.name}
-                      className="block w-full"
-                    />
-                  </Card>
-                  <span className="text-sm">{mint.name}</span>
+          <div className="mt-4 w-full max-w-sm md:max-w-2xl">
+            <h2 className="mb-2 font-semibold text-lg">Discover</h2>
+            <div className="-mx-4 relative md:mx-0">
+              <ScrollArea
+                className="w-full"
+                orientation="horizontal"
+                hideScrollbar={!isDesktop}
+              >
+                <div className="flex w-max gap-2 px-4 md:px-0 md:pb-3">
+                  {discoverMints.map((mint) => (
+                    <LinkWithViewTransition
+                      key={mint.url}
+                      to={`/discover/add-mint?url=${encodeURIComponent(mint.url)}&currency=${mint.currency}`}
+                      transition="slideUp"
+                      applyTo="newView"
+                      className="flex w-40 shrink-0 flex-col gap-2"
+                    >
+                      <Card className="relative overflow-hidden rounded-3xl border-none">
+                        <img
+                          src={mint.image}
+                          alt={mint.name}
+                          className="block w-full"
+                        />
+                      </Card>
+                    </LinkWithViewTransition>
+                  ))}
                 </div>
-              ))}
+              </ScrollArea>
             </div>
-          </>
+          </div>
         )}
       </PageContent>
 
-      {/* Fade gradient overlay - bottom (creates fade effect for scrolling content) */}
-
-      <PageFooter className="absolute inset-x-0 bottom-0 z-20 py-20">
+      <PageFooter className="absolute inset-x-0 bottom-0 z-20 mx-auto flex justify-center py-20">
+        {/* Fade gradient overlay - bottom (creates fade effect for scrolling content) */}
         <div className="-left-4 -right-4 pointer-events-none absolute bottom-0 z-10 h-full bg-gradient-to-t from-background via-background/90 to-transparent" />
-        <div className="z-10 grid w-full grid-cols-2 gap-10">
+        <div className="z-10 grid w-full max-w-sm grid-cols-2 gap-10 md:max-w-md">
           <LinkWithViewTransition
             to="/receive"
             transition="slideUp"

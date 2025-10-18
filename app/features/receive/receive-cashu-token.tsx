@@ -208,7 +208,7 @@ export default function ReceiveToken({
           {claimableToken && receiveAccount ? (
             isStarAccount(receiveAccount) ? (
               <div className="w-full max-w-sm px-4">
-                <WalletCard account={receiveAccount} />
+                <WalletCard account={receiveAccount} hideHeader={true} />
               </div>
             ) : (
               <div className="w-full max-w-sm px-4">

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import {
   ClosePageButton,
   Page,
+  PageBackButton,
   PageContent,
   PageHeader,
   PageHeaderTitle,
@@ -69,12 +70,22 @@ export default function Cards() {
   return (
     <Page>
       <PageHeader>
-        <ClosePageButton
-          to="/"
-          transition="slideLeft"
-          applyTo="newView"
-          onClick={handleBackButtonClick}
-        />
+        {selectedAccount && starAccounts.length > 1 ? (
+          <PageBackButton
+            to={`/cards?accountId=${selectedAccount.id}`}
+            transition="slideLeft"
+            applyTo="newView"
+            onClick={handleBackButtonClick}
+          />
+        ) : (
+          <ClosePageButton
+            to="/"
+            transition="slideLeft"
+            applyTo="newView"
+            onClick={handleBackButtonClick}
+          />
+        )}
+
         <PageHeaderTitle>Loyalty</PageHeaderTitle>
       </PageHeader>
 
