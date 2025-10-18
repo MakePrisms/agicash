@@ -22,18 +22,17 @@ const getCurrencyToConvertTo = (
   currency: Currency,
   otherCurrency: Currency,
 ) => {
-  if (currency !== otherCurrency) {
-    return otherCurrency;
-  }
-
+  // Only convert BTC to fiat, never fiat to BTC
   if (currency === 'BTC') {
+    // If otherCurrency is fiat (not BTC), use it
+    if (otherCurrency !== 'BTC') {
+      return otherCurrency;
+    }
+    // Otherwise use default fiat
     return defaultFiatCurrency;
   }
 
-  if (currency !== defaultFiatCurrency) {
-    return 'BTC';
-  }
-
+  // For fiat currencies, don't convert
   return currency;
 };
 
@@ -82,7 +81,7 @@ export function CurrencyCard({
               {convertedBalance && (
                 <div className="text-sm text-white/80">
                   {convertedBalance.toLocaleString({
-                    unit: getDefaultUnit(conversionCurrency),
+                    unit: 'usd',
                   })}
                 </div>
               )}
