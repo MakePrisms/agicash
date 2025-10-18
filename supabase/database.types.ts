@@ -909,6 +909,7 @@ export type Database = {
       }
       list_transactions: {
         Args: {
+          p_account_id?: string
           p_cursor_created_at?: string
           p_cursor_id?: string
           p_cursor_state_sort_order?: number

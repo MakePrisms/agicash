@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import { useLocation } from 'react-router';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
@@ -151,6 +152,7 @@ function TransactionRow({
   transaction: Transaction;
 }) {
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
+  const location = useLocation();
   const { setAckStatus, statuses: ackStatuses } =
     useTransactionAckStatusStore();
 
@@ -168,7 +170,7 @@ function TransactionRow({
 
   return (
     <LinkWithViewTransition
-      to={`/transactions/${transaction.id}`}
+      to={`/transactions/${transaction.id}?redirectTo=${location.pathname}`}
       transition="slideUp"
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
@@ -264,7 +266,7 @@ function usePartitionTransactions(transactions: Transaction[]) {
   };
 }
 
-export function TransactionList() {
+export function TransactionList({ accountId }: { accountId?: string }) {
   const { setIfMissing: setAckStatusIfMissing } =
     useTransactionAckStatusStore();
   const {
@@ -274,7 +276,7 @@ export function TransactionList() {
     hasNextPage,
     isFetchingNextPage,
     status,
-  } = useTransactions();
+  } = useTransactions({ accountId });
 
   const allTransactions = useMemo(
     () => data?.pages.flatMap((page) => page.transactions) ?? [],
