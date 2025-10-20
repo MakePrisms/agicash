@@ -250,9 +250,12 @@ export const accountsQueryOptions = ({
 export function useAccounts<T extends AccountType = AccountType>(select?: {
   currency?: Currency;
   type?: T;
+  isOnline?: boolean;
 }): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
+
+  const { currency, type, isOnline } = select ?? {};
 
   return useSuspenseQuery({
     ...accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -262,16 +265,19 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
       (data: Account[]) => {
         const extendedData = AccountService.getExtendedAccounts(user, data);
 
-        if (!select?.currency && !select?.type) {
+        if (!currency && !type && isOnline === undefined) {
           return extendedData as ExtendedAccount<T>[];
         }
 
         const filteredData = extendedData.filter(
           (account): account is ExtendedAccount<T> => {
-            if (select.currency && account.currency !== select.currency) {
+            if (currency && account.currency !== currency) {
               return false;
             }
-            if (select.type && account.type !== select.type) {
+            if (type && account.type !== type) {
+              return false;
+            }
+            if (isOnline !== undefined && account.isOnline !== isOnline) {
               return false;
             }
             return true;
@@ -280,7 +286,7 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
 
         return filteredData;
       },
-      [select?.currency, select?.type, user],
+      [currency, type, isOnline, user],
     ),
   });
 }
@@ -413,4 +419,21 @@ export function useBalance(currency: Currency) {
     new Money({ amount: 0, currency }),
   );
   return balance;
+}
+
+/**
+ * Hook that returns a selector function to filter out items with offline accounts.
+ */
+export function useSelectItemsWithOnlineAccount() {
+  const accountsCache = useAccountsCache();
+
+  return useCallback(
+    <T extends { accountId: string }>(items: T[]): T[] => {
+      return items.filter((item) => {
+        const account = accountsCache.get(item.accountId);
+        return account?.isOnline;
+      });
+    },
+    [accountsCache],
+  );
 }
