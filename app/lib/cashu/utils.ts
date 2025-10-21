@@ -9,6 +9,7 @@ import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
+import { ExtendedMintInfo } from './extended-mint-info';
 import { sumProofs } from './proof';
 import type { CashuProtocolUnit } from './types';
 
@@ -83,13 +84,17 @@ export const getWalletCurrency = (wallet: CashuWallet) => {
  */
 export class ExtendedCashuWallet extends CashuWallet {
   private _bip39Seed: Uint8Array | undefined;
+  private _extendedMintInfo: ExtendedMintInfo | undefined;
 
   constructor(
     mint: CashuMint,
-    options: ConstructorParameters<typeof CashuWallet>[1],
+    options?: ConstructorParameters<typeof CashuWallet>[1] & {
+      mintInfo?: ExtendedMintInfo;
+    },
   ) {
     super(mint, options);
     this._bip39Seed = options?.bip39seed;
+    this._extendedMintInfo = options?.mintInfo;
   }
 
   get seed() {
@@ -156,6 +161,15 @@ export class ExtendedCashuWallet extends CashuWallet {
     return fee;
   }
 
+  async getExtendedMintInfo() {
+    if (this._extendedMintInfo) {
+      return this._extendedMintInfo;
+    }
+    const info = new ExtendedMintInfo(await this.mint.getInfo());
+    this._extendedMintInfo = info;
+    return info;
+  }
+
   private getMinNumberOfProofsForAmount(keys: Keys, amount: Big) {
     const availableDenominations = Object.keys(keys).map((x) => new Big(x));
     const biggestDenomination = availableDenominations.reduce(
@@ -205,6 +219,7 @@ export const getCashuWallet = (
     'unit'
   > & {
     unit?: CurrencyUnit;
+    mintInfo?: ExtendedMintInfo;
   } = {},
 ) => {
   const { unit, ...rest } = options;
