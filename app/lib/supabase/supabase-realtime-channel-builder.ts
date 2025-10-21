@@ -24,7 +24,20 @@ type ListenerCallback =
   | ((payload: {
       type: `${REALTIME_LISTEN_TYPES.BROADCAST}`;
       event: string;
+      meta?: {
+        replayed?: boolean;
+        id: string;
+      };
       [key: string]: unknown;
+    }) => void)
+  | ((payload: {
+      type: `${REALTIME_LISTEN_TYPES.BROADCAST}`;
+      event: string;
+      meta?: {
+        replayed?: boolean;
+        id: string;
+      };
+      payload: Record<string, unknown>;
     }) => void)
   | ((payload: unknown) => void);
 
@@ -42,6 +55,7 @@ export class RealtimeChannelBuilder {
   constructor(
     public readonly manager: SupabaseRealtimeManager,
     private readonly topicName: string,
+    private readonly config?: { private?: boolean },
   ) {}
 
   // RealtimeClient adds the "realtime:" prefix to the topic name in channel method so we have to add it here too.
@@ -55,32 +69,32 @@ export class RealtimeChannelBuilder {
     filter: { event: `${REALTIME_PRESENCE_LISTEN_EVENTS.SYNC}` },
     callback: () => void,
   ): this;
-  on<T extends Record<string, unknown>>(
+  on<T extends { [key: string]: unknown }>(
     type: `${REALTIME_LISTEN_TYPES.PRESENCE}`,
     filter: { event: `${REALTIME_PRESENCE_LISTEN_EVENTS.JOIN}` },
     callback: (payload: RealtimePresenceJoinPayload<T>) => void,
   ): this;
-  on<T extends Record<string, unknown>>(
+  on<T extends { [key: string]: unknown }>(
     type: `${REALTIME_LISTEN_TYPES.PRESENCE}`,
     filter: { event: `${REALTIME_PRESENCE_LISTEN_EVENTS.LEAVE}` },
     callback: (payload: RealtimePresenceLeavePayload<T>) => void,
   ): this;
-  on<T extends Record<string, unknown>>(
+  on<T extends { [key: string]: unknown }>(
     type: `${REALTIME_LISTEN_TYPES.POSTGRES_CHANGES}`,
     filter: RealtimePostgresChangesFilter<`${REALTIME_POSTGRES_CHANGES_LISTEN_EVENT.ALL}`>,
     callback: (payload: RealtimePostgresChangesPayload<T>) => void,
   ): this;
-  on<T extends Record<string, unknown>>(
+  on<T extends { [key: string]: unknown }>(
     type: `${REALTIME_LISTEN_TYPES.POSTGRES_CHANGES}`,
     filter: RealtimePostgresChangesFilter<`${REALTIME_POSTGRES_CHANGES_LISTEN_EVENT.INSERT}`>,
     callback: (payload: RealtimePostgresInsertPayload<T>) => void,
   ): this;
-  on<T extends Record<string, unknown>>(
+  on<T extends { [key: string]: unknown }>(
     type: `${REALTIME_LISTEN_TYPES.POSTGRES_CHANGES}`,
     filter: RealtimePostgresChangesFilter<`${REALTIME_POSTGRES_CHANGES_LISTEN_EVENT.UPDATE}`>,
     callback: (payload: RealtimePostgresUpdatePayload<T>) => void,
   ): this;
-  on<T extends Record<string, unknown>>(
+  on<T extends { [key: string]: unknown }>(
     type: `${REALTIME_LISTEN_TYPES.POSTGRES_CHANGES}`,
     filter: RealtimePostgresChangesFilter<`${REALTIME_POSTGRES_CHANGES_LISTEN_EVENT.DELETE}`>,
     callback: (payload: RealtimePostgresDeletePayload<T>) => void,
@@ -91,17 +105,36 @@ export class RealtimeChannelBuilder {
     callback: (payload: {
       type: `${REALTIME_LISTEN_TYPES.BROADCAST}`;
       event: string;
+      meta?: {
+        replayed?: boolean;
+        id: string;
+      };
       [key: string]: unknown;
     }) => void,
   ): this;
-  on(
+  on<T extends { [key: string]: unknown }>(
+    type: `${REALTIME_LISTEN_TYPES.BROADCAST}`,
+    filter: { event: string },
+    callback: (payload: {
+      type: `${REALTIME_LISTEN_TYPES.BROADCAST}`;
+      event: string;
+      meta?: {
+        replayed?: boolean;
+        id: string;
+      };
+      payload: T;
+    }) => void,
+  ): this;
+  // biome-ignore lint/correctness/noUnusedVariables: this was copied from @supabase/realtime-js
+  on<T extends { [key: string]: unknown }>(
     type: `${REALTIME_LISTEN_TYPES.SYSTEM}`,
-    filter: Record<string, never>,
+    // biome-ignore lint/complexity/noBannedTypes: this was copied from @supabase/realtime-js
+    filter: {},
     callback: (payload: unknown) => void,
   ): this;
   on(
     type: `${REALTIME_LISTEN_TYPES}`,
-    filter: Record<string, unknown> | { event: string },
+    filter: { event: string; [key: string]: string },
     callback: ListenerCallback,
   ): this {
     this.listeners.push({ type, filter, callback });
@@ -112,7 +145,10 @@ export class RealtimeChannelBuilder {
    * Creates the RealtimeChannel with all configured listeners
    */
   public build(): RealtimeChannel {
-    const channel = this.manager.realtimeClient.channel(this.topicName);
+    const channel = this.manager.realtimeClient.channel(
+      this.topicName,
+      this.config?.private ? { config: { private: true } } : undefined,
+    );
 
     for (const { type, filter, callback } of this.listeners) {
       // biome-ignore lint/suspicious/noExplicitAny: we know the types are correct because of the overloads of on method defined above

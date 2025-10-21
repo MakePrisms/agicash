@@ -1,4 +1,3 @@
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type QueryClient,
   useMutation,
@@ -6,18 +5,15 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import useLocationData from '~/hooks/use-location';
-import { useLatest } from '~/lib/use-latest';
 import type { AgicashDbContact } from '../agicash-db/database';
-import { agicashDb } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import type { Contact } from './contact';
 import { ContactRepository, useContactRepository } from './contact-repository';
-
-const contactsQueryKey = 'contacts';
-
 export class ContactsCache {
+  public static Key = 'contacts';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   /**
@@ -25,7 +21,7 @@ export class ContactsCache {
    * @param contact - The contact to add.
    */
   add(contact: Contact) {
-    this.queryClient.setQueryData<Contact[]>([contactsQueryKey], (curr) => [
+    this.queryClient.setQueryData<Contact[]>([ContactsCache.Key], (curr) => [
       ...(curr ?? []),
       contact,
     ]);
@@ -36,7 +32,7 @@ export class ContactsCache {
    * @returns The list of contacts.
    */
   getAll() {
-    return this.queryClient.getQueryData<Contact[]>([contactsQueryKey]);
+    return this.queryClient.getQueryData<Contact[]>([ContactsCache.Key]);
   }
 
   /**
@@ -55,9 +51,18 @@ export class ContactsCache {
    */
   remove(contactId: string) {
     this.queryClient.setQueryData<Contact[]>(
-      [contactsQueryKey],
+      [ContactsCache.Key],
       (curr) => curr?.filter((x) => x.id !== contactId) ?? [],
     );
+  }
+
+  /**
+   * Invalidates the contacts cache.
+   */
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [ContactsCache.Key],
+    });
   }
 }
 
@@ -72,20 +77,14 @@ export function useContactsCache() {
 export function useContacts(select?: (contacts: Contact[]) => Contact[]) {
   const userId = useUser((user) => user.id);
   const contactRepository = useContactRepository();
-  const contactsCache = useContactsCache();
 
   const { data: contacts } = useSuspenseQuery({
-    queryKey: [contactsQueryKey],
+    queryKey: [ContactsCache.Key],
     queryFn: async () => contactRepository.getAll(userId),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select,
-  });
-
-  useOnContactsChange({
-    onCreated: (contact) => contactsCache.add(contact),
-    onDeleted: (contactId) => contactsCache.remove(contactId),
   });
 
   return contacts;
@@ -144,41 +143,21 @@ export function useFindContactCandidates(query: string) {
   });
 }
 
-function useOnContactsChange({
-  onCreated,
-  onDeleted,
-}: {
-  onCreated: (contact: Contact) => void;
-  onDeleted: (contactId: string) => void;
-}) {
-  const onCreatedRef = useLatest(onCreated);
-  const onDeletedRef = useLatest(onDeleted);
+/**
+ * Hook that returns a contact change handler.
+ */
+export function useContactChangeHandler() {
+  const contactsCache = useContactsCache();
   const { domain } = useLocationData();
 
-  useEffect(() => {
-    const channel = agicashDb
-      .channel('contacts')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'wallet',
-          table: 'contacts',
-        },
-        (payload: RealtimePostgresChangesPayload<AgicashDbContact>) => {
-          if (payload.eventType === 'INSERT') {
-            const newContact = ContactRepository.toContact(payload.new, domain);
-            onCreatedRef.current(newContact);
-          } else if (payload.eventType === 'DELETE') {
-            if (!payload.old.id) return;
-            onDeletedRef.current(payload.old.id);
-          }
-        },
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [domain]);
+  return {
+    table: 'contacts',
+    onInsert: async (payload: AgicashDbContact) => {
+      const contact = ContactRepository.toContact(payload, domain);
+      contactsCache.add(contact);
+    },
+    onDelete: async (payload: AgicashDbContact) => {
+      contactsCache.remove(payload.id);
+    },
+  };
 }

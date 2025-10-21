@@ -2,7 +2,7 @@ import type { RealtimeChannel } from '@supabase/realtime-js';
 import type { SupabaseRealtimeManager } from './supabase-realtime-manager';
 
 /**
- * A wrapper around Supabase RealtimeChannel subcribes and unsubscribes from the channel through the realtime manager.
+ * A wrapper around Supabase RealtimeChannel subscribes and unsubscribes from the channel through the realtime manager.
  */
 export class SupabaseRealtimeChannel {
   constructor(
@@ -21,6 +21,7 @@ export class SupabaseRealtimeChannel {
    * Subscribes to the channel through the manager.
    * @param onConnected A callback that is called when the channel is initially connected or reconnected.
    * @returns A promise that resolves when the channel is subscribed or the subscription fails.
+   * @throws If the channel is not found in the manager.
    */
   public async subscribe(onConnected?: () => void): Promise<void> {
     await this.channelManager.subscribe(this.topic, onConnected);
@@ -28,9 +29,10 @@ export class SupabaseRealtimeChannel {
 
   /**
    * Unsubscribes from the channel and removes it from the manager.
+   * @param onConnected The onConnected callback to remove when unsubscribing.
    * @returns A promise that resolves when the channel is unsubscribed.
    */
-  public async unsubscribe(): Promise<void> {
-    await this.channelManager.removeChannel(this.topic);
+  public async unsubscribe(onConnected?: () => void): Promise<void> {
+    await this.channelManager.removeChannel(this.topic, { onConnected });
   }
 }

@@ -5,10 +5,6 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequestHandler } from '@react-router/express';
 import express from 'express';
-import {
-  createSupabaseHttpProxy,
-  setupSupabaseWebSocketProxy,
-} from './supabase-proxy';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,10 +46,6 @@ app.use(
     : express.static('build/client'),
 );
 
-if (setupHttps) {
-  app.use('/supabase/*', createSupabaseHttpProxy());
-}
-
 app.all('*', createRequestHandler({ build }));
 
 if (setupHttps) {
@@ -78,8 +70,6 @@ if (setupHttps) {
       console.log(`Also available at https://${localIP}:3000`);
     }
   });
-
-  setupSupabaseWebSocketProxy(httpsApp);
 } else {
   if (useHttps && !certificateExists) {
     console.warn('HTTPS certificates not found. Falling back to HTTP.');

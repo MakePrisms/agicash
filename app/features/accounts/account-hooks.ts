@@ -1,4 +1,3 @@
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
@@ -9,9 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
-import { useSupabaseRealtime } from '~/lib/supabase';
-import { useLatest } from '~/lib/use-latest';
-import { type AgicashDbAccount, agicashRealtime } from '../agicash-db/database';
+import type { AgicashDbAccount } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
@@ -26,14 +23,13 @@ import {
 } from './account-repository';
 import { AccountService, useAccountService } from './account-service';
 
-export const accountsQueryKey = 'accounts';
-const accountVersionsQueryKey = 'account-versions';
-
 /**
  * Cache that stores the latest known version of each account.
  * This is used when we have the information about the latest version of the account before we have the full account data.
  */
 class AccountVersionsCache {
+  public static Key = 'account-versions';
+
   constructor(
     private readonly queryClient: QueryClient,
     private readonly accountsCache: AccountsCache,
@@ -46,7 +42,7 @@ class AccountVersionsCache {
    */
   getLatestVersion(accountId: string) {
     const version = this.queryClient.getQueryData<number>([
-      accountVersionsQueryKey,
+      AccountVersionsCache.Key,
       accountId,
     ]);
 
@@ -71,7 +67,7 @@ class AccountVersionsCache {
     const latestVersion = this.getLatestVersion(accountId);
     if (latestVersion < version) {
       this.queryClient.setQueryData<number>(
-        [accountVersionsQueryKey, accountId],
+        [AccountVersionsCache.Key, accountId],
         version,
       );
     }
@@ -79,6 +75,7 @@ class AccountVersionsCache {
 }
 
 export class AccountsCache {
+  public static Key = 'accounts';
   private readonly accountVersionsCache;
 
   constructor(private readonly queryClient: QueryClient) {
@@ -91,7 +88,7 @@ export class AccountsCache {
       account.version,
     );
 
-    this.queryClient.setQueryData([accountsQueryKey], (curr: Account[]) => {
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) => {
       const existingAccountIndex = curr.findIndex((x) => x.id === account.id);
       if (existingAccountIndex !== -1) {
         return curr.map((x) => (x.id === account.id ? account : x));
@@ -106,7 +103,7 @@ export class AccountsCache {
       account.version,
     );
 
-    this.queryClient.setQueryData([accountsQueryKey], (curr: Account[]) =>
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
       curr.map((x) => (x.id === account.id ? account : x)),
     );
   }
@@ -117,7 +114,7 @@ export class AccountsCache {
    * @returns The list of accounts.
    */
   getAll() {
-    return this.queryClient.getQueryData<Account[]>([accountsQueryKey]);
+    return this.queryClient.getQueryData<Account[]>([AccountsCache.Key]);
   }
 
   /**
@@ -186,10 +183,19 @@ export class AccountsCache {
     return cache.subscribe((event) => {
       if (
         event.query.queryKey.length === 1 &&
-        event.query.queryKey[0] === accountsQueryKey
+        event.query.queryKey[0] === AccountsCache.Key
       ) {
         callback(event.query.state.data);
       }
+    });
+  }
+
+  /**
+   * Invalidates the accounts cache.
+   */
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [AccountsCache.Key],
     });
   }
 }
@@ -205,62 +211,29 @@ export function useAccountsCache() {
   return useMemo(() => new AccountsCache(queryClient), [queryClient]);
 }
 
-function useOnAccountChange({
-  onCreated,
-  onUpdated,
-}: {
-  onCreated: (account: Account) => void;
-  onUpdated: (account: Account) => void;
-}) {
+/**
+ * Hook that returns an account change handler.
+ */
+export function useAccountChangeHandler() {
   const accountRepository = useAccountRepository();
   const accountCache = useAccountsCache();
-  const queryClient = useQueryClient();
 
-  const changeHandlerRef = useLatest(
-    async (payload: RealtimePostgresChangesPayload<AgicashDbAccount>) => {
-      if (payload.eventType === 'INSERT') {
-        const addedAccount = await accountRepository.toAccount(payload.new);
-        onCreated(addedAccount);
-      } else if (payload.eventType === 'UPDATE') {
-        // We are updating the latest known version of the account here so anyone who needs the latest version (who uses account cache `getLatest`)
-        // can know as soon as possible and thus can wait for the account data to be decrypted and updated in the cache instead of processing the old version.
-        accountCache.setLatestVersion(payload.new.id, payload.new.version);
-
-        const updatedAccount = await accountRepository.toAccount(payload.new);
-
-        onUpdated(updatedAccount);
-      }
+  return {
+    table: 'accounts',
+    onInsert: async (payload: AgicashDbAccount) => {
+      const addedAccount = await accountRepository.toAccount(payload);
+      accountCache.upsert(addedAccount);
     },
-  );
+    onUpdate: async (payload: AgicashDbAccount) => {
+      // We are updating the latest known version of the account here so anyone who needs the latest version (who uses account cache `getLatest`)
+      // can know as soon as possible and thus can wait for the account data to be decrypted and updated in the cache instead of processing the old version.
+      accountCache.setLatestVersion(payload.id, payload.version);
 
-  return useSupabaseRealtime({
-    channel: agicashRealtime.channel('accounts').on<AgicashDbAccount>(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'wallet',
-        table: 'accounts',
-      },
-      (payload) => changeHandlerRef.current(payload),
-    ),
-    onConnected: () => {
-      // Invalidate the accounts query so that the accounts are re-fetched and the cache is updated.
-      // This is needed to get any data that might have been updated while the re-connection was in progress.
-      queryClient.invalidateQueries({ queryKey: [accountsQueryKey] });
+      const updatedAccount = await accountRepository.toAccount(payload);
+
+      accountCache.update(updatedAccount);
     },
-  });
-}
-
-export function useTrackAccounts() {
-  // Makes sure the accounts are loaded in the cache.
-  useAccounts();
-
-  const accountCache = useAccountsCache();
-
-  return useOnAccountChange({
-    onCreated: (account) => accountCache.upsert(account),
-    onUpdated: (account) => accountCache.update(account),
-  });
+  };
 }
 
 export const accountsQueryOptions = ({
@@ -268,7 +241,7 @@ export const accountsQueryOptions = ({
   accountRepository,
 }: { userId: string; accountRepository: AccountRepository }) => {
   return queryOptions({
-    queryKey: [accountsQueryKey],
+    queryKey: [AccountsCache.Key],
     queryFn: () => accountRepository.getAll(userId),
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -277,9 +250,12 @@ export const accountsQueryOptions = ({
 export function useAccounts<T extends AccountType = AccountType>(select?: {
   currency?: Currency;
   type?: T;
+  isOnline?: boolean;
 }): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
+
+  const { currency, type, isOnline } = select ?? {};
 
   return useSuspenseQuery({
     ...accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -289,16 +265,19 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
       (data: Account[]) => {
         const extendedData = AccountService.getExtendedAccounts(user, data);
 
-        if (!select?.currency && !select?.type) {
+        if (!currency && !type && isOnline === undefined) {
           return extendedData as ExtendedAccount<T>[];
         }
 
         const filteredData = extendedData.filter(
           (account): account is ExtendedAccount<T> => {
-            if (select.currency && account.currency !== select.currency) {
+            if (currency && account.currency !== currency) {
               return false;
             }
-            if (select.type && account.type !== select.type) {
+            if (type && account.type !== type) {
+              return false;
+            }
+            if (isOnline !== undefined && account.isOnline !== isOnline) {
               return false;
             }
             return true;
@@ -307,7 +286,7 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
 
         return filteredData;
       },
-      [select?.currency, select?.type, user],
+      [currency, type, isOnline, user],
     ),
   });
 }
@@ -440,4 +419,21 @@ export function useBalance(currency: Currency) {
     new Money({ amount: 0, currency }),
   );
   return balance;
+}
+
+/**
+ * Hook that returns a selector function to filter out items with offline accounts.
+ */
+export function useSelectItemsWithOnlineAccount() {
+  const accountsCache = useAccountsCache();
+
+  return useCallback(
+    <T extends { accountId: string }>(items: T[]): T[] => {
+      return items.filter((item) => {
+        const account = accountsCache.get(item.accountId);
+        return account?.isOnline;
+      });
+    },
+    [accountsCache],
+  );
 }

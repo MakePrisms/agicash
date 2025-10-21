@@ -318,10 +318,27 @@ export class CashuSendQuoteService {
 
     const wallet = account.wallet;
 
-    return wallet.meltProofs(meltQuote, sendQuote.proofs, {
-      keysetId: sendQuote.keysetId,
-      counter: sendQuote.keysetCounter,
-    });
+    return wallet
+      .meltProofs(meltQuote, sendQuote.proofs, {
+        keysetId: sendQuote.keysetId,
+        counter: sendQuote.keysetCounter,
+      })
+      .catch(async (error) => {
+        // Initiate send should be idempotent: if meltProofs was already called once and did not fail,
+        // then the melt quote will be pending or paid.
+        const latestMeltQuote = await wallet.checkMeltQuote(sendQuote.quoteId);
+        if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
+          console.warn(
+            'Initiate send was called but melt quote is not unpaid',
+            {
+              sendQuote,
+              latestMeltQuote,
+            },
+          );
+          return latestMeltQuote;
+        }
+        throw error;
+      });
   }
 
   /**
@@ -426,6 +443,15 @@ export class CashuSendQuoteService {
 
     if (account.id !== quote.accountId) {
       throw new Error('Account does not match the quote account');
+    }
+
+    const latestMeltQuote = await account.wallet.checkMeltQuote(quote.quoteId);
+    if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
+      // Pending and paid melt quotes should not be failed because that means the send is in progress or has already been completed.
+      // If the mint fails to pay the melt quote, then the melt quote state will be changed to UNPAID again.
+      throw new Error(
+        `Cannot fail melt quote that is not unpaid. Current state for send quote ${quote.id}: ${latestMeltQuote.state}`,
+      );
     }
 
     const updatedAccountProofs = account.proofs.concat(quote.proofs);

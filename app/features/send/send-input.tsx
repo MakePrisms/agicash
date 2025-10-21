@@ -28,7 +28,11 @@ import { DrawerTrigger } from '~/components/ui/drawer';
 import { Drawer } from '~/components/ui/drawer';
 import { Skeleton } from '~/components/ui/skeleton';
 import { useAccounts } from '~/features/accounts/account-hooks';
-import { AccountSelector } from '~/features/accounts/account-selector';
+import {
+  AccountSelector,
+  toAccountSelectorOption,
+} from '~/features/accounts/account-selector';
+import { accountOfflineToast } from '~/features/accounts/utils';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useToast } from '~/hooks/use-toast';
@@ -41,7 +45,6 @@ import {
 } from '~/lib/transitions';
 import { AddContactDrawer, ContactsList } from '../contacts';
 import type { Contact } from '../contacts/contact';
-import { useContacts } from '../contacts/contact-hooks';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
@@ -70,9 +73,10 @@ const ConvertedMoneySwitcher = ({
       <MoneyDisplay
         money={money}
         unit={getDefaultUnit(money.currency)}
-        variant="secondary"
+        size="sm"
+        variant="muted"
       />
-      <ArrowUpDown className="mb-1" />
+      <ArrowUpDown className="mb-1 text-muted-foreground" />
     </button>
   );
 };
@@ -117,12 +121,8 @@ export function SendInput() {
     inputValue: Money,
     convertedValue: Money | undefined,
   ) => {
-    if (sendAccount.type !== 'cashu') {
-      toast({
-        title: 'Not implemented',
-        description: 'Only sends from the cashu accounts are supported',
-        variant: 'destructive',
-      });
+    if (!sendAccount.isOnline) {
+      toast(accountOfflineToast);
       return;
     }
 
@@ -234,8 +234,10 @@ export function SendInput() {
 
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
-            accounts={accounts}
-            selectedAccount={sendAccount}
+            accounts={accounts.map((account) =>
+              toAccountSelectorOption(account),
+            )}
+            selectedAccount={toAccountSelectorOption(sendAccount)}
             onSelect={(account) => {
               selectSourceAccount(account);
               if (account.currency !== inputValue.currency) {
@@ -303,12 +305,6 @@ function SelectContactOrLud16Drawer({
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<'idle' | 'selecting'>('idle');
 
-  const contacts = useContacts((contacts) =>
-    contacts.filter((contact) =>
-      contact.username.toLowerCase().includes(input.toLowerCase()),
-    ),
-  );
-
   const handleSelect = async (selection: string | Contact) => {
     setStatus('selecting');
 
@@ -358,7 +354,7 @@ function SelectContactOrLud16Drawer({
               <p>Send to Lightning Address: {input}</p>
             </button>
           )}
-          <ContactsList contacts={contacts} onSelect={handleSelect} />
+          <ContactsList onSelect={handleSelect} searchQuery={input} />
         </div>
       </DrawerContent>
     </Drawer>
