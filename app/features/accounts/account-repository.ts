@@ -186,53 +186,45 @@ export class AccountRepository {
   private async getPreloadedWallet(mintUrl: string, currency: Currency) {
     const seed = await this.getCashuWalletSeed?.();
 
-    try {
-      const [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.all([
-        this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
-        this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
-        this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
-      ]);
+    // TODO: handle fetching errors. If the mint is unreachable these will throw,
+    // and the error will bubble up to the user and brick the app.
+    const [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.all([
+      this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
+      this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
+      this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
+    ]);
 
-      const unitKeysets = allMintKeysets.keysets.filter(
-        (ks) => ks.unit === getCashuProtocolUnit(currency),
-      );
-      const activeKeyset = unitKeysets.find((ks) => ks.active);
+    const unitKeysets = allMintKeysets.keysets.filter(
+      (ks) => ks.unit === getCashuProtocolUnit(currency),
+    );
+    const activeKeyset = unitKeysets.find((ks) => ks.active);
 
-      if (!activeKeyset) {
-        throw new Error(`No active keyset found for ${currency} on ${mintUrl}`);
-      }
-
-      const activeKeysForUnit = mintActiveKeys.keysets.find(
-        (ks) => ks.id === activeKeyset.id,
-      );
-
-      if (!activeKeysForUnit) {
-        throw new Error(
-          `Got active keyset ${activeKeyset.id} from ${mintUrl} but could not find keys for it`,
-        );
-      }
-
-      const wallet = getCashuWallet(mintUrl, {
-        unit: getCashuUnit(currency),
-        bip39seed: seed ?? undefined,
-        mintInfo,
-        keys: activeKeysForUnit,
-        keysets: unitKeysets,
-      });
-
-      // The constructor does not set the keysetId, so we need to set it manually
-      wallet.keysetId = activeKeyset.id;
-
-      return wallet;
-    } catch {
-      // TODO: This is a quick fix to prevent the app from bricking when a mint is unreachable
-      // We should disable the account completley in this case because if the mint is offline,
-      // the account won't be usable.
-      return getCashuWallet(mintUrl, {
-        unit: getCashuUnit(currency),
-        bip39seed: seed ?? undefined,
-      });
+    if (!activeKeyset) {
+      throw new Error(`No active keyset found for ${currency} on ${mintUrl}`);
     }
+
+    const activeKeysForUnit = mintActiveKeys.keysets.find(
+      (ks) => ks.id === activeKeyset.id,
+    );
+
+    if (!activeKeysForUnit) {
+      throw new Error(
+        `Got active keyset ${activeKeyset.id} from ${mintUrl} but could not find keys for it`,
+      );
+    }
+
+    const wallet = getCashuWallet(mintUrl, {
+      unit: getCashuUnit(currency),
+      bip39seed: seed ?? undefined,
+      mintInfo,
+      keys: activeKeysForUnit,
+      keysets: unitKeysets,
+    });
+
+    // The constructor does not set the keysetId, so we need to set it manually
+    wallet.keysetId = activeKeyset.id;
+
+    return wallet;
   }
 }
 
