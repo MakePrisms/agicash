@@ -143,6 +143,17 @@ export const cashuMintValidator = buildMintValidator({
   requiredWebSocketCommands: ['bolt11_melt_quote', 'proof_state'] as const,
 });
 
+export const mintInfoQueryKey = (mintUrl: string) => ['mint-info', mintUrl];
+export const allMintKeysetsQueryKey = (mintUrl: string) => [
+  'all-mint-keysets',
+  mintUrl,
+];
+export const mintKeysQueryKey = (mintUrl: string, keysetId?: string) => [
+  'mint-keys',
+  mintUrl,
+  keysetId,
+];
+
 /**
  * Get the mint info.
  *
@@ -151,7 +162,7 @@ export const cashuMintValidator = buildMintValidator({
  */
 export const mintInfoQueryOptions = (mintUrl: string) =>
   queryOptions({
-    queryKey: ['mint-info', mintUrl],
+    queryKey: mintInfoQueryKey(mintUrl),
     queryFn: async () => getCashuWallet(mintUrl).getMintInfo(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
@@ -164,7 +175,7 @@ export const mintInfoQueryOptions = (mintUrl: string) =>
  */
 export const allMintKeysetsQueryOptions = (mintUrl: string) =>
   queryOptions({
-    queryKey: ['all-mint-keysets', mintUrl],
+    queryKey: allMintKeysetsQueryKey(mintUrl),
     queryFn: async () => CashuMint.getKeySets(mintUrl),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
@@ -179,7 +190,7 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
  */
 export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
   queryOptions({
-    queryKey: ['mint-keys', mintUrl, keysetId],
+    queryKey: mintKeysQueryKey(mintUrl, keysetId),
     queryFn: async () => CashuMint.getKeys(mintUrl, keysetId),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
