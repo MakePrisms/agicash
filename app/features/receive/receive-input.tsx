@@ -11,7 +11,11 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Skeleton } from '~/components/ui/skeleton';
-import { AccountSelector } from '~/features/accounts/account-selector';
+import {
+  AccountSelector,
+  toAccountSelectorOption,
+} from '~/features/accounts/account-selector';
+import { accountOfflineToast } from '~/features/accounts/utils';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
@@ -85,6 +89,11 @@ export default function ReceiveInput() {
   });
 
   const handleContinue = async () => {
+    if (!receiveAccount.isOnline) {
+      toast(accountOfflineToast);
+      return;
+    }
+
     if (inputValue.currency === receiveAccount.currency) {
       setReceiveAmount(inputValue);
     } else {
@@ -167,8 +176,10 @@ export default function ReceiveInput() {
 
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
-            accounts={accounts}
-            selectedAccount={receiveAccount}
+            accounts={accounts.map((account) =>
+              toAccountSelectorOption(account),
+            )}
+            selectedAccount={toAccountSelectorOption(receiveAccount)}
             onSelect={(account) => {
               setReceiveAccount(account);
               if (account.currency !== inputValue.currency) {

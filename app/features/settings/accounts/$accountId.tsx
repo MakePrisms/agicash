@@ -51,8 +51,10 @@ function CashuAccount({ account }: { account: ExtendedCashuAccount }) {
         </div>
 
         <div className="w-full space-y-8 sm:max-w-sm">
-          <div className="h-[24px]">
+          <div className="flex h-[24px] gap-2">
             {account.isDefault && <Badge>Default</Badge>}
+
+            {!account.isOnline && <Badge>Offline</Badge>}
           </div>
           {[
             { label: 'Type', value: account.type },

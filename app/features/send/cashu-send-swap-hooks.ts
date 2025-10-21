@@ -13,6 +13,7 @@ import {
   useAccount,
   useAccountsCache,
   useGetLatestCashuAccount,
+  useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuSendSwap } from '../agicash-db/database';
 import { useEncryption } from '../shared/encryption';
@@ -169,6 +170,7 @@ export function useCreateCashuSendSwap({
 export function useUnresolvedCashuSendSwaps() {
   const cashuSendSwapRepository = useCashuSendSwapRepository();
   const userId = useUser((user) => user.id);
+  const selectSendSwapsWithOnlineAccount = useSelectItemsWithOnlineAccount();
 
   const { data = [] } = useQuery({
     queryKey: [UnresolvedCashuSendSwapsCache.Key],
@@ -176,6 +178,7 @@ export function useUnresolvedCashuSendSwaps() {
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
+    select: selectSendSwapsWithOnlineAccount,
   });
 
   return useMemo(() => {

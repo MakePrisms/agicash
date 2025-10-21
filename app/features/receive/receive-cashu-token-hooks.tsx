@@ -1,4 +1,4 @@
-import type { Token } from '@cashu/cashu-ts';
+import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type {
@@ -17,7 +17,10 @@ import {
   getClaimableProofs,
   getUnspentProofsFromToken,
 } from '~/lib/cashu';
-import type { AccountWithBadges } from '../accounts/account-selector';
+import {
+  type AccountSelectorOption,
+  toAccountSelectorOption,
+} from '../accounts/account-selector';
 import { useUser } from '../user/user-hooks';
 import type { CashuAccountWithTokenFlags } from './receive-cashu-token-models';
 import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
@@ -25,8 +28,6 @@ import {
   ReceiveCashuTokenService,
   useReceiveCashuTokenService,
 } from './receive-cashu-token-service';
-
-type CashuAccountWithBadges = AccountWithBadges<CashuAccountWithTokenFlags>;
 
 type UseGetClaimableTokenProps = {
   token: Token;
@@ -103,7 +104,22 @@ export function useCashuTokenWithClaimableProofs({
   const { data: tokenData } = useSuspenseQuery({
     queryKey: ['token-state', token],
     queryFn: async (): Promise<TokenQueryResult> => {
-      const unspentProofs = await getUnspentProofsFromToken(token);
+      let unspentProofs: Proof[];
+      try {
+        unspentProofs = await getUnspentProofsFromToken(token);
+      } catch (error) {
+        if (error instanceof NetworkError) {
+          return {
+            claimableToken: null,
+            cannotClaimReason: 'The mint that issued this ecash is offline',
+          };
+        }
+        return {
+          claimableToken: null,
+          cannotClaimReason: 'An error occurred while checking the token',
+        };
+      }
+
       if (unspentProofs.length === 0) {
         return {
           claimableToken: null,
@@ -140,7 +156,10 @@ const getBadges = (account: CashuAccountWithTokenFlags): string[] => {
   if (account.isSource) {
     badges.push('Source');
   }
-  if (!account.isSelectable) {
+  if (!account.isOnline) {
+    badges.push('Offline');
+  }
+  if (!account.canReceive) {
     badges.push('Invalid');
   }
   if (account.isDefault) {
@@ -150,12 +169,13 @@ const getBadges = (account: CashuAccountWithTokenFlags): string[] => {
   return badges;
 };
 
-const toAccountWithBadges = (
+const toOption = (
   account: CashuAccountWithTokenFlags,
-): CashuAccountWithBadges => ({
-  ...account,
-  badges: getBadges(account),
-});
+): AccountSelectorOption<CashuAccountWithTokenFlags> =>
+  toAccountSelectorOption(account, {
+    badges: getBadges(account),
+    isSelectable: account.isOnline && account.canReceive,
+  });
 
 /**
  * Lets the user select an account to receive the token and returns data about the
@@ -188,7 +208,9 @@ export function useReceiveCashuTokenAccounts(
       (account) => account.id === receiveAccountId,
     ) ?? null;
 
-  const setReceiveAccount = (account: CashuAccountWithBadges) => {
+  const setReceiveAccount = (
+    account: AccountSelectorOption<CashuAccountWithTokenFlags>,
+  ) => {
     setReceiveAccountId(account.id);
   };
 
@@ -201,10 +223,10 @@ export function useReceiveCashuTokenAccounts(
   };
 
   return {
-    selectableAccounts: possibleDestinationAccounts.map(toAccountWithBadges),
-    receiveAccount: receiveAccount ? toAccountWithBadges(receiveAccount) : null,
+    selectableAccounts: possibleDestinationAccounts.map(toOption),
+    receiveAccount: receiveAccount ? toOption(receiveAccount) : null,
     isCrossMintSwapDisabled: sourceAccount.isTestMint,
-    sourceAccount: toAccountWithBadges(sourceAccount),
+    sourceAccount: sourceAccount,
     setReceiveAccount,
     addAndSetReceiveAccount,
   };

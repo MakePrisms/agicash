@@ -34,9 +34,10 @@ function CurrencyAccounts({ currency }: { currency: Currency }) {
                 variant="inline"
               />
             </div>
-            {account.isDefault && (
-              <div className="mt-1">
-                <Badge>Default</Badge>
+            {(account.isDefault || !account.isOnline) && (
+              <div className="mt-1 flex gap-2">
+                {account.isDefault && <Badge>Default</Badge>}
+                {!account.isOnline && <Badge>Offline</Badge>}
               </div>
             )}
           </Card>

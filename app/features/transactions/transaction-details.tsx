@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '~/components/ui/card';
+import { accountOfflineToast } from '~/features/accounts/utils';
 import type {
   CashuLightningReceiveTransactionDetails,
   CashuTokenReceiveTransactionDetails,
@@ -299,7 +300,13 @@ export function TransactionDetails({
         <PageFooter className="pb-14">
           <Button
             className="w-[100px]"
-            onClick={() => reverseTransaction({ transaction })}
+            onClick={() => {
+              if (!account.isOnline) {
+                toast(accountOfflineToast);
+                return;
+              }
+              reverseTransaction({ transaction });
+            }}
             loading={isReclaimInProgress}
           >
             Reclaim
