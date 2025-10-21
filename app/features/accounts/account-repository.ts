@@ -19,8 +19,11 @@ import {
   agicashDb,
 } from '../agicash-db/database';
 import {
+  allMintKeysetsQueryKey,
   allMintKeysetsQueryOptions,
+  mintInfoQueryKey,
   mintInfoQueryOptions,
+  mintKeysQueryKey,
   mintKeysQueryOptions,
   useCashuCryptography,
 } from '../shared/cashu';
@@ -201,10 +204,26 @@ export class AccountRepository {
     let mintActiveKeys: MintActiveKeys;
 
     try {
-      [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.all([
-        this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
-        this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
-        this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
+      [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
+        Promise.all([
+          this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
+          this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
+          this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
+        ]),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            this.queryClient.cancelQueries({
+              queryKey: mintInfoQueryKey(mintUrl),
+            });
+            this.queryClient.cancelQueries({
+              queryKey: allMintKeysetsQueryKey(mintUrl),
+            });
+            this.queryClient.cancelQueries({
+              queryKey: mintKeysQueryKey(mintUrl),
+            });
+            reject(new NetworkError('Mint request timed out'));
+          }, 10_000);
+        }),
       ]);
     } catch (error) {
       if (error instanceof NetworkError) {
