@@ -199,7 +199,7 @@ export class ReceiveCashuTokenService {
     sourceAccount: CashuAccountWithTokenFlags,
     otherAccounts: CashuAccountWithTokenFlags[],
   ): CashuAccountWithTokenFlags[] {
-    if (sourceAccount.isTestMint) {
+    if (sourceAccount.isTestMint || sourceAccount.isStarAccount) {
       // Tokens sourced from test mint can only be claimed to the same mint
       return sourceAccount.canReceive ? [sourceAccount] : [];
     }

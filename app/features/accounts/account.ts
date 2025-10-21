@@ -9,6 +9,7 @@ export type Account = {
   name: string;
   type: AccountType;
   isOnline: boolean;
+  isStarAccount?: boolean;
   currency: Currency;
   createdAt: string;
   /**
