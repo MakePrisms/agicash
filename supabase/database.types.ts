@@ -655,6 +655,12 @@ export type Database = {
           p_quote_version: number
         }
         Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_receive_quote_result"]
+        SetofOptions: {
+          from: "*"
+          to: "complete_cashu_receive_quote_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       complete_cashu_send_quote: {
         Args: {
@@ -667,6 +673,12 @@ export type Database = {
           p_quote_version: number
         }
         Returns: Database["wallet"]["CompositeTypes"]["update_cashu_send_quote_result"]
+        SetofOptions: {
+          from: "*"
+          to: "update_cashu_send_quote_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       complete_cashu_send_swap: {
         Args: { p_swap_id: string; p_swap_version: number }
@@ -681,6 +693,12 @@ export type Database = {
           p_user_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_token_swap_result"]
+        SetofOptions: {
+          from: "*"
+          to: "complete_cashu_token_swap_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_cashu_receive_quote: {
         Args: {
@@ -720,6 +738,12 @@ export type Database = {
           user_id: string
           version: number
         }
+        SetofOptions: {
+          from: "*"
+          to: "cashu_receive_quotes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_cashu_send_quote: {
         Args: {
@@ -745,6 +769,12 @@ export type Database = {
           p_user_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["create_cashu_send_quote_result"]
+        SetofOptions: {
+          from: "*"
+          to: "create_cashu_send_quote_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_cashu_send_swap: {
         Args: {
@@ -796,6 +826,12 @@ export type Database = {
           user_id: string
           version: number
         }
+        SetofOptions: {
+          from: "*"
+          to: "cashu_send_swaps"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_cashu_token_swap: {
         Args: {
@@ -816,6 +852,12 @@ export type Database = {
           p_user_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["create_cashu_token_swap_result"]
+        SetofOptions: {
+          from: "*"
+          to: "create_cashu_token_swap_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       expire_cashu_receive_quote: {
         Args: { p_quote_id: string; p_quote_version: number }
@@ -841,6 +883,12 @@ export type Database = {
           user_id: string
           version: number
         }
+        SetofOptions: {
+          from: "*"
+          to: "cashu_receive_quotes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       expire_cashu_send_quote: {
         Args: {
@@ -850,6 +898,12 @@ export type Database = {
           p_quote_version: number
         }
         Returns: Database["wallet"]["CompositeTypes"]["update_cashu_send_quote_result"]
+        SetofOptions: {
+          from: "*"
+          to: "update_cashu_send_quote_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       fail_cashu_receive_quote: {
         Args: {
@@ -868,6 +922,12 @@ export type Database = {
           p_quote_version: number
         }
         Returns: Database["wallet"]["CompositeTypes"]["update_cashu_send_quote_result"]
+        SetofOptions: {
+          from: "*"
+          to: "update_cashu_send_quote_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       fail_cashu_send_swap: {
         Args: { p_reason: string; p_swap_id: string; p_swap_version: number }
@@ -898,6 +958,12 @@ export type Database = {
           unit: string
           user_id: string
           version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cashu_token_swaps"
+          isOneToOne: true
+          isSetofReturn: false
         }
       }
       find_contact_candidates: {
@@ -933,6 +999,12 @@ export type Database = {
           type: string
           user_id: string
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "transactions"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       process_cashu_receive_quote_payment: {
         Args: {
@@ -944,6 +1016,12 @@ export type Database = {
           p_quote_version: number
         }
         Returns: Database["wallet"]["CompositeTypes"]["cashu_receive_quote_payment_result"]
+        SetofOptions: {
+          from: "*"
+          to: "cashu_receive_quote_payment_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       take_lead: {
         Args: { p_client_id: string; p_user_id: string }
