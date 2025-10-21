@@ -35,7 +35,7 @@ export function toAccountSelectorOption<T extends Account = Account>(
 ): AccountSelectorOption<T> {
   return {
     ...account,
-    badges: options.badges ?? (account.isOnline ? ['Offline'] : []),
+    badges: options.badges ?? (!account.isOnline ? ['Offline'] : []),
     isSelectable: options.isSelectable ?? account.isOnline,
   };
 }
