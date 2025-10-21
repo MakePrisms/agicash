@@ -111,7 +111,9 @@ export default function Settings() {
         </SettingsNavButton>
 
         <SettingsNavButton to="/settings/accounts">
-          <AccountTypeIcon type={defaultAccount.type} />
+          <AccountTypeIcon
+            type={defaultAccount.isStarAccount ? 'star' : defaultAccount.type}
+          />
           <span>{defaultAccount.name}</span>
         </SettingsNavButton>
 
