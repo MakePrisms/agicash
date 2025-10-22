@@ -15,7 +15,7 @@ export function Page({ children, className, ...props }: PageProps) {
   return (
     <div
       className={cn(
-        'mx-auto flex h-dvh w-full flex-col p-4 font-primary sm:items-center sm:px-6 lg:px-8',
+        'mx-auto flex h-dvh w-full flex-col font-primary sm:items-center sm:px-6 lg:px-8',
         className,
       )}
       {...props}
@@ -86,7 +86,7 @@ export function PageHeader({ children, className, ...props }: PageHeaderProps) {
 
   return (
     <header
-      className={cn('mb-4 flex w-full items-center justify-between', className)}
+      className={cn('flex w-full items-center justify-between p-4', className)}
       {...props}
     >
       {/* Close/back button - always on the left */}
@@ -132,7 +132,7 @@ export function PageContent({
   return (
     <main
       className={cn(
-        'flex flex-grow flex-col gap-2 p-2 sm:w-full sm:max-w-sm',
+        'flex flex-grow flex-col gap-2 px-4 sm:w-full sm:max-w-sm',
         className,
       )}
       {...props}
@@ -150,7 +150,7 @@ export function PageFooter({ children, className, ...props }: PageFooterProps) {
   return (
     <footer
       className={cn(
-        'flex w-full flex-col items-center gap-2 p-2 sm:max-w-sm',
+        'flex w-full flex-col items-center gap-2 p-4 pt-2 sm:max-w-sm',
         className,
       )}
       {...props}

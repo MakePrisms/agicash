@@ -200,7 +200,7 @@ export function SendInput() {
         <PageHeaderTitle>Send</PageHeaderTitle>
       </PageHeader>
 
-      <PageContent className="mx-auto flex flex-col items-center justify-between">
+      <PageContent className="mx-auto flex w-full flex-col items-center justify-between">
         <div className="flex flex-col items-center justify-between gap-4">
           <div className="flex h-[124px] flex-col items-center gap-2">
             <div className={shakeAnimationClass}>
@@ -261,15 +261,20 @@ export function SendInput() {
               >
                 <Scan />
               </LinkWithViewTransition>
-
-              <SelectContactOrLud16Drawer onSelect={handleSelectDestination} />
+              {/* TODO: maybe it would be better to put this property on the account object */}
+              {!sendAccount.isStarAccount && (
+                <SelectContactOrLud16Drawer
+                  onSelect={handleSelectDestination}
+                />
+              )}
             </div>
             <div /> {/* spacer */}
-            <div className="flex items-center justify-end">
+            <div className="flex w-full items-center justify-end">
               <Button
                 onClick={() => handleContinue(inputValue, convertedValue)}
                 disabled={inputValue.isZero()}
                 loading={status === 'quoting'}
+                className="w-full"
               >
                 Continue
               </Button>
@@ -277,7 +282,7 @@ export function SendInput() {
           </div>
         </div>
       </PageContent>
-      <PageFooter className="sm:pb-14">
+      <PageFooter className="pt-4 sm:pb-14">
         <Numpad
           showDecimal={maxInputDecimals > 0}
           onButtonClick={(value) => {

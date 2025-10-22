@@ -8,7 +8,7 @@ export const EASE_OUT = 'cubic-bezier(0, 0, 0.2, 1)'; // Decelerating
 
 // Layout constants (in px)
 export const CARD_STACK_OFFSET = 64; // Space between cards in collapsed stack
-export const CARD_ASPECT_RATIO = 1.586; // Credit card aspect ratio
+export const CARD_ASPECT_RATIO = 1.585; // Credit card aspect ratio
 
 /**
  * Get the off-screen Y offset for sliding cards out

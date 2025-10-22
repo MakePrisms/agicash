@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import {
+  ClosePageButton,
   Page,
   PageBackButton,
   PageContent,
@@ -9,15 +11,31 @@ import {
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { CardStack } from '~/features/stars/card-stack';
 import { SelectedCardDetails } from '~/features/stars/selected-card-details';
+
 export default function Cards() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const accountIdFromUrl = searchParams.get('accountId');
+
   const { data: starAccounts } = useAccounts({
     type: 'cashu',
     starAccountsOnly: true,
   });
 
+  const initialSelectedId =
+    accountIdFromUrl || (starAccounts.length === 1 ? starAccounts[0].id : null);
+
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
-    starAccounts.length === 1 ? starAccounts[0].id : null,
+    initialSelectedId,
   );
+
+  // Handle accountId from URL
+  useEffect(() => {
+    if (accountIdFromUrl) {
+      setSelectedAccountId(accountIdFromUrl);
+      // Clear the accountId from URL after selecting
+      setSearchParams({}, { replace: true });
+    }
+  }, [accountIdFromUrl, setSearchParams]);
   const selectedCardIndex = starAccounts.findIndex(
     (acc) => acc.id === selectedAccountId,
   );
@@ -52,12 +70,22 @@ export default function Cards() {
   return (
     <Page>
       <PageHeader>
-        <PageBackButton
-          to="/"
-          transition="slideLeft"
-          applyTo="newView"
-          onClick={handleBackButtonClick}
-        />
+        {selectedAccount && starAccounts.length > 1 ? (
+          <PageBackButton
+            to={`/cards?accountId=${selectedAccount.id}`}
+            transition="slideLeft"
+            applyTo="newView"
+            onClick={handleBackButtonClick}
+          />
+        ) : (
+          <ClosePageButton
+            to="/"
+            transition="slideLeft"
+            applyTo="newView"
+            onClick={handleBackButtonClick}
+          />
+        )}
+
         <PageHeaderTitle>Loyalty</PageHeaderTitle>
       </PageHeader>
 

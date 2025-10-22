@@ -28,7 +28,6 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { isStarAccount } from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
@@ -206,9 +205,9 @@ export default function ReceiveToken({
 
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken && receiveAccount ? (
-            isStarAccount(receiveAccount) ? (
+            receiveAccount.isStarAccount ? (
               <div className="w-full max-w-sm px-4">
-                <WalletCard account={receiveAccount} />
+                <WalletCard account={receiveAccount} hideHeader={true} />
               </div>
             ) : (
               <div className="w-full max-w-sm px-4">
@@ -340,7 +339,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken ? (
-            isStarAccount(sourceAccount) ? (
+            sourceAccount.isStarAccount ? (
               <div className="w-full max-w-sm px-4">
                 <WalletCard account={sourceAccount} />
               </div>

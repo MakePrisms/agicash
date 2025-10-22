@@ -3,10 +3,10 @@ import {
   type CashuAccount,
   getAccountBalance,
 } from '~/features/accounts/account';
-import { TransactionList } from '~/features/transactions/transaction-list';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
+import { TransactionList } from '../transactions/transaction-list';
 import {
   ANIMATION_DURATION,
   DETAIL_VIEW_DELAY,

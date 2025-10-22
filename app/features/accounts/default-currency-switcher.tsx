@@ -1,4 +1,3 @@
-import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import {
   Drawer,
@@ -7,7 +6,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '~/components/ui/drawer';
-import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group';
 import { Separator } from '~/components/ui/separator';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money/types';
@@ -51,15 +49,21 @@ function CurrencyOption({ data, isSelected, onSelect }: CurrencyOptionProps) {
         <span>{label}</span>
         <MoneyWithConvertedAmount money={balance} variant="inline" />
       </div>
-      <RadioGroup value={isSelected ? currency : undefined}>
-        <RadioGroupItem className="text-foreground" value={currency} />
-      </RadioGroup>
+      <div className="aspect-square h-4 w-4 rounded-full border border-primary ring-offset-background">
+        {isSelected && (
+          <div className="flex h-full w-full items-center justify-center rounded-full bg-primary">
+            <div className="h-2 w-2 rounded-full bg-primary-foreground" />
+          </div>
+        )}
+      </div>
     </button>
   );
 }
 
 /** A drawer that allows the user to switch their default currency */
-export function DefaultCurrencySwitcher() {
+export function DefaultCurrencySwitcher({
+  children,
+}: { children: React.ReactNode }) {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const defaultCurrency = useUser((user) => user.defaultCurrency);
@@ -80,13 +84,11 @@ export function DefaultCurrencySwitcher() {
 
   return (
     <Drawer open={isOpen} onOpenChange={setIsOpen}>
-      <DrawerTrigger asChild>
-        <button type="button" className="flex items-center gap-1">
-          {defaultCurrency}
-          <ChevronDown className="h-4 w-4" />
-        </button>
-      </DrawerTrigger>
-      <DrawerContent className="pb-14 font-primary">
+      <DrawerTrigger asChild>{children}</DrawerTrigger>
+      <DrawerContent
+        className="pb-14 font-primary"
+        aria-describedby={undefined}
+      >
         <div className="mx-auto w-full max-w-sm">
           <DrawerHeader>
             <DrawerTitle>Select Currency</DrawerTitle>

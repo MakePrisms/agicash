@@ -1,19 +1,20 @@
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { MoneyDisplay } from '~/components/money-display';
-import { Card, CardContent } from '~/components/ui/card';
 import {
   type CashuAccount,
   getAccountBalance,
 } from '~/features/accounts/account';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import { cn } from '~/lib/utils';
+import { mintInfoQueryOptions } from '../shared/cashu';
 import {
   ANIMATION_DURATION,
-  CARD_ASPECT_RATIO,
   CARD_STACK_OFFSET,
   EASE_IN_OUT,
   getOffScreenOffset,
 } from './animation-constants';
+import { BaseCard } from './base-card';
 
 /**
  * Lazy import functions for card assets.
@@ -60,40 +61,48 @@ async function loadCardAsset(mintUrl: string): Promise<string | null> {
 }
 
 interface WalletCardProps {
-  account: CashuAccount;
+  account?: CashuAccount;
+  mintUrl?: string;
   hideHeader?: boolean;
+  hideFooter?: boolean;
+  showBalanceOnly?: boolean;
+  className?: string;
 }
 
-export function WalletCard({ account, hideHeader = false }: WalletCardProps) {
+export function WalletCard({
+  account,
+  mintUrl,
+  hideHeader = false,
+  hideFooter = false,
+  showBalanceOnly = false,
+  className,
+}: WalletCardProps) {
   const [customDesignPath, setCustomDesignPath] = useState<string | null>(null);
 
+  const effectiveMintUrl = account?.mintUrl ?? mintUrl;
+  if (!effectiveMintUrl) {
+    throw new Error('Mint URL is required');
+  }
+  const { data: mintInfo } = useSuspenseQuery(
+    mintInfoQueryOptions(effectiveMintUrl),
+  );
+
   useEffect(() => {
-    loadCardAsset(account.mintUrl).then(setCustomDesignPath);
-  }, [account.mintUrl]);
+    if (effectiveMintUrl) {
+      loadCardAsset(effectiveMintUrl).then(setCustomDesignPath);
+    }
+  }, [effectiveMintUrl]);
 
-  const cardName = account.wallet.cachedMintInfo.name ?? account.name;
-  const cardLogo = account.wallet.cachedMintInfo.iconUrl ?? null;
+  const cardName = mintInfo.name;
+  const cardLogo = mintInfo.iconUrl ?? null;
+  const cardType = mintInfo.description ?? null;
 
-  const balance = getAccountBalance(account);
+  const balance = account ? getAccountBalance(account) : null;
 
   return (
-    <Card
-      className={cn(
-        'relative w-full overflow-hidden rounded-3xl',
-        customDesignPath && 'border-none',
-      )}
-      style={{
-        aspectRatio: CARD_ASPECT_RATIO.toString(),
-      }}
-    >
-      {/* Custom card design - always visible if available */}
-      {customDesignPath ? (
-        <img
-          src={customDesignPath}
-          alt={`${cardName} loyalty card design`}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : (
+    <BaseCard backgroundImage={customDesignPath} className={className}>
+      {/* Centered logo and name - only shown when using fallback design */}
+      {!customDesignPath && account && (
         <div className="absolute inset-0 flex items-center justify-center gap-6 px-6">
           {cardLogo ? (
             <img
@@ -111,43 +120,63 @@ export function WalletCard({ account, hideHeader = false }: WalletCardProps) {
       )}
 
       {/* Default card content */}
-      <CardContent className="relative flex h-full flex-col px-6 pt-3 pb-6">
-        {/* Card Header with Logo, Vendor, and Balance */}
-        <div
-          className={cn('flex items-center gap-4', hideHeader && 'opacity-0')}
-        >
-          {/* Logo */}
-          <div className="flex-shrink-0">
-            {cardLogo ? (
-              <img
-                src={cardLogo}
-                alt={`${cardName} logo`}
-                className="h-10 w-10 object-contain"
-              />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded bg-muted font-medium text-muted-foreground text-xs">
-                {cardName.charAt(0)}
+      {account && (
+        <div className="relative flex h-full flex-col px-6 pt-3 pb-6">
+          {/* Card Header with Logo, Vendor, and Balance */}
+          <div
+            className={cn('flex items-center gap-4', hideHeader && 'opacity-0')}
+          >
+            {/* Logo */}
+            <div
+              className={cn('flex-shrink-0', showBalanceOnly && 'opacity-0')}
+            >
+              {cardLogo ? (
+                <img
+                  src={cardLogo}
+                  alt={`${cardName} logo`}
+                  className="h-10 w-10 object-contain"
+                />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded bg-muted font-medium text-muted-foreground text-xs">
+                  {cardName.charAt(0)}
+                </div>
+              )}
+            </div>
+
+            {/* Card Info */}
+            <div
+              className={cn('min-w-0 flex-1', showBalanceOnly && 'opacity-0')}
+            >
+              <h3 className="truncate font-semibold text-base">{cardName}</h3>
+            </div>
+
+            {/* Balance */}
+            {balance && (
+              <div className="flex-shrink-0">
+                <MoneyDisplay
+                  money={balance}
+                  unit={getDefaultUnit(account.currency)}
+                  className="font-semibold text-base"
+                  size="sm"
+                />
               </div>
             )}
           </div>
 
-          {/* Card Info */}
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate font-semibold text-base">{cardName}</h3>
-          </div>
-
-          {/* Balance */}
-          <div className="flex-shrink-0">
-            <MoneyDisplay
-              money={balance}
-              unit={getDefaultUnit(account.currency)}
-              className="font-semibold text-base"
-              variant="secondary"
-            />
-          </div>
+          {/* Card Footer with Card Type */}
+          {cardType && (
+            <div
+              className={cn(
+                'absolute bottom-0 left-0 px-4 pb-3',
+                hideFooter && 'opacity-0',
+              )}
+            >
+              <p className="font-semibold text-base">{cardType}</p>
+            </div>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </BaseCard>
   );
 }
 
@@ -157,6 +186,10 @@ interface SelectableWalletCardProps {
   index: number;
   onSelect: (accountId: string, event?: React.MouseEvent) => void;
   selectedCardIndex: number | null;
+  hideHeader?: boolean;
+  hideFooter?: boolean;
+  showBalanceOnly?: boolean;
+  className?: string;
 }
 
 /**
@@ -170,6 +203,10 @@ export function SelectableWalletCard({
   index,
   onSelect,
   selectedCardIndex,
+  hideHeader = false,
+  hideFooter = false,
+  showBalanceOnly = false,
+  className,
 }: SelectableWalletCardProps) {
   const handleCardClick = (e: React.MouseEvent) => {
     onSelect(account.id, e);
@@ -214,7 +251,13 @@ export function SelectableWalletCard({
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
     >
-      <WalletCard account={account} hideHeader={isSelected} />
+      <WalletCard
+        account={account}
+        className={className}
+        hideHeader={hideHeader || isSelected}
+        hideFooter={hideFooter}
+        showBalanceOnly={showBalanceOnly}
+      />
     </div>
   );
 }
