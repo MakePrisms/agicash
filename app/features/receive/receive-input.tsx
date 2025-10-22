@@ -156,7 +156,7 @@ export default function ReceiveInput() {
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
 
-      <PageContent className="mx-auto flex w-full flex-col items-center justify-between">
+      <PageContent className="mx-auto flex flex-col items-center justify-between px-6">
         <div className="flex h-[124px] flex-col items-center gap-2">
           <div className={shakeAnimationClass}>
             <MoneyInputDisplay
@@ -211,7 +211,7 @@ export default function ReceiveInput() {
           </div>
         </div>
       </PageContent>
-      <PageFooter className="pt-4 sm:pb-14">
+      <PageFooter className="px-6 pt-4 pb-6 sm:pb-14">
         <Numpad
           showDecimal={maxInputDecimals > 0}
           onButtonClick={(value) => {

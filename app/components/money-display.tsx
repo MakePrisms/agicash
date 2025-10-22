@@ -20,7 +20,7 @@ const textVariants = cva('', {
   },
 });
 
-const symbolVariants = cva('', {
+const symbolVariants = cva('ml-[-0.025em] inline-block leading-none', {
   variants: {
     size: {
       sm: 'text-[1.33rem]',

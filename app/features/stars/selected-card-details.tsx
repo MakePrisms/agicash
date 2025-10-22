@@ -6,7 +6,6 @@ import {
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import { TransactionList } from '../transactions/transaction-list';
 import {
   ANIMATION_DURATION,
   DETAIL_VIEW_DELAY,
@@ -74,7 +73,7 @@ export function SelectedCardDetails({
       </div>
 
       {/* Transaction List Section */}
-      <div
+      {/* <div
         className={cn(
           'mx-auto min-h-0 w-full max-w-sm flex-1 overflow-y-auto px-6 pt-2 pb-6',
           isVisible ? 'opacity-100' : 'opacity-0',
@@ -82,7 +81,7 @@ export function SelectedCardDetails({
         style={{ transition: transitionStyle }}
       >
         <TransactionList accountId={account.id} />
-      </div>
+      </div> */}
     </div>
   );
 }
