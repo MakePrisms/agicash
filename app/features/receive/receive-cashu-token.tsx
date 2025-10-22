@@ -32,6 +32,7 @@ import { AccountSelector } from '../accounts/account-selector';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
+import { WalletCard } from '../stars/wallet-card';
 import { useAuthActions } from '../user/auth';
 import { useFailCashuReceiveQuote } from './cashu-receive-quote-hooks';
 import { useCreateCashuTokenSwap } from './cashu-token-swap-hooks';
@@ -204,14 +205,22 @@ export default function ReceiveToken({
 
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken && receiveAccount ? (
-            <div className="w-full max-w-sm px-4">
-              <AccountSelector
-                accounts={selectableAccounts}
-                selectedAccount={receiveAccount}
-                disabled={isCrossMintSwapDisabled}
-                onSelect={setReceiveAccount}
-              />
-            </div>
+            receiveAccount.isStarAccount ? (
+              <div className="w-full max-w-sm px-4">
+                <WalletCard account={receiveAccount} hideHeader={true} />
+              </div>
+            ) : (
+              <div className="w-full max-w-sm px-4">
+                <AccountSelector
+                  accounts={selectableAccounts}
+                  selectedAccount={receiveAccount}
+                  disabled={
+                    isCrossMintSwapDisabled || selectableAccounts.length === 1
+                  }
+                  onSelect={setReceiveAccount}
+                />
+              </div>
+            )
           ) : (
             <TokenErrorDisplay
               message={
@@ -330,13 +339,19 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken ? (
-            <div className="w-full max-w-sm px-4">
-              <AccountSelector
-                accounts={[]}
-                selectedAccount={sourceAccount}
-                disabled={true}
-              />
-            </div>
+            sourceAccount.isStarAccount ? (
+              <div className="w-full max-w-sm px-4">
+                <WalletCard account={sourceAccount} />
+              </div>
+            ) : (
+              <div className="w-full max-w-sm px-4">
+                <AccountSelector
+                  accounts={[]}
+                  selectedAccount={sourceAccount}
+                  disabled={true}
+                />
+              </div>
+            )
           ) : (
             <TokenErrorDisplay message={cannotClaimReason} />
           )}

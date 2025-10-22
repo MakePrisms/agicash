@@ -45,7 +45,7 @@ function AccountItem({ account }: { account: AccountSelectorOption }) {
 
   return (
     <div className="flex w-full items-center gap-4 px-3 py-4">
-      <AccountTypeIcon type={account.type} />
+      <AccountTypeIcon type={account.isStarAccount ? 'star' : account.type} />
       <div className="flex w-full flex-col justify-between gap-2 text-start">
         <span className="font-medium">{account.name}</span>
         <div className="flex items-center justify-between text-xs">

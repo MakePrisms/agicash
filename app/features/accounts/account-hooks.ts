@@ -7,6 +7,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router';
 import { type Currency, Money } from '~/lib/money';
 import type { AgicashDbAccount } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
@@ -251,11 +252,14 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
   currency?: Currency;
   type?: T;
   isOnline?: boolean;
+  excludeStarAccounts?: boolean;
+  starAccountsOnly?: boolean;
 }): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
 
-  const { currency, type, isOnline } = select ?? {};
+  const { currency, type, isOnline, excludeStarAccounts, starAccountsOnly } =
+    select ?? {};
 
   return useSuspenseQuery({
     ...accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -280,13 +284,19 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
             if (isOnline !== undefined && account.isOnline !== isOnline) {
               return false;
             }
+            if (excludeStarAccounts && account.isStarAccount) {
+              return false;
+            }
+            if (starAccountsOnly && !account.isStarAccount) {
+              return false;
+            }
             return true;
           },
         );
 
         return filteredData;
       },
-      [currency, type, isOnline, user],
+      [currency, type, isOnline, excludeStarAccounts, starAccountsOnly, user],
     ),
   });
 }
@@ -409,15 +419,18 @@ export function useAddCashuAccount() {
   return mutateAsync;
 }
 
+/**
+ * @returns the total balance of all accounts for the given currency excluding Star accounts.
+ */
 export function useBalance(currency: Currency) {
-  const { data: accounts } = useAccounts({ currency });
-  const balance = accounts.reduce(
-    (acc, account) => {
-      const accountBalance = getAccountBalance(account);
-      return acc.add(accountBalance);
-    },
-    new Money({ amount: 0, currency }),
-  );
+  const { data: accounts } = useAccounts({
+    currency,
+    excludeStarAccounts: true,
+  });
+  const balance = accounts.reduce((acc, account) => {
+    const accountBalance = getAccountBalance(account);
+    return acc.add(accountBalance);
+  }, Money.zero(currency));
   return balance;
 }
 
@@ -436,4 +449,16 @@ export function useSelectItemsWithOnlineAccount() {
     },
     [accountsCache],
   );
+}
+
+/**
+ * Returns the account specified by the account ID in the URL.
+ * @param select - The type of the account to get.
+ */
+export function useGetAccountFromLocation(select?: { type?: AccountType }) {
+  const [searchParams] = useSearchParams();
+  const accountId = searchParams.get('accountId');
+  const { data: accounts } = useAccounts({ type: select?.type });
+  const account = accounts.find((account) => account.id === accountId);
+  return account;
 }

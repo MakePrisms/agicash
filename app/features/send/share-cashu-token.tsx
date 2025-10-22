@@ -104,7 +104,7 @@ export function ShareCashuToken({ token }: Props) {
         </div>
       </PageContent>
       {showOk && (
-        <PageFooter className="pb-14">
+        <PageFooter className="pt-10 pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
               to="/"

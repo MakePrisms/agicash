@@ -111,7 +111,9 @@ export default function Settings() {
         </SettingsNavButton>
 
         <SettingsNavButton to="/settings/accounts">
-          <AccountTypeIcon type={defaultAccount.type} />
+          <AccountTypeIcon
+            type={defaultAccount.isStarAccount ? 'star' : defaultAccount.type}
+          />
           <span>{defaultAccount.name}</span>
         </SettingsNavButton>
 
@@ -121,7 +123,7 @@ export default function Settings() {
         </SettingsNavButton>
       </PageContent>
 
-      <PageFooter className="mx-auto flex w-36 flex-col gap-6 pb-10">
+      <PageFooter className="mx-auto flex w-36 flex-col gap-6 px-0 pb-10">
         <Button
           className="mx-auto w-full"
           onClick={signOut}

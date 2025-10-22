@@ -7,7 +7,7 @@ import {
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import {
-  type MintInfo,
+  type ExtendedMintInfo,
   getCashuProtocolUnit,
   getCashuUnit,
   getCashuWallet,
@@ -167,7 +167,7 @@ export class AccountRepository {
         proofs: string;
       };
 
-      const { wallet, isOnline } = await this.getPreloadedWallet(
+      const { wallet, isOnline, isStarAccount } = await this.getPreloadedWallet(
         details.mint_url,
         data.currency,
       );
@@ -181,6 +181,7 @@ export class AccountRepository {
         keysetCounters: details.keyset_counters,
         proofs: await this.encryption.decrypt<Proof[]>(details.proofs),
         wallet,
+        isStarAccount,
       } as T;
     }
 
@@ -199,7 +200,7 @@ export class AccountRepository {
   private async getPreloadedWallet(mintUrl: string, currency: Currency) {
     const seed = await this.getCashuWalletSeed?.();
 
-    let mintInfo: MintInfo;
+    let mintInfo: ExtendedMintInfo;
     let allMintKeysets: MintAllKeysets;
     let mintActiveKeys: MintActiveKeys;
 
@@ -231,7 +232,7 @@ export class AccountRepository {
           unit: getCashuUnit(currency),
           bip39seed: seed ?? undefined,
         });
-        return { wallet, isOnline: false };
+        return { wallet, isOnline: false, isStarAccount: undefined };
       }
       throw error;
     }
@@ -266,7 +267,11 @@ export class AccountRepository {
     // The constructor does not set the keysetId, so we need to set it manually
     wallet.keysetId = activeKeyset.id;
 
-    return { wallet, isOnline: true };
+    return {
+      wallet,
+      isOnline: true,
+      isStarAccount: mintInfo.internalMeltsOnly,
+    };
   }
 }
 
