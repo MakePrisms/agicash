@@ -63,7 +63,7 @@ export function useCashuTokenSourceAccountQuery(
       'token-source-account',
       token.mint,
       tokenCurrency,
-      existingCashuAccounts,
+      existingCashuAccounts.map((a) => a.id).sort(),
     ],
     queryFn: async () =>
       receiveCashuTokenService.getSourceAndDestinationAccounts(
