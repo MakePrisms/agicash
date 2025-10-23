@@ -35,9 +35,10 @@ export function eciesEncryptBatch(
   const recipientPublicKey = parsePublicKey(publicKeyBytes);
 
   // Step 2: Generate single ephemeral key pair for entire batch
-  const ephemeralPrivKey = secp256k1.utils.randomPrivateKey();
-  const ephemeralPubKey =
-    secp256k1.ProjectivePoint.fromPrivateKey(ephemeralPrivKey);
+  const ephemeralPrivKey = secp256k1.utils.randomSecretKey();
+  const ephemeralPubKey = secp256k1.Point.BASE.multiply(
+    secp256k1.Point.Fn.fromBytes(ephemeralPrivKey),
+  );
 
   // Step 3: Compute shared secret once using ECDH
   const sharedSecret = getSharedSecret(
@@ -126,8 +127,7 @@ export function eciesDecryptBatch(
     const firstItem = group[0];
     const ephemeralPubKeyBytes = firstItem.data.slice(0, 33);
 
-    const ephemeralPubKey =
-      secp256k1.ProjectivePoint.fromHex(ephemeralPubKeyBytes);
+    const ephemeralPubKey = secp256k1.Point.fromHex(ephemeralPubKeyBytes);
 
     // Step 3: Compute shared secret using ECDH
     const sharedSecret = getSharedSecret(
@@ -169,19 +169,19 @@ export function eciesDecrypt(
 function parsePublicKey(publicKeyBytes: Uint8Array) {
   if (publicKeyBytes.length === 32) {
     // Schnorr-style x-only public key - lift to full point
-    return secp256k1.ProjectivePoint.fromHex(
+    return secp256k1.Point.fromHex(
       `02${Array.from(publicKeyBytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`,
     );
   }
 
   if (publicKeyBytes.length === 33) {
     // Compressed public key
-    return secp256k1.ProjectivePoint.fromHex(publicKeyBytes);
+    return secp256k1.Point.fromHex(publicKeyBytes);
   }
 
   if (publicKeyBytes.length === 65) {
     // Uncompressed public key
-    return secp256k1.ProjectivePoint.fromHex(publicKeyBytes);
+    return secp256k1.Point.fromHex(publicKeyBytes);
   }
 
   throw new Error('Invalid public key length');

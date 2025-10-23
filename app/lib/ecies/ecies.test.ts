@@ -9,8 +9,10 @@ import {
 
 describe('ECIES Encryption/Decryption', () => {
   // Generate test key pair
-  const privateKey = secp256k1.utils.randomPrivateKey();
-  const publicKey = secp256k1.ProjectivePoint.fromPrivateKey(privateKey);
+  const privateKey = secp256k1.utils.randomSecretKey();
+  const publicKey = secp256k1.Point.BASE.multiply(
+    secp256k1.Point.Fn.fromBytes(privateKey),
+  );
   const publicKeyCompressed = publicKey.toRawBytes(true); // 33 bytes
   const publicKeySchnorr = publicKey.toRawBytes(false).slice(1, 33); // 32 bytes x-only
 
@@ -106,7 +108,7 @@ describe('ECIES Encryption/Decryption', () => {
     const plaintext = new TextEncoder().encode('Protected data');
     const encrypted = eciesEncrypt(plaintext, publicKeyCompressed);
 
-    const wrongPrivateKey = secp256k1.utils.randomPrivateKey();
+    const wrongPrivateKey = secp256k1.utils.randomSecretKey();
 
     expect(() => {
       eciesDecrypt(encrypted, wrongPrivateKey);
