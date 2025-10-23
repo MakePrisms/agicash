@@ -217,7 +217,7 @@ describe('ECIES Encryption/Decryption', () => {
     expect(new TextDecoder().decode(decrypted[10000])).toBe('Message 10000');
     expect(new TextDecoder().decode(decrypted[14999])).toBe('Message 14999');
   });
-  
+
   test('decrypt 100 buckets with 3 items each', () => {
     const bucketCount = 100;
     const itemsPerBucket = 3;
@@ -245,18 +245,10 @@ describe('ECIES Encryption/Decryption', () => {
     expect(new TextDecoder().decode(decrypted[1])).toBe('Bucket 0 - Item 1');
     expect(new TextDecoder().decode(decrypted[2])).toBe('Bucket 0 - Item 2');
     expect(new TextDecoder().decode(decrypted[3])).toBe('Bucket 1 - Item 0');
-    expect(new TextDecoder().decode(decrypted[150])).toBe(
-      'Bucket 50 - Item 0',
-    );
-    expect(new TextDecoder().decode(decrypted[297])).toBe(
-      'Bucket 99 - Item 0',
-    );
-    expect(new TextDecoder().decode(decrypted[298])).toBe(
-      'Bucket 99 - Item 1',
-    );
-    expect(new TextDecoder().decode(decrypted[299])).toBe(
-      'Bucket 99 - Item 2',
-    );
+    expect(new TextDecoder().decode(decrypted[150])).toBe('Bucket 50 - Item 0');
+    expect(new TextDecoder().decode(decrypted[297])).toBe('Bucket 99 - Item 0');
+    expect(new TextDecoder().decode(decrypted[298])).toBe('Bucket 99 - Item 1');
+    expect(new TextDecoder().decode(decrypted[299])).toBe('Bucket 99 - Item 2');
   });
 
   test('counter-based nonces are deterministic and unique within batch', () => {
@@ -296,12 +288,12 @@ describe('ECIES Encryption/Decryption', () => {
 
     // Verify first nonce is counter 0
     expect(batchNonce1).toEqual(new Uint8Array(12));
-    
+
     // Verify second nonce is counter 1
     const expectedNonce2 = new Uint8Array(12);
     expectedNonce2[11] = 1;
     expect(batchNonce2).toEqual(expectedNonce2);
-    
+
     // Verify third nonce is counter 2
     const expectedNonce3 = new Uint8Array(12);
     expectedNonce3[11] = 2;
@@ -319,5 +311,109 @@ describe('ECIES Encryption/Decryption', () => {
 
     expect(ephemeralKeyBatch1).toEqual(ephemeralKeyBatch2);
     expect(ephemeralKeyBatch2).toEqual(ephemeralKeyBatch3);
+  });
+
+  test('hardcoded encrypted values can always be decrypted (backward compatibility)', () => {
+    // Fixed test key pair (not randomly generated)
+    // Private key: all ones for testing
+    const fixedPrivateKey = new Uint8Array(32).fill(1);
+
+    // These encrypted values were generated once with the fixed key pair above
+    // They test that the decryption algorithm remains backward compatible
+    // If decryption changes, these tests will fail, alerting us to breaking changes
+
+    // Test case 1: "Hello, World!"
+    const encrypted1 = new Uint8Array([
+      2, 97, 175, 66, 144, 139, 76, 166, 58, 65, 37, 199, 232, 185, 74, 109,
+      105, 66, 2, 210, 88, 234, 180, 177, 4, 16, 143, 35, 16, 155, 33, 130, 58,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 200, 60, 166, 140, 186, 206, 231, 190,
+      243, 205, 149, 209, 118, 32, 55, 118, 214, 58, 143, 31, 166, 4, 226, 101,
+      137, 229, 213, 75, 121,
+    ]);
+    const expectedPlaintext1 = 'Hello, World!';
+
+    // Test case 2: Empty string ""
+    const encrypted2 = new Uint8Array([
+      2, 129, 123, 92, 212, 122, 199, 41, 79, 156, 79, 231, 69, 228, 216, 17,
+      117, 216, 94, 250, 11, 80, 173, 121, 39, 207, 250, 112, 225, 236, 187,
+      108, 242, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 82, 245, 36, 88, 169, 91,
+      135, 252, 250, 71, 148, 179, 158, 243, 246, 243,
+    ]);
+    const expectedPlaintext2 = '';
+
+    // Test case 3: Unicode "Hello 🌍!"
+    const encrypted3 = new Uint8Array([
+      2, 102, 144, 206, 159, 57, 177, 229, 10, 169, 214, 93, 242, 177, 105, 224,
+      119, 39, 221, 182, 94, 214, 157, 185, 194, 106, 164, 27, 52, 117, 117,
+      114, 72, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 71, 191, 228, 3, 47, 158,
+      142, 205, 102, 244, 187, 188, 35, 169, 109, 168, 104, 162, 23, 172, 154,
+      235, 47, 37, 205, 107,
+    ]);
+    const expectedPlaintext3 = 'Hello 🌍!';
+
+    // Decrypt and verify
+    const decrypted1 = eciesDecrypt(encrypted1, fixedPrivateKey);
+    const decrypted2 = eciesDecrypt(encrypted2, fixedPrivateKey);
+    const decrypted3 = eciesDecrypt(encrypted3, fixedPrivateKey);
+
+    expect(new TextDecoder().decode(decrypted1)).toBe(expectedPlaintext1);
+    expect(new TextDecoder().decode(decrypted2)).toBe(expectedPlaintext2);
+    expect(new TextDecoder().decode(decrypted3)).toBe(expectedPlaintext3);
+  });
+
+  test('hardcoded batch encrypted values can always be decrypted (backward compatibility)', () => {
+    // Fixed test key pair (not randomly generated)
+    // Private key: all ones for testing
+    const fixedPrivateKey = new Uint8Array(32).fill(1);
+
+    // These batch encrypted values were generated with eciesEncryptBatch
+    // All messages share the same ephemeral key (first 33 bytes) but have different nonces
+    // Notice the nonce counters: 0 (byte 44), 1 (byte 44), 2 (byte 44)
+    // This tests backward compatibility for batch decryption
+
+    // Batch message 1: "First" (nonce counter: 0)
+    const encryptedBatch1 = new Uint8Array([
+      3, 118, 19, 108, 82, 181, 6, 106, 32, 116, 121, 207, 67, 211, 5, 254, 165,
+      203, 77, 234, 214, 176, 3, 175, 207, 238, 205, 227, 75, 252, 72, 122, 99,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 52, 248, 46, 109, 11, 95, 48, 192, 38,
+      187, 199, 119, 80, 36, 122, 93, 151, 166, 164, 69, 9,
+    ]);
+
+    // Batch message 2: "Second" (nonce counter: 1)
+    const encryptedBatch2 = new Uint8Array([
+      3, 118, 19, 108, 82, 181, 6, 106, 32, 116, 121, 207, 67, 211, 5, 254, 165,
+      203, 77, 234, 214, 176, 3, 175, 207, 238, 205, 227, 75, 252, 72, 122, 99,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 83, 7, 171, 254, 28, 83, 221, 133,
+      147, 57, 21, 47, 65, 78, 11, 223, 141, 165, 40, 83, 162, 147,
+    ]);
+
+    // Batch message 3: "Third" (nonce counter: 2)
+    const encryptedBatch3 = new Uint8Array([
+      3, 118, 19, 108, 82, 181, 6, 106, 32, 116, 121, 207, 67, 211, 5, 254, 165,
+      203, 77, 234, 214, 176, 3, 175, 207, 238, 205, 227, 75, 252, 72, 122, 99,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 218, 237, 4, 47, 234, 65, 197, 147, 5,
+      57, 109, 212, 26, 179, 6, 55, 240, 44, 184, 14, 26,
+    ]);
+
+    // Decrypt batch and verify
+    const decrypted = eciesDecryptBatch(
+      [encryptedBatch1, encryptedBatch2, encryptedBatch3],
+      fixedPrivateKey,
+    );
+
+    expect(new TextDecoder().decode(decrypted[0])).toBe('First');
+    expect(new TextDecoder().decode(decrypted[1])).toBe('Second');
+    expect(new TextDecoder().decode(decrypted[2])).toBe('Third');
+
+    // Also verify each can be decrypted individually
+    expect(
+      new TextDecoder().decode(eciesDecrypt(encryptedBatch1, fixedPrivateKey)),
+    ).toBe('First');
+    expect(
+      new TextDecoder().decode(eciesDecrypt(encryptedBatch2, fixedPrivateKey)),
+    ).toBe('Second');
+    expect(
+      new TextDecoder().decode(eciesDecrypt(encryptedBatch3, fixedPrivateKey)),
+    ).toBe('Third');
   });
 });
