@@ -20,17 +20,36 @@ import { hkdf } from '@noble/hashes/hkdf';
 import { sha256 } from '@noble/hashes/sha256';
 
 /**
+ * Maximum recommended batch size for ECIES encryption.
+ * Limit is based on birthday paradox: with 96-bit random nonces,
+ * collision probability becomes non-negligible after ~2^48 messages.
+ * This conservative limit keeps collision risk below 1 in 10^9.
+ */
+const MAX_BATCH_SIZE = 10000;
+
+/**
  * ECIES encrypt multiple data items to a public key using a single ephemeral key.
  * Each message uses the same shared secret but a unique random nonce.
  * Messages can be decrypted in any order.
- * @param dataArray - Array of data to encrypt
+ *
+ * Note: Messages in a batch share an ephemeral key, making them linkable.
+ * For maximum forward secrecy, use eciesEncrypt() for each message individually.
+ *
+ * @param dataArray - Array of data to encrypt (max 10,000 items)
  * @param publicKeyBytes - 32-byte (Schnorr x-only) or 33-byte (compressed) public key
  * @returns Array of encrypted messages: [ephemeralPubKey(33) || nonce(12) || ciphertext || tag(16)]
+ * @throws Error if batch size exceeds MAX_BATCH_SIZE
  */
 export function eciesEncryptBatch(
   dataArray: Uint8Array[],
   publicKeyBytes: Uint8Array,
 ): Uint8Array[] {
+  if (dataArray.length > MAX_BATCH_SIZE) {
+    throw new Error(
+      `Batch size ${dataArray.length} exceeds maximum ${MAX_BATCH_SIZE}. Split into smaller batches or use eciesEncrypt() for individual messages.`,
+    );
+  }
+
   // Step 1: Parse and validate the recipient's public key
   const recipientPublicKey = parsePublicKey(publicKeyBytes);
 
