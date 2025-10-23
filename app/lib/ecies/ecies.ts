@@ -9,7 +9,11 @@
  * - **Hybrid approach**: Uses ECDH to create shared secret, then symmetric encryption for efficiency
  * - **Self-contained**: Ephemeral public key travels with the encrypted message
  *
- * The official specification is in [SEC 1: Elliptic Curve Cryptography Version 2.0](https://www.secg.org/sec1-v2.pdf) section 5.1
+ * ## Nonce handling:
+ * Counter-based nonces (0, 1, 2...) per RFC 8439 Section 2.6: nonces MUST be unique per key
+ * and MUST NOT be randomly generated. See https://www.tech-invite.com/y80/tinv-ietf-rfc-8439.html#e-2-6
+ *
+ * The official ECIES specification is in [SEC 1: Elliptic Curve Cryptography Version 2.0](https://www.secg.org/sec1-v2.pdf) section 5.1
  *
  * This implementaiton is based on https://github.com/ecies/js
  */
@@ -20,23 +24,16 @@ import { hkdf } from '@noble/hashes/hkdf';
 import { sha256 } from '@noble/hashes/sha2';
 
 /**
- * Maximum recommended batch size for ECIES encryption.
- * Limit is based on birthday paradox: with 96-bit random nonces,
- * collision probability becomes non-negligible after ~2^48 messages.
- * This conservative limit keeps collision risk below 1 in 10^9.
- */
-const MAX_BATCH_SIZE = 10000;
-
-/**
  * ECIES encrypt multiple data items to a public key using a single ephemeral key.
- * Each message uses the same shared secret but a unique random nonce.
+ * Each message uses the same encryption key but a unique counter-based nonce (0, 1, 2...).
  * Messages can be decrypted in any order.
  *
  * Note: Messages in a batch share an ephemeral key, making them linkable.
  * For maximum forward secrecy, use eciesEncrypt() for each message individually.
  *
- * If the input exceeds MAX_BATCH_SIZE, it will automatically be split into
- * multiple batches (each with its own ephemeral key).
+ * Nonces are simple counters, which is secure for ChaCha20-Poly1305
+ * since it only requires nonces to be unique per key, not unpredictable.
+ * Maximum batch size is limited by JavaScript's safe integer range (2^53).
  *
  * @param dataArray - Array of data to encrypt
  * @param publicKeyBytes - 32-byte (Schnorr x-only) or 33-byte (compressed) public key
@@ -46,16 +43,6 @@ export function eciesEncryptBatch(
   dataArray: Uint8Array[],
   publicKeyBytes: Uint8Array,
 ): Uint8Array[] {
-  // Split into multiple batches if needed
-  if (dataArray.length > MAX_BATCH_SIZE) {
-    const results: Uint8Array[] = [];
-    for (let i = 0; i < dataArray.length; i += MAX_BATCH_SIZE) {
-      const chunk = dataArray.slice(i, i + MAX_BATCH_SIZE);
-      results.push(...eciesEncryptBatch(chunk, publicKeyBytes));
-    }
-    return results;
-  }
-
   // Step 1: Parse and validate the recipient's public key
   const recipientPublicKey = parsePublicKey(publicKeyBytes);
 
@@ -73,12 +60,12 @@ export function eciesEncryptBatch(
 
   const ephemeralPublicKeyBytes = ephemeralPubKey.toBytes(true); // 33 bytes compressed
 
-  // Step 4: Derive shared encryption key once (no index needed)
+  // Step 4: Derive encryption key from shared secret
   const encryptionKey = deriveEncryptionKey(sharedSecret);
 
-  // Step 5-6: Encrypt each data item with unique random nonce
-  return dataArray.map((data) => {
-    const nonce = generateNonce();
+  // Step 5-6: Encrypt each data item with unique counter-based nonce
+  return dataArray.map((data, index) => {
+    const nonce = generateCounterNonce(index);
 
     // Encrypt with ChaCha20-Poly1305
     const encrypted = encrypt(data, encryptionKey, nonce);
@@ -220,16 +207,42 @@ function getSharedSecret(
 }
 
 function deriveEncryptionKey(sharedSecret: Uint8Array): Uint8Array {
-  // Empty salt so we don't have to store it in the payload. The ephemeral key is sufficiently random.
+  // Empty salt - the ephemeral key provides sufficient randomness
   const salt = new Uint8Array(0);
   const info = new TextEncoder().encode('ecies-key-derivation');
   return hkdf(sha256, sharedSecret, salt, info, 32); // 32 bytes for ChaCha20 key
 }
 
-function generateNonce(): Uint8Array {
-  // Generate a random 12-byte (96-bit) nonce for ChaCha20-Poly1305
+/**
+ * Generate a deterministic counter-based nonce for ChaCha20-Poly1305.
+ * Encodes the counter directly as a 12-byte big-endian value.
+ *
+ * Follows RFC 8439 which states:
+ * "The protocol will specify a 96-bit or 64-bit nonce. This MUST be unique
+ * per invocation with the same key, so it MUST NOT be randomly generated.
+ * A counter is a good way to implement this."
+ *
+ * Our implementation:
+ * - 96-bit (12-byte) nonce as required by ChaCha20
+ * - Counter encoded in rightmost 8 bytes, leftmost 4 bytes are zero
+ * - Guarantees uniqueness per key (no collision risk)
+ * - Standard approach used in TLS 1.3, WireGuard, etc.
+ *
+ * @param counter - Message index in the batch (0-based)
+ * @returns 12-byte nonce with counter encoded as big-endian
+ */
+function generateCounterNonce(counter: number): Uint8Array {
   const nonce = new Uint8Array(12);
-  crypto.getRandomValues(nonce);
+
+  // Encode counter as big-endian in the rightmost 8 bytes (bytes 4-11)
+  // Leftmost 4 bytes (0-3) remain zero
+  // JavaScript numbers are safe up to 2^53 (fits in 7 bytes)
+  let value = counter;
+  for (let i = 11; i >= 4; i--) {
+    nonce[i] = value & 0xff;
+    value = Math.floor(value / 256);
+  }
+
   return nonce;
 }
 

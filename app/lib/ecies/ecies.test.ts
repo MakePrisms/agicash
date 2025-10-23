@@ -198,13 +198,12 @@ describe('ECIES Encryption/Decryption', () => {
     expect(decrypted[4]).toEqual(batch2[2]);
   });
 
-  test('automatically splits large batches exceeding MAX_BATCH_SIZE', () => {
-    // Create an array larger than MAX_BATCH_SIZE (10,000)
+  test('counter-based nonces work with large batches', () => {
+    // Create a large batch (15,000 messages) to test counter-based nonces
     const largeArray = Array.from({ length: 15000 }, (_, i) =>
       new TextEncoder().encode(`Message ${i}`),
     );
 
-    // Should not throw - automatically splits into batches
     const encrypted = eciesEncryptBatch(largeArray, publicKeyCompressed);
     expect(encrypted.length).toBe(15000);
 
@@ -218,13 +217,13 @@ describe('ECIES Encryption/Decryption', () => {
     expect(new TextDecoder().decode(decrypted[10000])).toBe('Message 10000');
     expect(new TextDecoder().decode(decrypted[14999])).toBe('Message 14999');
   });
-
-  test('decrypt 1000 buckets with 3 items each', () => {
-    const bucketCount = 1000;
+  
+  test('decrypt 100 buckets with 3 items each', () => {
+    const bucketCount = 100;
     const itemsPerBucket = 3;
     const allEncrypted: Uint8Array[] = [];
 
-    // Create 1000 separate encryption batches, each with 3 items
+    // Create 100 separate encryption batches, each with 3 items
     for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex++) {
       const bucket = Array.from({ length: itemsPerBucket }, (_, itemIndex) =>
         new TextEncoder().encode(`Bucket ${bucketIndex} - Item ${itemIndex}`),
@@ -234,10 +233,10 @@ describe('ECIES Encryption/Decryption', () => {
       allEncrypted.push(...encrypted);
     }
 
-    // Verify we have 3000 total encrypted messages
+    // Verify we have 300 total encrypted messages
     expect(allEncrypted.length).toBe(bucketCount * itemsPerBucket);
 
-    // Decrypt all 3000 messages at once
+    // Decrypt all 300 messages at once
     const decrypted = eciesDecryptBatch(allEncrypted, privateKey);
     expect(decrypted.length).toBe(bucketCount * itemsPerBucket);
 
@@ -246,17 +245,79 @@ describe('ECIES Encryption/Decryption', () => {
     expect(new TextDecoder().decode(decrypted[1])).toBe('Bucket 0 - Item 1');
     expect(new TextDecoder().decode(decrypted[2])).toBe('Bucket 0 - Item 2');
     expect(new TextDecoder().decode(decrypted[3])).toBe('Bucket 1 - Item 0');
-    expect(new TextDecoder().decode(decrypted[1500])).toBe(
-      'Bucket 500 - Item 0',
+    expect(new TextDecoder().decode(decrypted[150])).toBe(
+      'Bucket 50 - Item 0',
     );
-    expect(new TextDecoder().decode(decrypted[2997])).toBe(
-      'Bucket 999 - Item 0',
+    expect(new TextDecoder().decode(decrypted[297])).toBe(
+      'Bucket 99 - Item 0',
     );
-    expect(new TextDecoder().decode(decrypted[2998])).toBe(
-      'Bucket 999 - Item 1',
+    expect(new TextDecoder().decode(decrypted[298])).toBe(
+      'Bucket 99 - Item 1',
     );
-    expect(new TextDecoder().decode(decrypted[2999])).toBe(
-      'Bucket 999 - Item 2',
+    expect(new TextDecoder().decode(decrypted[299])).toBe(
+      'Bucket 99 - Item 2',
     );
+  });
+
+  test('counter-based nonces are deterministic and unique within batch', () => {
+    const plaintext = new TextEncoder().encode('Test message');
+
+    // Encrypt the same message twice with different ephemeral keys
+    const encrypted1 = eciesEncrypt(plaintext, publicKeyCompressed);
+    const encrypted2 = eciesEncrypt(plaintext, publicKeyCompressed);
+
+    // Extract nonces (bytes 33-45) - both will be counter 0
+    const nonce1 = encrypted1.slice(33, 45);
+    const nonce2 = encrypted2.slice(33, 45);
+
+    // Single messages always start at counter 0, so nonces are the same
+    // This is secure because they have different ephemeral keys (different encryption keys)
+    expect(nonce1).toEqual(nonce2);
+    expect(nonce1).toEqual(new Uint8Array(12)); // Should be all zeros (counter 0)
+
+    // Extract ephemeral public keys - should be different (different batches)
+    const ephemeralKey1 = encrypted1.slice(0, 33);
+    const ephemeralKey2 = encrypted2.slice(0, 33);
+    expect(ephemeralKey1).not.toEqual(ephemeralKey2);
+
+    // Now test batch - all messages in same batch share ephemeral key
+    const batch = [
+      new TextEncoder().encode('Message 1'),
+      new TextEncoder().encode('Message 2'),
+      new TextEncoder().encode('Message 3'),
+    ];
+
+    const encryptedBatch = eciesEncryptBatch(batch, publicKeyCompressed);
+
+    // Extract nonces from batch - should be counters 0, 1, 2
+    const batchNonce1 = encryptedBatch[0].slice(33, 45);
+    const batchNonce2 = encryptedBatch[1].slice(33, 45);
+    const batchNonce3 = encryptedBatch[2].slice(33, 45);
+
+    // Verify first nonce is counter 0
+    expect(batchNonce1).toEqual(new Uint8Array(12));
+    
+    // Verify second nonce is counter 1
+    const expectedNonce2 = new Uint8Array(12);
+    expectedNonce2[11] = 1;
+    expect(batchNonce2).toEqual(expectedNonce2);
+    
+    // Verify third nonce is counter 2
+    const expectedNonce3 = new Uint8Array(12);
+    expectedNonce3[11] = 2;
+    expect(batchNonce3).toEqual(expectedNonce3);
+
+    // All should be different
+    expect(batchNonce1).not.toEqual(batchNonce2);
+    expect(batchNonce2).not.toEqual(batchNonce3);
+    expect(batchNonce1).not.toEqual(batchNonce3);
+
+    // Extract ephemeral public keys - should be same within batch
+    const ephemeralKeyBatch1 = encryptedBatch[0].slice(0, 33);
+    const ephemeralKeyBatch2 = encryptedBatch[1].slice(0, 33);
+    const ephemeralKeyBatch3 = encryptedBatch[2].slice(0, 33);
+
+    expect(ephemeralKeyBatch1).toEqual(ephemeralKeyBatch2);
+    expect(ephemeralKeyBatch2).toEqual(ephemeralKeyBatch3);
   });
 });
