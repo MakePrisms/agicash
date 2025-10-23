@@ -17,7 +17,7 @@
 import { chacha20poly1305 } from '@noble/ciphers/chacha';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { hkdf } from '@noble/hashes/hkdf';
-import { sha256 } from '@noble/hashes/sha256';
+import { sha256 } from '@noble/hashes/sha2';
 
 /**
  * Maximum recommended batch size for ECIES encryption.
@@ -35,19 +35,25 @@ const MAX_BATCH_SIZE = 10000;
  * Note: Messages in a batch share an ephemeral key, making them linkable.
  * For maximum forward secrecy, use eciesEncrypt() for each message individually.
  *
- * @param dataArray - Array of data to encrypt (max 10,000 items)
+ * If the input exceeds MAX_BATCH_SIZE, it will automatically be split into
+ * multiple batches (each with its own ephemeral key).
+ *
+ * @param dataArray - Array of data to encrypt
  * @param publicKeyBytes - 32-byte (Schnorr x-only) or 33-byte (compressed) public key
  * @returns Array of encrypted messages: [ephemeralPubKey(33) || nonce(12) || ciphertext || tag(16)]
- * @throws Error if batch size exceeds MAX_BATCH_SIZE
  */
 export function eciesEncryptBatch(
   dataArray: Uint8Array[],
   publicKeyBytes: Uint8Array,
 ): Uint8Array[] {
+  // Split into multiple batches if needed
   if (dataArray.length > MAX_BATCH_SIZE) {
-    throw new Error(
-      `Batch size ${dataArray.length} exceeds maximum ${MAX_BATCH_SIZE}. Split into smaller batches or use eciesEncrypt() for individual messages.`,
-    );
+    const results: Uint8Array[] = [];
+    for (let i = 0; i < dataArray.length; i += MAX_BATCH_SIZE) {
+      const chunk = dataArray.slice(i, i + MAX_BATCH_SIZE);
+      results.push(...eciesEncryptBatch(chunk, publicKeyBytes));
+    }
+    return results;
   }
 
   // Step 1: Parse and validate the recipient's public key
@@ -62,10 +68,10 @@ export function eciesEncryptBatch(
   // Step 3: Compute shared secret once using ECDH
   const sharedSecret = getSharedSecret(
     ephemeralPrivKey,
-    recipientPublicKey.toRawBytes(true),
+    recipientPublicKey.toBytes(true),
   );
 
-  const ephemeralPublicKeyBytes = ephemeralPubKey.toRawBytes(true); // 33 bytes compressed
+  const ephemeralPublicKeyBytes = ephemeralPubKey.toBytes(true); // 33 bytes compressed
 
   // Step 4: Derive shared encryption key once (no index needed)
   const encryptionKey = deriveEncryptionKey(sharedSecret);
@@ -151,7 +157,7 @@ export function eciesDecryptBatch(
     // Step 3: Compute shared secret using ECDH
     const sharedSecret = getSharedSecret(
       privateKeyBytes,
-      ephemeralPubKey.toRawBytes(true),
+      ephemeralPubKey.toBytes(true),
     );
 
     // Step 4: Derive shared encryption key

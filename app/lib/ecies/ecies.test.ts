@@ -170,4 +170,93 @@ describe('ECIES Encryption/Decryption', () => {
 
     expect(decrypted).toEqual(plaintext);
   });
+
+  test('decrypt multiple batches together', () => {
+    // Encrypt in two separate batches
+    const batch1 = [
+      new TextEncoder().encode('Batch 1 - Message 1'),
+      new TextEncoder().encode('Batch 1 - Message 2'),
+    ];
+    const batch2 = [
+      new TextEncoder().encode('Batch 2 - Message 1'),
+      new TextEncoder().encode('Batch 2 - Message 2'),
+      new TextEncoder().encode('Batch 2 - Message 3'),
+    ];
+
+    const encrypted1 = eciesEncryptBatch(batch1, publicKeyCompressed);
+    const encrypted2 = eciesEncryptBatch(batch2, publicKeyCompressed);
+
+    // Combine all encrypted messages and decrypt together
+    const allEncrypted = [...encrypted1, ...encrypted2];
+    const decrypted = eciesDecryptBatch(allEncrypted, privateKey);
+
+    // Verify all messages decrypted correctly
+    expect(decrypted[0]).toEqual(batch1[0]);
+    expect(decrypted[1]).toEqual(batch1[1]);
+    expect(decrypted[2]).toEqual(batch2[0]);
+    expect(decrypted[3]).toEqual(batch2[1]);
+    expect(decrypted[4]).toEqual(batch2[2]);
+  });
+
+  test('automatically splits large batches exceeding MAX_BATCH_SIZE', () => {
+    // Create an array larger than MAX_BATCH_SIZE (10,000)
+    const largeArray = Array.from({ length: 15000 }, (_, i) =>
+      new TextEncoder().encode(`Message ${i}`),
+    );
+
+    // Should not throw - automatically splits into batches
+    const encrypted = eciesEncryptBatch(largeArray, publicKeyCompressed);
+    expect(encrypted.length).toBe(15000);
+
+    // Verify all can be decrypted correctly
+    const decrypted = eciesDecryptBatch(encrypted, privateKey);
+    expect(decrypted.length).toBe(15000);
+
+    // Spot check a few messages
+    expect(new TextDecoder().decode(decrypted[0])).toBe('Message 0');
+    expect(new TextDecoder().decode(decrypted[9999])).toBe('Message 9999');
+    expect(new TextDecoder().decode(decrypted[10000])).toBe('Message 10000');
+    expect(new TextDecoder().decode(decrypted[14999])).toBe('Message 14999');
+  });
+
+  test('decrypt 1000 buckets with 3 items each', () => {
+    const bucketCount = 1000;
+    const itemsPerBucket = 3;
+    const allEncrypted: Uint8Array[] = [];
+
+    // Create 1000 separate encryption batches, each with 3 items
+    for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex++) {
+      const bucket = Array.from({ length: itemsPerBucket }, (_, itemIndex) =>
+        new TextEncoder().encode(`Bucket ${bucketIndex} - Item ${itemIndex}`),
+      );
+
+      const encrypted = eciesEncryptBatch(bucket, publicKeyCompressed);
+      allEncrypted.push(...encrypted);
+    }
+
+    // Verify we have 3000 total encrypted messages
+    expect(allEncrypted.length).toBe(bucketCount * itemsPerBucket);
+
+    // Decrypt all 3000 messages at once
+    const decrypted = eciesDecryptBatch(allEncrypted, privateKey);
+    expect(decrypted.length).toBe(bucketCount * itemsPerBucket);
+
+    // Spot check messages from different buckets
+    expect(new TextDecoder().decode(decrypted[0])).toBe('Bucket 0 - Item 0');
+    expect(new TextDecoder().decode(decrypted[1])).toBe('Bucket 0 - Item 1');
+    expect(new TextDecoder().decode(decrypted[2])).toBe('Bucket 0 - Item 2');
+    expect(new TextDecoder().decode(decrypted[3])).toBe('Bucket 1 - Item 0');
+    expect(new TextDecoder().decode(decrypted[1500])).toBe(
+      'Bucket 500 - Item 0',
+    );
+    expect(new TextDecoder().decode(decrypted[2997])).toBe(
+      'Bucket 999 - Item 0',
+    );
+    expect(new TextDecoder().decode(decrypted[2998])).toBe(
+      'Bucket 999 - Item 1',
+    );
+    expect(new TextDecoder().decode(decrypted[2999])).toBe(
+      'Bucket 999 - Item 2',
+    );
+  });
 });
