@@ -10,7 +10,7 @@ enabled = true
 port = 54321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. `public` and `graphql_public` schemas are included by default.
-schemas = ["wallet"]
+schemas = ["wallet", "mints"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
@@ -19,7 +19,7 @@ max_rows = 1000
 
 [api.tls]
 # Enable HTTPS endpoints locally using a self-signed certificate.
-enabled = true
+enabled = false
 # Paths to self-signed certificate pair.
 cert_path = "env(SELF_SIGNED_CERT_PATH)"
 key_path = "env(SELF_SIGNED_CERT_KEY_PATH)"
@@ -293,7 +293,7 @@ project_id = "hrebgkfhjpkbxpztqqke"
 [remotes.master.api]
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. `public` and `graphql_public` schemas are included by default.
-schemas = ["wallet"]
+schemas = ["wallet", "mints"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 
