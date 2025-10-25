@@ -8,7 +8,7 @@ export async function generateRandomPassword(
   length = 24,
   options: PasswordOptions = { letters: true, numbers: true, special: true },
 ): Promise<string> {
-  if (window.getMockPassword) {
+  if (typeof window !== 'undefined' && window.getMockPassword) {
     const password = await window.getMockPassword();
     if (password) {
       return password;
@@ -30,9 +30,11 @@ export async function generateRandomPassword(
 
   const password: string[] = [];
 
+  const crypto = globalThis.crypto;
+
   for (let i = 0; i < length; i++) {
     const randomIndex =
-      window.crypto.getRandomValues(new Uint32Array(1))[0] % charset.length;
+      crypto.getRandomValues(new Uint32Array(1))[0] % charset.length;
     password.push(charset[randomIndex]);
   }
 
