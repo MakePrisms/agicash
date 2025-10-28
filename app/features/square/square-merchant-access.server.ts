@@ -2,6 +2,11 @@ import { agicashDbMints } from '~/features/agicash-db/database.server';
 import { generateRandomPassword } from '../../lib/password-generator';
 import { SquareMerchantRepository } from './square-merchant-repository.server';
 
+const postgresHost = process.env.POSTGRES_HOST ?? '';
+if (!postgresHost) {
+  throw new Error('Missing environment variables for square merchant access');
+}
+
 /**
  * Creates remote database access for a merchant.
  * Idempotent: if remote access already exists, returns null without error.
@@ -14,11 +19,6 @@ export async function createMerchantRemoteAccess(merchantId: string): Promise<{
   merchantId: string;
   connectionString: string;
 } | null> {
-  const postgresHost = process.env.POSTGRES_HOST ?? '';
-  if (!postgresHost) {
-    throw new Error('Missing environment variables for square merchant access');
-  }
-
   const repository = new SquareMerchantRepository(agicashDbMints);
   const roleName = SquareMerchantRepository.generateRoleName(merchantId);
 

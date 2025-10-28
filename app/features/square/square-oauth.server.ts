@@ -6,24 +6,19 @@ const SQUARE_BASE_URL = {
   sandbox: 'https://connect.squareupsandbox.com',
 } as const;
 
-const squareConfig = () => {
-  const { SQUARE_ENVIRONMENT: squareEnvironment, SQUARE_APP_ID: squareAppId } =
-    process.env;
-  if (!squareEnvironment || !squareAppId) {
-    throw new Error('Missing environment variables for square oauth');
-  }
-  return { squareEnvironment, squareAppId };
-};
+const { SQUARE_ENVIRONMENT: squareEnvironment, SQUARE_APP_ID: squareAppId } =
+  process.env;
+if (!squareEnvironment || !squareAppId) {
+  throw new Error('Missing environment variables for square oauth');
+}
 
 const getSquareBaseUrl = () => {
-  const { squareEnvironment } = squareConfig();
   return squareEnvironment === 'production'
     ? SQUARE_BASE_URL.production
     : SQUARE_BASE_URL.sandbox;
 };
 
 export const getSquareOAuthClient = () => {
-  const { squareEnvironment } = squareConfig();
   const environment =
     squareEnvironment === 'production'
       ? SquareEnvironment.Production
@@ -43,7 +38,7 @@ export const generateSquareAuthParams = () => {
   };
 
   const state = base64Encode(crypto.randomBytes(16));
-  const { squareAppId } = squareConfig();
+
   return {
     state,
     appId: squareAppId,

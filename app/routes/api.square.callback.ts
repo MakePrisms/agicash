@@ -9,6 +9,12 @@ import { SquareMerchantRepository } from '../features/square/square-merchant-rep
 import { getSquareOAuthClient } from '../features/square/square-oauth.server';
 import type { Route } from './+types/api.square.callback';
 
+const { SQUARE_APP_ID: appId = '', SQUARE_APP_SECRET: appSecret = '' } =
+  process.env;
+if (!appId || !appSecret) {
+  throw new Error('Square app credentials not configured');
+}
+
 const clearedCookiesHeaders = async (): Promise<Headers> => {
   const headers = new Headers();
   headers.append('Content-Type', 'text/plain');
@@ -24,12 +30,6 @@ const clearedCookiesHeaders = async (): Promise<Headers> => {
 };
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { SQUARE_APP_ID: appId = '', SQUARE_APP_SECRET: appSecret = '' } =
-    process.env;
-  if (!appId || !appSecret) {
-    throw new Error('Square app credentials not configured');
-  }
-
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
