@@ -67,7 +67,7 @@ type CompleteCashuTokenSwapResult = {
 // Use when you need to fix/improve generated types
 // See https://supabase.com/docs/guides/api/rest/generating-types#helper-types-for-tables-and-joins
 export type Database = MergeDeep<
-  DatabaseGenerated,
+  Pick<DatabaseGenerated, 'wallet'>,
   {
     wallet: {
       Tables: {
