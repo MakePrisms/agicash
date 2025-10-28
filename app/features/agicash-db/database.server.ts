@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { Database as DatabaseGenerated } from 'supabase/database.types';
 import type { Database } from './database';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
@@ -20,3 +21,17 @@ export const agicashDbServiceRole = createClient<Database>(
     },
   },
 );
+
+export type MintsDatabase = Pick<DatabaseGenerated, 'mints'>;
+
+export const agicashDbMints = createClient<MintsDatabase>(
+  supabaseUrl,
+  supabaseServiceRoleKey,
+  {
+    db: {
+      schema: 'mints',
+    },
+  },
+);
+
+export type AgicashMintsDb = typeof agicashDbMints;

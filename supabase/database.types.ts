@@ -7,6 +7,119 @@ export type Json =
   | Json[]
 
 export type Database = {
+  mints: {
+    Tables: {
+      merchant_remote_access_log: {
+        Row: {
+          connection_string: string
+          created_at: string
+          id: string
+          merchant_id: string
+          role_name: string
+        }
+        Insert: {
+          connection_string: string
+          created_at?: string
+          id?: string
+          merchant_id: string
+          role_name: string
+        }
+        Update: {
+          connection_string?: string
+          created_at?: string
+          id?: string
+          merchant_id?: string
+          role_name?: string
+        }
+        Relationships: []
+      }
+      square_merchant_credentials: {
+        Row: {
+          access_token: string
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          merchant_id: string
+          refresh_token: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          merchant_id: string
+          refresh_token: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          merchant_id?: string
+          refresh_token?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      square_remote_app_access: {
+        Row: {
+          created_at: string
+          id: string
+          merchant_id: string
+          role_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          merchant_id: string
+          role_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          merchant_id?: string
+          role_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "square_remote_app_access_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "square_merchant_credentials"
+            referencedColumns: ["merchant_id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      check_role_exists: { Args: { p_role_name: string }; Returns: boolean }
+      create_merchant_role: {
+        Args: { p_password: string; p_role_name: string }
+        Returns: Json
+      }
+      drop_merchant_role: { Args: { p_role_name: string }; Returns: Json }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   wallet: {
     Tables: {
       accounts: {
@@ -1201,6 +1314,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  mints: {
+    Enums: {},
+  },
   wallet: {
     Enums: {},
   },
