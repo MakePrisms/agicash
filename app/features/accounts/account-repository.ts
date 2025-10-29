@@ -1,4 +1,8 @@
 import {
+  type NetworkType as SparkNetwork,
+  SparkWallet,
+} from '@buildonspark/spark-sdk';
+import {
   type MintActiveKeys,
   type MintAllKeysets,
   NetworkError,
@@ -12,7 +16,7 @@ import {
   getCashuUnit,
   getCashuWallet,
 } from '~/lib/cashu';
-import type { Currency } from '~/lib/money';
+import { type Currency, Money } from '~/lib/money';
 import {
   type AgicashDb,
   type AgicashDbAccount,
@@ -28,6 +32,7 @@ import {
   useCashuCryptography,
 } from '../shared/cashu';
 import { useEncryption } from '../shared/encryption';
+import { useSparkCryptography } from '../shared/spark';
 import type { Account, CashuAccount } from './account';
 
 type AccountOmit<
@@ -59,6 +64,7 @@ export class AccountRepository {
     private readonly encryption: Encryption,
     private readonly queryClient: QueryClient,
     private readonly getCashuWalletSeed?: () => Promise<Uint8Array>,
+    private readonly getSparkSeed?: () => Promise<Uint8Array>,
   ) {}
 
   /**
@@ -112,19 +118,24 @@ export class AccountRepository {
     accountInput: AccountInput<T>,
     options?: Options,
   ): Promise<T> {
+    let details = {};
+    if (accountInput.type === 'cashu') {
+      details = {
+        mint_url: accountInput.mintUrl,
+        is_test_mint: accountInput.isTestMint,
+        keyset_counters: accountInput.keysetCounters,
+        proofs: await this.encryption.encrypt(accountInput.proofs),
+      };
+    } else if (accountInput.type === 'nwc') {
+      details = { nwc_url: accountInput.nwcUrl };
+    } else if (accountInput.type === 'spark') {
+      details = {};
+    }
     const accountsToCreate = {
       name: accountInput.name,
       type: accountInput.type,
       currency: accountInput.currency,
-      details:
-        accountInput.type === 'cashu'
-          ? {
-              mint_url: accountInput.mintUrl,
-              is_test_mint: accountInput.isTestMint,
-              keyset_counters: accountInput.keysetCounters,
-              proofs: await this.encryption.encrypt(accountInput.proofs),
-            }
-          : { nwc_url: accountInput.nwcUrl },
+      details,
       user_id: accountInput.userId,
     };
 
@@ -190,6 +201,35 @@ export class AccountRepository {
         ...commonData,
         type: 'nwc',
         nwcUrl: details.nwc_url,
+      } as T;
+    }
+
+    if (data.type === 'spark') {
+      if (commonData.currency !== 'BTC') {
+        // TODO: see if we can handle this better
+        throw new Error('Spark accounts can only be created for BTC');
+      }
+      const sparkSeed = await this.getSparkSeed?.();
+      if (!sparkSeed) {
+        throw new Error('No Spark seed found');
+      }
+      const network = (data.details as { network: SparkNetwork }).network;
+      const { wallet: sparkWallet } = await SparkWallet.initialize({
+        mnemonicOrSeed: sparkSeed,
+        options: { network },
+      });
+      const { balance: balanceSats } = await sparkWallet.getBalance();
+      return {
+        ...commonData,
+        type: 'spark',
+        wallet: sparkWallet,
+        network: network,
+        balance: new Money({
+          amount: balanceSats.toString(),
+          currency: 'BTC',
+          unit: 'sat',
+        }),
+        isOnline: true,
       } as T;
     }
 
@@ -274,6 +314,7 @@ export function useAccountRepository() {
   const encryption = useEncryption();
   const queryClient = useQueryClient();
   const { getSeed: getCashuWalletSeed } = useCashuCryptography();
+  const { getSeed: getSparkSeed } = useSparkCryptography();
   return new AccountRepository(
     agicashDb,
     {
@@ -282,5 +323,6 @@ export function useAccountRepository() {
     },
     queryClient,
     getCashuWalletSeed,
+    getSparkSeed,
   );
 }

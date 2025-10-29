@@ -7,7 +7,7 @@ import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-sessio
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import {
   BASE_CASHU_LOCKING_DERIVATION_PATH,
-  seedQueryOptions,
+  seedQueryOptions as cashuSeedQueryOptions,
   xpubQueryOptions,
 } from '~/features/shared/cashu';
 import {
@@ -15,6 +15,7 @@ import {
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
+import { seedQueryOptions as sparkSeedQueryOptions } from '~/features/shared/spark';
 import {
   type AuthUser,
   authQueryOptions,
@@ -67,14 +68,19 @@ const ensureUserData = async (
             derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
           }),
         ),
+        queryClient.ensureQueryData(cashuSeedQueryOptions()),
+        queryClient.ensureQueryData(sparkSeedQueryOptions()),
       ]);
     const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-    const getCashuWalletSeed = () => queryClient.fetchQuery(seedQueryOptions());
+    const getCashuWalletSeed = () =>
+      queryClient.fetchQuery(cashuSeedQueryOptions());
+    const getSparkSeed = () => queryClient.fetchQuery(sparkSeedQueryOptions());
     const accountRepository = new AccountRepository(
       agicashDb,
       encryption,
       queryClient,
       getCashuWalletSeed,
+      getSparkSeed,
     );
     const userRepository = new UserRepository(
       agicashDb,

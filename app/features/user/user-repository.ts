@@ -130,6 +130,7 @@ export class UserRepository {
         | 'keysetCounters'
         | 'wallet'
         | 'isOnline'
+        | 'balance'
       >[];
       /**
        * The extended public key used for locking proofs and mint quotes.
@@ -147,15 +148,27 @@ export class UserRepository {
         name: account.name,
         type: account.type,
         currency: account.currency,
-        details:
-          account.type === 'cashu'
-            ? {
-                mint_url: account.mintUrl,
-                is_test_mint: account.isTestMint,
-                keyset_counters: {},
-                proofs: await this.encryption.encrypt([]),
-              }
-            : { nwc_url: account.nwcUrl },
+        details: await (async () => {
+          if (account.type === 'cashu') {
+            return {
+              mint_url: account.mintUrl,
+              is_test_mint: account.isTestMint,
+              keyset_counters: {},
+              proofs: await this.encryption.encrypt([]),
+            };
+          }
+          if (account.type === 'spark') {
+            return {
+              network: account.network,
+            };
+          }
+          if (account.type === 'nwc') {
+            return {
+              nwc_url: account.nwcUrl,
+            };
+          }
+          throw new Error('Invalid account type');
+        })(),
       })),
     );
 

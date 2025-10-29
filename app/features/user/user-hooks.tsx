@@ -77,6 +77,12 @@ const isDevelopmentMode = import.meta.env.MODE === 'development';
 
 export const defaultAccounts = [
   {
+    type: 'spark',
+    currency: 'BTC',
+    name: 'Spark Mainnet',
+    network: 'MAINNET',
+  },
+  {
     type: 'cashu',
     currency: 'BTC',
     name: 'Minibits',

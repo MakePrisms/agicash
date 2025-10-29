@@ -437,3 +437,39 @@ export function useSelectItemsWithOnlineAccount() {
     [accountsCache],
   );
 }
+
+/**
+ * Hook to update the balance of a Spark account in the cache.
+ * @returns A function that takes an accountId and balance in satoshis.
+ * @throws Error if the account is not found or is not a Spark account.
+ */
+export function useUpdateSparkBalance() {
+  const accountsCache = useAccountsCache();
+
+  return useCallback(
+    (accountId: string, balanceSatoshis: bigint) => {
+      const account = accountsCache.get(accountId);
+      if (!account) {
+        throw new Error(`Account with id ${accountId} not found`);
+      }
+
+      if (account.type !== 'spark') {
+        throw new Error(`Account with id ${accountId} is not a Spark account`);
+      }
+
+      const newBalance = new Money({
+        amount: Number(balanceSatoshis),
+        currency: 'BTC' as Currency,
+        unit: 'sat',
+      });
+
+      const updatedAccount: Account = {
+        ...account,
+        balance: newBalance,
+      };
+
+      accountsCache.update(updatedAccount);
+    },
+    [accountsCache],
+  );
+}
