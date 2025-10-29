@@ -109,10 +109,15 @@ export default function ReceiveInput() {
         transition: 'slideLeft',
         applyTo: 'newView',
       });
+    } else if (receiveAccount.type === 'spark') {
+      navigate('/receive/spark', {
+        transition: 'slideLeft',
+        applyTo: 'newView',
+      });
     } else {
       toast({
         title: 'Not implemented',
-        description: 'Choose a cashu account and try again.',
+        description: 'Choose a cashu or spark account and try again.',
         variant: 'destructive',
       });
     }
