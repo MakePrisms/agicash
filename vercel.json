@@ -2,5 +2,11 @@
   "framework": "react-router",
   "installCommand": "bun install",
   "buildCommand": "bun run build",
-  "outputDirectory": "build"
+  "outputDirectory": "build",
+  "crons": [
+    {
+      "path": "/api/square/refresh-tokens",
+      "schedule": "0 2,14 * * *"
+    }
+  ]
 }

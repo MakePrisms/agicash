@@ -19,7 +19,7 @@
     "test": "bun test",
     "test:e2e": "playwright test",
     "supabase": "supabase",
-    "db:generate-types": "supabase gen types typescript --local --schema wallet > supabase/database.types.ts"
+    "db:generate-types": "supabase gen types typescript --local --schema wallet --schema mints > supabase/database.types.ts"
   },
   "scripts:comments": {
     "dev": "We are using tsx instead of bun because with bun server just hangs and eventually we get an error: 'ELOOP: too many symbolic links encountered...'.",
@@ -73,6 +73,7 @@
     "react-dom": "19.1.0",
     "react-hook-form": "7.54.0",
     "react-router": "7.8.1",
+    "square": "43.2.0",
     "tailwind-merge": "2.5.5",
     "tailwindcss-animate": "1.0.7",
     "usehooks-ts": "3.1.1",
