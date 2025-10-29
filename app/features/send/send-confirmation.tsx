@@ -7,7 +7,7 @@ import { Page } from '~/components/page';
 import { PageContent } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
-import type { CashuAccount } from '~/features/accounts/account';
+import type { CashuAccount, SparkAccount } from '~/features/accounts/account';
 import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import type { DestinationDetails } from '~/features/transactions/transaction';
@@ -23,6 +23,11 @@ import {
 } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwap } from './cashu-send-swap-hooks';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
+import {
+  usePaySparkLightningInvoice,
+  useTrackSparkLightningSend,
+} from './spark-send-lightning-hooks';
+import type { SparkLightningQuote } from './spark-send-lightning-service';
 
 const ConfirmationRow = ({
   label,
@@ -88,14 +93,14 @@ const BaseConfirmation = ({
 
 type PayBolt11ConfirmationProps = {
   /** The account to send from */
-  account: CashuAccount;
+  account: CashuAccount | SparkAccount;
   /** The bolt11 invoice to pay */
   destination: string;
   /** The destination to display in the UI. For sends to bolt11 this will be the same as the bolt11, for ln addresses it will be the ln address. */
   destinationDisplay: string;
   destinationDetails?: DestinationDetails;
   /** The quote to display in the UI. */
-  quote: CashuLightningQuote;
+  quote: CashuLightningQuote | SparkLightningQuote;
 };
 
 /**
@@ -115,10 +120,11 @@ export const PayBolt11Confirmation = ({
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
 
+  // For Cashu accounts
   const {
-    mutate: initiateSend,
-    data: { id: sendQuoteId, transactionId } = {},
-    isPending: isCreatingSendQuote,
+    mutate: initiateCashuSend,
+    data: { id: cashuSendQuoteId, transactionId: cashuTransactionId } = {},
+    isPending: isCreatingCashuSendQuote,
   } = useInitiateCashuSendQuote({
     onError: (error) => {
       if (error instanceof DomainError) {
@@ -134,8 +140,8 @@ export const PayBolt11Confirmation = ({
     },
   });
 
-  const { status: quoteStatus } = useTrackCashuSendQuote({
-    sendQuoteId,
+  const { status: cashuQuoteStatus } = useTrackCashuSendQuote({
+    sendQuoteId: cashuSendQuoteId,
     onExpired: () => {
       toast({
         title: 'Send quote expired',
@@ -143,28 +149,71 @@ export const PayBolt11Confirmation = ({
       });
     },
     onPending: () => {
-      navigate(`/transactions/${transactionId}?redirectTo=/`, {
+      navigate(`/transactions/${cashuTransactionId}?redirectTo=/`, {
         transition: 'slideLeft',
         applyTo: 'newView',
       });
     },
   });
 
-  const handleConfirm = () =>
-    initiateSend({
-      accountId: account.id,
-      sendQuote: bolt11Quote,
-      destinationDetails,
-    });
+  // For Spark accounts
+  const {
+    mutate: paySparkInvoice,
+    data: sparkSendQuote,
+    isPending: isPayingSparkInvoice,
+  } = usePaySparkLightningInvoice();
 
-  const paymentInProgress =
-    ['LOADING', 'UNPAID', 'PENDING'].includes(quoteStatus) ||
-    isCreatingSendQuote;
+  const { status: sparkQuoteStatus } = useTrackSparkLightningSend({
+    quoteId: sparkSendQuote?.id,
+    onCompleted: () => {
+      toast({
+        title: 'Payment sent',
+        description: 'Your Lightning payment was successful',
+      });
+      navigate('/', {
+        transition: 'slideLeft',
+        applyTo: 'newView',
+      });
+    },
+    onFailed: () => {
+      toast({
+        title: 'Payment failed',
+        description: 'Your Lightning payment failed. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleConfirm = () => {
+    if (account.type === 'cashu') {
+      initiateCashuSend({
+        accountId: account.id,
+        sendQuote: bolt11Quote as CashuLightningQuote,
+        destinationDetails,
+      });
+    } else if (account.type === 'spark') {
+      paySparkInvoice({
+        account,
+        quote: bolt11Quote as SparkLightningQuote,
+      });
+    }
+  };
+
+  const isCashu = account.type === 'cashu';
+  const paymentInProgress = isCashu
+    ? ['LOADING', 'UNPAID', 'PENDING'].includes(cashuQuoteStatus) ||
+      isCreatingCashuSendQuote
+    : ['PENDING', 'LOADING'].includes(sparkQuoteStatus) || isPayingSparkInvoice;
+
+  const amountToReceive = bolt11Quote.amountToReceive;
+  const estimatedFee = bolt11Quote.estimatedTotalFee;
+  const totalAmount = bolt11Quote.estimatedTotalAmount;
+
   const { description } = decodeBolt11(destination);
 
   return (
     <BaseConfirmation
-      amount={bolt11Quote.estimatedTotalAmount}
+      amount={totalAmount}
       onConfirm={handleConfirm}
       loading={paymentInProgress}
     >
@@ -174,8 +223,8 @@ export const PayBolt11Confirmation = ({
           value: (
             <MoneyDisplay
               size="sm"
-              money={bolt11Quote.amountToReceive}
-              unit={getDefaultUnit(bolt11Quote.amountToReceive.currency)}
+              money={amountToReceive}
+              unit={getDefaultUnit(amountToReceive.currency)}
             />
           ),
         },
@@ -184,8 +233,8 @@ export const PayBolt11Confirmation = ({
           value: (
             <MoneyDisplay
               size="sm"
-              money={bolt11Quote.estimatedTotalFee}
-              unit={getDefaultUnit(bolt11Quote.estimatedTotalFee.currency)}
+              money={estimatedFee}
+              unit={getDefaultUnit(estimatedFee.currency)}
             />
           ),
         },

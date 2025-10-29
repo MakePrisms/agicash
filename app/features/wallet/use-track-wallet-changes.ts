@@ -26,6 +26,7 @@ import {
   useCashuSendSwapChangeHandler,
   useUnresolvedCashuSendSwapsCache,
 } from '../send/cashu-send-swap-hooks';
+import { useSparkSendBalanceUpdates } from '../send/spark-send-lightning-hooks';
 import {
   useTransactionChangeHandler,
   useTransactionsCache,
@@ -153,6 +154,7 @@ export const useTrackWalletChanges = () => {
   const contactsCache = useContactsCache();
 
   useSparkBalanceUpdates();
+  useSparkSendBalanceUpdates();
 
   useTrackDatabaseChanges({
     handlers: [
