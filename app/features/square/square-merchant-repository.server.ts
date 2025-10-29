@@ -16,6 +16,14 @@ type Options = {
   abortSignal?: AbortSignal;
 };
 
+export type MerchantCredentials = {
+  merchantId: string;
+  email: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+};
+
 /**
  * Repository for Square merchant database operations.
  * Handles merchant credentials, remote access, and role management.
@@ -210,6 +218,36 @@ export class SquareMerchantRepository {
         cause: error,
       });
     }
+  }
+
+  /**
+   * Fetches all merchant credentials.
+   * Requires service_role permissions.
+   */
+  async getAllMerchantCredentials(
+    options?: Options,
+  ): Promise<MerchantCredentials[]> {
+    const query = this.db
+      .from('square_merchant_credentials')
+      .select('merchant_id, email, access_token, refresh_token, expires_at');
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error('Failed to fetch merchant credentials', { cause: error });
+    }
+
+    return (data || []).map((row) => ({
+      merchantId: row.merchant_id,
+      email: row.email,
+      accessToken: row.access_token,
+      refreshToken: row.refresh_token,
+      expiresAt: row.expires_at,
+    }));
   }
 
   /**
