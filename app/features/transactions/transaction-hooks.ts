@@ -220,11 +220,11 @@ export function useTransactions() {
     queryFn: async ({ pageParam }: { pageParam: PageParam }) => {
       const { dbCursor, sparkOffset, sparkBuffer } = pageParam;
 
-      // Fetch Spark transfers if user has Spark accounts
+      // Fetch Spark transfers if user has Spark accounts and buffer is empty
       const updatedSparkBuffer = [...sparkBuffer];
       let nextSparkOffset = sparkOffset;
 
-      if (accounts && accounts.length > 0) {
+      if (accounts && accounts.length > 0 && sparkBuffer.length === 0) {
         try {
           const sparkResult = await sparkWallet.getTransfers(
             SPARK_FETCH_SIZE,
