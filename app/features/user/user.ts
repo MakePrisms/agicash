@@ -11,6 +11,7 @@ type CommonUserData = {
   defaultCurrency: Currency;
   cashuLockingXpub: string;
   encryptionPublicKey: string;
+  sparkPublicKey: string | null;
 };
 
 export type FullUser = CommonUserData & {

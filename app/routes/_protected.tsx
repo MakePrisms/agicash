@@ -1,3 +1,4 @@
+import { SparkWallet } from '@buildonspark/spark-sdk';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { AccountsCache } from '~/features/accounts/account-hooks';
@@ -88,6 +89,13 @@ const ensureUserData = async (
       accountRepository,
     );
 
+    // TODO: can we do this better? This is just for getting the spark public key for the user.
+    const { wallet: sparkWallet } = await SparkWallet.initialize({
+      mnemonicOrSeed: await getSparkSeed(),
+      options: { network: 'MAINNET' },
+    });
+    const sparkPublicKey = await sparkWallet.getIdentityPublicKey();
+
     const { user: upsertedUser, accounts } = await userRepository.upsert({
       id: authUser.id,
       email: authUser.email,
@@ -95,6 +103,7 @@ const ensureUserData = async (
       accounts: [...defaultAccounts],
       cashuLockingXpub,
       encryptionPublicKey,
+      sparkPublicKey,
     });
     user = upsertedUser;
     const { queryKey: userQueryKey } = userQueryOptions({

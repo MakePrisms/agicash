@@ -581,6 +581,7 @@ export type Database = {
           email_verified: boolean
           encryption_public_key: string
           id: string
+          spark_public_key: string | null
           updated_at: string
           username: string
         }
@@ -594,6 +595,7 @@ export type Database = {
           email_verified: boolean
           encryption_public_key: string
           id?: string
+          spark_public_key?: string | null
           updated_at?: string
           username: string
         }
@@ -607,6 +609,7 @@ export type Database = {
           email_verified?: boolean
           encryption_public_key?: string
           id?: string
+          spark_public_key?: string | null
           updated_at?: string
           username?: string
         }
@@ -1034,6 +1037,7 @@ export type Database = {
           p_email: string
           p_email_verified: boolean
           p_encryption_public_key: string
+          p_spark_public_key?: string
           p_user_id: string
         }
         Returns: Json

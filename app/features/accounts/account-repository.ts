@@ -64,7 +64,7 @@ export class AccountRepository {
     private readonly encryption: Encryption,
     private readonly queryClient: QueryClient,
     private readonly getCashuWalletSeed?: () => Promise<Uint8Array>,
-    private readonly getSparkSeed?: () => Promise<Uint8Array>,
+    private readonly getSparkSeed?: () => Promise<Uint8Array | string>,
   ) {}
 
   /**
