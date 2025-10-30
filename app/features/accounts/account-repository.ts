@@ -128,7 +128,7 @@ export class AccountRepository {
     } else if (accountInput.type === 'nwc') {
       details = { nwc_url: accountInput.nwcUrl };
     } else if (accountInput.type === 'spark') {
-      details = {};
+      details = { network: accountInput.network };
     }
     const accountsToCreate = {
       name: accountInput.name,

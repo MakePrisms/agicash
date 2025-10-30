@@ -1,5 +1,5 @@
 import { getEncodedToken } from '@cashu/cashu-ts';
-import { ArrowUpDown, Clipboard, Scan } from 'lucide-react';
+import { ArrowUpDown, Clipboard, Scan, X } from 'lucide-react';
 import { MoneyDisplay, MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
@@ -72,6 +72,10 @@ export default function ReceiveInput() {
   const receiveCurrencyUnit = getDefaultUnit(receiveAccount.currency);
   const setReceiveAccount = useReceiveStore((s) => s.setAccount);
   const setReceiveAmount = useReceiveStore((s) => s.setAmount);
+  const payFromDefaultAccount = useReceiveStore((s) => s.payFromDefaultAccount);
+  const setPayFromDefaultAccount = useReceiveStore(
+    (s) => s.setPayFromDefaultAccount,
+  );
   const { data: accounts } = useAccounts();
 
   const {
@@ -102,6 +106,14 @@ export default function ReceiveInput() {
         return;
       }
       setReceiveAmount(convertedValue);
+    }
+
+    if (payFromDefaultAccount) {
+      navigate('/receive/transfer', {
+        transition: 'slideLeft',
+        applyTo: 'newView',
+      });
+      return;
     }
 
     if (receiveAccount.type === 'cashu') {
@@ -160,23 +172,38 @@ export default function ReceiveInput() {
         <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
-
       <PageContent className="mx-auto flex flex-col items-center justify-between">
-        <div className="flex h-[124px] flex-col items-center gap-2">
-          <div className={shakeAnimationClass}>
-            <MoneyInputDisplay
-              inputValue={rawInputValue}
-              currency={inputValue.currency}
-              unit={getDefaultUnit(inputValue.currency)}
-            />
+        <div className="flex flex-col items-center justify-between gap-4">
+          <div className="flex h-[124px] flex-col items-center gap-2">
+            <div className={shakeAnimationClass}>
+              <MoneyInputDisplay
+                inputValue={rawInputValue}
+                currency={inputValue.currency}
+                unit={getDefaultUnit(inputValue.currency)}
+              />
+            </div>
+
+            {!exchangeRateError && (
+              <ConvertedMoneySwitcher
+                onSwitchInputCurrency={switchInputCurrency}
+                money={convertedValue}
+              />
+            )}
           </div>
 
-          {!exchangeRateError && (
-            <ConvertedMoneySwitcher
-              onSwitchInputCurrency={switchInputCurrency}
-              money={convertedValue}
-            />
-          )}
+          <div className="flex h-[24px] items-center justify-center gap-4">
+            {payFromDefaultAccount && (
+              <>
+                <p className="text-muted-foreground text-sm">
+                  Pay from default account
+                </p>
+                <X
+                  onClick={() => setPayFromDefaultAccount(false)}
+                  className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-foreground"
+                />
+              </>
+            )}
+          </div>
         </div>
 
         <div className="w-full max-w-sm sm:max-w-none">
@@ -189,6 +216,9 @@ export default function ReceiveInput() {
               setReceiveAccount(account);
               if (account.currency !== inputValue.currency) {
                 switchInputCurrency();
+              }
+              if (!account.isDefault) {
+                setPayFromDefaultAccount(true);
               }
             }}
           />
