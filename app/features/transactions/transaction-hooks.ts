@@ -1,3 +1,4 @@
+import type { WalletTransfer } from '@buildonspark/spark-sdk/types';
 import {
   type InfiniteData,
   type QueryClient,
@@ -9,12 +10,19 @@ import {
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import type { AgicashDbTransaction } from '~/features/agicash-db/database';
+import { type Currency, Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import { useGetLatestCashuAccount } from '../accounts/account-hooks';
+import { useAccounts } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
+import { getDefaultUnit } from '../shared/currencies';
+import { useSparkWallet } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
-import type { Transaction } from './transaction';
+import type {
+  SparkTransferTransactionDetails,
+  Transaction,
+} from './transaction';
 import {
   type Cursor,
   useTransactionRepository,
@@ -106,10 +114,40 @@ export function useTransaction({
 }) {
   const enabled = !!transactionId;
   const transactionRepository = useTransactionRepository();
+  const userId = useUser((user) => user.id);
+  const { data: accounts } = useAccounts({ type: 'spark' });
+  const sparkWallet = useSparkWallet();
 
   return useQuery({
     queryKey: [TransactionsCache.Key, transactionId],
-    queryFn: () => transactionRepository.get(transactionId ?? ''),
+    queryFn: async () => {
+      const id = transactionId ?? '';
+
+      // Check if this is a Spark transaction
+      if (id.startsWith('spark-')) {
+        const transferId = id.replace('spark-', '');
+        const transfer = await sparkWallet.getTransfer(transferId);
+
+        if (!transfer) {
+          throw new Error(`Spark transfer not found: ${transferId}`);
+        }
+
+        if (!accounts || accounts.length === 0) {
+          throw new Error('No Spark account found for transaction');
+        }
+
+        const sparkAccount = accounts[0]; // TODO: we're assuming one spark account total
+        return mapWalletTransferToTransaction(
+          transfer,
+          sparkAccount.id,
+          userId,
+          sparkAccount.currency,
+        );
+      }
+
+      // Otherwise, fetch from database
+      return transactionRepository.get(id);
+    },
     enabled,
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -119,10 +157,38 @@ export function useTransaction({
 
 export function useSuspenseTransaction(id: string) {
   const transactionRepository = useTransactionRepository();
+  const userId = useUser((user) => user.id);
+  const { data: accounts } = useAccounts({ type: 'spark' });
+  const sparkWallet = useSparkWallet();
 
   return useSuspenseQuery({
     queryKey: [TransactionsCache.Key, id],
-    queryFn: () => transactionRepository.get(id),
+    queryFn: async () => {
+      // Check if this is a Spark transaction
+      if (id.startsWith('spark-')) {
+        const transferId = id.replace('spark-', '');
+        const transfer = await sparkWallet.getTransfer(transferId);
+
+        if (!transfer) {
+          throw new Error(`Spark transfer not found: ${transferId}`);
+        }
+
+        if (!accounts || accounts.length === 0) {
+          throw new Error('No Spark account found for transaction');
+        }
+
+        const sparkAccount = accounts[0]; // TODO: we're assuming one spark account total
+        return mapWalletTransferToTransaction(
+          transfer,
+          sparkAccount.id,
+          userId,
+          sparkAccount.currency,
+        );
+      }
+
+      // Otherwise, fetch from database
+      return transactionRepository.get(id);
+    },
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -130,24 +196,105 @@ export function useSuspenseTransaction(id: string) {
 }
 
 const PAGE_SIZE = 25;
+const SPARK_FETCH_SIZE = 30; // Spark's default limit
+
+type PageParam = {
+  dbCursor: Cursor | null;
+  sparkOffset: number;
+  sparkBuffer: Transaction[]; // Spark transactions we've fetched but not yet returned to user
+};
 
 export function useTransactions() {
   const userId = useUser((user) => user.id);
   const transactionRepository = useTransactionRepository();
+  const { data: accounts } = useAccounts({ type: 'spark' });
+  const sparkWallet = useSparkWallet();
 
   const result = useInfiniteQuery({
     queryKey: [allTransactionsQueryKey],
-    initialPageParam: null,
-    queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
-      const result = await transactionRepository.list({
+    initialPageParam: {
+      dbCursor: null,
+      sparkOffset: 0,
+      sparkBuffer: [],
+    } satisfies PageParam,
+    queryFn: async ({ pageParam }: { pageParam: PageParam }) => {
+      const { dbCursor, sparkOffset, sparkBuffer } = pageParam;
+
+      // Fetch Spark transfers if user has Spark accounts
+      const updatedSparkBuffer = [...sparkBuffer];
+      let nextSparkOffset = sparkOffset;
+
+      if (accounts && accounts.length > 0) {
+        try {
+          const sparkResult = await sparkWallet.getTransfers(
+            SPARK_FETCH_SIZE,
+            sparkOffset,
+          );
+          const sparkAccount = accounts[0]; // TODO: we're assuming one spark account total
+
+          // Map fetched transfers to transactions and add to buffer
+          const newSparkTransactions = sparkResult.transfers.map((transfer) =>
+            mapWalletTransferToTransaction(
+              transfer,
+              sparkAccount.id,
+              userId,
+              sparkAccount.currency,
+            ),
+          );
+
+          updatedSparkBuffer.push(...newSparkTransactions);
+          nextSparkOffset = sparkResult.offset;
+        } catch (error) {
+          console.error('Failed to fetch Spark transfers:', error);
+        }
+      }
+
+      // Fetch DB transactions
+      const dbResult = await transactionRepository.list({
         userId,
-        cursor: pageParam,
+        cursor: dbCursor,
         pageSize: PAGE_SIZE,
       });
+
+      // Merge Spark buffer and DB transactions, then sort by creation date (newest first)
+      const allTransactions = [
+        ...dbResult.transactions,
+        ...updatedSparkBuffer,
+      ].sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+
+      // Take up to PAGE_SIZE transactions to return
+      const transactionsToReturn = allTransactions.slice(0, PAGE_SIZE);
+
+      // Find which transactions were returned so we can update the buffer
+      // Remove returned Spark transactions from buffer
+      const returnedIds = new Set(transactionsToReturn.map((tx) => tx.id));
+      const remainingSparkBuffer = updatedSparkBuffer.filter(
+        (tx) => !returnedIds.has(tx.id),
+      );
+
+      // Determine if there are more pages
+      const hasMoreDbTransactions = dbResult.transactions.length === PAGE_SIZE;
+      const hasMoreSparkTransfers =
+        remainingSparkBuffer.length > 0 ||
+        (accounts && accounts.length > 0 && nextSparkOffset > sparkOffset);
+      const hasNextPage =
+        allTransactions.length > PAGE_SIZE ||
+        hasMoreDbTransactions ||
+        hasMoreSparkTransfers;
+
       return {
-        transactions: result.transactions,
-        nextCursor:
-          result.transactions.length === PAGE_SIZE ? result.nextCursor : null,
+        transactions: transactionsToReturn,
+        nextCursor: hasNextPage
+          ? {
+              dbCursor: dbResult.nextCursor,
+              sparkOffset: nextSparkOffset,
+              sparkBuffer: remainingSparkBuffer,
+            }
+          : null,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
@@ -313,5 +460,61 @@ export function useTransactionChangeHandler() {
         }
       }
     },
+  };
+}
+
+/**
+ * Maps a WalletTransfer from Spark SDK to our Transaction type.
+ */
+function mapWalletTransferToTransaction(
+  transfer: WalletTransfer,
+  accountId: string,
+  userId: string,
+  currency: Currency,
+): Transaction {
+  const direction =
+    transfer.transferDirection === 'INCOMING' ? 'RECEIVE' : 'SEND';
+
+  // Map Spark transfer status to our transaction state
+  const statusMap: Record<string, Transaction['state']> = {
+    TRANSFER_STATUS_COMPLETED: 'COMPLETED',
+    TRANSFER_STATUS_EXPIRED: 'FAILED',
+    TRANSFER_STATUS_RETURNED: 'REVERSED',
+    // All other statuses are considered PENDING
+  };
+
+  const state = statusMap[transfer.status] || 'PENDING';
+
+  const amount = new Money({
+    amount: transfer.totalValue.toString(),
+    currency,
+    unit: getDefaultUnit(currency),
+  });
+
+  const details: SparkTransferTransactionDetails = {
+    transferId: transfer.id,
+    senderIdentityPublicKey: transfer.senderIdentityPublicKey,
+    receiverIdentityPublicKey: transfer.receiverIdentityPublicKey,
+    expiryTime: transfer.expiryTime?.toISOString(),
+  };
+
+  return {
+    id: `spark-${transfer.id}`,
+    userId,
+    direction,
+    type: 'SPARK_TRANSFER',
+    state,
+    accountId,
+    amount,
+    details,
+    acknowledgmentStatus: null,
+    createdAt: transfer.createdTime?.toISOString() ?? new Date().toISOString(),
+    pendingAt: state === 'PENDING' ? transfer.createdTime?.toISOString() : null,
+    completedAt:
+      state === 'COMPLETED' ? transfer.updatedTime?.toISOString() : null,
+    failedAt: state === 'FAILED' ? transfer.updatedTime?.toISOString() : null,
+    reversedAt:
+      state === 'REVERSED' ? transfer.updatedTime?.toISOString() : null,
+    reversedTransactionId: null,
   };
 }

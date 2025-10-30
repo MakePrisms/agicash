@@ -1,4 +1,10 @@
-import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
+import {
+  AlertCircle,
+  BanknoteIcon,
+  SparklesIcon,
+  UserIcon,
+  ZapIcon,
+} from 'lucide-react';
 import {
   type Ref,
   useCallback,
@@ -132,6 +138,7 @@ const transactionTypeIconMap = {
   CASHU_LIGHTNING: <ZapIcon className="h-4 w-4" />,
   CASHU_TOKEN: <BanknoteIcon className="h-4 w-4" />,
   AGICASH_CONTACT: <UserIcon className="h-4 w-4" />,
+  SPARK_TRANSFER: <SparklesIcon className="h-4 w-4" />,
 };
 
 const getTransactionTypeIcon = (transaction: Transaction) => {

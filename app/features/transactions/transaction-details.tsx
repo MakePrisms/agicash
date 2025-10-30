@@ -23,6 +23,7 @@ import type {
   CashuTokenSendTransactionDetails,
   CompletedCashuLightningSendTransactionDetails,
   IncompleteCashuLightningSendTransactionDetails,
+  SparkTransferTransactionDetails,
   Transaction,
 } from '~/features/transactions/transaction';
 import { useToast } from '~/hooks/use-toast';
@@ -241,6 +242,20 @@ export function TransactionDetails({
           unit,
         }),
         totalFees: receiveSwapDetails.totalFees?.toLocaleString({ unit }),
+      },
+    );
+  }
+
+  if (type === 'SPARK_TRANSFER') {
+    const sparkDetails = details as SparkTransferTransactionDetails;
+    console.debug(
+      `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
+      {
+        transferId: sparkDetails.transferId,
+        senderIdentityPublicKey: sparkDetails.senderIdentityPublicKey,
+        receiverIdentityPublicKey: sparkDetails.receiverIdentityPublicKey,
+        expiryTime: sparkDetails.expiryTime,
+        amount: transaction.amount.toLocaleString({ unit }),
       },
     );
   }
