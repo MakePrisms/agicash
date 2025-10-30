@@ -96,14 +96,7 @@ export default function ReceiveSpark({ amount, account }: Props) {
   };
 
   const handleCompleted = (quote: SparkReceiveQuote) => {
-    toast({
-      title: 'Payment received!',
-      description: `Received ${quote.amount.toString('sat')} sats`,
-      duration: 1000,
-    });
-    // TODO: Navigate to transaction details once we have transaction tracking
-    // For now, just navigate back to home with the toast
-    navigate('/', {
+    navigate(`/transactions/spark-${quote.transferId}?redirectTo=/`, {
       transition: 'fade',
       applyTo: 'newView',
     });

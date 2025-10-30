@@ -246,7 +246,7 @@ export class SparkSendLightningService {
   /**
    * Maps Spark SDK status to simplified state.
    */
-  private mapStatusToState(
+  mapStatusToState(
     status: LightningSendRequestStatus,
   ): SparkSendQuote['state'] {
     switch (status) {

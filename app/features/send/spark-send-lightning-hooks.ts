@@ -156,15 +156,20 @@ export function useTrackSparkLightningSend({
         const account = accounts?.find((a) => a.id === cachedQuote.accountId);
         if (!account) return cachedQuote;
 
-        const state = await sparkSendLightningService.getPaymentStatus(
-          account,
+        const sendRequest = await sparkWallet.getLightningSendRequest(
           cachedQuote.id,
+        );
+        if (!sendRequest) throw new Error('Send request not found');
+        const state = sparkSendLightningService.mapStatusToState(
+          sendRequest.status,
         );
 
         if (state !== cachedQuote.state) {
           const updatedQuote: SparkSendQuote = {
             ...cachedQuote,
             state,
+            sendRequest,
+            transferId: sendRequest.transfer?.sparkId,
           };
           cache.update(updatedQuote);
           const newBalance = await sparkWallet.getBalance();

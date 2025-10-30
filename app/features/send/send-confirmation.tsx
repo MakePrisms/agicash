@@ -165,12 +165,10 @@ export const PayBolt11Confirmation = ({
 
   const { status: sparkQuoteStatus } = useTrackSparkLightningSend({
     quoteId: sparkSendQuote?.id,
-    onCompleted: () => {
-      toast({
-        title: 'Payment sent',
-        description: 'Your Lightning payment was successful',
-      });
-      navigate('/', {
+    onCompleted: (quote) => {
+      if (!quote.transferId)
+        throw new Error('Transfer ID not found for completed send request');
+      navigate(`/transactions/spark-${quote.transferId}?redirectTo=/`, {
         transition: 'slideLeft',
         applyTo: 'newView',
       });
