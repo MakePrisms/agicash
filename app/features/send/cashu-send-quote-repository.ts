@@ -1,13 +1,16 @@
 import type { Proof } from '@cashu/cashu-ts';
-import { sumProofs } from '~/lib/cashu';
+import type { Json } from 'supabase/database.types';
+import { proofToY, sumProofs } from '~/lib/cashu';
 import { Money } from '~/lib/money';
+import type { CashuProof } from '../accounts/account';
 import {
   type AgicashDb,
+  type AgicashDbCashuProof,
   type AgicashDbCashuSendQuote,
   agicashDb,
 } from '../agicash-db/database';
 import { getDefaultUnit } from '../shared/currencies';
-import { useEncryption } from '../shared/encryption';
+import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
   CompletedCashuLightningSendTransactionDetails,
   DestinationDetails,
@@ -21,11 +24,6 @@ import type { CashuSendQuote } from './cashu-send-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type Encryption = {
-  encrypt: <T = unknown>(data: T) => Promise<string>;
-  decrypt: <T = unknown>(data: string) => Promise<T>;
 };
 
 type CreateSendQuote = {
@@ -74,25 +72,13 @@ type CreateSendQuote = {
    */
   keysetId: string;
   /**
-   * Counter value for the keyset at the time the time of send.
-   */
-  keysetCounter: number;
-  /**
    * Number of ouputs that will be used for the send change. Keyset counter will be incremented by this number.
    */
   numberOfChangeOutputs: number;
   /**
    * Proofs to melt for the send.
    */
-  proofsToSend: Proof[];
-  /**
-   * Version of the account as seen by the client. Used for optimistic concurrency control.
-   */
-  accountVersion: number;
-  /**
-   * Proofs to keep in the account after the send.
-   */
-  proofsToKeep: Proof[];
+  proofsToSend: CashuProof[];
   /**
    * Destination details of the send. This will be undefined if the send is directly paying a bolt11.
    */
@@ -123,11 +109,8 @@ export class CashuSendQuoteRepository {
       cashuFee,
       quoteId,
       keysetId,
-      keysetCounter,
       numberOfChangeOutputs,
       proofsToSend,
-      accountVersion,
-      proofsToKeep,
       destinationDetails,
     }: CreateSendQuote,
     options?: Options,
@@ -147,15 +130,7 @@ export class CashuSendQuoteRepository {
       destinationDetails,
     };
 
-    const [
-      encryptedProofsToSend,
-      encryptedProofsToKeep,
-      encryptedTransactionDetails,
-    ] = await Promise.all([
-      this.encryption.encrypt(proofsToSend),
-      this.encryption.encrypt(proofsToKeep),
-      this.encryption.encrypt(details),
-    ]);
+    const encryptedTransactionDetails = await this.encryption.encrypt(details);
 
     const query = this.db.rpc('create_cashu_send_quote', {
       p_user_id: userId,
@@ -172,11 +147,8 @@ export class CashuSendQuoteRepository {
       p_cashu_fee: cashuFee.toNumber(unit),
       p_quote_id: quoteId,
       p_keyset_id: keysetId,
-      p_keyset_counter: keysetCounter,
       p_number_of_change_outputs: numberOfChangeOutputs,
-      p_proofs_to_send: encryptedProofsToSend,
-      p_account_version: accountVersion,
-      p_proofs_to_keep: encryptedProofsToKeep,
+      p_proofs_to_send: proofsToSend.map((p) => p.id),
       p_encrypted_transaction_details: encryptedTransactionDetails,
     });
 
@@ -192,10 +164,10 @@ export class CashuSendQuoteRepository {
       });
     }
 
-    return CashuSendQuoteRepository.toSend(
-      data.created_quote,
-      this.encryption.decrypt,
-    );
+    return await this.toSendQuote({
+      ...data.quote,
+      cashu_proofs: data.reserved_proofs,
+    });
   }
 
   /**
@@ -206,8 +178,7 @@ export class CashuSendQuoteRepository {
       quote,
       paymentPreimage,
       amountSpent,
-      accountProofs,
-      accountVersion,
+      changeProofs,
     }: {
       /**
        * The cashu send quote to complete.
@@ -222,13 +193,9 @@ export class CashuSendQuoteRepository {
        */
       amountSpent: Money;
       /**
-       * Account proofs after the send.
+       * Change proofs to add back to the account.
        */
-      accountProofs: Proof[];
-      /**
-       * Version of the account as seen by the client. Used for optimistic concurrency control.
-       */
-      accountVersion: number;
+      changeProofs: Proof[];
     },
     options?: Options,
   ): Promise<CashuSendQuote> {
@@ -260,11 +227,29 @@ export class CashuSendQuoteRepository {
         totalFees,
       };
 
-    const [encryptedAccountProofs, encryptedUpdatedTransactionDetails] =
-      await Promise.all([
-        this.encryption.encrypt(accountProofs),
-        this.encryption.encrypt(updatedTransactionDetails),
+    const proofDataToEncrypt = changeProofs.flatMap((x) => [
+      x.amount,
+      x.secret,
+    ]);
+
+    const [encryptedUpdatedTransactionDetails, ...encryptedProofData] =
+      await this.encryption.encryptBatch([
+        updatedTransactionDetails,
+        ...proofDataToEncrypt,
       ]);
+
+    const encryptedProofs = changeProofs.map((x, index) => {
+      const encryptedDataIndex = index * 2;
+      return {
+        keysetId: x.id,
+        amount: encryptedProofData[encryptedDataIndex],
+        secret: encryptedProofData[encryptedDataIndex + 1],
+        unblindedSignature: x.C,
+        publicKeyY: proofToY(x),
+        dleq: x.dleq as Json,
+        witness: x.witness as Json,
+      };
+    });
 
     const query = this.db.rpc('complete_cashu_send_quote', {
       p_quote_id: quote.id,
@@ -272,10 +257,8 @@ export class CashuSendQuoteRepository {
       p_amount_spent: amountSpent.toNumber(
         getDefaultUnit(amountSpent.currency),
       ),
-      p_quote_version: quote.version,
-      p_account_proofs: encryptedAccountProofs,
-      p_account_version: accountVersion,
       p_encrypted_transaction_details: encryptedUpdatedTransactionDetails,
+      p_change_proofs: encryptedProofs,
     });
 
     if (options?.abortSignal) {
@@ -290,48 +273,16 @@ export class CashuSendQuoteRepository {
       });
     }
 
-    return CashuSendQuoteRepository.toSend(
-      data.updated_quote,
-      this.encryption.decrypt,
-    );
+    return this.toSendQuote({ ...data.quote, cashu_proofs: data.spent_proofs });
   }
 
   /**
    * Expires the cashu send quote by setting the state to EXPIRED. It also returns the proofs that were reserved for the send back to the account.
+   * @param id - The id of the cashu send quote to expire.
    */
-  async expire(
-    {
-      id,
-      version,
-      accountProofs,
-      accountVersion,
-    }: {
-      /**
-       * ID of the cashu send quote.
-       */
-      id: string;
-      /**
-       * Version of the cashu send quote as seen by the client. Used for optimistic concurrency control.
-       */
-      version: number;
-      /**
-       * Account proofs to set.
-       */
-      accountProofs: Proof[];
-      /**
-       * Version of the account as seen by the client. Used for optimistic concurrency control.
-       */
-      accountVersion: number;
-    },
-    options?: Options,
-  ): Promise<void> {
-    const encryptedAccountProofs = await this.encryption.encrypt(accountProofs);
-
+  async expire(id: string, options?: Options): Promise<void> {
     const query = this.db.rpc('expire_cashu_send_quote', {
       p_quote_id: id,
-      p_quote_version: version,
-      p_account_proofs: encryptedAccountProofs,
-      p_account_version: accountVersion,
     });
 
     if (options?.abortSignal) {
@@ -352,9 +303,6 @@ export class CashuSendQuoteRepository {
     {
       id,
       reason,
-      version,
-      accountProofs,
-      accountVersion,
     }: {
       /**
        * ID of the cashu send quote.
@@ -364,29 +312,12 @@ export class CashuSendQuoteRepository {
        * Reason for the failure.
        */
       reason: string;
-      /**
-       * Version of the cashu send quote as seen by the client. Used for optimistic concurrency control.
-       */
-      version: number;
-      /**
-       * Account proofs to set.
-       */
-      accountProofs: Proof[];
-      /**
-       * Version of the account as seen by the client. Used for optimistic concurrency control.
-       */
-      accountVersion: number;
     },
     options?: Options,
   ): Promise<void> {
-    const encryptedAccountProofs = await this.encryption.encrypt(accountProofs);
-
     const query = this.db.rpc('fail_cashu_send_quote', {
       p_quote_id: id,
       p_failure_reason: reason,
-      p_quote_version: version,
-      p_account_proofs: encryptedAccountProofs,
-      p_account_version: accountVersion,
     });
 
     if (options?.abortSignal) {
@@ -420,7 +351,7 @@ export class CashuSendQuoteRepository {
       .from('cashu_send_quotes')
       .update({ state: 'PENDING', version: version + 1 })
       .match({ id, version })
-      .select();
+      .select('*, cashu_proofs!spending_cashu_send_quote_id(*)');
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -438,7 +369,7 @@ export class CashuSendQuoteRepository {
       );
     }
 
-    return CashuSendQuoteRepository.toSend(data, this.encryption.decrypt);
+    return this.toSendQuote(data);
   }
 
   /**
@@ -447,7 +378,10 @@ export class CashuSendQuoteRepository {
    * @returns The cashu send quote.
    */
   async get(id: string, options?: Options): Promise<CashuSendQuote | null> {
-    const query = this.db.from('cashu_send_quotes').select().eq('id', id);
+    const query = this.db
+      .from('cashu_send_quotes')
+      .select('*, cashu_proofs!spending_cashu_send_quote_id(*)')
+      .eq('id', id);
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -459,9 +393,7 @@ export class CashuSendQuoteRepository {
       throw new Error('Failed to get cashu send', { cause: error });
     }
 
-    return data
-      ? CashuSendQuoteRepository.toSend(data, this.encryption.decrypt)
-      : null;
+    return data ? this.toSendQuote(data) : null;
   }
 
   async getByTransactionId(
@@ -470,7 +402,7 @@ export class CashuSendQuoteRepository {
   ): Promise<CashuSendQuote | null> {
     const query = this.db
       .from('cashu_send_quotes')
-      .select()
+      .select('*, cashu_proofs!spending_cashu_send_quote_id(*)')
       .eq('transaction_id', transactionId);
 
     if (options?.abortSignal) {
@@ -485,9 +417,7 @@ export class CashuSendQuoteRepository {
       });
     }
 
-    return data
-      ? CashuSendQuoteRepository.toSend(data, this.encryption.decrypt)
-      : null;
+    return data ? this.toSendQuote(data) : null;
   }
 
   /**
@@ -501,7 +431,7 @@ export class CashuSendQuoteRepository {
   ): Promise<CashuSendQuote[]> {
     const query = this.db
       .from('cashu_send_quotes')
-      .select()
+      .select('*, cashu_proofs!spending_cashu_send_quote_id(*)')
       .eq('user_id', userId)
       .in('state', ['UNPAID', 'PENDING']);
 
@@ -517,93 +447,113 @@ export class CashuSendQuoteRepository {
       });
     }
 
-    return await Promise.all(
-      data.map(
-        async (data) =>
-          await CashuSendQuoteRepository.toSend(data, this.encryption.decrypt),
-      ),
-    );
+    return await Promise.all(data.map(this.toSendQuote));
   }
 
-  static async toSend(
-    data: AgicashDbCashuSendQuote,
-    decryptData: Encryption['decrypt'],
+  async toSendQuote(
+    data: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
   ): Promise<CashuSendQuote> {
-    const decryptedData = {
-      ...data,
-      proofs: await decryptData<Proof[]>(data.proofs),
-    };
+    const proofs = await this.decryptCashuProofs(data.cashu_proofs);
 
     const commonData = {
-      id: decryptedData.id,
-      createdAt: decryptedData.created_at,
-      expiresAt: decryptedData.expires_at,
-      userId: decryptedData.user_id,
-      accountId: decryptedData.account_id,
-      paymentRequest: decryptedData.payment_request,
+      id: data.id,
+      createdAt: data.created_at,
+      expiresAt: data.expires_at,
+      userId: data.user_id,
+      accountId: data.account_id,
+      paymentRequest: data.payment_request,
       amountRequested: new Money({
-        amount: decryptedData.amount_requested,
-        currency: decryptedData.currency_requested,
-        unit: decryptedData.unit,
+        amount: data.amount_requested,
+        currency: data.currency_requested,
+        unit: data.unit,
       }),
-      amountRequestedInMsat: decryptedData.amount_requested_in_msat,
+      amountRequestedInMsat: data.amount_requested_in_msat,
       amountToReceive: new Money({
-        amount: decryptedData.amount_to_receive,
-        currency: decryptedData.currency,
-        unit: decryptedData.unit,
+        amount: data.amount_to_receive,
+        currency: data.currency,
+        unit: data.unit,
       }),
       lightningFeeReserve: new Money({
-        amount: decryptedData.lightning_fee_reserve,
-        currency: decryptedData.currency,
-        unit: decryptedData.unit,
+        amount: data.lightning_fee_reserve,
+        currency: data.currency,
+        unit: data.unit,
       }),
       cashuFee: new Money({
-        amount: decryptedData.cashu_fee,
-        currency: decryptedData.currency,
-        unit: decryptedData.unit,
+        amount: data.cashu_fee,
+        currency: data.currency,
+        unit: data.unit,
       }),
-      quoteId: decryptedData.quote_id,
-      proofs: decryptedData.proofs,
-      keysetId: decryptedData.keyset_id,
-      keysetCounter: decryptedData.keyset_counter,
-      numberOfChangeOutputs: decryptedData.number_of_change_outputs,
-      version: decryptedData.version,
-      transactionId: decryptedData.transaction_id,
+      proofs,
+      quoteId: data.quote_id,
+      keysetId: data.keyset_id,
+      keysetCounter: data.keyset_counter,
+      numberOfChangeOutputs: data.number_of_change_outputs,
+      version: data.version,
+      transactionId: data.transaction_id,
     };
 
-    if (decryptedData.state === 'PAID') {
+    if (data.state === 'PAID') {
       return {
         ...commonData,
         state: 'PAID',
-        paymentPreimage: decryptedData.payment_preimage ?? '',
+        paymentPreimage: data.payment_preimage ?? '',
         amountSpent: new Money({
-          amount: decryptedData.amount_spent ?? 0,
-          currency: decryptedData.currency,
-          unit: decryptedData.unit,
+          amount: data.amount_spent ?? 0,
+          currency: data.currency,
+          unit: data.unit,
         }),
       };
     }
 
-    if (decryptedData.state === 'FAILED') {
+    if (data.state === 'FAILED') {
       return {
         ...commonData,
         state: 'FAILED',
-        failureReason: decryptedData.failure_reason ?? '',
+        failureReason: data.failure_reason ?? '',
       };
     }
 
     if (
-      decryptedData.state === 'UNPAID' ||
-      decryptedData.state === 'PENDING' ||
-      decryptedData.state === 'EXPIRED'
+      data.state === 'UNPAID' ||
+      data.state === 'PENDING' ||
+      data.state === 'EXPIRED'
     ) {
       return {
         ...commonData,
-        state: decryptedData.state,
+        state: data.state,
       };
     }
 
-    throw new Error(`Unexpected quote state ${decryptedData.state}`);
+    throw new Error(`Unexpected quote state ${data.state}`);
+  }
+
+  private async decryptCashuProofs(
+    proofs: AgicashDbCashuProof[],
+  ): Promise<CashuProof[]> {
+    const encryptedData = proofs.flatMap((x) => [x.amount, x.secret]);
+    const decryptedData = await this.encryption.decryptBatch(encryptedData);
+
+    return proofs.map((dbProof, index) => {
+      const decryptedDataIndex = index * 2;
+      const amount = decryptedData[decryptedDataIndex] as number;
+      const secret = decryptedData[decryptedDataIndex + 1] as string;
+      return {
+        id: dbProof.id,
+        accountId: dbProof.account_id,
+        userId: dbProof.user_id,
+        keysetId: dbProof.keyset_id,
+        amount,
+        secret,
+        unblindedSignature: dbProof.unblinded_signature,
+        publicKeyY: dbProof.public_key_y,
+        dleq: dbProof.dleq as Proof['dleq'],
+        witness: dbProof.witness as Proof['witness'],
+        state: dbProof.state as CashuProof['state'],
+        version: dbProof.version,
+        createdAt: dbProof.created_at,
+        reservedAt: dbProof.reserved_at,
+      };
+    });
   }
 }
 

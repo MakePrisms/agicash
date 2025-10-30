@@ -4,6 +4,35 @@ import { type Currency, Money } from '~/lib/money';
 
 export type AccountType = 'cashu' | 'nwc';
 
+export type CashuProof = {
+  id: string;
+  accountId: string;
+  userId: string;
+  keysetId: string;
+  amount: number;
+  secret: string;
+  unblindedSignature: string;
+  publicKeyY: string;
+  dleq: Proof['dleq'];
+  witness: Proof['witness'];
+  state: 'UNSPENT' | 'RESERVED' | 'SPENT';
+  version: number;
+  createdAt: string;
+  reservedAt?: string | null;
+  spentAt?: string | null;
+};
+
+export const toProof = (proof: CashuProof): Proof => {
+  return {
+    id: proof.keysetId,
+    amount: proof.amount,
+    secret: proof.secret,
+    C: proof.unblindedSignature,
+    dleq: proof.dleq,
+    witness: proof.witness,
+  };
+};
+
 export type Account = {
   id: string;
   name: string;
@@ -29,7 +58,7 @@ export type Account = {
        * Holds all cashu proofs for the account.
        * Amounts are denominated in the cashu units (e.g. sats for BTC accounts, cents for USD accounts).
        */
-      proofs: Proof[];
+      proofs: CashuProof[];
       wallet: ExtendedCashuWallet;
     }
   | {
@@ -48,7 +77,9 @@ export type ExtendedCashuAccount = ExtendedAccount<'cashu'>;
 
 export const getAccountBalance = (account: Account) => {
   if (account.type === 'cashu') {
-    const value = sumProofs(account.proofs);
+    const value = sumProofs(
+      account.proofs.filter((p) => p.state === 'UNSPENT'),
+    );
     return new Money({
       amount: value,
       currency: account.currency,

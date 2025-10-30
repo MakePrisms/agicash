@@ -4,7 +4,11 @@ import {
   OutputData,
   type Proof,
 } from '@cashu/cashu-ts';
-import type { CashuAccount } from '~/features/accounts/account';
+import {
+  type CashuAccount,
+  type CashuProof,
+  toProof,
+} from '~/features/accounts/account';
 import {
   CashuErrorCodes,
   type ExtendedCashuWallet,
@@ -124,7 +128,7 @@ export class CashuSendSwapService {
     const wallet = account.wallet;
 
     const {
-      keep: accountProofsToKeep,
+      // keep: accountProofsToKeep,
       send,
       cashuReceiveFee,
       cashuSendFee,
@@ -139,8 +143,7 @@ export class CashuSendSwapService {
 
     let proofsToSend: Proof[] | undefined;
     let tokenHash: string | undefined;
-    let sendOutputData: OutputData[] = [];
-    let keepOutputData: OutputData[] = [];
+    let outputAmounts: { send: number[]; keep: number[] } | undefined;
     let sendKeysetCounter: number | undefined;
     let keysetId: string | undefined;
 
@@ -156,7 +159,7 @@ export class CashuSendSwapService {
       const keys = await wallet.getKeys();
       keysetId = keys.id;
       sendKeysetCounter = account.keysetCounters[keysetId] ?? 0;
-      sendOutputData = OutputData.createDeterministicData(
+      const sendOutputData = OutputData.createDeterministicData(
         totalAmountToSend,
         wallet.seed,
         sendKeysetCounter,
@@ -165,12 +168,16 @@ export class CashuSendSwapService {
 
       const amountToKeep = sumProofs(send) - totalAmountToSend - cashuSendFee;
       const keepKeysetCounter = sendKeysetCounter + sendOutputData.length;
-      keepOutputData = OutputData.createDeterministicData(
+      const keepOutputData = OutputData.createDeterministicData(
         amountToKeep,
         wallet.seed,
         keepKeysetCounter,
         keys,
       );
+      outputAmounts = {
+        send: amountsFromOutputData(sendOutputData),
+        keep: amountsFromOutputData(keepOutputData),
+      };
     }
 
     const toMoney = (num: number) =>
@@ -182,23 +189,16 @@ export class CashuSendSwapService {
 
     return this.cashuSendSwapRepository.create({
       accountId: account.id,
-      accountVersion: account.version,
       userId,
       inputProofs: send,
-      proofsToSend,
-      accountProofs: accountProofsToKeep,
       amountRequested: amount,
       amountToSend: toMoney(totalAmountToSend),
       cashuSendFee: toMoney(cashuSendFee),
       cashuReceiveFee: toMoney(cashuReceiveFee),
       totalAmount: toMoney(totalAmountToSend + cashuSendFee),
       keysetId,
-      keysetCounter: sendKeysetCounter,
       tokenHash,
-      outputAmounts: {
-        send: amountsFromOutputData(sendOutputData),
-        keep: amountsFromOutputData(keepOutputData),
-      },
+      outputAmounts,
     });
   }
 
@@ -222,7 +222,6 @@ export class CashuSendSwapService {
       wallet.seed,
       swap.keysetCounter,
       keys,
-      swap.outputAmounts.send,
     );
 
     const amountToKeep =
@@ -234,10 +233,9 @@ export class CashuSendSwapService {
       wallet.seed,
       swap.keysetCounter + sendOutputData.length,
       keys,
-      swap.outputAmounts.keep,
     );
 
-    const { send: proofsToSend, keep: newProofsToKeep } = await this.swapProofs(
+    const { send: proofsToSend, keep: changeProofs } = await this.swapProofs(
       wallet,
       swap,
       {
@@ -261,33 +259,38 @@ export class CashuSendSwapService {
       unit: getCashuProtocolUnit(swap.amountToSend.currency),
     });
 
-    const accountProofs = [...account.proofs, ...newProofsToKeep];
-
     await this.cashuSendSwapRepository.commitProofsToSend({
       swap,
-      accountVersion: account.version,
       proofsToSend,
-      accountProofs,
+      changeProofs,
       tokenHash,
     });
   }
 
   async complete(swap: CashuSendSwap) {
-    return this.cashuSendSwapRepository.complete({
-      swapId: swap.id,
-      swapVersion: swap.version,
-    });
+    if (swap.state === 'COMPLETED') {
+      return;
+    }
+
+    if (swap.state !== 'PENDING') {
+      throw new Error(`Swap is not PENDING. Current state: ${swap.state}`);
+    }
+
+    return this.cashuSendSwapRepository.complete(swap.id);
   }
 
   async fail(swap: CashuSendSwap, reason: string) {
     return this.cashuSendSwapRepository.fail({
       swapId: swap.id,
-      swapVersion: swap.version,
       reason,
     });
   }
 
-  async reverse(swap: CashuSendSwap, account: CashuAccount) {
+  async reverse(swap: CashuSendSwap, account: CashuAccount): Promise<void> {
+    if (swap.state === 'REVERSED') {
+      return;
+    }
+
     if (swap.state !== 'PENDING') {
       throw new Error('Swap is not PENDING');
     }
@@ -295,12 +298,12 @@ export class CashuSendSwapService {
       throw new Error('Swap does not belong to account');
     }
 
-    return this.cashuTokenSwapService.create({
+    await this.cashuTokenSwapService.create({
       account,
       userId: swap.userId,
       token: {
         mint: account.mintUrl,
-        proofs: swap.proofsToSend,
+        proofs: swap.proofsToSend.map((p) => toProof(p)),
         unit: getCashuProtocolUnit(swap.currency),
       },
       reversedTransactionId: swap.transactionId,
@@ -309,7 +312,7 @@ export class CashuSendSwapService {
 
   private async prepareProofsAndFee(
     wallet: ExtendedCashuWallet,
-    allProofs: Proof[],
+    allProofs: CashuProof[],
     requestedAmount: Money,
     includeFeesInSendAmount: boolean,
   ): Promise<{
@@ -318,27 +321,28 @@ export class CashuSendSwapService {
     cashuSendFee: number;
     cashuReceiveFee: number;
   }> {
-    if (includeFeesInSendAmount) {
-      // If we want to do fee calculation, then the keys are required
-      await wallet.getKeys();
-    }
-
-    const currency = requestedAmount.currency;
-    const cashuUnit = getCashuUnit(currency);
-    const requestedAmountNumber = requestedAmount.toNumber(cashuUnit);
-
-    let { keep, send } = wallet.selectProofsToSend(
-      allProofs,
-      requestedAmountNumber,
-      includeFeesInSendAmount,
-    );
-    const feeToSwapSelectedProofs = wallet.getFeesForProofs(send);
-
     if (!includeFeesInSendAmount) {
       throw new Error(
         'Sender must pay fees - this feature is not yet implemented',
       );
     }
+
+    if (includeFeesInSendAmount) {
+      // If we want to do fee calculation, then the keys are required
+      await wallet.getKeys();
+    }
+
+    const proofs = allProofs.map((p) => toProof(p));
+    const currency = requestedAmount.currency;
+    const cashuUnit = getCashuUnit(currency);
+    const requestedAmountNumber = requestedAmount.toNumber(cashuUnit);
+
+    let { keep, send } = wallet.selectProofsToSend(
+      proofs,
+      requestedAmountNumber,
+      includeFeesInSendAmount,
+    );
+    const feeToSwapSelectedProofs = wallet.getFeesForProofs(send);
 
     let proofAmountSelected = sumProofs(send);
     const amountToSend = requestedAmountNumber + feeToSwapSelectedProofs;
@@ -376,7 +380,7 @@ export class CashuSendSwapService {
     }
 
     ({ keep, send } = wallet.selectProofsToSend(
-      allProofs,
+      proofs,
       requestedAmountNumber + estimatedFeeToReceive,
       includeFeesInSendAmount,
     ));
@@ -422,10 +426,14 @@ export class CashuSendSwapService {
     );
 
     try {
-      return await wallet.swap(amountToSend, swap.inputProofs, {
-        outputData,
-        keysetId: swap.keysetId,
-      });
+      return await wallet.swap(
+        amountToSend,
+        swap.inputProofs.map((p) => toProof(p)),
+        {
+          outputData,
+          keysetId: swap.keysetId,
+        },
+      );
     } catch (error) {
       if (
         error instanceof MintOperationError &&

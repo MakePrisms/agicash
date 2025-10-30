@@ -77,9 +77,9 @@ export type CashuReceiveQuote = {
        */
       keysetCounter: number;
       /**
-       * Amounts for each blinded message
+       * Number of outputs/proofs created for the receive.
        */
-      outputAmounts: number[];
+      numberOfOutputs: number;
     }
   | {
       state: 'FAILED';

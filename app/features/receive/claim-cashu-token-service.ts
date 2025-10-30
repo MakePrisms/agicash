@@ -122,7 +122,7 @@ export class ClaimCashuTokenService {
       areMintUrlsEqual(receiveAccount.mintUrl, sourceAccount.mintUrl);
 
     if (isSameAccountClaim) {
-      const { tokenSwap, account } = await this.tokenSwapService.create({
+      const { swap, account } = await this.tokenSwapService.create({
         userId: user.id,
         token,
         account: receiveAccount,
@@ -133,7 +133,7 @@ export class ClaimCashuTokenService {
       // can pick it up and retry when the app loads. If the background processing manages to complete it, it would just
       // be a minor UX issue because the balance would be credited with some delay. If the background processing fails to
       // complete it, the app already has a way to handle the failed swap.
-      const result = await this.tryCompleteSwap(account, tokenSwap);
+      const result = await this.tryCompleteSwap(account, swap);
       if (result.success) {
         this.accountsCache.upsert(result.account);
       }
