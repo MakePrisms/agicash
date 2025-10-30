@@ -280,38 +280,45 @@ export function useReverseTransaction({
 /**
  * Hook that returns a transaction change handler.
  */
-export function useTransactionChangeHandler() {
+export function useTransactionChangeHandlers() {
   const transactionRepository = useTransactionRepository();
   const transactionsCache = useTransactionsCache();
 
-  return {
-    table: 'transactions',
-    onInsert: async (payload: AgicashDbTransaction) => {
-      const addedTransaction =
-        await transactionRepository.toTransaction(payload);
-      transactionsCache.add(addedTransaction);
+  return [
+    {
+      event: 'TRANSACTION_CREATED',
+      handleEvent: async (payload: AgicashDbTransaction) => {
+        const addedTransaction =
+          await transactionRepository.toTransaction(payload);
+        transactionsCache.add(addedTransaction);
+      },
     },
-    onUpdate: async (
-      newPayload: AgicashDbTransaction,
-      oldPayload: AgicashDbTransaction,
-    ) => {
-      const updatedTransaction =
-        await transactionRepository.toTransaction(newPayload);
+    {
+      event: 'TRANSACTION_UPDATED',
+      handleEvent: async (
+        payload: AgicashDbTransaction & {
+          previous_acknowledgment_status: Transaction['acknowledgmentStatus'];
+        },
+      ) => {
+        const updatedTransaction =
+          await transactionRepository.toTransaction(payload);
 
-      transactionsCache.update(updatedTransaction);
+        transactionsCache.update(updatedTransaction);
 
-      if (
-        newPayload.acknowledgment_status !== oldPayload.acknowledgment_status
-      ) {
-        const newStatus = updatedTransaction.acknowledgmentStatus;
-        const prevStatus = oldPayload.acknowledgment_status ?? null;
+        if (
+          payload.acknowledgment_status !==
+          payload.previous_acknowledgment_status
+        ) {
+          const newStatus = updatedTransaction.acknowledgmentStatus;
+          const prevStatus = payload.previous_acknowledgment_status;
 
-        if (prevStatus === null && newStatus === 'pending') {
-          transactionsCache.incrementUnacknowledgedCount();
-        } else if (prevStatus === 'pending' && newStatus === 'acknowledged') {
-          transactionsCache.decrementUnacknowledgedCount();
+          if (prevStatus === null && newStatus === 'pending') {
+            transactionsCache.incrementUnacknowledgedCount();
+          } else if (prevStatus === 'pending' && newStatus === 'acknowledged') {
+            transactionsCache.decrementUnacknowledgedCount();
+          }
         }
-      }
+      },
     },
-  };
+  ];
 }

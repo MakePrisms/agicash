@@ -122,20 +122,26 @@ export class ClaimCashuTokenService {
       areMintUrlsEqual(receiveAccount.mintUrl, sourceAccount.mintUrl);
 
     if (isSameAccountClaim) {
-      const { tokenSwap, account } = await this.tokenSwapService.create({
+      const { swap, account } = await this.tokenSwapService.create({
         userId: user.id,
         token,
         account: receiveAccount,
       });
       this.accountsCache.upsert(account);
 
-      // We don't want to fail the entire claim flow if completing the swap fails because the background processing
-      // can pick it up and retry when the app loads. If the background processing manages to complete it, it would just
-      // be a minor UX issue because the balance would be credited with some delay. If the background processing fails to
-      // complete it, the app already has a way to handle the failed swap.
-      const result = await this.tryCompleteSwap(account, tokenSwap);
+      // We want to fail the entire claim flow if completing the swap fails only if the swap is in failed state (non
+      // recoverable error). Otherwise, the background processing can pick it up and retry when the app loads. If the
+      // background processing manages to complete it, it would just be a minor UX issue because the balance would be
+      // credited with some delay. If the background processing fails to complete it, the app already has a way to
+      // handle the failed swap.
+      const result = await this.tryCompleteSwap(account, swap);
       if (result.success) {
         this.accountsCache.upsert(result.account);
+      } else if (result.swap?.state === 'FAILED') {
+        return {
+          success: false,
+          message: result.swap.failureReason,
+        };
       }
     } else {
       const exchangeRate = await getExchangeRate(
@@ -196,11 +202,19 @@ export class ClaimCashuTokenService {
   private async tryCompleteSwap(
     account: CashuAccount,
     tokenSwap: CashuTokenSwap,
-  ): Promise<{ success: true; account: CashuAccount } | { success: false }> {
+  ): Promise<
+    | { success: true; swap: CashuTokenSwap; account: CashuAccount }
+    | { success: false; swap?: CashuTokenSwap }
+  > {
     try {
-      const { account: updatedAccount } =
+      const { swap: updatedSwap, account: updatedAccount } =
         await this.tokenSwapService.completeSwap(account, tokenSwap);
-      return { success: true, account: updatedAccount };
+
+      if (updatedSwap.state === 'FAILED') {
+        return { success: false, swap: updatedSwap };
+      }
+
+      return { success: true, swap: updatedSwap, account: updatedAccount };
     } catch (error) {
       console.error('Failed to complete the swap while claiming the token', {
         cause: error,

@@ -124,10 +124,10 @@ export const PayBolt11Confirmation = ({
       if (error instanceof DomainError) {
         toast({ description: error.message });
       } else {
-        console.error('Error initiating send quote', { cause: error });
+        console.error('Failed to create cashu send quote', { cause: error });
         toast({
           title: 'Error',
-          description: 'Failed to initiate send quote. Please try again.',
+          description: 'Failed to initiate the send. Please try again.',
           variant: 'destructive',
         });
       }
@@ -146,6 +146,21 @@ export const PayBolt11Confirmation = ({
       navigate(`/transactions/${transactionId}?redirectTo=/`, {
         transition: 'slideLeft',
         applyTo: 'newView',
+      });
+    },
+    onFailed: (sendQuote) => {
+      const now = Date.now();
+      console.error('Cashu send failed', {
+        timestamp: now,
+        time: new Date(now).toISOString(),
+        sendQuoteId: sendQuote.id,
+        accountId: sendQuote.accountId,
+        failureReason: sendQuote.failureReason,
+      });
+      toast({
+        title: 'Send failed',
+        description: sendQuote.failureReason,
+        duration: 8000,
       });
     },
   });
@@ -233,11 +248,15 @@ export const CreateCashuTokenConfirmation = ({
         });
       },
       onError: (error) => {
-        console.error('Error creating cashu send swap', { cause: error });
-        toast({
-          title: 'Error',
-          description: 'Failed to create cashu send swap. Please try again.',
-        });
+        if (error instanceof DomainError) {
+          toast({ description: error.message });
+        } else {
+          console.error('Failed to create cashu send swap', { cause: error });
+          toast({
+            title: 'Error',
+            description: 'Failed to initiate the send. Please try again.',
+          });
+        }
       },
     });
 

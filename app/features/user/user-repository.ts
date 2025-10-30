@@ -30,6 +30,19 @@ type Encryption = {
   decrypt: <T = unknown>(data: string) => Promise<T>;
 };
 
+type AccountInput = {
+  isDefault?: boolean;
+} & DistributedOmit<
+  Account,
+  | 'id'
+  | 'createdAt'
+  | 'version'
+  | 'proofs'
+  | 'keysetCounters'
+  | 'wallet'
+  | 'isOnline'
+>;
+
 export class UserRepository {
   constructor(
     private readonly db: AgicashDb,
@@ -121,16 +134,7 @@ export class UserRepository {
        * Accounts to insert for the user.
        * Will be used only when the account is created. For existing users, the accounts will be ignored.
        */
-      accounts: DistributedOmit<
-        Account,
-        | 'id'
-        | 'createdAt'
-        | 'version'
-        | 'proofs'
-        | 'keysetCounters'
-        | 'wallet'
-        | 'isOnline'
-      >[];
+      accounts: AccountInput[];
       /**
        * The extended public key used for locking proofs and mint quotes.
        */
@@ -142,22 +146,20 @@ export class UserRepository {
     },
     options?: Options,
   ): Promise<{ user: User; accounts: Account[] }> {
-    const accountsToAdd = await Promise.all(
-      user.accounts.map(async (account) => ({
-        name: account.name,
-        type: account.type,
-        currency: account.currency,
-        details:
-          account.type === 'cashu'
-            ? {
-                mint_url: account.mintUrl,
-                is_test_mint: account.isTestMint,
-                keyset_counters: {},
-                proofs: await this.encryption.encrypt([]),
-              }
-            : { nwc_url: account.nwcUrl },
-      })),
-    );
+    const accountsToAdd = user.accounts.map((account) => ({
+      name: account.name,
+      type: account.type,
+      currency: account.currency,
+      is_default: account.isDefault ?? false,
+      details:
+        account.type === 'cashu'
+          ? {
+              mint_url: account.mintUrl,
+              is_test_mint: account.isTestMint,
+              keyset_counters: {},
+            }
+          : { nwc_url: account.nwcUrl },
+    }));
 
     const query = this.db.rpc('upsert_user_with_accounts', {
       p_user_id: user.id,
@@ -178,11 +180,11 @@ export class UserRepository {
       throw new Error('Failed to upsert user', { cause: error });
     }
 
-    const { accounts, ...upsertedUser } = data;
+    const { accounts, user: upsertedUser } = data;
     return {
       user: this.toUser(upsertedUser),
       accounts: await Promise.all(
-        accounts.map((a) => this.accountRepository.toAccount(a)),
+        accounts.map((account) => this.accountRepository.toAccount(account)),
       ),
     };
   }
@@ -215,9 +217,13 @@ export class UserRepository {
       .from('users')
       .select(`
         *,
-        accounts:accounts!user_id(*)
+        accounts:accounts!user_id(
+          *,
+          cashu_proofs(*)
+        )
       `)
       .eq('id', userId)
+      .eq('accounts.cashu_proofs.state', 'UNSPENT')
       .single();
 
     if (error) {

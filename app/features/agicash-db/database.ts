@@ -34,34 +34,97 @@ if (!supabaseAnonKey) {
   throw new Error('VITE_SUPABASE_ANON_KEY is not set');
 }
 
+type UpsertUserWithAccountsResult = {
+  user: AgicashDbUser;
+  accounts: AgicashDbAccountWithProofs[];
+};
+
 type CashuReceiveQuotePaymentResult = {
-  updated_quote: AgicashDbCashuReceiveQuote;
-  updated_account: AgicashDbAccount;
+  quote: AgicashDbCashuReceiveQuote;
+  account: AgicashDbAccountWithProofs;
 };
 
 type CompleteCashuReceiveQuoteResult = {
-  updated_quote: AgicashDbCashuReceiveQuote;
-  updated_account: AgicashDbAccount;
+  quote: AgicashDbCashuReceiveQuote;
+  account: AgicashDbAccountWithProofs;
+  added_proofs: AgicashDbCashuProof[];
 };
 
 type CreateCashuSendQuoteResult = {
-  created_quote: AgicashDbCashuSendQuote;
-  updated_account: AgicashDbAccount;
+  quote: AgicashDbCashuSendQuote;
+  account: AgicashDbAccountWithProofs;
+  reserved_proofs: AgicashDbCashuProof[];
 };
 
-type UpdateCashuSendQuoteResult = {
-  updated_quote: AgicashDbCashuSendQuote;
-  updated_account: AgicashDbAccount;
+type MarkCashuSendQuoteAsPendingResult = {
+  quote: AgicashDbCashuSendQuote;
+  proofs: AgicashDbCashuProof[];
+};
+
+type CompleteCashuSendQuoteResult = {
+  quote: AgicashDbCashuSendQuote;
+  account: AgicashDbAccountWithProofs;
+  spent_proofs: AgicashDbCashuProof[];
+  change_proofs: AgicashDbCashuProof[];
+};
+
+type ExpireCashuSendQuoteResult = {
+  quote: AgicashDbCashuSendQuote;
+  account: AgicashDbAccountWithProofs;
+  released_proofs: AgicashDbCashuProof[];
+};
+
+type FailCashuSendQuoteResult = {
+  quote: AgicashDbCashuSendQuote;
+  account: AgicashDbAccountWithProofs;
+  released_proofs: AgicashDbCashuProof[];
 };
 
 type CreateCashuTokenSwapResult = {
-  created_swap: AgicashDbCashuTokenSwap;
-  updated_account: AgicashDbAccount;
+  swap: AgicashDbCashuTokenSwap;
+  account: AgicashDbAccountWithProofs;
 };
 
 type CompleteCashuTokenSwapResult = {
-  updated_swap: AgicashDbCashuTokenSwap;
-  updated_account: AgicashDbAccount;
+  swap: AgicashDbCashuTokenSwap;
+  account: AgicashDbAccountWithProofs;
+  added_proofs: AgicashDbCashuProof[];
+};
+
+type CreateCashuSendSwapResult = {
+  swap: AgicashDbCashuSendSwap;
+  account: AgicashDbAccountWithProofs;
+  reserved_proofs: AgicashDbCashuProof[];
+};
+
+type CommitProofsToSendResult = {
+  swap: AgicashDbCashuSendSwap;
+  account: AgicashDbAccountWithProofs;
+  spent_proofs: AgicashDbCashuProof[];
+  reserved_proofs: AgicashDbCashuProof[];
+  change_proofs: AgicashDbCashuProof[];
+};
+
+type CompleteCashuSendSwapResult =
+  | {
+      result: 'COMPLETED';
+      swap: AgicashDbCashuSendSwap;
+      account: AgicashDbAccountWithProofs;
+      spent_proofs: AgicashDbCashuProof[];
+      failure_reason: null;
+    }
+  | {
+      result: 'FAILED';
+      swap: AgicashDbCashuSendSwap;
+      account: null;
+      spent_proofs: null;
+      failure_reason: string;
+    };
+
+type FailCashuSendSwapResult = {
+  swap: AgicashDbCashuSendSwap;
+  account: AgicashDbAccountWithProofs;
+  released_proofs: AgicashDbCashuProof[];
 };
 
 // Use when you need to fix/improve generated types
@@ -175,9 +238,7 @@ export type Database = MergeDeep<
           Args: {
             p_email: string | null;
           };
-          Returns: AgicashDbUser & {
-            accounts: AgicashDbAccount[];
-          };
+          Returns: UpsertUserWithAccountsResult;
         };
         process_cashu_receive_quote_payment: {
           Returns: CashuReceiveQuotePaymentResult;
@@ -194,20 +255,32 @@ export type Database = MergeDeep<
         create_cashu_send_quote: {
           Returns: CreateCashuSendQuoteResult;
         };
+        mark_cashu_send_quote_as_pending: {
+          Returns: MarkCashuSendQuoteAsPendingResult;
+        };
         complete_cashu_send_quote: {
-          Returns: UpdateCashuSendQuoteResult;
+          Returns: CompleteCashuSendQuoteResult;
         };
         expire_cashu_send_quote: {
-          Returns: UpdateCashuSendQuoteResult;
+          Returns: ExpireCashuSendQuoteResult;
         };
         fail_cashu_send_quote: {
-          Returns: UpdateCashuSendQuoteResult;
+          Returns: FailCashuSendQuoteResult;
         };
         fail_cashu_token_swap: {
           Returns: AgicashDbCashuTokenSwap;
         };
         create_cashu_send_swap: {
-          Returns: AgicashDbCashuSendSwap;
+          Returns: CreateCashuSendSwapResult;
+        };
+        commit_proofs_to_send: {
+          Returns: CommitProofsToSendResult;
+        };
+        complete_cashu_send_swap: {
+          Returns: CompleteCashuSendSwapResult;
+        };
+        fail_cashu_send_swap: {
+          Returns: FailCashuSendSwapResult;
         };
         list_transactions: {
           Args: {
@@ -224,9 +297,16 @@ export type Database = MergeDeep<
         cashu_receive_quote_payment_result: CashuReceiveQuotePaymentResult;
         complete_cashu_receive_quote_result: CompleteCashuReceiveQuoteResult;
         create_cashu_send_quote_result: CreateCashuSendQuoteResult;
-        update_cashu_send_quote_result: UpdateCashuSendQuoteResult;
+        mark_cashu_send_quote_as_pending_result: MarkCashuSendQuoteAsPendingResult;
+        complete_cashu_send_quote_result: CompleteCashuSendQuoteResult;
+        expire_cashu_send_quote_result: ExpireCashuSendQuoteResult;
+        fail_cashu_send_quote_result: FailCashuSendQuoteResult;
         create_cashu_token_swap_result: CreateCashuTokenSwapResult;
         complete_cashu_token_swap_result: CompleteCashuTokenSwapResult;
+        create_cashu_send_swap_result: CreateCashuSendSwapResult;
+        commit_proofs_to_send_result: CommitProofsToSendResult;
+        complete_cashu_send_swap_result: CompleteCashuSendSwapResult;
+        fail_cashu_send_swap_result: FailCashuSendSwapResult;
       };
     };
   }
@@ -263,6 +343,14 @@ export type AgicashDb = typeof agicashDb;
 
 export type AgicashDbUser = Database['wallet']['Tables']['users']['Row'];
 export type AgicashDbAccount = Database['wallet']['Tables']['accounts']['Row'];
+export type AgicashDbCashuProof =
+  Database['wallet']['Tables']['cashu_proofs']['Row'];
+/**
+ * Account joined with cashu_proofs. For non-cashu accounts, cashu_proofs is an empty array and can be ignored.
+ */
+export type AgicashDbAccountWithProofs = AgicashDbAccount & {
+  cashu_proofs: AgicashDbCashuProof[];
+};
 export type AgicashDbCashuReceiveQuote =
   Database['wallet']['Tables']['cashu_receive_quotes']['Row'];
 export type AgicashDbCashuTokenSwap =

@@ -146,18 +146,23 @@ export function useFindContactCandidates(query: string) {
 /**
  * Hook that returns a contact change handler.
  */
-export function useContactChangeHandler() {
+export function useContactChangeHandlers() {
   const contactsCache = useContactsCache();
   const { domain } = useLocationData();
 
-  return {
-    table: 'contacts',
-    onInsert: async (payload: AgicashDbContact) => {
-      const contact = ContactRepository.toContact(payload, domain);
-      contactsCache.add(contact);
+  return [
+    {
+      event: 'CONTACT_CREATED',
+      handleEvent: async (payload: AgicashDbContact) => {
+        const contact = ContactRepository.toContact(payload, domain);
+        contactsCache.add(contact);
+      },
     },
-    onDelete: async (payload: AgicashDbContact) => {
-      contactsCache.remove(payload.id);
+    {
+      event: 'CONTACT_DELETED',
+      handleEvent: async (payload: AgicashDbContact) => {
+        contactsCache.remove(payload.id);
+      },
     },
-  };
+  ];
 }

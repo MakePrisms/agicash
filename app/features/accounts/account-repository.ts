@@ -16,6 +16,7 @@ import type { Currency } from '~/lib/money';
 import {
   type AgicashDb,
   type AgicashDbAccount,
+  type AgicashDbAccountWithProofs,
   agicashDb,
 } from '../agicash-db/database';
 import {
@@ -27,8 +28,8 @@ import {
   mintKeysQueryOptions,
   useCashuCryptography,
 } from '../shared/cashu';
-import { useEncryption } from '../shared/encryption';
-import type { Account, CashuAccount } from './account';
+import { type Encryption, useEncryption } from '../shared/encryption';
+import type { Account, CashuAccount, CashuProof } from './account';
 
 type AccountOmit<
   T extends Account,
@@ -41,16 +42,11 @@ type AccountOmit<
 type AccountInput<T extends Account> = {
   userId: string;
 } & (T extends CashuAccount
-  ? AccountOmit<CashuAccount, 'wallet'>
+  ? AccountOmit<CashuAccount, 'wallet' | 'proofs'>
   : AccountOmit<T>);
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type Encryption = {
-  encrypt: <T = unknown>(data: T) => Promise<string>;
-  decrypt: <T = unknown>(data: string) => Promise<T>;
 };
 
 export class AccountRepository {
@@ -67,7 +63,13 @@ export class AccountRepository {
    * @returns The account.
    */
   async get(id: string, options?: Options): Promise<Account> {
-    const query = this.db.from('accounts').select().eq('id', id);
+    // Currently we limit the number of proofs returned to 6000
+    // We will need to handle that somehow later (e.g. require use to swap when the limit is reaching)
+    const query = this.db
+      .from('accounts')
+      .select('*, cashu_proofs(*)')
+      .eq('id', id)
+      .eq('cashu_proofs.state', 'UNSPENT');
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -85,10 +87,16 @@ export class AccountRepository {
   /**
    * Gets all the accounts for the given user.
    * @param userId - The id of the user to get the accounts for.
-   * @returns The accounts.
+   * @returns The accounts with unspent proofs.
    */
   async getAll(userId: string, options?: Options): Promise<Account[]> {
-    const query = this.db.from('accounts').select().eq('user_id', userId);
+    // Currently we limit the number of proofs returned to 6000
+    // We will need to handle that somehow later (e.g. require use to swap when the limit is reaching)
+    const query = this.db
+      .from('accounts')
+      .select('*, cashu_proofs(*)')
+      .eq('user_id', userId)
+      .eq('cashu_proofs.state', 'UNSPENT');
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -122,13 +130,16 @@ export class AccountRepository {
               mint_url: accountInput.mintUrl,
               is_test_mint: accountInput.isTestMint,
               keyset_counters: accountInput.keysetCounters,
-              proofs: await this.encryption.encrypt(accountInput.proofs),
             }
           : { nwc_url: accountInput.nwcUrl },
       user_id: accountInput.userId,
     };
 
-    const query = this.db.from('accounts').insert(accountsToCreate).select();
+    const query = this.db
+      .from('accounts')
+      .insert(accountsToCreate)
+      .select('*, cashu_proofs(*)')
+      .eq('cashu_proofs.state', 'UNSPENT');
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -149,7 +160,7 @@ export class AccountRepository {
   }
 
   async toAccount<T extends Account = Account>(
-    data: AgicashDbAccount,
+    data: AgicashDbAccountWithProofs,
   ): Promise<T> {
     const commonData = {
       id: data.id,
@@ -159,18 +170,13 @@ export class AccountRepository {
       version: data.version,
     };
 
-    if (data.type === 'cashu') {
-      const details = data.details as {
-        mint_url: string;
-        is_test_mint: boolean;
-        keyset_counters: Record<string, number>;
-        proofs: string;
-      };
+    if (this.isCashuAccount(data)) {
+      const details = data.details;
 
-      const { wallet, isOnline } = await this.getPreloadedWallet(
-        details.mint_url,
-        data.currency,
-      );
+      const [{ wallet, isOnline }, proofs] = await Promise.all([
+        this.getPreloadedWallet(details.mint_url, data.currency),
+        this.decryptCashuProofs(data),
+      ]);
 
       return {
         ...commonData,
@@ -179,7 +185,7 @@ export class AccountRepository {
         mintUrl: details.mint_url,
         isTestMint: details.is_test_mint,
         keysetCounters: details.keyset_counters,
-        proofs: await this.encryption.decrypt<Proof[]>(details.proofs),
+        proofs,
         wallet,
       } as T;
     }
@@ -268,6 +274,53 @@ export class AccountRepository {
 
     return { wallet, isOnline: true };
   }
+
+  private isCashuAccount(data: AgicashDbAccount): data is AgicashDbAccount & {
+    type: 'cashu';
+    details: {
+      mint_url: string;
+      is_test_mint: boolean;
+      keyset_counters: Record<string, number>;
+    };
+  } {
+    return data.type === 'cashu';
+  }
+
+  private async decryptCashuProofs(
+    data: AgicashDbAccountWithProofs,
+  ): Promise<CashuProof[]> {
+    if (!this.isCashuAccount(data)) {
+      throw new Error('Account is not a cashu account');
+    }
+
+    const encryptedData = data.cashu_proofs.flatMap((x) => [
+      x.amount,
+      x.secret,
+    ]);
+    const decryptedData = await this.encryption.decryptBatch(encryptedData);
+
+    return data.cashu_proofs.map((dbProof, index) => {
+      const decryptedDataIndex = index * 2;
+      const amount = decryptedData[decryptedDataIndex] as number;
+      const secret = decryptedData[decryptedDataIndex + 1] as string;
+      return {
+        id: dbProof.id,
+        accountId: dbProof.account_id,
+        userId: dbProof.user_id,
+        keysetId: dbProof.keyset_id,
+        amount,
+        secret,
+        unblindedSignature: dbProof.unblinded_signature,
+        publicKeyY: dbProof.public_key_y,
+        dleq: dbProof.dleq as Proof['dleq'],
+        witness: dbProof.witness as Proof['witness'],
+        state: dbProof.state as CashuProof['state'],
+        version: dbProof.version,
+        createdAt: dbProof.created_at,
+        reservedAt: dbProof.reserved_at,
+      };
+    });
+  }
 }
 
 export function useAccountRepository() {
@@ -276,10 +329,7 @@ export function useAccountRepository() {
   const { getSeed: getCashuWalletSeed } = useCashuCryptography();
   return new AccountRepository(
     agicashDb,
-    {
-      encrypt: encryption.encrypt,
-      decrypt: encryption.decrypt,
-    },
+    encryption,
     queryClient,
     getCashuWalletSeed,
   );

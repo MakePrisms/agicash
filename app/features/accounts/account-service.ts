@@ -63,7 +63,6 @@ export class AccountService {
       userId,
       isTestMint,
       keysetCounters: {},
-      proofs: [],
     });
   }
 }
