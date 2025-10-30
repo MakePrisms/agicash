@@ -224,66 +224,66 @@ export function useTrackSparkLightningSend({
  * Hook to listen for transfer:claimed events on Spark accounts for send operations.
  * Updates balance and completes send quotes when transfers are claimed.
  */
-export function useSparkSendBalanceUpdates() {
-  // TODO: this doesnt work. For some reason the transfer:claimed event is not being triggered.
-  // It works for receives but not for sends. Right now we are polling the status of the send quote.
-  //
-  //
-  //   const { data: accounts } = useAccounts({ type: 'spark' });
-  //   const updateSparkBalance = useUpdateSparkBalance();
-  //   const cache = useSparkSendQuoteCache();
-  //   const handleTransferClaimed = useCallback(
-  //     async (accountId: string, transferId: string, balance: bigint) => {
-  //       const account = accounts?.find((a) => a.id === accountId);
-  //       if (!account) return;
-  //       const transfer = await account.wallet.getTransfer(transferId);
-  //       if (!transfer || transfer.transferDirection !== 'OUTGOING')
-  //         throw new Error('Transfer is not outgoing');
-  //       console.log('handleTransferClaimed', accountId, transferId, balance);
-  //       updateSparkBalance(accountId, balance);
-  //       const sendRequestId = transfer.userRequest?.id;
-  //       if (!sendRequestId) throw new Error('Send request ID not found');
-  //       const activeQuote = cache.get(sendRequestId);
-  //       if (!activeQuote || activeQuote.accountId !== accountId)
-  //         throw new Error('Active quote not found');
-  //       try {
-  //         const updatedQuote: SparkSendQuote = {
-  //           ...activeQuote,
-  //           state: 'COMPLETED',
-  //           transferId,
-  //         };
-  //         cache.update(updatedQuote);
-  //       } catch (error) {
-  //         console.error('Error fetching transfer for send quote:', error);
-  //       }
-  //     },
-  //     [updateSparkBalance, cache, accounts],
-  //   );
-  //   const handleTransferClaimedRef = useLatest(handleTransferClaimed);
-  //   useEffect(() => {
-  //     if (!accounts?.length) return;
-  //     const sparkAccounts = accounts.filter(
-  //       (account) => account.type === 'spark',
-  //     );
-  //     const handlers = new Map<
-  //       string,
-  //       (transferId: string, balance: bigint) => void
-  //     >();
-  //     for (const account of sparkAccounts) {
-  //       const handler = (transferId: string, balance: bigint) => {
-  //         handleTransferClaimedRef.current(account.id, transferId, balance);
-  //       };
-  //       handlers.set(account.id, handler);
-  //       account.wallet.on('transfer:claimed', handler);
-  //       console.log('num listeners', account.wallet.listeners('transfer:claimed').length);
-  //     }
-  //     return () => {
-  //       for (const account of sparkAccounts) {
-  //         const handler = handlers.get(account.id);
-  //         if (handler) {
-  //           account.wallet.off('transfer:claimed', handler);
-  //         }
-  //       }
-  //     };
-  //   }, [accounts]);
-}
+// export function useSparkSendBalanceUpdates() {
+// TODO: this doesnt work. For some reason the transfer:claimed event is not being triggered.
+// It works for receives but not for sends. Right now we are polling the status of the send quote.
+//
+//
+//   const { data: accounts } = useAccounts({ type: 'spark' });
+//   const updateSparkBalance = useUpdateSparkBalance();
+//   const cache = useSparkSendQuoteCache();
+//   const handleTransferClaimed = useCallback(
+//     async (accountId: string, transferId: string, balance: bigint) => {
+//       const account = accounts?.find((a) => a.id === accountId);
+//       if (!account) return;
+//       const transfer = await account.wallet.getTransfer(transferId);
+//       if (!transfer || transfer.transferDirection !== 'OUTGOING')
+//         throw new Error('Transfer is not outgoing');
+//       console.log('handleTransferClaimed', accountId, transferId, balance);
+//       updateSparkBalance(accountId, balance);
+//       const sendRequestId = transfer.userRequest?.id;
+//       if (!sendRequestId) throw new Error('Send request ID not found');
+//       const activeQuote = cache.get(sendRequestId);
+//       if (!activeQuote || activeQuote.accountId !== accountId)
+//         throw new Error('Active quote not found');
+//       try {
+//         const updatedQuote: SparkSendQuote = {
+//           ...activeQuote,
+//           state: 'COMPLETED',
+//           transferId,
+//         };
+//         cache.update(updatedQuote);
+//       } catch (error) {
+//         console.error('Error fetching transfer for send quote:', error);
+//       }
+//     },
+//     [updateSparkBalance, cache, accounts],
+//   );
+//   const handleTransferClaimedRef = useLatest(handleTransferClaimed);
+//   useEffect(() => {
+//     if (!accounts?.length) return;
+//     const sparkAccounts = accounts.filter(
+//       (account) => account.type === 'spark',
+//     );
+//     const handlers = new Map<
+//       string,
+//       (transferId: string, balance: bigint) => void
+//     >();
+//     for (const account of sparkAccounts) {
+//       const handler = (transferId: string, balance: bigint) => {
+//         handleTransferClaimedRef.current(account.id, transferId, balance);
+//       };
+//       handlers.set(account.id, handler);
+//       account.wallet.on('transfer:claimed', handler);
+//       console.log('num listeners', account.wallet.listeners('transfer:claimed').length);
+//     }
+//     return () => {
+//       for (const account of sparkAccounts) {
+//         const handler = handlers.get(account.id);
+//         if (handler) {
+//           account.wallet.off('transfer:claimed', handler);
+//         }
+//       }
+//     };
+//   }, [accounts]);
+// }

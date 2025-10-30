@@ -143,7 +143,7 @@ export function useSparkReceiveQuote({
   };
 }
 
-export function useSparkBalanceUpdates() {
+export function useTrackSparkReceives() {
   const { data: accounts } = useAccounts({ type: 'spark' });
   const updateSparkBalance = useUpdateSparkBalance();
   const cache = useSparkReceiveQuoteCache();

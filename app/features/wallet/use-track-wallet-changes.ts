@@ -17,7 +17,7 @@ import {
   useCashuTokenSwapChangeHandler,
   usePendingCashuTokenSwapsCache,
 } from '../receive/cashu-token-swap-hooks';
-import { useSparkBalanceUpdates } from '../receive/spark-receive-lightning-hooks';
+import { useTrackSparkReceives } from '../receive/spark-receive-lightning-hooks';
 import {
   useCashuSendQuoteChangeHandler,
   useUnresolvedCashuSendQuotesCache,
@@ -26,7 +26,7 @@ import {
   useCashuSendSwapChangeHandler,
   useUnresolvedCashuSendSwapsCache,
 } from '../send/cashu-send-swap-hooks';
-import { useSparkSendBalanceUpdates } from '../send/spark-send-lightning-hooks';
+import { useTrackSparkBalance } from '../shared/spark';
 import {
   useTransactionChangeHandler,
   useTransactionsCache,
@@ -153,8 +153,8 @@ export const useTrackWalletChanges = () => {
   const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const contactsCache = useContactsCache();
 
-  useSparkBalanceUpdates();
-  useSparkSendBalanceUpdates();
+  useTrackSparkReceives();
+  useTrackSparkBalance();
 
   useTrackDatabaseChanges({
     handlers: [

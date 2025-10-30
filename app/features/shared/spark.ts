@@ -7,11 +7,13 @@ import { mnemonicToSeedSync } from '@scure/bip39';
 import {
   type QueryClient,
   queryOptions,
+  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
+import { useAccounts, useUpdateSparkBalance } from '../accounts/account-hooks';
 export type SparkCryptography = {
   getSeed: () => Promise<Uint8Array>;
 };
@@ -80,4 +82,26 @@ export function useSparkWallet(network: SparkNetwork = 'MAINNET'): SparkWallet {
   const { data: wallet } = useSuspenseQuery(sparkWalletQueryOptions(network));
 
   return wallet;
+}
+
+export function useTrackSparkBalance() {
+  const sparkWallet = useSparkWallet();
+  const updateSparkBalance = useUpdateSparkBalance();
+  const { data: accounts } = useAccounts({ type: 'spark' });
+  const sparkAccount = accounts?.[0]; // TODO: we're just assming one spark account total.
+
+  useQuery({
+    queryKey: ['spark-balance'],
+    queryFn: async () => {
+      const balance = await sparkWallet.getBalance();
+      updateSparkBalance(sparkAccount.id, balance.balance);
+      return balance;
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+    enabled: !!sparkAccount,
+    refetchInterval: 3000,
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
+  });
 }
