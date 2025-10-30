@@ -7,7 +7,7 @@ import {
   X,
   ZapIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { MoneyDisplay, MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
@@ -193,6 +193,12 @@ export function SendInput() {
     await handleSelectDestination(input);
   };
 
+  const canContinue = useMemo(() => {
+    const requiresDestination =
+      sendAccount.type === 'spark' && !destinationDisplay;
+    return !inputValue.isZero() && sendAccount.isOnline && !requiresDestination;
+  }, [inputValue, sendAccount.isOnline, destinationDisplay, sendAccount.type]);
+
   return (
     <>
       <PageHeader>
@@ -268,7 +274,7 @@ export function SendInput() {
             <div className="flex items-center justify-end">
               <Button
                 onClick={() => handleContinue(inputValue, convertedValue)}
-                disabled={inputValue.isZero()}
+                disabled={!canContinue}
                 loading={status === 'quoting'}
               >
                 Continue
