@@ -9,6 +9,7 @@ import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import { useAccounts, useUpdateSparkBalance } from '../accounts/account-hooks';
+import { useSparkWallet } from '../shared/spark';
 import {
   type SparkLightningQuote,
   type SparkSendQuote,
@@ -132,6 +133,7 @@ export function useTrackSparkLightningSend({
   const cache = useSparkSendQuoteCache();
   const { data: accounts } = useAccounts({ type: 'spark' });
   const sparkSendLightningService = useSparkSendLightningService();
+  const sparkWallet = useSparkWallet();
   const onCompletedRef = useLatest(onCompleted);
   const onFailedRef = useLatest(onFailed);
   const updateSparkBalance = useUpdateSparkBalance();
@@ -165,7 +167,7 @@ export function useTrackSparkLightningSend({
             state,
           };
           cache.update(updatedQuote);
-          const newBalance = await account.wallet.getBalance();
+          const newBalance = await sparkWallet.getBalance();
           updateSparkBalance(account.id, newBalance.balance);
           return updatedQuote;
         }

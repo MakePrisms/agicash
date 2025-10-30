@@ -1,9 +1,16 @@
+import type {
+  NetworkType as SparkNetwork,
+  SparkWallet,
+} from '@buildonspark/spark-sdk';
 import {
   type LightningReceiveRequest,
   LightningReceiveRequestStatus,
 } from '@buildonspark/spark-sdk/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import type { Money } from '~/lib/money';
 import type { SparkAccount } from '../accounts/account';
+import { getSparkWalletFromCache } from '../shared/spark';
 
 export type SparkReceiveQuote = {
   id: string;
@@ -17,6 +24,12 @@ export type SparkReceiveQuote = {
 };
 
 export class SparkReceiveLightningService {
+  constructor(
+    private readonly getWallet: (
+      network: SparkNetwork,
+    ) => SparkWallet | undefined,
+  ) {}
+
   async getLightningQuote({
     account,
     amount,
@@ -27,7 +40,13 @@ export class SparkReceiveLightningService {
     /** The Spark public key of the receive. This will generate an invoice on behalf of the receiver. */
     receiverIdentityPubkey?: string;
   }): Promise<SparkReceiveQuote> {
-    const sparkWallet = account.wallet;
+    const sparkWallet = this.getWallet(account.network);
+    if (!sparkWallet) {
+      throw new Error(
+        `Spark wallet not initialized for network ${account.network}`,
+      );
+    }
+
     const receiveRequest = await sparkWallet.createLightningInvoice({
       amountSats: amount.toNumber('sat'),
       memo: '',
@@ -50,7 +69,13 @@ export class SparkReceiveLightningService {
     account: SparkAccount,
     invoiceId: string,
   ): Promise<SparkReceiveQuote['state']> {
-    const sparkWallet = account.wallet;
+    const sparkWallet = this.getWallet(account.network);
+    if (!sparkWallet) {
+      throw new Error(
+        `Spark wallet not initialized for network ${account.network}`,
+      );
+    }
+
     const status = await sparkWallet.getLightningReceiveRequest(invoiceId);
     if (!status) {
       throw new Error('Spark invoice not found');
@@ -79,5 +104,13 @@ export class SparkReceiveLightningService {
 }
 
 export function useSparkReceiveLightningService() {
-  return new SparkReceiveLightningService();
+  const queryClient = useQueryClient();
+
+  return useMemo(
+    () =>
+      new SparkReceiveLightningService((network) =>
+        getSparkWalletFromCache(queryClient, network),
+      ),
+    [queryClient],
+  );
 }

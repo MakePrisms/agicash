@@ -9,6 +9,7 @@ import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import { useAccounts, useUpdateSparkBalance } from '../accounts/account-hooks';
+import { useSparkWallet } from '../shared/spark';
 import {
   type SparkReceiveQuote,
   useSparkReceiveLightningService,
@@ -146,19 +147,22 @@ export function useSparkBalanceUpdates() {
   const { data: accounts } = useAccounts({ type: 'spark' });
   const updateSparkBalance = useUpdateSparkBalance();
   const cache = useSparkReceiveQuoteCache();
+  const sparkWallet = useSparkWallet();
 
   const handleTransferClaimed = useCallback(
-    async (accountId: string, transferId: string, balance: bigint) => {
-      updateSparkBalance(accountId, balance);
+    async (transferId: string, balance: bigint) => {
+      console.debug('handleTransferClaimed', transferId, balance);
+      // TODO: we're just assming one spark account total.
+      const sparkAccount = accounts?.[0];
+      if (!sparkAccount) return;
 
-      const account = accounts?.find((a) => a.id === accountId);
-      if (!account) return;
+      updateSparkBalance(sparkAccount.id, balance);
 
       const activeQuote = cache.getActive();
-      if (!activeQuote || activeQuote.accountId !== accountId) return;
+      if (!activeQuote || activeQuote.accountId !== sparkAccount.id) return;
 
       try {
-        const transfer = await account.wallet.getTransfer(transferId);
+        const transfer = await sparkWallet.getTransfer(transferId);
 
         if (transfer && transfer.id === transferId) {
           const updatedQuote: SparkReceiveQuote = {
@@ -172,7 +176,7 @@ export function useSparkBalanceUpdates() {
         console.error('Error fetching transfer for quote:', error);
       }
     },
-    [updateSparkBalance, cache, accounts],
+    [updateSparkBalance, cache, accounts, sparkWallet],
   );
 
   const handleTransferClaimedRef = useLatest(handleTransferClaimed);
@@ -180,31 +184,10 @@ export function useSparkBalanceUpdates() {
   useEffect(() => {
     if (!accounts?.length) return;
 
-    const sparkAccounts = accounts.filter(
-      (account) => account.type === 'spark',
-    );
-
-    const handlers = new Map<
-      string,
-      (transferId: string, balance: bigint) => void
-    >();
-
-    for (const account of sparkAccounts) {
-      const handler = (transferId: string, balance: bigint) => {
-        handleTransferClaimedRef.current(account.id, transferId, balance);
-      };
-
-      handlers.set(account.id, handler);
-      account.wallet.on('transfer:claimed', handler);
-    }
+    sparkWallet.on('transfer:claimed', handleTransferClaimedRef.current);
 
     return () => {
-      for (const account of sparkAccounts) {
-        const handler = handlers.get(account.id);
-        if (handler) {
-          account.wallet.off('transfer:claimed', handler);
-        }
-      }
+      sparkWallet.off('transfer:claimed', handleTransferClaimedRef.current);
     };
-  }, [accounts]);
+  }, [accounts, sparkWallet]);
 }

@@ -1,4 +1,3 @@
-import { SparkWallet } from '@buildonspark/spark-sdk';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { AccountsCache } from '~/features/accounts/account-hooks';
@@ -16,7 +15,10 @@ import {
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
-import { seedQueryOptions as sparkSeedQueryOptions } from '~/features/shared/spark';
+import {
+  seedQueryOptions as sparkSeedQueryOptions,
+  sparkWalletQueryOptions,
+} from '~/features/shared/spark';
 import {
   type AuthUser,
   authQueryOptions,
@@ -59,19 +61,24 @@ const ensureUserData = async (
   }
 
   if (!user || hasUserChanged(user, authUser)) {
-    const [encryptionPrivateKey, encryptionPublicKey, cashuLockingXpub] =
-      await Promise.all([
-        queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-        queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-        queryClient.ensureQueryData(
-          xpubQueryOptions({
-            queryClient,
-            derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
-          }),
-        ),
-        queryClient.ensureQueryData(cashuSeedQueryOptions()),
-        queryClient.ensureQueryData(sparkSeedQueryOptions()),
-      ]);
+    const [
+      encryptionPrivateKey,
+      encryptionPublicKey,
+      cashuLockingXpub,
+      sparkWallet,
+    ] = await Promise.all([
+      queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
+      queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
+      queryClient.ensureQueryData(
+        xpubQueryOptions({
+          queryClient,
+          derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
+        }),
+      ),
+      queryClient.ensureQueryData(sparkWalletQueryOptions('MAINNET')),
+      queryClient.ensureQueryData(cashuSeedQueryOptions()),
+      queryClient.ensureQueryData(sparkSeedQueryOptions()),
+    ]);
     const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
     const getCashuWalletSeed = () =>
       queryClient.fetchQuery(cashuSeedQueryOptions());
@@ -89,11 +96,6 @@ const ensureUserData = async (
       accountRepository,
     );
 
-    // TODO: can we do this better? This is just for getting the spark public key for the user.
-    const { wallet: sparkWallet } = await SparkWallet.initialize({
-      mnemonicOrSeed: await getSparkSeed(),
-      options: { network: 'MAINNET' },
-    });
     const sparkPublicKey = await sparkWallet.getIdentityPublicKey();
 
     const { user: upsertedUser, accounts } = await userRepository.upsert({

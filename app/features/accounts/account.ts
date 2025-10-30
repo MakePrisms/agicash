@@ -1,7 +1,4 @@
-import type {
-  NetworkType as SparkNetwork,
-  SparkWallet,
-} from '@buildonspark/spark-sdk';
+import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
 import type { Proof } from '@cashu/cashu-ts';
 import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
@@ -43,7 +40,6 @@ export type Account = {
   | {
       type: 'spark';
       balance: Money;
-      wallet: SparkWallet;
       network: SparkNetwork;
     }
 );

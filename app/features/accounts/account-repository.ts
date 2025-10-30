@@ -1,7 +1,4 @@
-import {
-  type NetworkType as SparkNetwork,
-  SparkWallet,
-} from '@buildonspark/spark-sdk';
+import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
 import {
   type MintActiveKeys,
   type MintAllKeysets,
@@ -31,7 +28,9 @@ import {
   mintKeysQueryOptions,
   useCashuCryptography,
 } from '../shared/cashu';
+import { getDefaultUnit } from '../shared/currencies';
 import { useEncryption } from '../shared/encryption';
+import { getSparkWalletFromCache } from '../shared/spark';
 import { useSparkCryptography } from '../shared/spark';
 import type { Account, CashuAccount } from './account';
 
@@ -205,30 +204,25 @@ export class AccountRepository {
     }
 
     if (data.type === 'spark') {
-      if (commonData.currency !== 'BTC') {
-        // TODO: see if we can handle this better
-        throw new Error('Spark accounts can only be created for BTC');
-      }
-      const sparkSeed = await this.getSparkSeed?.();
-      if (!sparkSeed) {
-        throw new Error('No Spark seed found');
-      }
       const network = (data.details as { network: SparkNetwork }).network;
-      const { wallet: sparkWallet } = await SparkWallet.initialize({
-        mnemonicOrSeed: sparkSeed,
-        options: { network },
-      });
+
+      const sparkWallet = getSparkWalletFromCache(this.queryClient, network);
+      if (!sparkWallet) {
+        throw new Error(`Spark wallet not initialized for network ${network}`);
+      }
+
       const { balance: balanceSats } = await sparkWallet.getBalance();
+      const balance = new Money({
+        amount: balanceSats.toString(),
+        currency: commonData.currency,
+        unit: getDefaultUnit(commonData.currency),
+      });
+
       return {
         ...commonData,
         type: 'spark',
-        wallet: sparkWallet,
         network: network,
-        balance: new Money({
-          amount: balanceSats.toString(),
-          currency: 'BTC',
-          unit: 'sat',
-        }),
+        balance,
         isOnline: true,
       } as T;
     }

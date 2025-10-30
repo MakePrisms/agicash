@@ -1,3 +1,4 @@
+import { SparkWallet } from '@buildonspark/spark-sdk';
 import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
 import { QueryClient } from '@tanstack/react-query';
 import { getCashuWallet } from '~/lib/cashu';
@@ -13,6 +14,7 @@ import { AccountRepository } from '../accounts/account-repository';
 import type { AgicashDb } from '../agicash-db/database';
 import type { CashuCryptography } from '../shared/cashu';
 import { encryptToPublicKey, type useEncryption } from '../shared/encryption';
+import { getSparkWalletFromCache } from '../shared/spark';
 import { UserRepository } from '../user/user-repository';
 import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
@@ -42,6 +44,42 @@ const sparkMnemonic = process.env.LNURL_SERVER_SPARK_MNEMONIC || '';
 if (!sparkMnemonic) {
   throw new Error('LNURL_SERVER_SPARK_MNEMONIC is not set');
 }
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+    },
+  },
+});
+
+/**
+ * Initializes the singleton Spark wallet for server-side receives.
+ * This is called once when the module is first loaded.
+ */
+async function initializeServerSparkWallet() {
+  try {
+    const existingWallet = getSparkWalletFromCache(queryClient, 'MAINNET');
+    if (existingWallet) {
+      return;
+    }
+
+    const { wallet } = await SparkWallet.initialize({
+      mnemonicOrSeed: sparkMnemonic,
+      options: { network: 'MAINNET' },
+    });
+
+    queryClient.setQueryData(['spark-wallet', 'MAINNET'], wallet);
+    console.log('Initialized server-side Spark wallet singleton');
+  } catch (error) {
+    console.error('Failed to initialize server-side Spark wallet', error);
+    throw error;
+  }
+}
+
+initializeServerSparkWallet();
 
 export class LightningAddressService {
   private baseUrl: string;
@@ -69,13 +107,14 @@ export class LightningAddressService {
   ) {
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
+    // Use the singleton server query client
     this.accountRepository = new AccountRepository(
       db,
       {
         encrypt: this.encryption.encrypt,
         decrypt: this.encryption.decrypt,
       },
-      new QueryClient(),
+      queryClient,
       undefined,
       // We use the same mnemonic for all receives because we are receiving on
       // behalf of the user. If we use a different mnemonic, then we will not be
@@ -231,9 +270,9 @@ export class LightningAddressService {
           };
         }
 
-        // TODO: we will initialize a spark wallet every time the account is fetched.
-        // We are using the same mnemonic for all receives, so we really only need a single instance.
-        const sparkReceiveLightningService = new SparkReceiveLightningService();
+        const sparkReceiveLightningService = new SparkReceiveLightningService(
+          (network) => getSparkWalletFromCache(queryClient, network),
+        );
         const sparkQuote = await sparkReceiveLightningService.getLightningQuote(
           {
             account,
@@ -348,7 +387,18 @@ export class LightningAddressService {
         };
       }
 
-      const wallet = account.wallet;
+      const wallet = getSparkWalletFromCache(queryClient, account.network);
+      if (!wallet) {
+        console.error(
+          'Spark wallet not initialized for network',
+          account.network,
+        );
+        return {
+          status: 'ERROR',
+          reason: 'Internal server error',
+        };
+      }
+
       const receiveRequest = await wallet.getLightningReceiveRequest(invoiceId);
       if (!receiveRequest) {
         return {

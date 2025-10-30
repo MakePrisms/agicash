@@ -1,13 +1,17 @@
+import {
+  type NetworkType as SparkNetwork,
+  SparkWallet,
+} from '@buildonspark/spark-sdk';
 import { getPrivateKey as getMnemonic } from '@opensecret/react';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import {
   type QueryClient,
   queryOptions,
   useQueryClient,
+  useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
-
 export type SparkCryptography = {
   getSeed: () => Promise<Uint8Array>;
 };
@@ -47,4 +51,33 @@ export function useSparkCryptography(): SparkCryptography {
   const queryClient = useQueryClient();
 
   return useMemo(() => getSparkCryptography(queryClient), [queryClient]);
+}
+
+export const sparkWalletQueryOptions = (network: SparkNetwork) =>
+  queryOptions({
+    queryKey: ['spark-wallet', network],
+    queryFn: async ({ client }) => {
+      const seed = await client.fetchQuery(seedQueryOptions());
+      const { wallet } = await SparkWallet.initialize({
+        mnemonicOrSeed: seed,
+        options: { network },
+        accountNumber: 0,
+      });
+      return wallet;
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+  });
+
+export function getSparkWalletFromCache(
+  queryClient: QueryClient,
+  network: SparkNetwork,
+): SparkWallet | undefined {
+  return queryClient.getQueryData<SparkWallet>(['spark-wallet', network]);
+}
+
+export function useSparkWallet(network: SparkNetwork = 'MAINNET'): SparkWallet {
+  const { data: wallet } = useSuspenseQuery(sparkWalletQueryOptions(network));
+
+  return wallet;
 }

@@ -1,13 +1,20 @@
+import type {
+  NetworkType as SparkNetwork,
+  SparkWallet,
+} from '@buildonspark/spark-sdk';
 import {
   type LightningSendRequest,
   LightningSendRequestStatus,
   type WalletTransfer,
 } from '@buildonspark/spark-sdk/types';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Big } from 'big.js';
+import { useMemo } from 'react';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { type Currency, Money } from '~/lib/money';
 import type { SparkAccount } from '../accounts/account';
 import { DomainError } from '../shared/error';
+import { getSparkWalletFromCache } from '../shared/spark';
 
 function isWalletTransfer(
   request: LightningSendRequest | WalletTransfer,
@@ -96,12 +103,25 @@ export type SparkSendQuote = {
 };
 
 export class SparkSendLightningService {
+  constructor(
+    private readonly getWallet: (
+      network: SparkNetwork,
+    ) => SparkWallet | undefined,
+  ) {}
+
   async getLightningQuote({
     account,
     paymentRequest,
     amount,
     exchangeRate,
   }: GetSparkLightningQuoteOptions): Promise<SparkLightningQuote> {
+    const sparkWallet = this.getWallet(account.network);
+    if (!sparkWallet) {
+      throw new Error(
+        `Spark wallet not initialized for network ${account.network}`,
+      );
+    }
+
     const bolt11ValidationResult = parseBolt11Invoice(paymentRequest);
     if (!bolt11ValidationResult.valid) {
       throw new DomainError('Invalid lightning invoice');
@@ -135,7 +155,7 @@ export class SparkSendLightningService {
       throw new Error('Amount required for zero-amount invoices');
     }
 
-    const estimatedFeeSats = await account.wallet.getLightningSendFeeEstimate({
+    const estimatedFeeSats = await sparkWallet.getLightningSendFeeEstimate({
       encodedInvoice: paymentRequest,
       amountSats: amountRequestedInBtc.toNumber('sat'),
     });
@@ -170,7 +190,14 @@ export class SparkSendLightningService {
     account: SparkAccount;
     quote: SparkLightningQuote;
   }): Promise<SparkSendQuote> {
-    const sendRequest = await account.wallet.payLightningInvoice({
+    const sparkWallet = this.getWallet(account.network);
+    if (!sparkWallet) {
+      throw new Error(
+        `Spark wallet not initialized for network ${account.network}`,
+      );
+    }
+
+    const sendRequest = await sparkWallet.payLightningInvoice({
       invoice: quote.paymentRequest,
       maxFeeSats: this.calculateRecommendedFee(quote.amountRequestedInBtc),
       preferSpark: false,
@@ -201,7 +228,13 @@ export class SparkSendLightningService {
     account: SparkAccount,
     sendRequestId: string,
   ): Promise<SparkSendQuote['state']> {
-    const sparkWallet = account.wallet;
+    const sparkWallet = this.getWallet(account.network);
+    if (!sparkWallet) {
+      throw new Error(
+        `Spark wallet not initialized for network ${account.network}`,
+      );
+    }
+
     const status = await sparkWallet.getLightningSendRequest(sendRequestId);
     if (!status) {
       throw new Error('Spark send request not found');
@@ -244,5 +277,13 @@ export class SparkSendLightningService {
 }
 
 export function useSparkSendLightningService() {
-  return new SparkSendLightningService();
+  const queryClient = useQueryClient();
+
+  return useMemo(
+    () =>
+      new SparkSendLightningService((network) =>
+        getSparkWalletFromCache(queryClient, network),
+      ),
+    [queryClient],
+  );
 }
