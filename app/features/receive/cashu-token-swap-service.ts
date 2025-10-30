@@ -6,11 +6,12 @@ import {
 } from '@cashu/cashu-ts';
 import {
   CashuErrorCodes,
-  amountsFromOutputData,
   areMintUrlsEqual,
+  getCashuUnit,
+  getNumberOfOutputs,
   sumProofs,
 } from '~/lib/cashu';
-import { sum } from '~/lib/utils';
+import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
 import type { CashuTokenSwap } from './cashu-token-swap';
@@ -33,23 +34,23 @@ export class CashuTokenSwapService {
     account: CashuAccount;
     reversedTransactionId?: string;
   }): Promise<{
-    tokenSwap: CashuTokenSwap;
+    swap: CashuTokenSwap;
     account: CashuAccount;
   }> {
     if (!areMintUrlsEqual(account.mintUrl, token.mint)) {
       throw new Error('Cannot swap a token to a different mint');
     }
 
-    const amount = tokenToMoney(token);
+    const inputAmount = tokenToMoney(token);
+    const currency = inputAmount.currency;
 
-    if (amount.currency !== account.currency) {
+    if (currency !== account.currency) {
       throw new Error('Cannot swap a token to a different currency.');
     }
 
     const wallet = account.wallet;
 
     const keys = await wallet.getKeys();
-    const counter = account.keysetCounters[wallet.keysetId] ?? 0;
     const fee = wallet.getFeesForProofs(token.proofs);
     const amountToReceive = sumProofs(token.proofs) - fee;
 
@@ -57,24 +58,29 @@ export class CashuTokenSwapService {
       throw new Error('Token is too small to claim.');
     }
 
-    const outputData = OutputData.createDeterministicData(
-      amountToReceive,
-      wallet.seed,
-      counter,
-      keys,
-    );
-    const outputAmounts = amountsFromOutputData(outputData);
+    const cashuUnit = getCashuUnit(currency);
+    const feeAmount = new Money({
+      amount: fee,
+      currency: currency,
+      unit: cashuUnit,
+    });
+    const receiveAmount = new Money({
+      amount: amountToReceive,
+      currency: currency,
+      unit: cashuUnit,
+    });
+
+    const numberOfOutputs = getNumberOfOutputs(amountToReceive, keys);
 
     return await this.tokenSwapRepository.create({
       token,
       userId,
       accountId: account.id,
       keysetId: wallet.keysetId,
-      keysetCounter: counter,
-      inputAmount: sumProofs(token.proofs),
-      outputAmounts,
-      cashuReceiveFee: fee,
-      accountVersion: account.version,
+      inputAmount,
+      cashuReceiveFee: feeAmount,
+      receiveAmount,
+      numberOfOutputs,
       reversedTransactionId,
     });
   }
@@ -83,11 +89,13 @@ export class CashuTokenSwapService {
     account: CashuAccount,
     tokenSwap: CashuTokenSwap,
   ): Promise<{
-    tokenSwap: CashuTokenSwap;
+    swap: CashuTokenSwap;
     account: CashuAccount;
+    addedProofs: string[];
   }> {
     if (tokenSwap.state === 'COMPLETED') {
-      return { tokenSwap, account };
+      // TODO: see if it's fine to return an empty array of proofs here
+      return { swap: tokenSwap, account, addedProofs: [] };
     }
 
     if (tokenSwap.state !== 'PENDING') {
@@ -96,37 +104,36 @@ export class CashuTokenSwapService {
 
     const wallet = account.wallet;
 
-    const { keysetId, keysetCounter } = tokenSwap;
-    const amountToReceive = sum(tokenSwap.outputAmounts);
+    const { keysetId, keysetCounter, receiveAmount } = tokenSwap;
 
+    const keys = await wallet.getKeys(keysetId);
+    // TODO: see if it is fine that we are not sending customSplit param to this fn anymore
     const outputData = OutputData.createDeterministicData(
-      amountToReceive,
+      receiveAmount.toNumber(getCashuUnit(receiveAmount.currency)),
       wallet.seed,
       keysetCounter,
-      await wallet.getKeys(keysetId),
-      tokenSwap.outputAmounts,
+      keys,
     );
 
     try {
       const newProofs = await this.swapProofs(wallet, tokenSwap, outputData);
-      const allProofs = [...account.proofs, ...newProofs];
 
       return await this.tokenSwapRepository.completeTokenSwap({
         tokenHash: tokenSwap.tokenHash,
         userId: tokenSwap.userId,
-        swapVersion: tokenSwap.version,
-        proofs: allProofs,
-        accountVersion: account.version,
+        proofs: newProofs,
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'TOKEN_ALREADY_CLAIMED') {
+        // TODO: why are we even failing the token swap here? Should the caller fail it?
         const failedTokenSwap = await this.tokenSwapRepository.fail({
           tokenHash: tokenSwap.tokenHash,
           userId: tokenSwap.userId,
           version: tokenSwap.version,
           reason: 'Token already claimed',
         });
-        return { tokenSwap: failedTokenSwap, account };
+        // TODO: see if it's fine to return an empty array of proofs here
+        return { swap: failedTokenSwap, account, addedProofs: [] };
       }
 
       throw error;
@@ -139,9 +146,10 @@ export class CashuTokenSwapService {
     outputData: OutputData[],
   ) {
     try {
-      const amountToReceive = sum(tokenSwap.outputAmounts);
       const { send: newProofs } = await wallet.swap(
-        amountToReceive,
+        tokenSwap.receiveAmount.toNumber(
+          getCashuUnit(tokenSwap.receiveAmount.currency),
+        ),
         tokenSwap.tokenProofs,
         {
           outputData: { send: outputData },
@@ -163,7 +171,7 @@ export class CashuTokenSwapService {
       ) {
         const { proofs } = await wallet.restore(
           tokenSwap.keysetCounter,
-          tokenSwap.outputAmounts.length,
+          tokenSwap.numberOfOutputs,
           {
             keysetId: tokenSwap.keysetId,
           },

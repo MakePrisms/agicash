@@ -182,7 +182,13 @@ export class UserRepository {
     return {
       user: this.toUser(upsertedUser),
       accounts: await Promise.all(
-        accounts.map((a) => this.accountRepository.toAccount(a)),
+        accounts.map((a) =>
+          this.accountRepository.toAccount({
+            ...a,
+            // TODO: see about this
+            cashu_proofs: [],
+          }),
+        ),
       ),
     };
   }
@@ -240,7 +246,11 @@ export class UserRepository {
       throw new Error('No default account found for user');
     }
 
-    return this.accountRepository.toAccount(account);
+    // TODO: see about this
+    return this.accountRepository.toAccount({
+      ...account,
+      cashu_proofs: [],
+    });
   }
 
   private toUser(dbUser: AgicashDbUser): User {

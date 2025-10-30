@@ -149,7 +149,7 @@ export default function ReceiveToken({
 
       if (isSameAccountClaim) {
         const {
-          tokenSwap: { transactionId },
+          swap: { transactionId },
         } = await createCashuTokenSwap({
           token,
           accountId: account.id,

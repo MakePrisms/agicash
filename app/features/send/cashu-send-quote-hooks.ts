@@ -23,16 +23,15 @@ import {
   useGetLatestCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuSendQuote } from '../agicash-db/database';
-import { useEncryption } from '../shared/encryption';
+import type {
+  AgicashDbCashuProof,
+  AgicashDbCashuSendQuote,
+} from '../agicash-db/database';
 import { DomainError, NotFoundError } from '../shared/error';
 import type { DestinationDetails } from '../transactions/transaction';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendQuote } from './cashu-send-quote';
-import {
-  CashuSendQuoteRepository,
-  useCashuSendQuoteRepository,
-} from './cashu-send-quote-repository';
+import { useCashuSendQuoteRepository } from './cashu-send-quote-repository';
 import {
   type SendQuoteRequest,
   useCashuSendQuoteService,
@@ -65,7 +64,7 @@ class CashuSendQuoteCache {
   updateIfExists(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote>(
       [CashuSendQuoteCache.Key, quote.id],
-      (curr) => (curr ? quote : undefined),
+      (curr) => (curr && curr.version < quote.version ? quote : undefined),
     );
   }
 }
@@ -86,7 +85,10 @@ class UnresolvedCashuSendQuotesCache {
   update(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote[]>(
       [UnresolvedCashuSendQuotesCache.Key],
-      (curr) => curr?.map((q) => (q.id === quote.id ? quote : q)),
+      (curr) =>
+        curr?.map((q) =>
+          q.id === quote.id && q.version < quote.version ? quote : q,
+        ),
     );
   }
 
@@ -505,35 +507,42 @@ function useOnMeltQuoteStateChange({
 /**
  * Hook that returns a cashu send quote change handler.
  */
-export function useCashuSendQuoteChangeHandler() {
-  const encryption = useEncryption();
+export function useCashuSendQuoteChangeHandlers() {
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const cashuSendQuoteCache = useCashuSendQuoteCache();
+  const cashuSendQuoteRepository = useCashuSendQuoteRepository();
 
-  return {
-    table: 'cashu_send_quotes',
-    onInsert: async (payload: AgicashDbCashuSendQuote) => {
-      const quote = await CashuSendQuoteRepository.toSend(
-        payload,
-        encryption.decrypt,
-      );
-      unresolvedSendQuotesCache.add(quote);
+  return [
+    {
+      event: 'CASHU_SEND_QUOTE_CREATED',
+      handleEvent: async (
+        payload: AgicashDbCashuSendQuote & {
+          cashu_proofs: AgicashDbCashuProof[];
+        },
+      ) => {
+        const quote = await cashuSendQuoteRepository.toSendQuote(payload);
+        unresolvedSendQuotesCache.add(quote);
+      },
     },
-    onUpdate: async (payload: AgicashDbCashuSendQuote) => {
-      const quote = await CashuSendQuoteRepository.toSend(
-        payload,
-        encryption.decrypt,
-      );
+    {
+      event: 'CASHU_SEND_QUOTE_UPDATED',
+      handleEvent: async (
+        payload: AgicashDbCashuSendQuote & {
+          cashu_proofs: AgicashDbCashuProof[];
+        },
+      ) => {
+        const quote = await cashuSendQuoteRepository.toSendQuote(payload);
 
-      cashuSendQuoteCache.updateIfExists(quote);
+        cashuSendQuoteCache.updateIfExists(quote);
 
-      if (['UNPAID', 'PENDING'].includes(quote.state)) {
-        unresolvedSendQuotesCache.update(quote);
-      } else {
-        unresolvedSendQuotesCache.remove(quote);
-      }
+        if (['UNPAID', 'PENDING'].includes(quote.state)) {
+          unresolvedSendQuotesCache.update(quote);
+        } else {
+          unresolvedSendQuotesCache.remove(quote);
+        }
+      },
     },
-  };
+  ];
 }
 
 export function useProcessCashuSendQuoteTasks() {
@@ -645,9 +654,7 @@ export function useProcessCashuSendQuoteTasks() {
         return;
       }
 
-      const account = await getCashuAccount(sendQuote.accountId);
-
-      return cashuSendService.expireSendQuote(account, sendQuote);
+      return cashuSendService.expireSendQuote(sendQuote);
     },
     retry: 3,
     throwOnError: true,

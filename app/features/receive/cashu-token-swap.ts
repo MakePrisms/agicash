@@ -22,14 +22,17 @@ export type CashuTokenSwap = {
   accountId: string;
   /** Amount of the token being received in the corresponding currency.
    * Will differ from actual amount received if mint charges fees */
-  amount: Money;
+  inputAmount: Money;
+  /** Amount that will actually be received after the mint's fees are deducted */
+  receiveAmount: Money;
+  /** Fee that will be deducted from the receive amount */
+  feeAmount: Money;
   /** ID of the keyset used for blinded messages */
   keysetId: string;
   /** Starting counter value used to generate the blinded messages */
   keysetCounter: number;
-  /** Amounts for each blinded message.
-   * The sum of these values is what will actually be received after fees are deducted */
-  outputAmounts: number[];
+  /** Number of outputs/proofs created for the receive */
+  numberOfOutputs: number;
   /**
    * Current state of the token swap
    *

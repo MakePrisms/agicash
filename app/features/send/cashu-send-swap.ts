@@ -1,5 +1,5 @@
-import type { Proof } from '@cashu/cashu-ts';
 import type { Currency, Money } from '~/lib/money';
+import type { CashuProof } from '../accounts/account';
 
 /**
  * A CashuSendSwap spends proofs from an account and creates proofs to send
@@ -32,7 +32,7 @@ export type CashuSendSwap = {
    * The proofs from the account that will be spent.
    * These are removed from the account's balance.
    */
-  inputProofs: Proof[];
+  inputProofs: CashuProof[];
   /**
    * The sum of the inputProofs
    */
@@ -87,16 +87,6 @@ export type CashuSendSwap = {
   | {
       state: 'DRAFT';
       /**
-       * The output data used for deterministic outputs when we swap the inputProofs
-       * for proofsToSend.
-       */
-      outputAmounts: {
-        /** The output amounts to use when constructing the keep output data. */
-        keep: number[];
-        /** The output amounts to use when constructing the send output data. */
-        send: number[];
-      };
-      /**
        * The keyset counter used to generate the output data at the time the swap was created.
        */
       keysetCounter: number;
@@ -117,7 +107,7 @@ export type CashuSendSwap = {
        * If the inputProofs sum to more than the amount to send, then this
        * will be the result of swapping the inputProofs for the amount to send.
        */
-      proofsToSend: Proof[];
+      proofsToSend: CashuProof[];
     }
   | {
       state: 'FAILED';

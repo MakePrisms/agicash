@@ -7,7 +7,11 @@ import type { Big } from 'big.js';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { getCashuUnit, sumProofs } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
-import type { CashuAccount } from '../accounts/account';
+import {
+  type CashuAccount,
+  type CashuProof,
+  toProof,
+} from '../accounts/account';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
 import type { DestinationDetails } from '../transactions/transaction';
@@ -128,7 +132,7 @@ export class CashuSendQuoteService {
       throw new Error('Unknown send amount');
     }
 
-    // TODO: remove this once we cashu-ts supports amountless lightning invoices
+    // TODO: remove this once cashu-ts supports amountless lightning invoices
     if (!invoice.amountMsat) {
       throw new Error(
         "Cashu ts lib doesn't support amountless lightning invoices yet",
@@ -143,10 +147,9 @@ export class CashuSendQuoteService {
 
     const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
 
-    const proofs = wallet.selectProofsToSend(
-      account.proofs,
+    const { proofs, fee: proofsFee } = this.selectProofs(
+      account,
       amountWithLightningFee,
-      true,
     );
 
     const amountToReceive = new Money({
@@ -162,14 +165,13 @@ export class CashuSendQuoteService {
 
     const unit = getDefaultUnit(account.currency);
 
-    const sumOfSendProofs = sumProofs(proofs.send);
+    const sumOfSendProofs = sumProofs(proofs);
     if (sumOfSendProofs < amountWithLightningFee) {
       throw new DomainError(
         `Insufficient balance. Estimated total including fee is ${amountToReceive.add(lightningFeeReserve).toLocaleString({ unit })}.`,
       );
     }
 
-    const proofsFee = wallet.getFeesForProofs(proofs.send);
     const estimatedCashuFee = new Money({
       amount: proofsFee,
       currency: account.currency,
@@ -233,14 +235,12 @@ export class CashuSendQuoteService {
 
     const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
 
-    const proofs = wallet.selectProofsToSend(
-      account.proofs,
+    const { proofs, fee: proofsFee } = this.selectProofs(
+      account,
       amountWithLightningFee,
-      true,
     );
-    const proofsToSendSum = sumProofs(proofs.send);
+    const proofsToSendSum = sumProofs(proofs);
 
-    const proofsFee = wallet.getFeesForProofs(proofs.send);
     const totalAmountToSend = amountWithLightningFee + proofsFee;
 
     const amountToReceive = new Money({
@@ -273,7 +273,6 @@ export class CashuSendQuoteService {
       maxPotentialChangeAmount === 0
         ? 0
         : Math.ceil(Math.log2(maxPotentialChangeAmount)) || 1;
-    const keysetCounter = account.keysetCounters[keysetId] ?? 0;
 
     return this.cashuSendRepository.create({
       userId: userId,
@@ -287,11 +286,8 @@ export class CashuSendQuoteService {
       cashuFee,
       quoteId: meltQuote.quote,
       keysetId,
-      keysetCounter,
       numberOfChangeOutputs,
-      proofsToSend: proofs.send,
-      accountVersion: account.version,
-      proofsToKeep: proofs.keep,
+      proofsToSend: proofs,
       destinationDetails,
     });
   }
@@ -319,10 +315,14 @@ export class CashuSendQuoteService {
     const wallet = account.wallet;
 
     return wallet
-      .meltProofs(meltQuote, sendQuote.proofs, {
-        keysetId: sendQuote.keysetId,
-        counter: sendQuote.keysetCounter,
-      })
+      .meltProofs(
+        meltQuote,
+        sendQuote.proofs.map((p) => toProof(p)),
+        {
+          keysetId: sendQuote.keysetId,
+          counter: sendQuote.keysetCounter,
+        },
+      )
       .catch(async (error) => {
         // Initiate send should be idempotent: if meltProofs was already called once and did not fail,
         // then the melt quote will be pending or paid.
@@ -410,8 +410,6 @@ export class CashuSendQuoteService {
     const changeProofs =
       meltQuote.change?.map((s, i) => outputData[i].toProof(s, keys)) ?? [];
 
-    const updatedAccountProofs = [...account.proofs, ...changeProofs];
-
     const amountSpent = new Money({
       amount: sumProofs(sendQuote.proofs) - sumProofs(changeProofs),
       currency: account.currency,
@@ -422,8 +420,7 @@ export class CashuSendQuoteService {
       quote: sendQuote,
       paymentPreimage: meltQuote.payment_preimage ?? '',
       amountSpent,
-      accountProofs: updatedAccountProofs,
-      accountVersion: account.version,
+      changeProofs,
     });
   }
 
@@ -454,14 +451,9 @@ export class CashuSendQuoteService {
       );
     }
 
-    const updatedAccountProofs = account.proofs.concat(quote.proofs);
-
     await this.cashuSendRepository.fail({
       id: quote.id,
       reason,
-      version: quote.version,
-      accountProofs: updatedAccountProofs,
-      accountVersion: account.version,
     });
   }
 
@@ -469,10 +461,7 @@ export class CashuSendQuoteService {
    * Expires the cashu send quote by setting the state to EXPIRED.
    * It also updates the account proofs to return the unspent proofs that were reserved for the send.
    */
-  async expireSendQuote(
-    account: CashuAccount,
-    quote: CashuSendQuote,
-  ): Promise<void> {
+  async expireSendQuote(quote: CashuSendQuote): Promise<void> {
     if (quote.state === 'EXPIRED') {
       return;
     }
@@ -485,18 +474,57 @@ export class CashuSendQuoteService {
       throw new Error('Cannot expire quote that has not expired yet');
     }
 
-    if (account.id !== quote.accountId) {
-      throw new Error('Account does not match the quote account');
-    }
+    await this.cashuSendRepository.expire(quote.id);
+  }
 
-    const updatedAccountProofs = account.proofs.concat(quote.proofs);
+  /**
+   * Selects spendable proofs from the account for the provided amount.
+   * Sum of the selected proofs is equal or greater than the provided amount. If there are no enough proofs, an empty array is returned.
+   * Fee for the selected proofs plus the provided amount can be greater than the sum of the selected proofs. If this is the case, the account doesn't have enough balance for the send.
+   * @param account - The account to select proofs from.
+   * @param amount - The amount to select proofs for.
+   * @returns Selected proofs for the provided amount and the fee for the selected proofs.
+   */
+  private selectProofs(
+    account: CashuAccount,
+    amount: number,
+  ): {
+    /**
+     * Selected proofs for the provided amount.
+     * Total amount of the proofs is equal or greater than the provided amount.
+     */
+    proofs: CashuProof[];
+    /**
+     * Fee for the selected proofs.
+     */
+    fee: number;
+  } {
+    const spendableAccountProofs = account.proofs.filter(
+      (p) => p.state === 'UNSPENT',
+    );
 
-    await this.cashuSendRepository.expire({
-      id: quote.id,
-      version: quote.version,
-      accountProofs: updatedAccountProofs,
-      accountVersion: account.version,
+    const spendableProofsMap = new Map<string, CashuProof>(
+      spendableAccountProofs.map((p) => [p.secret, p]),
+    );
+
+    const { send } = account.wallet.selectProofsToSend(
+      spendableAccountProofs.map((p) => toProof(p)),
+      amount,
+      true,
+    );
+
+    const selectedProofs = send.map((p) => {
+      const proof = spendableProofsMap.get(p.secret);
+      if (!proof) {
+        throw new Error('Proof not found');
+      }
+      return proof;
     });
+
+    return {
+      proofs: selectedProofs,
+      fee: account.wallet.getFeesForProofs(send),
+    };
   }
 }
 

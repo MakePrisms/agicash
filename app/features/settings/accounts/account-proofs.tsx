@@ -1,15 +1,15 @@
-import { CheckStateEnum, type Proof } from '@cashu/cashu-ts';
+import { CheckStateEnum } from '@cashu/cashu-ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { PageContent } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { ScrollArea } from '~/components/ui/scroll-area';
-import type { CashuAccount } from '~/features/accounts/account';
+import type { CashuAccount, CashuProof } from '~/features/accounts/account';
 import { useAccount } from '~/features/accounts/account-hooks';
 import { SettingsViewHeader } from '~/features/settings/ui/settings-view-header';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
-import { getCashuUnit, proofToY, sumProofs } from '~/lib/cashu';
+import { getCashuUnit, sumProofs } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { Currency } from '~/lib/money';
 
@@ -18,7 +18,7 @@ function ProofRow({
   currency,
   showRemove,
 }: {
-  proof: Proof;
+  proof: CashuProof;
   currency: Currency;
   showRemove?: boolean;
 }) {
@@ -72,7 +72,7 @@ function ProofSection({
   showRemove,
 }: {
   title: string;
-  proofs: Proof[];
+  proofs: CashuProof[];
   currency: Currency;
   showRemove?: boolean;
 }) {
@@ -102,18 +102,28 @@ function ProofSection({
 function useProofs(account: CashuAccount) {
   const { data: states } = useSuspenseQuery({
     queryKey: ['account-proof-states', account.id, account.version],
-    queryFn: () => account.wallet.checkProofsStates(account.proofs),
+    queryFn: () =>
+      account.wallet.checkProofsStates(
+        account.proofs.map((x) => ({
+          id: x.keysetId,
+          amount: x.amount,
+          secret: x.secret,
+          C: x.unblindedSignature,
+          dleq: x.dleq,
+          witness: x.witness,
+        })),
+      ),
   });
 
   return useMemo(() => {
-    const unspent: Proof[] = [];
-    const spent: Proof[] = [];
-    const pending: Proof[] = [];
+    const unspent: CashuProof[] = [];
+    const spent: CashuProof[] = [];
+    const pending: CashuProof[] = [];
 
     for (const proof of account.proofs) {
-      const Y = proofToY(proof);
       const state =
-        states.find((s) => s.Y === Y)?.state ?? CheckStateEnum.PENDING;
+        states.find((s) => s.Y === proof.publicKeyY)?.state ??
+        CheckStateEnum.PENDING;
       if (state === CheckStateEnum.UNSPENT) {
         unspent.push(proof);
       } else if (state === CheckStateEnum.SPENT) {
@@ -140,7 +150,7 @@ export default function AccountProofs({ accountId }: { accountId: string }) {
 
   const { unspentProofs, spentProofs, pendingProofs } = useProofs(account);
 
-  const getMoney = (proofs: Proof[]) =>
+  const getMoney = (proofs: CashuProof[]) =>
     new Money({
       amount: sumProofs(proofs),
       currency: account.currency,

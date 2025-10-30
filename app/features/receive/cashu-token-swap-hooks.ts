@@ -49,7 +49,8 @@ class CashuTokenSwapCache {
   updateIfExists(tokenSwap: CashuTokenSwap) {
     this.queryClient.setQueryData<CashuTokenSwap>(
       [CashuTokenSwapCache.Key, tokenSwap.tokenHash],
-      (curr) => (curr ? tokenSwap : undefined),
+      (curr) =>
+        curr && curr.version < tokenSwap.version ? tokenSwap : undefined,
     );
   }
 }
@@ -71,7 +72,11 @@ class PendingCashuTokenSwapsCache {
     this.queryClient.setQueryData<CashuTokenSwap[]>(
       [PendingCashuTokenSwapsCache.Key],
       (curr) =>
-        curr?.map((d) => (d.tokenHash === tokenSwap.tokenHash ? tokenSwap : d)),
+        curr?.map((d) =>
+          d.tokenHash === tokenSwap.tokenHash && d.version < tokenSwap.version
+            ? tokenSwap
+            : d,
+        ),
     );
   }
 
@@ -121,8 +126,8 @@ export function useCreateCashuTokenSwap() {
         account,
       });
     },
-    onSuccess: async ({ tokenSwap }) => {
-      tokenSwapCache.add(tokenSwap);
+    onSuccess: async ({ swap }) => {
+      tokenSwapCache.add(swap);
     },
   });
 }
@@ -202,36 +207,41 @@ function usePendingCashuTokenSwaps() {
 /**
  * Hook that returns a cashu token swap change handler.
  */
-export function useCashuTokenSwapChangeHandler() {
+export function useCashuTokenSwapChangeHandlers() {
   const encryption = useEncryption();
   const pendingSwapsCache = usePendingCashuTokenSwapsCache();
   const tokenSwapCache = useCashuTokenSwapCache();
 
-  return {
-    table: 'cashu_token_swaps',
-    onInsert: async (payload: AgicashDbCashuTokenSwap) => {
-      const swap = await CashuTokenSwapRepository.toTokenSwap(
-        payload,
-        encryption.decrypt,
-      );
-      pendingSwapsCache.add(swap);
+  return [
+    {
+      event: 'CASHU_TOKEN_SWAP_CREATED',
+      handleEvent: async (payload: AgicashDbCashuTokenSwap) => {
+        const swap = await CashuTokenSwapRepository.toTokenSwap(
+          payload,
+          encryption.decrypt,
+        );
+        pendingSwapsCache.add(swap);
+      },
     },
-    onUpdate: async (payload: AgicashDbCashuTokenSwap) => {
-      const swap = await CashuTokenSwapRepository.toTokenSwap(
-        payload,
-        encryption.decrypt,
-      );
+    {
+      event: 'CASHU_TOKEN_SWAP_UPDATED',
+      handleEvent: async (payload: AgicashDbCashuTokenSwap) => {
+        const swap = await CashuTokenSwapRepository.toTokenSwap(
+          payload,
+          encryption.decrypt,
+        );
 
-      tokenSwapCache.updateIfExists(swap);
+        tokenSwapCache.updateIfExists(swap);
 
-      const isSwapStillPending = swap.state === 'PENDING';
-      if (isSwapStillPending) {
-        pendingSwapsCache.update(swap);
-      } else {
-        pendingSwapsCache.remove(swap);
-      }
+        const isSwapStillPending = swap.state === 'PENDING';
+        if (isSwapStillPending) {
+          pendingSwapsCache.update(swap);
+        } else {
+          pendingSwapsCache.remove(swap);
+        }
+      },
     },
-  };
+  ];
 }
 
 export function useProcessCashuTokenSwapTasks() {

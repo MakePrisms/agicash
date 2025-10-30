@@ -15,15 +15,14 @@ import {
   useGetLatestCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuSendSwap } from '../agicash-db/database';
-import { useEncryption } from '../shared/encryption';
+import type {
+  AgicashDbCashuProof,
+  AgicashDbCashuSendSwap,
+} from '../agicash-db/database';
 import { NotFoundError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
-import {
-  CashuSendSwapRepository,
-  useCashuSendSwapRepository,
-} from './cashu-send-swap-repository';
+import { useCashuSendSwapRepository } from './cashu-send-swap-repository';
 import { useCashuSendSwapService } from './cashu-send-swap-service';
 import { ProofStateSubscriptionManager } from './proof-state-subscription-manager';
 
@@ -53,7 +52,7 @@ class CashuSendSwapCache {
   updateIfExists(swap: CashuSendSwap) {
     this.queryClient.setQueryData<CashuSendSwap>(
       [CashuSendSwapCache.Key, swap.id],
-      (curr) => (curr ? swap : undefined),
+      (curr) => (curr && curr.version < swap.version ? swap : undefined),
     );
   }
 }
@@ -74,7 +73,10 @@ class UnresolvedCashuSendSwapsCache {
   update(swap: CashuSendSwap) {
     this.queryClient.setQueryData<CashuSendSwap[]>(
       [UnresolvedCashuSendSwapsCache.Key],
-      (curr) => curr?.map((d) => (d.id === swap.id ? swap : d)),
+      (curr) =>
+        curr?.map((d) =>
+          d.id === swap.id && d.version < swap.version ? swap : d,
+        ),
     );
   }
 
@@ -342,35 +344,42 @@ function useOnProofStateChange({ swaps, onSpent }: OnProofStateChangeProps) {
 /**
  * Hook that returns a cashu send quote change handler.
  */
-export function useCashuSendSwapChangeHandler() {
+export function useCashuSendSwapChangeHandlers() {
   const cashuSendSwapCache = useCashuSendSwapCache();
-  const encryption = useEncryption();
   const unresolvedSwapsCache = useUnresolvedCashuSendSwapsCache();
+  const cashuSendSwapRepository = useCashuSendSwapRepository();
 
-  return {
-    table: 'cashu_send_swaps',
-    onInsert: async (payload: AgicashDbCashuSendSwap) => {
-      const swap = await CashuSendSwapRepository.toSwap(
-        payload,
-        encryption.decrypt,
-      );
-      unresolvedSwapsCache.add(swap);
+  return [
+    {
+      event: 'CASHU_SEND_SWAP_CREATED',
+      handleEvent: async (
+        payload: AgicashDbCashuSendSwap & {
+          cashu_proofs: AgicashDbCashuProof[];
+        },
+      ) => {
+        const swap = await cashuSendSwapRepository.toSwap(payload);
+        unresolvedSwapsCache.add(swap);
+      },
     },
-    onUpdate: async (payload: AgicashDbCashuSendSwap) => {
-      const swap = await CashuSendSwapRepository.toSwap(
-        payload,
-        encryption.decrypt,
-      );
+    {
+      event: 'CASHU_SEND_SWAP_UPDATED',
+      handleEvent: async (
+        payload: AgicashDbCashuSendSwap & {
+          cashu_proofs: AgicashDbCashuProof[];
+        },
+      ) => {
+        const swap = await cashuSendSwapRepository.toSwap(payload);
 
-      cashuSendSwapCache.updateIfExists(swap);
+        cashuSendSwapCache.updateIfExists(swap);
 
-      if (['DRAFT', 'PENDING'].includes(swap.state)) {
-        unresolvedSwapsCache.update(swap);
-      } else {
-        unresolvedSwapsCache.remove(swap);
-      }
+        if (['DRAFT', 'PENDING'].includes(swap.state)) {
+          unresolvedSwapsCache.update(swap);
+        } else {
+          unresolvedSwapsCache.remove(swap);
+        }
+      },
     },
-  };
+  ];
 }
 
 export function useProcessCashuSendSwapTasks() {
