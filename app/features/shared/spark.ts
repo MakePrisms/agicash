@@ -63,7 +63,6 @@ export const sparkWalletQueryOptions = (network: SparkNetwork) =>
       const { wallet } = await SparkWallet.initialize({
         mnemonicOrSeed: seed,
         options: { network },
-        accountNumber: 0,
       });
       return wallet;
     },
