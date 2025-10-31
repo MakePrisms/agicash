@@ -196,10 +196,12 @@ export class SparkSendLightningService {
         `Spark wallet not initialized for network ${account.network}`,
       );
     }
+    // TODO: see if actual fee can be greater than the previous estimate
+    const maxFeeSats = quote.lightningFeeReserve.toNumber('sat');
 
     const sendRequest = await sparkWallet.payLightningInvoice({
       invoice: quote.paymentRequest,
-      maxFeeSats: this.calculateRecommendedFee(quote.amountRequestedInBtc),
+      maxFeeSats,
       preferSpark: false,
     });
 
@@ -264,15 +266,6 @@ export class SparkSendLightningService {
       default:
         throw new Error('Unknown Spark send request status');
     }
-  }
-
-  /**
-   * Calculates the recommended fee based on Spark documentation.
-   * Recommended: max(5 sats, 0.17% of amount)
-   * @param amount - The amount to calculate the recommended fee for.
-   */
-  private calculateRecommendedFee(amount: Money<'BTC'>): number {
-    return Math.max(5, Math.ceil(amount.toNumber('sat') * 0.0017));
   }
 }
 
