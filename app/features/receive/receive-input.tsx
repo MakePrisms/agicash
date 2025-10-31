@@ -221,6 +221,7 @@ export default function ReceiveInput() {
                 setPayFromDefaultAccount(true);
               }
             }}
+            disabled={accounts.length === 1}
           />
         </div>
 

@@ -4,6 +4,7 @@ import agicashIcon192 from '~/assets/icon-192x192.png';
 import { Page, PageContent, PageHeader } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import {
+  useAccounts,
   useBalance,
   useDefaultAccount,
 } from '~/features/accounts/account-hooks';
@@ -23,6 +24,9 @@ export default function Index() {
   const balanceUSD = useBalance('USD');
   const defaultCurrency = useDefaultAccount().currency;
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
+  const { data: accounts } = useAccounts();
+  const hasUSDAccount = accounts.some((account) => account.currency === 'USD');
+  const hasBTCAccount = accounts.some((account) => account.currency === 'BTC');
 
   return (
     <Page>
@@ -56,7 +60,7 @@ export default function Index() {
           />
         </div>
 
-        <DefaultCurrencySwitcher />
+        {hasBTCAccount && hasUSDAccount ? <DefaultCurrencySwitcher /> : <div />}
 
         <div className="grid grid-cols-2 gap-10">
           <LinkWithViewTransition

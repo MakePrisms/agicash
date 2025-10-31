@@ -15,8 +15,8 @@ import { UniqueConstraintError } from '../shared/error';
 import type { User } from './user';
 
 export type UpdateUser = {
-  defaultBtcAccountId?: string;
-  defaultUsdAccountId?: string;
+  defaultBtcAccountId?: string | null;
+  defaultUsdAccountId?: string | null;
   defaultCurrency?: Currency;
   username?: string;
 };
@@ -65,6 +65,7 @@ export class UserRepository {
    * Updates a user in the database.
    * @param user - The user data to update. All specified properties will be updated.
    * @returns The updated user.
+   * @throws Error if trying to set default_currency without corresponding account ID (enforced by database constraint)
    */
   async update(
     userId: string,
@@ -273,8 +274,8 @@ export class UserRepository {
         cashuLockingXpub: dbUser.cashu_locking_xpub,
         encryptionPublicKey: dbUser.encryption_public_key,
         sparkPublicKey: dbUser.spark_public_key,
-        defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
-        defaultUsdAccountId: dbUser.default_usd_account_id ?? '',
+        defaultBtcAccountId: dbUser.default_btc_account_id ?? null,
+        defaultUsdAccountId: dbUser.default_usd_account_id ?? null,
         defaultCurrency: dbUser.default_currency,
         isGuest: false,
       };
@@ -286,8 +287,8 @@ export class UserRepository {
       emailVerified: dbUser.email_verified,
       createdAt: dbUser.created_at,
       updatedAt: dbUser.updated_at,
-      defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
-      defaultUsdAccountId: dbUser.default_usd_account_id ?? '',
+      defaultBtcAccountId: dbUser.default_btc_account_id ?? null,
+      defaultUsdAccountId: dbUser.default_usd_account_id ?? null,
       defaultCurrency: dbUser.default_currency,
       isGuest: true,
       cashuLockingXpub: dbUser.cashu_locking_xpub,

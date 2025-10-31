@@ -250,6 +250,7 @@ export function SendInput() {
                 switchInputCurrency();
               }
             }}
+            disabled={accounts.length === 1}
           />
         </div>
 
