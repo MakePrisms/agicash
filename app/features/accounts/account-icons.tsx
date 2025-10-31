@@ -1,10 +1,13 @@
-import { LandmarkIcon, Sparkles, Zap } from 'lucide-react';
+import { LandmarkIcon, Zap } from 'lucide-react';
 import type { ReactNode } from 'react';
+import SparkAsterikSvg from '~/assets/spark-asterik-white.svg';
 import type { AccountType } from './account';
 
 const CashuIcon = () => <LandmarkIcon className="h-4 w-4" />;
 const NWCIcon = () => <Zap className="h-4 w-4" />;
-const SparkIcon = () => <Sparkles className="h-4 w-4" />;
+const SparkIcon = () => (
+  <img src={SparkAsterikSvg} alt="" className="h-4 w-4" />
+);
 
 const iconsByAccountType: Record<AccountType, ReactNode> = {
   cashu: <CashuIcon />,
