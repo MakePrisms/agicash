@@ -1,4 +1,3 @@
-import { Plus } from 'lucide-react';
 import { PageContent } from '~/components/page';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
@@ -96,8 +95,7 @@ export default function AllAccounts() {
             transition="slideLeft"
             applyTo="newView"
           >
-            <Plus size={18} />
-            <span>Add Account</span>
+            <span>Add Cashu Mint</span>
           </LinkWithViewTransition>
         </Button>
       </div>

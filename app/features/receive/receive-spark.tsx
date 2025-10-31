@@ -110,7 +110,7 @@ export default function ReceiveSpark({ amount, account }: Props) {
           transition="slideDown"
           applyTo="oldView"
         />
-        <PageHeaderTitle>Receive Lightning</PageHeaderTitle>
+        <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
       <PageContent className="flex flex-col items-center overflow-x-hidden overflow-y-hidden">
         <MoneyWithConvertedAmount money={amount} />

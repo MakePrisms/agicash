@@ -93,7 +93,7 @@ export const defaultAccounts = [
   {
     type: 'spark',
     currency: 'BTC',
-    name: 'Spark Mainnet',
+    name: 'Bitcoin',
     network: 'MAINNET',
   },
   ...(isDevelopmentMode

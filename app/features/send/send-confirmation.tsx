@@ -201,7 +201,8 @@ export const PayBolt11Confirmation = ({
   const paymentInProgress = isCashu
     ? ['LOADING', 'UNPAID', 'PENDING'].includes(cashuQuoteStatus) ||
       isCreatingCashuSendQuote
-    : ['PENDING', 'LOADING'].includes(sparkQuoteStatus) || isPayingSparkInvoice;
+    : ['PENDING', 'LOADING', 'COMPLETED'].includes(sparkQuoteStatus) ||
+      isPayingSparkInvoice;
 
   const amountToReceive = bolt11Quote.amountToReceive;
   const estimatedFee = bolt11Quote.estimatedTotalFee;
