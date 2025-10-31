@@ -182,12 +182,12 @@ export function useTrackSparkReceives() {
   const handleTransferClaimedRef = useLatest(handleTransferClaimed);
 
   useEffect(() => {
-    if (!accounts?.length) return;
+    const handler = handleTransferClaimedRef.current;
 
-    sparkWallet.on('transfer:claimed', handleTransferClaimedRef.current);
+    sparkWallet.on('transfer:claimed', handler);
 
     return () => {
-      sparkWallet.off('transfer:claimed', handleTransferClaimedRef.current);
+      sparkWallet.off('transfer:claimed', handler);
     };
-  }, [accounts, sparkWallet]);
+  }, [sparkWallet]);
 }
