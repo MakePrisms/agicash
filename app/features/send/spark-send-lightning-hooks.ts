@@ -79,6 +79,7 @@ export function useCreateSparkLightningQuote() {
       });
     },
     retry: 1,
+    throwOnError: true,
   });
 }
 
@@ -106,6 +107,7 @@ export function usePaySparkLightningInvoice() {
     onSuccess: (quote) => {
       cache.add(quote);
     },
+    throwOnError: true,
   });
 }
 

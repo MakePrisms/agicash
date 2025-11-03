@@ -200,7 +200,9 @@ export class SparkSendLightningService {
     const maxFeeSats = quote.lightningFeeReserve.toNumber('sat');
 
     const sendRequest = await sparkWallet.payLightningInvoice({
-      invoice: quote.paymentRequest,
+      // A bug in the Spark SDK requires us to pass the payment request in lowercase.
+      // We can remove this once this issue is fixed: https://github.com/buildonspark/spark/issues/75
+      invoice: quote.paymentRequest.toLowerCase(),
       maxFeeSats,
       preferSpark: false,
     });
