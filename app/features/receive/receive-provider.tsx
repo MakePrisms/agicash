@@ -5,7 +5,7 @@ import {
   useState,
 } from 'react';
 import { useStore } from 'zustand';
-import type { Account } from '../accounts/account';
+import type { ExtendedAccount } from '../accounts/account';
 import type { ReceiveState, ReceiveStore } from './receive-store';
 import { createReceiveStore } from './receive-store';
 
@@ -13,7 +13,7 @@ const ReceiveContext = createContext<ReceiveStore | null>(null);
 
 type Props = PropsWithChildren<{
   /** Usually the user's default account. This sets the initial account to receive to. */
-  initialAccount: Account;
+  initialAccount: ExtendedAccount;
 }>;
 
 export const ReceiveProvider = ({ children, initialAccount }: Props) => {

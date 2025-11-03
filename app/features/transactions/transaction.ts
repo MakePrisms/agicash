@@ -154,6 +154,28 @@ export type CashuLightningReceiveTransactionDetails = {
   description?: string;
 };
 
+/**
+ * Transaction details for Spark wallet transfers.
+ */
+export type SparkTransferTransactionDetails = {
+  /**
+   * The ID of the Spark transfer.
+   */
+  transferId: string;
+  /**
+   * Sender's identity public key.
+   */
+  senderIdentityPublicKey: string;
+  /**
+   * Receiver's identity public key.
+   */
+  receiverIdentityPublicKey: string;
+  /**
+   * Transfer expiry time.
+   */
+  expiryTime?: string;
+};
+
 export type Transaction = {
   /**
    * ID of the transaction.
@@ -170,7 +192,7 @@ export type Transaction = {
   /**
    * Type of the transaction.
    */
-  type: 'CASHU_LIGHTNING' | 'CASHU_TOKEN';
+  type: 'CASHU_LIGHTNING' | 'CASHU_TOKEN' | 'SPARK_TRANSFER';
   /**
    * State of the transaction.
    * Transaction states are:
@@ -254,5 +276,10 @@ export type Transaction = {
       type: 'CASHU_LIGHTNING';
       direction: 'RECEIVE';
       details: CashuLightningReceiveTransactionDetails;
+    }
+  | {
+      type: 'SPARK_TRANSFER';
+      direction: 'SEND' | 'RECEIVE';
+      details: SparkTransferTransactionDetails;
     }
 );

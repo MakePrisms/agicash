@@ -6,11 +6,12 @@ type CommonUserData = {
   emailVerified: boolean;
   createdAt: string;
   updatedAt: string;
-  defaultBtcAccountId: string;
-  defaultUsdAccountId: string;
+  defaultBtcAccountId: string | null;
+  defaultUsdAccountId: string | null;
   defaultCurrency: Currency;
   cashuLockingXpub: string;
   encryptionPublicKey: string;
+  sparkPublicKey: string | null;
 };
 
 export type FullUser = CommonUserData & {
