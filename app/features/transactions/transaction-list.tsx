@@ -7,7 +7,7 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import SparkAsterikSvg from '~/assets/spark-asterik-white.svg';
+import { SparkIcon } from '~/components/spark-icon';
 import { Card } from '~/components/ui/card';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
@@ -133,7 +133,11 @@ const transactionTypeIconMap = {
   CASHU_LIGHTNING: <ZapIcon className="h-4 w-4" />,
   CASHU_TOKEN: <BanknoteIcon className="h-4 w-4" />,
   AGICASH_CONTACT: <UserIcon className="h-4 w-4" />,
-  SPARK_TRANSFER: <img src={SparkAsterikSvg} alt="" className="h-4 w-4" />,
+  SPARK_TRANSFER: (
+    <div className="flex h-4 w-4 items-center justify-center">
+      <SparkIcon className="h-3 w-3" />
+    </div>
+  ),
 };
 
 const getTransactionTypeIcon = (transaction: Transaction) => {
