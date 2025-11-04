@@ -7,10 +7,11 @@ type CommonUserData = {
   createdAt: string;
   updatedAt: string;
   defaultBtcAccountId: string;
-  defaultUsdAccountId: string;
+  defaultUsdAccountId: string | null;
   defaultCurrency: Currency;
   cashuLockingXpub: string;
   encryptionPublicKey: string;
+  sparkPublicKey: string;
 };
 
 export type FullUser = CommonUserData & {
