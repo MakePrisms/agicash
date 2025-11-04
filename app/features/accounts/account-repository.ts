@@ -33,6 +33,8 @@ import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { getSparkWalletFromCache } from '../shared/spark';
 import type { Account, CashuAccount, CashuProof } from './account';
+import { getDefaultUnit } from '../shared/currencies';
+import { getSparkWalletFromCache } from '../shared/spark';
 
 type AccountOmit<
   T extends Account,
