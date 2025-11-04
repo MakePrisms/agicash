@@ -186,6 +186,7 @@ export default function ReceiveInput() {
                 switchInputCurrency();
               }
             }}
+            disabled={accounts.length === 1}
           />
         </div>
 
