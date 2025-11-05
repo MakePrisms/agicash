@@ -16,7 +16,7 @@ import type { User } from './user';
 
 export type UpdateUser = {
   defaultBtcAccountId?: string;
-  defaultUsdAccountId?: string;
+  defaultUsdAccountId?: string | null;
   defaultCurrency?: Currency;
   username?: string;
 };
@@ -65,6 +65,7 @@ export class UserRepository {
    * Updates a user in the database.
    * @param user - The user data to update. All specified properties will be updated.
    * @returns The updated user.
+   * @throws Error if trying to set default_currency without corresponding account ID (enforced by database constraint)
    */
   async update(
     userId: string,
@@ -130,6 +131,7 @@ export class UserRepository {
         | 'keysetCounters'
         | 'wallet'
         | 'isOnline'
+        | 'balance'
       >[];
       /**
        * The extended public key used for locking proofs and mint quotes.
@@ -139,6 +141,10 @@ export class UserRepository {
        * The public key used for encryption.
        */
       encryptionPublicKey: string;
+      /**
+       * The user's Spark public key.
+       */
+      sparkPublicKey: string;
     },
     options?: Options,
   ): Promise<{ user: User; accounts: Account[] }> {
@@ -147,15 +153,25 @@ export class UserRepository {
         name: account.name,
         type: account.type,
         currency: account.currency,
-        details:
-          account.type === 'cashu'
-            ? {
-                mint_url: account.mintUrl,
-                is_test_mint: account.isTestMint,
-                keyset_counters: {},
-                proofs: await this.encryption.encrypt([]),
-              }
-            : { nwc_url: account.nwcUrl },
+        details: await (async () => {
+          if (account.type === 'cashu') {
+            return {
+              mint_url: account.mintUrl,
+              is_test_mint: account.isTestMint,
+              keyset_counters: {},
+              proofs: await this.encryption.encrypt([]),
+            };
+          }
+          if (account.type === 'spark') {
+            return { network: account.network };
+          }
+          if (account.type === 'nwc') {
+            return {
+              nwc_url: account.nwcUrl,
+            };
+          }
+          throw new Error('Invalid account type');
+        })(),
       })),
     );
 
@@ -166,6 +182,7 @@ export class UserRepository {
       p_accounts: accountsToAdd,
       p_cashu_locking_xpub: user.cashuLockingXpub,
       p_encryption_public_key: user.encryptionPublicKey,
+      p_spark_public_key: user.sparkPublicKey,
     });
 
     if (options?.abortSignal) {
@@ -254,8 +271,9 @@ export class UserRepository {
         updatedAt: dbUser.updated_at,
         cashuLockingXpub: dbUser.cashu_locking_xpub,
         encryptionPublicKey: dbUser.encryption_public_key,
+        sparkPublicKey: dbUser.spark_public_key,
         defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
-        defaultUsdAccountId: dbUser.default_usd_account_id ?? '',
+        defaultUsdAccountId: dbUser.default_usd_account_id ?? null,
         defaultCurrency: dbUser.default_currency,
         isGuest: false,
       };
@@ -268,11 +286,12 @@ export class UserRepository {
       createdAt: dbUser.created_at,
       updatedAt: dbUser.updated_at,
       defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
-      defaultUsdAccountId: dbUser.default_usd_account_id ?? '',
+      defaultUsdAccountId: dbUser.default_usd_account_id ?? null,
       defaultCurrency: dbUser.default_currency,
       isGuest: true,
       cashuLockingXpub: dbUser.cashu_locking_xpub,
       encryptionPublicKey: dbUser.encryption_public_key,
+      sparkPublicKey: dbUser.spark_public_key,
     };
   }
 }

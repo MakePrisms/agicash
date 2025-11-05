@@ -575,12 +575,13 @@ export type Database = {
           cashu_locking_xpub: string
           created_at: string
           default_btc_account_id: string | null
-          default_currency: string
+          default_currency: string | null
           default_usd_account_id: string | null
           email: string | null
           email_verified: boolean
           encryption_public_key: string
           id: string
+          spark_public_key: string
           updated_at: string
           username: string
         }
@@ -588,12 +589,13 @@ export type Database = {
           cashu_locking_xpub: string
           created_at?: string
           default_btc_account_id?: string | null
-          default_currency?: string
+          default_currency?: string | null
           default_usd_account_id?: string | null
           email?: string | null
           email_verified: boolean
           encryption_public_key: string
           id?: string
+          spark_public_key: string
           updated_at?: string
           username: string
         }
@@ -601,12 +603,13 @@ export type Database = {
           cashu_locking_xpub?: string
           created_at?: string
           default_btc_account_id?: string | null
-          default_currency?: string
+          default_currency?: string | null
           default_usd_account_id?: string | null
           email?: string | null
           email_verified?: boolean
           encryption_public_key?: string
           id?: string
+          spark_public_key?: string
           updated_at?: string
           username?: string
         }
@@ -1034,6 +1037,7 @@ export type Database = {
           p_email: string
           p_email_verified: boolean
           p_encryption_public_key: string
+          p_spark_public_key: string
           p_user_id: string
         }
         Returns: Json
