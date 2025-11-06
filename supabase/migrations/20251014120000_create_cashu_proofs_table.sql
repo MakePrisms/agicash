@@ -165,7 +165,7 @@ create or replace function wallet.get_account_proofs(
 returns wallet.cashu_proofs[]
 language sql
 as $function$
-  select array_agg(row(cp.*)::wallet.cashu_proofs)
+  select coalesce(array_agg(row(cp.*)::wallet.cashu_proofs), '{}')
   from wallet.cashu_proofs cp
   where cp.account_id = p_account_id;
 $function$
@@ -1979,6 +1979,20 @@ $function$;
 -- Broadcast notifications updates
 -- ++++++++++++++++++++++++++++++++++++
 
+-- Update broadcast messages RLS policy
+-- Drop existing policy that was allowing all authenticated users to read all messages
+drop policy if exists "Authenticated users can receive broadcasts" on realtime.messages;
+-- Setup new policy that allows authenticated users to read only their own messages
+create policy "Authenticated users can read their own broadcasted messages"
+  on realtime.messages
+  for select
+  to authenticated
+  using (
+    realtime.topic() = 'wallet:' || auth.uid()::text
+  );
+
+--
+
 -- Update accounts broadcast to include proofs using realtime.send
 -- This replaces the generic broadcast_table_changes for accounts table
 -- to provide richer data including related proofs.
@@ -2089,7 +2103,7 @@ begin
   -- Broadcast using realtime.send
   -- Parameters: payload (jsonb), event_name (text), topic (text), is_private (boolean)
   perform realtime.send(
-    new,
+    to_jsonb(new),
     v_event,
     'wallet:' || new.user_id::text,
     true -- private message
@@ -2128,7 +2142,7 @@ begin
   -- Broadcast using realtime.send
   -- Parameters: payload (jsonb), event_name (text), topic (text), is_private (boolean)
   perform realtime.send(
-    new,
+    to_jsonb(new),
     v_event,
     'wallet:' || new.user_id::text,
     true -- private message
@@ -2275,9 +2289,9 @@ begin
   -- Broadcast using realtime.send
   -- Parameters: payload (jsonb), event_name (text), topic (text), is_private (boolean)
   perform realtime.send(
-    v_contact,
+    to_jsonb(v_contact),
     v_event,
-    'wallet:' || v_contact.user_id::text,
+    'wallet:' || v_contact.owner_id::text,
     true -- private message
   );
 
