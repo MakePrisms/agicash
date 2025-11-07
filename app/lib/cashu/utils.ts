@@ -1,10 +1,10 @@
 import {
   CashuMint,
   CashuWallet,
-  type MintKeys,
-  OutputData,
   type Keys,
+  type MintKeys,
   type MintKeyset,
+  OutputData,
 } from '@cashu/cashu-ts';
 import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
@@ -249,7 +249,8 @@ export const getNumberOfOutputs = (amount: number, keys: MintKeys) => {
     amount,
     // Wallet seed and keyset counter don't matter for getting the number of outputs for the amount so we are just using dummy values.
     // We need to do this because splitAmount function used by createDeterministicData is not exposed by cashu-ts (see https://github.com/cashubtc/cashu-ts/blob/v2.6.0/src/model/OutputData.ts#L158)
-    new Uint8Array(),
+    // Using 32 bytes (256 bits) dummy seed to satisfy HDKey requirements
+    new Uint8Array(32),
     0,
     keys,
   ).length;

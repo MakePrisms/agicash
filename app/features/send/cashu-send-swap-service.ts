@@ -127,17 +127,13 @@ export class CashuSendSwapService {
 
     const wallet = account.wallet;
 
-    const {
-      // keep: accountProofsToKeep,
-      send,
-      cashuReceiveFee,
-      cashuSendFee,
-    } = await this.prepareProofsAndFee(
-      wallet,
-      account.proofs,
-      amount,
-      senderPaysFee,
-    );
+    const { send, cashuReceiveFee, cashuSendFee } =
+      await this.prepareProofsAndFee(
+        wallet,
+        account.proofs,
+        amount,
+        senderPaysFee,
+      );
 
     const totalAmountToSend = amountNumber + cashuReceiveFee;
 

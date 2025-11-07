@@ -432,17 +432,18 @@ const useTrackMintQuotesWithWebSocket = ({
   );
 
   useEffect(() => {
-    // We need to check the state of the quote upon expiration because there is no state change for the expiration
-    // so socket will not notify us.
+    // For unpaid receive quotes, we need to check the state of the mint's quote upon expiration because
+    // there is no state change for the expiration so socket will not notify us. We don't need to do this
+    // for other states besides unpaid because for those we are sure that the quote hasn't expired.
     if (Object.keys(quotesByMint).length === 0) return;
 
-    const receiveQuotes = Object.entries(quotesByMint).flatMap(
-      ([_, quotes]) => quotes,
-    );
+    const unpaidReceiveQuotes = Object.entries(quotesByMint)
+      .flatMap(([_, quotes]) => quotes)
+      .filter((quote) => quote.state === 'UNPAID');
 
     const timeouts: LongTimeout[] = [];
 
-    for (const receiveQuote of receiveQuotes) {
+    for (const receiveQuote of unpaidReceiveQuotes) {
       const expiresAt = new Date(receiveQuote.expiresAt);
       const msUntilExpiration = expiresAt.getTime() - Date.now();
 
