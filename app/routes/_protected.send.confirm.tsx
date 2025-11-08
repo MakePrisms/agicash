@@ -21,7 +21,7 @@ export default function SendConfirmationPage() {
     return <Redirect to="/send" logMessage="Missing send data" />;
   }
 
-  if (sendAccount.type !== 'cashu') {
+  if (sendAccount.type !== 'cashu' && sendAccount.type !== 'spark') {
     return <Redirect to="/send" logMessage="Invalid sending account" />;
   }
 
@@ -59,8 +59,10 @@ export default function SendConfirmationPage() {
   }
 
   if (sendType === 'CASHU_TOKEN') {
-    if (!quote) {
-      return <Redirect to="/send" logMessage="Missing quote" />;
+    if (!quote || sendAccount.type !== 'cashu') {
+      return (
+        <Redirect to="/send" logMessage="Missing quote or invalid account" />
+      );
     }
 
     return <CreateCashuTokenConfirmation quote={quote} account={sendAccount} />;

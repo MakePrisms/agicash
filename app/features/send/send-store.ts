@@ -12,6 +12,7 @@ import { type Contact, isContact } from '../contacts/contact';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
+import type { SparkLightningSendQuote } from './spark-lightning-send-service';
 
 const validateLightningAddressFormat = buildLightningAddressFormatValidator({
   message: 'Invalid lightning address',
@@ -30,11 +31,10 @@ type ValidateResult =
       unit: 'sat' | 'cent';
     };
 
-const validateBolt11 = ({
-  network,
-  amountSat,
-  expiryUnixMs,
-}: DecodedBolt11): ValidateResult => {
+const validateBolt11 = (
+  { network, amountSat, expiryUnixMs }: DecodedBolt11,
+  { allowZeroAmount = false } = {},
+): ValidateResult => {
   if (network !== 'bitcoin') {
     return {
       valid: false,
@@ -53,7 +53,7 @@ const validateBolt11 = ({
     }
   }
 
-  if (!amountSat) {
+  if (!amountSat && !allowZeroAmount) {
     return {
       valid: false,
       error: 'Amount is required for Lightning invoices',
@@ -62,11 +62,13 @@ const validateBolt11 = ({
 
   return {
     valid: true,
-    amount: new Money({
-      amount: amountSat,
-      currency: 'BTC' as Currency,
-      unit: 'sat',
-    }),
+    amount: amountSat
+      ? new Money({
+          amount: amountSat,
+          currency: 'BTC' as Currency,
+          unit: 'sat',
+        })
+      : null,
     unit: 'sat',
     currency: 'BTC',
   };
@@ -131,7 +133,7 @@ type State = {
       /**
        * Quote to make a lightning payment.
        */
-      quote: CashuLightningQuote | null;
+      quote: CashuLightningQuote | SparkLightningSendQuote | null;
       destinationDetails?: null;
     }
   | {
@@ -139,7 +141,7 @@ type State = {
       /**
        * Quote to make a lightning payment.
        */
-      quote: CashuLightningQuote | null;
+      quote: CashuLightningQuote | SparkLightningSendQuote | null;
       /**
        * Stores the additional details about the destination.
        */
@@ -150,7 +152,7 @@ type State = {
       /**
        * Quote to make a lightning payment.
        */
-      quote: CashuLightningQuote | null;
+      quote: CashuLightningQuote | SparkLightningSendQuote | null;
       /**
        * Stores the additional details about the destination.
        */
@@ -194,6 +196,10 @@ type CreateSendStoreProps = {
     amount: Money<Currency>;
     senderPaysFee?: boolean;
   }) => Promise<CashuSwapQuote>;
+  getSparkLightningSendQuote: (params: {
+    paymentRequest: string;
+    amount?: Money<Currency>;
+  }) => Promise<SparkLightningSendQuote>;
 };
 
 export const createSendStore = ({
@@ -203,6 +209,7 @@ export const createSendStore = ({
   getInvoiceFromLud16,
   createCashuSendQuote,
   getCashuSendSwapQuote,
+  getSparkLightningSendQuote,
 }: CreateSendStoreProps) => {
   return create<SendState>()((set, get) => {
     const getOrThrow = <T extends keyof SendState>(
@@ -284,7 +291,9 @@ export const createSendStore = ({
         const bolt11ParseResult = parseBolt11Invoice(destination);
         if (bolt11ParseResult.valid) {
           const invoice = bolt11ParseResult.decoded;
-          const result = validateBolt11(invoice);
+          const account = get().getSourceAccount();
+          const allowZeroAmount = account.type === 'spark';
+          const result = validateBolt11(invoice, { allowZeroAmount });
           if (!result.valid) {
             return { success: false, error: result.error };
           }
@@ -368,24 +377,39 @@ export const createSendStore = ({
         if (
           ['BOLT11_INVOICE', 'LN_ADDRESS', 'AGICASH_CONTACT'].includes(sendType)
         ) {
-          if (account.type !== 'cashu') {
-            throw new Error('Not implemented. Account is not a cashu account');
-          }
           const destination = getOrThrow('destination');
 
-          try {
-            const quote = await createCashuSendQuote({
-              account,
-              paymentRequest: destination,
-              amount: amountToSend,
-            });
-            set({ quote });
-          } catch (error) {
-            if (!(error instanceof DomainError)) {
-              console.error(error);
+          if (account.type === 'cashu') {
+            try {
+              const quote = await createCashuSendQuote({
+                account,
+                paymentRequest: destination,
+                amount: amountToSend,
+              });
+              set({ quote });
+            } catch (error) {
+              if (!(error instanceof DomainError)) {
+                console.error(error);
+              }
+              set({ status: 'idle' });
+              return { success: false, error };
             }
-            set({ status: 'idle' });
-            return { success: false, error };
+          } else if (account.type === 'spark') {
+            try {
+              const quote = await getSparkLightningSendQuote({
+                paymentRequest: destination,
+                amount: amountToSend,
+              });
+              set({ quote });
+            } catch (error) {
+              console.error(error);
+              set({ status: 'idle' });
+              return { success: false, error };
+            }
+          } else {
+            throw new Error(
+              'Not implemented. Account type not supported for lightning sends',
+            );
           }
         }
 
