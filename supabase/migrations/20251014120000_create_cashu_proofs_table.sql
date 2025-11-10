@@ -158,7 +158,7 @@ comment on type wallet.cashu_proof_input is 'Input type for cashu proofs passed 
 -- ++++++++++++++++++++++++++++++++++++
 
 -- Add get account proofs function
--- Returns all proofs for an account as a typed array
+-- Returns all proofs for an account as a typed array. If no proofs are found, an empty array is returned.
 create or replace function wallet.get_account_proofs(
   p_account_id uuid
 )
@@ -502,6 +502,10 @@ declare
   v_account_with_proofs jsonb;
   v_old_counter integer;
 begin
+  if p_number_of_outputs <= 0 then
+    raise exception 'p_number_of_outputs must be greater than 0';
+  end if;
+
   select * into v_quote
   from wallet.cashu_receive_quotes
   where id = p_quote_id
@@ -511,7 +515,7 @@ begin
       raise exception 'Quote with id % not found', p_quote_id;
   end if;
 
-  if v_quote.state = 'PAID' then
+  if v_quote.state = 'PAID' or v_quote.state = 'COMPLETED' then
     v_account_with_proofs := wallet.get_account_with_proofs(v_quote.account_id);
 
     return (v_quote, v_account_with_proofs);
@@ -689,6 +693,10 @@ declare
   v_old_counter integer;
   v_transaction_id uuid;
 begin
+  if p_number_of_outputs <= 0 then
+    raise exception 'p_number_of_outputs must be greater than 0';
+  end if;
+
   update wallet.accounts a
   set 
     details = jsonb_set(
@@ -1031,6 +1039,10 @@ declare
   v_transaction_id uuid;
   v_reserved_proofs wallet.cashu_proofs[];
 begin
+  if p_number_of_change_outputs <= 0 then
+    raise exception 'p_number_of_change_outputs must be greater than 0';
+  end if;
+  
   update wallet.accounts a
   set 
     details = jsonb_set(
@@ -1524,6 +1536,10 @@ begin
           raise exception 'When state is DRAFT, p_keyset_id, p_number_of_send_outputs, and p_number_of_change_outputs must be provided';
       end if;
 
+      if p_number_of_send_outputs <= 0 or p_number_of_change_outputs <= 0 then
+        raise exception 'p_number_of_send_outputs and p_number_of_change_outputs must be greater than 0';
+      end if;
+
       v_keyset_id := p_keyset_id;
       v_number_of_outputs := p_number_of_send_outputs + p_number_of_change_outputs;
 
@@ -1982,13 +1998,25 @@ $function$;
 -- Update broadcast messages RLS policy
 -- Drop existing policy that was allowing all authenticated users to read all messages
 drop policy if exists "Authenticated users can receive broadcasts" on realtime.messages;
+
 -- Setup new policy that allows authenticated users to read only their own messages
 create policy "Authenticated users can read their own broadcasted messages"
   on realtime.messages
   for select
   to authenticated
   using (
-    realtime.topic() = 'wallet:' || auth.uid()::text
+    realtime.messages.extension = 'broadcast'
+    and realtime.topic() = 'wallet:' || auth.uid()::text
+  );
+
+-- Setup new policy that allows authenticated users to read only their own messages
+create policy "Authenticated users create messages to broadcast to themselves"
+  on realtime.messages
+  for insert
+  to authenticated
+  with check (
+    realtime.messages.extension = 'broadcast'
+    and realtime.topic() = 'wallet:' || auth.uid()::text
   );
 
 --
@@ -2057,7 +2085,7 @@ begin
     v_payload := jsonb_set(
       to_jsonb(new),
       '{previous_acknowledgment_status}',
-      to_jsonb(old.acknowledgment_status)
+      coalesce(to_jsonb(old.acknowledgment_status), 'null'::jsonb)
     );
   end if;
 
@@ -2100,6 +2128,9 @@ begin
     v_event := 'CASHU_RECEIVE_QUOTE_UPDATED';
   end if;
 
+  raise log 'Broadcasting cashu receive quote changes: %. Payload: %', v_event, to_jsonb(new);
+  raise log 'Topic value: % . Realtime topic: %', 'wallet:' || new.user_id::text, realtime.topic();
+
   -- Broadcast using realtime.send
   -- Parameters: payload (jsonb), event_name (text), topic (text), is_private (boolean)
   perform realtime.send(
@@ -2110,6 +2141,11 @@ begin
   );
 
   return null;
+
+exception
+  when others then
+    raise warning 'Error broadcasting cashu receive quote changes: %', sqlerrm;
+
 end;
 $function$;
 
@@ -2180,7 +2216,7 @@ begin
     v_event := 'CASHU_SEND_QUOTE_UPDATED';
   end if;
 
-  select array_agg(row(cp.*)::wallet.cashu_proofs) into v_related_proofs
+  select coalesce(array_agg(row(cp.*)::wallet.cashu_proofs), '{}') into v_related_proofs
   from wallet.cashu_proofs cp
   where cp.spending_cashu_send_quote_id = new.id;
 
@@ -2231,7 +2267,7 @@ begin
     v_event := 'CASHU_SEND_SWAP_UPDATED';
   end if;
 
-  select array_agg(row(cp.*)::wallet.cashu_proofs) into v_related_proofs
+  select coalesce(array_agg(row(cp.*)::wallet.cashu_proofs), '{}') into v_related_proofs
   from wallet.cashu_proofs cp
   where cp.spending_cashu_send_swap_id = new.id;
 
@@ -2278,9 +2314,6 @@ begin
   if tg_op = 'INSERT' then
     v_event := 'CONTACT_CREATED';
     v_contact := new;
-  elsif tg_op = 'UPDATE' then
-    v_event := 'CONTACT_UPDATED';
-    v_contact := new;
   elsif tg_op = 'DELETE' then
     v_event := 'CONTACT_DELETED';
     v_contact := old;
@@ -2306,6 +2339,13 @@ create trigger broadcast_contacts_changes_trigger
   execute function wallet.broadcast_contacts_changes();
 
 --
+
+
+-- Drop broadcast_table_changes table because it is no longer used
+drop function if exists wallet.broadcast_table_changes();
+
+--
+
 
 -- ++++++++++++++++++++++++++++++++++++
 -- ++++++++++++++++++++++++++++++++++++
