@@ -179,7 +179,9 @@ export class CashuReceiveQuoteService {
 
   /**
    * Expires the cashu receive quote by setting the state to EXPIRED.
+   * It's a no-op if the receive quote is already expired.
    * @param quote - The cashu receive quote to expire.
+   * @throws An error if the receive quote is not unpaid or has not expired yet.
    */
   async expire(quote: CashuReceiveQuote): Promise<void> {
     if (quote.state === 'EXPIRED') {

@@ -500,7 +500,7 @@ declare
   v_quote wallet.cashu_receive_quotes;
   v_account wallet.accounts;
   v_account_with_proofs jsonb;
-  v_old_counter integer;
+  v_counter integer;
 begin
   if p_number_of_outputs <= 0 then
     raise exception 'p_number_of_outputs must be greater than 0';
@@ -541,13 +541,13 @@ begin
 
   v_account_with_proofs := wallet.to_account_with_proofs(v_account);
 
-  v_old_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_outputs;
+  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_outputs;
 
   update wallet.cashu_receive_quotes q
   set 
     state = 'PAID',
     keyset_id = p_keyset_id,
-    keyset_counter = v_old_counter,
+    keyset_counter = v_counter,
     number_of_outputs = p_number_of_outputs,
     version = version + 1
   where q.id = p_quote_id
@@ -690,7 +690,7 @@ declare
   v_token_swap wallet.cashu_token_swaps;
   v_account wallet.accounts;
   v_account_with_proofs jsonb;
-  v_old_counter integer;
+  v_counter integer;
   v_transaction_id uuid;
 begin
   if p_number_of_outputs <= 0 then
@@ -711,7 +711,7 @@ begin
   where a.id = p_account_id
   returning * into v_account;
 
-  v_old_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_outputs;
+  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_outputs;
 
   insert into wallet.transactions (
     user_id,
@@ -757,7 +757,7 @@ begin
     p_currency,
     p_unit,
     p_keyset_id,
-    v_old_counter,
+    v_counter,
     p_number_of_outputs,
     p_input_amount,
     p_receive_amount,
@@ -1035,29 +1035,39 @@ declare
   v_quote wallet.cashu_send_quotes;
   v_account wallet.accounts;
   v_account_with_proofs jsonb;
-  v_old_counter integer;
+  v_counter integer;
   v_transaction_id uuid;
   v_reserved_proofs wallet.cashu_proofs[];
 begin
-  if p_number_of_change_outputs <= 0 then
-    raise exception 'p_number_of_change_outputs must be greater than 0';
+  if p_number_of_change_outputs < 0 then
+    raise exception 'p_number_of_change_outputs cannot be less than 0';
   end if;
   
-  update wallet.accounts a
-  set 
-    details = jsonb_set(
-      details, 
-      array['keyset_counters', p_keyset_id], 
-      to_jsonb(
-        coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + p_number_of_change_outputs
-      ), 
-      true
-    ),
-    version = version + 1
-  where a.id = p_account_id
-  returning * into v_account;
+  if p_number_of_change_outputs > 0 then
+    update wallet.accounts a
+    set 
+      details = jsonb_set(
+        details, 
+        array['keyset_counters', p_keyset_id], 
+        to_jsonb(
+          coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + p_number_of_change_outputs
+        ), 
+        true
+      ),
+      version = version + 1
+    where a.id = p_account_id
+    returning * into v_account;
 
-  v_old_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_change_outputs;
+    v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_change_outputs;
+  else
+    -- We still want to update the account version because we are reserving account proofs.
+    update wallet.accounts a
+    set version = version + 1
+    where a.id = p_account_id
+    returning * into v_account;
+
+    v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0);
+  end if;
 
   insert into wallet.transactions (
     user_id,
@@ -1110,7 +1120,7 @@ begin
     p_cashu_fee,
     p_quote_id,
     p_keyset_id,
-    v_old_counter,
+    v_counter,
     p_number_of_change_outputs,
     v_transaction_id
   )
@@ -1450,7 +1460,7 @@ alter table wallet.cashu_send_swaps drop column if exists input_proofs;
 alter table wallet.cashu_send_swaps drop column if exists proofs_to_send;
 alter table wallet.cashu_send_swaps drop column if exists send_output_amounts;
 alter table wallet.cashu_send_swaps drop column if exists keep_output_amounts;
-alter table wallet.cashu_send_swaps add column requires_input_proofs_swap boolean generated always as (total_amount != input_amount) stored;
+alter table wallet.cashu_send_swaps add column requires_input_proofs_swap boolean generated always as (amount_to_send != input_amount) stored;
 
 -- Add constraint: token_hash is required when state is not DRAFT or FAILED
 alter table wallet.cashu_send_swaps add constraint cashu_send_swaps_token_hash_required_check
@@ -1516,8 +1526,8 @@ declare
   v_swap wallet.cashu_send_swaps;
   v_reserved_proofs wallet.cashu_proofs[];
 begin
-  -- If the input amount is equal to the total amount, there is no need to swap the input proofs so the swap is ready to be committed (set to PENDING).
-  if p_input_amount = p_total_amount then
+  -- If the input amount is equal to the amount to send, there is no need to swap the input proofs so the swap is ready to be committed (set to PENDING).
+  if p_input_amount = p_amount_to_send then
     v_state := 'PENDING';
   else
     v_state := 'DRAFT';
@@ -1536,8 +1546,12 @@ begin
           raise exception 'When state is DRAFT, p_keyset_id, p_number_of_send_outputs, and p_number_of_change_outputs must be provided';
       end if;
 
-      if p_number_of_send_outputs <= 0 or p_number_of_change_outputs <= 0 then
-        raise exception 'p_number_of_send_outputs and p_number_of_change_outputs must be greater than 0';
+      if p_number_of_send_outputs <= 0 then
+        raise exception 'p_number_of_send_outputs must be greater than 0';
+      end if;
+
+      if p_number_of_change_outputs < 0 then
+        raise exception 'p_number_of_change_outputs cannot be less than 0';
       end if;
 
       v_keyset_id := p_keyset_id;
@@ -1789,9 +1803,11 @@ drop function if exists wallet.complete_cashu_send_swap(uuid, integer);
 drop type if exists wallet.complete_cashu_send_swap_result;
 
 create type "wallet"."complete_cashu_send_swap_result" as (
+  "result" text, -- 'COMPLETED' or 'FAILED'
   "swap" wallet.cashu_send_swaps,
   "account" jsonb, -- wallet.accounts row + "cashu_proofs" property of type wallet.cashu_proofs[]
-  "spent_proofs" wallet.cashu_proofs[]
+  "spent_proofs" wallet.cashu_proofs[],
+  "failure_reason" text -- null when result is 'COMPLETED'
 );
 
 /**
@@ -1835,7 +1851,7 @@ begin
       where cp.spending_cashu_send_swap_id = v_swap.id and state = 'SPENT';
     end if;
 
-    return (v_swap, v_account_with_proofs, v_spent_proofs);
+    return ('COMPLETED'::text, v_swap, v_account_with_proofs, v_spent_proofs, null::text);
   end if;
 
   if v_swap.state != 'PENDING' then
@@ -1851,7 +1867,7 @@ begin
   if v_reversal_transaction_state is not null and v_reversal_transaction_state != 'FAILED' then
     -- If there's a reversal transaction that is not failed, return early.
     -- The token swap completion will handle updating the send swap state.
-    return (v_swap, null, null);
+    return ('FAILED'::text, v_swap, null::jsonb, null::wallet.cashu_proofs[], 'Reversal in progress'::text);
   end if;
 
   -- CTE (Common Table Expression) + array_agg is needed in plpgsql when using "returning into" with multiple rows 
@@ -1889,7 +1905,7 @@ begin
 
   v_account_with_proofs := wallet.to_account_with_proofs(v_account);
 
-  return (v_swap, v_account_with_proofs, v_spent_proofs);
+  return ('COMPLETED'::text, v_swap, v_account_with_proofs, v_spent_proofs, null::text);
 end;
 $function$;
 
@@ -1991,6 +2007,155 @@ $function$;
 -- ++++++++++++++++++++++++++++++++++++
 
 
+
+-- ++++++++++++++++++++++++++++++++++++
+-- Users updates
+-- ++++++++++++++++++++++++++++++++++++
+
+-- Create composite type for account input
+drop type if exists wallet.account_input cascade;
+create type wallet.account_input as (
+  "type" text,
+  "currency" text,
+  "name" text,
+  "details" jsonb,
+  "is_default" boolean
+);
+
+--
+
+-- Create composite type for upsert_user_with_accounts return value
+drop type if exists wallet.upsert_user_with_accounts_result cascade;
+create type wallet.upsert_user_with_accounts_result as (
+  "user" wallet.users,
+  accounts jsonb[]
+);
+
+--
+
+-- Drop old function signature
+drop function if exists wallet.upsert_user_with_accounts(uuid, text, boolean, jsonb[], text, text);
+
+-- Update upsert_user_with_accounts function to return structured result with accounts including proofs
+create or replace function wallet.upsert_user_with_accounts(
+  p_user_id uuid, 
+  p_email text, 
+  p_email_verified boolean, 
+  p_accounts wallet.account_input[], 
+  p_cashu_locking_xpub text, 
+  p_encryption_public_key text
+)
+returns wallet.upsert_user_with_accounts_result
+language plpgsql
+as $function$
+declare
+  result_user wallet.users;
+  result_accounts jsonb[];
+  usd_account_id uuid := null;
+  btc_account_id uuid := null;
+begin
+  insert into wallet.users (id, email, email_verified, cashu_locking_xpub, encryption_public_key)
+  values (p_user_id, p_email, p_email_verified, p_cashu_locking_xpub, p_encryption_public_key)
+  on conflict (id) do update set
+    email = coalesce(excluded.email, wallet.users.email),
+    email_verified = excluded.email_verified;
+
+  select * into result_user
+  from wallet.users u
+  where u.id = p_user_id
+  for update;
+
+  with accounts_with_proofs as (
+    select 
+      a.*,
+      coalesce(
+        jsonb_agg(to_jsonb(cp)) filter (where cp.id is not null),
+        '[]'::jsonb
+      ) as cashu_proofs
+    from wallet.accounts a
+    left join wallet.cashu_proofs cp on cp.account_id = a.id
+    where a.user_id = p_user_id
+    group by a.id
+  )
+  select array_agg(
+    jsonb_set(
+      to_jsonb(awp),
+      '{cashu_proofs}',
+      awp.cashu_proofs
+    )
+  )
+  into result_accounts
+  from accounts_with_proofs awp;
+
+  if result_accounts is not null then
+    return (result_user, result_accounts);
+  end if;
+
+  if array_length(p_accounts, 1) is null then
+    raise exception 'p_accounts cannot be empty array';
+  end if;
+
+  if not exists (select 1 from unnest(p_accounts) as acct where acct.currency = 'USD') then
+    raise exception 'At least one USD account is required';
+  end if;
+
+  if not exists (select 1 from unnest(p_accounts) as acct where acct.currency = 'BTC') then
+    raise exception 'At least one BTC account is required';
+  end if;
+
+  with inserted_accounts as (
+    insert into wallet.accounts (user_id, type, currency, name, details)
+    select 
+      p_user_id,
+      acct.type,
+      acct.currency,
+      acct.name,
+      acct.details
+    from unnest(p_accounts) as acct
+    returning *
+  ),
+  accounts_with_default_flag as (
+    select 
+      ia.*,
+      coalesce(acct."is_default", false) as "is_default"
+    from inserted_accounts ia
+    join unnest(p_accounts) as acct on 
+      ia.type = acct.type and 
+      ia.currency = acct.currency and 
+      ia.name = acct.name and 
+      ia.details = acct.details
+  )
+  select 
+    array_agg(
+      jsonb_set(
+        to_jsonb(awd),
+        '{cashu_proofs}',
+        '[]'::jsonb
+      )
+    ),
+    (array_agg(awd.id) filter (where awd.currency = 'USD' and awd."is_default"))[1],
+    (array_agg(awd.id) filter (where awd.currency = 'BTC' and awd."is_default"))[1]
+  into result_accounts, usd_account_id, btc_account_id
+  from accounts_with_default_flag awd;
+
+  update wallet.users u
+  set 
+    default_usd_account_id = coalesce(usd_account_id, u.default_usd_account_id),
+    default_btc_account_id = coalesce(btc_account_id, u.default_btc_account_id)
+  where id = p_user_id
+  returning * into result_user;
+
+  return (result_user, result_accounts);
+end;
+$function$;
+
+--
+
+-- ++++++++++++++++++++++++++++++++++++
+-- ++++++++++++++++++++++++++++++++++++
+
+
+
 -- ++++++++++++++++++++++++++++++++++++
 -- Broadcast notifications updates
 -- ++++++++++++++++++++++++++++++++++++
@@ -2056,9 +2221,10 @@ begin
 end;
 $function$;
 
-create trigger broadcast_accounts_changes_trigger
+create constraint trigger broadcast_accounts_changes_trigger
   after insert or update
   on wallet.accounts
+  deferrable initially deferred
   for each row
   execute function wallet.broadcast_accounts_changes();
 
@@ -2102,9 +2268,10 @@ begin
 end;
 $function$;
 
-create trigger broadcast_transactions_changes_trigger
+create constraint trigger broadcast_transactions_changes_trigger
   after insert or update
   on wallet.transactions
+  deferrable initially deferred
   for each row
   execute function wallet.broadcast_transactions_changes();
 
@@ -2149,9 +2316,10 @@ exception
 end;
 $function$;
 
-create trigger broadcast_cashu_receive_quotes_changes_trigger
+create constraint trigger broadcast_cashu_receive_quotes_changes_trigger
   after insert or update
   on wallet.cashu_receive_quotes
+  deferrable initially deferred
   for each row
   execute function wallet.broadcast_cashu_receive_quotes_changes();
 
@@ -2188,9 +2356,10 @@ begin
 end;
 $function$;
 
-create trigger broadcast_cashu_token_swaps_changes_trigger
+create constraint trigger broadcast_cashu_token_swaps_changes_trigger
   after insert or update
   on wallet.cashu_token_swaps
+  deferrable initially deferred
   for each row
   execute function wallet.broadcast_cashu_token_swaps_changes();
 
@@ -2239,9 +2408,10 @@ begin
 end;
 $function$;
 
-create trigger broadcast_cashu_send_quotes_changes_trigger
+create constraint trigger broadcast_cashu_send_quotes_changes_trigger
   after insert or update
   on wallet.cashu_send_quotes
+  deferrable initially deferred
   for each row
   execute function wallet.broadcast_cashu_send_quotes_changes();
 
@@ -2290,9 +2460,10 @@ begin
 end;
 $function$;
 
-create trigger broadcast_cashu_send_swaps_changes_trigger
+create constraint trigger broadcast_cashu_send_swaps_changes_trigger
   after insert or update
   on wallet.cashu_send_swaps
+  deferrable initially deferred
   for each row
   execute function wallet.broadcast_cashu_send_swaps_changes();
 
@@ -2332,9 +2503,10 @@ begin
 end;
 $function$;
 
-create trigger broadcast_contacts_changes_trigger
+create constraint trigger broadcast_contacts_changes_trigger
   after insert or delete
   on wallet.contacts
+  deferrable initially deferred
   for each row
   execute function wallet.broadcast_contacts_changes();
 
@@ -2345,7 +2517,6 @@ create trigger broadcast_contacts_changes_trigger
 drop function if exists wallet.broadcast_table_changes();
 
 --
-
 
 -- ++++++++++++++++++++++++++++++++++++
 -- ++++++++++++++++++++++++++++++++++++

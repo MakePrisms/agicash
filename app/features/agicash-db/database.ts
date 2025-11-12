@@ -34,6 +34,11 @@ if (!supabaseAnonKey) {
   throw new Error('VITE_SUPABASE_ANON_KEY is not set');
 }
 
+type UpsertUserWithAccountsResult = {
+  user: AgicashDbUser;
+  accounts: AgicashDbAccountWithProofs[];
+};
+
 type CashuReceiveQuotePaymentResult = {
   quote: AgicashDbCashuReceiveQuote;
   account: AgicashDbAccountWithProofs;
@@ -95,11 +100,21 @@ type CommitProofsToSendResult = {
   change_proofs: AgicashDbCashuProof[];
 };
 
-type CompleteCashuSendSwapResult = {
-  swap: AgicashDbCashuSendSwap;
-  account: AgicashDbAccountWithProofs | null;
-  spent_proofs: AgicashDbCashuProof[] | null;
-};
+type CompleteCashuSendSwapResult =
+  | {
+      result: 'COMPLETED';
+      swap: AgicashDbCashuSendSwap;
+      account: AgicashDbAccountWithProofs;
+      spent_proofs: AgicashDbCashuProof[];
+      failure_reason: null;
+    }
+  | {
+      result: 'FAILED';
+      swap: AgicashDbCashuSendSwap;
+      account: null;
+      spent_proofs: null;
+      failure_reason: string;
+    };
 
 type FailCashuSendSwapResult = {
   swap: AgicashDbCashuSendSwap;
@@ -218,9 +233,7 @@ export type Database = MergeDeep<
           Args: {
             p_email: string | null;
           };
-          Returns: AgicashDbUser & {
-            accounts: AgicashDbAccount[];
-          };
+          Returns: UpsertUserWithAccountsResult;
         };
         process_cashu_receive_quote_payment: {
           Returns: CashuReceiveQuotePaymentResult;

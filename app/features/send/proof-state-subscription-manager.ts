@@ -102,7 +102,6 @@ export class ProofStateSubscriptionManager {
     swaps: PendingCashuSendSwap[],
     onSpent: (swap: CashuSendSwap) => void,
   ) {
-    console.debug('proofUpdate', proofUpdate);
     const swap = swaps.find((swap) =>
       swap.proofsToSend.some(
         (p) => p.unblindedSignature === proofUpdate.proof.C,
@@ -121,7 +120,7 @@ export class ProofStateSubscriptionManager {
         this.proofUpdates[swap.id][proof.unblindedSignature] === 'SPENT',
     );
 
-    console.debug('allProofsSpent', allProofsSpent, { swap });
+    console.debug('allProofsSpent', allProofsSpent, { swapId: swap.id });
 
     if (allProofsSpent) {
       delete this.proofUpdates[swap.id];

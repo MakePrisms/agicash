@@ -447,7 +447,7 @@ export class CashuSendQuoteRepository {
       });
     }
 
-    return await Promise.all(data.map(this.toSendQuote));
+    return await Promise.all(data.map((x) => this.toSendQuote(x)));
   }
 
   async toSendQuote(
