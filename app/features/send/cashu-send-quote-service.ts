@@ -293,7 +293,9 @@ export class CashuSendQuoteService {
   }
 
   /**
-   * Initiates the send for the quote.
+   * Initiates the send for the quote by calling the mint's melt proofs endpoint.
+   * @throws An error if the account does not match the send quote account or the quote does not match the melt quote or the send quote is not unpaid.
+   * @returns Melt proofs response from the mint.
    */
   async initiateSend(
     account: CashuAccount,
@@ -343,8 +345,15 @@ export class CashuSendQuoteService {
 
   /**
    * Marks the send quote as pending. This indicates that the send is in progress.
+   * If the send quote is already pending, it's a no-op that returns back passed quote.
+   * @throws An error if the send quote is not unpaid.
+   * @returns The updated send quote.
    */
   async markSendQuoteAsPending(quote: CashuSendQuote) {
+    if (quote.state === 'PENDING') {
+      return quote;
+    }
+
     if (quote.state !== 'UNPAID') {
       throw new Error(
         `Only unpaid cashu send quote can be marked as pending. Current state: ${quote.state}`,
@@ -359,12 +368,19 @@ export class CashuSendQuoteService {
 
   /**
    * Completes the send quote after successful payment.
+   * If the send quote is already paid, it's a no-op that returns back passed quote.
+   * @throws An error if the account does not match the send quote account or the quote does not match the melt quote or the send quote is not pending.
+   * @returns The updated send quote.
    */
   async completeSendQuote(
     account: CashuAccount,
     sendQuote: CashuSendQuote,
     meltQuote: MeltQuoteResponse,
   ) {
+    if (sendQuote.state === 'PAID') {
+      return sendQuote;
+    }
+
     if (sendQuote.state !== 'PENDING') {
       throw new Error(
         `Cannot complete send quote that is not pending. Current state: ${sendQuote.state}`,
@@ -426,12 +442,18 @@ export class CashuSendQuoteService {
 
   /**
    * Failes the send quote after failed payment.
+   * If the send quote is already failed, it's a no-op.
+   * @throws An error if the account does not match the send quote account or the quote is not pending or unpaid.
    */
   async failSendQuote(
     account: CashuAccount,
     quote: CashuSendQuote,
     reason: string,
   ) {
+    if (quote.state === 'FAILED') {
+      return;
+    }
+
     if (!['PENDING', 'UNPAID'].includes(quote.state)) {
       throw new Error(
         `Cannot fail send quote that is not pending or unpaid. Current state: ${quote.state}`,
@@ -460,6 +482,8 @@ export class CashuSendQuoteService {
   /**
    * Expires the cashu send quote by setting the state to EXPIRED.
    * It also updates the account proofs to return the unspent proofs that were reserved for the send.
+   * It's a no-op if the send quote is already expired.
+   * @throws An error if the send quote is not unpaid or has not expired yet.
    */
   async expireSendQuote(quote: CashuSendQuote): Promise<void> {
     if (quote.state === 'EXPIRED') {

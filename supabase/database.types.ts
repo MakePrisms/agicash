@@ -1172,20 +1172,33 @@ export type Database = {
       }
       upsert_user_with_accounts: {
         Args: {
-          p_accounts: Json[]
+          p_accounts: Database["wallet"]["CompositeTypes"]["account_input"][]
           p_cashu_locking_xpub: string
           p_email: string
           p_email_verified: boolean
           p_encryption_public_key: string
           p_user_id: string
         }
-        Returns: Json
+        Returns: Database["wallet"]["CompositeTypes"]["upsert_user_with_accounts_result"]
+        SetofOptions: {
+          from: "*"
+          to: "upsert_user_with_accounts_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {
       [_ in never]: never
     }
     CompositeTypes: {
+      account_input: {
+        type: string | null
+        currency: string | null
+        name: string | null
+        details: Json | null
+        is_default: boolean | null
+      }
       add_cashu_proofs_and_update_account_result: {
         account: Json | null
         added_proofs:
@@ -1240,11 +1253,13 @@ export type Database = {
           | null
       }
       complete_cashu_send_swap_result: {
+        result: string | null
         swap: Database["wallet"]["Tables"]["cashu_send_swaps"]["Row"] | null
         account: Json | null
         spent_proofs:
           | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
           | null
+        failure_reason: string | null
       }
       complete_cashu_token_swap_result: {
         swap: Database["wallet"]["Tables"]["cashu_token_swaps"]["Row"] | null
@@ -1291,6 +1306,10 @@ export type Database = {
         released_proofs:
           | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
           | null
+      }
+      upsert_user_with_accounts_result: {
+        user: Database["wallet"]["Tables"]["users"]["Row"] | null
+        accounts: Json[] | null
       }
     }
   }

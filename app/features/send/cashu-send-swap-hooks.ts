@@ -189,7 +189,7 @@ export function useUnresolvedCashuSendSwaps() {
 
     for (const swap of data) {
       if (swap.state === 'DRAFT') {
-        draft.push(swap as CashuSendSwap & { state: 'DRAFT' });
+        draft.push(swap);
       } else if (swap.state === 'PENDING') {
         pending.push(swap as PendingCashuSendSwap);
       }
@@ -336,7 +336,11 @@ function useOnProofStateChange({ swaps, onSpent }: OnProofStateChangeProps) {
     );
 
     Object.entries(swapsByMint).forEach(([mintUrl, swaps]) => {
-      subscribe({ mintUrl, swaps, onSpent: onSpentRef.current });
+      subscribe({
+        mintUrl,
+        swaps,
+        onSpent: (swap) => onSpentRef.current(swap),
+      });
     });
   }, [subscribe, swaps, accountsCache]);
 }
@@ -435,14 +439,15 @@ export function useProcessCashuSendSwapTasks() {
 
   useOnProofStateChange({
     swaps: pending,
-    onSpent: (swap) => completeSwap(swap.id),
+    onSpent: (swap) =>
+      completeSwap(swap.id, { scope: { id: `send-swap-${swap.id}` } }),
   });
 
   useQueries({
     queries: draft.map((swap) => ({
       queryKey: ['trigger-send-swap', swap.id],
       queryFn: async () => {
-        swapForProofsToSend(swap.id);
+        swapForProofsToSend(swap.id, { scope: { id: `send-swap-${swap.id}` } });
         return true;
       },
       gcTime: 0,

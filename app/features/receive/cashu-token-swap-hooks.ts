@@ -61,6 +61,12 @@ class PendingCashuTokenSwapsCache {
 
   constructor(private readonly queryClient: QueryClient) {}
 
+  get(tokenHash: string) {
+    return this.queryClient
+      .getQueryData<CashuTokenSwap[]>([PendingCashuTokenSwapsCache.Key])
+      ?.find((s) => s.tokenHash === tokenHash);
+  }
+
   add(tokenSwap: CashuTokenSwap) {
     this.queryClient.setQueryData<CashuTokenSwap[]>(
       [PendingCashuTokenSwapsCache.Key],
@@ -248,10 +254,11 @@ export function useProcessCashuTokenSwapTasks() {
   const pendingSwaps = usePendingCashuTokenSwaps();
   const tokenSwapService = useCashuTokenSwapService();
   const getLatestAccount = useGetLatestCashuAccount();
+  const pendingSwapsCache = usePendingCashuTokenSwapsCache();
 
   const { mutate: completeSwap } = useMutation({
     mutationFn: async (tokenHash: string) => {
-      const swap = pendingSwaps.find((s) => s.tokenHash === tokenHash);
+      const swap = pendingSwapsCache.get(tokenHash);
       if (!swap) {
         // This means that the swap is not pending anymore so it was removed from the cache.
         // This can happen if the swap was completed or failed in the meantime.
@@ -275,7 +282,9 @@ export function useProcessCashuTokenSwapTasks() {
     queries: pendingSwaps.map((swap) => ({
       queryKey: ['complete-cashu-token-swap', swap.tokenHash],
       queryFn: () => {
-        completeSwap(swap.tokenHash);
+        completeSwap(swap.tokenHash, {
+          scope: { id: `token-swap-${swap.tokenHash}` },
+        });
         return true;
       },
       gcTime: 0,

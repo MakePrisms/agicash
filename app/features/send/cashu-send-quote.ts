@@ -89,7 +89,13 @@ export type CashuSendQuote = {
   transactionId: string;
 } & (
   | {
-      state: 'UNPAID' | 'PENDING' | 'EXPIRED';
+      state: 'UNPAID';
+    }
+  | {
+      state: 'PENDING';
+    }
+  | {
+      state: 'EXPIRED';
     }
   | {
       state: 'FAILED';

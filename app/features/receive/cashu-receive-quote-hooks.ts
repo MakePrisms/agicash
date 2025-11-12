@@ -538,7 +538,10 @@ const useOnMintQuoteStateChange = ({
 
   const processMintQuote = useCallback(
     async (mintQuote: MintQuoteResponse) => {
-      console.debug('Mint quote updated', mintQuote);
+      console.debug(`Mint quote state changed: ${mintQuote.state}`, {
+        paymentRequest: mintQuote.request,
+        unit: mintQuote.unit,
+      });
 
       const relatedReceiveQuote = pendingQuotesCache.getByMintQuoteId(
         mintQuote.quote,

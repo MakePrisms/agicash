@@ -51,7 +51,7 @@ type CreateSendSwap = {
    * The proofs being spent as inputs.
    * The sum of these might be greater than amountToSend, in which case we will need to swap to get the correct amount.
    */
-  inputProofs: Proof[];
+  inputProofs: CashuProof[];
   /**
    * The hash of the token being sent.
    * Will be set only when send swap is not needed (proofsToSend is defined).

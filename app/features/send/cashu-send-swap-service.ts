@@ -127,28 +127,29 @@ export class CashuSendSwapService {
 
     const wallet = account.wallet;
 
-    const { send, cashuReceiveFee, cashuSendFee } =
-      await this.prepareProofsAndFee(
-        wallet,
-        account.proofs,
-        amount,
-        senderPaysFee,
-      );
+    const {
+      send: inputProofs,
+      cashuReceiveFee,
+      cashuSendFee,
+    } = await this.prepareProofsAndFee(
+      wallet,
+      account.proofs,
+      amount,
+      senderPaysFee,
+    );
 
     const totalAmountToSend = amountNumber + cashuReceiveFee;
 
-    let proofsToSend: Proof[] | undefined;
     let tokenHash: string | undefined;
     let outputAmounts: { send: number[]; keep: number[] } | undefined;
     let sendKeysetCounter: number | undefined;
     let keysetId: string | undefined;
 
-    const haveExactProofs = sumProofs(send) === totalAmountToSend;
+    const haveExactProofs = sumProofs(inputProofs) === totalAmountToSend;
     if (haveExactProofs) {
-      proofsToSend = send;
       tokenHash = await getTokenHash({
         mint: account.mintUrl,
-        proofs: proofsToSend,
+        proofs: inputProofs.map((p) => toProof(p)),
         unit: getCashuProtocolUnit(amount.currency),
       });
     } else {
@@ -162,7 +163,8 @@ export class CashuSendSwapService {
         keys,
       );
 
-      const amountToKeep = sumProofs(send) - totalAmountToSend - cashuSendFee;
+      const amountToKeep =
+        sumProofs(inputProofs) - totalAmountToSend - cashuSendFee;
       const keepKeysetCounter = sendKeysetCounter + sendOutputData.length;
       const keepOutputData = OutputData.createDeterministicData(
         amountToKeep,
@@ -186,7 +188,7 @@ export class CashuSendSwapService {
     return this.cashuSendSwapRepository.create({
       accountId: account.id,
       userId,
-      inputProofs: send,
+      inputProofs,
       amountRequested: amount,
       amountToSend: toMoney(totalAmountToSend),
       cashuSendFee: toMoney(cashuSendFee),
@@ -308,12 +310,12 @@ export class CashuSendSwapService {
 
   private async prepareProofsAndFee(
     wallet: ExtendedCashuWallet,
-    allProofs: CashuProof[],
+    accountProofs: CashuProof[],
     requestedAmount: Money,
     includeFeesInSendAmount: boolean,
   ): Promise<{
-    keep: Proof[];
-    send: Proof[];
+    keep: CashuProof[];
+    send: CashuProof[];
     cashuSendFee: number;
     cashuReceiveFee: number;
   }> {
@@ -328,7 +330,21 @@ export class CashuSendSwapService {
       await wallet.getKeys();
     }
 
-    const proofs = allProofs.map((p) => toProof(p));
+    const spendableAccountProofs = accountProofs.filter(
+      (p) => p.state === 'UNSPENT',
+    );
+    const spendableProofsMap = new Map<string, CashuProof>(
+      spendableAccountProofs.map((p) => [p.secret, p]),
+    );
+    const toCashuProof = (p: Proof) => {
+      const proof = spendableProofsMap.get(p.secret);
+      if (!proof) {
+        throw new Error('Proof not found');
+      }
+      return proof;
+    };
+
+    const proofs = spendableAccountProofs.map((p) => toProof(p));
     const currency = requestedAmount.currency;
     const cashuUnit = getCashuUnit(currency);
     const requestedAmountNumber = requestedAmount.toNumber(cashuUnit);
@@ -352,8 +368,8 @@ export class CashuSendSwapService {
 
     if (proofAmountSelected === amountToSend) {
       return {
-        keep,
-        send,
+        keep: keep.map(toCashuProof),
+        send: send.map(toCashuProof),
         cashuSendFee: 0,
         cashuReceiveFee: feeToSwapSelectedProofs,
       };
@@ -406,7 +422,12 @@ export class CashuSendSwapService {
       cashuReceiveFee,
     });
 
-    return { keep, send, cashuSendFee, cashuReceiveFee };
+    return {
+      keep: keep.map(toCashuProof),
+      send: send.map(toCashuProof),
+      cashuSendFee,
+      cashuReceiveFee,
+    };
   }
 
   private async swapProofs(

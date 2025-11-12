@@ -2,8 +2,8 @@ import type { Currency, Money } from '~/lib/money';
 import type { CashuProof } from '../accounts/account';
 
 /**
- * A CashuSendSwap spends proofs from an account and creates proofs to send
- * which can then be encoded into a token.
+ * A CashuSendSwap spends proofs from an account (or swaps them if the no exact
+ * amount with available proofs) and encodes them into a token to share with the receiver.
  *
  * When in the DRAFT state, the proofs from the account that we will use for the
  * swap have been committed to in this entity. To move the swap to the PENDING state,
@@ -43,7 +43,6 @@ export type CashuSendSwap = {
   amountRequested: Money;
   /**
    * The requested amount to send plus the cashuReceiveFee.
-   * proofsToSend will sum to this amount.
    */
   amountToSend: Money;
   /**
@@ -51,11 +50,11 @@ export type CashuSendSwap = {
    */
   cashuReceiveFee: Money;
   /**
-   * The swap fee that will be incurred when swapping the inputProofs for the proofsToSend.
+   * The swap fee that will be incurred when swapping the inputProofs to get the amountToSend worth of proofs to send.
    */
   cashuSendFee: Money;
   /**
-   * The total amount spent. This is the sum of amountToSend and the fees.
+   * The total amount spent. This is the sum of amountToSend and cashuSendFee.
    */
   totalAmount: Money;
   /**
