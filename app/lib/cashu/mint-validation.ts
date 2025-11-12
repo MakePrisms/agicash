@@ -1,10 +1,6 @@
 import type { MintKeyset, WebSocketSupport } from '@cashu/cashu-ts';
-import type {
-  CashuProtocolUnit,
-  MintInfo,
-  NUT,
-  NUT17WebSocketCommand,
-} from './types';
+import type { ExtendedMintInfo } from './extended-mint-info';
+import type { CashuProtocolUnit, NUT, NUT17WebSocketCommand } from './types';
 
 type NutValidationResult =
   | { isValid: false; message: string }
@@ -12,7 +8,7 @@ type NutValidationResult =
 
 type NutValidation = {
   nut: NUT;
-  validate: (info: MintInfo, unit: string) => NutValidationResult;
+  validate: (info: ExtendedMintInfo, unit: string) => NutValidationResult;
 };
 
 type BuildMintValidatorOptions = {
@@ -36,7 +32,7 @@ export const buildMintValidator = (params: BuildMintValidatorOptions) => {
   return (
     mintUrl: string,
     selectedUnit: CashuProtocolUnit,
-    mintInfo: MintInfo,
+    mintInfo: ExtendedMintInfo,
     keysets: MintKeyset[],
   ): string | true => {
     if (!/^https?:\/\/.+/.test(mintUrl)) {
@@ -155,7 +151,7 @@ const createNutValidators = ({
 };
 
 const validateBolt11Support = (
-  info: MintInfo,
+  info: ExtendedMintInfo,
   operation: 'minting' | 'melting',
   unit: string,
 ): NutValidationResult => {
@@ -184,7 +180,7 @@ const validateBolt11Support = (
 };
 
 const validateGenericNut = (
-  info: MintInfo,
+  info: ExtendedMintInfo,
   nut: Extract<NUT, 7 | 8 | 9 | 10 | 11 | 12 | 20>,
   message: string,
 ): NutValidationResult => {
@@ -199,7 +195,7 @@ const validateGenericNut = (
 };
 
 const validateWebSocketSupport = (
-  info: MintInfo,
+  info: ExtendedMintInfo,
   unit: string,
   requiredCommands: NUT17WebSocketCommand[],
 ): NutValidationResult => {
@@ -229,7 +225,7 @@ const validateWebSocketSupport = (
 };
 
 const validateMintFeatures = (
-  mintInfo: MintInfo,
+  mintInfo: ExtendedMintInfo,
   unit: string,
   nutValidators: NutValidation[],
 ): NutValidationResult => {
