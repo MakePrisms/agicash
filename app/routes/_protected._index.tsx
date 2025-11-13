@@ -20,7 +20,6 @@ import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
 import { useExchangeRates } from '~/hooks/use-exchange-rate';
-import type { Ticker } from '~/lib/exchange-rate';
 import { Money } from '~/lib/money';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
@@ -31,9 +30,7 @@ export const links: LinksFunction = () => [
 
 const Price = () => {
   const [showSatsPerDollar, setShowSatsPerDollar] = useState(false);
-  const { data: rates } = useExchangeRates(
-    (['BTC-USD', 'USD-BTC'] as Ticker[]).sort(),
-  );
+  const { data: rates } = useExchangeRates(['BTC-USD', 'USD-BTC']);
 
   if (!rates) return <Skeleton className="h-[24px] w-[81px]" />;
 

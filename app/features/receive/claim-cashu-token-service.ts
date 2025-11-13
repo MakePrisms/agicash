@@ -1,6 +1,6 @@
 import type { Token } from '@cashu/cashu-ts';
 import type { QueryClient } from '@tanstack/react-query';
-import { exchangeRateQueryOptions } from '~/hooks/use-exchange-rate';
+import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import { areMintUrlsEqual } from '~/lib/cashu';
 import type { CashuAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
@@ -138,10 +138,9 @@ export class ClaimCashuTokenService {
         this.accountsCache.upsert(result.account);
       }
     } else {
-      const exchangeRate = await this.queryClient.fetchQuery(
-        exchangeRateQueryOptions(
-          `${sourceAccount.currency}-${receiveAccount.currency}`,
-        ),
+      const exchangeRate = await getExchangeRate(
+        this.queryClient,
+        `${sourceAccount.currency}-${receiveAccount.currency}`,
       );
       const { cashuMeltQuote, cashuReceiveQuote } =
         await this.receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(
