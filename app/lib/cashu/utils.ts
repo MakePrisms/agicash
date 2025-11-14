@@ -2,14 +2,14 @@ import {
   CashuMint,
   CashuWallet,
   type Keys,
+  type MintKeys,
   type MintKeyset,
-  type OutputData,
+  OutputData,
 } from '@cashu/cashu-ts';
 import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
-import { sumProofs } from './proof';
 import type { CashuProtocolUnit } from './types';
 
 const knownTestMints = [
@@ -97,32 +97,6 @@ export class ExtendedCashuWallet extends CashuWallet {
       throw new Error('Seed not set');
     }
     return this._bip39Seed;
-  }
-
-  /**
-   * Override selectProofsToSend to allow postprocessing of the result.
-   * @param proofs - The available proofs to select from
-   * @param amount - The amount to send
-   * @param includeFees - Whether to include fees in the selection
-   * @returns The selected proofs (with possible postprocessing)
-   */
-  selectProofsToSend(
-    proofs: Parameters<CashuWallet['selectProofsToSend']>[0],
-    amount: Parameters<CashuWallet['selectProofsToSend']>[1],
-    includeFees: Parameters<CashuWallet['selectProofsToSend']>[2],
-  ) {
-    const result = super.selectProofsToSend(proofs, amount, includeFees);
-
-    const sendProofsAmount = sumProofs(result.send);
-
-    if (sendProofsAmount < amount) {
-      return {
-        send: [],
-        keep: proofs,
-      };
-    }
-
-    return result;
   }
 
   /**
@@ -262,4 +236,22 @@ export const areMintUrlsEqual = (a: string, b: string) => {
     a.toLowerCase().replace(/\/+$/, '').trim() ===
     b.toLowerCase().replace(/\/+$/, '').trim()
   );
+};
+
+/**
+ * Calculates the number of outputs needed for a given amount using the provided mint keys.
+ * @param amount - The amount to get the number of outputs for
+ * @param keys - The mint keys to use for the output data
+ * @returns The number of outputs needed for the amount
+ */
+export const getNumberOfOutputs = (amount: number, keys: MintKeys) => {
+  return OutputData.createDeterministicData(
+    amount,
+    // Wallet seed and keyset counter don't matter for getting the number of outputs for the amount so we are just using dummy values.
+    // We need to do this because splitAmount function used by createDeterministicData is not exposed by cashu-ts (see https://github.com/cashubtc/cashu-ts/blob/v2.6.0/src/model/OutputData.ts#L158)
+    // Using 32 bytes (256 bits) dummy seed to satisfy HDKey requirements
+    new Uint8Array(32),
+    0,
+    keys,
+  ).length;
 };

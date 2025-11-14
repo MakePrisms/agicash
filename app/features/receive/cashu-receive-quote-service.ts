@@ -1,5 +1,4 @@
 import {
-  type CashuWallet,
   MintOperationError,
   type MintQuoteResponse,
   MintQuoteState,
@@ -9,8 +8,9 @@ import {
 import { HARDENED_OFFSET } from '@scure/bip32';
 import {
   CashuErrorCodes,
-  amountsFromOutputData,
+  type ExtendedCashuWallet,
   getCashuUnit,
+  getNumberOfOutputs,
 } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
@@ -179,6 +179,9 @@ export class CashuReceiveQuoteService {
 
   /**
    * Expires the cashu receive quote by setting the state to EXPIRED.
+   * It's a no-op if the receive quote is already expired.
+   * @param quote - The cashu receive quote to expire.
+   * @throws An error if the receive quote is not unpaid or has not expired yet.
    */
   async expire(quote: CashuReceiveQuote): Promise<void> {
     if (quote.state === 'EXPIRED') {
@@ -193,21 +196,35 @@ export class CashuReceiveQuoteService {
       throw new Error('Cannot expire quote that has not expired yet');
     }
 
-    await this.cashuReceiveQuoteRepository.expire({
-      id: quote.id,
-      version: quote.version,
-    });
+    await this.cashuReceiveQuoteRepository.expire(quote.id);
   }
 
   /**
    * Completes the receive quote by preparing the output data, minting the proofs, updating the quote state and account proofs.
+   * If the quote is already completed, it's a no-op that returns back passed quote and account and an empty array of proofs.
    * @param account - The cashu account that the quote belongs to.
    * @param quote - The cashu receive quote to complete.
+   * @returns The updated quote, account and a list of added proof ids.
+   * @throws An error if quote is expired or failed or if completing the quote fails.
    */
   async completeReceive(
     account: CashuAccount,
     quote: CashuReceiveQuote,
-  ): Promise<{ account: CashuAccount; quote: CashuReceiveQuote }> {
+  ): Promise<{
+    /**
+     * The updated quote.
+     */
+    quote: CashuReceiveQuote;
+    /**
+     * The updated account with all the proofs including newly added ones.
+     */
+    account: CashuAccount;
+    /**
+     * A list of added proof ids.
+     * Use if you need to know which proofs from the account proofs list are newly added.
+     */
+    addedProofs: string[];
+  }> {
     if (quote.accountId !== account.id) {
       throw new Error('Quote does not belong to account');
     }
@@ -219,65 +236,75 @@ export class CashuReceiveQuoteService {
     }
 
     if (quote.state === 'COMPLETED') {
-      return { account, quote };
+      // TODO: see if it's fine to return an empty array of proofs here
+      return { quote, account, addedProofs: [] };
     }
-
-    const cashuUnit = getCashuUnit(quote.amount.currency);
 
     const wallet = account.wallet;
 
-    const keysetId = quote.state === 'PAID' ? quote.keysetId : undefined;
-    const keys = await wallet.getKeys(keysetId);
-    const counter =
-      quote.state === 'PAID'
-        ? quote.keysetCounter
-        : (account.keysetCounters[wallet.keysetId] ?? 0);
+    if (quote.state === 'UNPAID') {
+      return await this.processUnpaidQuote(wallet, quote);
+    }
+
+    return await this.processPaidQuote(wallet, quote);
+  }
+
+  private async processUnpaidQuote(
+    wallet: ExtendedCashuWallet,
+    quote: CashuReceiveQuote,
+  ): Promise<{
+    quote: CashuReceiveQuote;
+    account: CashuAccount;
+    addedProofs: string[];
+  }> {
+    const keysetId = wallet.keysetId;
+    const numberOfOutputs = await this.getNumberOfOutputs(
+      quote.amount,
+      wallet,
+      keysetId,
+    );
+
+    const result = await this.cashuReceiveQuoteRepository.processPayment({
+      quoteId: quote.id,
+      keysetId,
+      numberOfOutputs,
+    });
+
+    return this.processPaidQuote(wallet, result.quote);
+  }
+
+  private async processPaidQuote(
+    wallet: ExtendedCashuWallet,
+    quote: CashuReceiveQuote,
+  ): Promise<{
+    quote: CashuReceiveQuote;
+    account: CashuAccount;
+    addedProofs: string[];
+  }> {
+    if (quote.state !== 'PAID') {
+      throw new Error('Quote must be in PAID state');
+    }
+
+    const cashuUnit = getCashuUnit(quote.amount.currency);
+    const keys = await wallet.getKeys(quote.keysetId);
 
     const outputData = OutputData.createDeterministicData(
       quote.amount.toNumber(cashuUnit),
       wallet.seed,
-      counter,
+      quote.keysetCounter,
       keys,
     );
 
-    let currentAccount: CashuAccount = account;
-    let currentQuote: CashuReceiveQuote = quote;
+    const mintedProofs = await this.mintProofs(wallet, quote, outputData);
 
-    if (quote.state === 'UNPAID') {
-      const result = await this.cashuReceiveQuoteRepository.processPayment({
-        quoteId: quote.id,
-        quoteVersion: quote.version,
-        keysetId: wallet.keysetId,
-        keysetCounter: counter,
-        outputAmounts: amountsFromOutputData(outputData),
-        accountVersion: account.version,
-      });
-
-      currentAccount = result.updatedAccount;
-      currentQuote = result.updatedQuote;
-    }
-
-    const mintedProofs = await this.mintProofs(
-      wallet,
-      currentQuote,
-      outputData,
-    );
-
-    const allProofs = [...currentAccount.proofs, ...mintedProofs];
-
-    const { updatedAccount, updatedQuote } =
-      await this.cashuReceiveQuoteRepository.completeReceive({
-        quoteId: currentQuote.id,
-        quoteVersion: currentQuote.version,
-        proofs: allProofs,
-        accountVersion: currentAccount.version,
-      });
-
-    return { account: updatedAccount, quote: updatedQuote };
+    return await this.cashuReceiveQuoteRepository.completeReceive({
+      quoteId: quote.id,
+      proofs: mintedProofs,
+    });
   }
 
   private async mintProofs(
-    wallet: CashuWallet,
+    wallet: ExtendedCashuWallet,
     quote: CashuReceiveQuote,
     outputData: OutputData[],
   ): Promise<Proof[]> {
@@ -332,7 +359,7 @@ export class CashuReceiveQuoteService {
       ) {
         const { proofs } = await wallet.restore(
           quote.keysetCounter,
-          quote.outputAmounts.length,
+          quote.numberOfOutputs,
           {
             keysetId: quote.keysetId,
           },
@@ -358,6 +385,23 @@ export class CashuReceiveQuoteService {
       lockingPublicKey: lockingKey,
       fullLockingDerivationPath: `${BASE_CASHU_LOCKING_DERIVATION_PATH}/${unhardenedIndex}`,
     };
+  }
+
+  /**
+   * Returns the number of outputs/proofs that will be created to receive the given amount.
+   * @param amount - The amount to receive.
+   * @param wallet - The cashu wallet that will receive the money.
+   * @param keysetId - The keyset id to use for the receive.
+   * @returns The number of outputs/proofs that will be created to receive the given amount.
+   */
+  private async getNumberOfOutputs(
+    amount: Money,
+    wallet: ExtendedCashuWallet,
+    keysetId: string,
+  ) {
+    const keys = await wallet.getKeys(keysetId);
+    const cashuUnit = getCashuUnit(amount.currency);
+    return getNumberOfOutputs(amount.toNumber(cashuUnit), keys);
   }
 }
 

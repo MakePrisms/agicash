@@ -1389,6 +1389,7 @@ create policy "Enable CRUD based on user_id"
 on "wallet"."cashu_token_swaps"
 as permissive
 for all
+-- TODO: see is this is a bug and if it needs to be changed to authenticated
 to public
 using ((( SELECT auth.uid() AS uid) = user_id))
 with check ((( SELECT auth.uid() AS uid) = user_id));

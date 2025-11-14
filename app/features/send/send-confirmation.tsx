@@ -148,6 +148,23 @@ export const PayBolt11Confirmation = ({
         applyTo: 'newView',
       });
     },
+    onFailed: (sendQuote) => {
+      const now = Date.now();
+      console.error('Cashu send failed', {
+        timestamp: now,
+        time: new Date(now).toISOString(),
+        sendQuoteId: sendQuote.id,
+        accountId: sendQuote.accountId,
+        failureReason: sendQuote.failureReason,
+      });
+      toast({
+        title: 'Send failed',
+        description: sendQuote.failureReason,
+        duration: 8000,
+      });
+      // TODO: currently we stay on this page and user can click the confirm button again but that attempt will fail bacause the send quote with this melt quote already exists in the db.
+      // See how to handle that.
+    },
   });
 
   const handleConfirm = () =>

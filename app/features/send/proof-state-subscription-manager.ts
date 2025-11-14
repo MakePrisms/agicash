@@ -1,6 +1,7 @@
 import type { Proof, ProofState } from '@cashu/cashu-ts';
 import { getCashuWallet } from '~/lib/cashu';
 import { isSubset } from '~/lib/utils';
+import { toProof } from '../accounts/account';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 
 type Subscription = {
@@ -69,7 +70,7 @@ export class ProofStateSubscriptionManager {
     };
 
     const subscriptionPromise = wallet.onProofStateUpdates(
-      swaps.flatMap((x) => x.proofsToSend),
+      swaps.flatMap((x) => x.proofsToSend).map((p) => toProof(p)),
       subscriptionCallback,
       (error) =>
         console.error('Proof state updates socket error', {
@@ -101,9 +102,10 @@ export class ProofStateSubscriptionManager {
     swaps: PendingCashuSendSwap[],
     onSpent: (swap: CashuSendSwap) => void,
   ) {
-    console.debug('proofUpdate', proofUpdate);
     const swap = swaps.find((swap) =>
-      swap.proofsToSend.some((p) => p.C === proofUpdate.proof.C),
+      swap.proofsToSend.some(
+        (p) => p.unblindedSignature === proofUpdate.proof.C,
+      ),
     );
     if (!swap) return;
 
@@ -114,10 +116,11 @@ export class ProofStateSubscriptionManager {
     this.proofUpdates[swap.id][proofUpdate.proof.C] = proofUpdate.state;
 
     const allProofsSpent = swap.proofsToSend.every(
-      (proof) => this.proofUpdates[swap.id][proof.C] === 'SPENT',
+      (proof) =>
+        this.proofUpdates[swap.id][proof.unblindedSignature] === 'SPENT',
     );
 
-    console.debug('allProofsSpent', allProofsSpent, { swap });
+    console.debug('allProofsSpent', allProofsSpent, { swapId: swap.id });
 
     if (allProofsSpent) {
       delete this.proofUpdates[swap.id];
