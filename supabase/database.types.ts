@@ -192,7 +192,7 @@ export type Database = {
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
-          number_of_outputs: number | null
+          output_amounts: number[] | null
           payment_request: string
           quote_id: string
           state: string
@@ -214,7 +214,7 @@ export type Database = {
           keyset_counter?: number | null
           keyset_id?: string | null
           locking_derivation_path: string
-          number_of_outputs?: number | null
+          output_amounts?: number[] | null
           payment_request: string
           quote_id: string
           state: string
@@ -236,7 +236,7 @@ export type Database = {
           keyset_counter?: number | null
           keyset_id?: string | null
           locking_derivation_path?: string
-          number_of_outputs?: number | null
+          output_amounts?: number[] | null
           payment_request?: string
           quote_id?: string
           state?: string
@@ -378,6 +378,7 @@ export type Database = {
           account_id: string
           amount_requested: number
           amount_to_send: number
+          change_output_amounts: number[] | null
           created_at: string
           currency: string
           failure_reason: string | null
@@ -387,6 +388,7 @@ export type Database = {
           keyset_id: string | null
           receive_swap_fee: number
           requires_input_proofs_swap: boolean | null
+          send_output_amounts: number[] | null
           send_swap_fee: number
           state: string
           token_hash: string | null
@@ -400,6 +402,7 @@ export type Database = {
           account_id: string
           amount_requested: number
           amount_to_send: number
+          change_output_amounts?: number[] | null
           created_at?: string
           currency: string
           failure_reason?: string | null
@@ -409,6 +412,7 @@ export type Database = {
           keyset_id?: string | null
           receive_swap_fee: number
           requires_input_proofs_swap?: boolean | null
+          send_output_amounts?: number[] | null
           send_swap_fee: number
           state: string
           token_hash?: string | null
@@ -422,6 +426,7 @@ export type Database = {
           account_id?: string
           amount_requested?: number
           amount_to_send?: number
+          change_output_amounts?: number[] | null
           created_at?: string
           currency?: string
           failure_reason?: string | null
@@ -431,6 +436,7 @@ export type Database = {
           keyset_id?: string | null
           receive_swap_fee?: number
           requires_input_proofs_swap?: boolean | null
+          send_output_amounts?: number[] | null
           send_swap_fee?: number
           state?: string
           token_hash?: string | null
@@ -474,7 +480,7 @@ export type Database = {
           input_amount: number
           keyset_counter: number
           keyset_id: string
-          number_of_outputs: number
+          output_amounts: number[]
           receive_amount: number
           state: string
           token_hash: string
@@ -493,7 +499,7 @@ export type Database = {
           input_amount: number
           keyset_counter: number
           keyset_id: string
-          number_of_outputs: number
+          output_amounts: number[]
           receive_amount: number
           state?: string
           token_hash: string
@@ -512,7 +518,7 @@ export type Database = {
           input_amount?: number
           keyset_counter?: number
           keyset_id?: string
-          number_of_outputs?: number
+          output_amounts?: number[]
           receive_amount?: number
           state?: string
           token_hash?: string
@@ -883,7 +889,7 @@ export type Database = {
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
-          number_of_outputs: number | null
+          output_amounts: number[] | null
           payment_request: string
           quote_id: string
           state: string
@@ -933,14 +939,14 @@ export type Database = {
           p_account_id: string
           p_amount_requested: number
           p_amount_to_send: number
+          p_change_output_amounts?: number[]
           p_currency: string
           p_encrypted_transaction_details: string
           p_input_amount: number
           p_input_proofs: string[]
           p_keyset_id?: string
-          p_number_of_change_outputs?: number
-          p_number_of_send_outputs?: number
           p_receive_swap_fee: number
+          p_send_output_amounts?: number[]
           p_send_swap_fee: number
           p_token_hash?: string
           p_total_amount: number
@@ -963,7 +969,7 @@ export type Database = {
           p_fee_amount: number
           p_input_amount: number
           p_keyset_id: string
-          p_number_of_outputs: number
+          p_output_amounts: number[]
           p_receive_amount: number
           p_reversed_transaction_id?: string
           p_token_hash: string
@@ -993,7 +999,7 @@ export type Database = {
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
-          number_of_outputs: number | null
+          output_amounts: number[] | null
           payment_request: string
           quote_id: string
           state: string
@@ -1034,7 +1040,7 @@ export type Database = {
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
-          number_of_outputs: number | null
+          output_amounts: number[] | null
           payment_request: string
           quote_id: string
           state: string
@@ -1086,7 +1092,7 @@ export type Database = {
           input_amount: number
           keyset_counter: number
           keyset_id: string
-          number_of_outputs: number
+          output_amounts: number[]
           receive_amount: number
           state: string
           token_hash: string
@@ -1148,10 +1154,20 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      mark_cashu_send_quote_as_pending: {
+        Args: { p_quote_id: string }
+        Returns: Database["wallet"]["CompositeTypes"]["mark_cashu_send_quote_as_pending_result"]
+        SetofOptions: {
+          from: "*"
+          to: "mark_cashu_send_quote_as_pending_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       process_cashu_receive_quote_payment: {
         Args: {
           p_keyset_id: string
-          p_number_of_outputs: number
+          p_output_amounts: number[]
           p_quote_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["cashu_receive_quote_payment_result"]
@@ -1306,6 +1322,10 @@ export type Database = {
         released_proofs:
           | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
           | null
+      }
+      mark_cashu_send_quote_as_pending_result: {
+        quote: Database["wallet"]["Tables"]["cashu_send_quotes"]["Row"] | null
+        proofs: Database["wallet"]["Tables"]["cashu_proofs"]["Row"][] | null
       }
       upsert_user_with_accounts_result: {
         user: Database["wallet"]["Tables"]["users"]["Row"] | null

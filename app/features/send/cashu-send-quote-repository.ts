@@ -297,7 +297,8 @@ export class CashuSendQuoteRepository {
   }
 
   /**
-   * Fails the cashu send quote by setting the state to FAILED. It also returns the proofs that were reserved for the send back to the account.
+   * Fails the cashu send quote by setting the state to FAILED.
+   * @throws An error if failing the cashu send quote fails.
    */
   async fail(
     {
@@ -331,45 +332,28 @@ export class CashuSendQuoteRepository {
     }
   }
 
-  async markAsPending(
-    {
-      id,
-      version,
-    }: {
-      /**
-       * ID of the cashu send quote.
-       */
-      id: string;
-      /**
-       * Version of the cashu send quote as seen by the client. Used for optimistic concurrency control.
-       */
-      version: number;
-    },
-    options?: Options,
-  ): Promise<CashuSendQuote> {
-    const query = this.db
-      .from('cashu_send_quotes')
-      .update({ state: 'PENDING', version: version + 1 })
-      .match({ id, version })
-      .select('*, cashu_proofs!spending_cashu_send_quote_id(*)');
+  /**
+   * Marks the cashu send quote as pending.
+   * @param id - The id of the cashu send quote to mark as pending.
+   * @returns The updated cashu send quote.
+   * @throws An error if marking the cashu send quote as pending fails.
+   */
+  async markAsPending(id: string, options?: Options): Promise<CashuSendQuote> {
+    const query = this.db.rpc('mark_cashu_send_quote_as_pending', {
+      p_quote_id: id,
+    });
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.maybeSingle();
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to mark cashu send as pending', { cause: error });
     }
 
-    if (!data) {
-      throw new Error(
-        `Concurrency error: Cashu send quote ${id} was modified by another transaction. Expected version ${version}, but found different one.`,
-      );
-    }
-
-    return this.toSendQuote(data);
+    return this.toSendQuote({ ...data.quote, cashu_proofs: data.proofs });
   }
 
   /**
@@ -396,6 +380,11 @@ export class CashuSendQuoteRepository {
     return data ? this.toSendQuote(data) : null;
   }
 
+  /**
+   * Gets the cashu send quote with the given transaction id.
+   * @param transactionId - The id of the transaction to get the cashu send quote for.
+   * @returns The cashu send quote.
+   */
   async getByTransactionId(
     transactionId: string,
     options?: Options,

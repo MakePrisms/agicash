@@ -12,9 +12,9 @@ import {
 import {
   CashuErrorCodes,
   type ExtendedCashuWallet,
-  amountsFromOutputData,
   getCashuProtocolUnit,
   getCashuUnit,
+  getOutputAmounts,
   sumProofs,
 } from '~/lib/cashu';
 import { Money } from '~/lib/money';
@@ -141,8 +141,7 @@ export class CashuSendSwapService {
     const totalAmountToSend = amountNumber + cashuReceiveFee;
 
     let tokenHash: string | undefined;
-    let outputAmounts: { send: number[]; keep: number[] } | undefined;
-    let sendKeysetCounter: number | undefined;
+    let outputAmounts: { send: number[]; change: number[] } | undefined;
     let keysetId: string | undefined;
 
     const haveExactProofs = sumProofs(inputProofs) === totalAmountToSend;
@@ -154,27 +153,11 @@ export class CashuSendSwapService {
       });
     } else {
       const keys = await wallet.getKeys();
-      keysetId = keys.id;
-      sendKeysetCounter = account.keysetCounters[keysetId] ?? 0;
-      const sendOutputData = OutputData.createDeterministicData(
-        totalAmountToSend,
-        wallet.seed,
-        sendKeysetCounter,
-        keys,
-      );
-
       const amountToKeep =
         sumProofs(inputProofs) - totalAmountToSend - cashuSendFee;
-      const keepKeysetCounter = sendKeysetCounter + sendOutputData.length;
-      const keepOutputData = OutputData.createDeterministicData(
-        amountToKeep,
-        wallet.seed,
-        keepKeysetCounter,
-        keys,
-      );
       outputAmounts = {
-        send: amountsFromOutputData(sendOutputData),
-        keep: amountsFromOutputData(keepOutputData),
+        send: getOutputAmounts(totalAmountToSend, keys),
+        change: getOutputAmounts(amountToKeep, keys),
       };
     }
 
@@ -214,23 +197,26 @@ export class CashuSendSwapService {
     const wallet = account.wallet;
 
     const keys = await wallet.getKeys(swap.keysetId);
-    const sendAmount = swap.amountToSend.toNumber(getCashuUnit(swap.currency));
+    const cashuUnit = getCashuUnit(swap.currency);
+    const sendAmount = swap.amountToSend.toNumber(cashuUnit);
     const sendOutputData = OutputData.createDeterministicData(
       sendAmount,
       wallet.seed,
       swap.keysetCounter,
       keys,
+      swap.outputAmounts.send,
     );
 
     const amountToKeep =
       sumProofs(swap.inputProofs) -
       sendAmount -
-      swap.cashuSendFee.toNumber(getCashuUnit(swap.currency));
+      swap.cashuSendFee.toNumber(cashuUnit);
     const keepOutputData = OutputData.createDeterministicData(
       amountToKeep,
       wallet.seed,
       swap.keysetCounter + sendOutputData.length,
       keys,
+      swap.outputAmounts.change,
     );
 
     const { send: proofsToSend, keep: changeProofs } = await this.swapProofs(

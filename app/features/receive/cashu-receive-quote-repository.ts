@@ -209,10 +209,6 @@ export class CashuReceiveQuoteRepository {
        */
       id: string;
       /**
-       * Version of the cashu receive quote as seen by the client. Used for optimistic concurrency control.
-       */
-      version: number;
-      /**
        * Reason for the failure.
        */
       reason: string;
@@ -245,7 +241,7 @@ export class CashuReceiveQuoteRepository {
     {
       quoteId,
       keysetId,
-      numberOfOutputs,
+      outputAmounts,
     }: {
       /**
        * ID of the cashu receive quote.
@@ -256,9 +252,9 @@ export class CashuReceiveQuoteRepository {
        */
       keysetId: string;
       /**
-       * Number of outputs/proofs that will be created for the receive.
+       * Amounts for each blinded message created for this receive.
        */
-      numberOfOutputs: number;
+      outputAmounts: number[];
     },
     options?: Options,
   ): Promise<{
@@ -274,7 +270,7 @@ export class CashuReceiveQuoteRepository {
     const query = this.db.rpc('process_cashu_receive_quote_payment', {
       p_quote_id: quoteId,
       p_keyset_id: keysetId,
-      p_number_of_outputs: numberOfOutputs,
+      p_output_amounts: outputAmounts,
     });
 
     if (options?.abortSignal) {
@@ -476,7 +472,7 @@ export class CashuReceiveQuoteRepository {
         state: data.state,
         keysetId: data.keyset_id ?? '',
         keysetCounter: data.keyset_counter ?? 0,
-        numberOfOutputs: data.number_of_outputs ?? 0,
+        outputAmounts: data.output_amounts ?? [],
       };
     }
 

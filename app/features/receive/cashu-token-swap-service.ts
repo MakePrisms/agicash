@@ -8,7 +8,7 @@ import {
   CashuErrorCodes,
   areMintUrlsEqual,
   getCashuUnit,
-  getNumberOfOutputs,
+  getOutputAmounts,
   sumProofs,
 } from '~/lib/cashu';
 import { Money } from '~/lib/money';
@@ -70,7 +70,7 @@ export class CashuTokenSwapService {
       unit: cashuUnit,
     });
 
-    const numberOfOutputs = getNumberOfOutputs(amountToReceive, keys);
+    const outputAmounts = getOutputAmounts(amountToReceive, keys);
 
     return await this.tokenSwapRepository.create({
       token,
@@ -80,7 +80,7 @@ export class CashuTokenSwapService {
       inputAmount,
       cashuReceiveFee: feeAmount,
       receiveAmount,
-      numberOfOutputs,
+      outputAmounts,
       reversedTransactionId,
     });
   }
@@ -104,15 +104,15 @@ export class CashuTokenSwapService {
 
     const wallet = account.wallet;
 
-    const { keysetId, keysetCounter, receiveAmount } = tokenSwap;
+    const { keysetId, keysetCounter, receiveAmount, outputAmounts } = tokenSwap;
 
     const keys = await wallet.getKeys(keysetId);
-    // TODO: see if it is fine that we are not sending customSplit param to this fn anymore
     const outputData = OutputData.createDeterministicData(
       receiveAmount.toNumber(getCashuUnit(receiveAmount.currency)),
       wallet.seed,
       keysetCounter,
       keys,
+      outputAmounts,
     );
 
     try {
@@ -129,7 +129,6 @@ export class CashuTokenSwapService {
         const failedTokenSwap = await this.tokenSwapRepository.fail({
           tokenHash: tokenSwap.tokenHash,
           userId: tokenSwap.userId,
-          version: tokenSwap.version,
           reason: 'Token already claimed',
         });
         // TODO: see if it's fine to return an empty array of proofs here
@@ -171,7 +170,7 @@ export class CashuTokenSwapService {
       ) {
         const { proofs } = await wallet.restore(
           tokenSwap.keysetCounter,
-          tokenSwap.numberOfOutputs,
+          tokenSwap.outputAmounts.length,
           {
             keysetId: tokenSwap.keysetId,
           },

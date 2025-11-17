@@ -56,6 +56,11 @@ type CreateCashuSendQuoteResult = {
   reserved_proofs: AgicashDbCashuProof[];
 };
 
+type MarkCashuSendQuoteAsPendingResult = {
+  quote: AgicashDbCashuSendQuote;
+  proofs: AgicashDbCashuProof[];
+};
+
 type CompleteCashuSendQuoteResult = {
   quote: AgicashDbCashuSendQuote;
   account: AgicashDbAccountWithProofs;
@@ -250,6 +255,9 @@ export type Database = MergeDeep<
         create_cashu_send_quote: {
           Returns: CreateCashuSendQuoteResult;
         };
+        mark_cashu_send_quote_as_pending: {
+          Returns: MarkCashuSendQuoteAsPendingResult;
+        };
         complete_cashu_send_quote: {
           Returns: CompleteCashuSendQuoteResult;
         };
@@ -289,6 +297,7 @@ export type Database = MergeDeep<
         cashu_receive_quote_payment_result: CashuReceiveQuotePaymentResult;
         complete_cashu_receive_quote_result: CompleteCashuReceiveQuoteResult;
         create_cashu_send_quote_result: CreateCashuSendQuoteResult;
+        mark_cashu_send_quote_as_pending_result: MarkCashuSendQuoteAsPendingResult;
         complete_cashu_send_quote_result: CompleteCashuSendQuoteResult;
         expire_cashu_send_quote_result: ExpireCashuSendQuoteResult;
         fail_cashu_send_quote_result: FailCashuSendQuoteResult;

@@ -365,16 +365,6 @@ $function$
 -- Cashu receive quotes updates
 -- ++++++++++++++++++++++++++++++++++++
 
--- Update cashu_receive_quotes table to replace output_amounts with number_of_outputs
---
-alter table wallet.cashu_receive_quotes drop column if exists output_amounts;
-alter table wallet.cashu_receive_quotes add column number_of_outputs integer check (number_of_outputs >= 0); -- TODO: see if we even need to store this (here and in other similar places)? Is it enough to have the keysetId and amount like in create_cashu_send_swap?
-
-comment on column wallet.cashu_receive_quotes.number_of_outputs is 'The number of proofs that were minted for this receive quote';
-
---
-
-
 -- Update expire_cashu_receive_quote function
 --
 -- Signature changed: removed p_quote_version parameter
@@ -491,7 +481,7 @@ create type wallet.cashu_receive_quote_payment_result as (
 create or replace function wallet.process_cashu_receive_quote_payment(
   p_quote_id uuid,
   p_keyset_id text, 
-  p_number_of_outputs integer
+  p_output_amounts integer[]
 )
 returns wallet.cashu_receive_quote_payment_result
 language plpgsql
@@ -500,10 +490,18 @@ declare
   v_quote wallet.cashu_receive_quotes;
   v_account wallet.accounts;
   v_account_with_proofs jsonb;
+  v_number_of_outputs integer;
   v_counter integer;
 begin
-  if p_number_of_outputs <= 0 then
-    raise exception 'p_number_of_outputs must be greater than 0';
+  if p_keyset_id is null or trim(p_keyset_id) = '' then
+    raise exception 'p_keyset_id must not be null or empty';
+  end if;
+
+  if p_output_amounts is null
+    or array_length(p_output_amounts, 1) is null
+    or exists (select 1 from unnest(p_output_amounts) as amount where amount <= 0)
+  then
+    raise exception 'p_output_amounts must be a non-null, non-empty array of integers greater than 0';
   end if;
 
   select * into v_quote
@@ -525,13 +523,15 @@ begin
     raise exception 'Quote % is not in UNPAID state. Current state: %', v_quote.id, v_quote.state;
   end if;
 
+  v_number_of_outputs := array_length(p_output_amounts, 1);
+
   update wallet.accounts a
   set 
     details = jsonb_set(
       details, 
       array['keyset_counters', p_keyset_id], 
       to_jsonb(
-        coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + p_number_of_outputs
+        coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + v_number_of_outputs
       ), 
       true
     ),
@@ -541,14 +541,14 @@ begin
 
   v_account_with_proofs := wallet.to_account_with_proofs(v_account);
 
-  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_outputs;
+  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - v_number_of_outputs;
 
   update wallet.cashu_receive_quotes q
   set 
     state = 'PAID',
     keyset_id = p_keyset_id,
     keyset_counter = v_counter,
-    number_of_outputs = p_number_of_outputs,
+    output_amounts = p_output_amounts,
     version = version + 1
   where q.id = p_quote_id
   returning * into v_quote;
@@ -648,16 +648,6 @@ $function$;
 -- Cashu token swaps updates
 -- ++++++++++++++++++++++++++++++++++++
 
--- Update cashu_token_swaps table to replace output_amounts with number_of_outputs
---
-alter table wallet.cashu_token_swaps drop column if exists output_amounts;
-alter table wallet.cashu_token_swaps add column number_of_outputs integer not null check (number_of_outputs > 0);
-
-comment on column wallet.cashu_token_swaps.number_of_outputs is 'The number of proofs that were swapped for this token swap';
-
---
-
-
 -- Update create_cashu_token_swap function
 -- Signature changed: removed p_account_version parameter, changed output_amounts to number_of_outputs
 drop function if exists wallet.create_cashu_token_swap(text, text, uuid, uuid, text, text, text, integer, integer[], numeric, numeric, numeric, integer, text, uuid);
@@ -676,7 +666,7 @@ create or replace function wallet.create_cashu_token_swap(
   p_currency text, 
   p_unit text, 
   p_keyset_id text,
-  p_number_of_outputs integer,
+  p_output_amounts integer[],
   p_input_amount numeric,
   p_receive_amount numeric,
   p_fee_amount numeric,
@@ -687,15 +677,21 @@ returns wallet.create_cashu_token_swap_result
 language plpgsql
 as $function$
 declare
-  v_token_swap wallet.cashu_token_swaps;
+  v_number_of_outputs integer;
   v_account wallet.accounts;
-  v_account_with_proofs jsonb;
   v_counter integer;
   v_transaction_id uuid;
+  v_token_swap wallet.cashu_token_swaps;
+  v_account_with_proofs jsonb;
 begin
-  if p_number_of_outputs <= 0 then
-    raise exception 'p_number_of_outputs must be greater than 0';
+  if p_output_amounts is null
+    or array_length(p_output_amounts, 1) is null
+    or exists (select 1 from unnest(p_output_amounts) as amount where amount <= 0)
+  then
+    raise exception 'p_output_amounts must be a non-null, non-empty array of integers greater than 0';
   end if;
+
+  v_number_of_outputs := array_length(p_output_amounts, 1);
 
   update wallet.accounts a
   set 
@@ -703,7 +699,7 @@ begin
       details, 
       array['keyset_counters', p_keyset_id], 
       to_jsonb(
-        coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + p_number_of_outputs
+        coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + v_number_of_outputs
       ), 
       true
     ),
@@ -711,7 +707,7 @@ begin
   where a.id = p_account_id
   returning * into v_account;
 
-  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_outputs;
+  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - v_number_of_outputs;
 
   insert into wallet.transactions (
     user_id,
@@ -744,7 +740,7 @@ begin
     unit,
     keyset_id,
     keyset_counter,
-    number_of_outputs,
+    output_amounts,
     input_amount,
     receive_amount,
     fee_amount,
@@ -758,7 +754,7 @@ begin
     p_unit,
     p_keyset_id,
     v_counter,
-    p_number_of_outputs,
+    p_output_amounts,
     p_input_amount,
     p_receive_amount,
     p_fee_amount,
@@ -1156,6 +1152,62 @@ $function$;
 --
 
 
+-- Create function to mark cashu send quote as pending with atomic version increment
+create type "wallet"."mark_cashu_send_quote_as_pending_result" as (
+  "quote" wallet.cashu_send_quotes,
+  "proofs" wallet.cashu_proofs[]
+);
+
+create or replace function wallet.mark_cashu_send_quote_as_pending(
+    p_quote_id uuid
+)
+returns wallet.mark_cashu_send_quote_as_pending_result
+language plpgsql
+as $function$
+declare
+    v_quote wallet.cashu_send_quotes;
+    v_proofs wallet.cashu_proofs[];
+begin
+    select * into v_quote
+    from wallet.cashu_send_quotes
+    where id = p_quote_id
+    for update;
+
+    if v_quote is null then
+        raise exception 'Quote with id % not found', p_quote_id;
+    end if;
+
+    if v_quote.state = 'PENDING' then
+        select array_agg(row(cp.*)::wallet.cashu_proofs)
+        into v_proofs
+        from wallet.cashu_proofs cp
+        where cp.spending_cashu_send_quote_id = v_quote.id and state = 'RESERVED';
+
+        return (v_quote, v_proofs);
+    end if;
+
+    if v_quote.state != 'UNPAID' then
+        raise exception 'Cannot mark cashu send quote with id % as pending. Current state is %, but must be UNPAID', v_quote.id, v_quote.state;
+    end if;
+
+    update wallet.cashu_send_quotes
+    set state = 'PENDING',
+        version = version + 1
+    where id = p_quote_id
+    returning * into v_quote;
+
+    select array_agg(row(cp.*)::wallet.cashu_proofs)
+    into v_proofs
+    from wallet.cashu_proofs cp
+    where cp.spending_cashu_send_quote_id = v_quote.id and state = 'RESERVED';
+
+    return (v_quote, v_proofs);
+end;
+$function$;
+
+--
+
+
 -- Update complete_cashu_send_quote function
 -- Signature changed: removed version parameters and p_account_proofs, changed jsonb[] to wallet.cashu_proof_input[]
 drop function if exists wallet.complete_cashu_send_quote(uuid, integer, text, numeric, text, integer, text);
@@ -1458,8 +1510,8 @@ drop type if exists wallet.update_cashu_send_quote_result;
 --
 alter table wallet.cashu_send_swaps drop column if exists input_proofs;
 alter table wallet.cashu_send_swaps drop column if exists proofs_to_send;
-alter table wallet.cashu_send_swaps drop column if exists send_output_amounts;
 alter table wallet.cashu_send_swaps drop column if exists keep_output_amounts;
+alter table wallet.cashu_send_swaps add column change_output_amounts integer[] default null;
 alter table wallet.cashu_send_swaps add column requires_input_proofs_swap boolean generated always as (amount_to_send != input_amount) stored;
 
 -- Add constraint: token_hash is required when state is not DRAFT or FAILED
@@ -1510,8 +1562,8 @@ create or replace function wallet.create_cashu_send_swap(
   p_encrypted_transaction_details text,
   p_token_hash text default null::text,
   p_keyset_id text default null::text,
-  p_number_of_send_outputs integer default null::integer,
-  p_number_of_change_outputs integer default null::integer
+  p_send_output_amounts integer[] default null::integer[],
+  p_change_output_amounts integer[] default null::integer[]
 ) returns wallet.create_cashu_send_swap_result
 language plpgsql
 as $function$
@@ -1541,21 +1593,26 @@ begin
       returning * into v_account;
 
   elsif v_state = 'DRAFT' then
-      -- For DRAFT state, p_keyset_id, p_number_of_send_outputs, and p_number_of_change_outputs must be defined
-      if p_keyset_id is null or p_number_of_send_outputs is null or p_number_of_change_outputs is null then
-          raise exception 'When state is DRAFT, p_keyset_id, p_number_of_send_outputs, and p_number_of_change_outputs must be provided';
+      if p_keyset_id is null or trim(p_keyset_id) = '' then
+          raise exception 'When state is DRAFT, p_keyset_id must be provided and not empty. Got: %', p_keyset_id;
       end if;
 
-      if p_number_of_send_outputs <= 0 then
-        raise exception 'p_number_of_send_outputs must be greater than 0';
+      if p_send_output_amounts is null
+        or array_length(p_send_output_amounts, 1) is null
+        or exists (select 1 from unnest(p_send_output_amounts) as amount where amount <= 0)
+      then
+        raise exception 'When state is DRAFT, p_send_output_amounts must be a non-null, non-empty array of integers greater than 0';
       end if;
 
-      if p_number_of_change_outputs < 0 then
-        raise exception 'p_number_of_change_outputs cannot be less than 0';
+      if p_change_output_amounts is not null
+        and array_length(p_change_output_amounts, 1) is not null
+        and exists (select 1 from unnest(p_change_output_amounts) as amount where amount <= 0)
+      then
+        raise exception 'When state is DRAFT and p_change_output_amounts is provided, all values must be integers greater than 0';
       end if;
 
       v_keyset_id := p_keyset_id;
-      v_number_of_outputs := p_number_of_send_outputs + p_number_of_change_outputs;
+      v_number_of_outputs := array_length(p_send_output_amounts, 1) + array_length(p_change_output_amounts, 1);
 
       update wallet.accounts a
       set 
@@ -1607,6 +1664,8 @@ begin
       input_amount,
       keyset_id,
       keyset_counter,
+      send_output_amounts,
+      change_output_amounts,
       token_hash,
       currency,
       unit,
@@ -1623,6 +1682,8 @@ begin
       p_input_amount,
       v_keyset_id,
       v_keyset_counter,
+      p_send_output_amounts,
+      p_change_output_amounts,
       p_token_hash,
       p_currency,
       p_unit,

@@ -221,10 +221,6 @@ export const getKeysets = async (
   return getCashuWallet(mintUrl, { unit }).getKeySets();
 };
 
-export const amountsFromOutputData = (outputData: OutputData[]) => {
-  return outputData.map((output) => output.blindedMessage.amount);
-};
-
 /**
  * Check if two mint URLs are equal by normalizing them then comparing them.
  * @param a - The first mint URL
@@ -239,19 +235,19 @@ export const areMintUrlsEqual = (a: string, b: string) => {
 };
 
 /**
- * Calculates the number of outputs needed for a given amount using the provided mint keys.
- * @param amount - The amount to get the number of outputs for
+ * Calculates the output amounts needed for a given amount using the provided mint keys.
+ * @param amount - The amount to get the output amounts for
  * @param keys - The mint keys to use for the output data
- * @returns The number of outputs needed for the amount
+ * @returns The output amounts that sum to the given amount
  */
-export const getNumberOfOutputs = (amount: number, keys: MintKeys) => {
+export const getOutputAmounts = (amount: number, keys: MintKeys): number[] => {
   return OutputData.createDeterministicData(
     amount,
-    // Wallet seed and keyset counter don't matter for getting the number of outputs for the amount so we are just using dummy values.
+    // Wallet seed and keyset counter don't matter for getting the output amounts which sum to the provided amount so we are just using dummy values.
     // We need to do this because splitAmount function used by createDeterministicData is not exposed by cashu-ts (see https://github.com/cashubtc/cashu-ts/blob/v2.6.0/src/model/OutputData.ts#L158)
     // Using 32 bytes (256 bits) dummy seed to satisfy HDKey requirements
     new Uint8Array(32),
     0,
     keys,
-  ).length;
+  ).map((output) => output.blindedMessage.amount);
 };

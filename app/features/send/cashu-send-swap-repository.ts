@@ -67,8 +67,8 @@ type CreateSendSwap = {
    * Should be set only when send swap is needed (proofsToSend is undefined).
    */
   outputAmounts?: {
-    keep: number[];
     send: number[];
+    change: number[];
   };
 };
 
@@ -117,8 +117,8 @@ export class CashuSendSwapRepository {
       p_input_proofs: inputProofs.map((p) => p.id),
       p_input_amount: sumProofs(inputProofs),
       p_keyset_id: keysetId,
-      p_number_of_send_outputs: outputAmounts?.send.length ?? undefined,
-      p_number_of_change_outputs: outputAmounts?.keep.length ?? undefined,
+      p_send_output_amounts: outputAmounts?.send,
+      p_change_output_amounts: outputAmounts?.change,
       p_currency: amountToSend.currency,
       p_unit: unit,
       p_encrypted_transaction_details: encryptedTransactionDetails,
@@ -338,7 +338,11 @@ export class CashuSendSwapRepository {
     };
 
     if (data.state === 'DRAFT') {
-      if (!data.keyset_id || data.keyset_counter === null) {
+      if (
+        !data.keyset_id ||
+        data.keyset_counter === null ||
+        !data.send_output_amounts
+      ) {
         throw new Error('Invalid swap, DRAFT state is missing data', {
           cause: data,
         });
@@ -347,6 +351,10 @@ export class CashuSendSwapRepository {
         ...commonData,
         keysetId: data.keyset_id,
         keysetCounter: data.keyset_counter,
+        outputAmounts: {
+          send: data.send_output_amounts,
+          change: data.change_output_amounts ?? [],
+        },
         state: 'DRAFT',
       };
     }

@@ -164,12 +164,8 @@ export function useCreateCashuReceiveQuote() {
 export function useFailCashuReceiveQuote() {
   const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
   return useMutation({
-    mutationFn: ({
-      quoteId,
-      version,
-      reason,
-    }: { quoteId: string; version: number; reason: string }) =>
-      cashuReceiveQuoteRepository.fail({ id: quoteId, version, reason }),
+    mutationFn: ({ quoteId, reason }: { quoteId: string; reason: string }) =>
+      cashuReceiveQuoteRepository.fail({ id: quoteId, reason }),
     retry: 3,
   });
 }

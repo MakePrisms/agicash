@@ -49,9 +49,9 @@ type CreateTokenSwap = {
    */
   receiveAmount: Money;
   /**
-   * Number of outputs/proofs created for the receive.
+   * Output amounts.
    */
-  numberOfOutputs: number;
+  outputAmounts: number[];
   /**
    * Cashu token being claimed
    */
@@ -83,7 +83,7 @@ export class CashuTokenSwapRepository {
       inputAmount,
       cashuReceiveFee,
       receiveAmount,
-      numberOfOutputs,
+      outputAmounts,
       reversedTransactionId,
     }: CreateTokenSwap,
     options?: Options,
@@ -113,7 +113,7 @@ export class CashuTokenSwapRepository {
       p_currency: currency,
       p_unit: unit,
       p_keyset_id: keysetId,
-      p_number_of_outputs: numberOfOutputs,
+      p_output_amounts: outputAmounts,
       p_input_amount: inputAmount.toNumber(unit),
       p_receive_amount: receiveAmount.toNumber(unit),
       p_fee_amount: cashuReceiveFee.toNumber(unit),
@@ -229,7 +229,6 @@ export class CashuTokenSwapRepository {
       tokenHash,
       userId,
       reason,
-      version,
     }: {
       /**
        * Hash of the token to be failed.
@@ -243,17 +242,12 @@ export class CashuTokenSwapRepository {
        * Reason for the failure.
        */
       reason: string;
-      /**
-       * Version of the token swap as seen by the client. Used for optimistic concurrency control.
-       */
-      version: number;
     },
     options?: Options,
   ): Promise<CashuTokenSwap> {
     const query = this.db.rpc('fail_cashu_token_swap', {
       p_token_hash: tokenHash,
       p_user_id: userId,
-      p_swap_version: version,
       p_failure_reason: reason,
     });
 
@@ -354,7 +348,7 @@ export class CashuTokenSwapRepository {
       }),
       keysetId: data.keyset_id,
       keysetCounter: data.keyset_counter,
-      numberOfOutputs: data.number_of_outputs,
+      outputAmounts: data.output_amounts,
       createdAt: data.created_at,
       state: data.state as CashuTokenSwap['state'],
       version: data.version,

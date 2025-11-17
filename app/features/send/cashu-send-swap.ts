@@ -86,13 +86,23 @@ export type CashuSendSwap = {
   | {
       state: 'DRAFT';
       /**
+       * The keyset id used to generate the output data at the time the swap was created.
+       */
+      keysetId: string;
+      /**
        * The keyset counter used to generate the output data at the time the swap was created.
        */
       keysetCounter: number;
       /**
-       * The keyset id used to generate the output data at the time the swap was created.
+       * The output data used for deterministic outputs when we swap the inputProofs
+       * for proofsToSend.
        */
-      keysetId: string;
+      outputAmounts: {
+        /** The output amounts to use when constructing the send output data. */
+        send: number[];
+        /** The output amounts to use when constructing the change output data. */
+        change: number[];
+      };
     }
   | {
       state: 'PENDING' | 'COMPLETED';

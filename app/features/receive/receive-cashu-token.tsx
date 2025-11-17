@@ -172,7 +172,6 @@ export default function ReceiveToken({
       if (error instanceof MintOperationError && crossAccountReceiveQuotes) {
         failCashuReceiveQuote({
           quoteId: crossAccountReceiveQuotes.cashuReceiveQuote.id,
-          version: crossAccountReceiveQuotes.cashuReceiveQuote.version,
           reason: error.message,
         });
       }

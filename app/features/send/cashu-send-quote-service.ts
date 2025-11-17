@@ -360,10 +360,7 @@ export class CashuSendQuoteService {
       );
     }
 
-    return this.cashuSendRepository.markAsPending({
-      id: quote.id,
-      version: quote.version,
-    });
+    return this.cashuSendRepository.markAsPending(quote.id);
   }
 
   /**

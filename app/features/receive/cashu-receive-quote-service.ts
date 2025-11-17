@@ -10,7 +10,7 @@ import {
   CashuErrorCodes,
   type ExtendedCashuWallet,
   getCashuUnit,
-  getNumberOfOutputs,
+  getOutputAmounts,
 } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
@@ -258,16 +258,15 @@ export class CashuReceiveQuoteService {
     addedProofs: string[];
   }> {
     const keysetId = wallet.keysetId;
-    const numberOfOutputs = await this.getNumberOfOutputs(
-      quote.amount,
-      wallet,
-      keysetId,
-    );
+    const keys = await wallet.getKeys(keysetId);
+    const cashuUnit = getCashuUnit(quote.amount.currency);
+    const amountInCashuUnit = quote.amount.toNumber(cashuUnit);
+    const outputAmounts = getOutputAmounts(amountInCashuUnit, keys);
 
     const result = await this.cashuReceiveQuoteRepository.processPayment({
       quoteId: quote.id,
       keysetId,
-      numberOfOutputs,
+      outputAmounts,
     });
 
     return this.processPaidQuote(wallet, result.quote);
@@ -293,6 +292,7 @@ export class CashuReceiveQuoteService {
       wallet.seed,
       quote.keysetCounter,
       keys,
+      quote.outputAmounts,
     );
 
     const mintedProofs = await this.mintProofs(wallet, quote, outputData);
@@ -359,7 +359,7 @@ export class CashuReceiveQuoteService {
       ) {
         const { proofs } = await wallet.restore(
           quote.keysetCounter,
-          quote.numberOfOutputs,
+          quote.outputAmounts.length,
           {
             keysetId: quote.keysetId,
           },
@@ -385,23 +385,6 @@ export class CashuReceiveQuoteService {
       lockingPublicKey: lockingKey,
       fullLockingDerivationPath: `${BASE_CASHU_LOCKING_DERIVATION_PATH}/${unhardenedIndex}`,
     };
-  }
-
-  /**
-   * Returns the number of outputs/proofs that will be created to receive the given amount.
-   * @param amount - The amount to receive.
-   * @param wallet - The cashu wallet that will receive the money.
-   * @param keysetId - The keyset id to use for the receive.
-   * @returns The number of outputs/proofs that will be created to receive the given amount.
-   */
-  private async getNumberOfOutputs(
-    amount: Money,
-    wallet: ExtendedCashuWallet,
-    keysetId: string,
-  ) {
-    const keys = await wallet.getKeys(keysetId);
-    const cashuUnit = getCashuUnit(amount.currency);
-    return getNumberOfOutputs(amount.toNumber(cashuUnit), keys);
   }
 }
 

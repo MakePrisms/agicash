@@ -31,8 +31,11 @@ export type CashuTokenSwap = {
   keysetId: string;
   /** Starting counter value used to generate the blinded messages */
   keysetCounter: number;
-  /** Number of outputs/proofs created for the receive */
-  numberOfOutputs: number;
+  /**
+   * Amounts for each blinded message.
+   * The sum of these values is what will actually be received after fees are deducted
+   * */
+  outputAmounts: number[];
   /**
    * Current state of the token swap
    *
