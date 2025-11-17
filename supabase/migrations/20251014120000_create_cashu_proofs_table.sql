@@ -96,7 +96,7 @@ create index cashu_proofs_cashu_send_swap_id_idx on wallet.cashu_proofs (cashu_s
 create index cashu_proofs_spending_send_swap_id_idx on wallet.cashu_proofs (spending_cashu_send_swap_id) where spending_cashu_send_swap_id is not null;
 
 -- Unique constraint to prevent duplicate proofs within an account
-create unique index cashu_proofs_account_secret_unique_idx on wallet.cashu_proofs (account_id, secret);
+-- This  also ensures that the secret is unique within an account, because the public key y is derived from the secret.
 create unique index cashu_proofs_account_y_unique_idx on wallet.cashu_proofs (account_id, public_key_y);
 
 -- Enable Row Level Security
