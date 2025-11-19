@@ -1,20 +1,10 @@
 /*
- * TODO: update this description 
- * Migration: Create cashu_proofs table
+ * Migration: Updates the way we are storing cashu proofs
  * 
  * Purpose:
  * Move cashu proofs from accounts.details.proofs (encrypted JSONB array) to individual
  * records in a new cashu_proofs table. This enables parallel receives without race
- * conditions and better concurrency control using proof-level versioning and state management.
- * 
- * Affected tables:
- * - Creates: cashu_proofs (new table for storing individual proofs)
- * 
- * Special considerations:
- * - Secrets are encrypted at the application layer before storage
- * - Uses optimistic locking via version column to prevent race conditions
- * - State management (UNSPENT/RESERVED/SPENT) enables safe concurrent operations
- * - Unique constraint on (account_id, secret) prevents duplicate proofs
+ * conditions and better concurrency control using proof-level versioning.
  */
 
 -- ++++++++++++++++++++++++++++++++++++
