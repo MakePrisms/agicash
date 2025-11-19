@@ -1541,6 +1541,8 @@ alter table wallet.cashu_send_swaps add constraint cashu_send_swaps_draft_requir
 
 -- Update the RLS policy
 -- Existing policy had `to public` which is incorrect, it should be `to authenticated`
+drop policy if exists "Enable CRUD for cashu_send_swaps based on user_id" on "wallet"."cashu_send_swaps";
+
 create policy "Enable CRUD for cashu_send_swaps based on user_id"
 on "wallet"."cashu_send_swaps"
 as permissive
