@@ -500,7 +500,7 @@ export class CashuSendQuoteService {
 
   /**
    * Selects spendable proofs from the account for the provided amount.
-   * Sum of the selected proofs is equal or greater than the provided amount. If there are no enough proofs, an empty array is returned.
+   * Sum of the selected proofs is equal or greater than the provided amount. If there are not enough proofs, an empty array is returned.
    * Fee for the selected proofs plus the provided amount can be greater than the sum of the selected proofs. If this is the case, the account doesn't have enough balance for the send.
    * @param account - The account to select proofs from.
    * @param amount - The amount to select proofs for.

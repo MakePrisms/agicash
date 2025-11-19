@@ -54,7 +54,7 @@ type CreateSendSwap = {
   inputProofs: CashuProof[];
   /**
    * The hash of the token being sent.
-   * Will be set only when send swap is not needed (proofsToSend is defined).
+   * Will only be set when the swap is in PENDING state.
    */
   tokenHash?: string;
   /**
