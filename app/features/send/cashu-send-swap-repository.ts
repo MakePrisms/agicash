@@ -20,11 +20,11 @@ type Options = {
 
 type CreateSendSwap = {
   /**
-   * The id of the account to send from
+   * The id of the account to send from.
    */
   accountId: string;
   /**
-   * The id of the user creating the swap
+   * The id of the user creating the swap.
    */
   userId: string;
   /**
@@ -32,11 +32,13 @@ type CreateSendSwap = {
    */
   amountRequested: Money;
   /**
-   * The full amount to send including the fee in the account's currency.
+   * The full amount to send including the reveive fee in the account's currency.
+   * This is amount requested plus the receive fee.
    */
   amountToSend: Money;
   /**
-   * The total amount spent. This is the sum of amountToSend and the fees.
+   * The total amount spent for this send.
+   * This is the sum of amount to send and the send fee.
    */
   totalAmount: Money;
   /**
@@ -54,17 +56,17 @@ type CreateSendSwap = {
   inputProofs: CashuProof[];
   /**
    * The hash of the token being sent.
-   * Will only be set when the swap is in PENDING state.
+   * Should be set only when send swap is not needed (sum of input proofs is equal to amount to send).
    */
   tokenHash?: string;
   /**
    * The keyset id that was used to create the output data.
-   * Should be set only when send swap is needed (proofsToSend is undefined).
+   * Should be set only when send swap is needed (sum of input proofs is greater than amount to send).
    */
   keysetId?: string;
   /**
    * The output data to use for performing the swap.
-   * Should be set only when send swap is needed (proofsToSend is undefined).
+   * Should be set only when send swap is needed (sum of input proofs is greater than amount to send).
    */
   outputAmounts?: {
     send: number[];

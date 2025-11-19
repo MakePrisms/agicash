@@ -141,8 +141,8 @@ export class CashuSendSwapService {
     const totalAmountToSend = amountNumber + cashuReceiveFee;
 
     let tokenHash: string | undefined;
-    let outputAmounts: { send: number[]; change: number[] } | undefined;
     let keysetId: string | undefined;
+    let outputAmounts: { send: number[]; change: number[] } | undefined;
 
     const haveExactProofs = sumProofs(inputProofs) === totalAmountToSend;
     if (haveExactProofs) {
@@ -153,6 +153,7 @@ export class CashuSendSwapService {
       });
     } else {
       const keys = await wallet.getKeys();
+      keysetId = keys.id;
       const amountToKeep =
         sumProofs(inputProofs) - totalAmountToSend - cashuSendFee;
       outputAmounts = {
@@ -177,8 +178,8 @@ export class CashuSendSwapService {
       cashuSendFee: toMoney(cashuSendFee),
       cashuReceiveFee: toMoney(cashuReceiveFee),
       totalAmount: toMoney(totalAmountToSend + cashuSendFee),
-      keysetId,
       tokenHash,
+      keysetId,
       outputAmounts,
     });
   }
