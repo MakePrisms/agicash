@@ -162,8 +162,6 @@ export const PayBolt11Confirmation = ({
         description: sendQuote.failureReason,
         duration: 8000,
       });
-      // TODO: currently we stay on this page and user can click the confirm button again but that attempt will fail bacause the send quote with this melt quote already exists in the db.
-      // See how to handle that.
     },
   });
 
