@@ -326,7 +326,7 @@ export class CashuTokenSwapRepository {
   ): Promise<CashuTokenSwap> {
     const decryptedProofs = await decryptData<Proof[]>(data.token_proofs);
 
-    return {
+    const commonData = {
       tokenHash: data.token_hash,
       tokenProofs: decryptedProofs,
       userId: data.user_id,
@@ -350,9 +350,23 @@ export class CashuTokenSwapRepository {
       keysetCounter: data.keyset_counter,
       outputAmounts: data.output_amounts,
       createdAt: data.created_at,
-      state: data.state as CashuTokenSwap['state'],
       version: data.version,
       transactionId: data.transaction_id,
+    };
+
+    const state = data.state as CashuTokenSwap['state'];
+
+    if (state === 'FAILED') {
+      return {
+        ...commonData,
+        state,
+        failureReason: data.failure_reason ?? '',
+      };
+    }
+
+    return {
+      ...commonData,
+      state,
     };
   }
 }

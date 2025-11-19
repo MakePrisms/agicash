@@ -71,7 +71,8 @@ export class AccountRepository {
    * @returns The account.
    */
   async get(id: string, options?: Options): Promise<Account> {
-    // TODO: how many proofs can we get max? 1000? what if user has more than 1000 proofs?
+    // Currently we limit the number of proofs returned to 6000
+    // We will need to handle that somehow later (e.g. require use to swap when the limit is reaching)
     const query = this.db
       .from('accounts')
       .select('*, cashu_proofs(*)')
@@ -96,7 +97,8 @@ export class AccountRepository {
    * @returns The accounts.
    */
   async getAll(userId: string, options?: GetAllOptions): Promise<Account[]> {
-    // TODO: how many proofs can we get max? 1000? what if user has more than 1000 proofs?
+    // Currently we limit the number of proofs returned to 6000
+    // We will need to handle that somehow later (e.g. require use to swap when the limit is reaching)
     const query = this.db
       .from('accounts')
       .select('*, cashu_proofs(*)')

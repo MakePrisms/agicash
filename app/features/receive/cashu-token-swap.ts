@@ -52,4 +52,15 @@ export type CashuTokenSwap = {
   version: number;
   /** Timestamp when the token swap was created */
   createdAt: string;
-};
+} & (
+  | {
+      state: 'PENDING';
+    }
+  | {
+      state: 'COMPLETED';
+    }
+  | {
+      state: 'FAILED';
+      failureReason: string;
+    }
+);

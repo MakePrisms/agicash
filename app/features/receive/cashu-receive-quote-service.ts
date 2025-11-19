@@ -109,6 +109,7 @@ export class CashuReceiveQuoteService {
   /**
    * Creates a new cashu receive quote used for receiving via a bolt11 payment request.
    * @returns The created cashu receive quote with the bolt11 invoice to pay.
+   * @throws An error if the receive type is TOKEN and token amount or cashu receive fee is not provided or if creating the quote fails.
    */
   async createReceiveQuote({
     userId,
@@ -236,7 +237,6 @@ export class CashuReceiveQuoteService {
     }
 
     if (quote.state === 'COMPLETED') {
-      // TODO: see if it's fine to return an empty array of proofs here
       return { quote, account, addedProofs: [] };
     }
 

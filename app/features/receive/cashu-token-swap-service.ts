@@ -23,15 +23,32 @@ import {
 export class CashuTokenSwapService {
   constructor(private readonly tokenSwapRepository: CashuTokenSwapRepository) {}
 
+  /**
+   * Starts the cashu token receive process by creating a new token swap and updating the account keyset counter.
+   * @returns The created token swap and updatedaccount.
+   * @throws An error if creating the swap fails.
+   */
   async create({
     userId,
     token,
     account,
     reversedTransactionId,
   }: {
+    /**
+     * The id of the user that is creating the swap.
+     */
     userId: string;
+    /**
+     * The token to receive.
+     */
     token: Token;
+    /**
+     * The account to receive the proofs into.
+     */
     account: CashuAccount;
+    /**
+     * The id of the transaction that this swap is reversing.
+     */
     reversedTransactionId?: string;
   }): Promise<{
     swap: CashuTokenSwap;
@@ -85,6 +102,15 @@ export class CashuTokenSwapService {
     });
   }
 
+  /**
+   * Completes the token swap by executing the swap with the mint and storing the output proofs.
+   * If the token swap is already completed, it's a no-op that returns back passed token swap, account and an empty list of added proof ids.
+   * If the call to the mint to swap the proofs fails because the token is already claimed, then the token swap is failed and the account is not updated.
+   * @param account The account to receive the proofs into.
+   * @param tokenSwap The token swap to complete.
+   * @returns The completed or failed token swap, account with the updated proofs (if the swap was completed) and a list of added proof ids (empty if the swap was failed).
+   * @throws An error if the token swap is not pending or if completing the swap fails.
+   */
   async completeSwap(
     account: CashuAccount,
     tokenSwap: CashuTokenSwap,
@@ -94,7 +120,6 @@ export class CashuTokenSwapService {
     addedProofs: string[];
   }> {
     if (tokenSwap.state === 'COMPLETED') {
-      // TODO: see if it's fine to return an empty array of proofs here
       return { swap: tokenSwap, account, addedProofs: [] };
     }
 
@@ -125,13 +150,11 @@ export class CashuTokenSwapService {
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'TOKEN_ALREADY_CLAIMED') {
-        // TODO: why are we even failing the token swap here? Should the caller fail it?
         const failedTokenSwap = await this.tokenSwapRepository.fail({
           tokenHash: tokenSwap.tokenHash,
           userId: tokenSwap.userId,
           reason: 'Token already claimed',
         });
-        // TODO: see if it's fine to return an empty array of proofs here
         return { swap: failedTokenSwap, account, addedProofs: [] };
       }
 

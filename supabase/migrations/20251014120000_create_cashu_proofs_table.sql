@@ -648,6 +648,20 @@ $function$;
 -- Cashu token swaps updates
 -- ++++++++++++++++++++++++++++++++++++
 
+-- Update the RLS policy
+-- Existing policy had `to public` which is incorrect, it should be `to authenticated`
+drop policy if exists "Enable CRUD based on user_id" on "wallet"."cashu_token_swaps";
+
+create policy "Enable CRUD based on user_id"
+on "wallet"."cashu_token_swaps"
+as permissive
+for all
+to authenticated
+using ((( SELECT auth.uid() AS uid) = user_id))
+with check ((( SELECT auth.uid() AS uid) = user_id));
+
+--
+
 -- Update create_cashu_token_swap function
 -- Signature changed: removed p_account_version parameter, changed output_amounts to number_of_outputs
 drop function if exists wallet.create_cashu_token_swap(text, text, uuid, uuid, text, text, text, integer, integer[], numeric, numeric, numeric, integer, text, uuid);
@@ -1385,7 +1399,6 @@ begin
   -- We don't need to verify all proofs were successfully marked as unspent, because we are updating the proofs related with spending_cashu_send_quote_id 
   -- only through the quote db functions and those functions are locking the quote for update and thus are synchronized.
 
-  -- TODO: should we increment the version before updating the cashu_proofs? (same q for add_cashu_proofs function)
   update wallet.accounts a
   set version = version + 1
   where a.id = v_quote.account_id
@@ -1533,6 +1546,19 @@ alter table wallet.cashu_send_swaps add constraint cashu_send_swaps_draft_requir
   check (
     state != 'DRAFT' or requires_input_proofs_swap = true
   );
+--
+
+
+-- Update the RLS policy
+-- Existing policy had `to public` which is incorrect, it should be `to authenticated`
+create policy "Enable CRUD for cashu_send_swaps based on user_id"
+on "wallet"."cashu_send_swaps"
+as permissive
+for all
+to authenticated
+using ((( SELECT auth.uid() AS uid) = user_id))
+with check ((( SELECT auth.uid() AS uid) = user_id));
+
 --
 
 
