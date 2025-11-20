@@ -49,14 +49,6 @@ type Options = {
   abortSignal?: AbortSignal;
 };
 
-type GetAllOptions = Options & {
-  /**
-   * The state of the proofs to get.
-   * @default 'UNSPENT'
-   */
-  state?: CashuProof['state'];
-};
-
 export class AccountRepository {
   constructor(
     private readonly db: AgicashDb,
@@ -76,7 +68,8 @@ export class AccountRepository {
     const query = this.db
       .from('accounts')
       .select('*, cashu_proofs(*)')
-      .eq('id', id);
+      .eq('id', id)
+      .eq('cashu_proofs.state', 'UNSPENT');
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -94,19 +87,16 @@ export class AccountRepository {
   /**
    * Gets all the accounts for the given user.
    * @param userId - The id of the user to get the accounts for.
-   * @returns The accounts.
+   * @returns The accounts with unspent proofs.
    */
-  async getAll(userId: string, options?: GetAllOptions): Promise<Account[]> {
+  async getAll(userId: string, options?: Options): Promise<Account[]> {
     // Currently we limit the number of proofs returned to 6000
     // We will need to handle that somehow later (e.g. require use to swap when the limit is reaching)
     const query = this.db
       .from('accounts')
       .select('*, cashu_proofs(*)')
-      .eq('user_id', userId);
-
-    if (options?.state) {
-      query.eq('cashu_proofs.state', options.state);
-    }
+      .eq('user_id', userId)
+      .eq('cashu_proofs.state', 'UNSPENT');
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -148,7 +138,8 @@ export class AccountRepository {
     const query = this.db
       .from('accounts')
       .insert(accountsToCreate)
-      .select('*, cashu_proofs(*)');
+      .select('*, cashu_proofs(*)')
+      .eq('cashu_proofs.state', 'UNSPENT');
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);

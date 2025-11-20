@@ -270,7 +270,7 @@ export class CashuSendSwapService {
     }
 
     if (swap.state !== 'DRAFT') {
-      throw new Error(`Swap is not DRAFT. Current state: ${swap.state}`);
+      throw new Error(`Swap is not PENDING. Current state: ${swap.state}`);
     }
 
     return this.cashuSendSwapRepository.fail({
@@ -325,21 +325,18 @@ export class CashuSendSwapService {
       await wallet.getKeys();
     }
 
-    const spendableAccountProofs = accountProofs.filter(
-      (p) => p.state === 'UNSPENT',
-    );
-    const spendableProofsMap = new Map<string, CashuProof>(
-      spendableAccountProofs.map((p) => [p.secret, p]),
+    const accountProofsMap = new Map<string, CashuProof>(
+      accountProofs.map((p) => [p.secret, p]),
     );
     const toCashuProof = (p: Proof) => {
-      const proof = spendableProofsMap.get(p.secret);
+      const proof = accountProofsMap.get(p.secret);
       if (!proof) {
         throw new Error('Proof not found');
       }
       return proof;
     };
 
-    const proofs = spendableAccountProofs.map((p) => toProof(p));
+    const proofs = accountProofs.map((p) => toProof(p));
     const currency = requestedAmount.currency;
     const cashuUnit = getCashuUnit(currency);
     const requestedAmountNumber = requestedAmount.toNumber(cashuUnit);

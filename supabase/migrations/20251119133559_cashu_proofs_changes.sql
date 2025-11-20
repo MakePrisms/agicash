@@ -148,7 +148,7 @@ comment on type wallet.cashu_proof_input is 'Input type for cashu proofs passed 
 -- ++++++++++++++++++++++++++++++++++++
 
 -- Add get account proofs function
--- Returns all proofs for an account as a typed array. If no proofs are found, an empty array is returned.
+-- Returns all unspent proofs for an account as a typed array. If no proofs are found, an empty array is returned.
 create or replace function wallet.get_account_proofs(
   p_account_id uuid
 )
@@ -157,7 +157,7 @@ language sql
 as $function$
   select coalesce(array_agg(row(cp.*)::wallet.cashu_proofs), '{}')
   from wallet.cashu_proofs cp
-  where cp.account_id = p_account_id;
+  where cp.account_id = p_account_id and cp.state = 'UNSPENT';
 $function$
 ;
 
@@ -165,7 +165,7 @@ $function$
 
 
 -- Add get account with proofs function
--- Returns account with all its proofs as a JSONB object
+-- Returns account with all its unspent proofs as a JSONB object
 create or replace function wallet.get_account_with_proofs(
   p_account_id uuid
 )
@@ -197,7 +197,7 @@ $function$
 
 
 -- Add to_account_with_proofs function
--- Converts a wallet.accounts row to JSONB with proofs included
+-- Converts a wallet.accounts row to JSONB with unspent proofs included
 create or replace function wallet.to_account_with_proofs(
   p_account wallet.accounts
 )
@@ -293,7 +293,7 @@ $function$
 
 
 -- Add add_cashu_proofs function
--- Adds proofs to an account and updates the account version. Returns the account with all the proofs and the array ofadded proofs.
+-- Adds proofs to an account and updates the account version. Returns the account with all the unspent proofs and the array of added proofs.
 drop type if exists wallet.add_cashu_proofs_and_update_account_result cascade;
 
 create type wallet.add_cashu_proofs_and_update_account_result as (
@@ -2163,7 +2163,7 @@ begin
         '[]'::jsonb
       ) as cashu_proofs
     from wallet.accounts a
-    left join wallet.cashu_proofs cp on cp.account_id = a.id
+    left join wallet.cashu_proofs cp on cp.account_id = a.id and cp.state = 'UNSPENT'
     where a.user_id = p_user_id
     group by a.id
   )

@@ -223,6 +223,7 @@ export class UserRepository {
         )
       `)
       .eq('id', userId)
+      .eq('accounts.cashu_proofs.state', 'UNSPENT')
       .single();
 
     if (error) {

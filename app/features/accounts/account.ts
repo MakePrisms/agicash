@@ -77,9 +77,7 @@ export type ExtendedCashuAccount = ExtendedAccount<'cashu'>;
 
 export const getAccountBalance = (account: Account) => {
   if (account.type === 'cashu') {
-    const value = sumProofs(
-      account.proofs.filter((p) => p.state === 'UNSPENT'),
-    );
+    const value = sumProofs(account.proofs);
     return new Money({
       amount: value,
       currency: account.currency,

@@ -520,22 +520,18 @@ export class CashuSendQuoteService {
      */
     fee: number;
   } {
-    const spendableAccountProofs = account.proofs.filter(
-      (p) => p.state === 'UNSPENT',
-    );
-
-    const spendableProofsMap = new Map<string, CashuProof>(
-      spendableAccountProofs.map((p) => [p.secret, p]),
+    const accountProofsMap = new Map<string, CashuProof>(
+      account.proofs.map((p) => [p.secret, p]),
     );
 
     const { send } = account.wallet.selectProofsToSend(
-      spendableAccountProofs.map((p) => toProof(p)),
+      account.proofs.map((p) => toProof(p)),
       amount,
       true,
     );
 
     const selectedProofs = send.map((p) => {
-      const proof = spendableProofsMap.get(p.secret);
+      const proof = accountProofsMap.get(p.secret);
       if (!proof) {
         throw new Error('Proof not found');
       }
