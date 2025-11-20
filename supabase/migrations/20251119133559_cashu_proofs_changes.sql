@@ -2057,7 +2057,7 @@ begin
   -- If you just do "returning * into v_released_proofs" you will get "query returned more than one row" error.
   with updated_proofs as (
     update wallet.cashu_proofs
-    set state = 'UNSPENT',  -- TODO: should we also clear the spending_cashu_send_swap_id here? If yes we probably need to return empty array for released proofs in the "if v_swap.state = 'FAILED' then" block above.
+    set state = 'UNSPENT',
         version = version + 1
     where spending_cashu_send_swap_id = v_swap.id and state = 'RESERVED'
     returning *

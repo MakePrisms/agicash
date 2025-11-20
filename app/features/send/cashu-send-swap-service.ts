@@ -265,6 +265,14 @@ export class CashuSendSwapService {
   }
 
   async fail(swap: CashuSendSwap, reason: string) {
+    if (swap.state === 'FAILED') {
+      return;
+    }
+
+    if (swap.state !== 'DRAFT') {
+      throw new Error(`Swap is not DRAFT. Current state: ${swap.state}`);
+    }
+
     return this.cashuSendSwapRepository.fail({
       swapId: swap.id,
       reason,
