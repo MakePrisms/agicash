@@ -1004,8 +1004,7 @@ alter table "wallet"."cashu_send_quotes" drop constraint if exists "cashu_send_q
 drop index if exists wallet.cashu_send_quotes_quote_id_key;
 -- Create a new partial unique index that only applies when state is not FAILED
 create unique index cashu_send_quotes_quote_id_key on wallet.cashu_send_quotes using btree (quote_id) where state <> 'FAILED';
--- Re-add the constraint using the new index
-alter table "wallet"."cashu_send_quotes" add constraint "cashu_send_quotes_quote_id_key" unique using index "cashu_send_quotes_quote_id_key";
+-- Partial indexes cannot back constraints, so we are not re-adding the constraint.
 
 --
 
