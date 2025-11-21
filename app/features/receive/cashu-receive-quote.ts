@@ -62,6 +62,10 @@ export type CashuReceiveQuote = {
    * ID of the corresponding transaction.
    */
   transactionId: string;
+  /**
+   * Optional fee that the mint charges to deposit money in.
+   */
+  depositFee?: Money;
 } & (
   | {
       state: 'UNPAID' | 'EXPIRED';

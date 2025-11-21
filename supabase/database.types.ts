@@ -185,6 +185,7 @@ export type Database = {
           amount: number
           created_at: string
           currency: string
+          deposit_fee: number | null
           description: string | null
           expires_at: string
           failure_reason: string | null
@@ -207,6 +208,7 @@ export type Database = {
           amount: number
           created_at?: string
           currency: string
+          deposit_fee?: number | null
           description?: string | null
           expires_at: string
           failure_reason?: string | null
@@ -229,6 +231,7 @@ export type Database = {
           amount?: number
           created_at?: string
           currency?: string
+          deposit_fee?: number | null
           description?: string | null
           expires_at?: string
           failure_reason?: string | null
@@ -866,6 +869,7 @@ export type Database = {
           p_account_id: string
           p_amount: number
           p_currency: string
+          p_deposit_fee?: number
           p_description?: string
           p_encrypted_transaction_details: string
           p_expires_at: string
@@ -882,6 +886,7 @@ export type Database = {
           amount: number
           created_at: string
           currency: string
+          deposit_fee: number | null
           description: string | null
           expires_at: string
           failure_reason: string | null
@@ -992,6 +997,7 @@ export type Database = {
           amount: number
           created_at: string
           currency: string
+          deposit_fee: number | null
           description: string | null
           expires_at: string
           failure_reason: string | null
@@ -1033,6 +1039,7 @@ export type Database = {
           amount: number
           created_at: string
           currency: string
+          deposit_fee: number | null
           description: string | null
           expires_at: string
           failure_reason: string | null

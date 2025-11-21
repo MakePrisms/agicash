@@ -68,6 +68,10 @@ type CreateQuote = {
    *         Used for cross-account cashu token receives where the receiver chooses to claim a token to an account different from the mint/unit the token originated from, thus requiring a lightning payment.
    */
   receiveType: CashuReceiveQuote['type'];
+  /**
+   * Optional fee that the mint charges to deposit money in.
+   */
+  depositFee?: Money;
 } & (
   | {
       receiveType: 'LIGHTNING';
@@ -115,6 +119,7 @@ export class CashuReceiveQuoteRepository {
       state,
       lockingDerivationPath,
       receiveType,
+      depositFee,
     } = params;
 
     const unit = getDefaultUnit(amount.currency);
@@ -126,18 +131,24 @@ export class CashuReceiveQuoteRepository {
     if (receiveType === 'TOKEN') {
       const { cashuReceiveFee, tokenAmount, lightningFee } = params;
 
+      const totalFees = depositFee
+        ? cashuReceiveFee.add(lightningFee).add(depositFee)
+        : cashuReceiveFee.add(lightningFee);
+
       details = {
         amountReceived: amount,
         tokenAmount,
         cashuReceiveFee,
         lightningFee,
-        totalFees: cashuReceiveFee.add(lightningFee),
+        depositFee,
+        totalFees,
       } satisfies CashuTokenReceiveTransactionDetails;
     } else {
       details = {
         amountReceived: amount,
         paymentRequest,
         description,
+        depositFee,
       } satisfies CashuLightningReceiveTransactionDetails;
     }
 
@@ -157,6 +168,7 @@ export class CashuReceiveQuoteRepository {
       p_locking_derivation_path: lockingDerivationPath,
       p_receive_type: receiveType,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_deposit_fee: depositFee?.toNumber(unit),
     });
 
     if (options?.abortSignal) {
@@ -463,6 +475,13 @@ export class CashuReceiveQuoteRepository {
       lockingDerivationPath: data.locking_derivation_path,
       transactionId: data.transaction_id,
       type: data.type as CashuReceiveQuote['type'],
+      depositFee: data.deposit_fee
+        ? new Money({
+            amount: data.deposit_fee,
+            currency: data.currency,
+            unit: data.unit,
+          })
+        : undefined,
     };
 
     if (data.state === 'PAID' || data.state === 'COMPLETED') {
