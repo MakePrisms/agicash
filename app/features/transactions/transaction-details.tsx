@@ -199,6 +199,7 @@ export function TransactionDetails({
         amountReceived: receiveDetails.amountReceived.toLocaleString({ unit }),
         paymentRequest: receiveDetails.paymentRequest,
         description: receiveDetails.description,
+        depositFee: receiveDetails.depositFee?.toLocaleString({ unit }),
       },
     );
   }
@@ -243,6 +244,7 @@ export function TransactionDetails({
         lightningFee: receiveSwapDetails.lightningFee?.toLocaleString({
           unit,
         }),
+        depositFee: receiveSwapDetails.depositFee?.toLocaleString({ unit }),
         totalFees: receiveSwapDetails.totalFees?.toLocaleString({ unit }),
       },
     );

@@ -30,6 +30,11 @@ type QRCodeProps = {
    * The function to call when the QR code is clicked.
    */
   onClick?: () => void;
+  /**
+   * The width and height, in pixels, to render the QR Code.
+   * @default 256
+   */
+  size?: number;
   className?: string;
 };
 
@@ -65,6 +70,7 @@ export function QRCode({
   error,
   isLoading,
   onClick,
+  size = 256,
   className,
 }: QRCodeProps) {
   return (
@@ -97,7 +103,7 @@ export function QRCode({
           {animate ? (
             <AnimatedQRCode
               value={value}
-              size={256}
+              size={size}
               marginSize={3}
               className="rounded-lg bg-foreground"
             />
@@ -105,7 +111,7 @@ export function QRCode({
             <ErrorBoundary fallback={<QRCodeFallback value={value} />}>
               <QRCodeSVG
                 value={value}
-                size={256}
+                size={size}
                 marginSize={3}
                 className="rounded-lg bg-foreground"
               />
@@ -115,7 +121,7 @@ export function QRCode({
       )}
 
       {description && (
-        <div className="w-[256px]">
+        <div className={cn(`w-[${size}px]`)}>
           <p className="flex h-[32px] items-center justify-center text-center font-medium text-muted-foreground text-xs">
             {description}
           </p>

@@ -4,12 +4,18 @@ import {
   type Keys,
   type MintKeys,
   type MintKeyset,
+  type MintQuoteResponse,
   OutputData,
 } from '@cashu/cashu-ts';
 import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
+import type {
+  ExtendedLockedMintQuoteResponse,
+  ExtendedMintQuoteResponse,
+  ExtendedPartialMintQuoteResponse,
+} from './protocol-extensions';
 import type { CashuProtocolUnit } from './types';
 
 const knownTestMints = [
@@ -78,8 +84,12 @@ export const getWalletCurrency = (wallet: CashuWallet) => {
 // TODO: see if we can use this extended wallet class to completely abstract away the mismtach between cashu protocol unit and the units we use (cashu protocol unit is 'usd' for cents, but we use 'cent' for cents)
 // If we do that maybe we can even get rid of this getCashuWallet function
 /**
- * ExtendedCashuWallet extends CashuWallet to allow custom postprocessing of proof selection.
- * We will remove this if cashu-ts ever updates selectProofsToSend not to return send proofs that are less than the amount.
+ * ExtendedCashuWallet extends CashuWallet with functionality required by agicash.
+ *
+ * Provides:
+ * - Overridden mint quote methods that return extended response types as defined in [protocol-extensions.ts](./protocol-extensions.ts)
+ * - Direct access to the bip39 seed
+ * - Fee estimation utilities for receiving operations
  */
 export class ExtendedCashuWallet extends CashuWallet {
   private _bip39Seed: Uint8Array | undefined;
@@ -97,6 +107,50 @@ export class ExtendedCashuWallet extends CashuWallet {
       throw new Error('Seed not set');
     }
     return this._bip39Seed;
+  }
+
+  /**
+   * This method overrides the createMintQuote method from CashuWallet to return ExtendedMintQuoteResponse
+   */
+  async createMintQuote(
+    amount: Parameters<CashuWallet['createMintQuote']>[0],
+    description?: Parameters<CashuWallet['createMintQuote']>[1],
+  ): Promise<ExtendedMintQuoteResponse> {
+    return super.createMintQuote(
+      amount,
+      description,
+    ) as Promise<ExtendedMintQuoteResponse>;
+  }
+
+  /**
+   * This method overrides the createLockedMintQuote method from CashuWallet to return ExtendedLockedMintQuoteResponse
+   */
+  async createLockedMintQuote(
+    amount: Parameters<CashuWallet['createLockedMintQuote']>[0],
+    pubkey: Parameters<CashuWallet['createLockedMintQuote']>[1],
+    description?: Parameters<CashuWallet['createLockedMintQuote']>[2],
+  ): Promise<ExtendedLockedMintQuoteResponse> {
+    return super.createLockedMintQuote(
+      amount,
+      pubkey,
+      description,
+    ) as Promise<ExtendedLockedMintQuoteResponse>;
+  }
+
+  /**
+   * This method overrides the checkMintQuote method from CashuWallet to return ExtendedMintQuoteResponse
+   */
+  checkMintQuote(quote: MintQuoteResponse): Promise<ExtendedMintQuoteResponse>;
+  checkMintQuote(quote: string): Promise<ExtendedPartialMintQuoteResponse>;
+  async checkMintQuote(
+    quote: MintQuoteResponse | string,
+  ): Promise<ExtendedMintQuoteResponse | ExtendedPartialMintQuoteResponse> {
+    if (typeof quote === 'string') {
+      return super.checkMintQuote(
+        quote,
+      ) as Promise<ExtendedPartialMintQuoteResponse>;
+    }
+    return super.checkMintQuote(quote) as Promise<ExtendedMintQuoteResponse>;
   }
 
   /**

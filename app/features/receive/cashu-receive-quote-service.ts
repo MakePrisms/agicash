@@ -12,7 +12,7 @@ import {
   getCashuUnit,
   getOutputAmounts,
 } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import {
   BASE_CASHU_LOCKING_DERIVATION_PATH,
@@ -51,6 +51,10 @@ export type CashuReceiveLightningQuote = {
    * The description of the receive request.
    */
   description?: string;
+  /**
+   * Optional fee that the mint charges to deposit money in.
+   */
+  depositFee?: Money;
 };
 
 export class CashuReceiveQuoteService {
@@ -96,6 +100,14 @@ export class CashuReceiveQuoteService {
 
     const expiresAt = new Date(mintQuoteResponse.expiry * 1000).toISOString();
 
+    const depositFee = mintQuoteResponse.fee
+      ? new Money({
+          amount: mintQuoteResponse.fee,
+          currency: amount.currency,
+          unit: cashuUnit,
+        })
+      : undefined;
+
     return {
       mintQuote: mintQuoteResponse,
       lockingPublicKey,
@@ -103,6 +115,7 @@ export class CashuReceiveQuoteService {
       expiresAt,
       amount,
       description,
+      depositFee,
     };
   }
 
@@ -160,6 +173,7 @@ export class CashuReceiveQuoteService {
       state: receiveQuote.mintQuote.state as CashuReceiveQuote['state'],
       paymentRequest: receiveQuote.mintQuote.request,
       lockingDerivationPath: receiveQuote.fullLockingDerivationPath,
+      depositFee: receiveQuote.depositFee,
     };
 
     if (receiveType === 'TOKEN') {
