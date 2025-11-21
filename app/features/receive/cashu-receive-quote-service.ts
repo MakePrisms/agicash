@@ -202,7 +202,7 @@ export class CashuReceiveQuoteService {
 
   /**
    * Completes the receive quote by preparing the output data, minting the proofs, updating the quote state and account proofs.
-   * If the quote is already completed, it's a no-op that returns back passed quote and account and an empty array of proofs.
+   * If the quote is already completed, it's a no-op that returns back passed quote, account and an empty array of added proof ids.
    * @param account - The cashu account that the quote belongs to.
    * @param quote - The cashu receive quote to complete.
    * @returns The updated quote, account and a list of added proof ids.
