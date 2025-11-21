@@ -118,6 +118,7 @@ export class CashuReceiveQuoteService {
     receiveQuote,
     tokenAmount,
     cashuReceiveFee,
+    lightningFee,
   }: {
     /**
      * The id of the user that will receive the money.
@@ -143,7 +144,11 @@ export class CashuReceiveQuoteService {
     /**
      * The fee in the unit of the token that will be incurred for spending the proofs as inputs to the melt operation.
      */
-    cashuReceiveFee?: number;
+    cashuReceiveFee?: Money;
+    /**
+     * The fee reserved for the lightning payment to melt the proofs to the account.
+     */
+    lightningFee?: Money;
   }): Promise<CashuReceiveQuote> {
     const baseReceiveQuote = {
       accountId: account.id,
@@ -158,9 +163,9 @@ export class CashuReceiveQuoteService {
     };
 
     if (receiveType === 'TOKEN') {
-      if (!tokenAmount || cashuReceiveFee === undefined) {
+      if (!tokenAmount || cashuReceiveFee === undefined || !lightningFee) {
         throw new Error(
-          'Token amount and receive swap fee are required for token receive quotes',
+          'Token amount, receive swap fee, and lightning fee are required for token receive quotes',
         );
       }
 
@@ -169,6 +174,7 @@ export class CashuReceiveQuoteService {
         receiveType,
         tokenAmount,
         cashuReceiveFee,
+        lightningFee,
       });
     }
 

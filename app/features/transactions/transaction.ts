@@ -43,7 +43,12 @@ export type CashuTokenReceiveTransactionDetails = {
    */
   cashuReceiveFee: Money;
   /**
-   * The total fees for the transaction. This is the same as the `cashuReceiveFee`.
+   * The fee reserved for the lightning payment to melt the proofs to the account.
+   * This will be undefined when receiving proofs to the source account.
+   */
+  lightningFee?: Money;
+  /**
+   * The total fees for the transaction. This is the sum of `cashuReceiveFee` and `lightningFee`.
    */
   totalFees: Money;
 };

@@ -1,6 +1,6 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
-import { getCashuUnit, proofToY } from '~/lib/cashu';
+import { proofToY } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import {
@@ -81,7 +81,11 @@ type CreateQuote = {
       /**
        * The fee in the unit of the token that will be incurred for spending the proofs as inputs to the melt operation.
        */
-      cashuReceiveFee: number;
+      cashuReceiveFee: Money;
+      /**
+       * The fee for the lightning payment to melt the token proofs to the account.
+       */
+      lightningFee: Money;
     }
 );
 
@@ -120,19 +124,14 @@ export class CashuReceiveQuoteRepository {
       | CashuTokenReceiveTransactionDetails;
 
     if (receiveType === 'TOKEN') {
-      const { cashuReceiveFee, tokenAmount } = params;
-
-      const cashuReceiveFeeMoney = new Money({
-        amount: cashuReceiveFee,
-        currency: amount.currency,
-        unit: getCashuUnit(amount.currency),
-      });
+      const { cashuReceiveFee, tokenAmount, lightningFee } = params;
 
       details = {
         amountReceived: amount,
         tokenAmount,
-        cashuReceiveFee: cashuReceiveFeeMoney,
-        totalFees: cashuReceiveFeeMoney,
+        cashuReceiveFee,
+        lightningFee,
+        totalFees: cashuReceiveFee.add(lightningFee),
       } satisfies CashuTokenReceiveTransactionDetails;
     } else {
       details = {
