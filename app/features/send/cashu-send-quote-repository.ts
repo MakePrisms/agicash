@@ -11,6 +11,7 @@ import {
 } from '../agicash-db/database';
 import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
+import { ConcurrencyError } from '../shared/error';
 import type {
   CompletedCashuLightningSendTransactionDetails,
   DestinationDetails,
@@ -159,6 +160,10 @@ export class CashuSendQuoteRepository {
     const { data, error } = await query;
 
     if (error) {
+      if (error.hint === 'CONCURRENCY_ERROR') {
+        throw new ConcurrencyError(error.message, error.details);
+      }
+
       throw new Error('Failed to create cashu send quote', {
         cause: error,
       });

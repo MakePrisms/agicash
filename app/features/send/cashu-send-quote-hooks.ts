@@ -27,7 +27,7 @@ import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendQuote,
 } from '../agicash-db/database';
-import { DomainError, NotFoundError } from '../shared/error';
+import { ConcurrencyError, DomainError, NotFoundError } from '../shared/error';
 import type { DestinationDetails } from '../transactions/transaction';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendQuote } from './cashu-send-quote';
@@ -196,6 +196,9 @@ export function useInitiateCashuSendQuote({
     },
     onError: onError,
     retry: (failureCount, error) => {
+      if (error instanceof ConcurrencyError) {
+        return true;
+      }
       if (error instanceof DomainError) {
         return false;
       }

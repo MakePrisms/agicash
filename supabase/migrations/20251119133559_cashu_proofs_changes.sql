@@ -86,7 +86,7 @@ create index cashu_proofs_cashu_send_swap_id_idx on wallet.cashu_proofs (cashu_s
 create index cashu_proofs_spending_send_swap_id_idx on wallet.cashu_proofs (spending_cashu_send_swap_id) where spending_cashu_send_swap_id is not null;
 
 -- Unique constraint to prevent duplicate proofs within an account
--- This  also ensures that the secret is unique within an account, because the public key y is derived from the secret.
+-- This also ensures that the secret is unique within an account, because the public key y is derived from the secret.
 create unique index cashu_proofs_account_y_unique_idx on wallet.cashu_proofs (account_id, public_key_y);
 
 -- Enable Row Level Security
@@ -181,7 +181,10 @@ begin
   where id = p_account_id;
 
   if v_account is null then
-    raise exception 'Account % not found', p_account_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Account %s not found.', p_account_id);
   end if;
 
   v_account_with_proofs := jsonb_set(
@@ -368,6 +371,7 @@ language plpgsql
 as $function$
 declare
     v_quote wallet.cashu_receive_quotes;
+    v_now timestamp with time zone;
 begin
     select * into v_quote
     from wallet.cashu_receive_quotes
@@ -375,7 +379,10 @@ begin
     for update;
 
     if v_quote is null then
-      raise exception 'Quote with id % not found', p_quote_id;
+      raise exception
+        using
+          hint = 'NOT_FOUND',
+          message = format('Quote with id %s not found.', p_quote_id);
     end if;
 
     if v_quote.state = 'EXPIRED' then
@@ -383,11 +390,21 @@ begin
     end if;
 
     if v_quote.state != 'UNPAID' then
-      raise exception 'Only quote in UNPAID state can be expired. Current state is %', v_quote.state;
+      raise exception
+        using
+          hint = 'INVALID_STATE',
+          message = format('Failed to expire quote with id %s.', v_quote.id),
+          detail = format('Only quote in UNPAID state can be expired. Found state %s.', v_quote.state);
     end if;
 
-    if v_quote.expires_at > now() then
-      raise exception 'Quote % has not expired yet', v_quote.id;
+    v_now := now();
+
+    if v_quote.expires_at > v_now then
+      raise exception
+        using
+          hint = 'INVALID_STATE',
+          message = format('Failed to expire quote with id %s.', v_quote.id),
+          detail = format('Quote has not expired at %s. Expires at %s.', v_now, v_quote.expires_at);
     end if;
 
     update wallet.cashu_receive_quotes
@@ -428,7 +445,10 @@ begin
     for update;
 
     if v_quote is null then
-      raise exception 'Quote with id % not found', p_quote_id;
+      raise exception
+        using
+          hint = 'NOT_FOUND',
+          message = format('Quote with id %s not found.', p_quote_id);
     end if;
 
     if v_quote.state = 'FAILED' then
@@ -436,7 +456,11 @@ begin
     end if;
 
     if v_quote.state not in ('PENDING', 'UNPAID') then
-      raise exception 'Cannot fail cashu receive quote with id %. Current state is %, but must be PENDING or UNPAID', p_quote_id, v_quote.state;
+      raise exception
+        using
+          hint = 'INVALID_STATE',
+          message = format('Cannot fail cashu receive quote with id %s.', p_quote_id),
+          detail = format('Found state %s, but must be PENDING or UNPAID.', v_quote.state);
     end if;
 
     update wallet.cashu_receive_quotes
@@ -484,14 +508,22 @@ declare
   v_counter integer;
 begin
   if p_keyset_id is null or trim(p_keyset_id) = '' then
-    raise exception 'p_keyset_id must not be null or empty';
+    raise exception
+      using
+        hint = 'INVALID_ARGUMENT',
+        message = 'p_keyset_id must not be null or empty.',
+        detail = format('Value provided: %s', p_keyset_id);
   end if;
 
   if p_output_amounts is null
     or array_length(p_output_amounts, 1) is null
     or exists (select 1 from unnest(p_output_amounts) as amount where amount <= 0)
   then
-    raise exception 'p_output_amounts must be a non-null, non-empty array of integers greater than 0';
+    raise exception
+      using
+        hint = 'INVALID_ARGUMENT',
+        message = 'p_output_amounts must be a non-null, non-empty array of integers greater than 0.',
+        detail = format('Value provided: %s', p_output_amounts);
   end if;
 
   select * into v_quote
@@ -500,7 +532,10 @@ begin
   for update;
 
   if v_quote is null then
-      raise exception 'Quote with id % not found', p_quote_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Quote with id %s not found.', p_quote_id);
   end if;
 
   if v_quote.state = 'PAID' or v_quote.state = 'COMPLETED' then
@@ -510,7 +545,11 @@ begin
   end if;
 
   if v_quote.state != 'UNPAID' then
-    raise exception 'Quote % is not in UNPAID state. Current state: %', v_quote.id, v_quote.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Failed to process payment for quote with id %s.', v_quote.id),
+        detail = format('Quote is not in UNPAID state. Current state: %s.', v_quote.state);
   end if;
 
   v_number_of_outputs := array_length(p_output_amounts, 1);
@@ -585,7 +624,10 @@ begin
   for update;
 
   if v_quote is null then
-    raise exception 'Quote with id % not found', p_quote_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Quote with id %s not found.', p_quote_id);
   end if;
 
   if v_quote.state = 'COMPLETED' then
@@ -600,7 +642,11 @@ begin
   end if;
 
   if v_quote.state != 'PAID' then
-    raise exception 'Quote % has not been paid. Current state: %', v_quote.id, v_quote.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Failed to complete quote with id %s.', v_quote.id),
+        detail = format('Quote is not in PAID state. Current state: %s.', v_quote.state);
   end if;
 
   update wallet.cashu_receive_quotes
@@ -692,7 +738,11 @@ begin
     or array_length(p_output_amounts, 1) is null
     or exists (select 1 from unnest(p_output_amounts) as amount where amount <= 0)
   then
-    raise exception 'p_output_amounts must be a non-null, non-empty array of integers greater than 0';
+    raise exception
+      using
+        hint = 'INVALID_ARGUMENT',
+        message = 'p_output_amounts must be a non-null, non-empty array of integers greater than 0.',
+        detail = format('Value provided: %s', p_output_amounts);
   end if;
 
   v_number_of_outputs := array_length(p_output_amounts, 1);
@@ -796,7 +846,10 @@ begin
     for update;
 
     if v_token_swap is null then
-      raise exception 'Swap for token hash % not found', p_token_hash;
+      raise exception
+        using
+          hint = 'NOT_FOUND',
+          message = format('Swap for token hash %s not found.', p_token_hash);
     end if;
 
     if v_token_swap.state = 'FAILED' then
@@ -804,7 +857,11 @@ begin
     end if;
 
     if v_token_swap.state != 'PENDING' then
-        raise exception 'Swap for token hash % cannot be failed because it is not in PENDING state. Current state: %', p_token_hash, v_token_swap.state;
+      raise exception
+        using
+          hint = 'INVALID_STATE',
+          message = format('Cannot fail swap for token hash %s.', p_token_hash),
+          detail = format('Swap is not in PENDING state. Current state: %s.', v_token_swap.state);
     end if;
 
     -- special handling for "Token already claimed" failures
@@ -894,7 +951,10 @@ begin
   for update;
 
   if v_token_swap is null then
-    raise exception 'Swap for token hash % not found', p_token_hash;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Swap for token hash %s not found.', p_token_hash);
   end if;
 
   if v_token_swap.state = 'COMPLETED' then
@@ -910,7 +970,11 @@ begin
   end if;
 
   if v_token_swap.state != 'PENDING' then
-    raise exception 'Swap for token hash % cannot be completed because it is not in PENDING state. Current state: %', p_token_hash, v_token_swap.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Cannot complete swap for token hash %s.', p_token_hash),
+        detail = format('Swap is not in PENDING state. Current state: %s.', v_token_swap.state);
   end if;
 
   update wallet.cashu_token_swaps
@@ -948,7 +1012,10 @@ begin
   for update;
 
   if v_send_swap is null then
-    raise exception 'No send swap found for transaction id %', v_reversed_transaction_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('No send swap found for transaction id %s.', v_reversed_transaction_id);
   end if;
 
   -- If the send swap is already reversed, there is nothing to do
@@ -957,7 +1024,11 @@ begin
   end if;
 
   if v_send_swap.state != 'PENDING' then
-    raise exception 'Send swap % cannot be reversed because it is not in PENDING state. Current state: %.', v_send_swap.id, v_send_swap.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Cannot reverse send swap with id %s.', v_send_swap.id),
+        detail = format('Send swap is not in PENDING state. Current state: %s.', v_send_swap.state);
   end if;
 
   -- We need to reverse the related send swap and mark the reserved proofs of that swap as spent.
@@ -1051,7 +1122,11 @@ declare
   v_reserved_proofs wallet.cashu_proofs[];
 begin
   if p_number_of_change_outputs < 0 then
-    raise exception 'p_number_of_change_outputs cannot be less than 0';
+    raise exception
+      using
+        hint = 'INVALID_ARGUMENT',
+        message = 'p_number_of_change_outputs cannot be less than 0.',
+        detail = format('Value provided: %s', p_number_of_change_outputs);
   end if;
   
   if p_number_of_change_outputs > 0 then
@@ -1155,7 +1230,10 @@ begin
 
   -- Verify all proofs were successfully reserved. Proof might not be successfully reserved if it was modified by another transaction and thus is not UNSPENT anymore.
   if coalesce(array_length(v_reserved_proofs, 1), 0) != array_length(p_proofs_to_send, 1) then
-    raise exception 'Concurrency error: One or more proofs were modified by another transaction and could not be reserved';
+    raise exception using
+      hint = 'CONCURRENCY_ERROR',
+      message = format('Failed to reserve proofs for cashu send quote with id %s.', v_quote.id),
+      detail = 'One or more proofs were modified by another transaction and could not be reserved.';
   end if;
 
   v_account_with_proofs := wallet.to_account_with_proofs(v_account);
@@ -1189,7 +1267,10 @@ begin
     for update;
 
     if v_quote is null then
-        raise exception 'Quote with id % not found', p_quote_id;
+      raise exception
+        using
+          hint = 'NOT_FOUND',
+          message = format('Quote with id %s not found.', p_quote_id);
     end if;
 
     if v_quote.state = 'PENDING' then
@@ -1202,7 +1283,11 @@ begin
     end if;
 
     if v_quote.state != 'UNPAID' then
-        raise exception 'Cannot mark cashu send quote with id % as pending. Current state is %, but must be UNPAID', v_quote.id, v_quote.state;
+      raise exception
+        using
+          hint = 'INVALID_STATE',
+          message = format('Failed to mark cashu send quote with id %s as pending.', v_quote.id),
+          detail = format('Found state %s, but must be UNPAID.', v_quote.state);
     end if;
 
     update wallet.cashu_send_quotes
@@ -1257,7 +1342,10 @@ begin
   for update;
 
   if v_quote is null then
-      raise exception 'Quote with id % not found', p_quote_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Quote with id %s not found.', p_quote_id);
   end if;
 
   if v_quote.state = 'PAID' then
@@ -1277,7 +1365,11 @@ begin
   end if;
 
   if v_quote.state not in ('UNPAID', 'PENDING') then
-      raise exception 'Cannot complete cashu send quote with id %. Current state is %, but must be UNPAID or PENDING', v_quote.id, v_quote.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Failed to complete cashu send quote with id %s.', v_quote.id),
+        detail = format('Found state %s, but must be UNPAID or PENDING.', v_quote.state);
   end if;
 
   update wallet.cashu_send_quotes
@@ -1347,6 +1439,7 @@ declare
   v_account wallet.accounts;
   v_account_with_proofs jsonb;
   v_released_proofs wallet.cashu_proofs[];
+  v_now timestamp with time zone;
 begin
   select * into v_quote
   from wallet.cashu_send_quotes
@@ -1354,7 +1447,10 @@ begin
   for update;
 
   if v_quote is null then
-    raise exception 'Quote with id % not found', p_quote_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Quote with id %s not found.', p_quote_id);
   end if;
 
   if v_quote.state = 'EXPIRED' then
@@ -1371,11 +1467,21 @@ begin
   end if;
 
   if v_quote.state != 'UNPAID' then
-    raise exception 'Cannot expire cashu send quote with id %. Current state is %, but must be UNPAID', v_quote.id, v_quote.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Failed to expire cashu send quote with id %s.', v_quote.id),
+        detail = format('Found state %s, but must be UNPAID.', v_quote.state);
   end if;
 
-  if v_quote.expires_at > now() then
-    raise exception 'Quote % has not expired yet', v_quote.id;
+  v_now := now();
+
+  if v_quote.expires_at > v_now then
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Failed to expire cashu send quote with id %s.', v_quote.id),
+        detail = format('Quote has not expired at %s. Expires at %s.', v_now, v_quote.expires_at);
   end if;
 
   update wallet.cashu_send_quotes
@@ -1447,7 +1553,10 @@ begin
   for update;
 
   if v_quote is null then
-    raise exception 'Quote with id % not found', p_quote_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Quote with id %s not found.', p_quote_id);
   end if;
 
   if v_quote.state = 'FAILED' then
@@ -1464,7 +1573,11 @@ begin
   end if;
 
   if v_quote.state not in ('UNPAID', 'PENDING') then
-    raise exception 'Cannot fail cashu send quote with id %. Current state is %, but must be UNPAID or PENDING', v_quote.id, v_quote.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Cannot fail cashu send quote with id %s.', v_quote.id),
+        detail = format('Found state %s, but must be UNPAID or PENDING.', v_quote.state);
   end if;
 
   update wallet.cashu_send_quotes
@@ -1623,21 +1736,33 @@ begin
 
   elsif v_state = 'DRAFT' then
       if p_keyset_id is null or trim(p_keyset_id) = '' then
-          raise exception 'When state is DRAFT, p_keyset_id must be provided and not empty. Got: %', p_keyset_id;
+        raise exception
+          using
+            hint = 'INVALID_ARGUMENT',
+            message = 'When state is DRAFT, p_keyset_id must be provided and not empty.',
+            detail = format('Value provided: %s', p_keyset_id);
       end if;
 
       if p_send_output_amounts is null
         or array_length(p_send_output_amounts, 1) is null
         or exists (select 1 from unnest(p_send_output_amounts) as amount where amount <= 0)
       then
-        raise exception 'When state is DRAFT, p_send_output_amounts must be a non-null, non-empty array of integers greater than 0';
+        raise exception
+          using
+            hint = 'INVALID_ARGUMENT',
+            message = 'When state is DRAFT, p_send_output_amounts must be a non-null, non-empty array of integers greater than 0.',
+            detail = format('Value provided: %s', p_send_output_amounts);
       end if;
 
       if p_change_output_amounts is not null
         and array_length(p_change_output_amounts, 1) is not null
         and exists (select 1 from unnest(p_change_output_amounts) as amount where amount <= 0)
       then
-        raise exception 'When state is DRAFT and p_change_output_amounts is provided, all values must be integers greater than 0';
+        raise exception
+          using
+            hint = 'INVALID_ARGUMENT',
+            message = 'When state is DRAFT and p_change_output_amounts is provided, all values must be integers greater than 0.',
+            detail = format('Value provided: %s', p_change_output_amounts);
       end if;
 
       v_keyset_id := p_keyset_id;
@@ -1737,7 +1862,10 @@ begin
 
   -- Verify all proofs were successfully reserved. Proof might not be successfully reserved if it was modified by another transaction and thus is not UNSPENT anymore.
   if coalesce(array_length(v_reserved_proofs, 1), 0) != array_length(p_input_proofs, 1) then
-    raise exception 'Concurrency error: One or more proofs were modified by another transaction and could not be reserved';
+    raise exception using
+      hint = 'CONCURRENCY_ERROR',
+      message = format('Failed to reserve proofs for cashu send swap with id %s.', v_swap.id),
+      detail = 'One or more proofs were modified by another transaction and could not be reserved.';
   end if;  
 
   v_account_with_proofs := wallet.to_account_with_proofs(v_account);
@@ -1789,7 +1917,10 @@ begin
   for update;
 
   if v_swap is null then
-      raise exception 'Swap with id % not found', p_swap_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Swap with id %s not found.', p_swap_id);
   end if;
 
   if v_swap.state = 'PENDING' and v_swap.requires_input_proofs_swap then
@@ -1821,7 +1952,11 @@ begin
   end if;
 
   if v_swap.state != 'DRAFT' then
-    raise exception 'Swap % is not in DRAFT state. Current state: %.', v_swap.id, v_swap.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Failed to commit proofs to send for swap with id %s.', v_swap.id),
+        detail = format('Found state %s, but must be DRAFT.', v_swap.state);
   end if;
 
   -- Mark the input proofs as spent (input swap was done to swap the input proofs for the actual proofs to send + change proofs)
@@ -1921,7 +2056,10 @@ begin
   for update;
 
   if v_swap is null then
-    raise exception 'Swap with id % not found', p_swap_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Swap with id %s not found.', p_swap_id);
   end if;
 
   if v_swap.state = 'COMPLETED' then
@@ -1945,7 +2083,11 @@ begin
   end if;
 
   if v_swap.state != 'PENDING' then
-    raise exception 'Swap % is not in PENDING state. Current state: %.', v_swap.id, v_swap.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Failed to complete swap with id %s.', v_swap.id),
+        detail = format('Found state %s, but must be PENDING.', v_swap.state);
   end if;
 
   -- Check if there's a non-failed reversal transaction pointing to this transaction
@@ -2032,7 +2174,10 @@ begin
   for update;
 
   if v_swap is null then
-    raise exception 'Swap with id % not found', p_swap_id;
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Swap with id %s not found.', p_swap_id);
   end if;
 
   if v_swap.state = 'FAILED' then
@@ -2047,7 +2192,11 @@ begin
   end if;
 
   if v_swap.state != 'DRAFT' then
-    raise exception 'Swap % is not in DRAFT state. Current state: %.', v_swap.id, v_swap.state;
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Cannot fail swap with id %s.', v_swap.id),
+        detail = format('Found state %s, but must be DRAFT.', v_swap.state);
   end if;
 
   -- CTE (Common Table Expression) + array_agg is needed in plpgsql when using "returning into" with multiple rows 
@@ -2180,15 +2329,24 @@ begin
   end if;
 
   if array_length(p_accounts, 1) is null then
-    raise exception 'p_accounts cannot be empty array';
+    raise exception
+      using
+        hint = 'INVALID_ARGUMENT',
+        message = 'p_accounts cannot be an empty array';
   end if;
 
   if not exists (select 1 from unnest(p_accounts) as acct where acct.currency = 'USD') then
-    raise exception 'At least one USD account is required';
+    raise exception
+      using
+        hint = 'INVALID_ARGUMENT',
+        message = 'At least one USD account is required';
   end if;
 
   if not exists (select 1 from unnest(p_accounts) as acct where acct.currency = 'BTC') then
-    raise exception 'At least one BTC account is required';
+    raise exception
+      using
+        hint = 'INVALID_ARGUMENT',
+        message = 'At least one BTC account is required';
   end if;
 
   with inserted_accounts as (
@@ -2383,9 +2541,6 @@ begin
     v_event := 'CASHU_RECEIVE_QUOTE_UPDATED';
   end if;
 
-  raise log 'Broadcasting cashu receive quote changes: %. Payload: %', v_event, to_jsonb(new);
-  raise log 'Topic value: % . Realtime topic: %', 'wallet:' || new.user_id::text, realtime.topic();
-
   -- Broadcast using realtime.send
   -- Parameters: payload (jsonb), event_name (text), topic (text), is_private (boolean)
   perform realtime.send(
@@ -2400,7 +2555,6 @@ begin
 exception
   when others then
     raise warning 'Error broadcasting cashu receive quote changes: %', sqlerrm;
-
 end;
 $function$;
 

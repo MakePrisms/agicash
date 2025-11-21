@@ -19,7 +19,7 @@ import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendSwap,
 } from '../agicash-db/database';
-import { NotFoundError } from '../shared/error';
+import { ConcurrencyError, DomainError, NotFoundError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 import { useCashuSendSwapRepository } from './cashu-send-swap-repository';
@@ -160,6 +160,15 @@ export function useCreateCashuSendSwap({
         account,
         senderPaysFee,
       });
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof ConcurrencyError) {
+        return true;
+      }
+      if (error instanceof DomainError) {
+        return false;
+      }
+      return failureCount < 1;
     },
     onSuccess: (swap) => {
       cashuSendSwapCache.add(swap);

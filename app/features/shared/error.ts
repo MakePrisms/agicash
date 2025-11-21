@@ -28,3 +28,13 @@ export class DomainError extends Error {
     this.name = 'DomainError';
   }
 }
+
+export class ConcurrencyError extends Error {
+  constructor(
+    message: string,
+    public details: string | undefined = undefined,
+  ) {
+    super(message);
+    this.name = 'ConcurrencyError';
+  }
+}
