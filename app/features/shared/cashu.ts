@@ -163,7 +163,7 @@ export const mintKeysQueryKey = (mintUrl: string, keysetId?: string) => [
 export const mintInfoQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: mintInfoQueryKey(mintUrl),
-    queryFn: async () => getCashuWallet(mintUrl).getMintInfo(),
+    queryFn: async () => getCashuWallet(mintUrl).getExtendedMintInfo(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 

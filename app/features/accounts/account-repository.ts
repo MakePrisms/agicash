@@ -7,7 +7,7 @@ import {
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import {
-  type MintInfo,
+  type ExtendedMintInfo,
   getCashuProtocolUnit,
   getCashuUnit,
   getCashuWallet,
@@ -199,7 +199,7 @@ export class AccountRepository {
   private async getPreloadedWallet(mintUrl: string, currency: Currency) {
     const seed = await this.getCashuWalletSeed?.();
 
-    let mintInfo: MintInfo;
+    let mintInfo: ExtendedMintInfo;
     let allMintKeysets: MintAllKeysets;
     let mintActiveKeys: MintActiveKeys;
 
