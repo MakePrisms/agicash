@@ -1,5 +1,6 @@
 import type { Proof } from '@cashu/cashu-ts';
-import { getCashuUnit } from '~/lib/cashu';
+import type { Json } from 'supabase/database.types';
+import { getCashuUnit, proofToY } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import {
@@ -12,7 +13,7 @@ import {
   agicashDb,
 } from '../agicash-db/database';
 import { getDefaultUnit } from '../shared/currencies';
-import { useEncryption } from '../shared/encryption';
+import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
   CashuLightningReceiveTransactionDetails,
   CashuTokenReceiveTransactionDetails,
@@ -21,11 +22,6 @@ import type { CashuReceiveQuote } from './cashu-receive-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type Encryption = {
-  encrypt: <T = unknown>(data: T) => Promise<string>;
-  decrypt: <T = unknown>(data: string) => Promise<T>;
 };
 
 type CreateQuote = {
@@ -179,26 +175,13 @@ export class CashuReceiveQuoteRepository {
 
   /**
    * Expires the cashu receive quote by setting the state to EXPIRED.
+   * @param id - The id of the cashu receive quote to expire.
+   * @param options - The options for the query.
+   * @throws An error if expiring the quote fails.
    */
-  async expire(
-    {
-      id,
-      version,
-    }: {
-      /**
-       * ID of the cashu receive quote.
-       */
-      id: string;
-      /**
-       * Version of the cashu receive quote as seen by the client. Used for optimistic concurrency control.
-       */
-      version: number;
-    },
-    options?: Options,
-  ): Promise<void> {
+  async expire(id: string, options?: Options): Promise<void> {
     const query = this.db.rpc('expire_cashu_receive_quote', {
       p_quote_id: id,
-      p_quote_version: version,
     });
 
     if (options?.abortSignal) {
@@ -212,20 +195,19 @@ export class CashuReceiveQuoteRepository {
     }
   }
 
+  /**
+   * Fails the cashu receive quote by setting the state to FAILED.
+   * @throws An error if failing the quote fails.
+   */
   async fail(
     {
       id,
-      version,
       reason,
     }: {
       /**
        * ID of the cashu receive quote.
        */
       id: string;
-      /**
-       * Version of the cashu receive quote as seen by the client. Used for optimistic concurrency control.
-       */
-      version: number;
       /**
        * Reason for the failure.
        */
@@ -235,7 +217,6 @@ export class CashuReceiveQuoteRepository {
   ): Promise<void> {
     const query = this.db.rpc('fail_cashu_receive_quote', {
       p_quote_id: id,
-      p_quote_version: version,
       p_failure_reason: reason,
     });
 
@@ -253,53 +234,43 @@ export class CashuReceiveQuoteRepository {
   /**
    * Processes the payment of the cashu receive quote with the given id.
    * Marks the quote as paid and updates the related data. It also updates the account counter for the keyset.
+   * @returns The updated quote and account.
+   * @throws An error if processing the payment fails.
    */
   async processPayment(
     {
       quoteId,
-      quoteVersion,
       keysetId,
-      keysetCounter,
       outputAmounts,
-      accountVersion,
     }: {
       /**
        * ID of the cashu receive quote.
        */
       quoteId: string;
       /**
-       * Version of the cashu receive quote as seen by the client. Used for optimistic concurrency control.
-       */
-      quoteVersion: number;
-      /**
        * ID of the keyset used to create the blinded messages.
        */
       keysetId: string;
       /**
-       * Counter value for the keyset at the time the time of quote payment.
-       */
-      keysetCounter: number;
-      /**
-       * Amounts for each blinded message
+       * Amounts for each blinded message created for this receive.
        */
       outputAmounts: number[];
-      /**
-       * Version of the account as seen by the client. Used for optimistic concurrency control.
-       */
-      accountVersion: number;
     },
     options?: Options,
   ): Promise<{
-    updatedQuote: CashuReceiveQuote;
-    updatedAccount: CashuAccount;
+    /**
+     * The updated quote.
+     */
+    quote: CashuReceiveQuote;
+    /**
+     * The updated account.
+     */
+    account: CashuAccount;
   }> {
     const query = this.db.rpc('process_cashu_receive_quote_payment', {
       p_quote_id: quoteId,
-      p_quote_version: quoteVersion,
       p_keyset_id: keysetId,
-      p_keyset_counter: keysetCounter,
       p_output_amounts: outputAmounts,
-      p_account_version: accountVersion,
     });
 
     if (options?.abortSignal) {
@@ -314,59 +285,68 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    const updatedQuote = CashuReceiveQuoteRepository.toQuote(
-      data.updated_quote,
-    );
-    const updatedAccount = await this.accountRepository.toAccount(
-      data.updated_account,
+    const quote = CashuReceiveQuoteRepository.toQuote(data.quote);
+    const account = await this.accountRepository.toAccount<CashuAccount>(
+      data.account,
     );
 
-    return {
-      updatedQuote,
-      updatedAccount: updatedAccount as CashuAccount,
-    };
+    return { quote, account };
   }
 
   /**
    * Completes the cashu receive quote with the given id.
-   * Completing the quote means that the quote is paid and the tokens have been minted, so the quote state is updated to COMPLETED and the account is updated with the new proofs.
+   * Completing the quote means that the quote is paid and the tokens have been minted, so the quote state is updated to COMPLETED and the proofs are stored in the database.
+   * @returns The updated quote, account and a list of added proof ids.
+   * @throws An error if completing the quote fails.
    */
   async completeReceive(
     {
       quoteId,
-      quoteVersion,
       proofs,
-      accountVersion,
     }: {
       /**
        * ID of the cashu receive quote.
        */
       quoteId: string;
       /**
-       * Version of the cashu receive quote as seen by the client. Used for optimistic concurrency control.
-       */
-      quoteVersion: number;
-      /**
        * Proofs minted for the receive.
        */
       proofs: Proof[];
-      /**
-       * Version of the account as seen by the client. Used for optimistic concurrency control.
-       */
-      accountVersion: number;
     },
     options?: Options,
   ): Promise<{
-    updatedQuote: CashuReceiveQuote;
-    updatedAccount: CashuAccount;
+    /**
+     * The updated quote.
+     */
+    quote: CashuReceiveQuote;
+    /**
+     * The updated account with all the proofs including newly added ones.
+     */
+    account: CashuAccount;
+    /**
+     * A list of added proof ids.
+     * Use if you need to know which proofs from the account proofs list are newly added.
+     */
+    addedProofs: string[];
   }> {
-    const encryptedProofs = await this.encryption.encrypt(proofs);
+    const dataToEncrypt = proofs.flatMap((x) => [x.amount, x.secret]);
+    const encryptedData = await this.encryption.encryptBatch(dataToEncrypt);
+    const encryptedProofs = proofs.map((x, index) => {
+      const encryptedDataIndex = index * 2;
+      return {
+        keysetId: x.id,
+        amount: encryptedData[encryptedDataIndex],
+        secret: encryptedData[encryptedDataIndex + 1],
+        unblindedSignature: x.C,
+        publicKeyY: proofToY(x),
+        dleq: x.dleq as Json,
+        witness: x.witness as Json,
+      };
+    });
 
     const query = this.db.rpc('complete_cashu_receive_quote', {
       p_quote_id: quoteId,
-      p_quote_version: quoteVersion,
       p_proofs: encryptedProofs,
-      p_account_version: accountVersion,
     });
 
     if (options?.abortSignal) {
@@ -381,16 +361,14 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    const updatedQuote = CashuReceiveQuoteRepository.toQuote(
-      data.updated_quote,
-    );
-    const updatedAccount = await this.accountRepository.toAccount<CashuAccount>(
-      data.updated_account,
+    const account = await this.accountRepository.toAccount<CashuAccount>(
+      data.account,
     );
 
     return {
-      updatedQuote,
-      updatedAccount,
+      quote: CashuReceiveQuoteRepository.toQuote(data.quote),
+      account,
+      addedProofs: data.added_proofs.map((x) => x.id),
     };
   }
 

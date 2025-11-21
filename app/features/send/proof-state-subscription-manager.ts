@@ -1,6 +1,7 @@
 import type { Proof, ProofState } from '@cashu/cashu-ts';
 import { getCashuWallet } from '~/lib/cashu';
 import { isSubset } from '~/lib/utils';
+import { toProof } from '../accounts/account';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 
 type Subscription = {
@@ -14,6 +15,14 @@ export class ProofStateSubscriptionManager {
   private proofUpdates: Record<string, Record<string, ProofState['state']>> =
     {};
 
+  /**
+   * Subscribes to proof state updates for the given mint URL and swaps.
+   * @param mintUrl - The mint URL to subscribe to.
+   * @param swaps - The swaps to subscribe to.
+   * @param onSpent - The callback to call when a proof is spent.
+   * @returns A function to unsubscribe from the subscription.
+   * @throws An error if the subscription fails.
+   */
   async subscribe({
     mintUrl,
     swaps,
@@ -22,12 +31,12 @@ export class ProofStateSubscriptionManager {
     mintUrl: string;
     swaps: PendingCashuSendSwap[];
     onSpent: (swap: CashuSendSwap) => void;
-  }): Promise<void> {
+  }): Promise<() => void> {
     const ids = new Set(swaps.map((x) => x.id));
     const mintSubscription = this.subscriptions.get(mintUrl);
 
     if (mintSubscription) {
-      await mintSubscription.subscriptionPromise;
+      const unsubscribe = await mintSubscription.subscriptionPromise;
 
       if (isSubset(ids, mintSubscription.ids)) {
         this.subscriptions.set(mintUrl, {
@@ -39,10 +48,11 @@ export class ProofStateSubscriptionManager {
           mintUrl,
           swaps,
         );
-        return;
+        return () => {
+          unsubscribe();
+          this.subscriptions.delete(mintUrl);
+        };
       }
-
-      const unsubscribe = await mintSubscription.subscriptionPromise;
 
       console.debug('Unsubscribing from proof state updates for mint', mintUrl);
       unsubscribe();
@@ -69,7 +79,7 @@ export class ProofStateSubscriptionManager {
     };
 
     const subscriptionPromise = wallet.onProofStateUpdates(
-      swaps.flatMap((x) => x.proofsToSend),
+      swaps.flatMap((x) => x.proofsToSend).map((p) => toProof(p)),
       subscriptionCallback,
       (error) =>
         console.error('Proof state updates socket error', {
@@ -84,12 +94,17 @@ export class ProofStateSubscriptionManager {
     });
 
     try {
-      await subscriptionPromise;
+      const unsubscribe = await subscriptionPromise;
 
       wallet.mint.webSocketConnection?.onClose((event) => {
         console.debug('Mint socket closed', { mintUrl, event });
         this.subscriptions.delete(mintUrl);
       });
+
+      return () => {
+        unsubscribe();
+        this.subscriptions.delete(mintUrl);
+      };
     } catch (error) {
       this.subscriptions.delete(mintUrl);
       throw error;
@@ -101,9 +116,10 @@ export class ProofStateSubscriptionManager {
     swaps: PendingCashuSendSwap[],
     onSpent: (swap: CashuSendSwap) => void,
   ) {
-    console.debug('proofUpdate', proofUpdate);
     const swap = swaps.find((swap) =>
-      swap.proofsToSend.some((p) => p.C === proofUpdate.proof.C),
+      swap.proofsToSend.some(
+        (p) => p.unblindedSignature === proofUpdate.proof.C,
+      ),
     );
     if (!swap) return;
 
@@ -114,10 +130,11 @@ export class ProofStateSubscriptionManager {
     this.proofUpdates[swap.id][proofUpdate.proof.C] = proofUpdate.state;
 
     const allProofsSpent = swap.proofsToSend.every(
-      (proof) => this.proofUpdates[swap.id][proof.C] === 'SPENT',
+      (proof) =>
+        this.proofUpdates[swap.id][proof.unblindedSignature] === 'SPENT',
     );
 
-    console.debug('allProofsSpent', allProofsSpent, { swap });
+    console.debug('allProofsSpent', allProofsSpent, { swapId: swap.id });
 
     if (allProofsSpent) {
       delete this.proofUpdates[swap.id];

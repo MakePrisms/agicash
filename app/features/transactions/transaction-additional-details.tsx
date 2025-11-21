@@ -10,7 +10,11 @@ import {
 } from '~/components/page';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { proofToY } from '~/lib/cashu';
-import type { CashuAccount } from '../accounts/account';
+import {
+  type CashuAccount,
+  type CashuProof,
+  toProof,
+} from '../accounts/account';
 import { useAccount } from '../accounts/account-hooks';
 import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
 import { useCashuTokenSwapRepository } from '../receive/cashu-token-swap-repository';
@@ -20,23 +24,28 @@ import type { Transaction } from './transaction';
 import { useSuspenseTransaction } from './transaction-hooks';
 
 const augmentProofsWithState = (
-  proofs: Proof[],
+  proofs: CashuProof[] | Proof[],
   states: Map<string, CheckStateEnum>,
 ) => {
   return proofs.map((p) => ({
     ...p,
-    state: states.get(proofToY(p)) ?? CheckStateEnum.PENDING,
+    mintState:
+      states.get('publicKeyY' in p ? p.publicKeyY : proofToY(p)) ??
+      CheckStateEnum.PENDING,
   }));
 };
 
 const useProofStates = (
   transactionId: string,
   account: CashuAccount,
-  proofs: Proof[],
+  proofs: CashuProof[] | Proof[],
 ) => {
   const { data: states } = useSuspenseQuery({
     queryKey: ['transaction-proof-states', transactionId],
-    queryFn: () => account.wallet.checkProofsStates(proofs),
+    queryFn: () =>
+      account.wallet.checkProofsStates(
+        proofs.map((p) => ('accountId' in p ? toProof(p) : p)),
+      ),
     select: (states) => {
       const map = new Map<string, CheckStateEnum>();
       states.forEach((s) => map.set(s.Y, s.state));

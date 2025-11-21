@@ -1,5 +1,5 @@
-import type { Proof } from '@cashu/cashu-ts';
 import type { Money } from '~/lib/money';
+import type { CashuProof } from '../accounts/account';
 
 export type CashuSendQuote = {
   id: string;
@@ -61,7 +61,7 @@ export type CashuSendQuote = {
    * Amounts are denominated in the cashu units (e.g. sats for BTC accounts, cents for USD accounts).
    * Sum of the proof amounts is equal or greater than the amount to send plus the fee reserve. Any overflow will be returned as change.
    */
-  proofs: Proof[];
+  proofs: CashuProof[];
   /**
    * ID of the keyset used for the send.
    */
@@ -89,7 +89,13 @@ export type CashuSendQuote = {
   transactionId: string;
 } & (
   | {
-      state: 'UNPAID' | 'PENDING' | 'EXPIRED';
+      state: 'UNPAID';
+    }
+  | {
+      state: 'PENDING';
+    }
+  | {
+      state: 'EXPIRED';
     }
   | {
       state: 'FAILED';

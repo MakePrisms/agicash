@@ -23,16 +23,15 @@ import {
   useGetLatestCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuSendQuote } from '../agicash-db/database';
-import { useEncryption } from '../shared/encryption';
-import { DomainError, NotFoundError } from '../shared/error';
+import type {
+  AgicashDbCashuProof,
+  AgicashDbCashuSendQuote,
+} from '../agicash-db/database';
+import { ConcurrencyError, DomainError, NotFoundError } from '../shared/error';
 import type { DestinationDetails } from '../transactions/transaction';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendQuote } from './cashu-send-quote';
-import {
-  CashuSendQuoteRepository,
-  useCashuSendQuoteRepository,
-} from './cashu-send-quote-repository';
+import { useCashuSendQuoteRepository } from './cashu-send-quote-repository';
 import {
   type SendQuoteRequest,
   useCashuSendQuoteService,
@@ -65,7 +64,7 @@ class CashuSendQuoteCache {
   updateIfExists(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote>(
       [CashuSendQuoteCache.Key, quote.id],
-      (curr) => (curr ? quote : undefined),
+      (curr) => (curr && curr.version < quote.version ? quote : undefined),
     );
   }
 }
@@ -75,6 +74,19 @@ class UnresolvedCashuSendQuotesCache {
   public static Key = 'unresolved-cashu-send-quotes';
 
   constructor(private readonly queryClient: QueryClient) {}
+
+  get(sendQuoteId: string) {
+    return this.queryClient
+      .getQueryData<CashuSendQuote[]>([UnresolvedCashuSendQuotesCache.Key])
+      ?.find((q) => q.id === sendQuoteId);
+  }
+
+  getByMeltQuoteId(meltQuoteId: string) {
+    const quotes = this.queryClient.getQueryData<CashuSendQuote[]>([
+      UnresolvedCashuSendQuotesCache.Key,
+    ]);
+    return quotes?.find((q) => q.quoteId === meltQuoteId);
+  }
 
   add(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote[]>(
@@ -86,7 +98,10 @@ class UnresolvedCashuSendQuotesCache {
   update(quote: CashuSendQuote) {
     this.queryClient.setQueryData<CashuSendQuote[]>(
       [UnresolvedCashuSendQuotesCache.Key],
-      (curr) => curr?.map((q) => (q.id === quote.id ? quote : q)),
+      (curr) =>
+        curr?.map((q) =>
+          q.id === quote.id && q.version < quote.version ? quote : q,
+        ),
     );
   }
 
@@ -181,6 +196,9 @@ export function useInitiateCashuSendQuote({
     },
     onError: onError,
     retry: (failureCount, error) => {
+      if (error instanceof ConcurrencyError) {
+        return true;
+      }
       if (error instanceof DomainError) {
         return false;
       }
@@ -191,9 +209,10 @@ export function useInitiateCashuSendQuote({
 
 type UseTrackCashuSendQuoteProps = {
   sendQuoteId?: string;
-  onPending?: (send: CashuSendQuote) => void;
-  onPaid?: (send: CashuSendQuote) => void;
-  onExpired?: (send: CashuSendQuote) => void;
+  onPending?: (send: CashuSendQuote & { state: 'PENDING' }) => void;
+  onPaid?: (send: CashuSendQuote & { state: 'PAID' }) => void;
+  onExpired?: (send: CashuSendQuote & { state: 'EXPIRED' }) => void;
+  onFailed?: (send: CashuSendQuote & { state: 'FAILED' }) => void;
 };
 
 type UseTrackCashuSendQuoteResponse =
@@ -211,11 +230,13 @@ export function useTrackCashuSendQuote({
   onPending,
   onPaid,
   onExpired,
+  onFailed,
 }: UseTrackCashuSendQuoteProps): UseTrackCashuSendQuoteResponse {
   const enabled = !!sendQuoteId;
   const onPendingRef = useLatest(onPending);
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
+  const onFailedRef = useLatest(onFailed);
   const cache = useCashuSendQuoteCache();
 
   const { data } = useQuery({
@@ -236,6 +257,8 @@ export function useTrackCashuSendQuote({
       onPaidRef.current?.(data);
     } else if (data.state === 'EXPIRED') {
       onExpiredRef.current?.(data);
+    } else if (data.state === 'FAILED') {
+      onFailedRef.current?.(data);
     }
   }, [data]);
 
@@ -308,27 +331,12 @@ function useUnresolvedCashuSendQuotes() {
 }
 
 type OnMeltQuoteStateChangeProps = {
+  subscriptionManager: MeltQuoteSubscriptionManager;
   sendQuotes: CashuSendQuote[];
-  onUnpaid: (
-    account: CashuAccount,
-    quote: CashuSendQuote,
-    meltQuote: MeltQuoteResponse,
-  ) => void;
-  onPending: (
-    account: CashuAccount,
-    quote: CashuSendQuote,
-    meltQuote: MeltQuoteResponse,
-  ) => void;
-  onPaid: (
-    account: CashuAccount,
-    send: CashuSendQuote,
-    meltQuote: MeltQuoteResponse,
-  ) => void;
-  onExpired: (
-    account: CashuAccount,
-    quote: CashuSendQuote,
-    meltQuote: MeltQuoteResponse,
-  ) => void;
+  onUnpaid: (quote: CashuSendQuote, meltQuote: MeltQuoteResponse) => void;
+  onPending: (quote: CashuSendQuote, meltQuote: MeltQuoteResponse) => void;
+  onPaid: (send: CashuSendQuote, meltQuote: MeltQuoteResponse) => void;
+  onExpired: (quote: CashuSendQuote, meltQuote: MeltQuoteResponse) => void;
 };
 
 const checkMeltQuote = async (
@@ -350,6 +358,7 @@ const checkMeltQuote = async (
 };
 
 function useOnMeltQuoteStateChange({
+  subscriptionManager,
   sendQuotes,
   onUnpaid,
   onPending,
@@ -361,19 +370,19 @@ function useOnMeltQuoteStateChange({
   const onPendingRef = useLatest(onPending);
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const [subscriptionManager] = useState(
-    () => new MeltQuoteSubscriptionManager(),
-  );
   const queryClient = useQueryClient();
   const getCashuAccount = useGetLatestCashuAccount();
+  const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
 
   const handleMeltQuoteUpdate = useCallback(
     async (meltQuote: MeltQuoteResponse) => {
-      // TODO: remove (or mask) the sensitive data from this log (or see if we can configure sentry not to send sensitive data to server) or completely remove it.
-      console.debug('Melt quote updated', meltQuote);
+      console.debug(`Melt quote state changed: ${meltQuote.state}`, {
+        request: meltQuote.request,
+        unit: meltQuote.unit,
+      });
 
-      const relatedSendQuote = sendQuotes.find(
-        (sendQuote) => sendQuote.quoteId === meltQuote.quote,
+      const relatedSendQuote = unresolvedSendQuotesCache.getByMeltQuoteId(
+        meltQuote.quote,
       );
 
       if (!relatedSendQuote) {
@@ -381,21 +390,16 @@ function useOnMeltQuoteStateChange({
         return;
       }
 
-      const account = await getCashuAccount(relatedSendQuote.accountId);
-
       const expiresAt = new Date(relatedSendQuote.expiresAt);
       const now = new Date();
 
-      if (
-        meltQuote.state === 'UNPAID' &&
-        expiresAt < now &&
-        relatedSendQuote.state !== 'EXPIRED'
-      ) {
-        onExpiredRef.current(account, relatedSendQuote, meltQuote);
-      } else if (
-        meltQuote.state === 'PAID' &&
-        relatedSendQuote.state !== 'PAID'
-      ) {
+      if (meltQuote.state === 'UNPAID' && expiresAt < now) {
+        onExpiredRef.current(relatedSendQuote, meltQuote);
+      } else if (meltQuote.state === 'UNPAID') {
+        onUnpaidRef.current(relatedSendQuote, meltQuote);
+      } else if (meltQuote.state === 'PENDING') {
+        onPendingRef.current(relatedSendQuote, meltQuote);
+      } else if (meltQuote.state === 'PAID') {
         // There is a bug in nutshell where the change is not included in the melt quote state updates, so we need to refetch the quote to get the change proofs.
         // see https://github.com/cashubtc/nutshell/pull/773
         // The same bug in CDK too: https://github.com/cashubtc/cdk/pull/889
@@ -406,23 +410,13 @@ function useOnMeltQuoteStateChange({
           !(meltQuote.change && meltQuote.change.length > 0)
         ) {
           const latestMeltQuote = await getMeltQuote(relatedSendQuote);
-          onPaidRef.current(account, relatedSendQuote, latestMeltQuote);
+          onPaidRef.current(relatedSendQuote, latestMeltQuote);
         } else {
-          onPaidRef.current(account, relatedSendQuote, meltQuote);
+          onPaidRef.current(relatedSendQuote, meltQuote);
         }
-      } else if (
-        meltQuote.state === 'PENDING' &&
-        relatedSendQuote.state !== 'PENDING'
-      ) {
-        onPendingRef.current(account, relatedSendQuote, meltQuote);
-      } else if (
-        meltQuote.state === 'UNPAID' &&
-        relatedSendQuote.state === 'UNPAID'
-      ) {
-        onUnpaidRef.current(account, relatedSendQuote, meltQuote);
       }
     },
-    [sendQuotes, getCashuAccount],
+    [unresolvedSendQuotesCache],
   );
 
   const { mutate: subscribe } = useMutation({
@@ -505,41 +499,52 @@ function useOnMeltQuoteStateChange({
 /**
  * Hook that returns a cashu send quote change handler.
  */
-export function useCashuSendQuoteChangeHandler() {
-  const encryption = useEncryption();
+export function useCashuSendQuoteChangeHandlers() {
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const cashuSendQuoteCache = useCashuSendQuoteCache();
+  const cashuSendQuoteRepository = useCashuSendQuoteRepository();
 
-  return {
-    table: 'cashu_send_quotes',
-    onInsert: async (payload: AgicashDbCashuSendQuote) => {
-      const quote = await CashuSendQuoteRepository.toSend(
-        payload,
-        encryption.decrypt,
-      );
-      unresolvedSendQuotesCache.add(quote);
+  return [
+    {
+      event: 'CASHU_SEND_QUOTE_CREATED',
+      handleEvent: async (
+        payload: AgicashDbCashuSendQuote & {
+          cashu_proofs: AgicashDbCashuProof[];
+        },
+      ) => {
+        const quote = await cashuSendQuoteRepository.toSendQuote(payload);
+        unresolvedSendQuotesCache.add(quote);
+      },
     },
-    onUpdate: async (payload: AgicashDbCashuSendQuote) => {
-      const quote = await CashuSendQuoteRepository.toSend(
-        payload,
-        encryption.decrypt,
-      );
+    {
+      event: 'CASHU_SEND_QUOTE_UPDATED',
+      handleEvent: async (
+        payload: AgicashDbCashuSendQuote & {
+          cashu_proofs: AgicashDbCashuProof[];
+        },
+      ) => {
+        const quote = await cashuSendQuoteRepository.toSendQuote(payload);
 
-      cashuSendQuoteCache.updateIfExists(quote);
+        cashuSendQuoteCache.updateIfExists(quote);
 
-      if (['UNPAID', 'PENDING'].includes(quote.state)) {
-        unresolvedSendQuotesCache.update(quote);
-      } else {
-        unresolvedSendQuotesCache.remove(quote);
-      }
+        if (['UNPAID', 'PENDING'].includes(quote.state)) {
+          unresolvedSendQuotesCache.update(quote);
+        } else {
+          unresolvedSendQuotesCache.remove(quote);
+        }
+      },
     },
-  };
+  ];
 }
 
 export function useProcessCashuSendQuoteTasks() {
   const cashuSendService = useCashuSendQuoteService();
   const unresolvedSendQuotes = useUnresolvedCashuSendQuotes();
   const getCashuAccount = useGetLatestCashuAccount();
+  const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
+  const [subscriptionManager] = useState(
+    () => new MeltQuoteSubscriptionManager(),
+  );
 
   const { mutate: failSendQuote } = useMutation({
     mutationFn: async ({
@@ -549,9 +554,7 @@ export function useProcessCashuSendQuoteTasks() {
       sendQuoteId: string;
       reason: string;
     }) => {
-      const sendQuote = unresolvedSendQuotes.find(
-        (quote) => quote.id === sendQuoteId,
-      );
+      const sendQuote = unresolvedSendQuotesCache.get(sendQuoteId);
       if (!sendQuote) {
         // This means that the quote is not pending anymore so it was removed from the cache.
         // This can happen if the quote was completed, failed or expired in the meantime.
@@ -559,10 +562,27 @@ export function useProcessCashuSendQuoteTasks() {
       }
 
       const account = await getCashuAccount(sendQuote.accountId);
-      await cashuSendService.failSendQuote(account, sendQuote, reason);
+      const failedQuote = await cashuSendService.failSendQuote(
+        account,
+        sendQuote,
+        reason,
+      );
+      return {
+        mintUrl: account.mintUrl,
+        quoteId: failedQuote.quoteId,
+      };
     },
     retry: 3,
     throwOnError: true,
+    onSuccess: (data) => {
+      if (data) {
+        // This is needed for the case when the user initiates the send again after failure on the confirmation page.
+        // In that case we create a new send quote with the same melt quote, but subscriptionManager would still be
+        // subscribed to that melt quote so useOnMeltQuoteStateChange handler would not be called again for this new
+        // send quote so new send quote would not be initiated until next full page reload.
+        subscriptionManager.removeQuoteFromSubscription(data);
+      }
+    },
     onError: (error, variables) => {
       console.error('Failed to mark payment as failed', {
         cause: error,
@@ -579,9 +599,7 @@ export function useProcessCashuSendQuoteTasks() {
       sendQuoteId: string;
       meltQuote: MeltQuoteResponse;
     }) => {
-      const sendQuote = unresolvedSendQuotes.find(
-        (quote) => quote.id === sendQuoteId,
-      );
+      const sendQuote = unresolvedSendQuotesCache.get(sendQuoteId);
       if (!sendQuote) {
         // This means that the quote is not pending anymore so it was removed from the cache.
         // This can happen if the quote was completed, failed or expired in the meantime.
@@ -613,19 +631,22 @@ export function useProcessCashuSendQuoteTasks() {
 
   const { mutate: markSendQuoteAsPending } = useMutation({
     mutationFn: async (sendQuoteId: string) => {
-      const sendQuote = unresolvedSendQuotes.find(
-        (quote) => quote.id === sendQuoteId,
-      );
+      const sendQuote = unresolvedSendQuotesCache.get(sendQuoteId);
       if (!sendQuote) {
         // This means that the quote is not pending anymore so it was removed from the cache.
         // This can happen if the quote was completed, failed or expired in the meantime.
         return;
       }
 
-      await cashuSendService.markSendQuoteAsPending(sendQuote);
+      return await cashuSendService.markSendQuoteAsPending(sendQuote);
     },
     retry: 3,
     throwOnError: true,
+    onSuccess: (quote) => {
+      if (quote) {
+        unresolvedSendQuotesCache.update(quote);
+      }
+    },
     onError: (error, sendQuoteId) => {
       console.error('Mark send quote as pending error', {
         cause: error,
@@ -636,18 +657,14 @@ export function useProcessCashuSendQuoteTasks() {
 
   const { mutate: expireSendQuote } = useMutation({
     mutationFn: async (sendQuoteId: string) => {
-      const sendQuote = unresolvedSendQuotes.find(
-        (quote) => quote.id === sendQuoteId,
-      );
+      const sendQuote = unresolvedSendQuotesCache.get(sendQuoteId);
       if (!sendQuote) {
         // This means that the quote is not pending anymore so it was removed from the cache.
         // This can happen if the quote was completed, failed or expired in the meantime.
         return;
       }
 
-      const account = await getCashuAccount(sendQuote.accountId);
-
-      return cashuSendService.expireSendQuote(account, sendQuote);
+      return cashuSendService.expireSendQuote(sendQuote);
     },
     retry: 3,
     throwOnError: true,
@@ -667,9 +684,7 @@ export function useProcessCashuSendQuoteTasks() {
       sendQuoteId: string;
       meltQuote: MeltQuoteResponse;
     }) => {
-      const sendQuote = unresolvedSendQuotes.find(
-        (quote) => quote.id === sendQuoteId,
-      );
+      const sendQuote = unresolvedSendQuotesCache.get(sendQuoteId);
       if (!sendQuote) {
         // This means that the quote is not pending anymore so it was removed from the cache.
         // This can happen if the quote was completed, failed or expired in the meantime.
@@ -691,28 +706,41 @@ export function useProcessCashuSendQuoteTasks() {
   });
 
   useOnMeltQuoteStateChange({
+    subscriptionManager,
     sendQuotes: unresolvedSendQuotes,
-    onUnpaid: (_, send, meltQuote) => {
+    onUnpaid: (send, meltQuote) => {
       // In case of failed payment the mint will flip the state of the melt quote back to UNPAID.
       // In that case we don't want to initiate the send again so we are only initiating the send if our quote state is also UNPAID which won't be the case if the send was already initiated.
       if (send.state === 'UNPAID') {
-        initiateSend({
-          sendQuoteId: send.id,
-          meltQuote,
-        });
+        initiateSend(
+          {
+            sendQuoteId: send.id,
+            meltQuote,
+          },
+          {
+            // This mutation has different scope because melt quote state is changed to pending while initiate mutation is still in progress
+            // so we need to use a different scope, otherwise markSendQuoteAsPending mutation would wait for initiate to be finished before it can be executed.
+            scope: { id: `initiate-send-quote-${send.id}` },
+          },
+        );
       }
     },
-    onPending: (_, send) => {
-      markSendQuoteAsPending(send.id);
-    },
-    onExpired: (_, send) => {
-      expireSendQuote(send.id);
-    },
-    onPaid: (_, send, meltQuote) => {
-      completeSendQuote({
-        sendQuoteId: send.id,
-        meltQuote,
+    onPending: (send) => {
+      markSendQuoteAsPending(send.id, {
+        scope: { id: `send-quote-${send.id}` },
       });
+    },
+    onExpired: (send) => {
+      expireSendQuote(send.id, { scope: { id: `send-quote-${send.id}` } });
+    },
+    onPaid: (send, meltQuote) => {
+      completeSendQuote(
+        {
+          sendQuoteId: send.id,
+          meltQuote,
+        },
+        { scope: { id: `send-quote-${send.id}` } },
+      );
     },
   });
 }

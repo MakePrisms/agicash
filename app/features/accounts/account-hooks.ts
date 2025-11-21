@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
-import type { AgicashDbAccount } from '../agicash-db/database';
+import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
@@ -91,7 +91,9 @@ export class AccountsCache {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) => {
       const existingAccountIndex = curr.findIndex((x) => x.id === account.id);
       if (existingAccountIndex !== -1) {
-        return curr.map((x) => (x.id === account.id ? account : x));
+        return curr.map((x) =>
+          x.id === account.id && account.version > x.version ? account : x,
+        );
       }
       return [...curr, account];
     });
@@ -104,7 +106,9 @@ export class AccountsCache {
     );
 
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
-      curr.map((x) => (x.id === account.id ? account : x)),
+      curr.map((x) =>
+        x.id === account.id && account.version > x.version ? account : x,
+      ),
     );
   }
 
@@ -174,6 +178,15 @@ export class AccountsCache {
   }
 
   /**
+   * Invalidates the accounts cache.
+   */
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [AccountsCache.Key],
+    });
+  }
+
+  /**
    * Subscribe to changes in the accounts cache.
    * @param callback - The callback to call when the accounts cache changes.
    * @returns A function to unsubscribe from the accounts cache.
@@ -187,15 +200,6 @@ export class AccountsCache {
       ) {
         callback(event.query.state.data);
       }
-    });
-  }
-
-  /**
-   * Invalidates the accounts cache.
-   */
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [AccountsCache.Key],
     });
   }
 }
@@ -212,28 +216,32 @@ export function useAccountsCache() {
 }
 
 /**
- * Hook that returns an account change handler.
+ * Hook that returns an account change handlers.
  */
-export function useAccountChangeHandler() {
+export function useAccountChangeHandlers() {
   const accountRepository = useAccountRepository();
   const accountCache = useAccountsCache();
 
-  return {
-    table: 'accounts',
-    onInsert: async (payload: AgicashDbAccount) => {
-      const addedAccount = await accountRepository.toAccount(payload);
-      accountCache.upsert(addedAccount);
+  return [
+    {
+      event: 'ACCOUNT_CREATED',
+      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
+        const addedAccount = await accountRepository.toAccount(payload);
+        accountCache.upsert(addedAccount);
+      },
     },
-    onUpdate: async (payload: AgicashDbAccount) => {
-      // We are updating the latest known version of the account here so anyone who needs the latest version (who uses account cache `getLatest`)
-      // can know as soon as possible and thus can wait for the account data to be decrypted and updated in the cache instead of processing the old version.
-      accountCache.setLatestVersion(payload.id, payload.version);
-
-      const updatedAccount = await accountRepository.toAccount(payload);
-
-      accountCache.update(updatedAccount);
+    {
+      event: 'ACCOUNT_UPDATED',
+      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
+        // We are updating the latest known version of the account here so anyone who needs the latest version (who uses account cache `getLatest`)
+        // can know as soon as possible and thus can wait for the account data to be decrypted and updated in the cache instead of processing the old version.
+        // TODO: remove this in a separate commit (I don't think it is needed anymore)
+        accountCache.setLatestVersion(payload.id, payload.version);
+        const updatedAccount = await accountRepository.toAccount(payload);
+        accountCache.update(updatedAccount);
+      },
     },
-  };
+  ];
 }
 
 export const accountsQueryOptions = ({

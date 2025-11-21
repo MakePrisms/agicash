@@ -149,7 +149,7 @@ export default function ReceiveToken({
 
       if (isSameAccountClaim) {
         const {
-          tokenSwap: { transactionId },
+          swap: { transactionId },
         } = await createCashuTokenSwap({
           token,
           accountId: account.id,
@@ -172,7 +172,6 @@ export default function ReceiveToken({
       if (error instanceof MintOperationError && crossAccountReceiveQuotes) {
         failCashuReceiveQuote({
           quoteId: crossAccountReceiveQuotes.cashuReceiveQuote.id,
-          version: crossAccountReceiveQuotes.cashuReceiveQuote.version,
           reason: error.message,
         });
       }
