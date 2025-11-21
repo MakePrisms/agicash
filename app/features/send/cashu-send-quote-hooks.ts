@@ -328,6 +328,7 @@ function useUnresolvedCashuSendQuotes() {
 }
 
 type OnMeltQuoteStateChangeProps = {
+  subscriptionManager: MeltQuoteSubscriptionManager;
   sendQuotes: CashuSendQuote[];
   onUnpaid: (quote: CashuSendQuote, meltQuote: MeltQuoteResponse) => void;
   onPending: (quote: CashuSendQuote, meltQuote: MeltQuoteResponse) => void;
@@ -354,6 +355,7 @@ const checkMeltQuote = async (
 };
 
 function useOnMeltQuoteStateChange({
+  subscriptionManager,
   sendQuotes,
   onUnpaid,
   onPending,
@@ -365,9 +367,6 @@ function useOnMeltQuoteStateChange({
   const onPendingRef = useLatest(onPending);
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const [subscriptionManager] = useState(
-    () => new MeltQuoteSubscriptionManager(),
-  );
   const queryClient = useQueryClient();
   const getCashuAccount = useGetLatestCashuAccount();
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
@@ -540,6 +539,9 @@ export function useProcessCashuSendQuoteTasks() {
   const unresolvedSendQuotes = useUnresolvedCashuSendQuotes();
   const getCashuAccount = useGetLatestCashuAccount();
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
+  const [subscriptionManager] = useState(
+    () => new MeltQuoteSubscriptionManager(),
+  );
 
   const { mutate: failSendQuote } = useMutation({
     mutationFn: async ({
@@ -557,10 +559,27 @@ export function useProcessCashuSendQuoteTasks() {
       }
 
       const account = await getCashuAccount(sendQuote.accountId);
-      await cashuSendService.failSendQuote(account, sendQuote, reason);
+      const failedQuote = await cashuSendService.failSendQuote(
+        account,
+        sendQuote,
+        reason,
+      );
+      return {
+        mintUrl: account.mintUrl,
+        quoteId: failedQuote.quoteId,
+      };
     },
     retry: 3,
     throwOnError: true,
+    onSuccess: (data) => {
+      if (data) {
+        // This is needed for the case when the user initiates the send again after failure on the confirmation page.
+        // In that case we create a new send quote with the same melt quote, but subscriptionManager would still be
+        // subscribed to that melt quote so useOnMeltQuoteStateChange handler would not be called again for this new
+        // send quote so new send quote would not be initiated until next full page reload.
+        subscriptionManager.removeQuoteFromSubscription(data);
+      }
+    },
     onError: (error, variables) => {
       console.error('Failed to mark payment as failed', {
         cause: error,
@@ -684,6 +703,7 @@ export function useProcessCashuSendQuoteTasks() {
   });
 
   useOnMeltQuoteStateChange({
+    subscriptionManager,
     sendQuotes: unresolvedSendQuotes,
     onUnpaid: (send, meltQuote) => {
       // In case of failed payment the mint will flip the state of the melt quote back to UNPAID.

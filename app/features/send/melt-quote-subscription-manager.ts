@@ -12,6 +12,14 @@ type SubscriptionData = {
 export class MeltQuoteSubscriptionManager {
   private subscriptions: Map<string, SubscriptionData> = new Map();
 
+  /**
+   * Subscribes to melt quote updates for the given mint URL and quotes.
+   * @param mintUrl - The mint URL to subscribe to.
+   * @param quotes - The quotes to subscribe to.
+   * @param onUpdate - The callback to call when a melt quote update is received.
+   * @returns A function to unsubscribe from the subscription.
+   * @throws An error if the subscription fails.
+   */
   async subscribe({
     mintUrl,
     quotes,
@@ -20,12 +28,12 @@ export class MeltQuoteSubscriptionManager {
     mintUrl: string;
     quotes: CashuSendQuote[];
     onUpdate: (meltQuoteResponse: MeltQuoteResponse) => void;
-  }): Promise<void> {
+  }): Promise<() => void> {
     const ids = new Set(quotes.map((x) => x.quoteId));
     const mintSubscription = this.subscriptions.get(mintUrl);
 
     if (mintSubscription) {
-      await mintSubscription.subscriptionPromise;
+      const unsubscribe = await mintSubscription.subscriptionPromise;
 
       if (isSubset(ids, mintSubscription.ids)) {
         this.subscriptions.set(mintUrl, {
@@ -37,10 +45,11 @@ export class MeltQuoteSubscriptionManager {
           mintUrl,
           quotes,
         );
-        return;
+        return () => {
+          unsubscribe();
+          this.subscriptions.delete(mintUrl);
+        };
       }
-
-      const unsubscribe = await mintSubscription.subscriptionPromise;
 
       console.debug('Unsubscribing from melt quote updates for mint', mintUrl);
       unsubscribe();
@@ -77,15 +86,47 @@ export class MeltQuoteSubscriptionManager {
     });
 
     try {
-      await subscriptionPromise;
+      const unsubscribe = await subscriptionPromise;
 
       wallet.mint.webSocketConnection?.onClose((event) => {
         console.debug('Mint socket closed', { mintUrl, event });
         this.subscriptions.delete(mintUrl);
       });
+
+      return () => {
+        unsubscribe();
+        this.subscriptions.delete(mintUrl);
+      };
     } catch (error) {
       this.subscriptions.delete(mintUrl);
       throw error;
     }
+  }
+
+  /**
+   * Removes a quote from the subscription data.
+   * Note that this doesn't unsubscribe from the mint quote updates.
+   * Noop if the manager is not subscribed for the provided mint URL or the quote.
+   * @param mintUrl - The mint URL to remove the quote from.
+   * @param quoteId - The quote ID to remove.
+   */
+  removeQuoteFromSubscription({
+    mintUrl,
+    quoteId,
+  }: {
+    mintUrl: string;
+    quoteId: string;
+  }) {
+    const mintSubscription = this.subscriptions.get(mintUrl);
+    if (!mintSubscription || !mintSubscription.ids.has(quoteId)) {
+      return;
+    }
+
+    const ids = new Set(mintSubscription.ids);
+    ids.delete(quoteId);
+    this.subscriptions.set(mintUrl, {
+      ...mintSubscription,
+      ids,
+    });
   }
 }

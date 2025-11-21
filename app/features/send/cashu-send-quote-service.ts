@@ -439,16 +439,17 @@ export class CashuSendQuoteService {
 
   /**
    * Failes the send quote after failed payment.
-   * If the send quote is already failed, it's a no-op.
+   * If the send quote is already failed, it's a no-op that returns back passed quote.
+   * @returns The updated send quote.
    * @throws An error if the account does not match the send quote account or the quote is not pending or unpaid.
    */
   async failSendQuote(
     account: CashuAccount,
     quote: CashuSendQuote,
     reason: string,
-  ) {
+  ): Promise<CashuSendQuote> {
     if (quote.state === 'FAILED') {
-      return;
+      return quote;
     }
 
     if (!['PENDING', 'UNPAID'].includes(quote.state)) {
@@ -470,7 +471,7 @@ export class CashuSendQuoteService {
       );
     }
 
-    await this.cashuSendRepository.fail({
+    return await this.cashuSendRepository.fail({
       id: quote.id,
       reason,
     });

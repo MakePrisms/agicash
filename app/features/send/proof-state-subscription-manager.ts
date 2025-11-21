@@ -15,6 +15,14 @@ export class ProofStateSubscriptionManager {
   private proofUpdates: Record<string, Record<string, ProofState['state']>> =
     {};
 
+  /**
+   * Subscribes to proof state updates for the given mint URL and swaps.
+   * @param mintUrl - The mint URL to subscribe to.
+   * @param swaps - The swaps to subscribe to.
+   * @param onSpent - The callback to call when a proof is spent.
+   * @returns A function to unsubscribe from the subscription.
+   * @throws An error if the subscription fails.
+   */
   async subscribe({
     mintUrl,
     swaps,
@@ -23,12 +31,12 @@ export class ProofStateSubscriptionManager {
     mintUrl: string;
     swaps: PendingCashuSendSwap[];
     onSpent: (swap: CashuSendSwap) => void;
-  }): Promise<void> {
+  }): Promise<() => void> {
     const ids = new Set(swaps.map((x) => x.id));
     const mintSubscription = this.subscriptions.get(mintUrl);
 
     if (mintSubscription) {
-      await mintSubscription.subscriptionPromise;
+      const unsubscribe = await mintSubscription.subscriptionPromise;
 
       if (isSubset(ids, mintSubscription.ids)) {
         this.subscriptions.set(mintUrl, {
@@ -40,10 +48,11 @@ export class ProofStateSubscriptionManager {
           mintUrl,
           swaps,
         );
-        return;
+        return () => {
+          unsubscribe();
+          this.subscriptions.delete(mintUrl);
+        };
       }
-
-      const unsubscribe = await mintSubscription.subscriptionPromise;
 
       console.debug('Unsubscribing from proof state updates for mint', mintUrl);
       unsubscribe();
@@ -85,12 +94,17 @@ export class ProofStateSubscriptionManager {
     });
 
     try {
-      await subscriptionPromise;
+      const unsubscribe = await subscriptionPromise;
 
       wallet.mint.webSocketConnection?.onClose((event) => {
         console.debug('Mint socket closed', { mintUrl, event });
         this.subscriptions.delete(mintUrl);
       });
+
+      return () => {
+        unsubscribe();
+        this.subscriptions.delete(mintUrl);
+      };
     } catch (error) {
       this.subscriptions.delete(mintUrl);
       throw error;

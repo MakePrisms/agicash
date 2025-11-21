@@ -2050,8 +2050,6 @@ begin
     raise exception 'Swap % is not in DRAFT state. Current state: %.', v_swap.id, v_swap.state;
   end if;
 
-  -- TODO: see with Damian if it is fine to just release the proofs that were reserved for this swap. I guess it is as long as the cashu token for those was not created and shared?
-
   -- CTE (Common Table Expression) + array_agg is needed in plpgsql when using "returning into" with multiple rows 
   -- "returning into" can only be used with a single value so we array_agg is used to aggregate the rows into a single array value.
   -- If you just do "returning * into v_released_proofs" you will get "query returned more than one row" error.

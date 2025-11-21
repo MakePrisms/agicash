@@ -229,15 +229,6 @@ export class CashuSendSwapService {
       },
     );
 
-    if (proofsToSend.length === 0) {
-      console.error('No proofs to send', {
-        swap,
-        account,
-      });
-      // this can happen if the input proofs were already spent by another wallet
-      return this.fail(swap, 'Could not restore proofs to send');
-    }
-
     const tokenHash = await getTokenHash({
       mint: account.mintUrl,
       proofs: proofsToSend,

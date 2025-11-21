@@ -298,6 +298,7 @@ export class CashuSendQuoteRepository {
 
   /**
    * Fails the cashu send quote by setting the state to FAILED.
+   * @returns The updated cashu send quote.
    * @throws An error if failing the cashu send quote fails.
    */
   async fail(
@@ -315,7 +316,7 @@ export class CashuSendQuoteRepository {
       reason: string;
     },
     options?: Options,
-  ): Promise<void> {
+  ): Promise<CashuSendQuote> {
     const query = this.db.rpc('fail_cashu_send_quote', {
       p_quote_id: id,
       p_failure_reason: reason,
@@ -325,11 +326,16 @@ export class CashuSendQuoteRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { error } = await query;
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to fail cashu send quote', { cause: error });
     }
+
+    return this.toSendQuote({
+      ...data.quote,
+      cashu_proofs: data.released_proofs,
+    });
   }
 
   /**
