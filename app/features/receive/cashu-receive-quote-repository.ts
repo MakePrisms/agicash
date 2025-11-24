@@ -1,6 +1,6 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
-import { getCashuUnit, proofToY } from '~/lib/cashu';
+import { proofToY } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import {
@@ -63,9 +63,9 @@ type CreateQuote = {
   lockingDerivationPath: string;
   /**
    * Type of the receive.
-   * LIGHTNING - The money is received via Lightning.
-   * TOKEN - The money is received as cashu token. Those proofs are then used to mint tokens for the receiver's account via Lightning.
-   *         Used for cross-account cashu token receives where the receiver chooses to claim a token to an account different from the mint/unit the token originated from, thus requiring a lightning payment.
+   * - LIGHTNING - The money is received via Lightning.
+   * - TOKEN - The money is received as a cashu token. The proofs will be melted
+   *  from the account they originated from to pay the request for this receive quote.
    */
   receiveType: CashuReceiveQuote['type'];
 } & (
@@ -79,9 +79,13 @@ type CreateQuote = {
        */
       tokenAmount: Money;
       /**
-       * The fee in the unit of the token that will be incurred for spending the proofs as inputs to the melt operation.
+       * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
        */
-      cashuReceiveFee: number;
+      cashuReceiveFee: Money;
+      /**
+       * The fee reserved for the lightning payment to melt the token proofs to this account.
+       */
+      lightningFeeReserve: Money;
     }
 );
 
@@ -120,19 +124,14 @@ export class CashuReceiveQuoteRepository {
       | CashuTokenReceiveTransactionDetails;
 
     if (receiveType === 'TOKEN') {
-      const { cashuReceiveFee, tokenAmount } = params;
-
-      const cashuReceiveFeeMoney = new Money({
-        amount: cashuReceiveFee,
-        currency: amount.currency,
-        unit: getCashuUnit(amount.currency),
-      });
+      const { cashuReceiveFee, tokenAmount, lightningFeeReserve } = params;
 
       details = {
         amountReceived: amount,
         tokenAmount,
-        cashuReceiveFee: cashuReceiveFeeMoney,
-        totalFees: cashuReceiveFeeMoney,
+        cashuReceiveFee,
+        lightningFeeReserve,
+        totalFees: cashuReceiveFee.add(lightningFeeReserve),
       } satisfies CashuTokenReceiveTransactionDetails;
     } else {
       details = {

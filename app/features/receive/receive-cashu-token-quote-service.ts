@@ -7,6 +7,7 @@ import { areMintUrlsEqual, getCashuUnit } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
+import { DomainError } from '../shared/error';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
   type CashuReceiveLightningQuote,
@@ -71,14 +72,31 @@ export class ReceiveCashuTokenQuoteService {
       );
     }
 
+    const feesForProofs = sourceAccount.wallet.getFeesForProofs(token.proofs);
+    const cashuReceiveFee = new Money({
+      amount: feesForProofs,
+      currency: tokenAmount.currency,
+      unit: sourceCashuUnit,
+    });
+
+    const targetAmount = tokenAmount.subtract(cashuReceiveFee);
+
+    if (targetAmount.isNegative()) {
+      throw new DomainError('Token amount is too small to cover cashu fees');
+    }
+
     const quotes = await this.getCrossMintQuotesWithinTargetAmount({
       destinationAccount,
       sourceAccount,
-      targetAmount: tokenAmount,
+      targetAmount,
       exchangeRate,
     });
 
-    const cashuReceiveFee = sourceAccount.wallet.getFeesForProofs(token.proofs);
+    const lightningFeeReserve = new Money({
+      amount: quotes.meltQuote.fee_reserve,
+      currency: tokenAmount.currency,
+      unit: sourceCashuUnit,
+    });
 
     const cashuReceiveQuote =
       await this.cashuReceiveQuoteService.createReceiveQuote({
@@ -88,6 +106,7 @@ export class ReceiveCashuTokenQuoteService {
         receiveQuote: quotes.lightningQuote,
         cashuReceiveFee,
         tokenAmount,
+        lightningFeeReserve,
       });
 
     return {
