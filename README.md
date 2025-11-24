@@ -134,9 +134,10 @@ Supabase dashboard by going to the branches page and checking the logs for the r
 feature branch you can reapply it by just resetting the branch. If it fails for the persisted or production you will need to
 resolve the issue and push migrations from your machine by doing:
 1. Switch to the persisted/production branch by running `git checkout <branch_name>` (e.g. `git checkout master` for next env) and make sure you have the latest version by running `git pull origin <branch_name>`.
-2. Run `bun supabase login` to log in to the Supabase dashboard so the CLI can access it.
-3. Run `bun supabase link` to link to the remote project. For this, you will need the database password. Ask other team members for the current db password (the password can also be reset from the dashboard if needed).
-4. Run `bun supabase db push` to apply migrations to the remote database.
+2. Run `bun supabase --experimental branches list` and find the project id for the desired environment.
+3. Run `bun supabase login` to log in to the Supabase dashboard so the CLI can access it.
+4. Run `bun supabase link --project-ref <id_from_step_2_here>` to link to the remote project. If this is your first time linking, you will need the database password. Ask other team members for the current db password (the password can also be reset from the dashboard if needed).
+5. Run `bun supabase db push` to apply migrations to the remote database.
 
 Steps 2 and 3 can be skipped if you have already logged in and linked the project before.
 
