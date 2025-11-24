@@ -6,6 +6,7 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { QRCode } from '~/components/qr-code';
+import { toProof } from '~/features/accounts/account';
 import {
   useCashuSendSwap,
   useTrackCashuSendSwap,
@@ -52,7 +53,7 @@ export default function SendShare({ params }: Route.ComponentProps) {
 
   const token = {
     mint: swap.account.mintUrl,
-    proofs: swap.proofsToSend,
+    proofs: swap.proofsToSend.map((p) => toProof(p)),
     unit: getCashuProtocolUnit(swap.amountToSend.currency),
   };
 

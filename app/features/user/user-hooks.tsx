@@ -82,6 +82,7 @@ export const defaultAccounts = [
     name: 'Minibits',
     mintUrl: 'https://mint.minibits.cash/Bitcoin',
     isTestMint: false,
+    isDefault: !isDevelopmentMode,
   },
   {
     type: 'cashu',
@@ -89,6 +90,7 @@ export const defaultAccounts = [
     name: 'Voltz',
     mintUrl: 'https://mint.lnvoltz.com',
     isTestMint: false,
+    isDefault: !isDevelopmentMode,
   },
   ...(isDevelopmentMode
     ? ([
@@ -112,6 +114,7 @@ export const defaultAccounts = [
           name: 'Testnut BTC',
           mintUrl: 'https://testnut.cashu.space',
           isTestMint: true,
+          isDefault: true,
         },
         {
           type: 'cashu',
@@ -119,6 +122,7 @@ export const defaultAccounts = [
           name: 'Testnut USD',
           mintUrl: 'https://testnut.cashu.space',
           isTestMint: true,
+          isDefault: true,
         },
       ] as const)
     : []),

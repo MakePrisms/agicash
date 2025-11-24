@@ -11,16 +11,28 @@ import { Money } from '~/lib/money';
 import { AccountRepository } from '../accounts/account-repository';
 import type { AgicashDb } from '../agicash-db/database';
 import type { CashuCryptography } from '../shared/cashu';
-import { encryptToPublicKey, type useEncryption } from '../shared/encryption';
+import {
+  type Encryption,
+  encryptBatchToPublicKey,
+  encryptToPublicKey,
+} from '../shared/encryption';
 import { UserRepository } from '../user/user-repository';
 import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 
-const fakeEncryption = {
+const fakeEncryption: Encryption = {
   encrypt: async <T = unknown>(_data: T): Promise<string> => {
     throw new Error('encrypt is not supported in this context');
   },
   decrypt: async <T = unknown>(data: string): Promise<T> => data as T,
+  encryptBatch: async <T extends readonly unknown[] = unknown[]>(
+    _data: T,
+  ): Promise<string[]> => {
+    throw new Error('encryptBatch is not supported in this context');
+  },
+  decryptBatch: async <T extends readonly unknown[] = unknown[]>(
+    _data: readonly [...{ [K in keyof T]: string }],
+  ): Promise<T> => _data as T,
 };
 
 const fakeCryptography: CashuCryptography = {
@@ -43,7 +55,7 @@ export class LightningAddressService {
   private minSendable: Money<'BTC'>;
   private maxSendable: Money<'BTC'>;
   private cryptography: CashuCryptography = fakeCryptography;
-  private encryption: ReturnType<typeof useEncryption> = fakeEncryption;
+  private encryption: Encryption = fakeEncryption;
   private exchangeRateService: ExchangeRateService;
   /**
    * A client can flag that they will not validate the invoice amount.
@@ -66,6 +78,8 @@ export class LightningAddressService {
       {
         encrypt: this.encryption.encrypt,
         decrypt: this.encryption.decrypt,
+        encryptBatch: this.encryption.encryptBatch,
+        decryptBatch: this.encryption.decryptBatch,
       },
       new QueryClient(),
     );
@@ -167,6 +181,9 @@ export class LightningAddressService {
             encrypt: async (data) =>
               encryptToPublicKey(data, user.encryptionPublicKey),
             decrypt: this.encryption.decrypt,
+            encryptBatch: async (data) =>
+              encryptBatchToPublicKey(data, user.encryptionPublicKey),
+            decryptBatch: this.encryption.decryptBatch,
           },
           this.accountRepository,
         ),

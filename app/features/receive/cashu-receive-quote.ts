@@ -77,7 +77,7 @@ export type CashuReceiveQuote = {
        */
       keysetCounter: number;
       /**
-       * Amounts for each blinded message
+       * Amounts for each blinded message created for this receive.
        */
       outputAmounts: number[];
     }
