@@ -1,0 +1,57 @@
+# Cashu Protocol Extensions
+
+This document describes extensions to the Cashu protocol that are not included in the NUTs.
+Currently, only the Agicash CDK fork implements these extensions for mints.
+
+Refer to the Agicash CDK fork to see changes that have been made on the mint side:
+https://github.com/MakePrisms/cdk/blob/main/crates/cdk-agicash/README.md
+
+## NUT-06 Agicash Extension
+
+Agicash mints extend the NUT-06 mint info response by including an `agicash` key,
+which contains Agicash-specific configurations.
+
+Example:
+
+```json
+{
+  "...other fields",
+  "agicash": {
+    "minting_fee": {
+      "type": "basis_points",
+      "value": 100
+    }
+  }
+}
+```
+
+## Minting Fees (extends NUT-23)
+
+Agicash mints can be configured to charge a fee for minting using the bolt11 payment method.
+The `PostMintQuoteBolt11Response` has been extended to include a `fee` field that represents
+the fee in the quote's unit (e.g., sats or usd).
+
+### Fee Types
+
+Mints will advertise their fee configuration in the NUT-06 mint info response under the
+`agicash.minting_fee` key.
+
+Currently, only `basis_points` is supported as a fee type. The NUT-06 config structure is:
+
+```json
+{
+  "minting_fee": {
+    "type": "basis_points",
+    "value": 100
+  }
+}
+```
+
+Where `value` is the basis point value used to calculate the fee from the requested amount.
+
+When the fee type is `basis_points`, the fee is calculated as:
+
+```
+fee = amount * (basis_points / 10000)
+```
+
