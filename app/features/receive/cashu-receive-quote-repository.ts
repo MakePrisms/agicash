@@ -68,6 +68,10 @@ type CreateQuote = {
    *  from the account they originated from to pay the request for this receive quote.
    */
   receiveType: CashuReceiveQuote['type'];
+  /**
+   * Optional fee that the mint charges to mint ecash. This amount is added to the payment request amount.
+   */
+  mintingFee?: Money;
 } & (
   | {
       receiveType: 'LIGHTNING';
@@ -115,6 +119,7 @@ export class CashuReceiveQuoteRepository {
       state,
       lockingDerivationPath,
       receiveType,
+      mintingFee,
     } = params;
 
     const unit = getDefaultUnit(amount.currency);
@@ -126,18 +131,24 @@ export class CashuReceiveQuoteRepository {
     if (receiveType === 'TOKEN') {
       const { cashuReceiveFee, tokenAmount, lightningFeeReserve } = params;
 
+      const totalFees = mintingFee
+        ? cashuReceiveFee.add(lightningFeeReserve).add(mintingFee)
+        : cashuReceiveFee.add(lightningFeeReserve);
+
       details = {
         amountReceived: amount,
         tokenAmount,
         cashuReceiveFee,
         lightningFeeReserve,
-        totalFees: cashuReceiveFee.add(lightningFeeReserve),
+        mintingFee,
+        totalFees,
       } satisfies CashuTokenReceiveTransactionDetails;
     } else {
       details = {
         amountReceived: amount,
         paymentRequest,
         description,
+        mintingFee,
       } satisfies CashuLightningReceiveTransactionDetails;
     }
 
@@ -157,6 +168,7 @@ export class CashuReceiveQuoteRepository {
       p_locking_derivation_path: lockingDerivationPath,
       p_receive_type: receiveType,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_minting_fee: mintingFee?.toNumber(unit),
     });
 
     if (options?.abortSignal) {
@@ -463,6 +475,13 @@ export class CashuReceiveQuoteRepository {
       lockingDerivationPath: data.locking_derivation_path,
       transactionId: data.transaction_id,
       type: data.type as CashuReceiveQuote['type'],
+      mintingFee: data.minting_fee
+        ? new Money({
+            amount: data.minting_fee,
+            currency: data.currency,
+            unit: data.unit,
+          })
+        : undefined,
     };
 
     if (data.state === 'PAID' || data.state === 'COMPLETED') {

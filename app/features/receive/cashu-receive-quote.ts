@@ -62,6 +62,10 @@ export type CashuReceiveQuote = {
    * ID of the corresponding transaction.
    */
   transactionId: string;
+  /**
+   * Optional fee that the mint charges to mint ecash. This amount is added to the payment request amount.
+   */
+  mintingFee?: Money;
 } & (
   | {
       state: 'UNPAID' | 'EXPIRED';

@@ -192,6 +192,7 @@ export type Database = {
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
+          minting_fee: number | null
           output_amounts: number[] | null
           payment_request: string
           quote_id: string
@@ -214,6 +215,7 @@ export type Database = {
           keyset_counter?: number | null
           keyset_id?: string | null
           locking_derivation_path: string
+          minting_fee?: number | null
           output_amounts?: number[] | null
           payment_request: string
           quote_id: string
@@ -236,6 +238,7 @@ export type Database = {
           keyset_counter?: number | null
           keyset_id?: string | null
           locking_derivation_path?: string
+          minting_fee?: number | null
           output_amounts?: number[] | null
           payment_request?: string
           quote_id?: string
@@ -870,6 +873,7 @@ export type Database = {
           p_encrypted_transaction_details: string
           p_expires_at: string
           p_locking_derivation_path: string
+          p_minting_fee?: number
           p_payment_request: string
           p_quote_id: string
           p_receive_type: string
@@ -889,6 +893,7 @@ export type Database = {
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
+          minting_fee: number | null
           output_amounts: number[] | null
           payment_request: string
           quote_id: string
@@ -999,6 +1004,7 @@ export type Database = {
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
+          minting_fee: number | null
           output_amounts: number[] | null
           payment_request: string
           quote_id: string
@@ -1040,6 +1046,7 @@ export type Database = {
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
+          minting_fee: number | null
           output_amounts: number[] | null
           payment_request: string
           quote_id: string

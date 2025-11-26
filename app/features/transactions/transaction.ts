@@ -49,7 +49,11 @@ export type CashuTokenReceiveTransactionDetails = {
    */
   lightningFeeReserve?: Money;
   /**
-   * The total fees for the transaction. This is the sum of `cashuReceiveFee` and `lightningFeeReserve`.
+   * The fee that the mint charged to mint the ecash.
+   */
+  mintingFee?: Money;
+  /**
+   * The total fees for the transaction. This is the sum of `cashuReceiveFee`, `lightningFeeReserve`, and `mintingFee`.
    */
   totalFees: Money;
 };
@@ -158,6 +162,10 @@ export type CashuLightningReceiveTransactionDetails = {
    * The description of the transaction.
    */
   description?: string;
+  /**
+   * The fee charged by the mint to deposit money into the account.
+   */
+  mintingFee?: Money;
 };
 
 export type Transaction = {
