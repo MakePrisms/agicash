@@ -240,6 +240,10 @@ export function TransactionDetails({
         cashuReceiveFee: receiveSwapDetails.cashuReceiveFee?.toLocaleString({
           unit,
         }),
+        lightningFeeReserve:
+          receiveSwapDetails.lightningFeeReserve?.toLocaleString({
+            unit,
+          }),
         totalFees: receiveSwapDetails.totalFees?.toLocaleString({ unit }),
       },
     );

@@ -109,42 +109,51 @@ export class CashuReceiveQuoteService {
   /**
    * Creates a new cashu receive quote used for receiving via a bolt11 payment request.
    * @returns The created cashu receive quote with the bolt11 invoice to pay.
-   * @throws An error if the receive type is TOKEN and token amount or cashu receive fee is not provided or if creating the quote fails.
    */
-  async createReceiveQuote({
-    userId,
-    account,
-    receiveType,
-    receiveQuote,
-    tokenAmount,
-    cashuReceiveFee,
-  }: {
-    /**
-     * The id of the user that will receive the money.
-     */
-    userId: string;
-    /**
-     * The cashu account to which the money will be received.
-     */
-    account: CashuAccount;
-    /**
-     * Whether this is for a regular lighting invoice or
-     * melting a token to this account.
-     */
-    receiveType: 'LIGHTNING' | 'TOKEN';
-    /**
-     * The receive quote to create.
-     */
-    receiveQuote: CashuReceiveLightningQuote;
-    /**
-     * The amount of the token to receive.
-     */
-    tokenAmount?: Money;
-    /**
-     * The fee in the unit of the token that will be incurred for spending the proofs as inputs to the melt operation.
-     */
-    cashuReceiveFee?: number;
-  }): Promise<CashuReceiveQuote> {
+  async createReceiveQuote(
+    params: {
+      /**
+       * The id of the user that will receive the money.
+       */
+      userId: string;
+      /**
+       * The cashu account to which the money will be received.
+       */
+      account: CashuAccount;
+      /**
+       * The receive quote to create.
+       */
+      receiveQuote: CashuReceiveLightningQuote;
+      /**
+       * Type of the receive.
+       * - LIGHTNING - The money is received via a regular lightning payment.
+       * - TOKEN - The money is received as a cashu token. The proofs will be melted
+       *  from the account they originated from to pay the request for this receive quote.
+       */
+      receiveType: 'LIGHTNING' | 'TOKEN';
+    } & (
+      | {
+          receiveType: 'LIGHTNING';
+        }
+      | {
+          receiveType: 'TOKEN';
+          /**
+           * The amount of the token to receive.
+           */
+          tokenAmount: Money;
+          /**
+           * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
+           */
+          cashuReceiveFee: Money;
+          /**
+           * The fee reserved for the lightning payment to melt the proofs to the account.
+           */
+          lightningFeeReserve: Money;
+        }
+    ),
+  ): Promise<CashuReceiveQuote> {
+    const { userId, account, receiveQuote, receiveType } = params;
+
     const baseReceiveQuote = {
       accountId: account.id,
       userId,
@@ -158,17 +167,14 @@ export class CashuReceiveQuoteService {
     };
 
     if (receiveType === 'TOKEN') {
-      if (!tokenAmount || cashuReceiveFee === undefined) {
-        throw new Error(
-          'Token amount and receive swap fee are required for token receive quotes',
-        );
-      }
+      const { tokenAmount, cashuReceiveFee, lightningFeeReserve } = params;
 
       return this.cashuReceiveQuoteRepository.create({
         ...baseReceiveQuote,
         receiveType,
         tokenAmount,
         cashuReceiveFee,
+        lightningFeeReserve,
       });
     }
 
