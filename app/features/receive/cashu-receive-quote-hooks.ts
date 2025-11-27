@@ -22,8 +22,7 @@ import {
 import { useLatest } from '~/lib/use-latest';
 import type { CashuAccount } from '../accounts/account';
 import {
-  useAccountsCache,
-  useGetLatestCashuAccount,
+  useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
@@ -344,14 +343,14 @@ const useTrackMintQuotesWithPolling = ({
   quotes,
   onFetched,
 }: TrackMintQuotesWithPollingProps) => {
-  const getCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
 
   useQueries({
     queries: quotes.map((quote) => ({
       queryKey: ['mint-quote', quote.quoteId],
       queryFn: async () => {
         try {
-          const account = await getCashuAccount(quote.accountId);
+          const account = getCashuAccount(quote.accountId);
           const mintQuoteResponse = await checkMintQuote(account, quote);
 
           onFetched(mintQuoteResponse);
@@ -393,7 +392,7 @@ const useTrackMintQuotesWithWebSocket = ({
   quotesByMint,
   onUpdate,
 }: TrackMintQuotesWithWebSocketProps) => {
-  const getCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
   const [subscriptionManager] = useState(
     () => new MintQuoteSubscriptionManager(),
   );
@@ -421,8 +420,8 @@ const useTrackMintQuotesWithWebSocket = ({
     (receiveQuote: CashuReceiveQuote) =>
       queryClient.fetchQuery({
         queryKey: ['check-mint-quote', receiveQuote.quoteId],
-        queryFn: async () => {
-          const account = await getCashuAccount(receiveQuote.accountId);
+        queryFn: () => {
+          const account = getCashuAccount(receiveQuote.accountId);
           return checkMintQuote(account, receiveQuote);
         },
         retry: 5,
@@ -470,21 +469,8 @@ const useTrackMintQuotesWithWebSocket = ({
 
 const usePartitionQuotesByStateCheckType = ({
   quotes,
-  accountsCache,
-}: {
-  quotes: CashuReceiveQuote[];
-  accountsCache: ReturnType<typeof useAccountsCache>;
-}) => {
-  const getCashuAccount = useCallback(
-    (accountId: string) => {
-      const account = accountsCache.get(accountId);
-      if (!account || account.type !== 'cashu') {
-        throw new Error(`Cashu account not found for id: ${accountId}`);
-      }
-      return account;
-    },
-    [accountsCache],
-  );
+}: { quotes: CashuReceiveQuote[] }) => {
+  const getCashuAccount = useGetCashuAccount();
 
   return useMemo(() => {
     const quotesToSubscribeTo: Record<string, CashuReceiveQuote[]> = {};
@@ -529,7 +515,6 @@ const useOnMintQuoteStateChange = ({
   const onPaidRef = useLatest(onPaid);
   const onIssuedRef = useLatest(onIssued);
   const onExpiredRef = useLatest(onExpired);
-  const accountsCache = useAccountsCache();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
 
   const processMintQuote = useCallback(
@@ -563,10 +548,7 @@ const useOnMintQuoteStateChange = ({
   );
 
   const { quotesToSubscribeTo, quotesToPoll } =
-    usePartitionQuotesByStateCheckType({
-      quotes,
-      accountsCache,
-    });
+    usePartitionQuotesByStateCheckType({ quotes });
 
   useTrackMintQuotesWithWebSocket({
     quotesByMint: quotesToSubscribeTo,
@@ -582,7 +564,7 @@ const useOnMintQuoteStateChange = ({
 export function useProcessCashuReceiveQuoteTasks() {
   const cashuReceiveQuoteService = useCashuReceiveQuoteService();
   const pendingQuotes = usePendingCashuReceiveQuotes();
-  const getCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
 
   const { mutate: completeReceiveQuote } = useMutation({
@@ -593,7 +575,7 @@ export function useProcessCashuReceiveQuoteTasks() {
         // This can happen when the quote was updated in the meantime so it's not pending anymore.
         return;
       }
-      const account = await getCashuAccount(quote.accountId);
+      const account = getCashuAccount(quote.accountId);
       return await cashuReceiveQuoteService.completeReceive(account, quote);
     },
     retry: 3,
