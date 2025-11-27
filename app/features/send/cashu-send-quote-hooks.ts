@@ -19,8 +19,7 @@ import { useLatest } from '~/lib/use-latest';
 import type { CashuAccount } from '../accounts/account';
 import {
   useAccount,
-  useAccountsCache,
-  useGetLatestCashuAccount,
+  useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type {
@@ -167,14 +166,14 @@ export function useInitiateCashuSendQuote({
   const userId = useUser((user) => user.id);
   const cashuSendQuoteService = useCashuSendQuoteService();
   const cashuSendQuoteCache = useCashuSendQuoteCache();
-  const getCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
     mutationKey: ['initiate-cashu-send-quote'],
     scope: {
       id: 'initiate-cashu-send-quote',
     },
-    mutationFn: async ({
+    mutationFn: ({
       accountId,
       sendQuote,
       destinationDetails,
@@ -183,7 +182,7 @@ export function useInitiateCashuSendQuote({
       sendQuote: SendQuoteRequest;
       destinationDetails?: DestinationDetails;
     }) => {
-      const account = await getCashuAccount(accountId);
+      const account = getCashuAccount(accountId);
       return cashuSendQuoteService.createSendQuote({
         userId,
         account,
@@ -365,13 +364,12 @@ function useOnMeltQuoteStateChange({
   onPaid,
   onExpired,
 }: OnMeltQuoteStateChangeProps) {
-  const accountsCache = useAccountsCache();
   const onUnpaidRef = useLatest(onUnpaid);
   const onPendingRef = useLatest(onPending);
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
   const queryClient = useQueryClient();
-  const getCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
 
   const handleMeltQuoteUpdate = useCallback(
@@ -436,10 +434,7 @@ function useOnMeltQuoteStateChange({
 
     const quotesByMint = sendQuotes.reduce<Record<string, CashuSendQuote[]>>(
       (acc, quote) => {
-        const account = accountsCache.get(quote.accountId);
-        if (!account || account.type !== 'cashu') {
-          throw new Error(`Cashu account not found for id: ${quote.accountId}`);
-        }
+        const account = getCashuAccount(quote.accountId);
         const existingQuotesForMint = acc[account.mintUrl] ?? [];
         acc[account.mintUrl] = existingQuotesForMint.concat(quote);
         return acc;
@@ -450,14 +445,14 @@ function useOnMeltQuoteStateChange({
     Object.entries(quotesByMint).map(([mintUrl, quotes]) =>
       subscribe({ mintUrl, quotes, onUpdate: handleMeltQuoteUpdate }),
     );
-  }, [sendQuotes, handleMeltQuoteUpdate, accountsCache, subscribe]);
+  }, [sendQuotes, handleMeltQuoteUpdate, getCashuAccount, subscribe]);
 
   const getMeltQuote = useCallback(
     (sendQuote: CashuSendQuote) =>
       queryClient.fetchQuery({
         queryKey: ['check-melt-quote', sendQuote.quoteId],
-        queryFn: async () => {
-          const account = await getCashuAccount(sendQuote.accountId);
+        queryFn: () => {
+          const account = getCashuAccount(sendQuote.accountId);
           return checkMeltQuote(account, sendQuote);
         },
         retry: 5,
@@ -540,7 +535,7 @@ export function useCashuSendQuoteChangeHandlers() {
 export function useProcessCashuSendQuoteTasks() {
   const cashuSendService = useCashuSendQuoteService();
   const unresolvedSendQuotes = useUnresolvedCashuSendQuotes();
-  const getCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const [subscriptionManager] = useState(
     () => new MeltQuoteSubscriptionManager(),
@@ -561,7 +556,7 @@ export function useProcessCashuSendQuoteTasks() {
         return;
       }
 
-      const account = await getCashuAccount(sendQuote.accountId);
+      const account = getCashuAccount(sendQuote.accountId);
       const failedQuote = await cashuSendService.failSendQuote(
         account,
         sendQuote,
@@ -606,7 +601,7 @@ export function useProcessCashuSendQuoteTasks() {
         return;
       }
 
-      const account = await getCashuAccount(sendQuote.accountId);
+      const account = getCashuAccount(sendQuote.accountId);
 
       await cashuSendService
         .initiateSend(account, sendQuote, meltQuote)
@@ -638,7 +633,7 @@ export function useProcessCashuSendQuoteTasks() {
         return;
       }
 
-      return await cashuSendService.markSendQuoteAsPending(sendQuote);
+      return cashuSendService.markSendQuoteAsPending(sendQuote);
     },
     retry: 3,
     throwOnError: true,
@@ -691,7 +686,7 @@ export function useProcessCashuSendQuoteTasks() {
         return;
       }
 
-      const account = await getCashuAccount(sendQuote.accountId);
+      const account = getCashuAccount(sendQuote.accountId);
 
       return cashuSendService.completeSendQuote(account, sendQuote, meltQuote);
     },

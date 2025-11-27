@@ -23,71 +23,12 @@ import {
 } from './account-repository';
 import { AccountService, useAccountService } from './account-service';
 
-/**
- * Cache that stores the latest known version of each account.
- * This is used when we have the information about the latest version of the account before we have the full account data.
- */
-class AccountVersionsCache {
-  public static Key = 'account-versions';
-
-  constructor(
-    private readonly queryClient: QueryClient,
-    private readonly accountsCache: AccountsCache,
-  ) {}
-
-  /**
-   * Get the latest known version of the account.
-   * @param accountId - The id of the account.
-   * @returns The latest known version of the account or -1 if the account is not found.
-   */
-  getLatestVersion(accountId: string) {
-    const version = this.queryClient.getQueryData<number>([
-      AccountVersionsCache.Key,
-      accountId,
-    ]);
-
-    if (version) {
-      return version;
-    }
-
-    const account = this.accountsCache.get(accountId);
-    if (!account) {
-      return -1;
-    }
-
-    return account.version;
-  }
-
-  /**
-   * Update the latest known version of the account if it is stale.
-   * @param accountId - The id of the account.
-   * @param version - The new version of the account. If the version passed is lower than the latest known version, it will be ignored.
-   */
-  updateLatestVersionIfStale(accountId: string, version: number) {
-    const latestVersion = this.getLatestVersion(accountId);
-    if (latestVersion < version) {
-      this.queryClient.setQueryData<number>(
-        [AccountVersionsCache.Key, accountId],
-        version,
-      );
-    }
-  }
-}
-
 export class AccountsCache {
   public static Key = 'accounts';
-  private readonly accountVersionsCache;
 
-  constructor(private readonly queryClient: QueryClient) {
-    this.accountVersionsCache = new AccountVersionsCache(queryClient, this);
-  }
+  constructor(private readonly queryClient: QueryClient) {}
 
   upsert(account: Account) {
-    this.accountVersionsCache.updateLatestVersionIfStale(
-      account.id,
-      account.version,
-    );
-
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) => {
       const existingAccountIndex = curr.findIndex((x) => x.id === account.id);
       if (existingAccountIndex !== -1) {
@@ -100,11 +41,6 @@ export class AccountsCache {
   }
 
   update(account: Account) {
-    this.accountVersionsCache.updateLatestVersionIfStale(
-      account.id,
-      account.version,
-    );
-
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
       curr.map((x) =>
         x.id === account.id && account.version > x.version ? account : x,
@@ -133,73 +69,11 @@ export class AccountsCache {
   }
 
   /**
-   * Set the latest known version of an account.
-   * Use when we know the latest version of an account before we can update the account data in cache. `getLatest` can then be used to wait for the account to be updated with the latest data.
-   * @param id - The id of the account.
-   * @param version - The new version of the account. If the version passed is lower than the latest known version, it will be ignored.
-   */
-  setLatestVersion(id: string, version: number) {
-    this.accountVersionsCache.updateLatestVersionIfStale(id, version);
-  }
-
-  /**
-   * Get the latest account by id.
-   * Returns the latest version of the account. If we don't have the full data for the latest known version yet, this will wait for the account data to be updated.
-   * @param id - The id of the account.
-   * @returns The latest account or null if the account is not found.
-   */
-  async getLatest(id: string): Promise<Account | null> {
-    const latestKnownVersion = this.accountVersionsCache.getLatestVersion(id);
-
-    const account = this.get(id);
-    if (!account || account.version >= latestKnownVersion) {
-      return account;
-    }
-
-    return new Promise<Account | null>((resolve) => {
-      const unsubscribe = this.subscribe((accounts) => {
-        const updatedAccount = accounts.find((x) => x.id === id);
-        if (!updatedAccount) {
-          resolve(null);
-          unsubscribe();
-          return;
-        }
-
-        if (updatedAccount.version >= latestKnownVersion) {
-          this.accountVersionsCache.updateLatestVersionIfStale(
-            id,
-            updatedAccount.version,
-          );
-          resolve(updatedAccount);
-          unsubscribe();
-        }
-      });
-    });
-  }
-
-  /**
    * Invalidates the accounts cache.
    */
   invalidate() {
     return this.queryClient.invalidateQueries({
       queryKey: [AccountsCache.Key],
-    });
-  }
-
-  /**
-   * Subscribe to changes in the accounts cache.
-   * @param callback - The callback to call when the accounts cache changes.
-   * @returns A function to unsubscribe from the accounts cache.
-   */
-  private subscribe(callback: (accounts: Account[]) => void) {
-    const cache = this.queryClient.getQueryCache();
-    return cache.subscribe((event) => {
-      if (
-        event.query.queryKey.length === 1 &&
-        event.query.queryKey[0] === AccountsCache.Key
-      ) {
-        callback(event.query.state.data);
-      }
     });
   }
 }
@@ -233,10 +107,6 @@ export function useAccountChangeHandlers() {
     {
       event: 'ACCOUNT_UPDATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        // We are updating the latest known version of the account here so anyone who needs the latest version (who uses account cache `getLatest`)
-        // can know as soon as possible and thus can wait for the account data to be decrypted and updated in the cache instead of processing the old version.
-        // TODO: remove this in a separate commit (I don't think it is needed anymore)
-        accountCache.setLatestVersion(payload.id, payload.version);
         const updatedAccount = await accountRepository.toAccount(payload);
         accountCache.update(updatedAccount);
       },
@@ -321,25 +191,20 @@ type AccountTypeMap = {
 };
 
 /**
- * Hook to get the method which return the latest version of the account.
- * If we know that the account was updated but we don't have the full account data yet, we can use this hook to wait for the account data to be updated in the cache.
- * Prefer using this hook whenever using the account's version property to minimize the errors that result in retries which are caused by using the old version of the account.
- * @param type - The type of the account to get the latest version of. If provided the type of the returned account will be narrowed.
- * @returns The latest version of the account.
- * @throws Error if the account is not found.
+ * Hook to get the method which returns the account from the cache or throws an error if not found.
+ * @param type - The type of the account to get. If provided the type of the returned account will be narrowed.
+ * @returns The method which returns the account or throws an error if the account is not found or if the account type does not match the provided type.
  */
-export function useGetLatestAccount<T extends keyof AccountTypeMap>(
+export function useGetAccount<T extends keyof AccountTypeMap>(
   type: T,
-): (id: string) => Promise<AccountTypeMap[T]>;
-export function useGetLatestAccount(
-  type?: undefined,
-): (id: string) => Promise<Account>;
-export function useGetLatestAccount(type?: keyof AccountTypeMap) {
+): (id: string) => AccountTypeMap[T];
+export function useGetAccount(type?: undefined): (id: string) => Account;
+export function useGetAccount(type?: keyof AccountTypeMap) {
   const accountsCache = useAccountsCache();
 
   return useCallback(
-    async (id: string) => {
-      const account = await accountsCache.getLatest(id);
+    (id: string) => {
+      const account = accountsCache.get(id);
       if (!account) {
         throw new Error(`Account not found for id: ${id}`);
       }
@@ -353,14 +218,11 @@ export function useGetLatestAccount(type?: keyof AccountTypeMap) {
 }
 
 /**
- * Hook to get the method which return the latest version of the cashu account.
- * If we know that the account was updated but we don't have the full account data yet, we can use this hook to wait for the account data to be updated in the cache.
- * Prefer using this hook whenever using the account's version property to minimize the errors that result in retries which are caused by using the old version of the account.
- * @returns The latest version of the cashu account.
- * @throws Error if the account is not found.
+ * Hook to get the method which returns the cashu account from the cache or throws an error if not found.
+ * @returns The method which returns the cashu account or throws an error if the account is not found or if the account type is not cashu.
  */
-export function useGetLatestCashuAccount() {
-  return useGetLatestAccount('cashu');
+export function useGetCashuAccount() {
+  return useGetAccount('cashu');
 }
 
 export function useDefaultAccount() {

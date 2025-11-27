@@ -9,7 +9,7 @@ import {
 import { useEffect, useMemo } from 'react';
 import { useLatest } from '~/lib/use-latest';
 import {
-  useGetLatestCashuAccount,
+  useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuTokenSwap } from '../agicash-db/database';
@@ -117,22 +117,22 @@ export function useCreateCashuTokenSwap() {
   const userId = useUser((user) => user.id);
   const tokenSwapService = useCashuTokenSwapService();
   const tokenSwapCache = useCashuTokenSwapCache();
-  const getLatestAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
     mutationKey: ['create-cashu-token-swap'],
     scope: {
       id: 'create-cashu-token-swap',
     },
-    mutationFn: async ({ token, accountId }: CreateProps) => {
-      const account = await getLatestAccount(accountId);
+    mutationFn: ({ token, accountId }: CreateProps) => {
+      const account = getCashuAccount(accountId);
       return tokenSwapService.create({
         userId,
         token,
         account,
       });
     },
-    onSuccess: async ({ swap }) => {
+    onSuccess: ({ swap }) => {
       tokenSwapCache.add(swap);
     },
   });
@@ -253,7 +253,7 @@ export function useCashuTokenSwapChangeHandlers() {
 export function useProcessCashuTokenSwapTasks() {
   const pendingSwaps = usePendingCashuTokenSwaps();
   const tokenSwapService = useCashuTokenSwapService();
-  const getLatestAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
   const pendingSwapsCache = usePendingCashuTokenSwapsCache();
 
   const { mutate: completeSwap } = useMutation({
@@ -265,7 +265,7 @@ export function useProcessCashuTokenSwapTasks() {
         return;
       }
 
-      const account = await getLatestAccount(swap.accountId);
+      const account = getCashuAccount(swap.accountId);
       await tokenSwapService.completeSwap(account, swap);
     },
     retry: 3,
