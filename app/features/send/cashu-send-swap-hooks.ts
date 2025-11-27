@@ -11,8 +11,7 @@ import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import {
   useAccount,
-  useAccountsCache,
-  useGetLatestCashuAccount,
+  useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type {
@@ -109,10 +108,10 @@ function useCashuSendSwapCache() {
 
 export function useGetCashuSendSwapQuote() {
   const cashuSendSwapService = useCashuSendSwapService();
-  const getLatestCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       amount,
       accountId,
       senderPaysFee = true,
@@ -121,7 +120,7 @@ export function useGetCashuSendSwapQuote() {
       accountId: string;
       senderPaysFee?: boolean;
     }) => {
-      const account = await getLatestCashuAccount(accountId);
+      const account = getCashuAccount(accountId);
       return cashuSendSwapService.getQuote({
         amount,
         account,
@@ -140,11 +139,11 @@ export function useCreateCashuSendSwap({
 }) {
   const cashuSendSwapService = useCashuSendSwapService();
   const userId = useUser((user) => user.id);
-  const getLatestCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
   const cashuSendSwapCache = useCashuSendSwapCache();
 
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       amount,
       accountId,
       senderPaysFee = true,
@@ -153,7 +152,7 @@ export function useCreateCashuSendSwap({
       accountId: string;
       senderPaysFee?: boolean;
     }) => {
-      const account = await getLatestCashuAccount(accountId);
+      const account = getCashuAccount(accountId);
       return cashuSendSwapService.create({
         userId,
         amount,
@@ -315,7 +314,7 @@ function useOnProofStateChange({ swaps, onSpent }: OnProofStateChangeProps) {
   const [subscriptionManager] = useState(
     () => new ProofStateSubscriptionManager(),
   );
-  const accountsCache = useAccountsCache();
+  const getCashuAccount = useGetCashuAccount();
   const onSpentRef = useLatest(onSpent);
 
   const { mutate: subscribe } = useMutation({
@@ -333,10 +332,7 @@ function useOnProofStateChange({ swaps, onSpent }: OnProofStateChangeProps) {
   useEffect(() => {
     const swapsByMint = swaps.reduce<Record<string, PendingCashuSendSwap[]>>(
       (acc, swap) => {
-        const account = accountsCache.get(swap.accountId);
-        if (!account || account.type !== 'cashu') {
-          throw new Error(`Cashu account not found for id: ${swap.accountId}`);
-        }
+        const account = getCashuAccount(swap.accountId);
         const existing = acc[account.mintUrl] ?? [];
         acc[account.mintUrl] = existing.concat(swap);
         return acc;
@@ -351,7 +347,7 @@ function useOnProofStateChange({ swaps, onSpent }: OnProofStateChangeProps) {
         onSpent: (swap) => onSpentRef.current(swap),
       });
     });
-  }, [subscribe, swaps, accountsCache]);
+  }, [subscribe, swaps, getCashuAccount]);
 }
 
 /**
@@ -398,7 +394,7 @@ export function useCashuSendSwapChangeHandlers() {
 export function useProcessCashuSendSwapTasks() {
   const { draft, pending } = useUnresolvedCashuSendSwaps();
   const cashuSendSwapService = useCashuSendSwapService();
-  const getLatestCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
 
   const { mutate: swapForProofsToSend } = useMutation({
     mutationFn: async (swapId: string) => {
@@ -409,7 +405,7 @@ export function useProcessCashuSendSwapTasks() {
         return;
       }
 
-      const account = await getLatestCashuAccount(swap.accountId);
+      const account = getCashuAccount(swap.accountId);
       await cashuSendSwapService.swapForProofsToSend({
         swap,
         account,
