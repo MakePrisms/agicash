@@ -398,6 +398,18 @@ export function useDefaultAccount() {
   return defaultAccount;
 }
 
+/**
+ * @returns The spark account.
+ * @throws Error if there is not exactly one Spark account.
+ */
+export function useSparkAccount(): ExtendedAccount<'spark'> {
+  const { data: accounts } = useAccounts({ type: 'spark' });
+  if (accounts.length !== 1) {
+    throw new Error('Exactly one Spark account is required');
+  }
+  return accounts[0];
+}
+
 export function useAddCashuAccount() {
   const userId = useUser((x) => x.id);
   const accountCache = useAccountsCache();

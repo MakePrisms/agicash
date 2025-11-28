@@ -1,3 +1,4 @@
+import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
 import {
   type MintActiveKeys,
   type MintAllKeysets,
@@ -12,7 +13,7 @@ import {
   getCashuUnit,
   getCashuWallet,
 } from '~/lib/cashu';
-import type { Currency } from '~/lib/money';
+import { type Currency, Money } from '~/lib/money';
 import {
   type AgicashDb,
   type AgicashDbAccount,
@@ -30,6 +31,8 @@ import {
 } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type { Account, CashuAccount, CashuProof } from './account';
+import { getDefaultUnit } from '../shared/currencies';
+import { getSparkWalletFromCache } from '../shared/spark';
 
 type AccountOmit<
   T extends Account,
@@ -120,18 +123,23 @@ export class AccountRepository {
     accountInput: AccountInput<T>,
     options?: Options,
   ): Promise<T> {
+    let details = {};
+    if (accountInput.type === 'cashu') {
+      details = {
+        mint_url: accountInput.mintUrl,
+        is_test_mint: accountInput.isTestMint,
+        keyset_counters: accountInput.keysetCounters,
+      };
+    } else if (accountInput.type === 'nwc') {
+      details = { nwc_url: accountInput.nwcUrl };
+    } else if (accountInput.type === 'spark') {
+      details = { network: accountInput.network };
+    }
     const accountsToCreate = {
       name: accountInput.name,
       type: accountInput.type,
       currency: accountInput.currency,
-      details:
-        accountInput.type === 'cashu'
-          ? {
-              mint_url: accountInput.mintUrl,
-              is_test_mint: accountInput.isTestMint,
-              keyset_counters: accountInput.keysetCounters,
-            }
-          : { nwc_url: accountInput.nwcUrl },
+      details,
       user_id: accountInput.userId,
     };
 
@@ -196,6 +204,32 @@ export class AccountRepository {
         ...commonData,
         type: 'nwc',
         nwcUrl: details.nwc_url,
+      } as T;
+    }
+
+    if (data.type === 'spark') {
+      const details = data.details as { network: SparkNetwork };
+
+      const sparkWallet = getSparkWalletFromCache(
+        this.queryClient,
+        details.network,
+      );
+      if (!sparkWallet) {
+        throw new Error('Spark wallet not initialized');
+      }
+
+      const { balance: balanceSats } = await sparkWallet.getBalance();
+
+      return {
+        ...commonData,
+        type: 'spark',
+        balance: new Money({
+          amount: balanceSats.toString(),
+          currency: commonData.currency,
+          unit: getDefaultUnit(commonData.currency),
+        }),
+        network: details.network,
+        isOnline: true,
       } as T;
     }
 

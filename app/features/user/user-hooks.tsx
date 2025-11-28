@@ -77,20 +77,11 @@ const isDevelopmentMode = import.meta.env.MODE === 'development';
 
 export const defaultAccounts = [
   {
-    type: 'cashu',
+    type: 'spark',
     currency: 'BTC',
-    name: 'Minibits',
-    mintUrl: 'https://mint.minibits.cash/Bitcoin',
-    isTestMint: false,
-    isDefault: !isDevelopmentMode,
-  },
-  {
-    type: 'cashu',
-    currency: 'USD',
-    name: 'Voltz',
-    mintUrl: 'https://mint.lnvoltz.com',
-    isTestMint: false,
-    isDefault: !isDevelopmentMode,
+    name: 'Bitcoin',
+    network: 'MAINNET',
+    isDefault: true,
   },
   ...(isDevelopmentMode
     ? ([
@@ -114,7 +105,7 @@ export const defaultAccounts = [
           name: 'Testnut BTC',
           mintUrl: 'https://testnut.cashu.space',
           isTestMint: true,
-          isDefault: true,
+          isDefault: false,
         },
         {
           type: 'cashu',
