@@ -5,6 +5,7 @@ import { Button } from '~/components/ui/button';
 import {
   type ExtendedAccount,
   type ExtendedCashuAccount,
+  type ExtendedSparkAccount,
   getAccountBalance,
 } from '~/features/accounts/account';
 import { useAccount } from '~/features/accounts/account-hooks';
@@ -91,7 +92,7 @@ function CashuAccount({ account }: { account: ExtendedCashuAccount }) {
   );
 }
 
-function SparkAccount({ account }: { account: ExtendedAccount<'spark'> }) {
+function SparkAccount({ account }: { account: ExtendedSparkAccount }) {
   const makeDefault = useMakeDefaultAccount();
 
   return (

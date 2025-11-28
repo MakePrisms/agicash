@@ -1,6 +1,11 @@
 import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
 import type { Proof } from '@cashu/cashu-ts';
-import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
+import {
+  type ExtendedCashuWallet,
+  areMintUrlsEqual,
+  getCashuUnit,
+  sumProofs,
+} from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
 
 export type AccountType = 'cashu' | 'nwc' | 'spark';
@@ -79,8 +84,9 @@ export type ExtendedAccount<T extends AccountType = AccountType> = Extract<
 > & { isDefault: boolean };
 
 export type CashuAccount = Extract<Account, { type: 'cashu' }>;
-export type ExtendedCashuAccount = ExtendedAccount<'cashu'>;
 export type SparkAccount = Extract<Account, { type: 'spark' }>;
+export type ExtendedCashuAccount = ExtendedAccount<'cashu'>;
+export type ExtendedSparkAccount = ExtendedAccount<'spark'>;
 
 export const getAccountBalance = (account: Account) => {
   if (account.type === 'cashu') {
@@ -96,4 +102,24 @@ export const getAccountBalance = (account: Account) => {
   }
   // TODO: implement balance logic for other account types
   return new Money({ amount: 0, currency: account.currency });
+};
+
+/**
+ * Compares two account objects to determine if they are effectivley the same account.
+ */
+export const isSameEffectiveAccount = (a: Account, b: Account) => {
+  if (a.id === b.id) {
+    return true;
+  }
+  if (a.type !== b.type) {
+    return false;
+  }
+  if (a.type === 'cashu' && b.type === 'cashu') {
+    return areMintUrlsEqual(a.mintUrl, b.mintUrl) && a.currency === b.currency;
+  }
+  if (a.type === 'spark' && b.type === 'spark') {
+    // TODO: See about the possibility of a user having multiple spark accounts
+    return true;
+  }
+  return false;
 };

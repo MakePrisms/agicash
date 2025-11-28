@@ -10,9 +10,13 @@ import { CashuReceiveQuoteRepository } from '~/features/receive/cashu-receive-qu
 import { CashuReceiveQuoteService } from '~/features/receive/cashu-receive-quote-service';
 import { CashuTokenSwapRepository } from '~/features/receive/cashu-token-swap-repository';
 import { CashuTokenSwapService } from '~/features/receive/cashu-token-swap-service';
-import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
+import {
+  ClaimCashuTokenService,
+  type ClaimDestination,
+} from '~/features/receive/claim-cashu-token-service';
 import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
+import { SparkLightningReceiveService } from '~/features/receive/spark-lightning-receive-service';
 import {
   getCashuCryptography,
   seedQueryOptions,
@@ -22,6 +26,7 @@ import {
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
+import { sparkWalletQueryOptions } from '~/features/shared/spark';
 import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { UserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
@@ -33,10 +38,12 @@ import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
 const getClaimCashuTokenService = async () => {
   const queryClient = getQueryClient();
-  const [encryptionPrivateKey, encryptionPublicKey] = await Promise.all([
-    queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-    queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-  ]);
+  const [encryptionPrivateKey, encryptionPublicKey, sparkWallet] =
+    await Promise.all([
+      queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
+      queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
+      queryClient.ensureQueryData(sparkWalletQueryOptions('MAINNET')),
+    ]);
   const getCashuWalletSeed = () => queryClient.fetchQuery(seedQueryOptions());
   const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
   const accountRepository = new AccountRepository(
@@ -62,9 +69,13 @@ const getClaimCashuTokenService = async () => {
     cashuCryptography,
     cashuReceiveQuoteRepository,
   );
+  const sparkLightningReceiveService = new SparkLightningReceiveService(
+    sparkWallet,
+  );
   const receiveCashuTokenService = new ReceiveCashuTokenService(queryClient);
   const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
     cashuReceiveQuoteService,
+    sparkLightningReceiveService,
   );
   const userRepository = new UserRepository(
     agicashDb,
@@ -97,11 +108,19 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const selectedAccountId =
     location.searchParams.get('selectedAccountId') ?? undefined;
   const autoClaim = location.searchParams.get('autoClaim') === 'true';
+  const claimToSpark = location.searchParams.get('claimToSpark') === 'true';
 
   if (autoClaim) {
     const user = getUserFromCacheOrThrow();
     const claimCashuTokenService = await getClaimCashuTokenService();
-    const result = await claimCashuTokenService.claimToken(user, token);
+    const destination: ClaimDestination = claimToSpark
+      ? { type: 'spark' }
+      : { type: 'source' };
+    const result = await claimCashuTokenService.claimToken(
+      user,
+      token,
+      destination,
+    );
     if (!result.success) {
       toast({
         title: 'Failed to claim the token',

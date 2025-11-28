@@ -15,6 +15,7 @@ import {
   type AccountType,
   type CashuAccount,
   type ExtendedAccount,
+  type ExtendedSparkAccount,
   getAccountBalance,
 } from './account';
 import {
@@ -402,7 +403,7 @@ export function useDefaultAccount() {
  * @returns The spark account.
  * @throws Error if there is not exactly one Spark account.
  */
-export function useSparkAccount(): ExtendedAccount<'spark'> {
+export function useSparkAccount(): ExtendedSparkAccount {
   const { data: accounts } = useAccounts({ type: 'spark' });
   if (accounts.length !== 1) {
     throw new Error('Exactly one Spark account is required');
