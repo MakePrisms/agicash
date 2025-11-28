@@ -17,11 +17,11 @@ import {
   encryptBatchToPublicKey,
   encryptToPublicKey,
 } from '../shared/encryption';
+import { getSparkWalletFromCache } from '../shared/spark';
 import { UserRepository } from '../user/user-repository';
 import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import { SparkLightningReceiveService } from './spark-lightning-receive-service';
-import { getSparkWalletFromCache } from '../shared/spark';
 
 const fakeEncryption: Encryption = {
   encrypt: async <T = unknown>(_data: T): Promise<string> => {

@@ -2,7 +2,7 @@ import type { Token } from '@cashu/cashu-ts';
 import type { QueryClient } from '@tanstack/react-query';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import { areMintUrlsEqual } from '~/lib/cashu';
-import type { CashuAccount } from '../accounts/account';
+import type { Account, CashuAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
@@ -17,6 +17,17 @@ import type { ReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-
 import { ReceiveCashuTokenService } from './receive-cashu-token-service';
 
 type ClaimTokenResult = { success: true } | { success: false; message: string };
+
+/**
+ * Specifies where to claim a cashu token.
+ * - `source`: Claim to the source mint (default behavior)
+ * - `account`: Claim to a specific account by ID
+ * - `spark`: Claim to the user's spark account
+ */
+export type ClaimDestination =
+  | { type: 'source' }
+  | { type: 'account'; accountId: string }
+  | { type: 'spark' };
 
 export class ClaimCashuTokenService {
   private readonly accountsCache: AccountsCache;
@@ -36,20 +47,20 @@ export class ClaimCashuTokenService {
 
   /**
    * Claims the cashu token for the user.
-   * The mathod starts the claim flow and attempts to complete it, but if the complete step fails, it will not fail the entire claim flow.
+   * The method starts the claim flow and attempts to complete it, but if the complete step fails, it will not fail the entire claim flow.
    * The background processing will pick up the failed claim and retry it.
    * @param user - The user to claim the token for.
    * @param token - The token to claim.
-   * @param preferredReceiveAccountId - The preferred receive account ID to claim the token to.
+   * @param destination - Where to claim the token. Defaults to source mint.
    * @returns The result of the claim.
    */
   async claimToken(
     user: User,
     token: Token,
-    preferredReceiveAccountId?: string,
+    destination: ClaimDestination = { type: 'source' },
   ): Promise<ClaimTokenResult> {
     try {
-      return await this.handleClaim(user, token, preferredReceiveAccountId);
+      return await this.handleClaim(user, token, destination);
     } catch (error) {
       const message = 'Unexpected error while claiming the token';
       // TODO: do we need to send this error to Sentry or Sentry can make alert from error log?
@@ -64,7 +75,7 @@ export class ClaimCashuTokenService {
   private async handleClaim(
     user: User,
     token: Token,
-    preferredReceiveAccountId?: string,
+    destination: ClaimDestination,
   ): Promise<ClaimTokenResult> {
     const accounts = await this.queryClient.fetchQuery(
       accountsQueryOptions({
@@ -76,12 +87,28 @@ export class ClaimCashuTokenService {
     const cashuAccounts = extendedAccounts.filter(
       (account) => account.type === 'cashu',
     );
+    const sparkAccounts = extendedAccounts.filter(
+      (account) => account.type === 'spark',
+    );
 
     const { sourceAccount, possibleDestinationAccounts } =
       await this.receiveCashuTokenService.getSourceAndDestinationAccounts(
         token,
         cashuAccounts,
+        sparkAccounts,
       );
+
+    let preferredReceiveAccountId: string | undefined;
+    if (destination.type === 'spark') {
+      preferredReceiveAccountId = possibleDestinationAccounts.find(
+        (a) => a.type === 'spark',
+      )?.id;
+    } else if (destination.type === 'account') {
+      preferredReceiveAccountId = destination.accountId;
+    } else if (destination.type === 'source') {
+      preferredReceiveAccountId = undefined;
+    }
+
     let receiveAccount = ReceiveCashuTokenService.getDefaultReceiveAccount(
       sourceAccount,
       possibleDestinationAccounts,
@@ -95,7 +122,7 @@ export class ClaimCashuTokenService {
       };
     }
 
-    if (receiveAccount.isUnknown) {
+    if (receiveAccount.isUnknown && receiveAccount.type === 'cashu') {
       const addedAccount = await this.accountService.addCashuAccount({
         userId: user.id,
         account: receiveAccount,
@@ -118,10 +145,11 @@ export class ClaimCashuTokenService {
     }
 
     const isSameAccountClaim =
+      receiveAccount.type === 'cashu' &&
       receiveAccount.currency === sourceAccount.currency &&
       areMintUrlsEqual(receiveAccount.mintUrl, sourceAccount.mintUrl);
 
-    if (isSameAccountClaim) {
+    if (isSameAccountClaim && receiveAccount.type === 'cashu') {
       const { swap, account } = await this.tokenSwapService.create({
         userId: user.id,
         token,
@@ -148,7 +176,7 @@ export class ClaimCashuTokenService {
         this.queryClient,
         `${sourceAccount.currency}-${receiveAccount.currency}`,
       );
-      const { cashuMeltQuote, cashuReceiveQuote } =
+      const quotes =
         await this.receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(
           {
             userId: user.id,
@@ -159,18 +187,26 @@ export class ClaimCashuTokenService {
           },
         );
 
-      await sourceAccount.wallet.meltProofs(cashuMeltQuote, token.proofs);
-
-      // We don't want to fail the entire claim flow if completing the receive fails because the background processing
-      // can pick it up and retry when the app loads. If the background processing manages to complete it, it would just
-      // be a minor UX issue because the balance would be credited with some delay. If the background processing fails to
-      // complete it, the app already has a way to handle the failed receive.
-      const result = await this.tryCompleteReceive(
-        receiveAccount,
-        cashuReceiveQuote,
+      await sourceAccount.wallet.meltProofsIdempotent(
+        quotes.cashuMeltQuote,
+        token.proofs,
       );
-      if (result.success) {
-        this.accountsCache.upsert(result.account);
+
+      if (
+        quotes.destinationType === 'cashu' &&
+        receiveAccount.type === 'cashu'
+      ) {
+        // We don't want to fail the entire claim flow if completing the receive fails because the background processing
+        // can pick it up and retry when the app loads. If the background processing manages to complete it, it would just
+        // be a minor UX issue because the balance would be credited with some delay. If the background processing fails to
+        // complete it, the app already has a way to handle the failed receive.
+        const result = await this.tryCompleteReceive(
+          receiveAccount,
+          quotes.cashuReceiveQuote,
+        );
+        if (result.success) {
+          this.accountsCache.upsert(result.account);
+        }
       }
     }
 
@@ -179,7 +215,7 @@ export class ClaimCashuTokenService {
 
   private async trySetDefaultAccount(
     user: User,
-    account: CashuAccount,
+    account: Account,
   ): Promise<{ success: true; user: User } | { success: false }> {
     try {
       const updatedUser = await this.userService.setDefaultAccount(
