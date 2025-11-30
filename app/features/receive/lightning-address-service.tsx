@@ -1,4 +1,5 @@
-import { SparkWallet } from '@buildonspark/spark-sdk';
+import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
+import type { QueryClient } from '@tanstack/react-query';
 import { getCashuWallet } from '~/lib/cashu';
 import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
 import type {
@@ -8,7 +9,6 @@ import type {
   LNURLVerifyResult,
 } from '~/lib/lnurl/types';
 import { Money } from '~/lib/money';
-import { getQueryClient } from '~/query-client';
 import { AccountRepository } from '../accounts/account-repository';
 import type { AgicashDb } from '../agicash-db/database';
 import type { CashuCryptography } from '../shared/cashu';
@@ -17,11 +17,11 @@ import {
   encryptBatchToPublicKey,
   encryptToPublicKey,
 } from '../shared/encryption';
+import { sparkWalletQueryOptions } from '../shared/spark';
 import { UserRepository } from '../user/user-repository';
 import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import { SparkLightningReceiveService } from './spark-lightning-receive-service';
-import { getSparkWalletFromCache } from '../shared/spark';
 
 const fakeEncryption: Encryption = {
   encrypt: async <T = unknown>(_data: T): Promise<string> => {
@@ -55,35 +55,6 @@ if (!sparkMnemonic) {
   throw new Error('LNURL_SERVER_SPARK_MNEMONIC is not set');
 }
 
-const queryClient = getQueryClient();
-
-/**
- * Initializes the singleton Spark wallet for server-side receives.
- * This should only be called once when the module is first loaded.
- */
-async function initializeServerSparkWallet() {
-  try {
-    // TODO: see about how we want to handle networks
-    const existingWallet = getSparkWalletFromCache(queryClient, 'MAINNET');
-    if (existingWallet) {
-      return;
-    }
-
-    const { wallet } = await SparkWallet.initialize({
-      mnemonicOrSeed: sparkMnemonic,
-      options: { network: 'MAINNET' },
-    });
-
-    queryClient.setQueryData(['spark-wallet', 'MAINNET'], wallet);
-    console.log('Initialized server-side Spark wallet singleton');
-  } catch (error) {
-    console.error('Failed to initialize server-side Spark wallet', error);
-    throw error;
-  }
-}
-
-initializeServerSparkWallet();
-
 export class LightningAddressService {
   private baseUrl: string;
   private db: AgicashDb;
@@ -94,6 +65,7 @@ export class LightningAddressService {
   private cryptography: CashuCryptography = fakeCryptography;
   private encryption: Encryption = fakeEncryption;
   private exchangeRateService: ExchangeRateService;
+  private queryClient: QueryClient;
   /**
    * A client can flag that they will not validate the invoice amount.
    * This is useful for agicash <-> agicash payments so that the receiver can receive into their default currency
@@ -106,8 +78,10 @@ export class LightningAddressService {
     db: AgicashDb,
     options: {
       bypassAmountValidation?: boolean;
-    } = {},
+      queryClient: QueryClient;
+    },
   ) {
+    this.queryClient = options.queryClient;
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
     this.accountRepository = new AccountRepository(
@@ -118,8 +92,7 @@ export class LightningAddressService {
         encryptBatch: this.encryption.encryptBatch,
         decryptBatch: this.encryption.decryptBatch,
       },
-      queryClient,
-      undefined,
+      this.queryClient,
     );
     this.userRepository = new UserRepository(
       db,
@@ -266,21 +239,7 @@ export class LightningAddressService {
       }
 
       if (account.type === 'spark') {
-        const sparkWallet = getSparkWalletFromCache(
-          queryClient,
-          account.network,
-        );
-        if (!sparkWallet) {
-          console.error(
-            'Spark wallet not initialized for network',
-            account.network,
-          );
-          return {
-            status: 'ERROR',
-            reason: 'Internal server error',
-          };
-        }
-
+        const sparkWallet = await this.getSparkWalletOrThrow(account.network);
         const sparkReceiveLightningService = new SparkLightningReceiveService(
           sparkWallet,
         );
@@ -383,18 +342,7 @@ export class LightningAddressService {
         };
       }
 
-      const wallet = getSparkWalletFromCache(queryClient, account.network);
-      if (!wallet) {
-        console.error(
-          'Spark wallet not initialized for network',
-          account.network,
-        );
-        return {
-          status: 'ERROR',
-          reason: 'Internal server error',
-        };
-      }
-
+      const wallet = await this.getSparkWalletOrThrow(account.network);
       const receiveService = new SparkLightningReceiveService(wallet);
       const receiveRequest = await receiveService.get(invoiceId);
 
@@ -439,5 +387,15 @@ export class LightningAddressService {
         reason: 'Internal server error',
       };
     }
+  }
+
+  private async getSparkWalletOrThrow(network: SparkNetwork) {
+    const wallet = await this.queryClient.fetchQuery(
+      sparkWalletQueryOptions(network),
+    );
+    if (!wallet) {
+      throw new Error(`Spark wallet not found for network ${network}`);
+    }
+    return wallet;
   }
 }

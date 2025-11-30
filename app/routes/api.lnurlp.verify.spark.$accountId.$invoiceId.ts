@@ -5,14 +5,17 @@
 
 import { agicashDbServiceRole } from '~/features/agicash-db/database.server';
 import { LightningAddressService } from '~/features/receive/lightning-address-service';
+import { getServerQueryClient } from '~/query-client';
 import type { Route } from './+types/api.lnurlp.verify.spark.$accountId.$invoiceId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { accountId, invoiceId } = params;
 
+  const queryClient = getServerQueryClient();
   const lightningAddressService = new LightningAddressService(
     request,
     agicashDbServiceRole,
+    { queryClient },
   );
 
   const response = await lightningAddressService.handleSparkLnurlpVerify(
