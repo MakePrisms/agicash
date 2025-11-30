@@ -63,8 +63,6 @@ export function DefaultCurrencySwitcher() {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const defaultCurrency = useUser((user) => user.defaultCurrency);
-  const defaultBtcAccountId = useUser((user) => user.defaultBtcAccountId);
-  const defaultUsdAccountId = useUser((user) => user.defaultUsdAccountId);
   const setDefaultCurrency = useSetDefaultCurrency();
 
   const handleCurrencySelect = async (currency: Currency) => {
@@ -79,11 +77,6 @@ export function DefaultCurrencySwitcher() {
       });
     }
   };
-
-  // The user must have at least two default accounts to switch between.
-  if (!defaultBtcAccountId || !defaultUsdAccountId) {
-    return <div />;
-  }
 
   return (
     <Drawer open={isOpen} onOpenChange={setIsOpen}>

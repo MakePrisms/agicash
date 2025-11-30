@@ -11,6 +11,7 @@ import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-sw
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
+import { useUser } from '~/features/user/user-hooks';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 export const links: LinksFunction = () => [
@@ -21,6 +22,8 @@ export const links: LinksFunction = () => [
 export default function Index() {
   const balanceBTC = useBalance('BTC');
   const balanceUSD = useBalance('USD');
+  const defaultBtcAccountId = useUser((user) => user.defaultBtcAccountId);
+  const defaultUsdAccountId = useUser((user) => user.defaultUsdAccountId);
   const defaultCurrency = useDefaultAccount().currency;
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
 
@@ -56,7 +59,9 @@ export default function Index() {
           />
         </div>
 
-        <DefaultCurrencySwitcher />
+        {defaultBtcAccountId && defaultUsdAccountId && (
+          <DefaultCurrencySwitcher />
+        )}
 
         <div className="grid grid-cols-2 gap-10">
           <LinkWithViewTransition
