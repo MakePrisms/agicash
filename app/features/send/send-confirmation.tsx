@@ -17,10 +17,7 @@ import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
-import {
-  useInitiateCashuSendQuote,
-  useTrackCashuSendQuote,
-} from './cashu-send-quote-hooks';
+import { useInitiateCashuSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwap } from './cashu-send-swap-hooks';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
 import { useInitiateSparkLightningSend } from './spark-lightning-send-hooks';
@@ -111,75 +108,44 @@ const usePayBolt11 = ({
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
 
-  const {
-    mutate: initiateCashuSend,
-    data: { id: cashuSendQuoteId, transactionId: cashuTransactionId } = {},
-    isPending: isCreatingCashuSendQuote,
-  } = useInitiateCashuSendQuote({
-    onError: (error) => {
-      if (error instanceof DomainError) {
-        toast({ description: error.message });
-      } else {
-        console.error('Failed to create cashu send quote', { cause: error });
+  const { mutate: initiateCashuSend, status: createCashuSendQuoteStatus } =
+    useInitiateCashuSendQuote({
+      onSuccess: (data) => {
+        navigate(`/transactions/${data.transactionId}?redirectTo=/`, {
+          transition: 'slideLeft',
+          applyTo: 'newView',
+        });
+      },
+      onError: (error) => {
+        if (error instanceof DomainError) {
+          toast({ description: error.message });
+        } else {
+          console.error('Failed to create cashu send quote', { cause: error });
+          toast({
+            title: 'Error',
+            description: 'Failed to initiate the send. Please try again.',
+            variant: 'destructive',
+          });
+        }
+      },
+    });
+
+  const { mutate: initiateSparkSend, status: initiateSparkSendStatus } =
+    useInitiateSparkLightningSend({
+      onSuccess: (request) => {
+        navigate(`/send/spark/${request.id}`, {
+          transition: 'slideLeft',
+          applyTo: 'newView',
+        });
+      },
+      onError: (error) => {
+        console.error('Error initiating spark send', { cause: error });
         toast({
           title: 'Error',
-          description: 'Failed to initiate the send. Please try again.',
-          variant: 'destructive',
+          description: 'Failed to initiate spark send. Please try again.',
         });
-      }
-    },
-  });
-
-  const { status: cashuQuoteStatus } = useTrackCashuSendQuote({
-    sendQuoteId: cashuSendQuoteId,
-    onExpired: () => {
-      toast({
-        title: 'Send quote expired',
-        description: 'Please try again',
-      });
-    },
-    onPending: () => {
-      navigate(`/transactions/${cashuTransactionId}?redirectTo=/`, {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
-    },
-    onFailed: (sendQuote) => {
-      const now = Date.now();
-      console.error('Cashu send failed', {
-        timestamp: now,
-        time: new Date(now).toISOString(),
-        sendQuoteId: sendQuote.id,
-        accountId: sendQuote.accountId,
-        failureReason: sendQuote.failureReason,
-      });
-      toast({
-        title: 'Send failed',
-        description: sendQuote.failureReason,
-        duration: 8000,
-      });
-    },
-  });
-
-  const {
-    mutate: initiateSparkSend,
-    data: sparkSendRequest,
-    isPending: isInitiatingSparkSend,
-  } = useInitiateSparkLightningSend({
-    onSuccess: (request) => {
-      navigate(`/send/spark/${request.id}`, {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
-    },
-    onError: (error) => {
-      console.error('Error initiating spark send', { cause: error });
-      toast({
-        title: 'Error',
-        description: 'Failed to initiate spark send. Please try again.',
-      });
-    },
-  });
+      },
+    });
 
   const handleConfirm = () => {
     if (account.type === 'cashu') {
@@ -195,13 +161,10 @@ const usePayBolt11 = ({
     }
   };
 
-  const isCashu = account.type === 'cashu';
-  const isPending = isCashu
-    ? ['LOADING', 'UNPAID', 'PENDING'].includes(cashuQuoteStatus) ||
-      isCreatingCashuSendQuote
-    : ['PENDING', 'LOADING', 'COMPLETED'].includes(
-        sparkSendRequest?.state ?? '',
-      ) || isInitiatingSparkSend;
+  const isPending =
+    account.type === 'cashu'
+      ? ['pending', 'success'].includes(createCashuSendQuoteStatus)
+      : ['pending', 'success'].includes(initiateSparkSendStatus);
 
   return { handleConfirm, isPending };
 };

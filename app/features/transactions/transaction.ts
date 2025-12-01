@@ -255,7 +255,7 @@ export type Transaction = {
   | {
       type: 'CASHU_LIGHTNING';
       direction: 'SEND';
-      state: 'DRAFT' | 'PENDING' | 'FAILED';
+      state: 'PENDING' | 'FAILED';
       details: IncompleteCashuLightningSendTransactionDetails;
     }
   | {
