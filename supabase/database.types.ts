@@ -701,7 +701,7 @@ export type Database = {
           cashu_locking_xpub: string
           created_at: string
           default_btc_account_id: string | null
-          default_currency: string | null
+          default_currency: string
           default_usd_account_id: string | null
           email: string | null
           email_verified: boolean
@@ -715,7 +715,7 @@ export type Database = {
           cashu_locking_xpub: string
           created_at?: string
           default_btc_account_id?: string | null
-          default_currency?: string | null
+          default_currency?: string
           default_usd_account_id?: string | null
           email?: string | null
           email_verified: boolean
@@ -729,7 +729,7 @@ export type Database = {
           cashu_locking_xpub?: string
           created_at?: string
           default_btc_account_id?: string | null
-          default_currency?: string | null
+          default_currency?: string
           default_usd_account_id?: string | null
           email?: string | null
           email_verified?: boolean
