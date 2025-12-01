@@ -25,26 +25,26 @@
 --   - Cannot set default_currency without having the corresponding default account ID
 --   - BTC Spark account is required, USD account is optional
 
-ALTER TABLE wallet.users ADD COLUMN spark_public_key text NOT NULL;
+alter table wallet.users add column spark_public_key text not null;
 
 -- Allow default_currency to be NULL temporarily during user creation
 -- It will be set to the appropriate value once accounts are created
-ALTER TABLE wallet.users ALTER COLUMN default_currency DROP NOT NULL;
+alter table wallet.users alter column default_currency drop not null;
 
 -- Add constraint to ensure default_currency always has a corresponding default account ID.
 -- This prevents setting default_currency = 'BTC' without default_btc_account_id being set,
 -- and prevents setting default_currency = 'USD' without default_usd_account_id being set.
 -- This maintains referential integrity between default_currency and the account IDs.
 -- Allows NULL default_currency (only used temporarily during user creation before accounts exist).
-ALTER TABLE wallet.users ADD CONSTRAINT users_default_currency_has_account
-CHECK (
-  default_currency IS NULL OR
-  (default_currency = 'BTC' AND default_btc_account_id IS NOT NULL) OR
-  (default_currency = 'USD' AND default_usd_account_id IS NOT NULL)
+alter table wallet.users add constraint users_default_currency_has_account
+check (
+  default_currency is null or
+  (default_currency = 'BTC' and default_btc_account_id is not null) or
+  (default_currency = 'USD' and default_usd_account_id is not null)
 );
 
 -- Drop old function signatures (both the old jsonb[] version and the wallet.account_input[] version)
-DROP FUNCTION IF EXISTS wallet.upsert_user_with_accounts(uuid, text, boolean, wallet.account_input[], text, text);
+drop function if exists wallet.upsert_user_with_accounts(uuid, text, boolean, wallet.account_input[], text, text);
 
 -- Update upsert_user_with_accounts function to return structured result with accounts including proofs
 create or replace function wallet.upsert_user_with_accounts(
@@ -66,12 +66,13 @@ declare
   btc_account_id uuid := null;
 begin
   insert into wallet.users (id, email, email_verified, cashu_locking_xpub, encryption_public_key, spark_public_key, default_currency)
-  values (p_user_id, p_email, p_email_verified, p_cashu_locking_xpub, p_encryption_public_key, p_spark_public_key, NULL)
+  values (p_user_id, p_email, p_email_verified, p_cashu_locking_xpub, p_encryption_public_key, p_spark_public_key, null)
   on conflict (id) do update set
     email = coalesce(excluded.email, wallet.users.email),
     email_verified = excluded.email_verified;
 
-  select * into result_user
+  select *
+  into result_user
   from wallet.users u
   where u.id = p_user_id
   for update;
@@ -83,8 +84,9 @@ begin
         jsonb_agg(to_jsonb(cp)) filter (where cp.id is not null),
         '[]'::jsonb
       ) as cashu_proofs
-    from wallet.accounts a
-    left join wallet.cashu_proofs cp on cp.account_id = a.id and cp.state = 'UNSPENT'
+    from
+      wallet.accounts a
+      left join wallet.cashu_proofs cp on cp.account_id = a.id and cp.state = 'UNSPENT'
     where a.user_id = p_user_id
     group by a.id
   )
@@ -116,28 +118,30 @@ begin
         message = 'At least one BTC Spark account is required';
   end if;
 
-  with inserted_accounts as (
-    insert into wallet.accounts (user_id, type, currency, name, details)
-    select 
-      p_user_id,
-      acct.type,
-      acct.currency,
-      acct.name,
-      acct.details
-    from unnest(p_accounts) as acct
-    returning *
-  ),
-  accounts_with_default_flag as (
-    select 
-      ia.*,
-      coalesce(acct."is_default", false) as "is_default"
-    from inserted_accounts ia
-    join unnest(p_accounts) as acct on 
-      ia.type = acct.type and 
-      ia.currency = acct.currency and 
-      ia.name = acct.name and 
-      ia.details = acct.details
-  )
+  with
+    inserted_accounts as (
+      insert into wallet.accounts (user_id, type, currency, name, details)
+      select 
+        p_user_id,
+        acct.type,
+        acct.currency,
+        acct.name,
+        acct.details
+      from unnest(p_accounts) as acct
+      returning *
+    ),
+    accounts_with_default_flag as (
+      select 
+        ia.*,
+        coalesce(acct."is_default", false) as "is_default"
+      from
+        inserted_accounts ia
+        join unnest(p_accounts) as acct on 
+          ia.type = acct.type and 
+          ia.currency = acct.currency and 
+          ia.name = acct.name and 
+          ia.details = acct.details
+    )
   select 
     array_agg(
       jsonb_set(
