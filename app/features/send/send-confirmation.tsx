@@ -7,7 +7,7 @@ import { Page } from '~/components/page';
 import { PageContent } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
-import type { CashuAccount } from '~/features/accounts/account';
+import type { CashuAccount, SparkAccount } from '~/features/accounts/account';
 import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import type { DestinationDetails } from '~/features/transactions/transaction';
@@ -23,6 +23,8 @@ import {
 } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwap } from './cashu-send-swap-hooks';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
+import { useInitiateSparkLightningSend } from './spark-lightning-send-hooks';
+import type { SparkLightningSendQuote } from './spark-lightning-send-service';
 
 const ConfirmationRow = ({
   label,
@@ -86,39 +88,33 @@ const BaseConfirmation = ({
   );
 };
 
-type PayBolt11ConfirmationProps = {
-  /** The account to send from */
-  account: CashuAccount;
-  /** The bolt11 invoice to pay */
-  destination: string;
-  /** The destination to display in the UI. For sends to bolt11 this will be the same as the bolt11, for ln addresses it will be the ln address. */
-  destinationDisplay: string;
+type UsePayBolt11Props = {
+  /** The account to send from. */
+  account: CashuAccount | SparkAccount;
+  /** The quote to pay. */
+  quote: CashuLightningQuote | SparkLightningSendQuote;
+  /** Additional details about the destination to include in the Agicash DB record.*/
   destinationDetails?: DestinationDetails;
-  /** The quote to display in the UI. */
-  quote: CashuLightningQuote;
 };
 
 /**
- * This component first creates a melt quote to estimate the fee.
- * Once the user confirms the payment details, then we need to get proofs
- * that match the total amount to pay the invoice. This is the fee + the invoice amount.
- *
- * Then, once proofs are create we give them to the mint to melt.
+ * A hook that is used to pay bolt11 invoices from a Cashu account or a Spark account.
+ * @param account - The account to send from.
+ * @param quote - The quote to pay
+ * @returns A function to handle the confirmation of the payment and a boolean indicating if the payment is pending.
  */
-export const PayBolt11Confirmation = ({
+const usePayBolt11 = ({
   account,
-  quote: bolt11Quote,
-  destination,
-  destinationDisplay,
+  quote,
   destinationDetails,
-}: PayBolt11ConfirmationProps) => {
+}: UsePayBolt11Props) => {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
 
   const {
-    mutate: initiateSend,
-    data: { id: sendQuoteId, transactionId } = {},
-    isPending: isCreatingSendQuote,
+    mutate: initiateCashuSend,
+    data: { id: cashuSendQuoteId, transactionId: cashuTransactionId } = {},
+    isPending: isCreatingCashuSendQuote,
   } = useInitiateCashuSendQuote({
     onError: (error) => {
       if (error instanceof DomainError) {
@@ -134,8 +130,8 @@ export const PayBolt11Confirmation = ({
     },
   });
 
-  const { status: quoteStatus } = useTrackCashuSendQuote({
-    sendQuoteId,
+  const { status: cashuQuoteStatus } = useTrackCashuSendQuote({
+    sendQuoteId: cashuSendQuoteId,
     onExpired: () => {
       toast({
         title: 'Send quote expired',
@@ -143,7 +139,7 @@ export const PayBolt11Confirmation = ({
       });
     },
     onPending: () => {
-      navigate(`/transactions/${transactionId}?redirectTo=/`, {
+      navigate(`/transactions/${cashuTransactionId}?redirectTo=/`, {
         transition: 'slideLeft',
         applyTo: 'newView',
       });
@@ -165,23 +161,91 @@ export const PayBolt11Confirmation = ({
     },
   });
 
-  const handleConfirm = () =>
-    initiateSend({
-      accountId: account.id,
-      sendQuote: bolt11Quote,
-      destinationDetails,
-    });
+  const {
+    mutate: initiateSparkSend,
+    data: sparkSendRequest,
+    isPending: isInitiatingSparkSend,
+  } = useInitiateSparkLightningSend({
+    onSuccess: (request) => {
+      navigate(`/send/spark/${request.id}`, {
+        transition: 'slideLeft',
+        applyTo: 'newView',
+      });
+    },
+    onError: (error) => {
+      console.error('Error initiating spark send', { cause: error });
+      toast({
+        title: 'Error',
+        description: 'Failed to initiate spark send. Please try again.',
+      });
+    },
+  });
 
-  const paymentInProgress =
-    ['LOADING', 'UNPAID', 'PENDING'].includes(quoteStatus) ||
-    isCreatingSendQuote;
+  const handleConfirm = () => {
+    if (account.type === 'cashu') {
+      initiateCashuSend({
+        accountId: account.id,
+        sendQuote: quote as CashuLightningQuote,
+        destinationDetails,
+      });
+    } else if (account.type === 'spark') {
+      initiateSparkSend({
+        quote: quote as SparkLightningSendQuote,
+      });
+    }
+  };
+
+  const isCashu = account.type === 'cashu';
+  const isPending = isCashu
+    ? ['LOADING', 'UNPAID', 'PENDING'].includes(cashuQuoteStatus) ||
+      isCreatingCashuSendQuote
+    : ['PENDING', 'LOADING', 'COMPLETED'].includes(
+        sparkSendRequest?.state ?? '',
+      ) || isInitiatingSparkSend;
+
+  return { handleConfirm, isPending };
+};
+
+type PayBolt11ConfirmationProps = {
+  /** The account to send from */
+  account: CashuAccount | SparkAccount;
+  /** The bolt11 invoice to pay */
+  destination: string;
+  /** The destination to display in the UI. For sends to bolt11 this will be the same as the bolt11, for ln addresses it will be the ln address. */
+  destinationDisplay: string;
+  destinationDetails?: DestinationDetails;
+  /** The quote to display in the UI. */
+  quote: CashuLightningQuote | SparkLightningSendQuote;
+};
+
+/**
+ * Confirmation component for paying a bolt11 invoice from a Cashu or Spark account.
+ *
+ * For Cashu accounts: Creates a melt quote to estimate the fee, then once confirmed,
+ * gets proofs matching the total amount (fee + invoice amount) and gives them to the mint to melt.
+ *
+ * For Spark accounts: Initiates a Lightning send using the Spark SDK.
+ */
+export const PayBolt11Confirmation = ({
+  account,
+  quote: bolt11Quote,
+  destination,
+  destinationDisplay,
+  destinationDetails,
+}: PayBolt11ConfirmationProps) => {
+  const { handleConfirm, isPending } = usePayBolt11({
+    account,
+    quote: bolt11Quote,
+    destinationDetails,
+  });
+
   const { description } = decodeBolt11(destination);
 
   return (
     <BaseConfirmation
       amount={bolt11Quote.estimatedTotalAmount}
       onConfirm={handleConfirm}
-      loading={paymentInProgress}
+      loading={isPending}
     >
       {[
         {

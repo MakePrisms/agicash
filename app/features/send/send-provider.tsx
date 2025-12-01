@@ -13,6 +13,7 @@ import {
 import { useCreateCashuSendQuote } from './cashu-send-quote-hooks';
 import { useGetCashuSendSwapQuote } from './cashu-send-swap-hooks';
 import { type SendState, type SendStore, createSendStore } from './send-store';
+import { useGetSparkLightningSendQuote } from './spark-lightning-send-hooks';
 import { useGetInvoiceFromLud16 } from './use-get-invoice-from-lud16';
 
 const SendContext = createContext<SendStore | null>(null);
@@ -26,6 +27,8 @@ export const SendProvider = ({ initialAccount, children }: Props) => {
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
   const { mutateAsync: createCashuSendQuote } = useCreateCashuSendQuote();
   const { mutateAsync: getCashuSendSwapQuote } = useGetCashuSendSwapQuote();
+  const { mutateAsync: getSparkLightningSendQuote } =
+    useGetSparkLightningSendQuote();
   const accountsCache = useAccountsCache();
   const getLatestAccount = useGetLatestAccount();
 
@@ -37,6 +40,7 @@ export const SendProvider = ({ initialAccount, children }: Props) => {
       getInvoiceFromLud16,
       createCashuSendQuote,
       getCashuSendSwapQuote,
+      getSparkLightningSendQuote,
     }),
   );
 
@@ -51,4 +55,12 @@ export const useSendStore = <T = SendState>(
     throw new Error('Missing SendProvider in the tree');
   }
   return useStore(store, selector ?? ((state) => state as T));
+};
+
+export const useSendStoreApi = () => {
+  const store = useContext(SendContext);
+  if (!store) {
+    throw new Error('Missing SendProvider in the tree');
+  }
+  return store;
 };

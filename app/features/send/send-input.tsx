@@ -47,7 +47,7 @@ import { AddContactDrawer, ContactsList } from '../contacts';
 import type { Contact } from '../contacts/contact';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError, getErrorMessage } from '../shared/error';
-import { useSendStore } from './send-provider';
+import { useSendStore, useSendStoreApi } from './send-provider';
 
 type ConvertedMoneySwitcherProps = {
   onSwitchInputCurrency: () => void;
@@ -87,7 +87,10 @@ export function SendInput() {
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
   const { data: accounts } = useAccounts();
+  const [selectDestinationDrawerOpen, setSelectDestinationDrawerOpen] =
+    useState(false);
 
+  const sendStore = useSendStoreApi();
   const sendAmount = useSendStore((s) => s.amount);
   const sendAccount = useSendStore((s) => s.getSourceAccount());
   const selectSourceAccount = useSendStore((s) => s.selectSourceAccount);
@@ -127,6 +130,12 @@ export function SendInput() {
     }
 
     if (inputValue.isZero()) {
+      return;
+    }
+
+    const { destinationDisplay: latestDestination } = sendStore.getState();
+    if (sendAccount.type === 'spark' && !latestDestination) {
+      setSelectDestinationDrawerOpen(true);
       return;
     }
 
@@ -263,7 +272,11 @@ export function SendInput() {
                 <Scan />
               </LinkWithViewTransition>
 
-              <SelectContactOrLud16Drawer onSelect={handleSelectDestination} />
+              <SelectDestinationDrawer
+                open={selectDestinationDrawerOpen}
+                onOpenChange={setSelectDestinationDrawerOpen}
+                onSelect={handleSelectDestination}
+              />
             </div>
             <div /> {/* spacer */}
             <div className="flex items-center justify-end">
@@ -290,7 +303,9 @@ export function SendInput() {
   );
 }
 
-type SelectContactOrLud16DrawerProps = {
+type SelectDestinationDrawerProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onSelect: (contactOrLnAddress: Contact | string) => Promise<boolean>;
 };
 
@@ -299,10 +314,11 @@ const validateLightningAddressFormat = buildLightningAddressFormatValidator({
   allowLocalhost: import.meta.env.MODE === 'development',
 });
 
-function SelectContactOrLud16Drawer({
+function SelectDestinationDrawer({
+  open,
+  onOpenChange,
   onSelect,
-}: SelectContactOrLud16DrawerProps) {
-  const [open, setOpen] = useState(false);
+}: SelectDestinationDrawerProps) {
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<'idle' | 'selecting'>('idle');
 
@@ -311,7 +327,7 @@ function SelectContactOrLud16Drawer({
 
     const selected = await onSelect(selection);
     if (selected) {
-      setOpen(false);
+      onOpenChange(false);
       setInput('');
     }
 
@@ -321,9 +337,9 @@ function SelectContactOrLud16Drawer({
   const isLnAddressFormat = validateLightningAddressFormat(input) === true;
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerTrigger asChild>
-        <button type="button" onClick={() => setOpen(true)}>
+        <button type="button" onClick={() => onOpenChange(true)}>
           <AtSign />
         </button>
       </DrawerTrigger>
