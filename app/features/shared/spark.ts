@@ -28,13 +28,17 @@ const mnemonicQueryOptions = () =>
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-export const sparkWalletQueryOptions = (network: SparkNetwork) =>
+export const sparkWalletQueryOptions = ({
+  network,
+  mnemonic,
+}: { network: SparkNetwork; mnemonic?: string }) =>
   queryOptions({
     queryKey: ['spark-wallet', network],
     queryFn: async ({ client }) => {
-      const mnemonic = await client.fetchQuery(mnemonicQueryOptions());
+      const mnemonicToUse =
+        mnemonic ?? (await client.fetchQuery(mnemonicQueryOptions()));
       const { wallet } = await SparkWallet.initialize({
-        mnemonicOrSeed: mnemonic,
+        mnemonicOrSeed: mnemonicToUse,
         options: { network },
       });
       return wallet;
@@ -53,7 +57,7 @@ export function getSparkWalletFromCache(
 export function useSparkWallet(): SparkWallet {
   const sparkAccount = useSparkAccount();
   const { data } = useSuspenseQuery(
-    sparkWalletQueryOptions(sparkAccount.network),
+    sparkWalletQueryOptions({ network: sparkAccount.network }),
   );
   return data;
 }
