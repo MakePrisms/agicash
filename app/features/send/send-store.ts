@@ -7,7 +7,6 @@ import {
   isValidLightningAddress,
 } from '~/lib/lnurl';
 import { type Currency, Money } from '~/lib/money';
-import type { AccountsCache } from '../accounts/account-hooks';
 import { type Contact, isContact } from '../contacts/contact';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
@@ -178,8 +177,7 @@ export type SendState = State & Actions;
 
 type CreateSendStoreProps = {
   initialAccount: Account;
-  accountsCache: AccountsCache;
-  getLatestAccount: (accountId: string) => Promise<Account>;
+  getAccount: (accountId: string) => Account;
   getInvoiceFromLud16: (params: {
     lud16: string;
     amount: Money<'BTC'>;
@@ -198,8 +196,7 @@ type CreateSendStoreProps = {
 
 export const createSendStore = ({
   initialAccount,
-  accountsCache,
-  getLatestAccount,
+  getAccount,
   getInvoiceFromLud16,
   createCashuSendQuote,
   getCashuSendSwapQuote,
@@ -230,11 +227,7 @@ export const createSendStore = ({
 
       getSourceAccount: () => {
         const accountId = get().accountId;
-        const account = accountsCache.get(accountId);
-        if (!account) {
-          throw new Error(`Account with id ${accountId} not found`);
-        }
-        return account;
+        return getAccount(accountId);
       },
 
       clearDestination: () =>
@@ -319,8 +312,8 @@ export const createSendStore = ({
 
       getQuote: async (amount, convertedAmount) => {
         const amounts = [amount, convertedAmount].filter((x) => !!x);
-        const { sendType, accountId, destinationDetails } = get();
-        const account = await getLatestAccount(accountId);
+        const { sendType, destinationDetails, getSourceAccount } = get();
+        const account = getSourceAccount();
         const amountToSend = pickAmountByCurrency(amounts, account.currency);
 
         set({ status: 'quoting', amount: amountToSend });

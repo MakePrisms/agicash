@@ -6,10 +6,7 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
-import {
-  useAccountsCache,
-  useGetLatestAccount,
-} from '../accounts/account-hooks';
+import { useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuSendQuote } from './cashu-send-quote-hooks';
 import { useGetCashuSendSwapQuote } from './cashu-send-swap-hooks';
 import { type SendState, type SendStore, createSendStore } from './send-store';
@@ -26,14 +23,12 @@ export const SendProvider = ({ initialAccount, children }: Props) => {
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
   const { mutateAsync: createCashuSendQuote } = useCreateCashuSendQuote();
   const { mutateAsync: getCashuSendSwapQuote } = useGetCashuSendSwapQuote();
-  const accountsCache = useAccountsCache();
-  const getLatestAccount = useGetLatestAccount();
+  const getAccount = useGetAccount();
 
   const [store] = useState(() =>
     createSendStore({
       initialAccount,
-      accountsCache,
-      getLatestAccount,
+      getAccount,
       getInvoiceFromLud16,
       createCashuSendQuote,
       getCashuSendSwapQuote,

@@ -10,7 +10,7 @@ import {
 import { useMemo } from 'react';
 import type { AgicashDbTransaction } from '~/features/agicash-db/database';
 import { useLatest } from '~/lib/use-latest';
-import { useGetLatestCashuAccount } from '../accounts/account-hooks';
+import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
 import { useUser } from '../user/user-hooks';
@@ -244,7 +244,7 @@ export function useReverseTransaction({
   onError?: (error: Error) => void;
 }) {
   const cashuSendSwapService = useCashuSendSwapService();
-  const getLatestCashuAccount = useGetLatestCashuAccount();
+  const getCashuAccount = useGetCashuAccount();
   const cashuSendSwapRepository = useCashuSendSwapRepository();
   const onSuccessRef = useLatest(onSuccess);
   const onErrorRef = useLatest(onError);
@@ -262,7 +262,7 @@ export function useReverseTransaction({
         if (!swap) {
           throw new Error(`Swap not found for transaction ${transaction.id}`);
         }
-        const account = await getLatestCashuAccount(swap.accountId);
+        const account = getCashuAccount(swap.accountId);
         await cashuSendSwapService.reverse(swap, account);
       } else {
         throw new Error('Only CASHU_TOKEN transactions can be reversed');
