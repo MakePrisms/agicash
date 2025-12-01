@@ -9,6 +9,7 @@ import type {
   LNURLVerifyResult,
 } from '~/lib/lnurl/types';
 import { Money } from '~/lib/money';
+import type { SparkAccount } from '../accounts/account';
 import { AccountRepository } from '../accounts/account-repository';
 import type { AgicashDb } from '../agicash-db/database';
 import type { CashuCryptography } from '../shared/cashu';
@@ -17,6 +18,7 @@ import {
   encryptBatchToPublicKey,
   encryptToPublicKey,
 } from '../shared/encryption';
+import { NotFoundError } from '../shared/error';
 import { sparkWalletQueryOptions } from '../shared/spark';
 import { UserRepository } from '../user/user-repository';
 import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
@@ -76,12 +78,12 @@ export class LightningAddressService {
   constructor(
     request: Request,
     db: AgicashDb,
-    options: {
+    queryClient: QueryClient,
+    options?: {
       bypassAmountValidation?: boolean;
-      queryClient: QueryClient;
     },
   ) {
-    this.queryClient = options.queryClient;
+    this.queryClient = queryClient;
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
     this.accountRepository = new AccountRepository(
@@ -99,7 +101,7 @@ export class LightningAddressService {
       this.encryption,
       this.accountRepository,
     );
-    this.bypassAmountValidation = options.bypassAmountValidation ?? false;
+    this.bypassAmountValidation = options?.bypassAmountValidation ?? false;
     this.baseUrl = new URL(request.url).origin;
     this.minSendable = new Money({
       amount: 1,
@@ -233,7 +235,7 @@ export class LightningAddressService {
 
         return {
           pr: quote.paymentRequest,
-          verify: `${this.baseUrl}/api/lnurlp/verify/cashu/${quote.id}`,
+          verify: `${this.baseUrl}/api/lnurlp/verify/${account.id}/${quote.id}`,
           routes: [],
         };
       }
@@ -250,7 +252,7 @@ export class LightningAddressService {
 
         return {
           pr: request.paymentRequest,
-          verify: `${this.baseUrl}/api/lnurlp/verify/spark/${account.id}/${request.id}`,
+          verify: `${this.baseUrl}/api/lnurlp/verify/${account.id}/${request.id}`,
           routes: [],
         };
       }
@@ -266,127 +268,106 @@ export class LightningAddressService {
   }
 
   /**
-   * Checks if the payment of a Cashu receive quote has been settled.
-   * @param receiveQuoteId the id of the Cashu receive quote to check
-   * @return the lnurl-verify result
+   * Checks if an LNURL-pay request has been settled.
+   * @param accountId the account ID
+   * @param requestId the ID to lookup the request
+   * @return the lnurl-verify result or error
    */
-  async handleCashuLnurlpVerify(
-    receiveQuoteId: string,
+  async handleLnurlpVerify(
+    accountId: string,
+    requestId: string,
   ): Promise<LNURLVerifyResult | LNURLError> {
     try {
-      const cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
-        this.db,
-        this.encryption,
-        this.accountRepository,
+      const account = await this.accountRepository.get(accountId);
+      if (account.type === 'cashu') {
+        return this.handleCashuLnurlpVerify(requestId);
+      }
+      if (account.type === 'spark') {
+        return this.handleSparkLnurlpVerify(account, requestId);
+      }
+      throw new Error(
+        `Account type not supported. Got ${account.type} for account ${accountId}`,
       );
-      const quote = await cashuReceiveQuoteRepository.get(receiveQuoteId);
-
-      if (!quote) {
-        return {
-          status: 'ERROR',
-          reason: 'Not found',
-        };
-      }
-
-      const account = await this.accountRepository.get(quote.accountId);
-      if (account.type !== 'cashu') {
-        throw new Error(`Account type not supported. Got ${account.type}`);
-      }
-
-      const wallet = getCashuWallet(account.mintUrl);
-      const quoteState = await wallet.checkMintQuote(quote.quoteId);
-
-      if (['PAID', 'ISSUED'].includes(quoteState.state)) {
-        return {
-          status: 'OK',
-          settled: true,
-          preimage: '',
-          pr: quote.paymentRequest,
-        };
-      }
-
-      return {
-        status: 'OK',
-        settled: false,
-        preimage: null,
-        pr: quote.paymentRequest,
-      };
     } catch (error) {
-      console.error('Error processing Cashu LNURL-pay verify', {
-        cause: error,
-      });
+      console.error('Error processing LNURL-pay verify', { cause: error });
+      const errorMessage =
+        error instanceof NotFoundError ? 'Not found' : 'Internal server error';
       return {
         status: 'ERROR',
-        reason: 'Internal server error',
+        reason: errorMessage,
       };
     }
   }
 
   /**
-   * Checks if a Spark lightning invoice has been settled.
-   * @param accountId the Spark account ID
-   * @param invoiceId the Spark invoice ID
+   * Checks if the payment of a Cashu receive quote has been settled.
+   * @param receiveQuoteId the id of the Cashu receive quote to check
    * @return the lnurl-verify result
    */
-  async handleSparkLnurlpVerify(
-    accountId: string,
-    invoiceId: string,
-  ): Promise<LNURLVerifyResult | LNURLError> {
-    try {
-      const account = await this.accountRepository.get(accountId);
+  private async handleCashuLnurlpVerify(
+    receiveQuoteId: string,
+  ): Promise<LNURLVerifyResult> {
+    const cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
+      this.db,
+      this.encryption,
+      this.accountRepository,
+    );
+    const quote = await cashuReceiveQuoteRepository.get(receiveQuoteId);
 
-      if (account.type !== 'spark') {
-        return {
-          status: 'ERROR',
-          reason: 'Internal server error',
-        };
-      }
+    if (!quote) {
+      throw new NotFoundError(
+        `Cashu receive quote ${receiveQuoteId} not found`,
+      );
+    }
 
-      const wallet = await this.getSparkWalletOrThrow(account.network);
-      const receiveService = new SparkLightningReceiveService(wallet);
-      const receiveRequest = await receiveService.get(invoiceId);
+    const account = await this.accountRepository.get(quote.accountId);
+    if (account.type !== 'cashu') {
+      throw new Error(`Account type not supported. Got ${account.type}`);
+    }
 
-      if (receiveRequest.state === 'COMPLETED') {
-        return {
-          status: 'OK',
-          settled: true,
-          preimage: receiveRequest.preimage ?? null,
-          pr: receiveRequest.paymentRequest,
-        };
-      }
+    const wallet = getCashuWallet(account.mintUrl);
+    const quoteState = await wallet.checkMintQuote(quote.quoteId);
 
-      // TODO: check with Josip if this seems right to return errors based on payment state. Or should
-      // failed and expired payments just return as not settled and they will never settle.
-
-      if (receiveRequest.state === 'FAILED') {
-        return {
-          status: 'ERROR',
-          reason: 'Payment failed',
-        };
-      }
-
-      if (receiveRequest.state === 'EXPIRED') {
-        return {
-          status: 'ERROR',
-          reason: 'Payment expired',
-        };
-      }
-
+    if (['PAID', 'ISSUED'].includes(quoteState.state)) {
       return {
         status: 'OK',
-        settled: false,
-        preimage: null,
-        pr: receiveRequest.paymentRequest,
-      };
-    } catch (error) {
-      console.error('Error processing Spark LNURL-pay verify', {
-        cause: error,
-      });
-      return {
-        status: 'ERROR',
-        reason: 'Internal server error',
+        settled: true,
+        preimage: '',
+        pr: quote.paymentRequest,
       };
     }
+
+    return {
+      status: 'OK',
+      settled: false,
+      preimage: null,
+      pr: quote.paymentRequest,
+    };
+  }
+
+  /**
+   * Checks if a Spark lightning invoice has been settled.
+   * @param account the Spark account
+   * @param receiveRequestId the Spark receive request ID to check
+   * @return the lnurl-verify result
+   */
+  private async handleSparkLnurlpVerify(
+    account: SparkAccount,
+    receiveRequestId: string,
+  ): Promise<LNURLVerifyResult> {
+    const wallet = await this.getSparkWalletOrThrow(account.network);
+    const receiveService = new SparkLightningReceiveService(wallet);
+    const receiveRequest = await receiveService.get(receiveRequestId);
+
+    const settled = receiveRequest.state === 'COMPLETED';
+    const preimage = receiveRequest.preimage ?? null;
+
+    return {
+      status: 'OK',
+      settled,
+      preimage,
+      pr: receiveRequest.paymentRequest,
+    };
   }
 
   private async getSparkWalletOrThrow(network: SparkNetwork) {

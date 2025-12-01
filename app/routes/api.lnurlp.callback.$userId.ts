@@ -34,7 +34,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const lightningAddressService = new LightningAddressService(
     request,
     agicashDbServiceRole,
-    { bypassAmountValidation, queryClient },
+    queryClient,
+    { bypassAmountValidation },
   );
 
   const response = await lightningAddressService.handleLnurlpCallback(

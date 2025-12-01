@@ -13,7 +13,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const lightningAddressService = new LightningAddressService(
     request,
     agicashDbServiceRole,
-    { queryClient },
+    queryClient,
   );
 
   const response = await lightningAddressService.handleLud16Request(
