@@ -13,7 +13,10 @@ import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted
 import { useSetDefaultAccount } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 
-function AccountDetailItem({ label, value }: { label: string; value: string }) {
+function AccountDetailItem({
+  label,
+  value,
+}: { label: string; value: string | React.ReactNode }) {
   return (
     <div className="flex items-center justify-between">
       <Badge variant="secondary" className="text-sm">
@@ -68,7 +71,7 @@ function CashuAccount({ account }: { account: ExtendedCashuAccount }) {
           {[
             {
               label: 'Type',
-              value: account.type[0].toUpperCase() + account.type.slice(1),
+              value: <span className="capitalize">{account.type}</span>,
             },
             {
               label: 'Mint',
@@ -110,7 +113,7 @@ function SparkAccount({ account }: { account: ExtendedAccount<'spark'> }) {
           {[
             {
               label: 'Type',
-              value: account.type[0].toUpperCase() + account.type.slice(1),
+              value: <span className="capitalize">{account.type}</span>,
             },
           ].map((detail) => (
             <AccountDetailItem key={detail.label} {...detail} />

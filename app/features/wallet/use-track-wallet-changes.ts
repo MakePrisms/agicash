@@ -25,7 +25,6 @@ import {
   useCashuSendSwapChangeHandlers,
   useUnresolvedCashuSendSwapsCache,
 } from '../send/cashu-send-swap-hooks';
-import { useTrackAndUpdateSparkBalance } from '../shared/spark';
 import {
   useTransactionChangeHandlers,
   useTransactionsCache,
@@ -91,8 +90,6 @@ export const useTrackWalletChanges = () => {
   const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const contactsCache = useContactsCache();
-
-  useTrackAndUpdateSparkBalance();
 
   useTrackDatabaseChanges({
     handlers: [
