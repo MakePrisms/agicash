@@ -73,7 +73,9 @@ const ensureUserData = async (
         }),
       ),
       // TODO: how to handle this network? We specify the network on the account creation.
-      queryClient.ensureQueryData(sparkWalletQueryOptions('MAINNET')),
+      queryClient.ensureQueryData(
+        sparkWalletQueryOptions({ network: 'MAINNET' }),
+      ),
       queryClient.ensureQueryData(cashuSeedQueryOptions()),
     ]);
     const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);

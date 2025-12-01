@@ -183,6 +183,16 @@ export class LightningAddressService {
         };
       }
 
+      // TODO: I added this to make sure spark wallet is initialized when
+      // toAccount is called. I want to see how we end up handling spark
+      // accounts before solving this in a better way.
+      await this.queryClient.prefetchQuery(
+        sparkWalletQueryOptions({
+          network: 'MAINNET',
+          mnemonic: sparkMnemonic,
+        }),
+      );
+
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
       // However, if bypassAmountValidation is enabled, we can use the user's default currency
       // and perform exchange rate conversion to create an invoice in their preferred currency.
@@ -278,6 +288,15 @@ export class LightningAddressService {
     requestId: string,
   ): Promise<LNURLVerifyResult | LNURLError> {
     try {
+      // TODO: I added this to make sure spark wallet is initialized when
+      // toAccount is called. I want to see how we end up handling spark
+      // accounts before solving this in a better way.
+      await this.queryClient.prefetchQuery(
+        sparkWalletQueryOptions({
+          network: 'MAINNET',
+          mnemonic: sparkMnemonic,
+        }),
+      );
       const account = await this.accountRepository.get(accountId);
       if (account.type === 'cashu') {
         return this.handleCashuLnurlpVerify(requestId);
@@ -372,7 +391,7 @@ export class LightningAddressService {
 
   private async getSparkWalletOrThrow(network: SparkNetwork) {
     const wallet = await this.queryClient.fetchQuery(
-      sparkWalletQueryOptions(network),
+      sparkWalletQueryOptions({ network, mnemonic: sparkMnemonic }),
     );
     if (!wallet) {
       throw new Error(`Spark wallet not found for network ${network}`);

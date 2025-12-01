@@ -59,8 +59,10 @@ export default function Index() {
           />
         </div>
 
-        {defaultBtcAccountId && defaultUsdAccountId && (
+        {defaultBtcAccountId && defaultUsdAccountId ? (
           <DefaultCurrencySwitcher />
+        ) : (
+          <div />
         )}
 
         <div className="grid grid-cols-2 gap-10">
