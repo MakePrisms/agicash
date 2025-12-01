@@ -1,25 +1,27 @@
 /**
- * This route implements the LNURL-pay verify endpoint for Cashu receive quotes
- * defined by LUD21:  https://github.com/lnurl/luds/blob/luds/21.md
+ * This route implements the LNURL-pay verify endpoint
+ * defined by LUD21: https://github.com/lnurl/luds/blob/luds/21.md
  */
 
 import { agicashDbServiceRole } from '~/features/agicash-db/database.server';
 import { LightningAddressService } from '~/features/receive/lightning-address-service';
 import { getServerQueryClient } from '~/query-client';
-import type { Route } from './+types/api.lnurlp.verify.cashu.$receiveQuoteId';
+import type { Route } from './+types/api.lnurlp.verify.$accountId.$requestId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { receiveQuoteId } = params;
+  const { accountId, requestId } = params;
 
   const queryClient = getServerQueryClient();
   const lightningAddressService = new LightningAddressService(
     request,
     agicashDbServiceRole,
-    { queryClient },
+    queryClient,
   );
 
-  const response =
-    await lightningAddressService.handleCashuLnurlpVerify(receiveQuoteId);
+  const response = await lightningAddressService.handleLnurlpVerify(
+    accountId,
+    requestId,
+  );
 
   return new Response(JSON.stringify(response), {
     headers: {

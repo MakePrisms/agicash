@@ -71,7 +71,7 @@ export class SparkLightningReceiveService {
   /**
    * Gets a Spark Lightning Receive Request by ID.
    * @param requestId - The ID of the Spark Lightning Receive Request
-   * @throws Error if the request is not found
+   * @throws NotFoundError if the request is not found
    */
   async get(requestId: string): Promise<SparkLightningReceive> {
     const request =
