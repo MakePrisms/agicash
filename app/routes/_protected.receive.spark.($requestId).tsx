@@ -13,7 +13,7 @@ import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
-import type { Route } from './+types/_protected.receive.spark.$requestId';
+import type { Route } from './+types/_protected.receive.spark.($requestId)';
 
 export default function ReceiveSparkPage({ params }: Route.ComponentProps) {
   const { requestId } = params;
@@ -21,7 +21,7 @@ export default function ReceiveSparkPage({ params }: Route.ComponentProps) {
   const receiveAccountId = useReceiveStore((s) => s.accountId);
   const receiveAccount = useAccount(receiveAccountId);
 
-  if (requestId === 'pending') {
+  if (!requestId) {
     if (!receiveAmount || !receiveAccount || receiveAccount.type !== 'spark') {
       return (
         <Redirect

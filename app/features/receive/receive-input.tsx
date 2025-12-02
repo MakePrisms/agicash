@@ -111,7 +111,7 @@ export default function ReceiveInput() {
       });
     }
     if (receiveAccount.type === 'spark') {
-      navigate('/receive/spark/pending', {
+      navigate('/receive/spark', {
         transition: 'slideLeft',
         applyTo: 'newView',
       });
