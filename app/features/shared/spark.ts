@@ -4,7 +4,6 @@ import {
 } from '@buildonspark/spark-sdk';
 import { getPrivateKey as getMnemonic } from '@opensecret/react';
 import {
-  type QueryClient,
   queryOptions,
   useQuery,
   useSuspenseQuery,
@@ -16,7 +15,7 @@ import { getDefaultUnit } from './currencies';
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
 
-const mnemonicQueryOptions = () =>
+export const sparkMnemonicQueryOptions = () =>
   queryOptions({
     queryKey: ['spark-mnemonic'],
     queryFn: async () => {
@@ -36,7 +35,7 @@ export const sparkWalletQueryOptions = ({
     queryKey: ['spark-wallet', network],
     queryFn: async ({ client }) => {
       const mnemonicToUse =
-        mnemonic ?? (await client.fetchQuery(mnemonicQueryOptions()));
+        mnemonic ?? (await client.fetchQuery(sparkMnemonicQueryOptions()));
       const { wallet } = await SparkWallet.initialize({
         mnemonicOrSeed: mnemonicToUse,
         options: { network },
@@ -46,13 +45,6 @@ export const sparkWalletQueryOptions = ({
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: Number.POSITIVE_INFINITY,
   });
-
-export function getSparkWalletFromCache(
-  queryClient: QueryClient,
-  network: SparkNetwork,
-): SparkWallet | undefined {
-  return queryClient.getQueryData<SparkWallet>(['spark-wallet', network]);
-}
 
 export function useSparkWallet(): SparkWallet {
   const sparkAccount = useSparkAccount();
