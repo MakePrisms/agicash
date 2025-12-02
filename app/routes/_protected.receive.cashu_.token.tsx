@@ -22,6 +22,7 @@ import {
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
+import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
 import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { UserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
@@ -38,12 +39,15 @@ const getClaimCashuTokenService = async () => {
     queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
   ]);
   const getCashuWalletSeed = () => queryClient.fetchQuery(seedQueryOptions());
+  const getSparkWalletMnemonic = () =>
+    queryClient.fetchQuery(sparkMnemonicQueryOptions());
   const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
   const accountRepository = new AccountRepository(
     agicashDb,
     encryption,
     queryClient,
     getCashuWalletSeed,
+    getSparkWalletMnemonic,
   );
   const accountService = new AccountService(accountRepository);
   const tokenSwapRepository = new CashuTokenSwapRepository(

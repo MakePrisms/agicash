@@ -31,10 +31,11 @@ import {
 } from '../shared/cashu';
 import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
-import { getSparkWalletFromCache } from '../shared/spark';
+import {
+  sparkMnemonicQueryOptions,
+  sparkWalletQueryOptions,
+} from '../shared/spark';
 import type { Account, CashuAccount, CashuProof } from './account';
-import { getDefaultUnit } from '../shared/currencies';
-import { getSparkWalletFromCache } from '../shared/spark';
 
 type AccountOmit<
   T extends Account,
@@ -60,6 +61,7 @@ export class AccountRepository {
     private readonly encryption: Encryption,
     private readonly queryClient: QueryClient,
     private readonly getCashuWalletSeed?: () => Promise<Uint8Array>,
+    private readonly getSparkWalletMnemonic?: () => Promise<string>,
   ) {}
 
   /**
@@ -184,7 +186,7 @@ export class AccountRepository {
       const details = data.details;
 
       const [{ wallet, isOnline }, proofs] = await Promise.all([
-        this.getPreloadedWallet(details.mint_url, data.currency),
+        this.getInitializedCashuWallet(details.mint_url, data.currency),
         this.decryptCashuProofs(data),
       ]);
 
@@ -209,17 +211,9 @@ export class AccountRepository {
       } as T;
     }
 
-    if (data.type === 'spark') {
-      const details = data.details as { network: SparkNetwork };
-
-      const sparkWallet = getSparkWalletFromCache(
-        this.queryClient,
-        details.network,
-      );
-      if (!sparkWallet) {
-        throw new Error('Spark wallet not initialized');
-      }
-
+    if (this.isSparkAccount(data)) {
+      const { network } = data.details;
+      const sparkWallet = await this.getInitializedSparkWallet(network);
       const { balance: balanceSats } = await sparkWallet.getBalance();
 
       return {
@@ -230,7 +224,7 @@ export class AccountRepository {
           currency: commonData.currency,
           unit: getDefaultUnit(commonData.currency),
         }),
-        network: details.network,
+        network,
         isOnline: true,
       } as T;
     }
@@ -238,7 +232,7 @@ export class AccountRepository {
     throw new Error('Invalid account type');
   }
 
-  private async getPreloadedWallet(mintUrl: string, currency: Currency) {
+  private async getInitializedCashuWallet(mintUrl: string, currency: Currency) {
     const seed = await this.getCashuWalletSeed?.();
 
     let mintInfo: MintInfo;
@@ -311,6 +305,16 @@ export class AccountRepository {
     return { wallet, isOnline: true };
   }
 
+  private async getInitializedSparkWallet(network: SparkNetwork) {
+    const mnemonic = await this.getSparkWalletMnemonic?.();
+    if (!mnemonic) {
+      throw new Error('Could not get spark wallet mnemonic');
+    }
+    return await this.queryClient.fetchQuery(
+      sparkWalletQueryOptions({ network, mnemonic }),
+    );
+  }
+
   private isCashuAccount(data: AgicashDbAccount): data is AgicashDbAccount & {
     type: 'cashu';
     details: {
@@ -320,6 +324,13 @@ export class AccountRepository {
     };
   } {
     return data.type === 'cashu';
+  }
+
+  private isSparkAccount(data: AgicashDbAccount): data is AgicashDbAccount & {
+    type: 'spark';
+    details: { network: SparkNetwork };
+  } {
+    return data.type === 'spark';
   }
 
   private async decryptCashuProofs(
@@ -363,10 +374,13 @@ export function useAccountRepository() {
   const encryption = useEncryption();
   const queryClient = useQueryClient();
   const { getSeed: getCashuWalletSeed } = useCashuCryptography();
+  const getSparkWalletMnemonic = () =>
+    queryClient.fetchQuery(sparkMnemonicQueryOptions());
   return new AccountRepository(
     agicashDb,
     encryption,
     queryClient,
     getCashuWalletSeed,
+    getSparkWalletMnemonic,
   );
 }
