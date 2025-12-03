@@ -2,6 +2,7 @@ import type { SparkWallet } from '@buildonspark/spark-sdk';
 import {
   type LightningSendRequest,
   LightningSendRequestStatus,
+  type WalletTransfer,
 } from '@buildonspark/spark-sdk/types';
 import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
@@ -71,6 +72,12 @@ type CreateSparkLightningSendParams = {
    * The fee estimate returned by estimateFee.
    */
   quote: SparkLightningSendQuote;
+};
+
+const isLightningSendRequest = (
+  request: LightningSendRequest | WalletTransfer,
+): request is LightningSendRequest => {
+  return 'encodedInvoice' in request;
 };
 
 export class SparkLightningSendService {
@@ -162,18 +169,11 @@ export class SparkLightningSendService {
     const request = await this.sparkWallet.payLightningInvoice({
       invoice: quote.paymentRequest,
       maxFeeSats: quote.estimatedLightningFee.toNumber('sat'),
-      preferSpark: false,
+      preferSpark: true,
       amountSatsToSend: quote.paymentRequestIsAmountless
         ? quote.amountRequestedInBtc.toNumber('sat')
         : undefined,
     });
-
-    // Type guard to ensure we have a LightningSendRequest
-    if (!('encodedInvoice' in request)) {
-      throw new Error(
-        'Expected a LightningSendRequest, but got a different type',
-      );
-    }
 
     return this.toSparkLightningSend(request, quote.amountRequestedInBtc);
   }
@@ -184,7 +184,12 @@ export class SparkLightningSendService {
    * @throws Error if the request is not found
    */
   async get(requestId: string): Promise<SparkLightningSend> {
-    const request = await this.sparkWallet.getLightningSendRequest(requestId);
+    let request: LightningSendRequest | WalletTransfer | null | undefined;
+    if (requestId.startsWith('SparkLightningSendRequest')) {
+      request = await this.sparkWallet.getLightningSendRequest(requestId);
+    } else {
+      request = await this.sparkWallet.getTransfer(requestId);
+    }
     if (!request) {
       throw new NotFoundError(`Spark send request ${requestId} not found`);
     }
@@ -192,30 +197,50 @@ export class SparkLightningSendService {
   }
 
   private toSparkLightningSend(
-    request: LightningSendRequest,
+    request: LightningSendRequest | WalletTransfer,
     amountRequestedInBtc?: Money<'BTC'>,
   ): SparkLightningSend {
     const state = SparkLightningSendService.toState(request);
-    const decoded = decodeBolt11(request.encodedInvoice);
-    const amount = decoded.amountSat
-      ? new Money({
-          amount: decoded.amountSat,
-          currency: 'BTC' as const,
-          unit: 'sat' as const,
-        })
-      : undefined;
-    const fee = moneyFromSparkAmount(request.fee);
 
+    if (isLightningSendRequest(request)) {
+      const decoded = decodeBolt11(request.encodedInvoice);
+      const amount = decoded.amountSat
+        ? new Money({
+            amount: decoded.amountSat,
+            currency: 'BTC' as const,
+            unit: 'sat' as const,
+          })
+        : undefined;
+      const fee = moneyFromSparkAmount(request.fee);
+
+      return {
+        id: request.id,
+        createdAt: request.createdAt,
+        paymentRequest: request.encodedInvoice,
+        preimage: request.paymentPreimage,
+        updatedAt: request.updatedAt,
+        state,
+        // TODO: How to handle amountless invoices?
+        amount: (amount ?? amountRequestedInBtc ?? Money.zero('BTC')) as Money,
+        fee: fee,
+      };
+    }
+    const amount = new Money({
+      amount: request.totalValue,
+      currency: 'BTC',
+      unit: 'sat',
+    });
+
+    // Todo: we should modify the return type to be specific to wallet transfers, but this is just to see how it works.
     return {
       id: request.id,
-      createdAt: request.createdAt,
-      paymentRequest: request.encodedInvoice,
-      preimage: request.paymentPreimage,
-      updatedAt: request.updatedAt,
+      createdAt: request.createdTime?.toISOString() ?? new Date().toISOString(),
+      paymentRequest: request.receiverIdentityPublicKey,
+      preimage: undefined,
+      updatedAt: request.updatedTime?.toISOString() ?? new Date().toISOString(),
       state,
-      // TODO: How to handle amountless invoices?
-      amount: (amount ?? amountRequestedInBtc ?? Money.zero('BTC')) as Money,
-      fee: fee,
+      amount: amount as Money,
+      fee: Money.zero('BTC'),
     };
   }
 
@@ -223,22 +248,44 @@ export class SparkLightningSendService {
    * Maps a Spark Lightning Send Request status to a simplified state.
    */
   private static toState(
-    request: LightningSendRequest,
+    request: LightningSendRequest | WalletTransfer,
   ): SparkLightningSend['state'] {
+    if (isLightningSendRequest(request)) {
+      switch (request.status) {
+        case LightningSendRequestStatus.TRANSFER_COMPLETED:
+          return 'COMPLETED';
+        case LightningSendRequestStatus.LIGHTNING_PAYMENT_FAILED:
+          return 'FAILED';
+        case LightningSendRequestStatus.CREATED:
+        case LightningSendRequestStatus.REQUEST_VALIDATED:
+        case LightningSendRequestStatus.LIGHTNING_PAYMENT_INITIATED:
+        case LightningSendRequestStatus.LIGHTNING_PAYMENT_SUCCEEDED:
+        case LightningSendRequestStatus.PREIMAGE_PROVIDED:
+        case LightningSendRequestStatus.FUTURE_VALUE:
+          return 'PENDING';
+        default:
+          throw new Error('Unknown Spark send request status');
+      }
+    }
+
+    // WalletTransfer status mapping (spark SDK defines an enum that is not exported)
     switch (request.status) {
-      case LightningSendRequestStatus.TRANSFER_COMPLETED:
+      case 'TRANSFER_STATUS_COMPLETED':
+      case 'TRANSFER_STATUS_RETURNED':
         return 'COMPLETED';
-      case LightningSendRequestStatus.LIGHTNING_PAYMENT_FAILED:
+      case 'TRANSFER_STATUS_EXPIRED':
         return 'FAILED';
-      case LightningSendRequestStatus.CREATED:
-      case LightningSendRequestStatus.REQUEST_VALIDATED:
-      case LightningSendRequestStatus.LIGHTNING_PAYMENT_INITIATED:
-      case LightningSendRequestStatus.LIGHTNING_PAYMENT_SUCCEEDED:
-      case LightningSendRequestStatus.PREIMAGE_PROVIDED:
-      case LightningSendRequestStatus.FUTURE_VALUE:
+      case 'TRANSFER_STATUS_SENDER_INITIATED':
+      case 'TRANSFER_STATUS_SENDER_KEY_TWEAK_PENDING':
+      case 'TRANSFER_STATUS_SENDER_KEY_TWEAKED':
+      case 'TRANSFER_STATUS_RECEIVER_KEY_TWEAKED':
+      case 'TRANSFER_STATUS_RECEIVER_REFUND_SIGNED':
+      case 'TRANSFER_STATUS_SENDER_INITIATED_COORDINATOR':
+      case 'TRANSFER_STATUS_RECEIVER_KEY_TWEAK_LOCKED':
+      case 'TRANSFER_STATUS_RECEIVER_KEY_TWEAK_APPLIED':
         return 'PENDING';
       default:
-        throw new Error('Unknown Spark send request status');
+        throw new Error('Unknown Spark transfer status');
     }
   }
 }

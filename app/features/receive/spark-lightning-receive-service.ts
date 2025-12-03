@@ -61,7 +61,7 @@ export class SparkLightningReceiveService {
 
     const request = await this.sparkWallet.createLightningInvoice({
       amountSats,
-      includeSparkAddress: false,
+      includeSparkAddress: true,
       receiverIdentityPubkey,
     });
 
