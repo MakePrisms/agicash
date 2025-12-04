@@ -37,11 +37,11 @@ const useSparkLightningReceiveCache = () => {
 
 type CreateSparkLightningReceiveParams = {
   /**
-   * The amount to receive. This will be converted to sats when creating the invoice.
+   * The amount to receive.
    */
   amount: Money;
   /**
-   * The Spark public key of the receiver. Used to create invoices on behalf of another user.
+   * The Spark public key of the receiver used to create invoices on behalf of another user.
    * If not provided, the invoice will be created for the user that owns the Spark wallet.
    */
   receiverIdentityPubkey?: string;

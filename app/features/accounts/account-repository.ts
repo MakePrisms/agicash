@@ -213,7 +213,7 @@ export class AccountRepository {
     if (this.isSparkAccount(data)) {
       const { network } = data.details;
       const { wallet, balance, isOnline } =
-        await this.initializedSparkWallet(network);
+        await this.getInitializedSparkWallet(network);
 
       return {
         ...commonData,
@@ -301,7 +301,7 @@ export class AccountRepository {
     return { wallet, isOnline: true };
   }
 
-  private async initializedSparkWallet(network: SparkNetwork) {
+  private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic?.();
     if (!mnemonic) {
       throw new Error('Could not get spark wallet mnemonic');

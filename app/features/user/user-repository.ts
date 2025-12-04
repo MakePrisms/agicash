@@ -79,7 +79,7 @@ export class UserRepository {
    * Updates a user in the database.
    * @param user - The user data to update. All specified properties will be updated.
    * @returns The updated user.
-   * @throws Error if trying to set default_currency without corresponding account ID (enforced by database constraint)
+   * @throws Error if trying to set default_currency when no default account is set for the given currency (enforced by database constraint)
    */
   async update(
     userId: string,

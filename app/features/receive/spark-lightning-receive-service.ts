@@ -28,7 +28,7 @@ type CreateSparkLightningReceiveParams = {
    */
   amount: Money;
   /**
-   * The Spark public key of the receiver. Used to create invoices on behalf of another user.
+   * The Spark public key of the receiver used to create invoices on behalf of another user.
    * If provided, the incoming payment can only be claimed by the Spark wallet that controls the specified public key
    * If not provided, the invoice will be created for the user that owns the Spark wallet.
    */
@@ -38,8 +38,6 @@ type CreateSparkLightningReceiveParams = {
 export class SparkLightningReceiveService {
   /**
    * Creates a new Spark Lightning Receive Request for the given amount.
-   * The amount will be converted to sats if the currency is not BTC.
-   * @throws Error if the exchange rate is required for non-BTC amounts and not provided
    */
   async create({
     account,

@@ -111,7 +111,7 @@ export const sparkBalanceQueryOptions = ({
     },
   });
 
-export function useTrackAndUpdateSparkBalance() {
+export function useTrackAndUpdateSparkAccountBalances() {
   const { data: sparkAccounts } = useAccounts({ type: 'spark' });
   const accountCache = useAccountsCache();
 

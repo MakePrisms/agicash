@@ -288,6 +288,10 @@ export function useAddCashuAccount() {
   return mutateAsync;
 }
 
+/**
+ * Hook to get the sum of all account balances for a given currency.
+ * Null balances are ignored.
+ */
 export function useBalance(currency: Currency) {
   const { data: accounts } = useAccounts({ currency });
   const balance = accounts.reduce((acc, account) => {
