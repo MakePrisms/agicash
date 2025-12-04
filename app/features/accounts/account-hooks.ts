@@ -293,13 +293,10 @@ export function useAddCashuAccount() {
 
 export function useBalance(currency: Currency) {
   const { data: accounts } = useAccounts({ currency });
-  const balance = accounts.reduce(
-    (acc, account) => {
-      const accountBalance = getAccountBalance(account);
-      return acc.add(accountBalance);
-    },
-    new Money({ amount: 0, currency }),
-  );
+  const balance = accounts.reduce((acc, account) => {
+    const accountBalance = getAccountBalance(account);
+    return accountBalance !== null ? acc.add(accountBalance) : acc;
+  }, Money.zero(currency));
   return balance;
 }
 

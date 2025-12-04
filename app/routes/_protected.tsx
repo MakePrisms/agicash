@@ -16,8 +16,8 @@ import {
   getEncryption,
 } from '~/features/shared/encryption';
 import {
+  sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
-  sparkWalletQueryOptions,
 } from '~/features/shared/spark';
 import {
   type AuthUser,
@@ -65,7 +65,7 @@ const ensureUserData = async (
       encryptionPrivateKey,
       encryptionPublicKey,
       cashuLockingXpub,
-      sparkWallet,
+      sparkPublicKey,
     ] = await Promise.all([
       queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
       queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
@@ -77,8 +77,9 @@ const ensureUserData = async (
       ),
       // TODO: how to handle this network? We specify the network on the account creation.
       queryClient.ensureQueryData(
-        sparkWalletQueryOptions({ network: 'MAINNET' }),
+        sparkIdentityPublicKeyQueryOptions({ queryClient, network: 'MAINNET' }),
       ),
+      queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
       queryClient.ensureQueryData(cashuSeedQueryOptions()),
     ]);
     const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
@@ -98,8 +99,6 @@ const ensureUserData = async (
       encryption,
       accountRepository,
     );
-
-    const sparkPublicKey = await sparkWallet.getIdentityPublicKey();
 
     const { user: upsertedUser, accounts } = await userRepository.upsert({
       id: authUser.id,

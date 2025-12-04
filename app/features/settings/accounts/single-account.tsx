@@ -3,6 +3,7 @@ import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { getAccountBalance } from '~/features/accounts/account';
 import { useAccount } from '~/features/accounts/account-hooks';
+import { BalanceOfflineHoverCard } from '~/features/accounts/balance-offline-hover-card';
 import { SettingsViewHeader } from '~/features/settings/ui/settings-view-header';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useSetDefaultAccount } from '~/features/user/user-hooks';
@@ -30,6 +31,7 @@ export default function SingleAccount({ accountId }: { accountId: string }) {
   const { toast } = useToast();
   const account = useAccount(accountId);
   const setDefaultAccount = useSetDefaultAccount();
+  const balance = getAccountBalance(account);
 
   const makeDefault = async () => {
     try {
@@ -56,7 +58,16 @@ export default function SingleAccount({ accountId }: { accountId: string }) {
         <div className="flex w-full flex-col gap-12 pt-4">
           <div className="flex flex-col gap-12">
             <h1 className="text-center text-2xl">{account.name}</h1>
-            <MoneyWithConvertedAmount money={getAccountBalance(account)} />
+            {balance !== null ? (
+              <MoneyWithConvertedAmount money={balance} />
+            ) : (
+              <div className="flex justify-center">
+                <BalanceOfflineHoverCard
+                  accountType={account.type}
+                  className="text-2xl"
+                />
+              </div>
+            )}
           </div>
 
           <div className="w-full space-y-8 sm:max-w-sm">

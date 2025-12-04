@@ -4,11 +4,13 @@ import {
 } from '@buildonspark/spark-sdk';
 import { getPrivateKey as getMnemonic } from '@opensecret/react';
 import {
+  type QueryClient,
   queryOptions,
   useQuery,
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { Money } from '~/lib/money';
+import { getSparkIdentityPublicKeyFromMnemonic } from '~/lib/spark';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccountsCache, useSparkAccount } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
@@ -25,6 +27,29 @@ export const sparkMnemonicQueryOptions = () =>
       return response.mnemonic;
     },
     staleTime: Number.POSITIVE_INFINITY,
+  });
+
+export const sparkIdentityPublicKeyQueryOptions = ({
+  queryClient,
+  network,
+  accountNumber,
+}: {
+  queryClient: QueryClient;
+  network: SparkNetwork;
+  accountNumber?: number;
+}) =>
+  queryOptions({
+    queryKey: ['spark-identity-public-key'],
+    queryFn: async () => {
+      const mnemonic = await queryClient.fetchQuery(
+        sparkMnemonicQueryOptions(),
+      );
+      return await getSparkIdentityPublicKeyFromMnemonic(
+        mnemonic,
+        network,
+        accountNumber,
+      );
+    },
   });
 
 export const sparkWalletQueryOptions = ({
@@ -46,6 +71,7 @@ export const sparkWalletQueryOptions = ({
     gcTime: Number.POSITIVE_INFINITY,
   });
 
+// TODO: this will throw and crash the app if spark failed to initialize
 export function useSparkWallet(): SparkWallet {
   const sparkAccount = useSparkAccount();
   const { data } = useSuspenseQuery(

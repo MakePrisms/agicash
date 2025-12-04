@@ -68,7 +68,7 @@ export type Account = {
     }
   | {
       type: 'spark';
-      balance: Money;
+      balance: Money | null;
       network: SparkNetwork;
     }
 );

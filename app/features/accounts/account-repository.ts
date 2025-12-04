@@ -29,7 +29,6 @@ import {
   mintKeysQueryOptions,
   useCashuCryptography,
 } from '../shared/cashu';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import {
   sparkMnemonicQueryOptions,
@@ -213,19 +212,14 @@ export class AccountRepository {
 
     if (this.isSparkAccount(data)) {
       const { network } = data.details;
-      const sparkWallet = await this.getInitializedSparkWallet(network);
-      const { balance: balanceSats } = await sparkWallet.getBalance();
+      const { balance, isOnline } = await this.initializedSparkWallet(network);
 
       return {
         ...commonData,
         type: 'spark',
-        balance: new Money({
-          amount: balanceSats.toString(),
-          currency: commonData.currency,
-          unit: getDefaultUnit(commonData.currency),
-        }),
+        balance,
         network,
-        isOnline: true,
+        isOnline,
       } as T;
     }
 
@@ -305,14 +299,26 @@ export class AccountRepository {
     return { wallet, isOnline: true };
   }
 
-  private async getInitializedSparkWallet(network: SparkNetwork) {
+  private async initializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic?.();
     if (!mnemonic) {
       throw new Error('Could not get spark wallet mnemonic');
     }
-    return await this.queryClient.fetchQuery(
-      sparkWalletQueryOptions({ network, mnemonic }),
-    );
+    try {
+      const wallet = await this.queryClient.fetchQuery(
+        sparkWalletQueryOptions({ network, mnemonic }),
+      );
+      const { balance: balanceSats } = await wallet.getBalance();
+      const balance = new Money({
+        amount: Number(balanceSats),
+        currency: 'BTC',
+        unit: 'sat',
+      });
+      return { balance, isOnline: true };
+    } catch (error) {
+      console.error('Failed to initialize spark wallet', { cause: error });
+      return { balance: null, isOnline: false };
+    }
   }
 
   private isCashuAccount(data: AgicashDbAccount): data is AgicashDbAccount & {
