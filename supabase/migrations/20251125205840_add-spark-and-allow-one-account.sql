@@ -1,7 +1,7 @@
 -- Migration: Allow Single Currency Accounts and Add Spark Public Key to user
 -- 
 -- Purpose:
---   1. Add spark_public_key column to users table
+--   1. Add spark_identity_public_key column to users table
 --   2. Remove the requirement that users must have both USD and BTC accounts
 --   3. Require at least one BTC Spark account (USD accounts are now optional)
 --   4. This allows users to be created with only a BTC Spark account
@@ -11,7 +11,7 @@
 --   - wallet.upsert_user_with_accounts (function)
 --
 -- Changes:
---   1. Added spark_public_key column to users table
+--   1. Added spark_identity_public_key column to users table
 --   2. Added CHECK constraint to ensure default_currency always has corresponding account ID
 --   3. Made FK constraints on default_btc_account_id and default_usd_account_id DEFERRABLE
 --   4. Removed validation requiring at least one USD account in upsert function
@@ -24,7 +24,7 @@
 --   - Deferred FK constraints allow setting a placeholder UUID during user insert,
 --     which is then updated with the real account ID before transaction commits
 
-alter table wallet.users add column spark_public_key text not null;
+alter table wallet.users add column spark_identity_public_key text not null;
 
 -- Make FK constraints DEFERRABLE INITIALLY DEFERRED so we can insert user with a 
 -- placeholder default_btc_account_id, then update it with the real account ID after 
@@ -60,7 +60,7 @@ create or replace function wallet.upsert_user_with_accounts(
   p_accounts wallet.account_input[], 
   p_cashu_locking_xpub text, 
   p_encryption_public_key text,
-  p_spark_public_key text
+  p_spark_identity_public_key text
 )
 returns wallet.upsert_user_with_accounts_result
 language plpgsql
@@ -75,8 +75,8 @@ begin
   -- Insert user with placeholder default_btc_account_id. The FK constraint is deferred,
   -- so it won't be checked until transaction commit. We'll update it with the real
   -- account ID after creating accounts.
-  insert into wallet.users (id, email, email_verified, cashu_locking_xpub, encryption_public_key, spark_public_key, default_currency, default_btc_account_id)
-  values (p_user_id, p_email, p_email_verified, p_cashu_locking_xpub, p_encryption_public_key, p_spark_public_key, 'BTC', placeholder_btc_account_id)
+  insert into wallet.users (id, email, email_verified, cashu_locking_xpub, encryption_public_key, spark_identity_public_key, default_currency, default_btc_account_id)
+  values (p_user_id, p_email, p_email_verified, p_cashu_locking_xpub, p_encryption_public_key, p_spark_identity_public_key, 'BTC', placeholder_btc_account_id)
   on conflict (id) do update set
     email = coalesce(excluded.email, wallet.users.email),
     email_verified = excluded.email_verified;

@@ -251,7 +251,7 @@ export class LightningAddressService {
         const request = await sparkReceiveLightningService.create({
           account,
           amount: amountToReceive,
-          receiverIdentityPubkey: user.sparkPublicKey,
+          receiverIdentityPubkey: user.sparkIdentityPublicKey,
         });
 
         return {

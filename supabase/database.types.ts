@@ -707,7 +707,7 @@ export type Database = {
           email_verified: boolean
           encryption_public_key: string
           id: string
-          spark_public_key: string
+          spark_identity_public_key: string
           updated_at: string
           username: string
         }
@@ -721,7 +721,7 @@ export type Database = {
           email_verified: boolean
           encryption_public_key: string
           id?: string
-          spark_public_key: string
+          spark_identity_public_key: string
           updated_at?: string
           username: string
         }
@@ -735,7 +735,7 @@ export type Database = {
           email_verified?: boolean
           encryption_public_key?: string
           id?: string
-          spark_public_key?: string
+          spark_identity_public_key?: string
           updated_at?: string
           username?: string
         }
@@ -1203,7 +1203,7 @@ export type Database = {
           p_email: string
           p_email_verified: boolean
           p_encryption_public_key: string
-          p_spark_public_key: string
+          p_spark_identity_public_key: string
           p_user_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["upsert_user_with_accounts_result"]

@@ -146,9 +146,9 @@ export class UserRepository {
        */
       encryptionPublicKey: string;
       /**
-       * The user's Spark public key.
+       * The user's Spark identity public key.
        */
-      sparkPublicKey: string;
+      sparkIdentityPublicKey: string;
     },
     options?: Options,
   ): Promise<{ user: User; accounts: Account[] }> {
@@ -184,7 +184,7 @@ export class UserRepository {
       p_accounts: accountsToAdd,
       p_cashu_locking_xpub: user.cashuLockingXpub,
       p_encryption_public_key: user.encryptionPublicKey,
-      p_spark_public_key: user.sparkPublicKey,
+      p_spark_identity_public_key: user.sparkIdentityPublicKey,
     });
 
     if (options?.abortSignal) {
@@ -277,7 +277,7 @@ export class UserRepository {
         updatedAt: dbUser.updated_at,
         cashuLockingXpub: dbUser.cashu_locking_xpub,
         encryptionPublicKey: dbUser.encryption_public_key,
-        sparkPublicKey: dbUser.spark_public_key,
+        sparkIdentityPublicKey: dbUser.spark_identity_public_key,
         defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
         defaultUsdAccountId: dbUser.default_usd_account_id ?? null,
         defaultCurrency: dbUser.default_currency,
@@ -297,7 +297,7 @@ export class UserRepository {
       isGuest: true,
       cashuLockingXpub: dbUser.cashu_locking_xpub,
       encryptionPublicKey: dbUser.encryption_public_key,
-      sparkPublicKey: dbUser.spark_public_key,
+      sparkIdentityPublicKey: dbUser.spark_identity_public_key,
     };
   }
 }

@@ -65,7 +65,7 @@ const ensureUserData = async (
       encryptionPrivateKey,
       encryptionPublicKey,
       cashuLockingXpub,
-      sparkPublicKey,
+      sparkIdentityPublicKey,
     ] = await Promise.all([
       queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
       queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
@@ -107,7 +107,7 @@ const ensureUserData = async (
       accounts: [...defaultAccounts],
       cashuLockingXpub,
       encryptionPublicKey,
-      sparkPublicKey,
+      sparkIdentityPublicKey,
     });
     user = upsertedUser;
     const { queryKey: userQueryKey } = userQueryOptions({
