@@ -247,11 +247,9 @@ export class LightningAddressService {
       }
 
       if (account.type === 'spark') {
-        const sparkWallet = await this.getSparkWalletOrThrow(account.network);
-        const sparkReceiveLightningService = new SparkLightningReceiveService(
-          sparkWallet,
-        );
+        const sparkReceiveLightningService = new SparkLightningReceiveService();
         const request = await sparkReceiveLightningService.create({
+          account,
           amount: amountToReceive,
           receiverIdentityPubkey: user.sparkPublicKey,
         });
@@ -361,9 +359,8 @@ export class LightningAddressService {
     account: SparkAccount,
     receiveRequestId: string,
   ): Promise<LNURLVerifyResult> {
-    const wallet = await this.getSparkWalletOrThrow(account.network);
-    const receiveService = new SparkLightningReceiveService(wallet);
-    const receiveRequest = await receiveService.get(receiveRequestId);
+    const receiveService = new SparkLightningReceiveService();
+    const receiveRequest = await receiveService.get(account, receiveRequestId);
 
     const settled = receiveRequest.state === 'COMPLETED';
     const preimage = receiveRequest.preimage ?? null;

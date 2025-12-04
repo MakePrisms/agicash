@@ -5,9 +5,10 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
-import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
 import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
+import { useAccounts } from '../accounts/account-hooks';
+import { sparkBalanceQueryKey } from '../shared/spark';
 import {
   type SparkLightningReceive,
   useSparkLightningReceiveService,
@@ -55,7 +56,7 @@ export function useCreateSparkLightningReceive({
   onError?: (error: Error) => void;
 }) {
   const sparkLightningReceiveService = useSparkLightningReceiveService();
-  const getExchangeRate = useGetExchangeRate();
+  const { data: sparkAccounts } = useAccounts({ type: 'spark' });
   const cache = useSparkLightningReceiveCache();
 
   return useMutation({
@@ -64,9 +65,9 @@ export function useCreateSparkLightningReceive({
       receiverIdentityPubkey,
     }: CreateSparkLightningReceiveParams) => {
       return sparkLightningReceiveService.create({
+        account: sparkAccounts[0],
         amount,
         receiverIdentityPubkey,
-        getExchangeRate,
       });
     },
     onSuccess: (request) => {
@@ -99,6 +100,8 @@ export function useTrackSparkLightningReceive({
   onExpired,
 }: TrackSparkLightningReceiveProps) {
   const sparkLightningReceiveService = useSparkLightningReceiveService();
+  const queryClient = useQueryClient();
+  const { data: sparkAccounts } = useAccounts({ type: 'spark' });
   const onCompletedRef = useLatest(onCompleted);
   const onFailedRef = useLatest(onFailed);
   const onExpiredRef = useLatest(onExpired);
@@ -106,7 +109,7 @@ export function useTrackSparkLightningReceive({
   const { data: request } = useSuspenseQuery({
     queryKey: [SparkLightningReceiveCache.Key, requestId],
     queryFn: async (): Promise<SparkLightningReceive> =>
-      sparkLightningReceiveService.get(requestId),
+      sparkLightningReceiveService.get(sparkAccounts[0], requestId),
     refetchInterval: (query) => {
       if (query.state.data?.state === 'PENDING') {
         return 1000;
@@ -117,14 +120,16 @@ export function useTrackSparkLightningReceive({
 
   useEffect(() => {
     if (request.state === 'COMPLETED') {
-      // TODO: see how to refresh the balance immediatly.
+      queryClient.invalidateQueries({
+        queryKey: sparkBalanceQueryKey(sparkAccounts[0].id),
+      });
       onCompletedRef.current?.(request);
     } else if (request.state === 'FAILED') {
       onFailedRef.current?.(request);
     } else if (request.state === 'EXPIRED') {
       onExpiredRef.current?.(request);
     }
-  }, [request]);
+  }, [request, queryClient, sparkAccounts[0].id]);
 
   return { request };
 }

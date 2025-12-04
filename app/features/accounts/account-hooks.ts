@@ -15,6 +15,7 @@ import {
   type AccountType,
   type CashuAccount,
   type ExtendedAccount,
+  type SparkAccount,
   getAccountBalance,
 } from './account';
 import {
@@ -44,6 +45,14 @@ export class AccountsCache {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
       curr.map((x) =>
         x.id === account.id && account.version > x.version ? account : x,
+      ),
+    );
+  }
+
+  updateSparkBalance(account: SparkAccount) {
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
+      curr.map((x) =>
+        x.id === account.id ? { ...x, balance: account.balance } : x,
       ),
     );
   }
@@ -258,18 +267,6 @@ export function useDefaultAccount() {
 
   previousDefaultAccountIdRef.current = defaultAccount?.id;
   return defaultAccount;
-}
-
-/**
- * @returns The spark account.
- * @throws Error if there is not exactly one Spark account.
- */
-export function useSparkAccount(): ExtendedAccount<'spark'> {
-  const { data: accounts } = useAccounts({ type: 'spark' });
-  if (accounts.length !== 1) {
-    throw new Error('Exactly one Spark account is required');
-  }
-  return accounts[0];
 }
 
 export function useAddCashuAccount() {

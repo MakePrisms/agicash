@@ -6,13 +6,17 @@ import { getPrivateKey as getMnemonic } from '@opensecret/react';
 import {
   type QueryClient,
   queryOptions,
-  useQuery,
-  useSuspenseQuery,
+  useQueries,
 } from '@tanstack/react-query';
-import { Money } from '~/lib/money';
+import { type Currency, Money } from '~/lib/money';
 import { getSparkIdentityPublicKeyFromMnemonic } from '~/lib/spark';
+import type { SparkAccount } from '../accounts/account';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
-import { useAccountsCache, useSparkAccount } from '../accounts/account-hooks';
+import {
+  type AccountsCache,
+  useAccounts,
+  useAccountsCache,
+} from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
@@ -71,38 +75,54 @@ export const sparkWalletQueryOptions = ({
     gcTime: Number.POSITIVE_INFINITY,
   });
 
-// TODO: this will throw and crash the app if spark failed to initialize
-export function useSparkWallet(): SparkWallet {
-  const sparkAccount = useSparkAccount();
-  const { data } = useSuspenseQuery(
-    sparkWalletQueryOptions({ network: sparkAccount.network }),
-  );
-  return data;
+export function sparkBalanceQueryKey(accountId: string) {
+  return ['spark-balance', accountId];
 }
 
-export function useTrackAndUpdateSparkBalance() {
-  const sparkWallet = useSparkWallet();
-  const sparkAccount = useSparkAccount();
-  const accountCache = useAccountsCache();
-
-  useQuery({
-    queryKey: ['spark-balance', sparkAccount.id],
+export const sparkBalanceQueryOptions = ({
+  account,
+  accountCache,
+}: { account: SparkAccount; accountCache: AccountsCache }) =>
+  queryOptions({
+    queryKey: sparkBalanceQueryKey(account.id),
     queryFn: async () => {
-      const { balance } = await sparkWallet.getBalance();
-      accountCache.update({
-        ...sparkAccount,
+      if (account.currency !== 'BTC') {
+        throw new Error(
+          `Spark account ${account.id} has unsupported currency: ${account.currency}`,
+        );
+      }
+
+      if (!account.wallet) {
+        return null;
+      }
+
+      const { balance } = await account.wallet.getBalance();
+
+      accountCache.updateSparkBalance({
+        ...account,
         balance: new Money({
           amount: Number(balance),
-          currency: sparkAccount.currency,
-          unit: getDefaultUnit(sparkAccount.currency),
+          currency: account.currency as Currency,
+          unit: getDefaultUnit(account.currency),
         }),
       });
+
       return balance;
     },
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: Number.POSITIVE_INFINITY,
-    refetchInterval: 3000,
-    refetchOnWindowFocus: 'always',
-    refetchOnReconnect: 'always',
+  });
+
+export function useTrackAndUpdateSparkBalance() {
+  const { data: sparkAccounts } = useAccounts({ type: 'spark' });
+  const accountCache = useAccountsCache();
+
+  useQueries({
+    queries: sparkAccounts.map((account) => ({
+      ...sparkBalanceQueryOptions({ account, accountCache }),
+      staleTime: Number.POSITIVE_INFINITY,
+      gcTime: Number.POSITIVE_INFINITY,
+      refetchInterval: 3000,
+      refetchOnWindowFocus: 'always' as const,
+      refetchOnReconnect: 'always' as const,
+    })),
   });
 }

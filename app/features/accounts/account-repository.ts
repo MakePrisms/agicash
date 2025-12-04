@@ -212,7 +212,8 @@ export class AccountRepository {
 
     if (this.isSparkAccount(data)) {
       const { network } = data.details;
-      const { balance, isOnline } = await this.initializedSparkWallet(network);
+      const { wallet, balance, isOnline } =
+        await this.initializedSparkWallet(network);
 
       return {
         ...commonData,
@@ -220,6 +221,7 @@ export class AccountRepository {
         balance,
         network,
         isOnline,
+        wallet,
       } as T;
     }
 
@@ -314,10 +316,10 @@ export class AccountRepository {
         currency: 'BTC',
         unit: 'sat',
       });
-      return { balance, isOnline: true };
+      return { wallet, balance, isOnline: true };
     } catch (error) {
       console.error('Failed to initialize spark wallet', { cause: error });
-      return { balance: null, isOnline: false };
+      return { wallet: null, balance: null, isOnline: false };
     }
   }
 

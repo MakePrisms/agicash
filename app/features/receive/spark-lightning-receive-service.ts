@@ -3,11 +3,10 @@ import {
   type LightningReceiveRequest,
   LightningReceiveRequestStatus,
 } from '@buildonspark/spark-sdk/types';
-import type { Ticker } from '~/lib/exchange-rate';
 import type { Money } from '~/lib/money';
 import { moneyFromSparkAmount } from '~/lib/spark';
+import type { SparkAccount } from '../accounts/account';
 import { NotFoundError } from '../shared/error';
-import { useSparkWallet } from '../shared/spark';
 
 export type SparkLightningReceive = {
   id: string;
@@ -21,6 +20,10 @@ export type SparkLightningReceive = {
 
 type CreateSparkLightningReceiveParams = {
   /**
+   * The Spark account to create the receive request for.
+   */
+  account: SparkAccount;
+  /**
    * The amount to receive.
    */
   amount: Money;
@@ -30,37 +33,23 @@ type CreateSparkLightningReceiveParams = {
    * If not provided, the invoice will be created for the user that owns the Spark wallet.
    */
   receiverIdentityPubkey?: string;
-  /**
-   * An optional function to get the current exchange rate so that non-BTC amounts can be converted to sats.
-   */
-  getExchangeRate?: (ticker: Ticker) => Promise<string>;
 };
 
 export class SparkLightningReceiveService {
-  constructor(private readonly sparkWallet: SparkWallet) {}
-
   /**
    * Creates a new Spark Lightning Receive Request for the given amount.
    * The amount will be converted to sats if the currency is not BTC.
    * @throws Error if the exchange rate is required for non-BTC amounts and not provided
    */
   async create({
+    account,
     amount,
     receiverIdentityPubkey,
-    getExchangeRate,
   }: CreateSparkLightningReceiveParams): Promise<SparkLightningReceive> {
-    let amountSats: number;
-    if (amount.currency === 'BTC') {
-      amountSats = amount.toNumber('sat');
-    } else if (getExchangeRate) {
-      const exchangeRate = await getExchangeRate('USD-BTC');
-      amountSats = amount.convert('BTC', exchangeRate).toNumber('sat');
-    } else {
-      throw new Error('Exchange rate is required for non-BTC amounts');
-    }
+    const wallet = this.getSparkWalletOrThrow(account);
 
-    const request = await this.sparkWallet.createLightningInvoice({
-      amountSats,
+    const request = await wallet.createLightningInvoice({
+      amountSats: amount.toNumber('sat'),
       includeSparkAddress: false,
       receiverIdentityPubkey,
     });
@@ -70,12 +59,16 @@ export class SparkLightningReceiveService {
 
   /**
    * Gets a Spark Lightning Receive Request by ID.
+   * @param account - The Spark account to get the receive request for.
    * @param requestId - The ID of the Spark Lightning Receive Request
    * @throws NotFoundError if the request is not found
    */
-  async get(requestId: string): Promise<SparkLightningReceive> {
-    const request =
-      await this.sparkWallet.getLightningReceiveRequest(requestId);
+  async get(
+    account: SparkAccount,
+    requestId: string,
+  ): Promise<SparkLightningReceive> {
+    const wallet = this.getSparkWalletOrThrow(account);
+    const request = await wallet.getLightningReceiveRequest(requestId);
     if (!request) {
       throw new NotFoundError(`Spark request ${requestId} not found`);
     }
@@ -126,9 +119,15 @@ export class SparkLightningReceiveService {
         throw new Error('Unknown Spark invoice status');
     }
   }
+
+  private getSparkWalletOrThrow(account: SparkAccount): SparkWallet {
+    if (!account.wallet) {
+      throw new Error(`Spark account ${account.id} wallet not initialized`);
+    }
+    return account.wallet;
+  }
 }
 
 export function useSparkLightningReceiveService() {
-  const sparkWallet = useSparkWallet();
-  return new SparkLightningReceiveService(sparkWallet);
+  return new SparkLightningReceiveService();
 }
