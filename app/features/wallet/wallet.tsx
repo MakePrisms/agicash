@@ -3,6 +3,7 @@ import { type PropsWithChildren, useEffect } from 'react';
 import { useToast } from '~/hooks/use-toast';
 import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
 import { agicashRealtime } from '../agicash-db/database';
+import { useTrackAndUpdateSparkAccountBalances } from '../shared/spark';
 import { useTheme } from '../theme';
 import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
@@ -54,6 +55,7 @@ export const Wallet = ({ children }: PropsWithChildren) => {
 
   useTrackWalletChanges();
   useSupabaseRealtimeActivityTracking(agicashRealtime);
+  useTrackAndUpdateSparkAccountBalances();
 
   const isLead = useTakeTaskProcessingLead();
 

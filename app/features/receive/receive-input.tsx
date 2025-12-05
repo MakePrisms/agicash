@@ -109,11 +109,11 @@ export default function ReceiveInput() {
         transition: 'slideLeft',
         applyTo: 'newView',
       });
-    } else {
-      toast({
-        title: 'Not implemented',
-        description: 'Choose a cashu account and try again.',
-        variant: 'destructive',
+    }
+    if (receiveAccount.type === 'spark') {
+      navigate('/receive/spark', {
+        transition: 'slideLeft',
+        applyTo: 'newView',
       });
     }
   };
@@ -186,6 +186,7 @@ export default function ReceiveInput() {
                 switchInputCurrency();
               }
             }}
+            disabled={accounts.length === 1}
           />
         </div>
 

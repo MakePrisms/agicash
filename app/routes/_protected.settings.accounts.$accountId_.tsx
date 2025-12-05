@@ -1,6 +1,6 @@
 import { useParams } from 'react-router';
 import { Page } from '~/components/page';
-import SingleAccount from '~/features/settings/accounts/$accountId';
+import SingleAccount from '~/features/settings/accounts/single-account';
 
 export default function SingleAccountPage() {
   const { accountId } = useParams();

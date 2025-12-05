@@ -13,6 +13,7 @@ import { cn } from '~/lib/utils';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { type Account, getAccountBalance } from './account';
 import { AccountTypeIcon } from './account-icons';
+import { BalanceOfflineHoverCard } from './balance-offline-hover-card';
 
 export type AccountSelectorOption<T extends Account = Account> = T & {
   /** Text to display as a badge in the account selector */
@@ -49,7 +50,11 @@ function AccountItem({ account }: { account: AccountSelectorOption }) {
       <div className="flex w-full flex-col justify-between gap-2 text-start">
         <span className="font-medium">{account.name}</span>
         <div className="flex items-center justify-between text-xs">
-          <MoneyWithConvertedAmount money={balance} variant="inline" />
+          {balance !== null ? (
+            <MoneyWithConvertedAmount money={balance} variant="inline" />
+          ) : (
+            <BalanceOfflineHoverCard accountType={account.type} />
+          )}
           {account.badges && (
             <div className="flex gap-2">
               {account.badges.map((badge) => (

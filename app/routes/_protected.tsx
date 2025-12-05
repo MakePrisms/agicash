@@ -7,7 +7,7 @@ import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-sessio
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import {
   BASE_CASHU_LOCKING_DERIVATION_PATH,
-  seedQueryOptions,
+  seedQueryOptions as cashuSeedQueryOptions,
   xpubQueryOptions,
 } from '~/features/shared/cashu';
 import {
@@ -15,6 +15,10 @@ import {
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
+import {
+  sparkIdentityPublicKeyQueryOptions,
+  sparkMnemonicQueryOptions,
+} from '~/features/shared/spark';
 import {
   type AuthUser,
   authQueryOptions,
@@ -57,24 +61,38 @@ const ensureUserData = async (
   }
 
   if (!user || hasUserChanged(user, authUser)) {
-    const [encryptionPrivateKey, encryptionPublicKey, cashuLockingXpub] =
-      await Promise.all([
-        queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-        queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-        queryClient.ensureQueryData(
-          xpubQueryOptions({
-            queryClient,
-            derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
-          }),
-        ),
-      ]);
+    const [
+      encryptionPrivateKey,
+      encryptionPublicKey,
+      cashuLockingXpub,
+      sparkIdentityPublicKey,
+    ] = await Promise.all([
+      queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
+      queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
+      queryClient.ensureQueryData(
+        xpubQueryOptions({
+          queryClient,
+          derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
+        }),
+      ),
+      // TODO: how to handle this network? We specify the network on the account creation.
+      queryClient.ensureQueryData(
+        sparkIdentityPublicKeyQueryOptions({ queryClient, network: 'MAINNET' }),
+      ),
+      queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
+      queryClient.ensureQueryData(cashuSeedQueryOptions()),
+    ]);
     const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-    const getCashuWalletSeed = () => queryClient.fetchQuery(seedQueryOptions());
+    const getCashuWalletSeed = () =>
+      queryClient.fetchQuery(cashuSeedQueryOptions());
+    const getSparkWalletMnemonic = () =>
+      queryClient.fetchQuery(sparkMnemonicQueryOptions());
     const accountRepository = new AccountRepository(
       agicashDb,
       encryption,
       queryClient,
       getCashuWalletSeed,
+      getSparkWalletMnemonic,
     );
     const userRepository = new UserRepository(
       agicashDb,
@@ -89,6 +107,7 @@ const ensureUserData = async (
       accounts: [...defaultAccounts],
       cashuLockingXpub,
       encryptionPublicKey,
+      sparkIdentityPublicKey,
     });
     user = upsertedUser;
     const { queryKey: userQueryKey } = userQueryOptions({

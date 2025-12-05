@@ -1,16 +1,8 @@
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  ChartSpline,
-  Clock,
-  Cog,
-} from 'lucide-react';
-import { useState } from 'react';
+import { ArrowDownRight, ArrowUpRight, Clock, UserCircle2 } from 'lucide-react';
 import type { LinksFunction } from 'react-router';
 import agicashIcon192 from '~/assets/icon-192x192.png';
 import { Page, PageContent, PageHeader } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { Skeleton } from '~/components/ui/skeleton';
 import {
   useBalance,
   useDefaultAccount,
@@ -19,8 +11,7 @@ import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-sw
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
-import { useExchangeRates } from '~/hooks/use-exchange-rate';
-import { Money } from '~/lib/money';
+import { useUser } from '~/features/user/user-hooks';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 export const links: LinksFunction = () => [
@@ -28,38 +19,11 @@ export const links: LinksFunction = () => [
   { rel: 'preload', href: agicashIcon192, as: 'image' },
 ];
 
-const Price = () => {
-  const [showSatsPerDollar, setShowSatsPerDollar] = useState(false);
-  const { data: rates } = useExchangeRates(['BTC-USD', 'USD-BTC']);
-
-  if (!rates) return <Skeleton className="h-[24px] w-[81px]" />;
-
-  const moneyString = showSatsPerDollar
-    ? new Money({ amount: 1, currency: 'USD' })
-        .convert('BTC', rates['USD-BTC'])
-        .toLocaleString({ unit: 'sat' })
-    : new Money({ amount: rates['BTC-USD'], currency: 'USD' })
-        .toLocaleString({ unit: 'usd' })
-        .slice(0, -3);
-
-  return (
-    <button
-      type="button"
-      onClick={() => setShowSatsPerDollar(!showSatsPerDollar)}
-      className="flex items-center gap-2"
-    >
-      {showSatsPerDollar && <ChartSpline size={16} className="animate-pulse" />}
-      <span className="font-medium">{moneyString}</span>
-      {!showSatsPerDollar && (
-        <ChartSpline size={16} className="animate-pulse" />
-      )}
-    </button>
-  );
-};
-
 export default function Index() {
   const balanceBTC = useBalance('BTC');
   const balanceUSD = useBalance('USD');
+  const defaultBtcAccountId = useUser((user) => user.defaultBtcAccountId);
+  const defaultUsdAccountId = useUser((user) => user.defaultUsdAccountId);
   const defaultCurrency = useDefaultAccount().currency;
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
 
@@ -83,22 +47,25 @@ export default function Index() {
             transition="slideLeft"
             applyTo="newView"
           >
-            <Cog className="text-muted-foreground" />
+            <UserCircle2 className="text-muted-foreground" />
           </LinkWithViewTransition>
         </div>
       </PageHeader>
 
-      <PageContent className="absolute inset-0 mx-auto flex flex-col items-center justify-center gap-24">
-        <div className="flex h-[156px] flex-col items-center gap-4">
+      <PageContent className="absolute inset-0 mx-auto flex flex-col items-center justify-center gap-32">
+        <div className="flex flex-col items-center gap-4">
           <MoneyWithConvertedAmount
             money={defaultCurrency === 'BTC' ? balanceBTC : balanceUSD}
           />
-          {defaultCurrency === 'BTC' && <Price />}
         </div>
 
-        <DefaultCurrencySwitcher />
+        {defaultBtcAccountId && defaultUsdAccountId ? (
+          <DefaultCurrencySwitcher />
+        ) : (
+          <div />
+        )}
 
-        <div className="grid grid-cols-2 gap-10 pt-3">
+        <div className="grid grid-cols-2 gap-10">
           <LinkWithViewTransition
             to="/receive"
             transition="slideUp"

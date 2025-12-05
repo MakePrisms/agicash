@@ -15,6 +15,7 @@ import {
   type AccountType,
   type CashuAccount,
   type ExtendedAccount,
+  type SparkAccount,
   getAccountBalance,
 } from './account';
 import {
@@ -44,6 +45,14 @@ export class AccountsCache {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
       curr.map((x) =>
         x.id === account.id && account.version > x.version ? account : x,
+      ),
+    );
+  }
+
+  updateSparkBalance(account: SparkAccount) {
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
+      curr.map((x) =>
+        x.id === account.id ? { ...x, balance: account.balance } : x,
       ),
     );
   }
@@ -279,15 +288,16 @@ export function useAddCashuAccount() {
   return mutateAsync;
 }
 
+/**
+ * Hook to get the sum of all account balances for a given currency.
+ * Null balances are ignored.
+ */
 export function useBalance(currency: Currency) {
   const { data: accounts } = useAccounts({ currency });
-  const balance = accounts.reduce(
-    (acc, account) => {
-      const accountBalance = getAccountBalance(account);
-      return acc.add(accountBalance);
-    },
-    new Money({ amount: 0, currency }),
-  );
+  const balance = accounts.reduce((acc, account) => {
+    const accountBalance = getAccountBalance(account);
+    return accountBalance !== null ? acc.add(accountBalance) : acc;
+  }, Money.zero(currency));
   return balance;
 }
 

@@ -27,6 +27,7 @@
     "start": "We are running the build in node because atm we are using node as the build target."
   },
   "dependencies": {
+    "@buildonspark/spark-sdk": "0.4.3",
     "@cashu/cashu-ts": "2.6.0",
     "@cashu/crypto": "0.3.4",
     "@jbojcic/bc-ur": "https://github.com/jbojcic1/bc-ur",
@@ -36,6 +37,7 @@
     "@opensecret/react": "jbojcic1/OpenSecret-SDK#suspense-compatible-alternative-with-build-2",
     "@radix-ui/react-dialog": "1.1.6",
     "@radix-ui/react-dropdown-menu": "2.1.15",
+    "@radix-ui/react-hover-card": "1.1.15",
     "@radix-ui/react-label": "2.1.1",
     "@radix-ui/react-radio-group": "1.2.3",
     "@radix-ui/react-scroll-area": "1.2.4",
