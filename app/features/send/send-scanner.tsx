@@ -38,7 +38,7 @@ export default function SendScanner() {
 
   const sendAccount = useSendStore((state) => state.getSourceAccount());
   const selectDestination = useSendStore((state) => state.selectDestination);
-  const getQuote = useSendStore((state) => state.getQuote);
+  const continueSend = useSendStore((state) => state.continue);
 
   const convert = useConverter(sendAccount);
 
@@ -65,9 +65,9 @@ export default function SendScanner() {
 
     const convertedAmount =
       amount.currency !== sendAccount.currency ? convert(amount) : undefined;
-    const getQuoteResult = await getQuote(amount, convertedAmount);
+    const result = await continueSend(amount, convertedAmount);
 
-    if (!getQuoteResult.success) {
+    if (!result.success || result.next !== 'quoteCreated') {
       return toast({
         title: 'Error',
         description: 'Failed to get a send quote. Please try again',
