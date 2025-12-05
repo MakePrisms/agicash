@@ -161,8 +161,12 @@ export function useCreateCashuSendQuote() {
 }
 
 export function useInitiateCashuSendQuote({
+  onSuccess,
   onError,
-}: { onError: (error: Error) => void }) {
+}: {
+  onSuccess: (data: CashuSendQuote) => void;
+  onError: (error: Error) => void;
+}) {
   const userId = useUser((user) => user.id);
   const cashuSendQuoteService = useCashuSendQuoteService();
   const cashuSendQuoteCache = useCashuSendQuoteCache();
@@ -192,6 +196,7 @@ export function useInitiateCashuSendQuote({
     },
     onSuccess: (data) => {
       cashuSendQuoteCache.add(data);
+      onSuccess(data);
     },
     onError: onError,
     retry: (failureCount, error) => {
