@@ -1,11 +1,11 @@
-import type {
-  MeltQuoteResponse,
-  MintQuoteResponse,
-  Token,
-} from '@cashu/cashu-ts';
-import { areMintUrlsEqual, getCashuUnit } from '~/lib/cashu';
+import type { MeltQuoteResponse, Token } from '@cashu/cashu-ts';
+import { getCashuUnit } from '~/lib/cashu';
 import { Money } from '~/lib/money';
-import type { CashuAccount } from '../accounts/account';
+import {
+  type Account,
+  type CashuAccount,
+  isSameEffectiveAccount,
+} from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
 import { DomainError } from '../shared/error';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
@@ -14,6 +14,11 @@ import {
   type CashuReceiveQuoteService,
   useCashuReceiveQuoteService,
 } from './cashu-receive-quote-service';
+import {
+  type SparkLightningReceive,
+  type SparkLightningReceiveService,
+  useSparkLightningReceiveService,
+} from './spark-lightning-receive-service';
 
 type CreateCrossAccountReceiveQuotesProps = {
   /** ID of the receiving user. */
@@ -21,7 +26,7 @@ type CreateCrossAccountReceiveQuotesProps = {
   /** The token to claim */
   token: Token;
   /** The account to claim the token to */
-  destinationAccount: CashuAccount;
+  destinationAccount: Account;
   /**
    * The account to claim the token from.
    * May be a placeholder account if the token is from a mint that we do not have an account for.
@@ -31,23 +36,40 @@ type CreateCrossAccountReceiveQuotesProps = {
   exchangeRate: string;
 };
 
-type CrossMintQuotesResult = {
-  /** Mint quote from the destination wallet */
-  mintQuote: MintQuoteResponse;
-  /** Melt quote from the source wallet */
-  meltQuote: MeltQuoteResponse;
-  /** Amount to mint */
-  amountToMint: Money;
-};
+/**
+ * Result of creating cross-account receive quotes.
+ * This is a discriminated union based on the destination account type.
+ * - For Cashu destinations: includes a cashuReceiveQuote that needs to be completed after melting
+ * - For Spark destinations: no receive quote needed as Spark SDK handles completion automatically
+ */
+type CrossAccountReceiveQuotesResult =
+  | {
+      /** Discriminator for the destination account type */
+      destinationType: 'cashu';
+      /** The cashu receive quote created in the database */
+      cashuReceiveQuote: CashuReceiveQuote;
+      /** Melt quote from the source wallet */
+      cashuMeltQuote: MeltQuoteResponse;
+    }
+  | {
+      /** Discriminator for the destination account type */
+      destinationType: 'spark';
+      /** Melt quote from the source wallet */
+      cashuMeltQuote: MeltQuoteResponse;
+      /** The Spark lightning receive request */
+      sparkLightningReceive: SparkLightningReceive;
+    };
 
 export class ReceiveCashuTokenQuoteService {
   constructor(
     private readonly cashuReceiveQuoteService: CashuReceiveQuoteService,
+    private readonly sparkLightningReceiveService: SparkLightningReceiveService,
   ) {}
 
   /**
    * Sets up quotes and prepares for cross mint/currency token claim.
-   * This will create a cashu-receive-quote in the database.
+   * For Cashu destinations: creates a cashu-receive-quote in the database.
+   * For Spark destinations: creates a Spark lightning receive quote.
    */
   async createCrossAccountReceiveQuotes({
     userId,
@@ -55,21 +77,12 @@ export class ReceiveCashuTokenQuoteService {
     sourceAccount,
     destinationAccount,
     exchangeRate,
-  }: CreateCrossAccountReceiveQuotesProps): Promise<{
-    cashuReceiveQuote: CashuReceiveQuote;
-    cashuMeltQuote: MeltQuoteResponse;
-  }> {
+  }: CreateCrossAccountReceiveQuotesProps): Promise<CrossAccountReceiveQuotesResult> {
     const tokenAmount = tokenToMoney(token);
-    const sourceCashuUnit = getCashuUnit(tokenAmount.currency);
-    const destinationCashuUnit = getCashuUnit(destinationAccount.currency);
+    const sourceCashuUnit = getCashuUnit(sourceAccount.currency);
 
-    if (
-      areMintUrlsEqual(destinationAccount.mintUrl, token.mint) &&
-      sourceCashuUnit === destinationCashuUnit
-    ) {
-      throw new Error(
-        'Must melt token to a different mint or currency than source',
-      );
+    if (isSameEffectiveAccount(sourceAccount, destinationAccount)) {
+      throw new Error('Must melt token to a different account than source');
     }
 
     const feesForProofs = sourceAccount.wallet.getFeesForProofs(token.proofs);
@@ -98,20 +111,29 @@ export class ReceiveCashuTokenQuoteService {
       unit: sourceCashuUnit,
     });
 
-    const cashuReceiveQuote =
-      await this.cashuReceiveQuoteService.createReceiveQuote({
-        userId,
-        account: destinationAccount,
-        receiveType: 'TOKEN',
-        receiveQuote: quotes.lightningQuote,
-        cashuReceiveFee,
-        tokenAmount,
-        lightningFeeReserve,
-      });
+    if (destinationAccount.type === 'cashu') {
+      const cashuReceiveQuote =
+        await this.cashuReceiveQuoteService.createReceiveQuote({
+          userId,
+          account: destinationAccount,
+          receiveType: 'TOKEN',
+          receiveQuote: quotes.lightningQuote as CashuReceiveLightningQuote,
+          cashuReceiveFee,
+          tokenAmount,
+          lightningFeeReserve,
+        });
+
+      return {
+        destinationType: 'cashu',
+        cashuReceiveQuote,
+        cashuMeltQuote: quotes.meltQuote,
+      };
+    }
 
     return {
-      cashuReceiveQuote,
+      destinationType: 'spark',
       cashuMeltQuote: quotes.meltQuote,
+      sparkLightningReceive: quotes.lightningQuote as SparkLightningReceive,
     };
   }
 
@@ -124,15 +146,15 @@ export class ReceiveCashuTokenQuoteService {
     targetAmount,
     exchangeRate,
   }: {
-    destinationAccount: CashuAccount;
+    destinationAccount: Account;
     sourceAccount: CashuAccount;
     targetAmount: Money;
     exchangeRate: string;
-  }): Promise<
-    CrossMintQuotesResult & {
-      lightningQuote: CashuReceiveLightningQuote;
-    }
-  > {
+  }): Promise<{
+    lightningQuote: CashuReceiveLightningQuote | SparkLightningReceive;
+    meltQuote: MeltQuoteResponse;
+    amountToMint: Money;
+  }> {
     const sourceCurrency = sourceAccount.currency;
     const destinationCurrency = destinationAccount.currency;
 
@@ -154,15 +176,14 @@ export class ReceiveCashuTokenQuoteService {
         throw new Error('Amount is too small to get cross mint quotes');
       }
 
-      const lightningQuote =
-        await this.cashuReceiveQuoteService.getLightningQuote({
-          account: destinationAccount,
-          amount: amountToMint,
-        });
+      const { lightningQuote, paymentRequest } =
+        await this.getLightningQuoteForDestinationAccount(
+          destinationAccount,
+          amountToMint,
+        );
 
-      const meltQuote = await sourceAccount.wallet.createMeltQuote(
-        lightningQuote.mintQuote.request,
-      );
+      const meltQuote =
+        await sourceAccount.wallet.createMeltQuote(paymentRequest);
 
       const amountRequired = new Money({
         amount: meltQuote.amount + meltQuote.fee_reserve,
@@ -174,7 +195,6 @@ export class ReceiveCashuTokenQuoteService {
 
       if (diff.lessThanOrEqual(Money.zero(diff.currency))) {
         return {
-          mintQuote: lightningQuote.mintQuote,
           meltQuote,
           amountToMint,
           lightningQuote,
@@ -186,9 +206,47 @@ export class ReceiveCashuTokenQuoteService {
 
     throw new Error('Failed to find valid quotes after 5 attempts.');
   }
+
+  private async getLightningQuoteForDestinationAccount(
+    destinationAccount: Account,
+    amount: Money,
+  ): Promise<{
+    lightningQuote: CashuReceiveLightningQuote | SparkLightningReceive;
+    paymentRequest: string;
+  }> {
+    if (destinationAccount.type === 'spark') {
+      const sparkQuote = await this.sparkLightningReceiveService.create({
+        account: destinationAccount,
+        amount,
+      });
+
+      return {
+        lightningQuote: sparkQuote,
+        paymentRequest: sparkQuote.paymentRequest,
+      };
+    }
+
+    if (destinationAccount.type === 'cashu') {
+      const cashuQuote = await this.cashuReceiveQuoteService.getLightningQuote({
+        account: destinationAccount,
+        amount,
+      });
+
+      return {
+        lightningQuote: cashuQuote,
+        paymentRequest: cashuQuote.mintQuote.request,
+      };
+    }
+
+    throw new Error('Invalid destination account type');
+  }
 }
 
 export function useReceiveCashuTokenQuoteService() {
   const cashuReceiveQuoteService = useCashuReceiveQuoteService();
-  return new ReceiveCashuTokenQuoteService(cashuReceiveQuoteService);
+  const sparkLightningReceiveService = useSparkLightningReceiveService();
+  return new ReceiveCashuTokenQuoteService(
+    cashuReceiveQuoteService,
+    sparkLightningReceiveService,
+  );
 }

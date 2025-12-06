@@ -10,9 +10,13 @@ import { CashuReceiveQuoteRepository } from '~/features/receive/cashu-receive-qu
 import { CashuReceiveQuoteService } from '~/features/receive/cashu-receive-quote-service';
 import { CashuTokenSwapRepository } from '~/features/receive/cashu-token-swap-repository';
 import { CashuTokenSwapService } from '~/features/receive/cashu-token-swap-service';
-import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
+import {
+  ClaimCashuTokenService,
+  type ClaimDestination,
+} from '~/features/receive/claim-cashu-token-service';
 import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
+import { SparkLightningReceiveService } from '~/features/receive/spark-lightning-receive-service';
 import {
   getCashuCryptography,
   seedQueryOptions,
@@ -66,9 +70,11 @@ const getClaimCashuTokenService = async () => {
     cashuCryptography,
     cashuReceiveQuoteRepository,
   );
+  const sparkLightningReceiveService = new SparkLightningReceiveService();
   const receiveCashuTokenService = new ReceiveCashuTokenService(queryClient);
   const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
     cashuReceiveQuoteService,
+    sparkLightningReceiveService,
   );
   const userRepository = new UserRepository(
     agicashDb,
@@ -101,11 +107,19 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const selectedAccountId =
     location.searchParams.get('selectedAccountId') ?? undefined;
   const autoClaim = location.searchParams.get('autoClaim') === 'true';
+  const claimToSpark = location.searchParams.get('claimToSpark') === 'true';
 
   if (autoClaim) {
     const user = getUserFromCacheOrThrow();
     const claimCashuTokenService = await getClaimCashuTokenService();
-    const result = await claimCashuTokenService.claimToken(user, token);
+    const destination: ClaimDestination = claimToSpark
+      ? { type: 'spark' }
+      : { type: 'source' };
+    const result = await claimCashuTokenService.claimToken(
+      user,
+      token,
+      destination,
+    );
     if (!result.success) {
       toast({
         title: 'Failed to claim the token',
