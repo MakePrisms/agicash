@@ -6,7 +6,10 @@ import {
   getCashuUnit,
   getCashuWallet,
 } from '~/lib/cashu';
-import type { ExtendedCashuAccount } from '../accounts/account';
+import type {
+  ExtendedCashuAccount,
+  ExtendedSparkAccount,
+} from '../accounts/account';
 import {
   allMintKeysetsQueryOptions,
   cashuMintValidator,
@@ -15,7 +18,11 @@ import {
   mintKeysQueryOptions,
   tokenToMoney,
 } from '../shared/cashu';
-import type { CashuAccountWithTokenFlags } from './receive-cashu-token-models';
+import type {
+  AccountWithTokenFlags,
+  CashuAccountWithTokenFlags,
+  SparkAccountWithTokenFlags,
+} from './receive-cashu-token-models';
 
 export class ReceiveCashuTokenService {
   constructor(private readonly queryClient: QueryClient) {}
@@ -23,21 +30,26 @@ export class ReceiveCashuTokenService {
   /**
    * Gets the source account of the token and possible destination accounts that can receive the token.
    * @param token - The token to get the source and destination accounts for
-   * @param accounts - User's existing cashu accounts
-   * @returns The source account and the possible destination accounts
+   * @param cashuAccounts - User's existing cashu accounts
+   * @param sparkAccounts - User's existing spark accounts
+   * @returns The source account and the possible destination accounts (including spark accounts)
    */
   async getSourceAndDestinationAccounts(
     token: Token,
-    accounts: ExtendedCashuAccount[] = [],
+    cashuAccounts: ExtendedCashuAccount[] = [],
+    sparkAccounts: ExtendedSparkAccount[] = [],
   ): Promise<{
     sourceAccount: CashuAccountWithTokenFlags;
-    possibleDestinationAccounts: CashuAccountWithTokenFlags[];
+    possibleDestinationAccounts: AccountWithTokenFlags[];
   }> {
     const tokenCurrency = tokenToMoney(token).currency;
-    const existingAccount = accounts.find(
+    const existingAccount = cashuAccounts.find(
       (a) =>
         areMintUrlsEqual(a.mintUrl, token.mint) && a.currency === tokenCurrency,
     );
+
+    const sparkAccountsWithFlags =
+      this.augmentSparkAccountsWithTokenFlags(sparkAccounts);
 
     if (existingAccount) {
       const sourceAccount = {
@@ -51,8 +63,9 @@ export class ReceiveCashuTokenService {
         possibleDestinationAccounts: this.getPossibleDestinationAccounts(
           sourceAccount,
           this.augmentNonSourceAccountsWithTokenFlags(
-            accounts.filter((account) => account.id !== sourceAccount.id),
+            cashuAccounts.filter((account) => account.id !== sourceAccount.id),
           ),
+          sparkAccountsWithFlags,
         ),
       };
     }
@@ -124,7 +137,8 @@ export class ReceiveCashuTokenService {
       sourceAccount,
       possibleDestinationAccounts: this.getPossibleDestinationAccounts(
         sourceAccount,
-        this.augmentNonSourceAccountsWithTokenFlags(accounts),
+        this.augmentNonSourceAccountsWithTokenFlags(cashuAccounts),
+        sparkAccountsWithFlags,
       ),
     };
   }
@@ -135,15 +149,15 @@ export class ReceiveCashuTokenService {
    * If the token is not from a test mint, the preferred receive account will be returned if it is selectable.
    * If the preferred receive account is not selectable, the default account will be returned.
    * @param sourceAccount The source account of the token
-   * @param possibleDestinationAccounts The possible destination accounts
+   * @param possibleDestinationAccounts The possible destination accounts (cashu and spark)
    * @param preferredReceiveAccountId The preferred receive account id
    * @returns
    */
   static getDefaultReceiveAccount(
     sourceAccount: CashuAccountWithTokenFlags,
-    possibleDestinationAccounts: CashuAccountWithTokenFlags[],
+    possibleDestinationAccounts: AccountWithTokenFlags[],
     preferredReceiveAccountId?: string,
-  ): CashuAccountWithTokenFlags | null {
+  ): AccountWithTokenFlags | null {
     if (sourceAccount.isTestMint) {
       if (!sourceAccount.canReceive) {
         return null;
@@ -188,22 +202,35 @@ export class ReceiveCashuTokenService {
     }));
   }
 
+  private augmentSparkAccountsWithTokenFlags(
+    accounts: ExtendedSparkAccount[],
+  ): SparkAccountWithTokenFlags[] {
+    return accounts.map((account) => ({
+      ...account,
+      isSource: false,
+      isUnknown: false,
+      canReceive: true,
+    }));
+  }
+
   /**
    * Returns the possible destination accounts that can receive the token from the source account.
    * If the source account is from a test mint, the only account that can receive the token is the same source account.
    * @param sourceAccount The source account of the token
-   * @param otherAccounts The other user's accounts
+   * @param otherCashuAccounts The other user's cashu accounts
+   * @param sparkAccounts The user's spark accounts
    * @returns The possible destination accounts
    */
   private getPossibleDestinationAccounts(
     sourceAccount: CashuAccountWithTokenFlags,
-    otherAccounts: CashuAccountWithTokenFlags[],
-  ): CashuAccountWithTokenFlags[] {
+    otherCashuAccounts: CashuAccountWithTokenFlags[],
+    sparkAccounts: SparkAccountWithTokenFlags[],
+  ): AccountWithTokenFlags[] {
     if (sourceAccount.isTestMint) {
       // Tokens sourced from test mint can only be claimed to the same mint
       return sourceAccount.canReceive ? [sourceAccount] : [];
     }
-    return [sourceAccount, ...otherAccounts].filter(
+    return [sourceAccount, ...otherCashuAccounts, ...sparkAccounts].filter(
       (account) => account.canReceive,
     );
   }
