@@ -192,6 +192,7 @@ begin
     p_encrypted_transaction_details
   ) returning id into v_transaction_id;
 
+  -- Create spark receive quote record
   insert into wallet.spark_receive_quotes (
     user_id,
     account_id,
@@ -245,6 +246,7 @@ as $function$
 declare
   v_quote wallet.spark_receive_quotes;
 begin
+  -- Get the quote with a lock to prevent race conditions
   select * into v_quote
   from wallet.spark_receive_quotes
   where id = p_quote_id
@@ -257,10 +259,12 @@ begin
         message = format('Quote with id %s not found.', p_quote_id);
   end if;
 
+  -- If already paid, return the quote (idempotent)
   if v_quote.state = 'PAID' then
     return v_quote;
   end if;
 
+  -- Only UNPAID quotes can be completed
   if v_quote.state != 'UNPAID' then
     raise exception
       using
@@ -269,6 +273,7 @@ begin
         detail = format('Quote is in state %s but must be in UNPAID state.', v_quote.state);
   end if;
 
+  -- Update quote to paid state
   update wallet.spark_receive_quotes
   set
     state = 'PAID',
@@ -278,6 +283,7 @@ begin
   where id = p_quote_id
   returning * into v_quote;
 
+  -- Update transaction to completed state
   update wallet.transactions
   set
     state = 'COMPLETED',
@@ -308,6 +314,7 @@ declare
   v_quote wallet.spark_receive_quotes;
   v_now timestamp with time zone;
 begin
+  -- Get the quote with a lock to prevent race conditions
   select * into v_quote
   from wallet.spark_receive_quotes
   where id = p_quote_id
@@ -320,10 +327,12 @@ begin
         message = format('Quote with id %s not found.', p_quote_id);
   end if;
 
+  -- If already expired, return the quote (idempotent)
   if v_quote.state = 'EXPIRED' then
     return v_quote;
   end if;
 
+  -- Only UNPAID quotes can be expired
   if v_quote.state != 'UNPAID' then
     raise exception
       using
@@ -342,6 +351,7 @@ begin
         detail = format('Quote has not expired at %s. Expires at %s.', v_now, v_quote.expires_at);
   end if;
 
+  -- Update quote to expired state
   update wallet.spark_receive_quotes
   set
     state = 'EXPIRED',
@@ -349,6 +359,7 @@ begin
   where id = p_quote_id
   returning * into v_quote;
 
+  -- Update transaction to failed state
   update wallet.transactions
   set
     state = 'FAILED',
