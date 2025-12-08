@@ -10,13 +10,8 @@ import {
 } from '@tanstack/react-query';
 import { type Currency, Money } from '~/lib/money';
 import { getSparkIdentityPublicKeyFromMnemonic } from '~/lib/spark';
-import type { SparkAccount } from '../accounts/account';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
-import {
-  type AccountsCache,
-  useAccounts,
-  useAccountsCache,
-} from '../accounts/account-hooks';
+import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
@@ -79,45 +74,37 @@ export function sparkBalanceQueryKey(accountId: string) {
   return ['spark-balance', accountId];
 }
 
-export const sparkBalanceQueryOptions = ({
-  account,
-  accountCache,
-}: { account: SparkAccount; accountCache: AccountsCache }) =>
-  queryOptions({
-    queryKey: sparkBalanceQueryKey(account.id),
-    queryFn: async () => {
-      if (account.currency !== 'BTC') {
-        throw new Error(
-          `Spark account ${account.id} has unsupported currency: ${account.currency}`,
-        );
-      }
-
-      if (!account.wallet) {
-        return null;
-      }
-
-      const { balance } = await account.wallet.getBalance();
-
-      accountCache.updateSparkBalance({
-        ...account,
-        balance: new Money({
-          amount: Number(balance),
-          currency: account.currency as Currency,
-          unit: getDefaultUnit(account.currency),
-        }),
-      });
-
-      return balance;
-    },
-  });
-
 export function useTrackAndUpdateSparkAccountBalances() {
   const { data: sparkAccounts } = useAccounts({ type: 'spark' });
   const accountCache = useAccountsCache();
 
   useQueries({
     queries: sparkAccounts.map((account) => ({
-      ...sparkBalanceQueryOptions({ account, accountCache }),
+      queryKey: sparkBalanceQueryKey(account.id),
+      queryFn: async () => {
+        if (account.currency !== 'BTC') {
+          throw new Error(
+            `Spark account ${account.id} has unsupported currency: ${account.currency}`,
+          );
+        }
+
+        if (!account.wallet) {
+          return null;
+        }
+
+        const { balance } = await account.wallet.getBalance();
+
+        accountCache.updateSparkBalance({
+          ...account,
+          balance: new Money({
+            amount: Number(balance),
+            currency: account.currency as Currency,
+            unit: getDefaultUnit(account.currency),
+          }),
+        });
+
+        return balance;
+      },
       staleTime: Number.POSITIVE_INFINITY,
       gcTime: Number.POSITIVE_INFINITY,
       refetchInterval: 3000,

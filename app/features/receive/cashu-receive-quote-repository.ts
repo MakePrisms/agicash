@@ -175,7 +175,7 @@ export class CashuReceiveQuoteRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to create cashu receive quote', { cause: error });

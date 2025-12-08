@@ -135,7 +135,6 @@ export function useCreateCashuReceiveQuote() {
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
 
   return useMutation({
-    mutationKey: ['create-cashu-receive-quote'],
     scope: {
       id: 'create-cashu-receive-quote',
     },

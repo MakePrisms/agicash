@@ -18,6 +18,10 @@ import {
   usePendingCashuTokenSwapsCache,
 } from '../receive/cashu-token-swap-hooks';
 import {
+  usePendingSparkReceiveQuotesCache,
+  useSparkReceiveQuoteChangeHandlers,
+} from '../receive/spark-receive-quote-hooks';
+import {
   useCashuSendQuoteChangeHandlers,
   useUnresolvedCashuSendQuotesCache,
 } from '../send/cashu-send-quote-hooks';
@@ -82,6 +86,7 @@ export const useTrackWalletChanges = () => {
   const cashuSendQuoteChangeHandlers = useCashuSendQuoteChangeHandlers();
   const cashuSendSwapChangeHandlers = useCashuSendSwapChangeHandlers();
   const contactChangeHandlers = useContactChangeHandlers();
+  const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
 
   const accountsCache = useAccountsCache();
   const transactionsCache = useTransactionsCache();
@@ -90,6 +95,7 @@ export const useTrackWalletChanges = () => {
   const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const contactsCache = useContactsCache();
+  const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
 
   useTrackDatabaseChanges({
     handlers: [
@@ -100,6 +106,7 @@ export const useTrackWalletChanges = () => {
       ...cashuSendQuoteChangeHandlers,
       ...cashuSendSwapChangeHandlers,
       ...contactChangeHandlers,
+      ...sparkReceiveQuoteChangeHandlers,
     ],
     onConnected: () => {
       // Makes sure that data is refetched to get the latest updates from the database.
@@ -112,6 +119,7 @@ export const useTrackWalletChanges = () => {
       unresolvedCashuSendQuotesCache.invalidate();
       unresolvedCashuSendSwapsCache.invalidate();
       contactsCache.invalidate();
+      pendingSparkReceiveQuotesCache.invalidate();
     },
   });
 };

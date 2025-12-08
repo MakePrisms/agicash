@@ -1,4 +1,4 @@
-import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
+import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
 import type { QueryClient } from '@tanstack/react-query';
 import { getCashuWallet } from '~/lib/cashu';
 import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
@@ -19,11 +19,11 @@ import {
   encryptToPublicKey,
 } from '../shared/encryption';
 import { NotFoundError } from '../shared/error';
-import { sparkWalletQueryOptions } from '../shared/spark';
 import { UserRepository } from '../user/user-repository';
 import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
-import { SparkLightningReceiveService } from './spark-lightning-receive-service';
+import { SparkReceiveQuoteRepository } from './spark-receive-quote-repository';
+import { SparkReceiveQuoteService } from './spark-receive-quote-service';
 
 const fakeEncryption: Encryption = {
   encrypt: async <T = unknown>(_data: T): Promise<string> => {
@@ -246,16 +246,27 @@ export class LightningAddressService {
         };
       }
 
-      const sparkReceiveLightningService = new SparkLightningReceiveService();
-      const request = await sparkReceiveLightningService.create({
+      const sparkReceiveQuoteService = new SparkReceiveQuoteService(
+        new SparkReceiveQuoteRepository(this.db, {
+          encrypt: async (data) =>
+            encryptToPublicKey(data, user.encryptionPublicKey),
+          decrypt: this.encryption.decrypt,
+          encryptBatch: async (data) =>
+            encryptBatchToPublicKey(data, user.encryptionPublicKey),
+          decryptBatch: this.encryption.decryptBatch,
+        }),
+      );
+
+      const quote = await sparkReceiveQuoteService.createQuote({
+        userId: user.id,
         account,
         amount: amountToReceive,
         receiverIdentityPubkey: user.sparkIdentityPublicKey,
       });
 
       return {
-        pr: request.paymentRequest,
-        verify: `${this.baseUrl}/api/lnurlp/verify/${account.id}/${request.id}`,
+        pr: quote.paymentRequest,
+        verify: `${this.baseUrl}/api/lnurlp/verify/${account.id}/${quote.id}`,
         routes: [],
       };
     } catch (error) {
@@ -343,34 +354,45 @@ export class LightningAddressService {
   /**
    * Checks if a Spark lightning invoice has been settled.
    * @param account the Spark account
-   * @param receiveRequestId the Spark receive request ID to check
+   * @param quoteId the Spark receive quote ID to check
    * @return the lnurl-verify result
    */
   private async handleSparkLnurlpVerify(
     account: SparkAccount,
-    receiveRequestId: string,
+    quoteId: string,
   ): Promise<LNURLVerifyResult> {
-    const receiveService = new SparkLightningReceiveService();
-    const receiveRequest = await receiveService.get(account, receiveRequestId);
+    if (!account.wallet) {
+      throw new Error(`Spark wallet not found for account ${account.id}`);
+    }
 
-    const settled = receiveRequest.state === 'COMPLETED';
-    const preimage = receiveRequest.preimage ?? null;
+    const sparkReceiveQuoteService = new SparkReceiveQuoteService(
+      new SparkReceiveQuoteRepository(this.db, this.encryption),
+    );
+
+    const quote = await sparkReceiveQuoteService.get(quoteId);
+    if (!quote) {
+      throw new NotFoundError(`Spark receive quote ${quoteId} not found`);
+    }
+
+    const receiveRequest = await account.wallet.getLightningReceiveRequest(
+      quote.sparkId,
+    );
+
+    if (!receiveRequest) {
+      throw new NotFoundError(
+        `Spark lightning receive request ${quote.sparkId} not found`,
+      );
+    }
+
+    const settled =
+      receiveRequest.status ===
+      LightningReceiveRequestStatus.TRANSFER_COMPLETED;
 
     return {
       status: 'OK',
       settled,
-      preimage,
-      pr: receiveRequest.paymentRequest,
+      preimage: receiveRequest.paymentPreimage ?? null,
+      pr: quote.paymentRequest,
     };
-  }
-
-  private async getSparkWalletOrThrow(network: SparkNetwork) {
-    const wallet = await this.queryClient.fetchQuery(
-      sparkWalletQueryOptions({ network, mnemonic: sparkMnemonic }),
-    );
-    if (!wallet) {
-      throw new Error(`Spark wallet not found for network ${network}`);
-    }
-    return wallet;
   }
 }

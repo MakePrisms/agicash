@@ -168,6 +168,36 @@ export type CashuLightningReceiveTransactionDetails = {
   mintingFee?: Money;
 };
 
+/**
+ * Transaction details for Spark lightning receive transaction.
+ */
+export type SparkLightningReceiveTransactionDetails = {
+  /**
+   * The amount of the bolt11 payment request.
+   * This amount is added to the account.
+   */
+  amountReceived: Money;
+  /**
+   * The bolt11 payment request.
+   */
+  paymentRequest: string;
+};
+
+/**
+ * Transaction details of the completed Spark lightning receive transaction.
+ */
+export type CompletedSparkLightningReceiveTransactionDetails =
+  SparkLightningReceiveTransactionDetails & {
+    /**
+     * The payment preimage of the lightning payment.
+     */
+    paymentPreimage: string;
+    /**
+     * The ID of the transfer in Spark system.
+     */
+    sparkTransferId: string;
+  };
+
 export type Transaction = {
   /**
    * ID of the transaction.
@@ -184,7 +214,7 @@ export type Transaction = {
   /**
    * Type of the transaction.
    */
-  type: 'CASHU_LIGHTNING' | 'CASHU_TOKEN';
+  type: 'CASHU_LIGHTNING' | 'CASHU_TOKEN' | 'SPARK_LIGHTNING';
   /**
    * State of the transaction.
    * Transaction states are:
@@ -268,5 +298,17 @@ export type Transaction = {
       type: 'CASHU_LIGHTNING';
       direction: 'RECEIVE';
       details: CashuLightningReceiveTransactionDetails;
+    }
+  | {
+      type: 'SPARK_LIGHTNING';
+      direction: 'RECEIVE';
+      state: 'DRAFT' | 'PENDING' | 'FAILED';
+      details: SparkLightningReceiveTransactionDetails;
+    }
+  | {
+      type: 'SPARK_LIGHTNING';
+      direction: 'RECEIVE';
+      state: 'COMPLETED';
+      details: CompletedSparkLightningReceiveTransactionDetails;
     }
 );
