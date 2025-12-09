@@ -165,15 +165,7 @@ export class UserRepository {
             keyset_counters: {},
           };
         }
-        if (account.type === 'spark') {
-          return { network: account.network };
-        }
-        if (account.type === 'nwc') {
-          return {
-            nwc_url: account.nwcUrl,
-          };
-        }
-        throw new Error('Invalid account type');
+        return { network: account.network };
       })(),
     }));
 
