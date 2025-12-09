@@ -133,9 +133,7 @@ export class AccountRepository {
         is_test_mint: accountInput.isTestMint,
         keyset_counters: accountInput.keysetCounters,
       };
-    } else if (accountInput.type === 'nwc') {
-      details = { nwc_url: accountInput.nwcUrl };
-    } else if (accountInput.type === 'spark') {
+    } else {
       details = { network: accountInput.network };
     }
     const accountsToCreate = {
@@ -198,15 +196,6 @@ export class AccountRepository {
         keysetCounters: details.keyset_counters,
         proofs,
         wallet,
-      } as T;
-    }
-
-    if (data.type === 'nwc') {
-      const details = data.details as { nwc_url: string };
-      return {
-        ...commonData,
-        type: 'nwc',
-        nwcUrl: details.nwc_url,
       } as T;
     }
 

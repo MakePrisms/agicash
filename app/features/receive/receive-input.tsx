@@ -109,8 +109,7 @@ export default function ReceiveInput() {
         transition: 'slideLeft',
         applyTo: 'newView',
       });
-    }
-    if (receiveAccount.type === 'spark') {
+    } else {
       navigate('/receive/spark', {
         transition: 'slideLeft',
         applyTo: 'newView',

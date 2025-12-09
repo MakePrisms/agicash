@@ -246,22 +246,18 @@ export class LightningAddressService {
         };
       }
 
-      if (account.type === 'spark') {
-        const sparkReceiveLightningService = new SparkLightningReceiveService();
-        const request = await sparkReceiveLightningService.create({
-          account,
-          amount: amountToReceive,
-          receiverIdentityPubkey: user.sparkIdentityPublicKey,
-        });
+      const sparkReceiveLightningService = new SparkLightningReceiveService();
+      const request = await sparkReceiveLightningService.create({
+        account,
+        amount: amountToReceive,
+        receiverIdentityPubkey: user.sparkIdentityPublicKey,
+      });
 
-        return {
-          pr: request.paymentRequest,
-          verify: `${this.baseUrl}/api/lnurlp/verify/${account.id}/${request.id}`,
-          routes: [],
-        };
-      }
-
-      throw new Error(`Account type not supported. Got ${account.type}`);
+      return {
+        pr: request.paymentRequest,
+        verify: `${this.baseUrl}/api/lnurlp/verify/${account.id}/${request.id}`,
+        routes: [],
+      };
     } catch (error) {
       console.error('Error processing LNURL-pay callback', { cause: error });
       return {
@@ -286,12 +282,7 @@ export class LightningAddressService {
       if (account.type === 'cashu') {
         return this.handleCashuLnurlpVerify(requestId);
       }
-      if (account.type === 'spark') {
-        return this.handleSparkLnurlpVerify(account, requestId);
-      }
-      throw new Error(
-        `Account type not supported. Got ${account.type} for account ${accountId}`,
-      );
+      return this.handleSparkLnurlpVerify(account, requestId);
     } catch (error) {
       console.error('Error processing LNURL-pay verify', { cause: error });
       const errorMessage =
