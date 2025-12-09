@@ -10,6 +10,7 @@ import { useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuSendQuote } from './cashu-send-quote-hooks';
 import { useGetCashuSendSwapQuote } from './cashu-send-swap-hooks';
 import { type SendState, type SendStore, createSendStore } from './send-store';
+import { useGetSparkSendQuote } from './spark-send-quote-hooks';
 import { useGetInvoiceFromLud16 } from './use-get-invoice-from-lud16';
 
 const SendContext = createContext<SendStore | null>(null);
@@ -23,6 +24,7 @@ export const SendProvider = ({ initialAccount, children }: Props) => {
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
   const { mutateAsync: createCashuSendQuote } = useCreateCashuSendQuote();
   const { mutateAsync: getCashuSendSwapQuote } = useGetCashuSendSwapQuote();
+  const { mutateAsync: getSparkSendQuote } = useGetSparkSendQuote();
   const getAccount = useGetAccount();
 
   const [store] = useState(() =>
@@ -32,6 +34,7 @@ export const SendProvider = ({ initialAccount, children }: Props) => {
       getInvoiceFromLud16,
       createCashuSendQuote,
       getCashuSendSwapQuote,
+      getSparkSendQuote,
     }),
   );
 
