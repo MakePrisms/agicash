@@ -135,7 +135,7 @@ export class CashuSendQuoteService {
     // TODO: remove this once cashu-ts supports amountless lightning invoices
     if (!invoice.amountMsat) {
       throw new Error(
-        "Cashu ts lib doesn't support amountless lightning invoices yet",
+        'Cashu accounts do not support amountless lightning invoices',
       );
     }
 
