@@ -245,6 +245,12 @@ export type Database = MergeDeep<
             unit?: CurrencyUnit;
           };
         };
+        spark_send_quotes: {
+          Row: {
+            currency: Currency;
+            unit: CurrencyUnit;
+          };
+        };
         transactions: {
           Row: {
             currency: Currency;
@@ -406,3 +412,5 @@ export type AgicashDbCashuSendSwap =
   Database['wallet']['Tables']['cashu_send_swaps']['Row'];
 export type AgicashDbSparkReceiveQuote =
   Database['wallet']['Tables']['spark_receive_quotes']['Row'];
+export type AgicashDbSparkSendQuote =
+  Database['wallet']['Tables']['spark_send_quotes']['Row'];
