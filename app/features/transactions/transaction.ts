@@ -198,6 +198,24 @@ export type CompletedSparkLightningReceiveTransactionDetails =
     sparkTransferId: string;
   };
 
+/**
+ * Transaction details for sending spark lightning payments from an account.
+ */
+export type SparkLightningSendTransactionDetails = {
+  /**
+   * The amount being sent.
+   */
+  amountSpent: Money;
+  /**
+   * The fee for the lightning payment.
+   */
+  fee: Money;
+  /**
+   * The bolt11 payment request being paid.
+   */
+  paymentRequest: string;
+};
+
 export type Transaction = {
   /**
    * ID of the transaction.
@@ -314,6 +332,6 @@ export type Transaction = {
   | {
       type: 'SPARK_LIGHTNING';
       direction: 'SEND';
-      details: object;
+      details: SparkLightningSendTransactionDetails;
     }
 );

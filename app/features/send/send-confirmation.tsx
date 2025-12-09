@@ -132,8 +132,8 @@ const usePayBolt11 = ({
 
   const { mutate: initiateSparkSend, status: initiateSparkSendStatus } =
     useInitiateSparkSendQuote({
-      onSuccess: (request) => {
-        navigate(`/send/spark/${request.id}`, {
+      onSuccess: (sendQuote) => {
+        navigate(`/transactions/${sendQuote.transactionId}?redirectTo=/`, {
           transition: 'slideLeft',
           applyTo: 'newView',
         });
@@ -156,6 +156,7 @@ const usePayBolt11 = ({
       });
     } else if (account.type === 'spark') {
       initiateSparkSend({
+        account: account,
         quote: quote as SparkLightningQuote,
       });
     }

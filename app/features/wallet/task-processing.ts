@@ -6,6 +6,7 @@ import { useProcessCashuTokenSwapTasks } from '../receive/cashu-token-swap-hooks
 import { useProcessSparkReceiveQuoteTasks } from '../receive/spark-receive-quote-hooks';
 import { useProcessCashuSendQuoteTasks } from '../send/cashu-send-quote-hooks';
 import { useProcessCashuSendSwapTasks } from '../send/cashu-send-swap-hooks';
+import { useProcessSparkSendQuoteTasks } from '../send/spark-send-quote-hooks';
 import { useUser } from '../user/user-hooks';
 import { TaskProcessingLockRepository } from './task-processing-lock-repository';
 
@@ -77,5 +78,6 @@ export const TaskProcessor = () => {
   useProcessCashuSendQuoteTasks();
   useProcessCashuSendSwapTasks();
   useProcessSparkReceiveQuoteTasks();
+  useProcessSparkSendQuoteTasks();
   return null;
 };

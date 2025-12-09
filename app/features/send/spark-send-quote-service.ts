@@ -1,30 +1,23 @@
 import type { SparkWallet } from '@buildonspark/spark-sdk';
-import {
-  type LightningSendRequest,
-  LightningSendRequestStatus,
-} from '@buildonspark/spark-sdk/types';
-import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
+import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
-import { moneyFromSparkAmount } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
-import { DomainError, NotFoundError } from '../shared/error';
-
-export type SparkSendQuote = {
-  id: string;
-  createdAt: string;
-  paymentRequest: string;
-  preimage?: string;
-  updatedAt: string;
-  state: 'PENDING' | 'COMPLETED' | 'FAILED';
-  amount: Money;
-  fee: Money;
-};
+import { DomainError } from '../shared/error';
+import type { SparkSendQuote } from './spark-send-quote';
+import {
+  type SparkSendQuoteRepository,
+  useSparkSendQuoteRepository,
+} from './spark-send-quote-repository';
 
 export type SparkLightningQuote = {
   /**
    * The payment request to pay.
    */
   paymentRequest: string;
+  /**
+   * Payment hash of the lightning invoice.
+   */
+  paymentHash: string;
   /**
    * The amount requested.
    */
@@ -70,18 +63,24 @@ type GetSparkSendQuoteOptions = {
   amount?: Money<'BTC'>;
 };
 
-type CreateSparkSendQuoteParams = {
+type InitiateSendParams = {
+  /**
+   * The user ID.
+   */
+  userId: string;
   /**
    * The Spark account to send from.
    */
   account: SparkAccount;
   /**
-   * The fee estimate returned by estimateFee.
+   * The fee estimate returned by getLightningSendQuote.
    */
   quote: SparkLightningQuote;
 };
 
 export class SparkSendQuoteService {
+  constructor(private readonly repository: SparkSendQuoteRepository) {}
+
   /**
    * Estimates the fee for paying a Lightning invoice and returns a quote for the send.
    */
@@ -117,7 +116,7 @@ export class SparkSendQuoteService {
       throw new Error('Unknown send amount');
     }
 
-    const wallet = await this.getSparkWalletOrThrow(account);
+    const wallet = this.getSparkWalletOrThrow(account);
     const estimatedLightningFeeSats = await wallet.getLightningSendFeeEstimate({
       amountSats: amountRequestedInBtc.toNumber('sat'),
       encodedInvoice: paymentRequest,
@@ -141,6 +140,7 @@ export class SparkSendQuoteService {
 
     return {
       paymentRequest,
+      paymentHash: invoice.paymentHash,
       amountRequested: amountRequestedInBtc as Money,
       amountRequestedInBtc,
       amountToReceive: amountRequestedInBtc as Money,
@@ -152,14 +152,16 @@ export class SparkSendQuoteService {
   }
 
   /**
-   * Pays a Lightning invoice.
-   * @throws Error if the payment fails or if the fee exceeds maxFeeSats
+   * Initiates a Lightning payment and stores the quote in the database.
+   * @throws Error if the payment initiation fails
    */
   async initiateSend({
+    userId,
     account,
     quote,
-  }: CreateSparkSendQuoteParams): Promise<SparkSendQuote> {
-    const wallet = await this.getSparkWalletOrThrow(account);
+  }: InitiateSendParams): Promise<SparkSendQuote> {
+    const wallet = this.getSparkWalletOrThrow(account);
+
     const request = await wallet.payLightningInvoice({
       invoice: quote.paymentRequest,
       maxFeeSats: quote.estimatedLightningFee.toNumber('sat'),
@@ -176,77 +178,84 @@ export class SparkSendQuoteService {
       );
     }
 
-    return this.toSendQuote(request, quote.amountRequestedInBtc);
+    const sendQuote = await this.repository.create({
+      userId,
+      accountId: account.id,
+      amount: quote.amountRequestedInBtc as Money,
+      fee: quote.estimatedLightningFee as Money,
+      paymentRequest: quote.paymentRequest,
+      paymentHash: quote.paymentHash,
+      sparkRequestId: request.id,
+    });
+
+    return sendQuote;
   }
 
   /**
-   * Gets a Spark Lightning Send Request by ID.
-   * @param requestId - The ID of the Spark Lightning Send Request
-   * @throws Error if the request is not found
+   * Gets a Spark send quote by ID from the database.
+   * @param quoteId - The ID of the quote.
+   * @returns The quote or null if not found.
    */
-  async get(account: SparkAccount, requestId: string): Promise<SparkSendQuote> {
-    const wallet = await this.getSparkWalletOrThrow(account);
-    const request = await wallet.getLightningSendRequest(requestId);
-    if (!request) {
-      throw new NotFoundError(`Spark send request ${requestId} not found`);
-    }
-    return this.toSendQuote(request);
-  }
-
-  private toSendQuote(
-    request: LightningSendRequest,
-    amountRequestedInBtc?: Money<'BTC'>,
-  ): SparkSendQuote {
-    const state = SparkSendQuoteService.toState(request);
-    const decoded = decodeBolt11(request.encodedInvoice);
-    const amount = decoded.amountSat
-      ? new Money({
-          amount: decoded.amountSat,
-          currency: 'BTC' as const,
-          unit: 'sat' as const,
-        })
-      : undefined;
-    const fee = moneyFromSparkAmount(request.fee);
-
-    return {
-      id: request.id,
-      createdAt: request.createdAt,
-      paymentRequest: request.encodedInvoice,
-      preimage: request.paymentPreimage,
-      updatedAt: request.updatedAt,
-      state,
-      // TODO: How to handle amountless invoices?
-      amount: (amount ?? amountRequestedInBtc ?? Money.zero('BTC')) as Money,
-      fee: fee,
-    };
+  async get(quoteId: string): Promise<SparkSendQuote | null> {
+    return this.repository.get(quoteId);
   }
 
   /**
-   * Maps a Spark Lightning Send Request status to a simplified state.
+   * Completes the spark send quote by marking it as completed.
+   * It's a no-op if the quote is already completed.
+   * @param quote - The spark send quote to complete.
+   * @param paymentPreimage - The payment preimage from the lightning payment.
+   * @param sparkTransferId - The Spark transfer ID from the completed transfer.
+   * @param fee - The actual fee paid for the lightning payment.
+   * @returns The updated quote.
+   * @throws An error if the quote is not in PENDING state.
    */
-  private static toState(
-    request: LightningSendRequest,
-  ): SparkSendQuote['state'] {
-    switch (request.status) {
-      case LightningSendRequestStatus.TRANSFER_COMPLETED:
-        return 'COMPLETED';
-      case LightningSendRequestStatus.LIGHTNING_PAYMENT_FAILED:
-        return 'FAILED';
-      case LightningSendRequestStatus.CREATED:
-      case LightningSendRequestStatus.REQUEST_VALIDATED:
-      case LightningSendRequestStatus.LIGHTNING_PAYMENT_INITIATED:
-      case LightningSendRequestStatus.LIGHTNING_PAYMENT_SUCCEEDED:
-      case LightningSendRequestStatus.PREIMAGE_PROVIDED:
-      case LightningSendRequestStatus.FUTURE_VALUE:
-        return 'PENDING';
-      default:
-        throw new Error('Unknown Spark send request status');
+  async complete(
+    quote: SparkSendQuote,
+    paymentPreimage: string,
+    sparkTransferId: string,
+    fee: Money,
+  ): Promise<SparkSendQuote> {
+    if (quote.state === 'COMPLETED') {
+      return quote;
     }
+
+    if (quote.state !== 'PENDING') {
+      throw new Error(
+        `Cannot complete quote that is not pending. State: ${quote.state}`,
+      );
+    }
+
+    return this.repository.complete({
+      quoteId: quote.id,
+      paymentPreimage,
+      sparkTransferId,
+      fee,
+    });
   }
 
-  private async getSparkWalletOrThrow(
-    account: SparkAccount,
-  ): Promise<SparkWallet> {
+  /**
+   * Fails the spark send quote by marking it as failed.
+   * It's a no-op if the quote is already failed.
+   * @param quote - The spark send quote to fail.
+   * @param reason - The reason for the failure.
+   * @throws An error if the quote is not in PENDING state.
+   */
+  async fail(quote: SparkSendQuote, reason: string): Promise<SparkSendQuote> {
+    if (quote.state === 'FAILED') {
+      return quote;
+    }
+
+    if (quote.state !== 'PENDING') {
+      throw new Error(
+        `Cannot fail quote that is not pending. State: ${quote.state}`,
+      );
+    }
+
+    return this.repository.fail(quote.id, reason);
+  }
+
+  private getSparkWalletOrThrow(account: SparkAccount): SparkWallet {
     if (!account.wallet) {
       throw new Error(`Spark account ${account.id} has no wallet`);
     }
@@ -255,5 +264,6 @@ export class SparkSendQuoteService {
 }
 
 export function useSparkSendQuoteService() {
-  return new SparkSendQuoteService();
+  const repository = useSparkSendQuoteRepository();
+  return new SparkSendQuoteService(repository);
 }

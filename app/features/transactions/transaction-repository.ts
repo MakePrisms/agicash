@@ -13,6 +13,7 @@ import type {
   CompletedCashuLightningSendTransactionDetails,
   IncompleteCashuLightningSendTransactionDetails,
   SparkLightningReceiveTransactionDetails,
+  SparkLightningSendTransactionDetails,
   Transaction,
 } from './transaction';
 
@@ -43,7 +44,8 @@ type UnifiedTransactionDetails =
   | CashuLightningReceiveTransactionDetails
   | IncompleteCashuLightningSendTransactionDetails
   | CompletedCashuLightningSendTransactionDetails
-  | SparkLightningReceiveTransactionDetails;
+  | SparkLightningReceiveTransactionDetails
+  | SparkLightningSendTransactionDetails;
 
 export class TransactionRepository {
   constructor(
@@ -259,6 +261,11 @@ export class TransactionRepository {
     if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
       const receiveDetails = details as SparkLightningReceiveTransactionDetails;
       return createTransaction(receiveDetails.amountReceived, receiveDetails);
+    }
+
+    if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
+      const sendDetails = details as SparkLightningSendTransactionDetails;
+      return createTransaction(sendDetails.amountSpent, sendDetails);
     }
 
     throw new Error('Invalid transaction data', { cause: data });
