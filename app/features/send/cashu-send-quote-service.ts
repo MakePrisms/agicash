@@ -324,31 +324,14 @@ export class CashuSendQuoteService {
 
     const wallet = account.wallet;
 
-    return wallet
-      .meltProofs(
-        meltQuote,
-        sendQuote.proofs.map((p) => toProof(p)),
-        {
-          keysetId: sendQuote.keysetId,
-          counter: sendQuote.keysetCounter,
-        },
-      )
-      .catch(async (error) => {
-        // Initiate send should be idempotent: if meltProofs was already called once and did not fail,
-        // then the melt quote will be pending or paid.
-        const latestMeltQuote = await wallet.checkMeltQuote(sendQuote.quoteId);
-        if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
-          console.warn(
-            'Initiate send was called but melt quote is not unpaid',
-            {
-              sendQuote,
-              latestMeltQuote,
-            },
-          );
-          return latestMeltQuote;
-        }
-        throw error;
-      });
+    return wallet.meltProofsIdempotent(
+      meltQuote,
+      sendQuote.proofs.map((p) => toProof(p)),
+      {
+        keysetId: sendQuote.keysetId,
+        counter: sendQuote.keysetCounter,
+      },
+    );
   }
 
   /**

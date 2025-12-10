@@ -1,19 +1,24 @@
 import type { Token } from '@cashu/cashu-ts';
 import type { QueryClient } from '@tanstack/react-query';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
-import { areMintUrlsEqual } from '~/lib/cashu';
-import type { CashuAccount } from '../accounts/account';
+import {
+  type Account,
+  type CashuAccount,
+  isSameEffectiveAccount,
+} from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
 import type { User } from '../user/user';
 import { userQueryKey } from '../user/user-hooks';
 import type { UserService } from '../user/user-service';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuTokenSwap } from './cashu-token-swap';
 import type { CashuTokenSwapService } from './cashu-token-swap-service';
-import type { ReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
+import type {
+  CrossAccountReceiveQuotesResult,
+  ReceiveCashuTokenQuoteService,
+} from './receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from './receive-cashu-token-service';
 
 type ClaimTokenResult = { success: true } | { success: false; message: string };
@@ -36,7 +41,7 @@ export class ClaimCashuTokenService {
 
   /**
    * Claims the cashu token for the user.
-   * The mathod starts the claim flow and attempts to complete it, but if the complete step fails, it will not fail the entire claim flow.
+   * The method starts the claim flow and attempts to complete it, but if the complete step fails, it will not fail the entire claim flow.
    * The background processing will pick up the failed claim and retry it.
    * @param user - The user to claim the token for.
    * @param token - The token to claim.
@@ -76,12 +81,17 @@ export class ClaimCashuTokenService {
     const cashuAccounts = extendedAccounts.filter(
       (account) => account.type === 'cashu',
     );
+    const sparkAccounts = extendedAccounts.filter(
+      (account) => account.type === 'spark',
+    );
 
     const { sourceAccount, possibleDestinationAccounts } =
       await this.receiveCashuTokenService.getSourceAndDestinationAccounts(
         token,
         cashuAccounts,
+        sparkAccounts,
       );
+
     let receiveAccount = ReceiveCashuTokenService.getDefaultReceiveAccount(
       sourceAccount,
       possibleDestinationAccounts,
@@ -95,7 +105,7 @@ export class ClaimCashuTokenService {
       };
     }
 
-    if (receiveAccount.isUnknown) {
+    if (receiveAccount.isUnknown && receiveAccount.type === 'cashu') {
       const addedAccount = await this.accountService.addCashuAccount({
         userId: user.id,
         account: receiveAccount,
@@ -117,11 +127,12 @@ export class ClaimCashuTokenService {
       }
     }
 
-    const isSameAccountClaim =
-      receiveAccount.currency === sourceAccount.currency &&
-      areMintUrlsEqual(receiveAccount.mintUrl, sourceAccount.mintUrl);
+    const isSameAccountClaim = isSameEffectiveAccount(
+      receiveAccount,
+      sourceAccount,
+    );
 
-    if (isSameAccountClaim) {
+    if (isSameAccountClaim && receiveAccount.type === 'cashu') {
       const { swap, account } = await this.tokenSwapService.create({
         userId: user.id,
         token,
@@ -148,7 +159,7 @@ export class ClaimCashuTokenService {
         this.queryClient,
         `${sourceAccount.currency}-${receiveAccount.currency}`,
       );
-      const { cashuMeltQuote, cashuReceiveQuote } =
+      const quotes =
         await this.receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(
           {
             userId: user.id,
@@ -159,17 +170,17 @@ export class ClaimCashuTokenService {
           },
         );
 
-      await sourceAccount.wallet.meltProofs(cashuMeltQuote, token.proofs);
+      await sourceAccount.wallet.meltProofsIdempotent(
+        quotes.cashuMeltQuote,
+        token.proofs,
+      );
 
       // We don't want to fail the entire claim flow if completing the receive fails because the background processing
       // can pick it up and retry when the app loads. If the background processing manages to complete it, it would just
       // be a minor UX issue because the balance would be credited with some delay. If the background processing fails to
       // complete it, the app already has a way to handle the failed receive.
-      const result = await this.tryCompleteReceive(
-        receiveAccount,
-        cashuReceiveQuote,
-      );
-      if (result.success) {
+      const result = await this.tryCompleteReceive(quotes, receiveAccount);
+      if (result.success && result.account) {
         this.accountsCache.upsert(result.account);
       }
     }
@@ -179,7 +190,7 @@ export class ClaimCashuTokenService {
 
   private async trySetDefaultAccount(
     user: User,
-    account: CashuAccount,
+    account: Account,
   ): Promise<{ success: true; user: User } | { success: false }> {
     try {
       const updatedUser = await this.userService.setDefaultAccount(
@@ -226,23 +237,35 @@ export class ClaimCashuTokenService {
   }
 
   private async tryCompleteReceive(
-    account: CashuAccount,
-    cashuReceiveQuote: CashuReceiveQuote,
-  ): Promise<{ success: true; account: CashuAccount } | { success: false }> {
-    try {
-      const { account: updatedAccount } =
-        await this.cashuReceiveQuoteService.completeReceive(
-          account,
-          cashuReceiveQuote,
-        );
-      return { success: true, account: updatedAccount };
-    } catch (error) {
-      console.error('Failed to complete the receive while claiming the token', {
-        cause: error,
-        cashuReceiveQuoteId: cashuReceiveQuote.id,
-        accountId: account.id,
-      });
-      return { success: false };
+    quotes: CrossAccountReceiveQuotesResult,
+    account: Account,
+  ): Promise<{ success: true; account?: CashuAccount } | { success: false }> {
+    if (quotes.destinationType === 'spark') {
+      // No-op - Spark SDK handles completion automatically
+      return { success: true };
     }
+
+    if (quotes.destinationType === 'cashu' && account.type === 'cashu') {
+      try {
+        const { account: updatedAccount } =
+          await this.cashuReceiveQuoteService.completeReceive(
+            account,
+            quotes.cashuReceiveQuote,
+          );
+        return { success: true, account: updatedAccount };
+      } catch (error) {
+        console.error(
+          'Failed to complete the receive while claiming the token',
+          {
+            cause: error,
+            cashuReceiveQuoteId: quotes.cashuReceiveQuote.id,
+            accountId: account.id,
+          },
+        );
+        return { success: false };
+      }
+    }
+
+    return { success: true };
   }
 }

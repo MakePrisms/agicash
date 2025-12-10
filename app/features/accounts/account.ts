@@ -3,7 +3,12 @@ import type {
   SparkWallet,
 } from '@buildonspark/spark-sdk';
 import type { Proof } from '@cashu/cashu-ts';
-import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
+import {
+  type ExtendedCashuWallet,
+  areMintUrlsEqual,
+  getCashuUnit,
+  sumProofs,
+} from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
 
 export type AccountType = 'cashu' | 'spark';
@@ -83,8 +88,9 @@ export type ExtendedAccount<T extends AccountType = AccountType> = Extract<
 > & { isDefault: boolean };
 
 export type CashuAccount = Extract<Account, { type: 'cashu' }>;
-export type ExtendedCashuAccount = ExtendedAccount<'cashu'>;
 export type SparkAccount = Extract<Account, { type: 'spark' }>;
+export type ExtendedCashuAccount = ExtendedAccount<'cashu'>;
+export type ExtendedSparkAccount = ExtendedAccount<'spark'>;
 
 export const getAccountBalance = (account: Account) => {
   if (account.type === 'cashu') {
@@ -96,4 +102,28 @@ export const getAccountBalance = (account: Account) => {
     });
   }
   return account.balance;
+};
+
+/**
+ * Compares two account objects to determine if they are effectively the same account.
+ */
+export const isSameEffectiveAccount = (a: Account, b: Account): boolean => {
+  if (a.id === b.id) {
+    return true;
+  }
+  if (a.type !== b.type) {
+    return false;
+  }
+  if (a.type === 'cashu' && b.type === 'cashu') {
+    return areMintUrlsEqual(a.mintUrl, b.mintUrl) && a.currency === b.currency;
+  }
+  if (
+    a.type === 'spark' &&
+    b.type === 'spark' &&
+    a.currency === b.currency &&
+    a.network === b.network
+  ) {
+    return true;
+  }
+  return false;
 };
