@@ -6,7 +6,10 @@ import {
 } from '../agicash-db/database';
 import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
-import type { SparkLightningSendTransactionDetails } from '../transactions/transaction';
+import type {
+  CompletedSparkLightningSendTransactionDetails,
+  SparkLightningSendTransactionDetails,
+} from '../transactions/transaction';
 import type { SparkSendQuote } from './spark-send-quote';
 
 type Options = {
@@ -110,15 +113,15 @@ export class SparkSendQuoteRepository {
    */
   async complete(
     {
-      quoteId,
+      quote,
       paymentPreimage,
       sparkTransferId,
       fee,
     }: {
       /**
-       * ID of the spark send quote.
+       * The spark send quote to complete.
        */
-      quoteId: string;
+      quote: SparkSendQuote;
       /**
        * Payment preimage from the lightning payment.
        */
@@ -136,11 +139,26 @@ export class SparkSendQuoteRepository {
   ): Promise<SparkSendQuote> {
     const unit = getDefaultUnit(fee.currency);
 
+    // sparkTransferId is stored in non-encrypted transaction details.
+    const detailsToEncrypt: Omit<
+      CompletedSparkLightningSendTransactionDetails,
+      'sparkTransferId'
+    > = {
+      amountSpent: quote.amount,
+      fee,
+      paymentRequest: quote.paymentRequest,
+      paymentPreimage,
+    };
+
+    const encryptedTransactionDetails =
+      await this.encryption.encrypt(detailsToEncrypt);
+
     const query = this.db.rpc('complete_spark_send_quote', {
-      p_quote_id: quoteId,
+      p_quote_id: quote.id,
       p_payment_preimage: paymentPreimage,
       p_spark_transfer_id: sparkTransferId,
       p_fee: fee.toNumber(unit),
+      p_encrypted_transaction_details: encryptedTransactionDetails,
     });
 
     if (options?.abortSignal) {

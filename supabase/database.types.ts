@@ -1073,6 +1073,7 @@ export type Database = {
       }
       complete_spark_send_quote: {
         Args: {
+          p_encrypted_transaction_details: string
           p_fee: number
           p_payment_preimage: string
           p_quote_id: string

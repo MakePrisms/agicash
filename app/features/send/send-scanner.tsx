@@ -67,7 +67,7 @@ export default function SendScanner() {
       amount.currency !== sendAccount.currency ? convert(amount) : undefined;
     const result = await continueSend(amount, convertedAmount);
 
-    if (!result.success || result.next !== 'quoteCreated') {
+    if (!result.success || result.next !== 'confirmQuote') {
       return toast({
         title: 'Error',
         description: 'Failed to get a send quote. Please try again',

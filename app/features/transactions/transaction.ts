@@ -199,7 +199,7 @@ export type CompletedSparkLightningReceiveTransactionDetails =
   };
 
 /**
- * Transaction details for sending spark lightning payments from an account.
+ * Transaction details for Spark lightning send transaction.
  */
 export type SparkLightningSendTransactionDetails = {
   /**
@@ -215,6 +215,21 @@ export type SparkLightningSendTransactionDetails = {
    */
   paymentRequest: string;
 };
+
+/**
+ * Transaction details of the completed Spark lightning send transaction.
+ */
+export type CompletedSparkLightningSendTransactionDetails =
+  SparkLightningSendTransactionDetails & {
+    /**
+     * The payment preimage of the lightning payment.
+     */
+    paymentPreimage: string;
+    /**
+     * The ID of the transfer in Spark system.
+     */
+    sparkTransferId: string;
+  };
 
 export type Transaction = {
   /**
@@ -332,6 +347,13 @@ export type Transaction = {
   | {
       type: 'SPARK_LIGHTNING';
       direction: 'SEND';
+      state: 'PENDING' | 'FAILED';
       details: SparkLightningSendTransactionDetails;
+    }
+  | {
+      type: 'SPARK_LIGHTNING';
+      direction: 'SEND';
+      state: 'COMPLETED';
+      details: CompletedSparkLightningSendTransactionDetails;
     }
 );
