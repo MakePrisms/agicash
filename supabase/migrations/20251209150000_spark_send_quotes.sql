@@ -331,3 +331,18 @@ begin
 end;
 $function$;
 
+-- =============================================================================
+-- Cron Jobs: Cleanup spark quotes
+-- =============================================================================
+
+-- Cleanup expired and paid spark receive quotes every day at midnight
+select cron.schedule('cleanup-spark-receive-quotes', '0 0 * * *', $$
+  DELETE FROM wallet.spark_receive_quotes
+  WHERE state IN ('EXPIRED', 'PAID') AND created_at < NOW() - INTERVAL '1 day';
+$$);
+
+-- Cleanup completed and failed spark send quotes every day at midnight
+select cron.schedule('cleanup-spark-send-quotes', '0 0 * * *', $$
+  DELETE FROM wallet.spark_send_quotes
+  WHERE state IN ('COMPLETED', 'FAILED') AND created_at < NOW() - INTERVAL '1 day';
+$$);
