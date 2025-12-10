@@ -1,9 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Database as DatabaseGenerated } from 'supabase/database.types';
+import type {
+  Database as DatabaseGenerated,
+  Json,
+} from 'supabase/database.types';
 import type { MergeDeep } from 'type-fest';
 import type { Currency, CurrencyUnit } from '~/lib/money';
 import { SupabaseRealtimeManager } from '~/lib/supabase';
 import type { AccountType } from '../accounts/account';
+import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
 import type { Transaction } from '../transactions/transaction';
 import { getSupabaseSessionToken } from './supabase-session';
@@ -221,6 +225,26 @@ export type Database = MergeDeep<
             unit?: CurrencyUnit;
           };
         };
+        spark_receive_quotes: {
+          Row: {
+            type: SparkReceiveQuote['type'];
+            state: SparkReceiveQuote['state'];
+            currency: Currency;
+            unit: CurrencyUnit;
+          };
+          Insert: {
+            type: SparkReceiveQuote['type'];
+            state?: SparkReceiveQuote['state'];
+            currency: Currency;
+            unit: CurrencyUnit;
+          };
+          Update: {
+            type?: SparkReceiveQuote['type'];
+            state?: SparkReceiveQuote['state'];
+            currency?: Currency;
+            unit?: CurrencyUnit;
+          };
+        };
         transactions: {
           Row: {
             currency: Currency;
@@ -230,6 +254,7 @@ export type Database = MergeDeep<
             type: Transaction['type'];
             state: Transaction['state'];
             acknowledgment_status: Transaction['acknowledgmentStatus'];
+            transaction_details: { [key: string]: Json | undefined } | null;
           };
         };
       };
@@ -239,6 +264,9 @@ export type Database = MergeDeep<
             p_email: string | null;
           };
           Returns: UpsertUserWithAccountsResult;
+        };
+        create_cashu_receive_quote: {
+          Returns: AgicashDbCashuReceiveQuote;
         };
         process_cashu_receive_quote_payment: {
           Returns: CashuReceiveQuotePaymentResult;
@@ -291,6 +319,20 @@ export type Database = MergeDeep<
             p_page_size?: number;
           };
           Returns: AgicashDbTransaction[];
+        };
+        create_spark_receive_quote: {
+          Args: {
+            p_currency: Currency;
+            p_unit: CurrencyUnit;
+            p_receiver_identity_pubkey: string | null;
+          };
+          Returns: AgicashDbSparkReceiveQuote;
+        };
+        complete_spark_receive_quote: {
+          Returns: AgicashDbSparkReceiveQuote;
+        };
+        expire_spark_receive_quote: {
+          Returns: AgicashDbSparkReceiveQuote;
         };
       };
       CompositeTypes: {
@@ -362,3 +404,5 @@ export type AgicashDbTransaction =
 export type AgicashDbContact = Database['wallet']['Tables']['contacts']['Row'];
 export type AgicashDbCashuSendSwap =
   Database['wallet']['Tables']['cashu_send_swaps']['Row'];
+export type AgicashDbSparkReceiveQuote =
+  Database['wallet']['Tables']['spark_receive_quotes']['Row'];

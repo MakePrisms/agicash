@@ -49,10 +49,10 @@ const useCreateQuote = ({ account, amount, onPaid }: CreateQuoteProps) => {
   const isExpired = quotePaymentStatus === 'EXPIRED';
 
   useEffectNoStrictMode(() => {
-    if (!quote) {
+    if (!quote && createQuoteStatus === 'idle') {
       createQuote({ account, amount });
     }
-  }, [quote, createQuote, amount, account]);
+  }, [quote, createQuoteStatus, createQuote, amount, account]);
 
   return {
     quote,

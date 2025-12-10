@@ -591,6 +591,91 @@ export type Database = {
           },
         ]
       }
+      spark_receive_quotes: {
+        Row: {
+          account_id: string
+          amount: number
+          created_at: string
+          currency: string
+          expires_at: string
+          id: string
+          payment_hash: string
+          payment_preimage: string | null
+          payment_request: string
+          receiver_identity_pubkey: string | null
+          spark_id: string
+          spark_transfer_id: string | null
+          state: string
+          transaction_id: string
+          type: string
+          unit: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          created_at?: string
+          currency: string
+          expires_at: string
+          id?: string
+          payment_hash: string
+          payment_preimage?: string | null
+          payment_request: string
+          receiver_identity_pubkey?: string | null
+          spark_id: string
+          spark_transfer_id?: string | null
+          state?: string
+          transaction_id: string
+          type: string
+          unit: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          created_at?: string
+          currency?: string
+          expires_at?: string
+          id?: string
+          payment_hash?: string
+          payment_preimage?: string | null
+          payment_request?: string
+          receiver_identity_pubkey?: string | null
+          spark_id?: string
+          spark_transfer_id?: string | null
+          state?: string
+          transaction_id?: string
+          type?: string
+          unit?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spark_receive_quotes_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spark_receive_quotes_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spark_receive_quotes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_processing_locks: {
         Row: {
           expires_at: string
@@ -633,6 +718,7 @@ export type Database = {
           reversed_transaction_id: string | null
           state: string
           state_sort_order: number | null
+          transaction_details: Json | null
           type: string
           user_id: string
         }
@@ -651,6 +737,7 @@ export type Database = {
           reversed_transaction_id?: string | null
           state: string
           state_sort_order?: number | null
+          transaction_details?: Json | null
           type: string
           user_id: string
         }
@@ -669,6 +756,7 @@ export type Database = {
           reversed_transaction_id?: string | null
           state?: string
           state_sort_order?: number | null
+          transaction_details?: Json | null
           type?: string
           user_id?: string
         }
@@ -867,6 +955,40 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      complete_spark_receive_quote: {
+        Args: {
+          p_encrypted_transaction_details: string
+          p_payment_preimage: string
+          p_quote_id: string
+          p_spark_transfer_id: string
+        }
+        Returns: {
+          account_id: string
+          amount: number
+          created_at: string
+          currency: string
+          expires_at: string
+          id: string
+          payment_hash: string
+          payment_preimage: string | null
+          payment_request: string
+          receiver_identity_pubkey: string | null
+          spark_id: string
+          spark_transfer_id: string | null
+          state: string
+          transaction_id: string
+          type: string
+          unit: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "spark_receive_quotes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_cashu_receive_quote: {
         Args: {
           p_account_id: string
@@ -993,6 +1115,48 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_spark_receive_quote: {
+        Args: {
+          p_account_id: string
+          p_amount: number
+          p_currency: string
+          p_encrypted_transaction_details: string
+          p_expires_at: string
+          p_payment_hash: string
+          p_payment_request: string
+          p_receive_type: string
+          p_receiver_identity_pubkey: string
+          p_spark_id: string
+          p_unit: string
+          p_user_id: string
+        }
+        Returns: {
+          account_id: string
+          amount: number
+          created_at: string
+          currency: string
+          expires_at: string
+          id: string
+          payment_hash: string
+          payment_preimage: string | null
+          payment_request: string
+          receiver_identity_pubkey: string | null
+          spark_id: string
+          spark_transfer_id: string | null
+          state: string
+          transaction_id: string
+          type: string
+          unit: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "spark_receive_quotes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       expire_cashu_receive_quote: {
         Args: { p_quote_id: string }
         Returns: {
@@ -1031,6 +1195,35 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "expire_cashu_send_quote_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      expire_spark_receive_quote: {
+        Args: { p_quote_id: string }
+        Returns: {
+          account_id: string
+          amount: number
+          created_at: string
+          currency: string
+          expires_at: string
+          id: string
+          payment_hash: string
+          payment_preimage: string | null
+          payment_request: string
+          receiver_identity_pubkey: string | null
+          spark_id: string
+          spark_transfer_id: string | null
+          state: string
+          transaction_id: string
+          type: string
+          unit: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "spark_receive_quotes"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1154,6 +1347,7 @@ export type Database = {
           reversed_transaction_id: string | null
           state: string
           state_sort_order: number | null
+          transaction_details: Json | null
           type: string
           user_id: string
         }[]

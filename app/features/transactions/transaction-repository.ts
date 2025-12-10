@@ -1,4 +1,5 @@
 import type { Money } from '~/lib/money';
+import { isObject } from '~/lib/utils';
 import {
   type AgicashDb,
   type AgicashDbTransaction,
@@ -11,6 +12,7 @@ import type {
   CashuTokenSendTransactionDetails,
   CompletedCashuLightningSendTransactionDetails,
   IncompleteCashuLightningSendTransactionDetails,
+  SparkLightningReceiveTransactionDetails,
   Transaction,
 } from './transaction';
 
@@ -40,7 +42,8 @@ type UnifiedTransactionDetails =
   | CashuTokenSendTransactionDetails
   | CashuLightningReceiveTransactionDetails
   | IncompleteCashuLightningSendTransactionDetails
-  | CompletedCashuLightningSendTransactionDetails;
+  | CompletedCashuLightningSendTransactionDetails
+  | SparkLightningReceiveTransactionDetails;
 
 export class TransactionRepository {
   constructor(
@@ -171,9 +174,24 @@ export class TransactionRepository {
   }
 
   async toTransaction(data: AgicashDbTransaction): Promise<Transaction> {
-    const details = await this.encryption.decrypt<UnifiedTransactionDetails>(
-      data.encrypted_transaction_details,
-    );
+    const decryptedDetails =
+      await this.encryption.decrypt<UnifiedTransactionDetails>(
+        data.encrypted_transaction_details,
+      );
+
+    if (
+      data.transaction_details !== null &&
+      !isObject(data.transaction_details)
+    ) {
+      throw new Error(
+        `Invalid transaction details. Expected object or null, got ${typeof data.transaction_details}`,
+      );
+    }
+
+    const details = {
+      ...decryptedDetails,
+      ...(data.transaction_details ?? {}),
+    };
 
     const baseTx = {
       id: data.id,
@@ -235,6 +253,11 @@ export class TransactionRepository {
 
     if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
       const receiveDetails = details as CashuTokenReceiveTransactionDetails;
+      return createTransaction(receiveDetails.amountReceived, receiveDetails);
+    }
+
+    if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
+      const receiveDetails = details as SparkLightningReceiveTransactionDetails;
       return createTransaction(receiveDetails.amountReceived, receiveDetails);
     }
 

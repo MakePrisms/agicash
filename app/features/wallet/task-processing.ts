@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { agicashDb } from '../agicash-db/database';
 import { useProcessCashuReceiveQuoteTasks } from '../receive/cashu-receive-quote-hooks';
 import { useProcessCashuTokenSwapTasks } from '../receive/cashu-token-swap-hooks';
+import { useProcessSparkReceiveQuoteTasks } from '../receive/spark-receive-quote-hooks';
 import { useProcessCashuSendQuoteTasks } from '../send/cashu-send-quote-hooks';
 import { useProcessCashuSendSwapTasks } from '../send/cashu-send-swap-hooks';
 import { useUser } from '../user/user-hooks';
@@ -75,5 +76,6 @@ export const TaskProcessor = () => {
   useProcessCashuTokenSwapTasks();
   useProcessCashuSendQuoteTasks();
   useProcessCashuSendSwapTasks();
+  useProcessSparkReceiveQuoteTasks();
   return null;
 };

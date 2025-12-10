@@ -52,7 +52,13 @@ export class AccountsCache {
   updateSparkBalance(account: SparkAccount) {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
       curr.map((x) =>
-        x.id === account.id ? { ...x, balance: account.balance } : x,
+        x.id === account.id &&
+        x.type === 'spark' &&
+        !(x.balance ?? Money.zero(account.currency)).equals(
+          account.balance ?? Money.zero(account.currency),
+        )
+          ? { ...x, balance: account.balance }
+          : x,
       ),
     );
   }
@@ -197,6 +203,7 @@ export function useAccount<T extends AccountType = AccountType>(id: string) {
 
 type AccountTypeMap = {
   cashu: CashuAccount;
+  spark: SparkAccount;
 };
 
 /**
@@ -234,17 +241,25 @@ export function useGetCashuAccount() {
   return useGetAccount('cashu');
 }
 
+/**
+ * Hook to get the method which returns the spark account from the cache or throws an error if not found.
+ * @returns The method which returns the spark account or throws an error if the account is not found or if the account type is not spark.
+ */
+export function useGetSparkAccount() {
+  return useGetAccount('spark');
+}
+
 export function useDefaultAccount() {
   const defaultCurrency = useUser((x) => x.defaultCurrency);
   const { data: accounts } = useAccounts({ currency: defaultCurrency });
 
   const defaultBtcAccountId = useUser((x) => x.defaultBtcAccountId);
-  const defaultUsdccountId = useUser((x) => x.defaultUsdAccountId);
+  const defaultUsdAccountId = useUser((x) => x.defaultUsdAccountId);
 
   const defaultAccount = accounts.find(
     (x) =>
       (x.currency === 'BTC' && x.id === defaultBtcAccountId) ||
-      (x.currency === 'USD' && x.id === defaultUsdccountId),
+      (x.currency === 'USD' && x.id === defaultUsdAccountId),
   );
 
   // In the case that there are multiple instances of the app open and the user creates a new account and sets it as default,
