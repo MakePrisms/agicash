@@ -204,7 +204,8 @@ create or replace function wallet.complete_spark_send_quote(
   p_quote_id uuid,
   p_payment_preimage text,
   p_spark_transfer_id text,
-  p_fee numeric
+  p_fee numeric,
+  p_encrypted_transaction_details text
 )
 returns wallet.spark_send_quotes
 language plpgsql
@@ -257,7 +258,9 @@ begin
   set
     state = 'COMPLETED',
     acknowledgment_status = 'pending',
-    completed_at = now()
+    completed_at = now(),
+    encrypted_transaction_details = p_encrypted_transaction_details,
+    transaction_details = jsonb_build_object('sparkTransferId', p_spark_transfer_id)
   where id = v_quote.transaction_id;
 
   return v_quote;

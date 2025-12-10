@@ -171,7 +171,7 @@ type State = {
 );
 
 type ContinueResult =
-  | { success: true; next: 'quoteCreated' }
+  | { success: true; next: 'confirmQuote' }
   | { success: true; next: 'selectDestination' }
   | { success: false; error: unknown };
 
@@ -212,6 +212,7 @@ type CreateSendStoreProps = {
     senderPaysFee?: boolean;
   }) => Promise<CashuSwapQuote>;
   getSparkSendQuote: (params: {
+    accountId: string;
     paymentRequest: string;
     amount?: Money<Currency>;
   }) => Promise<SparkLightningQuote>;
@@ -443,6 +444,7 @@ export const createSendStore = ({
           } else if (account.type === 'spark') {
             try {
               const quote = await getSparkSendQuote({
+                accountId: account.id,
                 paymentRequest: destination,
                 amount: amountToSend,
               });
@@ -460,7 +462,7 @@ export const createSendStore = ({
         }
 
         set({ status: 'idle' });
-        return { success: true, next: 'quoteCreated' };
+        return { success: true, next: 'confirmQuote' };
       },
     };
   });

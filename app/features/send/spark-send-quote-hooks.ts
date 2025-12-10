@@ -11,7 +11,6 @@ import { moneyFromSparkAmount } from '~/lib/spark';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
-  useAccounts,
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
@@ -322,6 +321,10 @@ export function useProcessSparkSendQuoteTasks() {
 
 type GetSparkSendQuoteParams = {
   /**
+   * The ID of the Spark account to get a quote for.
+   */
+  accountId: string;
+  /**
    * The Lightning invoice to pay.
    */
   paymentRequest: string;
@@ -339,12 +342,17 @@ export function useGetSparkSendQuote(options?: {
   onError?: (error: Error) => void;
 }) {
   const sparkSendQuoteService = useSparkSendQuoteService();
-  const { data: sparkAccounts } = useAccounts({ type: 'spark' });
+  const getSparkAccount = useGetSparkAccount();
 
   return useMutation({
-    mutationFn: async ({ paymentRequest, amount }: GetSparkSendQuoteParams) => {
+    mutationFn: async ({
+      accountId,
+      paymentRequest,
+      amount,
+    }: GetSparkSendQuoteParams) => {
+      const account = getSparkAccount(accountId);
       return sparkSendQuoteService.getLightningSendQuote({
-        account: sparkAccounts[0],
+        account,
         paymentRequest,
         amount: amount as Money<'BTC'>,
       });

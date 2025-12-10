@@ -22,7 +22,11 @@ import type {
   CashuTokenReceiveTransactionDetails,
   CashuTokenSendTransactionDetails,
   CompletedCashuLightningSendTransactionDetails,
+  CompletedSparkLightningReceiveTransactionDetails,
+  CompletedSparkLightningSendTransactionDetails,
   IncompleteCashuLightningSendTransactionDetails,
+  SparkLightningReceiveTransactionDetails,
+  SparkLightningSendTransactionDetails,
   Transaction,
 } from '~/features/transactions/transaction';
 import { useToast } from '~/hooks/use-toast';
@@ -233,9 +237,7 @@ export function TransactionDetails({
         amountReceived: receiveSwapDetails.amountReceived.toLocaleString({
           unit,
         }),
-        // NOTE: these should never be undefined, but there's a bug we need to fix
-        // see https://github.com/MakePrisms/agicash/pull/541
-        tokenAmount: receiveSwapDetails.tokenAmount?.toLocaleString({
+        tokenAmount: receiveSwapDetails.tokenAmount.toLocaleString({
           unit: tokenUnit,
         }),
         cashuReceiveFee: receiveSwapDetails.cashuReceiveFee?.toLocaleString({
@@ -249,6 +251,63 @@ export function TransactionDetails({
         totalFees: receiveSwapDetails.totalFees?.toLocaleString({ unit }),
       },
     );
+  }
+
+  if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
+    if (state === 'COMPLETED') {
+      const completedDetails =
+        details as CompletedSparkLightningSendTransactionDetails;
+      console.debug(
+        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
+        {
+          amountSpent: completedDetails.amountSpent.toLocaleString({ unit }),
+          fee: completedDetails.fee.toLocaleString({ unit }),
+          paymentRequest: completedDetails.paymentRequest,
+          paymentPreimage: completedDetails.paymentPreimage,
+          sparkTransferId: completedDetails.sparkTransferId,
+        },
+      );
+    } else {
+      const incompleteDetails = details as SparkLightningSendTransactionDetails;
+      console.debug(
+        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
+        {
+          amountSpent: incompleteDetails.amountSpent.toLocaleString({ unit }),
+          fee: incompleteDetails.fee.toLocaleString({ unit }),
+          paymentRequest: incompleteDetails.paymentRequest,
+        },
+      );
+    }
+  }
+
+  if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
+    if (state === 'COMPLETED') {
+      const completedDetails =
+        details as CompletedSparkLightningReceiveTransactionDetails;
+      console.debug(
+        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
+        {
+          amountReceived: completedDetails.amountReceived.toLocaleString({
+            unit,
+          }),
+          paymentRequest: completedDetails.paymentRequest,
+          paymentPreimage: completedDetails.paymentPreimage,
+          sparkTransferId: completedDetails.sparkTransferId,
+        },
+      );
+    } else {
+      const incompleteDetails =
+        details as SparkLightningReceiveTransactionDetails;
+      console.debug(
+        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
+        {
+          amountReceived: incompleteDetails.amountReceived.toLocaleString({
+            unit,
+          }),
+          paymentRequest: incompleteDetails.paymentRequest,
+        },
+      );
+    }
   }
 
   return (

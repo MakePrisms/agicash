@@ -227,7 +227,7 @@ export class SparkSendQuoteService {
     }
 
     return this.repository.complete({
-      quoteId: quote.id,
+      quote,
       paymentPreimage,
       sparkTransferId,
       fee,
