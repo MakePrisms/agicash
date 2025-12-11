@@ -1,4 +1,4 @@
-import type { SparkWallet } from '@buildonspark/spark-sdk';
+import { NetworkError, type SparkWallet } from '@buildonspark/spark-sdk';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
 import type { SparkAccount } from '../accounts/account';
@@ -8,6 +8,17 @@ import {
   type SparkSendQuoteRepository,
   useSparkSendQuoteRepository,
 } from './spark-send-quote-repository';
+
+/**
+ * Error thrown when a lightning invoice has already been paid.
+ * This can happen if the payment was initiated but we failed to store the quote.
+ */
+export class InvoiceAlreadyPaidError extends Error {
+  constructor() {
+    super('Invoice already paid');
+    this.name = 'InvoiceAlreadyPaidError';
+  }
+}
 
 export type SparkLightningQuote = {
   /**
@@ -63,7 +74,7 @@ type GetSparkSendQuoteOptions = {
   amount?: Money<'BTC'>;
 };
 
-type InitiateSendParams = {
+type CreateSendQuoteParams = {
   /**
    * The user ID.
    */
@@ -76,6 +87,17 @@ type InitiateSendParams = {
    * The fee estimate returned by getLightningSendQuote.
    */
   quote: SparkLightningQuote;
+};
+
+type InitiateSendParams = {
+  /**
+   * The Spark account to send from.
+   */
+  account: SparkAccount;
+  /**
+   * The send quote to initiate.
+   */
+  sendQuote: SparkSendQuote;
 };
 
 export class SparkSendQuoteService {
@@ -152,43 +174,46 @@ export class SparkSendQuoteService {
   }
 
   /**
-   * Initiates a Lightning payment and stores the quote in the database.
-   * @throws Error if the payment initiation fails
+   * Creates a send quote in UNPAID state.
+   * The quote must be initiated with `initiateSend` to start the lightning payment.
    */
-  async initiateSend({
+  async createSendQuote({
     userId,
     account,
     quote,
-  }: InitiateSendParams): Promise<SparkSendQuote> {
-    const wallet = this.getSparkWalletOrThrow(account);
-
-    const request = await wallet.payLightningInvoice({
-      invoice: quote.paymentRequest,
-      maxFeeSats: quote.estimatedLightningFee.toNumber('sat'),
-      preferSpark: false,
-      amountSatsToSend: quote.paymentRequestIsAmountless
-        ? quote.amountRequestedInBtc.toNumber('sat')
-        : undefined,
-    });
-
-    // Type guard to ensure we have a LightningSendRequest
-    if (!('encodedInvoice' in request)) {
-      throw new Error(
-        'Expected a LightningSendRequest, but got a different type',
-      );
-    }
-
-    const sendQuote = await this.repository.create({
+  }: CreateSendQuoteParams): Promise<SparkSendQuote> {
+    return this.repository.create({
       userId,
       accountId: account.id,
       amount: quote.amountRequestedInBtc as Money,
       fee: quote.estimatedLightningFee as Money,
       paymentRequest: quote.paymentRequest,
       paymentHash: quote.paymentHash,
-      sparkRequestId: request.id,
+      paymentRequestIsAmountless: quote.paymentRequestIsAmountless,
     });
+  }
 
-    return sendQuote;
+  /**
+   * Initiates the lightning payment for an UNPAID quote.
+   *
+   * @throws InvoiceAlreadyPaidError if the invoice has already been paid (payment was initiated previously).
+   * @throws Error if the payment initiation fails for other reasons.
+   */
+  async initiateSend({
+    account,
+    sendQuote,
+  }: InitiateSendParams): Promise<SparkSendQuote> {
+    console.log('initiateSend', sendQuote);
+    if (sendQuote.state !== 'UNPAID') {
+      throw new Error(
+        `Cannot initiate send for quote that is not UNPAID. Current state: ${sendQuote.state}`,
+      );
+    }
+
+    const wallet = this.getSparkWalletOrThrow(account);
+
+    const sparkRequestId = await this.payLightningInvoice(wallet, sendQuote);
+    return this.repository.markAsPending(sendQuote.id, sparkRequestId);
   }
 
   /**
@@ -239,20 +264,125 @@ export class SparkSendQuoteService {
    * It's a no-op if the quote is already failed.
    * @param quote - The spark send quote to fail.
    * @param reason - The reason for the failure.
-   * @throws An error if the quote is not in PENDING state.
+   * @throws An error if the quote is not in UNPAID or PENDING state.
    */
   async fail(quote: SparkSendQuote, reason: string): Promise<SparkSendQuote> {
     if (quote.state === 'FAILED') {
       return quote;
     }
 
-    if (quote.state !== 'PENDING') {
+    if (quote.state !== 'PENDING' && quote.state !== 'UNPAID') {
       throw new Error(
-        `Cannot fail quote that is not pending. State: ${quote.state}`,
+        `Cannot fail quote that is not unpaid or pending. State: ${quote.state}`,
       );
     }
 
     return this.repository.fail(quote.id, reason);
+  }
+
+  private async payLightningInvoice(
+    wallet: SparkWallet,
+    sendQuote: SparkSendQuote,
+  ): Promise<string> {
+    try {
+      const request = await wallet.payLightningInvoice({
+        invoice: sendQuote.paymentRequest,
+        maxFeeSats: sendQuote.fee.toNumber('sat'),
+        preferSpark: false,
+        amountSatsToSend: sendQuote.paymentRequestIsAmountless
+          ? sendQuote.amount.toNumber('sat')
+          : undefined,
+      });
+
+      // Type guard to ensure we have a LightningSendRequest not a WalletTransfer
+      if (!('encodedInvoice' in request)) {
+        throw new Error(
+          'Expected a LightningSendRequest, but got a different type',
+        );
+      }
+
+      return request.id;
+    } catch (error) {
+      console.error('payLightningInvoice error', error);
+      if (this.isPreimageAlreadyExistsError(error)) {
+        const existingRequestId = await this.findExistingLightningSendRequest(
+          wallet,
+          sendQuote.paymentRequest,
+          new Date(sendQuote.createdAt),
+        );
+
+        if (existingRequestId) {
+          return existingRequestId;
+        }
+
+        console.error('no existing LightningSendRequest found', {
+          paymentRequest: sendQuote.paymentRequest,
+        });
+
+        throw new InvoiceAlreadyPaidError();
+      }
+
+      throw error;
+    }
+  }
+
+  private isPreimageAlreadyExistsError(error: unknown): boolean {
+    if (!(error instanceof NetworkError)) {
+      return false;
+    }
+    const errorMessage = error.message;
+    return errorMessage.includes('preimage request already exists');
+  }
+
+  /**
+   * Searches through wallet transfers to find an existing LightningSendRequest
+   * that matches the given invoice. Only searches transfers created after the
+   * specified time since the payment is initiated after the quote is created.
+   *
+   * @param wallet - The Spark wallet to search transfers in.
+   * @param paymentRequest - The encoded invoice to search for.
+   * @param createdAfter - Only search transfers created after this time.
+   * @returns The LightningSendRequest ID if found, null otherwise.
+   */
+  private async findExistingLightningSendRequest(
+    wallet: SparkWallet,
+    paymentRequest: string,
+    createdAfter: Date,
+  ): Promise<string | null> {
+    const PAGE_SIZE = 100;
+    let offset = 0;
+
+    while (true) {
+      const { transfers } = await wallet.getTransfers(PAGE_SIZE, offset);
+
+      if (transfers.length === 0) {
+        return null;
+      }
+
+      for (const transfer of transfers) {
+        if (
+          transfer.createdTime &&
+          new Date(transfer.createdTime) < createdAfter
+        ) {
+          return null;
+        }
+
+        if (
+          transfer.userRequest &&
+          'encodedInvoice' in transfer.userRequest &&
+          transfer.userRequest.encodedInvoice === paymentRequest
+        ) {
+          console.log('found existing LightningSendRequest', transfer);
+          return transfer.userRequest.id;
+        }
+      }
+
+      if (transfers.length < PAGE_SIZE) {
+        return null;
+      }
+
+      offset += PAGE_SIZE;
+    }
   }
 
   private getSparkWalletOrThrow(account: SparkAccount): SparkWallet {

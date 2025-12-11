@@ -2,11 +2,12 @@
 --
 -- Purpose:
 --   Create spark_send_quotes table to track lightning send requests via Spark
---   Mirrors the spark_receive_quotes pattern for tracking outgoing payments
+--   Supports idempotent payment initiation with UNPAID -> PENDING -> COMPLETED flow
 --
 -- Affected Objects:
 --   - wallet.spark_send_quotes (new table)
 --   - wallet.create_spark_send_quote (new function)
+--   - wallet.mark_spark_send_quote_as_pending (new function)
 --   - wallet.complete_spark_send_quote (new function)
 --   - wallet.fail_spark_send_quote (new function)
 --   - wallet.broadcast_spark_send_quotes_changes (new function)
@@ -23,7 +24,7 @@
 
 create table wallet.spark_send_quotes (
   id uuid not null default gen_random_uuid(),
-  state text not null default 'PENDING',
+  state text not null default 'UNPAID',
   created_at timestamp with time zone not null default now(),
   payment_request text not null,
   payment_hash text not null,
@@ -32,33 +33,48 @@ create table wallet.spark_send_quotes (
   fee numeric not null,
   currency text not null,
   unit text not null,
-  spark_id text not null,
+  spark_id text,
   spark_transfer_id text,
   failure_reason text,
   user_id uuid not null,
   account_id uuid not null,
   transaction_id uuid not null,
   version integer not null default 0,
+  payment_request_is_amountless boolean not null default false,
   constraint spark_send_quotes_pkey primary key (id),
   constraint spark_send_quotes_user_id_fkey foreign key (user_id) references wallet.users(id),
   constraint spark_send_quotes_account_id_fkey foreign key (account_id) references wallet.accounts(id),
   constraint spark_send_quotes_transaction_id_fkey foreign key (transaction_id) references wallet.transactions(id),
-  constraint spark_send_quotes_state_check check (state in ('PENDING', 'COMPLETED', 'FAILED')),
+  constraint spark_send_quotes_state_check check (state in ('UNPAID', 'PENDING', 'COMPLETED', 'FAILED')),
   constraint spark_send_quotes_completed_state_check check (
     state != 'COMPLETED' or (payment_preimage is not null and spark_transfer_id is not null)
+  ),
+  -- spark_id must be set when state is PENDING or COMPLETED
+  constraint spark_send_quotes_spark_id_required check (
+    state = 'UNPAID' or state = 'FAILED' or spark_id is not null
   )
 );
 
 comment on table wallet.spark_send_quotes is 'Tracks lightning send requests created via Spark wallet. Each quote represents a lightning payment in progress.';
 
--- Create unique constraint on spark_id to prevent duplicate quotes
-create unique index spark_send_quotes_spark_id_unique on wallet.spark_send_quotes using btree (spark_id);
+-- Create unique index on spark_id (only for non-null values)
+create unique index spark_send_quotes_spark_id_unique 
+  on wallet.spark_send_quotes using btree (spark_id) 
+  where spark_id is not null;
 
 -- Create unique index on spark_transfer_id (only for non-null values)
 create unique index spark_send_quotes_spark_transfer_id_unique on wallet.spark_send_quotes using btree (spark_transfer_id) where spark_transfer_id is not null;
 
--- Create index for efficient lookup of pending quotes
-create index idx_spark_send_quotes_state_user_id on wallet.spark_send_quotes using btree (user_id, state) where state = 'PENDING';
+-- Create index for efficient lookup of unresolved (UNPAID or PENDING) quotes
+create index idx_spark_send_quotes_unresolved
+  on wallet.spark_send_quotes using btree (user_id, state)
+  where state in ('UNPAID', 'PENDING');
+
+-- Unique constraint: prevent duplicate quotes for the same invoice while one is still active
+-- This ensures idempotency - if user clicks send twice, the second call returns the existing quote
+create unique index spark_send_quotes_payment_hash_active_unique
+  on wallet.spark_send_quotes using btree (user_id, payment_hash)
+  where state in ('UNPAID', 'PENDING');
 
 -- Enable row level security
 alter table wallet.spark_send_quotes enable row level security;
@@ -119,7 +135,9 @@ create constraint trigger broadcast_spark_send_quotes_changes_trigger
 
 -- =============================================================================
 -- Function: create_spark_send_quote
--- Creates a new spark send quote and associated transaction record
+-- Creates a new spark send quote in UNPAID state and associated transaction record
+-- IDEMPOTENT: If a quote already exists for the same payment_hash (and is still active),
+-- returns the existing quote instead of creating a new one.
 -- =============================================================================
 
 create or replace function wallet.create_spark_send_quote(
@@ -131,19 +149,28 @@ create or replace function wallet.create_spark_send_quote(
   p_unit text,
   p_payment_request text,
   p_payment_hash text,
-  p_spark_id text,
+  p_payment_request_is_amountless boolean,
   p_encrypted_transaction_details text
 )
 returns wallet.spark_send_quotes
 language plpgsql
-security invoker
-set search_path = ''
 as $function$
 declare
   v_transaction_id uuid;
   v_quote wallet.spark_send_quotes;
+  v_existing_quote wallet.spark_send_quotes;
 begin
-  -- Create pending transaction record
+  select * into v_existing_quote
+  from wallet.spark_send_quotes
+  where user_id = p_user_id
+    and payment_hash = p_payment_hash
+    and state in ('UNPAID', 'PENDING')
+  for update;
+
+  if v_existing_quote is not null then
+    return v_existing_quote;
+  end if;
+
   insert into wallet.transactions (
     user_id,
     account_id,
@@ -164,7 +191,6 @@ begin
     now()
   ) returning id into v_transaction_id;
 
-  -- Create spark send quote record
   insert into wallet.spark_send_quotes (
     user_id,
     account_id,
@@ -174,7 +200,7 @@ begin
     unit,
     payment_request,
     payment_hash,
-    spark_id,
+    payment_request_is_amountless,
     transaction_id,
     state
   ) values (
@@ -186,10 +212,62 @@ begin
     p_unit,
     p_payment_request,
     p_payment_hash,
-    p_spark_id,
+    p_payment_request_is_amountless,
     v_transaction_id,
-    'PENDING'
+    'UNPAID'
   ) returning * into v_quote;
+
+  return v_quote;
+end;
+$function$;
+
+-- =============================================================================
+-- Function: mark_spark_send_quote_as_pending
+-- Transitions UNPAID -> PENDING and sets the spark_id
+-- IDEMPOTENT: If already PENDING or COMPLETED, returns the existing quote
+-- =============================================================================
+
+create or replace function wallet.mark_spark_send_quote_as_pending(
+  p_quote_id uuid,
+  p_spark_id text
+)
+returns wallet.spark_send_quotes
+language plpgsql
+as $function$
+declare
+  v_quote wallet.spark_send_quotes;
+begin
+  select * into v_quote
+  from wallet.spark_send_quotes
+  where id = p_quote_id
+  for update;
+
+  if v_quote is null then
+    raise exception
+      using
+        hint = 'NOT_FOUND',
+        message = format('Spark send quote with id %s not found.', p_quote_id);
+  end if;
+
+  if v_quote.state in ('PENDING', 'COMPLETED') then
+    return v_quote;
+  end if;
+
+  if v_quote.state != 'UNPAID' then
+    raise exception
+      using
+        hint = 'INVALID_STATE',
+        message = format('Failed to mark spark send quote with id %s as pending.', v_quote.id),
+        detail = format('Found state %s, but must be UNPAID.', v_quote.state);
+  end if;
+
+  update wallet.spark_send_quotes
+  set
+    state = 'PENDING',
+    spark_id = p_spark_id,
+    version = version + 1
+  where id = p_quote_id
+  returning * into v_quote;
 
   return v_quote;
 end;
@@ -198,6 +276,7 @@ $function$;
 -- =============================================================================
 -- Function: complete_spark_send_quote
 -- Marks a spark send quote as completed and updates the transaction
+-- IDEMPOTENT: If already COMPLETED, returns the existing quote
 -- =============================================================================
 
 create or replace function wallet.complete_spark_send_quote(
@@ -209,13 +288,10 @@ create or replace function wallet.complete_spark_send_quote(
 )
 returns wallet.spark_send_quotes
 language plpgsql
-security invoker
-set search_path = ''
 as $function$
 declare
   v_quote wallet.spark_send_quotes;
 begin
-  -- Get the quote with a lock to prevent race conditions
   select * into v_quote
   from wallet.spark_send_quotes
   where id = p_quote_id
@@ -225,24 +301,21 @@ begin
     raise exception
       using
         hint = 'NOT_FOUND',
-        message = format('Quote with id %s not found.', p_quote_id);
+        message = format('Spark send quote with id %s not found.', p_quote_id);
   end if;
 
-  -- If already completed, return the quote (idempotent)
   if v_quote.state = 'COMPLETED' then
     return v_quote;
   end if;
 
-  -- Only PENDING quotes can be completed
-  if v_quote.state != 'PENDING' then
+  if v_quote.state not in ('UNPAID', 'PENDING') then
     raise exception
       using
         hint = 'INVALID_STATE',
-        message = format('Failed to complete quote with id %s.', v_quote.id),
-        detail = format('Quote is in state %s but must be in PENDING state.', v_quote.state);
+        message = format('Failed to complete spark send quote with id %s.', v_quote.id),
+        detail = format('Found state %s, but must be UNPAID or PENDING.', v_quote.state);
   end if;
 
-  -- Update quote to completed state
   update wallet.spark_send_quotes
   set
     state = 'COMPLETED',
@@ -253,7 +326,6 @@ begin
   where id = p_quote_id
   returning * into v_quote;
 
-  -- Update transaction to completed state
   update wallet.transactions
   set
     state = 'COMPLETED',
@@ -270,6 +342,7 @@ $function$;
 -- =============================================================================
 -- Function: fail_spark_send_quote
 -- Marks a spark send quote as failed and updates the transaction
+-- IDEMPOTENT: If already FAILED, returns the existing quote
 -- =============================================================================
 
 create or replace function wallet.fail_spark_send_quote(
@@ -278,13 +351,10 @@ create or replace function wallet.fail_spark_send_quote(
 )
 returns wallet.spark_send_quotes
 language plpgsql
-security invoker
-set search_path = ''
 as $function$
 declare
   v_quote wallet.spark_send_quotes;
 begin
-  -- Get the quote with a lock to prevent race conditions
   select * into v_quote
   from wallet.spark_send_quotes
   where id = p_quote_id
@@ -294,24 +364,21 @@ begin
     raise exception
       using
         hint = 'NOT_FOUND',
-        message = format('Quote with id %s not found.', p_quote_id);
+        message = format('Spark send quote with id %s not found.', p_quote_id);
   end if;
 
-  -- If already failed, return the quote (idempotent)
   if v_quote.state = 'FAILED' then
     return v_quote;
   end if;
 
-  -- Only PENDING quotes can be failed
-  if v_quote.state != 'PENDING' then
+  if v_quote.state not in ('UNPAID', 'PENDING') then
     raise exception
       using
         hint = 'INVALID_STATE',
-        message = format('Failed to fail quote with id %s.', v_quote.id),
-        detail = format('Quote is in state %s but must be in PENDING state.', v_quote.state);
+        message = format('Cannot fail spark send quote with id %s.', v_quote.id),
+        detail = format('Found state %s, but must be UNPAID or PENDING.', v_quote.state);
   end if;
 
-  -- Update quote to failed state
   update wallet.spark_send_quotes
   set
     state = 'FAILED',
@@ -320,7 +387,6 @@ begin
   where id = p_quote_id
   returning * into v_quote;
 
-  -- Update transaction to failed state
   update wallet.transactions
   set
     state = 'FAILED',
@@ -334,6 +400,14 @@ $function$;
 -- =============================================================================
 -- Cron Jobs: Cleanup spark quotes
 -- =============================================================================
+
+-- Index for efficient cleanup of spark receive quotes by state and created_at
+create index idx_spark_receive_quotes_state_created_at
+  on wallet.spark_receive_quotes using btree (state, created_at);
+
+-- Index for efficient cleanup of spark send quotes by state and created_at
+create index idx_spark_send_quotes_state_created_at
+  on wallet.spark_send_quotes using btree (state, created_at);
 
 -- Cleanup expired and paid spark receive quotes every day at midnight
 select cron.schedule('cleanup-spark-receive-quotes', '0 0 * * *', $$
