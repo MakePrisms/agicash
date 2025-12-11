@@ -688,7 +688,8 @@ export type Database = {
           payment_hash: string
           payment_preimage: string | null
           payment_request: string
-          spark_id: string
+          payment_request_is_amountless: boolean
+          spark_id: string | null
           spark_transfer_id: string | null
           state: string
           transaction_id: string
@@ -707,7 +708,8 @@ export type Database = {
           payment_hash: string
           payment_preimage?: string | null
           payment_request: string
-          spark_id: string
+          payment_request_is_amountless?: boolean
+          spark_id?: string | null
           spark_transfer_id?: string | null
           state?: string
           transaction_id: string
@@ -726,7 +728,8 @@ export type Database = {
           payment_hash?: string
           payment_preimage?: string | null
           payment_request?: string
-          spark_id?: string
+          payment_request_is_amountless?: boolean
+          spark_id?: string | null
           spark_transfer_id?: string | null
           state?: string
           transaction_id?: string
@@ -1090,7 +1093,8 @@ export type Database = {
           payment_hash: string
           payment_preimage: string | null
           payment_request: string
-          spark_id: string
+          payment_request_is_amountless: boolean
+          spark_id: string | null
           spark_transfer_id: string | null
           state: string
           transaction_id: string
@@ -1282,7 +1286,7 @@ export type Database = {
           p_fee: number
           p_payment_hash: string
           p_payment_request: string
-          p_spark_id: string
+          p_payment_request_is_amountless: boolean
           p_unit: string
           p_user_id: string
         }
@@ -1297,7 +1301,8 @@ export type Database = {
           payment_hash: string
           payment_preimage: string | null
           payment_request: string
-          spark_id: string
+          payment_request_is_amountless: boolean
+          spark_id: string | null
           spark_transfer_id: string | null
           state: string
           transaction_id: string
@@ -1480,7 +1485,8 @@ export type Database = {
           payment_hash: string
           payment_preimage: string | null
           payment_request: string
-          spark_id: string
+          payment_request_is_amountless: boolean
+          spark_id: string | null
           spark_transfer_id: string | null
           state: string
           transaction_id: string
@@ -1547,6 +1553,35 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "mark_cashu_send_quote_as_pending_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      mark_spark_send_quote_as_pending: {
+        Args: { p_quote_id: string; p_spark_id: string }
+        Returns: {
+          account_id: string
+          amount: number
+          created_at: string
+          currency: string
+          failure_reason: string | null
+          fee: number
+          id: string
+          payment_hash: string
+          payment_preimage: string | null
+          payment_request: string
+          payment_request_is_amountless: boolean
+          spark_id: string | null
+          spark_transfer_id: string | null
+          state: string
+          transaction_id: string
+          unit: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "spark_send_quotes"
           isOneToOne: true
           isSetofReturn: false
         }

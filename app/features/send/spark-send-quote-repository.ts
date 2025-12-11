@@ -42,9 +42,9 @@ type CreateQuoteParams = {
    */
   paymentHash: string;
   /**
-   * ID of the send request in the Spark system.
+   * Whether the payment request is amountless.
    */
-  sparkRequestId: string;
+  paymentRequestIsAmountless: boolean;
 };
 
 export class SparkSendQuoteRepository {
@@ -68,7 +68,7 @@ export class SparkSendQuoteRepository {
       fee,
       paymentRequest,
       paymentHash,
-      sparkRequestId,
+      paymentRequestIsAmountless,
     } = params;
 
     const unit = getDefaultUnit(amount.currency);
@@ -90,7 +90,7 @@ export class SparkSendQuoteRepository {
       p_unit: unit,
       p_payment_request: paymentRequest,
       p_payment_hash: paymentHash,
-      p_spark_id: sparkRequestId,
+      p_payment_request_is_amountless: paymentRequestIsAmountless,
       p_encrypted_transaction_details: encryptedTransactionDetails,
     });
 
@@ -102,6 +102,35 @@ export class SparkSendQuoteRepository {
 
     if (error) {
       throw new Error('Failed to create spark send quote', { cause: error });
+    }
+
+    return SparkSendQuoteRepository.toQuote(data);
+  }
+
+  /**
+   * Marks a spark send quote as pending by setting the spark_id.
+   * @returns The updated quote.
+   */
+  async markAsPending(
+    quoteId: string,
+    sparkRequestId: string,
+    options?: Options,
+  ): Promise<SparkSendQuote> {
+    const query = this.db.rpc('mark_spark_send_quote_as_pending', {
+      p_quote_id: quoteId,
+      p_spark_id: sparkRequestId,
+    });
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query.single();
+
+    if (error) {
+      throw new Error('Failed to mark spark send quote as pending', {
+        cause: error,
+      });
     }
 
     return SparkSendQuoteRepository.toQuote(data);
@@ -224,11 +253,11 @@ export class SparkSendQuoteRepository {
   }
 
   /**
-   * Gets all pending spark send quotes for the given user.
+   * Gets all unresolved (UNPAID or PENDING) spark send quotes for the given user.
    * @param userId - The id of the user to get the spark send quotes for.
    * @returns The spark send quotes.
    */
-  async getPending(
+  async getUnresolved(
     userId: string,
     options?: Options,
   ): Promise<SparkSendQuote[]> {
@@ -236,7 +265,7 @@ export class SparkSendQuoteRepository {
       .from('spark_send_quotes')
       .select()
       .eq('user_id', userId)
-      .eq('state', 'UNPAID');
+      .in('state', ['UNPAID', 'PENDING']);
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -247,8 +276,6 @@ export class SparkSendQuoteRepository {
     if (error) {
       throw new Error('Failed to get spark send quotes', { cause: error });
     }
-
-    console.log('data', data);
 
     return data.map((data) => SparkSendQuoteRepository.toQuote(data));
   }
@@ -274,18 +301,30 @@ export class SparkSendQuoteRepository {
       userId: data.user_id,
       accountId: data.account_id,
       version: data.version,
+      paymentRequestIsAmountless: data.payment_request_is_amountless,
     };
 
     if (data.state === 'COMPLETED') {
-      if (!data.payment_preimage || !data.spark_transfer_id) {
+      if (!data.payment_preimage) {
         throw new Error(
-          'Invalid spark send quote data. Payment preimage and spark transfer id are required for completed state.',
+          'Invalid spark send quote data. Payment preimage is required for completed state.',
+        );
+      }
+      if (!data.spark_transfer_id) {
+        throw new Error(
+          'Invalid spark send quote data. Spark transfer id is required for completed state.',
+        );
+      }
+      if (!data.spark_id) {
+        throw new Error(
+          'Invalid spark send quote data. Spark id is required for completed state.',
         );
       }
 
       return {
         ...baseQuote,
         state: 'COMPLETED',
+        sparkId: data.spark_id,
         paymentPreimage: data.payment_preimage,
         sparkTransferId: data.spark_transfer_id,
       };
@@ -300,9 +339,23 @@ export class SparkSendQuoteRepository {
     }
 
     if (data.state === 'PENDING') {
+      if (!data.spark_id) {
+        throw new Error(
+          'Invalid spark send quote data. Spark id is required for pending state.',
+        );
+      }
+
       return {
         ...baseQuote,
         state: 'PENDING',
+        sparkId: data.spark_id,
+      };
+    }
+
+    if (data.state === 'UNPAID') {
+      return {
+        ...baseQuote,
+        state: 'UNPAID',
       };
     }
 

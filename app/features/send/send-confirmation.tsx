@@ -120,17 +120,17 @@ const usePayBolt11 = ({
         if (error instanceof DomainError) {
           toast({ description: error.message });
         } else {
-          console.error('Failed to create cashu send quote', { cause: error });
+          console.error('Failed to initiate cashu send', { cause: error });
           toast({
             title: 'Error',
-            description: 'Failed to initiate the send. Please try again.',
+            description: 'Failed to initiate payment. Please try again.',
             variant: 'destructive',
           });
         }
       },
     });
 
-  const { mutate: initiateSparkSend, status: initiateSparkSendStatus } =
+  const { mutate: initiateSparkSend, status: createSparkSendQuoteStatus } =
     useInitiateSparkSendQuote({
       onSuccess: (sendQuote) => {
         navigate(`/transactions/${sendQuote.transactionId}?redirectTo=/`, {
@@ -142,7 +142,7 @@ const usePayBolt11 = ({
         console.error('Error initiating spark send', { cause: error });
         toast({
           title: 'Error',
-          description: 'Failed to initiate spark send. Please try again.',
+          description: 'Failed to initiate payment. Please try again.',
         });
       },
     });
@@ -165,7 +165,7 @@ const usePayBolt11 = ({
   const isPending =
     account.type === 'cashu'
       ? ['pending', 'success'].includes(createCashuSendQuoteStatus)
-      : ['pending', 'success'].includes(initiateSparkSendStatus);
+      : ['pending', 'success'].includes(createSparkSendQuoteStatus);
 
   return { handleConfirm, isPending };
 };

@@ -30,8 +30,8 @@ import {
   useUnresolvedCashuSendSwapsCache,
 } from '../send/cashu-send-swap-hooks';
 import {
-  usePendingSparkSendQuotesCache,
   useSparkSendQuoteChangeHandlers,
+  useUnresolvedSparkSendQuotesCache,
 } from '../send/spark-send-quote-hooks';
 import {
   useTransactionChangeHandlers,
@@ -101,7 +101,7 @@ export const useTrackWalletChanges = () => {
   const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const contactsCache = useContactsCache();
   const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
-  const pendingSparkSendQuotesCache = usePendingSparkSendQuotesCache();
+  const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
 
   useTrackDatabaseChanges({
     handlers: [
@@ -127,7 +127,7 @@ export const useTrackWalletChanges = () => {
       unresolvedCashuSendSwapsCache.invalidate();
       contactsCache.invalidate();
       pendingSparkReceiveQuotesCache.invalidate();
-      pendingSparkSendQuotesCache.invalidate();
+      unresolvedSparkSendQuotesCache.invalidate();
     },
   });
 };
