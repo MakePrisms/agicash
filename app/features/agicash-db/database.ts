@@ -340,6 +340,18 @@ export type Database = MergeDeep<
         expire_spark_receive_quote: {
           Returns: AgicashDbSparkReceiveQuote;
         };
+        create_spark_send_quote: {
+          Returns: AgicashDbSparkSendQuote;
+        };
+        mark_spark_send_quote_as_pending: {
+          Returns: AgicashDbSparkSendQuote;
+        };
+        complete_spark_send_quote: {
+          Returns: AgicashDbSparkSendQuote;
+        };
+        fail_spark_send_quote: {
+          Returns: AgicashDbSparkSendQuote;
+        };
       };
       CompositeTypes: {
         cashu_receive_quote_payment_result: CashuReceiveQuotePaymentResult;

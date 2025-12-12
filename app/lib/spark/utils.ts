@@ -4,7 +4,7 @@ import {
   CurrencyUnit as SparkCurrencyUnit,
 } from '@buildonspark/spark-sdk/types';
 import { bytesToHex } from '@noble/hashes/utils';
-import { type Currency, type CurrencyUnit, Money } from './money';
+import { type Currency, type CurrencyUnit, Money } from '../money';
 
 const sparkUnitToCurrencyUnit: {
   [K in SparkCurrencyUnit]: CurrencyUnit | null;

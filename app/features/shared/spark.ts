@@ -107,7 +107,7 @@ export function useTrackAndUpdateSparkAccountBalances() {
       },
       staleTime: Number.POSITIVE_INFINITY,
       gcTime: Number.POSITIVE_INFINITY,
-      refetchInterval: 3000,
+      refetchInterval: 30000,
       refetchOnWindowFocus: 'always' as const,
       refetchOnReconnect: 'always' as const,
     })),
