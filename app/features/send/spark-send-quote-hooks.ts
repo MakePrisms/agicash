@@ -15,6 +15,7 @@ import {
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbSparkSendQuote } from '../agicash-db/database';
+import { DomainError } from '../shared/error';
 import { sparkBalanceQueryKey } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import type { SparkSendQuote } from './spark-send-quote';
@@ -23,7 +24,6 @@ import {
   useSparkSendQuoteRepository,
 } from './spark-send-quote-repository';
 import {
-  InvoiceAlreadyPaidError,
   type SparkLightningQuote,
   useSparkSendQuoteService,
 } from './spark-send-quote-service';
@@ -131,6 +131,7 @@ const useUnresolvedSparkSendQuotes = () => {
 };
 
 type OnSparkSendStateChangeCallbacks = {
+  sendQuotes: SparkSendQuote[];
   onUnpaid: (quote: SparkSendQuote) => void;
   onCompleted: (
     quote: SparkSendQuote,
@@ -149,11 +150,11 @@ type OnSparkSendStateChangeCallbacks = {
  * For PENDING quotes, polls every second to check for payment status.
  */
 export function useOnSparkSendStateChange({
+  sendQuotes,
   onUnpaid,
   onCompleted,
   onFailed,
 }: OnSparkSendStateChangeCallbacks) {
-  const unresolvedQuotes = useUnresolvedSparkSendQuotes();
   const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
   const getSparkAccount = useGetSparkAccount();
 
@@ -228,11 +229,11 @@ export function useOnSparkSendStateChange({
   const checkQuoteStatusRef = useLatest(checkQuoteStatus);
 
   useEffect(() => {
-    if (unresolvedQuotes.length === 0) return;
+    if (sendQuotes.length === 0) return;
 
     const intervals: NodeJS.Timeout[] = [];
 
-    for (const quote of unresolvedQuotes) {
+    for (const quote of sendQuotes) {
       if (quote.state === 'UNPAID') {
         checkQuoteStatusRef.current(quote.id);
       }
@@ -246,7 +247,7 @@ export function useOnSparkSendStateChange({
     return () => {
       intervals.forEach((interval) => clearInterval(interval));
     };
-  }, [unresolvedQuotes]);
+  }, [sendQuotes]);
 }
 
 /**
@@ -256,6 +257,7 @@ export function useOnSparkSendStateChange({
  */
 export function useProcessSparkSendQuoteTasks() {
   const sparkSendQuoteService = useSparkSendQuoteService();
+  const unresolvedSendQuotes = useUnresolvedSparkSendQuotes();
   const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
   const getSparkAccount = useGetSparkAccount();
   const queryClient = useQueryClient();
@@ -275,11 +277,15 @@ export function useProcessSparkSendQuoteTasks() {
         return;
       }
 
-      await sparkSendQuoteService.fail(quote, reason);
-      return quote;
+      return await sparkSendQuoteService.fail(quote, reason);
     },
     retry: 3,
     throwOnError: true,
+    onSuccess: (updatedQuote) => {
+      if (updatedQuote) {
+        unresolvedQuotesCache.remove(updatedQuote);
+      }
+    },
     onError: (error, variables) => {
       console.error('Failed to mark spark send quote as failed', {
         cause: error,
@@ -291,9 +297,9 @@ export function useProcessSparkSendQuoteTasks() {
   const { mutate: initiateSend } = useMutation({
     mutationFn: async (quote: SparkSendQuote) => {
       const cachedQuote = unresolvedQuotesCache.get(quote.id);
-      if (!cachedQuote || cachedQuote.state !== 'UNPAID') {
+      if (cachedQuote?.state !== 'UNPAID') {
         // Quote was updated in the meantime, skip initiation.
-        return null;
+        return;
       }
 
       const account = getSparkAccount(quote.accountId);
@@ -303,22 +309,21 @@ export function useProcessSparkSendQuoteTasks() {
           sendQuote: quote,
         })
         .catch((error) => {
-          if (error instanceof InvoiceAlreadyPaidError) {
-            failSendQuote({
-              quoteId: quote.id,
-              reason: error.message,
-            });
-            return null;
+          if (error instanceof DomainError) {
+            failSendQuote(
+              {
+                quoteId: quote.id,
+                reason: error.message,
+              },
+              { scope: { id: `spark-send-quote-${quote.id}` } },
+            );
+            return;
           }
           throw error;
         });
     },
-    retry: 1,
-    onSuccess: (updatedQuote) => {
-      if (updatedQuote) {
-        unresolvedQuotesCache.update(updatedQuote);
-      }
-    },
+    retry: 3,
+    throwOnError: true,
     onError: (error, quote) => {
       console.error('Initiate spark send quote error', {
         cause: error,
@@ -371,9 +376,10 @@ export function useProcessSparkSendQuoteTasks() {
   });
 
   useOnSparkSendStateChange({
+    sendQuotes: unresolvedSendQuotes,
     onUnpaid: (quote) => {
       initiateSend(quote, {
-        scope: { id: `spark-send-quote-initiate-${quote.id}` },
+        scope: { id: `spark-send-quote-${quote.id}` },
       });
     },
     onCompleted: (quote, paymentData) => {
@@ -414,10 +420,7 @@ type GetSparkSendQuoteParams = {
 /**
  * Returns a mutation for estimating the fee for a Lightning send.
  */
-export function useGetSparkSendQuote(options?: {
-  onSuccess?: (quote: SparkLightningQuote) => void;
-  onError?: (error: Error) => void;
-}) {
+export function useGetSparkSendQuote() {
   const sparkSendQuoteService = useSparkSendQuoteService();
   const getSparkAccount = useGetSparkAccount();
 
@@ -431,11 +434,10 @@ export function useGetSparkSendQuote(options?: {
       return sparkSendQuoteService.getLightningSendQuote({
         account,
         paymentRequest,
+        // TODO: should we make param of type Money<'BTC'>?
         amount: amount as Money<'BTC'>,
       });
     },
-    onSuccess: options?.onSuccess,
-    onError: options?.onError,
   });
 }
 
@@ -480,6 +482,11 @@ export function useInitiateSparkSendQuote({
       onSuccess(data);
     },
     onError,
-    retry: 1,
+    retry: (failureCount, error) => {
+      if (error instanceof DomainError) {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
 }

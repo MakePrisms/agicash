@@ -98,7 +98,7 @@ export class SparkSendQuoteRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to create spark send quote', { cause: error });
@@ -116,6 +116,7 @@ export class SparkSendQuoteRepository {
     sparkRequestId: string,
     options?: Options,
   ): Promise<SparkSendQuote> {
+    // TODO: we probably also need to update transaction details to include the spark_id.
     const query = this.db.rpc('mark_spark_send_quote_as_pending', {
       p_quote_id: quoteId,
       p_spark_id: sparkRequestId,
@@ -125,7 +126,7 @@ export class SparkSendQuoteRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to mark spark send quote as pending', {
@@ -194,7 +195,7 @@ export class SparkSendQuoteRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to complete spark send quote', {
@@ -222,7 +223,7 @@ export class SparkSendQuoteRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to fail spark send quote', { cause: error });

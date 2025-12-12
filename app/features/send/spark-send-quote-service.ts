@@ -1,6 +1,10 @@
-import { NetworkError, type SparkWallet } from '@buildonspark/spark-sdk';
+import { SparkSDKError, type SparkWallet } from '@buildonspark/spark-sdk';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
+import {
+  isInsufficentBalanceError,
+  isInvoiceAlreadyPaidError,
+} from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
 import { DomainError } from '../shared/error';
 import type { SparkSendQuote } from './spark-send-quote';
@@ -8,17 +12,6 @@ import {
   type SparkSendQuoteRepository,
   useSparkSendQuoteRepository,
 } from './spark-send-quote-repository';
-
-/**
- * Error thrown when a lightning invoice has already been paid.
- * This can happen if the payment was initiated but we failed to store the quote.
- */
-export class InvoiceAlreadyPaidError extends Error {
-  constructor() {
-    super('Invoice already paid');
-    this.name = 'InvoiceAlreadyPaidError';
-  }
-}
 
 export type SparkLightningQuote = {
   /**
@@ -57,6 +50,10 @@ export type SparkLightningQuote = {
    * Whether the payment request has an amount encoded in the invoice.
    */
   paymentRequestIsAmountless: boolean;
+  /**
+   * The expiry date of the lightning invoice.
+   */
+  expiresAt: Date | null;
 };
 
 type GetSparkSendQuoteOptions = {
@@ -116,8 +113,11 @@ export class SparkSendQuoteService {
       throw new DomainError('Invalid lightning invoice');
     }
     const invoice = bolt11ValidationResult.decoded;
+    const expiresAt = invoice.expiryUnixMs
+      ? new Date(invoice.expiryUnixMs)
+      : null;
 
-    if (invoice.expiryUnixMs && new Date(invoice.expiryUnixMs) < new Date()) {
+    if (expiresAt && expiresAt < new Date()) {
       throw new DomainError('Lightning invoice has expired');
     }
 
@@ -170,6 +170,7 @@ export class SparkSendQuoteService {
       estimatedTotalFee: estimatedLightningFee as Money,
       estimatedTotalAmount,
       paymentRequestIsAmountless: invoice.amountMsat === undefined,
+      expiresAt,
     };
   }
 
@@ -182,6 +183,19 @@ export class SparkSendQuoteService {
     account,
     quote,
   }: CreateSendQuoteParams): Promise<SparkSendQuote> {
+    if (quote.expiresAt && quote.expiresAt < new Date()) {
+      throw new DomainError('Lightning invoice has expired');
+    }
+
+    if (
+      !account.balance ||
+      account.balance.lessThan(quote.estimatedTotalAmount)
+    ) {
+      throw new DomainError(
+        `Insufficient balance. Estimated total including fee is ${quote.estimatedTotalAmount.toLocaleString({ unit: 'sat' })}.`,
+      );
+    }
+
     return this.repository.create({
       userId,
       accountId: account.id,
@@ -203,7 +217,10 @@ export class SparkSendQuoteService {
     account,
     sendQuote,
   }: InitiateSendParams): Promise<SparkSendQuote> {
-    console.log('initiateSend', sendQuote);
+    if (sendQuote.state === 'PENDING') {
+      return sendQuote;
+    }
+
     if (sendQuote.state !== 'UNPAID') {
       throw new Error(
         `Cannot initiate send for quote that is not UNPAID. Current state: ${sendQuote.state}`,
@@ -213,6 +230,7 @@ export class SparkSendQuoteService {
     const wallet = this.getSparkWalletOrThrow(account);
 
     const sparkRequestId = await this.payLightningInvoice(wallet, sendQuote);
+
     return this.repository.markAsPending(sendQuote.id, sparkRequestId);
   }
 
@@ -303,8 +321,7 @@ export class SparkSendQuoteService {
 
       return request.id;
     } catch (error) {
-      console.error('payLightningInvoice error', error);
-      if (this.isPreimageAlreadyExistsError(error)) {
+      if (error instanceof SparkSDKError) {
         const existingRequestId = await this.findExistingLightningSendRequest(
           wallet,
           sendQuote.paymentRequest,
@@ -314,24 +331,20 @@ export class SparkSendQuoteService {
         if (existingRequestId) {
           return existingRequestId;
         }
+      }
 
-        console.error('no existing LightningSendRequest found', {
-          paymentRequest: sendQuote.paymentRequest,
-        });
+      if (isInsufficentBalanceError(error)) {
+        throw new DomainError(
+          `Insufficient balance. Total cost of send is ${error.context.expected}.`,
+        );
+      }
 
-        throw new InvoiceAlreadyPaidError();
+      if (isInvoiceAlreadyPaidError(error)) {
+        throw new DomainError('Lightning invoice has already been paid.');
       }
 
       throw error;
     }
-  }
-
-  private isPreimageAlreadyExistsError(error: unknown): boolean {
-    if (!(error instanceof NetworkError)) {
-      return false;
-    }
-    const errorMessage = error.message;
-    return errorMessage.includes('preimage request already exists');
   }
 
   /**
