@@ -152,23 +152,34 @@ export class CashuReceiveQuoteRepository {
       } satisfies CashuLightningReceiveTransactionDetails;
     }
 
+    const dataToEncrypt = [
+      amount.toNumber(unit),
+      mintingFee?.toNumber(unit),
+      paymentRequest,
+    ] as const;
+    const [encryptedAmount, encryptedMintingFee, encryptedPaymentRequest] =
+      await this.encryption.encryptBatch(dataToEncrypt);
+
     const encryptedTransactionDetails = await this.encryption.encrypt(details);
 
     const query = this.db.rpc('create_cashu_receive_quote', {
       p_user_id: userId,
       p_account_id: accountId,
-      p_amount: amount.toNumber(unit),
+      p_amount: encryptedAmount,
       p_currency: amount.currency,
       p_unit: unit,
+      // TODO: This is used by our lnurl server to check the payment status, so we can't encrypt it,
+      // but it can be used to get the mint quote which reveals all the data encrypted above
       p_quote_id: quoteId,
-      p_payment_request: paymentRequest,
+      // TODO: store cleartext payment hash because we encrypting the invoice?
+      p_payment_request: encryptedPaymentRequest,
       p_expires_at: expiresAt,
       p_description: description,
       p_state: state,
       p_locking_derivation_path: lockingDerivationPath,
       p_receive_type: receiveType,
       p_encrypted_transaction_details: encryptedTransactionDetails,
-      p_minting_fee: mintingFee?.toNumber(unit),
+      p_minting_fee: encryptedMintingFee,
     });
 
     if (options?.abortSignal) {
@@ -181,7 +192,10 @@ export class CashuReceiveQuoteRepository {
       throw new Error('Failed to create cashu receive quote', { cause: error });
     }
 
-    return CashuReceiveQuoteRepository.toQuote(data);
+    return CashuReceiveQuoteRepository.toQuote(
+      data,
+      this.encryption.decryptBatch,
+    );
   }
 
   /**
@@ -278,9 +292,12 @@ export class CashuReceiveQuoteRepository {
      */
     account: CashuAccount;
   }> {
+    const encryptedOutputAmounts = await this.encryption.encrypt(outputAmounts);
+
     const query = this.db.rpc('process_cashu_receive_quote_payment', {
       p_quote_id: quoteId,
       p_keyset_id: keysetId,
+      p_encrypted_output_amounts: encryptedOutputAmounts,
       p_output_amounts: outputAmounts,
     });
 
@@ -296,7 +313,10 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    const quote = CashuReceiveQuoteRepository.toQuote(data.quote);
+    const quote = await CashuReceiveQuoteRepository.toQuote(
+      data.quote,
+      this.encryption.decryptBatch,
+    );
     const account = await this.accountRepository.toAccount<CashuAccount>(
       data.account,
     );
@@ -372,12 +392,16 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    const account = await this.accountRepository.toAccount<CashuAccount>(
-      data.account,
-    );
+    const [quote, account] = await Promise.all([
+      CashuReceiveQuoteRepository.toQuote(
+        data.quote,
+        this.encryption.decryptBatch,
+      ),
+      this.accountRepository.toAccount<CashuAccount>(data.account),
+    ]);
 
     return {
-      quote: CashuReceiveQuoteRepository.toQuote(data.quote),
+      quote,
       account,
       addedProofs: data.added_proofs.map((x) => x.id),
     };
@@ -401,7 +425,9 @@ export class CashuReceiveQuoteRepository {
       throw new Error('Failed to get cashu receive quote', { cause: error });
     }
 
-    return data ? CashuReceiveQuoteRepository.toQuote(data) : null;
+    return data
+      ? CashuReceiveQuoteRepository.toQuote(data, this.encryption.decryptBatch)
+      : null;
   }
 
   async getByTransactionId(
@@ -425,7 +451,9 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    return data ? CashuReceiveQuoteRepository.toQuote(data) : null;
+    return data
+      ? CashuReceiveQuoteRepository.toQuote(data, this.encryption.decryptBatch)
+      : null;
   }
 
   /**
@@ -453,44 +481,60 @@ export class CashuReceiveQuoteRepository {
       throw new Error('Failed to get cashu receive quotes', { cause: error });
     }
 
-    return data.map((data) => CashuReceiveQuoteRepository.toQuote(data));
+    return Promise.all(
+      data.map((data) =>
+        CashuReceiveQuoteRepository.toQuote(data, this.encryption.decryptBatch),
+      ),
+    );
   }
 
-  static toQuote(data: AgicashDbCashuReceiveQuote): CashuReceiveQuote {
+  static async toQuote(
+    data: AgicashDbCashuReceiveQuote,
+    decryptBatch: Encryption['decryptBatch'],
+  ): Promise<CashuReceiveQuote> {
+    const [amount, mintingFee, paymentRequest, outputAmounts] =
+      await decryptBatch<
+        [number, number | undefined, string, number[] | undefined]
+      >([data.amount, data.minting_fee, data.payment_request]);
+
     const commonData = {
       id: data.id,
       userId: data.user_id,
       accountId: data.account_id,
       quoteId: data.quote_id,
       amount: new Money({
-        amount: data.amount,
+        amount,
         currency: data.currency,
         unit: data.unit,
       }),
       description: data.description ?? undefined,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      paymentRequest: data.payment_request,
+      paymentRequest,
       version: data.version,
       lockingDerivationPath: data.locking_derivation_path,
       transactionId: data.transaction_id,
       type: data.type as CashuReceiveQuote['type'],
-      mintingFee: data.minting_fee
-        ? new Money({
-            amount: data.minting_fee,
-            currency: data.currency,
-            unit: data.unit,
-          })
-        : undefined,
+      mintingFee:
+        mintingFee !== undefined
+          ? new Money({
+              amount: mintingFee,
+              currency: data.currency,
+              unit: data.unit,
+            })
+          : undefined,
     };
 
     if (data.state === 'PAID' || data.state === 'COMPLETED') {
+      const outputAmounts = data.output_amounts
+        ? await decryptBatch<number[]>(data.output_amounts)
+        : undefined;
       return {
         ...commonData,
         state: data.state,
         keysetId: data.keyset_id ?? '',
         keysetCounter: data.keyset_counter ?? 0,
-        outputAmounts: data.output_amounts ?? [],
+        outputAmounts: outputAmounts ?? [],
       };
     }
 

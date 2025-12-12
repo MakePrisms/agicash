@@ -91,15 +91,23 @@ export class SparkReceiveQuoteRepository {
       paymentRequest,
     };
 
-    const encryptedTransactionDetails = await this.encryption.encrypt(details);
+    const [
+      encryptedAmount,
+      encryptedTransactionDetails,
+      encryptedPaymentRequest,
+    ] = await this.encryption.encryptBatch([
+      amount.toNumber(unit),
+      details,
+      paymentRequest,
+    ]);
 
     const query = this.db.rpc('create_spark_receive_quote', {
       p_user_id: userId,
       p_account_id: accountId,
-      p_amount: amount.toNumber(unit),
+      p_amount: encryptedAmount,
       p_currency: amount.currency,
       p_unit: unit,
-      p_payment_request: paymentRequest,
+      p_payment_request: encryptedPaymentRequest,
       p_payment_hash: paymentHash,
       p_expires_at: expiresAt,
       p_spark_id: sparkId,
@@ -118,7 +126,10 @@ export class SparkReceiveQuoteRepository {
       throw new Error('Failed to create spark receive quote', { cause: error });
     }
 
-    return SparkReceiveQuoteRepository.toQuote(data);
+    return SparkReceiveQuoteRepository.toQuote(
+      data,
+      this.encryption.decryptBatch,
+    );
   }
 
   /**
@@ -178,7 +189,10 @@ export class SparkReceiveQuoteRepository {
       });
     }
 
-    return SparkReceiveQuoteRepository.toQuote(data);
+    return SparkReceiveQuoteRepository.toQuote(
+      data,
+      this.encryption.decryptBatch,
+    );
   }
 
   /**
@@ -199,7 +213,10 @@ export class SparkReceiveQuoteRepository {
       throw new Error('Failed to expire spark receive quote', { cause: error });
     }
 
-    return SparkReceiveQuoteRepository.toQuote(data);
+    return SparkReceiveQuoteRepository.toQuote(
+      data,
+      this.encryption.decryptBatch,
+    );
   }
 
   /**
@@ -220,7 +237,9 @@ export class SparkReceiveQuoteRepository {
       throw new Error('Failed to get spark receive quote', { cause: error });
     }
 
-    return data ? SparkReceiveQuoteRepository.toQuote(data) : null;
+    return data
+      ? SparkReceiveQuoteRepository.toQuote(data, this.encryption.decryptBatch)
+      : null;
   }
 
   /**
@@ -248,10 +267,21 @@ export class SparkReceiveQuoteRepository {
       throw new Error('Failed to get spark receive quotes', { cause: error });
     }
 
-    return data.map((data) => SparkReceiveQuoteRepository.toQuote(data));
+    return Promise.all(
+      data.map((data) =>
+        SparkReceiveQuoteRepository.toQuote(data, this.encryption.decryptBatch),
+      ),
+    );
   }
 
-  static toQuote(data: AgicashDbSparkReceiveQuote): SparkReceiveQuote {
+  static async toQuote(
+    data: AgicashDbSparkReceiveQuote,
+    decryptBatch: Encryption['decryptBatch'],
+  ): Promise<SparkReceiveQuote> {
+    const [decryptedAmount, paymentRequest] = await decryptBatch<
+      [number, string]
+    >([data.amount, data.payment_request]);
+
     const baseQuote = {
       id: data.id,
       type: data.type,
@@ -259,11 +289,11 @@ export class SparkReceiveQuoteRepository {
       createdAt: data.created_at,
       expiresAt: data.expires_at,
       amount: new Money({
-        amount: data.amount,
+        amount: decryptedAmount,
         currency: data.currency,
         unit: data.unit,
       }),
-      paymentRequest: data.payment_request,
+      paymentRequest,
       paymentHash: data.payment_hash,
       receiverIdentityPubkey: data.receiver_identity_pubkey ?? undefined,
       transactionId: data.transaction_id,

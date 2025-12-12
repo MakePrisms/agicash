@@ -131,6 +131,25 @@ export class CashuSendQuoteRepository {
       destinationDetails,
     };
 
+    const dataToEncrypt = [
+      amountRequested.toNumber(unit),
+      amountRequestedInMsat,
+      amountToReceive.toNumber(unit),
+      lightningFeeReserve.toNumber(unit),
+      cashuFee.toNumber(unit),
+      paymentRequest,
+      quoteId,
+    ] as const;
+    const [
+      encryptedAmountRequested,
+      encryptedAmountRequestedInMsat,
+      encryptedAmountToReceive,
+      encryptedLightningFeeReserve,
+      encryptedCashuFee,
+      encryptedPaymentRequest,
+      encryptedQuoteId,
+    ] = await this.encryption.encryptBatch(dataToEncrypt);
+
     const encryptedTransactionDetails = await this.encryption.encrypt(details);
 
     const query = this.db.rpc('create_cashu_send_quote', {
@@ -138,15 +157,16 @@ export class CashuSendQuoteRepository {
       p_account_id: accountId,
       p_currency: amountToReceive.currency,
       p_unit: unit,
-      p_payment_request: paymentRequest,
+      p_payment_request: encryptedPaymentRequest,
+      // TODO: store cleartext payment hash because we encrypting the invoice?
       p_expires_at: expiresAt,
-      p_amount_requested: amountRequested.toNumber(unit),
+      p_amount_requested: encryptedAmountRequested,
       p_currency_requested: amountRequested.currency,
-      p_amount_requested_in_msat: amountRequestedInMsat,
-      p_amount_to_receive: amountToReceive.toNumber(unit),
-      p_lightning_fee_reserve: lightningFeeReserve.toNumber(unit),
-      p_cashu_fee: cashuFee.toNumber(unit),
-      p_quote_id: quoteId,
+      p_amount_requested_in_msat: encryptedAmountRequestedInMsat,
+      p_amount_to_receive: encryptedAmountToReceive,
+      p_lightning_fee_reserve: encryptedLightningFeeReserve,
+      p_cashu_fee: encryptedCashuFee,
+      p_quote_id: encryptedQuoteId,
       p_keyset_id: keysetId,
       p_number_of_change_outputs: numberOfChangeOutputs,
       p_proofs_to_send: proofsToSend.map((p) => p.id),
@@ -256,12 +276,14 @@ export class CashuSendQuoteRepository {
       };
     });
 
+    const encryptedAmountSpent = await this.encryption.encrypt(
+      amountSpent.toNumber(getDefaultUnit(amountSpent.currency)),
+    );
+
     const query = this.db.rpc('complete_cashu_send_quote', {
       p_quote_id: quote.id,
       p_payment_preimage: paymentPreimage,
-      p_amount_spent: amountSpent.toNumber(
-        getDefaultUnit(amountSpent.currency),
-      ),
+      p_amount_spent: encryptedAmountSpent,
       p_encrypted_transaction_details: encryptedUpdatedTransactionDetails,
       p_change_proofs: encryptedProofs,
     });
@@ -453,6 +475,26 @@ export class CashuSendQuoteRepository {
   async toSendQuote(
     data: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
   ): Promise<CashuSendQuote> {
+    const [
+      amountRequested,
+      amountRequestedInMsat,
+      amountToReceive,
+      lightningFeeReserve,
+      cashuFee,
+      amountSpent,
+      paymentRequest,
+    ] = await this.encryption.decryptBatch<
+      [number, number, number, number, number, number | null, string]
+    >([
+      data.amount_requested,
+      data.amount_requested_in_msat,
+      data.amount_to_receive,
+      data.lightning_fee_reserve,
+      data.cashu_fee,
+      data.amount_spent,
+      data.payment_request,
+    ]);
+
     const proofs = await this.decryptCashuProofs(data.cashu_proofs);
 
     const commonData = {
@@ -461,25 +503,25 @@ export class CashuSendQuoteRepository {
       expiresAt: data.expires_at,
       userId: data.user_id,
       accountId: data.account_id,
-      paymentRequest: data.payment_request,
+      paymentRequest,
       amountRequested: new Money({
-        amount: data.amount_requested,
+        amount: amountRequested,
         currency: data.currency_requested,
         unit: data.unit,
       }),
-      amountRequestedInMsat: data.amount_requested_in_msat,
+      amountRequestedInMsat,
       amountToReceive: new Money({
-        amount: data.amount_to_receive,
+        amount: amountToReceive,
         currency: data.currency,
         unit: data.unit,
       }),
       lightningFeeReserve: new Money({
-        amount: data.lightning_fee_reserve,
+        amount: lightningFeeReserve,
         currency: data.currency,
         unit: data.unit,
       }),
       cashuFee: new Money({
-        amount: data.cashu_fee,
+        amount: cashuFee,
         currency: data.currency,
         unit: data.unit,
       }),
@@ -498,7 +540,7 @@ export class CashuSendQuoteRepository {
         state: 'PAID',
         paymentPreimage: data.payment_preimage ?? '',
         amountSpent: new Money({
-          amount: data.amount_spent ?? 0,
+          amount: amountSpent ?? 0,
           currency: data.currency,
           unit: data.unit,
         }),

@@ -102,8 +102,21 @@ export class CashuTokenSwapRepository {
       tokenAmount: inputAmount,
     };
 
-    const [encryptedTransactionDetails, encryptedProofs] =
-      await this.encryption.encryptBatch([details, token.proofs]);
+    const [
+      encryptedTransactionDetails,
+      encryptedProofs,
+      encryptedInputAmount,
+      encryptedReceiveAmount,
+      encryptedFeeAmount,
+      encryptedOutputAmounts,
+    ] = await this.encryption.encryptBatch([
+      details,
+      token.proofs,
+      inputAmount.toNumber(unit),
+      receiveAmount.toNumber(unit),
+      cashuReceiveFee.toNumber(unit),
+      outputAmounts,
+    ]);
 
     const query = this.db.rpc('create_cashu_token_swap', {
       p_token_hash: tokenHash,
@@ -114,9 +127,10 @@ export class CashuTokenSwapRepository {
       p_unit: unit,
       p_keyset_id: keysetId,
       p_output_amounts: outputAmounts,
-      p_input_amount: inputAmount.toNumber(unit),
-      p_receive_amount: receiveAmount.toNumber(unit),
-      p_fee_amount: cashuReceiveFee.toNumber(unit),
+      p_encrypted_output_amounts: encryptedOutputAmounts,
+      p_input_amount: encryptedInputAmount,
+      p_receive_amount: encryptedReceiveAmount,
+      p_fee_amount: encryptedFeeAmount,
       p_reversed_transaction_id: reversedTransactionId,
       p_encrypted_transaction_details: encryptedTransactionDetails,
     });
@@ -135,7 +149,10 @@ export class CashuTokenSwapRepository {
     }
 
     const [swap, account] = await Promise.all([
-      CashuTokenSwapRepository.toTokenSwap(data.swap, this.encryption.decrypt),
+      CashuTokenSwapRepository.toTokenSwap(
+        data.swap,
+        this.encryption.decryptBatch,
+      ),
       this.accountRepository.toAccount<CashuAccount>(data.account),
     ]);
 
@@ -210,7 +227,10 @@ export class CashuTokenSwapRepository {
     }
 
     const [swap, account] = await Promise.all([
-      CashuTokenSwapRepository.toTokenSwap(data.swap, this.encryption.decrypt),
+      CashuTokenSwapRepository.toTokenSwap(
+        data.swap,
+        this.encryption.decryptBatch,
+      ),
       this.accountRepository.toAccount<CashuAccount>(data.account),
     ]);
 
@@ -261,7 +281,10 @@ export class CashuTokenSwapRepository {
       throw new Error('Failed to fail token swap', { cause: error });
     }
 
-    return CashuTokenSwapRepository.toTokenSwap(data, this.encryption.decrypt);
+    return CashuTokenSwapRepository.toTokenSwap(
+      data,
+      this.encryption.decryptBatch,
+    );
   }
 
   async getByTransactionId(
@@ -286,7 +309,7 @@ export class CashuTokenSwapRepository {
     }
 
     return data
-      ? CashuTokenSwapRepository.toTokenSwap(data, this.encryption.decrypt)
+      ? CashuTokenSwapRepository.toTokenSwap(data, this.encryption.decryptBatch)
       : null;
   }
 
@@ -315,16 +338,31 @@ export class CashuTokenSwapRepository {
 
     return Promise.all(
       data.map((item) =>
-        CashuTokenSwapRepository.toTokenSwap(item, this.encryption.decrypt),
+        CashuTokenSwapRepository.toTokenSwap(
+          item,
+          this.encryption.decryptBatch,
+        ),
       ),
     );
   }
 
   static async toTokenSwap(
     data: AgicashDbCashuTokenSwap,
-    decryptData: Encryption['decrypt'],
+    decryptBatch: Encryption['decryptBatch'],
   ): Promise<CashuTokenSwap> {
-    const decryptedProofs = await decryptData<Proof[]>(data.token_proofs);
+    const [
+      decryptedProofs,
+      inputAmount,
+      receiveAmount,
+      feeAmount,
+      outputAmounts,
+    ] = await decryptBatch<[Proof[], number, number, number, number[]]>([
+      data.token_proofs,
+      data.input_amount,
+      data.receive_amount,
+      data.fee_amount,
+      data.output_amounts,
+    ]);
 
     const commonData = {
       tokenHash: data.token_hash,
@@ -332,23 +370,23 @@ export class CashuTokenSwapRepository {
       userId: data.user_id,
       accountId: data.account_id,
       inputAmount: new Money({
-        amount: data.input_amount,
+        amount: inputAmount,
         currency: data.currency,
         unit: data.unit,
       }),
       receiveAmount: new Money({
-        amount: data.receive_amount,
+        amount: receiveAmount,
         currency: data.currency,
         unit: data.unit,
       }),
       feeAmount: new Money({
-        amount: data.fee_amount,
+        amount: feeAmount,
         currency: data.currency,
         unit: data.unit,
       }),
       keysetId: data.keyset_id,
       keysetCounter: data.keyset_counter,
-      outputAmounts: data.output_amounts,
+      outputAmounts: outputAmounts,
       createdAt: data.created_at,
       version: data.version,
       transactionId: data.transaction_id,
