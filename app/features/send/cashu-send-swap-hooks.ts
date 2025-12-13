@@ -9,6 +9,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
+import type { CashuAccount } from '../accounts/account';
 import {
   useAccount,
   useGetCashuAccount,
@@ -106,21 +107,19 @@ function useCashuSendSwapCache() {
   return useMemo(() => new CashuSendSwapCache(queryClient), [queryClient]);
 }
 
-export function useGetCashuSendSwapQuote() {
+export function useCreateCashuSendSwapQuote() {
   const cashuSendSwapService = useCashuSendSwapService();
-  const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
     mutationFn: ({
       amount,
-      accountId,
+      account,
       senderPaysFee = true,
     }: {
       amount: Money;
-      accountId: string;
+      account: CashuAccount;
       senderPaysFee?: boolean;
     }) => {
-      const account = getCashuAccount(accountId);
       return cashuSendSwapService.getQuote({
         amount,
         account,

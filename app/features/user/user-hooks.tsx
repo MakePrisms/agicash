@@ -88,20 +88,6 @@ export const defaultAccounts = [
         {
           type: 'cashu',
           currency: 'BTC',
-          name: 'Testnut BTC (nofees)',
-          mintUrl: 'https://nofees.testnut.cashu.space',
-          isTestMint: true,
-        },
-        {
-          type: 'cashu',
-          currency: 'USD',
-          name: 'Testnut USD (nofees)',
-          mintUrl: 'https://nofees.testnut.cashu.space',
-          isTestMint: true,
-        },
-        {
-          type: 'cashu',
-          currency: 'BTC',
           name: 'Testnut BTC',
           mintUrl: 'https://testnut.cashu.space',
           isTestMint: true,

@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import type { Account, CashuAccount } from '~/features/accounts/account';
+import type {
+  Account,
+  CashuAccount,
+  SparkAccount,
+} from '~/features/accounts/account';
 import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
 import {
@@ -11,6 +15,18 @@ import { type Contact, isContact } from '../contacts/contact';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
+import type { SparkLightningQuote } from './spark-send-quote-service';
+
+/**
+ * Returns the default send type based on account type.
+ * - Cashu accounts default to CASHU_TOKEN (no destination required)
+ * - Spark accounts default to BOLT11_INVOICE (destination required)
+ */
+const getDefaultSendType = (
+  accountType: Account['type'],
+): 'CASHU_TOKEN' | 'BOLT11_INVOICE' => {
+  return accountType === 'cashu' ? 'CASHU_TOKEN' : 'BOLT11_INVOICE';
+};
 
 const validateLightningAddressFormat = buildLightningAddressFormatValidator({
   message: 'Invalid lightning address',
@@ -29,11 +45,10 @@ type ValidateResult =
       unit: 'sat' | 'cent';
     };
 
-const validateBolt11 = ({
-  network,
-  amountSat,
-  expiryUnixMs,
-}: DecodedBolt11): ValidateResult => {
+const validateBolt11 = (
+  { network, amountSat, expiryUnixMs }: DecodedBolt11,
+  { allowZeroAmount = false } = {},
+): ValidateResult => {
   if (network !== 'bitcoin') {
     return {
       valid: false,
@@ -52,7 +67,7 @@ const validateBolt11 = ({
     }
   }
 
-  if (!amountSat) {
+  if (!amountSat && !allowZeroAmount) {
     return {
       valid: false,
       error: 'Amount is required for Lightning invoices',
@@ -61,11 +76,13 @@ const validateBolt11 = ({
 
   return {
     valid: true,
-    amount: new Money({
-      amount: amountSat,
-      currency: 'BTC' as Currency,
-      unit: 'sat',
-    }),
+    amount: amountSat
+      ? new Money({
+          amount: amountSat,
+          currency: 'BTC' as Currency,
+          unit: 'sat',
+        })
+      : null,
     unit: 'sat',
     currency: 'BTC',
   };
@@ -130,7 +147,7 @@ type State = {
       /**
        * Quote to make a lightning payment.
        */
-      quote: CashuLightningQuote | null;
+      quote: CashuLightningQuote | SparkLightningQuote | null;
       destinationDetails?: null;
     }
   | {
@@ -138,7 +155,7 @@ type State = {
       /**
        * Quote to make a lightning payment.
        */
-      quote: CashuLightningQuote | null;
+      quote: CashuLightningQuote | SparkLightningQuote | null;
       /**
        * Stores the additional details about the destination.
        */
@@ -149,13 +166,18 @@ type State = {
       /**
        * Quote to make a lightning payment.
        */
-      quote: CashuLightningQuote | null;
+      quote: CashuLightningQuote | SparkLightningQuote | null;
       /**
        * Stores the additional details about the destination.
        */
       destinationDetails: Contact;
     }
 );
+
+type ContinueResult =
+  | { success: true; next: 'confirmQuote' }
+  | { success: true; next: 'selectDestination' }
+  | { success: false; error: unknown };
 
 type Actions = {
   selectSourceAccount: (account: Account) => void;
@@ -167,10 +189,11 @@ type Actions = {
     | { success: false; error: string }
   >;
   clearDestination: () => void;
-  getQuote: (
+  hasRequiredDestination: () => boolean;
+  proceedWithSend: (
     amount: Money<Currency>,
     convertedAmount: Money<Currency> | undefined,
-  ) => Promise<{ success: true } | { success: false; error: unknown }>;
+  ) => Promise<ContinueResult>;
 };
 
 export type SendState = State & Actions;
@@ -182,24 +205,42 @@ type CreateSendStoreProps = {
     lud16: string;
     amount: Money<'BTC'>;
   }) => Promise<string>;
-  createCashuSendQuote: (params: {
+  getCashuLightningQuote: (params: {
     account: CashuAccount;
     paymentRequest: string;
     amount: Money<Currency>;
   }) => Promise<CashuLightningQuote>;
-  getCashuSendSwapQuote: (params: {
-    accountId: string;
+  getCashuSwapQuote: (params: {
+    account: CashuAccount;
     amount: Money<Currency>;
     senderPaysFee?: boolean;
   }) => Promise<CashuSwapQuote>;
+  getSparkLightningQuote: (params: {
+    account: SparkAccount;
+    paymentRequest: string;
+    amount?: Money<Currency>;
+  }) => Promise<SparkLightningQuote>;
+};
+
+const supportedSendTypes = {
+  cashu: ['CASHU_TOKEN', 'BOLT11_INVOICE', 'LN_ADDRESS', 'AGICASH_CONTACT'],
+  spark: ['BOLT11_INVOICE', 'LN_ADDRESS', 'AGICASH_CONTACT'],
+};
+
+const isSendTypeSupportedForAccount = (
+  account: Account,
+  sendType: SendType,
+) => {
+  return supportedSendTypes[account.type].includes(sendType);
 };
 
 export const createSendStore = ({
   initialAccount,
   getAccount,
   getInvoiceFromLud16,
-  createCashuSendQuote,
-  getCashuSendSwapQuote,
+  getCashuLightningQuote,
+  getCashuSwapQuote,
+  getSparkLightningQuote,
 }: CreateSendStoreProps) => {
   return create<SendState>()((set, get) => {
     const getOrThrow = <T extends keyof SendState>(
@@ -217,26 +258,52 @@ export const createSendStore = ({
       status: 'idle',
       amount: null,
       accountId: initialAccount.id,
-      sendType: 'CASHU_TOKEN',
+      sendType: getDefaultSendType(initialAccount.type),
       destination: null,
       destinationDisplay: null,
       quote: null,
       cashuToken: null,
 
-      selectSourceAccount: (account) => set({ accountId: account.id }),
+      selectSourceAccount: (account) => {
+        const {
+          destination,
+          destinationDisplay,
+          destinationDetails,
+          sendType,
+        } = get();
+        const hasDestination =
+          !!destination || !!destinationDisplay || !!destinationDetails;
+        const isSendTypeSupported = isSendTypeSupportedForAccount(
+          account,
+          sendType,
+        );
+        const shouldResetSendType = !hasDestination || !isSendTypeSupported;
+        set({
+          accountId: account.id,
+          sendType: shouldResetSendType
+            ? getDefaultSendType(account.type)
+            : sendType,
+          quote: null,
+          destination: !shouldResetSendType ? destination : null,
+          destinationDisplay: !shouldResetSendType ? destinationDisplay : null,
+          destinationDetails: !shouldResetSendType ? destinationDetails : null,
+        } as Partial<SendState>);
+      },
 
       getSourceAccount: () => {
         const accountId = get().accountId;
         return getAccount(accountId);
       },
 
-      clearDestination: () =>
+      clearDestination: () => {
+        const account = get().getSourceAccount();
         set({
           destination: null,
           destinationDisplay: null,
           destinationDetails: null,
-          sendType: 'CASHU_TOKEN',
-        }),
+          sendType: getDefaultSendType(account.type),
+        } as Partial<SendState>);
+      },
 
       selectDestination: async (destination) => {
         if (isContact(destination)) {
@@ -277,7 +344,9 @@ export const createSendStore = ({
         const bolt11ParseResult = parseBolt11Invoice(destination);
         if (bolt11ParseResult.valid) {
           const invoice = bolt11ParseResult.decoded;
-          const result = validateBolt11(invoice);
+          const account = get().getSourceAccount();
+          const allowZeroAmount = account.type === 'spark';
+          const result = validateBolt11(invoice, { allowZeroAmount });
           if (!result.valid) {
             return { success: false, error: result.error };
           }
@@ -310,11 +379,35 @@ export const createSendStore = ({
         };
       },
 
-      getQuote: async (amount, convertedAmount) => {
+      hasRequiredDestination: () => {
+        const { sendType, destination, destinationDetails } = get();
+        switch (sendType) {
+          case 'CASHU_TOKEN':
+            return true;
+          case 'BOLT11_INVOICE':
+            return !!destination;
+          case 'LN_ADDRESS':
+            return !!destinationDetails;
+          case 'AGICASH_CONTACT':
+            return !!destinationDetails;
+        }
+      },
+
+      proceedWithSend: async (amount, convertedAmount) => {
         const amounts = [amount, convertedAmount].filter((x) => !!x);
-        const { sendType, destinationDetails, getSourceAccount } = get();
+        const {
+          sendType,
+          destinationDetails,
+          getSourceAccount,
+          hasRequiredDestination,
+        } = get();
         const account = getSourceAccount();
         const amountToSend = pickAmountByCurrency(amounts, account.currency);
+
+        if (!hasRequiredDestination()) {
+          set({ amount: amountToSend });
+          return { success: true, next: 'selectDestination' };
+        }
 
         set({ status: 'quoting', amount: amountToSend });
 
@@ -324,8 +417,8 @@ export const createSendStore = ({
           }
 
           try {
-            const quote = await getCashuSendSwapQuote({
-              accountId: account.id,
+            const quote = await getCashuSwapQuote({
+              account: account,
               amount: amountToSend,
             });
 
@@ -361,18 +454,24 @@ export const createSendStore = ({
         if (
           ['BOLT11_INVOICE', 'LN_ADDRESS', 'AGICASH_CONTACT'].includes(sendType)
         ) {
-          if (account.type !== 'cashu') {
-            throw new Error('Not implemented. Account is not a cashu account');
-          }
           const destination = getOrThrow('destination');
 
           try {
-            const quote = await createCashuSendQuote({
-              account,
-              paymentRequest: destination,
-              amount: amountToSend,
-            });
-            set({ quote });
+            if (account.type === 'cashu') {
+              const quote = await getCashuLightningQuote({
+                account,
+                paymentRequest: destination,
+                amount: amountToSend,
+              });
+              set({ quote });
+            } else if (account.type === 'spark') {
+              const quote = await getSparkLightningQuote({
+                account,
+                paymentRequest: destination,
+                amount: amountToSend,
+              });
+              set({ quote });
+            }
           } catch (error) {
             if (!(error instanceof DomainError)) {
               console.error(error);
@@ -383,7 +482,7 @@ export const createSendStore = ({
         }
 
         set({ status: 'idle' });
-        return { success: true };
+        return { success: true, next: 'confirmQuote' };
       },
     };
   });

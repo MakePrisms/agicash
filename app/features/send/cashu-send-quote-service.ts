@@ -81,6 +81,10 @@ export type CashuLightningQuote = {
    * Estimated total amount of the send (amount to receive + lightning fee reserve + estimated cashu fee).
    */
   estimatedTotalAmount: Money;
+  /**
+   * The expiry date of the lightning invoice.
+   */
+  expiresAt: Date | null;
 };
 
 export type SendQuoteRequest = {
@@ -104,8 +108,11 @@ export class CashuSendQuoteService {
       throw new DomainError('Invalid lightning invoice');
     }
     const invoice = bolt11ValidationResult.decoded;
+    const expiresAt = invoice.expiryUnixMs
+      ? new Date(invoice.expiryUnixMs)
+      : null;
 
-    if (invoice.expiryUnixMs && new Date(invoice.expiryUnixMs) < new Date()) {
+    if (expiresAt && expiresAt < new Date()) {
       throw new DomainError('Lightning invoice has expired');
     }
 
@@ -135,7 +142,7 @@ export class CashuSendQuoteService {
     // TODO: remove this once cashu-ts supports amountless lightning invoices
     if (!invoice.amountMsat) {
       throw new Error(
-        "Cashu ts lib doesn't support amountless lightning invoices yet",
+        'Cashu accounts do not support amountless lightning invoices',
       );
     }
 
@@ -190,6 +197,7 @@ export class CashuSendQuoteService {
       estimatedCashuFee,
       estimatedTotalFee,
       estimatedTotalAmount,
+      expiresAt,
     };
   }
 

@@ -198,6 +198,47 @@ export type CompletedSparkLightningReceiveTransactionDetails =
     sparkTransferId: string;
   };
 
+/**
+ * Transaction details for Spark lightning send transaction.
+ */
+export type SparkLightningSendTransactionDetails = {
+  /**
+   * The amount being sent.
+   */
+  amountSpent: Money;
+  /**
+   * The estimatedfee for the lightning payment.
+   */
+  estimatedFee: Money;
+  /**
+   * The bolt11 payment request being paid.
+   */
+  paymentRequest: string;
+  /**
+   * The ID of the send request in spark system.
+   */
+  sparkId?: string;
+  /**
+   * The ID of the transfer in Spark system.
+   */
+  sparkTransferId?: string;
+  /**
+   * The actual fee paid for the lightning payment.
+   */
+  fee?: Money;
+};
+
+/**
+ * Transaction details of the completed Spark lightning send transaction.
+ */
+export type CompletedSparkLightningSendTransactionDetails =
+  Required<SparkLightningSendTransactionDetails> & {
+    /**
+     * The payment preimage of the lightning payment.
+     */
+    paymentPreimage: string;
+  };
+
 export type Transaction = {
   /**
    * ID of the transaction.
@@ -285,7 +326,7 @@ export type Transaction = {
   | {
       type: 'CASHU_LIGHTNING';
       direction: 'SEND';
-      state: 'DRAFT' | 'PENDING' | 'FAILED';
+      state: 'PENDING' | 'FAILED';
       details: IncompleteCashuLightningSendTransactionDetails;
     }
   | {
@@ -310,5 +351,17 @@ export type Transaction = {
       direction: 'RECEIVE';
       state: 'COMPLETED';
       details: CompletedSparkLightningReceiveTransactionDetails;
+    }
+  | {
+      type: 'SPARK_LIGHTNING';
+      direction: 'SEND';
+      state: 'PENDING' | 'FAILED';
+      details: SparkLightningSendTransactionDetails;
+    }
+  | {
+      type: 'SPARK_LIGHTNING';
+      direction: 'SEND';
+      state: 'COMPLETED';
+      details: CompletedSparkLightningSendTransactionDetails;
     }
 );

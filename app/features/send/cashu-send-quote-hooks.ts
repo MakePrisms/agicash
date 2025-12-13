@@ -131,13 +131,12 @@ function useCashuSendQuoteCache() {
   return useMemo(() => new CashuSendQuoteCache(queryClient), [queryClient]);
 }
 
-export function useCreateCashuSendQuote() {
+export function useCreateCashuLightningSendQuote() {
   const cashuSendQuoteService = useCashuSendQuoteService();
 
   return useMutation({
-    mutationKey: ['create-cashu-send-quote'],
     scope: {
-      id: 'create-cashu-send-quote',
+      id: 'create-cashu-lightning-send-quote',
     },
     mutationFn: ({
       account,
@@ -161,8 +160,12 @@ export function useCreateCashuSendQuote() {
 }
 
 export function useInitiateCashuSendQuote({
+  onSuccess,
   onError,
-}: { onError: (error: Error) => void }) {
+}: {
+  onSuccess: (data: CashuSendQuote) => void;
+  onError: (error: Error) => void;
+}) {
   const userId = useUser((user) => user.id);
   const cashuSendQuoteService = useCashuSendQuoteService();
   const cashuSendQuoteCache = useCashuSendQuoteCache();
@@ -192,6 +195,7 @@ export function useInitiateCashuSendQuote({
     },
     onSuccess: (data) => {
       cashuSendQuoteCache.add(data);
+      onSuccess(data);
     },
     onError: onError,
     retry: (failureCount, error) => {
