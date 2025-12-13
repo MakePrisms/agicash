@@ -14,6 +14,7 @@ import {
   getCashuWallet,
 } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
+import { createSparkWalletStub } from '~/lib/spark';
 import {
   type AgicashDb,
   type AgicashDbAccount,
@@ -308,7 +309,13 @@ export class AccountRepository {
       return { wallet, balance, isOnline: true };
     } catch (error) {
       console.error('Failed to initialize spark wallet', { cause: error });
-      return { wallet: null, balance: null, isOnline: false };
+      return {
+        wallet: createSparkWalletStub(
+          'Spark is offline, please try again later.',
+        ),
+        balance: null,
+        isOnline: false,
+      };
     }
   }
 

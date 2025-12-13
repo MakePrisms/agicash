@@ -71,9 +71,9 @@ export type Account = {
       network: SparkNetwork;
       /**
        * The Spark wallet instance for the account.
-       * This will be null if wallet could not be initialized.
+       * If the wallet is not online, this will be a stub that throws on any method call.
        */
-      wallet: SparkWallet | null;
+      wallet: SparkWallet;
     }
 );
 
