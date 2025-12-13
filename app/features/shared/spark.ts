@@ -88,7 +88,7 @@ export function useTrackAndUpdateSparkAccountBalances() {
           );
         }
 
-        if (!account.wallet) {
+        if (!account.isOnline) {
           return null;
         }
 
