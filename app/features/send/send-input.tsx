@@ -96,7 +96,7 @@ export function SendInput() {
   const destinationDisplay = useSendStore((s) => s.destinationDisplay);
   const selectDestination = useSendStore((s) => s.selectDestination);
   const clearDestination = useSendStore((s) => s.clearDestination);
-  const continueSend = useSendStore((s) => s.continue);
+  const continueSend = useSendStore((s) => s.proceedWithSend);
   const status = useSendStore((s) => s.status);
 
   const sendAmountCurrencyUnit = sendAmount

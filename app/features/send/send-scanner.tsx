@@ -38,7 +38,7 @@ export default function SendScanner() {
 
   const sendAccount = useSendStore((state) => state.getSourceAccount());
   const selectDestination = useSendStore((state) => state.selectDestination);
-  const continueSend = useSendStore((state) => state.continue);
+  const continueSend = useSendStore((state) => state.proceedWithSend);
 
   const convert = useConverter(sendAccount);
 

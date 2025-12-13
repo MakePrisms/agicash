@@ -131,13 +131,12 @@ function useCashuSendQuoteCache() {
   return useMemo(() => new CashuSendQuoteCache(queryClient), [queryClient]);
 }
 
-export function useCreateCashuSendQuote() {
+export function useCreateCashuLightningSendQuote() {
   const cashuSendQuoteService = useCashuSendQuoteService();
 
   return useMutation({
-    mutationKey: ['create-cashu-send-quote'],
     scope: {
-      id: 'create-cashu-send-quote',
+      id: 'create-cashu-lightning-send-quote',
     },
     mutationFn: ({
       account,

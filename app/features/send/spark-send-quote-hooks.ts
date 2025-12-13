@@ -7,7 +7,6 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import type { Money } from '~/lib/money';
-import { moneyFromSparkAmount } from '~/lib/spark';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
@@ -135,11 +134,7 @@ type OnSparkSendStateChangeCallbacks = {
   onUnpaid: (quote: SparkSendQuote) => void;
   onCompleted: (
     quote: SparkSendQuote,
-    paymentData: {
-      paymentPreimage: string;
-      sparkTransferId: string;
-      fee: Money;
-    },
+    paymentData: { paymentPreimage: string },
   ) => void;
   onFailed: (quote: SparkSendQuote) => void;
 };
@@ -205,9 +200,7 @@ export function useOnSparkSendStateChange({
           );
         }
         onCompletedRef.current(quote, {
-          sparkTransferId: sendRequest.transfer.sparkId,
           paymentPreimage: sendRequest.paymentPreimage,
-          fee: moneyFromSparkAmount(sendRequest.fee),
         });
         return;
       }
@@ -336,25 +329,16 @@ export function useProcessSparkSendQuoteTasks() {
     mutationFn: async ({
       quote,
       paymentPreimage,
-      sparkTransferId,
-      fee,
     }: {
       quote: SparkSendQuote;
       paymentPreimage: string;
-      sparkTransferId: string;
-      fee: Money;
     }) => {
       const cachedQuote = unresolvedQuotesCache.get(quote.id);
       if (!cachedQuote) {
         // Quote was updated in the meantime so it's not unresolved anymore.
         return;
       }
-      return sparkSendQuoteService.complete(
-        quote,
-        paymentPreimage,
-        sparkTransferId,
-        fee,
-      );
+      return sparkSendQuoteService.complete(quote, paymentPreimage);
     },
     retry: 3,
     throwOnError: true,
@@ -387,8 +371,6 @@ export function useProcessSparkSendQuoteTasks() {
         {
           quote,
           paymentPreimage: paymentData.paymentPreimage,
-          sparkTransferId: paymentData.sparkTransferId,
-          fee: paymentData.fee,
         },
         { scope: { id: `spark-send-quote-${quote.id}` } },
       );
@@ -402,11 +384,11 @@ export function useProcessSparkSendQuoteTasks() {
   });
 }
 
-type GetSparkSendQuoteParams = {
+type CreateSparkLightningSendQuoteParams = {
   /**
-   * The ID of the Spark account to get a quote for.
+   * The Spark account to send from.
    */
-  accountId: string;
+  account: SparkAccount;
   /**
    * The Lightning invoice to pay.
    */
@@ -418,23 +400,20 @@ type GetSparkSendQuoteParams = {
 };
 
 /**
- * Returns a mutation for estimating the fee for a Lightning send.
+ * Returns a mutation for creating a Spark Lightning send quote.
  */
-export function useGetSparkSendQuote() {
+export function useCreateSparkLightningSendQuote() {
   const sparkSendQuoteService = useSparkSendQuoteService();
-  const getSparkAccount = useGetSparkAccount();
 
   return useMutation({
     mutationFn: async ({
-      accountId,
+      account,
       paymentRequest,
       amount,
-    }: GetSparkSendQuoteParams) => {
-      const account = getSparkAccount(accountId);
+    }: CreateSparkLightningSendQuoteParams) => {
       return sparkSendQuoteService.getLightningSendQuote({
         account,
         paymentRequest,
-        // TODO: should we make param of type Money<'BTC'>?
         amount: amount as Money<'BTC'>,
       });
     },

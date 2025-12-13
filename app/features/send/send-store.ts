@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import type { Account, CashuAccount } from '~/features/accounts/account';
+import type {
+  Account,
+  CashuAccount,
+  SparkAccount,
+} from '~/features/accounts/account';
 import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
 import {
@@ -186,7 +190,7 @@ type Actions = {
   >;
   clearDestination: () => void;
   hasRequiredDestination: () => boolean;
-  continue: (
+  proceedWithSend: (
     amount: Money<Currency>,
     convertedAmount: Money<Currency> | undefined,
   ) => Promise<ContinueResult>;
@@ -201,30 +205,42 @@ type CreateSendStoreProps = {
     lud16: string;
     amount: Money<'BTC'>;
   }) => Promise<string>;
-  createCashuSendQuote: (params: {
+  getCashuLightningQuote: (params: {
     account: CashuAccount;
     paymentRequest: string;
     amount: Money<Currency>;
   }) => Promise<CashuLightningQuote>;
-  getCashuSendSwapQuote: (params: {
-    accountId: string;
+  getCashuSwapQuote: (params: {
+    account: CashuAccount;
     amount: Money<Currency>;
     senderPaysFee?: boolean;
   }) => Promise<CashuSwapQuote>;
-  getSparkSendQuote: (params: {
-    accountId: string;
+  getSparkLightningQuote: (params: {
+    account: SparkAccount;
     paymentRequest: string;
     amount?: Money<Currency>;
   }) => Promise<SparkLightningQuote>;
+};
+
+const supportedSendTypes = {
+  cashu: ['CASHU_TOKEN', 'BOLT11_INVOICE', 'LN_ADDRESS', 'AGICASH_CONTACT'],
+  spark: ['BOLT11_INVOICE', 'LN_ADDRESS', 'AGICASH_CONTACT'],
+};
+
+const isSendTypeSupportedForAccount = (
+  account: Account,
+  sendType: SendType,
+) => {
+  return supportedSendTypes[account.type].includes(sendType);
 };
 
 export const createSendStore = ({
   initialAccount,
   getAccount,
   getInvoiceFromLud16,
-  createCashuSendQuote,
-  getCashuSendSwapQuote,
-  getSparkSendQuote,
+  getCashuLightningQuote,
+  getCashuSwapQuote,
+  getSparkLightningQuote,
 }: CreateSendStoreProps) => {
   return create<SendState>()((set, get) => {
     const getOrThrow = <T extends keyof SendState>(
@@ -249,14 +265,28 @@ export const createSendStore = ({
       cashuToken: null,
 
       selectSourceAccount: (account) => {
-        const { destination, destinationDetails, sendType } = get();
-        const hasDestination = !!destination || !!destinationDetails;
+        const {
+          destination,
+          destinationDisplay,
+          destinationDetails,
+          sendType,
+        } = get();
+        const hasDestination =
+          !!destination || !!destinationDisplay || !!destinationDetails;
+        const isSendTypeSupported = isSendTypeSupportedForAccount(
+          account,
+          sendType,
+        );
+        const shouldResetSendType = !hasDestination || !isSendTypeSupported;
         set({
           accountId: account.id,
-          sendType: hasDestination
-            ? sendType
-            : getDefaultSendType(account.type),
+          sendType: shouldResetSendType
+            ? getDefaultSendType(account.type)
+            : sendType,
           quote: null,
+          destination: !shouldResetSendType ? destination : null,
+          destinationDisplay: !shouldResetSendType ? destinationDisplay : null,
+          destinationDetails: !shouldResetSendType ? destinationDetails : null,
         } as Partial<SendState>);
       },
 
@@ -363,7 +393,7 @@ export const createSendStore = ({
         }
       },
 
-      continue: async (amount, convertedAmount) => {
+      proceedWithSend: async (amount, convertedAmount) => {
         const amounts = [amount, convertedAmount].filter((x) => !!x);
         const {
           sendType,
@@ -387,8 +417,8 @@ export const createSendStore = ({
           }
 
           try {
-            const quote = await getCashuSendSwapQuote({
-              accountId: account.id,
+            const quote = await getCashuSwapQuote({
+              account: account,
               amount: amountToSend,
             });
 
@@ -426,38 +456,28 @@ export const createSendStore = ({
         ) {
           const destination = getOrThrow('destination');
 
-          if (account.type === 'cashu') {
-            try {
-              const quote = await createCashuSendQuote({
+          try {
+            if (account.type === 'cashu') {
+              const quote = await getCashuLightningQuote({
                 account,
                 paymentRequest: destination,
                 amount: amountToSend,
               });
               set({ quote });
-            } catch (error) {
-              if (!(error instanceof DomainError)) {
-                console.error(error);
-              }
-              set({ status: 'idle' });
-              return { success: false, error };
-            }
-          } else if (account.type === 'spark') {
-            try {
-              const quote = await getSparkSendQuote({
-                accountId: account.id,
+            } else if (account.type === 'spark') {
+              const quote = await getSparkLightningQuote({
+                account,
                 paymentRequest: destination,
                 amount: amountToSend,
               });
               set({ quote });
-            } catch (error) {
-              console.error(error);
-              set({ status: 'idle' });
-              return { success: false, error };
             }
-          } else {
-            throw new Error(
-              'Not implemented. Account type not supported for lightning sends',
-            );
+          } catch (error) {
+            if (!(error instanceof DomainError)) {
+              console.error(error);
+            }
+            set({ status: 'idle' });
+            return { success: false, error };
           }
         }
 

@@ -108,7 +108,7 @@ const usePayBolt11 = ({
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
 
-  const { mutate: initiateCashuSend, status: createCashuSendQuoteStatus } =
+  const { mutate: initiateCashuSend, status: initiateCashuSendQuoteStatus } =
     useInitiateCashuSendQuote({
       onSuccess: (data) => {
         navigate(`/transactions/${data.transactionId}?redirectTo=/`, {
@@ -130,7 +130,7 @@ const usePayBolt11 = ({
       },
     });
 
-  const { mutate: initiateSparkSend, status: createSparkSendQuoteStatus } =
+  const { mutate: initiateSparkSend, status: initiateSparkSendQuoteStatus } =
     useInitiateSparkSendQuote({
       onSuccess: (sendQuote) => {
         navigate(`/transactions/${sendQuote.transactionId}?redirectTo=/`, {
@@ -139,7 +139,7 @@ const usePayBolt11 = ({
         });
       },
       onError: (error) => {
-        console.error('Error initiating spark send', { cause: error });
+        console.error('Failed to initiate spark send', { cause: error });
         toast({
           title: 'Error',
           description: 'Failed to initiate payment. Please try again.',
@@ -164,8 +164,8 @@ const usePayBolt11 = ({
 
   const isPending =
     account.type === 'cashu'
-      ? ['pending', 'success'].includes(createCashuSendQuoteStatus)
-      : ['pending', 'success'].includes(createSparkSendQuoteStatus);
+      ? ['pending', 'success'].includes(initiateCashuSendQuoteStatus)
+      : ['pending', 'success'].includes(initiateSparkSendQuoteStatus);
 
   return { handleConfirm, isPending };
 };

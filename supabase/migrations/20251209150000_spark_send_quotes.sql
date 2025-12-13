@@ -30,7 +30,8 @@ create table wallet.spark_send_quotes (
   payment_hash text not null,
   payment_preimage text,
   amount numeric not null,
-  fee numeric not null,
+  estimated_fee numeric not null,
+  fee numeric,
   currency text not null,
   unit text not null,
   spark_id text,
@@ -49,9 +50,11 @@ create table wallet.spark_send_quotes (
   constraint spark_send_quotes_completed_state_check check (
     state != 'COMPLETED' or (payment_preimage is not null and spark_transfer_id is not null)
   ),
-  -- spark_id must be set when state is PENDING or COMPLETED
   constraint spark_send_quotes_spark_id_required check (
     state = 'UNPAID' or state = 'FAILED' or spark_id is not null
+  ),
+  constraint spark_send_quotes_fee_required check (
+    state = 'UNPAID' or state = 'FAILED' or fee is not null
   )
 );
 
@@ -144,7 +147,7 @@ create or replace function wallet.create_spark_send_quote(
   p_user_id uuid,
   p_account_id uuid,
   p_amount numeric,
-  p_fee numeric,
+  p_estimated_fee numeric,
   p_currency text,
   p_unit text,
   p_payment_request text,
@@ -195,7 +198,7 @@ begin
     user_id,
     account_id,
     amount,
-    fee,
+    estimated_fee,
     currency,
     unit,
     payment_request,
@@ -207,7 +210,7 @@ begin
     p_user_id,
     p_account_id,
     p_amount,
-    p_fee,
+    p_estimated_fee,
     p_currency,
     p_unit,
     p_payment_request,
@@ -229,7 +232,10 @@ $function$;
 
 create or replace function wallet.mark_spark_send_quote_as_pending(
   p_quote_id uuid,
-  p_spark_id text
+  p_spark_id text,
+  p_spark_transfer_id text,
+  p_fee numeric,
+  p_encrypted_transaction_details text
 )
 returns wallet.spark_send_quotes
 language plpgsql
@@ -265,9 +271,19 @@ begin
   set
     state = 'PENDING',
     spark_id = p_spark_id,
+    spark_transfer_id = p_spark_transfer_id,
+    fee = p_fee,
     version = version + 1
   where id = p_quote_id
   returning * into v_quote;
+
+  update wallet.transactions
+  set transaction_details = jsonb_build_object(
+      'sparkId', p_spark_id,
+      'sparkTransferId', p_spark_transfer_id
+    ),
+    encrypted_transaction_details = p_encrypted_transaction_details
+  where id = v_quote.transaction_id;
 
   return v_quote;
 end;
@@ -282,8 +298,6 @@ $function$;
 create or replace function wallet.complete_spark_send_quote(
   p_quote_id uuid,
   p_payment_preimage text,
-  p_spark_transfer_id text,
-  p_fee numeric,
   p_encrypted_transaction_details text
 )
 returns wallet.spark_send_quotes
@@ -320,8 +334,6 @@ begin
   set
     state = 'COMPLETED',
     payment_preimage = p_payment_preimage,
-    spark_transfer_id = p_spark_transfer_id,
-    fee = p_fee,
     version = version + 1
   where id = p_quote_id
   returning * into v_quote;
@@ -331,8 +343,7 @@ begin
     state = 'COMPLETED',
     acknowledgment_status = 'pending',
     completed_at = now(),
-    encrypted_transaction_details = p_encrypted_transaction_details,
-    transaction_details = jsonb_build_object('sparkTransferId', p_spark_transfer_id)
+    encrypted_transaction_details = p_encrypted_transaction_details
   where id = v_quote.transaction_id;
 
   return v_quote;

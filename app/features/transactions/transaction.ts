@@ -207,28 +207,36 @@ export type SparkLightningSendTransactionDetails = {
    */
   amountSpent: Money;
   /**
-   * The fee for the lightning payment.
+   * The estimatedfee for the lightning payment.
    */
-  fee: Money;
+  estimatedFee: Money;
   /**
    * The bolt11 payment request being paid.
    */
   paymentRequest: string;
+  /**
+   * The ID of the send request in spark system.
+   */
+  sparkId?: string;
+  /**
+   * The ID of the transfer in Spark system.
+   */
+  sparkTransferId?: string;
+  /**
+   * The actual fee paid for the lightning payment.
+   */
+  fee?: Money;
 };
 
 /**
  * Transaction details of the completed Spark lightning send transaction.
  */
 export type CompletedSparkLightningSendTransactionDetails =
-  SparkLightningSendTransactionDetails & {
+  Required<SparkLightningSendTransactionDetails> & {
     /**
      * The payment preimage of the lightning payment.
      */
     paymentPreimage: string;
-    /**
-     * The ID of the transfer in Spark system.
-     */
-    sparkTransferId: string;
   };
 
 export type Transaction = {

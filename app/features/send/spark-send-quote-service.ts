@@ -1,9 +1,11 @@
 import { SparkSDKError, type SparkWallet } from '@buildonspark/spark-sdk';
+import type { LightningSendRequest } from '@buildonspark/spark-sdk/types';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
 import {
   isInsufficentBalanceError,
   isInvoiceAlreadyPaidError,
+  moneyFromSparkAmount,
 } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
 import { DomainError } from '../shared/error';
@@ -200,7 +202,7 @@ export class SparkSendQuoteService {
       userId,
       accountId: account.id,
       amount: quote.amountRequestedInBtc as Money,
-      fee: quote.estimatedLightningFee as Money,
+      estimatedFee: quote.estimatedLightningFee as Money,
       paymentRequest: quote.paymentRequest,
       paymentHash: quote.paymentHash,
       paymentRequestIsAmountless: quote.paymentRequestIsAmountless,
@@ -229,9 +231,14 @@ export class SparkSendQuoteService {
 
     const wallet = this.getSparkWalletOrThrow(account);
 
-    const sparkRequestId = await this.payLightningInvoice(wallet, sendQuote);
+    const sendRequest = await this.payLightningInvoice(wallet, sendQuote);
 
-    return this.repository.markAsPending(sendQuote.id, sparkRequestId);
+    return this.repository.markAsPending({
+      quote: sendQuote,
+      sparkSendRequestId: sendRequest.id,
+      sparkTransferId: sendRequest.transfer?.sparkId ?? '',
+      fee: moneyFromSparkAmount(sendRequest.fee),
+    });
   }
 
   /**
@@ -248,16 +255,12 @@ export class SparkSendQuoteService {
    * It's a no-op if the quote is already completed.
    * @param quote - The spark send quote to complete.
    * @param paymentPreimage - The payment preimage from the lightning payment.
-   * @param sparkTransferId - The Spark transfer ID from the completed transfer.
-   * @param fee - The actual fee paid for the lightning payment.
    * @returns The updated quote.
    * @throws An error if the quote is not in PENDING state.
    */
   async complete(
     quote: SparkSendQuote,
     paymentPreimage: string,
-    sparkTransferId: string,
-    fee: Money,
   ): Promise<SparkSendQuote> {
     if (quote.state === 'COMPLETED') {
       return quote;
@@ -272,8 +275,6 @@ export class SparkSendQuoteService {
     return this.repository.complete({
       quote,
       paymentPreimage,
-      sparkTransferId,
-      fee,
     });
   }
 
@@ -301,11 +302,11 @@ export class SparkSendQuoteService {
   private async payLightningInvoice(
     wallet: SparkWallet,
     sendQuote: SparkSendQuote,
-  ): Promise<string> {
+  ): Promise<LightningSendRequest> {
     try {
       const request = await wallet.payLightningInvoice({
         invoice: sendQuote.paymentRequest,
-        maxFeeSats: sendQuote.fee.toNumber('sat'),
+        maxFeeSats: sendQuote.estimatedFee.toNumber('sat'),
         preferSpark: false,
         amountSatsToSend: sendQuote.paymentRequestIsAmountless
           ? sendQuote.amount.toNumber('sat')
@@ -319,7 +320,7 @@ export class SparkSendQuoteService {
         );
       }
 
-      return request.id;
+      return request;
     } catch (error) {
       if (error instanceof SparkSDKError) {
         const existingRequestId = await this.findExistingLightningSendRequest(
@@ -361,7 +362,7 @@ export class SparkSendQuoteService {
     wallet: SparkWallet,
     paymentRequest: string,
     createdAfter: Date,
-  ): Promise<string | null> {
+  ): Promise<LightningSendRequest | null> {
     const PAGE_SIZE = 100;
     let offset = 0;
 
@@ -386,7 +387,7 @@ export class SparkSendQuoteService {
           transfer.userRequest.encodedInvoice === paymentRequest
         ) {
           console.log('found existing LightningSendRequest', transfer);
-          return transfer.userRequest.id;
+          return transfer.userRequest as LightningSendRequest;
         }
       }
 

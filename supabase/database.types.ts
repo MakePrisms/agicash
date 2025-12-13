@@ -682,8 +682,9 @@ export type Database = {
           amount: number
           created_at: string
           currency: string
+          estimated_fee: number
           failure_reason: string | null
-          fee: number
+          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null
@@ -702,8 +703,9 @@ export type Database = {
           amount: number
           created_at?: string
           currency: string
+          estimated_fee: number
           failure_reason?: string | null
-          fee: number
+          fee?: number | null
           id?: string
           payment_hash: string
           payment_preimage?: string | null
@@ -722,8 +724,9 @@ export type Database = {
           amount?: number
           created_at?: string
           currency?: string
+          estimated_fee?: number
           failure_reason?: string | null
-          fee?: number
+          fee?: number | null
           id?: string
           payment_hash?: string
           payment_preimage?: string | null
@@ -1077,18 +1080,17 @@ export type Database = {
       complete_spark_send_quote: {
         Args: {
           p_encrypted_transaction_details: string
-          p_fee: number
           p_payment_preimage: string
           p_quote_id: string
-          p_spark_transfer_id: string
         }
         Returns: {
           account_id: string
           amount: number
           created_at: string
           currency: string
+          estimated_fee: number
           failure_reason: string | null
-          fee: number
+          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null
@@ -1283,7 +1285,7 @@ export type Database = {
           p_amount: number
           p_currency: string
           p_encrypted_transaction_details: string
-          p_fee: number
+          p_estimated_fee: number
           p_payment_hash: string
           p_payment_request: string
           p_payment_request_is_amountless: boolean
@@ -1295,8 +1297,9 @@ export type Database = {
           amount: number
           created_at: string
           currency: string
+          estimated_fee: number
           failure_reason: string | null
-          fee: number
+          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null
@@ -1479,8 +1482,9 @@ export type Database = {
           amount: number
           created_at: string
           currency: string
+          estimated_fee: number
           failure_reason: string | null
-          fee: number
+          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null
@@ -1558,14 +1562,21 @@ export type Database = {
         }
       }
       mark_spark_send_quote_as_pending: {
-        Args: { p_quote_id: string; p_spark_id: string }
+        Args: {
+          p_encrypted_transaction_details: string
+          p_fee: number
+          p_quote_id: string
+          p_spark_id: string
+          p_spark_transfer_id: string
+        }
         Returns: {
           account_id: string
           amount: number
           created_at: string
           currency: string
+          estimated_fee: number
           failure_reason: string | null
-          fee: number
+          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null

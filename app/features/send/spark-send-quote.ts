@@ -12,11 +12,6 @@ export type SparkSendQuote = {
    */
   id: string;
   /**
-   * ID of the send request in spark system.
-   * This is null when the quote is in UNPAID state since the payment hasn't been initiated yet.
-   */
-  sparkId: string | null;
-  /**
    * Date and time the send quote was created in ISO 8601 format.
    */
   createdAt: string;
@@ -25,9 +20,9 @@ export type SparkSendQuote = {
    */
   amount: Money;
   /**
-   * Estimated fee for the lightning payment.
+   *  Estimated fee for the lightning payment.
    */
-  fee: Money;
+  estimatedFee: Money;
   /**
    * Lightning invoice being paid.
    */
@@ -71,6 +66,14 @@ export type SparkSendQuote = {
        * ID of the send request in spark system.
        */
       sparkId: string;
+      /**
+       * Spark transfer ID.
+       */
+      sparkTransferId: string;
+      /**
+       * Actual fee of the lightning payment.
+       */
+      fee: Money;
     }
   | {
       state: 'COMPLETED';
@@ -79,13 +82,17 @@ export type SparkSendQuote = {
        */
       sparkId: string;
       /**
-       * Payment preimage proving the payment was successful.
-       */
-      paymentPreimage: string;
-      /**
        * Spark transfer ID.
        */
       sparkTransferId: string;
+      /**
+       * Actual fee of the lightning payment.
+       */
+      fee: Money;
+      /**
+       * Payment preimage proving the payment was successful.
+       */
+      paymentPreimage: string;
     }
   | {
       state: 'FAILED';
@@ -93,5 +100,17 @@ export type SparkSendQuote = {
        * Reason for failure.
        */
       failureReason?: string;
+      /**
+       * ID of the send request in spark system.
+       */
+      sparkId?: string;
+      /**
+       * Spark transfer ID.
+       */
+      sparkTransferId?: string;
+      /**
+       * Actual fee of the lightning payment.
+       */
+      fee?: Money;
     }
 );

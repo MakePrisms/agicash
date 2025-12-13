@@ -260,11 +260,13 @@ export function TransactionDetails({
       console.debug(
         `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
         {
-          amountSpent: completedDetails.amountSpent.toLocaleString({ unit }),
-          fee: completedDetails.fee.toLocaleString({ unit }),
           paymentRequest: completedDetails.paymentRequest,
-          paymentPreimage: completedDetails.paymentPreimage,
+          amountSpent: completedDetails.amountSpent.toLocaleString({ unit }),
+          estimatedFee: completedDetails.estimatedFee.toLocaleString({ unit }),
+          sparkId: completedDetails.sparkId,
           sparkTransferId: completedDetails.sparkTransferId,
+          fee: completedDetails.fee.toLocaleString({ unit }),
+          paymentPreimage: completedDetails.paymentPreimage,
         },
       );
     } else {
@@ -272,9 +274,12 @@ export function TransactionDetails({
       console.debug(
         `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
         {
-          amountSpent: incompleteDetails.amountSpent.toLocaleString({ unit }),
-          fee: incompleteDetails.fee.toLocaleString({ unit }),
           paymentRequest: incompleteDetails.paymentRequest,
+          amountSpent: incompleteDetails.amountSpent.toLocaleString({ unit }),
+          estimatedFee: incompleteDetails.estimatedFee.toLocaleString({ unit }),
+          sparkId: incompleteDetails.sparkId,
+          sparkTransferId: incompleteDetails.sparkTransferId,
+          fee: incompleteDetails.fee?.toLocaleString({ unit }),
         },
       );
     }

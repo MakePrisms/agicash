@@ -26,13 +26,13 @@ type CreateQuoteParams = {
    */
   accountId: string;
   /**
-   * Amount being sent.
+   * Amount being sent. Doesn't include the fee.
    */
   amount: Money;
   /**
-   * Fee for the lightning payment.
+   * Estimated fee for the lightning payment.
    */
-  fee: Money;
+  estimatedFee: Money;
   /**
    * Lightning payment request being paid.
    */
@@ -65,7 +65,7 @@ export class SparkSendQuoteRepository {
       userId,
       accountId,
       amount,
-      fee,
+      estimatedFee,
       paymentRequest,
       paymentHash,
       paymentRequestIsAmountless,
@@ -73,19 +73,20 @@ export class SparkSendQuoteRepository {
 
     const unit = getDefaultUnit(amount.currency);
 
-    const details: SparkLightningSendTransactionDetails = {
+    const detailsToEncrypt: SparkLightningSendTransactionDetails = {
       amountSpent: amount,
-      fee,
+      estimatedFee,
       paymentRequest,
     };
 
-    const encryptedTransactionDetails = await this.encryption.encrypt(details);
+    const encryptedTransactionDetails =
+      await this.encryption.encrypt(detailsToEncrypt);
 
     const query = this.db.rpc('create_spark_send_quote', {
       p_user_id: userId,
       p_account_id: accountId,
       p_amount: amount.toNumber(unit),
-      p_fee: fee.toNumber(unit),
+      p_estimated_fee: estimatedFee.toNumber(unit),
       p_currency: amount.currency,
       p_unit: unit,
       p_payment_request: paymentRequest,
@@ -108,18 +109,51 @@ export class SparkSendQuoteRepository {
   }
 
   /**
-   * Marks a spark send quote as pending by setting the spark_id.
+   * Marks a spark send quote as pending and sets the spark_id and the actual fee.
    * @returns The updated quote.
    */
   async markAsPending(
-    quoteId: string,
-    sparkRequestId: string,
+    {
+      quote,
+      fee,
+      sparkSendRequestId,
+      sparkTransferId,
+    }: {
+      /**
+       * Spark send quote to mark as pending.
+       */
+      quote: SparkSendQuote;
+      /**
+       * ID of the spark send request in spark system.
+       */
+      sparkSendRequestId: string;
+      /**
+       * ID of the transfer in Spark system.
+       */
+      sparkTransferId: string;
+      /**
+       * Actual fee for the lightning payment.
+       */
+      fee: Money;
+    },
     options?: Options,
   ): Promise<SparkSendQuote> {
-    // TODO: we probably also need to update transaction details to include the spark_id.
+    const detailsToEncrypt: SparkLightningSendTransactionDetails = {
+      amountSpent: quote.amount,
+      estimatedFee: quote.estimatedFee,
+      paymentRequest: quote.paymentRequest,
+      fee,
+    };
+
+    const encryptedTransactionDetails =
+      await this.encryption.encrypt(detailsToEncrypt);
+
     const query = this.db.rpc('mark_spark_send_quote_as_pending', {
-      p_quote_id: quoteId,
-      p_spark_id: sparkRequestId,
+      p_quote_id: quote.id,
+      p_spark_id: sparkSendRequestId,
+      p_spark_transfer_id: sparkTransferId,
+      p_fee: fee.toNumber(getDefaultUnit(fee.currency)),
+      p_encrypted_transaction_details: encryptedTransactionDetails,
     });
 
     if (options?.abortSignal) {
@@ -145,38 +179,26 @@ export class SparkSendQuoteRepository {
     {
       quote,
       paymentPreimage,
-      sparkTransferId,
-      fee,
     }: {
       /**
        * The spark send quote to complete.
        */
-      quote: SparkSendQuote;
+      quote: SparkSendQuote & { state: 'PENDING' };
       /**
        * Payment preimage from the lightning payment.
        */
       paymentPreimage: string;
-      /**
-       * Spark transfer ID from the completed transfer.
-       */
-      sparkTransferId: string;
-      /**
-       * Actual fee paid for the lightning payment.
-       */
-      fee: Money;
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
-    const unit = getDefaultUnit(fee.currency);
-
-    // sparkTransferId is stored in non-encrypted transaction details.
     const detailsToEncrypt: Omit<
       CompletedSparkLightningSendTransactionDetails,
-      'sparkTransferId'
+      'sparkId' | 'sparkTransferId'
     > = {
       amountSpent: quote.amount,
-      fee,
+      estimatedFee: quote.estimatedFee,
       paymentRequest: quote.paymentRequest,
+      fee: quote.fee,
       paymentPreimage,
     };
 
@@ -186,8 +208,6 @@ export class SparkSendQuoteRepository {
     const query = this.db.rpc('complete_spark_send_quote', {
       p_quote_id: quote.id,
       p_payment_preimage: paymentPreimage,
-      p_spark_transfer_id: sparkTransferId,
-      p_fee: fee.toNumber(unit),
       p_encrypted_transaction_details: encryptedTransactionDetails,
     });
 
@@ -291,8 +311,8 @@ export class SparkSendQuoteRepository {
         currency: data.currency,
         unit: data.unit,
       }),
-      fee: new Money({
-        amount: data.fee,
+      estimatedFee: new Money({
+        amount: data.estimated_fee,
         currency: data.currency,
         unit: data.unit,
       }),
@@ -306,9 +326,9 @@ export class SparkSendQuoteRepository {
     };
 
     if (data.state === 'COMPLETED') {
-      if (!data.payment_preimage) {
+      if (!data.spark_id) {
         throw new Error(
-          'Invalid spark send quote data. Payment preimage is required for completed state.',
+          'Invalid spark send quote data. Spark id is required for completed state.',
         );
       }
       if (!data.spark_transfer_id) {
@@ -316,9 +336,14 @@ export class SparkSendQuoteRepository {
           'Invalid spark send quote data. Spark transfer id is required for completed state.',
         );
       }
-      if (!data.spark_id) {
+      if (!data.fee) {
         throw new Error(
-          'Invalid spark send quote data. Spark id is required for completed state.',
+          'Invalid spark send quote data. Fee is required for completed state.',
+        );
+      }
+      if (!data.payment_preimage) {
+        throw new Error(
+          'Invalid spark send quote data. Payment preimage is required for completed state.',
         );
       }
 
@@ -326,8 +351,13 @@ export class SparkSendQuoteRepository {
         ...baseQuote,
         state: 'COMPLETED',
         sparkId: data.spark_id,
-        paymentPreimage: data.payment_preimage,
         sparkTransferId: data.spark_transfer_id,
+        fee: new Money({
+          amount: data.fee,
+          currency: data.currency,
+          unit: data.unit,
+        }),
+        paymentPreimage: data.payment_preimage,
       };
     }
 
@@ -336,6 +366,15 @@ export class SparkSendQuoteRepository {
         ...baseQuote,
         state: 'FAILED',
         failureReason: data.failure_reason ?? undefined,
+        sparkId: data.spark_id ?? undefined,
+        sparkTransferId: data.spark_transfer_id ?? undefined,
+        fee: data.fee
+          ? new Money({
+              amount: data.fee,
+              currency: data.currency,
+              unit: data.unit,
+            })
+          : undefined,
       };
     }
 
@@ -345,11 +384,27 @@ export class SparkSendQuoteRepository {
           'Invalid spark send quote data. Spark id is required for pending state.',
         );
       }
+      if (!data.spark_transfer_id) {
+        throw new Error(
+          'Invalid spark send quote data. Spark transfer id is required for pending state.',
+        );
+      }
+      if (!data.fee) {
+        throw new Error(
+          'Invalid spark send quote data. Fee is required for pending state.',
+        );
+      }
 
       return {
         ...baseQuote,
         state: 'PENDING',
         sparkId: data.spark_id,
+        sparkTransferId: data.spark_transfer_id,
+        fee: new Money({
+          amount: data.fee,
+          currency: data.currency,
+          unit: data.unit,
+        }),
       };
     }
 
