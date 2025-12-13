@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
+import { accountsQueryOptions } from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
 import { AccountService } from '~/features/accounts/account-service';
 import { agicashDb } from '~/features/agicash-db/database';
@@ -13,6 +14,8 @@ import { CashuTokenSwapService } from '~/features/receive/cashu-token-swap-servi
 import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
 import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
+import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
+import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import {
   getCashuCryptography,
   seedQueryOptions,
@@ -66,9 +69,13 @@ const getClaimCashuTokenService = async () => {
     cashuCryptography,
     cashuReceiveQuoteRepository,
   );
+  const sparkReceiveQuoteService = new SparkReceiveQuoteService(
+    new SparkReceiveQuoteRepository(agicashDb, encryption),
+  );
   const receiveCashuTokenService = new ReceiveCashuTokenService(queryClient);
   const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
     cashuReceiveQuoteService,
+    sparkReceiveQuoteService,
   );
   const userRepository = new UserRepository(
     agicashDb,
@@ -89,6 +96,32 @@ const getClaimCashuTokenService = async () => {
   );
 };
 
+const getSparkAccountId = async (
+  userId: string,
+): Promise<string | undefined> => {
+  const queryClient = getQueryClient();
+  const [encryptionPrivateKey, encryptionPublicKey] = await Promise.all([
+    queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
+    queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
+  ]);
+  const getCashuWalletSeed = () => queryClient.fetchQuery(seedQueryOptions());
+  const getSparkWalletMnemonic = () =>
+    queryClient.fetchQuery(sparkMnemonicQueryOptions());
+  const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
+  const accountRepository = new AccountRepository(
+    agicashDb,
+    encryption,
+    queryClient,
+    getCashuWalletSeed,
+    getSparkWalletMnemonic,
+  );
+
+  const accounts = await queryClient.fetchQuery(
+    accountsQueryOptions({ userId, accountRepository }),
+  );
+  return accounts.find((a) => a.type === 'spark')?.id;
+};
+
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // Request url doesn't include hash so we need to read it from the window location instead
   const token = extractCashuToken(window.location.hash);
@@ -101,11 +134,21 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const selectedAccountId =
     location.searchParams.get('selectedAccountId') ?? undefined;
   const autoClaim = location.searchParams.get('autoClaim') === 'true';
+  const claimToSpark = location.searchParams.get('claimToSpark') === 'true';
 
   if (autoClaim) {
     const user = getUserFromCacheOrThrow();
     const claimCashuTokenService = await getClaimCashuTokenService();
-    const result = await claimCashuTokenService.claimToken(user, token);
+
+    const preferredReceiveAccountId = claimToSpark
+      ? await getSparkAccountId(user.id)
+      : undefined;
+
+    const result = await claimCashuTokenService.claimToken(
+      user,
+      token,
+      preferredReceiveAccountId,
+    );
     if (!result.success) {
       toast({
         title: 'Failed to claim the token',

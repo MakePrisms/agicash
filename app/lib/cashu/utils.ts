@@ -2,10 +2,13 @@ import {
   CashuMint,
   CashuWallet,
   type Keys,
+  type MeltQuoteResponse,
+  MeltQuoteState,
   type MintKeys,
   type MintKeyset,
   type MintQuoteResponse,
   OutputData,
+  type Proof,
 } from '@cashu/cashu-ts';
 import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
@@ -182,6 +185,31 @@ export class ExtendedCashuWallet extends CashuWallet {
     );
 
     return fee;
+  }
+
+  /**
+   * Melts proofs with idempotent error handling.
+   * If meltProofs fails but the quote is already pending/paid, returns success.
+   * This handles the case where meltProofs is called twice for the same quote.
+   */
+  async meltProofsIdempotent(
+    meltQuote: MeltQuoteResponse,
+    proofs: Proof[],
+    options?: Parameters<CashuWallet['meltProofs']>[2],
+  ) {
+    return this.meltProofs(meltQuote, proofs, options).catch(async (error) => {
+      // Melt should be idempotent: if meltProofs was already called once and did not fail,
+      // then the melt quote will be pending or paid.
+      const latestMeltQuote = await this.checkMeltQuote(meltQuote.quote);
+      if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
+        console.warn('meltProofs was called but melt quote is not unpaid', {
+          meltQuote,
+          latestMeltQuote,
+        });
+        return latestMeltQuote;
+      }
+      throw error;
+    });
   }
 
   private getMinNumberOfProofsForAmount(keys: Keys, amount: Big) {

@@ -2,8 +2,10 @@ import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type {
+  Account,
   CashuAccount,
   ExtendedCashuAccount,
+  ExtendedSparkAccount,
 } from '~/features/accounts/account';
 import {
   useAccounts,
@@ -17,12 +19,16 @@ import {
   getClaimableProofs,
   getUnspentProofsFromToken,
 } from '~/lib/cashu';
+import { Money } from '~/lib/money';
 import {
   type AccountSelectorOption,
   toAccountSelectorOption,
 } from '../accounts/account-selector';
 import { useUser } from '../user/user-hooks';
-import type { CashuAccountWithTokenFlags } from './receive-cashu-token-models';
+import type {
+  AccountWithTokenFlags,
+  SparkAccountWithTokenFlags,
+} from './receive-cashu-token-models';
 import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
 import {
   ReceiveCashuTokenService,
@@ -54,6 +60,7 @@ type TokenQueryResult =
 export function useCashuTokenSourceAccountQuery(
   token: Token,
   existingCashuAccounts: ExtendedCashuAccount[] = [],
+  existingSparkAccounts: ExtendedSparkAccount[] = [],
 ) {
   const tokenCurrency = tokenToMoney(token).currency;
   const receiveCashuTokenService = useReceiveCashuTokenService();
@@ -64,11 +71,13 @@ export function useCashuTokenSourceAccountQuery(
       token.mint,
       tokenCurrency,
       existingCashuAccounts.map((a) => a.id).sort(),
+      existingSparkAccounts.map((a) => a.id).sort(),
     ],
     queryFn: async () =>
       receiveCashuTokenService.getSourceAndDestinationAccounts(
         token,
         existingCashuAccounts,
+        existingSparkAccounts,
       ),
     staleTime: 3 * 60 * 1000,
     retry: 1,
@@ -81,9 +90,11 @@ export function useCashuTokenSourceAccountQuery(
  */
 function useCashuTokenSourceAccount(token: Token) {
   const { data: existingCashuAccounts } = useAccounts({ type: 'cashu' });
+  const { data: existingSparkAccounts } = useAccounts({ type: 'spark' });
   const { data } = useCashuTokenSourceAccountQuery(
     token,
     existingCashuAccounts,
+    existingSparkAccounts,
   );
 
   return data;
@@ -145,11 +156,15 @@ export function useCashuTokenWithClaimableProofs({
   return tokenData;
 }
 
-const getBadges = (account: CashuAccountWithTokenFlags): string[] => {
+const getBadges = (account: AccountWithTokenFlags): string[] => {
   const badges: string[] = [];
-  if (account.isTestMint) {
-    badges.push('Test Mint');
+
+  if (account.type === 'cashu') {
+    if (account.isTestMint) {
+      badges.push('Test Mint');
+    }
   }
+
   if (account.isUnknown) {
     badges.push('Unknown');
   }
@@ -170,8 +185,8 @@ const getBadges = (account: CashuAccountWithTokenFlags): string[] => {
 };
 
 const toOption = (
-  account: CashuAccountWithTokenFlags,
-): AccountSelectorOption<CashuAccountWithTokenFlags> =>
+  account: AccountWithTokenFlags,
+): AccountSelectorOption<AccountWithTokenFlags> =>
   toAccountSelectorOption(account, {
     badges: getBadges(account),
     isSelectable: account.isOnline && account.canReceive,
@@ -209,15 +224,22 @@ export function useReceiveCashuTokenAccounts(
     ) ?? null;
 
   const setReceiveAccount = (
-    account: AccountSelectorOption<CashuAccountWithTokenFlags>,
+    account: AccountSelectorOption<AccountWithTokenFlags>,
   ) => {
     setReceiveAccountId(account.id);
   };
 
   const addAndSetReceiveAccount = async (
-    accountToAdd: CashuAccount,
-  ): Promise<CashuAccount> => {
-    const newAccount = await addCashuAccount(accountToAdd);
+    accountToAdd: Account,
+  ): Promise<Account> => {
+    let newAccount: Account;
+    if (accountToAdd.type === 'cashu') {
+      newAccount = await addCashuAccount(accountToAdd);
+    } else {
+      // Only cashu accounts can be unknown, this should never happen
+      throw new Error('Invalid account type');
+    }
+
     setReceiveAccountId(newAccount.id);
     return newAccount;
   };
@@ -236,7 +258,7 @@ type CreateCrossAccountReceiveQuotesProps = {
   /** The token to claim */
   token: Token;
   /** The account to claim the token to */
-  destinationAccount: CashuAccount;
+  destinationAccount: Account;
   /**
    * The account to claim the token from.
    * This may be a placeholder account if the token is from a mint that we do not have an account for.
@@ -266,7 +288,7 @@ export function useCreateCrossAccountReceiveQuotes() {
         `${tokenCurrency}-${accountCurrency}`,
       );
 
-      const { cashuReceiveQuote, cashuMeltQuote } =
+      const result =
         await receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes({
           userId,
           token,
@@ -279,7 +301,65 @@ export function useCreateCrossAccountReceiveQuotes() {
         unit: getCashuUnit(tokenCurrency),
       });
 
-      return { cashuReceiveQuote, cashuMeltQuote, sourceWallet };
+      return {
+        ...result,
+        sourceWallet,
+      };
     },
   });
+}
+
+/**
+ * Hook for getting public receive accounts for non-authenticated users.
+ * Returns placeholder accounts for Spark and the token's source account.
+ * Spark account is selected as the receive account by default.
+ */
+export function usePublicReceiveCashuTokenAccounts(token: Token) {
+  const sparkAccount: SparkAccountWithTokenFlags = {
+    // TODO: Our placeholder cashu accounts have an empty string ID
+    // Should we have a better way to identify them?
+    id: 'placeholder-spark',
+    name: 'Bitcoin',
+    type: 'spark',
+    isOnline: true,
+    currency: 'BTC',
+    wallet: null,
+    createdAt: new Date().toISOString(),
+    version: 0,
+    balance: Money.zero('BTC'),
+    network: 'MAINNET',
+    isSource: false,
+    isUnknown: false,
+    canReceive: true,
+    isDefault: true,
+  };
+  const {
+    data: { sourceAccount },
+  } = useCashuTokenSourceAccountQuery(token);
+
+  const allSelectableAccounts: AccountWithTokenFlags[] = [
+    sparkAccount,
+    sourceAccount,
+  ];
+
+  const [receiveAccountId, setReceiveAccountId] = useState<string>(
+    sparkAccount.id,
+  );
+
+  const receiveAccount =
+    allSelectableAccounts.find((account) => account.id === receiveAccountId) ??
+    null;
+
+  const setReceiveAccount = (
+    account: AccountSelectorOption<AccountWithTokenFlags>,
+  ) => {
+    setReceiveAccountId(account.id);
+  };
+
+  return {
+    selectableAccounts: allSelectableAccounts.map(toOption),
+    receiveAccount: receiveAccount ? toOption(receiveAccount) : null,
+    sourceAccount: sourceAccount,
+    setReceiveAccount,
+  };
 }
