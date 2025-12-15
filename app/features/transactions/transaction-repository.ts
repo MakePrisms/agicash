@@ -265,7 +265,12 @@ export class TransactionRepository {
 
     if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
       const sendDetails = details as SparkLightningSendTransactionDetails;
-      return createTransaction(sendDetails.amountSpent, sendDetails);
+      return createTransaction(
+        sendDetails.amountSpent.add(
+          sendDetails.fee ?? sendDetails.estimatedFee,
+        ),
+        sendDetails,
+      );
     }
 
     throw new Error('Invalid transaction data', { cause: data });
