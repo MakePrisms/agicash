@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
@@ -140,9 +140,10 @@ type OnSparkSendStateChangeCallbacks = {
 };
 
 /**
- * Hook that polls unresolved spark send quotes and fires callbacks on state changes.
- * For UNPAID quotes, calls onUnpaid to trigger payment initiation.
- * For PENDING quotes, polls every second to check for payment status.
+ * Hook that fires callbacks on initial load and when the state of a quote changes.
+ *
+ * The quote state is tracked with polling. Callbacks are only triggered when the
+ * state changes from the previous invocation.
  */
 export function useOnSparkSendStateChange({
   sendQuotes,
@@ -157,6 +158,11 @@ export function useOnSparkSendStateChange({
   const onCompletedRef = useLatest(onCompleted);
   const onFailedRef = useLatest(onFailed);
 
+  // Track the last triggered state for each quote to avoid duplicate callbacks
+  const lastTriggeredStateRef = useRef<Map<string, SparkSendQuote['state']>>(
+    new Map(),
+  );
+
   const checkQuoteStatus = async (quoteId: string) => {
     try {
       const quote = unresolvedQuotesCache.get(quoteId);
@@ -164,8 +170,13 @@ export function useOnSparkSendStateChange({
         return;
       }
 
+      const lastTriggeredState = lastTriggeredStateRef.current.get(quoteId);
+
       if (quote.state === 'UNPAID') {
-        onUnpaidRef.current(quote);
+        if (lastTriggeredState !== 'UNPAID') {
+          lastTriggeredStateRef.current.set(quoteId, 'UNPAID');
+          onUnpaidRef.current(quote);
+        }
         return;
       }
 
@@ -199,9 +210,12 @@ export function useOnSparkSendStateChange({
             'Spark transfer ID is required when send request has TRANSFER_COMPLETED status.',
           );
         }
-        onCompletedRef.current(quote, {
-          paymentPreimage: sendRequest.paymentPreimage,
-        });
+        if (lastTriggeredState !== 'COMPLETED') {
+          lastTriggeredStateRef.current.set(quoteId, 'COMPLETED');
+          onCompletedRef.current(quote, {
+            paymentPreimage: sendRequest.paymentPreimage,
+          });
+        }
         return;
       }
 
@@ -209,7 +223,10 @@ export function useOnSparkSendStateChange({
         sendRequest.status ===
         LightningSendRequestStatus.LIGHTNING_PAYMENT_FAILED
       ) {
-        onFailedRef.current(quote);
+        if (lastTriggeredState !== 'FAILED') {
+          lastTriggeredStateRef.current.set(quoteId, 'FAILED');
+          onFailedRef.current(quote);
+        }
       }
     } catch (error) {
       console.error('Error checking spark send quote status', {
@@ -222,23 +239,29 @@ export function useOnSparkSendStateChange({
   const checkQuoteStatusRef = useLatest(checkQuoteStatus);
 
   useEffect(() => {
-    if (sendQuotes.length === 0) return;
+    const quoteIds = sendQuotes.map((q) => q.id);
+    const quoteIdSet = new Set(quoteIds);
 
-    const intervals: NodeJS.Timeout[] = [];
-
-    for (const quote of sendQuotes) {
-      if (quote.state === 'UNPAID') {
-        checkQuoteStatusRef.current(quote.id);
+    // Clean up tracked states for quotes that are no longer in the list
+    for (const trackedQuoteId of lastTriggeredStateRef.current.keys()) {
+      if (!quoteIdSet.has(trackedQuoteId)) {
+        lastTriggeredStateRef.current.delete(trackedQuoteId);
       }
-
-      const interval = setInterval(() => {
-        checkQuoteStatusRef.current(quote.id);
-      }, 1000);
-      intervals.push(interval);
     }
 
+    if (quoteIds.length === 0) return;
+
+    const checkStatuses = () => {
+      for (const quoteId of quoteIds) {
+        checkQuoteStatusRef.current(quoteId);
+      }
+    };
+
+    checkStatuses();
+    const interval = setInterval(checkStatuses, 1000);
+
     return () => {
-      intervals.forEach((interval) => clearInterval(interval));
+      clearInterval(interval);
     };
   }, [sendQuotes]);
 }
@@ -255,7 +278,7 @@ export function useProcessSparkSendQuoteTasks() {
   const getSparkAccount = useGetSparkAccount();
   const queryClient = useQueryClient();
 
-  const { mutate: failSendQuote } = useMutation({
+  const { mutate: failSendQuote, isPending: isFailingSendQuote } = useMutation({
     mutationFn: async ({
       quoteId,
       reason,
@@ -287,7 +310,7 @@ export function useProcessSparkSendQuoteTasks() {
     },
   });
 
-  const { mutate: initiateSend } = useMutation({
+  const { mutate: initiateSend, isPending: isInitiatingSend } = useMutation({
     mutationFn: async (quote: SparkSendQuote) => {
       const cachedQuote = unresolvedQuotesCache.get(quote.id);
       if (cachedQuote?.state !== 'UNPAID') {
@@ -317,6 +340,11 @@ export function useProcessSparkSendQuoteTasks() {
     },
     retry: 3,
     throwOnError: true,
+    onSuccess: (updatedQuote) => {
+      if (updatedQuote) {
+        unresolvedQuotesCache.update(updatedQuote);
+      }
+    },
     onError: (error, quote) => {
       console.error('Initiate spark send quote error', {
         cause: error,
@@ -325,61 +353,68 @@ export function useProcessSparkSendQuoteTasks() {
     },
   });
 
-  const { mutate: completeSendQuote } = useMutation({
-    mutationFn: async ({
-      quote,
-      paymentPreimage,
-    }: {
-      quote: SparkSendQuote;
-      paymentPreimage: string;
-    }) => {
-      const cachedQuote = unresolvedQuotesCache.get(quote.id);
-      if (!cachedQuote) {
-        // Quote was updated in the meantime so it's not unresolved anymore.
-        return;
-      }
-      return sparkSendQuoteService.complete(quote, paymentPreimage);
-    },
-    retry: 3,
-    throwOnError: true,
-    onSuccess: (updatedQuote) => {
-      if (updatedQuote) {
-        unresolvedQuotesCache.remove(updatedQuote);
-        // Invalidate spark balance since we sent funds
-        queryClient.invalidateQueries({
-          queryKey: sparkBalanceQueryKey(updatedQuote.accountId),
+  const { mutate: completeSendQuote, isPending: isCompletingSendQuote } =
+    useMutation({
+      mutationFn: async ({
+        quote,
+        paymentPreimage,
+      }: {
+        quote: SparkSendQuote;
+        paymentPreimage: string;
+      }) => {
+        const cachedQuote = unresolvedQuotesCache.get(quote.id);
+        if (!cachedQuote) {
+          // Quote was updated in the meantime so it's not unresolved anymore.
+          return;
+        }
+        return sparkSendQuoteService.complete(quote, paymentPreimage);
+      },
+      retry: 3,
+      throwOnError: true,
+      onSuccess: (updatedQuote) => {
+        if (updatedQuote) {
+          unresolvedQuotesCache.remove(updatedQuote);
+          // Invalidate spark balance since we sent funds
+          queryClient.invalidateQueries({
+            queryKey: sparkBalanceQueryKey(updatedQuote.accountId),
+          });
+        }
+      },
+      onError: (error, { quote }) => {
+        console.error('Complete spark send quote error', {
+          cause: error,
+          sendQuoteId: quote.id,
         });
-      }
-    },
-    onError: (error, { quote }) => {
-      console.error('Complete spark send quote error', {
-        cause: error,
-        sendQuoteId: quote.id,
-      });
-    },
-  });
+      },
+    });
 
   useOnSparkSendStateChange({
     sendQuotes: unresolvedSendQuotes,
     onUnpaid: (quote) => {
-      initiateSend(quote, {
-        scope: { id: `spark-send-quote-${quote.id}` },
-      });
+      if (!isInitiatingSend) {
+        initiateSend(quote, {
+          scope: { id: `spark-send-quote-${quote.id}` },
+        });
+      }
     },
     onCompleted: (quote, paymentData) => {
-      completeSendQuote(
-        {
-          quote,
-          paymentPreimage: paymentData.paymentPreimage,
-        },
-        { scope: { id: `spark-send-quote-${quote.id}` } },
-      );
+      if (!isCompletingSendQuote) {
+        completeSendQuote(
+          {
+            quote,
+            paymentPreimage: paymentData.paymentPreimage,
+          },
+          { scope: { id: `spark-send-quote-${quote.id}` } },
+        );
+      }
     },
     onFailed: (quote) => {
-      failSendQuote(
-        { quoteId: quote.id, reason: 'Lightning payment failed' },
-        { scope: { id: `spark-send-quote-${quote.id}` } },
-      );
+      if (!isFailingSendQuote) {
+        failSendQuote(
+          { quoteId: quote.id, reason: 'Lightning payment failed' },
+          { scope: { id: `spark-send-quote-${quote.id}` } },
+        );
+      }
     },
   });
 }
