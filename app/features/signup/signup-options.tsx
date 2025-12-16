@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '~/components/ui/card';
+import { useFeatureFlag } from '~/lib/feature-flags';
 
 type Option = 'email' | 'google' | 'guest';
 type Props = { onSelect: (option: Option) => Promise<void> };
@@ -15,6 +16,7 @@ type Props = { onSelect: (option: Option) => Promise<void> };
 export function SignupOptions({ onSelect }: Props) {
   const [submitting, setSubmitting] = useState<Option | null>(null);
   const location = useLocation();
+  const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
 
   const handeSelect = async (option: Option) => {
     if (submitting) return;
@@ -49,12 +51,14 @@ export function SignupOptions({ onSelect }: Props) {
           >
             Create wallet with Google
           </Button>
-          <Button
-            onClick={() => handeSelect('guest')}
-            loading={submitting === 'guest'}
-          >
-            Create wallet as Guest
-          </Button>
+          {guestSignupEnabled && (
+            <Button
+              onClick={() => handeSelect('guest')}
+              loading={submitting === 'guest'}
+            >
+              Create wallet as Guest
+            </Button>
+          )}
         </div>
         <div className="mt-4 text-center text-sm">
           Already have an account?{' '}

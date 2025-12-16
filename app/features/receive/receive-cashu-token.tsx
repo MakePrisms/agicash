@@ -23,6 +23,7 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { useToast } from '~/hooks/use-toast';
+import { useFeatureFlag } from '~/lib/feature-flags';
 import type { Currency } from '~/lib/money';
 import {
   LinkWithViewTransition,
@@ -271,6 +272,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
   const location = useLocation();
   const { signUpGuest } = useAuthActions();
   const { toast } = useToast();
+  const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
   const {
     data: { sourceAccount },
   } = useCashuTokenSourceAccountQuery(token);
@@ -345,13 +347,15 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
       {claimableToken && (
         <PageFooter className="pb-14">
           <div className="flex flex-col gap-4">
-            <Button
-              onClick={handleClaimAsGuest}
-              className="w-[200px]"
-              loading={signingUpGuest}
-            >
-              Claim as Guest
-            </Button>
+            {guestSignupEnabled && (
+              <Button
+                onClick={handleClaimAsGuest}
+                className="w-[200px]"
+                loading={signingUpGuest}
+              >
+                Claim as Guest
+              </Button>
+            )}
 
             <LinkWithViewTransition
               to={{

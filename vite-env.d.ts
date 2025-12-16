@@ -17,6 +17,8 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN: string | undefined;
   readonly VITE_ENVIRONMENT: string | undefined;
   readonly VITE_LOCAL_DEV: string | undefined;
+  // Feature flags
+  readonly VITE_FF_GUEST_SIGNUP: string | undefined;
 }
 
 // biome-ignore lint/correctness/noUnusedVariables: this is needed to augment the ImportMeta type
