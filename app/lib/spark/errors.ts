@@ -1,4 +1,4 @@
-import { SparkSDKError } from '@buildonspark/spark-sdk';
+import { SparkError } from '@buildonspark/spark-sdk';
 import { z } from 'zod';
 
 const InsufficentBalanceErrorSchema = z.object({
@@ -17,18 +17,19 @@ const InsufficentBalanceErrorSchema = z.object({
 
 export const isInsufficentBalanceError = (
   error: unknown,
-): error is SparkSDKError & z.infer<typeof InsufficentBalanceErrorSchema> => {
+): error is z.infer<typeof InsufficentBalanceErrorSchema> &
+  Omit<SparkError, 'context'> => {
   return (
-    error instanceof SparkSDKError &&
+    error instanceof SparkError &&
     InsufficentBalanceErrorSchema.safeParse(error).success
   );
 };
 
 export const isInvoiceAlreadyPaidError = (
   error: unknown,
-): error is SparkSDKError => {
+): error is SparkError => {
   return (
-    error instanceof SparkSDKError &&
+    error instanceof SparkError &&
     error.message.toLowerCase().includes('failed to initiate preimage swap') &&
     error.message.toLowerCase().includes('preimage request already exists')
   );
