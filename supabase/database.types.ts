@@ -683,6 +683,7 @@ export type Database = {
           created_at: string
           currency: string
           estimated_fee: number
+          expires_at: string | null
           failure_reason: string | null
           fee: number | null
           id: string
@@ -704,6 +705,7 @@ export type Database = {
           created_at?: string
           currency: string
           estimated_fee: number
+          expires_at?: string | null
           failure_reason?: string | null
           fee?: number | null
           id?: string
@@ -725,6 +727,7 @@ export type Database = {
           created_at?: string
           currency?: string
           estimated_fee?: number
+          expires_at?: string | null
           failure_reason?: string | null
           fee?: number | null
           id?: string
@@ -1089,6 +1092,7 @@ export type Database = {
           created_at: string
           currency: string
           estimated_fee: number
+          expires_at: string | null
           failure_reason: string | null
           fee: number | null
           id: string
@@ -1286,6 +1290,7 @@ export type Database = {
           p_currency: string
           p_encrypted_transaction_details: string
           p_estimated_fee: number
+          p_expires_at?: string
           p_payment_hash: string
           p_payment_request: string
           p_payment_request_is_amountless: boolean
@@ -1298,6 +1303,7 @@ export type Database = {
           created_at: string
           currency: string
           estimated_fee: number
+          expires_at: string | null
           failure_reason: string | null
           fee: number | null
           id: string
@@ -1483,6 +1489,7 @@ export type Database = {
           created_at: string
           currency: string
           estimated_fee: number
+          expires_at: string | null
           failure_reason: string | null
           fee: number | null
           id: string
@@ -1575,6 +1582,7 @@ export type Database = {
           created_at: string
           currency: string
           estimated_fee: number
+          expires_at: string | null
           failure_reason: string | null
           fee: number | null
           id: string

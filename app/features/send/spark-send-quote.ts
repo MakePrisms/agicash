@@ -16,6 +16,10 @@ export type SparkSendQuote = {
    */
   createdAt: string;
   /**
+   * Date and time the send quote expires in ISO 8601 format.
+   */
+  expiresAt?: string | null;
+  /**
    * Amount being sent.
    */
   amount: Money;

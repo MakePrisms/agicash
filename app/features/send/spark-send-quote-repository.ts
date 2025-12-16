@@ -45,6 +45,10 @@ type CreateQuoteParams = {
    * Whether the payment request is amountless.
    */
   paymentRequestIsAmountless: boolean;
+  /**
+   * Expiry of the lightning invoice in ISO 8601 format.
+   */
+  expiresAt?: Date | null;
 };
 
 export class SparkSendQuoteRepository {
@@ -69,6 +73,7 @@ export class SparkSendQuoteRepository {
       paymentRequest,
       paymentHash,
       paymentRequestIsAmountless,
+      expiresAt,
     } = params;
 
     const unit = getDefaultUnit(amount.currency);
@@ -93,6 +98,7 @@ export class SparkSendQuoteRepository {
       p_payment_hash: paymentHash,
       p_payment_request_is_amountless: paymentRequestIsAmountless,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_expires_at: expiresAt?.toISOString(),
     });
 
     if (options?.abortSignal) {
@@ -306,6 +312,7 @@ export class SparkSendQuoteRepository {
       id: data.id,
       sparkId: data.spark_id,
       createdAt: data.created_at,
+      expiresAt: data.expires_at,
       amount: new Money({
         amount: data.amount,
         currency: data.currency,

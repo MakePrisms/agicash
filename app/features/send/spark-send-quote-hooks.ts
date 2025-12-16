@@ -136,7 +136,7 @@ type OnSparkSendStateChangeCallbacks = {
     quote: SparkSendQuote,
     paymentData: { paymentPreimage: string },
   ) => void;
-  onFailed: (quote: SparkSendQuote) => void;
+  onFailed: (quote: SparkSendQuote, failureReason: string) => void;
 };
 
 /**
@@ -198,35 +198,36 @@ export function useOnSparkSendStateChange({
       }
 
       if (
-        sendRequest.status === LightningSendRequestStatus.TRANSFER_COMPLETED
+        sendRequest.status === LightningSendRequestStatus.TRANSFER_COMPLETED &&
+        lastTriggeredState !== 'COMPLETED'
       ) {
         if (!sendRequest.paymentPreimage) {
           throw new Error(
             'Payment preimage is required when send request has TRANSFER_COMPLETED status.',
           );
         }
-        if (!sendRequest.transfer?.sparkId) {
-          throw new Error(
-            'Spark transfer ID is required when send request has TRANSFER_COMPLETED status.',
-          );
-        }
-        if (lastTriggeredState !== 'COMPLETED') {
-          lastTriggeredStateRef.current.set(quoteId, 'COMPLETED');
-          onCompletedRef.current(quote, {
-            paymentPreimage: sendRequest.paymentPreimage,
-          });
-        }
+
+        lastTriggeredStateRef.current.set(quoteId, 'COMPLETED');
+
+        onCompletedRef.current(quote, {
+          paymentPreimage: sendRequest.paymentPreimage,
+        });
         return;
       }
 
       if (
-        sendRequest.status ===
-        LightningSendRequestStatus.LIGHTNING_PAYMENT_FAILED
+        sendRequest.status === LightningSendRequestStatus.USER_SWAP_RETURNED &&
+        lastTriggeredState !== 'FAILED'
       ) {
-        if (lastTriggeredState !== 'FAILED') {
-          lastTriggeredStateRef.current.set(quoteId, 'FAILED');
-          onFailedRef.current(quote);
-        }
+        lastTriggeredStateRef.current.set(quoteId, 'FAILED');
+
+        const now = new Date();
+        const message =
+          quote.expiresAt && new Date(quote.expiresAt) < now
+            ? 'Lightning invoice expired.'
+            : 'Lightning payment failed.';
+
+        onFailedRef.current(quote, message);
       }
     } catch (error) {
       console.error('Error checking spark send quote status', {
@@ -264,6 +265,92 @@ export function useOnSparkSendStateChange({
       clearInterval(interval);
     };
   }, [sendQuotes]);
+}
+
+type CreateSparkLightningSendQuoteParams = {
+  /**
+   * The Spark account to send from.
+   */
+  account: SparkAccount;
+  /**
+   * The Lightning invoice to pay.
+   */
+  paymentRequest: string;
+  /**
+   * Amount to send. Required for zero-amount invoices. If the invoice has an amount, this will be ignored.
+   */
+  amount?: Money;
+};
+
+/**
+ * Returns a mutation for creating a Spark Lightning send quote.
+ */
+export function useCreateSparkLightningSendQuote() {
+  const sparkSendQuoteService = useSparkSendQuoteService();
+
+  return useMutation({
+    mutationFn: async ({
+      account,
+      paymentRequest,
+      amount,
+    }: CreateSparkLightningSendQuoteParams) => {
+      return sparkSendQuoteService.getLightningSendQuote({
+        account,
+        paymentRequest,
+        amount: amount as Money<'BTC'>,
+      });
+    },
+  });
+}
+
+type CreateSparkSendQuoteParams = {
+  /**
+   * The Spark account to send from.
+   */
+  account: SparkAccount;
+  /**
+   * The quote for the send.
+   */
+  quote: SparkLightningQuote;
+};
+
+/**
+ * Returns a mutation for creating a Spark Lightning send quote.
+ * The quote is stored in the database in UNPAID state.
+ * The background task processor will then trigger the actual lightning payment.
+ */
+export function useInitiateSparkSendQuote({
+  onSuccess,
+  onError,
+}: {
+  onSuccess: (data: SparkSendQuote) => void;
+  onError: (error: Error) => void;
+}) {
+  const userId = useUser((user) => user.id);
+  const sparkSendQuoteService = useSparkSendQuoteService();
+
+  return useMutation({
+    scope: {
+      id: 'create-spark-send-quote',
+    },
+    mutationFn: ({ account, quote }: CreateSparkSendQuoteParams) => {
+      return sparkSendQuoteService.createSendQuote({
+        userId,
+        account,
+        quote,
+      });
+    },
+    onSuccess: (data) => {
+      onSuccess(data);
+    },
+    onError,
+    retry: (failureCount, error) => {
+      if (error instanceof DomainError) {
+        return false;
+      }
+      return failureCount < 1;
+    },
+  });
 }
 
 /**
@@ -408,99 +495,13 @@ export function useProcessSparkSendQuoteTasks() {
         );
       }
     },
-    onFailed: (quote) => {
+    onFailed: (quote, failureReason) => {
       if (!isFailingSendQuote) {
         failSendQuote(
-          { quoteId: quote.id, reason: 'Lightning payment failed' },
+          { quoteId: quote.id, reason: failureReason },
           { scope: { id: `spark-send-quote-${quote.id}` } },
         );
       }
-    },
-  });
-}
-
-type CreateSparkLightningSendQuoteParams = {
-  /**
-   * The Spark account to send from.
-   */
-  account: SparkAccount;
-  /**
-   * The Lightning invoice to pay.
-   */
-  paymentRequest: string;
-  /**
-   * Amount to send. Required for zero-amount invoices. If the invoice has an amount, this will be ignored.
-   */
-  amount?: Money;
-};
-
-/**
- * Returns a mutation for creating a Spark Lightning send quote.
- */
-export function useCreateSparkLightningSendQuote() {
-  const sparkSendQuoteService = useSparkSendQuoteService();
-
-  return useMutation({
-    mutationFn: async ({
-      account,
-      paymentRequest,
-      amount,
-    }: CreateSparkLightningSendQuoteParams) => {
-      return sparkSendQuoteService.getLightningSendQuote({
-        account,
-        paymentRequest,
-        amount: amount as Money<'BTC'>,
-      });
-    },
-  });
-}
-
-type CreateSparkSendQuoteParams = {
-  /**
-   * The Spark account to send from.
-   */
-  account: SparkAccount;
-  /**
-   * The quote for the send.
-   */
-  quote: SparkLightningQuote;
-};
-
-/**
- * Returns a mutation for creating a Spark Lightning send quote.
- * The quote is stored in the database in UNPAID state.
- * The background task processor will then trigger the actual lightning payment.
- */
-export function useInitiateSparkSendQuote({
-  onSuccess,
-  onError,
-}: {
-  onSuccess: (data: SparkSendQuote) => void;
-  onError: (error: Error) => void;
-}) {
-  const userId = useUser((user) => user.id);
-  const sparkSendQuoteService = useSparkSendQuoteService();
-
-  return useMutation({
-    scope: {
-      id: 'create-spark-send-quote',
-    },
-    mutationFn: ({ account, quote }: CreateSparkSendQuoteParams) => {
-      return sparkSendQuoteService.createSendQuote({
-        userId,
-        account,
-        quote,
-      });
-    },
-    onSuccess: (data) => {
-      onSuccess(data);
-    },
-    onError,
-    retry: (failureCount, error) => {
-      if (error instanceof DomainError) {
-        return false;
-      }
-      return failureCount < 1;
     },
   });
 }

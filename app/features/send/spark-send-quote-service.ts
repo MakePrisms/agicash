@@ -1,5 +1,4 @@
-import { SparkSDKError, type SparkWallet } from '@buildonspark/spark-sdk';
-import type { LightningSendRequest } from '@buildonspark/spark-sdk/types';
+import { SparkError, type SparkWallet } from '@buildonspark/spark-sdk';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
 import {
@@ -14,6 +13,11 @@ import {
   type SparkSendQuoteRepository,
   useSparkSendQuoteRepository,
 } from './spark-send-quote-repository';
+
+type LightningSendRequest = Extract<
+  Awaited<ReturnType<SparkWallet['payLightningInvoice']>>,
+  { encodedInvoice: string }
+>;
 
 export type SparkLightningQuote = {
   /**
@@ -206,6 +210,7 @@ export class SparkSendQuoteService {
       paymentRequest: quote.paymentRequest,
       paymentHash: quote.paymentHash,
       paymentRequestIsAmountless: quote.paymentRequestIsAmountless,
+      expiresAt: quote.expiresAt,
     });
   }
 
@@ -322,7 +327,7 @@ export class SparkSendQuoteService {
 
       return request;
     } catch (error) {
-      if (error instanceof SparkSDKError) {
+      if (error instanceof SparkError) {
         const existingRequestId = await this.findExistingLightningSendRequest(
           wallet,
           sendQuote.paymentRequest,
