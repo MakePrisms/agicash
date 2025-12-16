@@ -47,18 +47,22 @@ export function AddContactDrawer() {
           <Plus className="h-4 w-4" />
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="h-[90dvh] pb-14 font-primary sm:h-[75vh]">
-        <DrawerHeader className="space-y-2">
+      <DrawerContent className="h-[90svh] font-primary sm:h-[75vh]">
+        <DrawerHeader className="shrink-0 space-y-2">
           <DrawerTitle className="text-center">Add Contact</DrawerTitle>
         </DrawerHeader>
-        <div className="mx-auto flex h-full w-full max-w-sm flex-col gap-3 px-4 sm:px-0">
-          <SearchBar
-            onSearch={setSearchQuery}
-            placeholder="satoshi"
-            debounceTime={300}
-            isLoading={isFetching}
-          />
-          <SearchResults results={results} onAddContact={handleAddContact} />
+        <div className="mx-auto flex min-h-0 w-full max-w-sm flex-1 flex-col gap-3 px-4 sm:px-0">
+          <div className="shrink-0">
+            <SearchBar
+              onSearch={setSearchQuery}
+              placeholder="satoshi"
+              debounceTime={300}
+              isLoading={isFetching}
+            />
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <SearchResults results={results} onAddContact={handleAddContact} />
+          </div>
         </div>
       </DrawerContent>
     </Drawer>

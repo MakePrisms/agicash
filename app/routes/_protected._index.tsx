@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, Clock, UserCircle2 } from 'lucide-react';
+import { Clock, UserCircle2 } from 'lucide-react';
 import type { LinksFunction } from 'react-router';
 import agicashIcon192 from '~/assets/icon-192x192.png';
 import { Page, PageContent, PageHeader } from '~/components/page';
@@ -71,18 +71,14 @@ export default function Index() {
             transition="slideUp"
             applyTo="newView"
           >
-            <Button className="w-full py-6 text-lg">
-              Receive <ArrowDownRight />
-            </Button>
+            <Button className="w-full px-7 py-6 text-lg">Receive</Button>
           </LinkWithViewTransition>
           <LinkWithViewTransition
             to="/send"
             transition="slideUp"
             applyTo="newView"
           >
-            <Button className="w-full py-6 text-lg">
-              Send <ArrowUpRight />
-            </Button>
+            <Button className="w-full px-7 py-6 text-lg">Send</Button>
           </LinkWithViewTransition>
         </div>
       </PageContent>
