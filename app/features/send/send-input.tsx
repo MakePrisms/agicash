@@ -341,35 +341,39 @@ function SelectDestinationDrawer({
           <AtSign />
         </button>
       </DrawerTrigger>
-      <DrawerContent className="h-[90dvh] pb-14 font-primary sm:h-[75vh]">
-        <DrawerHeader className="flex items-center justify-between">
+      <DrawerContent className="h-[90svh] font-primary sm:h-[75vh]">
+        <DrawerHeader className="flex shrink-0 items-center justify-between">
           <DrawerTitle>Send to User</DrawerTitle>
           <AddContactDrawer />
         </DrawerHeader>
-        <div className="mx-auto flex h-full w-full max-w-sm flex-col gap-3 px-4 sm:px-0">
-          <SearchBar
-            placeholder="Username or Lightning Address"
-            onSearch={(value) => setInput(value.toLowerCase())}
-          />
+        <div className="mx-auto flex min-h-0 w-full max-w-sm flex-1 flex-col gap-3 px-4 sm:px-0">
+          <div className="shrink-0">
+            <SearchBar
+              placeholder="Username or Lightning Address"
+              onSearch={(value) => setInput(value.toLowerCase())}
+            />
+          </div>
 
-          {isLnAddressFormat && (
-            <button
-              className="flex w-full items-center gap-3 p-3 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-              onClick={() => handleSelect(input)}
-              type="button"
-              disabled={status === 'selecting'}
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground text-sm">
-                {status === 'idle' ? (
-                  <ZapIcon />
-                ) : (
-                  <LoaderCircle className="animate-spin text-muted-foreground" />
-                )}
-              </div>
-              <p>Send to Lightning Address: {input}</p>
-            </button>
-          )}
-          <ContactsList onSelect={handleSelect} searchQuery={input} />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {isLnAddressFormat && (
+              <button
+                className="flex w-full items-center gap-3 p-3 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                onClick={() => handleSelect(input)}
+                type="button"
+                disabled={status === 'selecting'}
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground text-sm">
+                  {status === 'idle' ? (
+                    <ZapIcon />
+                  ) : (
+                    <LoaderCircle className="animate-spin text-muted-foreground" />
+                  )}
+                </div>
+                <p>Send to Lightning Address: {input}</p>
+              </button>
+            )}
+            <ContactsList onSelect={handleSelect} searchQuery={input} />
+          </div>
         </div>
       </DrawerContent>
     </Drawer>
