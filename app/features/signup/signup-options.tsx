@@ -14,34 +14,38 @@ import { AcceptTerms } from './accept-terms';
 type Option = 'email' | 'google' | 'guest';
 type Props = { onSelect: (option: Option) => Promise<void> };
 
+type Step =
+  | { name: 'pick-signup-option' }
+  | { name: 'accept-terms'; selectedOption: Option; submitting: boolean };
+
 export function SignupOptions({ onSelect }: Props) {
-  const [selected, setSelected] = useState<Option | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [step, setStep] = useState<Step>({ name: 'pick-signup-option' });
   const location = useLocation();
   const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
 
-  const handleAcceptTerms = async () => {
-    if (submitting || !selected) return;
+  const selectOption = (option: Option) =>
+    setStep({
+      name: 'accept-terms',
+      selectedOption: option,
+      submitting: false,
+    });
 
-    try {
-      setSubmitting(true);
-      await onSelect(selected);
-    } finally {
+  if (step.name === 'accept-terms') {
+    const handleAcceptTerms = async () => {
+      if (step.submitting) return;
+
+      setStep({ ...step, submitting: true });
+      await onSelect(step.selectedOption);
       // Intentionally do not clear submitting here. Let unmount on navigation clear it.
       // If we clear it here, the button loading stops before new page is displayed. Not sure
       // why but possibly something with concurrent mode, suspense and react router.
-    }
-  };
+    };
 
-  if (selected) {
     return (
       <AcceptTerms
         onAccept={handleAcceptTerms}
-        onBack={() => {
-          setSelected(null);
-          setSubmitting(false);
-        }}
-        loading={submitting}
+        onBack={() => setStep({ name: 'pick-signup-option' })}
+        loading={step.submitting}
       />
     );
   }
@@ -54,14 +58,14 @@ export function SignupOptions({ onSelect }: Props) {
       </CardHeader>
       <CardContent>
         <div className="grid gap-4">
-          <Button onClick={() => setSelected('email')}>
+          <Button onClick={() => selectOption('email')}>
             Create wallet with Email
           </Button>
-          <Button onClick={() => setSelected('google')}>
+          <Button onClick={() => selectOption('google')}>
             Create wallet with Google
           </Button>
           {guestSignupEnabled && (
-            <Button onClick={() => setSelected('guest')}>
+            <Button onClick={() => selectOption('guest')}>
               Create wallet as Guest
             </Button>
           )}

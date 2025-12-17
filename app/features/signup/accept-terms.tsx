@@ -13,7 +13,7 @@ import { Label } from '~/components/ui/label';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 type AcceptTermsProps = {
-  onAccept: () => void | Promise<void>;
+  onAccept: () => Promise<void>;
   onBack: () => void;
   loading?: boolean;
 };
