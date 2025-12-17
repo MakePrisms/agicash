@@ -1,4 +1,3 @@
-import type { SparkWallet } from '@buildonspark/spark-sdk';
 import type { Money } from '~/lib/money';
 import { moneyFromSparkAmount } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
@@ -50,9 +49,7 @@ export class SparkReceiveQuoteService {
     receiverIdentityPubkey,
     type = 'LIGHTNING',
   }: CreateQuoteParams): Promise<SparkReceiveQuote> {
-    const wallet = this.getSparkWalletOrThrow(account);
-
-    const request = await wallet.createLightningInvoice({
+    const request = await account.wallet.createLightningInvoice({
       amountSats: amount.toNumber('sat'),
       includeSparkAddress: false,
       receiverIdentityPubkey,
@@ -135,13 +132,6 @@ export class SparkReceiveQuoteService {
     }
 
     await this.repository.expire(quote.id);
-  }
-
-  private getSparkWalletOrThrow(account: SparkAccount): SparkWallet {
-    if (!account.wallet) {
-      throw new Error(`Spark account ${account.id} wallet not initialized`);
-    }
-    return account.wallet;
   }
 }
 

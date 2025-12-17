@@ -185,9 +185,6 @@ export function useOnSparkSendStateChange({
       }
 
       const account = getSparkAccount(quote.accountId);
-      if (!account.wallet) {
-        return;
-      }
 
       const sendRequest = await account.wallet.getLightningSendRequest(
         quote.sparkId,

@@ -283,9 +283,6 @@ export function useOnSparkReceiveStateChange({
   const checkQuoteStatus = async (quote: SparkReceiveQuote) => {
     try {
       const account = getSparkAccount(quote.accountId);
-      if (!account.wallet) {
-        return;
-      }
       const receiveRequest = await account.wallet.getLightningReceiveRequest(
         quote.sparkId,
       );

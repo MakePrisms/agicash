@@ -290,6 +290,9 @@ export class LightningAddressService {
   ): Promise<LNURLVerifyResult | LNURLError> {
     try {
       const account = await this.accountRepository.get(accountId);
+      if (!account.isOnline) {
+        throw new Error(`Account ${accountId} is offline`);
+      }
       if (account.type === 'cashu') {
         return this.handleCashuLnurlpVerify(requestId);
       }
@@ -361,10 +364,6 @@ export class LightningAddressService {
     account: SparkAccount,
     quoteId: string,
   ): Promise<LNURLVerifyResult> {
-    if (!account.wallet) {
-      throw new Error(`Spark wallet not found for account ${account.id}`);
-    }
-
     const sparkReceiveQuoteService = new SparkReceiveQuoteService(
       new SparkReceiveQuoteRepository(this.db, this.encryption),
     );
