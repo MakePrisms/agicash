@@ -144,11 +144,11 @@ export class SparkSendQuoteService {
       throw new Error('Unknown send amount');
     }
 
-    const wallet = this.getSparkWalletOrThrow(account);
-    const estimatedLightningFeeSats = await wallet.getLightningSendFeeEstimate({
-      amountSats: amountRequestedInBtc.toNumber('sat'),
-      encodedInvoice: paymentRequest,
-    });
+    const estimatedLightningFeeSats =
+      await account.wallet.getLightningSendFeeEstimate({
+        amountSats: amountRequestedInBtc.toNumber('sat'),
+        encodedInvoice: paymentRequest,
+      });
 
     const estimatedLightningFee = new Money({
       amount: estimatedLightningFeeSats,
@@ -234,9 +234,10 @@ export class SparkSendQuoteService {
       );
     }
 
-    const wallet = this.getSparkWalletOrThrow(account);
-
-    const sendRequest = await this.payLightningInvoice(wallet, sendQuote);
+    const sendRequest = await this.payLightningInvoice(
+      account.wallet,
+      sendQuote,
+    );
 
     return this.repository.markAsPending({
       quote: sendQuote,
@@ -402,13 +403,6 @@ export class SparkSendQuoteService {
 
       offset += PAGE_SIZE;
     }
-  }
-
-  private getSparkWalletOrThrow(account: SparkAccount): SparkWallet {
-    if (!account.wallet) {
-      throw new Error(`Spark account ${account.id} has no wallet`);
-    }
-    return account.wallet;
   }
 }
 

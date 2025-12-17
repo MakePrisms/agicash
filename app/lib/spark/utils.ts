@@ -1,4 +1,8 @@
-import { DefaultSparkSigner, type NetworkType } from '@buildonspark/spark-sdk';
+import {
+  DefaultSparkSigner,
+  type NetworkType,
+  type SparkWallet,
+} from '@buildonspark/spark-sdk';
 import {
   type CurrencyAmount as SparkCurrencyAmount,
   CurrencyUnit as SparkCurrencyUnit,
@@ -84,4 +88,22 @@ export async function getSparkIdentityPublicKeyFromMnemonic(
 
   const publicKey = await signer.getIdentityPublicKey();
   return bytesToHex(publicKey);
+}
+
+/**
+ * Creates a SparkWallet stub that throws when any method is called.
+ * @param reason - The reason for the stub. This will be the error message thrown when any method is called.
+ */
+export function createSparkWalletStub(reason: string): SparkWallet {
+  return new Proxy({} as SparkWallet, {
+    get(_target, prop) {
+      if (typeof prop === 'string') {
+        return () => {
+          console.error(`Cannot call ${prop} on Spark wallet stub`);
+          throw new Error(reason);
+        };
+      }
+      return undefined;
+    },
+  });
 }
