@@ -33,6 +33,7 @@ import { AccountSelector } from '../accounts/account-selector';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
+import { AcceptTerms } from '../signup/accept-terms';
 import { useAuthActions } from '../user/auth';
 import { useFailCashuReceiveQuote } from './cashu-receive-quote-hooks';
 import { useCreateCashuTokenSwap } from './cashu-token-swap-hooks';
@@ -266,7 +267,10 @@ const addAutoClaimSearchParam = (
   );
 };
 
+type PublicReceiveStep = 'show-token' | 'accept-terms';
+
 export function PublicReceiveCashuToken({ token }: { token: Token }) {
+  const [step, setStep] = useState<PublicReceiveStep>('show-token');
   const [signingUpGuest, setSigningUpGuest] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -312,6 +316,20 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
     }
   };
 
+  if (step === 'accept-terms') {
+    return (
+      <>
+        <PageContent className="justify-center">
+          <AcceptTerms
+            onAccept={handleClaimAsGuest}
+            onBack={() => setStep('show-token')}
+            loading={signingUpGuest}
+          />
+        </PageContent>
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader className="z-10">
@@ -349,9 +367,9 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
           <div className="flex flex-col gap-4">
             {guestSignupEnabled && (
               <Button
-                onClick={handleClaimAsGuest}
-                className="w-[200px]"
+                onClick={() => setStep('accept-terms')}
                 loading={signingUpGuest}
+                className="w-[200px]"
               >
                 Claim as Guest
               </Button>

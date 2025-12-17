@@ -887,6 +887,7 @@ export type Database = {
           encryption_public_key: string
           id: string
           spark_identity_public_key: string
+          terms_accepted_at: string
           updated_at: string
           username: string
         }
@@ -901,6 +902,7 @@ export type Database = {
           encryption_public_key: string
           id?: string
           spark_identity_public_key: string
+          terms_accepted_at?: string
           updated_at?: string
           username: string
         }
@@ -915,6 +917,7 @@ export type Database = {
           encryption_public_key?: string
           id?: string
           spark_identity_public_key?: string
+          terms_accepted_at?: string
           updated_at?: string
           username?: string
         }
