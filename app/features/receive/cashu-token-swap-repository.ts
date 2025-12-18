@@ -7,11 +7,11 @@ import {
   type AccountRepository,
   useAccountRepository,
 } from '../accounts/account-repository';
-import {
-  type AgicashDb,
-  type AgicashDbCashuTokenSwap,
-  agicashDb,
+import type {
+  AgicashDb,
+  AgicashDbCashuTokenSwap,
 } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import { getTokenHash } from '../shared/cashu';
 import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
@@ -374,5 +374,9 @@ export class CashuTokenSwapRepository {
 export function useCashuTokenSwapRepository() {
   const encryption = useEncryption();
   const accountRepository = useAccountRepository();
-  return new CashuTokenSwapRepository(agicashDb, encryption, accountRepository);
+  return new CashuTokenSwapRepository(
+    agicashDbClient,
+    encryption,
+    accountRepository,
+  );
 }

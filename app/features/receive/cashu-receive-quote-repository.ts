@@ -7,11 +7,11 @@ import {
   type AccountRepository,
   useAccountRepository,
 } from '../accounts/account-repository';
-import {
-  type AgicashDb,
-  type AgicashDbCashuReceiveQuote,
-  agicashDb,
+import type {
+  AgicashDb,
+  AgicashDbCashuReceiveQuote,
 } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
@@ -517,7 +517,7 @@ export function useCashuReceiveQuoteRepository() {
   const encryption = useEncryption();
   const accountRepository = useAccountRepository();
   return new CashuReceiveQuoteRepository(
-    agicashDb,
+    agicashDbClient,
     encryption,
     accountRepository,
   );

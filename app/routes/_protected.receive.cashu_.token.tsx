@@ -3,7 +3,7 @@ import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { AccountRepository } from '~/features/accounts/account-repository';
 import { AccountService } from '~/features/accounts/account-service';
-import { agicashDb } from '~/features/agicash-db/database';
+import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
 import { CashuReceiveQuoteRepository } from '~/features/receive/cashu-receive-quote-repository';
@@ -43,7 +43,7 @@ const getClaimCashuTokenService = async () => {
     queryClient.fetchQuery(sparkMnemonicQueryOptions());
   const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
   const accountRepository = new AccountRepository(
-    agicashDb,
+    agicashDbClient,
     encryption,
     queryClient,
     getCashuWalletSeed,
@@ -51,13 +51,13 @@ const getClaimCashuTokenService = async () => {
   );
   const accountService = new AccountService(accountRepository);
   const tokenSwapRepository = new CashuTokenSwapRepository(
-    agicashDb,
+    agicashDbClient,
     encryption,
     accountRepository,
   );
   const tokenSwapService = new CashuTokenSwapService(tokenSwapRepository);
   const cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
-    agicashDb,
+    agicashDbClient,
     encryption,
     accountRepository,
   );
@@ -71,7 +71,7 @@ const getClaimCashuTokenService = async () => {
     cashuReceiveQuoteService,
   );
   const userRepository = new UserRepository(
-    agicashDb,
+    agicashDbClient,
     encryption,
     accountRepository,
   );

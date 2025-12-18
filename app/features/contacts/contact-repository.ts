@@ -1,9 +1,6 @@
 import useLocationData from '~/hooks/use-location';
-import {
-  type AgicashDb,
-  type AgicashDbContact,
-  agicashDb,
-} from '../agicash-db/database';
+import type { AgicashDb, AgicashDbContact } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import type { UserProfile } from '../user/user';
 import type { Contact } from './contact';
 
@@ -165,5 +162,5 @@ export class ContactRepository {
 
 export function useContactRepository() {
   const { domain } = useLocationData();
-  return new ContactRepository(agicashDb, domain);
+  return new ContactRepository(agicashDbClient, domain);
 }

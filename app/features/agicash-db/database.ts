@@ -1,44 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
+import type { createClient } from '@supabase/supabase-js';
 import type {
   Database as DatabaseGenerated,
   Json,
 } from 'supabase/database.types';
 import type { MergeDeep } from 'type-fest';
 import type { Currency, CurrencyUnit } from '~/lib/money';
-import { SupabaseRealtimeManager } from '~/lib/supabase';
 import type { AccountType } from '../accounts/account';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
 import type { Transaction } from '../transactions/transaction';
-import { getSupabaseSessionToken } from './supabase-session';
-
-const getSupabaseUrl = () => {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
-  if (!supabaseUrl) {
-    throw new Error('VITE_SUPABASE_URL is not set');
-  }
-
-  if (
-    supabaseUrl.includes('127.0.0.1') &&
-    typeof window !== 'undefined' &&
-    window.location.protocol === 'https:' &&
-    (window.location.hostname.endsWith('.local') ||
-      window.location.hostname.startsWith('192.168.') ||
-      window.location.hostname.startsWith('10.') ||
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname))
-  ) {
-    return supabaseUrl.replace('127.0.0.1', window.location.hostname);
-  }
-
-  return supabaseUrl;
-};
-
-const supabaseUrl = getSupabaseUrl();
-
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-if (!supabaseAnonKey) {
-  throw new Error('VITE_SUPABASE_ANON_KEY is not set');
-}
 
 type UpsertUserWithAccountsResult = {
   user: AgicashDbUser;
@@ -374,34 +344,7 @@ export type Database = MergeDeep<
   }
 >;
 
-export const agicashDb = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  accessToken: getSupabaseSessionToken,
-  db: {
-    schema: 'wallet',
-  },
-  realtime: {
-    logger: (kind: string, msg: unknown, data?: unknown) => {
-      const now = Date.now();
-      console.debug(
-        `Realtime -> ${kind}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`,
-        {
-          timestamp: now,
-          time: new Date(now).toISOString(),
-          data,
-        },
-      );
-    },
-    logLevel: 'info',
-  },
-});
-
-export const agicashRealtime = new SupabaseRealtimeManager(agicashDb.realtime);
-if (typeof window !== 'undefined') {
-  // biome-ignore lint/suspicious/noExplicitAny: attaching to window for debugging
-  (window as any).agicashRealtime = agicashRealtime;
-}
-
-export type AgicashDb = typeof agicashDb;
+export type AgicashDb = ReturnType<typeof createClient<Database>>;
 
 export type AgicashDbUser = Database['wallet']['Tables']['users']['Row'];
 export type AgicashDbAccount = Database['wallet']['Tables']['accounts']['Row'];

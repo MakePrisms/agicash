@@ -5,11 +5,8 @@ import {
   type AccountRepository,
   useAccountRepository,
 } from '../accounts/account-repository';
-import {
-  type AgicashDb,
-  type AgicashDbUser,
-  agicashDb,
-} from '../agicash-db/database';
+import type { AgicashDb, AgicashDbUser } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption';
 import { UniqueConstraintError } from '../shared/error';
 import type { User } from './user';
@@ -297,5 +294,5 @@ export class UserRepository {
 export function useUserRepository() {
   const encryption = useEncryption();
   const accountRepository = useAccountRepository();
-  return new UserRepository(agicashDb, encryption, accountRepository);
+  return new UserRepository(agicashDbClient, encryption, accountRepository);
 }
