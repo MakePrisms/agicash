@@ -64,6 +64,9 @@ export const sparkWalletQueryOptions = ({
         mnemonicOrSeed: mnemonicToUse,
         options: { network },
       });
+      // Privacy mode hides the wallet from Spark explorers (e.g. sparkscan.io), but not from Spark Operators.
+      // Toggling this setting retroactively hides/reveals all transactions, not just future ones.
+      await wallet.setPrivacyEnabled(true);
       return wallet;
     },
     staleTime: Number.POSITIVE_INFINITY,
