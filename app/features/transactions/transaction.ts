@@ -199,42 +199,55 @@ export type CompletedSparkLightningReceiveTransactionDetails =
   };
 
 /**
- * Transaction details for Spark lightning send transaction.
+ * Transaction details for a Spark lightning send transaction that is not yet completed.
  */
-export type SparkLightningSendTransactionDetails = {
+export type IncompleteSparkLightningSendTransactionDetails = {
   /**
-   * The amount being sent.
+   * Amount that the receiver will receive.
+   *
+   * This is the invoice amount in the currency of the account we are sending from.
    */
-  amountSpent: Money;
+  amountToReceive: Money;
   /**
-   * The estimatedfee for the lightning payment.
+   * The estimated fee for the Lightning Network payment.
+   *
+   * If the actual fee ends up being different than this estimate,
+   * the completed transaction will reflect the actual fee paid.
    */
   estimatedFee: Money;
   /**
-   * The bolt11 payment request being paid.
+   * The bolt11 payment request.
    */
   paymentRequest: string;
   /**
-   * The ID of the send request in spark system.
+   * This is the sum of `amountToReceive` and `fee`. This is the amount deducted from the account.
+   * Available after the payment is initiated.
+   */
+  amountSpent?: Money;
+  /**
+   * The ID of the send request in Spark system.
+   * Available after the payment is initiated.
    */
   sparkId?: string;
   /**
    * The ID of the transfer in Spark system.
+   * Available after the payment is initiated.
    */
   sparkTransferId?: string;
   /**
-   * The actual fee paid for the lightning payment.
+   * The actual fee for the Lightning Network payment.
+   * Available after the payment is initiated.
    */
   fee?: Money;
 };
 
 /**
- * Transaction details of the completed Spark lightning send transaction.
+ * Transaction details for a Spark lightning send transaction that is completed.
  */
 export type CompletedSparkLightningSendTransactionDetails =
-  Required<SparkLightningSendTransactionDetails> & {
+  Required<IncompleteSparkLightningSendTransactionDetails> & {
     /**
-     * The payment preimage of the lightning payment.
+     * The preimage of the lightning payment.
      */
     paymentPreimage: string;
   };
@@ -356,7 +369,7 @@ export type Transaction = {
       type: 'SPARK_LIGHTNING';
       direction: 'SEND';
       state: 'PENDING' | 'FAILED';
-      details: SparkLightningSendTransactionDetails;
+      details: IncompleteSparkLightningSendTransactionDetails;
     }
   | {
       type: 'SPARK_LIGHTNING';

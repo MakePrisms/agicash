@@ -25,8 +25,8 @@ import type {
   CompletedSparkLightningReceiveTransactionDetails,
   CompletedSparkLightningSendTransactionDetails,
   IncompleteCashuLightningSendTransactionDetails,
+  IncompleteSparkLightningSendTransactionDetails,
   SparkLightningReceiveTransactionDetails,
-  SparkLightningSendTransactionDetails,
   Transaction,
 } from '~/features/transactions/transaction';
 import { useToast } from '~/hooks/use-toast';
@@ -261,6 +261,9 @@ export function TransactionDetails({
         `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
         {
           paymentRequest: completedDetails.paymentRequest,
+          amountToReceive: completedDetails.amountToReceive.toLocaleString({
+            unit,
+          }),
           amountSpent: completedDetails.amountSpent.toLocaleString({ unit }),
           estimatedFee: completedDetails.estimatedFee.toLocaleString({ unit }),
           sparkId: completedDetails.sparkId,
@@ -270,12 +273,15 @@ export function TransactionDetails({
         },
       );
     } else {
-      const incompleteDetails = details as SparkLightningSendTransactionDetails;
+      const incompleteDetails =
+        details as IncompleteSparkLightningSendTransactionDetails;
       console.debug(
         `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
         {
           paymentRequest: incompleteDetails.paymentRequest,
-          amountSpent: incompleteDetails.amountSpent.toLocaleString({ unit }),
+          amountToReceive: incompleteDetails.amountToReceive.toLocaleString({
+            unit,
+          }),
           estimatedFee: incompleteDetails.estimatedFee.toLocaleString({ unit }),
           sparkId: incompleteDetails.sparkId,
           sparkTransferId: incompleteDetails.sparkTransferId,

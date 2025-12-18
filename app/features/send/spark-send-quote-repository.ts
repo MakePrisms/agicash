@@ -8,7 +8,7 @@ import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
   CompletedSparkLightningSendTransactionDetails,
-  SparkLightningSendTransactionDetails,
+  IncompleteSparkLightningSendTransactionDetails,
 } from '../transactions/transaction';
 import type { SparkSendQuote } from './spark-send-quote';
 
@@ -78,8 +78,8 @@ export class SparkSendQuoteRepository {
 
     const unit = getDefaultUnit(amount.currency);
 
-    const detailsToEncrypt: SparkLightningSendTransactionDetails = {
-      amountSpent: amount,
+    const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
+      amountToReceive: amount,
       estimatedFee,
       paymentRequest,
     };
@@ -144,8 +144,9 @@ export class SparkSendQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
-    const detailsToEncrypt: SparkLightningSendTransactionDetails = {
-      amountSpent: quote.amount,
+    const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
+      amountToReceive: quote.amount,
+      amountSpent: quote.amount.add(fee),
       estimatedFee: quote.estimatedFee,
       paymentRequest: quote.paymentRequest,
       fee,
@@ -201,7 +202,8 @@ export class SparkSendQuoteRepository {
       CompletedSparkLightningSendTransactionDetails,
       'sparkId' | 'sparkTransferId'
     > = {
-      amountSpent: quote.amount,
+      amountToReceive: quote.amount,
+      amountSpent: quote.amount.add(quote.fee),
       estimatedFee: quote.estimatedFee,
       paymentRequest: quote.paymentRequest,
       fee: quote.fee,
