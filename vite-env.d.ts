@@ -17,6 +17,7 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN: string | undefined;
   readonly VITE_ENVIRONMENT: string | undefined;
   readonly VITE_LOCAL_DEV: string | undefined;
+  readonly VITE_CASHU_MINT_BLOCKLIST: string | undefined;
   // Feature flags
   readonly VITE_FF_GUEST_SIGNUP: string | undefined;
 }
