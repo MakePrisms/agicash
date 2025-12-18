@@ -54,6 +54,8 @@ Try to make feature branches short-lived and concise (avoid implementing multipl
 
 ### Updating the development environment
 
+To update devenv CLI on your machine, for macOS run `nix-env --upgrade --attr devenv -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable`.
+
 To update devenv packages, run `devenv update`. When updating `bun`, make sure to update the `engines` version in
 `package.json` and version specified in `.github/actions/setup-environment/action.yml`. When updating `node`, update the
 `.nvmrc` file and `engines` version in `package.json`. Note that Vercel does not allow pinning to an exact node version, so
