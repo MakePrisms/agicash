@@ -11,9 +11,10 @@ import type {
   CashuTokenReceiveTransactionDetails,
   CashuTokenSendTransactionDetails,
   CompletedCashuLightningSendTransactionDetails,
+  CompletedSparkLightningSendTransactionDetails,
   IncompleteCashuLightningSendTransactionDetails,
+  IncompleteSparkLightningSendTransactionDetails,
   SparkLightningReceiveTransactionDetails,
-  SparkLightningSendTransactionDetails,
   Transaction,
 } from './transaction';
 
@@ -45,7 +46,8 @@ type UnifiedTransactionDetails =
   | IncompleteCashuLightningSendTransactionDetails
   | CompletedCashuLightningSendTransactionDetails
   | SparkLightningReceiveTransactionDetails
-  | SparkLightningSendTransactionDetails;
+  | IncompleteSparkLightningSendTransactionDetails
+  | CompletedSparkLightningSendTransactionDetails;
 
 export class TransactionRepository {
   constructor(
@@ -245,7 +247,10 @@ export class TransactionRepository {
 
     if (type === 'CASHU_LIGHTNING' && direction === 'RECEIVE') {
       const receiveDetails = details as CashuLightningReceiveTransactionDetails;
-      return createTransaction(receiveDetails.amountReceived, receiveDetails);
+      const amount = receiveDetails.mintingFee
+        ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
+        : receiveDetails.amountReceived;
+      return createTransaction(amount, receiveDetails);
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'SEND') {
@@ -255,7 +260,10 @@ export class TransactionRepository {
 
     if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
       const receiveDetails = details as CashuTokenReceiveTransactionDetails;
-      return createTransaction(receiveDetails.amountReceived, receiveDetails);
+      const amount = receiveDetails.mintingFee
+        ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
+        : receiveDetails.amountReceived;
+      return createTransaction(amount, receiveDetails);
     }
 
     if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
@@ -264,13 +272,20 @@ export class TransactionRepository {
     }
 
     if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
-      const sendDetails = details as SparkLightningSendTransactionDetails;
-      return createTransaction(
-        sendDetails.amountSpent.add(
-          sendDetails.fee ?? sendDetails.estimatedFee,
-        ),
-        sendDetails,
-      );
+      if (state === 'COMPLETED') {
+        const completedDetails =
+          details as CompletedSparkLightningSendTransactionDetails;
+        return createTransaction(
+          completedDetails.amountSpent,
+          completedDetails,
+        );
+      }
+      const incompleteDetails =
+        details as IncompleteSparkLightningSendTransactionDetails;
+      const amount =
+        incompleteDetails.amountSpent ??
+        incompleteDetails.amountToReceive.add(incompleteDetails.estimatedFee);
+      return createTransaction(amount, incompleteDetails);
     }
 
     throw new Error('Invalid transaction data', { cause: data });
