@@ -12,7 +12,10 @@ import {
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { checkIsTestMint, getCashuWallet, sumProofs } from '~/lib/cashu';
-import { buildMintValidator } from '~/lib/cashu/mint-validation';
+import {
+  MintBlocklistSchema,
+  buildMintValidator,
+} from '~/lib/cashu/mint-validation';
 import { type Currency, type CurrencyUnit, Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
@@ -138,9 +141,14 @@ export function getTokenHash(token: Token | string): Promise<string> {
   return computeSHA256(encodedToken);
 }
 
+const mintBlocklist = MintBlocklistSchema.parse(
+  JSON.parse(import.meta.env.VITE_CASHU_MINT_BLOCKLIST ?? '[]'),
+);
+
 export const cashuMintValidator = buildMintValidator({
   requiredNuts: [4, 5, 7, 8, 9, 10, 11, 12, 17, 20] as const,
   requiredWebSocketCommands: ['bolt11_melt_quote', 'proof_state'] as const,
+  blocklist: mintBlocklist,
 });
 
 export const mintInfoQueryKey = (mintUrl: string) => ['mint-info', mintUrl];
