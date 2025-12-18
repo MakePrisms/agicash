@@ -3,8 +3,8 @@
 # Get the current hostname
 HOSTNAME=$(hostname)
 
-# Get the local IP address
-LOCAL_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}')
+# Get the local IP address (excluding entire 127.x.x.x loopback range)
+LOCAL_IP=$(ifconfig | grep "inet " | awk '{print $2}' | grep -v "^127\." | head -1)
 
 # Check if SSL certificate already exist and cover current hostname and local IP
 if [ -f "certs/localhost-cert.pem" ] && [ -f "certs/localhost-key.pem" ]; then  

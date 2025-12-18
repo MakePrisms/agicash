@@ -23,7 +23,9 @@ const getSupabaseUrl = () => {
     typeof window !== 'undefined' &&
     window.location.protocol === 'https:' &&
     (window.location.hostname.endsWith('.local') ||
-      window.location.hostname.startsWith('192.168.'))
+      window.location.hostname.startsWith('192.168.') ||
+      window.location.hostname.startsWith('10.') ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname))
   ) {
     return supabaseUrl.replace('127.0.0.1', window.location.hostname);
   }
