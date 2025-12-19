@@ -15,12 +15,12 @@ import {
 } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
 import { createSparkWalletStub } from '~/lib/spark';
-import {
-  type AgicashDb,
-  type AgicashDbAccount,
-  type AgicashDbAccountWithProofs,
-  agicashDb,
+import type {
+  AgicashDb,
+  AgicashDbAccount,
+  AgicashDbAccountWithProofs,
 } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import {
   allMintKeysetsQueryKey,
   allMintKeysetsQueryOptions,
@@ -381,7 +381,7 @@ export function useAccountRepository() {
   const getSparkWalletMnemonic = () =>
     queryClient.fetchQuery(sparkMnemonicQueryOptions());
   return new AccountRepository(
-    agicashDb,
+    agicashDbClient,
     encryption,
     queryClient,
     getCashuWalletSeed,

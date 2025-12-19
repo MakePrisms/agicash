@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { agicashDb } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import { useProcessCashuReceiveQuoteTasks } from '../receive/cashu-receive-quote-hooks';
 import { useProcessCashuTokenSwapTasks } from '../receive/cashu-token-swap-hooks';
 import { useProcessSparkReceiveQuoteTasks } from '../receive/spark-receive-quote-hooks';
@@ -11,7 +11,7 @@ import { useUser } from '../user/user-hooks';
 import { TaskProcessingLockRepository } from './task-processing-lock-repository';
 
 const taskProcessingLockRepository = new TaskProcessingLockRepository(
-  agicashDb,
+  agicashDbClient,
 );
 
 /**

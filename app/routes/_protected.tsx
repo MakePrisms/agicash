@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { AccountsCache } from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
-import { agicashDb } from '~/features/agicash-db/database';
+import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import {
@@ -88,14 +88,14 @@ const ensureUserData = async (
     const getSparkWalletMnemonic = () =>
       queryClient.fetchQuery(sparkMnemonicQueryOptions());
     const accountRepository = new AccountRepository(
-      agicashDb,
+      agicashDbClient,
       encryption,
       queryClient,
       getCashuWalletSeed,
       getSparkWalletMnemonic,
     );
     const userRepository = new UserRepository(
-      agicashDb,
+      agicashDbClient,
       encryption,
       accountRepository,
     );

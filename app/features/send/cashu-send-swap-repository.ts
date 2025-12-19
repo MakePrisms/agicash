@@ -3,12 +3,12 @@ import type { Json } from 'supabase/database.types';
 import { proofToY, sumProofs } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { CashuProof } from '../accounts/account';
-import {
-  type AgicashDb,
-  type AgicashDbCashuProof,
-  type AgicashDbCashuSendSwap,
-  agicashDb,
+import type {
+  AgicashDb,
+  AgicashDbCashuProof,
+  AgicashDbCashuSendSwap,
 } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
@@ -448,5 +448,5 @@ export class CashuSendSwapRepository {
 
 export function useCashuSendSwapRepository() {
   const encryption = useEncryption();
-  return new CashuSendSwapRepository(agicashDb, encryption);
+  return new CashuSendSwapRepository(agicashDbClient, encryption);
 }

@@ -1,9 +1,9 @@
 import { Money } from '~/lib/money';
-import {
-  type AgicashDb,
-  type AgicashDbSparkSendQuote,
-  agicashDb,
+import type {
+  AgicashDb,
+  AgicashDbSparkSendQuote,
 } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
@@ -430,5 +430,5 @@ export class SparkSendQuoteRepository {
 
 export function useSparkSendQuoteRepository() {
   const encryption = useEncryption();
-  return new SparkSendQuoteRepository(agicashDb, encryption);
+  return new SparkSendQuoteRepository(agicashDbClient, encryption);
 }

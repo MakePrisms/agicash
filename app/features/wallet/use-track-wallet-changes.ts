@@ -1,4 +1,4 @@
-import { agicashRealtime } from '~/features/agicash-db/database';
+import { agicashRealtimeClient } from '~/features/agicash-db/database.client';
 import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
 import {
@@ -70,7 +70,7 @@ function useTrackDatabaseChanges({ handlers, onConnected }: Props) {
   const userId = useUser((user) => user.id);
 
   useSupabaseRealtime({
-    channel: agicashRealtime
+    channel: agicashRealtimeClient
       .channel(`wallet:${userId}`, { private: true })
       .on('broadcast', { event: '*' }, ({ event, payload }) => {
         const handler = handlers.find((handler) => handler.event === event);

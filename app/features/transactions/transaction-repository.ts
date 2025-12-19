@@ -1,10 +1,7 @@
 import type { Money } from '~/lib/money';
 import { isObject } from '~/lib/utils';
-import {
-  type AgicashDb,
-  type AgicashDbTransaction,
-  agicashDb,
-} from '../agicash-db/database';
+import type { AgicashDb, AgicashDbTransaction } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption';
 import type {
   CashuLightningReceiveTransactionDetails,
@@ -294,5 +291,5 @@ export class TransactionRepository {
 
 export function useTransactionRepository() {
   const encryption = useEncryption();
-  return new TransactionRepository(agicashDb, encryption);
+  return new TransactionRepository(agicashDbClient, encryption);
 }
