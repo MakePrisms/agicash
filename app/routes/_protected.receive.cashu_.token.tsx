@@ -13,6 +13,8 @@ import { CashuTokenSwapService } from '~/features/receive/cashu-token-swap-servi
 import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
 import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
+import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
+import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import {
   getCashuCryptography,
   seedQueryOptions,
@@ -66,9 +68,13 @@ const getClaimCashuTokenService = async () => {
     cashuCryptography,
     cashuReceiveQuoteRepository,
   );
+  const sparkReceiveQuoteService = new SparkReceiveQuoteService(
+    new SparkReceiveQuoteRepository(agicashDbClient, encryption),
+  );
   const receiveCashuTokenService = new ReceiveCashuTokenService(queryClient);
   const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
     cashuReceiveQuoteService,
+    sparkReceiveQuoteService,
   );
   const userRepository = new UserRepository(
     agicashDbClient,
@@ -83,10 +89,21 @@ const getClaimCashuTokenService = async () => {
     accountService,
     tokenSwapService,
     cashuReceiveQuoteService,
+    sparkReceiveQuoteService,
     receiveCashuTokenService,
     receiveCashuTokenQuoteService,
     userService,
   );
+};
+
+const getClaimTo = (
+  searchParams: URLSearchParams,
+): 'cashu' | 'spark' | null => {
+  const claimTo = searchParams.get('claimTo');
+  if (claimTo === 'cashu' || claimTo === 'spark') {
+    return claimTo;
+  }
+  return null;
 };
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
@@ -100,12 +117,17 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const location = new URL(request.url);
   const selectedAccountId =
     location.searchParams.get('selectedAccountId') ?? undefined;
-  const autoClaim = location.searchParams.get('autoClaim') === 'true';
+  const claimTo = getClaimTo(location.searchParams);
 
-  if (autoClaim) {
+  if (claimTo) {
     const user = getUserFromCacheOrThrow();
     const claimCashuTokenService = await getClaimCashuTokenService();
-    const result = await claimCashuTokenService.claimToken(user, token);
+
+    const result = await claimCashuTokenService.claimToken(
+      user,
+      token,
+      claimTo,
+    );
     if (!result.success) {
       toast({
         title: 'Failed to claim the token',

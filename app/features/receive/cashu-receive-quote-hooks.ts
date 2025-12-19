@@ -149,7 +149,7 @@ export function useCreateCashuReceiveQuote() {
         userId,
         account,
         receiveType: 'LIGHTNING',
-        receiveQuote: lightningQuote,
+        lightningQuote,
       });
     },
     onSuccess: (data) => {

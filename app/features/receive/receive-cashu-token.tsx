@@ -38,12 +38,16 @@ import { useAuthActions } from '../user/auth';
 import { useFailCashuReceiveQuote } from './cashu-receive-quote-hooks';
 import { useCreateCashuTokenSwap } from './cashu-token-swap-hooks';
 import {
-  useCashuTokenSourceAccountQuery,
   useCashuTokenWithClaimableProofs,
   useCreateCrossAccountReceiveQuotes,
+  useReceiveCashuTokenAccountPlaceholders,
   useReceiveCashuTokenAccounts,
 } from './receive-cashu-token-hooks';
-import type { CashuAccountWithTokenFlags } from './receive-cashu-token-models';
+import {
+  type CashuAccountWithTokenFlags,
+  type ReceiveCashuTokenAccount,
+  isClaimingToSameCashuAccount,
+} from './receive-cashu-token-models';
 
 type Props = {
   token: Token;
@@ -139,15 +143,16 @@ export default function ReceiveToken({
     }: {
       token: Token;
       sourceAccount: CashuAccountWithTokenFlags;
-      receiveAccount: CashuAccountWithTokenFlags;
+      receiveAccount: ReceiveCashuTokenAccount;
     }) => {
       const account = receiveAccount.isUnknown
         ? await addAndSetReceiveAccount(receiveAccount)
         : receiveAccount;
 
-      const isSameAccountClaim =
-        account.currency === sourceAccount.currency &&
-        account.mintUrl === sourceAccount.mintUrl;
+      const isSameAccountClaim = isClaimingToSameCashuAccount(
+        account,
+        sourceAccount,
+      );
 
       if (isSameAccountClaim) {
         const {
@@ -158,20 +163,25 @@ export default function ReceiveToken({
         });
         onTransactionCreated(transactionId);
       } else {
-        const { sourceWallet, cashuMeltQuote, cashuReceiveQuote } =
-          await createCrossAccountReceiveQuotes({
-            token,
-            destinationAccount: account,
-            sourceAccount,
-          });
-        onTransactionCreated(cashuReceiveQuote.transactionId);
-        await sourceWallet.meltProofs(cashuMeltQuote, token.proofs);
+        const result = await createCrossAccountReceiveQuotes({
+          token,
+          destinationAccount: account,
+          sourceAccount,
+        });
+        onTransactionCreated(result.lightningReceiveQuote.transactionId);
+        await result.sourceWallet.meltProofsIdempotent(
+          result.cashuMeltQuote,
+          token.proofs,
+        );
       }
 
       return account;
     },
     onError: (error) => {
-      if (error instanceof MintOperationError && crossAccountReceiveQuotes) {
+      if (
+        error instanceof MintOperationError &&
+        crossAccountReceiveQuotes?.destinationType === 'cashu'
+      ) {
         failCashuReceiveQuote({
           quoteId: crossAccountReceiveQuotes.cashuReceiveQuote.id,
           reason: error.message,
@@ -250,12 +260,13 @@ export default function ReceiveToken({
   );
 }
 
-const addAutoClaimSearchParam = (
+const addClaimToSearchParam = (
   navigate: NavigateFunction,
   location: Location,
+  claimTo: 'spark' | 'cashu',
 ) => {
   const searchParams = new URLSearchParams(location.search);
-  searchParams.set('autoClaim', true.toString());
+  searchParams.set('claimTo', claimTo);
   navigate(
     {
       search: `?${searchParams.toString()}`,
@@ -278,8 +289,11 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
   const { toast } = useToast();
   const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
   const {
-    data: { sourceAccount },
-  } = useCashuTokenSourceAccountQuery(token);
+    selectableAccounts,
+    receiveAccount,
+    setReceiveAccount,
+    sourceAccount,
+  } = useReceiveCashuTokenAccountPlaceholders(token);
   const { claimableToken, cannotClaimReason } =
     useCashuTokenWithClaimableProofs({
       token,
@@ -296,7 +310,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
     try {
       // Modify the URL before signing up because as soon as the user is logged in,
       // they will be redirected to the protected receive cashu token page
-      addAutoClaimSearchParam(navigate, location);
+      addClaimToSearchParam(navigate, location, receiveAccount.type);
 
       await signUpGuest();
 
@@ -351,9 +365,10 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
           {claimableToken ? (
             <div className="w-full max-w-sm px-4">
               <AccountSelector
-                accounts={[]}
-                selectedAccount={sourceAccount}
-                disabled={true}
+                accounts={selectableAccounts}
+                selectedAccount={receiveAccount}
+                disabled={selectableAccounts.length <= 1}
+                onSelect={setReceiveAccount}
               />
             </div>
           ) : (

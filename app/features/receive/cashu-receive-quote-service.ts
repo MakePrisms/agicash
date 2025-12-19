@@ -134,9 +134,9 @@ export class CashuReceiveQuoteService {
        */
       account: CashuAccount;
       /**
-       * The receive quote to create.
+       * The lightning quote to create the cashu receive quote from.
        */
-      receiveQuote: CashuReceiveLightningQuote;
+      lightningQuote: CashuReceiveLightningQuote;
       /**
        * Type of the receive.
        * - LIGHTNING - The money is received via a regular lightning payment.
@@ -165,7 +165,12 @@ export class CashuReceiveQuoteService {
         }
     ),
   ): Promise<CashuReceiveQuote> {
-    const { userId, account, receiveQuote, receiveType } = params;
+    const {
+      userId,
+      account,
+      lightningQuote: receiveQuote,
+      receiveType,
+    } = params;
 
     const baseReceiveQuote = {
       accountId: account.id,
