@@ -1,3 +1,4 @@
+import type { SparkWallet } from '@buildonspark/spark-sdk';
 import type { Money } from '~/lib/money';
 import { moneyFromSparkAmount } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
@@ -7,13 +8,13 @@ import {
   useSparkReceiveQuoteRepository,
 } from './spark-receive-quote-repository';
 
-type CreateQuoteParams = {
+export type SparkReceiveLightningQuote = Awaited<
+  ReturnType<SparkWallet['createLightningInvoice']>
+>;
+
+type GetLightningQuoteParams = {
   /**
-   * The user ID.
-   */
-  userId: string;
-  /**
-   * The Spark account to create the receive request for.
+   * The Spark account to which the money will be received.
    */
   account: SparkAccount;
   /**
@@ -26,6 +27,21 @@ type CreateQuoteParams = {
    * If not provided, the invoice will be created for the user that owns the Spark wallet.
    */
   receiverIdentityPubkey?: string;
+};
+
+type CreateQuoteParams = {
+  /**
+   * The user ID.
+   */
+  userId: string;
+  /**
+   * The Spark account to create the receive request for.
+   */
+  account: SparkAccount;
+  /**
+   * The lightning quote to create the Spark receive quote from.
+   */
+  lightningQuote: SparkReceiveLightningQuote;
   /**
    * Type of the receive.
    * - LIGHTNING - Standard lightning receive.
@@ -39,35 +55,42 @@ export class SparkReceiveQuoteService {
   constructor(private readonly repository: SparkReceiveQuoteRepository) {}
 
   /**
-   * Creates a new Spark Lightning receive quote for the given amount.
-   * This creates a lightning invoice via Spark and stores the quote in the database.
+   * Gets a Spark lightning receive quote for the given amount.
+   * @returns The Spark lightning receive quote.
    */
-  async createQuote({
-    userId,
+  async getLightningQuote({
     account,
     amount,
     receiverIdentityPubkey,
-    type = 'LIGHTNING',
-  }: CreateQuoteParams): Promise<SparkReceiveQuote> {
-    const request = await account.wallet.createLightningInvoice({
+  }: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
+    return account.wallet.createLightningInvoice({
       amountSats: amount.toNumber('sat'),
       includeSparkAddress: false,
       receiverIdentityPubkey,
     });
+  }
 
-    const quote = await this.repository.create({
+  /**
+   * Creates a new Spark Lightning receive quote for the given amount.
+   * This creates a lightning invoice via Spark and stores the quote in the database.
+   */
+  async createReceiveQuote({
+    userId,
+    account,
+    lightningQuote,
+    type = 'LIGHTNING',
+  }: CreateQuoteParams): Promise<SparkReceiveQuote> {
+    return this.repository.create({
       userId,
       accountId: account.id,
-      amount: moneyFromSparkAmount(request.invoice.amount),
-      paymentRequest: request.invoice.encodedInvoice,
-      paymentHash: request.invoice.paymentHash,
-      expiresAt: request.invoice.expiresAt,
-      sparkId: request.id,
-      receiverIdentityPubkey,
+      amount: moneyFromSparkAmount(lightningQuote.invoice.amount),
+      paymentRequest: lightningQuote.invoice.encodedInvoice,
+      paymentHash: lightningQuote.invoice.paymentHash,
+      expiresAt: lightningQuote.invoice.expiresAt,
+      sparkId: lightningQuote.id,
+      receiverIdentityPubkey: lightningQuote.receiverIdentityPublicKey,
       type,
     });
-
-    return quote;
   }
 
   /**

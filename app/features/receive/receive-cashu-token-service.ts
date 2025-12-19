@@ -6,7 +6,11 @@ import {
   getCashuUnit,
   getCashuWallet,
 } from '~/lib/cashu';
-import type { ExtendedCashuAccount } from '../accounts/account';
+import type { Currency } from '~/lib/money';
+import type {
+  ExtendedAccount,
+  ExtendedCashuAccount,
+} from '../accounts/account';
 import {
   allMintKeysetsQueryOptions,
   cashuMintValidator,
@@ -15,33 +19,111 @@ import {
   mintKeysQueryOptions,
   tokenToMoney,
 } from '../shared/cashu';
-import type { CashuAccountWithTokenFlags } from './receive-cashu-token-models';
+import type {
+  CashuAccountWithTokenFlags,
+  ReceiveCashuTokenAccount,
+} from './receive-cashu-token-models';
 
 export class ReceiveCashuTokenService {
   constructor(private readonly queryClient: QueryClient) {}
 
   /**
+   * Builds a cashu account object for a given mint and currency.
+   * This account is not stored in the database, and has placeholder values for the id and createdAt.
+   * @param mintUrl - The mint URL.
+   * @param currency - The currency.
+   * @returns The cashu account.
+   */
+  async buildAccountForMint(
+    mintUrl: string,
+    currency: Currency,
+  ): Promise<CashuAccountWithTokenFlags> {
+    const [info, keysets, keys, isTestMint] = await Promise.all([
+      this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
+      this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
+      this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
+      this.queryClient.fetchQuery(isTestMintQueryOptions(mintUrl)),
+    ]);
+
+    const unit = getCashuProtocolUnit(currency);
+    const validationResult = cashuMintValidator(
+      mintUrl,
+      unit,
+      info,
+      keysets.keysets,
+    );
+
+    const unitKeysets = keysets.keysets.filter((ks) => ks.unit === unit);
+    const activeKeyset = unitKeysets.find((ks) => ks.active);
+
+    if (!activeKeyset) {
+      throw new Error(`No active keyset found for ${currency} on ${mintUrl}`);
+    }
+
+    const activeKeysForUnit = keys.keysets.find(
+      (ks) => ks.id === activeKeyset.id,
+    );
+
+    if (!activeKeysForUnit) {
+      throw new Error(
+        `Got active keyset ${activeKeyset.id} from ${mintUrl} but could not find keys for it`,
+      );
+    }
+
+    const wallet = getCashuWallet(mintUrl, {
+      unit: getCashuUnit(currency),
+      mintInfo: info,
+      keys: activeKeysForUnit,
+      keysets: unitKeysets,
+    });
+
+    wallet.keysetId = activeKeyset.id;
+
+    const isValid = validationResult === true;
+    return {
+      id: 'cashu-account-placeholder-id',
+      type: 'cashu',
+      mintUrl,
+      createdAt: new Date().toISOString(),
+      name: info?.name ?? mintUrl.replace('https://', ''),
+      currency,
+      isTestMint,
+      version: 0,
+      keysetCounters: {},
+      proofs: [],
+      isDefault: false,
+      isSource: true,
+      isUnknown: true,
+      canReceive: isValid,
+      isOnline: true,
+      wallet,
+    };
+  }
+
+  /**
    * Gets the source account of the token and possible destination accounts that can receive the token.
-   * @param token - The token to get the source and destination accounts for
-   * @param accounts - User's existing cashu accounts
-   * @returns The source account and the possible destination accounts
+   * @param token - The token to get the source and destination accounts for.
+   * @param accounts - User's existing accounts.
+   * @returns The source account and the possible destination accounts.
    */
   async getSourceAndDestinationAccounts(
     token: Token,
-    accounts: ExtendedCashuAccount[] = [],
+    accounts: ExtendedAccount[] = [],
   ): Promise<{
     sourceAccount: CashuAccountWithTokenFlags;
-    possibleDestinationAccounts: CashuAccountWithTokenFlags[];
+    possibleDestinationAccounts: ReceiveCashuTokenAccount[];
   }> {
     const tokenCurrency = tokenToMoney(token).currency;
-    const existingAccount = accounts.find(
-      (a) =>
-        areMintUrlsEqual(a.mintUrl, token.mint) && a.currency === tokenCurrency,
+    const existingCashuAccount = accounts.find(
+      (a): a is ExtendedCashuAccount =>
+        a.type === 'cashu' &&
+        areMintUrlsEqual(a.mintUrl, token.mint) &&
+        a.currency === tokenCurrency,
     );
 
-    if (existingAccount) {
+    if (existingCashuAccount) {
       const sourceAccount = {
-        ...existingAccount,
+        ...existingCashuAccount,
         isSource: true,
         isUnknown: false,
         canReceive: true,
@@ -57,68 +139,10 @@ export class ReceiveCashuTokenService {
       };
     }
 
-    const [info, keysets, keys, isTestMint] = await Promise.all([
-      this.queryClient.fetchQuery(mintInfoQueryOptions(token.mint)),
-      this.queryClient.fetchQuery(allMintKeysetsQueryOptions(token.mint)),
-      this.queryClient.fetchQuery(mintKeysQueryOptions(token.mint)),
-      this.queryClient.fetchQuery(isTestMintQueryOptions(token.mint)),
-    ]);
-
-    const unit = getCashuProtocolUnit(tokenCurrency);
-    const validationResult = cashuMintValidator(
+    const sourceAccount = await this.buildAccountForMint(
       token.mint,
-      unit,
-      info,
-      keysets.keysets,
+      tokenCurrency,
     );
-
-    const unitKeysets = keysets.keysets.filter((ks) => ks.unit === unit);
-    const activeKeyset = unitKeysets.find((ks) => ks.active);
-
-    if (!activeKeyset) {
-      throw new Error(
-        `No active keyset found for ${tokenCurrency} on ${token.mint}`,
-      );
-    }
-
-    const activeKeysForUnit = keys.keysets.find(
-      (ks) => ks.id === activeKeyset.id,
-    );
-
-    if (!activeKeysForUnit) {
-      throw new Error(
-        `Got active keyset ${activeKeyset.id} from ${token.mint} but could not find keys for it`,
-      );
-    }
-
-    const wallet = getCashuWallet(token.mint, {
-      unit: getCashuUnit(tokenCurrency),
-      mintInfo: info,
-      keys: activeKeysForUnit,
-      keysets: unitKeysets,
-    });
-
-    wallet.keysetId = activeKeyset.id;
-
-    const isValid = validationResult === true;
-    const sourceAccount = {
-      id: '',
-      type: 'cashu',
-      mintUrl: token.mint,
-      createdAt: new Date().toISOString(),
-      name: info?.name ?? token.mint.replace('https://', ''),
-      currency: tokenCurrency,
-      isTestMint,
-      version: 0,
-      keysetCounters: {},
-      proofs: [],
-      isDefault: false,
-      isSource: true,
-      isUnknown: true,
-      canReceive: isValid,
-      isOnline: true,
-      wallet,
-    } satisfies CashuAccountWithTokenFlags;
 
     return {
       sourceAccount,
@@ -135,15 +159,15 @@ export class ReceiveCashuTokenService {
    * If the token is not from a test mint, the preferred receive account will be returned if it is selectable.
    * If the preferred receive account is not selectable, the default account will be returned.
    * @param sourceAccount The source account of the token
-   * @param possibleDestinationAccounts The possible destination accounts
+   * @param possibleDestinationAccounts The possible destination accounts (cashu and spark)
    * @param preferredReceiveAccountId The preferred receive account id
    * @returns
    */
   static getDefaultReceiveAccount(
     sourceAccount: CashuAccountWithTokenFlags,
-    possibleDestinationAccounts: CashuAccountWithTokenFlags[],
+    possibleDestinationAccounts: ReceiveCashuTokenAccount[],
     preferredReceiveAccountId?: string,
-  ): CashuAccountWithTokenFlags | null {
+  ): ReceiveCashuTokenAccount | null {
     if (sourceAccount.isTestMint) {
       if (!sourceAccount.canReceive) {
         return null;
@@ -170,7 +194,6 @@ export class ReceiveCashuTokenService {
     );
 
     if (!defaultAccount?.canReceive) {
-      // This should not be possible because the default account must be able to receive and every user must have a default account for each currency.
       return null;
     }
 
@@ -178,13 +201,13 @@ export class ReceiveCashuTokenService {
   }
 
   private augmentNonSourceAccountsWithTokenFlags(
-    accounts: ExtendedCashuAccount[],
-  ): CashuAccountWithTokenFlags[] {
+    accounts: ExtendedAccount[],
+  ): ReceiveCashuTokenAccount[] {
     return accounts.map((account) => ({
       ...account,
       isSource: false,
       isUnknown: false,
-      canReceive: !account.isTestMint,
+      canReceive: account.type === 'spark' || !account.isTestMint,
     }));
   }
 
@@ -197,8 +220,8 @@ export class ReceiveCashuTokenService {
    */
   private getPossibleDestinationAccounts(
     sourceAccount: CashuAccountWithTokenFlags,
-    otherAccounts: CashuAccountWithTokenFlags[],
-  ): CashuAccountWithTokenFlags[] {
+    otherAccounts: ReceiveCashuTokenAccount[],
+  ): ReceiveCashuTokenAccount[] {
     if (sourceAccount.isTestMint) {
       // Tokens sourced from test mint can only be claimed to the same mint
       return sourceAccount.canReceive ? [sourceAccount] : [];

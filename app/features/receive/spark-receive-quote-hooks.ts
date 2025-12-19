@@ -466,12 +466,21 @@ export function useCreateSparkReceiveQuote() {
     scope: {
       id: 'create-spark-receive-quote',
     },
-    mutationFn: ({ account, amount, receiverIdentityPubkey }: CreateProps) => {
-      return sparkReceiveQuoteService.createQuote({
-        userId,
+    mutationFn: async ({
+      account,
+      amount,
+      receiverIdentityPubkey,
+    }: CreateProps) => {
+      const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
         account,
         amount,
         receiverIdentityPubkey,
+      });
+
+      return sparkReceiveQuoteService.createReceiveQuote({
+        userId,
+        account,
+        lightningQuote,
       });
     },
     onSuccess: (data) => {

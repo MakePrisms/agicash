@@ -236,7 +236,7 @@ export class LightningAddressService {
           userId,
           account,
           receiveType: 'LIGHTNING',
-          receiveQuote: lightningQuote,
+          lightningQuote,
         });
 
         return {
@@ -257,11 +257,16 @@ export class LightningAddressService {
         }),
       );
 
-      const quote = await sparkReceiveQuoteService.createQuote({
-        userId: user.id,
+      const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
         account,
         amount: amountToReceive,
         receiverIdentityPubkey: user.sparkIdentityPublicKey,
+      });
+
+      const quote = await sparkReceiveQuoteService.createReceiveQuote({
+        userId,
+        account,
+        lightningQuote,
       });
 
       return {

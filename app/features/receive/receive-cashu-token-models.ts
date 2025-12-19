@@ -1,10 +1,35 @@
-import type { ExtendedCashuAccount } from '../accounts/account';
+import { areMintUrlsEqual } from '~/lib/cashu';
+import type {
+  Account,
+  ExtendedCashuAccount,
+  ExtendedSparkAccount,
+} from '../accounts/account';
 
-export type CashuAccountWithTokenFlags = ExtendedCashuAccount & {
-  /** Whether the account is the source account of the token */
+type TokenFlags = {
+  /** Whether the account is the source account of the cashu token. */
   isSource: boolean;
-  /** Whether the account is unknown to the user */
+  /** Whether the user already has the account. */
   isUnknown: boolean;
-  /** Whether the account is selectable can receive the token */
+  /** Whether the account can receive the cashu token. */
   canReceive: boolean;
+};
+
+export type CashuAccountWithTokenFlags = ExtendedCashuAccount & TokenFlags;
+
+export type ReceiveCashuTokenAccount = (
+  | ExtendedCashuAccount
+  | ExtendedSparkAccount
+) &
+  TokenFlags;
+
+export const isClaimingToSameCashuAccount = (
+  a: Account,
+  b: Account,
+): boolean => {
+  return (
+    a.type === 'cashu' &&
+    b.type === 'cashu' &&
+    a.currency === b.currency &&
+    areMintUrlsEqual(a.mintUrl, b.mintUrl)
+  );
 };
