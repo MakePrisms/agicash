@@ -156,7 +156,7 @@ const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
       search = `?${searchParams.toString()}`;
     }
 
-    throw redirect(`/signup${search}${hash}`);
+    throw redirect(`/home${search}${hash}`);
   }
 
   await ensureUserData(queryClient, authUser);

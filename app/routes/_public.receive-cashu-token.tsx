@@ -23,7 +23,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const token = extractCashuToken(hash);
 
   if (!token) {
-    throw redirect('/signup');
+    throw redirect('/home');
   }
 
   return { token };
