@@ -293,7 +293,7 @@ export const useSignOut = () => {
 
   const handleSignOut = async () => {
     setLoading(true);
-    await signOut({ redirectTo: '/signup' });
+    await signOut({ redirectTo: '/home' });
     setLoading(false);
   };
   return { isSigningOut: loading, signOut: handleSignOut };

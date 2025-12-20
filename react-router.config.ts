@@ -24,7 +24,7 @@ export default {
     (preset): preset is Preset => Boolean(preset),
   ),
   async prerender() {
-    return ['/terms', '/privacy', '/mint-risks'];
+    return ['/terms', '/privacy', '/mint-risks', '/home'];
   },
   future: {
     unstable_middleware: true,

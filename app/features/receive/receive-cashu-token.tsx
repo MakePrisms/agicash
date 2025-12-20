@@ -347,11 +347,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
   return (
     <>
       <PageHeader className="z-10">
-        <ClosePageButton
-          to="/signup"
-          transition="slideDown"
-          applyTo="oldView"
-        />
+        <ClosePageButton to="/home" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
       <PageContent className="flex flex-col items-center">
