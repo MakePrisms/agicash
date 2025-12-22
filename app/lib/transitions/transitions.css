@@ -89,11 +89,11 @@
 }
 
 ::view-transition-old(root) {
-  animation: var(--direction-out) 0.08s ease-in both; /* This duration value is repeated in view-transition.tsx. When changing make sure to keep them in sync! */
+  animation: var(--direction-out) 0.38s ease-in both; /* This duration value is repeated in view-transition.tsx. When changing make sure to keep them in sync! */
   z-index: var(--view-transition-out-z-index);
 }
 
 ::view-transition-new(root) {
-  animation: var(--direction-in) 0.08s ease-in both; /* This duration value is repeated in view-transition.tsx. When changing make sure to keep them in sync! */
+  animation: var(--direction-in) 0.38s ease-in both; /* This duration value is repeated in view-transition.tsx. When changing make sure to keep them in sync! */
   z-index: var(--view-transition-in-z-index);
 }

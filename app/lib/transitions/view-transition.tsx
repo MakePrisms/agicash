@@ -154,7 +154,7 @@ function getViewTransitionState(state: unknown): ViewTransitionState | null {
 }
 
 // This value is repeated in transitions.css. When changing make sure to keep them in sync!
-export const VIEW_TRANSITION_DURATION_MS = 80;
+export const VIEW_TRANSITION_DURATION_MS = 380;
 
 /**
  * Applies the animation direction styles based on the navigation state.
