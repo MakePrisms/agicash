@@ -14,7 +14,9 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:top-0 sm:right-0 sm:flex-col md:max-w-[420px]',
+      // top-[5px] + overflow-hidden keeps the viewport outside Safari 26+'s status bar detection zone
+      // (Safari samples fixed elements within 4px of the top edge)
+      'fixed top-[5px] z-[100] flex max-h-screen w-full flex-col-reverse overflow-hidden p-4 sm:top-[5px] sm:right-0 sm:flex-col md:max-w-[420px]',
       className,
     )}
     {...props}
