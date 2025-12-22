@@ -1,11 +1,4 @@
-import {
-  BanIcon,
-  CheckIcon,
-  ClockIcon,
-  LandmarkIcon,
-  UndoIcon,
-  XIcon,
-} from 'lucide-react';
+import { BanIcon, CheckIcon, ClockIcon, UndoIcon, XIcon } from 'lucide-react';
 import { useEffect } from 'react';
 import { PageContent, PageFooter } from '~/components/page';
 import { Button } from '~/components/ui/button';
@@ -32,6 +25,7 @@ import type {
 import { useToast } from '~/hooks/use-toast';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
+import { AccountTypeIcon } from '../accounts/account-icons';
 import { getDefaultUnit } from '../shared/currencies';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
@@ -343,7 +337,7 @@ export function TransactionDetails({
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <LandmarkIcon size={18} className="text-muted-foreground" />
+                <AccountTypeIcon type={account?.type} />
                 <span>{account?.name}</span>
               </div>
 
