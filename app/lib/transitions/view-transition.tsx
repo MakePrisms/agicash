@@ -154,7 +154,7 @@ function getViewTransitionState(state: unknown): ViewTransitionState | null {
 }
 
 // This value is repeated in transitions.css. When changing make sure to keep them in sync!
-export const VIEW_TRANSITION_DURATION_MS = 80;
+export const VIEW_TRANSITION_DURATION_MS = 180;
 
 /**
  * Applies the animation direction styles based on the navigation state.
@@ -217,7 +217,15 @@ export function LinkWithViewTransition<
   const commonProps = {
     ...props,
     prefetch: props.prefetch ?? 'viewport',
-    onClick: props.onClick,
+    onClick: (event: React.MouseEvent<HTMLAnchorElement>) => {
+      // Apply styles synchronously on click, before React Router starts the view transition.
+      // This is necessary because Link navigations to prefetched/cached routes skip the
+      // "loading" state entirely, so our useEffect never gets a chance to apply styles.
+      // Browser back/forward (popstate) navigations still go through loading state and
+      // will be handled by useViewTransitionEffect.
+      applyTransitionStyles(transition, applyTo);
+      props.onClick?.(event);
+    },
     viewTransition: true,
     state: { ...props.state, ...linkState },
   };
@@ -244,6 +252,9 @@ export function useNavigateWithViewTransition() {
       ...options
     }: NavigateWithViewTransitionOptions,
   ) => {
+    // Apply styles synchronously before navigate, for the same reason as in LinkWithViewTransition.
+    applyTransitionStyles(transition, applyTo);
+
     navigate(to, {
       ...options,
       viewTransition: true,
