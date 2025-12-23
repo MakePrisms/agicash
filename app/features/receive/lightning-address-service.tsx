@@ -1,5 +1,8 @@
 import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
+import { hexToBytes } from '@noble/hashes/utils';
+import { base64url } from '@scure/base';
 import type { QueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 import { getCashuWallet } from '~/lib/cashu';
 import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
 import type {
@@ -9,7 +12,10 @@ import type {
   LNURLVerifyResult,
 } from '~/lib/lnurl/types';
 import { Money } from '~/lib/money';
-import type { SparkAccount } from '../accounts/account';
+import {
+  decryptXChaCha20Poly1305,
+  encryptXChaCha20Poly1305,
+} from '~/lib/xchacha20poly1305';
 import { AccountRepository } from '../accounts/account-repository';
 import type { AgicashDb } from '../agicash-db/database';
 import type { CashuCryptography } from '../shared/cashu';
@@ -19,6 +25,7 @@ import {
   encryptToPublicKey,
 } from '../shared/encryption';
 import { NotFoundError } from '../shared/error';
+import { sparkWalletQueryOptions } from '../shared/spark';
 import { UserRepository } from '../user/user-repository';
 import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
@@ -60,6 +67,27 @@ if (!sparkMnemonic) {
 const getSparkWalletMnemonic = (): Promise<string> => {
   return Promise.resolve(sparkMnemonic);
 };
+
+const encryptionKey = process.env.LNURL_SERVER_ENCRYPTION_KEY || '';
+if (!encryptionKey) {
+  throw new Error('LNURL_SERVER_ENCRYPTION_KEY is not set');
+}
+const encryptionKeyBytes = hexToBytes(encryptionKey);
+
+/**
+ * This data needed to verify the status of lnurl-pay request is encrypted
+ * to improve user privacy by obfuscating the quote data from the LNURL client
+ */
+const LnurlVerifyQuoteDataSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('spark'), quoteId: z.string() }),
+  z.object({
+    type: z.literal('cashu'),
+    quoteId: z.string(),
+    mintUrl: z.string(),
+  }),
+]);
+
+type LnurlVerifyQuoteData = z.infer<typeof LnurlVerifyQuoteDataSchema>;
 
 export class LightningAddressService {
   private baseUrl: string;
@@ -239,9 +267,15 @@ export class LightningAddressService {
           lightningQuote,
         });
 
+        const encryptedQuoteData = this.encryptLnurlVerifyQuoteData({
+          type: 'cashu',
+          quoteId: quote.quoteId,
+          mintUrl: account.mintUrl,
+        });
+
         return {
           pr: quote.paymentRequest,
-          verify: `${this.baseUrl}/api/lnurlp/verify/${account.id}/${quote.id}`,
+          verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
           routes: [],
         };
       }
@@ -269,9 +303,14 @@ export class LightningAddressService {
         lightningQuote,
       });
 
+      const encryptedQuoteData = this.encryptLnurlVerifyQuoteData({
+        type: 'spark',
+        quoteId: quote.sparkId,
+      });
+
       return {
         pr: quote.paymentRequest,
-        verify: `${this.baseUrl}/api/lnurlp/verify/${account.id}/${quote.id}`,
+        verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
         routes: [],
       };
     } catch (error) {
@@ -285,23 +324,22 @@ export class LightningAddressService {
 
   /**
    * Checks if an LNURL-pay request has been settled.
-   * @param accountId the account ID
-   * @param requestId the ID to lookup the request
+   * @param encryptedQuoteData the encrypted data containing quote info
    * @return the lnurl-verify result or error
    */
   async handleLnurlpVerify(
-    accountId: string,
-    requestId: string,
+    encryptedQuoteData: string,
   ): Promise<LNURLVerifyResult | LNURLError> {
     try {
-      const account = await this.accountRepository.get(accountId);
-      if (!account.isOnline) {
-        throw new Error(`Account ${accountId} is offline`);
+      const payload = this.decryptLnurlVerifyQuoteData(encryptedQuoteData);
+
+      if (payload.type === 'cashu') {
+        return await this.handleCashuLnurlpVerify(
+          payload.quoteId,
+          payload.mintUrl,
+        );
       }
-      if (account.type === 'cashu') {
-        return this.handleCashuLnurlpVerify(requestId);
-      }
-      return this.handleSparkLnurlpVerify(account, requestId);
+      return await this.handleSparkLnurlpVerify(payload.quoteId);
     } catch (error) {
       console.error('Error processing LNURL-pay verify', { cause: error });
       const errorMessage =
@@ -313,41 +351,19 @@ export class LightningAddressService {
     }
   }
 
-  /**
-   * Checks if the payment of a Cashu receive quote has been settled.
-   * @param receiveQuoteId the id of the Cashu receive quote to check
-   * @return the lnurl-verify result
-   */
   private async handleCashuLnurlpVerify(
-    receiveQuoteId: string,
+    mintQuoteId: string,
+    mintUrl: string,
   ): Promise<LNURLVerifyResult> {
-    const cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
-      this.db,
-      this.encryption,
-      this.accountRepository,
-    );
-    const quote = await cashuReceiveQuoteRepository.get(receiveQuoteId);
+    const wallet = getCashuWallet(mintUrl);
+    const mintQuote = await wallet.checkMintQuote(mintQuoteId);
 
-    if (!quote) {
-      throw new NotFoundError(
-        `Cashu receive quote ${receiveQuoteId} not found`,
-      );
-    }
-
-    const account = await this.accountRepository.get(quote.accountId);
-    if (account.type !== 'cashu') {
-      throw new Error(`Account type not supported. Got ${account.type}`);
-    }
-
-    const wallet = getCashuWallet(account.mintUrl);
-    const quoteState = await wallet.checkMintQuote(quote.quoteId);
-
-    if (['PAID', 'ISSUED'].includes(quoteState.state)) {
+    if (['PAID', 'ISSUED'].includes(mintQuote.state)) {
       return {
         status: 'OK',
         settled: true,
         preimage: '',
-        pr: quote.paymentRequest,
+        pr: mintQuote.request,
       };
     }
 
@@ -355,36 +371,23 @@ export class LightningAddressService {
       status: 'OK',
       settled: false,
       preimage: null,
-      pr: quote.paymentRequest,
+      pr: mintQuote.request,
     };
   }
 
-  /**
-   * Checks if a Spark lightning invoice has been settled.
-   * @param account the Spark account
-   * @param quoteId the Spark receive quote ID to check
-   * @return the lnurl-verify result
-   */
   private async handleSparkLnurlpVerify(
-    account: SparkAccount,
-    quoteId: string,
+    receiveRequestId: string,
   ): Promise<LNURLVerifyResult> {
-    const sparkReceiveQuoteService = new SparkReceiveQuoteService(
-      new SparkReceiveQuoteRepository(this.db, this.encryption),
+    const wallet = await this.queryClient.fetchQuery(
+      sparkWalletQueryOptions({ network: 'MAINNET', mnemonic: sparkMnemonic }),
     );
 
-    const quote = await sparkReceiveQuoteService.get(quoteId);
-    if (!quote) {
-      throw new NotFoundError(`Spark receive quote ${quoteId} not found`);
-    }
-
-    const receiveRequest = await account.wallet.getLightningReceiveRequest(
-      quote.sparkId,
-    );
+    const receiveRequest =
+      await wallet.getLightningReceiveRequest(receiveRequestId);
 
     if (!receiveRequest) {
       throw new NotFoundError(
-        `Spark lightning receive request ${quote.sparkId} not found`,
+        `Spark lightning receive request ${receiveRequestId} not found`,
       );
     }
 
@@ -396,7 +399,23 @@ export class LightningAddressService {
       status: 'OK',
       settled,
       preimage: receiveRequest.paymentPreimage ?? null,
-      pr: quote.paymentRequest,
+      pr: receiveRequest.invoice.encodedInvoice,
     };
+  }
+
+  private encryptLnurlVerifyQuoteData(payload: LnurlVerifyQuoteData): string {
+    const data = new TextEncoder().encode(JSON.stringify(payload));
+    const encrypted = encryptXChaCha20Poly1305(data, encryptionKeyBytes);
+    return base64url.encode(encrypted);
+  }
+
+  private decryptLnurlVerifyQuoteData(
+    encryptedQuoteData: string,
+  ): LnurlVerifyQuoteData {
+    const encrypted = base64url.decode(encryptedQuoteData);
+    const decrypted = decryptXChaCha20Poly1305(encrypted, encryptionKeyBytes);
+    return LnurlVerifyQuoteDataSchema.parse(
+      JSON.parse(new TextDecoder().decode(decrypted)),
+    );
   }
 }
