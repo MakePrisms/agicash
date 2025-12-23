@@ -2,6 +2,7 @@ import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
 import { hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import type { QueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 import { getCashuWallet } from '~/lib/cashu';
 import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
 import type {
@@ -77,9 +78,16 @@ const encryptionKeyBytes = hexToBytes(encryptionKey);
  * This data needed to verify the status of lnurl-pay request is encrypted
  * to improve user privacy by obfuscating the quote data from the LNURL client
  */
-type LnurlVerifyQuoteData =
-  | { type: 'spark'; quoteId: string }
-  | { type: 'cashu'; quoteId: string; mintUrl: string };
+const LnurlVerifyQuoteDataSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('spark'), quoteId: z.string() }),
+  z.object({
+    type: z.literal('cashu'),
+    quoteId: z.string(),
+    mintUrl: z.string(),
+  }),
+]);
+
+type LnurlVerifyQuoteData = z.infer<typeof LnurlVerifyQuoteDataSchema>;
 
 export class LightningAddressService {
   private baseUrl: string;
@@ -406,6 +414,8 @@ export class LightningAddressService {
   ): LnurlVerifyQuoteData {
     const encrypted = base64url.decode(encryptedQuoteData);
     const decrypted = decryptXChaCha20Poly1305(encrypted, encryptionKeyBytes);
-    return JSON.parse(new TextDecoder().decode(decrypted));
+    return LnurlVerifyQuoteDataSchema.parse(
+      JSON.parse(new TextDecoder().decode(decrypted)),
+    );
   }
 }
