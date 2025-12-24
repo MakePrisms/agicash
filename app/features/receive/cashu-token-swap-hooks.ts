@@ -13,13 +13,9 @@ import {
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuTokenSwap } from '../agicash-db/database';
-import { useEncryption } from '../shared/encryption';
 import { useUser } from '../user/user-hooks';
 import type { CashuTokenSwap } from './cashu-token-swap';
-import {
-  CashuTokenSwapRepository,
-  useCashuTokenSwapRepository,
-} from './cashu-token-swap-repository';
+import { useCashuTokenSwapRepository } from './cashu-token-swap-repository';
 import { useCashuTokenSwapService } from './cashu-token-swap-service';
 
 type CreateProps = {
@@ -214,28 +210,22 @@ function usePendingCashuTokenSwaps() {
  * Hook that returns a cashu token swap change handler.
  */
 export function useCashuTokenSwapChangeHandlers() {
-  const encryption = useEncryption();
   const pendingSwapsCache = usePendingCashuTokenSwapsCache();
   const tokenSwapCache = useCashuTokenSwapCache();
+  const cashuTokenSwapRepository = useCashuTokenSwapRepository();
 
   return [
     {
       event: 'CASHU_TOKEN_SWAP_CREATED',
       handleEvent: async (payload: AgicashDbCashuTokenSwap) => {
-        const swap = await CashuTokenSwapRepository.toTokenSwap(
-          payload,
-          encryption.decrypt,
-        );
+        const swap = await cashuTokenSwapRepository.toTokenSwap(payload);
         pendingSwapsCache.add(swap);
       },
     },
     {
       event: 'CASHU_TOKEN_SWAP_UPDATED',
       handleEvent: async (payload: AgicashDbCashuTokenSwap) => {
-        const swap = await CashuTokenSwapRepository.toTokenSwap(
-          payload,
-          encryption.decrypt,
-        );
+        const swap = await cashuTokenSwapRepository.toTokenSwap(payload);
 
         tokenSwapCache.updateIfExists(swap);
 

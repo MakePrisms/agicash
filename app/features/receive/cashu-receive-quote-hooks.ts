@@ -28,10 +28,7 @@ import {
 import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
-import {
-  CashuReceiveQuoteRepository,
-  useCashuReceiveQuoteRepository,
-} from './cashu-receive-quote-repository';
+import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { useCashuReceiveQuoteService } from './cashu-receive-quote-service';
 import { MintQuoteSubscriptionManager } from './mint-quote-subscription-manager';
 
@@ -234,19 +231,20 @@ export function useCashuReceiveQuote({
 export function useCashuReceiveQuoteChangeHandlers() {
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
+  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
 
   return [
     {
       event: 'CASHU_RECEIVE_QUOTE_CREATED',
       handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
-        const addedQuote = CashuReceiveQuoteRepository.toQuote(payload);
+        const addedQuote = await cashuReceiveQuoteRepository.toQuote(payload);
         pendingQuotesCache.add(addedQuote);
       },
     },
     {
       event: 'CASHU_RECEIVE_QUOTE_UPDATED',
       handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
-        const quote = CashuReceiveQuoteRepository.toQuote(payload);
+        const quote = await cashuReceiveQuoteRepository.toQuote(payload);
 
         cashuReceiveQuoteCache.updateIfExists(quote);
 

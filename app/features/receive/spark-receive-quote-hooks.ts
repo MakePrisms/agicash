@@ -17,10 +17,7 @@ import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { sparkBalanceQueryKey } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import type { SparkReceiveQuote } from './spark-receive-quote';
-import {
-  SparkReceiveQuoteRepository,
-  useSparkReceiveQuoteRepository,
-} from './spark-receive-quote-repository';
+import { useSparkReceiveQuoteRepository } from './spark-receive-quote-repository';
 import { useSparkReceiveQuoteService } from './spark-receive-quote-service';
 
 class SparkReceiveQuoteCache {
@@ -170,19 +167,20 @@ export function usePendingSparkReceiveQuotesCache() {
 export function useSparkReceiveQuoteChangeHandlers() {
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
+  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
 
   return [
     {
       event: 'SPARK_RECEIVE_QUOTE_CREATED',
       handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const addedQuote = SparkReceiveQuoteRepository.toQuote(payload);
+        const addedQuote = await sparkReceiveQuoteRepository.toQuote(payload);
         pendingQuotesCache.add(addedQuote);
       },
     },
     {
       event: 'SPARK_RECEIVE_QUOTE_UPDATED',
       handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const quote = SparkReceiveQuoteRepository.toQuote(payload);
+        const quote = await sparkReceiveQuoteRepository.toQuote(payload);
 
         sparkReceiveQuoteCache.updateIfExists(quote);
 
