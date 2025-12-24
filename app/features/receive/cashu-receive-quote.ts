@@ -47,6 +47,10 @@ export type CashuReceiveQuote = {
    */
   paymentRequest: string;
   /**
+   * Payment hash of the quote.
+   */
+  paymentHash: string;
+  /**
    * Row version.
    * Used for optimistic locking.
    */

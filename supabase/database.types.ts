@@ -182,20 +182,17 @@ export type Database = {
       cashu_receive_quotes: {
         Row: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
-          description: string | null
+          encrypted_data: string
           expires_at: string
           failure_reason: string | null
           id: string
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
-          minting_fee: number | null
-          output_amounts: number[] | null
-          payment_request: string
-          quote_id: string
+          payment_hash: string
+          quote_id_hash: string
           state: string
           transaction_id: string
           type: string
@@ -205,20 +202,17 @@ export type Database = {
         }
         Insert: {
           account_id: string
-          amount: number
           created_at?: string
           currency: string
-          description?: string | null
+          encrypted_data: string
           expires_at: string
           failure_reason?: string | null
           id?: string
           keyset_counter?: number | null
           keyset_id?: string | null
           locking_derivation_path: string
-          minting_fee?: number | null
-          output_amounts?: number[] | null
-          payment_request: string
-          quote_id: string
+          payment_hash: string
+          quote_id_hash: string
           state: string
           transaction_id: string
           type: string
@@ -228,20 +222,17 @@ export type Database = {
         }
         Update: {
           account_id?: string
-          amount?: number
           created_at?: string
           currency?: string
-          description?: string | null
+          encrypted_data?: string
           expires_at?: string
           failure_reason?: string | null
           id?: string
           keyset_counter?: number | null
           keyset_id?: string | null
           locking_derivation_path?: string
-          minting_fee?: number | null
-          output_amounts?: number[] | null
-          payment_request?: string
-          quote_id?: string
+          payment_hash?: string
+          quote_id_hash?: string
           state?: string
           transaction_id?: string
           type?: string
@@ -276,24 +267,18 @@ export type Database = {
       cashu_send_quotes: {
         Row: {
           account_id: string
-          amount_requested: number
-          amount_requested_in_msat: number
-          amount_spent: number | null
-          amount_to_receive: number
-          cashu_fee: number
           created_at: string
           currency: string
           currency_requested: string
+          encrypted_data: string
           expires_at: string
           failure_reason: string | null
           id: string
           keyset_counter: number
           keyset_id: string
-          lightning_fee_reserve: number
           number_of_change_outputs: number
-          payment_preimage: string | null
-          payment_request: string
-          quote_id: string
+          payment_hash: string
+          quote_id_hash: string
           state: string
           transaction_id: string
           unit: string
@@ -302,24 +287,18 @@ export type Database = {
         }
         Insert: {
           account_id: string
-          amount_requested: number
-          amount_requested_in_msat: number
-          amount_spent?: number | null
-          amount_to_receive: number
-          cashu_fee: number
           created_at?: string
           currency: string
           currency_requested: string
+          encrypted_data: string
           expires_at: string
           failure_reason?: string | null
           id?: string
           keyset_counter: number
           keyset_id: string
-          lightning_fee_reserve: number
           number_of_change_outputs: number
-          payment_preimage?: string | null
-          payment_request: string
-          quote_id: string
+          payment_hash: string
+          quote_id_hash: string
           state?: string
           transaction_id: string
           unit: string
@@ -328,24 +307,18 @@ export type Database = {
         }
         Update: {
           account_id?: string
-          amount_requested?: number
-          amount_requested_in_msat?: number
-          amount_spent?: number | null
-          amount_to_receive?: number
-          cashu_fee?: number
           created_at?: string
           currency?: string
           currency_requested?: string
+          encrypted_data?: string
           expires_at?: string
           failure_reason?: string | null
           id?: string
           keyset_counter?: number
           keyset_id?: string
-          lightning_fee_reserve?: number
           number_of_change_outputs?: number
-          payment_preimage?: string | null
-          payment_request?: string
-          quote_id?: string
+          payment_hash?: string
+          quote_id_hash?: string
           state?: string
           transaction_id?: string
           unit?: string
@@ -379,23 +352,16 @@ export type Database = {
       cashu_send_swaps: {
         Row: {
           account_id: string
-          amount_requested: number
-          amount_to_send: number
-          change_output_amounts: number[] | null
           created_at: string
           currency: string
+          encrypted_data: string
           failure_reason: string | null
           id: string
-          input_amount: number
           keyset_counter: number | null
           keyset_id: string | null
-          receive_swap_fee: number
-          requires_input_proofs_swap: boolean | null
-          send_output_amounts: number[] | null
-          send_swap_fee: number
+          requires_input_proofs_swap: boolean
           state: string
           token_hash: string | null
-          total_amount: number
           transaction_id: string
           unit: string
           user_id: string
@@ -403,23 +369,16 @@ export type Database = {
         }
         Insert: {
           account_id: string
-          amount_requested: number
-          amount_to_send: number
-          change_output_amounts?: number[] | null
           created_at?: string
           currency: string
+          encrypted_data: string
           failure_reason?: string | null
           id?: string
-          input_amount: number
           keyset_counter?: number | null
           keyset_id?: string | null
-          receive_swap_fee: number
-          requires_input_proofs_swap?: boolean | null
-          send_output_amounts?: number[] | null
-          send_swap_fee: number
+          requires_input_proofs_swap?: boolean
           state: string
           token_hash?: string | null
-          total_amount: number
           transaction_id: string
           unit: string
           user_id: string
@@ -427,23 +386,16 @@ export type Database = {
         }
         Update: {
           account_id?: string
-          amount_requested?: number
-          amount_to_send?: number
-          change_output_amounts?: number[] | null
           created_at?: string
           currency?: string
+          encrypted_data?: string
           failure_reason?: string | null
           id?: string
-          input_amount?: number
           keyset_counter?: number | null
           keyset_id?: string | null
-          receive_swap_fee?: number
-          requires_input_proofs_swap?: boolean | null
-          send_output_amounts?: number[] | null
-          send_swap_fee?: number
+          requires_input_proofs_swap?: boolean
           state?: string
           token_hash?: string | null
-          total_amount?: number
           transaction_id?: string
           unit?: string
           user_id?: string
@@ -478,16 +430,12 @@ export type Database = {
           account_id: string
           created_at: string
           currency: string
+          encrypted_data: string
           failure_reason: string | null
-          fee_amount: number
-          input_amount: number
           keyset_counter: number
           keyset_id: string
-          output_amounts: number[]
-          receive_amount: number
           state: string
           token_hash: string
-          token_proofs: string
           transaction_id: string
           unit: string
           user_id: string
@@ -497,16 +445,12 @@ export type Database = {
           account_id: string
           created_at?: string
           currency: string
+          encrypted_data: string
           failure_reason?: string | null
-          fee_amount: number
-          input_amount: number
           keyset_counter: number
           keyset_id: string
-          output_amounts: number[]
-          receive_amount: number
           state?: string
           token_hash: string
-          token_proofs: string
           transaction_id: string
           unit: string
           user_id: string
@@ -516,16 +460,12 @@ export type Database = {
           account_id?: string
           created_at?: string
           currency?: string
+          encrypted_data?: string
           failure_reason?: string | null
-          fee_amount?: number
-          input_amount?: number
           keyset_counter?: number
           keyset_id?: string
-          output_amounts?: number[]
-          receive_amount?: number
           state?: string
           token_hash?: string
-          token_proofs?: string
           transaction_id?: string
           unit?: string
           user_id?: string
@@ -594,14 +534,12 @@ export type Database = {
       spark_receive_quotes: {
         Row: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
+          encrypted_data: string
           expires_at: string
           id: string
           payment_hash: string
-          payment_preimage: string | null
-          payment_request: string
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
@@ -614,14 +552,12 @@ export type Database = {
         }
         Insert: {
           account_id: string
-          amount: number
           created_at?: string
           currency: string
+          encrypted_data: string
           expires_at: string
           id?: string
           payment_hash: string
-          payment_preimage?: string | null
-          payment_request: string
           receiver_identity_pubkey?: string | null
           spark_id: string
           spark_transfer_id?: string | null
@@ -634,14 +570,12 @@ export type Database = {
         }
         Update: {
           account_id?: string
-          amount?: number
           created_at?: string
           currency?: string
+          encrypted_data?: string
           expires_at?: string
           id?: string
           payment_hash?: string
-          payment_preimage?: string | null
-          payment_request?: string
           receiver_identity_pubkey?: string | null
           spark_id?: string
           spark_transfer_id?: string | null
@@ -679,17 +613,14 @@ export type Database = {
       spark_send_quotes: {
         Row: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
-          estimated_fee: number
+          encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
-          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null
-          payment_request: string
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
@@ -701,17 +632,14 @@ export type Database = {
         }
         Insert: {
           account_id: string
-          amount: number
           created_at?: string
           currency: string
-          estimated_fee: number
+          encrypted_data: string
           expires_at?: string | null
           failure_reason?: string | null
-          fee?: number | null
           id?: string
           payment_hash: string
           payment_preimage?: string | null
-          payment_request: string
           payment_request_is_amountless?: boolean
           spark_id?: string | null
           spark_transfer_id?: string | null
@@ -723,17 +651,14 @@ export type Database = {
         }
         Update: {
           account_id?: string
-          amount?: number
           created_at?: string
           currency?: string
-          estimated_fee?: number
+          encrypted_data?: string
           expires_at?: string | null
           failure_reason?: string | null
-          fee?: number | null
           id?: string
           payment_hash?: string
           payment_preimage?: string | null
-          payment_request?: string
           payment_request_is_amountless?: boolean
           spark_id?: string | null
           spark_transfer_id?: string | null
@@ -1011,10 +936,9 @@ export type Database = {
       }
       complete_cashu_send_quote: {
         Args: {
-          p_amount_spent: number
           p_change_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
-          p_payment_preimage: string
           p_quote_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_send_quote_result"]
@@ -1051,21 +975,19 @@ export type Database = {
       }
       complete_spark_receive_quote: {
         Args: {
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
-          p_payment_preimage: string
           p_quote_id: string
           p_spark_transfer_id: string
         }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
+          encrypted_data: string
           expires_at: string
           id: string
           payment_hash: string
-          payment_preimage: string | null
-          payment_request: string
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
@@ -1085,23 +1007,21 @@ export type Database = {
       }
       complete_spark_send_quote: {
         Args: {
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
           p_payment_preimage: string
           p_quote_id: string
         }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
-          estimated_fee: number
+          encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
-          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null
-          payment_request: string
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
@@ -1121,15 +1041,13 @@ export type Database = {
       create_cashu_receive_quote: {
         Args: {
           p_account_id: string
-          p_amount: number
           p_currency: string
-          p_description?: string
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
           p_expires_at: string
           p_locking_derivation_path: string
-          p_minting_fee?: number
-          p_payment_request: string
-          p_quote_id: string
+          p_payment_hash: string
+          p_quote_id_hash: string
           p_receive_type: string
           p_state: string
           p_unit: string
@@ -1137,20 +1055,17 @@ export type Database = {
         }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
-          description: string | null
+          encrypted_data: string
           expires_at: string
           failure_reason: string | null
           id: string
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
-          minting_fee: number | null
-          output_amounts: number[] | null
-          payment_request: string
-          quote_id: string
+          payment_hash: string
+          quote_id_hash: string
           state: string
           transaction_id: string
           type: string
@@ -1168,20 +1083,16 @@ export type Database = {
       create_cashu_send_quote: {
         Args: {
           p_account_id: string
-          p_amount_requested: number
-          p_amount_requested_in_msat: number
-          p_amount_to_receive: number
-          p_cashu_fee: number
           p_currency: string
           p_currency_requested: string
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
           p_expires_at: string
           p_keyset_id: string
-          p_lightning_fee_reserve: number
           p_number_of_change_outputs: number
-          p_payment_request: string
+          p_payment_hash: string
           p_proofs_to_send: string[]
-          p_quote_id: string
+          p_quote_id_hash: string
           p_unit: string
           p_user_id: string
         }
@@ -1196,19 +1107,14 @@ export type Database = {
       create_cashu_send_swap: {
         Args: {
           p_account_id: string
-          p_amount_requested: number
-          p_amount_to_send: number
-          p_change_output_amounts?: number[]
           p_currency: string
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
-          p_input_amount: number
           p_input_proofs: string[]
           p_keyset_id?: string
-          p_receive_swap_fee: number
-          p_send_output_amounts?: number[]
-          p_send_swap_fee: number
+          p_number_of_outputs?: number
+          p_requires_input_proofs_swap: boolean
           p_token_hash?: string
-          p_total_amount: number
           p_unit: string
           p_user_id: string
         }
@@ -1224,15 +1130,12 @@ export type Database = {
         Args: {
           p_account_id: string
           p_currency: string
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
-          p_fee_amount: number
-          p_input_amount: number
           p_keyset_id: string
-          p_output_amounts: number[]
-          p_receive_amount: number
+          p_number_of_outputs: number
           p_reversed_transaction_id?: string
           p_token_hash: string
-          p_token_proofs: string
           p_unit: string
           p_user_id: string
         }
@@ -1247,12 +1150,11 @@ export type Database = {
       create_spark_receive_quote: {
         Args: {
           p_account_id: string
-          p_amount: number
           p_currency: string
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
           p_expires_at: string
           p_payment_hash: string
-          p_payment_request: string
           p_receive_type: string
           p_receiver_identity_pubkey: string
           p_spark_id: string
@@ -1261,14 +1163,12 @@ export type Database = {
         }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
+          encrypted_data: string
           expires_at: string
           id: string
           payment_hash: string
-          payment_preimage: string | null
-          payment_request: string
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
@@ -1289,30 +1189,25 @@ export type Database = {
       create_spark_send_quote: {
         Args: {
           p_account_id: string
-          p_amount: number
           p_currency: string
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
-          p_estimated_fee: number
           p_expires_at?: string
           p_payment_hash: string
-          p_payment_request: string
           p_payment_request_is_amountless: boolean
           p_unit: string
           p_user_id: string
         }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
-          estimated_fee: number
+          encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
-          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null
-          payment_request: string
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
@@ -1333,20 +1228,17 @@ export type Database = {
         Args: { p_quote_id: string }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
-          description: string | null
+          encrypted_data: string
           expires_at: string
           failure_reason: string | null
           id: string
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
-          minting_fee: number | null
-          output_amounts: number[] | null
-          payment_request: string
-          quote_id: string
+          payment_hash: string
+          quote_id_hash: string
           state: string
           transaction_id: string
           type: string
@@ -1375,14 +1267,12 @@ export type Database = {
         Args: { p_quote_id: string }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
+          encrypted_data: string
           expires_at: string
           id: string
           payment_hash: string
-          payment_preimage: string | null
-          payment_request: string
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
@@ -1404,20 +1294,17 @@ export type Database = {
         Args: { p_failure_reason: string; p_quote_id: string }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
-          description: string | null
+          encrypted_data: string
           expires_at: string
           failure_reason: string | null
           id: string
           keyset_counter: number | null
           keyset_id: string | null
           locking_derivation_path: string
-          minting_fee: number | null
-          output_amounts: number[] | null
-          payment_request: string
-          quote_id: string
+          payment_hash: string
+          quote_id_hash: string
           state: string
           transaction_id: string
           type: string
@@ -1462,16 +1349,12 @@ export type Database = {
           account_id: string
           created_at: string
           currency: string
+          encrypted_data: string
           failure_reason: string | null
-          fee_amount: number
-          input_amount: number
           keyset_counter: number
           keyset_id: string
-          output_amounts: number[]
-          receive_amount: number
           state: string
           token_hash: string
-          token_proofs: string
           transaction_id: string
           unit: string
           user_id: string
@@ -1488,17 +1371,14 @@ export type Database = {
         Args: { p_failure_reason: string; p_quote_id: string }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
-          estimated_fee: number
+          encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
-          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null
-          payment_request: string
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
@@ -1573,25 +1453,22 @@ export type Database = {
       }
       mark_spark_send_quote_as_pending: {
         Args: {
+          p_encrypted_data: string
           p_encrypted_transaction_details: string
-          p_fee: number
           p_quote_id: string
           p_spark_id: string
           p_spark_transfer_id: string
         }
         Returns: {
           account_id: string
-          amount: number
           created_at: string
           currency: string
-          estimated_fee: number
+          encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
-          fee: number | null
           id: string
           payment_hash: string
           payment_preimage: string | null
-          payment_request: string
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
@@ -1610,8 +1487,9 @@ export type Database = {
       }
       process_cashu_receive_quote_payment: {
         Args: {
+          p_encrypted_data: string
           p_keyset_id: string
-          p_output_amounts: number[]
+          p_number_of_outputs: number
           p_quote_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["cashu_receive_quote_payment_result"]

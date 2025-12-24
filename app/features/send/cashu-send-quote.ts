@@ -24,6 +24,10 @@ export type CashuSendQuote = {
    */
   paymentRequest: string;
   /**
+   * Payment hash of the lightning invoice.
+   */
+  paymentHash: string;
+  /**
    * Amount requested to send.
    * For payment requests that have the amount defined, the amount will match what is defined in the request and will always be in BTC currency.
    * For amountless payment requests, the amount will be the amount defined by the sender (what gets sent to mint in this case is this amount converted to BTC using our exchange rate at the time of quote creation).

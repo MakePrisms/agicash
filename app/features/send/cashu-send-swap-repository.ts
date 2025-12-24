@@ -19,6 +19,17 @@ type Options = {
   abortSignal?: AbortSignal;
 };
 
+type EncryptedData = {
+  amountRequested: number;
+  amountToSend: number;
+  receiveSwapFee: number;
+  sendSwapFee: number;
+  totalAmount: number;
+  inputAmount: number;
+  sendOutputAmounts?: number[];
+  changeOutputAmounts?: number[];
+};
+
 type CreateSendSwap = {
   /**
    * The id of the account to send from.
@@ -107,25 +118,58 @@ export class CashuSendSwapRepository {
       amountToReceive: amountToSend.subtract(cashuReceiveFee),
     };
 
-    const encryptedTransactionDetails = await this.encryption.encrypt(details);
+    const inputAmount = sumProofs(inputProofs);
+    const amountToSendNum = amountToSend.toNumber(unit);
+    const requiresInputProofsSwap = inputAmount !== amountToSendNum;
+
+    if (requiresInputProofsSwap) {
+      if (
+        !outputAmounts?.send ||
+        outputAmounts.send.length === 0 ||
+        outputAmounts.send.some((amount) => amount <= 0)
+      ) {
+        throw new Error(
+          'When swap is required, outputAmounts.send must be a non-empty array of integers greater than 0.',
+        );
+      }
+      if (outputAmounts?.change?.some((amount) => amount <= 0)) {
+        throw new Error(
+          'When swap is required and outputAmounts.change is provided, all values must be integers greater than 0.',
+        );
+      }
+    }
+
+    const dataToEncrypt: EncryptedData = {
+      amountRequested: amountRequested.toNumber(unit),
+      amountToSend: amountToSendNum,
+      receiveSwapFee: cashuReceiveFee.toNumber(unit),
+      sendSwapFee: cashuSendFee.toNumber(unit),
+      totalAmount: totalAmount.toNumber(unit),
+      inputAmount,
+      sendOutputAmounts: outputAmounts?.send,
+      changeOutputAmounts: outputAmounts?.change,
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([details, dataToEncrypt]);
+
+    const numberOfOutputs = requiresInputProofsSwap
+      ? (outputAmounts?.send?.length ?? 0) +
+        (outputAmounts?.change?.length ?? 0)
+      : undefined;
 
     const query = this.db.rpc('create_cashu_send_swap', {
       p_user_id: userId,
       p_account_id: accountId,
-      p_amount_requested: amountRequested.toNumber(unit),
-      p_amount_to_send: amountToSend.toNumber(unit),
-      p_receive_swap_fee: cashuReceiveFee.toNumber(unit),
-      p_send_swap_fee: cashuSendFee.toNumber(unit),
-      p_total_amount: totalAmount.toNumber(unit),
       p_input_proofs: inputProofs.map((p) => p.id),
-      p_input_amount: sumProofs(inputProofs),
-      p_keyset_id: keysetId,
-      p_send_output_amounts: outputAmounts?.send,
-      p_change_output_amounts: outputAmounts?.change,
       p_currency: amountToSend.currency,
       p_unit: unit,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_data: encryptedData,
+      p_requires_input_proofs_swap: requiresInputProofsSwap,
       p_token_hash: tokenHash,
+      p_keyset_id: keysetId,
+      p_number_of_outputs: numberOfOutputs,
     });
 
     if (options?.abortSignal) {
@@ -308,6 +352,10 @@ export class CashuSendSwapRepository {
   async toSwap(
     data: AgicashDbCashuSendSwap & { cashu_proofs: AgicashDbCashuProof[] },
   ): Promise<CashuSendSwap> {
+    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
+      [data.encrypted_data],
+    );
+
     const toMoney = (amount: number) => {
       return new Money({
         amount,
@@ -331,13 +379,13 @@ export class CashuSendSwapRepository {
       accountId: data.account_id,
       userId: data.user_id,
       transactionId: data.transaction_id,
-      amountRequested: toMoney(data.amount_requested),
-      amountToSend: toMoney(data.amount_to_send),
-      totalAmount: toMoney(data.total_amount),
-      cashuReceiveFee: toMoney(data.receive_swap_fee),
-      cashuSendFee: toMoney(data.send_swap_fee),
+      amountRequested: toMoney(decryptedData.amountRequested),
+      amountToSend: toMoney(decryptedData.amountToSend),
+      totalAmount: toMoney(decryptedData.totalAmount),
+      cashuReceiveFee: toMoney(decryptedData.receiveSwapFee),
+      cashuSendFee: toMoney(decryptedData.sendSwapFee),
       inputProofs: inputProofs,
-      inputAmount: toMoney(data.input_amount),
+      inputAmount: toMoney(decryptedData.inputAmount),
       currency: data.currency,
       version: data.version,
       state: data.state,
@@ -348,7 +396,7 @@ export class CashuSendSwapRepository {
       if (
         !data.keyset_id ||
         data.keyset_counter === null ||
-        !data.send_output_amounts
+        !decryptedData.sendOutputAmounts
       ) {
         throw new Error('Invalid swap, DRAFT state is missing data', {
           cause: data,
@@ -359,8 +407,8 @@ export class CashuSendSwapRepository {
         keysetId: data.keyset_id,
         keysetCounter: data.keyset_counter,
         outputAmounts: {
-          send: data.send_output_amounts,
-          change: data.change_output_amounts ?? [],
+          send: decryptedData.sendOutputAmounts,
+          change: decryptedData.changeOutputAmounts ?? [],
         },
         state: 'DRAFT',
       };

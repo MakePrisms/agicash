@@ -16,6 +16,13 @@ type Options = {
   abortSignal?: AbortSignal;
 };
 
+type EncryptedData = {
+  amount: number;
+  estimatedFee: number;
+  paymentRequest: string;
+  fee?: number;
+};
+
 type CreateQuoteParams = {
   /**
    * ID of the sending user.
@@ -84,20 +91,24 @@ export class SparkSendQuoteRepository {
       paymentRequest,
     };
 
-    const encryptedTransactionDetails =
-      await this.encryption.encrypt(detailsToEncrypt);
+    const dataToEncrypt: EncryptedData = {
+      amount: amount.toNumber(unit),
+      estimatedFee: estimatedFee.toNumber(unit),
+      paymentRequest,
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
 
     const query = this.db.rpc('create_spark_send_quote', {
       p_user_id: userId,
       p_account_id: accountId,
-      p_amount: amount.toNumber(unit),
-      p_estimated_fee: estimatedFee.toNumber(unit),
       p_currency: amount.currency,
       p_unit: unit,
-      p_payment_request: paymentRequest,
       p_payment_hash: paymentHash,
       p_payment_request_is_amountless: paymentRequestIsAmountless,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_data: encryptedData,
       p_expires_at: expiresAt?.toISOString(),
     });
 
@@ -111,7 +122,7 @@ export class SparkSendQuoteRepository {
       throw new Error('Failed to create spark send quote', { cause: error });
     }
 
-    return SparkSendQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -144,6 +155,8 @@ export class SparkSendQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
+    const unit = getDefaultUnit(quote.amount.currency);
+
     const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
       amountToReceive: quote.amount,
       amountSpent: quote.amount.add(fee),
@@ -152,15 +165,22 @@ export class SparkSendQuoteRepository {
       fee,
     };
 
-    const encryptedTransactionDetails =
-      await this.encryption.encrypt(detailsToEncrypt);
+    const dataToEncrypt: EncryptedData = {
+      amount: quote.amount.toNumber(unit),
+      estimatedFee: quote.estimatedFee.toNumber(unit),
+      paymentRequest: quote.paymentRequest,
+      fee: fee.toNumber(unit),
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
 
     const query = this.db.rpc('mark_spark_send_quote_as_pending', {
       p_quote_id: quote.id,
       p_spark_id: sparkSendRequestId,
       p_spark_transfer_id: sparkTransferId,
-      p_fee: fee.toNumber(getDefaultUnit(fee.currency)),
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_data: encryptedData,
     });
 
     if (options?.abortSignal) {
@@ -175,7 +195,7 @@ export class SparkSendQuoteRepository {
       });
     }
 
-    return SparkSendQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -198,6 +218,8 @@ export class SparkSendQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
+    const unit = getDefaultUnit(quote.amount.currency);
+
     const detailsToEncrypt: Omit<
       CompletedSparkLightningSendTransactionDetails,
       'sparkId' | 'sparkTransferId'
@@ -210,13 +232,21 @@ export class SparkSendQuoteRepository {
       paymentPreimage,
     };
 
-    const encryptedTransactionDetails =
-      await this.encryption.encrypt(detailsToEncrypt);
+    const dataToEncrypt: EncryptedData = {
+      amount: quote.amount.toNumber(unit),
+      estimatedFee: quote.estimatedFee.toNumber(unit),
+      paymentRequest: quote.paymentRequest,
+      fee: quote.fee.toNumber(unit),
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
 
     const query = this.db.rpc('complete_spark_send_quote', {
       p_quote_id: quote.id,
       p_payment_preimage: paymentPreimage,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_data: encryptedData,
     });
 
     if (options?.abortSignal) {
@@ -231,7 +261,7 @@ export class SparkSendQuoteRepository {
       });
     }
 
-    return SparkSendQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -257,7 +287,7 @@ export class SparkSendQuoteRepository {
       throw new Error('Failed to fail spark send quote', { cause: error });
     }
 
-    return SparkSendQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -278,7 +308,7 @@ export class SparkSendQuoteRepository {
       throw new Error('Failed to get spark send quote', { cause: error });
     }
 
-    return data ? SparkSendQuoteRepository.toQuote(data) : null;
+    return data ? this.toQuote(data) : null;
   }
 
   /**
@@ -306,26 +336,30 @@ export class SparkSendQuoteRepository {
       throw new Error('Failed to get spark send quotes', { cause: error });
     }
 
-    return data.map((data) => SparkSendQuoteRepository.toQuote(data));
+    return Promise.all(data.map((data) => this.toQuote(data)));
   }
 
-  static toQuote(data: AgicashDbSparkSendQuote): SparkSendQuote {
+  async toQuote(data: AgicashDbSparkSendQuote): Promise<SparkSendQuote> {
+    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
+      [data.encrypted_data],
+    );
+
     const baseQuote = {
       id: data.id,
       sparkId: data.spark_id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
       amount: new Money({
-        amount: data.amount,
+        amount: decryptedData.amount,
         currency: data.currency,
         unit: data.unit,
       }),
       estimatedFee: new Money({
-        amount: data.estimated_fee,
+        amount: decryptedData.estimatedFee,
         currency: data.currency,
         unit: data.unit,
       }),
-      paymentRequest: data.payment_request,
+      paymentRequest: decryptedData.paymentRequest,
       paymentHash: data.payment_hash,
       transactionId: data.transaction_id,
       userId: data.user_id,
@@ -345,7 +379,7 @@ export class SparkSendQuoteRepository {
           'Invalid spark send quote data. Spark transfer id is required for completed state.',
         );
       }
-      if (!data.fee) {
+      if (decryptedData.fee === undefined) {
         throw new Error(
           'Invalid spark send quote data. Fee is required for completed state.',
         );
@@ -362,7 +396,7 @@ export class SparkSendQuoteRepository {
         sparkId: data.spark_id,
         sparkTransferId: data.spark_transfer_id,
         fee: new Money({
-          amount: data.fee,
+          amount: decryptedData.fee,
           currency: data.currency,
           unit: data.unit,
         }),
@@ -377,13 +411,14 @@ export class SparkSendQuoteRepository {
         failureReason: data.failure_reason ?? undefined,
         sparkId: data.spark_id ?? undefined,
         sparkTransferId: data.spark_transfer_id ?? undefined,
-        fee: data.fee
-          ? new Money({
-              amount: data.fee,
-              currency: data.currency,
-              unit: data.unit,
-            })
-          : undefined,
+        fee:
+          decryptedData.fee !== undefined
+            ? new Money({
+                amount: decryptedData.fee,
+                currency: data.currency,
+                unit: data.unit,
+              })
+            : undefined,
       };
     }
 
@@ -398,7 +433,7 @@ export class SparkSendQuoteRepository {
           'Invalid spark send quote data. Spark transfer id is required for pending state.',
         );
       }
-      if (!data.fee) {
+      if (decryptedData.fee === undefined) {
         throw new Error(
           'Invalid spark send quote data. Fee is required for pending state.',
         );
@@ -410,7 +445,7 @@ export class SparkSendQuoteRepository {
         sparkId: data.spark_id,
         sparkTransferId: data.spark_transfer_id,
         fee: new Money({
-          amount: data.fee,
+          amount: decryptedData.fee,
           currency: data.currency,
           unit: data.unit,
         }),

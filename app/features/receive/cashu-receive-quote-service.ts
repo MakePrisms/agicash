@@ -6,6 +6,7 @@ import {
   type Proof,
 } from '@cashu/cashu-ts';
 import { HARDENED_OFFSET } from '@scure/bip32';
+import { decodeBolt11 } from '~/lib/bolt11';
 import {
   CashuErrorCodes,
   type ExtendedCashuWallet,
@@ -185,6 +186,8 @@ export class CashuReceiveQuoteService {
       mintingFee: receiveQuote.mintingFee,
     };
 
+    const { paymentHash } = decodeBolt11(receiveQuote.mintQuote.request);
+
     if (receiveType === 'TOKEN') {
       const { tokenAmount, cashuReceiveFee, lightningFeeReserve } = params;
 
@@ -194,12 +197,14 @@ export class CashuReceiveQuoteService {
         tokenAmount,
         cashuReceiveFee,
         lightningFeeReserve,
+        paymentHash,
       });
     }
 
     return this.cashuReceiveQuoteRepository.create({
       ...baseReceiveQuote,
       receiveType,
+      paymentHash,
     });
   }
 
@@ -289,7 +294,7 @@ export class CashuReceiveQuoteService {
     const outputAmounts = getOutputAmounts(amountInCashuUnit, keys);
 
     const result = await this.cashuReceiveQuoteRepository.processPayment({
-      quoteId: quote.id,
+      quote,
       keysetId,
       outputAmounts,
     });

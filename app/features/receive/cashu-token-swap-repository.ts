@@ -19,6 +19,14 @@ import { UniqueConstraintError } from '../shared/error';
 import type { CashuTokenReceiveTransactionDetails } from '../transactions/transaction';
 import type { CashuTokenSwap } from './cashu-token-swap';
 
+type EncryptedData = {
+  tokenProofs: Proof[];
+  inputAmount: number;
+  receiveAmount: number;
+  feeAmount: number;
+  outputAmounts: number[];
+};
+
 type Options = {
   abortSignal?: AbortSignal;
 };
@@ -73,6 +81,7 @@ export class CashuTokenSwapRepository {
    * Creates a cashu token swap and updates the account keyset counter.
    * @returns Created cashu token swap.
    * @throws Error if a token swap with the same token hash already exists.
+   * @throws Error if outputAmounts is invalid.
    */
   async create(
     {
@@ -91,6 +100,16 @@ export class CashuTokenSwapRepository {
     swap: CashuTokenSwap;
     account: CashuAccount;
   }> {
+    if (
+      !outputAmounts ||
+      outputAmounts.length === 0 ||
+      outputAmounts.some((amount) => amount <= 0)
+    ) {
+      throw new Error(
+        'outputAmounts must be a non-empty array of integers greater than 0',
+      );
+    }
+
     const currency = inputAmount.currency;
     const unit = getDefaultUnit(inputAmount.currency);
     const tokenHash = await getTokenHash(token);
@@ -102,23 +121,28 @@ export class CashuTokenSwapRepository {
       tokenAmount: inputAmount,
     };
 
-    const [encryptedTransactionDetails, encryptedProofs] =
-      await this.encryption.encryptBatch([details, token.proofs]);
+    const dataToEncrypt: EncryptedData = {
+      tokenProofs: token.proofs,
+      inputAmount: inputAmount.toNumber(unit),
+      receiveAmount: receiveAmount.toNumber(unit),
+      feeAmount: cashuReceiveFee.toNumber(unit),
+      outputAmounts,
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([details, dataToEncrypt]);
 
     const query = this.db.rpc('create_cashu_token_swap', {
       p_token_hash: tokenHash,
-      p_token_proofs: encryptedProofs,
       p_account_id: accountId,
       p_user_id: userId,
       p_currency: currency,
       p_unit: unit,
       p_keyset_id: keysetId,
-      p_output_amounts: outputAmounts,
-      p_input_amount: inputAmount.toNumber(unit),
-      p_receive_amount: receiveAmount.toNumber(unit),
-      p_fee_amount: cashuReceiveFee.toNumber(unit),
-      p_reversed_transaction_id: reversedTransactionId,
+      p_number_of_outputs: outputAmounts.length,
+      p_encrypted_data: encryptedData,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_reversed_transaction_id: reversedTransactionId,
     });
 
     if (options?.abortSignal) {
@@ -135,7 +159,7 @@ export class CashuTokenSwapRepository {
     }
 
     const [swap, account] = await Promise.all([
-      CashuTokenSwapRepository.toTokenSwap(data.swap, this.encryption.decrypt),
+      this.toTokenSwap(data.swap),
       this.accountRepository.toAccount<CashuAccount>(data.account),
     ]);
 
@@ -210,7 +234,7 @@ export class CashuTokenSwapRepository {
     }
 
     const [swap, account] = await Promise.all([
-      CashuTokenSwapRepository.toTokenSwap(data.swap, this.encryption.decrypt),
+      this.toTokenSwap(data.swap),
       this.accountRepository.toAccount<CashuAccount>(data.account),
     ]);
 
@@ -261,7 +285,7 @@ export class CashuTokenSwapRepository {
       throw new Error('Failed to fail token swap', { cause: error });
     }
 
-    return CashuTokenSwapRepository.toTokenSwap(data, this.encryption.decrypt);
+    return this.toTokenSwap(data);
   }
 
   async getByTransactionId(
@@ -285,9 +309,7 @@ export class CashuTokenSwapRepository {
       });
     }
 
-    return data
-      ? CashuTokenSwapRepository.toTokenSwap(data, this.encryption.decrypt)
-      : null;
+    return data ? this.toTokenSwap(data) : null;
   }
 
   /**
@@ -313,42 +335,37 @@ export class CashuTokenSwapRepository {
       throw new Error('Failed to get pending token swaps', { cause: error });
     }
 
-    return Promise.all(
-      data.map((item) =>
-        CashuTokenSwapRepository.toTokenSwap(item, this.encryption.decrypt),
-      ),
-    );
+    return Promise.all(data.map((item) => this.toTokenSwap(item)));
   }
 
-  static async toTokenSwap(
-    data: AgicashDbCashuTokenSwap,
-    decryptData: Encryption['decrypt'],
-  ): Promise<CashuTokenSwap> {
-    const decryptedProofs = await decryptData<Proof[]>(data.token_proofs);
+  async toTokenSwap(data: AgicashDbCashuTokenSwap): Promise<CashuTokenSwap> {
+    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
+      [data.encrypted_data],
+    );
 
     const commonData = {
       tokenHash: data.token_hash,
-      tokenProofs: decryptedProofs,
+      tokenProofs: decryptedData.tokenProofs,
       userId: data.user_id,
       accountId: data.account_id,
       inputAmount: new Money({
-        amount: data.input_amount,
+        amount: decryptedData.inputAmount,
         currency: data.currency,
         unit: data.unit,
       }),
       receiveAmount: new Money({
-        amount: data.receive_amount,
+        amount: decryptedData.receiveAmount,
         currency: data.currency,
         unit: data.unit,
       }),
       feeAmount: new Money({
-        amount: data.fee_amount,
+        amount: decryptedData.feeAmount,
         currency: data.currency,
         unit: data.unit,
       }),
       keysetId: data.keyset_id,
       keysetCounter: data.keyset_counter,
-      outputAmounts: data.output_amounts,
+      outputAmounts: decryptedData.outputAmounts,
       createdAt: data.created_at,
       version: data.version,
       transactionId: data.transaction_id,

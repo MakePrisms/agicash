@@ -2,21 +2,47 @@
 -- Cashu receive quote changes
 -- ++++++++++++++++++++++++++++++++++++
 
+-- Drop constraint and index on quote_id before dropping the column
+alter table wallet.cashu_receive_quotes drop constraint if exists cashu_receive_quotes_quote_id_key;
+drop index if exists wallet.cashu_receive_quotes_quote_id_key;
+
+-- Drop columns that will be encrypted
+alter table wallet.cashu_receive_quotes drop column amount;
+alter table wallet.cashu_receive_quotes drop column quote_id;
+alter table wallet.cashu_receive_quotes drop column payment_request;
+alter table wallet.cashu_receive_quotes drop column description;
+alter table wallet.cashu_receive_quotes drop column minting_fee;
+alter table wallet.cashu_receive_quotes drop column output_amounts;
+
+-- Add encrypted_data column to store all sensitive fields as encrypted JSON
+alter table wallet.cashu_receive_quotes add column encrypted_data text not null;
+alter table wallet.cashu_receive_quotes add column payment_hash text not null;
+
+-- Add quote_id_hash column to allow looking up quotes by their mint quote_id (hashed for privacy)
+alter table wallet.cashu_receive_quotes add column quote_id_hash text not null;
+
+-- Create unique index on quote_id_hash to make sure we don't have duplicate quotes with the same mint quote_id
+create unique index cashu_receive_quotes_quote_id_hash_key 
+  on wallet.cashu_receive_quotes using btree (quote_id_hash) 
+  where quote_id_hash is not null;
+
+-- Drop existing function signatures before recreating with new params
+drop function if exists wallet.create_cashu_receive_quote(uuid, uuid, numeric, text, text, text, text, timestamp with time zone, text, text, text, text, text, numeric);
+drop function if exists wallet.process_cashu_receive_quote_payment(uuid, text, integer[]);
+
 create or replace function wallet.create_cashu_receive_quote(
   p_user_id uuid,
   p_account_id uuid,
-  p_amount numeric,
   p_currency text,
   p_unit text,
-  p_quote_id text,
-  p_payment_request text,
   p_expires_at timestamp with time zone,
   p_state text,
   p_locking_derivation_path text,
   p_receive_type text,
   p_encrypted_transaction_details text,
-  p_description text default null::text,
-  p_minting_fee numeric default null
+  p_encrypted_data text,
+  p_quote_id_hash text,
+  p_payment_hash text
 )
 returns wallet.cashu_receive_quotes
 language plpgsql
@@ -72,33 +98,29 @@ begin
   insert into wallet.cashu_receive_quotes (
     user_id,
     account_id,
-    amount,
     currency,
     unit,
-    quote_id,
-    payment_request,
     expires_at,
-    description,
     state,
     locking_derivation_path,
     transaction_id,
     type,
-    minting_fee
+    encrypted_data,
+    quote_id_hash,
+    payment_hash
   ) values (
     p_user_id,
     p_account_id,
-    p_amount,
     p_currency,
     p_unit,
-    p_quote_id,
-    p_payment_request,
     p_expires_at,
-    p_description,
     p_state,
     p_locking_derivation_path,
     v_transaction_id,
     p_receive_type,
-    p_minting_fee
+    p_encrypted_data,
+    p_quote_id_hash,
+    p_payment_hash
   ) returning * into v_quote;
 
   return v_quote;
@@ -107,8 +129,9 @@ $function$;
 
 create or replace function wallet.process_cashu_receive_quote_payment(
   p_quote_id uuid,
-  p_keyset_id text, 
-  p_output_amounts integer[]
+  p_keyset_id text,
+  p_number_of_outputs integer,
+  p_encrypted_data text
 )
 returns wallet.cashu_receive_quote_payment_result
 language plpgsql
@@ -117,7 +140,6 @@ declare
   v_quote wallet.cashu_receive_quotes;
   v_account wallet.accounts;
   v_account_with_proofs jsonb;
-  v_number_of_outputs integer;
   v_counter integer;
 begin
   if p_keyset_id is null or trim(p_keyset_id) = '' then
@@ -126,17 +148,6 @@ begin
         hint = 'INVALID_ARGUMENT',
         message = 'p_keyset_id must not be null or empty.',
         detail = format('Value provided: %s', p_keyset_id);
-  end if;
-
-  if p_output_amounts is null
-    or array_length(p_output_amounts, 1) is null
-    or exists (select 1 from unnest(p_output_amounts) as amount where amount <= 0)
-  then
-    raise exception
-      using
-        hint = 'INVALID_ARGUMENT',
-        message = 'p_output_amounts must be a non-null, non-empty array of integers greater than 0.',
-        detail = format('Value provided: %s', p_output_amounts);
   end if;
 
   select * into v_quote
@@ -165,15 +176,13 @@ begin
         detail = format('Quote is not in UNPAID state. Current state: %s.', v_quote.state);
   end if;
 
-  v_number_of_outputs := array_length(p_output_amounts, 1);
-
   update wallet.accounts a
   set 
     details = jsonb_set(
       details, 
       array['keyset_counters', p_keyset_id], 
       to_jsonb(
-        coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + v_number_of_outputs
+        coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + p_number_of_outputs
       ), 
       true
     ),
@@ -183,14 +192,14 @@ begin
 
   v_account_with_proofs := wallet.to_account_with_proofs(v_account);
 
-  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - v_number_of_outputs;
+  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_outputs;
 
   update wallet.cashu_receive_quotes q
   set 
     state = 'PAID',
     keyset_id = p_keyset_id,
     keyset_counter = v_counter,
-    output_amounts = p_output_amounts,
+    encrypted_data = p_encrypted_data,
     version = version + 1
   where q.id = p_quote_id
   returning * into v_quote;
@@ -209,18 +218,28 @@ $function$;
 -- Cashu token swap changes
 -- ++++++++++++++++++++++++++++++++++++
 
+-- Drop columns that will be encrypted
+alter table wallet.cashu_token_swaps drop column token_proofs;
+alter table wallet.cashu_token_swaps drop column input_amount;
+alter table wallet.cashu_token_swaps drop column receive_amount;
+alter table wallet.cashu_token_swaps drop column fee_amount;
+alter table wallet.cashu_token_swaps drop column output_amounts;
+
+-- Add encrypted_data column to store all sensitive fields as encrypted JSON
+alter table wallet.cashu_token_swaps add column encrypted_data text not null;
+
+-- Drop existing function signature before recreating with new params
+drop function if exists wallet.create_cashu_token_swap(text, text, uuid, uuid, text, text, text, integer[], numeric, numeric, numeric, text, uuid);
+
 create or replace function wallet.create_cashu_token_swap(
   p_token_hash text, 
-  p_token_proofs text, 
   p_account_id uuid, 
   p_user_id uuid, 
   p_currency text, 
   p_unit text, 
   p_keyset_id text,
-  p_output_amounts integer[],
-  p_input_amount numeric,
-  p_receive_amount numeric,
-  p_fee_amount numeric,
+  p_number_of_outputs integer,
+  p_encrypted_data text,
   p_encrypted_transaction_details text,
   p_reversed_transaction_id uuid default null
 )
@@ -228,33 +247,19 @@ returns wallet.create_cashu_token_swap_result
 language plpgsql
 as $function$
 declare
-  v_number_of_outputs integer;
   v_account wallet.accounts;
   v_counter integer;
   v_transaction_id uuid;
   v_token_swap wallet.cashu_token_swaps;
   v_account_with_proofs jsonb;
 begin
-  if p_output_amounts is null
-    or array_length(p_output_amounts, 1) is null
-    or exists (select 1 from unnest(p_output_amounts) as amount where amount <= 0)
-  then
-    raise exception
-      using
-        hint = 'INVALID_ARGUMENT',
-        message = 'p_output_amounts must be a non-null, non-empty array of integers greater than 0.',
-        detail = format('Value provided: %s', p_output_amounts);
-  end if;
-
-  v_number_of_outputs := array_length(p_output_amounts, 1);
-
   update wallet.accounts a
   set 
     details = jsonb_set(
       details, 
       array['keyset_counters', p_keyset_id], 
       to_jsonb(
-        coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + v_number_of_outputs
+        coalesce((details->'keyset_counters'->>p_keyset_id)::integer, 0) + p_number_of_outputs
       ), 
       true
     ),
@@ -262,7 +267,7 @@ begin
   where a.id = p_account_id
   returning * into v_account;
 
-  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - v_number_of_outputs;
+  v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0) - p_number_of_outputs;
 
   insert into wallet.transactions (
     user_id,
@@ -288,35 +293,27 @@ begin
 
   insert into wallet.cashu_token_swaps (
     token_hash,
-    token_proofs,
     account_id,
     user_id,
     currency,
     unit,
     keyset_id,
     keyset_counter,
-    output_amounts,
-    input_amount,
-    receive_amount,
-    fee_amount,
+    encrypted_data,
     transaction_id
   ) values (
     p_token_hash,
-    p_token_proofs,
     p_account_id,
     p_user_id,
     p_currency,
     p_unit,
     p_keyset_id,
     v_counter,
-    p_output_amounts,
-    p_input_amount,
-    p_receive_amount,
-    p_fee_amount,
+    p_encrypted_data,
     v_transaction_id
   ) returning * into v_token_swap;
 
-   v_account_with_proofs := wallet.to_account_with_proofs(v_account);
+  v_account_with_proofs := wallet.to_account_with_proofs(v_account);
 
   return (v_token_swap, v_account_with_proofs);
 end;
@@ -326,24 +323,48 @@ $function$;
 -- Cashu send quote changes
 -- ++++++++++++++++++++++++++++++++++++
 
+-- Drop constraints and indexes that depend on quote_id
+alter table wallet.cashu_send_quotes drop constraint if exists cashu_send_quotes_quote_id_key;
+drop index if exists wallet.cashu_send_quotes_quote_id_key;
+
+-- Drop columns that will be encrypted
+alter table wallet.cashu_send_quotes drop column payment_request;
+alter table wallet.cashu_send_quotes drop column amount_requested;
+alter table wallet.cashu_send_quotes drop column amount_requested_in_msat;
+alter table wallet.cashu_send_quotes drop column amount_to_receive;
+alter table wallet.cashu_send_quotes drop column lightning_fee_reserve;
+alter table wallet.cashu_send_quotes drop column cashu_fee;
+alter table wallet.cashu_send_quotes drop column quote_id;
+alter table wallet.cashu_send_quotes drop column amount_spent;
+alter table wallet.cashu_send_quotes drop column payment_preimage;
+
+-- Add encrypted_data column to store all sensitive fields as encrypted JSON
+alter table wallet.cashu_send_quotes add column encrypted_data text not null;
+alter table wallet.cashu_send_quotes add column payment_hash text not null;
+
+alter table wallet.cashu_send_quotes add column quote_id_hash text not null;
+create unique index cashu_send_quotes_quote_id_hash_key 
+  on wallet.cashu_send_quotes using btree (quote_id_hash) 
+  where quote_id_hash is not null and state <> 'FAILED';
+
+-- Drop existing function signatures before recreating with new params
+drop function if exists wallet.create_cashu_send_quote(uuid, uuid, text, text, text, timestamp with time zone, numeric, text, bigint, numeric, numeric, numeric, text, text, integer, uuid[], text);
+drop function if exists wallet.complete_cashu_send_quote(uuid, text, numeric, wallet.cashu_proof_input[], text);
+
 create or replace function wallet.create_cashu_send_quote(
   p_user_id uuid,
   p_account_id uuid,
   p_currency text,
   p_unit text,
-  p_payment_request text,
   p_expires_at timestamp with time zone,
-  p_amount_requested numeric,
   p_currency_requested text,
-  p_amount_requested_in_msat bigint,
-  p_amount_to_receive numeric,
-  p_lightning_fee_reserve numeric,
-  p_cashu_fee numeric,
-  p_quote_id text,
   p_keyset_id text,
   p_number_of_change_outputs integer,
   p_proofs_to_send uuid[],
-  p_encrypted_transaction_details text
+  p_encrypted_transaction_details text,
+  p_encrypted_data text,
+  p_quote_id_hash text,
+  p_payment_hash text
 )
 returns wallet.create_cashu_send_quote_result
 language plpgsql
@@ -413,37 +434,29 @@ begin
     account_id,
     currency,
     unit,
-    payment_request,
-    expires_at,
-    amount_requested,
     currency_requested,
-    amount_requested_in_msat,
-    amount_to_receive,
-    lightning_fee_reserve,
-    cashu_fee,
-    quote_id,
+    expires_at,
     keyset_id,
     keyset_counter,
     number_of_change_outputs,
-    transaction_id
+    transaction_id,
+    encrypted_data,
+    quote_id_hash,
+    payment_hash
   ) values (
     p_user_id,
     p_account_id,
     p_currency,
     p_unit,
-    p_payment_request,
     p_expires_at,
-    p_amount_requested,
     p_currency_requested,
-    p_amount_requested_in_msat,
-    p_amount_to_receive,
-    p_lightning_fee_reserve,
-    p_cashu_fee,
-    p_quote_id,
     p_keyset_id,
     v_counter,
     p_number_of_change_outputs,
-    v_transaction_id
+    v_transaction_id,
+    p_encrypted_data,
+    p_quote_id_hash,
+    p_payment_hash
   )
   returning * into v_quote;
 
@@ -479,9 +492,8 @@ $function$;
 
 create or replace function wallet.complete_cashu_send_quote(
     p_quote_id uuid,
-    p_payment_preimage text,
-    p_amount_spent numeric,
     p_change_proofs wallet.cashu_proof_input[],
+    p_encrypted_data text,
     p_encrypted_transaction_details text
 ) returns wallet.complete_cashu_send_quote_result
 language plpgsql
@@ -531,8 +543,7 @@ begin
 
   update wallet.cashu_send_quotes
   set state = 'PAID',
-      payment_preimage = p_payment_preimage,
-      amount_spent = p_amount_spent,
+      encrypted_data = p_encrypted_data,
       version = version + 1
   where id = v_quote.id
   returning * into v_quote;
@@ -576,30 +587,50 @@ $function$;
 -- Cashu send swap changes
 -- ++++++++++++++++++++++++++++++++++++
 
+-- Drop constraints that depend on requires_input_proofs_swap computed column
+alter table wallet.cashu_send_swaps drop constraint if exists cashu_send_swaps_keyset_required_check;
+alter table wallet.cashu_send_swaps drop constraint if exists cashu_send_swaps_draft_requires_swap_check;
+
+-- Drop computed column that depends on amount_to_send and input_amount
+alter table wallet.cashu_send_swaps drop column if exists requires_input_proofs_swap;
+
+-- Drop columns that will be encrypted
+alter table wallet.cashu_send_swaps drop column amount_requested;
+alter table wallet.cashu_send_swaps drop column amount_to_send;
+alter table wallet.cashu_send_swaps drop column send_swap_fee;
+alter table wallet.cashu_send_swaps drop column receive_swap_fee;
+alter table wallet.cashu_send_swaps drop column total_amount;
+alter table wallet.cashu_send_swaps drop column input_amount;
+alter table wallet.cashu_send_swaps drop column send_output_amounts;
+alter table wallet.cashu_send_swaps drop column change_output_amounts;
+
+-- Add encrypted_data column to store all sensitive fields as encrypted JSON
+alter table wallet.cashu_send_swaps add column encrypted_data text not null;
+
+-- Add requires_input_proofs_swap boolean column (was previously a computed column based on unencrypted amount fields, now stored directly)
+alter table wallet.cashu_send_swaps add column requires_input_proofs_swap boolean not null default false;
+
+-- Drop existing function signature before recreating with new params
+drop function if exists wallet.create_cashu_send_swap(uuid, uuid, numeric, numeric, uuid[], text, text, numeric, numeric, numeric, numeric, text, text, text, integer[], integer[]);
+
 create or replace function wallet.create_cashu_send_swap(
   p_user_id uuid,
   p_account_id uuid,
-  p_amount_requested numeric,
-  p_amount_to_send numeric,
   p_input_proofs uuid[],
   p_currency text, 
   p_unit text, 
-  p_input_amount numeric,
-  p_send_swap_fee numeric,
-  p_receive_swap_fee numeric,
-  p_total_amount numeric,
   p_encrypted_transaction_details text,
+  p_encrypted_data text,
+  p_requires_input_proofs_swap boolean,
   p_token_hash text default null::text,
   p_keyset_id text default null::text,
-  p_send_output_amounts integer[] default null::integer[],
-  p_change_output_amounts integer[] default null::integer[]
+  p_number_of_outputs integer default null::integer
 ) returns wallet.create_cashu_send_swap_result
 language plpgsql
 as $function$
 declare
   v_state text;
   v_keyset_id text; -- We are declaring this variable instead of storing the value directly from p_keyset_id to prevent it being added to db for the state it shouldn't be added for.
-  v_number_of_outputs integer;
   v_account wallet.accounts;
   v_account_with_proofs jsonb;
   v_keyset_counter integer;
@@ -608,10 +639,10 @@ declare
   v_reserved_proofs wallet.cashu_proofs[];
 begin
   -- If the input amount is equal to the amount to send, there is no need to swap the input proofs so the swap is ready to be committed (set to PENDING).
-  if p_input_amount = p_amount_to_send then
-    v_state := 'PENDING';
-  else
+  if p_requires_input_proofs_swap then
     v_state := 'DRAFT';
+  else
+    v_state := 'PENDING';
   end if;
 
   if v_state = 'PENDING' then
@@ -630,30 +661,15 @@ begin
             detail = format('Value provided: %s', p_keyset_id);
       end if;
 
-      if p_send_output_amounts is null
-        or array_length(p_send_output_amounts, 1) is null
-        or exists (select 1 from unnest(p_send_output_amounts) as amount where amount <= 0)
-      then
+      if p_number_of_outputs is null or p_number_of_outputs <= 0 then
         raise exception
           using
             hint = 'INVALID_ARGUMENT',
-            message = 'When state is DRAFT, p_send_output_amounts must be a non-null, non-empty array of integers greater than 0.',
-            detail = format('Value provided: %s', p_send_output_amounts);
-      end if;
-
-      if p_change_output_amounts is not null
-        and array_length(p_change_output_amounts, 1) is not null
-        and exists (select 1 from unnest(p_change_output_amounts) as amount where amount <= 0)
-      then
-        raise exception
-          using
-            hint = 'INVALID_ARGUMENT',
-            message = 'When state is DRAFT and p_change_output_amounts is provided, all values must be integers greater than 0.',
-            detail = format('Value provided: %s', p_change_output_amounts);
+            message = 'When state is DRAFT, p_number_of_outputs must be provided and greater than 0.',
+            detail = format('Value provided: %s', p_number_of_outputs);
       end if;
 
       v_keyset_id := p_keyset_id;
-      v_number_of_outputs := array_length(p_send_output_amounts, 1) + coalesce(array_length(p_change_output_amounts, 1), 0);
 
       update wallet.accounts a
       set 
@@ -661,7 +677,7 @@ begin
           details, 
           array['keyset_counters', v_keyset_id], 
           to_jsonb(
-            coalesce((details->'keyset_counters'->>v_keyset_id)::integer, 0) + v_number_of_outputs
+            coalesce((details->'keyset_counters'->>v_keyset_id)::integer, 0) + p_number_of_outputs
           ), 
           true
         ),
@@ -670,7 +686,7 @@ begin
       returning * into v_account;
 
       -- Keyset counter value before the increment (This is the value used for this swap)
-      v_keyset_counter := coalesce((v_account.details->'keyset_counters'->>v_keyset_id)::integer, 0) - v_number_of_outputs;
+      v_keyset_counter := coalesce((v_account.details->'keyset_counters'->>v_keyset_id)::integer, 0) - p_number_of_outputs;
   end if;
 
   insert into wallet.transactions (
@@ -697,38 +713,26 @@ begin
       user_id,
       account_id,
       transaction_id,
-      amount_requested,
-      amount_to_send,
-      send_swap_fee,
-      receive_swap_fee,
-      total_amount,
-      input_amount,
       keyset_id,
       keyset_counter,
-      send_output_amounts,
-      change_output_amounts,
       token_hash,
       currency,
       unit,
-      state
+      state,
+      encrypted_data,
+      requires_input_proofs_swap
   ) values (
       p_user_id,
       p_account_id,
       v_transaction_id,
-      p_amount_requested,
-      p_amount_to_send,
-      p_send_swap_fee,
-      p_receive_swap_fee,
-      p_total_amount,
-      p_input_amount,
       v_keyset_id,
       v_keyset_counter,
-      p_send_output_amounts,
-      p_change_output_amounts,
       p_token_hash,
       p_currency,
       p_unit,
-      v_state
+      v_state,
+      p_encrypted_data,
+      p_requires_input_proofs_swap
   ) returning * into v_swap;
 
   -- CTE (Common Table Expression) + array_agg is needed in plpgsql when using "returning into" with multiple rows 
@@ -765,19 +769,30 @@ $function$;
 -- Spark receive quote changes
 -- ++++++++++++++++++++++++++++++++++++
 
+-- Drop columns that will be encrypted
+alter table wallet.spark_receive_quotes drop column amount;
+alter table wallet.spark_receive_quotes drop column payment_request;
+alter table wallet.spark_receive_quotes drop column payment_preimage;
+
+-- Add encrypted_data column to store all sensitive fields as encrypted JSON
+alter table wallet.spark_receive_quotes add column encrypted_data text not null;
+
+-- Drop existing function signatures before recreating with new params
+drop function if exists wallet.create_spark_receive_quote(uuid, uuid, numeric, text, text, text, text, timestamp with time zone, text, text, text, text);
+drop function if exists wallet.complete_spark_receive_quote(uuid, text, text, text);
+
 create or replace function wallet.create_spark_receive_quote(
   p_user_id uuid,
   p_account_id uuid,
-  p_amount numeric,
   p_currency text,
   p_unit text,
-  p_payment_request text,
   p_payment_hash text,
   p_expires_at timestamp with time zone,
   p_spark_id text,
   p_receiver_identity_pubkey text,
   p_encrypted_transaction_details text,
-  p_receive_type text
+  p_receive_type text,
+  p_encrypted_data text
 )
 returns wallet.spark_receive_quotes
 language plpgsql
@@ -820,30 +835,28 @@ begin
     user_id,
     account_id,
     type,
-    amount,
     currency,
     unit,
-    payment_request,
     payment_hash,
     expires_at,
     spark_id,
     receiver_identity_pubkey,
     transaction_id,
-    state
+    state,
+    encrypted_data
   ) values (
     p_user_id,
     p_account_id,
     p_receive_type,
-    p_amount,
     p_currency,
     p_unit,
-    p_payment_request,
     p_payment_hash,
     p_expires_at,
     p_spark_id,
     p_receiver_identity_pubkey,
     v_transaction_id,
-    'UNPAID'
+    'UNPAID',
+    p_encrypted_data
   ) returning * into v_quote;
 
   return v_quote;
@@ -852,9 +865,9 @@ $function$;
 
 create or replace function wallet.complete_spark_receive_quote(
   p_quote_id uuid,
-  p_payment_preimage text,
   p_spark_transfer_id text,
-  p_encrypted_transaction_details text
+  p_encrypted_transaction_details text,
+  p_encrypted_data text
 )
 returns wallet.spark_receive_quotes
 language plpgsql
@@ -891,8 +904,8 @@ begin
   update wallet.spark_receive_quotes
   set
     state = 'PAID',
-    payment_preimage = p_payment_preimage,
     spark_transfer_id = p_spark_transfer_id,
+    encrypted_data = p_encrypted_data,
     version = version + 1
   where id = p_quote_id
   returning * into v_quote;
@@ -914,17 +927,31 @@ $function$;
 -- Spark send quote changes
 -- ++++++++++++++++++++++++++++++++++++
 
+-- Drop columns that will be encrypted
+alter table wallet.spark_send_quotes drop column amount;
+alter table wallet.spark_send_quotes drop column estimated_fee;
+alter table wallet.spark_send_quotes drop column payment_request;
+alter table wallet.spark_send_quotes drop column fee;
+
+-- Add encrypted_data column to store all sensitive fields as encrypted JSON
+alter table wallet.spark_send_quotes add column encrypted_data text not null;
+
+-- Drop existing function signatures before recreating with new params
+drop function if exists wallet.create_spark_send_quote(
+  uuid, uuid, numeric, numeric, text, text, text, text, boolean, text, timestamp with time zone
+);
+drop function if exists wallet.mark_spark_send_quote_as_pending(uuid, text, text, numeric, text);
+drop function if exists wallet.complete_spark_send_quote(uuid, text, text);
+
 create or replace function wallet.create_spark_send_quote(
   p_user_id uuid,
   p_account_id uuid,
-  p_amount numeric,
-  p_estimated_fee numeric,
   p_currency text,
   p_unit text,
-  p_payment_request text,
   p_payment_hash text,
   p_payment_request_is_amountless boolean,
   p_encrypted_transaction_details text,
+  p_encrypted_data text,
   p_expires_at timestamp with time zone default null
 )
 returns wallet.spark_send_quotes
@@ -957,29 +984,25 @@ begin
   insert into wallet.spark_send_quotes (
     user_id,
     account_id,
-    amount,
-    estimated_fee,
     currency,
     unit,
-    payment_request,
     payment_hash,
     payment_request_is_amountless,
     transaction_id,
     state,
-    expires_at
+    expires_at,
+    encrypted_data
   ) values (
     p_user_id,
     p_account_id,
-    p_amount,
-    p_estimated_fee,
     p_currency,
     p_unit,
-    p_payment_request,
     p_payment_hash,
     p_payment_request_is_amountless,
     v_transaction_id,
     'UNPAID',
-    p_expires_at
+    p_expires_at,
+    p_encrypted_data
   ) returning * into v_quote;
 
   return v_quote;
@@ -990,8 +1013,8 @@ create or replace function wallet.mark_spark_send_quote_as_pending(
   p_quote_id uuid,
   p_spark_id text,
   p_spark_transfer_id text,
-  p_fee numeric,
-  p_encrypted_transaction_details text
+  p_encrypted_transaction_details text,
+  p_encrypted_data text
 )
 returns wallet.spark_send_quotes
 language plpgsql
@@ -1028,7 +1051,7 @@ begin
     state = 'PENDING',
     spark_id = p_spark_id,
     spark_transfer_id = p_spark_transfer_id,
-    fee = p_fee,
+    encrypted_data = p_encrypted_data,
     version = version + 1
   where id = p_quote_id
   returning * into v_quote;
@@ -1048,7 +1071,8 @@ $function$;
 create or replace function wallet.complete_spark_send_quote(
   p_quote_id uuid,
   p_payment_preimage text,
-  p_encrypted_transaction_details text
+  p_encrypted_transaction_details text,
+  p_encrypted_data text
 )
 returns wallet.spark_send_quotes
 language plpgsql
@@ -1084,6 +1108,7 @@ begin
   set
     state = 'COMPLETED',
     payment_preimage = p_payment_preimage,
+    encrypted_data = p_encrypted_data,
     version = version + 1
   where id = p_quote_id
   returning * into v_quote;
