@@ -363,7 +363,7 @@ export class SparkSendQuoteRepository {
           'Invalid spark send quote data. Spark transfer id is required for completed state.',
         );
       }
-      if (decryptedData.fee === undefined) {
+      if (!decryptedData.fee) {
         throw new Error(
           'Invalid spark send quote data. Fee is required for completed state.',
         );
@@ -406,7 +406,7 @@ export class SparkSendQuoteRepository {
           'Invalid spark send quote data. Spark transfer id is required for pending state.',
         );
       }
-      if (decryptedData.fee === undefined) {
+      if (!decryptedData.fee) {
         throw new Error(
           'Invalid spark send quote data. Fee is required for pending state.',
         );

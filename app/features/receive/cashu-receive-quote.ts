@@ -47,7 +47,7 @@ export type CashuReceiveQuote = {
    */
   paymentRequest: string;
   /**
-   * Payment hash of the quote.
+   * Payment hash of the quote's lightning invoice.
    */
   paymentHash: string;
   /**
