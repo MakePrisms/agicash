@@ -27,7 +27,7 @@ alter table wallet.cashu_receive_quotes add column quote_id_hash text not null;
 
 -- Create unique index on quote_id_hash to make sure we don't have duplicate quotes with the same mint quote_id
 create unique index cashu_receive_quotes_quote_id_hash_key 
-  on wallet.cashu_receive_quotes using btree (quote_id_hash) 
+  on wallet.cashu_receive_quotes using btree (account_id, quote_id_hash) 
   where quote_id_hash is not null;
 
 -- Drop existing function signatures before recreating with new params
@@ -149,6 +149,14 @@ begin
         detail = format('Value provided: %s', p_keyset_id);
   end if;
 
+  if p_number_of_outputs <= 0 then
+    raise exception
+      using
+        hint = 'INVALID_ARGUMENT',
+        message = 'p_number_of_outputs must be greater than 0.',
+        detail = format('Value provided: %s', p_number_of_outputs);
+  end if;
+
   select * into v_quote
   from wallet.cashu_receive_quotes
   where id = p_quote_id
@@ -255,6 +263,14 @@ declare
   v_token_swap wallet.cashu_token_swaps;
   v_account_with_proofs jsonb;
 begin
+  if p_number_of_outputs <= 0 then
+    raise exception
+      using
+        hint = 'INVALID_ARGUMENT',
+        message = 'p_number_of_outputs must be greater than 0.',
+        detail = format('Value provided: %s', p_number_of_outputs);
+  end if;
+
   update wallet.accounts a
   set 
     details = jsonb_set(
@@ -346,7 +362,7 @@ alter table wallet.cashu_send_quotes add column payment_hash text not null;
 
 alter table wallet.cashu_send_quotes add column quote_id_hash text not null;
 create unique index cashu_send_quotes_quote_id_hash_key 
-  on wallet.cashu_send_quotes using btree (quote_id_hash) 
+  on wallet.cashu_send_quotes using btree (account_id, quote_id_hash) 
   where quote_id_hash is not null and state <> 'FAILED';
 
 -- Drop existing function signatures before recreating with new params

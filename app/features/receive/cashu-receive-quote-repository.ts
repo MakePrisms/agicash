@@ -299,16 +299,6 @@ export class CashuReceiveQuoteRepository {
      */
     account: CashuAccount;
   }> {
-    if (
-      !outputAmounts ||
-      outputAmounts.length === 0 ||
-      outputAmounts.some((amount) => amount <= 0)
-    ) {
-      throw new Error(
-        'outputAmounts must be a non-empty array of integers greater than 0',
-      );
-    }
-
     const dataToEncrypt: EncryptedData = {
       amount: quote.amount,
       quoteId: quote.quoteId,
@@ -339,10 +329,10 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    const updatedQuote = await this.toQuote(data.quote);
-    const account = await this.accountRepository.toAccount<CashuAccount>(
-      data.account,
-    );
+    const [updatedQuote, account] = await Promise.all([
+      this.toQuote(data.quote),
+      this.accountRepository.toAccount<CashuAccount>(data.account),
+    ]);
 
     return { quote: updatedQuote, account };
   }

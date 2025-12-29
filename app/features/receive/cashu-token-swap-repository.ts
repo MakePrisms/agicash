@@ -99,16 +99,6 @@ export class CashuTokenSwapRepository {
     swap: CashuTokenSwap;
     account: CashuAccount;
   }> {
-    if (
-      !outputAmounts ||
-      outputAmounts.length === 0 ||
-      outputAmounts.some((amount) => amount <= 0)
-    ) {
-      throw new Error(
-        'outputAmounts must be a non-empty array of integers greater than 0',
-      );
-    }
-
     const currency = inputAmount.currency;
     const tokenHash = await getTokenHash(token);
 

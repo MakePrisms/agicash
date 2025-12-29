@@ -56,6 +56,10 @@ export type CashuReceiveLightningQuote = {
    * Optional fee that the mint charges to mint ecash. This amount is added to the payment request amount.
    */
   mintingFee?: Money;
+  /**
+   * The payment hash of the lightning invoice.
+   */
+  paymentHash: string;
 };
 
 export class CashuReceiveQuoteService {
@@ -109,6 +113,8 @@ export class CashuReceiveQuoteService {
         })
       : undefined;
 
+    const { paymentHash } = decodeBolt11(mintQuoteResponse.request);
+
     return {
       mintQuote: mintQuoteResponse,
       lockingPublicKey,
@@ -117,6 +123,7 @@ export class CashuReceiveQuoteService {
       amount,
       description,
       mintingFee,
+      paymentHash,
     };
   }
 
@@ -186,8 +193,6 @@ export class CashuReceiveQuoteService {
       mintingFee: receiveQuote.mintingFee,
     };
 
-    const { paymentHash } = decodeBolt11(receiveQuote.mintQuote.request);
-
     if (receiveType === 'TOKEN') {
       const { tokenAmount, cashuReceiveFee, lightningFeeReserve } = params;
 
@@ -197,14 +202,14 @@ export class CashuReceiveQuoteService {
         tokenAmount,
         cashuReceiveFee,
         lightningFeeReserve,
-        paymentHash,
+        paymentHash: receiveQuote.paymentHash,
       });
     }
 
     return this.cashuReceiveQuoteRepository.create({
       ...baseReceiveQuote,
       receiveType,
-      paymentHash,
+      paymentHash: receiveQuote.paymentHash,
     });
   }
 

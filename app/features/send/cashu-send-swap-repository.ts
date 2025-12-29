@@ -122,23 +122,6 @@ export class CashuSendSwapRepository {
 
     const requiresInputProofsSwap = !inputAmount.equals(amountToSend);
 
-    if (requiresInputProofsSwap) {
-      if (
-        !outputAmounts?.send ||
-        outputAmounts.send.length === 0 ||
-        outputAmounts.send.some((amount) => amount <= 0)
-      ) {
-        throw new Error(
-          'When swap is required, outputAmounts.send must be a non-empty array of integers greater than 0.',
-        );
-      }
-      if (outputAmounts?.change?.some((amount) => amount <= 0)) {
-        throw new Error(
-          'When swap is required and outputAmounts.change is provided, all values must be integers greater than 0.',
-        );
-      }
-    }
-
     const dataToEncrypt: EncryptedData = {
       amountRequested,
       amountToSend,
