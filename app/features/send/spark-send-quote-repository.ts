@@ -1,10 +1,9 @@
-import { Money } from '~/lib/money';
+import type { Money } from '~/lib/money';
 import type {
   AgicashDb,
   AgicashDbSparkSendQuote,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
   CompletedSparkLightningSendTransactionDetails,
@@ -17,10 +16,10 @@ type Options = {
 };
 
 type EncryptedData = {
-  amount: number;
-  estimatedFee: number;
+  amount: Money;
+  estimatedFee: Money;
   paymentRequest: string;
-  fee?: number;
+  fee?: Money;
 };
 
 type CreateQuoteParams = {
@@ -83,8 +82,6 @@ export class SparkSendQuoteRepository {
       expiresAt,
     } = params;
 
-    const unit = getDefaultUnit(amount.currency);
-
     const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
       amountToReceive: amount,
       estimatedFee,
@@ -92,8 +89,8 @@ export class SparkSendQuoteRepository {
     };
 
     const dataToEncrypt: EncryptedData = {
-      amount: amount.toNumber(unit),
-      estimatedFee: estimatedFee.toNumber(unit),
+      amount,
+      estimatedFee,
       paymentRequest,
     };
 
@@ -104,7 +101,6 @@ export class SparkSendQuoteRepository {
       p_user_id: userId,
       p_account_id: accountId,
       p_currency: amount.currency,
-      p_unit: unit,
       p_payment_hash: paymentHash,
       p_payment_request_is_amountless: paymentRequestIsAmountless,
       p_encrypted_transaction_details: encryptedTransactionDetails,
@@ -155,8 +151,6 @@ export class SparkSendQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
-    const unit = getDefaultUnit(quote.amount.currency);
-
     const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
       amountToReceive: quote.amount,
       amountSpent: quote.amount.add(fee),
@@ -166,10 +160,10 @@ export class SparkSendQuoteRepository {
     };
 
     const dataToEncrypt: EncryptedData = {
-      amount: quote.amount.toNumber(unit),
-      estimatedFee: quote.estimatedFee.toNumber(unit),
+      amount: quote.amount,
+      estimatedFee: quote.estimatedFee,
       paymentRequest: quote.paymentRequest,
-      fee: fee.toNumber(unit),
+      fee: fee,
     };
 
     const [encryptedTransactionDetails, encryptedData] =
@@ -218,8 +212,6 @@ export class SparkSendQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
-    const unit = getDefaultUnit(quote.amount.currency);
-
     const detailsToEncrypt: Omit<
       CompletedSparkLightningSendTransactionDetails,
       'sparkId' | 'sparkTransferId'
@@ -233,10 +225,10 @@ export class SparkSendQuoteRepository {
     };
 
     const dataToEncrypt: EncryptedData = {
-      amount: quote.amount.toNumber(unit),
-      estimatedFee: quote.estimatedFee.toNumber(unit),
+      amount: quote.amount,
+      estimatedFee: quote.estimatedFee,
       paymentRequest: quote.paymentRequest,
-      fee: quote.fee.toNumber(unit),
+      fee: quote.fee,
     };
 
     const [encryptedTransactionDetails, encryptedData] =
@@ -349,16 +341,8 @@ export class SparkSendQuoteRepository {
       sparkId: data.spark_id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      amount: new Money({
-        amount: decryptedData.amount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      estimatedFee: new Money({
-        amount: decryptedData.estimatedFee,
-        currency: data.currency,
-        unit: data.unit,
-      }),
+      amount: decryptedData.amount,
+      estimatedFee: decryptedData.estimatedFee,
       paymentRequest: decryptedData.paymentRequest,
       paymentHash: data.payment_hash,
       transactionId: data.transaction_id,
@@ -395,11 +379,7 @@ export class SparkSendQuoteRepository {
         state: 'COMPLETED',
         sparkId: data.spark_id,
         sparkTransferId: data.spark_transfer_id,
-        fee: new Money({
-          amount: decryptedData.fee,
-          currency: data.currency,
-          unit: data.unit,
-        }),
+        fee: decryptedData.fee,
         paymentPreimage: data.payment_preimage,
       };
     }
@@ -411,14 +391,7 @@ export class SparkSendQuoteRepository {
         failureReason: data.failure_reason ?? undefined,
         sparkId: data.spark_id ?? undefined,
         sparkTransferId: data.spark_transfer_id ?? undefined,
-        fee:
-          decryptedData.fee !== undefined
-            ? new Money({
-                amount: decryptedData.fee,
-                currency: data.currency,
-                unit: data.unit,
-              })
-            : undefined,
+        fee: decryptedData.fee,
       };
     }
 
@@ -444,11 +417,7 @@ export class SparkSendQuoteRepository {
         state: 'PENDING',
         sparkId: data.spark_id,
         sparkTransferId: data.spark_transfer_id,
-        fee: new Money({
-          amount: decryptedData.fee,
-          currency: data.currency,
-          unit: data.unit,
-        }),
+        fee: decryptedData.fee,
       };
     }
 

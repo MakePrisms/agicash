@@ -183,7 +183,6 @@ export type Database = {
         Row: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string
           failure_reason: string | null
@@ -196,14 +195,12 @@ export type Database = {
           state: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version: number
         }
         Insert: {
           account_id: string
           created_at?: string
-          currency: string
           encrypted_data: string
           expires_at: string
           failure_reason?: string | null
@@ -216,14 +213,12 @@ export type Database = {
           state: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version?: number
         }
         Update: {
           account_id?: string
           created_at?: string
-          currency?: string
           encrypted_data?: string
           expires_at?: string
           failure_reason?: string | null
@@ -236,7 +231,6 @@ export type Database = {
           state?: string
           transaction_id?: string
           type?: string
-          unit?: string
           user_id?: string
           version?: number
         }
@@ -268,7 +262,6 @@ export type Database = {
         Row: {
           account_id: string
           created_at: string
-          currency: string
           currency_requested: string
           encrypted_data: string
           expires_at: string
@@ -281,14 +274,12 @@ export type Database = {
           quote_id_hash: string
           state: string
           transaction_id: string
-          unit: string
           user_id: string
           version: number
         }
         Insert: {
           account_id: string
           created_at?: string
-          currency: string
           currency_requested: string
           encrypted_data: string
           expires_at: string
@@ -301,14 +292,12 @@ export type Database = {
           quote_id_hash: string
           state?: string
           transaction_id: string
-          unit: string
           user_id: string
           version?: number
         }
         Update: {
           account_id?: string
           created_at?: string
-          currency?: string
           currency_requested?: string
           encrypted_data?: string
           expires_at?: string
@@ -321,7 +310,6 @@ export type Database = {
           quote_id_hash?: string
           state?: string
           transaction_id?: string
-          unit?: string
           user_id?: string
           version?: number
         }
@@ -353,7 +341,6 @@ export type Database = {
         Row: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           failure_reason: string | null
           id: string
@@ -363,14 +350,12 @@ export type Database = {
           state: string
           token_hash: string | null
           transaction_id: string
-          unit: string
           user_id: string
           version: number
         }
         Insert: {
           account_id: string
           created_at?: string
-          currency: string
           encrypted_data: string
           failure_reason?: string | null
           id?: string
@@ -380,14 +365,12 @@ export type Database = {
           state: string
           token_hash?: string | null
           transaction_id: string
-          unit: string
           user_id: string
           version?: number
         }
         Update: {
           account_id?: string
           created_at?: string
-          currency?: string
           encrypted_data?: string
           failure_reason?: string | null
           id?: string
@@ -397,7 +380,6 @@ export type Database = {
           state?: string
           token_hash?: string | null
           transaction_id?: string
-          unit?: string
           user_id?: string
           version?: number
         }
@@ -429,7 +411,6 @@ export type Database = {
         Row: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           failure_reason: string | null
           keyset_counter: number
@@ -437,14 +418,12 @@ export type Database = {
           state: string
           token_hash: string
           transaction_id: string
-          unit: string
           user_id: string
           version: number
         }
         Insert: {
           account_id: string
           created_at?: string
-          currency: string
           encrypted_data: string
           failure_reason?: string | null
           keyset_counter: number
@@ -452,14 +431,12 @@ export type Database = {
           state?: string
           token_hash: string
           transaction_id: string
-          unit: string
           user_id: string
           version?: number
         }
         Update: {
           account_id?: string
           created_at?: string
-          currency?: string
           encrypted_data?: string
           failure_reason?: string | null
           keyset_counter?: number
@@ -467,7 +444,6 @@ export type Database = {
           state?: string
           token_hash?: string
           transaction_id?: string
-          unit?: string
           user_id?: string
           version?: number
         }
@@ -535,7 +511,6 @@ export type Database = {
         Row: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string
           id: string
@@ -546,14 +521,12 @@ export type Database = {
           state: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version: number
         }
         Insert: {
           account_id: string
           created_at?: string
-          currency: string
           encrypted_data: string
           expires_at: string
           id?: string
@@ -564,14 +537,12 @@ export type Database = {
           state?: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version?: number
         }
         Update: {
           account_id?: string
           created_at?: string
-          currency?: string
           encrypted_data?: string
           expires_at?: string
           id?: string
@@ -582,7 +553,6 @@ export type Database = {
           state?: string
           transaction_id?: string
           type?: string
-          unit?: string
           user_id?: string
           version?: number
         }
@@ -614,7 +584,6 @@ export type Database = {
         Row: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
@@ -626,14 +595,12 @@ export type Database = {
           spark_transfer_id: string | null
           state: string
           transaction_id: string
-          unit: string
           user_id: string
           version: number
         }
         Insert: {
           account_id: string
           created_at?: string
-          currency: string
           encrypted_data: string
           expires_at?: string | null
           failure_reason?: string | null
@@ -645,14 +612,12 @@ export type Database = {
           spark_transfer_id?: string | null
           state?: string
           transaction_id: string
-          unit: string
           user_id: string
           version?: number
         }
         Update: {
           account_id?: string
           created_at?: string
-          currency?: string
           encrypted_data?: string
           expires_at?: string | null
           failure_reason?: string | null
@@ -664,7 +629,6 @@ export type Database = {
           spark_transfer_id?: string | null
           state?: string
           transaction_id?: string
-          unit?: string
           user_id?: string
           version?: number
         }
@@ -983,7 +947,6 @@ export type Database = {
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string
           id: string
@@ -994,7 +957,6 @@ export type Database = {
           state: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1015,7 +977,6 @@ export type Database = {
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
@@ -1027,7 +988,6 @@ export type Database = {
           spark_transfer_id: string | null
           state: string
           transaction_id: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1050,13 +1010,11 @@ export type Database = {
           p_quote_id_hash: string
           p_receive_type: string
           p_state: string
-          p_unit: string
           p_user_id: string
         }
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string
           failure_reason: string | null
@@ -1069,7 +1027,6 @@ export type Database = {
           state: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1093,7 +1050,6 @@ export type Database = {
           p_payment_hash: string
           p_proofs_to_send: string[]
           p_quote_id_hash: string
-          p_unit: string
           p_user_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["create_cashu_send_quote_result"]
@@ -1115,7 +1071,6 @@ export type Database = {
           p_number_of_outputs?: number
           p_requires_input_proofs_swap: boolean
           p_token_hash?: string
-          p_unit: string
           p_user_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["create_cashu_send_swap_result"]
@@ -1136,7 +1091,6 @@ export type Database = {
           p_number_of_outputs: number
           p_reversed_transaction_id?: string
           p_token_hash: string
-          p_unit: string
           p_user_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["create_cashu_token_swap_result"]
@@ -1158,13 +1112,11 @@ export type Database = {
           p_receive_type: string
           p_receiver_identity_pubkey: string
           p_spark_id: string
-          p_unit: string
           p_user_id: string
         }
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string
           id: string
@@ -1175,7 +1127,6 @@ export type Database = {
           state: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1195,13 +1146,11 @@ export type Database = {
           p_expires_at?: string
           p_payment_hash: string
           p_payment_request_is_amountless: boolean
-          p_unit: string
           p_user_id: string
         }
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
@@ -1213,7 +1162,6 @@ export type Database = {
           spark_transfer_id: string | null
           state: string
           transaction_id: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1229,7 +1177,6 @@ export type Database = {
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string
           failure_reason: string | null
@@ -1242,7 +1189,6 @@ export type Database = {
           state: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1268,7 +1214,6 @@ export type Database = {
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string
           id: string
@@ -1279,7 +1224,6 @@ export type Database = {
           state: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1295,7 +1239,6 @@ export type Database = {
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string
           failure_reason: string | null
@@ -1308,7 +1251,6 @@ export type Database = {
           state: string
           transaction_id: string
           type: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1348,7 +1290,6 @@ export type Database = {
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           failure_reason: string | null
           keyset_counter: number
@@ -1356,7 +1297,6 @@ export type Database = {
           state: string
           token_hash: string
           transaction_id: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1372,7 +1312,6 @@ export type Database = {
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
@@ -1384,7 +1323,6 @@ export type Database = {
           spark_transfer_id: string | null
           state: string
           transaction_id: string
-          unit: string
           user_id: string
           version: number
         }
@@ -1462,7 +1400,6 @@ export type Database = {
         Returns: {
           account_id: string
           created_at: string
-          currency: string
           encrypted_data: string
           expires_at: string | null
           failure_reason: string | null
@@ -1474,7 +1411,6 @@ export type Database = {
           spark_transfer_id: string | null
           state: string
           transaction_id: string
-          unit: string
           user_id: string
           version: number
         }

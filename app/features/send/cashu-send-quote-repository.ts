@@ -1,7 +1,7 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
-import { proofToY, sumProofs } from '~/lib/cashu';
-import { Money } from '~/lib/money';
+import { proofToY } from '~/lib/cashu';
+import type { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
 import type { CashuProof } from '../accounts/account';
 import type {
@@ -10,7 +10,6 @@ import type {
   AgicashDbCashuSendQuote,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
 import type {
@@ -30,13 +29,13 @@ type Options = {
 
 type EncryptedData = {
   paymentRequest: string;
-  amountRequested: number;
+  amountRequested: Money;
   amountRequestedInMsat: number;
-  amountToReceive: number;
-  lightningFeeReserve: number;
-  cashuFee: number;
+  amountToReceive: Money;
+  lightningFeeReserve: Money;
+  cashuFee: Money;
   quoteId: string;
-  amountSpent?: number;
+  amountSpent?: Money;
   paymentPreimage?: string;
 };
 
@@ -98,6 +97,10 @@ type CreateSendQuote = {
    */
   proofsToSend: CashuProof[];
   /**
+   * Amount of the proofs reserved for the send in the account's currency.
+   */
+  amountReserved: Money;
+  /**
    * Destination details of the send. This will be undefined if the send is directly paying a bolt11.
    */
   destinationDetails?: DestinationDetails;
@@ -130,32 +133,27 @@ export class CashuSendQuoteRepository {
       keysetId,
       numberOfChangeOutputs,
       proofsToSend,
+      amountReserved,
       destinationDetails,
     }: CreateSendQuote,
     options?: Options,
   ): Promise<CashuSendQuote> {
-    const unit = getDefaultUnit(amountToReceive.currency);
-
     const details: IncompleteCashuLightningSendTransactionDetails = {
       amountToReceive,
       cashuSendFee: cashuFee,
       lightningFeeReserve,
-      amountReserved: new Money({
-        amount: sumProofs(proofsToSend),
-        currency: amountToReceive.currency,
-        unit,
-      }),
+      amountReserved,
       paymentRequest,
       destinationDetails,
     };
 
     const dataToEncrypt: EncryptedData = {
       paymentRequest,
-      amountRequested: amountRequested.toNumber(unit),
+      amountRequested,
       amountRequestedInMsat,
-      amountToReceive: amountToReceive.toNumber(unit),
-      lightningFeeReserve: lightningFeeReserve.toNumber(unit),
-      cashuFee: cashuFee.toNumber(unit),
+      amountToReceive,
+      lightningFeeReserve,
+      cashuFee,
       quoteId,
     };
 
@@ -169,7 +167,6 @@ export class CashuSendQuoteRepository {
       p_user_id: userId,
       p_account_id: accountId,
       p_currency: amountToReceive.currency,
-      p_unit: unit,
       p_currency_requested: amountRequested.currency,
       p_expires_at: expiresAt,
       p_keyset_id: keysetId,
@@ -265,17 +262,15 @@ export class CashuSendQuoteRepository {
       x.secret,
     ]);
 
-    const unit = getDefaultUnit(amountSpent.currency);
-
     const dataToEncrypt: EncryptedData = {
       paymentRequest: quote.paymentRequest,
-      amountRequested: quote.amountRequested.toNumber(unit),
+      amountRequested: quote.amountRequested,
       amountRequestedInMsat: quote.amountRequestedInMsat,
-      amountToReceive: quote.amountToReceive.toNumber(unit),
-      lightningFeeReserve: quote.lightningFeeReserve.toNumber(unit),
-      cashuFee: quote.cashuFee.toNumber(unit),
+      amountToReceive: quote.amountToReceive,
+      lightningFeeReserve: quote.lightningFeeReserve,
+      cashuFee: quote.cashuFee,
       quoteId: quote.quoteId,
-      amountSpent: amountSpent.toNumber(unit),
+      amountSpent,
       paymentPreimage,
     };
 
@@ -510,27 +505,11 @@ export class CashuSendQuoteRepository {
       accountId: data.account_id,
       paymentRequest: encryptedData.paymentRequest,
       paymentHash: data.payment_hash,
-      amountRequested: new Money({
-        amount: encryptedData.amountRequested,
-        currency: data.currency_requested,
-        unit: data.unit,
-      }),
+      amountRequested: encryptedData.amountRequested,
       amountRequestedInMsat: encryptedData.amountRequestedInMsat,
-      amountToReceive: new Money({
-        amount: encryptedData.amountToReceive,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      lightningFeeReserve: new Money({
-        amount: encryptedData.lightningFeeReserve,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      cashuFee: new Money({
-        amount: encryptedData.cashuFee,
-        currency: data.currency,
-        unit: data.unit,
-      }),
+      amountToReceive: encryptedData.amountToReceive,
+      lightningFeeReserve: encryptedData.lightningFeeReserve,
+      cashuFee: encryptedData.cashuFee,
       proofs,
       quoteId: encryptedData.quoteId,
       keysetId: data.keyset_id,
@@ -541,15 +520,14 @@ export class CashuSendQuoteRepository {
     };
 
     if (data.state === 'PAID') {
+      if (!encryptedData.amountSpent) {
+        throw new Error('amountSpent is required for PAID state');
+      }
       return {
         ...commonData,
         state: 'PAID',
         paymentPreimage: encryptedData.paymentPreimage ?? '',
-        amountSpent: new Money({
-          amount: encryptedData.amountSpent ?? 0,
-          currency: data.currency,
-          unit: data.unit,
-        }),
+        amountSpent: encryptedData.amountSpent,
       };
     }
 

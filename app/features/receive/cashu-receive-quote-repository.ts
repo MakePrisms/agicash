@@ -1,7 +1,7 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
 import { proofToY } from '~/lib/cashu';
-import { Money } from '~/lib/money';
+import type { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
 import type { CashuAccount } from '../accounts/account';
 import {
@@ -13,7 +13,6 @@ import type {
   AgicashDbCashuReceiveQuote,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
   CashuLightningReceiveTransactionDetails,
@@ -26,11 +25,11 @@ type Options = {
 };
 
 type EncryptedData = {
-  amount: number;
+  amount: Money;
   quoteId: string;
   paymentRequest: string;
   description?: string;
-  mintingFee?: number;
+  mintingFee?: Money;
   outputAmounts?: number[];
 };
 
@@ -137,8 +136,6 @@ export class CashuReceiveQuoteRepository {
       mintingFee,
     } = params;
 
-    const unit = getDefaultUnit(amount.currency);
-
     let details:
       | CashuLightningReceiveTransactionDetails
       | CashuTokenReceiveTransactionDetails;
@@ -168,11 +165,11 @@ export class CashuReceiveQuoteRepository {
     }
 
     const dataToEncrypt: EncryptedData = {
-      amount: amount.toNumber(unit),
+      amount,
       quoteId,
       paymentRequest,
       description,
-      mintingFee: mintingFee?.toNumber(unit),
+      mintingFee,
     };
 
     const [[encryptedTransactionDetails, encryptedData], quoteIdHash] =
@@ -185,7 +182,6 @@ export class CashuReceiveQuoteRepository {
       p_user_id: userId,
       p_account_id: accountId,
       p_currency: amount.currency,
-      p_unit: unit,
       p_expires_at: expiresAt,
       p_state: state,
       p_locking_derivation_path: lockingDerivationPath,
@@ -313,14 +309,12 @@ export class CashuReceiveQuoteRepository {
       );
     }
 
-    const unit = getDefaultUnit(quote.amount.currency);
-
     const dataToEncrypt: EncryptedData = {
-      amount: quote.amount.toNumber(unit),
+      amount: quote.amount,
       quoteId: quote.quoteId,
       paymentRequest: quote.paymentRequest,
       description: quote.description,
-      mintingFee: quote.mintingFee?.toNumber(unit),
+      mintingFee: quote.mintingFee,
       outputAmounts,
     };
 
@@ -516,11 +510,7 @@ export class CashuReceiveQuoteRepository {
       userId: data.user_id,
       accountId: data.account_id,
       quoteId: decryptedData.quoteId,
-      amount: new Money({
-        amount: decryptedData.amount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
+      amount: decryptedData.amount,
       description: decryptedData.description,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
@@ -530,14 +520,7 @@ export class CashuReceiveQuoteRepository {
       lockingDerivationPath: data.locking_derivation_path,
       transactionId: data.transaction_id,
       type: data.type as CashuReceiveQuote['type'],
-      mintingFee:
-        decryptedData.mintingFee !== undefined
-          ? new Money({
-              amount: decryptedData.mintingFee,
-              currency: data.currency,
-              unit: data.unit,
-            })
-          : undefined,
+      mintingFee: decryptedData.mintingFee,
     };
 
     if (data.state === 'PAID' || data.state === 'COMPLETED') {

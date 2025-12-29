@@ -1,7 +1,7 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
-import { proofToY, sumProofs } from '~/lib/cashu';
-import { Money } from '~/lib/money';
+import { proofToY } from '~/lib/cashu';
+import type { Money } from '~/lib/money';
 import type { CashuProof } from '../accounts/account';
 import type {
   AgicashDb,
@@ -9,7 +9,6 @@ import type {
   AgicashDbCashuSendSwap,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
 import type { CashuTokenSendTransactionDetails } from '../transactions/transaction';
@@ -20,12 +19,12 @@ type Options = {
 };
 
 type EncryptedData = {
-  amountRequested: number;
-  amountToSend: number;
-  receiveSwapFee: number;
-  sendSwapFee: number;
-  totalAmount: number;
-  inputAmount: number;
+  amountRequested: Money;
+  amountToSend: Money;
+  receiveSwapFee: Money;
+  sendSwapFee: Money;
+  totalAmount: Money;
+  inputAmount: Money;
   sendOutputAmounts?: number[];
   changeOutputAmounts?: number[];
 };
@@ -67,6 +66,10 @@ type CreateSendSwap = {
    */
   inputProofs: CashuProof[];
   /**
+   * The sum of the input proofs in the account's currency.
+   */
+  inputAmount: Money;
+  /**
    * The hash of the token being sent.
    * Should be set only when send swap is not needed (sum of input proofs is equal to amount to send).
    */
@@ -102,14 +105,13 @@ export class CashuSendSwapRepository {
       cashuSendFee,
       cashuReceiveFee,
       inputProofs,
+      inputAmount,
       tokenHash,
       keysetId,
       outputAmounts,
     }: CreateSendSwap,
     options?: Options,
   ) {
-    const unit = getDefaultUnit(amountToSend.currency);
-
     const details: CashuTokenSendTransactionDetails = {
       amountSpent: totalAmount,
       cashuSendFee: cashuSendFee,
@@ -118,9 +120,7 @@ export class CashuSendSwapRepository {
       amountToReceive: amountToSend.subtract(cashuReceiveFee),
     };
 
-    const inputAmount = sumProofs(inputProofs);
-    const amountToSendNum = amountToSend.toNumber(unit);
-    const requiresInputProofsSwap = inputAmount !== amountToSendNum;
+    const requiresInputProofsSwap = !inputAmount.equals(amountToSend);
 
     if (requiresInputProofsSwap) {
       if (
@@ -140,11 +140,11 @@ export class CashuSendSwapRepository {
     }
 
     const dataToEncrypt: EncryptedData = {
-      amountRequested: amountRequested.toNumber(unit),
-      amountToSend: amountToSendNum,
-      receiveSwapFee: cashuReceiveFee.toNumber(unit),
-      sendSwapFee: cashuSendFee.toNumber(unit),
-      totalAmount: totalAmount.toNumber(unit),
+      amountRequested,
+      amountToSend,
+      receiveSwapFee: cashuReceiveFee,
+      sendSwapFee: cashuSendFee,
+      totalAmount,
       inputAmount,
       sendOutputAmounts: outputAmounts?.send,
       changeOutputAmounts: outputAmounts?.change,
@@ -163,7 +163,6 @@ export class CashuSendSwapRepository {
       p_account_id: accountId,
       p_input_proofs: inputProofs.map((p) => p.id),
       p_currency: amountToSend.currency,
-      p_unit: unit,
       p_encrypted_transaction_details: encryptedTransactionDetails,
       p_encrypted_data: encryptedData,
       p_requires_input_proofs_swap: requiresInputProofsSwap,
@@ -356,14 +355,6 @@ export class CashuSendSwapRepository {
       [data.encrypted_data],
     );
 
-    const toMoney = (amount: number) => {
-      return new Money({
-        amount,
-        currency: data.currency,
-        unit: data.unit,
-      });
-    };
-
     const { inputProofs, proofsToSend } = await this.decryptCashuProofs({
       inputProofs: data.cashu_proofs.filter(
         (p) => p.cashu_send_swap_id !== data.id,
@@ -379,13 +370,13 @@ export class CashuSendSwapRepository {
       accountId: data.account_id,
       userId: data.user_id,
       transactionId: data.transaction_id,
-      amountRequested: toMoney(decryptedData.amountRequested),
-      amountToSend: toMoney(decryptedData.amountToSend),
-      totalAmount: toMoney(decryptedData.totalAmount),
-      cashuReceiveFee: toMoney(decryptedData.receiveSwapFee),
-      cashuSendFee: toMoney(decryptedData.sendSwapFee),
+      amountRequested: decryptedData.amountRequested,
+      amountToSend: decryptedData.amountToSend,
+      totalAmount: decryptedData.totalAmount,
+      cashuReceiveFee: decryptedData.receiveSwapFee,
+      cashuSendFee: decryptedData.sendSwapFee,
       inputProofs: inputProofs,
-      inputAmount: toMoney(decryptedData.inputAmount),
+      inputAmount: decryptedData.inputAmount,
       currency: data.currency,
       version: data.version,
       state: data.state,

@@ -1,10 +1,9 @@
-import { Money } from '~/lib/money';
+import type { Money } from '~/lib/money';
 import type {
   AgicashDb,
   AgicashDbSparkReceiveQuote,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
   CompletedSparkLightningReceiveTransactionDetails,
@@ -18,7 +17,7 @@ type Options = {
 };
 
 type EncryptedData = {
-  amount: number;
+  amount: Money;
   paymentRequest: string;
   paymentPreimage?: string;
 };
@@ -90,15 +89,13 @@ export class SparkReceiveQuoteRepository {
       type,
     } = params;
 
-    const unit = getDefaultUnit(amount.currency);
-
     const details: SparkLightningReceiveTransactionDetails = {
       amountReceived: amount,
       paymentRequest,
     };
 
     const dataToEncrypt: EncryptedData = {
-      amount: amount.toNumber(unit),
+      amount,
       paymentRequest,
     };
 
@@ -109,7 +106,6 @@ export class SparkReceiveQuoteRepository {
       p_user_id: userId,
       p_account_id: accountId,
       p_currency: amount.currency,
-      p_unit: unit,
       p_payment_hash: paymentHash,
       p_expires_at: expiresAt,
       p_spark_id: sparkId,
@@ -157,8 +153,6 @@ export class SparkReceiveQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkReceiveQuote> {
-    const unit = getDefaultUnit(quote.amount.currency);
-
     // sparkTransferId is stored to non encrypted transaction details.
     const transactionDetails: Omit<
       CompletedSparkLightningReceiveTransactionDetails,
@@ -170,7 +164,7 @@ export class SparkReceiveQuoteRepository {
     };
 
     const dataToEncrypt: EncryptedData = {
-      amount: quote.amount.toNumber(unit),
+      amount: quote.amount,
       paymentRequest: quote.paymentRequest,
       paymentPreimage,
     };
@@ -281,11 +275,7 @@ export class SparkReceiveQuoteRepository {
       sparkId: data.spark_id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      amount: new Money({
-        amount: decryptedData.amount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
+      amount: decryptedData.amount,
       paymentRequest: decryptedData.paymentRequest,
       paymentHash: data.payment_hash,
       receiverIdentityPubkey: data.receiver_identity_pubkey ?? undefined,

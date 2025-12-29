@@ -1,7 +1,7 @@
 import type { Proof, Token } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
 import { proofToY } from '~/lib/cashu';
-import { Money } from '~/lib/money';
+import type { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import {
   type AccountRepository,
@@ -13,7 +13,6 @@ import type {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { getTokenHash } from '../shared/cashu';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { UniqueConstraintError } from '../shared/error';
 import type { CashuTokenReceiveTransactionDetails } from '../transactions/transaction';
@@ -21,9 +20,9 @@ import type { CashuTokenSwap } from './cashu-token-swap';
 
 type EncryptedData = {
   tokenProofs: Proof[];
-  inputAmount: number;
-  receiveAmount: number;
-  feeAmount: number;
+  inputAmount: Money;
+  receiveAmount: Money;
+  feeAmount: Money;
   outputAmounts: number[];
 };
 
@@ -111,7 +110,6 @@ export class CashuTokenSwapRepository {
     }
 
     const currency = inputAmount.currency;
-    const unit = getDefaultUnit(inputAmount.currency);
     const tokenHash = await getTokenHash(token);
 
     const details: CashuTokenReceiveTransactionDetails = {
@@ -123,9 +121,9 @@ export class CashuTokenSwapRepository {
 
     const dataToEncrypt: EncryptedData = {
       tokenProofs: token.proofs,
-      inputAmount: inputAmount.toNumber(unit),
-      receiveAmount: receiveAmount.toNumber(unit),
-      feeAmount: cashuReceiveFee.toNumber(unit),
+      inputAmount,
+      receiveAmount,
+      feeAmount: cashuReceiveFee,
       outputAmounts,
     };
 
@@ -137,7 +135,6 @@ export class CashuTokenSwapRepository {
       p_account_id: accountId,
       p_user_id: userId,
       p_currency: currency,
-      p_unit: unit,
       p_keyset_id: keysetId,
       p_number_of_outputs: outputAmounts.length,
       p_encrypted_data: encryptedData,
@@ -348,21 +345,9 @@ export class CashuTokenSwapRepository {
       tokenProofs: decryptedData.tokenProofs,
       userId: data.user_id,
       accountId: data.account_id,
-      inputAmount: new Money({
-        amount: decryptedData.inputAmount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      receiveAmount: new Money({
-        amount: decryptedData.receiveAmount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      feeAmount: new Money({
-        amount: decryptedData.feeAmount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
+      inputAmount: decryptedData.inputAmount,
+      receiveAmount: decryptedData.receiveAmount,
+      feeAmount: decryptedData.feeAmount,
       keysetId: data.keyset_id,
       keysetCounter: data.keyset_counter,
       outputAmounts: decryptedData.outputAmounts,

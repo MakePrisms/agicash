@@ -282,6 +282,12 @@ export class CashuSendQuoteService {
         ? 0
         : Math.ceil(Math.log2(maxPotentialChangeAmount)) || 1;
 
+    const amountReserved = new Money({
+      amount: proofsToSendSum,
+      currency: account.currency,
+      unit: cashuUnit,
+    });
+
     const { paymentHash } = decodeBolt11(sendQuote.paymentRequest);
 
     return this.cashuSendRepository.create({
@@ -299,6 +305,7 @@ export class CashuSendQuoteService {
       keysetId,
       numberOfChangeOutputs,
       proofsToSend: proofs,
+      amountReserved,
       destinationDetails,
     });
   }

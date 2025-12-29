@@ -14,6 +14,10 @@ alter table wallet.cashu_receive_quotes drop column description;
 alter table wallet.cashu_receive_quotes drop column minting_fee;
 alter table wallet.cashu_receive_quotes drop column output_amounts;
 
+-- We no longer need currency and unit columns because the amounts are stored as money JSON
+alter table wallet.cashu_receive_quotes drop column currency;
+alter table wallet.cashu_receive_quotes drop column unit;
+
 -- Add encrypted_data column to store all sensitive fields as encrypted JSON
 alter table wallet.cashu_receive_quotes add column encrypted_data text not null;
 alter table wallet.cashu_receive_quotes add column payment_hash text not null;
@@ -34,7 +38,6 @@ create or replace function wallet.create_cashu_receive_quote(
   p_user_id uuid,
   p_account_id uuid,
   p_currency text,
-  p_unit text,
   p_expires_at timestamp with time zone,
   p_state text,
   p_locking_derivation_path text,
@@ -98,8 +101,6 @@ begin
   insert into wallet.cashu_receive_quotes (
     user_id,
     account_id,
-    currency,
-    unit,
     expires_at,
     state,
     locking_derivation_path,
@@ -111,8 +112,6 @@ begin
   ) values (
     p_user_id,
     p_account_id,
-    p_currency,
-    p_unit,
     p_expires_at,
     p_state,
     p_locking_derivation_path,
@@ -225,6 +224,10 @@ alter table wallet.cashu_token_swaps drop column receive_amount;
 alter table wallet.cashu_token_swaps drop column fee_amount;
 alter table wallet.cashu_token_swaps drop column output_amounts;
 
+-- We no longer need currency and unit columns because the amounts are stored as money JSON
+alter table wallet.cashu_token_swaps drop column currency;
+alter table wallet.cashu_token_swaps drop column unit;
+
 -- Add encrypted_data column to store all sensitive fields as encrypted JSON
 alter table wallet.cashu_token_swaps add column encrypted_data text not null;
 
@@ -235,8 +238,7 @@ create or replace function wallet.create_cashu_token_swap(
   p_token_hash text, 
   p_account_id uuid, 
   p_user_id uuid, 
-  p_currency text, 
-  p_unit text, 
+  p_currency text,
   p_keyset_id text,
   p_number_of_outputs integer,
   p_encrypted_data text,
@@ -295,8 +297,6 @@ begin
     token_hash,
     account_id,
     user_id,
-    currency,
-    unit,
     keyset_id,
     keyset_counter,
     encrypted_data,
@@ -305,8 +305,6 @@ begin
     p_token_hash,
     p_account_id,
     p_user_id,
-    p_currency,
-    p_unit,
     p_keyset_id,
     v_counter,
     p_encrypted_data,
@@ -338,6 +336,10 @@ alter table wallet.cashu_send_quotes drop column quote_id;
 alter table wallet.cashu_send_quotes drop column amount_spent;
 alter table wallet.cashu_send_quotes drop column payment_preimage;
 
+-- We no longer need currency and unit columns because the amounts are stored as money JSON
+alter table wallet.cashu_send_quotes drop column currency;
+alter table wallet.cashu_send_quotes drop column unit;
+
 -- Add encrypted_data column to store all sensitive fields as encrypted JSON
 alter table wallet.cashu_send_quotes add column encrypted_data text not null;
 alter table wallet.cashu_send_quotes add column payment_hash text not null;
@@ -355,7 +357,6 @@ create or replace function wallet.create_cashu_send_quote(
   p_user_id uuid,
   p_account_id uuid,
   p_currency text,
-  p_unit text,
   p_expires_at timestamp with time zone,
   p_currency_requested text,
   p_keyset_id text,
@@ -432,8 +433,6 @@ begin
   insert into wallet.cashu_send_quotes (
     user_id,
     account_id,
-    currency,
-    unit,
     currency_requested,
     expires_at,
     keyset_id,
@@ -446,10 +445,8 @@ begin
   ) values (
     p_user_id,
     p_account_id,
-    p_currency,
-    p_unit,
-    p_expires_at,
     p_currency_requested,
+    p_expires_at,
     p_keyset_id,
     v_counter,
     p_number_of_change_outputs,
@@ -604,6 +601,10 @@ alter table wallet.cashu_send_swaps drop column input_amount;
 alter table wallet.cashu_send_swaps drop column send_output_amounts;
 alter table wallet.cashu_send_swaps drop column change_output_amounts;
 
+-- We no longer need currency and unit columns because the amounts are stored as money JSON
+alter table wallet.cashu_send_swaps drop column currency;
+alter table wallet.cashu_send_swaps drop column unit;
+
 -- Add encrypted_data column to store all sensitive fields as encrypted JSON
 alter table wallet.cashu_send_swaps add column encrypted_data text not null;
 
@@ -617,8 +618,7 @@ create or replace function wallet.create_cashu_send_swap(
   p_user_id uuid,
   p_account_id uuid,
   p_input_proofs uuid[],
-  p_currency text, 
-  p_unit text, 
+  p_currency text,
   p_encrypted_transaction_details text,
   p_encrypted_data text,
   p_requires_input_proofs_swap boolean,
@@ -716,8 +716,6 @@ begin
       keyset_id,
       keyset_counter,
       token_hash,
-      currency,
-      unit,
       state,
       encrypted_data,
       requires_input_proofs_swap
@@ -728,8 +726,6 @@ begin
       v_keyset_id,
       v_keyset_counter,
       p_token_hash,
-      p_currency,
-      p_unit,
       v_state,
       p_encrypted_data,
       p_requires_input_proofs_swap
@@ -774,6 +770,10 @@ alter table wallet.spark_receive_quotes drop column amount;
 alter table wallet.spark_receive_quotes drop column payment_request;
 alter table wallet.spark_receive_quotes drop column payment_preimage;
 
+-- We no longer need currency and unit columns because the amounts are stored as money JSON
+alter table wallet.spark_receive_quotes drop column currency;
+alter table wallet.spark_receive_quotes drop column unit;
+
 -- Add encrypted_data column to store all sensitive fields as encrypted JSON
 alter table wallet.spark_receive_quotes add column encrypted_data text not null;
 
@@ -785,7 +785,6 @@ create or replace function wallet.create_spark_receive_quote(
   p_user_id uuid,
   p_account_id uuid,
   p_currency text,
-  p_unit text,
   p_payment_hash text,
   p_expires_at timestamp with time zone,
   p_spark_id text,
@@ -835,8 +834,6 @@ begin
     user_id,
     account_id,
     type,
-    currency,
-    unit,
     payment_hash,
     expires_at,
     spark_id,
@@ -848,8 +845,6 @@ begin
     p_user_id,
     p_account_id,
     p_receive_type,
-    p_currency,
-    p_unit,
     p_payment_hash,
     p_expires_at,
     p_spark_id,
@@ -933,6 +928,10 @@ alter table wallet.spark_send_quotes drop column estimated_fee;
 alter table wallet.spark_send_quotes drop column payment_request;
 alter table wallet.spark_send_quotes drop column fee;
 
+-- We no longer need currency and unit columns because the amounts are stored as money JSON
+alter table wallet.spark_send_quotes drop column currency;
+alter table wallet.spark_send_quotes drop column unit;
+
 -- Add encrypted_data column to store all sensitive fields as encrypted JSON
 alter table wallet.spark_send_quotes add column encrypted_data text not null;
 
@@ -947,7 +946,6 @@ create or replace function wallet.create_spark_send_quote(
   p_user_id uuid,
   p_account_id uuid,
   p_currency text,
-  p_unit text,
   p_payment_hash text,
   p_payment_request_is_amountless boolean,
   p_encrypted_transaction_details text,
@@ -984,8 +982,6 @@ begin
   insert into wallet.spark_send_quotes (
     user_id,
     account_id,
-    currency,
-    unit,
     payment_hash,
     payment_request_is_amountless,
     transaction_id,
@@ -995,8 +991,6 @@ begin
   ) values (
     p_user_id,
     p_account_id,
-    p_currency,
-    p_unit,
     p_payment_hash,
     p_payment_request_is_amountless,
     v_transaction_id,
