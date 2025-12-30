@@ -6,6 +6,7 @@ import {
   type Proof,
 } from '@cashu/cashu-ts';
 import { HARDENED_OFFSET } from '@scure/bip32';
+import { decodeBolt11 } from '~/lib/bolt11';
 import {
   CashuErrorCodes,
   type ExtendedCashuWallet,
@@ -55,6 +56,10 @@ export type CashuReceiveLightningQuote = {
    * Optional fee that the mint charges to mint ecash. This amount is added to the payment request amount.
    */
   mintingFee?: Money;
+  /**
+   * The payment hash of the lightning invoice.
+   */
+  paymentHash: string;
 };
 
 export class CashuReceiveQuoteService {
@@ -108,6 +113,8 @@ export class CashuReceiveQuoteService {
         })
       : undefined;
 
+    const { paymentHash } = decodeBolt11(mintQuoteResponse.request);
+
     return {
       mintQuote: mintQuoteResponse,
       lockingPublicKey,
@@ -116,6 +123,7 @@ export class CashuReceiveQuoteService {
       amount,
       description,
       mintingFee,
+      paymentHash,
     };
   }
 
@@ -194,12 +202,14 @@ export class CashuReceiveQuoteService {
         tokenAmount,
         cashuReceiveFee,
         lightningFeeReserve,
+        paymentHash: receiveQuote.paymentHash,
       });
     }
 
     return this.cashuReceiveQuoteRepository.create({
       ...baseReceiveQuote,
       receiveType,
+      paymentHash: receiveQuote.paymentHash,
     });
   }
 
@@ -289,7 +299,7 @@ export class CashuReceiveQuoteService {
     const outputAmounts = getOutputAmounts(amountInCashuUnit, keys);
 
     const result = await this.cashuReceiveQuoteRepository.processPayment({
-      quoteId: quote.id,
+      quote,
       keysetId,
       outputAmounts,
     });

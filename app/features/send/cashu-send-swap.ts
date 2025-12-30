@@ -1,4 +1,4 @@
-import type { Currency, Money } from '~/lib/money';
+import type { Money } from '~/lib/money';
 import type { CashuProof } from '../accounts/account';
 
 /**
@@ -57,10 +57,6 @@ export type CashuSendSwap = {
    * The total amount spent. This is the sum of amountToSend and cashuSendFee.
    */
   totalAmount: Money;
-  /**
-   * The currency of the account and all amounts.
-   */
-  currency: Currency;
   /**
    * - DRAFT: The swap entity has been created, but there are no proofs to send yet. At this point,
    * we have only taken the inputProofs from the account

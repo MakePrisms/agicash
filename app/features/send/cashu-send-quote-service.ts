@@ -4,7 +4,7 @@ import {
   OutputData,
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
-import { parseBolt11Invoice } from '~/lib/bolt11';
+import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
 import { getCashuUnit, sumProofs } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
 import {
@@ -282,10 +282,19 @@ export class CashuSendQuoteService {
         ? 0
         : Math.ceil(Math.log2(maxPotentialChangeAmount)) || 1;
 
+    const amountReserved = new Money({
+      amount: proofsToSendSum,
+      currency: account.currency,
+      unit: cashuUnit,
+    });
+
+    const { paymentHash } = decodeBolt11(sendQuote.paymentRequest);
+
     return this.cashuSendRepository.create({
       userId: userId,
       accountId: account.id,
       paymentRequest: sendQuote.paymentRequest,
+      paymentHash,
       expiresAt: expiresAt.toISOString(),
       amountRequested: sendQuote.amountRequested,
       amountRequestedInMsat: sendQuote.amountRequestedInBtc.toNumber('msat'),
@@ -296,6 +305,7 @@ export class CashuSendQuoteService {
       keysetId,
       numberOfChangeOutputs,
       proofsToSend: proofs,
+      amountReserved,
       destinationDetails,
     });
   }

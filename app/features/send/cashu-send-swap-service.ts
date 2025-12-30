@@ -173,6 +173,7 @@ export class CashuSendSwapService {
       accountId: account.id,
       userId,
       inputProofs,
+      inputAmount: toMoney(sumProofs(inputProofs)),
       amountRequested: amount,
       amountToSend: toMoney(totalAmountToSend),
       cashuSendFee: toMoney(cashuSendFee),
@@ -198,7 +199,8 @@ export class CashuSendSwapService {
     const wallet = account.wallet;
 
     const keys = await wallet.getKeys(swap.keysetId);
-    const cashuUnit = getCashuUnit(swap.currency);
+    const currency = swap.amountToSend.currency;
+    const cashuUnit = getCashuUnit(currency);
     const sendAmount = swap.amountToSend.toNumber(cashuUnit);
     const sendOutputData = OutputData.createDeterministicData(
       sendAmount,
@@ -232,7 +234,7 @@ export class CashuSendSwapService {
     const tokenHash = await getTokenHash({
       mint: account.mintUrl,
       proofs: proofsToSend,
-      unit: getCashuProtocolUnit(swap.amountToSend.currency),
+      unit: getCashuProtocolUnit(currency),
     });
 
     await this.cashuSendSwapRepository.commitProofsToSend({
@@ -288,7 +290,7 @@ export class CashuSendSwapService {
       token: {
         mint: account.mintUrl,
         proofs: swap.proofsToSend.map((p) => toProof(p)),
-        unit: getCashuProtocolUnit(swap.currency),
+        unit: getCashuProtocolUnit(swap.amountToSend.currency),
       },
       reversedTransactionId: swap.transactionId,
     });
@@ -422,7 +424,7 @@ export class CashuSendSwapService {
     },
   ) {
     const amountToSend = swap.amountToSend.toNumber(
-      getCashuUnit(swap.currency),
+      getCashuUnit(swap.amountToSend.currency),
     );
 
     try {

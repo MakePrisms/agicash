@@ -1,7 +1,8 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
 import { proofToY } from '~/lib/cashu';
-import { Money } from '~/lib/money';
+import type { Money } from '~/lib/money';
+import { computeSHA256 } from '~/lib/sha256';
 import type { CashuAccount } from '../accounts/account';
 import {
   type AccountRepository,
@@ -12,7 +13,6 @@ import type {
   AgicashDbCashuReceiveQuote,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
   CashuLightningReceiveTransactionDetails,
@@ -22,6 +22,15 @@ import type { CashuReceiveQuote } from './cashu-receive-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
+};
+
+type EncryptedData = {
+  amount: Money;
+  quoteId: string;
+  paymentRequest: string;
+  description?: string;
+  mintingFee?: Money;
+  outputAmounts?: number[];
 };
 
 type CreateQuote = {
@@ -45,6 +54,10 @@ type CreateQuote = {
    * Lightning payment request.
    */
   paymentRequest: string;
+  /**
+   * Payment hash of the lightning invoice.
+   */
+  paymentHash: string;
   /**
    * Expiry of the quote in ISO 8601 format.
    */
@@ -114,6 +127,7 @@ export class CashuReceiveQuoteRepository {
       amount,
       quoteId,
       paymentRequest,
+      paymentHash,
       expiresAt,
       description,
       state,
@@ -121,8 +135,6 @@ export class CashuReceiveQuoteRepository {
       receiveType,
       mintingFee,
     } = params;
-
-    const unit = getDefaultUnit(amount.currency);
 
     let details:
       | CashuLightningReceiveTransactionDetails
@@ -152,23 +164,32 @@ export class CashuReceiveQuoteRepository {
       } satisfies CashuLightningReceiveTransactionDetails;
     }
 
-    const encryptedTransactionDetails = await this.encryption.encrypt(details);
+    const dataToEncrypt: EncryptedData = {
+      amount,
+      quoteId,
+      paymentRequest,
+      description,
+      mintingFee,
+    };
+
+    const [[encryptedTransactionDetails, encryptedData], quoteIdHash] =
+      await Promise.all([
+        this.encryption.encryptBatch([details, dataToEncrypt]),
+        computeSHA256(quoteId),
+      ]);
 
     const query = this.db.rpc('create_cashu_receive_quote', {
       p_user_id: userId,
       p_account_id: accountId,
-      p_amount: amount.toNumber(unit),
       p_currency: amount.currency,
-      p_unit: unit,
-      p_quote_id: quoteId,
-      p_payment_request: paymentRequest,
       p_expires_at: expiresAt,
-      p_description: description,
       p_state: state,
       p_locking_derivation_path: lockingDerivationPath,
       p_receive_type: receiveType,
       p_encrypted_transaction_details: encryptedTransactionDetails,
-      p_minting_fee: mintingFee?.toNumber(unit),
+      p_encrypted_data: encryptedData,
+      p_quote_id_hash: quoteIdHash,
+      p_payment_hash: paymentHash,
     });
 
     if (options?.abortSignal) {
@@ -181,7 +202,7 @@ export class CashuReceiveQuoteRepository {
       throw new Error('Failed to create cashu receive quote', { cause: error });
     }
 
-    return CashuReceiveQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -243,21 +264,21 @@ export class CashuReceiveQuoteRepository {
   }
 
   /**
-   * Processes the payment of the cashu receive quote with the given id.
+   * Processes the payment of the cashu receive quote.
    * Marks the quote as paid and updates the related data. It also updates the account counter for the keyset.
    * @returns The updated quote and account.
    * @throws An error if processing the payment fails.
    */
   async processPayment(
     {
-      quoteId,
+      quote,
       keysetId,
       outputAmounts,
     }: {
       /**
-       * ID of the cashu receive quote.
+       * The cashu receive quote to process.
        */
-      quoteId: string;
+      quote: CashuReceiveQuote;
       /**
        * ID of the keyset used to create the blinded messages.
        */
@@ -278,10 +299,22 @@ export class CashuReceiveQuoteRepository {
      */
     account: CashuAccount;
   }> {
+    const dataToEncrypt: EncryptedData = {
+      amount: quote.amount,
+      quoteId: quote.quoteId,
+      paymentRequest: quote.paymentRequest,
+      description: quote.description,
+      mintingFee: quote.mintingFee,
+      outputAmounts,
+    };
+
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
+
     const query = this.db.rpc('process_cashu_receive_quote_payment', {
-      p_quote_id: quoteId,
+      p_quote_id: quote.id,
       p_keyset_id: keysetId,
-      p_output_amounts: outputAmounts,
+      p_number_of_outputs: outputAmounts.length,
+      p_encrypted_data: encryptedData,
     });
 
     if (options?.abortSignal) {
@@ -296,12 +329,12 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    const quote = CashuReceiveQuoteRepository.toQuote(data.quote);
-    const account = await this.accountRepository.toAccount<CashuAccount>(
-      data.account,
-    );
+    const [updatedQuote, account] = await Promise.all([
+      this.toQuote(data.quote),
+      this.accountRepository.toAccount<CashuAccount>(data.account),
+    ]);
 
-    return { quote, account };
+    return { quote: updatedQuote, account };
   }
 
   /**
@@ -372,12 +405,13 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    const account = await this.accountRepository.toAccount<CashuAccount>(
-      data.account,
-    );
+    const [quote, account] = await Promise.all([
+      this.toQuote(data.quote),
+      this.accountRepository.toAccount<CashuAccount>(data.account),
+    ]);
 
     return {
-      quote: CashuReceiveQuoteRepository.toQuote(data.quote),
+      quote,
       account,
       addedProofs: data.added_proofs.map((x) => x.id),
     };
@@ -401,7 +435,7 @@ export class CashuReceiveQuoteRepository {
       throw new Error('Failed to get cashu receive quote', { cause: error });
     }
 
-    return data ? CashuReceiveQuoteRepository.toQuote(data) : null;
+    return data ? this.toQuote(data) : null;
   }
 
   async getByTransactionId(
@@ -425,7 +459,7 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    return data ? CashuReceiveQuoteRepository.toQuote(data) : null;
+    return data ? this.toQuote(data) : null;
   }
 
   /**
@@ -453,35 +487,30 @@ export class CashuReceiveQuoteRepository {
       throw new Error('Failed to get cashu receive quotes', { cause: error });
     }
 
-    return data.map((data) => CashuReceiveQuoteRepository.toQuote(data));
+    return Promise.all(data.map((data) => this.toQuote(data)));
   }
 
-  static toQuote(data: AgicashDbCashuReceiveQuote): CashuReceiveQuote {
+  async toQuote(data: AgicashDbCashuReceiveQuote): Promise<CashuReceiveQuote> {
+    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
+      [data.encrypted_data],
+    );
+
     const commonData = {
       id: data.id,
       userId: data.user_id,
       accountId: data.account_id,
-      quoteId: data.quote_id,
-      amount: new Money({
-        amount: data.amount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      description: data.description ?? undefined,
+      quoteId: decryptedData.quoteId,
+      amount: decryptedData.amount,
+      description: decryptedData.description,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      paymentRequest: data.payment_request,
+      paymentRequest: decryptedData.paymentRequest,
+      paymentHash: data.payment_hash,
       version: data.version,
       lockingDerivationPath: data.locking_derivation_path,
       transactionId: data.transaction_id,
       type: data.type as CashuReceiveQuote['type'],
-      mintingFee: data.minting_fee
-        ? new Money({
-            amount: data.minting_fee,
-            currency: data.currency,
-            unit: data.unit,
-          })
-        : undefined,
+      mintingFee: decryptedData.mintingFee,
     };
 
     if (data.state === 'PAID' || data.state === 'COMPLETED') {
@@ -490,7 +519,7 @@ export class CashuReceiveQuoteRepository {
         state: data.state,
         keysetId: data.keyset_id ?? '',
         keysetCounter: data.keyset_counter ?? 0,
-        outputAmounts: data.output_amounts ?? [],
+        outputAmounts: decryptedData.outputAmounts ?? [],
       };
     }
 

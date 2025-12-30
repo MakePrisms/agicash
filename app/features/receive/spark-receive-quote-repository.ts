@@ -1,10 +1,9 @@
-import { Money } from '~/lib/money';
+import type { Money } from '~/lib/money';
 import type {
   AgicashDb,
   AgicashDbSparkReceiveQuote,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
   CompletedSparkLightningReceiveTransactionDetails,
@@ -15,6 +14,12 @@ import type { SparkReceiveQuote } from './spark-receive-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
+};
+
+type EncryptedData = {
+  amount: Money;
+  paymentRequest: string;
+  paymentPreimage?: string;
 };
 
 type CreateQuoteParams = {
@@ -84,28 +89,30 @@ export class SparkReceiveQuoteRepository {
       type,
     } = params;
 
-    const unit = getDefaultUnit(amount.currency);
-
     const details: SparkLightningReceiveTransactionDetails = {
       amountReceived: amount,
       paymentRequest,
     };
 
-    const encryptedTransactionDetails = await this.encryption.encrypt(details);
+    const dataToEncrypt: EncryptedData = {
+      amount,
+      paymentRequest,
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([details, dataToEncrypt]);
 
     const query = this.db.rpc('create_spark_receive_quote', {
       p_user_id: userId,
       p_account_id: accountId,
-      p_amount: amount.toNumber(unit),
       p_currency: amount.currency,
-      p_unit: unit,
-      p_payment_request: paymentRequest,
       p_payment_hash: paymentHash,
       p_expires_at: expiresAt,
       p_spark_id: sparkId,
       p_receiver_identity_pubkey: receiverIdentityPubkey ?? null,
       p_encrypted_transaction_details: encryptedTransactionDetails,
       p_receive_type: type,
+      p_encrypted_data: encryptedData,
     });
 
     if (options?.abortSignal) {
@@ -118,7 +125,7 @@ export class SparkReceiveQuoteRepository {
       throw new Error('Failed to create spark receive quote', { cause: error });
     }
 
-    return SparkReceiveQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -147,7 +154,7 @@ export class SparkReceiveQuoteRepository {
     options?: Options,
   ): Promise<SparkReceiveQuote> {
     // sparkTransferId is stored to non encrypted transaction details.
-    const detailsToEncrypt: Omit<
+    const transactionDetails: Omit<
       CompletedSparkLightningReceiveTransactionDetails,
       'sparkTransferId'
     > = {
@@ -156,14 +163,20 @@ export class SparkReceiveQuoteRepository {
       paymentPreimage,
     };
 
-    const encryptedTransactionDetails =
-      await this.encryption.encrypt(detailsToEncrypt);
+    const dataToEncrypt: EncryptedData = {
+      amount: quote.amount,
+      paymentRequest: quote.paymentRequest,
+      paymentPreimage,
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([transactionDetails, dataToEncrypt]);
 
     const query = this.db.rpc('complete_spark_receive_quote', {
       p_quote_id: quote.id,
-      p_payment_preimage: paymentPreimage,
       p_spark_transfer_id: sparkTransferId,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_data: encryptedData,
     });
 
     if (options?.abortSignal) {
@@ -178,7 +191,7 @@ export class SparkReceiveQuoteRepository {
       });
     }
 
-    return SparkReceiveQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -199,7 +212,7 @@ export class SparkReceiveQuoteRepository {
       throw new Error('Failed to expire spark receive quote', { cause: error });
     }
 
-    return SparkReceiveQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -220,7 +233,7 @@ export class SparkReceiveQuoteRepository {
       throw new Error('Failed to get spark receive quote', { cause: error });
     }
 
-    return data ? SparkReceiveQuoteRepository.toQuote(data) : null;
+    return data ? this.toQuote(data) : null;
   }
 
   /**
@@ -248,22 +261,22 @@ export class SparkReceiveQuoteRepository {
       throw new Error('Failed to get spark receive quotes', { cause: error });
     }
 
-    return data.map((data) => SparkReceiveQuoteRepository.toQuote(data));
+    return Promise.all(data.map((data) => this.toQuote(data)));
   }
 
-  static toQuote(data: AgicashDbSparkReceiveQuote): SparkReceiveQuote {
+  async toQuote(data: AgicashDbSparkReceiveQuote): Promise<SparkReceiveQuote> {
+    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
+      [data.encrypted_data],
+    );
+
     const baseQuote = {
       id: data.id,
       type: data.type,
       sparkId: data.spark_id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      amount: new Money({
-        amount: data.amount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      paymentRequest: data.payment_request,
+      amount: decryptedData.amount,
+      paymentRequest: decryptedData.paymentRequest,
       paymentHash: data.payment_hash,
       receiverIdentityPubkey: data.receiver_identity_pubkey ?? undefined,
       transactionId: data.transaction_id,
@@ -273,7 +286,7 @@ export class SparkReceiveQuoteRepository {
     };
 
     if (data.state === 'PAID') {
-      if (!data.payment_preimage || !data.spark_transfer_id) {
+      if (!decryptedData.paymentPreimage || !data.spark_transfer_id) {
         throw new Error(
           'Invalid spark receive quote data. Payment preimage and spark transfer id are required for paid state.',
         );
@@ -282,7 +295,7 @@ export class SparkReceiveQuoteRepository {
       return {
         ...baseQuote,
         state: 'PAID',
-        paymentPreimage: data.payment_preimage,
+        paymentPreimage: decryptedData.paymentPreimage,
         sparkTransferId: data.spark_transfer_id,
       };
     }

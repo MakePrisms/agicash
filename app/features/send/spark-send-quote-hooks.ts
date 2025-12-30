@@ -18,10 +18,7 @@ import { DomainError } from '../shared/error';
 import { sparkBalanceQueryKey } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import type { SparkSendQuote } from './spark-send-quote';
-import {
-  SparkSendQuoteRepository,
-  useSparkSendQuoteRepository,
-} from './spark-send-quote-repository';
+import { useSparkSendQuoteRepository } from './spark-send-quote-repository';
 import {
   type SparkLightningQuote,
   useSparkSendQuoteService,
@@ -85,19 +82,20 @@ export function useUnresolvedSparkSendQuotesCache() {
  */
 export function useSparkSendQuoteChangeHandlers() {
   const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
+  const sparkSendQuoteRepository = useSparkSendQuoteRepository();
 
   return [
     {
       event: 'SPARK_SEND_QUOTE_CREATED',
       handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const addedQuote = SparkSendQuoteRepository.toQuote(payload);
+        const addedQuote = await sparkSendQuoteRepository.toQuote(payload);
         unresolvedQuotesCache.add(addedQuote);
       },
     },
     {
       event: 'SPARK_SEND_QUOTE_UPDATED',
       handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const quote = SparkSendQuoteRepository.toQuote(payload);
+        const quote = await sparkSendQuoteRepository.toQuote(payload);
 
         const isQuoteStillUnresolved =
           quote.state === 'UNPAID' || quote.state === 'PENDING';

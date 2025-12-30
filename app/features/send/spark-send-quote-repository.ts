@@ -1,10 +1,9 @@
-import { Money } from '~/lib/money';
+import type { Money } from '~/lib/money';
 import type {
   AgicashDb,
   AgicashDbSparkSendQuote,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { getDefaultUnit } from '../shared/currencies';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
   CompletedSparkLightningSendTransactionDetails,
@@ -14,6 +13,13 @@ import type { SparkSendQuote } from './spark-send-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
+};
+
+type EncryptedData = {
+  amount: Money;
+  estimatedFee: Money;
+  paymentRequest: string;
+  fee?: Money;
 };
 
 type CreateQuoteParams = {
@@ -76,28 +82,29 @@ export class SparkSendQuoteRepository {
       expiresAt,
     } = params;
 
-    const unit = getDefaultUnit(amount.currency);
-
     const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
       amountToReceive: amount,
       estimatedFee,
       paymentRequest,
     };
 
-    const encryptedTransactionDetails =
-      await this.encryption.encrypt(detailsToEncrypt);
+    const dataToEncrypt: EncryptedData = {
+      amount,
+      estimatedFee,
+      paymentRequest,
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
 
     const query = this.db.rpc('create_spark_send_quote', {
       p_user_id: userId,
       p_account_id: accountId,
-      p_amount: amount.toNumber(unit),
-      p_estimated_fee: estimatedFee.toNumber(unit),
       p_currency: amount.currency,
-      p_unit: unit,
-      p_payment_request: paymentRequest,
       p_payment_hash: paymentHash,
       p_payment_request_is_amountless: paymentRequestIsAmountless,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_data: encryptedData,
       p_expires_at: expiresAt?.toISOString(),
     });
 
@@ -111,7 +118,7 @@ export class SparkSendQuoteRepository {
       throw new Error('Failed to create spark send quote', { cause: error });
     }
 
-    return SparkSendQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -152,15 +159,22 @@ export class SparkSendQuoteRepository {
       fee,
     };
 
-    const encryptedTransactionDetails =
-      await this.encryption.encrypt(detailsToEncrypt);
+    const dataToEncrypt: EncryptedData = {
+      amount: quote.amount,
+      estimatedFee: quote.estimatedFee,
+      paymentRequest: quote.paymentRequest,
+      fee: fee,
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
 
     const query = this.db.rpc('mark_spark_send_quote_as_pending', {
       p_quote_id: quote.id,
       p_spark_id: sparkSendRequestId,
       p_spark_transfer_id: sparkTransferId,
-      p_fee: fee.toNumber(getDefaultUnit(fee.currency)),
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_data: encryptedData,
     });
 
     if (options?.abortSignal) {
@@ -175,7 +189,7 @@ export class SparkSendQuoteRepository {
       });
     }
 
-    return SparkSendQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -210,13 +224,21 @@ export class SparkSendQuoteRepository {
       paymentPreimage,
     };
 
-    const encryptedTransactionDetails =
-      await this.encryption.encrypt(detailsToEncrypt);
+    const dataToEncrypt: EncryptedData = {
+      amount: quote.amount,
+      estimatedFee: quote.estimatedFee,
+      paymentRequest: quote.paymentRequest,
+      fee: quote.fee,
+    };
+
+    const [encryptedTransactionDetails, encryptedData] =
+      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
 
     const query = this.db.rpc('complete_spark_send_quote', {
       p_quote_id: quote.id,
       p_payment_preimage: paymentPreimage,
       p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_data: encryptedData,
     });
 
     if (options?.abortSignal) {
@@ -231,7 +253,7 @@ export class SparkSendQuoteRepository {
       });
     }
 
-    return SparkSendQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -257,7 +279,7 @@ export class SparkSendQuoteRepository {
       throw new Error('Failed to fail spark send quote', { cause: error });
     }
 
-    return SparkSendQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
@@ -278,7 +300,7 @@ export class SparkSendQuoteRepository {
       throw new Error('Failed to get spark send quote', { cause: error });
     }
 
-    return data ? SparkSendQuoteRepository.toQuote(data) : null;
+    return data ? this.toQuote(data) : null;
   }
 
   /**
@@ -306,26 +328,22 @@ export class SparkSendQuoteRepository {
       throw new Error('Failed to get spark send quotes', { cause: error });
     }
 
-    return data.map((data) => SparkSendQuoteRepository.toQuote(data));
+    return Promise.all(data.map((data) => this.toQuote(data)));
   }
 
-  static toQuote(data: AgicashDbSparkSendQuote): SparkSendQuote {
+  async toQuote(data: AgicashDbSparkSendQuote): Promise<SparkSendQuote> {
+    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
+      [data.encrypted_data],
+    );
+
     const baseQuote = {
       id: data.id,
       sparkId: data.spark_id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      amount: new Money({
-        amount: data.amount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      estimatedFee: new Money({
-        amount: data.estimated_fee,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      paymentRequest: data.payment_request,
+      amount: decryptedData.amount,
+      estimatedFee: decryptedData.estimatedFee,
+      paymentRequest: decryptedData.paymentRequest,
       paymentHash: data.payment_hash,
       transactionId: data.transaction_id,
       userId: data.user_id,
@@ -345,7 +363,7 @@ export class SparkSendQuoteRepository {
           'Invalid spark send quote data. Spark transfer id is required for completed state.',
         );
       }
-      if (!data.fee) {
+      if (!decryptedData.fee) {
         throw new Error(
           'Invalid spark send quote data. Fee is required for completed state.',
         );
@@ -361,11 +379,7 @@ export class SparkSendQuoteRepository {
         state: 'COMPLETED',
         sparkId: data.spark_id,
         sparkTransferId: data.spark_transfer_id,
-        fee: new Money({
-          amount: data.fee,
-          currency: data.currency,
-          unit: data.unit,
-        }),
+        fee: decryptedData.fee,
         paymentPreimage: data.payment_preimage,
       };
     }
@@ -377,13 +391,7 @@ export class SparkSendQuoteRepository {
         failureReason: data.failure_reason ?? undefined,
         sparkId: data.spark_id ?? undefined,
         sparkTransferId: data.spark_transfer_id ?? undefined,
-        fee: data.fee
-          ? new Money({
-              amount: data.fee,
-              currency: data.currency,
-              unit: data.unit,
-            })
-          : undefined,
+        fee: decryptedData.fee,
       };
     }
 
@@ -398,7 +406,7 @@ export class SparkSendQuoteRepository {
           'Invalid spark send quote data. Spark transfer id is required for pending state.',
         );
       }
-      if (!data.fee) {
+      if (!decryptedData.fee) {
         throw new Error(
           'Invalid spark send quote data. Fee is required for pending state.',
         );
@@ -409,11 +417,7 @@ export class SparkSendQuoteRepository {
         state: 'PENDING',
         sparkId: data.spark_id,
         sparkTransferId: data.spark_transfer_id,
-        fee: new Money({
-          amount: data.fee,
-          currency: data.currency,
-          unit: data.unit,
-        }),
+        fee: decryptedData.fee,
       };
     }
 

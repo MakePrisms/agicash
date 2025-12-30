@@ -244,6 +244,9 @@ export type Database = MergeDeep<
           Returns: UpsertUserWithAccountsResult;
         };
         create_cashu_receive_quote: {
+          Args: {
+            p_currency: Currency;
+          };
           Returns: AgicashDbCashuReceiveQuote;
         };
         process_cashu_receive_quote_payment: {
@@ -253,12 +256,18 @@ export type Database = MergeDeep<
           Returns: CompleteCashuReceiveQuoteResult;
         };
         create_cashu_token_swap: {
+          Args: {
+            p_currency: Currency;
+          };
           Returns: CreateCashuTokenSwapResult;
         };
         complete_cashu_token_swap: {
           Returns: CompleteCashuTokenSwapResult;
         };
         create_cashu_send_quote: {
+          Args: {
+            p_currency: Currency;
+          };
           Returns: CreateCashuSendQuoteResult;
         };
         mark_cashu_send_quote_as_pending: {
@@ -277,6 +286,9 @@ export type Database = MergeDeep<
           Returns: AgicashDbCashuTokenSwap;
         };
         create_cashu_send_swap: {
+          Args: {
+            p_currency: Currency;
+          };
           Returns: CreateCashuSendSwapResult;
         };
         commit_proofs_to_send: {
@@ -301,7 +313,6 @@ export type Database = MergeDeep<
         create_spark_receive_quote: {
           Args: {
             p_currency: Currency;
-            p_unit: CurrencyUnit;
             p_receiver_identity_pubkey: string | null;
           };
           Returns: AgicashDbSparkReceiveQuote;
@@ -313,6 +324,9 @@ export type Database = MergeDeep<
           Returns: AgicashDbSparkReceiveQuote;
         };
         create_spark_send_quote: {
+          Args: {
+            p_currency: Currency;
+          };
           Returns: AgicashDbSparkSendQuote;
         };
         mark_spark_send_quote_as_pending: {
