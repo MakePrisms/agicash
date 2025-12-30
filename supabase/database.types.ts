@@ -1009,7 +1009,6 @@ export type Database = {
           p_payment_hash: string
           p_quote_id_hash: string
           p_receive_type: string
-          p_state: string
           p_user_id: string
         }
         Returns: {

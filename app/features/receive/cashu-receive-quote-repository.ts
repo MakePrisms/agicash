@@ -67,10 +67,6 @@ type CreateQuote = {
    */
   description?: string;
   /**
-   * State of the quote.
-   */
-  state: CashuReceiveQuote['state'];
-  /**
    * The full BIP32 derivation path used to derive the public key for locking the cashu mint quote.
    */
   lockingDerivationPath: string;
@@ -130,7 +126,6 @@ export class CashuReceiveQuoteRepository {
       paymentHash,
       expiresAt,
       description,
-      state,
       lockingDerivationPath,
       receiveType,
       mintingFee,
@@ -183,7 +178,6 @@ export class CashuReceiveQuoteRepository {
       p_account_id: accountId,
       p_currency: amount.currency,
       p_expires_at: expiresAt,
-      p_state: state,
       p_locking_derivation_path: lockingDerivationPath,
       p_receive_type: receiveType,
       p_encrypted_transaction_details: encryptedTransactionDetails,
