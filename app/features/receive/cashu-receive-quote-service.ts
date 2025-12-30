@@ -180,6 +180,10 @@ export class CashuReceiveQuoteService {
       receiveType,
     } = params;
 
+    if (receiveQuote.mintQuote.state !== MintQuoteState.UNPAID) {
+      throw new Error('Mint quote must be unpaid');
+    }
+
     const baseReceiveQuote = {
       accountId: account.id,
       userId,
@@ -187,7 +191,6 @@ export class CashuReceiveQuoteService {
       description: receiveQuote.description,
       quoteId: receiveQuote.mintQuote.quote,
       expiresAt: receiveQuote.expiresAt,
-      state: receiveQuote.mintQuote.state as CashuReceiveQuote['state'],
       paymentRequest: receiveQuote.mintQuote.request,
       lockingDerivationPath: receiveQuote.fullLockingDerivationPath,
       mintingFee: receiveQuote.mintingFee,
