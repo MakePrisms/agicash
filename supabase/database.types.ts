@@ -513,6 +513,7 @@ export type Database = {
           created_at: string
           encrypted_data: string
           expires_at: string
+          failure_reason: string | null
           id: string
           payment_hash: string
           receiver_identity_pubkey: string | null
@@ -529,6 +530,7 @@ export type Database = {
           created_at?: string
           encrypted_data: string
           expires_at: string
+          failure_reason?: string | null
           id?: string
           payment_hash: string
           receiver_identity_pubkey?: string | null
@@ -545,6 +547,7 @@ export type Database = {
           created_at?: string
           encrypted_data?: string
           expires_at?: string
+          failure_reason?: string | null
           id?: string
           payment_hash?: string
           receiver_identity_pubkey?: string | null
@@ -949,6 +952,7 @@ export type Database = {
           created_at: string
           encrypted_data: string
           expires_at: string
+          failure_reason: string | null
           id: string
           payment_hash: string
           receiver_identity_pubkey: string | null
@@ -1118,6 +1122,7 @@ export type Database = {
           created_at: string
           encrypted_data: string
           expires_at: string
+          failure_reason: string | null
           id: string
           payment_hash: string
           receiver_identity_pubkey: string | null
@@ -1215,6 +1220,7 @@ export type Database = {
           created_at: string
           encrypted_data: string
           expires_at: string
+          failure_reason: string | null
           id: string
           payment_hash: string
           receiver_identity_pubkey: string | null
@@ -1302,6 +1308,32 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "cashu_token_swaps"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fail_spark_receive_quote: {
+        Args: { p_failure_reason: string; p_quote_id: string }
+        Returns: {
+          account_id: string
+          created_at: string
+          encrypted_data: string
+          expires_at: string
+          failure_reason: string | null
+          id: string
+          payment_hash: string
+          receiver_identity_pubkey: string | null
+          spark_id: string
+          spark_transfer_id: string | null
+          state: string
+          transaction_id: string
+          type: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "spark_receive_quotes"
           isOneToOne: true
           isSetofReturn: false
         }

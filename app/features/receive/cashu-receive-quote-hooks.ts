@@ -1,5 +1,7 @@
 import {
   HttpResponseError,
+  type MeltQuoteResponse,
+  MeltQuoteState,
   type MintQuoteResponse,
   type WebSocketSupport,
 } from '@cashu/cashu-ts';
@@ -12,7 +14,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getCashuUnit } from '~/lib/cashu';
+import { getCashuUnit, getCashuWallet } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import {
   type LongTimeout,
@@ -31,6 +33,7 @@ import type { CashuReceiveQuote } from './cashu-receive-quote';
 import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { useCashuReceiveQuoteService } from './cashu-receive-quote-service';
 import { MintQuoteSubscriptionManager } from './mint-quote-subscription-manager';
+import { MeltQuoteSubscriptionManager } from '../send/melt-quote-subscription-manager';
 
 type CreateProps = {
   account: CashuAccount;
@@ -156,14 +159,14 @@ export function useCreateCashuReceiveQuote() {
   });
 }
 
-export function useFailCashuReceiveQuote() {
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
-  return useMutation({
-    mutationFn: ({ quoteId, reason }: { quoteId: string; reason: string }) =>
-      cashuReceiveQuoteRepository.fail({ id: quoteId, reason }),
-    retry: 3,
-  });
-}
+// export function useFailCashuReceiveQuote() {
+//   const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
+//   return useMutation({
+//     mutationFn: ({ quoteId, reason }: { quoteId: string; reason: string }) =>
+//       cashuReceiveQuoteRepository.fail({ id: quoteId, reason }),
+//     retry: 3,
+//   });
+// }
 
 function useCashuReceiveQuoteCache() {
   const queryClient = useQueryClient();
@@ -547,6 +550,7 @@ const useOnMintQuoteStateChange = ({
 
 export function useProcessCashuReceiveQuoteTasks() {
   const cashuReceiveQuoteService = useCashuReceiveQuoteService();
+  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
   const pendingQuotes = usePendingCashuReceiveQuotes();
   const getCashuAccount = useGetCashuAccount();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
@@ -595,6 +599,104 @@ export function useProcessCashuReceiveQuoteTasks() {
       });
     },
   });
+
+  // Mutation for initiating melt on TOKEN type quotes
+  const { mutate: initiateMelt } = useMutation({
+    mutationFn: async (quoteId: string) => {
+      const quote = pendingQuotesCache.get(quoteId);
+      if (!quote) {
+        // This can happen when the quote was updated in the meantime so it's not pending anymore.
+        return;
+      }
+
+      const meltData = quote.tokenReceiveData;
+      if (!meltData) {
+        throw new Error('No melt data on TOKEN quote');
+      }
+
+      const cashuUnit = getCashuUnit(quote.amount.currency);
+      const sourceWallet = getCashuWallet(meltData.sourceMintUrl, {
+        unit: cashuUnit,
+      });
+
+      const meltQuote = await sourceWallet.checkMeltQuote(meltData.meltQuoteId);
+
+      if (!meltData.meltInitiated) {
+        // TODO: initiate the melt
+
+        if (meltQuote.state === MeltQuoteState.UNPAID) {
+          // Initiate the melt. TODO: see what happens if you call melt again after the melt quote is pending (if it is still pending or even after it has benn paid).
+          await sourceWallet.meltProofs(
+            // meltProofs method doesn't use anything but quote and amount so we can pass a dummy MeltQuoteResponse
+            {
+              quote: meltData.meltQuoteId,
+              amount: quote.amount.toNumber(cashuUnit),
+            } as MeltQuoteResponse,
+            meltData.tokenProofs,
+          );
+        }
+
+        // Mark melt as initiated
+        await cashuReceiveQuoteRepository.markMeltInitiated(quote.id);
+      } else if (meltQuote.state === MeltQuoteState.UNPAID) {
+        // Melt failed - fail the receive quote
+        await cashuReceiveQuoteRepository.fail({
+          id: quote.id,
+          reason: 'Melt payment failed',
+        });
+      }
+
+      return quote;
+    },
+    onError: async (error, quoteId) => {
+      console.error('Initiate melt error', {
+        cause: error,
+        receiveQuoteId: quoteId,
+      });
+      // Fail the quote on melt initiation error
+      try {
+        await cashuReceiveQuoteRepository.fail({
+          id: quoteId,
+          reason: `Melt failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        });
+      } catch (failError) {
+        console.error('Failed to mark quote as failed', {
+          cause: failError,
+          receiveQuoteId: quoteId,
+        });
+      }
+    },
+  });
+
+  // Filter TOKEN quotes that need melt processing
+  const pendingCashuTokenReceiveQuotes = useMemo(
+    () => pendingQuotes.filter((q) => q.type === 'TOKEN' && q.tokenReceiveData),
+    [pendingQuotes],
+  );
+
+  const [subscriptionManager] = useState(
+    () => new MeltQuoteSubscriptionManager(),
+  );
+
+  const { mutate: subscribe } = useMutation({
+    mutationFn: (props: Parameters<typeof subscriptionManager.subscribe>[0]) =>
+      subscriptionManager.subscribe(props),
+    retry: 5,
+    onError: (error, variables) => {
+      console.error('Error subscribing to melt quote updates', {
+        mintUrl: variables.mintUrl,
+        cause: error,
+      });
+    },
+  });
+
+  // Effect to initiate melt on TOKEN quotes
+  useEffect(() => {
+    // for (const quote of pendingCashuTokenReceiveQuotes) {
+    //   initiateMelt(quote.id, { scope: { id: `melt-${quote.id}` } });
+    // }
+    subscribe.
+  }, [pendingCashuTokenReceiveQuotes, initiateMelt]);
 
   useOnMintQuoteStateChange({
     quotes: pendingQuotes,

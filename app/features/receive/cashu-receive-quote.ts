@@ -1,4 +1,28 @@
+import type { Proof } from '@cashu/cashu-ts';
 import type { Money } from '~/lib/money';
+
+/**
+ * Data related to cross-account cashu token receives.
+ * Present only for TOKEN type quotes.
+ */
+export type CashuReceiveQuoteTokenReceiveData = {
+  /**
+   * URL of the source mint where the token proofs originate from.
+   */
+  sourceMintUrl: string;
+  /**
+   * The proofs from the source cashu token that will be melted.
+   */
+  tokenProofs: Proof[];
+  /**
+   * ID of the melt quote on the source mint.
+   */
+  meltQuoteId: string;
+  /**
+   * Whether the melt has been initiated on the source mint.
+   */
+  meltInitiated: boolean;
+};
 
 export type CashuReceiveQuote = {
   id: string;
@@ -70,6 +94,11 @@ export type CashuReceiveQuote = {
    * Optional fee that the mint charges to mint ecash. This amount is added to the payment request amount.
    */
   mintingFee?: Money;
+  /**
+   * Data related to cross-account cashu token receives.
+   * Present only for TOKEN type quotes.
+   */
+  tokenReceiveData?: CashuReceiveQuoteTokenReceiveData;
 } & (
   | {
       state: 'UNPAID' | 'EXPIRED';

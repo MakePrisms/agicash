@@ -170,6 +170,18 @@ export class CashuReceiveQuoteService {
            * The fee reserved for the lightning payment to melt the proofs to the account.
            */
           lightningFeeReserve: Money;
+          /**
+           * URL of the source mint where the token proofs originate from.
+           */
+          sourceMintUrl: string;
+          /**
+           * The proofs from the source cashu token that will be melted.
+           */
+          tokenProofs: Proof[];
+          /**
+           * ID of the melt quote on the source mint.
+           */
+          meltQuoteId: string;
         }
     ),
   ): Promise<CashuReceiveQuote> {
@@ -197,7 +209,14 @@ export class CashuReceiveQuoteService {
     };
 
     if (receiveType === 'TOKEN') {
-      const { tokenAmount, cashuReceiveFee, lightningFeeReserve } = params;
+      const {
+        tokenAmount,
+        cashuReceiveFee,
+        lightningFeeReserve,
+        sourceMintUrl,
+        tokenProofs,
+        meltQuoteId,
+      } = params;
 
       return this.cashuReceiveQuoteRepository.create({
         ...baseReceiveQuote,
@@ -206,6 +225,9 @@ export class CashuReceiveQuoteService {
         cashuReceiveFee,
         lightningFeeReserve,
         paymentHash: receiveQuote.paymentHash,
+        sourceMintUrl,
+        tokenProofs,
+        meltQuoteId,
       });
     }
 
@@ -406,6 +428,15 @@ export class CashuReceiveQuoteService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Marks the melt as initiated for a TOKEN type cashu receive quote.
+   * @param quoteId - The ID of the cashu receive quote.
+   * @returns The updated quote.
+   */
+  async markMeltInitiated(quoteId: string): Promise<CashuReceiveQuote> {
+    return this.cashuReceiveQuoteRepository.markMeltInitiated(quoteId);
   }
 
   private async deriveNut20LockingPublicKey() {

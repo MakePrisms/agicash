@@ -1,8 +1,4 @@
-import {
-  MintOperationError,
-  type Token,
-  getEncodedToken,
-} from '@cashu/cashu-ts';
+import { type Token, getEncodedToken } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -35,7 +31,6 @@ import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { AcceptTerms } from '../signup/accept-terms';
 import { useAuthActions } from '../user/auth';
-import { useFailCashuReceiveQuote } from './cashu-receive-quote-hooks';
 import { useCreateCashuTokenSwap } from './cashu-token-swap-hooks';
 import {
   useCashuTokenWithClaimableProofs,
@@ -121,19 +116,9 @@ export default function ReceiveToken({
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
 
-  const onTransactionCreated = (transactionId: string) => {
-    navigate(`/transactions/${transactionId}?redirectTo=/`, {
-      transition: 'slideLeft',
-      applyTo: 'newView',
-    });
-  };
-
   const { mutateAsync: createCashuTokenSwap } = useCreateCashuTokenSwap();
-  const {
-    mutateAsync: createCrossAccountReceiveQuotes,
-    data: crossAccountReceiveQuotes,
-  } = useCreateCrossAccountReceiveQuotes();
-  const { mutate: failCashuReceiveQuote } = useFailCashuReceiveQuote();
+  const { mutateAsync: createCrossAccountReceiveQuotes } =
+    useCreateCrossAccountReceiveQuotes();
 
   const { mutate: claimTokenMutation, status: claimTokenStatus } = useMutation({
     mutationFn: async ({
@@ -161,32 +146,23 @@ export default function ReceiveToken({
           token,
           accountId: account.id,
         });
-        onTransactionCreated(transactionId);
-      } else {
-        const result = await createCrossAccountReceiveQuotes({
-          token,
-          destinationAccount: account,
-          sourceAccount,
-        });
-        onTransactionCreated(result.lightningReceiveQuote.transactionId);
-        await result.sourceWallet.meltProofsIdempotent(
-          result.cashuMeltQuote,
-          token.proofs,
-        );
+        return transactionId;
       }
 
-      return account;
+      const result = await createCrossAccountReceiveQuotes({
+        token,
+        destinationAccount: account,
+        sourceAccount,
+      });
+      return result.lightningReceiveQuote.transactionId;
+    },
+    onSuccess: (transactionId) => {
+      navigate(`/transactions/${transactionId}?redirectTo=/`, {
+        transition: 'slideLeft',
+        applyTo: 'newView',
+      });
     },
     onError: (error) => {
-      if (
-        error instanceof MintOperationError &&
-        crossAccountReceiveQuotes?.destinationType === 'cashu'
-      ) {
-        failCashuReceiveQuote({
-          quoteId: crossAccountReceiveQuotes.cashuReceiveQuote.id,
-          reason: error.message,
-        });
-      }
       console.error('Error claiming token', { cause: error });
       toast({
         title: 'Failed to claim token',

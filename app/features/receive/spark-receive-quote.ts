@@ -1,4 +1,28 @@
+import type { Proof } from '@cashu/cashu-ts';
 import type { Money } from '~/lib/money';
+
+/**
+ * Data related to cross-account cashu token receives.
+ * Present only for CASHU_TOKEN type quotes.
+ */
+export type SparkReceiveQuoteTokenReceiveData = {
+  /**
+   * URL of the source mint where the token proofs originate from.
+   */
+  sourceMintUrl: string;
+  /**
+   * The proofs from the source cashu token that will be melted.
+   */
+  tokenProofs: Proof[];
+  /**
+   * ID of the melt quote on the source mint.
+   */
+  meltQuoteId: string;
+  /**
+   * Whether the melt has been initiated on the source mint.
+   */
+  meltInitiated: boolean;
+};
 
 /**
  * Represents a Spark Lightning receive quote.
@@ -51,7 +75,7 @@ export type SparkReceiveQuote = {
   /**
    * State of the spark receive quote.
    */
-  state: 'UNPAID' | 'EXPIRED' | 'PAID';
+  state: 'UNPAID' | 'EXPIRED' | 'PAID' | 'FAILED';
   /**
    * ID of the user that the quote belongs to.
    */
@@ -64,6 +88,11 @@ export type SparkReceiveQuote = {
    * Row version. Used for optimistic locking.
    */
   version: number;
+  /**
+   * Data related to cross-account cashu token receives.
+   * Present only for CASHU_TOKEN type quotes.
+   */
+  tokenReceiveData?: SparkReceiveQuoteTokenReceiveData;
 } & (
   | {
       state: 'UNPAID' | 'EXPIRED';
@@ -78,5 +107,12 @@ export type SparkReceiveQuote = {
        * Spark transfer ID.
        */
       sparkTransferId: string;
+    }
+  | {
+      state: 'FAILED';
+      /**
+       * Reason for the failure.
+       */
+      failureReason: string;
     }
 );

@@ -436,18 +436,18 @@ function useOnMeltQuoteStateChange({
   useEffect(() => {
     if (sendQuotes.length === 0) return;
 
-    const quotesByMint = sendQuotes.reduce<Record<string, CashuSendQuote[]>>(
+    const quotesByMint = sendQuotes.reduce<Record<string, string[]>>(
       (acc, quote) => {
         const account = getCashuAccount(quote.accountId);
         const existingQuotesForMint = acc[account.mintUrl] ?? [];
-        acc[account.mintUrl] = existingQuotesForMint.concat(quote);
+        acc[account.mintUrl] = existingQuotesForMint.concat(quote.quoteId);
         return acc;
       },
       {},
     );
 
-    Object.entries(quotesByMint).map(([mintUrl, quotes]) =>
-      subscribe({ mintUrl, quotes, onUpdate: handleMeltQuoteUpdate }),
+    Object.entries(quotesByMint).map(([mintUrl, quoteIds]) =>
+      subscribe({ mintUrl, quoteIds, onUpdate: handleMeltQuoteUpdate }),
     );
   }, [sendQuotes, handleMeltQuoteUpdate, getCashuAccount, subscribe]);
 

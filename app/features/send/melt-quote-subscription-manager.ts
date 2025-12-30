@@ -1,7 +1,6 @@
 import type { MeltQuoteResponse } from '@cashu/cashu-ts';
 import { getCashuWallet } from '~/lib/cashu';
 import { isSubset } from '~/lib/utils';
-import type { CashuSendQuote } from './cashu-send-quote';
 
 type SubscriptionData = {
   ids: Set<string>;
@@ -15,21 +14,21 @@ export class MeltQuoteSubscriptionManager {
   /**
    * Subscribes to melt quote updates for the given mint URL and quotes.
    * @param mintUrl - The mint URL to subscribe to.
-   * @param quotes - The quotes to subscribe to.
+   * @param quoteIds - The quote IDs to subscribe to.
    * @param onUpdate - The callback to call when a melt quote update is received.
    * @returns A function to unsubscribe from the subscription.
    * @throws An error if the subscription fails.
    */
   async subscribe({
     mintUrl,
-    quotes,
+    quoteIds,
     onUpdate,
   }: {
     mintUrl: string;
-    quotes: CashuSendQuote[];
+    quoteIds: string[];
     onUpdate: (meltQuoteResponse: MeltQuoteResponse) => void;
   }): Promise<() => void> {
-    const ids = new Set(quotes.map((x) => x.quoteId));
+    const ids = new Set(quoteIds);
     const mintSubscription = this.subscriptions.get(mintUrl);
 
     if (mintSubscription) {
@@ -43,7 +42,7 @@ export class MeltQuoteSubscriptionManager {
         console.debug(
           'Melt quote updates subscription already exists for mint. Updated callback.',
           mintUrl,
-          quotes,
+          quoteIds,
         );
         return () => {
           unsubscribe();
@@ -60,7 +59,7 @@ export class MeltQuoteSubscriptionManager {
     console.debug(
       'Subscribing to melt quote updates for mint',
       mintUrl,
-      quotes,
+      quoteIds,
     );
 
     const subscriptionCallback = (meltQuote: MeltQuoteResponse) => {

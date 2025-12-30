@@ -88,8 +88,6 @@ const getClaimCashuTokenService = async () => {
     accountRepository,
     accountService,
     tokenSwapService,
-    cashuReceiveQuoteService,
-    sparkReceiveQuoteService,
     receiveCashuTokenService,
     receiveCashuTokenQuoteService,
     userService,

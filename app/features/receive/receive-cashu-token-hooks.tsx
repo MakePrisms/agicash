@@ -12,12 +12,7 @@ import {
 } from '~/features/accounts/account-hooks';
 import { tokenToMoney } from '~/features/shared/cashu';
 import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
-import {
-  getCashuUnit,
-  getCashuWallet,
-  getClaimableProofs,
-  getUnspentProofsFromToken,
-} from '~/lib/cashu';
+import { getClaimableProofs, getUnspentProofsFromToken } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
 import { createSparkWalletStub } from '~/lib/spark';
 import {
@@ -275,23 +270,15 @@ export function useCreateCrossAccountReceiveQuotes() {
         `${tokenCurrency}-${accountCurrency}`,
       );
 
-      const result =
-        await receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes({
+      return await receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(
+        {
           userId,
           token,
           sourceAccount,
           destinationAccount,
           exchangeRate,
-        });
-
-      const sourceWallet = getCashuWallet(token.mint, {
-        unit: getCashuUnit(tokenCurrency),
-      });
-
-      return {
-        ...result,
-        sourceWallet,
-      };
+        },
+      );
     },
   });
 }

@@ -1,4 +1,5 @@
 import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
+import { type MeltQuoteResponse, MeltQuoteState } from '@cashu/cashu-ts';
 import {
   type QueryClient,
   useMutation,
@@ -6,6 +7,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
+import { getCashuUnit, getCashuWallet } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
@@ -213,6 +215,59 @@ const usePendingSparkReceiveQuotes = () => {
   return data ?? [];
 };
 
+type CreateProps = {
+  /**
+   * The Spark account to create the receive request for.
+   */
+  account: SparkAccount;
+  /**
+   * The amount to receive.
+   */
+  amount: Money;
+  /**
+   * The Spark public key of the receiver used to create invoices on behalf of another user.
+   * If not provided, the invoice will be created for the user that owns the Spark wallet.
+   */
+  receiverIdentityPubkey?: string;
+};
+
+/**
+ * Returns a mutation for creating a Spark receive quote.
+ * The quote is stored in the database and will be tracked by the background task processor.
+ */
+export function useCreateSparkReceiveQuote() {
+  const userId = useUser((user) => user.id);
+  const sparkReceiveQuoteService = useSparkReceiveQuoteService();
+  const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
+
+  return useMutation({
+    scope: {
+      id: 'create-spark-receive-quote',
+    },
+    mutationFn: async ({
+      account,
+      amount,
+      receiverIdentityPubkey,
+    }: CreateProps) => {
+      const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
+        account,
+        amount,
+        receiverIdentityPubkey,
+      });
+
+      return sparkReceiveQuoteService.createReceiveQuote({
+        userId,
+        account,
+        lightningQuote,
+      });
+    },
+    onSuccess: (data) => {
+      sparkReceiveQuoteCache.add(data);
+    },
+    retry: 1,
+  });
+}
+
 type OnSparkReceiveStateChangeCallbacks = {
   /**
    * Called when a quote's payment is completed.
@@ -354,6 +409,8 @@ export function useOnSparkReceiveStateChange({
  */
 export function useProcessSparkReceiveQuoteTasks() {
   const sparkReceiveQuoteService = useSparkReceiveQuoteService();
+  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
+  const pendingQuotes = usePendingSparkReceiveQuotes();
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const queryClient = useQueryClient();
 
@@ -416,6 +473,93 @@ export function useProcessSparkReceiveQuoteTasks() {
     },
   });
 
+  // Mutation for initiating melt on CASHU_TOKEN type quotes
+  const { mutate: initiateMelt } = useMutation({
+    mutationFn: async (quote: SparkReceiveQuote) => {
+      const meltData = quote.tokenReceiveData;
+      if (!meltData) {
+        throw new Error('No melt data on CASHU_TOKEN quote');
+      }
+
+      const cashuUnit = getCashuUnit(quote.amount.currency);
+      const sourceWallet = getCashuWallet(meltData.sourceMintUrl, {
+        unit: cashuUnit,
+      });
+
+      if (!meltData.meltInitiated) {
+        // TODO: initiate the melt
+
+        // Initiate the melt. TODO: see what happens if you call melt again after the melt quote is pending (if it is still pending or even after it has benn paid).
+        await sourceWallet.meltProofs(
+          // meltProofs method doesn't use anything but quote and amount so we can pass a dummy MeltQuoteResponse
+          {
+            quote: meltData.meltQuoteId,
+            amount: quote.amount.toNumber(cashuUnit),
+          } as MeltQuoteResponse,
+          meltData.tokenProofs,
+        );
+
+        // Mark melt as initiated
+        await sparkReceiveQuoteRepository.markMeltInitiated(quote.id);
+      } else {
+        // Get the melt quote state from the source mint using the stored quote ID.
+        // checkMeltQuote returns a partial response, so we construct the full MeltQuoteResponse
+        // by combining the partial response with stored data (quote ID, payment request, and unit).
+        const meltQuote = await sourceWallet.checkMeltQuote(
+          meltData.meltQuoteId,
+        );
+
+        if (
+          meltQuote.state === MeltQuoteState.UNPAID &&
+          meltData.meltInitiated
+        ) {
+          // Melt failed - fail the receive quote
+          await sparkReceiveQuoteRepository.fail({
+            id: quote.id,
+            reason: 'Melt payment failed',
+          });
+          return;
+        }
+      }
+
+      return quote;
+    },
+    onError: async (error, quote) => {
+      console.error('Initiate melt error for spark receive quote', {
+        cause: error,
+        receiveQuoteId: quote.id,
+      });
+      // Fail the quote on melt initiation error
+      try {
+        await sparkReceiveQuoteRepository.fail({
+          id: quote.id,
+          reason: `Melt failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        });
+      } catch (failError) {
+        console.error('Failed to mark spark receive quote as failed', {
+          cause: failError,
+          receiveQuoteId: quote.id,
+        });
+      }
+    },
+  });
+
+  // Filter TOKEN quotes that need melt processing
+  const pendingCashuTokenReceiveQuotes = useMemo(
+    () =>
+      pendingQuotes.filter(
+        (q) => q.type === 'CASHU_TOKEN' && q.tokenReceiveData,
+      ),
+    [pendingQuotes],
+  );
+
+  // Effect to initiate melt on CASHU_TOKEN quotes
+  useEffect(() => {
+    for (const quote of pendingCashuTokenReceiveQuotes) {
+      initiateMelt(quote, { scope: { id: `spark-melt-${quote.id}` } });
+    }
+  }, [pendingCashuTokenReceiveQuotes, initiateMelt]);
+
   useOnSparkReceiveStateChange({
     onCompleted: (quote, paymentData) => {
       completeReceiveQuote(
@@ -432,58 +576,5 @@ export function useProcessSparkReceiveQuoteTasks() {
         scope: { id: `spark-receive-quote-${quote.id}` },
       });
     },
-  });
-}
-
-type CreateProps = {
-  /**
-   * The Spark account to create the receive request for.
-   */
-  account: SparkAccount;
-  /**
-   * The amount to receive.
-   */
-  amount: Money;
-  /**
-   * The Spark public key of the receiver used to create invoices on behalf of another user.
-   * If not provided, the invoice will be created for the user that owns the Spark wallet.
-   */
-  receiverIdentityPubkey?: string;
-};
-
-/**
- * Returns a mutation for creating a Spark receive quote.
- * The quote is stored in the database and will be tracked by the background task processor.
- */
-export function useCreateSparkReceiveQuote() {
-  const userId = useUser((user) => user.id);
-  const sparkReceiveQuoteService = useSparkReceiveQuoteService();
-  const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-
-  return useMutation({
-    scope: {
-      id: 'create-spark-receive-quote',
-    },
-    mutationFn: async ({
-      account,
-      amount,
-      receiverIdentityPubkey,
-    }: CreateProps) => {
-      const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
-        account,
-        amount,
-        receiverIdentityPubkey,
-      });
-
-      return sparkReceiveQuoteService.createReceiveQuote({
-        userId,
-        account,
-        lightningQuote,
-      });
-    },
-    onSuccess: (data) => {
-      sparkReceiveQuoteCache.add(data);
-    },
-    retry: 1,
   });
 }

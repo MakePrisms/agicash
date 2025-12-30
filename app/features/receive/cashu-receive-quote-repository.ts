@@ -18,7 +18,10 @@ import type {
   CashuLightningReceiveTransactionDetails,
   CashuTokenReceiveTransactionDetails,
 } from '../transactions/transaction';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
+import type {
+  CashuReceiveQuote,
+  CashuReceiveQuoteTokenReceiveData,
+} from './cashu-receive-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
@@ -31,6 +34,16 @@ type EncryptedData = {
   description?: string;
   mintingFee?: Money;
   outputAmounts?: number[];
+  /**
+   * Data related to cross-account cashu token receives.
+   * Present only for TOKEN type quotes.
+   */
+  tokenReceiveData?: {
+    sourceMintUrl: string;
+    tokenProofs: Proof[];
+    meltQuoteId: string;
+    meltInitiated: boolean;
+  };
 };
 
 type CreateQuote = {
@@ -99,6 +112,18 @@ type CreateQuote = {
        * The fee reserved for the lightning payment to melt the token proofs to this account.
        */
       lightningFeeReserve: Money;
+      /**
+       * URL of the source mint where the token proofs originate from.
+       */
+      sourceMintUrl: string;
+      /**
+       * The proofs from the source cashu token that will be melted.
+       */
+      tokenProofs: Proof[];
+      /**
+       * ID of the melt quote on the source mint.
+       */
+      meltQuoteId: string;
     }
 );
 
@@ -166,6 +191,16 @@ export class CashuReceiveQuoteRepository {
       description,
       mintingFee,
     };
+
+    // Add token receive data for TOKEN type
+    if (receiveType === 'TOKEN') {
+      dataToEncrypt.tokenReceiveData = {
+        sourceMintUrl: params.sourceMintUrl,
+        tokenProofs: params.tokenProofs,
+        meltQuoteId: params.meltQuoteId,
+        meltInitiated: false,
+      };
+    }
 
     const [[encryptedTransactionDetails, encryptedData], quoteIdHash] =
       await Promise.all([
@@ -255,6 +290,68 @@ export class CashuReceiveQuoteRepository {
     if (error) {
       throw new Error('Failed to fail cashu receive quote', { cause: error });
     }
+  }
+
+  /**
+   * Marks the melt as initiated for a TOKEN type cashu receive quote.
+   * This updates the encrypted tokenReceiveData.meltInitiated flag to true.
+   * @throws An error if the quote is not found or not a TOKEN type.
+   */
+  async markMeltInitiated(
+    quoteId: string,
+    options?: Options,
+  ): Promise<CashuReceiveQuote> {
+    // First, fetch the current quote
+    const quote = await this.get(quoteId, options);
+
+    if (!quote) {
+      throw new Error(`Cashu receive quote with id ${quoteId} not found`);
+    }
+
+    if (quote.type !== 'TOKEN' || !quote.tokenReceiveData) {
+      throw new Error(
+        `Cashu receive quote ${quoteId} is not a TOKEN type or has no tokenReceiveData`,
+      );
+    }
+
+    // Update the encrypted data with meltInitiated = true
+    const dataToEncrypt: EncryptedData = {
+      amount: quote.amount,
+      quoteId: quote.quoteId,
+      paymentRequest: quote.paymentRequest,
+      description: quote.description,
+      mintingFee: quote.mintingFee,
+      tokenReceiveData: {
+        ...quote.tokenReceiveData,
+        meltInitiated: true,
+      },
+    };
+
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
+
+    const { error } = await this.db
+      .from('cashu_receive_quotes')
+      .update({
+        encrypted_data: encryptedData,
+        version: quote.version + 1,
+      })
+      .eq('id', quoteId)
+      .eq('version', quote.version);
+
+    if (error) {
+      throw new Error('Failed to mark melt initiated for cashu receive quote', {
+        cause: error,
+      });
+    }
+
+    return {
+      ...quote,
+      tokenReceiveData: {
+        ...quote.tokenReceiveData,
+        meltInitiated: true,
+      },
+      version: quote.version + 1,
+    };
   }
 
   /**
@@ -489,6 +586,17 @@ export class CashuReceiveQuoteRepository {
       [data.encrypted_data],
     );
 
+    // Map tokenReceiveData if present
+    const tokenReceiveData: CashuReceiveQuoteTokenReceiveData | undefined =
+      decryptedData.tokenReceiveData
+        ? {
+            sourceMintUrl: decryptedData.tokenReceiveData.sourceMintUrl,
+            tokenProofs: decryptedData.tokenReceiveData.tokenProofs,
+            meltQuoteId: decryptedData.tokenReceiveData.meltQuoteId,
+            meltInitiated: decryptedData.tokenReceiveData.meltInitiated,
+          }
+        : undefined;
+
     const commonData = {
       id: data.id,
       userId: data.user_id,
@@ -505,6 +613,7 @@ export class CashuReceiveQuoteRepository {
       transactionId: data.transaction_id,
       type: data.type as CashuReceiveQuote['type'],
       mintingFee: decryptedData.mintingFee,
+      tokenReceiveData,
     };
 
     if (data.state === 'PAID' || data.state === 'COMPLETED') {

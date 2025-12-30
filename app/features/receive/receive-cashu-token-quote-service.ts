@@ -142,6 +142,9 @@ export class ReceiveCashuTokenQuoteService {
           cashuReceiveFee,
           tokenAmount,
           lightningFeeReserve,
+          sourceMintUrl: sourceAccount.mintUrl,
+          tokenProofs: token.proofs,
+          meltQuoteId: quotes.meltQuote.quote,
         });
 
       return {
@@ -165,6 +168,9 @@ export class ReceiveCashuTokenQuoteService {
         account: destinationAccount,
         type: 'CASHU_TOKEN',
         lightningQuote: quotes.lightningQuote as SparkReceiveLightningQuote,
+        sourceMintUrl: sourceAccount.mintUrl,
+        tokenProofs: token.proofs,
+        meltQuoteId: quotes.meltQuote.quote,
       });
 
     return {

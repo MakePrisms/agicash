@@ -1,4 +1,5 @@
 import type { SparkWallet } from '@buildonspark/spark-sdk';
+import type { Proof } from '@cashu/cashu-ts';
 import type { Money } from '~/lib/money';
 import { moneyFromSparkAmount } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
@@ -42,14 +43,34 @@ type CreateQuoteParams = {
    * The lightning quote to create the Spark receive quote from.
    */
   lightningQuote: SparkReceiveLightningQuote;
-  /**
-   * Type of the receive.
-   * - LIGHTNING - Standard lightning receive.
-   * - CASHU_TOKEN - Receive cashu tokens to a Spark account.
-   * Default is LIGHTNING.
-   */
-  type?: 'LIGHTNING' | 'CASHU_TOKEN';
-};
+} & (
+  | {
+      /**
+       * Type of the receive.
+       * LIGHTNING - Standard lightning receive.
+       */
+      type?: 'LIGHTNING';
+    }
+  | {
+      /**
+       * Type of the receive.
+       * CASHU_TOKEN - Receive cashu tokens to a Spark account.
+       */
+      type: 'CASHU_TOKEN';
+      /**
+       * URL of the source mint where the token proofs originate from.
+       */
+      sourceMintUrl: string;
+      /**
+       * The proofs from the source cashu token that will be melted.
+       */
+      tokenProofs: Proof[];
+      /**
+       * ID of the melt quote on the source mint.
+       */
+      meltQuoteId: string;
+    }
+);
 
 export class SparkReceiveQuoteService {
   constructor(private readonly repository: SparkReceiveQuoteRepository) {}
@@ -74,13 +95,12 @@ export class SparkReceiveQuoteService {
    * Creates a new Spark Lightning receive quote for the given amount.
    * This creates a lightning invoice via Spark and stores the quote in the database.
    */
-  async createReceiveQuote({
-    userId,
-    account,
-    lightningQuote,
-    type = 'LIGHTNING',
-  }: CreateQuoteParams): Promise<SparkReceiveQuote> {
-    return this.repository.create({
+  async createReceiveQuote(
+    params: CreateQuoteParams,
+  ): Promise<SparkReceiveQuote> {
+    const { userId, account, lightningQuote } = params;
+
+    const baseParams = {
       userId,
       accountId: account.id,
       amount: moneyFromSparkAmount(lightningQuote.invoice.amount),
@@ -89,7 +109,21 @@ export class SparkReceiveQuoteService {
       expiresAt: lightningQuote.invoice.expiresAt,
       sparkId: lightningQuote.id,
       receiverIdentityPubkey: lightningQuote.receiverIdentityPublicKey,
-      type,
+    };
+
+    if (params.type === 'CASHU_TOKEN') {
+      return this.repository.create({
+        ...baseParams,
+        type: 'CASHU_TOKEN',
+        sourceMintUrl: params.sourceMintUrl,
+        tokenProofs: params.tokenProofs,
+        meltQuoteId: params.meltQuoteId,
+      });
+    }
+
+    return this.repository.create({
+      ...baseParams,
+      type: 'LIGHTNING',
     });
   }
 
@@ -155,6 +189,36 @@ export class SparkReceiveQuoteService {
     }
 
     await this.repository.expire(quote.id);
+  }
+
+  /**
+   * Fails the spark receive quote by marking it as failed.
+   * It's a no-op if the quote is already failed.
+   * @param quote - The spark receive quote to fail.
+   * @param reason - The reason for the failure.
+   * @throws An error if the quote is not in UNPAID state.
+   */
+  async fail(quote: SparkReceiveQuote, reason: string): Promise<void> {
+    if (quote.state === 'FAILED') {
+      return;
+    }
+
+    if (quote.state !== 'UNPAID') {
+      throw new Error(
+        `Cannot fail quote that is not unpaid. State: ${quote.state}`,
+      );
+    }
+
+    await this.repository.fail({ id: quote.id, reason });
+  }
+
+  /**
+   * Marks the melt as initiated for a CASHU_TOKEN type spark receive quote.
+   * @param quoteId - The ID of the spark receive quote.
+   * @returns The updated quote.
+   */
+  async markMeltInitiated(quoteId: string): Promise<SparkReceiveQuote> {
+    return this.repository.markMeltInitiated(quoteId);
   }
 }
 
