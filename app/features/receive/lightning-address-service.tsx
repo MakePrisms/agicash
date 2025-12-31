@@ -309,7 +309,7 @@ export class LightningAddressService {
       });
 
       return {
-        pr: quote.paymentRequest,
+        pr: lightningQuote.invoice.encodedInvoice,
         verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
         routes: [],
       };
