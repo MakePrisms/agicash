@@ -1,10 +1,34 @@
+import type { Proof } from '@cashu/cashu-ts';
 import type { Money } from '~/lib/money';
+
+/**
+ * Data related to cross-account cashu token receives.
+ * Present only for CASHU_TOKEN type quotes.
+ */
+export type SparkReceiveQuoteTokenReceiveData = {
+  /**
+   * URL of the source mint where the token proofs originate from.
+   */
+  sourceMintUrl: string;
+  /**
+   * The proofs from the source cashu token that will be melted.
+   */
+  tokenProofs: Proof[];
+  /**
+   * ID of the melt quote on the source mint.
+   */
+  meltQuoteId: string;
+  /**
+   * Whether the melt has been initiated on the source mint.
+   */
+  meltInitiated: boolean;
+};
 
 /**
  * Represents a Spark Lightning receive quote.
  * This is created when a user requests to receive funds via Lightning through their Spark wallet.
  */
-export type SparkReceiveQuote = {
+type SparkReceiveQuoteBase = {
   /**
    * UUID of the quote.
    */
@@ -42,17 +66,6 @@ export type SparkReceiveQuote = {
    */
   transactionId: string;
   /**
-   * Type of the receive.
-   * LIGHTNING - The money is received via regular Lightning flow. User provides the lightning invoice to the payer who then pays the invoice.
-   * CASHU_TOKEN - The money is received as cashu token. User provides the cashu token and cashu proofs are then melted by the Agicash app and used to pay Spark lightning invoice.
-   *               Used for receiving cashu tokens to Spark accounts.
-   */
-  type: 'LIGHTNING' | 'CASHU_TOKEN';
-  /**
-   * State of the spark receive quote.
-   */
-  state: 'UNPAID' | 'EXPIRED' | 'PAID';
-  /**
    * ID of the user that the quote belongs to.
    */
   userId: string;
@@ -64,11 +77,40 @@ export type SparkReceiveQuote = {
    * Row version. Used for optimistic locking.
    */
   version: number;
-} & (
+};
+
+type SparkReceiveQuoteByType =
   | {
+      /**
+       * Type of the receive.
+       * LIGHTNING - The money is received via regular Lightning flow. User provides the lightning invoice to the payer who then pays the invoice.
+       */
+      type: 'LIGHTNING';
+    }
+  | {
+      /**
+       * Type of the receive.
+       * CASHU_TOKEN - The money is received as cashu token. User provides the cashu token and cashu proofs are then melted by the Agicash app and used to pay Spark lightning invoice.
+       *               Used for receiving cashu tokens to Spark accounts.
+       */
+      type: 'CASHU_TOKEN';
+      /**
+       * Data related to cross-account cashu token receives.
+       */
+      tokenReceiveData: SparkReceiveQuoteTokenReceiveData;
+    };
+
+type SparkReceiveQuoteByState =
+  | {
+      /**
+       * State of the spark receive quote.
+       */
       state: 'UNPAID' | 'EXPIRED';
     }
   | {
+      /**
+       * State of the spark receive quote.
+       */
       state: 'PAID';
       /**
        * Payment preimage.
@@ -79,4 +121,17 @@ export type SparkReceiveQuote = {
        */
       sparkTransferId: string;
     }
-);
+  | {
+      /**
+       * State of the spark receive quote.
+       */
+      state: 'FAILED';
+      /**
+       * Reason for the failure.
+       */
+      failureReason: string;
+    };
+
+export type SparkReceiveQuote = SparkReceiveQuoteBase &
+  SparkReceiveQuoteByType &
+  SparkReceiveQuoteByState;

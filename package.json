@@ -122,11 +122,13 @@
   "patchedDependencies": {
     "react-router@7.8.1": "patches/react-router@7.8.1.patch",
     "@sentry/core@10.14.0": "patches/@sentry%2Fcore@10.14.0.patch",
-    "@tanstack/query-core@5.90.7": "patches/@tanstack%2Fquery-core@5.90.7.patch"
+    "@tanstack/query-core@5.90.7": "patches/@tanstack%2Fquery-core@5.90.7.patch",
+    "@cashu/cashu-ts@2.6.0": "patches/@cashu%2Fcashu-ts@2.6.0.patch"
   },
   "patchedDependencies:comments": {
     "react-router@7.8.1": "This patch is needed to make @vercel/react-router work with react router middleware. See https://github.com/vercel/vercel/issues/13327 for more details. Remove the patch once that has been handled.",
     "@sentry/core@10.14.0": "This patch was added because we noticed that logs in Sentry dashboard started to show timstamps different than what our logs would record when the app would be in the background for a while and then brought back to the foreground. We suspected (not 100% sure but it seems like our patch has fixed it) that it is related to their logic which uses the Performance API to get the timestamp for greater precision (browser sometimes stops the performance api clock when the computer is asleep), so we opted out of that and are just using the Date API instead. Remove the patch once that has been solved.",
-    "@tanstack/query-core@5.90.7": "This patch is needed to add support for dynamic mutation scope. See https://github.com/TanStack/query/discussions/7126#discussioncomment-8815577 for more details. Remove the patch if tanstack query ever adds support for this natively."
+    "@tanstack/query-core@5.90.7": "This patch is needed to add support for dynamic mutation scope. See https://github.com/TanStack/query/discussions/7126#discussioncomment-8815577 for more details. Remove the patch if tanstack query ever adds support for this natively.",
+    "@cashu/cashu-ts@2.6.0": "This patch is needed to add support for the Prefer header with respond-async value for async melt responses. This won't be needed once we migrate to cashu-ts 3.x.x"
   }
 }

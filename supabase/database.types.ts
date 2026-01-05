@@ -182,6 +182,7 @@ export type Database = {
       cashu_receive_quotes: {
         Row: {
           account_id: string
+          cashu_token_melt_initiated: boolean | null
           created_at: string
           encrypted_data: string
           expires_at: string
@@ -200,6 +201,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          cashu_token_melt_initiated?: boolean | null
           created_at?: string
           encrypted_data: string
           expires_at: string
@@ -218,6 +220,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          cashu_token_melt_initiated?: boolean | null
           created_at?: string
           encrypted_data?: string
           expires_at?: string
@@ -510,9 +513,11 @@ export type Database = {
       spark_receive_quotes: {
         Row: {
           account_id: string
+          cashu_token_melt_initiated: boolean | null
           created_at: string
           encrypted_data: string
           expires_at: string
+          failure_reason: string | null
           id: string
           payment_hash: string
           receiver_identity_pubkey: string | null
@@ -526,9 +531,11 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          cashu_token_melt_initiated?: boolean | null
           created_at?: string
           encrypted_data: string
           expires_at: string
+          failure_reason?: string | null
           id?: string
           payment_hash: string
           receiver_identity_pubkey?: string | null
@@ -542,9 +549,11 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          cashu_token_melt_initiated?: boolean | null
           created_at?: string
           encrypted_data?: string
           expires_at?: string
+          failure_reason?: string | null
           id?: string
           payment_hash?: string
           receiver_identity_pubkey?: string | null
@@ -946,9 +955,11 @@ export type Database = {
         }
         Returns: {
           account_id: string
+          cashu_token_melt_initiated: boolean | null
           created_at: string
           encrypted_data: string
           expires_at: string
+          failure_reason: string | null
           id: string
           payment_hash: string
           receiver_identity_pubkey: string | null
@@ -1013,6 +1024,7 @@ export type Database = {
         }
         Returns: {
           account_id: string
+          cashu_token_melt_initiated: boolean | null
           created_at: string
           encrypted_data: string
           expires_at: string
@@ -1115,9 +1127,11 @@ export type Database = {
         }
         Returns: {
           account_id: string
+          cashu_token_melt_initiated: boolean | null
           created_at: string
           encrypted_data: string
           expires_at: string
+          failure_reason: string | null
           id: string
           payment_hash: string
           receiver_identity_pubkey: string | null
@@ -1175,6 +1189,7 @@ export type Database = {
         Args: { p_quote_id: string }
         Returns: {
           account_id: string
+          cashu_token_melt_initiated: boolean | null
           created_at: string
           encrypted_data: string
           expires_at: string
@@ -1212,9 +1227,11 @@ export type Database = {
         Args: { p_quote_id: string }
         Returns: {
           account_id: string
+          cashu_token_melt_initiated: boolean | null
           created_at: string
           encrypted_data: string
           expires_at: string
+          failure_reason: string | null
           id: string
           payment_hash: string
           receiver_identity_pubkey: string | null
@@ -1237,6 +1254,7 @@ export type Database = {
         Args: { p_failure_reason: string; p_quote_id: string }
         Returns: {
           account_id: string
+          cashu_token_melt_initiated: boolean | null
           created_at: string
           encrypted_data: string
           expires_at: string
@@ -1302,6 +1320,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "cashu_token_swaps"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fail_spark_receive_quote: {
+        Args: { p_failure_reason: string; p_quote_id: string }
+        Returns: {
+          account_id: string
+          cashu_token_melt_initiated: boolean | null
+          created_at: string
+          encrypted_data: string
+          expires_at: string
+          failure_reason: string | null
+          id: string
+          payment_hash: string
+          receiver_identity_pubkey: string | null
+          spark_id: string
+          spark_transfer_id: string | null
+          state: string
+          transaction_id: string
+          type: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "spark_receive_quotes"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1378,12 +1423,67 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      mark_cashu_receive_quote_cashu_token_melt_initiated: {
+        Args: { p_quote_id: string }
+        Returns: {
+          account_id: string
+          cashu_token_melt_initiated: boolean | null
+          created_at: string
+          encrypted_data: string
+          expires_at: string
+          failure_reason: string | null
+          id: string
+          keyset_counter: number | null
+          keyset_id: string | null
+          locking_derivation_path: string
+          payment_hash: string
+          quote_id_hash: string
+          state: string
+          transaction_id: string
+          type: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cashu_receive_quotes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       mark_cashu_send_quote_as_pending: {
         Args: { p_quote_id: string }
         Returns: Database["wallet"]["CompositeTypes"]["mark_cashu_send_quote_as_pending_result"]
         SetofOptions: {
           from: "*"
           to: "mark_cashu_send_quote_as_pending_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      mark_spark_receive_quote_cashu_token_melt_initiated: {
+        Args: { p_quote_id: string }
+        Returns: {
+          account_id: string
+          cashu_token_melt_initiated: boolean | null
+          created_at: string
+          encrypted_data: string
+          expires_at: string
+          failure_reason: string | null
+          id: string
+          payment_hash: string
+          receiver_identity_pubkey: string | null
+          spark_id: string
+          spark_transfer_id: string | null
+          state: string
+          transaction_id: string
+          type: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "spark_receive_quotes"
           isOneToOne: true
           isSetofReturn: false
         }
