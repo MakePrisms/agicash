@@ -20,6 +20,7 @@ type EncryptedData = {
   estimatedFee: Money;
   paymentRequest: string;
   fee?: Money;
+  paymentPreimage?: string;
 };
 
 type CreateQuoteParams = {
@@ -229,6 +230,7 @@ export class SparkSendQuoteRepository {
       estimatedFee: quote.estimatedFee,
       paymentRequest: quote.paymentRequest,
       fee: quote.fee,
+      paymentPreimage,
     };
 
     const [encryptedTransactionDetails, encryptedData] =
@@ -236,7 +238,6 @@ export class SparkSendQuoteRepository {
 
     const query = this.db.rpc('complete_spark_send_quote', {
       p_quote_id: quote.id,
-      p_payment_preimage: paymentPreimage,
       p_encrypted_transaction_details: encryptedTransactionDetails,
       p_encrypted_data: encryptedData,
     });
@@ -368,7 +369,7 @@ export class SparkSendQuoteRepository {
           'Invalid spark send quote data. Fee is required for completed state.',
         );
       }
-      if (!data.payment_preimage) {
+      if (!decryptedData.paymentPreimage) {
         throw new Error(
           'Invalid spark send quote data. Payment preimage is required for completed state.',
         );
@@ -380,7 +381,7 @@ export class SparkSendQuoteRepository {
         sparkId: data.spark_id,
         sparkTransferId: data.spark_transfer_id,
         fee: decryptedData.fee,
-        paymentPreimage: data.payment_preimage,
+        paymentPreimage: decryptedData.paymentPreimage,
       };
     }
 
