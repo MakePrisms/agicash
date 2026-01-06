@@ -260,7 +260,7 @@ export class LightningAddressService {
           },
         );
 
-        const quote = await cashuReceiveQuoteService.createReceiveQuote({
+        await cashuReceiveQuoteService.createReceiveQuote({
           userId,
           account,
           receiveType: 'LIGHTNING',
@@ -269,12 +269,12 @@ export class LightningAddressService {
 
         const encryptedQuoteData = this.encryptLnurlVerifyQuoteData({
           type: 'cashu',
-          quoteId: quote.quoteId,
+          quoteId: lightningQuote.mintQuote.quote,
           mintUrl: account.mintUrl,
         });
 
         return {
-          pr: quote.paymentRequest,
+          pr: lightningQuote.mintQuote.request,
           verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
           routes: [],
         };
@@ -297,7 +297,7 @@ export class LightningAddressService {
         receiverIdentityPubkey: user.sparkIdentityPublicKey,
       });
 
-      const quote = await sparkReceiveQuoteService.createReceiveQuote({
+      await sparkReceiveQuoteService.createReceiveQuote({
         userId,
         account,
         lightningQuote,
@@ -305,7 +305,7 @@ export class LightningAddressService {
 
       const encryptedQuoteData = this.encryptLnurlVerifyQuoteData({
         type: 'spark',
-        quoteId: quote.sparkId,
+        quoteId: lightningQuote.id,
       });
 
       return {
