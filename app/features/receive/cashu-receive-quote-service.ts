@@ -148,16 +148,16 @@ export class CashuReceiveQuoteService {
       /**
        * Type of the receive.
        * - LIGHTNING - The money is received via a regular lightning payment.
-       * - TOKEN - The money is received as a cashu token. The proofs will be melted
-       *  from the account they originated from to pay the request for this receive quote.
+       * - CASHU_TOKEN - The money is received as a cashu token. The proofs will be melted
+       *   from the account they originated from to pay the request for this receive quote.
        */
-      receiveType: 'LIGHTNING' | 'TOKEN';
+      receiveType: 'LIGHTNING' | 'CASHU_TOKEN';
     } & (
       | {
           receiveType: 'LIGHTNING';
         }
       | {
-          receiveType: 'TOKEN';
+          receiveType: 'CASHU_TOKEN';
           /**
            * The amount of the token to receive.
            */
@@ -170,6 +170,22 @@ export class CashuReceiveQuoteService {
            * The fee reserved for the lightning payment to melt the proofs to the account.
            */
           lightningFeeReserve: Money;
+          /**
+           * URL of the source mint where the token proofs originate from.
+           */
+          sourceMintUrl: string;
+          /**
+           * The proofs from the source cashu token that will be melted.
+           */
+          tokenProofs: Proof[];
+          /**
+           * ID of the melt quote on the source mint.
+           */
+          meltQuoteId: string;
+          /**
+           * The expiry of the melt quote in ISO 8601 format.
+           */
+          meltQuoteExpiresAt: string;
         }
     ),
   ): Promise<CashuReceiveQuote> {
@@ -184,20 +200,37 @@ export class CashuReceiveQuoteService {
       throw new Error('Mint quote must be unpaid');
     }
 
+    const expiresAt =
+      receiveType === 'CASHU_TOKEN'
+        ? new Date(
+            Math.min(
+              new Date(receiveQuote.expiresAt).getTime(),
+              new Date(params.meltQuoteExpiresAt).getTime(),
+            ),
+          ).toISOString()
+        : receiveQuote.expiresAt;
+
     const baseReceiveQuote = {
       accountId: account.id,
       userId,
       amount: receiveQuote.amount,
       description: receiveQuote.description,
       quoteId: receiveQuote.mintQuote.quote,
-      expiresAt: receiveQuote.expiresAt,
+      expiresAt,
       paymentRequest: receiveQuote.mintQuote.request,
       lockingDerivationPath: receiveQuote.fullLockingDerivationPath,
       mintingFee: receiveQuote.mintingFee,
     };
 
-    if (receiveType === 'TOKEN') {
-      const { tokenAmount, cashuReceiveFee, lightningFeeReserve } = params;
+    if (receiveType === 'CASHU_TOKEN') {
+      const {
+        tokenAmount,
+        cashuReceiveFee,
+        lightningFeeReserve,
+        sourceMintUrl,
+        tokenProofs,
+        meltQuoteId,
+      } = params;
 
       return this.cashuReceiveQuoteRepository.create({
         ...baseReceiveQuote,
@@ -206,6 +239,9 @@ export class CashuReceiveQuoteService {
         cashuReceiveFee,
         lightningFeeReserve,
         paymentHash: receiveQuote.paymentHash,
+        sourceMintUrl,
+        tokenProofs,
+        meltQuoteId,
       });
     }
 
@@ -214,6 +250,33 @@ export class CashuReceiveQuoteService {
       receiveType,
       paymentHash: receiveQuote.paymentHash,
     });
+  }
+
+  /**
+   * Marks the melt as initiated for a CASHU_TOKEN type cashu receive quote.
+   * It's a no-op if the melt was already marked as initiated.
+   * @param quote - The cashu receive quote of type CASHU_TOKEN.
+   * @returns The updated quote.
+   * @throws An error if the quote is not of type CASHU_TOKEN or is not in UNPAID state.
+   */
+  async markMeltInitiated(
+    quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' },
+  ): Promise<CashuReceiveQuote & { type: 'CASHU_TOKEN' }> {
+    if (quote.type !== 'CASHU_TOKEN') {
+      throw new Error('Invalid quote type. Quote must be of type CASHU_TOKEN.');
+    }
+
+    if (quote.tokenReceiveData.meltInitiated) {
+      return quote;
+    }
+
+    if (quote.state !== 'UNPAID') {
+      throw new Error(
+        `Invalid quote state. Quote must be in UNPAID state. State: ${quote.state}`,
+      );
+    }
+
+    return this.cashuReceiveQuoteRepository.markMeltInitiated(quote);
   }
 
   /**
@@ -236,6 +299,25 @@ export class CashuReceiveQuoteService {
     }
 
     await this.cashuReceiveQuoteRepository.expire(quote.id);
+  }
+
+  /**
+   * Fail the cashu receive quote by setting the state to FAILED.
+   * It's a no-op if the receive quote is already failed.
+   * @param quote - The cashu receive quote to fail.
+   * @param reason - The reason for the failure.
+   * @throws An error if the receive quote is not unpaid.
+   */
+  async fail(quote: CashuReceiveQuote, reason: string): Promise<void> {
+    if (quote.state === 'FAILED') {
+      return;
+    }
+
+    if (quote.state !== 'UNPAID') {
+      throw new Error('Cannot fail quote that is not unpaid');
+    }
+
+    await this.cashuReceiveQuoteRepository.fail({ id: quote.id, reason });
   }
 
   /**

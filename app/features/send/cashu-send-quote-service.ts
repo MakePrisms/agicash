@@ -2,6 +2,7 @@ import {
   type MeltQuoteResponse,
   MeltQuoteState,
   OutputData,
+  type PartialMeltQuoteResponse,
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
 import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
@@ -318,7 +319,7 @@ export class CashuSendQuoteService {
   async initiateSend(
     account: CashuAccount,
     sendQuote: CashuSendQuote,
-    meltQuote: MeltQuoteResponse,
+    meltQuote: Pick<MeltQuoteResponse, 'quote' | 'amount'>,
   ) {
     if (account.id !== sendQuote.accountId) {
       throw new Error('Account does not match');
@@ -373,7 +374,7 @@ export class CashuSendQuoteService {
   async completeSendQuote(
     account: CashuAccount,
     sendQuote: CashuSendQuote,
-    meltQuote: MeltQuoteResponse,
+    meltQuote: PartialMeltQuoteResponse,
   ) {
     if (sendQuote.state === 'PAID') {
       return sendQuote;

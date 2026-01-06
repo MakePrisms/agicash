@@ -1,6 +1,30 @@
+import type { Proof } from '@cashu/cashu-ts';
 import type { Money } from '~/lib/money';
 
-export type CashuReceiveQuote = {
+/**
+ * Data related to cross-account cashu token receives.
+ * Present only for TOKEN type quotes.
+ */
+export type CashuReceiveQuoteTokenReceiveData = {
+  /**
+   * URL of the source mint where the token proofs originate from.
+   */
+  sourceMintUrl: string;
+  /**
+   * The proofs from the source cashu token that will be melted.
+   */
+  tokenProofs: Proof[];
+  /**
+   * ID of the melt quote on the source mint.
+   */
+  meltQuoteId: string;
+  /**
+   * Whether the melt has been initiated on the source mint.
+   */
+  meltInitiated: boolean;
+};
+
+type CashuReceiveQuoteBase = {
   id: string;
   /**
    * ID of the user that the quote belongs to.
@@ -32,17 +56,6 @@ export type CashuReceiveQuote = {
    */
   expiresAt: string;
   /**
-   * Type of the receive.
-   * LIGHTNING - The money is received via Lightning.
-   * TOKEN - The money is received as cashu token. Those proofs are then used to mint tokens for the receiver's account via Lightning.
-   *         Used for cross-account cashu token receives where the receiver chooses to claim a token to an account different from the mint/unit the token originated from, thus requiring a lightning payment.
-   */
-  type: 'LIGHTNING' | 'TOKEN';
-  /**
-   * State of the cashu receive quote.
-   */
-  state: 'UNPAID' | 'EXPIRED' | 'PAID' | 'COMPLETED' | 'FAILED';
-  /**
    * Payment request for the quote.
    */
   paymentRequest: string;
@@ -70,11 +83,40 @@ export type CashuReceiveQuote = {
    * Optional fee that the mint charges to mint ecash. This amount is added to the payment request amount.
    */
   mintingFee?: Money;
-} & (
+};
+
+type CashuReceiveQuoteByType =
   | {
+      /**
+       * Type of the receive.
+       * LIGHTNING - The money is received via Lightning.
+       */
+      type: 'LIGHTNING';
+    }
+  | {
+      /**
+       * Type of the receive.
+       * CASHU_TOKEN - The money is received as cashu token. Those proofs are then used to mint tokens for the receiver's account via Lightning.
+       *               Used for cross-account cashu token receives where the receiver chooses to claim a token to an account different from the mint/unit the token originated from, thus requiring a lightning payment.
+       */
+      type: 'CASHU_TOKEN';
+      /**
+       * Data related to cross-account cashu token receives.
+       */
+      tokenReceiveData: CashuReceiveQuoteTokenReceiveData;
+    };
+
+type CashuReceiveQuoteByState =
+  | {
+      /**
+       * State of the cashu receive quote.
+       */
       state: 'UNPAID' | 'EXPIRED';
     }
   | {
+      /**
+       * State of the cashu receive quote.
+       */
       state: 'PAID' | 'COMPLETED';
       /**
        * ID of the keyset used to create the blinded messages.
@@ -90,10 +132,16 @@ export type CashuReceiveQuote = {
       outputAmounts: number[];
     }
   | {
+      /**
+       * State of the cashu receive quote.
+       */
       state: 'FAILED';
       /**
        * Reason this quote was failed.
        */
       failureReason: string;
-    }
-);
+    };
+
+export type CashuReceiveQuote = CashuReceiveQuoteBase &
+  CashuReceiveQuoteByType &
+  CashuReceiveQuoteByState;

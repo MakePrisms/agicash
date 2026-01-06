@@ -126,6 +126,10 @@ export class ReceiveCashuTokenQuoteService {
       exchangeRate,
     });
 
+    const meltQuoteExpiresAt = new Date(
+      quotes.meltQuote.expiry * 1000,
+    ).toISOString();
+
     const lightningFeeReserve = new Money({
       amount: quotes.meltQuote.fee_reserve,
       currency: tokenAmount.currency,
@@ -137,11 +141,15 @@ export class ReceiveCashuTokenQuoteService {
         await this.cashuReceiveQuoteService.createReceiveQuote({
           userId,
           account: destinationAccount,
-          receiveType: 'TOKEN',
+          receiveType: 'CASHU_TOKEN',
           lightningQuote: quotes.lightningQuote as CashuReceiveLightningQuote,
           cashuReceiveFee,
           tokenAmount,
           lightningFeeReserve,
+          sourceMintUrl: sourceAccount.mintUrl,
+          tokenProofs: token.proofs,
+          meltQuoteId: quotes.meltQuote.quote,
+          meltQuoteExpiresAt,
         });
 
       return {
@@ -165,6 +173,10 @@ export class ReceiveCashuTokenQuoteService {
         account: destinationAccount,
         type: 'CASHU_TOKEN',
         lightningQuote: quotes.lightningQuote as SparkReceiveLightningQuote,
+        sourceMintUrl: sourceAccount.mintUrl,
+        tokenProofs: token.proofs,
+        meltQuoteId: quotes.meltQuote.quote,
+        meltQuoteExpiresAt,
       });
 
     return {

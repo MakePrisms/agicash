@@ -31,6 +31,15 @@ type EncryptedData = {
   description?: string;
   mintingFee?: Money;
   outputAmounts?: number[];
+  /**
+   * Data related to cross-account cashu token receives.
+   * Present only for CASHU_TOKEN type quotes.
+   */
+  tokenReceiveData?: {
+    sourceMintUrl: string;
+    tokenProofs: Proof[];
+    meltQuoteId: string;
+  };
 };
 
 type CreateQuote = {
@@ -73,8 +82,8 @@ type CreateQuote = {
   /**
    * Type of the receive.
    * - LIGHTNING - The money is received via Lightning.
-   * - TOKEN - The money is received as a cashu token. The proofs will be melted
-   *  from the account they originated from to pay the request for this receive quote.
+   * - CASHU_TOKEN - The money is received as a cashu token. The proofs will be melted
+   *   from the account they originated from to pay the request for this receive quote.
    */
   receiveType: CashuReceiveQuote['type'];
   /**
@@ -86,7 +95,7 @@ type CreateQuote = {
       receiveType: 'LIGHTNING';
     }
   | {
-      receiveType: 'TOKEN';
+      receiveType: 'CASHU_TOKEN';
       /**
        * The amount of the token to receive.
        */
@@ -99,6 +108,18 @@ type CreateQuote = {
        * The fee reserved for the lightning payment to melt the token proofs to this account.
        */
       lightningFeeReserve: Money;
+      /**
+       * URL of the source mint where the token proofs originate from.
+       */
+      sourceMintUrl: string;
+      /**
+       * The proofs from the source cashu token that will be melted.
+       */
+      tokenProofs: Proof[];
+      /**
+       * ID of the melt quote on the source mint.
+       */
+      meltQuoteId: string;
     }
 );
 
@@ -135,7 +156,7 @@ export class CashuReceiveQuoteRepository {
       | CashuLightningReceiveTransactionDetails
       | CashuTokenReceiveTransactionDetails;
 
-    if (receiveType === 'TOKEN') {
+    if (receiveType === 'CASHU_TOKEN') {
       const { cashuReceiveFee, tokenAmount, lightningFeeReserve } = params;
 
       const totalFees = mintingFee
@@ -166,6 +187,14 @@ export class CashuReceiveQuoteRepository {
       description,
       mintingFee,
     };
+
+    if (receiveType === 'CASHU_TOKEN') {
+      dataToEncrypt.tokenReceiveData = {
+        sourceMintUrl: params.sourceMintUrl,
+        tokenProofs: params.tokenProofs,
+        meltQuoteId: params.meltQuoteId,
+      };
+    }
 
     const [[encryptedTransactionDetails, encryptedData], quoteIdHash] =
       await Promise.all([
@@ -258,6 +287,40 @@ export class CashuReceiveQuoteRepository {
   }
 
   /**
+   * Marks the melt as initiated for a CASHU_TOKEN type cashu receive quote.
+   * This sets the cashu_token_melt_initiated column to true.
+   */
+  async markMeltInitiated(
+    quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' },
+    options?: Options,
+  ): Promise<CashuReceiveQuote & { type: 'CASHU_TOKEN' }> {
+    const query = this.db.rpc(
+      'mark_cashu_receive_quote_cashu_token_melt_initiated',
+      {
+        p_quote_id: quote.id,
+      },
+    );
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error('Failed to mark melt initiated for cashu receive quote', {
+        cause: error,
+      });
+    }
+
+    const updatedQuote = await this.toQuote(data);
+
+    return updatedQuote as CashuReceiveQuote & {
+      type: 'CASHU_TOKEN';
+    };
+  }
+
+  /**
    * Processes the payment of the cashu receive quote.
    * Marks the quote as paid and updates the related data. It also updates the account counter for the keyset.
    * @returns The updated quote and account.
@@ -301,6 +364,14 @@ export class CashuReceiveQuoteRepository {
       mintingFee: quote.mintingFee,
       outputAmounts,
     };
+
+    if (quote.type === 'CASHU_TOKEN') {
+      dataToEncrypt.tokenReceiveData = {
+        sourceMintUrl: quote.tokenReceiveData.sourceMintUrl,
+        tokenProofs: quote.tokenReceiveData.tokenProofs,
+        meltQuoteId: quote.tokenReceiveData.meltQuoteId,
+      };
+    }
 
     const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
@@ -489,7 +560,7 @@ export class CashuReceiveQuoteRepository {
       [data.encrypted_data],
     );
 
-    const commonData = {
+    const baseData = {
       id: data.id,
       userId: data.user_id,
       accountId: data.account_id,
@@ -503,13 +574,41 @@ export class CashuReceiveQuoteRepository {
       version: data.version,
       lockingDerivationPath: data.locking_derivation_path,
       transactionId: data.transaction_id,
-      type: data.type as CashuReceiveQuote['type'],
       mintingFee: decryptedData.mintingFee,
     };
 
+    if (data.type === 'CASHU_TOKEN' && !decryptedData.tokenReceiveData) {
+      throw new Error(
+        'Invalid cashu receive quote data. Token receive data is required for CASHU_TOKEN type quotes.',
+      );
+    }
+
+    if (
+      data.type === 'CASHU_TOKEN' &&
+      data.cashu_token_melt_initiated == null
+    ) {
+      throw new Error(
+        'Invalid cashu receive quote data. cashu_token_melt_initiated cannot be null for CASHU_TOKEN type quotes.',
+      );
+    }
+
+    const typeData =
+      data.type === 'CASHU_TOKEN' && decryptedData.tokenReceiveData
+        ? ({
+            type: 'CASHU_TOKEN',
+            tokenReceiveData: {
+              sourceMintUrl: decryptedData.tokenReceiveData.sourceMintUrl,
+              tokenProofs: decryptedData.tokenReceiveData.tokenProofs,
+              meltQuoteId: decryptedData.tokenReceiveData.meltQuoteId,
+              meltInitiated: data.cashu_token_melt_initiated ?? false,
+            },
+          } as const)
+        : ({ type: 'LIGHTNING' } as const);
+
     if (data.state === 'PAID' || data.state === 'COMPLETED') {
       return {
-        ...commonData,
+        ...baseData,
+        ...typeData,
         state: data.state,
         keysetId: data.keyset_id ?? '',
         keysetCounter: data.keyset_counter ?? 0,
@@ -519,14 +618,16 @@ export class CashuReceiveQuoteRepository {
 
     if (data.state === 'UNPAID' || data.state === 'EXPIRED') {
       return {
-        ...commonData,
+        ...baseData,
+        ...typeData,
         state: data.state,
       };
     }
 
     if (data.state === 'FAILED') {
       return {
-        ...commonData,
+        ...baseData,
+        ...typeData,
         state: data.state,
         failureReason: data.failure_reason ?? '',
       };

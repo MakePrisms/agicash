@@ -1,35 +1,34 @@
-import type { MintQuoteResponse } from '@cashu/cashu-ts';
+import type { MeltQuoteResponse } from '@cashu/cashu-ts';
 import { getCashuWallet } from '~/lib/cashu';
 import { isSubset } from '~/lib/utils';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
 
 type SubscriptionData = {
   ids: Set<string>;
   subscriptionPromise: Promise<() => void>;
-  onUpdate: (mintQuoteResponse: MintQuoteResponse) => void;
+  onUpdate: (meltQuoteResponse: MeltQuoteResponse) => void;
 };
 
-export class MintQuoteSubscriptionManager {
+export class MeltQuoteSubscriptionManager {
   private subscriptions: Map<string, SubscriptionData> = new Map();
 
   /**
-   * Subscribes to mint quote updates for the given mint URL and quotes.
+   * Subscribes to melt quote updates for the given mint URL and quotes.
    * @param mintUrl - The mint URL to subscribe to.
-   * @param quotes - The quotes to subscribe to.
-   * @param onUpdate - The callback to call when a mint quote update is received.
+   * @param quoteIds - The quote IDs to subscribe to.
+   * @param onUpdate - The callback to call when a melt quote update is received.
    * @returns A function to unsubscribe from the subscription.
    * @throws An error if the subscription fails.
    */
   async subscribe({
     mintUrl,
-    quotes,
+    quoteIds,
     onUpdate,
   }: {
     mintUrl: string;
-    quotes: CashuReceiveQuote[];
-    onUpdate: (mintQuoteResponse: MintQuoteResponse) => void;
+    quoteIds: string[];
+    onUpdate: (meltQuoteResponse: MeltQuoteResponse) => void;
   }): Promise<() => void> {
-    const ids = new Set(quotes.map((x) => x.quoteId));
+    const ids = new Set(quoteIds);
     const mintSubscription = this.subscriptions.get(mintUrl);
 
     if (mintSubscription) {
@@ -41,9 +40,9 @@ export class MintQuoteSubscriptionManager {
           onUpdate,
         });
         console.debug(
-          'Mint quote updates subscription already exists for mint. Updated callback.',
+          'Melt quote updates subscription already exists for mint. Updated callback.',
           mintUrl,
-          quotes,
+          quoteIds,
         );
         return () => {
           unsubscribe();
@@ -51,30 +50,30 @@ export class MintQuoteSubscriptionManager {
         };
       }
 
-      console.debug('Unsubscribing from mint quote updates for mint', mintUrl);
+      console.debug('Unsubscribing from melt quote updates for mint', mintUrl);
       unsubscribe();
     }
 
     const wallet = getCashuWallet(mintUrl);
 
     console.debug(
-      'Subscribing to mint quote updates for mint',
+      'Subscribing to melt quote updates for mint',
       mintUrl,
-      quotes,
+      quoteIds,
     );
 
-    const subscriptionCallback = (mintQuote: MintQuoteResponse) => {
+    const subscriptionCallback = (meltQuote: MeltQuoteResponse) => {
       const currentSubscription = this.subscriptions.get(mintUrl);
       if (currentSubscription) {
-        currentSubscription.onUpdate(mintQuote);
+        currentSubscription.onUpdate(meltQuote);
       }
     };
 
-    const subscriptionPromise = wallet.onMintQuoteUpdates(
+    const subscriptionPromise = wallet.onMeltQuoteUpdates(
       Array.from(ids),
       subscriptionCallback,
       (error) =>
-        console.error('Mint quote updates socket error', {
+        console.error('Melt quote updates socket error', {
           cause: error,
         }),
     );
@@ -101,5 +100,32 @@ export class MintQuoteSubscriptionManager {
       this.subscriptions.delete(mintUrl);
       throw error;
     }
+  }
+
+  /**
+   * Removes a quote from the subscription data.
+   * Note that this doesn't unsubscribe from the mint quote updates.
+   * Noop if the manager is not subscribed for the provided mint URL or the quote.
+   * @param mintUrl - The mint URL to remove the quote from.
+   * @param quoteId - The quote ID to remove.
+   */
+  removeQuoteFromSubscription({
+    mintUrl,
+    quoteId,
+  }: {
+    mintUrl: string;
+    quoteId: string;
+  }) {
+    const mintSubscription = this.subscriptions.get(mintUrl);
+    if (!mintSubscription || !mintSubscription.ids.has(quoteId)) {
+      return;
+    }
+
+    const ids = new Set(mintSubscription.ids);
+    ids.delete(quoteId);
+    this.subscriptions.set(mintUrl, {
+      ...mintSubscription,
+      ids,
+    });
   }
 }

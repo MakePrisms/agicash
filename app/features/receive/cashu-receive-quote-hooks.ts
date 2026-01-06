@@ -1,5 +1,6 @@
 import {
   HttpResponseError,
+  MintOperationError,
   type MintQuoteResponse,
   type WebSocketSupport,
 } from '@cashu/cashu-ts';
@@ -12,7 +13,13 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getCashuUnit } from '~/lib/cashu';
+import {
+  MintQuoteSubscriptionManager,
+  getCashuUnit,
+  getCashuWallet,
+  sumProofs,
+  useOnMeltQuoteStateChange,
+} from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import {
   type LongTimeout,
@@ -30,7 +37,6 @@ import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { useCashuReceiveQuoteService } from './cashu-receive-quote-service';
-import { MintQuoteSubscriptionManager } from './mint-quote-subscription-manager';
 
 type CreateProps = {
   account: CashuAccount;
@@ -111,6 +117,19 @@ export class PendingCashuReceiveQuotesCache {
     return quotes?.find((q) => q.quoteId === mintQuoteId);
   }
 
+  getByMeltQuoteId(
+    meltQuoteId: string,
+  ): (CashuReceiveQuote & { type: 'CASHU_TOKEN' }) | undefined {
+    const quotes = this.queryClient.getQueryData<CashuReceiveQuote[]>([
+      PendingCashuReceiveQuotesCache.Key,
+    ]);
+    return quotes?.find(
+      (q): q is CashuReceiveQuote & { type: 'CASHU_TOKEN' } =>
+        q.type === 'CASHU_TOKEN' &&
+        q.tokenReceiveData.meltQuoteId === meltQuoteId,
+    );
+  }
+
   invalidate() {
     return this.queryClient.invalidateQueries({
       queryKey: [PendingCashuReceiveQuotesCache.Key],
@@ -153,15 +172,6 @@ export function useCreateCashuReceiveQuote() {
       cashuReceiveQuoteCache.add(data);
     },
     retry: 1,
-  });
-}
-
-export function useFailCashuReceiveQuote() {
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
-  return useMutation({
-    mutationFn: ({ quoteId, reason }: { quoteId: string; reason: string }) =>
-      cashuReceiveQuoteRepository.fail({ id: quoteId, reason }),
-    retry: 3,
   });
 }
 
@@ -276,6 +286,26 @@ const usePendingCashuReceiveQuotes = () => {
   });
 
   return data ?? [];
+};
+
+const usePendingMeltQuotes = (
+  pendingCashuReceiveQuotes: CashuReceiveQuote[],
+) => {
+  return useMemo(
+    () =>
+      pendingCashuReceiveQuotes
+        .filter(
+          (q): q is CashuReceiveQuote & { type: 'CASHU_TOKEN' } =>
+            q.type === 'CASHU_TOKEN',
+        )
+        .map((q) => ({
+          id: q.tokenReceiveData.meltQuoteId,
+          mintUrl: q.tokenReceiveData.sourceMintUrl,
+          expiryInMs: new Date(q.expiresAt).getTime(),
+          inputAmount: sumProofs(q.tokenReceiveData.tokenProofs),
+        })),
+    [pendingCashuReceiveQuotes],
+  );
 };
 
 const checkIfMintSupportsWebSocketsForMintQuotes = (
@@ -396,7 +426,7 @@ const useTrackMintQuotesWithWebSocket = ({
 
   useEffect(() => {
     Object.entries(quotesByMint).map(([mintUrl, quotes]) =>
-      subscribe({ mintUrl, quotes, onUpdate }),
+      subscribe({ mintUrl, quoteIds: quotes.map((q) => q.quoteId), onUpdate }),
     );
   }, [subscribe, quotesByMint, onUpdate]);
 
@@ -547,13 +577,13 @@ const useOnMintQuoteStateChange = ({
 
 export function useProcessCashuReceiveQuoteTasks() {
   const cashuReceiveQuoteService = useCashuReceiveQuoteService();
-  const pendingQuotes = usePendingCashuReceiveQuotes();
+  const pendingCashuReceiveQuotes = usePendingCashuReceiveQuotes();
+  const pendingMeltQuotes = usePendingMeltQuotes(pendingCashuReceiveQuotes);
   const getCashuAccount = useGetCashuAccount();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
 
   const { mutate: completeReceiveQuote } = useMutation({
     mutationFn: async (quoteId: string) => {
-      console.log('executing mutationFn for completeReceiveQuote', { quoteId });
       const quote = pendingQuotesCache.get(quoteId);
       if (!quote) {
         // This can happen when the quote was updated in the meantime so it's not pending anymore.
@@ -570,7 +600,7 @@ export function useProcessCashuReceiveQuoteTasks() {
       }
     },
     onError: (error, quoteId) => {
-      console.error('Complete receive quote error', {
+      console.error('Complete cashu receive quote error', {
         cause: error,
         receiveQuoteId: quoteId,
       });
@@ -589,7 +619,102 @@ export function useProcessCashuReceiveQuoteTasks() {
     retry: 3,
     throwOnError: true,
     onError: (error, quoteId) => {
-      console.error('Expire receive quote error', {
+      console.error('Expire cashu receive quote error', {
+        cause: error,
+        receiveQuoteId: quoteId,
+      });
+    },
+  });
+
+  const { mutate: failReceiveQuote } = useMutation({
+    mutationFn: async ({
+      quoteId,
+      reason,
+    }: { quoteId: string; reason: string }) => {
+      const quote = pendingQuotesCache.get(quoteId);
+      if (!quote) {
+        // This can happen when the quote was updated in the meantime so it's not pending anymore.
+        return;
+      }
+      await cashuReceiveQuoteService.fail(quote, reason);
+    },
+    retry: 3,
+    throwOnError: true,
+    onError: (error, { quoteId }) => {
+      console.error('Fail cashu receive quote error', {
+        cause: error,
+        receiveQuoteId: quoteId,
+      });
+    },
+  });
+
+  const { mutate: initiateMelt } = useMutation({
+    mutationFn: async (quoteId: string) => {
+      const quote = pendingQuotesCache.get(quoteId);
+      if (quote?.type !== 'CASHU_TOKEN') {
+        // Quote not defined can happen when the quote was updated in the meantime so it's not pending anymore.
+        // Quote type not CASHU_TOKEN should never happen.
+        return;
+      }
+
+      const cashuUnit = getCashuUnit(quote.amount.currency);
+      const sourceWallet = getCashuWallet(
+        quote.tokenReceiveData.sourceMintUrl,
+        {
+          unit: cashuUnit,
+        },
+      );
+
+      await sourceWallet.meltProofsIdempotent(
+        {
+          quote: quote.tokenReceiveData.meltQuoteId,
+          amount: quote.amount.toNumber(cashuUnit),
+        },
+        quote.tokenReceiveData.tokenProofs,
+      );
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof MintOperationError) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    onError: (error, quoteId) => {
+      if (error instanceof MintOperationError) {
+        console.warn('Failed to initiate melt.', {
+          cause: error,
+          receiveQuoteId: quoteId,
+        });
+        failReceiveQuote(
+          {
+            quoteId,
+            reason: error.message,
+          },
+          { scope: { id: `cashu-receive-quote-${quoteId}` } },
+        );
+      } else {
+        console.error('Initiate melt error', {
+          cause: error,
+          receiveQuoteId: quoteId,
+        });
+      }
+    },
+  });
+
+  const { mutate: markMeltInitiated } = useMutation({
+    mutationFn: async (quoteId: string) => {
+      const quote = pendingQuotesCache.get(quoteId);
+      if (quote?.type !== 'CASHU_TOKEN') {
+        // Quote not defined can happen when the quote was updated in the meantime so it's not pending anymore.
+        // Quote type not CASHU_TOKEN should never happen.
+        return;
+      }
+
+      await cashuReceiveQuoteService.markMeltInitiated(quote);
+    },
+    retry: 3,
+    onError: (error, quoteId) => {
+      console.error('Mark melt initiated error', {
         cause: error,
         receiveQuoteId: quoteId,
       });
@@ -597,10 +722,10 @@ export function useProcessCashuReceiveQuoteTasks() {
   });
 
   useOnMintQuoteStateChange({
-    quotes: pendingQuotes,
+    quotes: pendingCashuReceiveQuotes,
     onPaid: (quoteId) => {
       completeReceiveQuote(quoteId, {
-        scope: { id: `receive-quote-${quoteId}` },
+        scope: { id: `cashu-receive-quote-${quoteId}` },
       });
     },
     onIssued: (quoteId) => {
@@ -609,12 +734,54 @@ export function useProcessCashuReceiveQuoteTasks() {
       // executed). When that happpens, next time when the app is opened, the mint quote will have state ISSUED so this callback will be called and
       // we need to call completeReceiveQuote again to finish the process.
       completeReceiveQuote(quoteId, {
-        scope: { id: `receive-quote-${quoteId}` },
+        scope: { id: `cashu-receive-quote-${quoteId}` },
       });
     },
     onExpired: (quoteId) => {
       expireReceiveQuote(quoteId, {
-        scope: { id: `receive-quote-${quoteId}` },
+        scope: { id: `cashu-receive-quote-${quoteId}` },
+      });
+    },
+  });
+
+  useOnMeltQuoteStateChange({
+    quotes: pendingMeltQuotes,
+    onUnpaid: (meltQuote) => {
+      const receiveQuote = pendingQuotesCache.getByMeltQuoteId(meltQuote.quote);
+      if (!receiveQuote) {
+        return;
+      }
+
+      if (receiveQuote.tokenReceiveData.meltInitiated) {
+        // If melt was initiated but the quote is again in the unpaid state, it means that the melt failed.
+        failReceiveQuote(
+          { quoteId: receiveQuote.id, reason: 'Cashu token melt failed.' },
+          { scope: { id: `cashu-receive-quote-${receiveQuote.id}` } },
+        );
+      } else {
+        initiateMelt(receiveQuote.id, {
+          scope: { id: `cashu-receive-quote-${receiveQuote.id}` },
+        });
+      }
+    },
+    onPending: (meltQuote) => {
+      const receiveQuote = pendingQuotesCache.getByMeltQuoteId(meltQuote.quote);
+      if (!receiveQuote) {
+        return;
+      }
+
+      markMeltInitiated(receiveQuote.id, {
+        scope: { id: `cashu-receive-quote-${receiveQuote.id}` },
+      });
+    },
+    onExpired: (meltQuote) => {
+      const receiveQuote = pendingQuotesCache.getByMeltQuoteId(meltQuote.quote);
+      if (!receiveQuote) {
+        return;
+      }
+
+      expireReceiveQuote(receiveQuote.id, {
+        scope: { id: `cashu-receive-quote-${receiveQuote.id}` },
       });
     },
   });

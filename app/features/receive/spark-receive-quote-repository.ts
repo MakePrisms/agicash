@@ -1,3 +1,4 @@
+import type { Proof } from '@cashu/cashu-ts';
 import type { Money } from '~/lib/money';
 import type {
   AgicashDb,
@@ -9,7 +10,6 @@ import type {
   CompletedSparkLightningReceiveTransactionDetails,
   SparkLightningReceiveTransactionDetails,
 } from '../transactions/transaction';
-import {} from '../transactions/transaction-repository';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 
 type Options = {
@@ -20,6 +20,15 @@ type EncryptedData = {
   amount: Money;
   paymentRequest: string;
   paymentPreimage?: string;
+  /**
+   * Data related to cross-account cashu token receives.
+   * Present only for CASHU_TOKEN type quotes.
+   */
+  tokenReceiveData?: {
+    sourceMintUrl: string;
+    tokenProofs: Proof[];
+    meltQuoteId: string;
+  };
 };
 
 type CreateQuoteParams = {
@@ -55,13 +64,34 @@ type CreateQuoteParams = {
    * Optional public key of the wallet receiving the lightning invoice.
    */
   receiverIdentityPubkey?: string;
-  /**
-   * Type of the receive.
-   * - LIGHTNING - Standard lightning receive.
-   * - CASHU_TOKEN - Receive cashu tokens to a Spark account.
-   */
-  type: 'LIGHTNING' | 'CASHU_TOKEN';
-};
+} & (
+  | {
+      /**
+       * Type of the receive.
+       * LIGHTNING - Standard lightning receive.
+       */
+      type: 'LIGHTNING';
+    }
+  | {
+      /**
+       * Type of the receive.
+       * CASHU_TOKEN - Receive cashu tokens to a Spark account.
+       */
+      type: 'CASHU_TOKEN';
+      /**
+       * URL of the source mint where the token proofs originate from.
+       */
+      sourceMintUrl: string;
+      /**
+       * The proofs from the source cashu token that will be melted.
+       */
+      tokenProofs: Proof[];
+      /**
+       * ID of the melt quote on the source mint.
+       */
+      meltQuoteId: string;
+    }
+);
 
 export class SparkReceiveQuoteRepository {
   constructor(
@@ -98,6 +128,15 @@ export class SparkReceiveQuoteRepository {
       amount,
       paymentRequest,
     };
+
+    // Add token receive data for CASHU_TOKEN type
+    if (type === 'CASHU_TOKEN') {
+      dataToEncrypt.tokenReceiveData = {
+        sourceMintUrl: params.sourceMintUrl,
+        tokenProofs: params.tokenProofs,
+        meltQuoteId: params.meltQuoteId,
+      };
+    }
 
     const [encryptedTransactionDetails, encryptedData] =
       await this.encryption.encryptBatch([details, dataToEncrypt]);
@@ -169,6 +208,14 @@ export class SparkReceiveQuoteRepository {
       paymentPreimage,
     };
 
+    if (quote.type === 'CASHU_TOKEN') {
+      dataToEncrypt.tokenReceiveData = {
+        sourceMintUrl: quote.tokenReceiveData.sourceMintUrl,
+        tokenProofs: quote.tokenReceiveData.tokenProofs,
+        meltQuoteId: quote.tokenReceiveData.meltQuoteId,
+      };
+    }
+
     const [encryptedTransactionDetails, encryptedData] =
       await this.encryption.encryptBatch([transactionDetails, dataToEncrypt]);
 
@@ -213,6 +260,76 @@ export class SparkReceiveQuoteRepository {
     }
 
     return this.toQuote(data);
+  }
+
+  /**
+   * Fails the spark receive quote by setting the state to FAILED.
+   * @throws An error if failing the quote fails.
+   */
+  async fail(
+    {
+      id,
+      reason,
+    }: {
+      /**
+       * ID of the spark receive quote.
+       */
+      id: string;
+      /**
+       * Reason for the failure.
+       */
+      reason: string;
+    },
+    options?: Options,
+  ): Promise<void> {
+    const query = this.db.rpc('fail_spark_receive_quote', {
+      p_quote_id: id,
+      p_failure_reason: reason,
+    });
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { error } = await query;
+
+    if (error) {
+      throw new Error('Failed to fail spark receive quote', { cause: error });
+    }
+  }
+
+  /**
+   * Marks the melt as initiated for a CASHU_TOKEN type spark receive quote.
+   * This sets the cashu_token_melt_initiated column to true.
+   */
+  async markMeltInitiated(
+    quote: SparkReceiveQuote & { type: 'CASHU_TOKEN' },
+    options?: Options,
+  ): Promise<SparkReceiveQuote & { type: 'CASHU_TOKEN' }> {
+    const query = this.db.rpc(
+      'mark_spark_receive_quote_cashu_token_melt_initiated',
+      {
+        p_quote_id: quote.id,
+      },
+    );
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error('Failed to mark melt initiated for spark receive quote', {
+        cause: error,
+      });
+    }
+
+    const updatedQuote = await this.toQuote(data);
+
+    return updatedQuote as SparkReceiveQuote & {
+      type: 'CASHU_TOKEN';
+    };
   }
 
   /**
@@ -269,9 +386,8 @@ export class SparkReceiveQuoteRepository {
       [data.encrypted_data],
     );
 
-    const baseQuote = {
+    const baseData = {
       id: data.id,
-      type: data.type,
       sparkId: data.spark_id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
@@ -285,6 +401,34 @@ export class SparkReceiveQuoteRepository {
       version: data.version,
     };
 
+    if (data.type === 'CASHU_TOKEN' && !decryptedData.tokenReceiveData) {
+      throw new Error(
+        'Invalid spark receive quote data. Token receive data is required for CASHU_TOKEN type quotes.',
+      );
+    }
+
+    if (
+      data.type === 'CASHU_TOKEN' &&
+      data.cashu_token_melt_initiated == null
+    ) {
+      throw new Error(
+        'Invalid spark receive quote data. cashu_token_melt_initiated cannot be null for CASHU_TOKEN type quotes.',
+      );
+    }
+
+    const typeData =
+      data.type === 'CASHU_TOKEN' && decryptedData.tokenReceiveData
+        ? ({
+            type: 'CASHU_TOKEN',
+            tokenReceiveData: {
+              sourceMintUrl: decryptedData.tokenReceiveData.sourceMintUrl,
+              tokenProofs: decryptedData.tokenReceiveData.tokenProofs,
+              meltQuoteId: decryptedData.tokenReceiveData.meltQuoteId,
+              meltInitiated: data.cashu_token_melt_initiated ?? false,
+            },
+          } as const)
+        : ({ type: 'LIGHTNING' } as const);
+
     if (data.state === 'PAID') {
       if (!decryptedData.paymentPreimage || !data.spark_transfer_id) {
         throw new Error(
@@ -293,7 +437,8 @@ export class SparkReceiveQuoteRepository {
       }
 
       return {
-        ...baseQuote,
+        ...baseData,
+        ...typeData,
         state: 'PAID',
         paymentPreimage: decryptedData.paymentPreimage,
         sparkTransferId: data.spark_transfer_id,
@@ -302,8 +447,18 @@ export class SparkReceiveQuoteRepository {
 
     if (data.state === 'UNPAID' || data.state === 'EXPIRED') {
       return {
-        ...baseQuote,
+        ...baseData,
+        ...typeData,
         state: data.state,
+      };
+    }
+
+    if (data.state === 'FAILED') {
+      return {
+        ...baseData,
+        ...typeData,
+        state: 'FAILED',
+        failureReason: data.failure_reason ?? '',
       };
     }
 

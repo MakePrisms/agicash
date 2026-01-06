@@ -193,11 +193,16 @@ export class ExtendedCashuWallet extends CashuWallet {
    * This handles the case where meltProofs is called twice for the same quote.
    */
   async meltProofsIdempotent(
-    meltQuote: MeltQuoteResponse,
+    meltQuote: Pick<MeltQuoteResponse, 'quote' | 'amount'>,
     proofs: Proof[],
     options?: Parameters<CashuWallet['meltProofs']>[2],
   ) {
-    return this.meltProofs(meltQuote, proofs, options).catch(async (error) => {
+    // meltProofs method doesn't use anything but quote and amount so we can pass a dummy MeltQuoteResponse
+    return this.meltProofs(
+      meltQuote as MeltQuoteResponse,
+      proofs,
+      options,
+    ).catch(async (error) => {
       // Melt should be idempotent: if meltProofs was already called once and did not fail,
       // then the melt quote will be pending or paid.
       const latestMeltQuote = await this.checkMeltQuote(meltQuote.quote);

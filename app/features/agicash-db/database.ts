@@ -255,6 +255,9 @@ export type Database = MergeDeep<
         complete_cashu_receive_quote: {
           Returns: CompleteCashuReceiveQuoteResult;
         };
+        mark_cashu_receive_quote_cashu_token_melt_initiated: {
+          Returns: AgicashDbCashuReceiveQuote;
+        };
         create_cashu_token_swap: {
           Args: {
             p_currency: Currency;
@@ -321,6 +324,9 @@ export type Database = MergeDeep<
           Returns: AgicashDbSparkReceiveQuote;
         };
         expire_spark_receive_quote: {
+          Returns: AgicashDbSparkReceiveQuote;
+        };
+        mark_spark_receive_quote_cashu_token_melt_initiated: {
           Returns: AgicashDbSparkReceiveQuote;
         };
         create_spark_send_quote: {
