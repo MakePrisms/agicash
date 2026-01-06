@@ -598,7 +598,6 @@ export type Database = {
           failure_reason: string | null
           id: string
           payment_hash: string
-          payment_preimage: string | null
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
@@ -615,7 +614,6 @@ export type Database = {
           failure_reason?: string | null
           id?: string
           payment_hash: string
-          payment_preimage?: string | null
           payment_request_is_amountless?: boolean
           spark_id?: string | null
           spark_transfer_id?: string | null
@@ -632,7 +630,6 @@ export type Database = {
           failure_reason?: string | null
           id?: string
           payment_hash?: string
-          payment_preimage?: string | null
           payment_request_is_amountless?: boolean
           spark_id?: string | null
           spark_transfer_id?: string | null
@@ -982,7 +979,6 @@ export type Database = {
         Args: {
           p_encrypted_data: string
           p_encrypted_transaction_details: string
-          p_payment_preimage: string
           p_quote_id: string
         }
         Returns: {
@@ -993,7 +989,6 @@ export type Database = {
           failure_reason: string | null
           id: string
           payment_hash: string
-          payment_preimage: string | null
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
@@ -1169,7 +1164,6 @@ export type Database = {
           failure_reason: string | null
           id: string
           payment_hash: string
-          payment_preimage: string | null
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
@@ -1361,7 +1355,6 @@ export type Database = {
           failure_reason: string | null
           id: string
           payment_hash: string
-          payment_preimage: string | null
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
@@ -1504,7 +1497,6 @@ export type Database = {
           failure_reason: string | null
           id: string
           payment_hash: string
-          payment_preimage: string | null
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
