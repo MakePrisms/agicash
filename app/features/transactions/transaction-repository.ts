@@ -32,6 +32,7 @@ type ListOptions = Options & {
   userId: string;
   cursor?: Cursor;
   pageSize?: number;
+  accountId?: string;
 };
 
 export class TransactionRepository {
@@ -60,6 +61,7 @@ export class TransactionRepository {
     userId,
     cursor = null,
     pageSize = 25,
+    accountId,
     abortSignal,
   }: ListOptions) {
     const query = this.db.rpc('list_transactions', {
@@ -68,6 +70,7 @@ export class TransactionRepository {
       p_cursor_created_at: cursor?.createdAt,
       p_cursor_id: cursor?.id,
       p_page_size: pageSize,
+      p_account_id: accountId,
     });
 
     if (abortSignal) {

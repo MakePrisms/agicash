@@ -10,7 +10,9 @@ const textVariants = cva('', {
       muted: 'text-muted-foreground',
     },
     size: {
+      xs: 'font-semibold',
       sm: 'font-semibold',
+      md: 'font-bold',
       lg: 'font-bold',
     },
   },
@@ -23,7 +25,9 @@ const textVariants = cva('', {
 const symbolVariants = cva('', {
   variants: {
     size: {
+      xs: 'text-[1.1rem]',
       sm: 'text-[1.33rem]',
+      md: 'text-[2.85rem]',
       lg: 'text-[3.45rem]',
     },
   },
@@ -35,7 +39,9 @@ const symbolVariants = cva('', {
 const valueVariants = cva('font-numeric', {
   variants: {
     size: {
+      xs: 'pt-0.5 text-xl',
       sm: 'pt-1 text-2xl',
+      md: 'pt-1.5 text-5xl',
       lg: 'pt-2 text-6xl',
     },
   },

@@ -113,18 +113,21 @@ export function useTransaction(id: string) {
 
 const PAGE_SIZE = 25;
 
-export function useTransactions() {
+export function useTransactions(accountId?: string) {
   const userId = useUser((user) => user.id);
   const transactionRepository = useTransactionRepository();
 
   const result = useInfiniteQuery({
-    queryKey: [allTransactionsQueryKey],
+    queryKey: accountId
+      ? [allTransactionsQueryKey, accountId]
+      : [allTransactionsQueryKey],
     initialPageParam: null,
     queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
       const result = await transactionRepository.list({
         userId,
         cursor: pageParam,
         pageSize: PAGE_SIZE,
+        accountId,
       });
       return {
         transactions: result.transactions,
@@ -163,16 +166,20 @@ const acknowledgeTransactionInHistoryCache = (
   queryClient: QueryClient,
   transaction: Transaction,
 ) => {
-  queryClient.setQueryData<
+  // Update all transaction query caches (both unified and account-specific)
+  const queries = queryClient.getQueriesData<
     InfiniteData<{
       transactions: Transaction[];
       nextCursor: Cursor | null;
     }>
-  >([allTransactionsQueryKey], (old) => {
-    if (!old) return old;
-    return {
-      ...old,
-      pages: old.pages.map((page) => ({
+  >({ queryKey: [allTransactionsQueryKey] });
+
+  queries.forEach(([queryKey, data]) => {
+    if (!data) return;
+
+    queryClient.setQueryData(queryKey, {
+      ...data,
+      pages: data.pages.map((page) => ({
         ...page,
         transactions: page.transactions.map((tx) =>
           tx.id === transaction.id && tx.acknowledgmentStatus === 'pending'
@@ -180,7 +187,7 @@ const acknowledgeTransactionInHistoryCache = (
             : tx,
         ),
       })),
-    };
+    });
   });
 };
 
