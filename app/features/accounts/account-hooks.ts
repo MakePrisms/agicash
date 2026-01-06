@@ -144,11 +144,19 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
   currency?: Currency;
   type?: T;
   isOnline?: boolean;
+  excludeClosedLoopAccounts?: boolean;
+  onlyIncludeClosedLoopAccounts?: boolean;
 }): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
 
-  const { currency, type, isOnline } = select ?? {};
+  const {
+    currency,
+    type,
+    isOnline,
+    excludeClosedLoopAccounts,
+    onlyIncludeClosedLoopAccounts,
+  } = select ?? {};
 
   return useSuspenseQuery({
     ...accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -173,13 +181,28 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
             if (isOnline !== undefined && account.isOnline !== isOnline) {
               return false;
             }
+            if (account.type === 'cashu') {
+              if (excludeClosedLoopAccounts) {
+                return !account.wallet.isClosedLoop;
+              }
+              if (onlyIncludeClosedLoopAccounts) {
+                return account.wallet.isClosedLoop;
+              }
+            }
             return true;
           },
         );
 
         return filteredData;
       },
-      [currency, type, isOnline, user],
+      [
+        currency,
+        type,
+        isOnline,
+        excludeClosedLoopAccounts,
+        onlyIncludeClosedLoopAccounts,
+        user,
+      ],
     ),
   });
 }

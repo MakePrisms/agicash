@@ -63,56 +63,151 @@ export function PageHeaderTitle({
   );
 }
 
+interface PageHeaderLeftProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+}
+
+/**
+ * Container for custom left-side content in PageHeader
+ */
+export function PageHeaderLeft({
+  children,
+  className,
+  ...props
+}: PageHeaderLeftProps) {
+  return (
+    <div className={cn('flex items-center', className)} {...props}>
+      {children}
+    </div>
+  );
+}
+
+interface PageHeaderRightProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+}
+
+/**
+ * Container for custom right-side content in PageHeader
+ */
+export function PageHeaderRight({
+  children,
+  className,
+  ...props
+}: PageHeaderRightProps) {
+  return (
+    <div
+      className={cn('flex items-center justify-end gap-2', className)}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
 interface PageHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
+/**
+ * Flexible header component with support for:
+ * - Back/Close buttons (auto-placed left)
+ * - Centered title
+ * - Custom left/right slots via PageHeaderLeft/PageHeaderRight
+ */
 export function PageHeader({ children, className, ...props }: PageHeaderProps) {
-  const hasCloseButton = React.Children.toArray(children).some(
+  const childArray = React.Children.toArray(children);
+
+  const hasCloseButton = childArray.some(
     (child) => React.isValidElement(child) && child.type === ClosePageButton,
   );
-  const hasBackButton = React.Children.toArray(children).some(
+  const hasBackButton = childArray.some(
     (child) => React.isValidElement(child) && child.type === PageBackButton,
   );
+  const hasLeftSlot = childArray.some(
+    (child) => React.isValidElement(child) && child.type === PageHeaderLeft,
+  );
+  const hasRightSlot = childArray.some(
+    (child) => React.isValidElement(child) && child.type === PageHeaderRight,
+  );
+
+  const leftSlotCount = childArray.filter(
+    (child) => React.isValidElement(child) && child.type === PageHeaderLeft,
+  ).length;
+  const rightSlotCount = childArray.filter(
+    (child) => React.isValidElement(child) && child.type === PageHeaderRight,
+  ).length;
+
+  // If using custom slots, render in slot-based mode
+  const useSlotMode = hasLeftSlot || hasRightSlot;
 
   if (hasCloseButton && hasBackButton) {
     throw new Error(
-      'PageHeader cannot have both ClosePageButton and BackButton',
+      'PageHeader cannot have both ClosePageButton and PageBackButton',
     );
   }
+
+  if (useSlotMode && (hasCloseButton || hasBackButton)) {
+    throw new Error(
+      'PageHeader cannot mix slot components (PageHeaderLeft/PageHeaderRight) with ClosePageButton/PageBackButton. Place navigation buttons inside PageHeaderLeft instead.',
+    );
+  }
+
+  if (leftSlotCount > 1) {
+    throw new Error('PageHeader can only have one PageHeaderLeft');
+  }
+
+  if (rightSlotCount > 1) {
+    throw new Error('PageHeader can only have one PageHeaderRight');
+  }
+
+  const leftContent = useSlotMode
+    ? childArray.find(
+        (child) => React.isValidElement(child) && child.type === PageHeaderLeft,
+      )
+    : childArray.find(
+        (child) =>
+          React.isValidElement(child) &&
+          (child.type === ClosePageButton || child.type === PageBackButton),
+      );
+
+  const titleContent = childArray.find(
+    (child) => React.isValidElement(child) && child.type === PageHeaderTitle,
+  );
+
+  const rightContent = useSlotMode
+    ? childArray.find(
+        (child) =>
+          React.isValidElement(child) && child.type === PageHeaderRight,
+      )
+    : childArray.filter(
+        (child) =>
+          !React.isValidElement(child) ||
+          (child.type !== PageHeaderTitle &&
+            child.type !== ClosePageButton &&
+            child.type !== PageBackButton),
+      );
 
   return (
     <header
       className={cn('mb-4 flex w-full items-center justify-between', className)}
       {...props}
     >
-      {/* Close/back button - always on the left */}
-      <div>
-        {React.Children.toArray(children).find(
-          (child) =>
-            React.isValidElement(child) &&
-            (child.type === ClosePageButton || child.type === PageBackButton),
-        )}
-      </div>
+      {/* Left content */}
+      {useSlotMode ? leftContent : <div>{leftContent}</div>}
 
       {/* Title - always in the center */}
       <div className="-translate-x-1/2 absolute left-1/2 transform">
-        {React.Children.toArray(children).find(
-          (child) =>
-            React.isValidElement(child) && child.type === PageHeaderTitle,
-        )}
+        {titleContent}
       </div>
 
-      {/* Other elements - on the right */}
-      <div className="flex items-center justify-end gap-2">
-        {React.Children.toArray(children).filter(
-          (child) =>
-            !React.isValidElement(child) ||
-            (child.type !== PageHeaderTitle &&
-              child.type !== ClosePageButton &&
-              child.type !== PageBackButton),
-        )}
-      </div>
+      {/* Right content */}
+      {useSlotMode ? (
+        rightContent
+      ) : (
+        <div className="flex items-center justify-end gap-2">
+          {rightContent}
+        </div>
+      )}
     </header>
   );
 }

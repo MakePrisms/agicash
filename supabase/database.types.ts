@@ -1372,6 +1372,7 @@ export type Database = {
       get_account_with_proofs: { Args: { p_account_id: string }; Returns: Json }
       list_transactions: {
         Args: {
+          p_account_id?: string
           p_cursor_created_at?: string
           p_cursor_id?: string
           p_cursor_state_sort_order?: number
