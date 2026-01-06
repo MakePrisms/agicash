@@ -341,8 +341,9 @@ export class SparkSendQuoteService {
       }
 
       if (isInsufficentBalanceError(error)) {
+        const { expected } = error.getContext();
         throw new DomainError(
-          `Insufficient balance. Total cost of send is ${error.context.expected}.`,
+          `Insufficient balance. Total cost of send is ${expected}.`,
         );
       }
 
