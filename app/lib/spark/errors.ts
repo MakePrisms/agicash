@@ -1,11 +1,16 @@
 import { SparkError } from '@buildonspark/spark-sdk';
 import { z } from 'zod';
 
+const InsufficentBalanceErrorContextSchema = z.object({
+  expected: z.string(),
+  field: z.string(),
+  value: z.number(),
+});
+
 const InsufficentBalanceErrorSchema = z.object({
-  context: z.object({
-    expected: z.string(),
-    field: z.string(),
-    value: z.number(),
+  getContext: z.function({
+    input: [],
+    output: InsufficentBalanceErrorContextSchema,
   }),
   message: z
     .string()
@@ -17,12 +22,21 @@ const InsufficentBalanceErrorSchema = z.object({
 
 export const isInsufficentBalanceError = (
   error: unknown,
-): error is z.infer<typeof InsufficentBalanceErrorSchema> &
-  Omit<SparkError, 'context'> => {
-  return (
-    error instanceof SparkError &&
-    InsufficentBalanceErrorSchema.safeParse(error).success
-  );
+): error is z.infer<typeof InsufficentBalanceErrorSchema> & SparkError => {
+  if (!(error instanceof SparkError)) {
+    return false;
+  }
+
+  if (!InsufficentBalanceErrorSchema.safeParse(error).success) {
+    return false;
+  }
+
+  const context = error.getContext();
+
+  // We want to throw if they change the context shape that we expect.
+  InsufficentBalanceErrorContextSchema.parse(context);
+
+  return true;
 };
 
 export const isInvoiceAlreadyPaidError = (
