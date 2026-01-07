@@ -18,14 +18,26 @@ type Options = {
   abortSignal?: AbortSignal;
 };
 
-type EncryptedData = {
-  amountRequested: Money;
-  amountToSend: Money;
-  receiveSwapFee: Money;
-  sendSwapFee: Money;
-  totalAmount: Money;
+type EncryptedData = CashuTokenSendTransactionDetails & {
+  /**
+   * The sum of the input proofs in the account's currency.
+   */
   inputAmount: Money;
+  /**
+   * Output amounts for the sendable proofs.
+   */
   sendOutputAmounts?: number[];
+  /**
+   * The amount to send in the account's currency.
+   */
+  amountToSend: Money;
+  /**
+   * The requested amount to send in the account's currency.
+   */
+  amountRequested: Money;
+  /**
+   * Output amounts for the change proofs.
+   */
   changeOutputAmounts?: number[];
 };
 
@@ -112,29 +124,22 @@ export class CashuSendSwapRepository {
     }: CreateSendSwap,
     options?: Options,
   ) {
-    const details: CashuTokenSendTransactionDetails = {
+    const requiresInputProofsSwap = !inputAmount.equals(amountToSend);
+
+    const dataToEncrypt: EncryptedData = {
+      amountToSend: amountToSend,
       amountSpent: totalAmount,
       cashuSendFee: cashuSendFee,
       cashuReceiveFee: cashuReceiveFee,
       totalFees: cashuSendFee.add(cashuReceiveFee),
       amountToReceive: amountToSend.subtract(cashuReceiveFee),
-    };
-
-    const requiresInputProofsSwap = !inputAmount.equals(amountToSend);
-
-    const dataToEncrypt: EncryptedData = {
       amountRequested,
-      amountToSend,
-      receiveSwapFee: cashuReceiveFee,
-      sendSwapFee: cashuSendFee,
-      totalAmount,
       inputAmount,
       sendOutputAmounts: outputAmounts?.send,
       changeOutputAmounts: outputAmounts?.change,
     };
 
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([details, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
     const numberOfOutputs = requiresInputProofsSwap
       ? (outputAmounts?.send?.length ?? 0) +
@@ -146,7 +151,7 @@ export class CashuSendSwapRepository {
       p_account_id: accountId,
       p_input_proofs: inputProofs.map((p) => p.id),
       p_currency: amountToSend.currency,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_transaction_details: encryptedData,
       p_encrypted_data: encryptedData,
       p_requires_input_proofs_swap: requiresInputProofsSwap,
       p_token_hash: tokenHash,
@@ -355,9 +360,9 @@ export class CashuSendSwapRepository {
       transactionId: data.transaction_id,
       amountRequested: decryptedData.amountRequested,
       amountToSend: decryptedData.amountToSend,
-      totalAmount: decryptedData.totalAmount,
-      cashuReceiveFee: decryptedData.receiveSwapFee,
-      cashuSendFee: decryptedData.sendSwapFee,
+      totalAmount: decryptedData.amountSpent,
+      cashuReceiveFee: decryptedData.cashuReceiveFee,
+      cashuSendFee: decryptedData.cashuSendFee,
       inputProofs: inputProofs,
       inputAmount: decryptedData.inputAmount,
       currency: data.currency,

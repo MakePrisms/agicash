@@ -18,11 +18,14 @@ import { UniqueConstraintError } from '../shared/error';
 import type { CashuTokenReceiveTransactionDetails } from '../transactions/transaction';
 import type { CashuTokenSwap } from './cashu-token-swap';
 
-type EncryptedData = {
+type EncryptedData = CashuTokenReceiveTransactionDetails & {
+  /**
+   * The proofs from the token being claimed.
+   */
   tokenProofs: Proof[];
-  inputAmount: Money;
-  receiveAmount: Money;
-  feeAmount: Money;
+  /**
+   * Output amounts for the swap.
+   */
   outputAmounts: number[];
 };
 
@@ -102,23 +105,16 @@ export class CashuTokenSwapRepository {
     const currency = inputAmount.currency;
     const tokenHash = await getTokenHash(token);
 
-    const details: CashuTokenReceiveTransactionDetails = {
+    const dataToEncrypt: EncryptedData = {
       amountReceived: receiveAmount,
       cashuReceiveFee,
       totalFees: cashuReceiveFee,
       tokenAmount: inputAmount,
-    };
-
-    const dataToEncrypt: EncryptedData = {
       tokenProofs: token.proofs,
-      inputAmount,
-      receiveAmount,
-      feeAmount: cashuReceiveFee,
       outputAmounts,
     };
 
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([details, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
     const query = this.db.rpc('create_cashu_token_swap', {
       p_token_hash: tokenHash,
@@ -128,7 +124,7 @@ export class CashuTokenSwapRepository {
       p_keyset_id: keysetId,
       p_number_of_outputs: outputAmounts.length,
       p_encrypted_data: encryptedData,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_transaction_details: encryptedData,
       p_reversed_transaction_id: reversedTransactionId,
     });
 
@@ -335,9 +331,9 @@ export class CashuTokenSwapRepository {
       tokenProofs: decryptedData.tokenProofs,
       userId: data.user_id,
       accountId: data.account_id,
-      inputAmount: decryptedData.inputAmount,
-      receiveAmount: decryptedData.receiveAmount,
-      feeAmount: decryptedData.feeAmount,
+      inputAmount: decryptedData.tokenAmount,
+      receiveAmount: decryptedData.amountReceived,
+      feeAmount: decryptedData.cashuReceiveFee,
       keysetId: data.keyset_id,
       keysetCounter: data.keyset_counter,
       outputAmounts: decryptedData.outputAmounts,
