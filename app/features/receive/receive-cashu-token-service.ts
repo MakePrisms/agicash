@@ -1,22 +1,15 @@
 import type { Token } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
-import {
-  areMintUrlsEqual,
-  getCashuProtocolUnit,
-  getCashuUnit,
-  getCashuWallet,
-} from '~/lib/cashu';
+import { areMintUrlsEqual, getCashuProtocolUnit } from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import type {
   ExtendedAccount,
   ExtendedCashuAccount,
 } from '../accounts/account';
 import {
-  allMintKeysetsQueryOptions,
   cashuMintValidator,
+  getInitializedCashuWallet,
   isTestMintQueryOptions,
-  mintInfoQueryOptions,
-  mintKeysQueryOptions,
   tokenToMoney,
 } from '../shared/cashu';
 import type {
@@ -38,65 +31,58 @@ export class ReceiveCashuTokenService {
     mintUrl: string,
     currency: Currency,
   ): Promise<CashuAccountWithTokenFlags> {
-    const [info, keysets, keys, isTestMint] = await Promise.all([
-      this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
-      this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
-      this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
-      this.queryClient.fetchQuery(isTestMintQueryOptions(mintUrl)),
-    ]);
-
-    const unit = getCashuProtocolUnit(currency);
-    const validationResult = cashuMintValidator(
+    const { wallet, isOnline } = await getInitializedCashuWallet(
+      this.queryClient,
       mintUrl,
-      unit,
-      info,
-      keysets.keysets,
+      currency,
+      undefined,
     );
 
-    const unitKeysets = keysets.keysets.filter((ks) => ks.unit === unit);
-    const activeKeyset = unitKeysets.find((ks) => ks.active);
-
-    if (!activeKeyset) {
-      throw new Error(`No active keyset found for ${currency} on ${mintUrl}`);
-    }
-
-    const activeKeysForUnit = keys.keysets.find(
-      (ks) => ks.id === activeKeyset.id,
-    );
-
-    if (!activeKeysForUnit) {
-      throw new Error(
-        `Got active keyset ${activeKeyset.id} from ${mintUrl} but could not find keys for it`,
-      );
-    }
-
-    const wallet = getCashuWallet(mintUrl, {
-      unit: getCashuUnit(currency),
-      mintInfo: info,
-      keys: activeKeysForUnit,
-      keysets: unitKeysets,
-    });
-
-    wallet.keysetId = activeKeyset.id;
-
-    const isValid = validationResult === true;
-    return {
+    const baseAccount = {
       id: 'cashu-account-placeholder-id',
-      type: 'cashu',
+      type: 'cashu' as const,
+      name: mintUrl.replace('https://', '').replace('http://', ''),
       mintUrl,
       createdAt: new Date().toISOString(),
-      name: info?.name ?? mintUrl.replace('https://', ''),
       currency,
-      isTestMint,
       version: 0,
       keysetCounters: {},
       proofs: [],
       isDefault: false,
       isSource: true,
       isUnknown: true,
-      canReceive: isValid,
-      isOnline: true,
       wallet,
+    };
+
+    if (!isOnline) {
+      return {
+        ...baseAccount,
+        canReceive: false,
+        isOnline: false,
+        isTestMint: false,
+      };
+    }
+
+    const mintInfo = wallet.mintInfo;
+    const unit = getCashuProtocolUnit(currency);
+    const validationResult = cashuMintValidator(
+      mintUrl,
+      unit,
+      mintInfo,
+      wallet.keysets,
+    );
+
+    const isTestMint = await this.queryClient.fetchQuery(
+      isTestMintQueryOptions(mintUrl),
+    );
+
+    const isValid = validationResult === true;
+    return {
+      ...baseAccount,
+      name: mintInfo.name || baseAccount.name,
+      isTestMint,
+      canReceive: isValid,
+      isOnline,
     };
   }
 

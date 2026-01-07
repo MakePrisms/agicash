@@ -1,18 +1,7 @@
 import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
-import {
-  type MintActiveKeys,
-  type MintAllKeysets,
-  NetworkError,
-  type Proof,
-} from '@cashu/cashu-ts';
+import type { Proof } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
-import {
-  type MintInfo,
-  getCashuProtocolUnit,
-  getCashuUnit,
-  getCashuWallet,
-} from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
 import { createSparkWalletStub } from '~/lib/spark';
 import type {
@@ -22,12 +11,7 @@ import type {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import {
-  allMintKeysetsQueryKey,
-  allMintKeysetsQueryOptions,
-  mintInfoQueryKey,
-  mintInfoQueryOptions,
-  mintKeysQueryKey,
-  mintKeysQueryOptions,
+  getInitializedCashuWallet,
   useCashuCryptography,
 } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
@@ -220,75 +204,12 @@ export class AccountRepository {
 
   private async getInitializedCashuWallet(mintUrl: string, currency: Currency) {
     const seed = await this.getCashuWalletSeed?.();
-
-    let mintInfo: MintInfo;
-    let allMintKeysets: MintAllKeysets;
-    let mintActiveKeys: MintActiveKeys;
-
-    try {
-      [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
-        Promise.all([
-          this.queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
-          this.queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
-          this.queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
-        ]),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            this.queryClient.cancelQueries({
-              queryKey: mintInfoQueryKey(mintUrl),
-            });
-            this.queryClient.cancelQueries({
-              queryKey: allMintKeysetsQueryKey(mintUrl),
-            });
-            this.queryClient.cancelQueries({
-              queryKey: mintKeysQueryKey(mintUrl),
-            });
-            reject(new NetworkError('Mint request timed out'));
-          }, 10_000);
-        }),
-      ]);
-    } catch (error) {
-      if (error instanceof NetworkError) {
-        const wallet = getCashuWallet(mintUrl, {
-          unit: getCashuUnit(currency),
-          bip39seed: seed ?? undefined,
-        });
-        return { wallet, isOnline: false };
-      }
-      throw error;
-    }
-
-    const unitKeysets = allMintKeysets.keysets.filter(
-      (ks) => ks.unit === getCashuProtocolUnit(currency),
+    return getInitializedCashuWallet(
+      this.queryClient,
+      mintUrl,
+      currency,
+      seed ?? undefined,
     );
-    const activeKeyset = unitKeysets.find((ks) => ks.active);
-
-    if (!activeKeyset) {
-      throw new Error(`No active keyset found for ${currency} on ${mintUrl}`);
-    }
-
-    const activeKeysForUnit = mintActiveKeys.keysets.find(
-      (ks) => ks.id === activeKeyset.id,
-    );
-
-    if (!activeKeysForUnit) {
-      throw new Error(
-        `Got active keyset ${activeKeyset.id} from ${mintUrl} but could not find keys for it`,
-      );
-    }
-
-    const wallet = getCashuWallet(mintUrl, {
-      unit: getCashuUnit(currency),
-      bip39seed: seed ?? undefined,
-      mintInfo,
-      keys: activeKeysForUnit,
-      keysets: unitKeysets,
-    });
-
-    // The constructor does not set the keysetId, so we need to set it manually
-    wallet.keysetId = activeKeyset.id;
-
-    return { wallet, isOnline: true };
   }
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
