@@ -117,7 +117,7 @@ export class SparkReceiveQuoteService {
     const baseParams = {
       userId,
       accountId: account.id,
-      amount: moneyFromSparkAmount(lightningQuote.invoice.amount),
+      amountReceived: moneyFromSparkAmount(lightningQuote.invoice.amount),
       paymentRequest: lightningQuote.invoice.encodedInvoice,
       paymentHash: lightningQuote.invoice.paymentHash,
       expiresAt,

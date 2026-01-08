@@ -2,18 +2,28 @@ import type { Money } from '~/lib/money';
 import { isObject } from '~/lib/utils';
 import type { AgicashDb, AgicashDbTransaction } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { useEncryption } from '../shared/encryption';
 import type {
-  CashuLightningReceiveTransactionDetails,
-  CashuTokenReceiveTransactionDetails,
-  CashuTokenSendTransactionDetails,
-  CompletedCashuLightningSendTransactionDetails,
-  CompletedSparkLightningSendTransactionDetails,
-  IncompleteCashuLightningSendTransactionDetails,
-  IncompleteSparkLightningSendTransactionDetails,
-  SparkLightningReceiveTransactionDetails,
-  Transaction,
-} from './transaction';
+  LightningCashuReceiveQuoteDetails,
+  TokenCashuReceiveQuoteDetails,
+} from '../receive/cashu-receive-quote';
+import type { CashuTokenSwapDetails } from '../receive/cashu-token-swap';
+import type {
+  CompletedLightningSparkReceiveQuoteDetails,
+  CompletedTokenSparkReceiveQuoteDetails,
+  LightningSparkReceiveQuoteDetails,
+  TokenSparkReceiveQuoteDetails,
+} from '../receive/spark-receive-quote';
+import type {
+  CashuSendQuoteDetailsBase,
+  CompletedCashuSendQuoteDetails,
+} from '../send/cashu-send-quote';
+import type { CashuSendSwapDetails } from '../send/cashu-send-swap';
+import type {
+  CompletedSparkSendQuoteDetails,
+  SparkSendQuoteDetailsBase,
+} from '../send/spark-send-quote';
+import { useEncryption } from '../shared/encryption';
+import type { Transaction } from './transaction';
 
 type Encryption = {
   encrypt: <T = unknown>(data: T) => Promise<string>;
@@ -37,14 +47,18 @@ type ListOptions = Options & {
 };
 
 type UnifiedTransactionDetails =
-  | CashuTokenReceiveTransactionDetails
-  | CashuTokenSendTransactionDetails
-  | CashuLightningReceiveTransactionDetails
-  | IncompleteCashuLightningSendTransactionDetails
-  | CompletedCashuLightningSendTransactionDetails
-  | SparkLightningReceiveTransactionDetails
-  | IncompleteSparkLightningSendTransactionDetails
-  | CompletedSparkLightningSendTransactionDetails;
+  | TokenCashuReceiveQuoteDetails
+  | CashuTokenSwapDetails
+  | CashuSendSwapDetails
+  | LightningCashuReceiveQuoteDetails
+  | CashuSendQuoteDetailsBase
+  | CompletedCashuSendQuoteDetails
+  | LightningSparkReceiveQuoteDetails
+  | CompletedLightningSparkReceiveQuoteDetails
+  | TokenSparkReceiveQuoteDetails
+  | CompletedTokenSparkReceiveQuoteDetails
+  | SparkSendQuoteDetailsBase
+  | CompletedSparkSendQuoteDetails;
 
 export class TransactionRepository {
   constructor(
@@ -225,25 +239,23 @@ export class TransactionRepository {
     // Lightning send transactions have different amounts based on completion state
     if (type === 'CASHU_LIGHTNING' && direction === 'SEND') {
       if (state === 'COMPLETED') {
-        const completedDetails =
-          details as CompletedCashuLightningSendTransactionDetails;
+        const completedDetails = details as CompletedCashuSendQuoteDetails;
         return createTransaction(
           completedDetails.amountSpent,
           completedDetails,
         );
       }
-      const incompleteDetails =
-        details as IncompleteCashuLightningSendTransactionDetails;
+      const incompleteDetails = details as CashuSendQuoteDetailsBase;
       return createTransaction(
         incompleteDetails.amountToReceive
           .add(incompleteDetails.lightningFeeReserve)
-          .add(incompleteDetails.cashuSendFee),
+          .add(incompleteDetails.cashuFee),
         incompleteDetails,
       );
     }
 
     if (type === 'CASHU_LIGHTNING' && direction === 'RECEIVE') {
-      const receiveDetails = details as CashuLightningReceiveTransactionDetails;
+      const receiveDetails = details as LightningCashuReceiveQuoteDetails;
       const amount = receiveDetails.mintingFee
         ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
         : receiveDetails.amountReceived;
@@ -251,38 +263,39 @@ export class TransactionRepository {
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'SEND') {
-      const sendDetails = details as CashuTokenSendTransactionDetails;
+      const sendDetails = details as CashuSendSwapDetails;
       return createTransaction(sendDetails.amountSpent, sendDetails);
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
-      const receiveDetails = details as CashuTokenReceiveTransactionDetails;
-      const amount = receiveDetails.mintingFee
-        ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
-        : receiveDetails.amountReceived;
+      const receiveDetails = details as
+        | TokenCashuReceiveQuoteDetails
+        | CashuTokenSwapDetails;
+      const amount =
+        'mintingFee' in receiveDetails && receiveDetails.mintingFee
+          ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
+          : receiveDetails.amountReceived;
       return createTransaction(amount, receiveDetails);
     }
 
     if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
-      const receiveDetails = details as SparkLightningReceiveTransactionDetails;
+      const receiveDetails = details as
+        | LightningSparkReceiveQuoteDetails
+        | CompletedLightningSparkReceiveQuoteDetails
+        | TokenSparkReceiveQuoteDetails
+        | CompletedTokenSparkReceiveQuoteDetails;
       return createTransaction(receiveDetails.amountReceived, receiveDetails);
     }
 
     if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
-      if (state === 'COMPLETED') {
-        const completedDetails =
-          details as CompletedSparkLightningSendTransactionDetails;
-        return createTransaction(
-          completedDetails.amountSpent,
-          completedDetails,
-        );
-      }
-      const incompleteDetails =
-        details as IncompleteSparkLightningSendTransactionDetails;
+      const sendDetails = details as
+        | SparkSendQuoteDetailsBase
+        | CompletedSparkSendQuoteDetails;
       const amount =
-        incompleteDetails.amountSpent ??
-        incompleteDetails.amountToReceive.add(incompleteDetails.estimatedFee);
-      return createTransaction(amount, incompleteDetails);
+        'amountSpent' in sendDetails
+          ? sendDetails.amountSpent
+          : sendDetails.amountToReceive.add(sendDetails.estimatedFee);
+      return createTransaction(amount, sendDetails);
     }
 
     throw new Error('Invalid transaction data', { cause: data });

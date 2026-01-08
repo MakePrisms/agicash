@@ -335,7 +335,7 @@ const checkMintQuote = async (
   account: CashuAccount,
   quote: CashuReceiveQuote,
 ): Promise<MintQuoteResponse> => {
-  const cashuUnit = getCashuUnit(quote.amount.currency);
+  const cashuUnit = getCashuUnit(quote.amountReceived.currency);
   const wallet = account.wallet;
 
   const partialMintQuoteResponse = await wallet.checkMintQuote(quote.quoteId);
@@ -345,7 +345,9 @@ const checkMintQuote = async (
     // Amount and unit were added to the response later and some mints might still not be setting them atm so temporily we set them from the values we stored in the cashu receive quote.
     // See https://github.com/cashubtc/nuts/commit/e7112cd4ebfe14f0aaffa48cbdb5bd60fc450c51 and https://github.com/cashubtc/cashu-ts/pull/275/files#diff-820f0c31c07f61cf1b853d8a028670f0530af7965d60ec1853b048b626ae46ad
     // for more details. This can be removed once all the mints are updated and cashu-ts is updated.
-    amount: partialMintQuoteResponse.amount ?? quote.amount.toNumber(cashuUnit),
+    amount:
+      partialMintQuoteResponse.amount ??
+      quote.amountReceived.toNumber(cashuUnit),
     unit: wallet.unit,
   };
 };
@@ -657,7 +659,7 @@ export function useProcessCashuReceiveQuoteTasks() {
         return;
       }
 
-      const cashuUnit = getCashuUnit(quote.amount.currency);
+      const cashuUnit = getCashuUnit(quote.amountReceived.currency);
       const sourceWallet = getCashuWallet(
         quote.tokenReceiveData.sourceMintUrl,
         {
@@ -668,7 +670,7 @@ export function useProcessCashuReceiveQuoteTasks() {
       await sourceWallet.meltProofsIdempotent(
         {
           quote: quote.tokenReceiveData.meltQuoteId,
-          amount: quote.amount.toNumber(cashuUnit),
+          amount: quote.amountReceived.toNumber(cashuUnit),
         },
         quote.tokenReceiveData.tokenProofs,
       );

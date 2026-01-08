@@ -129,11 +129,12 @@ export class CashuTokenSwapService {
 
     const wallet = account.wallet;
 
-    const { keysetId, keysetCounter, receiveAmount, outputAmounts } = tokenSwap;
+    const { keysetId, keysetCounter, amountReceived, outputAmounts } =
+      tokenSwap;
 
     const keys = await wallet.getKeys(keysetId);
     const outputData = OutputData.createDeterministicData(
-      receiveAmount.toNumber(getCashuUnit(receiveAmount.currency)),
+      amountReceived.toNumber(getCashuUnit(amountReceived.currency)),
       wallet.seed,
       keysetCounter,
       keys,
@@ -169,8 +170,8 @@ export class CashuTokenSwapService {
   ) {
     try {
       const { send: newProofs } = await wallet.swap(
-        tokenSwap.receiveAmount.toNumber(
-          getCashuUnit(tokenSwap.receiveAmount.currency),
+        tokenSwap.amountReceived.toNumber(
+          getCashuUnit(tokenSwap.amountReceived.currency),
         ),
         tokenSwap.tokenProofs,
         {

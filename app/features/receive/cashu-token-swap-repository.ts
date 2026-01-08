@@ -15,16 +15,7 @@ import { agicashDbClient } from '../agicash-db/database.client';
 import { getTokenHash } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { UniqueConstraintError } from '../shared/error';
-import type { CashuTokenReceiveTransactionDetails } from '../transactions/transaction';
-import type { CashuTokenSwap } from './cashu-token-swap';
-
-type EncryptedData = {
-  tokenProofs: Proof[];
-  inputAmount: Money;
-  receiveAmount: Money;
-  feeAmount: Money;
-  outputAmounts: number[];
-};
+import type { CashuTokenSwap, CashuTokenSwapDetails } from './cashu-token-swap';
 
 type Options = {
   abortSignal?: AbortSignal;
@@ -102,23 +93,15 @@ export class CashuTokenSwapRepository {
     const currency = inputAmount.currency;
     const tokenHash = await getTokenHash(token);
 
-    const details: CashuTokenReceiveTransactionDetails = {
+    const dataToEncrypt: CashuTokenSwapDetails = {
       amountReceived: receiveAmount,
       cashuReceiveFee,
-      totalFees: cashuReceiveFee,
       tokenAmount: inputAmount,
-    };
-
-    const dataToEncrypt: EncryptedData = {
       tokenProofs: token.proofs,
-      inputAmount,
-      receiveAmount,
-      feeAmount: cashuReceiveFee,
       outputAmounts,
     };
 
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([details, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
     const query = this.db.rpc('create_cashu_token_swap', {
       p_token_hash: tokenHash,
@@ -128,7 +111,7 @@ export class CashuTokenSwapRepository {
       p_keyset_id: keysetId,
       p_number_of_outputs: outputAmounts.length,
       p_encrypted_data: encryptedData,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_transaction_details: encryptedData,
       p_reversed_transaction_id: reversedTransactionId,
     });
 
@@ -326,21 +309,21 @@ export class CashuTokenSwapRepository {
   }
 
   async toTokenSwap(data: AgicashDbCashuTokenSwap): Promise<CashuTokenSwap> {
-    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
-    );
+    const [decryptedData] = await this.encryption.decryptBatch<
+      [CashuTokenSwapDetails]
+    >([data.encrypted_data]);
 
     const commonData = {
       tokenHash: data.token_hash,
       tokenProofs: decryptedData.tokenProofs,
       userId: data.user_id,
       accountId: data.account_id,
-      inputAmount: decryptedData.inputAmount,
-      receiveAmount: decryptedData.receiveAmount,
-      feeAmount: decryptedData.feeAmount,
+      tokenAmount: decryptedData.tokenAmount,
+      cashuReceiveFee: decryptedData.cashuReceiveFee,
+      outputAmounts: decryptedData.outputAmounts,
+      amountReceived: decryptedData.amountReceived,
       keysetId: data.keyset_id,
       keysetCounter: data.keyset_counter,
-      outputAmounts: decryptedData.outputAmounts,
       createdAt: data.created_at,
       version: data.version,
       transactionId: data.transaction_id,

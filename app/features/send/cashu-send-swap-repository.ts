@@ -11,22 +11,10 @@ import type {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
-import type { CashuTokenSendTransactionDetails } from '../transactions/transaction';
-import type { CashuSendSwap } from './cashu-send-swap';
+import type { CashuSendSwap, CashuSendSwapDetails } from './cashu-send-swap';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type EncryptedData = {
-  amountRequested: Money;
-  amountToSend: Money;
-  receiveSwapFee: Money;
-  sendSwapFee: Money;
-  totalAmount: Money;
-  inputAmount: Money;
-  sendOutputAmounts?: number[];
-  changeOutputAmounts?: number[];
 };
 
 type CreateSendSwap = {
@@ -112,29 +100,21 @@ export class CashuSendSwapRepository {
     }: CreateSendSwap,
     options?: Options,
   ) {
-    const details: CashuTokenSendTransactionDetails = {
+    const requiresInputProofsSwap = !inputAmount.equals(amountToSend);
+
+    const dataToEncrypt: CashuSendSwapDetails = {
+      amountToSend: amountToSend,
       amountSpent: totalAmount,
       cashuSendFee: cashuSendFee,
       cashuReceiveFee: cashuReceiveFee,
       totalFees: cashuSendFee.add(cashuReceiveFee),
       amountToReceive: amountToSend.subtract(cashuReceiveFee),
-    };
-
-    const requiresInputProofsSwap = !inputAmount.equals(amountToSend);
-
-    const dataToEncrypt: EncryptedData = {
       amountRequested,
-      amountToSend,
-      receiveSwapFee: cashuReceiveFee,
-      sendSwapFee: cashuSendFee,
-      totalAmount,
       inputAmount,
-      sendOutputAmounts: outputAmounts?.send,
-      changeOutputAmounts: outputAmounts?.change,
+      outputAmounts,
     };
 
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([details, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
     const numberOfOutputs = requiresInputProofsSwap
       ? (outputAmounts?.send?.length ?? 0) +
@@ -146,7 +126,7 @@ export class CashuSendSwapRepository {
       p_account_id: accountId,
       p_input_proofs: inputProofs.map((p) => p.id),
       p_currency: amountToSend.currency,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_transaction_details: encryptedData,
       p_encrypted_data: encryptedData,
       p_requires_input_proofs_swap: requiresInputProofsSwap,
       p_token_hash: tokenHash,
@@ -334,9 +314,9 @@ export class CashuSendSwapRepository {
   async toSwap(
     data: AgicashDbCashuSendSwap & { cashu_proofs: AgicashDbCashuProof[] },
   ): Promise<CashuSendSwap> {
-    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
-    );
+    const [decryptedData] = await this.encryption.decryptBatch<
+      [CashuSendSwapDetails]
+    >([data.encrypted_data]);
 
     const { inputProofs, proofsToSend } = await this.decryptCashuProofs({
       inputProofs: data.cashu_proofs.filter(
@@ -355,9 +335,9 @@ export class CashuSendSwapRepository {
       transactionId: data.transaction_id,
       amountRequested: decryptedData.amountRequested,
       amountToSend: decryptedData.amountToSend,
-      totalAmount: decryptedData.totalAmount,
-      cashuReceiveFee: decryptedData.receiveSwapFee,
-      cashuSendFee: decryptedData.sendSwapFee,
+      totalAmount: decryptedData.amountSpent,
+      cashuReceiveFee: decryptedData.cashuReceiveFee,
+      cashuSendFee: decryptedData.cashuSendFee,
       inputProofs: inputProofs,
       inputAmount: decryptedData.inputAmount,
       currency: data.currency,
@@ -370,7 +350,7 @@ export class CashuSendSwapRepository {
       if (
         !data.keyset_id ||
         data.keyset_counter === null ||
-        !decryptedData.sendOutputAmounts
+        !decryptedData.outputAmounts
       ) {
         throw new Error('Invalid swap, DRAFT state is missing data', {
           cause: data,
@@ -380,18 +360,15 @@ export class CashuSendSwapRepository {
         ...commonData,
         keysetId: data.keyset_id,
         keysetCounter: data.keyset_counter,
-        outputAmounts: {
-          send: decryptedData.sendOutputAmounts,
-          change: decryptedData.changeOutputAmounts ?? [],
-        },
+        outputAmounts: decryptedData.outputAmounts,
         state: 'DRAFT',
       };
     }
 
     if (data.state === 'PENDING' || data.state === 'COMPLETED') {
-      if (!data.token_hash || !proofsToSend) {
+      if (!data.token_hash || !proofsToSend || !decryptedData.outputAmounts) {
         throw new Error(
-          'Invalid swap, token hash or proofs to send are missing',
+          'Invalid swap, token hash, proofs to send, or output amounts are missing',
           {
             cause: data,
           },
@@ -401,6 +378,7 @@ export class CashuSendSwapRepository {
         ...commonData,
         proofsToSend: proofsToSend,
         tokenHash: data.token_hash,
+        outputAmounts: decryptedData.outputAmounts,
         state: data.state,
       };
     }

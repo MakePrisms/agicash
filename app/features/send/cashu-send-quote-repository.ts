@@ -12,31 +12,19 @@ import type {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
-import type {
-  CompletedCashuLightningSendTransactionDetails,
-  DestinationDetails,
-  IncompleteCashuLightningSendTransactionDetails,
-} from '../transactions/transaction';
+import type { DestinationDetails } from '../transactions/transaction';
 import {
   type TransactionRepository,
   useTransactionRepository,
 } from '../transactions/transaction-repository';
-import type { CashuSendQuote } from './cashu-send-quote';
+import type {
+  CashuSendQuote,
+  CashuSendQuoteDetailsBase,
+  CompletedCashuSendQuoteDetails,
+} from './cashu-send-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type EncryptedData = {
-  paymentRequest: string;
-  amountRequested: Money;
-  amountRequestedInMsat: number;
-  amountToReceive: Money;
-  lightningFeeReserve: Money;
-  cashuFee: Money;
-  quoteId: string;
-  amountSpent?: Money;
-  paymentPreimage?: string;
 };
 
 type CreateSendQuote = {
@@ -138,30 +126,22 @@ export class CashuSendQuoteRepository {
     }: CreateSendQuote,
     options?: Options,
   ): Promise<CashuSendQuote> {
-    const details: IncompleteCashuLightningSendTransactionDetails = {
+    const dataToEncrypt: CashuSendQuoteDetailsBase = {
       amountToReceive,
-      cashuSendFee: cashuFee,
+      cashuFee,
       lightningFeeReserve,
       amountReserved,
       paymentRequest,
       destinationDetails,
-    };
-
-    const dataToEncrypt: EncryptedData = {
-      paymentRequest,
       amountRequested,
       amountRequestedInMsat,
-      amountToReceive,
-      lightningFeeReserve,
-      cashuFee,
       quoteId,
     };
 
-    const [[encryptedTransactionDetails, encryptedData], quoteIdHash] =
-      await Promise.all([
-        this.encryption.encryptBatch([details, dataToEncrypt]),
-        computeSHA256(quoteId),
-      ]);
+    const [encryptedData, quoteIdHash] = await Promise.all([
+      this.encryption.encrypt(dataToEncrypt),
+      computeSHA256(quoteId),
+    ]);
 
     const query = this.db.rpc('create_cashu_send_quote', {
       p_user_id: userId,
@@ -173,7 +153,7 @@ export class CashuSendQuoteRepository {
       p_number_of_change_outputs: numberOfChangeOutputs,
       p_proofs_to_send: proofsToSend.map((p) => p.id),
       p_encrypted_data: encryptedData,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_transaction_details: encryptedData,
       p_quote_id_hash: quoteIdHash,
       p_payment_hash: paymentHash,
     });
@@ -248,41 +228,32 @@ export class CashuSendQuoteRepository {
       throw new Error(`Transaction not found for quote ${quote.id}.`);
     }
 
-    const updatedTransactionDetails: CompletedCashuLightningSendTransactionDetails =
-      {
-        ...transaction.details,
-        preimage: paymentPreimage,
-        amountSpent,
-        lightningFee: actualLightningFee,
-        totalFees,
-      };
-
     const proofDataToEncrypt = changeProofs.flatMap((x) => [
       x.amount,
       x.secret,
     ]);
 
-    const dataToEncrypt: EncryptedData = {
+    const dataToEncrypt: CompletedCashuSendQuoteDetails = {
+      amountToReceive: quote.amountToReceive,
+      cashuFee: quote.cashuFee,
+      lightningFeeReserve: quote.lightningFeeReserve,
+      amountReserved: transaction.details.amountReserved,
       paymentRequest: quote.paymentRequest,
+      destinationDetails: transaction.details.destinationDetails,
       amountRequested: quote.amountRequested,
       amountRequestedInMsat: quote.amountRequestedInMsat,
-      amountToReceive: quote.amountToReceive,
-      lightningFeeReserve: quote.lightningFeeReserve,
-      cashuFee: quote.cashuFee,
       quoteId: quote.quoteId,
       amountSpent,
       paymentPreimage,
+      lightningFee: actualLightningFee,
+      totalFees,
     };
 
-    const [
-      encryptedData,
-      encryptedUpdatedTransactionDetails,
-      ...encryptedProofData
-    ] = await this.encryption.encryptBatch([
-      dataToEncrypt,
-      updatedTransactionDetails,
-      ...proofDataToEncrypt,
-    ]);
+    const [encryptedData, ...encryptedProofData] =
+      await this.encryption.encryptBatch([
+        dataToEncrypt,
+        ...proofDataToEncrypt,
+      ]);
 
     const encryptedProofs = changeProofs.map((x, index) => {
       const encryptedDataIndex = index * 2;
@@ -301,7 +272,7 @@ export class CashuSendQuoteRepository {
       p_quote_id: quote.id,
       p_change_proofs: encryptedProofs,
       p_encrypted_data: encryptedData,
-      p_encrypted_transaction_details: encryptedUpdatedTransactionDetails,
+      p_encrypted_transaction_details: encryptedData,
     });
 
     if (options?.abortSignal) {
@@ -491,52 +462,12 @@ export class CashuSendQuoteRepository {
   async toSendQuote(
     data: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
   ): Promise<CashuSendQuote> {
-    const [encryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
-    );
-
-    const proofs = await this.decryptCashuProofs(data.cashu_proofs);
-
-    const commonData = {
-      id: data.id,
-      createdAt: data.created_at,
-      expiresAt: data.expires_at,
-      userId: data.user_id,
-      accountId: data.account_id,
-      paymentRequest: encryptedData.paymentRequest,
-      paymentHash: data.payment_hash,
-      amountRequested: encryptedData.amountRequested,
-      amountRequestedInMsat: encryptedData.amountRequestedInMsat,
-      amountToReceive: encryptedData.amountToReceive,
-      lightningFeeReserve: encryptedData.lightningFeeReserve,
-      cashuFee: encryptedData.cashuFee,
-      proofs,
-      quoteId: encryptedData.quoteId,
-      keysetId: data.keyset_id,
-      keysetCounter: data.keyset_counter,
-      numberOfChangeOutputs: data.number_of_change_outputs,
-      version: data.version,
-      transactionId: data.transaction_id,
-    };
-
     if (data.state === 'PAID') {
-      if (!encryptedData.amountSpent) {
-        throw new Error('amountSpent is required for PAID state');
-      }
-      return {
-        ...commonData,
-        state: 'PAID',
-        paymentPreimage: encryptedData.paymentPreimage ?? '',
-        amountSpent: encryptedData.amountSpent,
-      };
+      return this.decryptPaidQuote(data);
     }
 
     if (data.state === 'FAILED') {
-      return {
-        ...commonData,
-        state: 'FAILED',
-        failureReason: data.failure_reason ?? '',
-      };
+      return this.decryptFailedQuote(data);
     }
 
     if (
@@ -544,13 +475,84 @@ export class CashuSendQuoteRepository {
       data.state === 'PENDING' ||
       data.state === 'EXPIRED'
     ) {
-      return {
-        ...commonData,
-        state: data.state,
-      };
+      return this.decryptIncompleteQuote(data);
     }
 
     throw new Error(`Unexpected quote state ${data.state}`);
+  }
+
+  /**
+   * Builds the base quote fields from the DB record. These fields are shared across all states.
+   */
+  private async buildQuoteBase(
+    data: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
+  ) {
+    const proofs = await this.decryptCashuProofs(data.cashu_proofs);
+
+    return {
+      id: data.id,
+      createdAt: data.created_at,
+      expiresAt: data.expires_at,
+      userId: data.user_id,
+      accountId: data.account_id,
+      paymentHash: data.payment_hash,
+      proofs,
+      keysetId: data.keyset_id,
+      keysetCounter: data.keyset_counter,
+      numberOfChangeOutputs: data.number_of_change_outputs,
+      version: data.version,
+      transactionId: data.transaction_id,
+    };
+  }
+
+  private async decryptIncompleteQuote(
+    data: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
+  ): Promise<CashuSendQuote & { state: 'UNPAID' | 'PENDING' | 'EXPIRED' }> {
+    const [[decryptedData], base] = await Promise.all([
+      this.encryption.decryptBatch<[CashuSendQuoteDetailsBase]>([
+        data.encrypted_data,
+      ]),
+      this.buildQuoteBase(data),
+    ]);
+
+    if (data.state === 'UNPAID') {
+      return { ...base, ...decryptedData, state: 'UNPAID' as const };
+    }
+    if (data.state === 'PENDING') {
+      return { ...base, ...decryptedData, state: 'PENDING' as const };
+    }
+    return { ...base, ...decryptedData, state: 'EXPIRED' as const };
+  }
+
+  private async decryptPaidQuote(
+    data: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
+  ): Promise<CashuSendQuote & { state: 'PAID' }> {
+    const [[decryptedData], base] = await Promise.all([
+      this.encryption.decryptBatch<[CompletedCashuSendQuoteDetails]>([
+        data.encrypted_data,
+      ]),
+      this.buildQuoteBase(data),
+    ]);
+
+    return { ...base, ...decryptedData, state: 'PAID' as const };
+  }
+
+  private async decryptFailedQuote(
+    data: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
+  ): Promise<CashuSendQuote & { state: 'FAILED' }> {
+    const [[decryptedData], base] = await Promise.all([
+      this.encryption.decryptBatch<[CashuSendQuoteDetailsBase]>([
+        data.encrypted_data,
+      ]),
+      this.buildQuoteBase(data),
+    ]);
+
+    return {
+      ...base,
+      ...decryptedData,
+      state: 'FAILED' as const,
+      failureReason: data.failure_reason ?? '',
+    };
   }
 
   private async decryptCashuProofs(

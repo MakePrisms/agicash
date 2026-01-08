@@ -1,11 +1,42 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Money } from '~/lib/money';
 
+export type CashuReceiveQuoteDetailsBase = {
+  /**
+   * The mint quote ID.
+   */
+  quoteId: string;
+  /**
+   * The amount received to the account after all fees.
+   */
+  amountReceived: Money;
+  /**
+   * The bolt11 payment request.
+   */
+  paymentRequest: string;
+  /**
+   * Amounts for each blinded message created for this receive.
+   * Populated after payment is processed (PAID/COMPLETED states).
+   */
+  outputAmounts?: number[];
+  /**
+   * The fee charged by the mint to mint ecash.
+   */
+  mintingFee?: Money;
+};
+
+export type LightningCashuReceiveQuoteDetails = CashuReceiveQuoteDetailsBase & {
+  /**
+   * The description of the receive.
+   */
+  description?: string;
+};
+
 /**
  * Data related to cross-account cashu token receives.
  * Present only for TOKEN type quotes.
  */
-export type CashuReceiveQuoteTokenReceiveData = {
+type TokenReceiveCashuReceiveQuoteDetails = {
   /**
    * URL of the source mint where the token proofs originate from.
    */
@@ -24,6 +55,29 @@ export type CashuReceiveQuoteTokenReceiveData = {
   meltInitiated: boolean;
 };
 
+export type TokenCashuReceiveQuoteDetails = CashuReceiveQuoteDetailsBase & {
+  /**
+   * The amount of the token being claimed.
+   */
+  tokenAmount: Money;
+  /**
+   * The fee incurred when swapping/melting proofs.
+   */
+  cashuReceiveFee: Money;
+  /**
+   * The fee reserved for the lightning payment to melt the token proofs to this account.
+   */
+  lightningFeeReserve?: Money;
+  /**
+   * The total fees for the receive. Sum of cashuReceiveFee, lightningFeeReserve, and mintingFee.
+   */
+  totalFees: Money;
+  /**
+   * Data related to cross-account cashu token receives.
+   */
+  tokenReceiveData: Omit<TokenReceiveCashuReceiveQuoteDetails, 'meltInitiated'>;
+};
+
 type CashuReceiveQuoteBase = {
   id: string;
   /**
@@ -35,19 +89,6 @@ type CashuReceiveQuoteBase = {
    */
   accountId: string;
   /**
-   * ID of the mint quote.
-   * Once the quote is paid, the mint quote id is used to mint the tokens.
-   */
-  quoteId: string;
-  /**
-   * Amount of the quote.
-   */
-  amount: Money;
-  /**
-   * Description of the receivequote.
-   */
-  description?: string;
-  /**
    * Date and time the receive quote was created in ISO 8601 format.
    */
   createdAt: string;
@@ -55,10 +96,6 @@ type CashuReceiveQuoteBase = {
    * Date and time the receive quote expires in ISO 8601 format.
    */
   expiresAt: string;
-  /**
-   * Payment request for the quote.
-   */
-  paymentRequest: string;
   /**
    * Payment hash of the quote's lightning invoice.
    */
@@ -79,21 +116,17 @@ type CashuReceiveQuoteBase = {
    * ID of the corresponding transaction.
    */
   transactionId: string;
-  /**
-   * Optional fee that the mint charges to mint ecash. This amount is added to the payment request amount.
-   */
-  mintingFee?: Money;
 };
 
 type CashuReceiveQuoteByType =
-  | {
+  | ({
       /**
        * Type of the receive.
        * LIGHTNING - The money is received via Lightning.
        */
       type: 'LIGHTNING';
-    }
-  | {
+    } & LightningCashuReceiveQuoteDetails)
+  | ({
       /**
        * Type of the receive.
        * CASHU_TOKEN - The money is received as cashu token. Those proofs are then used to mint tokens for the receiver's account via Lightning.
@@ -103,8 +136,8 @@ type CashuReceiveQuoteByType =
       /**
        * Data related to cross-account cashu token receives.
        */
-      tokenReceiveData: CashuReceiveQuoteTokenReceiveData;
-    };
+      tokenReceiveData: TokenReceiveCashuReceiveQuoteDetails;
+    } & TokenCashuReceiveQuoteDetails);
 
 type CashuReceiveQuoteByState =
   | {

@@ -6,21 +6,14 @@ import type {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type {
-  CompletedSparkLightningSendTransactionDetails,
-  IncompleteSparkLightningSendTransactionDetails,
-} from '../transactions/transaction';
-import type { SparkSendQuote } from './spark-send-quote';
+  CompletedSparkSendQuoteDetails,
+  PendingSparkSendQuoteDetails,
+  SparkSendQuote,
+  SparkSendQuoteDetailsBase,
+} from './spark-send-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type EncryptedData = {
-  amount: Money;
-  estimatedFee: Money;
-  paymentRequest: string;
-  fee?: Money;
-  paymentPreimage?: string;
 };
 
 type CreateQuoteParams = {
@@ -83,20 +76,13 @@ export class SparkSendQuoteRepository {
       expiresAt,
     } = params;
 
-    const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
+    const dataToEncrypt: SparkSendQuoteDetailsBase = {
       amountToReceive: amount,
       estimatedFee,
       paymentRequest,
     };
 
-    const dataToEncrypt: EncryptedData = {
-      amount,
-      estimatedFee,
-      paymentRequest,
-    };
-
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
     const query = this.db.rpc('create_spark_send_quote', {
       p_user_id: userId,
@@ -104,7 +90,7 @@ export class SparkSendQuoteRepository {
       p_currency: amount.currency,
       p_payment_hash: paymentHash,
       p_payment_request_is_amountless: paymentRequestIsAmountless,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_transaction_details: encryptedData,
       p_encrypted_data: encryptedData,
       p_expires_at: expiresAt?.toISOString(),
     });
@@ -152,29 +138,23 @@ export class SparkSendQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
-    const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
-      amountToReceive: quote.amount,
-      amountSpent: quote.amount.add(fee),
+    const dataToEncrypt: PendingSparkSendQuoteDetails = {
+      amountToReceive: quote.amountToReceive,
+      amountSpent: quote.amountToReceive.add(fee),
       estimatedFee: quote.estimatedFee,
       paymentRequest: quote.paymentRequest,
+      sparkId: sparkSendRequestId,
+      sparkTransferId: sparkTransferId,
       fee,
     };
 
-    const dataToEncrypt: EncryptedData = {
-      amount: quote.amount,
-      estimatedFee: quote.estimatedFee,
-      paymentRequest: quote.paymentRequest,
-      fee: fee,
-    };
-
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
     const query = this.db.rpc('mark_spark_send_quote_as_pending', {
       p_quote_id: quote.id,
       p_spark_id: sparkSendRequestId,
       p_spark_transfer_id: sparkTransferId,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_transaction_details: encryptedData,
       p_encrypted_data: encryptedData,
     });
 
@@ -213,32 +193,22 @@ export class SparkSendQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
-    const detailsToEncrypt: Omit<
-      CompletedSparkLightningSendTransactionDetails,
-      'sparkId' | 'sparkTransferId'
-    > = {
-      amountToReceive: quote.amount,
-      amountSpent: quote.amount.add(quote.fee),
+    const dataToEncrypt: CompletedSparkSendQuoteDetails = {
+      amountToReceive: quote.amountToReceive,
+      amountSpent: quote.amountToReceive.add(quote.fee),
       estimatedFee: quote.estimatedFee,
       paymentRequest: quote.paymentRequest,
       fee: quote.fee,
+      sparkId: quote.sparkId,
+      sparkTransferId: quote.sparkTransferId,
       paymentPreimage,
     };
 
-    const dataToEncrypt: EncryptedData = {
-      amount: quote.amount,
-      estimatedFee: quote.estimatedFee,
-      paymentRequest: quote.paymentRequest,
-      fee: quote.fee,
-      paymentPreimage,
-    };
-
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
     const query = this.db.rpc('complete_spark_send_quote', {
       p_quote_id: quote.id,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_transaction_details: encryptedData,
       p_encrypted_data: encryptedData,
     });
 
@@ -333,18 +303,30 @@ export class SparkSendQuoteRepository {
   }
 
   async toQuote(data: AgicashDbSparkSendQuote): Promise<SparkSendQuote> {
-    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
-    );
+    if (data.state === 'UNPAID') {
+      return this.decryptUnpaidQuote(data);
+    }
+    if (data.state === 'PENDING') {
+      return this.decryptPendingQuote(data);
+    }
+    if (data.state === 'COMPLETED') {
+      return this.decryptCompletedQuote(data);
+    }
+    if (data.state === 'FAILED') {
+      return this.decryptFailedQuote(data);
+    }
 
-    const baseQuote = {
+    throw new Error(`Unexpected quote state ${data.state}`);
+  }
+
+  /**
+   * Builds the base quote fields from the DB record. These fields are shared across all states.
+   */
+  private buildQuoteBase(data: AgicashDbSparkSendQuote) {
+    return {
       id: data.id,
-      sparkId: data.spark_id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      amount: decryptedData.amount,
-      estimatedFee: decryptedData.estimatedFee,
-      paymentRequest: decryptedData.paymentRequest,
       paymentHash: data.payment_hash,
       transactionId: data.transaction_id,
       userId: data.user_id,
@@ -352,84 +334,92 @@ export class SparkSendQuoteRepository {
       version: data.version,
       paymentRequestIsAmountless: data.payment_request_is_amountless,
     };
+  }
 
-    if (data.state === 'COMPLETED') {
-      if (!data.spark_id) {
-        throw new Error(
-          'Invalid spark send quote data. Spark id is required for completed state.',
-        );
-      }
-      if (!data.spark_transfer_id) {
-        throw new Error(
-          'Invalid spark send quote data. Spark transfer id is required for completed state.',
-        );
-      }
-      if (!decryptedData.fee) {
-        throw new Error(
-          'Invalid spark send quote data. Fee is required for completed state.',
-        );
-      }
-      if (!decryptedData.paymentPreimage) {
-        throw new Error(
-          'Invalid spark send quote data. Payment preimage is required for completed state.',
-        );
-      }
+  private async decryptUnpaidQuote(
+    data: AgicashDbSparkSendQuote,
+  ): Promise<SparkSendQuote & { state: 'UNPAID' }> {
+    const [decryptedData] = await this.encryption.decryptBatch<
+      [SparkSendQuoteDetailsBase]
+    >([data.encrypted_data]);
 
-      return {
-        ...baseQuote,
-        state: 'COMPLETED',
-        sparkId: data.spark_id,
-        sparkTransferId: data.spark_transfer_id,
-        fee: decryptedData.fee,
-        paymentPreimage: decryptedData.paymentPreimage,
-      };
+    return {
+      ...this.buildQuoteBase(data),
+      ...decryptedData,
+      state: 'UNPAID',
+    };
+  }
+
+  private async decryptPendingQuote(
+    data: AgicashDbSparkSendQuote,
+  ): Promise<SparkSendQuote & { state: 'PENDING' }> {
+    const [decryptedData] = await this.encryption.decryptBatch<
+      [PendingSparkSendQuoteDetails]
+    >([data.encrypted_data]);
+
+    if (!data.spark_id) {
+      throw new Error(
+        'Invalid spark send quote data. Spark id is required for pending state.',
+      );
+    }
+    if (!data.spark_transfer_id) {
+      throw new Error(
+        'Invalid spark send quote data. Spark transfer id is required for pending state.',
+      );
     }
 
-    if (data.state === 'FAILED') {
-      return {
-        ...baseQuote,
-        state: 'FAILED',
-        failureReason: data.failure_reason ?? undefined,
-        sparkId: data.spark_id ?? undefined,
-        sparkTransferId: data.spark_transfer_id ?? undefined,
-        fee: decryptedData.fee,
-      };
+    return {
+      ...this.buildQuoteBase(data),
+      ...decryptedData,
+      state: 'PENDING',
+      sparkId: data.spark_id,
+      sparkTransferId: data.spark_transfer_id,
+    };
+  }
+
+  private async decryptCompletedQuote(
+    data: AgicashDbSparkSendQuote,
+  ): Promise<SparkSendQuote & { state: 'COMPLETED' }> {
+    const [decryptedData] = await this.encryption.decryptBatch<
+      [CompletedSparkSendQuoteDetails]
+    >([data.encrypted_data]);
+
+    if (!data.spark_id) {
+      throw new Error(
+        'Invalid spark send quote data. Spark id is required for completed state.',
+      );
+    }
+    if (!data.spark_transfer_id) {
+      throw new Error(
+        'Invalid spark send quote data. Spark transfer id is required for completed state.',
+      );
     }
 
-    if (data.state === 'PENDING') {
-      if (!data.spark_id) {
-        throw new Error(
-          'Invalid spark send quote data. Spark id is required for pending state.',
-        );
-      }
-      if (!data.spark_transfer_id) {
-        throw new Error(
-          'Invalid spark send quote data. Spark transfer id is required for pending state.',
-        );
-      }
-      if (!decryptedData.fee) {
-        throw new Error(
-          'Invalid spark send quote data. Fee is required for pending state.',
-        );
-      }
+    return {
+      ...this.buildQuoteBase(data),
+      ...decryptedData,
+      state: 'COMPLETED',
+      sparkId: data.spark_id,
+      sparkTransferId: data.spark_transfer_id,
+    };
+  }
 
-      return {
-        ...baseQuote,
-        state: 'PENDING',
-        sparkId: data.spark_id,
-        sparkTransferId: data.spark_transfer_id,
-        fee: decryptedData.fee,
-      };
-    }
+  private async decryptFailedQuote(
+    data: AgicashDbSparkSendQuote,
+  ): Promise<SparkSendQuote & { state: 'FAILED' }> {
+    // Failed state can have either base data (if failed before initiation) or pending data (if failed after)
+    const [decryptedData] = await this.encryption.decryptBatch<
+      [SparkSendQuoteDetailsBase & Partial<PendingSparkSendQuoteDetails>]
+    >([data.encrypted_data]);
 
-    if (data.state === 'UNPAID') {
-      return {
-        ...baseQuote,
-        state: 'UNPAID',
-      };
-    }
-
-    throw new Error(`Unexpected quote state ${data.state}`);
+    return {
+      ...this.buildQuoteBase(data),
+      ...decryptedData,
+      state: 'FAILED',
+      failureReason: data.failure_reason ?? undefined,
+      sparkId: data.spark_id ?? undefined,
+      sparkTransferId: data.spark_transfer_id ?? undefined,
+    };
   }
 }
 
