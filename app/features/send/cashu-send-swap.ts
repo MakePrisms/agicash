@@ -2,6 +2,55 @@ import type { Money } from '~/lib/money';
 import type { CashuProof } from '../accounts/account';
 
 /**
+ * The output amounts used for deterministic outputs when swapping inputProofs for proofsToSend.
+ */
+export type CashuSendSwapOutputAmounts = {
+  /** The output amounts to use when constructing the send output data. */
+  send: number[];
+  /** The output amounts to use when constructing the change output data. */
+  change: number[];
+};
+
+export type CashuSendSwapDetails = {
+  /**
+   * This is the sum of `amountToReceive` and `totalFees`, and is the amount deducted from the account.
+   */
+  amountSpent: Money;
+  /**
+   * This is the amount the recipient will receive after fees have been paid.
+   */
+  amountToReceive: Money;
+  /**
+   * The fee incurred when creating sendable proofs.
+   */
+  cashuSendFee: Money;
+  /**
+   * The fee that we include in the token for the receiver to claim exactly `amountToReceive`.
+   */
+  cashuReceiveFee: Money;
+  /**
+   * The total fees for the transaction. Sum of cashuSendFee and cashuReceiveFee.
+   */
+  totalFees: Money;
+  /**
+   * The sum of the input proofs in the account's currency.
+   */
+  inputAmount: Money;
+  /**
+   * The amount to send in the account's currency.
+   */
+  amountToSend: Money;
+  /**
+   * The requested amount to send in the account's currency.
+   */
+  amountRequested: Money;
+  /**
+   * The output amounts used for the swap.
+   */
+  outputAmounts?: CashuSendSwapOutputAmounts;
+};
+
+/**
  * A CashuSendSwap spends proofs from an account (or swaps them if the no exact
  * amount with available proofs) and encodes them into a token to share with the receiver.
  *
@@ -15,7 +64,7 @@ import type { CashuProof } from '../accounts/account';
  *
  * Once the proofsToSend are spent, the swap is COMPLETED.
  */
-export type CashuSendSwap = {
+type CashuSendSwapBase = {
   /**
    * The id of the swap
    */
@@ -34,39 +83,6 @@ export type CashuSendSwap = {
    */
   inputProofs: CashuProof[];
   /**
-   * The sum of the inputProofs
-   */
-  inputAmount: Money;
-  /**
-   * The amount requested to send by the user.
-   */
-  amountRequested: Money;
-  /**
-   * The requested amount to send plus the cashuReceiveFee.
-   */
-  amountToSend: Money;
-  /**
-   * The swap fee that will be incurred when the receiver claims the token.
-   */
-  cashuReceiveFee: Money;
-  /**
-   * The swap fee that will be incurred when swapping the inputProofs to get the amountToSend worth of proofs to send.
-   */
-  cashuSendFee: Money;
-  /**
-   * The total amount spent. This is the sum of amountToSend and cashuSendFee.
-   */
-  totalAmount: Money;
-  /**
-   * - DRAFT: The swap entity has been created, but there are no proofs to send yet. At this point,
-   * we have only taken the inputProofs from the account
-   * - PENDING: There are proofs to send and the swap is waiting for the proofsToSend to be spent.
-   * - COMPLETED: The proofsToSend have been spent.
-   * - REVERSED: The swap was reversed before the proofsToSend were spent.
-   * - FAILED: The process of swapping for the proofsToSend failed.
-   */
-  state: 'DRAFT' | 'PENDING' | 'COMPLETED' | 'REVERSED' | 'FAILED';
-  /**
    * The version of the swap used for optimistic locking.
    */
   version: number;
@@ -78,8 +94,15 @@ export type CashuSendSwap = {
    * The date the swap was created.
    */
   createdAt: Date;
-} & (
+};
+
+type CashuSendSwapByState =
   | {
+      /**
+       * State of the cashu send swap.
+       * DRAFT: The swap entity has been created, but there are no proofs to send yet. At this point,
+       * we have only taken the inputProofs from the account.
+       */
       state: 'DRAFT';
       /**
        * The keyset id used to generate the output data at the time the swap was created.
@@ -90,17 +113,16 @@ export type CashuSendSwap = {
        */
       keysetCounter: number;
       /**
-       * The output data used for deterministic outputs when we swap the inputProofs
-       * for proofsToSend.
+       * The output amounts used for deterministic outputs when we swap the inputProofs for proofsToSend.
        */
-      outputAmounts: {
-        /** The output amounts to use when constructing the send output data. */
-        send: number[];
-        /** The output amounts to use when constructing the change output data. */
-        change: number[];
-      };
+      outputAmounts: CashuSendSwapOutputAmounts;
     }
   | {
+      /**
+       * State of the cashu send swap.
+       * PENDING: There are proofs to send and the swap is waiting for the proofsToSend to be spent.
+       * COMPLETED: The proofsToSend have been spent.
+       */
       state: 'PENDING' | 'COMPLETED';
       /**
        * The hash of the token being sent
@@ -113,14 +135,30 @@ export type CashuSendSwap = {
        * will be the result of swapping the inputProofs for the amount to send.
        */
       proofsToSend: CashuProof[];
+      /**
+       * The output amounts that were used for the swap.
+       */
+      outputAmounts: CashuSendSwapOutputAmounts;
     }
   | {
+      /**
+       * State of the cashu send swap.
+       * FAILED: The process of swapping for the proofsToSend failed.
+       */
       state: 'FAILED';
+      /**
+       * Reason this swap failed.
+       */
       failureReason: string;
     }
   | {
+      /**
+       * State of the cashu send swap.
+       * REVERSED: The swap was reversed before the proofsToSend were spent.
+       */
       state: 'REVERSED';
-    }
-);
+    };
+
+export type CashuSendSwap = CashuSendSwapBase & CashuSendSwapByState;
 
 export type PendingCashuSendSwap = CashuSendSwap & { state: 'PENDING' };

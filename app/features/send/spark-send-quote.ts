@@ -1,12 +1,55 @@
 import type { Money } from '~/lib/money';
 
-/**
- * Represents a Spark Lightning send quote.
- * This is created when a user confirms a lightning payment through their Spark wallet.
- * The quote starts in UNPAID state, transitions to PENDING when payment is initiated,
- * and finally to COMPLETED or FAILED based on the payment result.
- */
-export type SparkSendQuote = {
+export type SparkSendQuoteDetailsBase = {
+  /**
+   * Amount that the receiver will receive.
+   * This is the invoice amount in the currency of the account we are sending from.
+   */
+  amountToReceive: Money;
+  /**
+   * The estimated fee for the Lightning Network payment.
+   * If the actual fee ends up being different than this estimate,
+   * the completed transaction will reflect the actual fee paid.
+   */
+  estimatedFee: Money;
+  /**
+   * The bolt11 payment request.
+   */
+  paymentRequest: string;
+};
+
+export type PendingSparkSendQuoteDetails = SparkSendQuoteDetailsBase & {
+  /**
+   * The ID of the send request in Spark system.
+   */
+  sparkId: string;
+  /**
+   * The ID of the transfer in Spark system.
+   */
+  sparkTransferId: string;
+  /**
+   * The actual fee for the Lightning Network payment.
+   */
+  fee: Money;
+  /**
+   * This is the sum of `amountToReceive` and `fee`. This is the amount deducted from the account.
+   */
+  amountSpent: Money;
+};
+
+export type CompletedSparkSendQuoteDetails = PendingSparkSendQuoteDetails & {
+  /**
+   * The preimage of the lightning payment.
+   */
+  paymentPreimage: string;
+};
+
+export type SparkSendQuoteDetails =
+  | SparkSendQuoteDetailsBase
+  | PendingSparkSendQuoteDetails
+  | CompletedSparkSendQuoteDetails;
+
+type SparkSendQuoteBase = {
   /**
    * UUID of the quote.
    */
@@ -20,18 +63,6 @@ export type SparkSendQuote = {
    */
   expiresAt?: string | null;
   /**
-   * Amount being sent.
-   */
-  amount: Money;
-  /**
-   *  Estimated fee for the lightning payment.
-   */
-  estimatedFee: Money;
-  /**
-   * Lightning invoice being paid.
-   */
-  paymentRequest: string;
-  /**
    * Payment hash of the lightning invoice.
    */
   paymentHash: string;
@@ -39,10 +70,6 @@ export type SparkSendQuote = {
    * ID of the corresponding transaction.
    */
   transactionId: string;
-  /**
-   * State of the spark send quote.
-   */
-  state: 'UNPAID' | 'PENDING' | 'COMPLETED' | 'FAILED';
   /**
    * ID of the user that the quote belongs to.
    */
@@ -60,61 +87,44 @@ export type SparkSendQuote = {
    * When true, the amount field contains the user-specified amount.
    */
   paymentRequestIsAmountless: boolean;
-} & (
-  | {
+};
+
+type SparkSendQuoteByState =
+  | ({
       state: 'UNPAID';
-    }
-  | {
+    } & SparkSendQuoteDetailsBase)
+  | ({
       state: 'PENDING';
-      /**
-       * ID of the send request in spark system.
-       */
-      sparkId: string;
-      /**
-       * Spark transfer ID.
-       */
-      sparkTransferId: string;
-      /**
-       * Actual fee of the lightning payment.
-       */
-      fee: Money;
-    }
-  | {
+    } & PendingSparkSendQuoteDetails)
+  | ({
       state: 'COMPLETED';
-      /**
-       * ID of the send request in spark system.
-       */
-      sparkId: string;
-      /**
-       * Spark transfer ID.
-       */
-      sparkTransferId: string;
-      /**
-       * Actual fee of the lightning payment.
-       */
-      fee: Money;
-      /**
-       * Payment preimage proving the payment was successful.
-       */
-      paymentPreimage: string;
-    }
-  | {
+    } & CompletedSparkSendQuoteDetails)
+  | ({
       state: 'FAILED';
       /**
        * Reason for failure.
        */
       failureReason?: string;
       /**
-       * ID of the send request in spark system.
+       * The ID of the send request in Spark system.
        */
       sparkId?: string;
       /**
-       * Spark transfer ID.
+       * The ID of the transfer in Spark system.
        */
       sparkTransferId?: string;
       /**
-       * Actual fee of the lightning payment.
+       * The actual fee for the Lightning Network payment.
        */
       fee?: Money;
-    }
-);
+    } & SparkSendQuoteDetailsBase);
+
+/**
+ * Represents a Spark Lightning send quote.
+ * This is created when a user confirms a lightning payment through their Spark wallet.
+ * The quote starts in UNPAID state, transitions to PENDING when payment is initiated,
+ * and finally to COMPLETED or FAILED based on the payment result.
+ */
+export type SparkSendQuote = SparkSendQuoteBase & SparkSendQuoteByState;
+
+export type PendingSparkSendQuote = SparkSendQuote & { state: 'PENDING' };

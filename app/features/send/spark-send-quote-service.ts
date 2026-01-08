@@ -315,7 +315,7 @@ export class SparkSendQuoteService {
         maxFeeSats: sendQuote.estimatedFee.toNumber('sat'),
         preferSpark: false,
         amountSatsToSend: sendQuote.paymentRequestIsAmountless
-          ? sendQuote.amount.toNumber('sat')
+          ? sendQuote.amountToReceive.toNumber('sat')
           : undefined,
       });
 

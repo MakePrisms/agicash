@@ -11,17 +11,26 @@ import {
 } from '~/components/ui/card';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import type {
-  CashuLightningReceiveTransactionDetails,
-  CashuTokenReceiveTransactionDetails,
-  CashuTokenSendTransactionDetails,
-  CompletedCashuLightningSendTransactionDetails,
-  CompletedSparkLightningReceiveTransactionDetails,
-  CompletedSparkLightningSendTransactionDetails,
-  IncompleteCashuLightningSendTransactionDetails,
-  IncompleteSparkLightningSendTransactionDetails,
-  SparkLightningReceiveTransactionDetails,
-  Transaction,
-} from '~/features/transactions/transaction';
+  LightningCashuReceiveQuoteDetails,
+  TokenCashuReceiveQuoteDetails,
+} from '~/features/receive/cashu-receive-quote';
+import type { CashuTokenSwapDetails } from '~/features/receive/cashu-token-swap';
+import type {
+  CompletedLightningSparkReceiveQuoteDetails,
+  CompletedTokenSparkReceiveQuoteDetails,
+  LightningSparkReceiveQuoteDetails,
+  TokenSparkReceiveQuoteDetails,
+} from '~/features/receive/spark-receive-quote';
+import type {
+  CashuSendQuoteDetailsBase,
+  CompletedCashuSendQuoteDetails,
+} from '~/features/send/cashu-send-quote';
+import type { CashuSendSwapDetails } from '~/features/send/cashu-send-swap';
+import type {
+  CompletedSparkSendQuoteDetails,
+  SparkSendQuoteDetailsBase,
+} from '~/features/send/spark-send-quote';
+import type { Transaction } from '~/features/transactions/transaction';
 import { useToast } from '~/hooks/use-toast';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
@@ -140,8 +149,7 @@ export function TransactionDetails({
 
   if (type === 'CASHU_LIGHTNING' && direction === 'SEND') {
     if (state === 'COMPLETED') {
-      const completedDetails =
-        details as CompletedCashuLightningSendTransactionDetails;
+      const completedDetails = details as CompletedCashuSendQuoteDetails;
       console.debug(
         `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
         {
@@ -154,20 +162,17 @@ export function TransactionDetails({
           }),
           lightningFeeReserve:
             completedDetails.lightningFeeReserve.toLocaleString({ unit }),
-          cashuSendFee: completedDetails.cashuSendFee.toLocaleString({
-            unit,
-          }),
+          cashuFee: completedDetails.cashuFee.toLocaleString({ unit }),
           totalFees: completedDetails.totalFees.toLocaleString({ unit }),
           lightningFee: completedDetails.lightningFee.toLocaleString({
             unit,
           }),
           paymentRequest: completedDetails.paymentRequest,
-          preimage: completedDetails.preimage,
+          paymentPreimage: completedDetails.paymentPreimage,
         },
       );
     } else {
-      const incompleteDetails =
-        details as IncompleteCashuLightningSendTransactionDetails;
+      const incompleteDetails = details as CashuSendQuoteDetailsBase;
       console.debug(
         `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
         {
@@ -179,9 +184,7 @@ export function TransactionDetails({
           }),
           lightningFeeReserve:
             incompleteDetails.lightningFeeReserve.toLocaleString({ unit }),
-          cashuSendFee: incompleteDetails.cashuSendFee.toLocaleString({
-            unit,
-          }),
+          cashuFee: incompleteDetails.cashuFee.toLocaleString({ unit }),
           paymentRequest: incompleteDetails.paymentRequest,
           destinationDetails: incompleteDetails.destinationDetails,
         },
@@ -190,7 +193,7 @@ export function TransactionDetails({
   }
 
   if (type === 'CASHU_LIGHTNING' && direction === 'RECEIVE') {
-    const receiveDetails = details as CashuLightningReceiveTransactionDetails;
+    const receiveDetails = details as LightningCashuReceiveQuoteDetails;
     console.debug(
       `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
       {
@@ -203,7 +206,7 @@ export function TransactionDetails({
   }
 
   if (type === 'CASHU_TOKEN' && direction === 'SEND') {
-    const sendSwapDetails = details as CashuTokenSendTransactionDetails;
+    const sendSwapDetails = details as CashuSendSwapDetails;
     console.debug(
       `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
       {
@@ -223,7 +226,9 @@ export function TransactionDetails({
   }
 
   if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
-    const receiveSwapDetails = details as CashuTokenReceiveTransactionDetails;
+    const receiveSwapDetails = details as
+      | TokenCashuReceiveQuoteDetails
+      | CashuTokenSwapDetails;
     const tokenUnit = getDefaultUnit(receiveSwapDetails.tokenAmount.currency);
     console.debug(
       `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
@@ -238,81 +243,66 @@ export function TransactionDetails({
           unit,
         }),
         lightningFeeReserve:
-          receiveSwapDetails.lightningFeeReserve?.toLocaleString({
-            unit,
-          }),
-        mintingFee: receiveSwapDetails.mintingFee?.toLocaleString({ unit }),
-        totalFees: receiveSwapDetails.totalFees?.toLocaleString({ unit }),
+          'lightningFeeReserve' in receiveSwapDetails
+            ? receiveSwapDetails.lightningFeeReserve?.toLocaleString({
+                unit,
+              })
+            : undefined,
+        mintingFee:
+          'mintingFee' in receiveSwapDetails
+            ? receiveSwapDetails.mintingFee?.toLocaleString({ unit })
+            : undefined,
+        totalFees:
+          'totalFees' in receiveSwapDetails
+            ? receiveSwapDetails.totalFees?.toLocaleString({ unit })
+            : undefined,
       },
     );
   }
 
   if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
-    if (state === 'COMPLETED') {
-      const completedDetails =
-        details as CompletedSparkLightningSendTransactionDetails;
-      console.debug(
-        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-        {
-          paymentRequest: completedDetails.paymentRequest,
-          amountToReceive: completedDetails.amountToReceive.toLocaleString({
-            unit,
-          }),
-          amountSpent: completedDetails.amountSpent.toLocaleString({ unit }),
-          estimatedFee: completedDetails.estimatedFee.toLocaleString({ unit }),
-          sparkId: completedDetails.sparkId,
-          sparkTransferId: completedDetails.sparkTransferId,
-          fee: completedDetails.fee.toLocaleString({ unit }),
-          paymentPreimage: completedDetails.paymentPreimage,
-        },
-      );
-    } else {
-      const incompleteDetails =
-        details as IncompleteSparkLightningSendTransactionDetails;
-      console.debug(
-        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-        {
-          paymentRequest: incompleteDetails.paymentRequest,
-          amountToReceive: incompleteDetails.amountToReceive.toLocaleString({
-            unit,
-          }),
-          estimatedFee: incompleteDetails.estimatedFee.toLocaleString({ unit }),
-          sparkId: incompleteDetails.sparkId,
-          sparkTransferId: incompleteDetails.sparkTransferId,
-          fee: incompleteDetails.fee?.toLocaleString({ unit }),
-        },
-      );
-    }
+    const sendDetails = details as
+      | SparkSendQuoteDetailsBase
+      | CompletedSparkSendQuoteDetails;
+    console.debug(
+      `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
+      {
+        paymentRequest: sendDetails.paymentRequest,
+        amountToReceive: sendDetails.amountToReceive.toLocaleString({ unit }),
+        estimatedFee: sendDetails.estimatedFee.toLocaleString({ unit }),
+        ...('amountSpent' in sendDetails && {
+          amountSpent: sendDetails.amountSpent.toLocaleString({ unit }),
+          sparkId: sendDetails.sparkId,
+          sparkTransferId: sendDetails.sparkTransferId,
+          fee: sendDetails.fee.toLocaleString({ unit }),
+        }),
+        ...('paymentPreimage' in sendDetails && {
+          paymentPreimage: sendDetails.paymentPreimage,
+        }),
+      },
+    );
   }
 
   if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
-    if (state === 'COMPLETED') {
-      const completedDetails =
-        details as CompletedSparkLightningReceiveTransactionDetails;
-      console.debug(
-        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-        {
-          amountReceived: completedDetails.amountReceived.toLocaleString({
-            unit,
-          }),
-          paymentRequest: completedDetails.paymentRequest,
-          paymentPreimage: completedDetails.paymentPreimage,
-          sparkTransferId: completedDetails.sparkTransferId,
-        },
-      );
-    } else {
-      const incompleteDetails =
-        details as SparkLightningReceiveTransactionDetails;
-      console.debug(
-        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-        {
-          amountReceived: incompleteDetails.amountReceived.toLocaleString({
-            unit,
-          }),
-          paymentRequest: incompleteDetails.paymentRequest,
-        },
-      );
-    }
+    const receiveDetails = details as
+      | LightningSparkReceiveQuoteDetails
+      | CompletedLightningSparkReceiveQuoteDetails
+      | TokenSparkReceiveQuoteDetails
+      | CompletedTokenSparkReceiveQuoteDetails;
+    console.debug(
+      `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
+      {
+        amountReceived: receiveDetails.amountReceived.toLocaleString({ unit }),
+        paymentRequest: receiveDetails.paymentRequest,
+        ...('paymentPreimage' in receiveDetails && {
+          paymentPreimage: receiveDetails.paymentPreimage,
+        }),
+        tokenReceiveData:
+          'tokenReceiveData' in receiveDetails
+            ? receiveDetails.tokenReceiveData
+            : undefined,
+      },
+    );
   }
 
   return (

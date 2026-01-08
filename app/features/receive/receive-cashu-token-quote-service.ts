@@ -160,7 +160,7 @@ export class ReceiveCashuTokenQuoteService {
         lightningReceiveQuote: {
           id: cashuReceiveQuote.id,
           paymentRequest: cashuReceiveQuote.paymentRequest,
-          amount: cashuReceiveQuote.amount,
+          amount: cashuReceiveQuote.amountReceived,
           transactionId: cashuReceiveQuote.transactionId,
           destinationType: 'cashu',
         },
@@ -187,7 +187,7 @@ export class ReceiveCashuTokenQuoteService {
       lightningReceiveQuote: {
         id: sparkReceiveQuote.id,
         paymentRequest: sparkReceiveQuote.paymentRequest,
-        amount: sparkReceiveQuote.amount,
+        amount: sparkReceiveQuote.amountReceived,
         transactionId: sparkReceiveQuote.transactionId,
         destinationType: 'spark',
       },

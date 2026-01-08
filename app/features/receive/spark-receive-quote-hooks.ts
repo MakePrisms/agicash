@@ -540,7 +540,7 @@ export function useProcessSparkReceiveQuoteTasks() {
         return;
       }
 
-      const cashuUnit = getCashuUnit(quote.amount.currency);
+      const cashuUnit = getCashuUnit(quote.amountReceived.currency);
       const sourceWallet = getCashuWallet(
         quote.tokenReceiveData.sourceMintUrl,
         {
@@ -551,7 +551,7 @@ export function useProcessSparkReceiveQuoteTasks() {
       await sourceWallet.meltProofsIdempotent(
         {
           quote: quote.tokenReceiveData.meltQuoteId,
-          amount: quote.amount.toNumber(cashuUnit),
+          amount: quote.amountReceived.toNumber(cashuUnit),
         },
         quote.tokenReceiveData.tokenProofs,
       );

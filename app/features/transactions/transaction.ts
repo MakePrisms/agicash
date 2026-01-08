@@ -1,62 +1,24 @@
 import type { Money } from '~/lib/money';
-
-/**
- * Transacion details for sending cashu proofs from an account.
- */
-export type CashuTokenSendTransactionDetails = {
-  /**
-   * This is the sum of `amountToReceive` and `totalFees`, and is the amount deducted from the account.
-   */
-  amountSpent: Money;
-  /**
-   * This is the amount the the recipeint will receive after fees have been paid.
-   */
-  amountToReceive: Money;
-  /**
-   * The fee incurred when creating sendable proofs.
-   */
-  cashuSendFee: Money;
-  /**
-   * The fee that we include in the token for the receiver to claim exactly `amountToReceive`.
-   */
-  cashuReceiveFee: Money;
-  /**
-   * The total fees for the transaction. Sum of cashuSendFee and cashuReceiveFee.
-   */
-  totalFees: Money;
-};
-
-/**
- * Transacion details for receiving cashu proofs to an account.
- */
-export type CashuTokenReceiveTransactionDetails = {
-  /**
-   * This is the token amount minus the cashuReceiveFee, and is the amount added to the account.
-   */
-  amountReceived: Money;
-  /**
-   * The amount of the token being claimed.
-   */
-  tokenAmount: Money;
-  /**
-   * The fee that will be incurred when swapping proofs to the account.
-   */
-  cashuReceiveFee: Money;
-  /**
-   * The fee reserved for the lightning payment to melt the proofs to the account.
-   * This is defined when the token is melted from the source mint into this receiving account.
-   * This will be undefined when receiving proofs to the source account which just requires a swap.
-   */
-  lightningFeeReserve?: Money;
-  /**
-   * The fee that the mint charged to mint the ecash.
-   */
-  mintingFee?: Money;
-  /**
-   * The total fees for the transaction. This is the sum of `cashuReceiveFee`, `lightningFeeReserve`, and `mintingFee`.
-   */
-  totalFees: Money;
-};
+import type {
+  LightningCashuReceiveQuoteDetails,
+  TokenCashuReceiveQuoteDetails,
+} from '../receive/cashu-receive-quote';
+import type { CashuTokenSwapDetails } from '../receive/cashu-token-swap';
+import type {
+  CompletedLightningSparkReceiveQuoteDetails,
+  CompletedTokenSparkReceiveQuoteDetails,
+  LightningSparkReceiveQuoteDetails,
+  TokenSparkReceiveQuoteDetails,
+} from '../receive/spark-receive-quote';
+import type {
+  CashuSendQuoteDetailsBase,
+  CompletedCashuSendQuoteDetails,
+} from '../send/cashu-send-quote';
+import type { CashuSendSwapDetails } from '../send/cashu-send-swap';
+import type {
+  CompletedSparkSendQuoteDetails,
+  SparkSendQuoteDetailsBase,
+} from '../send/spark-send-quote';
 
 /**
  * Additional details related to the transaction destination.
@@ -72,186 +34,6 @@ export type DestinationDetails =
       /** The lightning address that the invoice was fetched from. */
       lnAddress: string;
     };
-
-type BaseCashuLightningSendTransactionDetails = {
-  /**
-   * The sum of all proofs used as inputs to the cashu melt operation
-   * converted from a number to Money in the currency of the account.
-   * These proofs are moved from the account to the pending send quote.
-   * When the transaction is completed, change will be returned to the account.
-   */
-  amountReserved: Money;
-  /**
-   * Amount that the receiver will receive.
-   *
-   * This is the amount requested in the currency of the account we are sending from.
-   * If the currency of the account we are sending from is not BTC, the mint will do
-   * the conversion using their exchange rate at the time of quote creation.
-   */
-  amountToReceive: Money;
-  /**
-   * The amount reserved upfront to cover the maximum potential Lightning Network fees.
-   *
-   * If the actual Lightning fee ends up being lower than this reserve,
-   * the difference is returned as change to the user.
-   */
-  lightningFeeReserve: Money;
-  /**
-   * The fee incurred to spend the proofs in the cashu melt operation
-   */
-  cashuSendFee: Money;
-  /**
-   * The bolt11 payment request.
-   */
-  paymentRequest: string;
-  /**
-   * Additional details related to the transaction.
-   *
-   * This will be undefined if the send is directly paying a bolt11.
-   */
-  destinationDetails?: DestinationDetails;
-};
-
-/**
- * Transacion details for a cashu lightning send transaction that is not yet completed.
- */
-export type IncompleteCashuLightningSendTransactionDetails =
-  BaseCashuLightningSendTransactionDetails;
-
-/**
- * Transacion details for a cashu lightning send transaction that is completed.
- */
-export type CompletedCashuLightningSendTransactionDetails =
-  BaseCashuLightningSendTransactionDetails & {
-    /**
-     * This is the sum of `amountToReceive` and `totalFees`. This is the amount deducted from the account.
-     */
-    amountSpent: Money;
-    /**
-     * The preimage of the lightning payment.
-     * If the lightning payment is settled internally in the mint, this will be an empty string or '0x0000000000000000000000000000000000000000000000000000000000000000'
-     */
-    preimage: string;
-    /**
-     * The actual Lightning Network fee that was charged after the transaction completed.
-     * This may be less than the `lightningFeeReserve` if the payment was cheaper than expected.
-     *
-     * The difference between the `lightningFeeReserve` and the `lightningFee` is returned as change to the user.
-     */
-    lightningFee: Money;
-    /**
-     * The actual fees for the transaction. Sum of lightningFee and cashuSendFee.
-     */
-    totalFees: Money;
-  };
-
-/**
- * Transacion details for receiving cashu lightning payments to an account.
- */
-export type CashuLightningReceiveTransactionDetails = {
-  /**
-   * The amount of the bolt11 payment request.
-   * This amount is added to the account.
-   */
-  amountReceived: Money;
-  /**
-   * The bolt11 payment request.
-   */
-  paymentRequest: string;
-  /**
-   * The description of the transaction.
-   */
-  description?: string;
-  /**
-   * The fee charged by the mint to deposit money into the account.
-   */
-  mintingFee?: Money;
-};
-
-/**
- * Transaction details for Spark lightning receive transaction.
- */
-export type SparkLightningReceiveTransactionDetails = {
-  /**
-   * The amount of the bolt11 payment request.
-   * This amount is added to the account.
-   */
-  amountReceived: Money;
-  /**
-   * The bolt11 payment request.
-   */
-  paymentRequest: string;
-};
-
-/**
- * Transaction details of the completed Spark lightning receive transaction.
- */
-export type CompletedSparkLightningReceiveTransactionDetails =
-  SparkLightningReceiveTransactionDetails & {
-    /**
-     * The payment preimage of the lightning payment.
-     */
-    paymentPreimage: string;
-    /**
-     * The ID of the transfer in Spark system.
-     */
-    sparkTransferId: string;
-  };
-
-/**
- * Transaction details for a Spark lightning send transaction that is not yet completed.
- */
-export type IncompleteSparkLightningSendTransactionDetails = {
-  /**
-   * Amount that the receiver will receive.
-   *
-   * This is the invoice amount in the currency of the account we are sending from.
-   */
-  amountToReceive: Money;
-  /**
-   * The estimated fee for the Lightning Network payment.
-   *
-   * If the actual fee ends up being different than this estimate,
-   * the completed transaction will reflect the actual fee paid.
-   */
-  estimatedFee: Money;
-  /**
-   * The bolt11 payment request.
-   */
-  paymentRequest: string;
-  /**
-   * This is the sum of `amountToReceive` and `fee`. This is the amount deducted from the account.
-   * Available after the payment is initiated.
-   */
-  amountSpent?: Money;
-  /**
-   * The ID of the send request in Spark system.
-   * Available after the payment is initiated.
-   */
-  sparkId?: string;
-  /**
-   * The ID of the transfer in Spark system.
-   * Available after the payment is initiated.
-   */
-  sparkTransferId?: string;
-  /**
-   * The actual fee for the Lightning Network payment.
-   * Available after the payment is initiated.
-   */
-  fee?: Money;
-};
-
-/**
- * Transaction details for a Spark lightning send transaction that is completed.
- */
-export type CompletedSparkLightningSendTransactionDetails =
-  Required<IncompleteSparkLightningSendTransactionDetails> & {
-    /**
-     * The preimage of the lightning payment.
-     */
-    paymentPreimage: string;
-  };
-
 export type Transaction = {
   /**
    * ID of the transaction.
@@ -329,52 +111,65 @@ export type Transaction = {
   | {
       type: 'CASHU_TOKEN';
       direction: 'SEND';
-      details: CashuTokenSendTransactionDetails;
+      details: CashuSendSwapDetails;
     }
   | {
       type: 'CASHU_TOKEN';
       direction: 'RECEIVE';
-      details: CashuTokenReceiveTransactionDetails;
+      state: 'DRAFT' | 'PENDING' | 'FAILED';
+      details:
+        | TokenCashuReceiveQuoteDetails
+        | CashuTokenSwapDetails
+        | TokenSparkReceiveQuoteDetails;
+    }
+  | {
+      type: 'CASHU_TOKEN';
+      direction: 'RECEIVE';
+      state: 'COMPLETED';
+      details:
+        | TokenCashuReceiveQuoteDetails
+        | CashuTokenSwapDetails
+        | CompletedTokenSparkReceiveQuoteDetails;
     }
   | {
       type: 'CASHU_LIGHTNING';
       direction: 'SEND';
       state: 'PENDING' | 'FAILED';
-      details: IncompleteCashuLightningSendTransactionDetails;
+      details: CashuSendQuoteDetailsBase;
     }
   | {
       type: 'CASHU_LIGHTNING';
       direction: 'SEND';
       state: 'COMPLETED';
-      details: CompletedCashuLightningSendTransactionDetails;
+      details: CompletedCashuSendQuoteDetails;
     }
   | {
       type: 'CASHU_LIGHTNING';
       direction: 'RECEIVE';
-      details: CashuLightningReceiveTransactionDetails;
+      details: LightningCashuReceiveQuoteDetails;
     }
   | {
       type: 'SPARK_LIGHTNING';
       direction: 'RECEIVE';
       state: 'DRAFT' | 'PENDING' | 'FAILED';
-      details: SparkLightningReceiveTransactionDetails;
+      details: LightningSparkReceiveQuoteDetails;
     }
   | {
       type: 'SPARK_LIGHTNING';
       direction: 'RECEIVE';
       state: 'COMPLETED';
-      details: CompletedSparkLightningReceiveTransactionDetails;
+      details: CompletedLightningSparkReceiveQuoteDetails;
     }
   | {
       type: 'SPARK_LIGHTNING';
       direction: 'SEND';
       state: 'PENDING' | 'FAILED';
-      details: IncompleteSparkLightningSendTransactionDetails;
+      details: SparkSendQuoteDetailsBase;
     }
   | {
       type: 'SPARK_LIGHTNING';
       direction: 'SEND';
       state: 'COMPLETED';
-      details: CompletedSparkLightningSendTransactionDetails;
+      details: CompletedSparkSendQuoteDetails;
     }
 );

@@ -379,8 +379,8 @@ export class CashuReceiveQuoteService {
   }> {
     const keysetId = wallet.keysetId;
     const keys = await wallet.getKeys(keysetId);
-    const cashuUnit = getCashuUnit(quote.amount.currency);
-    const amountInCashuUnit = quote.amount.toNumber(cashuUnit);
+    const cashuUnit = getCashuUnit(quote.amountReceived.currency);
+    const amountInCashuUnit = quote.amountReceived.toNumber(cashuUnit);
     const outputAmounts = getOutputAmounts(amountInCashuUnit, keys);
 
     const result = await this.cashuReceiveQuoteRepository.processPayment({
@@ -404,11 +404,11 @@ export class CashuReceiveQuoteService {
       throw new Error('Quote must be in PAID state');
     }
 
-    const cashuUnit = getCashuUnit(quote.amount.currency);
+    const cashuUnit = getCashuUnit(quote.amountReceived.currency);
     const keys = await wallet.getKeys(quote.keysetId);
 
     const outputData = OutputData.createDeterministicData(
-      quote.amount.toNumber(cashuUnit),
+      quote.amountReceived.toNumber(cashuUnit),
       wallet.seed,
       quote.keysetCounter,
       keys,
@@ -435,8 +435,8 @@ export class CashuReceiveQuoteService {
     }
 
     try {
-      const cashuUnit = getCashuUnit(quote.amount.currency);
-      const amount = quote.amount.toNumber(cashuUnit);
+      const cashuUnit = getCashuUnit(quote.amountReceived.currency);
+      const amount = quote.amountReceived.toNumber(cashuUnit);
 
       const unlockingKey = await this.cryptography.getPrivateKey(
         quote.lockingDerivationPath,

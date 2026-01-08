@@ -1,7 +1,89 @@
 import type { Money } from '~/lib/money';
 import type { CashuProof } from '../accounts/account';
+import type { DestinationDetails } from '../transactions/transaction';
 
-export type CashuSendQuote = {
+export type CashuSendQuoteDetailsBase = {
+  /**
+   * The sum of all proofs used as inputs to the cashu melt operation
+   * converted from a number to Money in the currency of the account.
+   * These proofs are moved from the account to the pending send quote.
+   * When the transaction is completed, change will be returned to the account.
+   */
+  amountReserved: Money;
+  /**
+   * Amount that the receiver will receive.
+   *
+   * This is the amount requested in the currency of the account we are sending from.
+   * If the currency of the account we are sending from is not BTC, the mint will do
+   * the conversion using their exchange rate at the time of quote creation.
+   */
+  amountToReceive: Money;
+  /**
+   * The amount reserved upfront to cover the maximum potential Lightning Network fees.
+   *
+   * If the actual Lightning fee ends up being lower than this reserve,
+   * the difference is returned as change to the user.
+   */
+  lightningFeeReserve: Money;
+  /**
+   * Cashu mint fee for the proofs used.
+   */
+  cashuFee: Money;
+  /**
+   * The bolt11 payment request.
+   */
+  paymentRequest: string;
+  /**
+   * Additional details related to the transaction.
+   *
+   * This will be undefined if the send is directly paying a bolt11.
+   */
+  destinationDetails?: DestinationDetails;
+  /**
+   * Amount requested to send in the original currency.
+   */
+  amountRequested: Money;
+  /**
+   * Amount requested to send converted to milli-satoshis.
+   */
+  amountRequestedInMsat: number;
+  /**
+   * Id of the melt quote.
+   */
+  quoteId: string;
+};
+
+export type CompletedCashuSendQuoteDetails = CashuSendQuoteDetailsBase & {
+  /**
+   * This is the sum of `amountToReceive` and `totalFees`. This is the amount deducted from the account.
+   */
+  amountSpent: Money;
+  /**
+   * The preimage of the lightning payment.
+   * If the lightning payment is settled internally in the mint, this will be an empty string or '0x0000000000000000000000000000000000000000000000000000000000000000'
+   */
+  paymentPreimage: string;
+  /**
+   * The actual Lightning Network fee that was charged after the transaction completed.
+   * This may be less than the `lightningFeeReserve` if the payment was cheaper than expected.
+   *
+   * The difference between the `lightningFeeReserve` and the `lightningFee` is returned as change to the user.
+   */
+  lightningFee: Money;
+  /**
+   * The actual fees for the transaction. Sum of lightningFee and cashuFee.
+   */
+  totalFees: Money;
+};
+
+export type CashuSendQuoteDetails =
+  | CashuSendQuoteDetailsBase
+  | CompletedCashuSendQuoteDetails;
+
+type CashuSendQuoteBase = {
+  /**
+   * UUID of the quote.
+   */
   id: string;
   /**
    * Date and time the send was created in ISO 8601 format.
@@ -20,46 +102,9 @@ export type CashuSendQuote = {
    */
   accountId: string;
   /**
-   * Payment request that is a destination of the send.
-   */
-  paymentRequest: string;
-  /**
    * Payment hash of the lightning invoice.
    */
   paymentHash: string;
-  /**
-   * Amount requested to send.
-   * For payment requests that have the amount defined, the amount will match what is defined in the request and will always be in BTC currency.
-   * For amountless payment requests, the amount will be the amount defined by the sender (what gets sent to mint in this case is this amount converted to BTC using our exchange rate at the time of quote creation).
-   */
-  amountRequested: Money;
-  /**
-   * Amount requested to send converted to milli-satoshis.
-   * For amountless payment requests, this is the amount that gets sent to the mint when creating a melt quote.
-   * It will be the amount requested converted to milli-satoshis using our exchange rate at the time of quote creation.
-   */
-  amountRequestedInMsat: number;
-  /**
-   * Amount that the receiver will receive.
-   * This is the amount requested in the currency of the account we are sending from.
-   * If the currency of the account we are sending from is not BTC, the mint will do the conversion using their exchange rate at the time of quote creation.
-   */
-  amountToReceive: Money;
-  /**
-   * Fee reserve for the lightning network fee.
-   * Currency will be the same as the currency of the account we are sending from.
-   * If payment ends up being cheaper than the fee reserve, the difference will be returned as change.
-   */
-  lightningFeeReserve: Money;
-  /**
-   * Cashu mint fee for the proofs used.
-   * Currency will be the same as the currency of the account we are sending from.
-   */
-  cashuFee: Money;
-  /**
-   * ID of the melt quote.
-   */
-  quoteId: string;
   /**
    * Cashu proofs to melt.
    * Amounts are denominated in the cashu units (e.g. sats for BTC accounts, cents for USD accounts).
@@ -75,13 +120,9 @@ export type CashuSendQuote = {
    */
   keysetCounter: number;
   /**
-   * Number of ouputs that will be used for the send change.
+   * Number of outputs that will be used for the send change.
    */
   numberOfChangeOutputs: number;
-  /**
-   * State of the send quote.
-   */
-  state: 'UNPAID' | 'PENDING' | 'PAID' | 'EXPIRED' | 'FAILED';
   /**
    * Row version.
    * Used for optimistic locking.
@@ -91,34 +132,33 @@ export type CashuSendQuote = {
    * ID of the corresponding transaction.
    */
   transactionId: string;
-} & (
-  | {
+};
+
+type CashuSendQuoteByState =
+  | ({
       state: 'UNPAID';
-    }
-  | {
+    } & CashuSendQuoteDetailsBase)
+  | ({
       state: 'PENDING';
-    }
-  | {
+    } & CashuSendQuoteDetailsBase)
+  | ({
       state: 'EXPIRED';
-    }
-  | {
+    } & CashuSendQuoteDetailsBase)
+  | ({
       state: 'FAILED';
       /**
        * Reason for the failure of the send quote.
        */
       failureReason: string;
-    }
-  | {
+    } & CashuSendQuoteDetailsBase)
+  | ({
       state: 'PAID';
-      /**
-       * Lightning payment preimage.
-       */
-      paymentPreimage: string;
-      /**
-       * Total amount spent on the lightning payment.
-       * This is the amount to send plus the actual fee paid to the lightning network.
-       * Currency will be the same as the currency of the account we are sending from.
-       */
-      amountSpent: Money;
-    }
-);
+    } & CompletedCashuSendQuoteDetails);
+
+/**
+ * Represents a Cashu send quote.
+ * This is created when a user initiates a lightning payment through their Cashu wallet.
+ * The quote starts in UNPAID state, transitions to PENDING when payment is initiated,
+ * and finally to PAID, EXPIRED, or FAILED based on the payment result.
+ */
+export type CashuSendQuote = CashuSendQuoteBase & CashuSendQuoteByState;
