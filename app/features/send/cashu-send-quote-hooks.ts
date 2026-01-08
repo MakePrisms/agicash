@@ -343,7 +343,7 @@ function usePendingMeltQuotes() {
         throw new Error(`Cashu account not found for send quote: ${q.id}`);
       }
       return {
-        id: q.id,
+        id: q.quoteId,
         mintUrl: account.mintUrl,
         expiryInMs: new Date(q.expiresAt).getTime(),
         inputAmount: sumProofs(q.proofs),
