@@ -5,8 +5,7 @@ import {
   Page,
   PageContent,
   PageHeader,
-  PageHeaderLeft,
-  PageHeaderRight,
+  PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import {
@@ -36,7 +35,7 @@ export default function Index() {
   return (
     <Page>
       <PageHeader className="absolute inset-x-0 top-0 z-20 mb-0 px-4 pt-4 pb-4">
-        <PageHeaderLeft>
+        <PageHeaderItem position="left">
           <LinkWithViewTransition
             to="/gift-cards"
             transition="slideRight"
@@ -44,9 +43,9 @@ export default function Index() {
           >
             <GiftIcon className="text-muted-foreground" />
           </LinkWithViewTransition>
-        </PageHeaderLeft>
+        </PageHeaderItem>
 
-        <PageHeaderRight className="gap-6">
+        <PageHeaderItem position="right" className="flex gap-6">
           <LinkWithViewTransition
             to="/transactions"
             transition="slideLeft"
@@ -65,7 +64,7 @@ export default function Index() {
           >
             <UserCircle2 className="text-muted-foreground" />
           </LinkWithViewTransition>
-        </PageHeaderRight>
+        </PageHeaderItem>
       </PageHeader>
 
       <PageContent className="absolute inset-0 mx-auto flex flex-col items-center justify-center gap-32">

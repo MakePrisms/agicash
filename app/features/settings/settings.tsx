@@ -10,6 +10,7 @@ import {
   PageContent,
   PageFooter,
   PageHeader,
+  PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { SettingsNavButton } from '~/features/settings/ui/settings-nav-button';
@@ -97,9 +98,11 @@ export default function Settings() {
       <PageHeader>
         <ClosePageButton to="/" transition="slideRight" applyTo="oldView" />
         {canShare() && (
-          <button type="button" onClick={handleShare} className="px-1">
-            <Share />
-          </button>
+          <PageHeaderItem position="right">
+            <button type="button" onClick={handleShare} className="px-1">
+              <Share />
+            </button>
+          </PageHeaderItem>
         )}
       </PageHeader>
 
