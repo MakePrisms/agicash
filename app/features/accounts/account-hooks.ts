@@ -307,6 +307,20 @@ export function useDefaultAccount() {
   return defaultAccount;
 }
 
+/**
+ * Hook to get an account by ID or fall back to the default account.
+ * @param accountId - Optional account ID. If not provided or account not found, returns the default account.
+ * @returns The matching account or the default account.
+ */
+export function useAccountOrDefault(accountId: string | null) {
+  const { data: accounts } = useAccounts();
+  const defaultAccount = useDefaultAccount();
+
+  return accountId
+    ? (accounts.find((a) => a.id === accountId) ?? defaultAccount)
+    : defaultAccount;
+}
+
 export function useAddCashuAccount() {
   const userId = useUser((x) => x.id);
   const accountCache = useAccountsCache();
