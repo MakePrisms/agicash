@@ -6,6 +6,8 @@ import {
 } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
 
+export type PageHeaderPosition = 'left' | 'center' | 'right';
+
 interface PageProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
@@ -24,190 +26,150 @@ export function Page({ children, className, ...props }: PageProps) {
   );
 }
 
-interface ClosePageButtonProps extends ViewTransitionLinkProps {}
-
-export function ClosePageButton({ className, ...props }: ClosePageButtonProps) {
-  return (
-    <LinkWithViewTransition {...props}>
-      <X />
-    </LinkWithViewTransition>
-  );
-}
-
-export interface PageBackButtonProps extends ViewTransitionLinkProps {}
-
-export function PageBackButton({ className, ...props }: PageBackButtonProps) {
-  return (
-    <LinkWithViewTransition {...props}>
-      <ChevronLeft />
-    </LinkWithViewTransition>
-  );
-}
-
-interface PageHeaderTitleProps extends React.HTMLAttributes<HTMLDivElement> {
+type PageHeaderItemProps = React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
-}
+  position: PageHeaderPosition;
+};
 
+export function PageHeaderItem({
+  children,
+  position,
+  className,
+  ...props
+}: PageHeaderItemProps) {
+  return (
+    <div className={className} {...props}>
+      {children}
+    </div>
+  );
+}
+PageHeaderItem.isHeaderItem = true;
+PageHeaderItem.defaultPosition = undefined as PageHeaderPosition | undefined;
+
+type ClosePageButtonProps = ViewTransitionLinkProps & {
+  position?: PageHeaderPosition;
+};
+
+/**
+ * @default position - 'left'
+ */
+export function ClosePageButton({
+  className,
+  position = 'left',
+  ...props
+}: ClosePageButtonProps) {
+  return (
+    <PageHeaderItem position={position}>
+      <LinkWithViewTransition {...props}>
+        <X />
+      </LinkWithViewTransition>
+    </PageHeaderItem>
+  );
+}
+ClosePageButton.isHeaderItem = true;
+ClosePageButton.defaultPosition = 'left' as PageHeaderPosition;
+
+export type PageBackButtonProps = ViewTransitionLinkProps & {
+  position?: PageHeaderPosition;
+};
+
+/**
+ * @default position - 'left'
+ */
+export function PageBackButton({
+  className,
+  position = 'left',
+  ...props
+}: PageBackButtonProps) {
+  return (
+    <PageHeaderItem position={position}>
+      <LinkWithViewTransition {...props}>
+        <ChevronLeft />
+      </LinkWithViewTransition>
+    </PageHeaderItem>
+  );
+}
+PageBackButton.isHeaderItem = true;
+PageBackButton.defaultPosition = 'left' as PageHeaderPosition;
+
+type PageHeaderTitleProps = React.HTMLAttributes<HTMLHeadingElement> & {
+  children: React.ReactNode;
+  position?: PageHeaderPosition;
+};
+
+/**
+ * @default position - 'center'
+ */
 export function PageHeaderTitle({
   children,
   className,
+  position = 'center',
   ...props
 }: PageHeaderTitleProps) {
   return (
-    <h1
-      className={cn('flex items-center justify-start text-xl', className)}
-      {...props}
-    >
-      {children}
-    </h1>
+    <PageHeaderItem position={position}>
+      <h1
+        className={cn('flex items-center justify-start text-xl', className)}
+        {...props}
+      >
+        {children}
+      </h1>
+    </PageHeaderItem>
   );
 }
+PageHeaderTitle.isHeaderItem = true;
+PageHeaderTitle.defaultPosition = 'center' as PageHeaderPosition;
 
-interface PageHeaderLeftProps extends React.HTMLAttributes<HTMLDivElement> {
+type PageHeaderProps = React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
-}
+};
 
-/**
- * Container for custom left-side content in PageHeader
- */
-export function PageHeaderLeft({
-  children,
-  className,
-  ...props
-}: PageHeaderLeftProps) {
+const isPageHeaderItem = (
+  child: React.ReactNode,
+): child is React.ReactElement<{ position?: PageHeaderPosition }> => {
   return (
-    <div className={cn('flex items-center', className)} {...props}>
-      {children}
-    </div>
+    React.isValidElement(child) &&
+    typeof child.type !== 'string' &&
+    'isHeaderItem' in child.type &&
+    (child.type as { isHeaderItem?: boolean }).isHeaderItem === true
   );
-}
+};
 
-interface PageHeaderRightProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
-}
-
-/**
- * Container for custom right-side content in PageHeader
- */
-export function PageHeaderRight({
-  children,
-  className,
-  ...props
-}: PageHeaderRightProps) {
-  return (
-    <div
-      className={cn('flex items-center justify-end gap-2', className)}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
-interface PageHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
-}
-
-/**
- * Flexible header component with support for:
- * - Back/Close buttons (auto-placed left)
- * - Centered title
- * - Custom left/right slots via PageHeaderLeft/PageHeaderRight
- */
 export function PageHeader({ children, className, ...props }: PageHeaderProps) {
-  const childArray = React.Children.toArray(children);
+  const childrenArray = React.Children.toArray(children);
 
-  const hasCloseButton = childArray.some(
-    (child) => React.isValidElement(child) && child.type === ClosePageButton,
-  );
-  const hasBackButton = childArray.some(
-    (child) => React.isValidElement(child) && child.type === PageBackButton,
-  );
-  const hasLeftSlot = childArray.some(
-    (child) => React.isValidElement(child) && child.type === PageHeaderLeft,
-  );
-  const hasRightSlot = childArray.some(
-    (child) => React.isValidElement(child) && child.type === PageHeaderRight,
-  );
-
-  const leftSlotCount = childArray.filter(
-    (child) => React.isValidElement(child) && child.type === PageHeaderLeft,
-  ).length;
-  const rightSlotCount = childArray.filter(
-    (child) => React.isValidElement(child) && child.type === PageHeaderRight,
-  ).length;
-
-  // If using custom slots, render in slot-based mode
-  const useSlotMode = hasLeftSlot || hasRightSlot;
-
-  if (hasCloseButton && hasBackButton) {
+  if (childrenArray.length === 0 || !childrenArray.every(isPageHeaderItem)) {
     throw new Error(
-      'PageHeader cannot have both ClosePageButton and PageBackButton',
+      'PageHeader children must be a component that is marked with isHeaderItem = true',
     );
   }
 
-  if (useSlotMode && (hasCloseButton || hasBackButton)) {
-    throw new Error(
-      'PageHeader cannot mix slot components (PageHeaderLeft/PageHeaderRight) with ClosePageButton/PageBackButton. Place navigation buttons inside PageHeaderLeft instead.',
-    );
-  }
+  const getChildrenByPosition = (pos: PageHeaderPosition) => {
+    return childrenArray.filter((child) => {
+      if (!React.isValidElement(child)) return false;
+      const props = child.props as { position?: PageHeaderPosition };
+      const componentType = child.type as {
+        defaultPosition?: PageHeaderPosition;
+      };
+      const position = props.position ?? componentType.defaultPosition;
+      return position === pos;
+    });
+  };
 
-  if (leftSlotCount > 1) {
-    throw new Error('PageHeader can only have one PageHeaderLeft');
-  }
-
-  if (rightSlotCount > 1) {
-    throw new Error('PageHeader can only have one PageHeaderRight');
-  }
-
-  const leftContent = useSlotMode
-    ? childArray.find(
-        (child) => React.isValidElement(child) && child.type === PageHeaderLeft,
-      )
-    : childArray.find(
-        (child) =>
-          React.isValidElement(child) &&
-          (child.type === ClosePageButton || child.type === PageBackButton),
-      );
-
-  const titleContent = childArray.find(
-    (child) => React.isValidElement(child) && child.type === PageHeaderTitle,
-  );
-
-  const rightContent = useSlotMode
-    ? childArray.find(
-        (child) =>
-          React.isValidElement(child) && child.type === PageHeaderRight,
-      )
-    : childArray.filter(
-        (child) =>
-          !React.isValidElement(child) ||
-          (child.type !== PageHeaderTitle &&
-            child.type !== ClosePageButton &&
-            child.type !== PageBackButton),
-      );
+  const leftItems = getChildrenByPosition('left');
+  const centerItems = getChildrenByPosition('center');
+  const rightItems = getChildrenByPosition('right');
 
   return (
     <header
       className={cn('mb-4 flex w-full items-center justify-between', className)}
       {...props}
     >
-      {/* Left content */}
-      {useSlotMode ? leftContent : <div>{leftContent}</div>}
-
-      {/* Title - always in the center */}
+      <div className="flex items-center">{leftItems}</div>
       <div className="-translate-x-1/2 absolute left-1/2 transform">
-        {titleContent}
+        {centerItems}
       </div>
-
-      {/* Right content */}
-      {useSlotMode ? (
-        rightContent
-      ) : (
-        <div className="flex items-center justify-end gap-2">
-          {rightContent}
-        </div>
-      )}
+      <div className="flex items-center justify-end gap-2">{rightItems}</div>
     </header>
   );
 }
