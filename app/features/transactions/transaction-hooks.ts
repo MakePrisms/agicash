@@ -20,8 +20,6 @@ import {
   useTransactionRepository,
 } from './transaction-repository';
 
-const allTransactionsQueryKey = 'all-transactions';
-
 /**
  * Cache that manages transaction data and acknowledgment counts.
  */
@@ -136,9 +134,7 @@ export function useTransactions(accountId?: string) {
   const transactionRepository = useTransactionRepository();
 
   const result = useInfiniteQuery({
-    queryKey: accountId
-      ? [allTransactionsQueryKey, accountId]
-      : [allTransactionsQueryKey],
+    queryKey: [TransactionsCache.Key, accountId],
     initialPageParam: null,
     queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
       const result = await transactionRepository.list({
@@ -190,7 +186,7 @@ const acknowledgeTransactionInHistoryCache = (
       transactions: Transaction[];
       nextCursor: Cursor | null;
     }>
-  >({ queryKey: [allTransactionsQueryKey] });
+  >({ queryKey: [TransactionsCache.Key] });
 
   queries.forEach(([queryKey, data]) => {
     if (!data) return;
