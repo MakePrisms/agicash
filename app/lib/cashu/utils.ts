@@ -9,6 +9,7 @@ import {
   type MintQuoteResponse,
   OutputData,
   type Proof,
+  type SwapMethod,
 } from '@cashu/cashu-ts';
 import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
@@ -16,6 +17,7 @@ import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
 import type {
   ExtendedLockedMintQuoteResponse,
+  ExtendedMintInfo,
   ExtendedMintQuoteResponse,
   ExtendedPartialMintQuoteResponse,
 } from './protocol-extensions';
@@ -93,6 +95,7 @@ export const getWalletCurrency = (wallet: CashuWallet) => {
  * - Overridden mint quote methods that return extended response types as defined in [protocol-extensions.ts](./protocol-extensions.ts)
  * - Direct access to the bip39 seed
  * - Fee estimation utilities for receiving operations
+ * - Access to agicash-specific mint extensions (e.g., closed loop mode)
  */
 export class ExtendedCashuWallet extends CashuWallet {
   private _bip39Seed: Uint8Array | undefined;
@@ -110,6 +113,26 @@ export class ExtendedCashuWallet extends CashuWallet {
       throw new Error('Seed not set');
     }
     return this._bip39Seed;
+  }
+
+  /**
+   * Returns the mint info with agicash-specific extensions.
+   * This overrides the base class mintInfo getter to return the extended type.
+   */
+  override get mintInfo(): ExtendedMintInfo {
+    return super.mintInfo as ExtendedMintInfo;
+  }
+
+  /**
+   * Indicates whether the mint operates in closed-loop mode.
+   * When true, the mint will only process payments to destinations within its loop.
+   */
+  get isClosedLoop(): boolean {
+    // TODO: This should check this.mintInfo?.agicash?.closed_loop once Agicash mints change to that
+    const bolt11Method = this.mintInfo?.nuts?.[5]?.methods?.find(
+      (m) => m.method === 'bolt11',
+    ) as SwapMethod & { options: { internal_melts_only: boolean } };
+    return bolt11Method?.options?.internal_melts_only ?? false;
   }
 
   /**

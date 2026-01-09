@@ -22,6 +22,21 @@ const getCurrencyToConvertTo = (money: Money, otherCurrency: Currency) => {
   return money.currency;
 };
 
+const sizeConfig = {
+  lg: {
+    primary: 'lg',
+    secondary: 'sm',
+    minHeight: 'min-h-[116px]',
+    skeletonClass: 'h-6 w-32',
+  },
+  md: {
+    primary: 'md',
+    secondary: 'xs',
+    minHeight: 'min-h-[96px]',
+    skeletonClass: 'h-5 w-26',
+  },
+} as const;
+
 /**
  * Displays money amount and its amount converted to the other currency.
  * If other currency is not provided, it will default to USD if money currency is USD, and default to BTC otherwise.
@@ -36,6 +51,7 @@ export const MoneyWithConvertedAmount = ({
     ? defaultFiatCurrency
     : 'BTC',
   variant = 'default',
+  size = 'lg',
 }: {
   /**
    * Money amount to display.
@@ -49,6 +65,10 @@ export const MoneyWithConvertedAmount = ({
    * Variant to display the money amount and converted amount.
    */
   variant?: 'default' | 'inline';
+  /**
+   * Size of the display.
+   */
+  size?: 'lg' | 'md';
 }) => {
   const currencyToConvertTo = getCurrencyToConvertTo(money, otherCurrency);
   const exchangeRateQuery = useExchangeRate(
@@ -69,17 +89,21 @@ export const MoneyWithConvertedAmount = ({
         }
       : null;
 
+  const config = sizeConfig[size];
+
   return variant === 'default' ? (
-    <div className="flex min-h-[116px] flex-col items-center">
-      <MoneyDisplay money={money} unit={unit} />
+    <div className={`flex flex-col items-center ${config.minHeight}`}>
+      <MoneyDisplay money={money} unit={unit} size={config.primary} />
       {conversionData && (
         <>
-          {conversionData.loading && <Skeleton className="h-6 w-32" />}
+          {conversionData.loading && (
+            <Skeleton className={config.skeletonClass} />
+          )}
           {conversionData.convertedMoney && (
             <MoneyDisplay
               money={conversionData.convertedMoney}
               unit={conversionData.unit}
-              size="sm"
+              size={config.secondary}
               variant="muted"
             />
           )}

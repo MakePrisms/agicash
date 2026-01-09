@@ -2,6 +2,7 @@ import {
   PageBackButton,
   type PageBackButtonProps,
   PageHeader,
+  PageHeaderItem,
   PageHeaderTitle,
 } from '~/components/page';
 
@@ -18,7 +19,7 @@ export const SettingsViewHeader = ({
     <PageHeader>
       <PageBackButton {...navBack} />
       {title && <PageHeaderTitle>{title}</PageHeaderTitle>}
-      {children}
+      {children && <PageHeaderItem position="right">{children}</PageHeaderItem>}
     </PageHeader>
   );
 };
