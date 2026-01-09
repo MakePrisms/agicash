@@ -11,10 +11,7 @@ import {
   getAccountBalance,
 } from '~/features/accounts/account';
 import { getDefaultUnit } from '../shared/currencies';
-import {
-  ANIMATION_DURATION_MS,
-  COLLAPSED_OFFSET,
-} from './card-stack.constants';
+import { COLLAPSED_OFFSET } from './card-stack.constants';
 
 type GiftCardItemProps = {
   account: CashuAccount;
@@ -51,7 +48,7 @@ export function GiftCardItem({
             background:
               'linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.5) 60%, transparent 100%)',
             opacity: overlayHidden ? 0 : 1,
-            transition: `opacity ${ANIMATION_DURATION_MS}ms ease-out`,
+            transition: 'opacity 0.3s ease-out',
           }}
         >
           <div

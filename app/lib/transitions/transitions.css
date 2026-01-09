@@ -97,3 +97,38 @@
   animation: var(--direction-in) 0.18s ease-in both; /* This duration value is repeated in view-transition.tsx. When changing make sure to keep them in sync! */
   z-index: var(--view-transition-in-z-index);
 }
+
+/* ============================================================================
+   Gift Card View Transitions
+   Uses a single view-transition-name "gift-card" for the selected card.
+   Browser morphs the card element between list and detail views.
+   ============================================================================ */
+
+::view-transition-group(gift-card) {
+  animation-duration: 0.30s;
+  animation-timing-function: cubic-bezier(0.34, 1.15, 0.64, 1);
+}
+
+/* Disable the default crossfade for card transitions - let the browser morph */
+::view-transition-old(gift-card),
+::view-transition-new(gift-card) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Cascade animation for cards below the transitioning card.
+   Cards gently fade in at their positions after the view transition completes.
+   Uses a subtle downward settle to feel natural with gravity. */
+@keyframes cascade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(var(--cascade-offset, 0px) - 12px));
+  }
+  40% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(var(--cascade-offset, 0px));
+  }
+}
