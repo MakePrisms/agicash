@@ -161,21 +161,28 @@ function TransactionRow({
     onVisibilityChange: useCallback(
       (isVisible: boolean) => {
         if (isVisible && transaction.acknowledgmentStatus === 'pending') {
-          acknowledgeTransaction({ transaction });
+          acknowledgeTransaction(
+            { transaction },
+            {
+              onSuccess: () => {
+                setAckStatus({
+                  ...transaction,
+                  acknowledgmentStatus: 'acknowledged',
+                });
+              },
+            },
+          );
         }
       },
-      [transaction, acknowledgeTransaction],
+      [transaction, acknowledgeTransaction, setAckStatus],
     ),
   });
-
-  const searchParams = new URLSearchParams();
-  searchParams.set('redirectTo', location.pathname + location.search);
 
   return (
     <LinkWithViewTransition
       to={{
         pathname: `/transactions/${transaction.id}`,
-        search: searchParams.toString(),
+        search: `redirectTo=${encodeURIComponent(location.pathname + location.search)}`,
       }}
       transition="slideUp"
       applyTo="newView"
