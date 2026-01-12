@@ -1,0 +1,61 @@
+/* Available cards section - fade out/in */
+.view-transition-available {
+  view-transition-name: available-cards;
+}
+
+::view-transition-old(available-cards),
+::view-transition-new(available-cards) {
+  animation-duration: 0.3s;
+  animation-timing-function: ease-out;
+}
+
+::view-transition-old(available-cards) {
+  animation-name: fade-out;
+}
+
+::view-transition-new(available-cards) {
+  animation-name: fade-in;
+}
+
+/* Transactions section - slide up/down with fade */
+
+/* Slide + fade animations for transactions */
+@keyframes slide-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+@keyframes slide-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.view-transition-transactions {
+  view-transition-name: transactions;
+}
+
+::view-transition-old(transactions),
+::view-transition-new(transactions) {
+  animation-duration: 0.35s;
+  animation-timing-function: ease-out;
+}
+
+::view-transition-old(transactions) {
+  animation-name: slide-fade-out;
+}
+
+::view-transition-new(transactions) {
+  animation-name: slide-fade-in;
+}
