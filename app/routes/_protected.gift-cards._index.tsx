@@ -1,11 +1,5 @@
-import { useAccounts } from '~/features/accounts/account-hooks';
-import { GiftCardsView } from '~/features/gift-cards/card-stack';
+import { GiftCards } from '~/features/gift-cards/gift-cards';
 
-export default function GiftCardsIndex() {
-  const { data: giftCardAccounts } = useAccounts({
-    type: 'cashu',
-    onlyIncludeClosedLoopAccounts: true,
-  });
-
-  return <GiftCardsView accounts={giftCardAccounts} />;
+export default function GiftCardsRoute() {
+  return <GiftCards />;
 }

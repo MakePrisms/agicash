@@ -1,0 +1,78 @@
+/* Available cards section - fade out/in */
+.view-transition-available {
+  view-transition-name: available-cards;
+}
+
+::view-transition-old(available-cards),
+::view-transition-new(available-cards) {
+  animation-duration: 0.3s;
+  animation-timing-function: ease-out;
+}
+
+::view-transition-old(available-cards) {
+  animation-name: fade-out;
+}
+
+::view-transition-new(available-cards) {
+  animation-name: fade-in;
+}
+
+/* Transactions section - slide up/down with fade */
+
+/* Slide + fade animations for transactions */
+@keyframes slide-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+@keyframes slide-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.view-transition-transactions {
+  view-transition-name: transactions;
+}
+
+::view-transition-old(transactions),
+::view-transition-new(transactions) {
+  animation-duration: 0.35s;
+  animation-timing-function: ease-out;
+}
+
+::view-transition-old(transactions) {
+  animation-name: slide-fade-out;
+}
+
+::view-transition-new(transactions) {
+  animation-name: slide-fade-in;
+}
+
+/* Transactions should be below cards during transition */
+::view-transition-group(transactions) {
+  z-index: 1;
+}
+
+/* Card transitions - morph between positions */
+::view-transition-group(available-cards),
+::view-transition-group(transactions) {
+  animation-duration: 0.4s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Ensure cards maintain their stacking during transition */
+::view-transition-image-pair(*) {
+  isolation: auto;
+}

@@ -2,20 +2,20 @@ import { WalletCard, WalletCardBackground } from '~/components/wallet-card';
 import useUserAgent from '~/hooks/use-user-agent';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
-import type { DiscoverMint } from './use-discover-cards';
+import type { GiftCardInfo } from './use-discover-cards';
 
 type DiscoverSectionProps = {
-  mints: DiscoverMint[];
+  giftCards: GiftCardInfo[];
 };
 
 /**
  * Horizontal scroll carousel of available gift cards for discovery.
  */
-export function DiscoverSection({ mints }: DiscoverSectionProps) {
+export function DiscoverGiftCards({ giftCards }: DiscoverSectionProps) {
   const { isMobile } = useUserAgent();
 
   return (
-    <div className="w-full shrink-0">
+    <div className="view-transition-available w-full shrink-0">
       <h2 className="mb-3 px-4 text-white">Discover</h2>
       <div
         className={cn(
@@ -26,15 +26,15 @@ export function DiscoverSection({ mints }: DiscoverSectionProps) {
         )}
       >
         <div className="flex w-max gap-3 px-4 pb-2">
-          {mints.map((mint) => (
+          {giftCards.map((card) => (
             <LinkWithViewTransition
-              key={`${mint.url}:${mint.currency}`}
-              to={`/gift-cards/add/${encodeURIComponent(mint.url)}/${mint.currency}`}
+              key={`${card.url}:${card.currency}`}
+              to={`/gift-cards/add/${encodeURIComponent(card.url)}/${card.currency}`}
               transition="slideUp"
               applyTo="newView"
             >
               <WalletCard size="sm" className="shrink-0">
-                <WalletCardBackground src={mint.image} alt={mint.name} />
+                <WalletCardBackground src={card.image} alt={card.name} />
               </WalletCard>
             </LinkWithViewTransition>
           ))}
