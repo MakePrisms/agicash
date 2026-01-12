@@ -82,6 +82,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
                     account={account}
                     image={getGiftCardImageByMintUrl(account.mintUrl)}
                     className="w-full max-w-none"
+                    hideOverlayContent={isSelected}
                   />
                 );
 

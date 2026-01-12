@@ -18,6 +18,7 @@ type GiftCardItemProps = {
   image?: string;
   size?: WalletCardSize;
   className?: string;
+  hideOverlayContent?: boolean;
 };
 
 export function GiftCardItem({
@@ -25,6 +26,7 @@ export function GiftCardItem({
   image,
   size,
   className,
+  hideOverlayContent,
 }: GiftCardItemProps) {
   const balance = getAccountBalance(account);
   const name =
@@ -48,7 +50,11 @@ export function GiftCardItem({
         >
           <div
             className="flex items-center justify-between px-5"
-            style={{ height: VERTICAL_CARD_OFFSET_IN_STACK }}
+            style={{
+              height: VERTICAL_CARD_OFFSET_IN_STACK,
+              opacity: hideOverlayContent ? 0 : 1,
+              viewTransitionName: `card-overlay-${account.id}`,
+            }}
           >
             <span className="text-lg text-white drop-shadow-md">{name}</span>
             {balance && (
