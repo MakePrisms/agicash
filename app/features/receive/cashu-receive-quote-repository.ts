@@ -1,7 +1,7 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
 import { proofToY } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
 import type { CashuAccount } from '../accounts/account';
 import {
@@ -14,32 +14,12 @@ import type {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { type Encryption, useEncryption } from '../shared/encryption';
-import type {
-  CashuLightningReceiveTransactionDetails,
-  CashuTokenReceiveTransactionDetails,
-} from '../transactions/transaction';
+import type { CashuLightningReceiveData } from '../transactions/cashu-lightning-receive-data';
+import type {} from '../transactions/transaction';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type EncryptedData = {
-  amount: Money;
-  quoteId: string;
-  paymentRequest: string;
-  description?: string;
-  mintingFee?: Money;
-  outputAmounts?: number[];
-  /**
-   * Data related to cross-account cashu token receives.
-   * Present only for CASHU_TOKEN type quotes.
-   */
-  tokenReceiveData?: {
-    sourceMintUrl: string;
-    tokenProofs: Proof[];
-    meltQuoteId: string;
-  };
 };
 
 type CreateQuote = {
@@ -152,55 +132,35 @@ export class CashuReceiveQuoteRepository {
       mintingFee,
     } = params;
 
-    let details:
-      | CashuLightningReceiveTransactionDetails
-      | CashuTokenReceiveTransactionDetails;
-
-    if (receiveType === 'CASHU_TOKEN') {
-      const { cashuReceiveFee, tokenAmount, lightningFeeReserve } = params;
-
-      const totalFees = mintingFee
-        ? cashuReceiveFee.add(lightningFeeReserve).add(mintingFee)
-        : cashuReceiveFee.add(lightningFeeReserve);
-
-      details = {
-        amountReceived: amount,
-        tokenAmount,
-        cashuReceiveFee,
-        lightningFeeReserve,
-        mintingFee,
-        totalFees,
-      } satisfies CashuTokenReceiveTransactionDetails;
-    } else {
-      details = {
-        amountReceived: amount,
-        paymentRequest,
-        description,
-        mintingFee,
-      } satisfies CashuLightningReceiveTransactionDetails;
-    }
-
-    const dataToEncrypt: EncryptedData = {
-      amount,
-      quoteId,
+    const receiveData: CashuLightningReceiveData = {
       paymentRequest,
+      mintQuoteId: quoteId,
+      amountReceived: amount,
       description,
       mintingFee,
+      totalFees: mintingFee ?? Money.zero(amount.currency),
     };
 
     if (receiveType === 'CASHU_TOKEN') {
-      dataToEncrypt.tokenReceiveData = {
-        sourceMintUrl: params.sourceMintUrl,
-        tokenProofs: params.tokenProofs,
+      const { cashuReceiveFee, lightningFeeReserve } = params;
+
+      receiveData.cashuTokenData = {
+        tokenMintUrl: params.sourceMintUrl,
         meltQuoteId: params.meltQuoteId,
+        tokenAmount: params.tokenAmount,
+        tokenProofs: params.tokenProofs,
+        cashuReceiveFee,
+        lightningFeeReserve,
       };
+      receiveData.totalFees = receiveData.totalFees
+        .add(cashuReceiveFee)
+        .add(lightningFeeReserve);
     }
 
-    const [[encryptedTransactionDetails, encryptedData], quoteIdHash] =
-      await Promise.all([
-        this.encryption.encryptBatch([details, dataToEncrypt]),
-        computeSHA256(quoteId),
-      ]);
+    const [encryptedReceiveData, quoteIdHash] = await Promise.all([
+      this.encryption.encrypt(receiveData),
+      computeSHA256(quoteId),
+    ]);
 
     const query = this.db.rpc('create_cashu_receive_quote', {
       p_user_id: userId,
@@ -209,8 +169,7 @@ export class CashuReceiveQuoteRepository {
       p_expires_at: expiresAt,
       p_locking_derivation_path: lockingDerivationPath,
       p_receive_type: receiveType,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
-      p_encrypted_data: encryptedData,
+      p_encrypted_data: encryptedReceiveData,
       p_quote_id_hash: quoteIdHash,
       p_payment_hash: paymentHash,
     });
@@ -356,24 +315,31 @@ export class CashuReceiveQuoteRepository {
      */
     account: CashuAccount;
   }> {
-    const dataToEncrypt: EncryptedData = {
-      amount: quote.amount,
-      quoteId: quote.quoteId,
+    const receiveData: CashuLightningReceiveData = {
       paymentRequest: quote.paymentRequest,
+      mintQuoteId: quote.quoteId,
+      amountReceived: quote.amount,
       description: quote.description,
       mintingFee: quote.mintingFee,
+      totalFees: quote.mintingFee ?? Money.zero(quote.amount.currency),
       outputAmounts,
     };
 
     if (quote.type === 'CASHU_TOKEN') {
-      dataToEncrypt.tokenReceiveData = {
-        sourceMintUrl: quote.tokenReceiveData.sourceMintUrl,
-        tokenProofs: quote.tokenReceiveData.tokenProofs,
+      receiveData.cashuTokenData = {
+        tokenMintUrl: quote.tokenReceiveData.sourceMintUrl,
         meltQuoteId: quote.tokenReceiveData.meltQuoteId,
+        tokenAmount: quote.tokenReceiveData.tokenAmount,
+        tokenProofs: quote.tokenReceiveData.tokenProofs,
+        cashuReceiveFee: quote.tokenReceiveData.cashuReceiveFee,
+        lightningFeeReserve: quote.tokenReceiveData.lightningFeeReserve,
       };
+      receiveData.totalFees = receiveData.totalFees
+        .add(quote.tokenReceiveData.cashuReceiveFee)
+        .add(quote.tokenReceiveData.lightningFeeReserve);
     }
 
-    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
+    const encryptedData = await this.encryption.encrypt(receiveData);
 
     const query = this.db.rpc('process_cashu_receive_quote_payment', {
       p_quote_id: quote.id,
@@ -556,16 +522,17 @@ export class CashuReceiveQuoteRepository {
   }
 
   async toQuote(data: AgicashDbCashuReceiveQuote): Promise<CashuReceiveQuote> {
-    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
-    );
+    const decryptedData =
+      await this.encryption.decrypt<CashuLightningReceiveData>(
+        data.encrypted_data,
+      );
 
     const baseData = {
       id: data.id,
       userId: data.user_id,
       accountId: data.account_id,
-      quoteId: decryptedData.quoteId,
-      amount: decryptedData.amount,
+      quoteId: decryptedData.mintQuoteId,
+      amount: decryptedData.amountReceived,
       description: decryptedData.description,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
@@ -577,7 +544,7 @@ export class CashuReceiveQuoteRepository {
       mintingFee: decryptedData.mintingFee,
     };
 
-    if (data.type === 'CASHU_TOKEN' && !decryptedData.tokenReceiveData) {
+    if (data.type === 'CASHU_TOKEN' && !decryptedData.cashuTokenData) {
       throw new Error(
         'Invalid cashu receive quote data. Token receive data is required for CASHU_TOKEN type quotes.',
       );
@@ -593,26 +560,43 @@ export class CashuReceiveQuoteRepository {
     }
 
     const typeData =
-      data.type === 'CASHU_TOKEN' && decryptedData.tokenReceiveData
+      data.type === 'CASHU_TOKEN' && decryptedData.cashuTokenData
         ? ({
             type: 'CASHU_TOKEN',
             tokenReceiveData: {
-              sourceMintUrl: decryptedData.tokenReceiveData.sourceMintUrl,
-              tokenProofs: decryptedData.tokenReceiveData.tokenProofs,
-              meltQuoteId: decryptedData.tokenReceiveData.meltQuoteId,
+              sourceMintUrl: decryptedData.cashuTokenData.tokenMintUrl,
+              tokenAmount: decryptedData.cashuTokenData.tokenAmount,
+              tokenProofs: decryptedData.cashuTokenData.tokenProofs,
+              meltQuoteId: decryptedData.cashuTokenData.meltQuoteId,
               meltInitiated: data.cashu_token_melt_initiated ?? false,
+              cashuReceiveFee: decryptedData.cashuTokenData.cashuReceiveFee,
+              lightningFeeReserve:
+                decryptedData.cashuTokenData.lightningFeeReserve,
             },
           } as const)
         : ({ type: 'LIGHTNING' } as const);
 
     if (data.state === 'PAID' || data.state === 'COMPLETED') {
+      if (data.keyset_id == null) {
+        throw new Error('keyset_id is required for PAID and COMPLETED states');
+      }
+      if (data.keyset_counter == null) {
+        throw new Error(
+          'keyset_counter is required for PAID and COMPLETED states',
+        );
+      }
+      if (decryptedData.outputAmounts == null) {
+        throw new Error(
+          'outputAmounts is required for PAID and COMPLETED states',
+        );
+      }
       return {
         ...baseData,
         ...typeData,
         state: data.state,
-        keysetId: data.keyset_id ?? '',
-        keysetCounter: data.keyset_counter ?? 0,
-        outputAmounts: decryptedData.outputAmounts ?? [],
+        keysetId: data.keyset_id,
+        keysetCounter: data.keyset_counter,
+        outputAmounts: decryptedData.outputAmounts,
       };
     }
 

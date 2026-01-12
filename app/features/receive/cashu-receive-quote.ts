@@ -11,6 +11,10 @@ export type CashuReceiveQuoteTokenReceiveData = {
    */
   sourceMintUrl: string;
   /**
+   * The amount of the token melted.
+   */
+  tokenAmount: Money;
+  /**
    * The proofs from the source cashu token that will be melted.
    */
   tokenProofs: Proof[];
@@ -22,6 +26,14 @@ export type CashuReceiveQuoteTokenReceiveData = {
    * Whether the melt has been initiated on the source mint.
    */
   meltInitiated: boolean;
+  /**
+   * The fee that is paid for spending the token proofs as inputs to the melt operation.
+   */
+  cashuReceiveFee: Money;
+  /**
+   * The fee reserved for the lightning payment to melt the token proofs to this account.
+   */
+  lightningFeeReserve: Money;
 };
 
 type CashuReceiveQuoteBase = {

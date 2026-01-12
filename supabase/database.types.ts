@@ -1009,7 +1009,6 @@ export type Database = {
           p_account_id: string
           p_currency: string
           p_encrypted_data: string
-          p_encrypted_transaction_details: string
           p_expires_at: string
           p_locking_derivation_path: string
           p_payment_hash: string
