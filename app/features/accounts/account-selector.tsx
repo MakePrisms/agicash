@@ -12,7 +12,7 @@ import { ScrollArea } from '~/components/ui/scroll-area';
 import { cn } from '~/lib/utils';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { type Account, getAccountBalance } from './account';
-import { AccountTypeIcon } from './account-icons';
+import { AccountIcon } from './account-icons';
 import { BalanceOfflineHoverCard } from './balance-offline-hover-card';
 
 export type AccountSelectorOption<T extends Account = Account> = T & {
@@ -46,7 +46,7 @@ function AccountItem({ account }: { account: AccountSelectorOption }) {
 
   return (
     <div className="flex w-full items-center gap-4 px-3 py-4">
-      <AccountTypeIcon type={account.type} />
+      <AccountIcon account={account} />
       <div className="flex w-full flex-col justify-between gap-2 text-start">
         <span className="font-medium">{account.name}</span>
         <div className="flex items-center justify-between text-xs">
