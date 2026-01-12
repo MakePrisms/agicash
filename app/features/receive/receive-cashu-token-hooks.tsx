@@ -229,8 +229,9 @@ export function useReceiveCashuTokenAccounts(
   return {
     selectableAccounts: possibleDestinationAccounts.map(toOption),
     receiveAccount: receiveAccount ? toOption(receiveAccount) : null,
-    isCrossMintSwapDisabled: sourceAccount.isTestMint,
-    sourceAccount: sourceAccount,
+    canOnlyReceiveToSource:
+      ReceiveCashuTokenService.sourceRestrictsDestination(sourceAccount),
+    sourceAccount,
     setReceiveAccount,
     addAndSetReceiveAccount,
   };
