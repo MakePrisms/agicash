@@ -166,8 +166,20 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
       (data: Account[]) => {
         const extendedData = AccountService.getExtendedAccounts(user, data);
 
-        if (!currency && !type && isOnline === undefined) {
-          return extendedData as ExtendedAccount<T>[];
+        if (
+          !currency &&
+          !type &&
+          isOnline === undefined &&
+          !excludeClosedLoopAccounts &&
+          !onlyIncludeClosedLoopAccounts
+        ) {
+          return extendedData
+            .slice()
+            .sort(
+              (a, b) =>
+                new Date(a.createdAt).getTime() -
+                new Date(b.createdAt).getTime(),
+            ) as ExtendedAccount<T>[];
         }
 
         const filteredData = extendedData.filter(
@@ -193,7 +205,12 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
           },
         );
 
-        return filteredData;
+        return filteredData
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          );
       },
       [
         currency,
