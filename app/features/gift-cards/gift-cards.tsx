@@ -26,16 +26,9 @@ import {
  * Clicking a card navigates to the card details page with view transitions.
  */
 export function GiftCards() {
-  const { data: accounts, dataUpdatedAt } = useAccounts({
+  const { data: accounts } = useAccounts({
     type: 'cashu',
     onlyIncludeClosedLoopAccounts: true,
-  });
-
-  // Debug logging to understand reorder issue
-  console.log('[GiftCards] render', {
-    dataUpdatedAt,
-    accountIds: accounts.map((a) => a.id),
-    accountNames: accounts.map((a) => a.name),
   });
 
   const navigate = useNavigate();

@@ -59,20 +59,3 @@
 ::view-transition-new(transactions) {
   animation-name: slide-fade-in;
 }
-
-/* Transactions should be below cards during transition */
-::view-transition-group(transactions) {
-  z-index: 1;
-}
-
-/* Card transitions - morph between positions */
-::view-transition-group(available-cards),
-::view-transition-group(transactions) {
-  animation-duration: 0.4s;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Ensure cards maintain their stacking during transition */
-::view-transition-image-pair(*) {
-  isolation: auto;
-}
