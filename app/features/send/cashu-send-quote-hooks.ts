@@ -27,9 +27,8 @@ import type {
   AgicashDbCashuSendQuote,
 } from '../agicash-db/database';
 import { ConcurrencyError, DomainError, NotFoundError } from '../shared/error';
-import type { DestinationDetails } from '../transactions/transaction';
 import { useUser } from '../user/user-hooks';
-import type { CashuSendQuote } from './cashu-send-quote';
+import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
 import { useCashuSendQuoteRepository } from './cashu-send-quote-repository';
 import {
   type SendQuoteRequest,
@@ -367,7 +366,7 @@ export function useCashuSendQuoteChangeHandlers() {
           cashu_proofs: AgicashDbCashuProof[];
         },
       ) => {
-        const quote = await cashuSendQuoteRepository.toSendQuote(payload);
+        const quote = await cashuSendQuoteRepository.toQuote(payload);
         unresolvedSendQuotesCache.add(quote);
       },
     },
@@ -378,7 +377,7 @@ export function useCashuSendQuoteChangeHandlers() {
           cashu_proofs: AgicashDbCashuProof[];
         },
       ) => {
-        const quote = await cashuSendQuoteRepository.toSendQuote(payload);
+        const quote = await cashuSendQuoteRepository.toQuote(payload);
 
         cashuSendQuoteCache.updateIfExists(quote);
 

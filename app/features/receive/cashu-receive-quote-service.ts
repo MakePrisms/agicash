@@ -1,66 +1,36 @@
 import {
   MintOperationError,
-  type MintQuoteResponse,
   MintQuoteState,
   OutputData,
   type Proof,
 } from '@cashu/cashu-ts';
-import { HARDENED_OFFSET } from '@scure/bip32';
-import { decodeBolt11 } from '~/lib/bolt11';
 import {
   CashuErrorCodes,
   type ExtendedCashuWallet,
   getCashuUnit,
   getOutputAmounts,
 } from '~/lib/cashu';
-import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import {
   BASE_CASHU_LOCKING_DERIVATION_PATH,
   type CashuCryptography,
   useCashuCryptography,
 } from '../shared/cashu';
-import { derivePublicKey } from '../shared/cryptography';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
+import {
+  type CashuReceiveLightningQuote,
+  type CreateQuoteBaseParams,
+  type GetLightningQuoteParams,
+  computeQuoteExpiry,
+  computeTotalFee,
+  getLightningQuote,
+} from './cashu-receive-quote-core';
 import {
   type CashuReceiveQuoteRepository,
   useCashuReceiveQuoteRepository,
 } from './cashu-receive-quote-repository';
 
-export type CashuReceiveLightningQuote = {
-  /**
-   * The locked mint quote from the mint.
-   */
-  mintQuote: MintQuoteResponse;
-  /**
-   * The public key that locks the mint quote.
-   */
-  lockingPublicKey: string;
-  /**
-   * The full derivation path of the locking key. This is needed to derive the private key to unlock the mint quote.
-   */
-  fullLockingDerivationPath: string;
-  /**
-   * The expiration date of the mint quote.
-   */
-  expiresAt: string;
-  /**
-   * The amount to receive.
-   */
-  amount: Money;
-  /**
-   * The description of the receive request.
-   */
-  description?: string;
-  /**
-   * Optional fee that the mint charges to mint ecash. This amount is added to the payment request amount.
-   */
-  mintingFee?: Money;
-  /**
-   * The payment hash of the lightning invoice.
-   */
-  paymentHash: string;
-};
+type CreateQuoteParams = CreateQuoteBaseParams;
 
 export class CashuReceiveQuoteService {
   constructor(
@@ -72,59 +42,17 @@ export class CashuReceiveQuoteService {
    * Gets a locked mint quote response for receiving lightning payments.
    * @returns The mint quote response and related data needed to create a receive quote.
    */
-  async getLightningQuote({
-    account,
-    amount,
-    description,
-  }: {
-    /**
-     * The cashu account to which the money will be received.
-     */
-    account: CashuAccount;
-    /**
-     * The amount to receive.
-     */
-    amount: Money;
-    /**
-     * The description of the receive request.
-     */
-    description?: string;
-  }): Promise<CashuReceiveLightningQuote> {
-    const cashuUnit = getCashuUnit(amount.currency);
-
-    const wallet = account.wallet;
-
-    const { lockingPublicKey, fullLockingDerivationPath } =
-      await this.deriveNut20LockingPublicKey();
-
-    const mintQuoteResponse = await wallet.createLockedMintQuote(
-      amount.toNumber(cashuUnit),
-      lockingPublicKey,
-      description,
+  async getLightningQuote(
+    params: Omit<GetLightningQuoteParams, 'xPub'>,
+  ): Promise<CashuReceiveLightningQuote> {
+    const xPub = await this.cryptography.getXpub(
+      BASE_CASHU_LOCKING_DERIVATION_PATH,
     );
 
-    const expiresAt = new Date(mintQuoteResponse.expiry * 1000).toISOString();
-
-    const mintingFee = mintQuoteResponse.fee
-      ? new Money({
-          amount: mintQuoteResponse.fee,
-          currency: amount.currency,
-          unit: cashuUnit,
-        })
-      : undefined;
-
-    const { paymentHash } = decodeBolt11(mintQuoteResponse.request);
-
-    return {
-      mintQuote: mintQuoteResponse,
-      lockingPublicKey,
-      fullLockingDerivationPath,
-      expiresAt,
-      amount,
-      description,
-      mintingFee,
-      paymentHash,
-    };
+    return getLightningQuote({
+      ...params,
+      xPub,
+    });
   }
 
   /**
@@ -132,123 +60,50 @@ export class CashuReceiveQuoteService {
    * @returns The created cashu receive quote with the bolt11 invoice to pay.
    */
   async createReceiveQuote(
-    params: {
-      /**
-       * The id of the user that will receive the money.
-       */
-      userId: string;
-      /**
-       * The cashu account to which the money will be received.
-       */
-      account: CashuAccount;
-      /**
-       * The lightning quote to create the cashu receive quote from.
-       */
-      lightningQuote: CashuReceiveLightningQuote;
-      /**
-       * Type of the receive.
-       * - LIGHTNING - The money is received via a regular lightning payment.
-       * - CASHU_TOKEN - The money is received as a cashu token. The proofs will be melted
-       *   from the account they originated from to pay the request for this receive quote.
-       */
-      receiveType: 'LIGHTNING' | 'CASHU_TOKEN';
-    } & (
-      | {
-          receiveType: 'LIGHTNING';
-        }
-      | {
-          receiveType: 'CASHU_TOKEN';
-          /**
-           * The amount of the token to receive.
-           */
-          tokenAmount: Money;
-          /**
-           * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
-           */
-          cashuReceiveFee: Money;
-          /**
-           * The fee reserved for the lightning payment to melt the proofs to the account.
-           */
-          lightningFeeReserve: Money;
-          /**
-           * URL of the source mint where the token proofs originate from.
-           */
-          sourceMintUrl: string;
-          /**
-           * The proofs from the source cashu token that will be melted.
-           */
-          tokenProofs: Proof[];
-          /**
-           * ID of the melt quote on the source mint.
-           */
-          meltQuoteId: string;
-          /**
-           * The expiry of the melt quote in ISO 8601 format.
-           */
-          meltQuoteExpiresAt: string;
-        }
-    ),
+    params: CreateQuoteParams,
   ): Promise<CashuReceiveQuote> {
-    const {
-      userId,
-      account,
-      lightningQuote: receiveQuote,
-      receiveType,
-    } = params;
+    const { userId, account, lightningQuote, receiveType } = params;
 
-    if (receiveQuote.mintQuote.state !== MintQuoteState.UNPAID) {
+    if (lightningQuote.mintQuote.state !== MintQuoteState.UNPAID) {
       throw new Error('Mint quote must be unpaid');
     }
 
-    const expiresAt =
-      receiveType === 'CASHU_TOKEN'
-        ? new Date(
-            Math.min(
-              new Date(receiveQuote.expiresAt).getTime(),
-              new Date(params.meltQuoteExpiresAt).getTime(),
-            ),
-          ).toISOString()
-        : receiveQuote.expiresAt;
+    const expiresAt = computeQuoteExpiry(params);
+    const totalFee = computeTotalFee(params);
 
-    const baseReceiveQuote = {
+    const baseParams = {
       accountId: account.id,
       userId,
-      amount: receiveQuote.amount,
-      description: receiveQuote.description,
-      quoteId: receiveQuote.mintQuote.quote,
+      amount: lightningQuote.amount,
+      description: lightningQuote.description,
+      quoteId: lightningQuote.mintQuote.quote,
       expiresAt,
-      paymentRequest: receiveQuote.mintQuote.request,
-      lockingDerivationPath: receiveQuote.fullLockingDerivationPath,
-      mintingFee: receiveQuote.mintingFee,
+      paymentRequest: lightningQuote.mintQuote.request,
+      paymentHash: lightningQuote.paymentHash,
+      lockingDerivationPath: lightningQuote.fullLockingDerivationPath,
+      mintingFee: lightningQuote.mintingFee,
+      totalFee,
+      receiveType,
     };
 
     if (receiveType === 'CASHU_TOKEN') {
-      const {
-        tokenAmount,
-        cashuReceiveFee,
-        lightningFeeReserve,
-        sourceMintUrl,
-        tokenProofs,
-        meltQuoteId,
-      } = params;
-
       return this.cashuReceiveQuoteRepository.create({
-        ...baseReceiveQuote,
+        ...baseParams,
         receiveType,
-        tokenAmount,
-        cashuReceiveFee,
-        lightningFeeReserve,
-        paymentHash: receiveQuote.paymentHash,
-        sourceMintUrl,
-        tokenProofs,
-        meltQuoteId,
+        meltData: {
+          tokenMintUrl: params.sourceMintUrl,
+          tokenAmount: params.tokenAmount,
+          tokenProofs: params.tokenProofs,
+          meltQuoteId: params.meltQuoteId,
+          cashuReceiveFee: params.cashuReceiveFee,
+          lightningFeeReserve: params.lightningFeeReserve,
+        },
       });
     }
 
     return this.cashuReceiveQuoteRepository.create({
-      ...baseReceiveQuote,
+      ...baseParams,
       receiveType,
-      paymentHash: receiveQuote.paymentHash,
     });
   }
 
@@ -488,23 +343,6 @@ export class CashuReceiveQuoteService {
       }
       throw error;
     }
-  }
-
-  private async deriveNut20LockingPublicKey() {
-    const xpub = await this.cryptography.getXpub(
-      BASE_CASHU_LOCKING_DERIVATION_PATH,
-    );
-
-    const unhardenedIndex = Math.floor(
-      Math.random() * (HARDENED_OFFSET - 1),
-    ).toString();
-
-    const lockingKey = derivePublicKey(xpub, `m/${unhardenedIndex}`);
-
-    return {
-      lockingPublicKey: lockingKey,
-      fullLockingDerivationPath: `${BASE_CASHU_LOCKING_DERIVATION_PATH}/${unhardenedIndex}`,
-    };
   }
 }
 

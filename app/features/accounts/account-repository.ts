@@ -1,25 +1,29 @@
 import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
-import type { Proof } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
-import { type Currency, Money } from '~/lib/money';
-import { createSparkWalletStub } from '~/lib/spark';
-import type {
-  AgicashDb,
-  AgicashDbAccount,
-  AgicashDbAccountWithProofs,
+import { z } from 'zod';
+import { ProofSchema } from '~/lib/cashu/types';
+import type { Currency } from '~/lib/money';
+import {
+  type AgicashDb,
+  type AgicashDbAccountWithProofs,
+  isCashuAccount,
+  isSparkAccount,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
+import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
+import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
   useCashuCryptography,
 } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import {
+  getInitializedSparkWallet,
   sparkMnemonicQueryOptions,
-  sparkWalletQueryOptions,
 } from '../shared/spark';
-import type { Account, CashuAccount, CashuProof } from './account';
+import type { Account, CashuAccount } from './account';
+import type { CashuProof } from './cashu-account';
 
 type AccountOmit<
   T extends Account,
@@ -44,8 +48,8 @@ export class AccountRepository {
     private readonly db: AgicashDb,
     private readonly encryption: Encryption,
     private readonly queryClient: QueryClient,
-    private readonly getCashuWalletSeed?: () => Promise<Uint8Array>,
-    private readonly getSparkWalletMnemonic?: () => Promise<string>,
+    private readonly getCashuWalletSeed: () => Promise<Uint8Array>,
+    private readonly getSparkWalletMnemonic: () => Promise<string>,
   ) {}
 
   /**
@@ -113,13 +117,15 @@ export class AccountRepository {
   ): Promise<T> {
     let details = {};
     if (accountInput.type === 'cashu') {
-      details = {
+      details = CashuAccountDetailsDbDataSchema.parse({
         mint_url: accountInput.mintUrl,
         is_test_mint: accountInput.isTestMint,
         keyset_counters: accountInput.keysetCounters,
-      };
+      } satisfies z.input<typeof CashuAccountDetailsDbDataSchema>);
     } else {
-      details = { network: accountInput.network };
+      details = SparkAccountDetailsDbDataSchema.parse({
+        network: accountInput.network,
+      } satisfies z.input<typeof SparkAccountDetailsDbDataSchema>);
     }
     const accountsToCreate = {
       name: accountInput.name,
@@ -159,12 +165,12 @@ export class AccountRepository {
     const commonData = {
       id: data.id,
       name: data.name,
-      currency: data.currency as Currency,
+      currency: data.currency,
       createdAt: data.created_at,
       version: data.version,
     };
 
-    if (this.isCashuAccount(data)) {
+    if (isCashuAccount(data)) {
       const details = data.details;
 
       const [{ wallet, isOnline }, proofs] = await Promise.all([
@@ -184,7 +190,7 @@ export class AccountRepository {
       } as T;
     }
 
-    if (this.isSparkAccount(data)) {
+    if (isSparkAccount(data)) {
       const { network } = data.details;
       const { wallet, balance, isOnline } =
         await this.getInitializedSparkWallet(network);
@@ -203,7 +209,7 @@ export class AccountRepository {
   }
 
   private async getInitializedCashuWallet(mintUrl: string, currency: Currency) {
-    const seed = await this.getCashuWalletSeed?.();
+    const seed = await this.getCashuWalletSeed();
     return getInitializedCashuWallet(
       this.queryClient,
       mintUrl,
@@ -213,55 +219,14 @@ export class AccountRepository {
   }
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
-    const mnemonic = await this.getSparkWalletMnemonic?.();
-    if (!mnemonic) {
-      throw new Error('Could not get spark wallet mnemonic');
-    }
-    try {
-      const wallet = await this.queryClient.fetchQuery(
-        sparkWalletQueryOptions({ network, mnemonic }),
-      );
-      const { balance: balanceSats } = await wallet.getBalance();
-      const balance = new Money({
-        amount: Number(balanceSats),
-        currency: 'BTC',
-        unit: 'sat',
-      });
-      return { wallet, balance, isOnline: true };
-    } catch (error) {
-      console.error('Failed to initialize spark wallet', { cause: error });
-      return {
-        wallet: createSparkWalletStub(
-          'Spark is offline, please try again later.',
-        ),
-        balance: null,
-        isOnline: false,
-      };
-    }
-  }
-
-  private isCashuAccount(data: AgicashDbAccount): data is AgicashDbAccount & {
-    type: 'cashu';
-    details: {
-      mint_url: string;
-      is_test_mint: boolean;
-      keyset_counters: Record<string, number>;
-    };
-  } {
-    return data.type === 'cashu';
-  }
-
-  private isSparkAccount(data: AgicashDbAccount): data is AgicashDbAccount & {
-    type: 'spark';
-    details: { network: SparkNetwork };
-  } {
-    return data.type === 'spark';
+    const mnemonic = await this.getSparkWalletMnemonic();
+    return getInitializedSparkWallet(this.queryClient, mnemonic, network);
   }
 
   private async decryptCashuProofs(
     data: AgicashDbAccountWithProofs,
   ): Promise<CashuProof[]> {
-    if (!this.isCashuAccount(data)) {
+    if (!isCashuAccount(data)) {
       throw new Error('Account is not a cashu account');
     }
 
@@ -273,8 +238,8 @@ export class AccountRepository {
 
     return data.cashu_proofs.map((dbProof, index) => {
       const decryptedDataIndex = index * 2;
-      const amount = decryptedData[decryptedDataIndex] as number;
-      const secret = decryptedData[decryptedDataIndex + 1] as string;
+      const amount = z.number().parse(decryptedData[decryptedDataIndex]);
+      const secret = z.string().parse(decryptedData[decryptedDataIndex + 1]);
       return {
         id: dbProof.id,
         accountId: dbProof.account_id,
@@ -284,9 +249,9 @@ export class AccountRepository {
         secret,
         unblindedSignature: dbProof.unblinded_signature,
         publicKeyY: dbProof.public_key_y,
-        dleq: dbProof.dleq as Proof['dleq'],
-        witness: dbProof.witness as Proof['witness'],
-        state: dbProof.state as CashuProof['state'],
+        dleq: ProofSchema.shape.dleq.parse(dbProof.dleq),
+        witness: ProofSchema.shape.witness.parse(dbProof.witness),
+        state: dbProof.state,
         version: dbProof.version,
         createdAt: dbProof.created_at,
         reservedAt: dbProof.reserved_at,

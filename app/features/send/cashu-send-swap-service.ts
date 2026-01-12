@@ -4,11 +4,8 @@ import {
   OutputData,
   type Proof,
 } from '@cashu/cashu-ts';
-import {
-  type CashuAccount,
-  type CashuProof,
-  toProof,
-} from '~/features/accounts/account';
+import type { CashuAccount } from '~/features/accounts/account';
+import { type CashuProof, toProof } from '~/features/accounts/cashu-account';
 import {
   CashuErrorCodes,
   type ExtendedCashuWallet,
@@ -172,6 +169,7 @@ export class CashuSendSwapService {
     return this.cashuSendSwapRepository.create({
       accountId: account.id,
       userId,
+      tokenMintUrl: account.mintUrl,
       inputProofs,
       inputAmount: toMoney(sumProofs(inputProofs)),
       amountRequested: amount,

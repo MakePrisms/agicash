@@ -6,7 +6,7 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { QRCode } from '~/components/qr-code';
-import { toProof } from '~/features/accounts/account';
+import { toProof } from '~/features/accounts/cashu-account';
 import {
   useCashuSendSwap,
   useTrackCashuSendSwap,

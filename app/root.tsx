@@ -279,7 +279,11 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 
   useEffect(() => {
     if (errorDetails.shouldReport) {
-      Sentry.captureException(error);
+      if (Sentry.isEnabled()) {
+        Sentry.captureException(error);
+      } else {
+        console.error('ErrorBoundary caught an error:', { cause: error });
+      }
     }
   }, [errorDetails.shouldReport, error]);
 

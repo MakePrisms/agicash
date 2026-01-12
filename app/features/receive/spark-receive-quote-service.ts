@@ -1,99 +1,18 @@
-import type { SparkWallet } from '@buildonspark/spark-sdk';
-import type { Proof } from '@cashu/cashu-ts';
-import type { Money } from '~/lib/money';
-import { moneyFromSparkAmount } from '~/lib/spark';
-import type { SparkAccount } from '../accounts/account';
 import type { SparkReceiveQuote } from './spark-receive-quote';
+import {
+  type CreateQuoteBaseParams,
+  computeQuoteExpiry,
+  getAmountAndFee,
+} from './spark-receive-quote-core';
 import {
   type SparkReceiveQuoteRepository,
   useSparkReceiveQuoteRepository,
 } from './spark-receive-quote-repository';
 
-export type SparkReceiveLightningQuote = Awaited<
-  ReturnType<SparkWallet['createLightningInvoice']>
->;
-
-type GetLightningQuoteParams = {
-  /**
-   * The Spark account to which the money will be received.
-   */
-  account: SparkAccount;
-  /**
-   * The amount to receive.
-   */
-  amount: Money;
-  /**
-   * The Spark public key of the receiver used to create invoices on behalf of another user.
-   * If provided, the incoming payment can only be claimed by the Spark wallet that controls the specified public key.
-   * If not provided, the invoice will be created for the user that owns the Spark wallet.
-   */
-  receiverIdentityPubkey?: string;
-};
-
-type CreateQuoteParams = {
-  /**
-   * The user ID.
-   */
-  userId: string;
-  /**
-   * The Spark account to create the receive request for.
-   */
-  account: SparkAccount;
-  /**
-   * The lightning quote to create the Spark receive quote from.
-   */
-  lightningQuote: SparkReceiveLightningQuote;
-} & (
-  | {
-      /**
-       * Type of the receive.
-       * LIGHTNING - Standard lightning receive.
-       */
-      type?: 'LIGHTNING';
-    }
-  | {
-      /**
-       * Type of the receive.
-       * CASHU_TOKEN - Receive cashu tokens to a Spark account.
-       */
-      type: 'CASHU_TOKEN';
-      /**
-       * URL of the source mint where the token proofs originate from.
-       */
-      sourceMintUrl: string;
-      /**
-       * The proofs from the source cashu token that will be melted.
-       */
-      tokenProofs: Proof[];
-      /**
-       * ID of the melt quote on the source mint.
-       */
-      meltQuoteId: string;
-      /**
-       * The expiry of the melt quote in ISO 8601 format.
-       */
-      meltQuoteExpiresAt: string;
-    }
-);
+type CreateQuoteParams = CreateQuoteBaseParams;
 
 export class SparkReceiveQuoteService {
   constructor(private readonly repository: SparkReceiveQuoteRepository) {}
-
-  /**
-   * Gets a Spark lightning receive quote for the given amount.
-   * @returns The Spark lightning receive quote.
-   */
-  async getLightningQuote({
-    account,
-    amount,
-    receiverIdentityPubkey,
-  }: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
-    return account.wallet.createLightningInvoice({
-      amountSats: amount.toNumber('sat'),
-      includeSparkAddress: false,
-      receiverIdentityPubkey,
-    });
-  }
 
   /**
    * Creates a new Spark Lightning receive quote for the given amount.
@@ -103,41 +22,40 @@ export class SparkReceiveQuoteService {
     params: CreateQuoteParams,
   ): Promise<SparkReceiveQuote> {
     const { userId, account, lightningQuote } = params;
-
-    const expiresAt =
-      params.type === 'CASHU_TOKEN'
-        ? new Date(
-            Math.min(
-              new Date(lightningQuote.invoice.expiresAt).getTime(),
-              new Date(params.meltQuoteExpiresAt).getTime(),
-            ),
-          ).toISOString()
-        : lightningQuote.invoice.expiresAt;
+    const expiresAt = computeQuoteExpiry(params);
+    const { amount, totalFee } = getAmountAndFee(params);
 
     const baseParams = {
       userId,
       accountId: account.id,
-      amount: moneyFromSparkAmount(lightningQuote.invoice.amount),
+      amount,
       paymentRequest: lightningQuote.invoice.encodedInvoice,
       paymentHash: lightningQuote.invoice.paymentHash,
+      description: lightningQuote.invoice.memo,
       expiresAt,
       sparkId: lightningQuote.id,
       receiverIdentityPubkey: lightningQuote.receiverIdentityPublicKey,
+      totalFee,
     };
 
-    if (params.type === 'CASHU_TOKEN') {
+    if (params.receiveType === 'CASHU_TOKEN') {
       return this.repository.create({
         ...baseParams,
-        type: 'CASHU_TOKEN',
-        sourceMintUrl: params.sourceMintUrl,
-        tokenProofs: params.tokenProofs,
-        meltQuoteId: params.meltQuoteId,
+        receiveType: 'CASHU_TOKEN',
+        meltData: {
+          tokenMintUrl: params.sourceMintUrl,
+          tokenAmount: params.tokenAmount,
+          tokenProofs: params.tokenProofs,
+          meltQuoteId: params.meltQuoteId,
+          cashuReceiveFee: params.cashuReceiveFee,
+          lightningFeeReserve: params.lightningFeeReserve,
+        },
       });
     }
 
     return this.repository.create({
       ...baseParams,
-      type: 'LIGHTNING',
+      receiveType: 'LIGHTNING',
     });
   }
 

@@ -10,12 +10,9 @@ import {
 } from '~/components/page';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import { proofToY } from '~/lib/cashu';
-import {
-  type CashuAccount,
-  type CashuProof,
-  toProof,
-} from '../accounts/account';
+import type { CashuAccount } from '../accounts/account';
 import { useAccount } from '../accounts/account-hooks';
+import { type CashuProof, toProof } from '../accounts/cashu-account';
 import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
 import { useCashuTokenSwapRepository } from '../receive/cashu-token-swap-repository';
 import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-repository';

@@ -1,7 +1,8 @@
 import type { Proof, Token } from '@cashu/cashu-ts';
-import type { Json } from 'supabase/database.types';
+import type z from 'zod';
 import { proofToY } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type { CashuAccount } from '../accounts/account';
 import {
   type AccountRepository,
@@ -12,19 +13,11 @@ import type {
   AgicashDbCashuTokenSwap,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
+import { CashuSwapReceiveDbDataSchema } from '../agicash-db/json-models';
 import { getTokenHash } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { UniqueConstraintError } from '../shared/error';
-import type { CashuTokenReceiveTransactionDetails } from '../transactions/transaction';
-import type { CashuTokenSwap } from './cashu-token-swap';
-
-type EncryptedData = {
-  tokenProofs: Proof[];
-  inputAmount: Money;
-  receiveAmount: Money;
-  feeAmount: Money;
-  outputAmounts: number[];
-};
+import { type CashuTokenSwap, CashuTokenSwapSchema } from './cashu-token-swap';
 
 type Options = {
   abortSignal?: AbortSignal;
@@ -102,23 +95,17 @@ export class CashuTokenSwapRepository {
     const currency = inputAmount.currency;
     const tokenHash = await getTokenHash(token);
 
-    const details: CashuTokenReceiveTransactionDetails = {
-      amountReceived: receiveAmount,
-      cashuReceiveFee,
-      totalFees: cashuReceiveFee,
+    const receiveData = CashuSwapReceiveDbDataSchema.parse({
+      tokenMintUrl: token.mint,
       tokenAmount: inputAmount,
-    };
-
-    const dataToEncrypt: EncryptedData = {
       tokenProofs: token.proofs,
-      inputAmount,
-      receiveAmount,
-      feeAmount: cashuReceiveFee,
+      tokenDescription: token.memo,
+      amountReceived: receiveAmount,
       outputAmounts,
-    };
+      cashuReceiveFee,
+    } satisfies z.input<typeof CashuSwapReceiveDbDataSchema>);
 
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([details, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(receiveData);
 
     const query = this.db.rpc('create_cashu_token_swap', {
       p_token_hash: tokenHash,
@@ -128,7 +115,6 @@ export class CashuTokenSwapRepository {
       p_keyset_id: keysetId,
       p_number_of_outputs: outputAmounts.length,
       p_encrypted_data: encryptedData,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
       p_reversed_transaction_id: reversedTransactionId,
     });
 
@@ -195,8 +181,8 @@ export class CashuTokenSwapRepository {
         secret: encryptedData[encryptedDataIndex + 1],
         unblindedSignature: x.C,
         publicKeyY: proofToY(x),
-        dleq: x.dleq as Json,
-        witness: x.witness as Json,
+        dleq: x.dleq ?? null,
+        witness: x.witness ?? null,
       };
     });
 
@@ -326,40 +312,29 @@ export class CashuTokenSwapRepository {
   }
 
   async toTokenSwap(data: AgicashDbCashuTokenSwap): Promise<CashuTokenSwap> {
-    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
-    );
+    const decryptedData = await this.encryption.decrypt(data.encrypted_data);
+    const receiveData = CashuSwapReceiveDbDataSchema.parse(decryptedData);
 
-    const commonData = {
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing cashu token swap invariant check at runtime. For example it makes sure that failureReason is present when state is FAILED.
+    return CashuTokenSwapSchema.parse({
       tokenHash: data.token_hash,
-      tokenProofs: decryptedData.tokenProofs,
+      tokenProofs: receiveData.tokenProofs,
+      tokenDescription: receiveData.tokenDescription,
       userId: data.user_id,
       accountId: data.account_id,
-      inputAmount: decryptedData.inputAmount,
-      receiveAmount: decryptedData.receiveAmount,
-      feeAmount: decryptedData.feeAmount,
+      inputAmount: receiveData.tokenAmount,
+      amountReceived: receiveData.amountReceived,
+      feeAmount: receiveData.cashuReceiveFee,
       keysetId: data.keyset_id,
       keysetCounter: data.keyset_counter,
-      outputAmounts: decryptedData.outputAmounts,
-      createdAt: data.created_at,
-      version: data.version,
+      outputAmounts: receiveData.outputAmounts,
       transactionId: data.transaction_id,
-    };
-
-    const state = data.state as CashuTokenSwap['state'];
-
-    if (state === 'FAILED') {
-      return {
-        ...commonData,
-        state,
-        failureReason: data.failure_reason ?? '',
-      };
-    }
-
-    return {
-      ...commonData,
-      state,
-    };
+      version: data.version,
+      createdAt: data.created_at,
+      state: data.state,
+      failureReason: data.failure_reason,
+    } satisfies AllUnionFieldsRequired<z.output<typeof CashuTokenSwapSchema>>);
   }
 }
 

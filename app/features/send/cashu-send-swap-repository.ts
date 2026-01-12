@@ -1,32 +1,23 @@
 import type { Proof } from '@cashu/cashu-ts';
-import type { Json } from 'supabase/database.types';
+import type { z } from 'zod';
 import { proofToY } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
-import type { CashuProof } from '../accounts/account';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
+import type { CashuProof } from '../accounts/cashu-account';
 import type {
   AgicashDb,
   AgicashDbCashuProof,
   AgicashDbCashuSendSwap,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
+import { CashuSwapSendDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
-import type { CashuTokenSendTransactionDetails } from '../transactions/transaction';
-import type { CashuSendSwap } from './cashu-send-swap';
+import { type CashuSendSwap, CashuSendSwapSchema } from './cashu-send-swap';
+import { toDecryptedCashuProofs } from './utils';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type EncryptedData = {
-  amountRequested: Money;
-  amountToSend: Money;
-  receiveSwapFee: Money;
-  sendSwapFee: Money;
-  totalAmount: Money;
-  inputAmount: Money;
-  sendOutputAmounts?: number[];
-  changeOutputAmounts?: number[];
 };
 
 type CreateSendSwap = {
@@ -39,17 +30,22 @@ type CreateSendSwap = {
    */
   userId: string;
   /**
+   * The URL of the mint creating the token.
+   */
+  tokenMintUrl: string;
+  /**
    * The requested amount to send in the account's currency.
+   * This is the amount that the sender wants the receiver to receive.
    */
   amountRequested: Money;
   /**
-   * The full amount to send including the reveive fee in the account's currency.
-   * This is amount requested plus the receive fee.
+   * The full amount to send including the receive fee in the account's currency.
+   * This is `amountRequested` plus `cashuReceiveFee`.
    */
   amountToSend: Money;
   /**
    * The total amount spent for this send.
-   * This is the sum of amount to send and the send fee.
+   * This is the sum of `amountToSend` and `cashuSendFee`.
    */
   totalAmount: Money;
   /**
@@ -99,6 +95,7 @@ export class CashuSendSwapRepository {
     {
       accountId,
       userId,
+      tokenMintUrl,
       amountRequested,
       amountToSend,
       totalAmount,
@@ -112,29 +109,26 @@ export class CashuSendSwapRepository {
     }: CreateSendSwap,
     options?: Options,
   ) {
-    const details: CashuTokenSendTransactionDetails = {
-      amountSpent: totalAmount,
-      cashuSendFee: cashuSendFee,
-      cashuReceiveFee: cashuReceiveFee,
-      totalFees: cashuSendFee.add(cashuReceiveFee),
-      amountToReceive: amountToSend.subtract(cashuReceiveFee),
-    };
-
     const requiresInputProofsSwap = !inputAmount.equals(amountToSend);
 
-    const dataToEncrypt: EncryptedData = {
-      amountRequested,
+    const dataToEncrypt = CashuSwapSendDbDataSchema.parse({
+      tokenMintUrl,
+      amountReceived: amountRequested,
       amountToSend,
-      receiveSwapFee: cashuReceiveFee,
-      sendSwapFee: cashuSendFee,
-      totalAmount,
-      inputAmount,
-      sendOutputAmounts: outputAmounts?.send,
-      changeOutputAmounts: outputAmounts?.change,
-    };
+      cashuReceiveFee,
+      cashuSendFee,
+      amountSpent: totalAmount,
+      amountReserved: inputAmount,
+      totalFee: cashuSendFee.add(cashuReceiveFee),
+      outputAmounts: outputAmounts
+        ? {
+            send: outputAmounts.send,
+            change: outputAmounts.change,
+          }
+        : undefined,
+    } satisfies z.input<typeof CashuSwapSendDbDataSchema>);
 
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([details, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
     const numberOfOutputs = requiresInputProofsSwap
       ? (outputAmounts?.send?.length ?? 0) +
@@ -146,7 +140,6 @@ export class CashuSendSwapRepository {
       p_account_id: accountId,
       p_input_proofs: inputProofs.map((p) => p.id),
       p_currency: amountToSend.currency,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
       p_encrypted_data: encryptedData,
       p_requires_input_proofs_swap: requiresInputProofsSwap,
       p_token_hash: tokenHash,
@@ -215,8 +208,8 @@ export class CashuSendSwapRepository {
         secret: encryptedProofData[encryptedDataIndex + 1],
         unblindedSignature: x.C,
         publicKeyY: proofToY(x),
-        dleq: x.dleq as Json,
-        witness: x.witness as Json,
+        dleq: x.dleq ?? null,
+        witness: x.witness ?? null,
       };
     });
     const encryptedProofsToSend = encryptedProofs.slice(0, proofsToSend.length);
@@ -334,137 +327,61 @@ export class CashuSendSwapRepository {
   async toSwap(
     data: AgicashDbCashuSendSwap & { cashu_proofs: AgicashDbCashuProof[] },
   ): Promise<CashuSendSwap> {
-    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
+    const encryptedInputProofs = data.cashu_proofs.filter(
+      (p) => p.cashu_send_swap_id !== data.id,
     );
+    const encryptedProofsToSend = data.cashu_proofs.filter(
+      (p) =>
+        p.cashu_send_swap_id === data.id || !data.requires_input_proofs_swap,
+    );
+    const encryptedProofs = encryptedInputProofs.concat(encryptedProofsToSend);
+    const proofsDataToDecrypt = encryptedProofs.flatMap((x) => [
+      x.amount,
+      x.secret,
+    ]);
 
-    const { inputProofs, proofsToSend } = await this.decryptCashuProofs({
-      inputProofs: data.cashu_proofs.filter(
-        (p) => p.cashu_send_swap_id !== data.id,
-      ),
-      proofsToSend: data.cashu_proofs.filter(
-        (p) =>
-          p.cashu_send_swap_id === data.id || !data.requires_input_proofs_swap,
-      ),
-    });
+    const [decryptedData, ...decryptedProofsData] =
+      await this.encryption.decryptBatch([
+        data.encrypted_data,
+        ...proofsDataToDecrypt,
+      ]);
 
-    const commonData = {
+    const decryptedProofs = toDecryptedCashuProofs(
+      encryptedProofs,
+      decryptedProofsData,
+    );
+    const inputProofs = decryptedProofs.slice(0, encryptedInputProofs.length);
+    const proofsToSend = decryptedProofs.slice(encryptedInputProofs.length);
+
+    const sendData = CashuSwapSendDbDataSchema.parse(decryptedData);
+
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing cashu send swap invariant check at runtime. For example it makes sure that sendOutputAmounts and changeOutputAmounts are defined when needed.
+    return CashuSendSwapSchema.parse({
       id: data.id,
       accountId: data.account_id,
       userId: data.user_id,
       transactionId: data.transaction_id,
-      amountRequested: decryptedData.amountRequested,
-      amountToSend: decryptedData.amountToSend,
-      totalAmount: decryptedData.totalAmount,
-      cashuReceiveFee: decryptedData.receiveSwapFee,
-      cashuSendFee: decryptedData.sendSwapFee,
+      amountReceived: sendData.amountReceived,
+      amountToSend: sendData.amountToSend,
+      amountSpent: sendData.amountSpent,
+      cashuReceiveFee: sendData.cashuReceiveFee,
+      cashuSendFee: sendData.cashuSendFee,
       inputProofs: inputProofs,
-      inputAmount: decryptedData.inputAmount,
-      currency: data.currency,
+      inputAmount: sendData.amountReserved,
+      totalFee: sendData.totalFee,
       version: data.version,
       state: data.state,
       createdAt: new Date(data.created_at),
-    };
-
-    if (data.state === 'DRAFT') {
-      if (
-        !data.keyset_id ||
-        data.keyset_counter === null ||
-        !decryptedData.sendOutputAmounts
-      ) {
-        throw new Error('Invalid swap, DRAFT state is missing data', {
-          cause: data,
-        });
-      }
-      return {
-        ...commonData,
-        keysetId: data.keyset_id,
-        keysetCounter: data.keyset_counter,
-        outputAmounts: {
-          send: decryptedData.sendOutputAmounts,
-          change: decryptedData.changeOutputAmounts ?? [],
-        },
-        state: 'DRAFT',
-      };
-    }
-
-    if (data.state === 'PENDING' || data.state === 'COMPLETED') {
-      if (!data.token_hash || !proofsToSend) {
-        throw new Error(
-          'Invalid swap, token hash or proofs to send are missing',
-          {
-            cause: data,
-          },
-        );
-      }
-      return {
-        ...commonData,
-        proofsToSend: proofsToSend,
-        tokenHash: data.token_hash,
-        state: data.state,
-      };
-    }
-
-    if (data.state === 'FAILED') {
-      if (!data.failure_reason) {
-        throw new Error('Invalid swap, failure reason is missing', {
-          cause: data,
-        });
-      }
-      return {
-        ...commonData,
-        state: 'FAILED',
-        failureReason: data.failure_reason,
-      };
-    }
-
-    if (data.state === 'REVERSED') {
-      return {
-        ...commonData,
-        state: 'REVERSED',
-      };
-    }
-
-    throw new Error(`Unexpected swap state ${data.state}`);
-  }
-
-  private async decryptCashuProofs({
-    inputProofs,
-    proofsToSend,
-  }: {
-    inputProofs: AgicashDbCashuProof[];
-    proofsToSend: AgicashDbCashuProof[];
-  }): Promise<{ inputProofs: CashuProof[]; proofsToSend: CashuProof[] }> {
-    const allProofs = inputProofs.concat(proofsToSend);
-    const encryptedData = allProofs.flatMap((x) => [x.amount, x.secret]);
-    const decryptedData = await this.encryption.decryptBatch(encryptedData);
-
-    const decryptedProofs = allProofs.map((dbProof, index) => {
-      const decryptedDataIndex = index * 2;
-      const amount = decryptedData[decryptedDataIndex] as number;
-      const secret = decryptedData[decryptedDataIndex + 1] as string;
-      return {
-        id: dbProof.id,
-        accountId: dbProof.account_id,
-        userId: dbProof.user_id,
-        keysetId: dbProof.keyset_id,
-        amount,
-        secret,
-        unblindedSignature: dbProof.unblinded_signature,
-        publicKeyY: dbProof.public_key_y,
-        dleq: dbProof.dleq as Proof['dleq'],
-        witness: dbProof.witness as Proof['witness'],
-        state: dbProof.state as CashuProof['state'],
-        version: dbProof.version,
-        createdAt: dbProof.created_at,
-        reservedAt: dbProof.reserved_at,
-      };
-    });
-
-    return {
-      inputProofs: decryptedProofs.slice(0, inputProofs.length),
-      proofsToSend: decryptedProofs.slice(inputProofs.length),
-    };
+      outputAmounts: sendData.outputAmounts
+        ? sendData.outputAmounts
+        : undefined,
+      keysetId: data.keyset_id ?? undefined,
+      keysetCounter: data.keyset_counter ?? undefined,
+      tokenHash: data.token_hash,
+      proofsToSend: proofsToSend,
+      failureReason: data.failure_reason,
+    } satisfies AllUnionFieldsRequired<z.output<typeof CashuSendSwapSchema>>);
   }
 }
 

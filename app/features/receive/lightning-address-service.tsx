@@ -16,48 +16,15 @@ import {
   decryptXChaCha20Poly1305,
   encryptXChaCha20Poly1305,
 } from '~/lib/xchacha20poly1305';
-import { AccountRepository } from '../accounts/account-repository';
 import type { AgicashDb } from '../agicash-db/database';
-import type { CashuCryptography } from '../shared/cashu';
-import {
-  type Encryption,
-  encryptBatchToPublicKey,
-  encryptToPublicKey,
-} from '../shared/encryption';
 import { NotFoundError } from '../shared/error';
 import { sparkWalletQueryOptions } from '../shared/spark';
-import { UserRepository } from '../user/user-repository';
-import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
-import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
-import { SparkReceiveQuoteRepository } from './spark-receive-quote-repository';
-import { SparkReceiveQuoteService } from './spark-receive-quote-service';
-
-const fakeEncryption: Encryption = {
-  encrypt: async <T = unknown>(_data: T): Promise<string> => {
-    throw new Error('encrypt is not supported in this context');
-  },
-  decrypt: async <T = unknown>(data: string): Promise<T> => data as T,
-  encryptBatch: async <T extends readonly unknown[] = unknown[]>(
-    _data: T,
-  ): Promise<string[]> => {
-    throw new Error('encryptBatch is not supported in this context');
-  },
-  decryptBatch: async <T extends readonly unknown[] = unknown[]>(
-    _data: readonly [...{ [K in keyof T]: string }],
-  ): Promise<T> => _data as T,
-};
-
-const fakeCryptography: CashuCryptography = {
-  getSeed: (): Promise<Uint8Array> => {
-    throw new Error('getSeed is not supported in this context');
-  },
-  getXpub: (): Promise<string> => {
-    throw new Error('getXpub is not supported in this context');
-  },
-  getPrivateKey: (): Promise<string> => {
-    throw new Error('getPrivateKey is not supported in this context');
-  },
-};
+import { ReadUserRepository } from '../user/user-repository';
+import { getLightningQuote } from './cashu-receive-quote-core';
+import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-repository.server';
+import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
+import { SparkReceiveQuoteRepositoryServer } from './spark-receive-quote-repository.server';
+import { SparkReceiveQuoteServiceServer } from './spark-receive-quote-service.server';
 
 const sparkMnemonic = process.env.LNURL_SERVER_SPARK_MNEMONIC || '';
 if (!sparkMnemonic) {
@@ -92,12 +59,9 @@ type LnurlVerifyQuoteData = z.infer<typeof LnurlVerifyQuoteDataSchema>;
 export class LightningAddressService {
   private baseUrl: string;
   private db: AgicashDb;
-  private userRepository: UserRepository;
-  private accountRepository: AccountRepository;
+  private userRepository: ReadUserRepository;
   private minSendable: Money<'BTC'>;
   private maxSendable: Money<'BTC'>;
-  private cryptography: CashuCryptography = fakeCryptography;
-  private encryption: Encryption = fakeEncryption;
   private exchangeRateService: ExchangeRateService;
   private queryClient: QueryClient;
   /**
@@ -118,22 +82,10 @@ export class LightningAddressService {
     this.queryClient = queryClient;
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
-    this.accountRepository = new AccountRepository(
+    this.userRepository = new ReadUserRepository(
       db,
-      {
-        encrypt: this.encryption.encrypt,
-        decrypt: this.encryption.decrypt,
-        encryptBatch: this.encryption.encryptBatch,
-        decryptBatch: this.encryption.decryptBatch,
-      },
-      this.queryClient,
-      undefined,
+      queryClient,
       getSparkWalletMnemonic,
-    );
-    this.userRepository = new UserRepository(
-      db,
-      this.encryption,
-      this.accountRepository,
     );
     this.bypassAmountValidation = options?.bypassAmountValidation ?? false;
     this.baseUrl = new URL(request.url).origin;
@@ -225,7 +177,7 @@ export class LightningAddressService {
         this.bypassAmountValidation ? undefined : 'BTC',
       );
 
-      let amountToReceive: Money = amount as Money;
+      let amountToReceive = amount as Money;
       if (amount.currency !== account.currency) {
         const rate = await this.exchangeRateService.getRate(
           `${amount.currency}-${account.currency}`,
@@ -234,34 +186,19 @@ export class LightningAddressService {
       }
 
       if (account.type === 'cashu') {
-        const cashuReceiveQuoteService = new CashuReceiveQuoteService(
-          {
-            ...this.cryptography,
-            getXpub: () => Promise.resolve(user.cashuLockingXpub),
-          },
-          new CashuReceiveQuoteRepository(
-            this.db,
-            {
-              encrypt: async (data) =>
-                encryptToPublicKey(data, user.encryptionPublicKey),
-              decrypt: this.encryption.decrypt,
-              encryptBatch: async (data) =>
-                encryptBatchToPublicKey(data, user.encryptionPublicKey),
-              decryptBatch: this.encryption.decryptBatch,
-            },
-            this.accountRepository,
-          ),
-        );
+        const lightningQuote = await getLightningQuote({
+          wallet: account.wallet,
+          amount: amountToReceive,
+          xPub: user.cashuLockingXpub,
+        });
 
-        const lightningQuote = await cashuReceiveQuoteService.getLightningQuote(
-          {
-            account,
-            amount: amountToReceive,
-          },
+        const cashuReceiveQuoteService = new CashuReceiveQuoteServiceServer(
+          new CashuReceiveQuoteRepositoryServer(this.db),
         );
 
         await cashuReceiveQuoteService.createReceiveQuote({
           userId,
+          userEncryptionPublicKey: user.encryptionPublicKey,
           account,
           receiveType: 'LIGHTNING',
           lightningQuote,
@@ -280,27 +217,22 @@ export class LightningAddressService {
         };
       }
 
-      const sparkReceiveQuoteService = new SparkReceiveQuoteService(
-        new SparkReceiveQuoteRepository(this.db, {
-          encrypt: async (data) =>
-            encryptToPublicKey(data, user.encryptionPublicKey),
-          decrypt: this.encryption.decrypt,
-          encryptBatch: async (data) =>
-            encryptBatchToPublicKey(data, user.encryptionPublicKey),
-          decryptBatch: this.encryption.decryptBatch,
-        }),
+      const sparkReceiveQuoteService = new SparkReceiveQuoteServiceServer(
+        new SparkReceiveQuoteRepositoryServer(this.db),
       );
 
       const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
-        account,
+        wallet: account.wallet,
         amount: amountToReceive,
         receiverIdentityPubkey: user.sparkIdentityPublicKey,
       });
 
       await sparkReceiveQuoteService.createReceiveQuote({
         userId,
+        userEncryptionPublicKey: user.encryptionPublicKey,
         account,
         lightningQuote,
+        receiveType: 'LIGHTNING',
       });
 
       const encryptedQuoteData = this.encryptLnurlVerifyQuoteData({

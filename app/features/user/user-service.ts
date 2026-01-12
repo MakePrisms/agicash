@@ -1,6 +1,9 @@
 import type { Account } from '../accounts/account';
 import type { User } from './user';
-import { type UserRepository, useUserRepository } from './user-repository';
+import {
+  type WriteUserRepository,
+  useWriteUserRepository,
+} from './user-repository';
 
 type SetDefaultAccountOptions = {
   /**
@@ -11,7 +14,7 @@ type SetDefaultAccountOptions = {
 };
 
 export class UserService {
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(private readonly userRepository: WriteUserRepository) {}
 
   /**
    * Sets the account as the user's default account for the respective currency.
@@ -45,6 +48,6 @@ export class UserService {
 }
 
 export function useUserService() {
-  const userRepository = useUserRepository();
+  const userRepository = useWriteUserRepository();
   return new UserService(userRepository);
 }

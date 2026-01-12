@@ -127,7 +127,7 @@ export class ClaimCashuTokenService {
       !AccountService.isDefaultAccount(user, receiveAccount)
     ) {
       // We don't want to fail the entire claim flow if setting the default account fails because it's not
-      // critical and the user can still claim the token, it's just won't be as nice UX becuase the balance
+      // critical and the user can still claim the token, it just won't be as nice UX because the balance
       // when home page loads might not show the correct currency.
       const result = await this.trySetDefaultAccount(user, receiveAccount);
       if (result.success) {
