@@ -78,6 +78,22 @@ export const getCashuProtocolUnit = (currency: Currency) => {
   return currencyToCashuProtocolUnit[currency];
 };
 
+/**
+ * Determines the purpose of a mint based on its info.
+ */
+export const getMintPurpose = (
+  mintInfo: ExtendedMintInfo | null | undefined,
+): 'gift-card' | 'transactional' => {
+  // TODO: This should check this.mintInfo?.agicash?.closed_loop once Agicash mints change to that
+  // TODO: Should the mint explicitly signal the purpose?
+  const bolt11Method = mintInfo?.nuts?.[5]?.methods?.find(
+    (m) => m.method === 'bolt11',
+  ) as SwapMethod & { options?: { internal_melts_only?: boolean } };
+  return bolt11Method?.options?.internal_melts_only
+    ? 'gift-card'
+    : 'transactional';
+};
+
 export const getWalletCurrency = (wallet: CashuWallet) => {
   const unit = wallet.unit as keyof typeof cashuProtocolUnitToCurrency;
   if (!cashuProtocolUnitToCurrency[unit]) {
@@ -124,15 +140,10 @@ export class ExtendedCashuWallet extends CashuWallet {
   }
 
   /**
-   * Indicates whether the mint operates in closed-loop mode.
-   * When true, the mint will only process payments to destinations within its loop.
+   * Gets the purpose of this mint based on its configuration.
    */
-  get isClosedLoop(): boolean {
-    // TODO: This should check this.mintInfo?.agicash?.closed_loop once Agicash mints change to that
-    const bolt11Method = this.mintInfo?.nuts?.[5]?.methods?.find(
-      (m) => m.method === 'bolt11',
-    ) as SwapMethod & { options: { internal_melts_only: boolean } };
-    return bolt11Method?.options?.internal_melts_only ?? false;
+  get purpose(): 'gift-card' | 'transactional' {
+    return getMintPurpose(this.mintInfo);
   }
 
   /**

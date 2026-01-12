@@ -19,7 +19,7 @@ import {
 } from '~/features/shared/cashu';
 import { useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
-import { getCashuProtocolUnit } from '~/lib/cashu';
+import { getCashuProtocolUnit, getMintPurpose } from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
@@ -69,11 +69,16 @@ export function AddMintForm() {
 
   const onSubmit = async (data: FormValues) => {
     try {
+      const mintInfo = await queryClient.fetchQuery(
+        mintInfoQueryOptions(data.mintUrl),
+      );
+      const purpose = getMintPurpose(mintInfo);
       await addAccount({
         name: data.name,
         currency: data.currency,
         mintUrl: data.mintUrl,
         type: 'cashu',
+        purpose,
       });
       toast({
         title: 'Success',

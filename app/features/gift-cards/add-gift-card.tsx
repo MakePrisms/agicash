@@ -36,6 +36,7 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
         currency: giftCard.currency,
         mintUrl: giftCard.url,
         type: 'cashu',
+        purpose: 'gift-card',
       });
       toast({
         title: 'Success',

@@ -8,6 +8,13 @@ import { type Currency, Money } from '~/lib/money';
 
 export type AccountType = 'cashu' | 'spark';
 
+/**
+ * The purpose of this account.
+ * - 'transactional': Regular accounts for sending/receiving payments
+ * - 'gift-card': Closed-loop accounts for mints that are issuing gift cards
+ */
+export type AccountPurpose = 'transactional' | 'gift-card';
+
 export type CashuProof = {
   id: string;
   accountId: string;
@@ -41,6 +48,7 @@ export type Account = {
   id: string;
   name: string;
   type: AccountType;
+  purpose: AccountPurpose;
   isOnline: boolean;
   currency: Currency;
   createdAt: string;

@@ -305,6 +305,7 @@ function getSparkAccountPlaceholder(): ReceiveCashuTokenAccount & {
     id: 'spark-account-placeholder-id',
     name: 'Bitcoin',
     type: 'spark',
+    purpose: 'transactional',
     isOnline: true,
     currency: 'BTC',
     wallet: createSparkWalletStub(

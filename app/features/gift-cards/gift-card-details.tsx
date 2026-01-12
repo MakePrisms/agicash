@@ -30,7 +30,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
 
   const { data: giftCardAccounts } = useAccounts({
     type: 'cashu',
-    onlyIncludeClosedLoopAccounts: true,
+    purpose: 'gift-card',
   });
 
   const card = giftCardAccounts.find((c) => c.id === cardId);

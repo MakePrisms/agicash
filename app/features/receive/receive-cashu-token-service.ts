@@ -41,6 +41,7 @@ export class ReceiveCashuTokenService {
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
+      purpose: wallet.purpose,
       name: mintUrl.replace('https://', '').replace('http://', ''),
       mintUrl,
       createdAt: new Date().toISOString(),
