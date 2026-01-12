@@ -8,7 +8,7 @@ import theShackCard from '~/assets/gift-cards/shack.agi.cash.png';
 import type { Currency } from '~/lib/money';
 import { useAccounts } from '../accounts/account-hooks';
 
-export type DiscoverMint = {
+export type GiftCardInfo = {
   url: string;
   name: string;
   image: string;
@@ -16,9 +16,9 @@ export type DiscoverMint = {
 };
 
 /**
- * Hardcoded list of mints available for discovery.
+ * Hardcoded list of gift cardsavailable for discovery.
  */
-export const DISCOVER_MINTS: DiscoverMint[] = [
+export const GIFT_CARDS: GiftCardInfo[] = [
   {
     url: 'https://blockandbean.agi.cash',
     name: 'Block and Bean',
@@ -58,26 +58,25 @@ export const DISCOVER_MINTS: DiscoverMint[] = [
 ];
 
 /**
- * Returns the card image for a given mint URL, if one exists.
+ * Returns the gift card image for a given URL, if one exists.
  */
-export function getCardImageByMintUrl(mintUrl: string): string | undefined {
-  return DISCOVER_MINTS.find((mint) => mint.url === mintUrl)?.image;
+export function getGiftCardImageByMintUrl(url: string): string | undefined {
+  return GIFT_CARDS.find((card) => card.url === url)?.image;
 }
 
 /**
- * Returns discover cards that the user has not yet added.
- * Filters out mints where the user already has an account with matching url and currency.
+ * Returns gift cards that the user has not yet added.
  */
-export function useDiscoverCards(): DiscoverMint[] {
+export function useDiscoverGiftCards(): GiftCardInfo[] {
   const { data: cashuAccounts } = useAccounts({ type: 'cashu' });
 
   return useMemo(() => {
-    const existingMints = new Set(
+    const existingGiftCardAccounts = new Set(
       cashuAccounts.map((account) => `${account.mintUrl}:${account.currency}`),
     );
 
-    return DISCOVER_MINTS.filter(
-      (mint) => !existingMints.has(`${mint.url}:${mint.currency}`),
+    return GIFT_CARDS.filter(
+      (mint) => !existingGiftCardAccounts.has(`${mint.url}:${mint.currency}`),
     );
   }, [cashuAccounts]);
 }
