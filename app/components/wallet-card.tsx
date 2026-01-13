@@ -48,8 +48,7 @@ export function WalletCard({
       {/* Inner border overlay */}
       <div
         className={cn(
-          'pointer-events-none absolute inset-0 border border-[#262626]/55',
-          CARD_SIZES[size].className,
+          'pointer-events-none absolute inset-0 rounded-[inherit] border border-[#262626]/55',
         )}
       />
     </div>
