@@ -44,8 +44,9 @@ export function GiftCardItem({
         <div
           style={{
             height: VERTICAL_CARD_OFFSET_IN_STACK + 10,
-            background:
-              'linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.5) 60%, transparent 100%)',
+            background: hideOverlayContent
+              ? 'transparent'
+              : 'linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.5) 60%, transparent 100%)',
           }}
         >
           <div
