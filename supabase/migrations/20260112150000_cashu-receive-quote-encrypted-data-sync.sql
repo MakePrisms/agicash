@@ -1,3 +1,13 @@
+-- Add missing constraints
+alter table wallet.cashu_receive_quotes
+  add constraint cashu_receive_quotes_type_check
+  check (type in ('LIGHTNING', 'CASHU_TOKEN'));
+
+alter table wallet.cashu_receive_quotes
+  add constraint cashu_receive_quotes_state_check
+  check (state in ('UNPAID', 'EXPIRED', 'PAID', 'COMPLETED', 'FAILED'));
+
+
 -- =============================================================================
 -- Migration: Sync encrypted data between cashu_receive_quotes and transactions
 -- =============================================================================

@@ -6,6 +6,7 @@ import type {
 import type { MergeDeep } from 'type-fest';
 import type { Currency, CurrencyUnit } from '~/lib/money';
 import type { AccountType } from '../accounts/account';
+import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
 import type { Transaction } from '../transactions/transaction';
@@ -139,14 +140,20 @@ export type Database = MergeDeep<
           Row: {
             currency: Currency;
             unit: CurrencyUnit;
+            state: CashuReceiveQuote['state'];
+            type: CashuReceiveQuote['type'];
           };
           Insert: {
             currency: Currency;
             unit: CurrencyUnit;
+            state: CashuReceiveQuote['state'];
+            type: CashuReceiveQuote['type'];
           };
           Update: {
             currency?: Currency;
             unit?: CurrencyUnit;
+            state?: CashuReceiveQuote['state'];
+            type?: CashuReceiveQuote['type'];
           };
         };
         cashu_token_swaps: {

@@ -1,8 +1,10 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
+import type { z } from 'zod';
 import { proofToY } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type { CashuAccount } from '../accounts/account';
 import {
   type AccountRepository,
@@ -23,7 +25,6 @@ import {
   type CashuReceiveQuote,
   CashuReceiveQuoteSchema,
 } from './cashu-receive-quote';
-import z from 'zod';
 
 type Options = {
   abortSignal?: AbortSignal;
@@ -532,7 +533,8 @@ export class CashuReceiveQuoteRepository {
     const decryptedData = await this.encryption.decrypt(data.encrypted_data);
     const receiveData = CashuLightningReceiveDataSchema.parse(decryptedData);
 
-    // TODO: see if we can add some compile time safety here
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing cashu receive quote invariant check at runtime. For example it makes sure that tokenReceiveData is present when type is CASHU_TOKEN, etc.
     return CashuReceiveQuoteSchema.parse({
       id: data.id,
       userId: data.user_id,
@@ -549,13 +551,14 @@ export class CashuReceiveQuoteRepository {
       transactionId: data.transaction_id,
       mintingFee: receiveData.mintingFee,
       type: data.type,
+      state: data.state,
       tokenReceiveData: receiveData.cashuTokenData
         ? {
             sourceMintUrl: receiveData.cashuTokenData.tokenMintUrl,
             tokenAmount: receiveData.cashuTokenData.tokenAmount,
             tokenProofs: receiveData.cashuTokenData.tokenProofs,
             meltQuoteId: receiveData.cashuTokenData.meltQuoteId,
-            meltInitiated: data.cashu_token_melt_initiated,
+            meltInitiated: data.cashu_token_melt_initiated as boolean,
             cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
             lightningFeeReserve: receiveData.cashuTokenData.lightningFeeReserve,
           }
@@ -564,7 +567,9 @@ export class CashuReceiveQuoteRepository {
       keysetCounter: data.keyset_counter,
       outputAmounts: receiveData.outputAmounts,
       failureReason: data.failure_reason,
-    } satisfies z.input<typeof CashuReceiveQuoteSchema>);
+    } satisfies AllUnionFieldsRequired<
+      z.input<typeof CashuReceiveQuoteSchema>
+    >);
   }
 }
 
