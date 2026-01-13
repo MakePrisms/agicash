@@ -3,17 +3,17 @@ import { isObject } from '~/lib/utils';
 import type { AgicashDb, AgicashDbTransaction } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption';
-import type { CashuLightningReceiveData } from './cashu-lightning-receive-data';
-import type {
-  CashuLightningReceiveTransactionDetails,
-  CashuTokenReceiveTransactionDetails,
-  CashuTokenSendTransactionDetails,
-  CompletedCashuLightningSendTransactionDetails,
-  CompletedSparkLightningSendTransactionDetails,
-  IncompleteCashuLightningSendTransactionDetails,
-  IncompleteSparkLightningSendTransactionDetails,
-  SparkLightningReceiveTransactionDetails,
-  Transaction,
+import { CashuLightningReceiveDataSchema } from './cashu-lightning-receive-data';
+import {
+  CashuTokenReceiveTransactionDetailsSchema,
+  CashuTokenSendTransactionDetailsSchema,
+  CompletedCashuLightningSendTransactionDetailsSchema,
+  CompletedSparkLightningSendTransactionDetailsSchema,
+  IncompleteCashuLightningSendTransactionDetailsSchema,
+  IncompleteSparkLightningSendTransactionDetailsSchema,
+  SparkLightningReceiveTransactionDetailsSchema,
+  type Transaction,
+  TransactionSchema,
 } from './transaction';
 
 type Encryption = {
@@ -166,16 +166,140 @@ export class TransactionRepository {
   }
 
   async toTransaction(data: AgicashDbTransaction): Promise<Transaction> {
+    const decryptedTransactionDetails = await this.encryption.decrypt(
+      data.encrypted_transaction_details,
+    );
+
     if (
-      data.transaction_details !== null &&
-      !isObject(data.transaction_details)
+      decryptedTransactionDetails == null ||
+      !isObject(decryptedTransactionDetails)
     ) {
-      throw new Error(
-        `Invalid transaction details. Expected object or null, got ${typeof data.transaction_details}`,
-      );
+      throw new Error('Invalid transaction details', {
+        cause: decryptedTransactionDetails,
+      });
     }
 
-    const baseTx = {
+    const mergedDetails = {
+      ...decryptedTransactionDetails,
+      ...(data.transaction_details ?? {}),
+    };
+
+    let amount: Money | undefined;
+    let details: Transaction['details'] | undefined;
+
+    const { state, direction, type } = data;
+
+    if (type === 'CASHU_LIGHTNING' && direction === 'SEND') {
+      if (state === 'COMPLETED') {
+        const completedDetails =
+          CompletedCashuLightningSendTransactionDetailsSchema.parse(
+            mergedDetails,
+          );
+
+        amount = completedDetails.amountSpent;
+        details = completedDetails;
+      } else {
+        const incompleteDetails =
+          IncompleteCashuLightningSendTransactionDetailsSchema.parse(
+            mergedDetails,
+          );
+
+        amount = incompleteDetails.amountToReceive
+          .add(incompleteDetails.lightningFeeReserve)
+          .add(incompleteDetails.cashuSendFee);
+        details = incompleteDetails;
+      }
+    }
+
+    if (type === 'CASHU_LIGHTNING' && direction === 'RECEIVE') {
+      const receiveData = CashuLightningReceiveDataSchema.parse(
+        decryptedTransactionDetails,
+      );
+
+      amount = receiveData.mintingFee
+        ? receiveData.amountReceived.add(receiveData.mintingFee)
+        : receiveData.amountReceived;
+      details = {
+        amountReceived: receiveData.amountReceived,
+        paymentRequest: receiveData.paymentRequest,
+        description: receiveData.description,
+        mintingFee: receiveData.mintingFee,
+      };
+    }
+
+    if (type === 'CASHU_TOKEN' && direction === 'SEND') {
+      const sendDetails =
+        CashuTokenSendTransactionDetailsSchema.parse(mergedDetails);
+      amount = sendDetails.amountSpent;
+      details = sendDetails;
+    }
+
+    if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
+      const result = CashuLightningReceiveDataSchema.safeParse(
+        decryptedTransactionDetails,
+      );
+
+      if (result.success) {
+        const receiveData = result.data;
+        if (!receiveData.cashuTokenData) {
+          throw new Error('Invalid cashu token receive data', {
+            cause: receiveData,
+          });
+        }
+
+        amount = receiveData.mintingFee
+          ? receiveData.amountReceived.add(receiveData.mintingFee)
+          : receiveData.amountReceived;
+        details = {
+          amountReceived: receiveData.amountReceived,
+          tokenAmount: receiveData.cashuTokenData.tokenAmount,
+          cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
+          lightningFeeReserve: receiveData.cashuTokenData.lightningFeeReserve,
+          mintingFee: receiveData.mintingFee,
+          totalFees: receiveData.totalFees,
+        };
+      } else {
+        const receiveDetails =
+          CashuTokenReceiveTransactionDetailsSchema.parse(mergedDetails);
+
+        amount = receiveDetails.mintingFee
+          ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
+          : receiveDetails.amountReceived;
+        details = receiveDetails;
+      }
+    }
+
+    if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
+      const receiveDetails =
+        SparkLightningReceiveTransactionDetailsSchema.parse(mergedDetails);
+
+      amount = receiveDetails.amountReceived;
+      details = receiveDetails;
+    }
+
+    if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
+      if (state === 'COMPLETED') {
+        const completedDetails =
+          CompletedSparkLightningSendTransactionDetailsSchema.parse(
+            mergedDetails,
+          );
+
+        amount = completedDetails.amountSpent;
+        details = completedDetails;
+      } else {
+        const incompleteDetails =
+          IncompleteSparkLightningSendTransactionDetailsSchema.parse(
+            mergedDetails,
+          );
+
+        amount =
+          incompleteDetails.amountSpent ??
+          incompleteDetails.amountToReceive.add(incompleteDetails.estimatedFee);
+        details = incompleteDetails;
+      }
+    }
+
+    return TransactionSchema.parse({
       id: data.id,
       userId: data.user_id,
       accountId: data.account_id,
@@ -186,163 +310,12 @@ export class TransactionRepository {
       reversedTransactionId: data.reversed_transaction_id,
       reversedAt: data.reversed_at,
       acknowledgmentStatus: data.acknowledgment_status,
-    };
-
-    const { state, direction, type } = data;
-
-    const createTransaction = <T extends Transaction>(
-      amount: Money,
-      transactionDetails: T['details'],
-    ): T =>
-      ({
-        ...baseTx,
-        direction,
-        type,
-        state,
-        amount,
-        details: transactionDetails,
-      }) as T;
-
-    // Lightning send transactions have different amounts based on completion state
-    if (type === 'CASHU_LIGHTNING' && direction === 'SEND') {
-      const decryptedDetails =
-        // biome-ignore lint/suspicious/noExplicitAny: temporary
-        await this.encryption.decrypt<any>(data.encrypted_transaction_details);
-
-      if (state === 'COMPLETED') {
-        const details: CompletedCashuLightningSendTransactionDetails = {
-          ...decryptedDetails,
-          ...(data.transaction_details ?? {}),
-        };
-
-        return createTransaction(details.amountSpent, details);
-      }
-
-      const details: IncompleteCashuLightningSendTransactionDetails = {
-        ...decryptedDetails,
-        ...(data.transaction_details ?? {}),
-      };
-
-      return createTransaction(
-        details.amountToReceive
-          .add(details.lightningFeeReserve)
-          .add(details.cashuSendFee),
-        details,
-      );
-    }
-
-    if (type === 'CASHU_LIGHTNING' && direction === 'RECEIVE') {
-      const decryptedReceiveData =
-        await this.encryption.decrypt<CashuLightningReceiveData>(
-          data.encrypted_transaction_details,
-        );
-
-      const details: CashuLightningReceiveTransactionDetails = {
-        amountReceived: decryptedReceiveData.amountReceived,
-        paymentRequest: decryptedReceiveData.paymentRequest,
-        description: decryptedReceiveData.description,
-        mintingFee: decryptedReceiveData.mintingFee,
-        ...(data.transaction_details ?? {}),
-      };
-
-      const amount = details.mintingFee
-        ? details.amountReceived.add(details.mintingFee)
-        : details.amountReceived;
-      return createTransaction(amount, details);
-    }
-
-    if (type === 'CASHU_TOKEN' && direction === 'SEND') {
-      const decryptedDetails =
-        // biome-ignore lint/suspicious/noExplicitAny: temporary
-        await this.encryption.decrypt<any>(data.encrypted_transaction_details);
-
-      const details: CashuTokenSendTransactionDetails = {
-        ...decryptedDetails,
-        ...(data.transaction_details ?? {}),
-      };
-
-      return createTransaction(details.amountSpent, details);
-    }
-
-    if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
-      const decryptedDetails =
-        // biome-ignore lint/suspicious/noExplicitAny: temporary
-        await this.encryption.decrypt<any>(data.encrypted_transaction_details);
-
-      if (decryptedDetails.mintQuoteId) {
-        // This was a cashu token receive via lightning
-        const decryptedReceiveData: CashuLightningReceiveData =
-          decryptedDetails;
-
-        if (!decryptedReceiveData.cashuTokenData) {
-          throw new Error('Invalid cashu token receive data', {
-            cause: decryptedReceiveData,
-          });
-        }
-
-        const details: CashuTokenReceiveTransactionDetails = {
-          amountReceived: decryptedReceiveData.amountReceived,
-          tokenAmount: decryptedReceiveData.cashuTokenData.tokenAmount,
-          cashuReceiveFee: decryptedReceiveData.cashuTokenData.cashuReceiveFee,
-          lightningFeeReserve:
-            decryptedReceiveData.cashuTokenData.lightningFeeReserve,
-          mintingFee: decryptedReceiveData.mintingFee,
-          totalFees: decryptedReceiveData.totalFees,
-          ...(data.transaction_details ?? {}),
-        };
-
-        const amount = details.mintingFee
-          ? details.amountReceived.add(details.mintingFee)
-          : details.amountReceived;
-        return createTransaction(amount, details);
-      }
-
-      const details: CashuTokenReceiveTransactionDetails = {
-        ...decryptedDetails,
-        ...(data.transaction_details ?? {}),
-      };
-
-      return createTransaction(details.amountReceived, details);
-    }
-
-    if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
-      const decryptedDetails =
-        // biome-ignore lint/suspicious/noExplicitAny: temporary
-        await this.encryption.decrypt<any>(data.encrypted_transaction_details);
-
-      const details: SparkLightningReceiveTransactionDetails = {
-        ...decryptedDetails,
-        ...(data.transaction_details ?? {}),
-      };
-
-      return createTransaction(details.amountReceived, details);
-    }
-
-    if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
-      const decryptedDetails =
-        // biome-ignore lint/suspicious/noExplicitAny: temporary
-        await this.encryption.decrypt<any>(data.encrypted_transaction_details);
-
-      if (state === 'COMPLETED') {
-        const details: CompletedSparkLightningSendTransactionDetails = {
-          ...decryptedDetails,
-          ...(data.transaction_details ?? {}),
-        };
-
-        return createTransaction(details.amountSpent, details);
-      }
-
-      const details: IncompleteSparkLightningSendTransactionDetails = {
-        ...decryptedDetails,
-        ...(data.transaction_details ?? {}),
-      };
-      const amount =
-        details.amountSpent ??
-        details.amountToReceive.add(details.estimatedFee);
-      return createTransaction(amount, details);
-    }
-
-    throw new Error('Invalid transaction data', { cause: data });
+      direction,
+      type,
+      state,
+      amount,
+      details,
+    });
   }
 }
 

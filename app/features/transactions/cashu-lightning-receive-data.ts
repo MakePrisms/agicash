@@ -1,81 +1,92 @@
-import type { Proof } from '@cashu/cashu-ts';
-import type { Currency, Money } from '~/lib/money';
+import { z } from 'zod';
+import { Money } from '~/lib/money';
 
-export type CashuLightningReceiveData = {
-  /**
-   * Bolt 11 payment request.
-   */
-  paymentRequest: string;
+const SerializedDLEQSchema = z.object({
+  s: z.string(),
+  e: z.string(),
+  r: z.string().optional(),
+});
 
-  /**
-   * ID of the mint quote for this receive.
-   */
-  mintQuoteId: string;
+const P2PKWitnessSchema = z.object({
+  signatures: z.array(z.string()).optional(),
+});
 
-  /**
-   * The amount credited to the account.
-   */
-  amountReceived: Money<Currency>;
+const HTLCWitnessSchema = z.object({
+  preimage: z.string(),
+  signatures: z.array(z.string()).optional(),
+});
 
-  /**
-   * The description of the transaction.
-   */
-  description?: string | undefined;
+/**
+ * Schema for a cashu proof.
+ * Based on the Proof type from the @cashu/cashu-ts library.
+ */
+export const ProofSchema = z.object({
+  /** Keyset id, used to link proofs to a mint and its MintKeys. */
+  id: z.string(),
+  /** Amount denominated in Satoshis. Has to match the amount of the mints signing key. */
+  amount: z.number(),
+  /** The initial secret that was (randomly) chosen for the creation of this proof. */
+  secret: z.string(),
+  /** The unblinded signature for this secret, signed by the mints private key. */
+  C: z.string(),
+  /** DLEQ proof. */
+  dleq: SerializedDLEQSchema.optional(),
+  /** Witness for P2PK or HTLC spending conditions. */
+  witness: z
+    .union([z.string(), P2PKWitnessSchema, HTLCWitnessSchema])
+    .optional(),
+});
 
-  /**
-   * The fee charged by the mint to deposit money into the account.
-   */
-  mintingFee?: Money<Currency> | undefined;
+/**
+ * Schema for the data of a cashu token melted for the receive.
+ */
+const CashuTokenDataSchema = z.object({
+  /** The mint which issued the token. */
+  tokenMintUrl: z.string(),
+  /** ID of the melt quote that was executed to melt the cashu token to pay for the mint quote. */
+  meltQuoteId: z.string(),
+  /** The amount of the token melted. */
+  tokenAmount: z.instanceof(Money),
+  /** The proofs of cashu token melted. */
+  tokenProofs: z.array(ProofSchema),
+  /** The fee that is paid for spending the token proofs as inputs to the melt operation. */
+  cashuReceiveFee: z.instanceof(Money),
+  /** The fee reserved for the lightning payment to melt the token proofs to this account. */
+  lightningFeeReserve: z.instanceof(Money),
+  // TODO: I think we don't store actual ln fee after the melt for cross account cashu token receives
+});
 
+/**
+ * Schema for cashu lightning receive data.
+ */
+export const CashuLightningReceiveDataSchema = z.object({
+  /** Bolt 11 payment request. */
+  paymentRequest: z.string(),
+  /** ID of the mint quote for this receive. */
+  mintQuoteId: z.string(),
+  /** The amount credited to the account. */
+  amountReceived: z.instanceof(Money),
+  /** The description of the transaction. */
+  description: z.string().optional(),
+  /** The fee charged by the mint to deposit money into the account. */
+  mintingFee: z.instanceof(Money).optional(),
   /**
    * Amounts for each blinded message created for this receive.
    * Will be set only when the receive quote gets paid.
    */
-  outputAmounts?: number[];
-
+  outputAmounts: z.array(z.number()).optional(),
   /**
    * The data of the cashu token melted for the receive.
    * This will be set only for cashu token receives when the destination account is not the mint that issued the token (the token was melted to pay the lightning invoice of the mint quote from the destination mint).
    */
-  cashuTokenData?:
-    | {
-        /**
-         * The mint which issued the token.
-         */
-        tokenMintUrl: string;
-
-        /**
-         * ID of the melt quote that was executed to melt the cashu token to pay for the mint quote.
-         */
-        meltQuoteId: string;
-
-        /**
-         * The amount of the token melted.
-         */
-        tokenAmount: Money<Currency>;
-
-        /**
-         * The proofs of cashu token melted.
-         */
-        tokenProofs: Proof[];
-
-        /**
-         * The fee that is paid for spending the token proofs as inputs to the melt operation.
-         */
-        cashuReceiveFee: Money<Currency>;
-
-        /**
-         * The fee reserved for the lightning payment to melt the token proofs to this account.
-         */
-        lightningFeeReserve: Money;
-
-        // TODO: I think we don't store actual ln fee after the melt for cross account cashu token receives
-      }
-    | undefined;
-
+  cashuTokenData: CashuTokenDataSchema.optional(),
   /**
    * The total fees for the transaction.
    * Sum of the mintingFee, cashuReceiveFee and lightningFeeReserve.
    */
-  totalFees: Money;
-};
+  totalFees: z.instanceof(Money),
+});
+
+export type CashuLightningReceiveData = z.infer<
+  typeof CashuLightningReceiveDataSchema
+>;

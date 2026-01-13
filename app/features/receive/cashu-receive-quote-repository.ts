@@ -14,9 +14,16 @@ import type {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { type Encryption, useEncryption } from '../shared/encryption';
-import type { CashuLightningReceiveData } from '../transactions/cashu-lightning-receive-data';
+import {
+  type CashuLightningReceiveData,
+  CashuLightningReceiveDataSchema,
+} from '../transactions/cashu-lightning-receive-data';
 import type {} from '../transactions/transaction';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
+import {
+  type CashuReceiveQuote,
+  CashuReceiveQuoteSchema,
+} from './cashu-receive-quote';
+import z from 'zod';
 
 type Options = {
   abortSignal?: AbortSignal;
@@ -522,102 +529,42 @@ export class CashuReceiveQuoteRepository {
   }
 
   async toQuote(data: AgicashDbCashuReceiveQuote): Promise<CashuReceiveQuote> {
-    const decryptedData =
-      await this.encryption.decrypt<CashuLightningReceiveData>(
-        data.encrypted_data,
-      );
+    const decryptedData = await this.encryption.decrypt(data.encrypted_data);
+    const receiveData = CashuLightningReceiveDataSchema.parse(decryptedData);
 
-    const baseData = {
+    // TODO: see if we can add some compile time safety here
+    return CashuReceiveQuoteSchema.parse({
       id: data.id,
       userId: data.user_id,
       accountId: data.account_id,
-      quoteId: decryptedData.mintQuoteId,
-      amount: decryptedData.amountReceived,
-      description: decryptedData.description,
+      quoteId: receiveData.mintQuoteId,
+      amount: receiveData.amountReceived,
+      description: receiveData.description,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      paymentRequest: decryptedData.paymentRequest,
+      paymentRequest: receiveData.paymentRequest,
       paymentHash: data.payment_hash,
       version: data.version,
       lockingDerivationPath: data.locking_derivation_path,
       transactionId: data.transaction_id,
-      mintingFee: decryptedData.mintingFee,
-    };
-
-    if (data.type === 'CASHU_TOKEN' && !decryptedData.cashuTokenData) {
-      throw new Error(
-        'Invalid cashu receive quote data. Token receive data is required for CASHU_TOKEN type quotes.',
-      );
-    }
-
-    if (
-      data.type === 'CASHU_TOKEN' &&
-      data.cashu_token_melt_initiated == null
-    ) {
-      throw new Error(
-        'Invalid cashu receive quote data. cashu_token_melt_initiated cannot be null for CASHU_TOKEN type quotes.',
-      );
-    }
-
-    const typeData =
-      data.type === 'CASHU_TOKEN' && decryptedData.cashuTokenData
-        ? ({
-            type: 'CASHU_TOKEN',
-            tokenReceiveData: {
-              sourceMintUrl: decryptedData.cashuTokenData.tokenMintUrl,
-              tokenAmount: decryptedData.cashuTokenData.tokenAmount,
-              tokenProofs: decryptedData.cashuTokenData.tokenProofs,
-              meltQuoteId: decryptedData.cashuTokenData.meltQuoteId,
-              meltInitiated: data.cashu_token_melt_initiated ?? false,
-              cashuReceiveFee: decryptedData.cashuTokenData.cashuReceiveFee,
-              lightningFeeReserve:
-                decryptedData.cashuTokenData.lightningFeeReserve,
-            },
-          } as const)
-        : ({ type: 'LIGHTNING' } as const);
-
-    if (data.state === 'PAID' || data.state === 'COMPLETED') {
-      if (data.keyset_id == null) {
-        throw new Error('keyset_id is required for PAID and COMPLETED states');
-      }
-      if (data.keyset_counter == null) {
-        throw new Error(
-          'keyset_counter is required for PAID and COMPLETED states',
-        );
-      }
-      if (decryptedData.outputAmounts == null) {
-        throw new Error(
-          'outputAmounts is required for PAID and COMPLETED states',
-        );
-      }
-      return {
-        ...baseData,
-        ...typeData,
-        state: data.state,
-        keysetId: data.keyset_id,
-        keysetCounter: data.keyset_counter,
-        outputAmounts: decryptedData.outputAmounts,
-      };
-    }
-
-    if (data.state === 'UNPAID' || data.state === 'EXPIRED') {
-      return {
-        ...baseData,
-        ...typeData,
-        state: data.state,
-      };
-    }
-
-    if (data.state === 'FAILED') {
-      return {
-        ...baseData,
-        ...typeData,
-        state: data.state,
-        failureReason: data.failure_reason ?? '',
-      };
-    }
-
-    throw new Error(`Unexpected quote state ${data.state}`);
+      mintingFee: receiveData.mintingFee,
+      type: data.type,
+      tokenReceiveData: receiveData.cashuTokenData
+        ? {
+            sourceMintUrl: receiveData.cashuTokenData.tokenMintUrl,
+            tokenAmount: receiveData.cashuTokenData.tokenAmount,
+            tokenProofs: receiveData.cashuTokenData.tokenProofs,
+            meltQuoteId: receiveData.cashuTokenData.meltQuoteId,
+            meltInitiated: data.cashu_token_melt_initiated,
+            cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
+            lightningFeeReserve: receiveData.cashuTokenData.lightningFeeReserve,
+          }
+        : undefined,
+      keysetId: data.keyset_id,
+      keysetCounter: data.keyset_counter,
+      outputAmounts: receiveData.outputAmounts,
+      failureReason: data.failure_reason,
+    } satisfies z.input<typeof CashuReceiveQuoteSchema>);
   }
 }
 
