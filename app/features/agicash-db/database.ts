@@ -7,7 +7,9 @@ import type { MergeDeep } from 'type-fest';
 import type { Currency, CurrencyUnit } from '~/lib/money';
 import type { AccountType } from '../accounts/account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
+import type { CashuTokenSwap } from '../receive/cashu-token-swap';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
+import type { CashuSendQuote } from '../send/cashu-send-quote';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
 import type { Transaction } from '../transactions/transaction';
 
@@ -160,14 +162,17 @@ export type Database = MergeDeep<
           Row: {
             currency: Currency;
             unit: CurrencyUnit;
+            state: CashuTokenSwap['state'];
           };
           Insert: {
             currency: Currency;
             unit: CurrencyUnit;
+            state: CashuTokenSwap['state'];
           };
           Update: {
             currency?: Currency;
             unit?: CurrencyUnit;
+            state?: CashuTokenSwap['state'];
           };
         };
         cashu_send_quotes: {
@@ -175,16 +180,19 @@ export type Database = MergeDeep<
             currency: Currency;
             unit: CurrencyUnit;
             currency_requested: Currency;
+            state: CashuSendQuote['state'];
           };
           Insert: {
             currency: Currency;
             unit: CurrencyUnit;
             currency_requested: Currency;
+            state: CashuSendQuote['state'];
           };
           Update: {
             currency?: Currency;
             unit?: CurrencyUnit;
             currency_requested?: Currency;
+            state?: CashuSendQuote['state'];
           };
         };
         cashu_send_swaps: {

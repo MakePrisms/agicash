@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import { ProofSchema } from '~/lib/cashu';
 import { Money } from '~/lib/money';
-import { ProofSchema } from '../transactions/cashu-lightning-receive-data';
 
 /**
  * Schema for data related to cross-account cashu token receives.

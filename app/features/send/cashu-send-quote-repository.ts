@@ -1,8 +1,10 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { Json } from 'supabase/database.types';
+import z from 'zod';
 import { proofToY } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type { CashuProof } from '../accounts/account';
 import type {
   AgicashDb,
@@ -12,31 +14,19 @@ import type {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
-import type {
-  CompletedCashuLightningSendTransactionDetails,
-  DestinationDetails,
-  IncompleteCashuLightningSendTransactionDetails,
-} from '../transactions/transaction';
+import {
+  type CashuLightningSendData,
+  CashuLightningSendDataSchema,
+} from '../transactions/cashu-lightning-send-data';
+import type { DestinationDetails } from '../transactions/transaction';
 import {
   type TransactionRepository,
   useTransactionRepository,
 } from '../transactions/transaction-repository';
-import type { CashuSendQuote } from './cashu-send-quote';
+import { type CashuSendQuote, CashuSendQuoteSchema } from './cashu-send-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type EncryptedData = {
-  paymentRequest: string;
-  amountRequested: Money;
-  amountRequestedInMsat: number;
-  amountToReceive: Money;
-  lightningFeeReserve: Money;
-  cashuFee: Money;
-  quoteId: string;
-  amountSpent?: Money;
-  paymentPreimage?: string;
 };
 
 type CreateSendQuote = {
@@ -138,31 +128,26 @@ export class CashuSendQuoteRepository {
     }: CreateSendQuote,
     options?: Options,
   ): Promise<CashuSendQuote> {
-    const details: IncompleteCashuLightningSendTransactionDetails = {
-      amountToReceive,
-      cashuSendFee: cashuFee,
-      lightningFeeReserve,
-      amountReserved,
-      paymentRequest,
-      destinationDetails,
-    };
-
-    const dataToEncrypt: EncryptedData = {
+    const sendData: CashuLightningSendData = {
       paymentRequest,
       amountRequested,
       amountRequestedInMsat,
       amountToReceive,
       lightningFeeReserve,
-      cashuFee,
-      quoteId,
+      cashuSendFee: cashuFee,
+      meltQuoteId: quoteId,
+      amountReserved,
+      destinationDetails,
     };
 
-    const [[encryptedTransactionDetails, encryptedData], quoteIdHash] =
-      await Promise.all([
-        this.encryption.encryptBatch([details, dataToEncrypt]),
-        computeSHA256(quoteId),
-      ]);
+    const [encryptedData, quoteIdHash] = await Promise.all([
+      this.encryption.encrypt(sendData),
+      computeSHA256(quoteId),
+    ]);
 
+    // TODO: update create_cashu_send_quote to remove p_encrypted_transaction_details and to set p_encrypted_data on both cashu_send_quotes and transactions tables
+    // ignore ts type error for p_encrypted_transaction_details
+    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('create_cashu_send_quote', {
       p_user_id: userId,
       p_account_id: accountId,
@@ -173,7 +158,6 @@ export class CashuSendQuoteRepository {
       p_number_of_change_outputs: numberOfChangeOutputs,
       p_proofs_to_send: proofsToSend.map((p) => p.id),
       p_encrypted_data: encryptedData,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
       p_quote_id_hash: quoteIdHash,
       p_payment_hash: paymentHash,
     });
@@ -248,41 +232,29 @@ export class CashuSendQuoteRepository {
       throw new Error(`Transaction not found for quote ${quote.id}.`);
     }
 
-    const updatedTransactionDetails: CompletedCashuLightningSendTransactionDetails =
-      {
-        ...transaction.details,
-        preimage: paymentPreimage,
-        amountSpent,
-        lightningFee: actualLightningFee,
-        totalFees,
-      };
+    const sendData: CashuLightningSendData = {
+      paymentRequest: quote.paymentRequest,
+      amountRequested: quote.amountRequested,
+      amountRequestedInMsat: quote.amountRequestedInMsat,
+      amountToReceive: quote.amountToReceive,
+      lightningFeeReserve: quote.lightningFeeReserve,
+      cashuSendFee: quote.cashuFee,
+      meltQuoteId: quote.quoteId,
+      amountReserved: quote.amountReserved,
+      destinationDetails: quote.destinationDetails,
+      amountSpent,
+      paymentPreimage,
+      lightningFee: actualLightningFee,
+      totalFees,
+    };
 
     const proofDataToEncrypt = changeProofs.flatMap((x) => [
       x.amount,
       x.secret,
     ]);
 
-    const dataToEncrypt: EncryptedData = {
-      paymentRequest: quote.paymentRequest,
-      amountRequested: quote.amountRequested,
-      amountRequestedInMsat: quote.amountRequestedInMsat,
-      amountToReceive: quote.amountToReceive,
-      lightningFeeReserve: quote.lightningFeeReserve,
-      cashuFee: quote.cashuFee,
-      quoteId: quote.quoteId,
-      amountSpent,
-      paymentPreimage,
-    };
-
-    const [
-      encryptedData,
-      encryptedUpdatedTransactionDetails,
-      ...encryptedProofData
-    ] = await this.encryption.encryptBatch([
-      dataToEncrypt,
-      updatedTransactionDetails,
-      ...proofDataToEncrypt,
-    ]);
+    const [encryptedData, ...encryptedProofData] =
+      await this.encryption.encryptBatch([sendData, ...proofDataToEncrypt]);
 
     const encryptedProofs = changeProofs.map((x, index) => {
       const encryptedDataIndex = index * 2;
@@ -297,11 +269,13 @@ export class CashuSendQuoteRepository {
       };
     });
 
+    // TODO: update complete_cashu_send_quote to remove p_encrypted_transaction_details and to set p_encrypted_data on both cashu_send_quotes and transactions tables
+    // ignore ts type error for p_encrypted_transaction_details
+    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('complete_cashu_send_quote', {
       p_quote_id: quote.id,
       p_change_proofs: encryptedProofs,
       p_encrypted_data: encryptedData,
-      p_encrypted_transaction_details: encryptedUpdatedTransactionDetails,
     });
 
     if (options?.abortSignal) {
@@ -491,78 +465,64 @@ export class CashuSendQuoteRepository {
   async toSendQuote(
     data: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
   ): Promise<CashuSendQuote> {
-    const [encryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
+    const proofsDataToDecrypt = data.cashu_proofs.flatMap((x) => [
+      x.amount,
+      x.secret,
+    ]);
+
+    const [decryptedData, ...decryptedProofs] =
+      await this.encryption.decryptBatch([
+        data.encrypted_data,
+        ...proofsDataToDecrypt,
+      ]);
+    const proofs = this.toDecryptedCashuProofs(
+      data.cashu_proofs,
+      decryptedProofs,
     );
 
-    const proofs = await this.decryptCashuProofs(data.cashu_proofs);
+    const sendData = CashuLightningSendDataSchema.parse(decryptedData);
 
-    const commonData = {
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing cashu send quote invariant check at runtime. For example it makes sure that paymentPreimage is present when state is PAID, etc.
+    return CashuSendQuoteSchema.parse({
       id: data.id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
       userId: data.user_id,
       accountId: data.account_id,
-      paymentRequest: encryptedData.paymentRequest,
+      paymentRequest: sendData.paymentRequest,
       paymentHash: data.payment_hash,
-      amountRequested: encryptedData.amountRequested,
-      amountRequestedInMsat: encryptedData.amountRequestedInMsat,
-      amountToReceive: encryptedData.amountToReceive,
-      lightningFeeReserve: encryptedData.lightningFeeReserve,
-      cashuFee: encryptedData.cashuFee,
+      amountRequested: sendData.amountRequested,
+      amountRequestedInMsat: sendData.amountRequestedInMsat,
+      amountToReceive: sendData.amountToReceive,
+      amountReserved: sendData.amountReserved,
+      lightningFeeReserve: sendData.lightningFeeReserve,
+      cashuFee: sendData.cashuSendFee,
       proofs,
-      quoteId: encryptedData.quoteId,
+      quoteId: sendData.meltQuoteId,
+      destinationDetails: sendData.destinationDetails,
       keysetId: data.keyset_id,
       keysetCounter: data.keyset_counter,
       numberOfChangeOutputs: data.number_of_change_outputs,
       version: data.version,
       transactionId: data.transaction_id,
-    };
-
-    if (data.state === 'PAID') {
-      if (!encryptedData.amountSpent) {
-        throw new Error('amountSpent is required for PAID state');
-      }
-      return {
-        ...commonData,
-        state: 'PAID',
-        paymentPreimage: encryptedData.paymentPreimage ?? '',
-        amountSpent: encryptedData.amountSpent,
-      };
-    }
-
-    if (data.state === 'FAILED') {
-      return {
-        ...commonData,
-        state: 'FAILED',
-        failureReason: data.failure_reason ?? '',
-      };
-    }
-
-    if (
-      data.state === 'UNPAID' ||
-      data.state === 'PENDING' ||
-      data.state === 'EXPIRED'
-    ) {
-      return {
-        ...commonData,
-        state: data.state,
-      };
-    }
-
-    throw new Error(`Unexpected quote state ${data.state}`);
+      state: data.state,
+      failureReason: data.failure_reason ?? '',
+      paymentPreimage: sendData.paymentPreimage ?? '',
+      amountSpent: sendData.amountSpent,
+    } satisfies AllUnionFieldsRequired<z.input<typeof CashuSendQuoteSchema>>);
   }
 
-  private async decryptCashuProofs(
+  private toDecryptedCashuProofs(
     proofs: AgicashDbCashuProof[],
-  ): Promise<CashuProof[]> {
-    const encryptedData = proofs.flatMap((x) => [x.amount, x.secret]);
-    const decryptedData = await this.encryption.decryptBatch(encryptedData);
-
+    decryptedProofData: unknown[],
+  ): CashuProof[] {
     return proofs.map((dbProof, index) => {
       const decryptedDataIndex = index * 2;
-      const amount = decryptedData[decryptedDataIndex] as number;
-      const secret = decryptedData[decryptedDataIndex + 1] as string;
+      const amount = z.number().parse(decryptedProofData[decryptedDataIndex]);
+      const secret = z
+        .string()
+        .parse(decryptedProofData[decryptedDataIndex + 1]);
       return {
         id: dbProof.id,
         accountId: dbProof.account_id,

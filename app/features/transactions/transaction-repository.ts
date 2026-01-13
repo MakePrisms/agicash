@@ -4,8 +4,10 @@ import type { AgicashDb, AgicashDbTransaction } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption';
 import { CashuLightningReceiveDataSchema } from './cashu-lightning-receive-data';
+import { CashuSwapReceiveDataSchema } from './cashu-swap-receive-data';
 import {
-  CashuTokenReceiveTransactionDetailsSchema,
+  type CashuLightningReceiveTransactionDetails,
+  type CashuTokenReceiveTransactionDetails,
   CashuTokenSendTransactionDetailsSchema,
   CompletedCashuLightningSendTransactionDetailsSchema,
   CompletedSparkLightningSendTransactionDetailsSchema,
@@ -215,16 +217,17 @@ export class TransactionRepository {
       const receiveData = CashuLightningReceiveDataSchema.parse(
         decryptedTransactionDetails,
       );
-
-      amount = receiveData.mintingFee
-        ? receiveData.amountReceived.add(receiveData.mintingFee)
-        : receiveData.amountReceived;
-      details = {
+      const receiveDetails: CashuLightningReceiveTransactionDetails = {
         amountReceived: receiveData.amountReceived,
         paymentRequest: receiveData.paymentRequest,
         description: receiveData.description,
         mintingFee: receiveData.mintingFee,
       };
+
+      amount = receiveDetails.mintingFee
+        ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
+        : receiveDetails.amountReceived;
+      details = receiveDetails;
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'SEND') {
@@ -235,6 +238,9 @@ export class TransactionRepository {
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
+      // For CASHU_TOKEN receives, the transaction encrypted data might be a CashuLightningReceiveData (if cashu token was received to different mint than the one that issued the token, lightning receive was done and token melted to pay it)
+      // or a CashuSwapReceiveData. We need to parse the data and determine which type it is.
+
       const result = CashuLightningReceiveDataSchema.safeParse(
         decryptedTransactionDetails,
       );
@@ -246,11 +252,7 @@ export class TransactionRepository {
             cause: receiveData,
           });
         }
-
-        amount = receiveData.mintingFee
-          ? receiveData.amountReceived.add(receiveData.mintingFee)
-          : receiveData.amountReceived;
-        details = {
+        const receiveDetails: CashuTokenReceiveTransactionDetails = {
           amountReceived: receiveData.amountReceived,
           tokenAmount: receiveData.cashuTokenData.tokenAmount,
           cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
@@ -258,13 +260,24 @@ export class TransactionRepository {
           mintingFee: receiveData.mintingFee,
           totalFees: receiveData.totalFees,
         };
-      } else {
-        const receiveDetails =
-          CashuTokenReceiveTransactionDetailsSchema.parse(mergedDetails);
 
         amount = receiveDetails.mintingFee
           ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
           : receiveDetails.amountReceived;
+        details = receiveDetails;
+      } else {
+        const receiveData = CashuSwapReceiveDataSchema.parse(
+          decryptedTransactionDetails,
+        );
+        const receiveDetails: CashuTokenReceiveTransactionDetails = {
+          amountReceived: receiveData.amountReceived,
+          tokenAmount: receiveData.tokenAmount,
+          cashuReceiveFee: receiveData.cashuReceiveFee,
+          totalFees: receiveData.totalFees,
+        };
+
+        amount = receiveDetails.amountReceived;
+        // TODO: it should not be possible to assign to details anything other than CashuTokenReceiveTransactionDetails but currently it is. It is same for other cases here. Fix this.
         details = receiveDetails;
       }
     }

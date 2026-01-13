@@ -1,6 +1,42 @@
 import type { CashuWallet } from '@cashu/cashu-ts';
 import { z } from 'zod';
 
+const SerializedDLEQSchema = z.object({
+  s: z.string(),
+  e: z.string(),
+  r: z.string().optional(),
+});
+
+const P2PKWitnessSchema = z.object({
+  signatures: z.array(z.string()).optional(),
+});
+
+const HTLCWitnessSchema = z.object({
+  preimage: z.string(),
+  signatures: z.array(z.string()).optional(),
+});
+
+/**
+ * Schema for a cashu proof.
+ * Based on the Proof type from the @cashu/cashu-ts library.
+ */
+export const ProofSchema = z.object({
+  /** Keyset id, used to link proofs to a mint and its MintKeys. */
+  id: z.string(),
+  /** Amount denominated in Satoshis. Has to match the amount of the mints signing key. */
+  amount: z.number(),
+  /** The initial secret that was (randomly) chosen for the creation of this proof. */
+  secret: z.string(),
+  /** The unblinded signature for this secret, signed by the mints private key. */
+  C: z.string(),
+  /** DLEQ proof. */
+  dleq: SerializedDLEQSchema.optional(),
+  /** Witness for P2PK or HTLC spending conditions. */
+  witness: z
+    .union([z.string(), P2PKWitnessSchema, HTLCWitnessSchema])
+    .optional(),
+});
+
 /**
  * CAUTION: If the mint does not support spending conditions or a specific kind
  * of spending condition, proofs may be treated as a regular anyone-can-spend tokens.

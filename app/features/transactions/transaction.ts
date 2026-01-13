@@ -82,7 +82,7 @@ export const BaseCashuLightningSendTransactionDetailsSchema = z.object({
   /**
    * The sum of all proofs used as inputs to the cashu melt operation
    * converted from a number to Money in the currency of the account.
-   * These proofs are moved from the account to the pending send quote.
+   * These proofs are reserved for the pending send quote.
    * When the transaction is completed, change will be returned to the account.
    */
   amountReserved: z.instanceof(Money),
