@@ -66,12 +66,12 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
         />
       </PageHeader>
 
-      <PageContent className="">
+      <PageContent className="flex flex-col items-center justify-center">
         <LinkWithViewTransition
           to="/gift-cards"
           transition="slideDown"
           applyTo="oldView"
-          className="absolute inset-0 mx-auto flex max-w-sm items-center justify-center px-4"
+          className="flex max-w-sm items-center justify-center"
         >
           <WalletCard className="w-full max-w-none">
             <WalletCardBackground src={giftCard.image} alt={giftCard.name} />
