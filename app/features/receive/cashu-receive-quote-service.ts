@@ -163,14 +163,6 @@ export class CashuReceiveQuoteService {
            */
           tokenAmount: Money;
           /**
-           * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
-           */
-          cashuReceiveFee: Money;
-          /**
-           * The fee reserved for the lightning payment to melt the proofs to the account.
-           */
-          lightningFeeReserve: Money;
-          /**
            * URL of the source mint where the token proofs originate from.
            */
           sourceMintUrl: string;
@@ -186,6 +178,14 @@ export class CashuReceiveQuoteService {
            * The expiry of the melt quote in ISO 8601 format.
            */
           meltQuoteExpiresAt: string;
+          /**
+           * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
+           */
+          cashuReceiveFee: Money;
+          /**
+           * The fee reserved for the lightning payment to melt the proofs to the account.
+           */
+          lightningFeeReserve: Money;
         }
     ),
   ): Promise<CashuReceiveQuote> {
@@ -220,6 +220,7 @@ export class CashuReceiveQuoteService {
       paymentRequest: receiveQuote.mintQuote.request,
       lockingDerivationPath: receiveQuote.fullLockingDerivationPath,
       mintingFee: receiveQuote.mintingFee,
+      paymentHash: receiveQuote.paymentHash,
     };
 
     if (receiveType === 'CASHU_TOKEN') {
@@ -236,19 +237,17 @@ export class CashuReceiveQuoteService {
         ...baseReceiveQuote,
         receiveType,
         tokenAmount,
-        cashuReceiveFee,
-        lightningFeeReserve,
-        paymentHash: receiveQuote.paymentHash,
         sourceMintUrl,
         tokenProofs,
         meltQuoteId,
+        cashuReceiveFee,
+        lightningFeeReserve,
       });
     }
 
     return this.cashuReceiveQuoteRepository.create({
       ...baseReceiveQuote,
       receiveType,
-      paymentHash: receiveQuote.paymentHash,
     });
   }
 

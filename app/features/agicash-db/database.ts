@@ -5,13 +5,14 @@ import type {
 } from 'supabase/database.types';
 import type { MergeDeep } from 'type-fest';
 import type { Currency, CurrencyUnit } from '~/lib/money';
-import type { AccountType } from '../accounts/account';
+import type { AccountType, CashuProof } from '../accounts/account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { CashuTokenSwap } from '../receive/cashu-token-swap';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 import type { CashuSendQuote } from '../send/cashu-send-quote';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
 import type { Transaction } from '../transactions/transaction';
+import type { SparkSendQuote } from '../send/spark-send-quote';
 
 type UpsertUserWithAccountsResult = {
   user: AgicashDbUser;
@@ -234,8 +235,19 @@ export type Database = MergeDeep<
         };
         spark_send_quotes: {
           Row: {
+            state: SparkSendQuote['state'];
             currency: Currency;
             unit: CurrencyUnit;
+          };
+          Insert: {
+            state: SparkSendQuote['state'];
+            currency: Currency;
+            unit: CurrencyUnit;
+          };
+          Update: {
+            state?: SparkSendQuote['state'];
+            currency?: Currency;
+            unit?: CurrencyUnit;
           };
         };
         transactions: {
@@ -248,6 +260,17 @@ export type Database = MergeDeep<
             state: Transaction['state'];
             acknowledgment_status: Transaction['acknowledgmentStatus'];
             transaction_details: { [key: string]: Json | undefined } | null;
+          };
+        };
+        cashu_proofs: {
+          Row: {
+            state: CashuProof['state'];
+          };
+          Insert: {
+            state: CashuProof['state'];
+          };
+          Update: {
+            state?: CashuProof['state'];
           };
         };
       };

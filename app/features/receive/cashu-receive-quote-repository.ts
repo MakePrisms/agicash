@@ -89,14 +89,6 @@ type CreateQuote = {
        */
       tokenAmount: Money;
       /**
-       * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
-       */
-      cashuReceiveFee: Money;
-      /**
-       * The fee reserved for the lightning payment to melt the token proofs to this account.
-       */
-      lightningFeeReserve: Money;
-      /**
        * URL of the source mint where the token proofs originate from.
        */
       sourceMintUrl: string;
@@ -108,6 +100,14 @@ type CreateQuote = {
        * ID of the melt quote on the source mint.
        */
       meltQuoteId: string;
+      /**
+       * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
+       */
+      cashuReceiveFee: Money;
+      /**
+       * The fee reserved for the lightning payment to melt the token proofs to this account.
+       */
+      lightningFeeReserve: Money;
     }
 );
 
@@ -153,10 +153,10 @@ export class CashuReceiveQuoteRepository {
       const { cashuReceiveFee, lightningFeeReserve } = params;
 
       receiveData.cashuTokenData = {
-        tokenMintUrl: params.sourceMintUrl,
-        meltQuoteId: params.meltQuoteId,
         tokenAmount: params.tokenAmount,
         tokenProofs: params.tokenProofs,
+        tokenMintUrl: params.sourceMintUrl,
+        meltQuoteId: params.meltQuoteId,
         cashuReceiveFee,
         lightningFeeReserve,
       };
@@ -334,17 +334,19 @@ export class CashuReceiveQuoteRepository {
     };
 
     if (quote.type === 'CASHU_TOKEN') {
+      const { cashuReceiveFee, lightningFeeReserve } = quote.tokenReceiveData;
+
       receiveData.cashuTokenData = {
         tokenMintUrl: quote.tokenReceiveData.sourceMintUrl,
         meltQuoteId: quote.tokenReceiveData.meltQuoteId,
         tokenAmount: quote.tokenReceiveData.tokenAmount,
         tokenProofs: quote.tokenReceiveData.tokenProofs,
-        cashuReceiveFee: quote.tokenReceiveData.cashuReceiveFee,
-        lightningFeeReserve: quote.tokenReceiveData.lightningFeeReserve,
+        cashuReceiveFee,
+        lightningFeeReserve,
       };
       receiveData.totalFees = receiveData.totalFees
-        .add(quote.tokenReceiveData.cashuReceiveFee)
-        .add(quote.tokenReceiveData.lightningFeeReserve);
+        .add(cashuReceiveFee)
+        .add(lightningFeeReserve);
     }
 
     const encryptedData = await this.encryption.encrypt(receiveData);
@@ -558,6 +560,7 @@ export class CashuReceiveQuoteRepository {
             tokenAmount: receiveData.cashuTokenData.tokenAmount,
             tokenProofs: receiveData.cashuTokenData.tokenProofs,
             meltQuoteId: receiveData.cashuTokenData.meltQuoteId,
+            // zod parse will do a runtime check that will make sure that cashu_token_melt_initiated is not nul when type is CASHU_TOKEN
             meltInitiated: data.cashu_token_melt_initiated as boolean,
             cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
             lightningFeeReserve: receiveData.cashuTokenData.lightningFeeReserve,

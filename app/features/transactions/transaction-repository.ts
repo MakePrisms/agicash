@@ -1,5 +1,4 @@
 import type { Money } from '~/lib/money';
-import { isObject } from '~/lib/utils';
 import type { AgicashDb, AgicashDbTransaction } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption';
@@ -8,15 +7,27 @@ import { CashuSwapReceiveDataSchema } from './cashu-swap-receive-data';
 import {
   type CashuLightningReceiveTransactionDetails,
   type CashuTokenReceiveTransactionDetails,
-  CashuTokenSendTransactionDetailsSchema,
+  type CashuTokenSendTransactionDetails,
   CompletedCashuLightningSendTransactionDetailsSchema,
+  CompletedSparkLightningReceiveTransactionDetailsSchema,
   CompletedSparkLightningSendTransactionDetailsSchema,
-  IncompleteCashuLightningSendTransactionDetailsSchema,
-  IncompleteSparkLightningSendTransactionDetailsSchema,
-  SparkLightningReceiveTransactionDetailsSchema,
+  type IncompleteCashuLightningSendTransactionDetails,
+  type IncompleteSparkLightningSendTransactionDetails,
+  type SparkLightningReceiveTransactionDetails,
   type Transaction,
   TransactionSchema,
 } from './transaction';
+import { CashuSwapSendDataSchema } from './cashu-swap-send-data';
+import { CashuLightningSendDataSchema } from './cashu-lightning-send-data';
+import type z from 'zod';
+import {
+  SparkLightningReceiveDataSchema,
+  SparkLightningReceiveNonSensitiveDataSchema,
+} from './spark-lightning-receive-data';
+import {
+  SparkLightningSendDataSchema,
+  SparkLightningSendNonSensitiveDataSchema,
+} from './spark-lightning-send-data';
 
 type Encryption = {
   encrypt: <T = unknown>(data: T) => Promise<string>;
@@ -172,39 +183,46 @@ export class TransactionRepository {
       data.encrypted_transaction_details,
     );
 
-    if (
-      decryptedTransactionDetails == null ||
-      !isObject(decryptedTransactionDetails)
-    ) {
-      throw new Error('Invalid transaction details', {
-        cause: decryptedTransactionDetails,
-      });
-    }
-
-    const mergedDetails = {
-      ...decryptedTransactionDetails,
-      ...(data.transaction_details ?? {}),
-    };
-
     let amount: Money | undefined;
     let details: Transaction['details'] | undefined;
 
     const { state, direction, type } = data;
 
     if (type === 'CASHU_LIGHTNING' && direction === 'SEND') {
+      const sendData = CashuLightningSendDataSchema.parse(
+        decryptedTransactionDetails,
+      );
+
       if (state === 'COMPLETED') {
         const completedDetails =
-          CompletedCashuLightningSendTransactionDetailsSchema.parse(
-            mergedDetails,
-          );
+          CompletedCashuLightningSendTransactionDetailsSchema.parse({
+            amountReserved: sendData.amountReserved,
+            amountToReceive: sendData.amountToReceive,
+            lightningFeeReserve: sendData.lightningFeeReserve,
+            cashuSendFee: sendData.cashuSendFee,
+            paymentRequest: sendData.paymentRequest,
+            destinationDetails: sendData.destinationDetails,
+            // zod parse will do a runtime check that will make sure that amountSpent, paymentPreimage, lightningFee and totalFees are defined
+            amountSpent: sendData.amountSpent as Money,
+            preimage: sendData.paymentPreimage as string,
+            lightningFee: sendData.lightningFee as Money,
+            totalFees: sendData.totalFees as Money,
+          } satisfies z.input<
+            typeof CompletedCashuLightningSendTransactionDetailsSchema
+          >);
 
-        amount = completedDetails.amountSpent;
+        amount = completedDetails.amountSpent as Money;
         details = completedDetails;
       } else {
-        const incompleteDetails =
-          IncompleteCashuLightningSendTransactionDetailsSchema.parse(
-            mergedDetails,
-          );
+        const incompleteDetails: IncompleteCashuLightningSendTransactionDetails =
+          {
+            amountReserved: sendData.amountReserved,
+            amountToReceive: sendData.amountToReceive,
+            lightningFeeReserve: sendData.lightningFeeReserve,
+            cashuSendFee: sendData.cashuSendFee,
+            paymentRequest: sendData.paymentRequest,
+            destinationDetails: sendData.destinationDetails,
+          };
 
         amount = incompleteDetails.amountToReceive
           .add(incompleteDetails.lightningFeeReserve)
@@ -231,8 +249,16 @@ export class TransactionRepository {
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'SEND') {
-      const sendDetails =
-        CashuTokenSendTransactionDetailsSchema.parse(mergedDetails);
+      const sendData = CashuSwapSendDataSchema.parse(
+        decryptedTransactionDetails,
+      );
+      const sendDetails: CashuTokenSendTransactionDetails = {
+        amountSpent: sendData.amountSpent,
+        amountToReceive: sendData.amountToReceive,
+        cashuSendFee: sendData.cashuSendFee,
+        cashuReceiveFee: sendData.cashuReceiveFee,
+        totalFees: sendData.totalFees,
+      };
       amount = sendDetails.amountSpent;
       details = sendDetails;
     }
@@ -283,27 +309,79 @@ export class TransactionRepository {
     }
 
     if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
-      const receiveDetails =
-        SparkLightningReceiveTransactionDetailsSchema.parse(mergedDetails);
+      const receiveData = SparkLightningReceiveDataSchema.parse(
+        decryptedTransactionDetails,
+      );
+      const nonSensitiveReceiveData =
+        SparkLightningReceiveNonSensitiveDataSchema.parse(
+          data.transaction_details,
+        );
 
-      amount = receiveDetails.amountReceived;
-      details = receiveDetails;
+      if (state === 'COMPLETED') {
+        const completedDetails =
+          CompletedSparkLightningReceiveTransactionDetailsSchema.parse({
+            amountReceived: receiveData.amountReceived,
+            paymentRequest: receiveData.paymentRequest,
+            description: receiveData.description,
+            // zod parse will do a runtime check that will make sure that paymentPreimage and sparkTransferId are not null
+            paymentPreimage: receiveData.paymentPreimage as string,
+            sparkTransferId: nonSensitiveReceiveData.sparkTransferId as string,
+          } satisfies z.input<
+            typeof CompletedSparkLightningReceiveTransactionDetailsSchema
+          >);
+
+        amount = completedDetails.amountReceived;
+        details = completedDetails;
+      } else {
+        const incompleteDetails: SparkLightningReceiveTransactionDetails = {
+          amountReceived: receiveData.amountReceived,
+          paymentRequest: receiveData.paymentRequest,
+          description: receiveData.description,
+        };
+
+        amount = incompleteDetails.amountReceived;
+        details = incompleteDetails;
+      }
     }
 
     if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
+      const sendData = SparkLightningSendDataSchema.parse(
+        decryptedTransactionDetails,
+      );
+      const nonSensitiveSendData =
+        SparkLightningSendNonSensitiveDataSchema.parse(
+          data.transaction_details,
+        );
+
       if (state === 'COMPLETED') {
         const completedDetails =
-          CompletedSparkLightningSendTransactionDetailsSchema.parse(
-            mergedDetails,
-          );
+          CompletedSparkLightningSendTransactionDetailsSchema.parse({
+            amountToReceive: sendData.amountToReceive,
+            estimatedFee: sendData.estimatedLightningFee,
+            paymentRequest: sendData.paymentRequest,
+            // zod parse will do a runtime check that will make sure that amountSpent, sparkId, sparkTransferId, fee and paymentPreimage are not undefined
+            amountSpent: sendData.amountSpent as Money,
+            sparkId: nonSensitiveSendData.sparkId as string,
+            sparkTransferId: nonSensitiveSendData.sparkTransferId as string,
+            fee: sendData.totalFees as Money,
+            paymentPreimage: sendData.paymentPreimage as string,
+          } satisfies z.input<
+            typeof CompletedSparkLightningSendTransactionDetailsSchema
+          >);
 
         amount = completedDetails.amountSpent;
         details = completedDetails;
       } else {
-        const incompleteDetails =
-          IncompleteSparkLightningSendTransactionDetailsSchema.parse(
-            mergedDetails,
-          );
+        const incompleteDetails: IncompleteSparkLightningSendTransactionDetails =
+          {
+            amountToReceive: sendData.amountToReceive,
+            estimatedFee: sendData.estimatedLightningFee,
+            paymentRequest: sendData.paymentRequest,
+            amountSpent: sendData.amountSpent,
+            sparkId: nonSensitiveSendData.sparkId,
+            sparkTransferId: nonSensitiveSendData.sparkTransferId,
+            fee: sendData.totalFees,
+          };
 
         amount =
           incompleteDetails.amountSpent ??

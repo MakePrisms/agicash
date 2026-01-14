@@ -507,22 +507,23 @@ export class CashuSendQuoteRepository {
       version: data.version,
       transactionId: data.transaction_id,
       state: data.state,
-      failureReason: data.failure_reason ?? '',
-      paymentPreimage: sendData.paymentPreimage ?? '',
+      failureReason: data.failure_reason,
+      paymentPreimage: sendData.paymentPreimage,
       amountSpent: sendData.amountSpent,
     } satisfies AllUnionFieldsRequired<z.input<typeof CashuSendQuoteSchema>>);
   }
 
   private toDecryptedCashuProofs(
     proofs: AgicashDbCashuProof[],
-    decryptedProofData: unknown[],
+    decryptedProofsData: unknown[],
   ): CashuProof[] {
     return proofs.map((dbProof, index) => {
       const decryptedDataIndex = index * 2;
-      const amount = z.number().parse(decryptedProofData[decryptedDataIndex]);
+      const amount = z.number().parse(decryptedProofsData[decryptedDataIndex]);
       const secret = z
         .string()
-        .parse(decryptedProofData[decryptedDataIndex + 1]);
+        .parse(decryptedProofsData[decryptedDataIndex + 1]);
+
       return {
         id: dbProof.id,
         accountId: dbProof.account_id,
@@ -534,7 +535,7 @@ export class CashuSendQuoteRepository {
         publicKeyY: dbProof.public_key_y,
         dleq: dbProof.dleq as Proof['dleq'],
         witness: dbProof.witness as Proof['witness'],
-        state: dbProof.state as CashuProof['state'],
+        state: dbProof.state,
         version: dbProof.version,
         createdAt: dbProof.created_at,
         reservedAt: dbProof.reserved_at,

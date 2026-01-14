@@ -78,7 +78,7 @@ export type DestinationDetails = z.infer<typeof DestinationDetailsSchema>;
 /**
  * Base schema for cashu lightning send transaction details.
  */
-export const BaseCashuLightningSendTransactionDetailsSchema = z.object({
+const BaseCashuLightningSendTransactionDetailsSchema = z.object({
   /**
    * The sum of all proofs used as inputs to the cashu melt operation
    * converted from a number to Money in the currency of the account.
@@ -182,6 +182,8 @@ export const SparkLightningReceiveTransactionDetailsSchema = z.object({
   amountReceived: z.instanceof(Money),
   /** The bolt11 payment request. */
   paymentRequest: z.string(),
+  /** The description of the transaction. */
+  description: z.string().optional(),
 });
 
 export type SparkLightningReceiveTransactionDetails = z.infer<
@@ -251,17 +253,11 @@ export type IncompleteSparkLightningSendTransactionDetails = z.infer<
 /**
  * Schema for a Spark lightning send transaction that is completed.
  */
-export const CompletedSparkLightningSendTransactionDetailsSchema = z.object({
-  amountToReceive: z.instanceof(Money),
-  estimatedFee: z.instanceof(Money),
-  paymentRequest: z.string(),
-  amountSpent: z.instanceof(Money),
-  sparkId: z.string(),
-  sparkTransferId: z.string(),
-  fee: z.instanceof(Money),
-  /** The preimage of the lightning payment. */
-  paymentPreimage: z.string(),
-});
+export const CompletedSparkLightningSendTransactionDetailsSchema =
+  IncompleteSparkLightningSendTransactionDetailsSchema.required().extend({
+    /** The preimage of the lightning payment. */
+    paymentPreimage: z.string(),
+  });
 
 export type CompletedSparkLightningSendTransactionDetails = z.infer<
   typeof CompletedSparkLightningSendTransactionDetailsSchema

@@ -15,6 +15,10 @@ alter table wallet.cashu_send_quotes
   add constraint cashu_send_quotes_state_check
   check (state in ('UNPAID', 'PENDING', 'EXPIRED', 'FAILED', 'PAID'));
 
+alter table wallet.cashu_send_swaps
+  add constraint cashu_send_swaps_state_check
+  check (state in ('DRAFT', 'PENDING', 'COMPLETED', 'FAILED', 'REVERSED'));
+
 
 -- =============================================================================
 -- Migration: Sync encrypted data between cashu_receive_quotes and transactions

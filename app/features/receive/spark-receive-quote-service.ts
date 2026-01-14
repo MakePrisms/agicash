@@ -58,6 +58,10 @@ type CreateQuoteParams = {
        */
       type: 'CASHU_TOKEN';
       /**
+       * The amount of the token to receive.
+       */
+      tokenAmount: Money;
+      /**
        * URL of the source mint where the token proofs originate from.
        */
       sourceMintUrl: string;
@@ -73,6 +77,14 @@ type CreateQuoteParams = {
        * The expiry of the melt quote in ISO 8601 format.
        */
       meltQuoteExpiresAt: string;
+      /**
+       * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
+       */
+      cashuReceiveFee: Money;
+      /**
+       * The fee reserved for the lightning payment to melt the token proofs to this account.
+       */
+      lightningFeeReserve: Money;
     }
 );
 
@@ -130,8 +142,11 @@ export class SparkReceiveQuoteService {
         ...baseParams,
         type: 'CASHU_TOKEN',
         sourceMintUrl: params.sourceMintUrl,
+        tokenAmount: params.tokenAmount,
         tokenProofs: params.tokenProofs,
         meltQuoteId: params.meltQuoteId,
+        cashuReceiveFee: params.cashuReceiveFee,
+        lightningFeeReserve: params.lightningFeeReserve,
       });
     }
 

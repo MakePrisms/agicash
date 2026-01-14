@@ -1,25 +1,6 @@
 import { z } from 'zod';
-import { ProofSchema } from '~/lib/cashu';
 import { Money } from '~/lib/money';
-
-/**
- * Schema for the data of a cashu token melted for the receive.
- */
-const CashuTokenDataSchema = z.object({
-  /** The mint which issued the token. */
-  tokenMintUrl: z.string(),
-  /** ID of the melt quote that was executed to melt the cashu token to pay for the mint quote. */
-  meltQuoteId: z.string(),
-  /** The amount of the token melted. */
-  tokenAmount: z.instanceof(Money),
-  /** The proofs of cashu token melted. */
-  tokenProofs: z.array(ProofSchema),
-  /** The fee that is paid for spending the token proofs as inputs to the melt operation. */
-  cashuReceiveFee: z.instanceof(Money),
-  /** The fee reserved for the lightning payment to melt the token proofs to this account. */
-  lightningFeeReserve: z.instanceof(Money),
-  // TODO: I think we don't store actual ln fee after the melt for cross account cashu token receives
-});
+import { CashuTokenDataSchema } from './cashu-token-data';
 
 /**
  * Schema for cashu lightning receive data.
@@ -47,7 +28,9 @@ export const CashuLightningReceiveDataSchema = z.object({
   cashuTokenData: CashuTokenDataSchema.optional(),
   /**
    * The total fees for the transaction.
-   * Sum of the mintingFee, cashuReceiveFee and lightningFeeReserve.
+   * For lightning receives this will be equal to mintingFee or zero if there is no minting fee.
+   * For cashu token receives over lightning, this will be the sum of the mintingFee (if it exists), cashuReceiveFee and lightningFeeReserve.
+   * TODO: should we update this with actual ln fee when known?
    */
   totalFees: z.instanceof(Money),
 });

@@ -1,120 +1,135 @@
-import type { Money } from '~/lib/money';
+import { z } from 'zod';
+import { Money } from '~/lib/money';
 
 /**
- * Represents a Spark Lightning send quote.
+ * Base schema for Spark Lightning send quote.
  * This is created when a user confirms a lightning payment through their Spark wallet.
  * The quote starts in UNPAID state, transitions to PENDING when payment is initiated,
  * and finally to COMPLETED or FAILED based on the payment result.
  */
-export type SparkSendQuote = {
+const SparkSendQuoteBaseSchema = z.object({
   /**
    * UUID of the quote.
    */
-  id: string;
+  id: z.string(),
   /**
    * Date and time the send quote was created in ISO 8601 format.
    */
-  createdAt: string;
+  createdAt: z.string(),
   /**
    * Date and time the send quote expires in ISO 8601 format.
    */
-  expiresAt?: string | null;
+  expiresAt: z.string().nullish(),
   /**
    * Amount being sent.
    */
-  amount: Money;
+  amount: z.instanceof(Money),
   /**
-   *  Estimated fee for the lightning payment.
+   * Estimated fee for the lightning payment.
    */
-  estimatedFee: Money;
+  estimatedFee: z.instanceof(Money),
   /**
    * Lightning invoice being paid.
    */
-  paymentRequest: string;
+  paymentRequest: z.string(),
   /**
    * Payment hash of the lightning invoice.
    */
-  paymentHash: string;
+  paymentHash: z.string(),
   /**
    * ID of the corresponding transaction.
    */
-  transactionId: string;
-  /**
-   * State of the spark send quote.
-   */
-  state: 'UNPAID' | 'PENDING' | 'COMPLETED' | 'FAILED';
+  transactionId: z.string(),
   /**
    * ID of the user that the quote belongs to.
    */
-  userId: string;
+  userId: z.string(),
   /**
    * ID of the account that the quote belongs to.
    */
-  accountId: string;
+  accountId: z.string(),
   /**
    * Row version. Used for optimistic locking.
    */
-  version: number;
+  version: z.number(),
   /**
    * Whether the payment request is amountless.
    * When true, the amount field contains the user-specified amount.
    */
-  paymentRequestIsAmountless: boolean;
-} & (
-  | {
-      state: 'UNPAID';
-    }
-  | {
-      state: 'PENDING';
-      /**
-       * ID of the send request in spark system.
-       */
-      sparkId: string;
-      /**
-       * Spark transfer ID.
-       */
-      sparkTransferId: string;
-      /**
-       * Actual fee of the lightning payment.
-       */
-      fee: Money;
-    }
-  | {
-      state: 'COMPLETED';
-      /**
-       * ID of the send request in spark system.
-       */
-      sparkId: string;
-      /**
-       * Spark transfer ID.
-       */
-      sparkTransferId: string;
-      /**
-       * Actual fee of the lightning payment.
-       */
-      fee: Money;
-      /**
-       * Payment preimage proving the payment was successful.
-       */
-      paymentPreimage: string;
-    }
-  | {
-      state: 'FAILED';
-      /**
-       * Reason for failure.
-       */
-      failureReason?: string;
-      /**
-       * ID of the send request in spark system.
-       */
-      sparkId?: string;
-      /**
-       * Spark transfer ID.
-       */
-      sparkTransferId?: string;
-      /**
-       * Actual fee of the lightning payment.
-       */
-      fee?: Money;
-    }
+  paymentRequestIsAmountless: z.boolean(),
+});
+
+const SparkSendQuoteUnpaidStateSchema = z.object({
+  state: z.literal('UNPAID'),
+});
+
+const SparkSendQuotePendingStateSchema = z.object({
+  state: z.literal('PENDING'),
+  /**
+   * ID of the send request in spark system.
+   */
+  sparkId: z.string(),
+  /**
+   * Spark transfer ID.
+   */
+  sparkTransferId: z.string(),
+  /**
+   * Actual fee of the lightning payment.
+   */
+  fee: z.instanceof(Money),
+});
+
+const SparkSendQuoteCompletedStateSchema = z.object({
+  state: z.literal('COMPLETED'),
+  /**
+   * ID of the send request in spark system.
+   */
+  sparkId: z.string(),
+  /**
+   * Spark transfer ID.
+   */
+  sparkTransferId: z.string(),
+  /**
+   * Actual fee of the lightning payment.
+   */
+  fee: z.instanceof(Money),
+  /**
+   * Payment preimage proving the payment was successful.
+   */
+  paymentPreimage: z.string(),
+});
+
+const SparkSendQuoteFailedStateSchema = z.object({
+  state: z.literal('FAILED'),
+  /**
+   * Reason for failure.
+   */
+  failureReason: z.string(),
+  /**
+   * ID of the send request in spark system.
+   */
+  sparkId: z.string().optional(),
+  /**
+   * Spark transfer ID.
+   */
+  sparkTransferId: z.string().optional(),
+  /**
+   * Actual fee of the lightning payment.
+   */
+  fee: z.instanceof(Money).optional(),
+});
+
+/**
+ * Schema for Spark Lightning send quote.
+ */
+export const SparkSendQuoteSchema = z.intersection(
+  SparkSendQuoteBaseSchema,
+  z.union([
+    SparkSendQuoteUnpaidStateSchema,
+    SparkSendQuotePendingStateSchema,
+    SparkSendQuoteCompletedStateSchema,
+    SparkSendQuoteFailedStateSchema,
+  ]),
 );
+
+export type SparkSendQuote = z.infer<typeof SparkSendQuoteSchema>;
