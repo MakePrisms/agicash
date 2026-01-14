@@ -560,7 +560,7 @@ export class CashuReceiveQuoteRepository {
             tokenAmount: receiveData.cashuTokenData.tokenAmount,
             tokenProofs: receiveData.cashuTokenData.tokenProofs,
             meltQuoteId: receiveData.cashuTokenData.meltQuoteId,
-            // zod parse will do a runtime check that will make sure that cashu_token_melt_initiated is not nul when type is CASHU_TOKEN
+            // zod parse will do a runtime check that will make sure that cashu_token_melt_initiated is not null when type is CASHU_TOKEN
             meltInitiated: data.cashu_token_melt_initiated as boolean,
             cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
             lightningFeeReserve: receiveData.cashuTokenData.lightningFeeReserve,

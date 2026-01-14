@@ -390,6 +390,8 @@ export class SparkReceiveQuoteRepository {
     const decryptedData = await this.encryption.decrypt(data.encrypted_data);
     const receiveData = SparkLightningReceiveDataSchema.parse(decryptedData);
 
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing spark receive quote invariant check at runtime. For example it makes sure that tokenReceiveData is present when type is CASHU_TOKEN, etc.
     return SparkReceiveQuoteSchema.parse({
       id: data.id,
       sparkId: data.spark_id,
@@ -415,7 +417,7 @@ export class SparkReceiveQuoteRepository {
             tokenAmount: receiveData.cashuTokenData.tokenAmount,
             tokenProofs: receiveData.cashuTokenData.tokenProofs,
             meltQuoteId: receiveData.cashuTokenData.meltQuoteId,
-            // zod parse will do a runtime check that will make sure that cashu_token_melt_initiated is not nul when type is CASHU_TOKEN
+            // zod parse will do a runtime check that will make sure that cashu_token_melt_initiated is not null when type is CASHU_TOKEN
             meltInitiated: data.cashu_token_melt_initiated as boolean,
             cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
             lightningFeeReserve: receiveData.cashuTokenData.lightningFeeReserve,

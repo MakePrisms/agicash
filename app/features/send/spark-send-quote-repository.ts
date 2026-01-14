@@ -302,6 +302,8 @@ export class SparkSendQuoteRepository {
     const decryptedData = await this.encryption.decrypt(data.encrypted_data);
     const sendData = SparkLightningSendDataSchema.parse(decryptedData);
 
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing spark send quote invariant check at runtime. For example it makes sure that sparkId, sparkTransferId, fee and paymentPreimage are not undefined when state is COMPLETED.
     return SparkSendQuoteSchema.parse({
       id: data.id,
       sparkId: data.spark_id,

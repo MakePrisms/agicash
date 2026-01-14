@@ -348,6 +348,8 @@ export class CashuSendSwapRepository {
 
     const sendData = CashuSwapSendDataSchema.parse(decryptedData);
 
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing cashu send swap invariant check at runtime. For example it makes sure that sendOutputAmounts and changeOutputAmounts are defined when needed.
     return CashuSendSwapSchema.parse({
       id: data.id,
       accountId: data.account_id,
