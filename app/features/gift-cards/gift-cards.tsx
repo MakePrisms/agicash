@@ -50,7 +50,7 @@ export function GiftCards() {
         <PageHeaderTitle>Gift Cards</PageHeaderTitle>
       </PageHeader>
 
-      <PageContent className="scrollbar-none relative min-h-0 overflow-y-auto pt-16 pb-0">
+      <PageContent className="scrollbar-none relative min-h-0 overflow-y-auto px-0 pt-16 pb-0">
         <div className="flex w-full flex-col items-center gap-4">
           {giftCardsToDiscover.length > 0 && (
             <DiscoverGiftCards giftCards={giftCardsToDiscover} />
