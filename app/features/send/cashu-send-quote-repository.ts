@@ -1,7 +1,7 @@
 import type { Proof } from '@cashu/cashu-ts';
-import type { Json } from 'supabase/database.types';
-import z from 'zod';
+import { z } from 'zod';
 import { proofToY } from '~/lib/cashu';
+import { SerializedDLEQSchema, WitnessSchema } from '~/lib/cashu/types';
 import type { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
 import type { AllUnionFieldsRequired } from '~/lib/type-utils';
@@ -175,7 +175,7 @@ export class CashuSendQuoteRepository {
       });
     }
 
-    return await this.toSendQuote({
+    return await this.toQuote({
       ...data.quote,
       cashu_proofs: data.reserved_proofs,
     });
@@ -261,8 +261,8 @@ export class CashuSendQuoteRepository {
         secret: encryptedProofData[encryptedDataIndex + 1],
         unblindedSignature: x.C,
         publicKeyY: proofToY(x),
-        dleq: x.dleq as Json,
-        witness: x.witness as Json,
+        dleq: x.dleq ?? null,
+        witness: x.witness ?? null,
       };
     });
 
@@ -284,7 +284,7 @@ export class CashuSendQuoteRepository {
       });
     }
 
-    return this.toSendQuote({ ...data.quote, cashu_proofs: data.spent_proofs });
+    return this.toQuote({ ...data.quote, cashu_proofs: data.spent_proofs });
   }
 
   /**
@@ -343,7 +343,7 @@ export class CashuSendQuoteRepository {
       throw new Error('Failed to fail cashu send quote', { cause: error });
     }
 
-    return this.toSendQuote({
+    return this.toQuote({
       ...data.quote,
       cashu_proofs: data.released_proofs,
     });
@@ -370,7 +370,7 @@ export class CashuSendQuoteRepository {
       throw new Error('Failed to mark cashu send as pending', { cause: error });
     }
 
-    return this.toSendQuote({ ...data.quote, cashu_proofs: data.proofs });
+    return this.toQuote({ ...data.quote, cashu_proofs: data.proofs });
   }
 
   /**
@@ -394,7 +394,7 @@ export class CashuSendQuoteRepository {
       throw new Error('Failed to get cashu send', { cause: error });
     }
 
-    return data ? this.toSendQuote(data) : null;
+    return data ? this.toQuote(data) : null;
   }
 
   /**
@@ -423,7 +423,7 @@ export class CashuSendQuoteRepository {
       });
     }
 
-    return data ? this.toSendQuote(data) : null;
+    return data ? this.toQuote(data) : null;
   }
 
   /**
@@ -453,10 +453,10 @@ export class CashuSendQuoteRepository {
       });
     }
 
-    return await Promise.all(data.map((x) => this.toSendQuote(x)));
+    return await Promise.all(data.map((x) => this.toQuote(x)));
   }
 
-  async toSendQuote(
+  async toQuote(
     data: AgicashDbCashuSendQuote & { cashu_proofs: AgicashDbCashuProof[] },
   ): Promise<CashuSendQuote> {
     const proofsDataToDecrypt = data.cashu_proofs.flatMap((x) => [
@@ -527,8 +527,8 @@ export class CashuSendQuoteRepository {
         secret,
         unblindedSignature: dbProof.unblinded_signature,
         publicKeyY: dbProof.public_key_y,
-        dleq: dbProof.dleq as Proof['dleq'],
-        witness: dbProof.witness as Proof['witness'],
+        dleq: SerializedDLEQSchema.parse(dbProof.dleq),
+        witness: WitnessSchema.parse(dbProof.witness),
         state: dbProof.state,
         version: dbProof.version,
         createdAt: dbProof.created_at,

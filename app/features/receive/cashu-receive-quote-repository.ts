@@ -1,5 +1,4 @@
 import type { Proof } from '@cashu/cashu-ts';
-import type { Json } from 'supabase/database.types';
 import type { z } from 'zod';
 import { proofToY } from '~/lib/cashu';
 import { Money } from '~/lib/money';
@@ -424,8 +423,8 @@ export class CashuReceiveQuoteRepository {
         secret: encryptedData[encryptedDataIndex + 1],
         unblindedSignature: x.C,
         publicKeyY: proofToY(x),
-        dleq: x.dleq as Json,
-        witness: x.witness as Json,
+        dleq: x.dleq ?? null,
+        witness: x.witness ?? null,
       };
     });
 

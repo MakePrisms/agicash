@@ -1,8 +1,9 @@
 import type { Proof } from '@cashu/cashu-ts';
-import type { Json } from 'supabase/database.types';
-import z from 'zod';
+import { z } from 'zod';
 import { proofToY } from '~/lib/cashu';
+import { SerializedDLEQSchema, WitnessSchema } from '~/lib/cashu/types';
 import type { Money } from '~/lib/money';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type { CashuProof } from '../accounts/account';
 import type {
   AgicashDb,
@@ -13,11 +14,10 @@ import { agicashDbClient } from '../agicash-db/database.client';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
 import {
-  CashuSwapSendDataSchema,
   type CashuSwapSendData,
+  CashuSwapSendDataSchema,
 } from '../transactions/cashu-swap-send-data';
-import { CashuSendSwapSchema, type CashuSendSwap } from './cashu-send-swap';
-import type { AllUnionFieldsRequired } from '~/lib/type-utils';
+import { type CashuSendSwap, CashuSendSwapSchema } from './cashu-send-swap';
 
 type Options = {
   abortSignal?: AbortSignal;
@@ -201,8 +201,8 @@ export class CashuSendSwapRepository {
         secret: encryptedProofData[encryptedDataIndex + 1],
         unblindedSignature: x.C,
         publicKeyY: proofToY(x),
-        dleq: x.dleq as Json,
-        witness: x.witness as Json,
+        dleq: x.dleq ?? null,
+        witness: x.witness ?? null,
       };
     });
     const encryptedProofsToSend = encryptedProofs.slice(0, proofsToSend.length);
@@ -398,9 +398,8 @@ export class CashuSendSwapRepository {
         secret,
         unblindedSignature: dbProof.unblinded_signature,
         publicKeyY: dbProof.public_key_y,
-        // TODO: get rid of these as casts
-        dleq: dbProof.dleq as Proof['dleq'],
-        witness: dbProof.witness as Proof['witness'],
+        dleq: SerializedDLEQSchema.parse(dbProof.dleq),
+        witness: WitnessSchema.parse(dbProof.witness),
         state: dbProof.state,
         version: dbProof.version,
         createdAt: dbProof.created_at,

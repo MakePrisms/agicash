@@ -1,7 +1,8 @@
 import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
-import type { Proof } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
+import { z } from 'zod';
+import { SerializedDLEQSchema, WitnessSchema } from '~/lib/cashu/types';
 import { type Currency, Money } from '~/lib/money';
 import { createSparkWalletStub } from '~/lib/spark';
 import type {
@@ -159,7 +160,7 @@ export class AccountRepository {
     const commonData = {
       id: data.id,
       name: data.name,
-      currency: data.currency as Currency,
+      currency: data.currency,
       createdAt: data.created_at,
       version: data.version,
     };
@@ -273,8 +274,8 @@ export class AccountRepository {
 
     return data.cashu_proofs.map((dbProof, index) => {
       const decryptedDataIndex = index * 2;
-      const amount = decryptedData[decryptedDataIndex] as number;
-      const secret = decryptedData[decryptedDataIndex + 1] as string;
+      const amount = z.number().parse(decryptedData[decryptedDataIndex]);
+      const secret = z.string().parse(decryptedData[decryptedDataIndex + 1]);
       return {
         id: dbProof.id,
         accountId: dbProof.account_id,
@@ -284,9 +285,9 @@ export class AccountRepository {
         secret,
         unblindedSignature: dbProof.unblinded_signature,
         publicKeyY: dbProof.public_key_y,
-        dleq: dbProof.dleq as Proof['dleq'],
-        witness: dbProof.witness as Proof['witness'],
-        state: dbProof.state as CashuProof['state'],
+        dleq: SerializedDLEQSchema.parse(dbProof.dleq),
+        witness: WitnessSchema.parse(dbProof.witness),
+        state: dbProof.state,
         version: dbProof.version,
         createdAt: dbProof.created_at,
         reservedAt: dbProof.reserved_at,

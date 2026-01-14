@@ -26,7 +26,7 @@ export const SparkLightningReceiveDataSchema = z.object({
    * The total fees for the transaction.
    * For lightning receives this will be zero.
    * For cashu token receives over lightning, this will be the sum of the cashuReceiveFee and lightningFeeReserve.
-   * TODO: should we update this with actuall ln fee when known?
+   * TODO: should we update this with actual ln fee when known?
    */
   totalFees: z.instanceof(Money),
 });

@@ -367,7 +367,7 @@ export function useCashuSendQuoteChangeHandlers() {
           cashu_proofs: AgicashDbCashuProof[];
         },
       ) => {
-        const quote = await cashuSendQuoteRepository.toSendQuote(payload);
+        const quote = await cashuSendQuoteRepository.toQuote(payload);
         unresolvedSendQuotesCache.add(quote);
       },
     },
@@ -378,7 +378,7 @@ export function useCashuSendQuoteChangeHandlers() {
           cashu_proofs: AgicashDbCashuProof[];
         },
       ) => {
-        const quote = await cashuSendQuoteRepository.toSendQuote(payload);
+        const quote = await cashuSendQuoteRepository.toQuote(payload);
 
         cashuSendQuoteCache.updateIfExists(quote);
 

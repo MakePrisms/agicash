@@ -1,7 +1,7 @@
 import type { CashuWallet } from '@cashu/cashu-ts';
 import { z } from 'zod';
 
-const SerializedDLEQSchema = z.object({
+export const SerializedDLEQSchema = z.object({
   s: z.string(),
   e: z.string(),
   r: z.string().optional(),
@@ -15,6 +15,12 @@ const HTLCWitnessSchema = z.object({
   preimage: z.string(),
   signatures: z.array(z.string()).optional(),
 });
+
+export const WitnessSchema = z.union([
+  z.string(),
+  P2PKWitnessSchema,
+  HTLCWitnessSchema,
+]);
 
 /**
  * Schema for a cashu proof.
@@ -32,9 +38,7 @@ export const ProofSchema = z.object({
   /** DLEQ proof. */
   dleq: SerializedDLEQSchema.optional(),
   /** Witness for P2PK or HTLC spending conditions. */
-  witness: z
-    .union([z.string(), P2PKWitnessSchema, HTLCWitnessSchema])
-    .optional(),
+  witness: WitnessSchema.optional(),
 });
 
 /**
