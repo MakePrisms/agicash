@@ -1,5 +1,4 @@
 import { X } from 'lucide-react';
-import { useNavigate } from 'react-router';
 
 import {
   Page,
@@ -14,7 +13,11 @@ import { GiftCardItem } from '~/features/gift-cards/gift-card-item';
 import { getGiftCardImageByMintUrl } from '~/features/gift-cards/use-discover-cards';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { TransactionList } from '~/features/transactions/transaction-list';
-import { LinkWithViewTransition } from '~/lib/transitions';
+import {
+  LinkWithViewTransition,
+  useNavigateWithViewTransition,
+  useScopedTransitionName,
+} from '~/lib/transitions';
 import {
   CARD_HEIGHT,
   CARD_WIDTH,
@@ -26,7 +29,8 @@ type GiftCardDetailsProps = {
 };
 
 export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
-  const navigate = useNavigate();
+  const navigate = useNavigateWithViewTransition();
+  const vtn = useScopedTransitionName('gift-cards');
 
   const { data: giftCardAccounts } = useAccounts({
     type: 'cashu',
@@ -37,7 +41,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
   const selectedIndex = giftCardAccounts.findIndex((c) => c.id === cardId);
 
   const handleBack = () => {
-    navigate('/gift-cards', { viewTransition: true });
+    navigate('/gift-cards', { scope: 'gift-cards' });
   };
 
   if (!card) {
@@ -96,7 +100,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
                     style={{
                       top: isSelected ? undefined : 0,
                       zIndex,
-                      viewTransitionName: `card-${account.id}`,
+                      viewTransitionName: vtn(`card-${account.id}`),
                     }}
                   >
                     {isSelected ? (
@@ -125,7 +129,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
                   style={{
                     top: `calc(100vh + ${offsetBelowViewport}px)`,
                     zIndex,
-                    viewTransitionName: `card-${account.id}`,
+                    viewTransitionName: vtn(`card-${account.id}`),
                   }}
                 >
                   <GiftCardItem
@@ -139,7 +143,10 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
           </div>
         </div>
 
-        <div className="view-transition-transactions mx-auto flex flex-col items-center gap-4 px-4 pt-4 pb-8">
+        <div
+          className="mx-auto flex flex-col items-center gap-4 px-4 pt-4 pb-8"
+          style={{ viewTransitionName: vtn('transactions') }}
+        >
           {balance && <MoneyWithConvertedAmount money={balance} size="md" />}
 
           <div className="grid w-72 grid-cols-2 gap-10">

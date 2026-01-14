@@ -10,6 +10,7 @@ import {
   type CashuAccount,
   getAccountBalance,
 } from '~/features/accounts/account';
+import { useScopedTransitionName } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { VERTICAL_CARD_OFFSET_IN_STACK } from './card-stack-constants';
 
@@ -32,6 +33,7 @@ export function GiftCardItem({
   const name =
     account.wallet.mintInfo?.name ??
     account.mintUrl.replace('https://', '').replace('http://', '');
+  const vtn = useScopedTransitionName('gift-cards');
 
   return (
     <WalletCard size={size} className={className}>
@@ -54,7 +56,7 @@ export function GiftCardItem({
             style={{
               height: VERTICAL_CARD_OFFSET_IN_STACK,
               opacity: hideOverlayContent ? 0 : 1,
-              viewTransitionName: `card-overlay-${account.id}`,
+              viewTransitionName: vtn(`card-overlay-${account.id}`),
             }}
           >
             <span className="text-lg text-white drop-shadow-md">{name}</span>

@@ -1,5 +1,11 @@
-import { type ComponentProps, useEffect } from 'react';
-import { Link, NavLink, useNavigate, useNavigation } from 'react-router';
+import { type ComponentProps, useEffect, useState } from 'react';
+import {
+  Link,
+  NavLink,
+  useLocation,
+  useNavigate,
+  useNavigation,
+} from 'react-router';
 import type { NavigateOptions, To } from 'react-router';
 
 const transitions = [
@@ -153,6 +159,110 @@ function getViewTransitionState(state: unknown): ViewTransitionState | null {
   return { transition: state.transition, applyTo };
 }
 
+/**
+ * View transition scopes allow components to opt-in to named view transitions
+ * only when navigating within a specific feature/scope.
+ *
+ * This is useful for element-level transitions (e.g., list items expanding to detail views)
+ * that should only animate for internal navigation within that feature, not when
+ * entering from or exiting to external pages.
+ */
+type ViewTransitionScope = string;
+
+function getViewTransitionScope(state: unknown): ViewTransitionScope | null {
+  if (state == null || typeof state !== 'object') {
+    return null;
+  }
+  if (
+    'viewTransitionScope' in state &&
+    typeof state.viewTransitionScope === 'string'
+  ) {
+    return state.viewTransitionScope;
+  }
+  return null;
+}
+
+/**
+ * Checks if viewTransitionName should be applied for elements within a scope.
+ *
+ * @param targetScope - The scope identifier to check against
+ * @returns true if names should be applied (internal navigation), false otherwise
+ */
+function useIsInScope(targetScope: ViewTransitionScope): boolean {
+  const location = useLocation();
+  const navigation = useNavigation();
+  const [hasSettled, setHasSettled] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Problem: View Transitions API captures "old" and "new" DOM snapshots.
+  // Elements with matching viewTransitionName in both snapshots morph together.
+  //
+  // For scoped element transitions (e.g., list item → detail view), we need:
+  // - Names applied for INTERNAL navigation (both snapshots have the element)
+  // - Names NOT applied for EXTERNAL navigation (only one snapshot has it)
+  //
+  // Challenge: React Router uses flushSync for view transitions, which causes
+  // effects to run synchronously BEFORE the browser captures the new snapshot.
+  // If we set hasSettled=true immediately, names get applied too early.
+  //
+  // Solution: Use requestAnimationFrame to delay hasSettled until after the
+  // browser has captured its snapshot (next frame).
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (navigation.state === 'idle') {
+      const frameId = requestAnimationFrame(() => {
+        setHasSettled(true);
+      });
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [navigation.state]);
+
+  const navigatingScope = navigation.location
+    ? getViewTransitionScope(navigation.location.state)
+    : null;
+
+  // Exit early when leaving to a non-scoped destination.
+  // This lets the page-level transition handle the exit animation.
+  if (navigation.state === 'loading' && navigatingScope !== targetScope) {
+    return false;
+  }
+
+  const currentScope = getViewTransitionScope(location.state);
+
+  // Apply names when:
+  // - hasSettled: Page settled, ready to be captured as "old" state
+  // - navigatingScope matches: Outgoing internal nav, capture "old" state
+  // - currentScope matches: Incoming internal nav, capture "new" state
+  return (
+    hasSettled ||
+    navigatingScope === targetScope ||
+    currentScope === targetScope
+  );
+}
+
+/**
+ * Hook that returns a function to generate scoped view transition names.
+ *
+ * Use this to conditionally apply viewTransitionName to elements that should only
+ * animate during internal navigation within a feature scope.
+ *
+ * @example
+ * ```tsx
+ * const vtn = useScopedTransitionName('my-feature');
+ *
+ * <div style={{ viewTransitionName: vtn(`item-${id}`) }}>
+ *   ...
+ * </div>
+ * ```
+ */
+export function useScopedTransitionName(
+  scope: ViewTransitionScope,
+): (name: string) => string | undefined {
+  const isInScope = useIsInScope(scope);
+  return (name: string) => (isInScope ? name : undefined);
+}
+
 // This value is repeated in transitions.css. When changing make sure to keep them in sync!
 export const VIEW_TRANSITION_DURATION_MS = 180;
 
@@ -188,8 +298,10 @@ export function useViewTransitionEffect() {
 }
 
 type ViewTransitionCommonProps = {
-  transition: Transition;
+  transition?: Transition;
   applyTo?: ApplyTo;
+  /** Scope for element-level transitions. Use with useScopedTransitionName in target components. */
+  scope?: ViewTransitionScope;
 };
 
 export type ViewTransitionLinkProps = ViewTransitionCommonProps & {
@@ -208,12 +320,7 @@ type ViewTransitionNavLinkProps = ViewTransitionCommonProps & {
  */
 export function LinkWithViewTransition<
   T extends ViewTransitionLinkProps | ViewTransitionNavLinkProps,
->({ transition, applyTo = 'bothViews', as = Link, ...props }: T) {
-  const linkState: ViewTransitionState = {
-    transition,
-    applyTo,
-  };
-
+>({ transition, applyTo = 'bothViews', scope, as = Link, ...props }: T) {
   const commonProps = {
     ...props,
     prefetch: props.prefetch ?? 'viewport',
@@ -223,11 +330,17 @@ export function LinkWithViewTransition<
       // "loading" state entirely, so our useEffect never gets a chance to apply styles.
       // Browser back/forward (popstate) navigations still go through loading state and
       // will be handled by useViewTransitionEffect.
-      applyTransitionStyles(transition, applyTo);
+      if (transition) {
+        applyTransitionStyles(transition, applyTo);
+      }
       props.onClick?.(event);
     },
     viewTransition: true,
-    state: { ...props.state, ...linkState },
+    state: {
+      ...props.state,
+      ...(transition ? { transition, applyTo } : {}),
+      ...(scope ? { viewTransitionScope: scope } : {}),
+    },
   };
 
   if (as === NavLink) {
@@ -238,7 +351,10 @@ export function LinkWithViewTransition<
 }
 
 export type NavigateWithViewTransitionOptions = NavigateOptions &
-  ViewTransitionState;
+  Partial<ViewTransitionState> & {
+    /** Scope for element-level transitions. Use with useViewTransitionScope in target components. */
+    scope?: ViewTransitionScope;
+  };
 
 export function useNavigateWithViewTransition() {
   const navigate = useNavigate();
@@ -248,17 +364,24 @@ export function useNavigateWithViewTransition() {
     {
       transition,
       applyTo = 'bothViews',
+      scope,
       state,
       ...options
     }: NavigateWithViewTransitionOptions,
   ) => {
     // Apply styles synchronously before navigate, for the same reason as in LinkWithViewTransition.
-    applyTransitionStyles(transition, applyTo);
+    if (transition) {
+      applyTransitionStyles(transition, applyTo);
+    }
 
     navigate(to, {
       ...options,
       viewTransition: true,
-      state: { ...(state ?? {}), transition, applyTo },
+      state: {
+        ...(state ?? {}),
+        ...(transition ? { transition, applyTo } : {}),
+        ...(scope ? { viewTransitionScope: scope } : {}),
+      },
     });
   };
 }

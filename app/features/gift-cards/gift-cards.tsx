@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router';
 import {
   ClosePageButton,
   Page,
@@ -7,6 +6,10 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import type { CashuAccount } from '~/features/accounts/account';
+import {
+  useNavigateWithViewTransition,
+  useScopedTransitionName,
+} from '~/lib/transitions';
 import { useAccounts } from '../accounts/account-hooks';
 import {
   CARD_HEIGHT,
@@ -31,14 +34,16 @@ export function GiftCards() {
     onlyIncludeClosedLoopAccounts: true,
   });
 
-  const navigate = useNavigate();
+  const navigate = useNavigateWithViewTransition();
+  const vtn = useScopedTransitionName('gift-cards');
+
   const hasCards = accounts.length > 0;
   const stackedHeight =
     CARD_HEIGHT + (accounts.length - 1) * VERTICAL_CARD_OFFSET_IN_STACK;
   const giftCardsToDiscover = useDiscoverGiftCards();
 
   const handleCardClick = (account: CashuAccount) => {
-    navigate(`/gift-cards/${account.id}`, { viewTransition: true });
+    navigate(`/gift-cards/${account.id}`, { scope: 'gift-cards' });
   };
 
   return (
@@ -72,7 +77,7 @@ export function GiftCards() {
                       style={{
                         transform: `translateY(${index * VERTICAL_CARD_OFFSET_IN_STACK}px)`,
                         zIndex: 1 + index,
-                        viewTransitionName: `card-${account.id}`,
+                        viewTransitionName: vtn(`card-${account.id}`),
                       }}
                     >
                       <GiftCardItem

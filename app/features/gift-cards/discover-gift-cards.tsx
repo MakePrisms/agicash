@@ -1,6 +1,9 @@
 import { WalletCard, WalletCardBackground } from '~/components/wallet-card';
 import useUserAgent from '~/hooks/use-user-agent';
-import { LinkWithViewTransition } from '~/lib/transitions';
+import {
+  LinkWithViewTransition,
+  useScopedTransitionName,
+} from '~/lib/transitions';
 import { cn } from '~/lib/utils';
 import type { GiftCardInfo } from './use-discover-cards';
 
@@ -13,9 +16,13 @@ type DiscoverSectionProps = {
  */
 export function DiscoverGiftCards({ giftCards }: DiscoverSectionProps) {
   const { isMobile } = useUserAgent();
+  const vtn = useScopedTransitionName('gift-cards');
 
   return (
-    <div className="view-transition-available w-full shrink-0">
+    <div
+      className="w-full shrink-0"
+      style={{ viewTransitionName: vtn('available-cards') }}
+    >
       <h2 className="mb-3 px-4 text-white">Discover</h2>
       <div className="sm:px-4">
         <div
