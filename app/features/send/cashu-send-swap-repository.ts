@@ -128,9 +128,6 @@ export class CashuSendSwapRepository {
         (outputAmounts?.change?.length ?? 0)
       : undefined;
 
-    // TODO: update create_cashu_send_swap to remove p_encrypted_transaction_details and to set p_encrypted_data on both cashu_send_swaps and transactions tables
-    // ignore ts type error for p_encrypted_transaction_details
-    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('create_cashu_send_swap', {
       p_user_id: userId,
       p_account_id: accountId,

@@ -908,7 +908,6 @@ export type Database = {
         Args: {
           p_change_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
           p_encrypted_data: string
-          p_encrypted_transaction_details: string
           p_quote_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_send_quote_result"]
@@ -946,7 +945,6 @@ export type Database = {
       complete_spark_receive_quote: {
         Args: {
           p_encrypted_data: string
-          p_encrypted_transaction_details: string
           p_quote_id: string
           p_spark_transfer_id: string
         }
@@ -976,11 +974,7 @@ export type Database = {
         }
       }
       complete_spark_send_quote: {
-        Args: {
-          p_encrypted_data: string
-          p_encrypted_transaction_details: string
-          p_quote_id: string
-        }
+        Args: { p_encrypted_data: string; p_quote_id: string }
         Returns: {
           account_id: string
           created_at: string
@@ -1048,7 +1042,6 @@ export type Database = {
           p_currency: string
           p_currency_requested: string
           p_encrypted_data: string
-          p_encrypted_transaction_details: string
           p_expires_at: string
           p_keyset_id: string
           p_number_of_change_outputs: number
@@ -1070,7 +1063,6 @@ export type Database = {
           p_account_id: string
           p_currency: string
           p_encrypted_data: string
-          p_encrypted_transaction_details: string
           p_input_proofs: string[]
           p_keyset_id?: string
           p_number_of_outputs?: number
@@ -1091,7 +1083,6 @@ export type Database = {
           p_account_id: string
           p_currency: string
           p_encrypted_data: string
-          p_encrypted_transaction_details: string
           p_keyset_id: string
           p_number_of_outputs: number
           p_reversed_transaction_id?: string
@@ -1111,7 +1102,6 @@ export type Database = {
           p_account_id: string
           p_currency: string
           p_encrypted_data: string
-          p_encrypted_transaction_details: string
           p_expires_at: string
           p_payment_hash: string
           p_receive_type: string
@@ -1149,7 +1139,6 @@ export type Database = {
           p_account_id: string
           p_currency: string
           p_encrypted_data: string
-          p_encrypted_transaction_details: string
           p_expires_at?: string
           p_payment_hash: string
           p_payment_request_is_amountless: boolean
@@ -1483,7 +1472,6 @@ export type Database = {
       mark_spark_send_quote_as_pending: {
         Args: {
           p_encrypted_data: string
-          p_encrypted_transaction_details: string
           p_quote_id: string
           p_spark_id: string
           p_spark_transfer_id: string

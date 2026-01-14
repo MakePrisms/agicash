@@ -149,10 +149,6 @@ export class SparkReceiveQuoteRepository {
 
     const encryptedData = await this.encryption.encrypt(receiveData);
 
-    // TODO: update create_spark_receive_quote to also set sparkId on the transaction table in the transaction_details column (then also make sure that complete_spark_receive_quote keeps it when it adds sparkTransferId)
-    // TODO: update create_spark_receive_quote to remove p_encrypted_transaction_details and to set p_encrypted_data on both spark_receive_quotes and transactions tables
-    // ignore ts type error for p_encrypted_transaction_details
-    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('create_spark_receive_quote', {
       p_user_id: userId,
       p_account_id: accountId,
@@ -229,9 +225,6 @@ export class SparkReceiveQuoteRepository {
 
     const encryptedData = await this.encryption.encrypt(receiveData);
 
-    // TODO: update complete_spark_receive_quote to remove p_encrypted_transaction_details and to set p_encrypted_data on both spark_receive_quotes and transactions tables
-    // ignore ts type error for p_encrypted_transaction_details
-    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('complete_spark_receive_quote', {
       p_quote_id: quote.id,
       p_spark_transfer_id: sparkTransferId,

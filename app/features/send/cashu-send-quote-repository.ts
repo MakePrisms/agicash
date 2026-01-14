@@ -145,9 +145,6 @@ export class CashuSendQuoteRepository {
       computeSHA256(quoteId),
     ]);
 
-    // TODO: update create_cashu_send_quote to remove p_encrypted_transaction_details and to set p_encrypted_data on both cashu_send_quotes and transactions tables
-    // ignore ts type error for p_encrypted_transaction_details
-    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('create_cashu_send_quote', {
       p_user_id: userId,
       p_account_id: accountId,
@@ -269,9 +266,6 @@ export class CashuSendQuoteRepository {
       };
     });
 
-    // TODO: update complete_cashu_send_quote to remove p_encrypted_transaction_details and to set p_encrypted_data on both cashu_send_quotes and transactions tables
-    // ignore ts type error for p_encrypted_transaction_details
-    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('complete_cashu_send_quote', {
       p_quote_id: quote.id,
       p_change_proofs: encryptedProofs,

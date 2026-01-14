@@ -31,7 +31,6 @@ const CashuTokenSwapBaseSchema = z.object({
   inputAmount: z.instanceof(Money),
   /** Amount that will actually be received after the mint's fees are deducted */
   receiveAmount: z.instanceof(Money),
-  // TODO: confirm with Damian that the old comment was incorrect
   /** Fee that is deducted from the input amount */
   feeAmount: z.instanceof(Money),
   /** ID of the keyset used for blinded messages */

@@ -85,9 +85,6 @@ export class SparkSendQuoteRepository {
 
     const encryptedData = await this.encryption.encrypt(sendData);
 
-    // TODO: update create_spark_send_quote to remove p_encrypted_transaction_details and to set p_encrypted_data on both spark_send_quotes and transactions tables
-    // ignore ts type error for p_encrypted_transaction_details
-    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('create_spark_send_quote', {
       p_user_id: userId,
       p_account_id: accountId,
@@ -152,9 +149,6 @@ export class SparkSendQuoteRepository {
 
     const encryptedData = await this.encryption.encrypt(sendData);
 
-    // TODO: update mark_spark_send_quote_as_pending to remove p_encrypted_transaction_details and to set p_encrypted_data on both spark_send_quotes and transactions tables
-    // ignore ts type error for p_encrypted_transaction_details
-    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('mark_spark_send_quote_as_pending', {
       p_quote_id: quote.id,
       p_spark_id: sparkSendRequestId,
@@ -209,9 +203,6 @@ export class SparkSendQuoteRepository {
 
     const encryptedData = await this.encryption.encrypt(sendData);
 
-    // TODO: update complete_spark_send_quote to remove p_encrypted_transaction_details and to set p_encrypted_data on both spark_send_quotes and transactions tables
-    // ignore ts type error for p_encrypted_transaction_details
-    // @ts-expect-error - p_encrypted_transaction_details is not needed
     const query = this.db.rpc('complete_spark_send_quote', {
       p_quote_id: quote.id,
       p_encrypted_data: encryptedData,
