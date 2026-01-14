@@ -13,6 +13,13 @@
   animation-name: fade-in;
 }
 
+/* Discover card - smooth expand/shrink transition */
+::view-transition-old(discover-card),
+::view-transition-new(discover-card) {
+  animation-duration: 0.3s;
+  animation-timing-function: ease-out;
+}
+
 /* Transactions section - slide up/down with fade */
 @keyframes slide-fade-out {
   from {
