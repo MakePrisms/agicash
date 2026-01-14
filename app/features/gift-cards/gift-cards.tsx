@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router';
+import { useNavigate, useViewTransitionState } from 'react-router';
 import {
   ClosePageButton,
   Page,
@@ -32,6 +32,8 @@ export function GiftCards() {
   });
 
   const navigate = useNavigate();
+  const isTransitioning = useViewTransitionState('/gift-cards/:accountId');
+
   const hasCards = accounts.length > 0;
   const stackedHeight =
     CARD_HEIGHT + (accounts.length - 1) * VERTICAL_CARD_OFFSET_IN_STACK;
@@ -72,7 +74,9 @@ export function GiftCards() {
                       style={{
                         transform: `translateY(${index * VERTICAL_CARD_OFFSET_IN_STACK}px)`,
                         zIndex: 1 + index,
-                        viewTransitionName: `card-${account.id}`,
+                        viewTransitionName: isTransitioning
+                          ? `card-${account.id}`
+                          : undefined,
                       }}
                     >
                       <GiftCardItem

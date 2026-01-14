@@ -1,8 +1,4 @@
 /* Available cards section - fade out/in */
-.view-transition-available {
-  view-transition-name: available-cards;
-}
-
 ::view-transition-old(available-cards),
 ::view-transition-new(available-cards) {
   animation-duration: 0.3s;
@@ -18,8 +14,6 @@
 }
 
 /* Transactions section - slide up/down with fade */
-
-/* Slide + fade animations for transactions */
 @keyframes slide-fade-out {
   from {
     opacity: 1;
@@ -40,10 +34,6 @@
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.view-transition-transactions {
-  view-transition-name: transactions;
 }
 
 ::view-transition-old(transactions),
