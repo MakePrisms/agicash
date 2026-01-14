@@ -1,5 +1,4 @@
 import {
-  CARD_SIZES,
   WalletCard,
   WalletCardBlank,
   WalletCardOverlay,
@@ -12,10 +11,7 @@ export function EmptyState() {
   return (
     <>
       <div className="flex-1" />
-      <div
-        className="w-full shrink-0 px-4"
-        style={{ maxWidth: CARD_SIZES.default.width }}
-      >
+      <div className="flex w-full max-w-sm items-center justify-center px-4">
         <WalletCard className="w-full max-w-none">
           <WalletCardBlank />
           <WalletCardOverlay className="flex items-center justify-center">
