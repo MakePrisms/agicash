@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useViewTransitionState } from 'react-router';
 
 import {
   Page,
@@ -27,6 +27,7 @@ type GiftCardDetailsProps = {
 
 export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
   const navigate = useNavigate();
+  const isTransitioning = useViewTransitionState('/gift-cards');
 
   const { data: giftCardAccounts } = useAccounts({
     type: 'cashu',
@@ -96,7 +97,9 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
                     style={{
                       top: isSelected ? undefined : 0,
                       zIndex,
-                      viewTransitionName: `card-${account.id}`,
+                      viewTransitionName: isTransitioning
+                        ? `card-${account.id}`
+                        : undefined,
                     }}
                   >
                     {isSelected ? (
@@ -125,7 +128,9 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
                   style={{
                     top: `calc(100vh + ${offsetBelowViewport}px)`,
                     zIndex,
-                    viewTransitionName: `card-${account.id}`,
+                    viewTransitionName: isTransitioning
+                      ? `card-${account.id}`
+                      : undefined,
                   }}
                 >
                   <GiftCardItem
