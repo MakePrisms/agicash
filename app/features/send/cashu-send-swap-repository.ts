@@ -1,7 +1,7 @@
 import type { Proof } from '@cashu/cashu-ts';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { proofToY } from '~/lib/cashu';
-import { SerializedDLEQSchema, WitnessSchema } from '~/lib/cashu/types';
+import {} from '~/lib/cashu/types';
 import type { Money } from '~/lib/money';
 import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type { CashuProof } from '../accounts/account';
@@ -18,6 +18,7 @@ import {
   CashuSwapSendDataSchema,
 } from '../transactions/cashu-swap-send-data';
 import { type CashuSendSwap, CashuSendSwapSchema } from './cashu-send-swap';
+import { toDecryptedCashuProofs } from './utils';
 
 type Options = {
   abortSignal?: AbortSignal;
@@ -339,7 +340,7 @@ export class CashuSendSwapRepository {
         ...proofsDataToDecrypt,
       ]);
 
-    const decryptedProofs = this.toDecryptedCashuProofs(
+    const decryptedProofs = toDecryptedCashuProofs(
       encryptedProofs,
       decryptedProofsData,
     );
@@ -376,36 +377,6 @@ export class CashuSendSwapRepository {
       proofsToSend: proofsToSend,
       failureReason: data.failure_reason,
     } satisfies AllUnionFieldsRequired<z.input<typeof CashuSendSwapSchema>>);
-  }
-
-  private toDecryptedCashuProofs(
-    proofs: AgicashDbCashuProof[],
-    decryptedProofsData: unknown[],
-  ): CashuProof[] {
-    return proofs.map((dbProof, index) => {
-      const decryptedDataIndex = index * 2;
-      const amount = z.number().parse(decryptedProofsData[decryptedDataIndex]);
-      const secret = z
-        .string()
-        .parse(decryptedProofsData[decryptedDataIndex + 1]);
-
-      return {
-        id: dbProof.id,
-        accountId: dbProof.account_id,
-        userId: dbProof.user_id,
-        keysetId: dbProof.keyset_id,
-        amount,
-        secret,
-        unblindedSignature: dbProof.unblinded_signature,
-        publicKeyY: dbProof.public_key_y,
-        dleq: SerializedDLEQSchema.parse(dbProof.dleq),
-        witness: WitnessSchema.parse(dbProof.witness),
-        state: dbProof.state,
-        version: dbProof.version,
-        createdAt: dbProof.created_at,
-        reservedAt: dbProof.reserved_at,
-      };
-    });
   }
 }
 

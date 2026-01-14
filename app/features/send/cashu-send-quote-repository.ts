@@ -1,7 +1,6 @@
 import type { Proof } from '@cashu/cashu-ts';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { proofToY } from '~/lib/cashu';
-import { SerializedDLEQSchema, WitnessSchema } from '~/lib/cashu/types';
 import type { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
 import type { AllUnionFieldsRequired } from '~/lib/type-utils';
@@ -24,6 +23,7 @@ import {
   useTransactionRepository,
 } from '../transactions/transaction-repository';
 import { type CashuSendQuote, CashuSendQuoteSchema } from './cashu-send-quote';
+import { toDecryptedCashuProofs } from './utils';
 
 type Options = {
   abortSignal?: AbortSignal;
@@ -469,10 +469,7 @@ export class CashuSendQuoteRepository {
         data.encrypted_data,
         ...proofsDataToDecrypt,
       ]);
-    const proofs = this.toDecryptedCashuProofs(
-      data.cashu_proofs,
-      decryptedProofs,
-    );
+    const proofs = toDecryptedCashuProofs(data.cashu_proofs, decryptedProofs);
 
     const sendData = CashuLightningSendDataSchema.parse(decryptedData);
 
@@ -505,36 +502,6 @@ export class CashuSendQuoteRepository {
       paymentPreimage: sendData.paymentPreimage,
       amountSpent: sendData.amountSpent,
     } satisfies AllUnionFieldsRequired<z.input<typeof CashuSendQuoteSchema>>);
-  }
-
-  private toDecryptedCashuProofs(
-    proofs: AgicashDbCashuProof[],
-    decryptedProofsData: unknown[],
-  ): CashuProof[] {
-    return proofs.map((dbProof, index) => {
-      const decryptedDataIndex = index * 2;
-      const amount = z.number().parse(decryptedProofsData[decryptedDataIndex]);
-      const secret = z
-        .string()
-        .parse(decryptedProofsData[decryptedDataIndex + 1]);
-
-      return {
-        id: dbProof.id,
-        accountId: dbProof.account_id,
-        userId: dbProof.user_id,
-        keysetId: dbProof.keyset_id,
-        amount,
-        secret,
-        unblindedSignature: dbProof.unblinded_signature,
-        publicKeyY: dbProof.public_key_y,
-        dleq: SerializedDLEQSchema.parse(dbProof.dleq),
-        witness: WitnessSchema.parse(dbProof.witness),
-        state: dbProof.state,
-        version: dbProof.version,
-        createdAt: dbProof.created_at,
-        reservedAt: dbProof.reserved_at,
-      };
-    });
   }
 }
 
