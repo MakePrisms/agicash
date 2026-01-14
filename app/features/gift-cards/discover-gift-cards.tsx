@@ -1,3 +1,4 @@
+import { useViewTransitionState } from 'react-router';
 import { WalletCard, WalletCardBackground } from '~/components/wallet-card';
 import useUserAgent from '~/hooks/use-user-agent';
 import { LinkWithViewTransition } from '~/lib/transitions';
@@ -13,9 +14,15 @@ type DiscoverSectionProps = {
  */
 export function DiscoverGiftCards({ giftCards }: DiscoverSectionProps) {
   const { isMobile } = useUserAgent();
+  const isTransitioning = useViewTransitionState('/gift-cards/:accountId');
 
   return (
-    <div className="view-transition-available w-full shrink-0">
+    <div
+      className="w-full shrink-0"
+      style={{
+        viewTransitionName: isTransitioning ? 'available-cards' : undefined,
+      }}
+    >
       <h2 className="mb-3 px-4 text-white">Discover</h2>
       <div className="sm:px-4">
         <div
