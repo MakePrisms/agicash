@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Money } from '~/lib/money';
-import type { CashuProof } from '../accounts/account';
+import { CashuProofSchema } from '../accounts/cashu-account';
 
 /**
  * Base schema for cashu send swap.
@@ -35,7 +35,7 @@ const CashuSendSwapBaseSchema = z.object({
    * The proofs from the account that will be spent.
    * These are removed from the account's balance.
    */
-  inputProofs: z.custom<CashuProof[]>(),
+  inputProofs: z.array(CashuProofSchema),
   /**
    * The sum of the inputProofs
    */
@@ -108,7 +108,7 @@ const CashuSendSwapPendingCompletedStateSchema = z.object({
    * If the inputProofs sum to more than the amount to send, then this
    * will be the result of swapping the inputProofs for the amount to send.
    */
-  proofsToSend: z.custom<CashuProof[]>(),
+  proofsToSend: z.array(CashuProofSchema),
 });
 
 const CashuSendSwapFailedStateSchema = z.object({

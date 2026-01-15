@@ -23,7 +23,6 @@ const CashuTokenSwapBaseSchema = z.object({
   userId: z.string(),
   /** ID of the account receiving the token */
   accountId: z.string(),
-  // TODO: should we rename this to tokenAmount?
   /**
    * Amount of the token being received in the corresponding currency.
    * Will differ from actual amount received if mint charges fees.

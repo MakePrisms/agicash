@@ -1,9 +1,20 @@
+import type z from 'zod';
 import type { Money } from '~/lib/money';
 import type { AgicashDb, AgicashDbTransaction } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption';
 import { CashuLightningReceiveDataSchema } from './cashu-lightning-receive-data';
+import { CashuLightningSendDataSchema } from './cashu-lightning-send-data';
 import { CashuSwapReceiveDataSchema } from './cashu-swap-receive-data';
+import { CashuSwapSendDataSchema } from './cashu-swap-send-data';
+import {
+  SparkLightningReceiveDataSchema,
+  SparkLightningReceiveNonSensitiveDataSchema,
+} from './spark-lightning-receive-data';
+import {
+  SparkLightningSendDataSchema,
+  SparkLightningSendNonSensitiveDataSchema,
+} from './spark-lightning-send-data';
 import {
   type CashuLightningReceiveTransactionDetails,
   type CashuTokenReceiveTransactionDetails,
@@ -17,17 +28,6 @@ import {
   type Transaction,
   TransactionSchema,
 } from './transaction';
-import { CashuSwapSendDataSchema } from './cashu-swap-send-data';
-import { CashuLightningSendDataSchema } from './cashu-lightning-send-data';
-import type z from 'zod';
-import {
-  SparkLightningReceiveDataSchema,
-  SparkLightningReceiveNonSensitiveDataSchema,
-} from './spark-lightning-receive-data';
-import {
-  SparkLightningSendDataSchema,
-  SparkLightningSendNonSensitiveDataSchema,
-} from './spark-lightning-send-data';
 
 type Encryption = {
   encrypt: <T = unknown>(data: T) => Promise<string>;
@@ -183,10 +183,23 @@ export class TransactionRepository {
       data.encrypted_transaction_details,
     );
 
-    let amount: Money | undefined;
-    let details: Transaction['details'] | undefined;
-
     const { state, direction, type } = data;
+
+    const baseTransaction = {
+      id: data.id,
+      userId: data.user_id,
+      accountId: data.account_id,
+      createdAt: data.created_at,
+      pendingAt: data.pending_at,
+      completedAt: data.completed_at,
+      failedAt: data.failed_at,
+      reversedTransactionId: data.reversed_transaction_id,
+      reversedAt: data.reversed_at,
+      acknowledgmentStatus: data.acknowledgment_status,
+      direction,
+      type,
+      state,
+    };
 
     if (type === 'CASHU_LIGHTNING' && direction === 'SEND') {
       const sendData = CashuLightningSendDataSchema.parse(
@@ -194,7 +207,7 @@ export class TransactionRepository {
       );
 
       if (state === 'COMPLETED') {
-        const completedDetails =
+        const details =
           CompletedCashuLightningSendTransactionDetailsSchema.parse({
             amountReserved: sendData.amountReserved,
             amountToReceive: sendData.amountToReceive,
@@ -211,56 +224,68 @@ export class TransactionRepository {
             typeof CompletedCashuLightningSendTransactionDetailsSchema
           >);
 
-        amount = completedDetails.amountSpent as Money;
-        details = completedDetails;
-      } else {
-        const incompleteDetails: IncompleteCashuLightningSendTransactionDetails =
-          {
-            amountReserved: sendData.amountReserved,
-            amountToReceive: sendData.amountToReceive,
-            lightningFeeReserve: sendData.lightningFeeReserve,
-            cashuSendFee: sendData.cashuSendFee,
-            paymentRequest: sendData.paymentRequest,
-            destinationDetails: sendData.destinationDetails,
-          };
-
-        amount = incompleteDetails.amountToReceive
-          .add(incompleteDetails.lightningFeeReserve)
-          .add(incompleteDetails.cashuSendFee);
-        details = incompleteDetails;
+        return TransactionSchema.parse({
+          ...baseTransaction,
+          amount: details.amountSpent,
+          details,
+        });
       }
+
+      const details: IncompleteCashuLightningSendTransactionDetails = {
+        amountReserved: sendData.amountReserved,
+        amountToReceive: sendData.amountToReceive,
+        lightningFeeReserve: sendData.lightningFeeReserve,
+        cashuSendFee: sendData.cashuSendFee,
+        paymentRequest: sendData.paymentRequest,
+        destinationDetails: sendData.destinationDetails,
+      };
+
+      return TransactionSchema.parse({
+        ...baseTransaction,
+        amount: details.amountToReceive
+          .add(details.lightningFeeReserve)
+          .add(details.cashuSendFee),
+        details,
+      });
     }
 
     if (type === 'CASHU_LIGHTNING' && direction === 'RECEIVE') {
       const receiveData = CashuLightningReceiveDataSchema.parse(
         decryptedTransactionDetails,
       );
-      const receiveDetails: CashuLightningReceiveTransactionDetails = {
+      const details: CashuLightningReceiveTransactionDetails = {
         amountReceived: receiveData.amountReceived,
         paymentRequest: receiveData.paymentRequest,
         description: receiveData.description,
         mintingFee: receiveData.mintingFee,
       };
 
-      amount = receiveDetails.mintingFee
-        ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
-        : receiveDetails.amountReceived;
-      details = receiveDetails;
+      return TransactionSchema.parse({
+        ...baseTransaction,
+        amount: details.mintingFee
+          ? details.amountReceived.add(details.mintingFee)
+          : details.amountReceived,
+        details,
+      });
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'SEND') {
       const sendData = CashuSwapSendDataSchema.parse(
         decryptedTransactionDetails,
       );
-      const sendDetails: CashuTokenSendTransactionDetails = {
+      const details: CashuTokenSendTransactionDetails = {
         amountSpent: sendData.amountSpent,
         amountToReceive: sendData.amountToReceive,
         cashuSendFee: sendData.cashuSendFee,
         cashuReceiveFee: sendData.cashuReceiveFee,
         totalFees: sendData.totalFees,
       };
-      amount = sendDetails.amountSpent;
-      details = sendDetails;
+
+      return TransactionSchema.parse({
+        ...baseTransaction,
+        amount: details.amountSpent,
+        details,
+      });
     }
 
     if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
@@ -278,7 +303,7 @@ export class TransactionRepository {
             cause: receiveData,
           });
         }
-        const receiveDetails: CashuTokenReceiveTransactionDetails = {
+        const details: CashuTokenReceiveTransactionDetails = {
           amountReceived: receiveData.amountReceived,
           tokenAmount: receiveData.cashuTokenData.tokenAmount,
           cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
@@ -287,25 +312,30 @@ export class TransactionRepository {
           totalFees: receiveData.totalFees,
         };
 
-        amount = receiveDetails.mintingFee
-          ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
-          : receiveDetails.amountReceived;
-        details = receiveDetails;
-      } else {
-        const receiveData = CashuSwapReceiveDataSchema.parse(
-          decryptedTransactionDetails,
-        );
-        const receiveDetails: CashuTokenReceiveTransactionDetails = {
-          amountReceived: receiveData.amountReceived,
-          tokenAmount: receiveData.tokenAmount,
-          cashuReceiveFee: receiveData.cashuReceiveFee,
-          totalFees: receiveData.totalFees,
-        };
-
-        amount = receiveDetails.amountReceived;
-        // TODO: it should not be possible to assign to details anything other than CashuTokenReceiveTransactionDetails but currently it is. It is same for other cases here. Fix this.
-        details = receiveDetails;
+        return TransactionSchema.parse({
+          ...baseTransaction,
+          amount: details.mintingFee
+            ? details.amountReceived.add(details.mintingFee)
+            : details.amountReceived,
+          details,
+        });
       }
+
+      const receiveData = CashuSwapReceiveDataSchema.parse(
+        decryptedTransactionDetails,
+      );
+      const details: CashuTokenReceiveTransactionDetails = {
+        amountReceived: receiveData.amountReceived,
+        tokenAmount: receiveData.tokenAmount,
+        cashuReceiveFee: receiveData.cashuReceiveFee,
+        totalFees: receiveData.totalFees,
+      };
+
+      return TransactionSchema.parse({
+        ...baseTransaction,
+        amount: details.amountReceived,
+        details,
+      });
     }
 
     if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
@@ -318,7 +348,7 @@ export class TransactionRepository {
         );
 
       if (state === 'COMPLETED') {
-        const completedDetails =
+        const details =
           CompletedSparkLightningReceiveTransactionDetailsSchema.parse({
             amountReceived: receiveData.amountReceived,
             paymentRequest: receiveData.paymentRequest,
@@ -330,18 +360,24 @@ export class TransactionRepository {
             typeof CompletedSparkLightningReceiveTransactionDetailsSchema
           >);
 
-        amount = completedDetails.amountReceived;
-        details = completedDetails;
-      } else {
-        const incompleteDetails: SparkLightningReceiveTransactionDetails = {
-          amountReceived: receiveData.amountReceived,
-          paymentRequest: receiveData.paymentRequest,
-          description: receiveData.description,
-        };
-
-        amount = incompleteDetails.amountReceived;
-        details = incompleteDetails;
+        return TransactionSchema.parse({
+          ...baseTransaction,
+          amount: details.amountReceived,
+          details,
+        });
       }
+
+      const details: SparkLightningReceiveTransactionDetails = {
+        amountReceived: receiveData.amountReceived,
+        paymentRequest: receiveData.paymentRequest,
+        description: receiveData.description,
+      };
+
+      return TransactionSchema.parse({
+        ...baseTransaction,
+        amount: details.amountReceived,
+        details,
+      });
     }
 
     if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
@@ -354,7 +390,7 @@ export class TransactionRepository {
         );
 
       if (state === 'COMPLETED') {
-        const completedDetails =
+        const details =
           CompletedSparkLightningSendTransactionDetailsSchema.parse({
             amountToReceive: sendData.amountToReceive,
             estimatedFee: sendData.estimatedLightningFee,
@@ -369,44 +405,35 @@ export class TransactionRepository {
             typeof CompletedSparkLightningSendTransactionDetailsSchema
           >);
 
-        amount = completedDetails.amountSpent;
-        details = completedDetails;
-      } else {
-        const incompleteDetails: IncompleteSparkLightningSendTransactionDetails =
-          {
-            amountToReceive: sendData.amountToReceive,
-            estimatedFee: sendData.estimatedLightningFee,
-            paymentRequest: sendData.paymentRequest,
-            amountSpent: sendData.amountSpent,
-            sparkId: nonSensitiveSendData.sparkId,
-            sparkTransferId: nonSensitiveSendData.sparkTransferId,
-            fee: sendData.totalFees,
-          };
-
-        amount =
-          incompleteDetails.amountSpent ??
-          incompleteDetails.amountToReceive.add(incompleteDetails.estimatedFee);
-        details = incompleteDetails;
+        return TransactionSchema.parse({
+          ...baseTransaction,
+          amount: details.amountSpent,
+          details,
+        });
       }
+
+      const details: IncompleteSparkLightningSendTransactionDetails = {
+        amountToReceive: sendData.amountToReceive,
+        estimatedFee: sendData.estimatedLightningFee,
+        paymentRequest: sendData.paymentRequest,
+        amountSpent: sendData.amountSpent,
+        sparkId: nonSensitiveSendData.sparkId,
+        sparkTransferId: nonSensitiveSendData.sparkTransferId,
+        fee: sendData.totalFees,
+      };
+
+      return TransactionSchema.parse({
+        ...baseTransaction,
+        amount:
+          details.amountSpent ??
+          details.amountToReceive.add(details.estimatedFee),
+        details,
+      });
     }
 
-    return TransactionSchema.parse({
-      id: data.id,
-      userId: data.user_id,
-      accountId: data.account_id,
-      createdAt: data.created_at,
-      pendingAt: data.pending_at,
-      completedAt: data.completed_at,
-      failedAt: data.failed_at,
-      reversedTransactionId: data.reversed_transaction_id,
-      reversedAt: data.reversed_at,
-      acknowledgmentStatus: data.acknowledgment_status,
-      direction,
-      type,
-      state,
-      amount,
-      details,
-    });
+    throw new Error(
+      `Unhandled transaction type: ${type}, direction: ${direction}`,
+    );
   }
 }
 

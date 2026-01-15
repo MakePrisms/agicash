@@ -1,6 +1,6 @@
 import type { Proof } from '@cashu/cashu-ts';
 import { hashToCurve } from '@cashu/crypto/modules/common';
-import type { CashuProof } from '~/features/accounts/account';
+import type { CashuProof } from '~/features/accounts/cashu-account';
 import { parseSecret } from './secret';
 
 /** Sum the amounts from a list of proofs. */

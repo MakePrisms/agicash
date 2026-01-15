@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Money } from '~/lib/money';
-import { CashuTokenReceiveDataSchema } from './cashu-token-receive-data';
+import { CashuTokenMeltDataSchema } from './cashu-token-receive-data';
 
 const CashuReceiveQuoteBaseSchema = z.object({
   id: z.string(),
@@ -59,7 +59,7 @@ const CashuReceiveQuoteCashuTokenTypeSchema = z.object({
    */
   type: z.literal('CASHU_TOKEN'),
   /** Data related to cashu token receive. */
-  tokenReceiveData: CashuTokenReceiveDataSchema,
+  tokenReceiveData: CashuTokenMeltDataSchema,
 });
 
 const CashuReceiveQuoteUnpaidExpiredStateSchema = z.object({

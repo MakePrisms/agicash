@@ -4,7 +4,7 @@ import { proofToY } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
 import type { AllUnionFieldsRequired } from '~/lib/type-utils';
-import type { CashuProof } from '../accounts/account';
+import type { CashuProof } from '../accounts/cashu-account';
 import type {
   AgicashDb,
   AgicashDbCashuProof,

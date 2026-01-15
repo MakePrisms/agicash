@@ -20,7 +20,8 @@ import {
   sparkMnemonicQueryOptions,
   sparkWalletQueryOptions,
 } from '../shared/spark';
-import type { Account, CashuAccount, CashuProof } from './account';
+import type { Account, CashuAccount } from './account';
+import type { CashuProof } from './cashu-account';
 
 type AccountOmit<
   T extends Account,

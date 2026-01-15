@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Money } from '~/lib/money';
-import { CashuTokenReceiveDataSchema } from './cashu-token-receive-data';
+import { CashuTokenMeltDataSchema } from './cashu-token-receive-data';
 
 /**
  * Schema for the base Spark Lightning receive quote.
@@ -51,7 +51,7 @@ const SparkReceiveQuoteCashuTokenTypeSchema = z.object({
    */
   type: z.literal('CASHU_TOKEN'),
   /** Data related to cashu token receive. */
-  tokenReceiveData: CashuTokenReceiveDataSchema,
+  tokenReceiveData: CashuTokenMeltDataSchema,
 });
 
 const SparkReceiveQuoteUnpaidExpiredStateSchema = z.object({

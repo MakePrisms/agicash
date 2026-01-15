@@ -5,14 +5,15 @@ import type {
 } from 'supabase/database.types';
 import type { MergeDeep } from 'type-fest';
 import type { Currency, CurrencyUnit } from '~/lib/money';
-import type { AccountType, CashuProof } from '../accounts/account';
+import type { AccountType } from '../accounts/account';
+import type { CashuProof } from '../accounts/cashu-account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { CashuTokenSwap } from '../receive/cashu-token-swap';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 import type { CashuSendQuote } from '../send/cashu-send-quote';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
-import type { Transaction } from '../transactions/transaction';
 import type { SparkSendQuote } from '../send/spark-send-quote';
+import type { Transaction } from '../transactions/transaction';
 
 type UpsertUserWithAccountsResult = {
   user: AgicashDbUser;

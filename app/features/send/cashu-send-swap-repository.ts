@@ -1,10 +1,9 @@
 import type { Proof } from '@cashu/cashu-ts';
 import type { z } from 'zod';
 import { proofToY } from '~/lib/cashu';
-import {} from '~/lib/cashu/types';
 import type { Money } from '~/lib/money';
 import type { AllUnionFieldsRequired } from '~/lib/type-utils';
-import type { CashuProof } from '../accounts/account';
+import type { CashuProof } from '../accounts/cashu-account';
 import type {
   AgicashDb,
   AgicashDbCashuProof,

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Money } from '~/lib/money';
-import type { CashuProof } from '../accounts/account';
+import { CashuProofSchema } from '../accounts/cashu-account';
 import { DestinationDetailsSchema } from '../transactions/transaction';
 
 /**
@@ -70,7 +70,7 @@ const CashuSendQuoteBaseSchema = z.object({
    * Amounts are denominated in the cashu units (e.g. sats for BTC accounts, cents for USD accounts).
    * Sum of the proof amounts is equal or greater than the amount to send plus the fee reserve. Any overflow will be returned as change.
    */
-  proofs: z.custom<CashuProof[]>(),
+  proofs: z.array(CashuProofSchema),
   /**
    * The sum of all proofs used as inputs to the cashu melt operation.
    * These proofs are reserved until the send is completed or failed.

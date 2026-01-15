@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { SerializedDLEQSchema, WitnessSchema } from '~/lib/cashu/types';
-import type { CashuProof } from '../accounts/account';
+import type { CashuProof } from '../accounts/cashu-account';
 import type { AgicashDbCashuProof } from '../agicash-db/database';
 
 export function toDecryptedCashuProofs(

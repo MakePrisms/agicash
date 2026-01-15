@@ -4,9 +4,10 @@ import { Money } from '~/lib/money';
 
 /**
  * Schema for data related to cross-account cashu token receives.
- * Present only for TOKEN type quotes.
+ * Cross-account (to different cashu account or spark account) cashu token receives
+ * always require a melt operation where token proofs are melted to make a lightning payment.
  */
-export const CashuTokenReceiveDataSchema = z.object({
+export const CashuTokenMeltDataSchema = z.object({
   /** URL of the source mint where the token proofs originate from. */
   sourceMintUrl: z.string(),
   /** The amount of the token melted. */
@@ -19,8 +20,8 @@ export const CashuTokenReceiveDataSchema = z.object({
   meltInitiated: z.boolean(),
   /** The fee that is paid for spending the token proofs as inputs to the melt operation. */
   cashuReceiveFee: z.instanceof(Money),
-  /** The fee reserved for the lightning payment to melt the token proofs to this account. */
+  /** The fee reserved for the lightning payment to destination account. */
   lightningFeeReserve: z.instanceof(Money),
 });
 
-export type CashuTokenReceiveData = z.infer<typeof CashuTokenReceiveDataSchema>;
+export type CashuTokenMeltData = z.infer<typeof CashuTokenMeltDataSchema>;
