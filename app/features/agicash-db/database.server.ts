@@ -6,9 +6,9 @@ if (!supabaseUrl) {
   throw new Error('VITE_SUPABASE_URL is not set');
 }
 
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-if (!supabaseServiceRoleKey) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY ?? '';
+if (!supabaseSecretKey) {
+  throw new Error('SUPABASE_SECRET_KEY is not set');
 }
 
 /**
@@ -17,7 +17,7 @@ if (!supabaseServiceRoleKey) {
  */
 export const agicashDbServer = createClient<Database>(
   supabaseUrl,
-  supabaseServiceRoleKey,
+  supabaseSecretKey,
   {
     db: {
       schema: 'wallet',
