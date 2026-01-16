@@ -1,17 +1,23 @@
+import { X } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
 import {
-  ClosePageButton,
+  Link,
+  useLocation,
+  useNavigate,
+  useViewTransitionState,
+} from 'react-router';
+import {
   Page,
   PageContent,
   PageFooter,
   PageHeader,
+  PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { WalletCard, WalletCardBackground } from '~/components/wallet-card';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
 import { useToast } from '~/hooks/use-toast';
-import { LinkWithViewTransition } from '~/lib/transitions';
+import type { DiscoverCardsLocationState } from './discover-gift-cards';
 import type { GiftCardInfo } from './use-discover-cards';
 
 type AddGiftCardProps = {
@@ -26,7 +32,20 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   const [isAdding, setIsAdding] = useState(false);
   const addAccount = useAddCashuAccount();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+  const isTransitioning = useViewTransitionState('/gift-cards');
+
+  const locationState = location.state as
+    | DiscoverCardsLocationState
+    | undefined;
+
+  const handleBack = () => {
+    navigate('/gift-cards', {
+      viewTransition: true,
+      state: locationState,
+    });
+  };
 
   const handleAddCard = async () => {
     setIsAdding(true);
@@ -59,24 +78,27 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   return (
     <Page className="relative">
       <PageHeader className="z-10">
-        <ClosePageButton
-          to="/gift-cards"
-          transition="slideDown"
-          applyTo="oldView"
-        />
+        <PageHeaderItem position="left">
+          <button type="button" onClick={handleBack} aria-label="Close">
+            <X />
+          </button>
+        </PageHeaderItem>
       </PageHeader>
 
       <PageContent className="flex flex-col items-center justify-center">
-        <LinkWithViewTransition
+        <Link
           to="/gift-cards"
-          transition="slideDown"
-          applyTo="oldView"
+          viewTransition
+          state={locationState}
           className="flex max-w-sm items-center justify-center"
+          style={{
+            viewTransitionName: isTransitioning ? 'discover-card' : undefined,
+          }}
         >
           <WalletCard className="w-full max-w-none">
             <WalletCardBackground src={giftCard.image} alt={giftCard.name} />
           </WalletCard>
-        </LinkWithViewTransition>
+        </Link>
       </PageContent>
 
       <PageFooter className="z-10 pb-14">
