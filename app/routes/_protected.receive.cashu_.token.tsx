@@ -136,7 +136,8 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
         duration: 8000,
       });
     }
-    throw redirect('/');
+    const redirectTo = location.searchParams.get('redirectTo') ?? '/';
+    throw redirect(redirectTo);
   }
 
   return { token, selectedAccountId };

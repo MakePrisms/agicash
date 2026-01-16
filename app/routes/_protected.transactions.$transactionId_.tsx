@@ -1,4 +1,3 @@
-import { useSearchParams } from 'react-router';
 import {
   ClosePageButton,
   Page,
@@ -7,20 +6,20 @@ import {
 } from '~/components/page';
 import { TransactionDetails } from '~/features/transactions/transaction-details';
 import { useSuspenseTransaction } from '~/features/transactions/transaction-hooks';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import type { Route } from './+types/_protected.transactions.$transactionId_';
 
 export default function TransactionDetailsPage({
   params: { transactionId },
 }: Route.ComponentProps) {
   const { data: transaction } = useSuspenseTransaction(transactionId);
-  const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirectTo');
+  const { redirectTo } = useRedirectTo('/transactions');
 
   return (
     <Page>
       <PageHeader className="z-10">
         <ClosePageButton
-          to={redirectTo ?? '/transactions'}
+          to={redirectTo}
           transition="slideDown"
           applyTo="oldView"
         />
@@ -32,10 +31,7 @@ export default function TransactionDetailsPage({
               : 'Sent'}
         </PageHeaderTitle>
       </PageHeader>
-      <TransactionDetails
-        transaction={transaction}
-        defaultShowOkayButton={!!redirectTo}
-      />
+      <TransactionDetails transaction={transaction} redirectTo={redirectTo} />
     </Page>
   );
 }
