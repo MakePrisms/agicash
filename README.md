@@ -36,6 +36,11 @@ bun run supabase start
 bun run dev
 ```
 
+Note that when running locally the app is still using hosted Open Secret environment which is dedicated for the local development, while 
+our hosted envs have their own dedicated Open Secret environments. This means that even while working on your machine you still need 
+internet connection for identity/auth, key management, etc. Configurations for the local Open Secret environment can be seen in 
+[Agicash local](https://app.opensecret.cloud/orgs/a92d07fb-3837-42e0-9a83-f109c425391e/projects/77f98196-3e2f-43ad-83d1-decdac01b0fa) project.
+
 When testing the app on an actual mobile device, you need to connect to the same Wi-Fi as the machine hosting the app 
 and access it via local IP or hostname. Unlike localhost or 127.0.0.1, those are not considered a safe context by the
 browser, so the browser APIs that require a safe context won't work. To solve this issue, you need to run the app on HTTPS
@@ -100,6 +105,27 @@ in Vercel to override the default setting that points the preview deployment to 
 branch/environment is automatically deleted once the feature branch is merged.
 
 To release a new `alpha` version, make a pull request from `master` to the `alpha` branch.
+
+`alpha` environment has dedicated [Agicash Alpha](https://app.opensecret.cloud/orgs/a92d07fb-3837-42e0-9a83-f109c425391e/projects/ae22a864-b2f7-4e7e-bef0-2d194e0d20b6)
+Open Secret environment.
+`next` environment has dedicated [Agicash Next](https://app.opensecret.cloud/orgs/a92d07fb-3837-42e0-9a83-f109c425391e/projects/343cef25-2328-43b8-abc0-68a433bfc40e)
+Open Secret environment. 
+
+All preview deployments of the Agicash app are also using Agicash Next Open Secret environment. However, since Supabase envs for preview
+deployments are created on demand and currently there is no way to configure static JWT secret for them, if you want the preview deployment to work with Open Secret
+you need to copy the shared secret value used by Agicash Next Open Secret env and create the a new JWT signing key in the corresponding Supabase env. To do that:
+1. Find the current value of the secret used by Agicash Next Open Secret env (ask other devs to share it)
+2. Go to [Supabase dashboard](https://supabase.com/dashboard/) and in the JWT Keys section of the corresponding Supabase project settings create a new Standby Key. Pick `HS256 (Shared Secret)` signing algorithm, select to import existing secret and paste the secret there. Make sure not to select `Secret is already Base64 encoded`. Once the key is created, then rotate the keys to make the new one used by Supabase.
+
+### Configuring a new Open Secret environment
+
+If there is a new Agicash app environment that needs to have a dedicated Open Secret environment, create a new project in [Open Secret cloud dashboard](https://app.opensecret.cloud/orgs/a92d07fb-3837-42e0-9a83-f109c425391e/projects). Things that need to be configured are:
+1. Google OAuth settings - Open Secret needs Google Auth client id and secret. You can get those in the [Google Cloud Console](https://console.cloud.google.com/auth/clients) from the existing client or create a new one.
+2. Resend email settings - Open Secret uses [Resend](https://resend.com/) platform to send emails and needs the API key. You can create the API key [here](https://resend.com/api-keys). Additionally you need to configure the email to send from (e.g. noreply@agi.cash) and URL for email verification link (when user receives an email for email address
+verification, the email will contain this link).
+3. Third-Party JWT Secret - Open Secret creates JWTs that are then used by Supabase to authorize if the user should have access to the requested data. For this to work, Open Secret and Supabase need to share the secret that signed the JWT. To create a secret, go to [Supabase dashboard](https://supabase.com/dashboard/) and in the JWT Keys section of the corresponding Supabase project settings create a new Standby Key (pick `HS256 (Shared Secret)` signing algorithm) and then rotate the keys to make newly created one used by Supabase. Once that is done, paste the same secret into Open Secret dashboard.
+
+Lastly we need to point the Agicash app to the new Open Secret environment. To do that set `VITE_OPEN_SECRET_CLIENT_ID` env variable to the client ID of the created Open Secret project.
 
 ## Dependencies
 
