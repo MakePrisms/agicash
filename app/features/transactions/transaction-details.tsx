@@ -94,10 +94,10 @@ function getTransactionLabel(transaction: Transaction) {
 
 export function TransactionDetails({
   transaction,
-  defaultShowOkayButton = false,
+  redirectTo = '/',
 }: {
   transaction: Transaction;
-  defaultShowOkayButton?: boolean;
+  redirectTo?: string;
 }) {
   const account = useAccount(transaction.accountId);
   const { toast } = useToast();
@@ -132,7 +132,7 @@ export function TransactionDetails({
     isTransactionReversable(transaction) || isReclaimInProgress;
   const shouldShowOkButton =
     (didReclaimMutationSucceed && !isWaitingForStateUpdate) ||
-    (!shouldShowReclaimButton && defaultShowOkayButton);
+    !shouldShowReclaimButton;
 
   // Log transaction details with proper formatting for each type
   const { type, direction, state, details } = transaction;
@@ -387,7 +387,7 @@ export function TransactionDetails({
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to="/"
+              to={redirectTo}
               transition="slideDown"
               applyTo="oldView"
             >

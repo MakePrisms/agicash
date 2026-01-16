@@ -9,13 +9,13 @@ const transitions = [
   'slideDown',
   'fade',
 ] as const;
-type Transition = (typeof transitions)[number];
+export type Transition = (typeof transitions)[number];
 
 const isTransition = (value: unknown): value is Transition =>
   transitions.includes(value as Transition);
 
 const applyToTypes = ['newView', 'oldView', 'bothViews'] as const;
-type ApplyTo = (typeof applyToTypes)[number];
+export type ApplyTo = (typeof applyToTypes)[number];
 
 const isApplyTo = (value: unknown): value is ApplyTo =>
   applyToTypes.includes(value as ApplyTo);

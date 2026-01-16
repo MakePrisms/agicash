@@ -21,10 +21,7 @@ import { Button } from '~/components/ui/button';
 import { useToast } from '~/hooks/use-toast';
 import { useFeatureFlag } from '~/lib/feature-flags';
 import type { Currency } from '~/lib/money';
-import {
-  LinkWithViewTransition,
-  useNavigateWithViewTransition,
-} from '~/lib/transitions';
+import { LinkWithViewTransition } from '~/lib/transitions';
 import { AccountSelector } from '../accounts/account-selector';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
@@ -43,6 +40,7 @@ import {
   type ReceiveCashuTokenAccount,
   isClaimingToSameCashuAccount,
 } from './receive-cashu-token-models';
+import { useReceiveFlowStep } from './receive-flow';
 
 type Props = {
   token: Token;
@@ -102,7 +100,7 @@ export default function ReceiveToken({
   preferredReceiveAccountId,
 }: Props) {
   const { toast } = useToast();
-  const navigate = useNavigateWithViewTransition();
+  const { back, onSuccess } = useReceiveFlowStep('claimCashuToken');
   const { claimableToken, cannotClaimReason } =
     useCashuTokenWithClaimableProofs({ token });
   const {
@@ -157,10 +155,7 @@ export default function ReceiveToken({
       return result.lightningReceiveQuote.transactionId;
     },
     onSuccess: (transactionId) => {
-      navigate(`/transactions/${transactionId}?redirectTo=/`, {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
+      onSuccess(transactionId);
     },
     onError: (error) => {
       console.error('Error claiming token', { cause: error });
@@ -176,9 +171,9 @@ export default function ReceiveToken({
     <>
       <PageHeader className="z-10">
         <PageBackButton
-          to="/receive"
-          transition="slideRight"
-          applyTo="oldView"
+          to={back.to}
+          transition={back.transition}
+          applyTo={back.applyTo}
         />
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>

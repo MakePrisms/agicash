@@ -28,6 +28,7 @@ import {
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
 import { useAccount, useAccounts } from '../accounts/account-hooks';
+import { useReceiveFlowStep } from './receive-flow';
 import { useReceiveStore } from './receive-provider';
 
 type ConvertedMoneySwitcherProps = {
@@ -63,6 +64,7 @@ const ConvertedMoneySwitcher = ({
 export default function ReceiveInput() {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
+  const { close, next, actions } = useReceiveFlowStep('amountInput');
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
 
@@ -104,17 +106,14 @@ export default function ReceiveInput() {
       setReceiveAmount(convertedValue);
     }
 
-    if (receiveAccount.type === 'cashu') {
-      navigate('/receive/cashu', {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
-    } else {
-      navigate('/receive/spark', {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
-    }
+    const nextStep =
+      receiveAccount.type === 'cashu'
+        ? next.cashuLightningInvoice
+        : next.sparkLightningInvoice;
+    navigate(nextStep.to, {
+      transition: nextStep.transition,
+      applyTo: nextStep.applyTo,
+    });
   };
 
   const handlePaste = async () => {
@@ -139,11 +138,12 @@ export default function ReceiveInput() {
     // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
     // See https://github.com/remix-run/remix/discussions/10721
     window.history.replaceState(null, '', hash);
+    const tokenAction = actions.claimCashuToken(receiveAccountId);
     navigate(
-      `/receive/cashu/token?selectedAccountId=${receiveAccountId}${hash}`,
+      { ...tokenAction.to, hash },
       {
-        transition: 'slideLeft',
-        applyTo: 'newView',
+        transition: tokenAction.transition,
+        applyTo: tokenAction.applyTo,
       },
     );
   };
@@ -151,7 +151,11 @@ export default function ReceiveInput() {
   return (
     <>
       <PageHeader>
-        <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
+        <ClosePageButton
+          to={close.to}
+          transition={close.transition}
+          applyTo={close.applyTo}
+        />
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
 
@@ -197,9 +201,9 @@ export default function ReceiveInput() {
               </button>
 
               <LinkWithViewTransition
-                to="/receive/scan"
-                transition="slideUp"
-                applyTo="newView"
+                to={actions.scanToken.to}
+                transition={actions.scanToken.transition}
+                applyTo={actions.scanToken.applyTo}
               >
                 <Scan />
               </LinkWithViewTransition>
