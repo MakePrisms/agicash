@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import type * as React from 'react';
+import { Skeleton } from '~/components/ui/skeleton';
 import { cn } from '~/lib/utils';
 
 export const CARD_SIZES = {
@@ -22,6 +24,10 @@ export type WalletCardProps = {
 type WalletCardBackgroundProps = {
   src: string;
   alt?: string;
+  className?: string;
+};
+
+type WalletCardBlankProps = {
   className?: string;
 };
 
@@ -56,30 +62,8 @@ export function WalletCard({
 }
 
 /**
- * Background image for WalletCard. The image should have a fixed aspect ratio of {@link CARD_ASPECT_RATIO}.
- * The image will fill the card container.
- */
-export function WalletCardBackground({
-  src,
-  alt = '',
-  className,
-}: WalletCardBackgroundProps) {
-  return (
-    <img
-      src={src}
-      alt={alt}
-      className={cn('block h-full w-full object-cover', className)}
-    />
-  );
-}
-
-type WalletCardBlankProps = {
-  className?: string;
-};
-
-/**
  * A blank card background with the same aspect ratio and rounding as the card image.
- * Use this instead of WalletCardBackground when no image is needed.
+ * Use this instead of WalletCardBackgroundImage when no image is needed.
  */
 export function WalletCardBlank({ className }: WalletCardBlankProps) {
   return (
@@ -104,5 +88,36 @@ export function WalletCardOverlay({
     <div className={cn('absolute inset-0', className)} {...props}>
       {children}
     </div>
+  );
+}
+
+/**
+ * Lazy-loading background image for WalletCard.
+ * Shows a skeleton until the image loads.
+ */
+export function WalletCardBackgroundImage({
+  src,
+  alt = '',
+  className,
+}: WalletCardBackgroundProps) {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <>
+      {!loaded && <Skeleton className="h-full w-full rounded-[inherit]" />}
+      <WalletCardOverlay>
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          className={cn(
+            'h-full w-full object-cover transition-opacity duration-200',
+            loaded ? 'opacity-100' : 'opacity-0',
+            className,
+          )}
+        />
+      </WalletCardOverlay>
+    </>
   );
 }

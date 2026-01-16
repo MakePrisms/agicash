@@ -2,7 +2,7 @@ import { useViewTransitionState } from 'react-router';
 import { MoneyDisplay } from '~/components/money-display';
 import {
   WalletCard,
-  WalletCardBackground,
+  WalletCardBackgroundImage,
   WalletCardBlank,
   WalletCardOverlay,
   type WalletCardSize,
@@ -38,7 +38,7 @@ export function GiftCardItem({
   return (
     <WalletCard size={size} className={className}>
       {image ? (
-        <WalletCardBackground src={image} alt={name} />
+        <WalletCardBackgroundImage src={image} alt={name} />
       ) : (
         <WalletCardBlank />
       )}

@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import blockAndBeanCard from '~/assets/gift-cards/blockandbean.agi.cash.png';
-import compassCoffeeCard from '~/assets/gift-cards/compass.agi.cash.png';
-import fakeCard from '~/assets/gift-cards/fake.agi.cash.png';
-import fake4Card from '~/assets/gift-cards/fake4.agi.cash.png';
-import pinkOwlCoffeeCard from '~/assets/gift-cards/pinkowl.agi.cash.png';
-import theShackCard from '~/assets/gift-cards/shack.agi.cash.png';
+import blockAndBeanCard from '~/assets/gift-cards/blockandbean.agi.cash.webp';
+import compassCoffeeCard from '~/assets/gift-cards/compass.agi.cash.webp';
+import fakeCard from '~/assets/gift-cards/fake.agi.cash.webp';
+import fake4Card from '~/assets/gift-cards/fake4.agi.cash.webp';
+import pinkOwlCoffeeCard from '~/assets/gift-cards/pinkowl.agi.cash.webp';
+import theShackCard from '~/assets/gift-cards/shack.agi.cash.webp';
 import type { Currency } from '~/lib/money';
 import { useAccounts } from '../accounts/account-hooks';
 

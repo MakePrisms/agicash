@@ -8,7 +8,10 @@ import {
   PageHeader,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { WalletCard, WalletCardBackground } from '~/components/wallet-card';
+import {
+  WalletCard,
+  WalletCardBackgroundImage,
+} from '~/components/wallet-card';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
 import { useToast } from '~/hooks/use-toast';
 import { LinkWithViewTransition } from '~/lib/transitions';
@@ -71,10 +74,13 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
           to="/gift-cards"
           transition="slideDown"
           applyTo="oldView"
-          className="flex max-w-sm items-center justify-center"
+          className="flex w-full max-w-sm items-center justify-center"
         >
           <WalletCard className="w-full max-w-none">
-            <WalletCardBackground src={giftCard.image} alt={giftCard.name} />
+            <WalletCardBackgroundImage
+              src={giftCard.image}
+              alt={giftCard.name}
+            />
           </WalletCard>
         </LinkWithViewTransition>
       </PageContent>
