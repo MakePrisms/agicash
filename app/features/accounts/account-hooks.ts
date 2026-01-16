@@ -144,11 +144,19 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
   currency?: Currency;
   type?: T;
   isOnline?: boolean;
+  excludeClosedLoopAccounts?: boolean;
+  onlyIncludeClosedLoopAccounts?: boolean;
 }): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
 
-  const { currency, type, isOnline } = select ?? {};
+  const {
+    currency,
+    type,
+    isOnline,
+    excludeClosedLoopAccounts,
+    onlyIncludeClosedLoopAccounts,
+  } = select ?? {};
 
   return useSuspenseQuery({
     ...accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -158,8 +166,20 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
       (data: Account[]) => {
         const extendedData = AccountService.getExtendedAccounts(user, data);
 
-        if (!currency && !type && isOnline === undefined) {
-          return extendedData as ExtendedAccount<T>[];
+        if (
+          !currency &&
+          !type &&
+          isOnline === undefined &&
+          !excludeClosedLoopAccounts &&
+          !onlyIncludeClosedLoopAccounts
+        ) {
+          return extendedData
+            .slice()
+            .sort(
+              (a, b) =>
+                new Date(a.createdAt).getTime() -
+                new Date(b.createdAt).getTime(),
+            ) as ExtendedAccount<T>[];
         }
 
         const filteredData = extendedData.filter(
@@ -173,13 +193,33 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
             if (isOnline !== undefined && account.isOnline !== isOnline) {
               return false;
             }
+            if (account.type === 'cashu') {
+              if (excludeClosedLoopAccounts) {
+                return !account.wallet.isClosedLoop;
+              }
+              if (onlyIncludeClosedLoopAccounts) {
+                return account.wallet.isClosedLoop;
+              }
+            }
             return true;
           },
         );
 
-        return filteredData;
+        return filteredData
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          );
       },
-      [currency, type, isOnline, user],
+      [
+        currency,
+        type,
+        isOnline,
+        excludeClosedLoopAccounts,
+        onlyIncludeClosedLoopAccounts,
+        user,
+      ],
     ),
   });
 }
@@ -282,6 +322,20 @@ export function useDefaultAccount() {
 
   previousDefaultAccountIdRef.current = defaultAccount?.id;
   return defaultAccount;
+}
+
+/**
+ * Hook to get an account by ID or fall back to the default account.
+ * @param accountId - Optional account ID. If not provided or account not found, returns the default account.
+ * @returns The matching account or the default account.
+ */
+export function useAccountOrDefault(accountId: string | null) {
+  const { data: accounts } = useAccounts();
+  const defaultAccount = useDefaultAccount();
+
+  return accountId
+    ? (accounts.find((a) => a.id === accountId) ?? defaultAccount)
+    : defaultAccount;
 }
 
 export function useAddCashuAccount() {

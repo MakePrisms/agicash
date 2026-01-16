@@ -6,6 +6,8 @@ import {
 } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
 
+export type PageHeaderPosition = 'left' | 'center' | 'right';
+
 interface PageProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
@@ -24,95 +26,150 @@ export function Page({ children, className, ...props }: PageProps) {
   );
 }
 
-interface ClosePageButtonProps extends ViewTransitionLinkProps {}
-
-export function ClosePageButton({ className, ...props }: ClosePageButtonProps) {
-  return (
-    <LinkWithViewTransition {...props}>
-      <X />
-    </LinkWithViewTransition>
-  );
-}
-
-export interface PageBackButtonProps extends ViewTransitionLinkProps {}
-
-export function PageBackButton({ className, ...props }: PageBackButtonProps) {
-  return (
-    <LinkWithViewTransition {...props}>
-      <ChevronLeft />
-    </LinkWithViewTransition>
-  );
-}
-
-interface PageHeaderTitleProps extends React.HTMLAttributes<HTMLDivElement> {
+type PageHeaderItemProps = React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
-}
+  position: PageHeaderPosition;
+};
 
+export function PageHeaderItem({
+  children,
+  position,
+  className,
+  ...props
+}: PageHeaderItemProps) {
+  return (
+    <div className={className} {...props}>
+      {children}
+    </div>
+  );
+}
+PageHeaderItem.isHeaderItem = true;
+PageHeaderItem.defaultPosition = undefined as PageHeaderPosition | undefined;
+
+type ClosePageButtonProps = ViewTransitionLinkProps & {
+  position?: PageHeaderPosition;
+};
+
+/**
+ * @default position - 'left'
+ */
+export function ClosePageButton({
+  className,
+  position = 'left',
+  ...props
+}: ClosePageButtonProps) {
+  return (
+    <PageHeaderItem position={position}>
+      <LinkWithViewTransition {...props}>
+        <X />
+      </LinkWithViewTransition>
+    </PageHeaderItem>
+  );
+}
+ClosePageButton.isHeaderItem = true;
+ClosePageButton.defaultPosition = 'left' as PageHeaderPosition;
+
+export type PageBackButtonProps = ViewTransitionLinkProps & {
+  position?: PageHeaderPosition;
+};
+
+/**
+ * @default position - 'left'
+ */
+export function PageBackButton({
+  className,
+  position = 'left',
+  ...props
+}: PageBackButtonProps) {
+  return (
+    <PageHeaderItem position={position}>
+      <LinkWithViewTransition {...props}>
+        <ChevronLeft />
+      </LinkWithViewTransition>
+    </PageHeaderItem>
+  );
+}
+PageBackButton.isHeaderItem = true;
+PageBackButton.defaultPosition = 'left' as PageHeaderPosition;
+
+type PageHeaderTitleProps = React.HTMLAttributes<HTMLHeadingElement> & {
+  children: React.ReactNode;
+  position?: PageHeaderPosition;
+};
+
+/**
+ * @default position - 'center'
+ */
 export function PageHeaderTitle({
   children,
   className,
+  position = 'center',
   ...props
 }: PageHeaderTitleProps) {
   return (
-    <h1
-      className={cn('flex items-center justify-start text-xl', className)}
-      {...props}
-    >
-      {children}
-    </h1>
+    <PageHeaderItem position={position}>
+      <h1
+        className={cn('flex items-center justify-start text-xl', className)}
+        {...props}
+      >
+        {children}
+      </h1>
+    </PageHeaderItem>
   );
 }
+PageHeaderTitle.isHeaderItem = true;
+PageHeaderTitle.defaultPosition = 'center' as PageHeaderPosition;
 
-interface PageHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+type PageHeaderProps = React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
-}
+};
+
+const isPageHeaderItem = (
+  child: React.ReactNode,
+): child is React.ReactElement<{ position?: PageHeaderPosition }> => {
+  return (
+    React.isValidElement(child) &&
+    typeof child.type !== 'string' &&
+    'isHeaderItem' in child.type &&
+    (child.type as { isHeaderItem?: boolean }).isHeaderItem === true
+  );
+};
 
 export function PageHeader({ children, className, ...props }: PageHeaderProps) {
-  const hasCloseButton = React.Children.toArray(children).some(
-    (child) => React.isValidElement(child) && child.type === ClosePageButton,
-  );
-  const hasBackButton = React.Children.toArray(children).some(
-    (child) => React.isValidElement(child) && child.type === PageBackButton,
-  );
+  const childrenArray = React.Children.toArray(children);
 
-  if (hasCloseButton && hasBackButton) {
+  if (childrenArray.length === 0 || !childrenArray.every(isPageHeaderItem)) {
     throw new Error(
-      'PageHeader cannot have both ClosePageButton and BackButton',
+      'PageHeader children must be a component that is marked with isHeaderItem = true',
     );
   }
+
+  const getChildrenByPosition = (pos: PageHeaderPosition) => {
+    return childrenArray.filter((child) => {
+      if (!React.isValidElement(child)) return false;
+      const props = child.props as { position?: PageHeaderPosition };
+      const componentType = child.type as {
+        defaultPosition?: PageHeaderPosition;
+      };
+      const position = props.position ?? componentType.defaultPosition;
+      return position === pos;
+    });
+  };
+
+  const leftItems = getChildrenByPosition('left');
+  const centerItems = getChildrenByPosition('center');
+  const rightItems = getChildrenByPosition('right');
 
   return (
     <header
       className={cn('mb-4 flex w-full items-center justify-between', className)}
       {...props}
     >
-      {/* Close/back button - always on the left */}
-      <div>
-        {React.Children.toArray(children).find(
-          (child) =>
-            React.isValidElement(child) &&
-            (child.type === ClosePageButton || child.type === PageBackButton),
-        )}
-      </div>
-
-      {/* Title - always in the center */}
+      <div className="flex items-center">{leftItems}</div>
       <div className="-translate-x-1/2 absolute left-1/2 transform">
-        {React.Children.toArray(children).find(
-          (child) =>
-            React.isValidElement(child) && child.type === PageHeaderTitle,
-        )}
+        {centerItems}
       </div>
-
-      {/* Other elements - on the right */}
-      <div className="flex items-center justify-end gap-2">
-        {React.Children.toArray(children).filter(
-          (child) =>
-            !React.isValidElement(child) ||
-            (child.type !== PageHeaderTitle &&
-              child.type !== ClosePageButton &&
-              child.type !== PageBackButton),
-        )}
-      </div>
+      <div className="flex items-center justify-end gap-2">{rightItems}</div>
     </header>
   );
 }

@@ -8,6 +8,7 @@ import {
   PageContent,
   PageFooter,
   PageHeader,
+  PageHeaderItem,
   PageHeaderTitle,
 } from '~/components/page';
 import { QRCode } from '~/components/qr-code';
@@ -47,16 +48,18 @@ export function ShareCashuToken({ token }: Props) {
         <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Send</PageHeaderTitle>
         {canShare() && (
-          <button
-            type="button"
-            onClick={() => {
-              shareContent({
-                url: shareableLink,
-              });
-            }}
-          >
-            <Share />
-          </button>
+          <PageHeaderItem position="right">
+            <button
+              type="button"
+              onClick={() => {
+                shareContent({
+                  url: shareableLink,
+                });
+              }}
+            >
+              <Share />
+            </button>
+          </PageHeaderItem>
         )}
       </PageHeader>
       <PageContent className="animate-in items-center gap-0 overflow-x-hidden overflow-y-hidden duration-300">

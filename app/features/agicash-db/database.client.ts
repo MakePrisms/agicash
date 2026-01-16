@@ -26,18 +26,19 @@ const getSupabaseUrl = () => {
 
 const supabaseUrl = getSupabaseUrl();
 
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-if (!supabaseAnonKey) {
-  throw new Error('VITE_SUPABASE_ANON_KEY is not set');
+const supabasePublishableKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '';
+if (!supabasePublishableKey) {
+  throw new Error('VITE_SUPABASE_PUBLISHABLE_KEY is not set');
 }
 
 /**
  * The client-side Supabase database client.
- * Cannot be used on the server. Use `agicashDbServer` instead.
+ * If you need to use a client on the server, which bypasses RLS, use `agicashDbServer` instead.
  */
 export const agicashDbClient = createClient<Database>(
   supabaseUrl,
-  supabaseAnonKey,
+  supabasePublishableKey,
   {
     accessToken: getSupabaseSessionToken,
     db: {

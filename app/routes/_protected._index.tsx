@@ -1,7 +1,12 @@
-import { Clock, UserCircle2 } from 'lucide-react';
+import { Clock, GiftIcon, UserCircle2 } from 'lucide-react';
 import type { LinksFunction } from 'react-router';
 import agicashIcon192 from '~/assets/icon-192x192.png';
-import { Page, PageContent, PageHeader } from '~/components/page';
+import {
+  Page,
+  PageContent,
+  PageHeader,
+  PageHeaderItem,
+} from '~/components/page';
 import { Button } from '~/components/ui/button';
 import {
   useBalance,
@@ -29,8 +34,18 @@ export default function Index() {
 
   return (
     <Page>
-      <PageHeader className="z-10 flex w-full items-center justify-end gap-4 pr-4">
-        <div className="flex items-center gap-6">
+      <PageHeader className="absolute inset-x-0 top-0 z-20 mb-0 px-4 pt-4 pb-4">
+        <PageHeaderItem position="left">
+          <LinkWithViewTransition
+            to="/gift-cards"
+            transition="slideRight"
+            applyTo="newView"
+          >
+            <GiftIcon className="text-muted-foreground" />
+          </LinkWithViewTransition>
+        </PageHeaderItem>
+
+        <PageHeaderItem position="right" className="flex gap-6">
           <LinkWithViewTransition
             to="/transactions"
             transition="slideLeft"
@@ -49,7 +64,7 @@ export default function Index() {
           >
             <UserCircle2 className="text-muted-foreground" />
           </LinkWithViewTransition>
-        </div>
+        </PageHeaderItem>
       </PageHeader>
 
       <PageContent className="absolute inset-0 mx-auto flex flex-col items-center justify-center gap-32">
@@ -65,7 +80,7 @@ export default function Index() {
           <div />
         )}
 
-        <div className="grid grid-cols-2 gap-10">
+        <div className="grid w-72 grid-cols-2 gap-10">
           <LinkWithViewTransition
             to="/receive"
             transition="slideUp"
