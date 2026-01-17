@@ -1,16 +1,15 @@
----
-name: lnurl-test
-description: Test the Lightning Address (LNURL) server endpoints against localhost:3000. Use when testing LUD-16, LUD-06, and LUD-21 endpoints for invoice creation and payment verification.
----
-
-# LNURL Server Test Skill
+# LNURL Server Test
 
 Test the Lightning Address (LNURL) server functionality by validating LUD-16, LUD-06, and LUD-21 endpoints.
+
+## Arguments
+
+- `$ARGUMENTS` - Optional username to test. If not provided, ask the user for their username.
 
 ## Test Workflow
 
 ### Step 1: Get Username
-If no username was provided when invoking this skill, ask the user for their username.
+If no username was provided when invoking this command, ask the user for their username.
 
 ### Step 2: Test with Current Default Account
 
@@ -61,9 +60,9 @@ After completing the test with one account type:
 
 Use this format:
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LNURL SERVER TEST RESULTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Username: {username}
 Lightning Address: {username}@localhost:3000
@@ -79,7 +78,7 @@ TEST: SPARK Account
   LUD-06 (Invoice Creation): ✓ PASS / ✗ FAIL
   LUD-21 (Payment Verify):   ✓ PASS / ✗ FAIL
     - settled: false (expected - no actual payment)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ## Expected Response Schemas

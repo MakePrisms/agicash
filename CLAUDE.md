@@ -117,5 +117,10 @@ Use these for specialized guidance:
 - `/react-router-v7-expert` - Routes, loaders, layouts, middleware
 - `/design-motion-principles` - Animation and motion design
 - `/tailwind-design-system` - Component styling patterns
+
+## Commands
+
+Utility commands for development:
 - `/lnurl-test` - Test Lightning Address server endpoints (LUD-16, LUD-06, LUD-21)
 - `/update-context` - Analyze and update this CLAUDE.md file
+- `/add-skill` - Install a Claude Code skill from MCPMarket or GitHub
