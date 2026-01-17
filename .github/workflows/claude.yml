@@ -1,0 +1,66 @@
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+      actions: read         # Required for Claude to read CI results on PRs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          additional_permissions: |
+            actions: read
+
+          prompt: |
+            Read CLAUDE.md first for project-specific coding standards and patterns.
+
+            **Available Commands:**
+            - `bun run dev` - Start the dev server (http://127.0.0.1:3000)
+            - `bun run fix:all` - Run linting, formatting, and type checking
+            - `bun test` - Run unit tests
+            - `bun supabase db start` - Start local Supabase database
+            - `bun supabase gen types typescript --local --schema wallet > supabase/database.types.ts` - Regenerate DB types
+
+            **When to use the dev environment:**
+            - Only start the dev server or database if needed to investigate the issue
+            - Always run `bun run fix:all` before suggesting code changes to verify they pass checks
+            - Run tests if the changes affect tested code paths
+
+            **Instructions:**
+            Follow the instructions in the comment that tagged you. Use the dev environment tools as needed to provide accurate analysis and suggestions.
