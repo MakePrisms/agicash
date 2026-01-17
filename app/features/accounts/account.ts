@@ -2,40 +2,11 @@ import type {
   NetworkType as SparkNetwork,
   SparkWallet,
 } from '@buildonspark/spark-sdk';
-import type { Proof } from '@cashu/cashu-ts';
 import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
+import type { CashuProof } from './cashu-account';
 
 export type AccountType = 'cashu' | 'spark';
-
-export type CashuProof = {
-  id: string;
-  accountId: string;
-  userId: string;
-  keysetId: string;
-  amount: number;
-  secret: string;
-  unblindedSignature: string;
-  publicKeyY: string;
-  dleq: Proof['dleq'];
-  witness: Proof['witness'];
-  state: 'UNSPENT' | 'RESERVED' | 'SPENT';
-  version: number;
-  createdAt: string;
-  reservedAt?: string | null;
-  spentAt?: string | null;
-};
-
-export const toProof = (proof: CashuProof): Proof => {
-  return {
-    id: proof.keysetId,
-    amount: proof.amount,
-    secret: proof.secret,
-    C: proof.unblindedSignature,
-    dleq: proof.dleq,
-    witness: proof.witness,
-  };
-};
 
 export type Account = {
   id: string;

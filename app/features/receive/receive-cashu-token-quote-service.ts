@@ -143,13 +143,13 @@ export class ReceiveCashuTokenQuoteService {
           account: destinationAccount,
           receiveType: 'CASHU_TOKEN',
           lightningQuote: quotes.lightningQuote as CashuReceiveLightningQuote,
-          cashuReceiveFee,
           tokenAmount,
-          lightningFeeReserve,
           sourceMintUrl: sourceAccount.mintUrl,
           tokenProofs: token.proofs,
           meltQuoteId: quotes.meltQuote.quote,
           meltQuoteExpiresAt,
+          cashuReceiveFee,
+          lightningFeeReserve,
         });
 
       return {
@@ -173,10 +173,13 @@ export class ReceiveCashuTokenQuoteService {
         account: destinationAccount,
         type: 'CASHU_TOKEN',
         lightningQuote: quotes.lightningQuote as SparkReceiveLightningQuote,
+        tokenAmount,
         sourceMintUrl: sourceAccount.mintUrl,
         tokenProofs: token.proofs,
         meltQuoteId: quotes.meltQuote.quote,
         meltQuoteExpiresAt,
+        cashuReceiveFee,
+        lightningFeeReserve,
       });
 
     return {

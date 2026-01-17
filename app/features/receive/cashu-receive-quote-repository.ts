@@ -1,8 +1,9 @@
 import type { Proof } from '@cashu/cashu-ts';
-import type { Json } from 'supabase/database.types';
+import type { z } from 'zod';
 import { proofToY } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type { CashuAccount } from '../accounts/account';
 import {
   type AccountRepository,
@@ -14,32 +15,18 @@ import type {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { type Encryption, useEncryption } from '../shared/encryption';
-import type {
-  CashuLightningReceiveTransactionDetails,
-  CashuTokenReceiveTransactionDetails,
-} from '../transactions/transaction';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
+import {
+  type CashuLightningReceiveData,
+  CashuLightningReceiveDataSchema,
+} from '../transactions/cashu-lightning-receive-data';
+import type {} from '../transactions/transaction';
+import {
+  type CashuReceiveQuote,
+  CashuReceiveQuoteSchema,
+} from './cashu-receive-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type EncryptedData = {
-  amount: Money;
-  quoteId: string;
-  paymentRequest: string;
-  description?: string;
-  mintingFee?: Money;
-  outputAmounts?: number[];
-  /**
-   * Data related to cross-account cashu token receives.
-   * Present only for CASHU_TOKEN type quotes.
-   */
-  tokenReceiveData?: {
-    sourceMintUrl: string;
-    tokenProofs: Proof[];
-    meltQuoteId: string;
-  };
 };
 
 type CreateQuote = {
@@ -101,14 +88,6 @@ type CreateQuote = {
        */
       tokenAmount: Money;
       /**
-       * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
-       */
-      cashuReceiveFee: Money;
-      /**
-       * The fee reserved for the lightning payment to melt the token proofs to this account.
-       */
-      lightningFeeReserve: Money;
-      /**
        * URL of the source mint where the token proofs originate from.
        */
       sourceMintUrl: string;
@@ -120,6 +99,14 @@ type CreateQuote = {
        * ID of the melt quote on the source mint.
        */
       meltQuoteId: string;
+      /**
+       * The fee (in the unit of the token) that will be incurred for spending the proofs as inputs to the melt operation.
+       */
+      cashuReceiveFee: Money;
+      /**
+       * The fee reserved for the lightning payment to melt the token proofs to this account.
+       */
+      lightningFeeReserve: Money;
     }
 );
 
@@ -152,55 +139,35 @@ export class CashuReceiveQuoteRepository {
       mintingFee,
     } = params;
 
-    let details:
-      | CashuLightningReceiveTransactionDetails
-      | CashuTokenReceiveTransactionDetails;
-
-    if (receiveType === 'CASHU_TOKEN') {
-      const { cashuReceiveFee, tokenAmount, lightningFeeReserve } = params;
-
-      const totalFees = mintingFee
-        ? cashuReceiveFee.add(lightningFeeReserve).add(mintingFee)
-        : cashuReceiveFee.add(lightningFeeReserve);
-
-      details = {
-        amountReceived: amount,
-        tokenAmount,
-        cashuReceiveFee,
-        lightningFeeReserve,
-        mintingFee,
-        totalFees,
-      } satisfies CashuTokenReceiveTransactionDetails;
-    } else {
-      details = {
-        amountReceived: amount,
-        paymentRequest,
-        description,
-        mintingFee,
-      } satisfies CashuLightningReceiveTransactionDetails;
-    }
-
-    const dataToEncrypt: EncryptedData = {
-      amount,
-      quoteId,
+    const receiveData: CashuLightningReceiveData = {
       paymentRequest,
+      mintQuoteId: quoteId,
+      amountReceived: amount,
       description,
       mintingFee,
+      totalFees: mintingFee ?? Money.zero(amount.currency),
     };
 
     if (receiveType === 'CASHU_TOKEN') {
-      dataToEncrypt.tokenReceiveData = {
-        sourceMintUrl: params.sourceMintUrl,
+      const { cashuReceiveFee, lightningFeeReserve } = params;
+
+      receiveData.cashuTokenData = {
+        tokenAmount: params.tokenAmount,
         tokenProofs: params.tokenProofs,
+        tokenMintUrl: params.sourceMintUrl,
         meltQuoteId: params.meltQuoteId,
+        cashuReceiveFee,
+        lightningFeeReserve,
       };
+      receiveData.totalFees = receiveData.totalFees
+        .add(cashuReceiveFee)
+        .add(lightningFeeReserve);
     }
 
-    const [[encryptedTransactionDetails, encryptedData], quoteIdHash] =
-      await Promise.all([
-        this.encryption.encryptBatch([details, dataToEncrypt]),
-        computeSHA256(quoteId),
-      ]);
+    const [encryptedReceiveData, quoteIdHash] = await Promise.all([
+      this.encryption.encrypt(receiveData),
+      computeSHA256(quoteId),
+    ]);
 
     const query = this.db.rpc('create_cashu_receive_quote', {
       p_user_id: userId,
@@ -209,8 +176,7 @@ export class CashuReceiveQuoteRepository {
       p_expires_at: expiresAt,
       p_locking_derivation_path: lockingDerivationPath,
       p_receive_type: receiveType,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
-      p_encrypted_data: encryptedData,
+      p_encrypted_data: encryptedReceiveData,
       p_quote_id_hash: quoteIdHash,
       p_payment_hash: paymentHash,
     });
@@ -356,24 +322,33 @@ export class CashuReceiveQuoteRepository {
      */
     account: CashuAccount;
   }> {
-    const dataToEncrypt: EncryptedData = {
-      amount: quote.amount,
-      quoteId: quote.quoteId,
+    const receiveData: CashuLightningReceiveData = {
       paymentRequest: quote.paymentRequest,
+      mintQuoteId: quote.quoteId,
+      amountReceived: quote.amount,
       description: quote.description,
       mintingFee: quote.mintingFee,
+      totalFees: quote.mintingFee ?? Money.zero(quote.amount.currency),
       outputAmounts,
     };
 
     if (quote.type === 'CASHU_TOKEN') {
-      dataToEncrypt.tokenReceiveData = {
-        sourceMintUrl: quote.tokenReceiveData.sourceMintUrl,
-        tokenProofs: quote.tokenReceiveData.tokenProofs,
+      const { cashuReceiveFee, lightningFeeReserve } = quote.tokenReceiveData;
+
+      receiveData.cashuTokenData = {
+        tokenMintUrl: quote.tokenReceiveData.sourceMintUrl,
         meltQuoteId: quote.tokenReceiveData.meltQuoteId,
+        tokenAmount: quote.tokenReceiveData.tokenAmount,
+        tokenProofs: quote.tokenReceiveData.tokenProofs,
+        cashuReceiveFee,
+        lightningFeeReserve,
       };
+      receiveData.totalFees = receiveData.totalFees
+        .add(cashuReceiveFee)
+        .add(lightningFeeReserve);
     }
 
-    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
+    const encryptedData = await this.encryption.encrypt(receiveData);
 
     const query = this.db.rpc('process_cashu_receive_quote_payment', {
       p_quote_id: quote.id,
@@ -448,8 +423,8 @@ export class CashuReceiveQuoteRepository {
         secret: encryptedData[encryptedDataIndex + 1],
         unblindedSignature: x.C,
         publicKeyY: proofToY(x),
-        dleq: x.dleq as Json,
-        witness: x.witness as Json,
+        dleq: x.dleq ?? null,
+        witness: x.witness ?? null,
       };
     });
 
@@ -556,84 +531,47 @@ export class CashuReceiveQuoteRepository {
   }
 
   async toQuote(data: AgicashDbCashuReceiveQuote): Promise<CashuReceiveQuote> {
-    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
-    );
+    const decryptedData = await this.encryption.decrypt(data.encrypted_data);
+    const receiveData = CashuLightningReceiveDataSchema.parse(decryptedData);
 
-    const baseData = {
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing cashu receive quote invariant check at runtime. For example it makes sure that tokenReceiveData is present when type is CASHU_TOKEN, etc.
+    return CashuReceiveQuoteSchema.parse({
       id: data.id,
       userId: data.user_id,
       accountId: data.account_id,
-      quoteId: decryptedData.quoteId,
-      amount: decryptedData.amount,
-      description: decryptedData.description,
+      quoteId: receiveData.mintQuoteId,
+      amount: receiveData.amountReceived,
+      description: receiveData.description,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      paymentRequest: decryptedData.paymentRequest,
+      paymentRequest: receiveData.paymentRequest,
       paymentHash: data.payment_hash,
       version: data.version,
       lockingDerivationPath: data.locking_derivation_path,
       transactionId: data.transaction_id,
-      mintingFee: decryptedData.mintingFee,
-    };
-
-    if (data.type === 'CASHU_TOKEN' && !decryptedData.tokenReceiveData) {
-      throw new Error(
-        'Invalid cashu receive quote data. Token receive data is required for CASHU_TOKEN type quotes.',
-      );
-    }
-
-    if (
-      data.type === 'CASHU_TOKEN' &&
-      data.cashu_token_melt_initiated == null
-    ) {
-      throw new Error(
-        'Invalid cashu receive quote data. cashu_token_melt_initiated cannot be null for CASHU_TOKEN type quotes.',
-      );
-    }
-
-    const typeData =
-      data.type === 'CASHU_TOKEN' && decryptedData.tokenReceiveData
-        ? ({
-            type: 'CASHU_TOKEN',
-            tokenReceiveData: {
-              sourceMintUrl: decryptedData.tokenReceiveData.sourceMintUrl,
-              tokenProofs: decryptedData.tokenReceiveData.tokenProofs,
-              meltQuoteId: decryptedData.tokenReceiveData.meltQuoteId,
-              meltInitiated: data.cashu_token_melt_initiated ?? false,
-            },
-          } as const)
-        : ({ type: 'LIGHTNING' } as const);
-
-    if (data.state === 'PAID' || data.state === 'COMPLETED') {
-      return {
-        ...baseData,
-        ...typeData,
-        state: data.state,
-        keysetId: data.keyset_id ?? '',
-        keysetCounter: data.keyset_counter ?? 0,
-        outputAmounts: decryptedData.outputAmounts ?? [],
-      };
-    }
-
-    if (data.state === 'UNPAID' || data.state === 'EXPIRED') {
-      return {
-        ...baseData,
-        ...typeData,
-        state: data.state,
-      };
-    }
-
-    if (data.state === 'FAILED') {
-      return {
-        ...baseData,
-        ...typeData,
-        state: data.state,
-        failureReason: data.failure_reason ?? '',
-      };
-    }
-
-    throw new Error(`Unexpected quote state ${data.state}`);
+      mintingFee: receiveData.mintingFee,
+      type: data.type,
+      state: data.state,
+      tokenReceiveData: receiveData.cashuTokenData
+        ? {
+            sourceMintUrl: receiveData.cashuTokenData.tokenMintUrl,
+            tokenAmount: receiveData.cashuTokenData.tokenAmount,
+            tokenProofs: receiveData.cashuTokenData.tokenProofs,
+            meltQuoteId: receiveData.cashuTokenData.meltQuoteId,
+            // zod parse will do a runtime check that will make sure that cashu_token_melt_initiated is not null when type is CASHU_TOKEN
+            meltInitiated: data.cashu_token_melt_initiated as boolean,
+            cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
+            lightningFeeReserve: receiveData.cashuTokenData.lightningFeeReserve,
+          }
+        : undefined,
+      keysetId: data.keyset_id,
+      keysetCounter: data.keyset_counter,
+      outputAmounts: receiveData.outputAmounts,
+      failureReason: data.failure_reason,
+    } satisfies AllUnionFieldsRequired<
+      z.input<typeof CashuReceiveQuoteSchema>
+    >);
   }
 }
 

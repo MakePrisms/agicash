@@ -1,7 +1,7 @@
 import type { Proof, ProofState } from '@cashu/cashu-ts';
 import { getCashuWallet } from '~/lib/cashu';
 import { isSubset } from '~/lib/utils';
-import { toProof } from '../accounts/account';
+import { toProof } from '../accounts/cashu-account';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 
 type Subscription = {

@@ -8,11 +8,8 @@ import type { Big } from 'big.js';
 import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
 import { getCashuUnit, sumProofs } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
-import {
-  type CashuAccount,
-  type CashuProof,
-  toProof,
-} from '../accounts/account';
+import type { CashuAccount } from '../accounts/account';
+import { type CashuProof, toProof } from '../accounts/cashu-account';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
 import type { DestinationDetails } from '../transactions/transaction';

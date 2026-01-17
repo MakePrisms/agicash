@@ -1,34 +1,24 @@
 import type { Proof } from '@cashu/cashu-ts';
-import type { Money } from '~/lib/money';
+import type { z } from 'zod';
+import { Money } from '~/lib/money';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type {
   AgicashDb,
   AgicashDbSparkReceiveQuote,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { type Encryption, useEncryption } from '../shared/encryption';
-import type {
-  CompletedSparkLightningReceiveTransactionDetails,
-  SparkLightningReceiveTransactionDetails,
-} from '../transactions/transaction';
-import type { SparkReceiveQuote } from './spark-receive-quote';
+import {
+  type SparkLightningReceiveData,
+  SparkLightningReceiveDataSchema,
+} from '../transactions/spark-lightning-receive-data';
+import {
+  type SparkReceiveQuote,
+  SparkReceiveQuoteSchema,
+} from './spark-receive-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type EncryptedData = {
-  amount: Money;
-  paymentRequest: string;
-  paymentPreimage?: string;
-  /**
-   * Data related to cross-account cashu token receives.
-   * Present only for CASHU_TOKEN type quotes.
-   */
-  tokenReceiveData?: {
-    sourceMintUrl: string;
-    tokenProofs: Proof[];
-    meltQuoteId: string;
-  };
 };
 
 type CreateQuoteParams = {
@@ -57,6 +47,10 @@ type CreateQuoteParams = {
    */
   expiresAt: string;
   /**
+   * Description of the quote.
+   */
+  description?: string;
+  /**
    * ID of the receive request in the Spark system.
    */
   sparkId: string;
@@ -78,6 +72,18 @@ type CreateQuoteParams = {
        * CASHU_TOKEN - Receive cashu tokens to a Spark account.
        */
       type: 'CASHU_TOKEN';
+      /**
+       * The amount of the token to receive.
+       */
+      tokenAmount: Money;
+      /**
+       * The fee that is paid for spending the token proofs as inputs to the melt operation.
+       */
+      cashuReceiveFee: Money;
+      /**
+       * The fee reserved for the lightning payment to melt the token proofs to this account.
+       */
+      lightningFeeReserve: Money;
       /**
        * URL of the source mint where the token proofs originate from.
        */
@@ -117,29 +123,31 @@ export class SparkReceiveQuoteRepository {
       sparkId,
       receiverIdentityPubkey,
       type,
+      description,
     } = params;
 
-    const details: SparkLightningReceiveTransactionDetails = {
+    const receiveData: SparkLightningReceiveData = {
+      paymentRequest,
       amountReceived: amount,
-      paymentRequest,
+      description,
+      totalFees: Money.zero(amount.currency),
     };
 
-    const dataToEncrypt: EncryptedData = {
-      amount,
-      paymentRequest,
-    };
-
-    // Add token receive data for CASHU_TOKEN type
     if (type === 'CASHU_TOKEN') {
-      dataToEncrypt.tokenReceiveData = {
-        sourceMintUrl: params.sourceMintUrl,
+      const { cashuReceiveFee, lightningFeeReserve } = params;
+
+      receiveData.cashuTokenData = {
+        tokenAmount: params.tokenAmount,
         tokenProofs: params.tokenProofs,
+        tokenMintUrl: params.sourceMintUrl,
         meltQuoteId: params.meltQuoteId,
+        cashuReceiveFee,
+        lightningFeeReserve,
       };
+      receiveData.totalFees = cashuReceiveFee.add(lightningFeeReserve);
     }
 
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([details, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(receiveData);
 
     const query = this.db.rpc('create_spark_receive_quote', {
       p_user_id: userId,
@@ -149,7 +157,6 @@ export class SparkReceiveQuoteRepository {
       p_expires_at: expiresAt,
       p_spark_id: sparkId,
       p_receiver_identity_pubkey: receiverIdentityPubkey ?? null,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
       p_receive_type: type,
       p_encrypted_data: encryptedData,
     });
@@ -192,37 +199,35 @@ export class SparkReceiveQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkReceiveQuote> {
-    // sparkTransferId is stored to non encrypted transaction details.
-    const transactionDetails: Omit<
-      CompletedSparkLightningReceiveTransactionDetails,
-      'sparkTransferId'
-    > = {
+    const receiveData: SparkLightningReceiveData = {
       paymentRequest: quote.paymentRequest,
       amountReceived: quote.amount,
-      paymentPreimage,
-    };
-
-    const dataToEncrypt: EncryptedData = {
-      amount: quote.amount,
-      paymentRequest: quote.paymentRequest,
+      description: quote.description,
+      totalFees: Money.zero(quote.amount.currency),
       paymentPreimage,
     };
 
     if (quote.type === 'CASHU_TOKEN') {
-      dataToEncrypt.tokenReceiveData = {
-        sourceMintUrl: quote.tokenReceiveData.sourceMintUrl,
-        tokenProofs: quote.tokenReceiveData.tokenProofs,
+      const { cashuReceiveFee, lightningFeeReserve } = quote.tokenReceiveData;
+
+      receiveData.cashuTokenData = {
+        tokenMintUrl: quote.tokenReceiveData.sourceMintUrl,
         meltQuoteId: quote.tokenReceiveData.meltQuoteId,
+        tokenAmount: quote.tokenReceiveData.tokenAmount,
+        tokenProofs: quote.tokenReceiveData.tokenProofs,
+        cashuReceiveFee,
+        lightningFeeReserve,
       };
+      receiveData.totalFees = receiveData.totalFees
+        .add(cashuReceiveFee)
+        .add(lightningFeeReserve);
     }
 
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([transactionDetails, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(receiveData);
 
     const query = this.db.rpc('complete_spark_receive_quote', {
       p_quote_id: quote.id,
       p_spark_transfer_id: sparkTransferId,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
       p_encrypted_data: encryptedData,
     });
 
@@ -382,87 +387,45 @@ export class SparkReceiveQuoteRepository {
   }
 
   async toQuote(data: AgicashDbSparkReceiveQuote): Promise<SparkReceiveQuote> {
-    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
-    );
+    const decryptedData = await this.encryption.decrypt(data.encrypted_data);
+    const receiveData = SparkLightningReceiveDataSchema.parse(decryptedData);
 
-    const baseData = {
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing spark receive quote invariant check at runtime. For example it makes sure that tokenReceiveData is present when type is CASHU_TOKEN, etc.
+    return SparkReceiveQuoteSchema.parse({
       id: data.id,
       sparkId: data.spark_id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      amount: decryptedData.amount,
-      paymentRequest: decryptedData.paymentRequest,
+      amount: receiveData.amountReceived,
+      paymentRequest: receiveData.paymentRequest,
       paymentHash: data.payment_hash,
       receiverIdentityPubkey: data.receiver_identity_pubkey ?? undefined,
       transactionId: data.transaction_id,
       userId: data.user_id,
       accountId: data.account_id,
       version: data.version,
-    };
-
-    if (data.type === 'CASHU_TOKEN' && !decryptedData.tokenReceiveData) {
-      throw new Error(
-        'Invalid spark receive quote data. Token receive data is required for CASHU_TOKEN type quotes.',
-      );
-    }
-
-    if (
-      data.type === 'CASHU_TOKEN' &&
-      data.cashu_token_melt_initiated == null
-    ) {
-      throw new Error(
-        'Invalid spark receive quote data. cashu_token_melt_initiated cannot be null for CASHU_TOKEN type quotes.',
-      );
-    }
-
-    const typeData =
-      data.type === 'CASHU_TOKEN' && decryptedData.tokenReceiveData
-        ? ({
-            type: 'CASHU_TOKEN',
-            tokenReceiveData: {
-              sourceMintUrl: decryptedData.tokenReceiveData.sourceMintUrl,
-              tokenProofs: decryptedData.tokenReceiveData.tokenProofs,
-              meltQuoteId: decryptedData.tokenReceiveData.meltQuoteId,
-              meltInitiated: data.cashu_token_melt_initiated ?? false,
-            },
-          } as const)
-        : ({ type: 'LIGHTNING' } as const);
-
-    if (data.state === 'PAID') {
-      if (!decryptedData.paymentPreimage || !data.spark_transfer_id) {
-        throw new Error(
-          'Invalid spark receive quote data. Payment preimage and spark transfer id are required for paid state.',
-        );
-      }
-
-      return {
-        ...baseData,
-        ...typeData,
-        state: 'PAID',
-        paymentPreimage: decryptedData.paymentPreimage,
-        sparkTransferId: data.spark_transfer_id,
-      };
-    }
-
-    if (data.state === 'UNPAID' || data.state === 'EXPIRED') {
-      return {
-        ...baseData,
-        ...typeData,
-        state: data.state,
-      };
-    }
-
-    if (data.state === 'FAILED') {
-      return {
-        ...baseData,
-        ...typeData,
-        state: 'FAILED',
-        failureReason: data.failure_reason ?? '',
-      };
-    }
-
-    throw new Error(`Unexpected quote state ${data.state}`);
+      description: receiveData.description,
+      type: data.type,
+      state: data.state,
+      paymentPreimage: receiveData.paymentPreimage,
+      sparkTransferId: data.spark_transfer_id,
+      failureReason: data.failure_reason,
+      tokenReceiveData: receiveData.cashuTokenData
+        ? {
+            sourceMintUrl: receiveData.cashuTokenData.tokenMintUrl,
+            tokenAmount: receiveData.cashuTokenData.tokenAmount,
+            tokenProofs: receiveData.cashuTokenData.tokenProofs,
+            meltQuoteId: receiveData.cashuTokenData.meltQuoteId,
+            // zod parse will do a runtime check that will make sure that cashu_token_melt_initiated is not null when type is CASHU_TOKEN
+            meltInitiated: data.cashu_token_melt_initiated as boolean,
+            cashuReceiveFee: receiveData.cashuTokenData.cashuReceiveFee,
+            lightningFeeReserve: receiveData.cashuTokenData.lightningFeeReserve,
+          }
+        : undefined,
+    } satisfies AllUnionFieldsRequired<
+      z.input<typeof SparkReceiveQuoteSchema>
+    >);
   }
 }
 

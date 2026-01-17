@@ -1,7 +1,10 @@
-import type { Money } from '~/lib/money';
-import type { CashuProof } from '../accounts/account';
+import { z } from 'zod';
+import { Money } from '~/lib/money';
+import { CashuProofSchema } from '../accounts/cashu-account';
 
 /**
+ * Base schema for cashu send swap.
+ *
  * A CashuSendSwap spends proofs from an account (or swaps them if the no exact
  * amount with available proofs) and encodes them into a token to share with the receiver.
  *
@@ -15,112 +18,121 @@ import type { CashuProof } from '../accounts/account';
  *
  * Once the proofsToSend are spent, the swap is COMPLETED.
  */
-export type CashuSendSwap = {
+const CashuSendSwapBaseSchema = z.object({
   /**
    * The id of the swap
    */
-  id: string;
+  id: z.string(),
   /**
    * The id of the account that the swap belongs to
    */
-  accountId: string;
+  accountId: z.string(),
   /**
    * The id of the user that the swap belongs to
    */
-  userId: string;
+  userId: z.string(),
   /**
    * The proofs from the account that will be spent.
    * These are removed from the account's balance.
    */
-  inputProofs: CashuProof[];
+  inputProofs: z.array(CashuProofSchema),
   /**
    * The sum of the inputProofs
    */
-  inputAmount: Money;
+  inputAmount: z.instanceof(Money),
   /**
    * The amount requested to send by the user.
    */
-  amountRequested: Money;
+  amountRequested: z.instanceof(Money),
   /**
    * The requested amount to send plus the cashuReceiveFee.
    */
-  amountToSend: Money;
+  amountToSend: z.instanceof(Money),
   /**
    * The swap fee that will be incurred when the receiver claims the token.
    */
-  cashuReceiveFee: Money;
+  cashuReceiveFee: z.instanceof(Money),
   /**
    * The swap fee that will be incurred when swapping the inputProofs to get the amountToSend worth of proofs to send.
    */
-  cashuSendFee: Money;
+  cashuSendFee: z.instanceof(Money),
   /**
    * The total amount spent. This is the sum of amountToSend and cashuSendFee.
    */
-  totalAmount: Money;
-  /**
-   * - DRAFT: The swap entity has been created, but there are no proofs to send yet. At this point,
-   * we have only taken the inputProofs from the account
-   * - PENDING: There are proofs to send and the swap is waiting for the proofsToSend to be spent.
-   * - COMPLETED: The proofsToSend have been spent.
-   * - REVERSED: The swap was reversed before the proofsToSend were spent.
-   * - FAILED: The process of swapping for the proofsToSend failed.
-   */
-  state: 'DRAFT' | 'PENDING' | 'COMPLETED' | 'REVERSED' | 'FAILED';
+  totalAmount: z.instanceof(Money),
   /**
    * The version of the swap used for optimistic locking.
    */
-  version: number;
+  version: z.number(),
   /**
    * The id of the transaction that the swap belongs to.
    */
-  transactionId: string;
+  transactionId: z.string(),
   /**
    * The date the swap was created.
    */
-  createdAt: Date;
-} & (
-  | {
-      state: 'DRAFT';
-      /**
-       * The keyset id used to generate the output data at the time the swap was created.
-       */
-      keysetId: string;
-      /**
-       * The keyset counter used to generate the output data at the time the swap was created.
-       */
-      keysetCounter: number;
-      /**
-       * The output data used for deterministic outputs when we swap the inputProofs
-       * for proofsToSend.
-       */
-      outputAmounts: {
-        /** The output amounts to use when constructing the send output data. */
-        send: number[];
-        /** The output amounts to use when constructing the change output data. */
-        change: number[];
-      };
-    }
-  | {
-      state: 'PENDING' | 'COMPLETED';
-      /**
-       * The hash of the token being sent
-       */
-      tokenHash: string;
-      /**
-       * The proofs that will be sent. If we have the exact proofs to send,
-       * then this will be the same as inputProofs and no cashu swap will occur.
-       * If the inputProofs sum to more than the amount to send, then this
-       * will be the result of swapping the inputProofs for the amount to send.
-       */
-      proofsToSend: CashuProof[];
-    }
-  | {
-      state: 'FAILED';
-      failureReason: string;
-    }
-  | {
-      state: 'REVERSED';
-    }
+  createdAt: z.date(),
+});
+
+const CashuSendSwapDraftStateSchema = z.object({
+  state: z.literal('DRAFT'),
+  /**
+   * The keyset id used to generate the output data at the time the swap was created.
+   */
+  keysetId: z.string(),
+  /**
+   * The keyset counter used to generate the output data at the time the swap was created.
+   */
+  keysetCounter: z.number(),
+  /**
+   * The output data used for deterministic outputs when we swap the inputProofs
+   * for proofsToSend.
+   */
+  outputAmounts: z.object({
+    /** The output amounts to use when constructing the send output data. */
+    send: z.array(z.number()),
+    /** The output amounts to use when constructing the change output data. */
+    change: z.array(z.number()),
+  }),
+});
+
+const CashuSendSwapPendingCompletedStateSchema = z.object({
+  state: z.enum(['PENDING', 'COMPLETED']),
+  /**
+   * The hash of the token being sent
+   */
+  tokenHash: z.string(),
+  /**
+   * The proofs that will be sent. If we have the exact proofs to send,
+   * then this will be the same as inputProofs and no cashu swap will occur.
+   * If the inputProofs sum to more than the amount to send, then this
+   * will be the result of swapping the inputProofs for the amount to send.
+   */
+  proofsToSend: z.array(CashuProofSchema),
+});
+
+const CashuSendSwapFailedStateSchema = z.object({
+  state: z.literal('FAILED'),
+  failureReason: z.string(),
+});
+
+const CashuSendSwapReversedStateSchema = z.object({
+  state: z.literal('REVERSED'),
+});
+
+/**
+ * Schema for cashu send swap.
+ */
+export const CashuSendSwapSchema = z.intersection(
+  CashuSendSwapBaseSchema,
+  z.union([
+    CashuSendSwapDraftStateSchema,
+    CashuSendSwapPendingCompletedStateSchema,
+    CashuSendSwapFailedStateSchema,
+    CashuSendSwapReversedStateSchema,
+  ]),
 );
+
+export type CashuSendSwap = z.infer<typeof CashuSendSwapSchema>;
 
 export type PendingCashuSendSwap = CashuSendSwap & { state: 'PENDING' };
