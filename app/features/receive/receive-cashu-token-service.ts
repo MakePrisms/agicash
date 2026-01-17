@@ -41,6 +41,7 @@ export class ReceiveCashuTokenService {
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
+      purpose: wallet.purpose,
       name: mintUrl.replace('https://', '').replace('http://', ''),
       mintUrl,
       createdAt: new Date().toISOString(),
@@ -140,26 +141,34 @@ export class ReceiveCashuTokenService {
   }
 
   /**
+   * Checks if the token source restricts receiving to the same account only.
+   * This is true for:
+   * - Test mints: tokens cannot be swapped to other mints
+   * - Gift card accounts: closed-loop accounts that don't allow cross-mint swaps
+   */
+  static sourceRestrictsDestination(
+    sourceAccount: CashuAccountWithTokenFlags,
+  ): boolean {
+    return sourceAccount.isTestMint || sourceAccount.purpose === 'gift-card';
+  }
+
+  /**
    * Returns the default receive account, or null if the token cannot be received.
-   * If the token is from a test mint, the source account will be returned if it is selectable, because tokens from test mint can only be claimed to the same mint.
-   * If the token is not from a test mint, the preferred receive account will be returned if it is selectable.
+   * If the token is from a test mint or gift card, the source account will be returned if it is selectable.
+   * If the token is not from a test mint or gift card, the preferred receive account will be returned if it is selectable.
    * If the preferred receive account is not selectable, the default account will be returned.
    * @param sourceAccount The source account of the token
    * @param possibleDestinationAccounts The possible destination accounts (cashu and spark)
    * @param preferredReceiveAccountId The preferred receive account id
-   * @returns
+   * @returns The default account to receive the token, or null if none available
    */
   static getDefaultReceiveAccount(
     sourceAccount: CashuAccountWithTokenFlags,
     possibleDestinationAccounts: ReceiveCashuTokenAccount[],
     preferredReceiveAccountId?: string,
   ): ReceiveCashuTokenAccount | null {
-    if (sourceAccount.isTestMint) {
-      if (!sourceAccount.canReceive) {
-        return null;
-      }
-      // Tokens sourced from test mint can only be claimed to the same mint
-      return sourceAccount;
+    if (ReceiveCashuTokenService.sourceRestrictsDestination(sourceAccount)) {
+      return sourceAccount.canReceive ? sourceAccount : null;
     }
 
     const preferredReceiveAccount = possibleDestinationAccounts.find(
@@ -199,7 +208,8 @@ export class ReceiveCashuTokenService {
 
   /**
    * Returns the possible destination accounts that can receive the token from the source account.
-   * If the source account is from a test mint, the only account that can receive the token is the same source account.
+   * If the source account is from a test mint or is a gift card account, the only account that
+   * can receive the token is the same source account.
    * @param sourceAccount The source account of the token
    * @param otherAccounts The other user's accounts
    * @returns The possible destination accounts
@@ -208,8 +218,7 @@ export class ReceiveCashuTokenService {
     sourceAccount: CashuAccountWithTokenFlags,
     otherAccounts: ReceiveCashuTokenAccount[],
   ): ReceiveCashuTokenAccount[] {
-    if (sourceAccount.isTestMint) {
-      // Tokens sourced from test mint can only be claimed to the same mint
+    if (ReceiveCashuTokenService.sourceRestrictsDestination(sourceAccount)) {
       return sourceAccount.canReceive ? [sourceAccount] : [];
     }
     return [sourceAccount, ...otherAccounts].filter(

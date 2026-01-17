@@ -229,8 +229,9 @@ export function useReceiveCashuTokenAccounts(
   return {
     selectableAccounts: possibleDestinationAccounts.map(toOption),
     receiveAccount: receiveAccount ? toOption(receiveAccount) : null,
-    isCrossMintSwapDisabled: sourceAccount.isTestMint,
-    sourceAccount: sourceAccount,
+    canOnlyReceiveToSource:
+      ReceiveCashuTokenService.sourceRestrictsDestination(sourceAccount),
+    sourceAccount,
     setReceiveAccount,
     addAndSetReceiveAccount,
   };
@@ -305,6 +306,7 @@ function getSparkAccountPlaceholder(): ReceiveCashuTokenAccount & {
     id: 'spark-account-placeholder-id',
     name: 'Bitcoin',
     type: 'spark',
+    purpose: 'transactional',
     isOnline: true,
     currency: 'BTC',
     wallet: createSparkWalletStub(

@@ -17,7 +17,7 @@ import { LinkWithViewTransition } from '~/lib/transitions';
 function CurrencyAccounts({ currency }: { currency: Currency }) {
   const { data: accounts } = useAccounts({
     currency,
-    excludeClosedLoopAccounts: true,
+    purpose: 'transactional',
   });
 
   return (

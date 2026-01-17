@@ -12,6 +12,7 @@ import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
+  type AccountPurpose,
   type AccountType,
   type CashuAccount,
   type ExtendedAccount,
@@ -144,19 +145,12 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
   currency?: Currency;
   type?: T;
   isOnline?: boolean;
-  excludeClosedLoopAccounts?: boolean;
-  onlyIncludeClosedLoopAccounts?: boolean;
+  purpose?: AccountPurpose;
 }): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
 
-  const {
-    currency,
-    type,
-    isOnline,
-    excludeClosedLoopAccounts,
-    onlyIncludeClosedLoopAccounts,
-  } = select ?? {};
+  const { currency, type, isOnline, purpose } = select ?? {};
 
   return useSuspenseQuery({
     ...accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -166,13 +160,7 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
       (data: Account[]) => {
         const extendedData = AccountService.getExtendedAccounts(user, data);
 
-        if (
-          !currency &&
-          !type &&
-          isOnline === undefined &&
-          !excludeClosedLoopAccounts &&
-          !onlyIncludeClosedLoopAccounts
-        ) {
+        if (!currency && !type && isOnline === undefined && !purpose) {
           return extendedData
             .slice()
             .sort(
@@ -193,13 +181,8 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
             if (isOnline !== undefined && account.isOnline !== isOnline) {
               return false;
             }
-            if (account.type === 'cashu') {
-              if (excludeClosedLoopAccounts) {
-                return !account.wallet.isClosedLoop;
-              }
-              if (onlyIncludeClosedLoopAccounts) {
-                return account.wallet.isClosedLoop;
-              }
+            if (purpose && account.purpose !== purpose) {
+              return false;
             }
             return true;
           },
@@ -212,14 +195,7 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
               new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
           );
       },
-      [
-        currency,
-        type,
-        isOnline,
-        excludeClosedLoopAccounts,
-        onlyIncludeClosedLoopAccounts,
-        user,
-      ],
+      [currency, type, isOnline, purpose, user],
     ),
   });
 }
@@ -360,10 +336,14 @@ export function useAddCashuAccount() {
 /**
  * Hook to get the sum of all account balances for a given currency.
  * Null balances are ignored.
+ * Only includes accounts with the purpose `transactional`.
  */
 export function useBalance(currency: Currency) {
   const { data: accounts } = useAccounts({ currency });
   const balance = accounts.reduce((acc, account) => {
+    if (account.purpose !== 'transactional') {
+      return acc;
+    }
     const accountBalance = getAccountBalance(account);
     return accountBalance !== null ? acc.add(accountBalance) : acc;
   }, Money.zero(currency));
