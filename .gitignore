@@ -40,3 +40,6 @@ node_modules
 /certs/*
 !/certs/ci-localhost-cert.pem
 !/certs/ci-localhost-key.pem
+
+# Playwright MCP artifacts
+.playwright-mcp/
