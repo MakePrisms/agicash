@@ -6,7 +6,7 @@
     "build": "run-p build:client build:server",
     "build:client": "react-router build",
     "build:server": "cross-env NODE_ENV=production bun build ./app/server.ts --target=node --format=esm --outdir=./build --external=build/server/index.js",
-    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=8192 --use-system-ca' tsx watch ./app/server.ts",
+    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=8192' tsx watch ./app/server.ts",
     "start": "cross-env NODE_ENV=production node -r dotenv/config ./build/server.js",
     "typecheck": "react-router typegen && tsc",
     "lint": "biome lint --write",
@@ -22,7 +22,7 @@
     "db:generate-types": "supabase gen types typescript --local --schema wallet > supabase/database.types.ts"
   },
   "scripts:comments": {
-    "dev": "We use tsx instead of bun (bun hangs with 'ELOOP: too many symbolic links'). --use-system-ca enables Node.js to trust system CA certificates for Supabase TLS connections. Use --https flag for HTTPS mode.",
+    "dev": "We use tsx instead of bun (bun hangs with 'ELOOP: too many symbolic links'). Use NODE_EXTRA_CA_CERTS for Supabase TLS connections when needed. Use --https flag for HTTPS mode.",
     "build:server": "We are building for node for now. We will see what we will be using in the runtime once we implement the deployment. Depending on that we might change this to target bun. 'cross-env NODE_ENV=production' is needed because bun build otherwise seems to be setting it to 'development'.",
     "start": "We are running the build in node because atm we are using node as the build target."
   },

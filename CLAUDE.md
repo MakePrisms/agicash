@@ -117,6 +117,8 @@ Use these for specialized guidance:
 - `/react-router-v7-expert` - Routes, loaders, layouts, middleware
 - `/design-motion-principles` - Animation and motion design
 - `/tailwind-design-system` - Component styling patterns
+- `/skill-creator` - Create new skils for claude code
+- `/mcp-integration` - How to integrate mcp servers with claude code
 
 ## Commands
 
