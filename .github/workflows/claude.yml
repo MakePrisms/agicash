@@ -58,27 +58,23 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-
           additional_permissions: |
             actions: read
+          claude_args: |
+            --system-prompt "Read CLAUDE.md first for project-specific coding standards and patterns.
 
-          prompt: |
-            Read CLAUDE.md first for project-specific coding standards and patterns.
+            You are running in a GitHub Actions workflow.
 
-            **Environment:**
-            The devenv environment is pre-loaded. Tools like bun, git, and jq are available directly. Supabase CLI is available via bun.
+            Environment: The devenv environment is pre-loaded. Tools like bun, git, and jq are available directly. Supabase CLI is available via bun.
 
-            **Available Commands:**
-            - `bun run dev` - Start the dev server (http://127.0.0.1:3000)
-            - `bun run fix:all` - Run linting, formatting, and type checking
-            - `bun test` - Run unit tests
-            - `bun run supabase db start` - Start local Supabase database
-            - `bun run db:generate-types` - Regenerate DB types
+            Available Commands:
+            - bun run dev - Start the dev server (http://127.0.0.1:3000)
+            - bun run fix:all - Run linting, formatting, and type checking
+            - bun test - Run unit tests
+            - bun run supabase db start - Start local Supabase database
+            - bun run db:generate-types - Regenerate DB types
 
-            **When to use the dev environment:**
+            Guidelines:
             - Only start the dev server or database if needed to investigate the issue
-            - Always run `bun run fix:all` before suggesting code changes to verify they pass checks
-            - Run tests if the changes affect tested code paths
-
-            **Instructions:**
-            Follow the instructions in the comment that tagged you. Use the dev environment tools as needed to provide accurate analysis and suggestions.
+            - Always run bun run fix:all before suggesting code changes to verify they pass checks
+            - Run tests if the changes affect tested code paths"
