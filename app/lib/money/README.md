@@ -518,35 +518,6 @@ describe('MyFeature', () => {
 });
 ```
 
-## Migration Guide
-
-If you're upgrading from the previous version:
-
-### Before (with `getDefaultUnit`)
-
-```typescript
-import { Money, getDefaultUnit } from '~/lib/money';
-
-const unit = getDefaultUnit('BTC'); // 'sat'
-const money = new Money({ amount: 100, currency: 'BTC', unit });
-console.log(money.toString(unit));
-```
-
-### After (with configured base unit)
-
-```typescript
-import { Money } from '~/lib/money';
-
-// Configure once at app startup
-Money.configure({
-  currencies: { BTC: { baseUnit: 'sat' } }
-});
-
-// Now 'sat' is the default
-const money = new Money({ amount: 100, currency: 'BTC' });
-console.log(money.toString()); // Uses 'sat' by default
-```
-
 ## Troubleshooting
 
 ### Error: "Unsupported currency"

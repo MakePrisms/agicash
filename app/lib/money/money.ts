@@ -510,7 +510,11 @@ export class Money<T extends Currency = Currency> {
     const amount = this.amount()
       .mul(exchangeRate)
       .round(destinationCurrencyBaseUnit.decimals, Big.roundHalfUp);
-    return new Money({ amount, currency });
+    return new Money({
+      amount,
+      currency,
+      unit: destinationCurrencyBaseUnit.name,
+    });
   };
 
   private get currencyData(): CurrencyData<T> {
