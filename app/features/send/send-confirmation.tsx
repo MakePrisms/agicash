@@ -14,7 +14,6 @@ import { useToast } from '~/hooks/use-toast';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
-import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
 import type { DestinationDetails } from './cashu-send-quote';
 import { useInitiateCashuSendQuote } from './cashu-send-quote-hooks';
@@ -214,22 +213,12 @@ export const PayBolt11Confirmation = ({
       {[
         {
           label: 'Recipient gets',
-          value: (
-            <MoneyDisplay
-              size="sm"
-              money={bolt11Quote.amountToReceive}
-              unit={getDefaultUnit(bolt11Quote.amountToReceive.currency)}
-            />
-          ),
+          value: <MoneyDisplay size="sm" money={bolt11Quote.amountToReceive} />,
         },
         {
           label: 'Estimated fee',
           value: (
-            <MoneyDisplay
-              size="sm"
-              money={bolt11Quote.estimatedTotalFee}
-              unit={getDefaultUnit(bolt11Quote.estimatedTotalFee.currency)}
-            />
+            <MoneyDisplay size="sm" money={bolt11Quote.estimatedTotalFee} />
           ),
         },
         { label: 'From', value: account.name },
@@ -304,23 +293,11 @@ export const CreateCashuTokenConfirmation = ({
       {[
         {
           label: 'Recipient gets',
-          value: (
-            <MoneyDisplay
-              size="sm"
-              money={quote.amountRequested}
-              unit={getDefaultUnit(quote.amountRequested.currency)}
-            />
-          ),
+          value: <MoneyDisplay size="sm" money={quote.amountRequested} />,
         },
         {
           label: 'Estimated fee',
-          value: (
-            <MoneyDisplay
-              size="sm"
-              money={quote.totalFee}
-              unit={getDefaultUnit(quote.totalFee.currency)}
-            />
-          ),
+          value: <MoneyDisplay size="sm" money={quote.totalFee} />,
         },
         { label: 'From', value: account.name },
         { label: 'Sending', value: 'ecash' },

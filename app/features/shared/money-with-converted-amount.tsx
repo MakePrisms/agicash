@@ -2,7 +2,6 @@ import { MoneyDisplay } from '~/components/money-display';
 import { Skeleton } from '~/components/ui/skeleton';
 import { useExchangeRate } from '~/hooks/use-exchange-rate';
 import type { Currency, Money } from '~/lib/money';
-import { getDefaultUnit } from './currencies';
 
 const defaultFiatCurrency = 'USD';
 
@@ -55,14 +54,11 @@ export const MoneyWithConvertedAmount = ({
     `${money.currency}-${currencyToConvertTo}`,
   );
 
-  const unit = getDefaultUnit(money.currency);
-
   const conversionData =
     money.currency !== currencyToConvertTo
       ? {
           rate: exchangeRateQuery.data,
           loading: exchangeRateQuery.isLoading,
-          unit: getDefaultUnit(currencyToConvertTo),
           convertedMoney: exchangeRateQuery.data
             ? money.convert(currencyToConvertTo, exchangeRateQuery.data)
             : null,
@@ -71,14 +67,13 @@ export const MoneyWithConvertedAmount = ({
 
   return variant === 'default' ? (
     <div className="flex min-h-[116px] flex-col items-center">
-      <MoneyDisplay money={money} unit={unit} />
+      <MoneyDisplay money={money} />
       {conversionData && (
         <>
           {conversionData.loading && <Skeleton className="h-6 w-32" />}
           {conversionData.convertedMoney && (
             <MoneyDisplay
               money={conversionData.convertedMoney}
-              unit={conversionData.unit}
               size="sm"
               variant="muted"
             />
@@ -88,16 +83,14 @@ export const MoneyWithConvertedAmount = ({
     </div>
   ) : (
     <span className="text-muted-foreground text-sm">
-      {money.toLocaleString({ unit })}
+      {money.toLocaleString()}
       {conversionData && (
         <>
           {conversionData.loading && (
             <Skeleton className="ml-1 inline-block h-4 w-10" />
           )}
           {conversionData.convertedMoney &&
-            ` (~${conversionData.convertedMoney.toLocaleString({
-              unit: conversionData.unit,
-            })})`}
+            ` (~${conversionData.convertedMoney.toLocaleString()})`}
         </>
       )}
     </span>

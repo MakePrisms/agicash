@@ -1,217 +1,20 @@
 import { Big } from 'big.js';
+import { CurrencyRegistry } from './currency-registry';
 import type {
-  BaseFormatOptions,
   Currency,
   CurrencyData,
-  CurrencyDataMap,
   CurrencyUnit,
   FormatOptions,
   LocalizedStringParts,
+  MoneyConfiguration,
   MoneyData,
   MoneyInput,
   NumberInput,
   UnitData,
 } from './types';
 
-function getCurrencyFormatter(options: BaseFormatOptions) {
-  const { locale, minimumFractionDigits, maximumFractionDigits, currency } =
-    options;
-  const formatOptions: Parameters<typeof Intl.NumberFormat>[1] = {
-    minimumFractionDigits:
-      minimumFractionDigits === 'max'
-        ? maximumFractionDigits
-        : minimumFractionDigits,
-    maximumFractionDigits,
-  };
-  if (currency) {
-    formatOptions.style = 'currency';
-    formatOptions.currency = currency;
-    formatOptions.currencyDisplay = 'narrowSymbol';
-  }
-  return Intl.NumberFormat(locale, formatOptions);
-}
-const trimWhitespaceFromEnds = (
-  parts: Intl.NumberFormatPart[],
-): Intl.NumberFormatPart[] => {
-  if (parts.length === 0) {
-    return [];
-  }
-
-  let result = parts;
-
-  const firstPart = result[0];
-  if (firstPart.type === 'literal' && firstPart.value.trim() === '') {
-    result = result.slice(1);
-  }
-
-  const lastPart = result[result.length - 1];
-  if (lastPart.type === 'literal' && lastPart.value.trim() === '') {
-    result = result.slice(0, -1);
-  }
-
-  return result;
-};
-
-const currencyDataMap: CurrencyDataMap = {
-  USD: {
-    baseUnit: 'usd',
-    units: [
-      {
-        name: 'usd',
-        decimals: 2,
-        symbol: '$',
-        factor: new Big(1),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-          return formatter.formatToParts(value);
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-          return formatter.format(value);
-        },
-      },
-      {
-        name: 'cent',
-        decimals: 0,
-        symbol: '¢',
-        factor: new Big(10 ** -2),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-
-          const parts = formatter.formatToParts(value);
-          const partsWithoutSymbol = parts.filter(
-            ({ type }) => type !== 'currency',
-          );
-          const trimmedPartsWithoutSymbol =
-            trimWhitespaceFromEnds(partsWithoutSymbol);
-          const partsWithNewSymbolAppended = [
-            ...trimmedPartsWithoutSymbol,
-            { type: 'currency' as const, value: this.symbol },
-          ];
-
-          return partsWithNewSymbolAppended;
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          return this.formatToParts(value, options)
-            .map(({ value }) => value)
-            .join('');
-        },
-      },
-    ],
-  },
-  BTC: {
-    baseUnit: 'btc',
-    units: [
-      {
-        name: 'btc',
-        decimals: 8,
-        symbol: '₿',
-        factor: new Big(1),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-
-          const parts = formatter.formatToParts(value);
-          const partsWithoutSymbol = parts.filter(
-            ({ type }) => type !== 'currency',
-          );
-          const trimmedPartsWithoutSymbol =
-            trimWhitespaceFromEnds(partsWithoutSymbol);
-          const partsWithNewSymbolPrepended = [
-            { type: 'currency' as const, value: this.symbol },
-            ...trimmedPartsWithoutSymbol,
-          ];
-
-          return partsWithNewSymbolPrepended;
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          return this.formatToParts(value, options)
-            .map(({ value }) => value)
-            .join('');
-        },
-      },
-      {
-        name: 'sat',
-        decimals: 0,
-        symbol: '₿',
-        factor: new Big(10 ** -8),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-
-          const parts = formatter.formatToParts(value);
-          const partsWithoutSymbol = parts.filter(
-            ({ type }) => type !== 'currency',
-          );
-          const trimmedPartsWithoutSymbol =
-            trimWhitespaceFromEnds(partsWithoutSymbol);
-          const partsWithNewSymbolPrepended = [
-            { type: 'currency' as const, value: this.symbol },
-            ...trimmedPartsWithoutSymbol,
-          ];
-
-          return partsWithNewSymbolPrepended;
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          return this.formatToParts(value, options)
-            .map(({ value }) => value)
-            .join('');
-        },
-      },
-      {
-        name: 'msat',
-        decimals: 0,
-        symbol: 'msat',
-        factor: new Big(10 ** -11),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-
-          const parts = formatter.formatToParts(value);
-          const partsWithoutSymbol = parts.filter(
-            ({ type }) => type !== 'currency',
-          );
-          const trimmedPartsWithoutSymbol =
-            trimWhitespaceFromEnds(partsWithoutSymbol);
-          const partsWithNewSymbolAppended = [
-            ...trimmedPartsWithoutSymbol,
-            { type: 'literal' as const, value: ' ' },
-            { type: 'currency' as const, value: this.symbol },
-          ];
-
-          return partsWithNewSymbolAppended;
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          return this.formatToParts(value, options)
-            .map(({ value }) => value)
-            .join('');
-        },
-      },
-    ],
-  },
-};
-
 const getCurrencyData = <T extends Currency>(currency: T) => {
-  const currencyData = currencyDataMap[currency];
-  if (!currencyData) {
-    throw new Error(`Unsupported currency: ${currency}`);
-  }
-  return currencyData;
+  return CurrencyRegistry.getInstance().getCurrencyData(currency);
 };
 
 const getCurrencyBaseUnit = <T extends Currency>(currency: T) => {
@@ -235,6 +38,7 @@ const getCurrencyMinUnit = <T extends Currency>(currency: T) => {
 };
 
 export class Money<T extends Currency = Currency> {
+  private static registry = CurrencyRegistry.getInstance();
   private readonly _data: MoneyData<T>;
 
   /**
@@ -336,6 +140,40 @@ export class Money<T extends Currency = Currency> {
 
     Object.freeze(this);
     Object.freeze(this._data);
+  }
+
+  /**
+   * Configure Money class. Delegates to CurrencyRegistry.
+   *
+   * @example
+   * ```typescript
+   * Money.configure({
+   *   currencies: {
+   *     BTC: { baseUnit: 'sat' }, // Override BTC base unit
+   *     EUR: { // Add new currency
+   *       baseUnit: 'eur',
+   *       units: [...]
+   *     }
+   *   }
+   * });
+   * ```
+   */
+  static configure(config: MoneyConfiguration): void {
+    Money.registry.configure(config);
+  }
+
+  /**
+   * Get registered currencies
+   */
+  static getRegisteredCurrencies(): string[] {
+    return Money.registry.getRegisteredCurrencies();
+  }
+
+  /**
+   * Check if a currency is registered
+   */
+  static isCurrencyRegistered(currency: string): boolean {
+    return Money.registry.isCurrencyRegistered(currency);
   }
 
   /**
@@ -676,7 +514,7 @@ export class Money<T extends Currency = Currency> {
   };
 
   private get currencyData(): CurrencyData<T> {
-    return currencyDataMap[this.currency];
+    return Money.registry.getCurrencyData(this.currency);
   }
 
   private static getCurrencyDataForInput<T extends Currency>(
@@ -686,10 +524,7 @@ export class Money<T extends Currency = Currency> {
     minUnit: UnitData<T>;
     selectedUnit: UnitData<T> | undefined;
   } {
-    const currencyData = currencyDataMap[data.currency];
-    if (!currencyData) {
-      throw new Error(`Unsupported currency: ${data.currency}`);
-    }
+    const currencyData = Money.registry.getCurrencyData(data.currency);
 
     const minUnit = currencyData.units.reduce((minItem, currentItem) => {
       return currentItem.factor.lt(minItem.factor) ? currentItem : minItem;

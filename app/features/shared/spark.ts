@@ -15,7 +15,6 @@ import {
 } from '~/lib/spark';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
-import { getDefaultUnit } from './currencies';
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
 
@@ -111,7 +110,6 @@ export function useTrackAndUpdateSparkAccountBalances() {
           balance: new Money({
             amount: Number(balance),
             currency: account.currency as Currency,
-            unit: getDefaultUnit(account.currency),
           }),
         });
 

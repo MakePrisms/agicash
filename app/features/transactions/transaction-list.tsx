@@ -17,7 +17,6 @@ import {
   VIEW_TRANSITION_DURATION_MS,
 } from '~/lib/transitions';
 import { useLatest } from '~/lib/use-latest';
-import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
 import {
   useAcknowledgeTransaction,
@@ -184,9 +183,7 @@ function TransactionRow({
         <div className="flex items-center justify-between">
           <p className="text-sm">
             {transaction.direction === 'RECEIVE' && '+'}
-            {transaction.amount.toLocaleString({
-              unit: getDefaultUnit(transaction.amount.currency),
-            })}
+            {transaction.amount.toLocaleString()}
           </p>
           <div className="flex shrink-0 items-center gap-1">
             <div className="w-12 text-right">

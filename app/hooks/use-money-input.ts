@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { NumpadButton } from '~/components/numpad';
-import { getDefaultUnit } from '~/features/shared/currencies';
 import type { Ticker } from '~/lib/exchange-rate';
 import { getLocaleDecimalSeparator } from '~/lib/locale';
 import type { Currency } from '~/lib/money';
@@ -41,7 +40,6 @@ const toMoney = ({
   return new Money({
     amount: value,
     currency,
-    unit: getDefaultUnit(currency),
   });
 };
 
@@ -106,7 +104,7 @@ export function useMoneyInput({
 
         const newConvertedValue = toMoney(current.input)
           .convert(current.converted.currency, rate)
-          .toString(getDefaultUnit(current.converted.currency));
+          .toString();
 
         return {
           ...current,
@@ -119,9 +117,7 @@ export function useMoneyInput({
     }
   }, [rates]);
 
-  const maxInputDecimals = inputMoney.getMaxDecimals(
-    getDefaultUnit(state.input.currency),
-  );
+  const maxInputDecimals = inputMoney.getMaxDecimals();
 
   const decimalSeparator = getLocaleDecimalSeparator();
 
@@ -157,7 +153,7 @@ export function useMoneyInput({
       newConvertedValue = rate
         ? toMoney({ value: newValue, currency: state.input.currency })
             .convert(state.converted.currency, rate)
-            .toString(getDefaultUnit(state.converted.currency))
+            .toString()
         : undefined;
     } else if (currency === state.converted.currency) {
       // Converted currency input, need reverse conversion
@@ -176,9 +172,7 @@ export function useMoneyInput({
         newInputMoney = Money.createMinAmount(state.input.currency);
       }
 
-      newInputValue = newInputMoney.toString(
-        getDefaultUnit(state.input.currency),
-      );
+      newInputValue = newInputMoney.toString();
       newConvertedValue = newValue;
     } else {
       throw new Error(`Currency does not exist in input state: ${currency}`);
