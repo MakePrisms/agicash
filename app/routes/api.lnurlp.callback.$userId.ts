@@ -18,6 +18,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (!amountMsat || Number.isNaN(Number(amountMsat))) {
     return new Response(
       JSON.stringify({ status: 'ERROR', reason: 'Invalid amount' }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      },
     );
   }
 
@@ -44,6 +50,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   );
 
   return new Response(JSON.stringify(response), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
   });
 }

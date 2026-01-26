@@ -24,6 +24,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return new Response(JSON.stringify(response), {
     headers: {
       'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
     },
   });
 }
