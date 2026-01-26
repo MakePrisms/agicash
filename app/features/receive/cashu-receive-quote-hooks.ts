@@ -156,7 +156,7 @@ export function useCreateCashuReceiveQuote() {
     },
     mutationFn: async ({ account, amount, description }: CreateProps) => {
       const lightningQuote = await cashuReceiveQuoteService.getLightningQuote({
-        account,
+        wallet: account.wallet,
         amount,
         description,
       });

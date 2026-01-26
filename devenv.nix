@@ -5,7 +5,7 @@
   env.GREET = "devenv";
 
   # https://devenv.sh/packages/
-  packages = [ 
+  packages = [
     pkgs.git
     pkgs.jq
     pkgs.bun

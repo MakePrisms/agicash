@@ -49,7 +49,7 @@ A self-signed certificate is used for HTTPS. The certificate is managed by deven
 regenerate the certificate (for example, if your local IP has changed), reload devenv by executing `direnv reload`
 or run the certificate script directly by executing `generate-ssl-cert`.
 
-**Installing the root certificate on mobile:** Mobile browsers maye require the root CA to be installed and trusted on the
+**Installing the root certificate on mobile:** Mobile browsers may require the root CA to be installed and trusted on the
 device. On **iOS**:
 
 1. AirDrop or email the `certs/rootCA.pem` file to your device and open it

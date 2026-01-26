@@ -26,7 +26,7 @@ import {
 } from '~/features/shared/encryption';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
 import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
-import { UserRepository } from '~/features/user/user-repository';
+import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
@@ -76,9 +76,8 @@ const getClaimCashuTokenService = async () => {
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
   );
-  const userRepository = new UserRepository(
+  const userRepository = new WriteUserRepository(
     agicashDbClient,
-    encryption,
     accountRepository,
   );
   const userService = new UserService(userRepository);

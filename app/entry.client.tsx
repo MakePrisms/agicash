@@ -9,6 +9,12 @@ import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
+import { Money } from './lib/money/money';
+
+// Register Chrome DevTools custom formatter for Money class (dev only)
+if (process.env.NODE_ENV === 'development') {
+  Money.registerDevToolsFormatter();
+}
 
 const openSecretApiUrl = import.meta.env.VITE_OPEN_SECRET_API_URL ?? '';
 if (!openSecretApiUrl) {

@@ -24,6 +24,7 @@ import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { sparkBalanceQueryKey } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import type { SparkReceiveQuote } from './spark-receive-quote';
+import { getLightningQuote } from './spark-receive-quote-core';
 import { useSparkReceiveQuoteRepository } from './spark-receive-quote-repository';
 import { useSparkReceiveQuoteService } from './spark-receive-quote-service';
 
@@ -286,8 +287,8 @@ export function useCreateSparkReceiveQuote() {
       amount,
       receiverIdentityPubkey,
     }: CreateProps) => {
-      const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
-        account,
+      const lightningQuote = await getLightningQuote({
+        wallet: account.wallet,
         amount,
         receiverIdentityPubkey,
       });
@@ -296,6 +297,7 @@ export function useCreateSparkReceiveQuote() {
         userId,
         account,
         lightningQuote,
+        receiveType: 'LIGHTNING',
       });
     },
     onSuccess: (data) => {

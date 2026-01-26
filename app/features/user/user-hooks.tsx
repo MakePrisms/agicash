@@ -14,9 +14,10 @@ import type { Account } from '../accounts/account';
 import { guestAccountStorage } from './guest-account-storage';
 import type { User } from './user';
 import {
+  type ReadUserRepository,
   type UpdateUser,
-  type UserRepository,
-  useUserRepository,
+  useReadUserRepository,
+  useWriteUserRepository,
 } from './user-repository';
 import { useUserService } from './user-service';
 
@@ -42,7 +43,7 @@ export const userQueryOptions = <TData = User>({
   select,
 }: {
   userId: string;
-  userRepository: UserRepository;
+  userRepository: ReadUserRepository;
   select?: (data: User) => TData;
 }) => ({
   queryKey: [userQueryKey],
@@ -64,7 +65,7 @@ export const useUser = <TData = User>(
     throw new Error('Cannot use useUser hook in anonymous context');
   }
 
-  const userRepository = useUserRepository();
+  const userRepository = useReadUserRepository();
 
   const { data } = useSuspenseQuery(
     userQueryOptions({ userId: authUser.id, userRepository, select }),
@@ -191,7 +192,7 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
 const useUpdateUser = () => {
   const queryClient = useQueryClient();
   const userId = useUser((user) => user.id);
-  const userRepository = useUserRepository();
+  const userRepository = useWriteUserRepository();
 
   return useMutation({
     mutationFn: (updates: UpdateUser) => userRepository.update(userId, updates),

@@ -30,7 +30,10 @@ import {
   getUserFromCache,
   userQueryOptions,
 } from '~/features/user/user-hooks';
-import { UserRepository } from '~/features/user/user-repository';
+import {
+  ReadUserRepository,
+  WriteUserRepository,
+} from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
 import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/_protected';
@@ -94,13 +97,12 @@ const ensureUserData = async (
       getCashuWalletSeed,
       getSparkWalletMnemonic,
     );
-    const userRepository = new UserRepository(
+    const writeUserRepository = new WriteUserRepository(
       agicashDbClient,
-      encryption,
       accountRepository,
     );
 
-    const { user: upsertedUser, accounts } = await userRepository.upsert({
+    const { user: upsertedUser, accounts } = await writeUserRepository.upsert({
       id: authUser.id,
       email: authUser.email,
       emailVerified: authUser.email_verified,
@@ -110,9 +112,14 @@ const ensureUserData = async (
       sparkIdentityPublicKey,
     });
     user = upsertedUser;
+    const readUserRepository = new ReadUserRepository(
+      agicashDbClient,
+      queryClient,
+      getSparkWalletMnemonic,
+    );
     const { queryKey: userQueryKey } = userQueryOptions({
       userId: authUser.id,
-      userRepository,
+      userRepository: readUserRepository,
     });
     queryClient.setQueryData(userQueryKey, user);
     queryClient.setQueryData([AccountsCache.Key], accounts);

@@ -1,19 +1,17 @@
-import type { Money } from '~/lib/money';
-import { isObject } from '~/lib/utils';
+import type { z } from 'zod';
 import type { AgicashDb, AgicashDbTransaction } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption';
-import type {
-  CashuLightningReceiveTransactionDetails,
-  CashuTokenReceiveTransactionDetails,
-  CashuTokenSendTransactionDetails,
-  CompletedCashuLightningSendTransactionDetails,
-  CompletedSparkLightningSendTransactionDetails,
-  IncompleteCashuLightningSendTransactionDetails,
-  IncompleteSparkLightningSendTransactionDetails,
-  SparkLightningReceiveTransactionDetails,
-  Transaction,
+import {
+  type BaseTransactionSchema,
+  type Transaction,
+  TransactionSchema,
 } from './transaction';
+import { TransactionDetailsParser } from './transaction-details/transaction-details-parser';
+import {
+  TransactionDetailsDbDataSchema,
+  type TransactionDetailsParserInput,
+} from './transaction-details/transaction-details-types';
 
 type Encryption = {
   encrypt: <T = unknown>(data: T) => Promise<string>;
@@ -35,16 +33,6 @@ type ListOptions = Options & {
   cursor?: Cursor;
   pageSize?: number;
 };
-
-type UnifiedTransactionDetails =
-  | CashuTokenReceiveTransactionDetails
-  | CashuTokenSendTransactionDetails
-  | CashuLightningReceiveTransactionDetails
-  | IncompleteCashuLightningSendTransactionDetails
-  | CompletedCashuLightningSendTransactionDetails
-  | SparkLightningReceiveTransactionDetails
-  | IncompleteSparkLightningSendTransactionDetails
-  | CompletedSparkLightningSendTransactionDetails;
 
 export class TransactionRepository {
   constructor(
@@ -175,26 +163,21 @@ export class TransactionRepository {
   }
 
   async toTransaction(data: AgicashDbTransaction): Promise<Transaction> {
-    const decryptedDetails =
-      await this.encryption.decrypt<UnifiedTransactionDetails>(
-        data.encrypted_transaction_details,
-      );
+    const decryptedData = await this.encryption.decrypt(
+      data.encrypted_transaction_details,
+    );
+    const decryptedTransactionDetails =
+      TransactionDetailsDbDataSchema.parse(decryptedData);
 
-    if (
-      data.transaction_details !== null &&
-      !isObject(data.transaction_details)
-    ) {
-      throw new Error(
-        `Invalid transaction details. Expected object or null, got ${typeof data.transaction_details}`,
-      );
-    }
+    const details = TransactionDetailsParser.parse({
+      type: data.type,
+      direction: data.direction,
+      state: data.state,
+      transactionDetails: data.transaction_details,
+      decryptedTransactionDetails,
+    } satisfies TransactionDetailsParserInput);
 
-    const details = {
-      ...decryptedDetails,
-      ...(data.transaction_details ?? {}),
-    };
-
-    const baseTx = {
+    return TransactionSchema.parse({
       id: data.id,
       userId: data.user_id,
       accountId: data.account_id,
@@ -205,87 +188,12 @@ export class TransactionRepository {
       reversedTransactionId: data.reversed_transaction_id,
       reversedAt: data.reversed_at,
       acknowledgmentStatus: data.acknowledgment_status,
-    };
-
-    const { state, direction, type } = data;
-
-    const createTransaction = <T extends Transaction>(
-      amount: Money,
-      transactionDetails: T['details'],
-    ): T =>
-      ({
-        ...baseTx,
-        direction,
-        type,
-        state,
-        amount,
-        details: transactionDetails,
-      }) as T;
-
-    // Lightning send transactions have different amounts based on completion state
-    if (type === 'CASHU_LIGHTNING' && direction === 'SEND') {
-      if (state === 'COMPLETED') {
-        const completedDetails =
-          details as CompletedCashuLightningSendTransactionDetails;
-        return createTransaction(
-          completedDetails.amountSpent,
-          completedDetails,
-        );
-      }
-      const incompleteDetails =
-        details as IncompleteCashuLightningSendTransactionDetails;
-      return createTransaction(
-        incompleteDetails.amountToReceive
-          .add(incompleteDetails.lightningFeeReserve)
-          .add(incompleteDetails.cashuSendFee),
-        incompleteDetails,
-      );
-    }
-
-    if (type === 'CASHU_LIGHTNING' && direction === 'RECEIVE') {
-      const receiveDetails = details as CashuLightningReceiveTransactionDetails;
-      const amount = receiveDetails.mintingFee
-        ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
-        : receiveDetails.amountReceived;
-      return createTransaction(amount, receiveDetails);
-    }
-
-    if (type === 'CASHU_TOKEN' && direction === 'SEND') {
-      const sendDetails = details as CashuTokenSendTransactionDetails;
-      return createTransaction(sendDetails.amountSpent, sendDetails);
-    }
-
-    if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
-      const receiveDetails = details as CashuTokenReceiveTransactionDetails;
-      const amount = receiveDetails.mintingFee
-        ? receiveDetails.amountReceived.add(receiveDetails.mintingFee)
-        : receiveDetails.amountReceived;
-      return createTransaction(amount, receiveDetails);
-    }
-
-    if (type === 'SPARK_LIGHTNING' && direction === 'RECEIVE') {
-      const receiveDetails = details as SparkLightningReceiveTransactionDetails;
-      return createTransaction(receiveDetails.amountReceived, receiveDetails);
-    }
-
-    if (type === 'SPARK_LIGHTNING' && direction === 'SEND') {
-      if (state === 'COMPLETED') {
-        const completedDetails =
-          details as CompletedSparkLightningSendTransactionDetails;
-        return createTransaction(
-          completedDetails.amountSpent,
-          completedDetails,
-        );
-      }
-      const incompleteDetails =
-        details as IncompleteSparkLightningSendTransactionDetails;
-      const amount =
-        incompleteDetails.amountSpent ??
-        incompleteDetails.amountToReceive.add(incompleteDetails.estimatedFee);
-      return createTransaction(amount, incompleteDetails);
-    }
-
-    throw new Error('Invalid transaction data', { cause: data });
+      direction: data.direction,
+      type: data.type,
+      state: data.state,
+      amount: details.amount,
+      details,
+    } satisfies z.input<typeof BaseTransactionSchema>);
   }
 }
 

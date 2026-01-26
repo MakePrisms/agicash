@@ -9,7 +9,10 @@ import {
   useQueries,
 } from '@tanstack/react-query';
 import { type Currency, Money } from '~/lib/money';
-import { getSparkIdentityPublicKeyFromMnemonic } from '~/lib/spark';
+import {
+  createSparkWalletStub,
+  getSparkIdentityPublicKeyFromMnemonic,
+} from '~/lib/spark';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
@@ -121,4 +124,40 @@ export function useTrackAndUpdateSparkAccountBalances() {
       refetchOnReconnect: 'always' as const,
     })),
   });
+}
+
+/**
+ * Initializes a Spark wallet with offline handling.
+ * If Spark is offline or times out, returns a minimal wallet with isOnline: false.
+ * @param queryClient - The query client to use for async queries and caching.
+ * @param mnemonic - The Spark wallet mnemonic.
+ * @param network - The Spark network that the wallet is on.
+ * @returns The wallet, balance and online status.
+ */
+export async function getInitializedSparkWallet(
+  queryClient: QueryClient,
+  mnemonic: string,
+  network: SparkNetwork,
+): Promise<{ wallet: SparkWallet; balance: Money | null; isOnline: boolean }> {
+  try {
+    const wallet = await queryClient.fetchQuery(
+      sparkWalletQueryOptions({ network, mnemonic }),
+    );
+    const { balance: balanceSats } = await wallet.getBalance();
+    const balance = new Money({
+      amount: Number(balanceSats),
+      currency: 'BTC',
+      unit: 'sat',
+    }) as Money;
+    return { wallet, balance, isOnline: true };
+  } catch (error) {
+    console.error('Failed to initialize spark wallet', { cause: error });
+    return {
+      wallet: createSparkWalletStub(
+        'Spark is offline, please try again later.',
+      ),
+      balance: null,
+      isOnline: false,
+    };
+  }
 }

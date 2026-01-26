@@ -187,6 +187,7 @@ export function useUnresolvedCashuSendSwaps() {
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
+    throwOnError: true,
     select: selectSendSwapsWithOnlineAccount,
   });
 

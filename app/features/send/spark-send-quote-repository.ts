@@ -1,26 +1,17 @@
+import type { z } from 'zod';
 import type { Money } from '~/lib/money';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type {
   AgicashDb,
   AgicashDbSparkSendQuote,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
+import { SparkLightningSendDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
-import type {
-  CompletedSparkLightningSendTransactionDetails,
-  IncompleteSparkLightningSendTransactionDetails,
-} from '../transactions/transaction';
-import type { SparkSendQuote } from './spark-send-quote';
+import { type SparkSendQuote, SparkSendQuoteSchema } from './spark-send-quote';
 
 type Options = {
   abortSignal?: AbortSignal;
-};
-
-type EncryptedData = {
-  amount: Money;
-  estimatedFee: Money;
-  paymentRequest: string;
-  fee?: Money;
-  paymentPreimage?: string;
 };
 
 type CreateQuoteParams = {
@@ -83,20 +74,13 @@ export class SparkSendQuoteRepository {
       expiresAt,
     } = params;
 
-    const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
-      amountToReceive: amount,
-      estimatedFee,
+    const sendData = SparkLightningSendDbDataSchema.parse({
       paymentRequest,
-    };
+      amountReceived: amount,
+      estimatedLightningFee: estimatedFee,
+    } satisfies z.input<typeof SparkLightningSendDbDataSchema>);
 
-    const dataToEncrypt: EncryptedData = {
-      amount,
-      estimatedFee,
-      paymentRequest,
-    };
-
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(sendData);
 
     const query = this.db.rpc('create_spark_send_quote', {
       p_user_id: userId,
@@ -104,7 +88,6 @@ export class SparkSendQuoteRepository {
       p_currency: amount.currency,
       p_payment_hash: paymentHash,
       p_payment_request_is_amountless: paymentRequestIsAmountless,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
       p_encrypted_data: encryptedData,
       p_expires_at: expiresAt?.toISOString(),
     });
@@ -152,29 +135,20 @@ export class SparkSendQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
-    const detailsToEncrypt: IncompleteSparkLightningSendTransactionDetails = {
-      amountToReceive: quote.amount,
+    const sendData = SparkLightningSendDbDataSchema.parse({
+      paymentRequest: quote.paymentRequest,
+      amountReceived: quote.amount,
+      estimatedLightningFee: quote.estimatedFee,
       amountSpent: quote.amount.add(fee),
-      estimatedFee: quote.estimatedFee,
-      paymentRequest: quote.paymentRequest,
-      fee,
-    };
+      lightningFee: fee,
+    } satisfies z.input<typeof SparkLightningSendDbDataSchema>);
 
-    const dataToEncrypt: EncryptedData = {
-      amount: quote.amount,
-      estimatedFee: quote.estimatedFee,
-      paymentRequest: quote.paymentRequest,
-      fee: fee,
-    };
-
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(sendData);
 
     const query = this.db.rpc('mark_spark_send_quote_as_pending', {
       p_quote_id: quote.id,
       p_spark_id: sparkSendRequestId,
       p_spark_transfer_id: sparkTransferId,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
       p_encrypted_data: encryptedData,
     });
 
@@ -213,32 +187,19 @@ export class SparkSendQuoteRepository {
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
-    const detailsToEncrypt: Omit<
-      CompletedSparkLightningSendTransactionDetails,
-      'sparkId' | 'sparkTransferId'
-    > = {
-      amountToReceive: quote.amount,
+    const sendData = SparkLightningSendDbDataSchema.parse({
+      paymentRequest: quote.paymentRequest,
+      amountReceived: quote.amount,
+      estimatedLightningFee: quote.estimatedFee,
       amountSpent: quote.amount.add(quote.fee),
-      estimatedFee: quote.estimatedFee,
-      paymentRequest: quote.paymentRequest,
-      fee: quote.fee,
+      lightningFee: quote.fee,
       paymentPreimage,
-    };
+    } satisfies z.input<typeof SparkLightningSendDbDataSchema>);
 
-    const dataToEncrypt: EncryptedData = {
-      amount: quote.amount,
-      estimatedFee: quote.estimatedFee,
-      paymentRequest: quote.paymentRequest,
-      fee: quote.fee,
-      paymentPreimage,
-    };
-
-    const [encryptedTransactionDetails, encryptedData] =
-      await this.encryption.encryptBatch([detailsToEncrypt, dataToEncrypt]);
+    const encryptedData = await this.encryption.encrypt(sendData);
 
     const query = this.db.rpc('complete_spark_send_quote', {
       p_quote_id: quote.id,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
       p_encrypted_data: encryptedData,
     });
 
@@ -333,103 +294,31 @@ export class SparkSendQuoteRepository {
   }
 
   async toQuote(data: AgicashDbSparkSendQuote): Promise<SparkSendQuote> {
-    const [decryptedData] = await this.encryption.decryptBatch<[EncryptedData]>(
-      [data.encrypted_data],
-    );
+    const decryptedData = await this.encryption.decrypt(data.encrypted_data);
+    const sendData = SparkLightningSendDbDataSchema.parse(decryptedData);
 
-    const baseQuote = {
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing spark send quote invariant check at runtime. For example it makes sure that sparkId, sparkTransferId, fee and paymentPreimage are not undefined when state is COMPLETED.
+    return SparkSendQuoteSchema.parse({
       id: data.id,
       sparkId: data.spark_id,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      amount: decryptedData.amount,
-      estimatedFee: decryptedData.estimatedFee,
-      paymentRequest: decryptedData.paymentRequest,
+      amount: sendData.amountReceived,
+      estimatedFee: sendData.estimatedLightningFee,
+      paymentRequest: sendData.paymentRequest,
       paymentHash: data.payment_hash,
       transactionId: data.transaction_id,
       userId: data.user_id,
       accountId: data.account_id,
       version: data.version,
       paymentRequestIsAmountless: data.payment_request_is_amountless,
-    };
-
-    if (data.state === 'COMPLETED') {
-      if (!data.spark_id) {
-        throw new Error(
-          'Invalid spark send quote data. Spark id is required for completed state.',
-        );
-      }
-      if (!data.spark_transfer_id) {
-        throw new Error(
-          'Invalid spark send quote data. Spark transfer id is required for completed state.',
-        );
-      }
-      if (!decryptedData.fee) {
-        throw new Error(
-          'Invalid spark send quote data. Fee is required for completed state.',
-        );
-      }
-      if (!decryptedData.paymentPreimage) {
-        throw new Error(
-          'Invalid spark send quote data. Payment preimage is required for completed state.',
-        );
-      }
-
-      return {
-        ...baseQuote,
-        state: 'COMPLETED',
-        sparkId: data.spark_id,
-        sparkTransferId: data.spark_transfer_id,
-        fee: decryptedData.fee,
-        paymentPreimage: decryptedData.paymentPreimage,
-      };
-    }
-
-    if (data.state === 'FAILED') {
-      return {
-        ...baseQuote,
-        state: 'FAILED',
-        failureReason: data.failure_reason ?? undefined,
-        sparkId: data.spark_id ?? undefined,
-        sparkTransferId: data.spark_transfer_id ?? undefined,
-        fee: decryptedData.fee,
-      };
-    }
-
-    if (data.state === 'PENDING') {
-      if (!data.spark_id) {
-        throw new Error(
-          'Invalid spark send quote data. Spark id is required for pending state.',
-        );
-      }
-      if (!data.spark_transfer_id) {
-        throw new Error(
-          'Invalid spark send quote data. Spark transfer id is required for pending state.',
-        );
-      }
-      if (!decryptedData.fee) {
-        throw new Error(
-          'Invalid spark send quote data. Fee is required for pending state.',
-        );
-      }
-
-      return {
-        ...baseQuote,
-        state: 'PENDING',
-        sparkId: data.spark_id,
-        sparkTransferId: data.spark_transfer_id,
-        fee: decryptedData.fee,
-      };
-    }
-
-    if (data.state === 'UNPAID') {
-      return {
-        ...baseQuote,
-        state: 'UNPAID',
-      };
-    }
-
-    throw new Error(`Unexpected quote state ${data.state}`);
+      state: data.state,
+      sparkTransferId: data.spark_transfer_id,
+      fee: sendData.lightningFee,
+      paymentPreimage: sendData.paymentPreimage,
+      failureReason: data.failure_reason,
+    } satisfies AllUnionFieldsRequired<z.output<typeof SparkSendQuoteSchema>>);
   }
 }
 
