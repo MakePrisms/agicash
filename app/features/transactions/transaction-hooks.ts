@@ -99,24 +99,6 @@ export function useTransactionsCache() {
   return useMemo(() => new TransactionsCache(queryClient), [queryClient]);
 }
 
-export function useTransaction({
-  transactionId,
-}: {
-  transactionId?: string;
-}) {
-  const enabled = !!transactionId;
-  const transactionRepository = useTransactionRepository();
-
-  return useQuery({
-    queryKey: [TransactionsCache.Key, transactionId],
-    queryFn: () => transactionRepository.get(transactionId ?? ''),
-    enabled,
-    staleTime: Number.POSITIVE_INFINITY,
-    refetchOnWindowFocus: 'always',
-    refetchOnReconnect: 'always',
-  });
-}
-
 export function useSuspenseTransaction(id: string) {
   const transactionRepository = useTransactionRepository();
 
