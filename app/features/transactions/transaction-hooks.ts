@@ -99,7 +99,7 @@ export function useTransactionsCache() {
   return useMemo(() => new TransactionsCache(queryClient), [queryClient]);
 }
 
-export function useSuspenseTransaction(id: string) {
+export function useTransaction(id: string) {
   const transactionRepository = useTransactionRepository();
 
   return useSuspenseQuery({

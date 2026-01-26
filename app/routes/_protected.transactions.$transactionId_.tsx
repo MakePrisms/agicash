@@ -6,13 +6,13 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { TransactionDetails } from '~/features/transactions/transaction-details';
-import { useSuspenseTransaction } from '~/features/transactions/transaction-hooks';
+import { useTransaction } from '~/features/transactions/transaction-hooks';
 import type { Route } from './+types/_protected.transactions.$transactionId_';
 
 export default function TransactionDetailsPage({
   params: { transactionId },
 }: Route.ComponentProps) {
-  const { data: transaction } = useSuspenseTransaction(transactionId);
+  const { data: transaction } = useTransaction(transactionId);
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirectTo');
 
