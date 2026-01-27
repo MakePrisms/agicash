@@ -1,5 +1,5 @@
 import type { NetworkType } from '@buildonspark/spark-sdk';
-import { type QueryClient, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod';
 import type { Currency } from '~/lib/money';
@@ -20,10 +20,7 @@ import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import { UniqueConstraintError } from '../shared/error';
-import {
-  getInitializedSparkWallet,
-  sparkMnemonicQueryOptions,
-} from '../shared/spark';
+import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
 
 export type UpdateUser = {
@@ -223,55 +220,13 @@ export class WriteUserRepository {
     };
   }
 }
-export class ReadUserRepository {
+
+export class ReadUserDefaultAccountRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly queryClient: QueryClient,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
   ) {}
-
-  /**
-   * Gets a user from the database.
-   * @param userId - The id of the user to get.
-   * @returns The user.
-   */
-  async get(
-    userId: string,
-    options?: { abortSignal?: AbortSignal },
-  ): Promise<User> {
-    const query = this.db.from('users').select().eq('id', userId);
-
-    if (options?.abortSignal) {
-      query.abortSignal(options.abortSignal);
-    }
-
-    const { data, error } = await query.single();
-
-    if (error) {
-      throw new Error('Failed to get user', { cause: error });
-    }
-
-    return toUser(data);
-  }
-
-  async getByUsername(
-    username: string,
-    options?: { abortSignal?: AbortSignal },
-  ): Promise<User | null> {
-    const query = this.db.from('users').select().eq('username', username);
-
-    if (options?.abortSignal) {
-      query.abortSignal(options.abortSignal);
-    }
-
-    const { data, error } = await query.maybeSingle();
-
-    if (error) {
-      throw new Error('Failed to get user by username', { cause: error });
-    }
-
-    return data ? toUser(data) : null;
-  }
 
   /**
    * Gets the user's default account. If currency is not provided, the default currency of the user is used.
@@ -367,15 +322,55 @@ export class ReadUserRepository {
   }
 }
 
+export class ReadUserRepository {
+  constructor(private readonly db: AgicashDb) {}
+
+  /**
+   * Gets a user from the database.
+   * @param userId - The id of the user to get.
+   * @returns The user.
+   */
+  async get(
+    userId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<User> {
+    const query = this.db.from('users').select().eq('id', userId);
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query.single();
+
+    if (error) {
+      throw new Error('Failed to get user', { cause: error });
+    }
+
+    return toUser(data);
+  }
+
+  async getByUsername(
+    username: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<User | null> {
+    const query = this.db.from('users').select().eq('username', username);
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      throw new Error('Failed to get user by username', { cause: error });
+    }
+
+    return data ? toUser(data) : null;
+  }
+}
+
 export function useReadUserRepository() {
-  const queryClient = useQueryClient();
-  const getSparkWalletMnemonic = () =>
-    queryClient.fetchQuery(sparkMnemonicQueryOptions());
-  return new ReadUserRepository(
-    agicashDbClient,
-    queryClient,
-    getSparkWalletMnemonic,
-  );
+  return new ReadUserRepository(agicashDbClient);
 }
 
 export function useWriteUserRepository() {

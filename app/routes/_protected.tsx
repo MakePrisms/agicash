@@ -112,11 +112,7 @@ const ensureUserData = async (
       sparkIdentityPublicKey,
     });
     user = upsertedUser;
-    const readUserRepository = new ReadUserRepository(
-      agicashDbClient,
-      queryClient,
-      getSparkWalletMnemonic,
-    );
+    const readUserRepository = new ReadUserRepository(agicashDbClient);
     const { queryKey: userQueryKey } = userQueryOptions({
       userId: authUser.id,
       userRepository: readUserRepository,
