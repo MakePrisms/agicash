@@ -16,6 +16,7 @@ export type Database = {
           details: Json
           id: string
           name: string
+          purpose: string
           type: string
           user_id: string
           version: number
@@ -26,6 +27,7 @@ export type Database = {
           details: Json
           id?: string
           name: string
+          purpose?: string
           type: string
           user_id: string
           version?: number
@@ -36,6 +38,7 @@ export type Database = {
           details?: Json
           id?: string
           name?: string
+          purpose?: string
           type?: string
           user_id?: string
           version?: number
@@ -1565,6 +1568,7 @@ export type Database = {
         name: string | null
         details: Json | null
         is_default: boolean | null
+        purpose: string | null
       }
       add_cashu_proofs_and_update_account_result: {
         account: Json | null

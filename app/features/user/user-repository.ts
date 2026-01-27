@@ -154,6 +154,7 @@ export class UserRepository {
       type: account.type,
       currency: account.currency,
       is_default: account.isDefault ?? false,
+      purpose: account.purpose,
       details: (() => {
         if (account.type === 'cashu') {
           return {

@@ -8,6 +8,13 @@ import { type Currency, Money } from '~/lib/money';
 
 export type AccountType = 'cashu' | 'spark';
 
+/**
+ * The purpose of this account.
+ * - 'transactional': Regular accounts for sending/receiving payments
+ * - 'gift-card': Closed-loop accounts for mints that are issuing gift cards
+ */
+export type AccountPurpose = 'transactional' | 'gift-card';
+
 export type CashuProof = {
   id: string;
   accountId: string;
@@ -41,6 +48,7 @@ export type Account = {
   id: string;
   name: string;
   type: AccountType;
+  purpose: AccountPurpose;
   isOnline: boolean;
   currency: Currency;
   createdAt: string;
@@ -86,6 +94,25 @@ export type CashuAccount = Extract<Account, { type: 'cashu' }>;
 export type SparkAccount = Extract<Account, { type: 'spark' }>;
 export type ExtendedCashuAccount = ExtendedAccount<'cashu'>;
 export type ExtendedSparkAccount = ExtendedAccount<'spark'>;
+
+/**
+ * Returns true if the account can send payments through the Lightning network.
+ * Returns false for test mints and gift-card accounts.
+ */
+export const canSendToLightning = (account: Account): boolean => {
+  if (account.type === 'spark') {
+    return true;
+  }
+  return !account.isTestMint && account.purpose === 'transactional';
+};
+
+/**
+ * Returns true if the account can receive payments via the Lightning network.
+ * Returns false for test mints only.
+ */
+export const canReceiveFromLightning = (account: Account): boolean => {
+  return account.type === 'spark' || !account.isTestMint;
+};
 
 export const getAccountBalance = (account: Account) => {
   if (account.type === 'cashu') {

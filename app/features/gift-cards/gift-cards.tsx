@@ -27,8 +27,7 @@ import {
  */
 export function GiftCards() {
   const { data: accounts } = useAccounts({
-    type: 'cashu',
-    onlyIncludeClosedLoopAccounts: true,
+    purpose: 'gift-card',
   });
 
   const navigate = useNavigate();
