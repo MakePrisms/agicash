@@ -27,7 +27,7 @@ import {
 } from '~/lib/transitions';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
-import { getGiftCardImageByMintUrl } from '../gift-cards/use-discover-cards';
+import { getGiftCardImageByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
@@ -198,7 +198,7 @@ export default function ReceiveToken({
               {isGiftCardSource ? (
                 <GiftCardItem
                   account={sourceAccount}
-                  image={getGiftCardImageByMintUrl(sourceAccount.mintUrl)}
+                  image={getGiftCardImageByUrl(sourceAccount.mintUrl)}
                   hideOverlayContent
                 />
               ) : (

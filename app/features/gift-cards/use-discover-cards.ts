@@ -60,7 +60,7 @@ export const GIFT_CARDS: GiftCardInfo[] = [
 /**
  * Returns the gift card image for a given URL, if one exists.
  */
-export function getGiftCardImageByMintUrl(url: string): string | undefined {
+export function getGiftCardImageByUrl(url: string): string | undefined {
   return GIFT_CARDS.find((card) => card.url === url)?.image;
 }
 
