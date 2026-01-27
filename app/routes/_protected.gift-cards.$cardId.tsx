@@ -1,6 +1,9 @@
-import GiftCardDetails from '~/features/gift-cards/gift-card-details';
-import type { Route } from './+types/_protected.gift-cards.$cardId';
+import { useState } from 'react';
+import { Outlet } from 'react-router';
+import { createTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
 
-export default function GiftCardDetailsRoute({ params }: Route.ComponentProps) {
-  return <GiftCardDetails cardId={params.cardId} />;
+export default function GiftCardLayout() {
+  const [store] = useState(() => createTransactionAckStatusStore());
+
+  return <Outlet context={store} />;
 }

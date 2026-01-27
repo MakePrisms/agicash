@@ -161,20 +161,10 @@ function TransactionRow({
     onVisibilityChange: useCallback(
       (isVisible: boolean) => {
         if (isVisible && transaction.acknowledgmentStatus === 'pending') {
-          acknowledgeTransaction(
-            { transaction },
-            {
-              onSuccess: () => {
-                setAckStatus({
-                  ...transaction,
-                  acknowledgmentStatus: 'acknowledged',
-                });
-              },
-            },
-          );
+          acknowledgeTransaction({ transaction });
         }
       },
-      [transaction, acknowledgeTransaction, setAckStatus],
+      [transaction, acknowledgeTransaction],
     ),
   });
 
