@@ -168,13 +168,12 @@ export function useOnSparkSendStateChange({
         return;
       }
 
-      const lastTriggeredState = lastTriggeredStateRef.current.get(quoteId);
-
-      if (quote.state === 'UNPAID') {
-        if (lastTriggeredState !== 'UNPAID') {
-          lastTriggeredStateRef.current.set(quoteId, 'UNPAID');
-          onUnpaidRef.current(quote);
-        }
+      if (
+        quote.state === 'UNPAID' &&
+        lastTriggeredStateRef.current.get(quoteId) !== 'UNPAID'
+      ) {
+        lastTriggeredStateRef.current.set(quoteId, 'UNPAID');
+        onUnpaidRef.current(quote);
         return;
       }
 
@@ -194,7 +193,7 @@ export function useOnSparkSendStateChange({
 
       if (
         sendRequest.status === LightningSendRequestStatus.TRANSFER_COMPLETED &&
-        lastTriggeredState !== 'COMPLETED'
+        lastTriggeredStateRef.current.get(quoteId) !== 'COMPLETED'
       ) {
         if (!sendRequest.paymentPreimage) {
           throw new Error(
@@ -212,7 +211,7 @@ export function useOnSparkSendStateChange({
 
       if (
         sendRequest.status === LightningSendRequestStatus.USER_SWAP_RETURNED &&
-        lastTriggeredState !== 'FAILED'
+        lastTriggeredStateRef.current.get(quoteId) !== 'FAILED'
       ) {
         lastTriggeredStateRef.current.set(quoteId, 'FAILED');
 
