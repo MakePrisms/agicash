@@ -20,7 +20,7 @@ import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
 import { useDefaultAccount } from '../accounts/account-hooks';
-import { AccountTypeIcon } from '../accounts/account-icons';
+import { AccountIcon } from '../accounts/account-icons';
 import { ColorModeToggle } from '../theme/color-mode-toggle';
 import { useSignOut } from '../user/auth';
 import { useUser } from '../user/user-hooks';
@@ -114,7 +114,7 @@ export default function Settings() {
         </SettingsNavButton>
 
         <SettingsNavButton to="/settings/accounts">
-          <AccountTypeIcon type={defaultAccount.type} />
+          <AccountIcon account={defaultAccount} />
           <span>{defaultAccount.name}</span>
         </SettingsNavButton>
 

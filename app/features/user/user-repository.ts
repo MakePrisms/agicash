@@ -176,6 +176,7 @@ export class WriteUserRepository {
       type: account.type,
       currency: account.currency,
       is_default: account.isDefault ?? false,
+      purpose: account.purpose,
       details: (() => {
         if (account.type === 'cashu') {
           return CashuAccountDetailsDbDataSchema.parse({
@@ -274,6 +275,7 @@ export class ReadUserDefaultAccountRepository {
       id: data.id,
       name: data.name,
       currency: data.currency,
+      purpose: data.purpose,
       createdAt: data.created_at,
       version: data.version,
     };

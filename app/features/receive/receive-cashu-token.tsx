@@ -26,6 +26,8 @@ import {
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
 import { AccountSelector } from '../accounts/account-selector';
+import { GiftCardItem } from '../gift-cards/gift-card-item';
+import { getGiftCardImageByMintUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
@@ -108,11 +110,12 @@ export default function ReceiveToken({
   const {
     selectableAccounts,
     receiveAccount,
-    isCrossMintSwapDisabled,
     sourceAccount,
     setReceiveAccount,
     addAndSetReceiveAccount,
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
+
+  const isGiftCardSource = sourceAccount.purpose === 'gift-card';
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
 
@@ -192,12 +195,20 @@ export default function ReceiveToken({
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken && receiveAccount ? (
             <div className="w-full max-w-sm px-4">
-              <AccountSelector
-                accounts={selectableAccounts}
-                selectedAccount={receiveAccount}
-                disabled={isCrossMintSwapDisabled}
-                onSelect={setReceiveAccount}
-              />
+              {isGiftCardSource ? (
+                <GiftCardItem
+                  account={sourceAccount}
+                  image={getGiftCardImageByMintUrl(sourceAccount.mintUrl)}
+                  hideOverlayContent
+                />
+              ) : (
+                <AccountSelector
+                  accounts={selectableAccounts}
+                  selectedAccount={receiveAccount}
+                  disabled={selectableAccounts.length <= 1}
+                  onSelect={setReceiveAccount}
+                />
+              )}
             </div>
           ) : (
             <TokenErrorDisplay
