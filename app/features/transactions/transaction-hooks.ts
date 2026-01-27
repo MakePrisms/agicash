@@ -25,6 +25,7 @@ import {
  */
 class TransactionsCache {
   public static Key = 'transactions';
+  public static HistoryKey = 'transactions-history';
   public static UnacknowledgedCountKey = 'unacknowledged-transactions-count';
 
   constructor(private readonly queryClient: QueryClient) {}
@@ -86,6 +87,9 @@ class TransactionsCache {
         queryKey: [TransactionsCache.Key],
       }),
       this.queryClient.invalidateQueries({
+        queryKey: [TransactionsCache.HistoryKey],
+      }),
+      this.queryClient.invalidateQueries({
         queryKey: [TransactionsCache.UnacknowledgedCountKey],
       }),
     ]);
@@ -116,7 +120,7 @@ export function useTransactions(accountId?: string) {
   const transactionRepository = useTransactionRepository();
 
   const result = useInfiniteQuery({
-    queryKey: [TransactionsCache.Key, accountId],
+    queryKey: [TransactionsCache.HistoryKey, accountId],
     initialPageParam: null,
     queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
       const result = await transactionRepository.list({
@@ -168,7 +172,7 @@ const acknowledgeTransactionInHistoryCache = (
       transactions: Transaction[];
       nextCursor: Cursor | null;
     }>
-  >({ queryKey: [TransactionsCache.Key] });
+  >({ queryKey: [TransactionsCache.HistoryKey] });
 
   queries.forEach(([queryKey, data]) => {
     if (!data) return;
