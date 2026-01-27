@@ -54,12 +54,10 @@ A self-signed certificate is used for HTTPS. The certificate is managed by deven
 regenerate the certificate (for example, if your local IP has changed), reload devenv by executing `direnv reload`
 or run the certificate script directly by executing `generate-ssl-cert`.
 
-**Installing the root certificate on mobile:** Mobile browsers may require the root CA to be installed and trusted on the
-device. On **iOS**:
-
-1. AirDrop or email the `certs/rootCA.pem` file to your device and open it
-2. Go to **Settings → General → VPN & Device Management** and install the downloaded profile
-3. Go to **Settings → General → About → Certificate Trust Settings** and enable full trust for the root certificate
+**Installing the root certificate on iOS:** Mobile browsers require the root CA to be trusted. Find your mkcert root CA
+by running `mkcert -CAROOT` (typically `~/Library/Application Support/mkcert/rootCA.pem`), then AirDrop or email it to
+your device. Install via **Settings → General → VPN & Device Management**, then enable trust in **Settings → General →
+About → Certificate Trust Settings**.
 
 `master` is the main branch. When working on a feature, branch off `master` and, when ready, make a PR back to `master`.
 Try to make feature branches short-lived and concise (avoid implementing multiple features in one PR).
