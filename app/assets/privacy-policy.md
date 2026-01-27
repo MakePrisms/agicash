@@ -126,4 +126,4 @@ We store personal information associated with your account for as long as your a
 
 ## Contact Us
 
-If you have questions about this Privacy Notice, please contact Agicash a legal@agi.cash.
+If you have questions about this Privacy Notice, please contact Agicash at legal@agi.cash.
