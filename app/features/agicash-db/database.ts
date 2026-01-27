@@ -5,7 +5,7 @@ import type {
 } from 'supabase/database.types';
 import type { MergeDeep } from 'type-fest';
 import type { Currency, CurrencyUnit } from '~/lib/money';
-import type { AccountType } from '../accounts/account';
+import type { AccountPurpose, AccountType } from '../accounts/account';
 import type { CashuProof } from '../accounts/cashu-account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { CashuTokenSwap } from '../receive/cashu-token-swap';
@@ -138,14 +138,17 @@ export type Database = MergeDeep<
           Row: {
             currency: Currency;
             type: AccountType;
+            purpose: AccountPurpose;
           };
           Insert: {
             currency: Currency;
             type: AccountType;
+            purpose?: AccountPurpose;
           };
           Update: {
             currency?: Currency;
             type?: AccountType;
+            purpose?: AccountPurpose;
           };
         };
         cashu_receive_quotes: {

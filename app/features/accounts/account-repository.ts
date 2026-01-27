@@ -133,6 +133,7 @@ export class AccountRepository {
       currency: accountInput.currency,
       details,
       user_id: accountInput.userId,
+      purpose: accountInput.purpose,
     };
 
     const query = this.db
@@ -166,6 +167,7 @@ export class AccountRepository {
       id: data.id,
       name: data.name,
       currency: data.currency,
+      purpose: data.purpose,
       createdAt: data.created_at,
       version: data.version,
     };
