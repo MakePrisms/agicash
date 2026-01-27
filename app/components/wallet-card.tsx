@@ -92,8 +92,8 @@ export function WalletCardOverlay({
 }
 
 /**
- * Lazy-loading background image for WalletCard.
- * Shows a skeleton until the image loads.
+ * Lazy-loads background image for WalletCard.
+ * Displays a skeleton until the image loads.
  */
 export function WalletCardBackgroundImage({
   src,

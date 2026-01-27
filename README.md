@@ -211,4 +211,8 @@ Use the provided conversion script:
 ./tools/convert-to-webp.sh -q 85 --dir app/assets/gift-cards
 ```
 
-Requires `cwebp` - install with `brew install webp` if not available.
+Requires `cwebp` - install with `brew install webp` or run via nix:
+
+```sh
+nix shell nixpkgs#libwebp --command ./tools/convert-to-webp.sh --dir app/assets/gift-cards
+```

@@ -27,7 +27,8 @@ show_help() {
 
 # Check if cwebp is available
 if ! command -v cwebp &>/dev/null; then
-  echo "❌ cwebp not found. Install it with: brew install webp"
+  echo "❌ cwebp not found. Install with: brew install webp"
+  echo "   Or run via nix: nix shell nixpkgs#libwebp --command $0 $*"
   exit 1
 fi
 
