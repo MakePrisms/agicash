@@ -137,14 +137,10 @@ export function TransactionDetails({
 
   // Log transaction details with proper formatting for each type
   const { type, direction, state, details } = transaction;
-  const unit = undefined; // Use default unit from Money class
 
   console.debug(
     `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-    {
-      unit,
-      details,
-    },
+    { details },
   );
 
   return (

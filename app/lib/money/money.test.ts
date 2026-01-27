@@ -162,15 +162,21 @@ describe('Money', () => {
         currencies: {
           BTC: {
             baseUnit: 'sat',
+            units: [
+              {
+                name: 'sat',
+                symbol: 'sat',
+              },
+            ],
           },
         },
       });
 
       // Without unit specified, should use configured base unit (sat)
-      const money = new Money({ amount: 100000, currency: 'BTC' });
-      expect(money.amount().toString()).toBe('100000'); // In sats
-      expect(money.toString()).toBe('100000'); // In sats
-      expect(money.amount('btc').toString()).toBe('0.00100000'); // Can still convert to btc
+      const money = new Money({ amount: 1, currency: 'BTC' });
+      expect(money.amount().toString()).toBe('1'); // In sats
+      expect(money.toLocaleString()).toBe('sat1'); // In sats
+      expect(money.toLocaleString({ unit: 'btc' })).toBe('₿0.00000001'); // Can still convert to btc
     });
 
     it('affects default unit used in toString and amount', () => {
@@ -211,7 +217,7 @@ describe('Money', () => {
       const money = new Money({ amount: 100000, currency: 'BTC' });
 
       // All units should still be accessible
-      expect(money.amount('btc').toString()).toBe('0.00100000');
+      expect(money.amount('btc').toString()).toBe('0.001');
       expect(money.amount('sat').toString()).toBe('100000');
       expect(money.amount('msat').toString()).toBe('100000000');
     });
@@ -264,6 +270,26 @@ describe('Money', () => {
       // Result should be in configured base unit (sats)
       expect(btc.toString()).toBe('20000'); // 20000 sats
       expect(btc.amount().toString()).toBe('20000');
+    });
+
+    it('affects conversion source currency', () => {
+      Money.configure({
+        currencies: {
+          BTC: {
+            baseUnit: 'sat',
+          },
+        },
+      });
+
+      const btc = new Money({ amount: 25, currency: 'BTC' }); // 25 sats
+      const rate = new Big(89168); // 1 BTC = 89168 USD
+      const usd = btc.convert('USD', rate);
+
+      // 25 sats = 25 * 1e-8 BTC = 0.00000025 BTC
+      // 0.00000025 BTC * 89168 USD/BTC = 0.022292 USD
+      // Rounded to 2 decimals = 0.02 USD
+      expect(usd.toString()).toBe('0.02');
+      expect(usd.amount().toString()).toBe('0.02');
     });
   });
 

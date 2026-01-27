@@ -242,6 +242,7 @@ describe('CurrencyRegistry', () => {
 
       const btcData = registry.getCurrencyData('BTC');
       expect(btcData.units).toHaveLength(4); // btc, sat, msat, ksat
+      // @ts-expect-error - 'ksat' is a custom unit added at runtime, not in BtcUnit type
       const ksatUnit = btcData.units.find((u) => u.name === 'ksat');
       expect(ksatUnit).toBeDefined();
       expect(ksatUnit?.symbol).toBe('ksat');

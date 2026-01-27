@@ -41,88 +41,6 @@ export class Money<T extends Currency = Currency> {
   private static registry = CurrencyRegistry.getInstance();
   private readonly _data: MoneyData<T>;
 
-  /**
-   * Returns the class tag for better console output.
-   * Shows as "Money" in Object.prototype.toString.call()
-   */
-  get [Symbol.toStringTag](): string {
-    return 'Money';
-  }
-
-  /**
-   * Returns a formatted string representation for debugging.
-   * Visible when expanding the object in browser DevTools.
-   */
-  get formatted(): string {
-    return this.toLocaleString();
-  }
-
-  /**
-   * Custom inspect method for Node.js console output.
-   * Shows formatted value instead of internal structure.
-   */
-  [Symbol.for('nodejs.util.inspect.custom')](): string {
-    return `Money { ${this.toLocaleString()} }`;
-  }
-
-  /**
-   * Registers a Chrome DevTools custom formatter for Money instances.
-   * Call this once at app startup to enable pretty console output.
-   *
-   * To enable custom formatters in Chrome DevTools:
-   * 1. Open DevTools (F12)
-   * 2. Click Settings (gear icon) or press F1
-   * 3. Under "Console", check "Custom formatters"
-   *
-   * After enabling, Money instances will display as: Money ₿1,234.00
-   */
-  static registerDevToolsFormatter(): void {
-    if (typeof window === 'undefined') return;
-
-    const formatter = {
-      header: (obj: unknown) => {
-        if (!(obj instanceof Money)) return null;
-        return [
-          'div',
-          { style: 'font-weight: bold; color: #9c27b0;' },
-          `Money ${obj.toLocaleString()}`,
-        ];
-      },
-      hasBody: (obj: unknown) => obj instanceof Money,
-      body: (obj: unknown) => {
-        if (!(obj instanceof Money)) return null;
-        const money = obj as Money;
-        return [
-          'div',
-          { style: 'margin-left: 12px;' },
-          [
-            'div',
-            {},
-            ['span', { style: 'color: #888;' }, 'currency: '],
-            money.currency,
-          ],
-          [
-            'div',
-            {},
-            ['span', { style: 'color: #888;' }, 'amount: '],
-            money.amount().toString(),
-          ],
-          [
-            'div',
-            {},
-            ['span', { style: 'color: #888;' }, 'formatted: '],
-            money.toLocaleString(),
-          ],
-        ];
-      },
-    };
-
-    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
-    window.devtoolsFormatters = window.devtoolsFormatters || [];
-    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
-    window.devtoolsFormatters.push(formatter);
-  }
-
   constructor(data: MoneyInput<T>) {
     const { baseUnit, minUnit, selectedUnit } =
       Money.getCurrencyDataForInput<T>(data);
@@ -489,26 +407,30 @@ export class Money<T extends Currency = Currency> {
     };
   };
 
-  toJSON = () => {
-    return {
-      amount: this.toNumber(),
-      currency: this.currency,
-    };
-  };
-
   /**
    * Converts the money to the provided currency based on the provided exchange rate.
+   *
+   * The exchange rate must be expressed in standard currency units (factor=1), not in
+   * sub-units like sats or cents. For example, use the BTC/USD rate (e.g., 89168), not
+   * a sat/USD rate. The source amount is automatically converted from its configured
+   * base unit to standard units before applying the rate, and the result is automatically
+   * converted to the configured base unit of the target currency.
+   *
    * @param currency Currency to convert the money to (target currency)
-   * @param exchangeRate Exchange rate to apply. The rate has to be in source/target currency format. E.g. if converting
-   * USD to BTC, the rate should be in USD/BTC format. If converting BTC to usd it should be in USD/BTC format.
+   * @param exchangeRate Exchange rate in source/target currency format using standard units.
+   * E.g. if converting BTC to USD, the rate should be the BTC/USD rate (how many USD per 1 BTC).
    */
   convert = <U extends Currency>(
     currency: U,
     exchangeRate: NumberInput,
   ): Money<U> => {
+    const sourceCurrencyBaseUnit = getCurrencyBaseUnit(this.currency);
     const destinationCurrencyBaseUnit = getCurrencyBaseUnit(currency);
-    const amount = this.amount()
-      .mul(exchangeRate)
+    const amountInStandardUnit = this.amount()
+      .mul(sourceCurrencyBaseUnit.factor)
+      .mul(exchangeRate);
+    const amount = amountInStandardUnit
+      .div(destinationCurrencyBaseUnit.factor)
       .round(destinationCurrencyBaseUnit.decimals, Big.roundHalfUp);
     return new Money({
       amount,
@@ -516,6 +438,106 @@ export class Money<T extends Currency = Currency> {
       unit: destinationCurrencyBaseUnit.name,
     });
   };
+
+  /**
+   * Returns a JSON representation of the money object.
+   * @returns {Object} A JSON object with the amount, currency, and unit.
+   */
+  toJSON = () => {
+    return {
+      amount: this.toNumber(),
+      currency: this.currency,
+      unit: this.getCurrencyUnit().name,
+    };
+  };
+
+  /**
+   * Returns the class tag for better console output.
+   * Shows as "Money" in Object.prototype.toString.call()
+   */
+  get [Symbol.toStringTag](): string {
+    return 'Money';
+  }
+
+  /**
+   * Returns a formatted string representation for debugging.
+   * Visible when expanding the object in browser DevTools.
+   */
+  get formatted(): string {
+    return this.toLocaleString();
+  }
+
+  /**
+   * Custom inspect method for Node.js console output.
+   * Shows formatted value instead of internal structure.
+   */
+  [Symbol.for('nodejs.util.inspect.custom')](): string {
+    return `Money { ${this.toLocaleString()} }`;
+  }
+
+  /**
+   * Registers a Chrome DevTools custom formatter for Money instances.
+   * Call this once at app startup to enable pretty console output.
+   *
+   * To enable custom formatters in Chrome DevTools:
+   * 1. Open DevTools (F12)
+   * 2. Click Settings (gear icon) or press F1
+   * 3. Under "Console", check "Custom formatters"
+   *
+   * After enabling, Money instances will display as: Money ₿1,234.00
+   */
+  static registerDevToolsFormatter(): void {
+    if (typeof window === 'undefined') return;
+
+    const formatter = {
+      header: (obj: unknown) => {
+        if (!(obj instanceof Money)) return null;
+        return [
+          'div',
+          { style: 'font-weight: bold; color: #9c27b0;' },
+          `Money ${obj.toLocaleString()}`,
+        ];
+      },
+      hasBody: (obj: unknown) => obj instanceof Money,
+      body: (obj: unknown) => {
+        if (!(obj instanceof Money)) return null;
+        const money = obj as Money;
+        return [
+          'div',
+          { style: 'margin-left: 12px;' },
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'currency: '],
+            money.currency,
+          ],
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'unit: '],
+            money.getCurrencyUnit().name,
+          ],
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'amount: '],
+            money.amount().toString(),
+          ],
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'formatted: '],
+            money.toLocaleString(),
+          ],
+        ];
+      },
+    };
+
+    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
+    window.devtoolsFormatters = window.devtoolsFormatters || [];
+    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
+    window.devtoolsFormatters.push(formatter);
+  }
 
   private get currencyData(): CurrencyData<T> {
     return Money.registry.getCurrencyData(this.currency);

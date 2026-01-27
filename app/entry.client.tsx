@@ -8,9 +8,9 @@ import * as Sentry from '@sentry/react-router';
 import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
-import { Money } from '~/lib/money';
+import { configureMoney } from './configuration';
 import { getEnvironment, isServedLocally } from './environment';
-import { Money } from './lib/money/money';
+import { Money } from './lib/money';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
 if (process.env.NODE_ENV === 'development') {
@@ -32,15 +32,7 @@ configure({
   clientId: openSecretClientId,
 });
 
-// Configure Money class for Agicash
-Money.configure({
-  currencies: {
-    BTC: {
-      baseUnit: 'sat', // Override BTC base unit from 'btc' to 'sat'
-    },
-    // USD not specified - uses all defaults
-  },
-});
+configureMoney();
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {
