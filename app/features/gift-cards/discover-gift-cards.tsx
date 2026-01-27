@@ -1,5 +1,8 @@
 import { useViewTransitionState } from 'react-router';
-import { WalletCard, WalletCardBackground } from '~/components/wallet-card';
+import {
+  WalletCard,
+  WalletCardBackgroundImage,
+} from '~/components/wallet-card';
 import useUserAgent from '~/hooks/use-user-agent';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
@@ -48,7 +51,7 @@ export function DiscoverGiftCards({ giftCards }: DiscoverSectionProps) {
                     index === giftCards.length - 1 && 'mr-4 sm:mr-0',
                   )}
                 >
-                  <WalletCardBackground src={card.image} alt={card.name} />
+                  <WalletCardBackgroundImage src={card.image} alt={card.name} />
                 </WalletCard>
               </LinkWithViewTransition>
             ))}

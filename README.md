@@ -217,3 +217,28 @@ New e2e test suites should be added to the `e2e` folder and named `<name_of_the_
 Every pull request created will trigger the GitHub Actions CI pipeline. The pipeline runs three jobs in parallel. One
 checks code format, lint, and types. Another runs the unit tests, and a third one runs e2e tests. If any of the jobs fail,
 merging to `master` will not be allowed.
+
+## Gift Card Assets
+
+Gift card images should use the **WebP format** for better compression and faster loading.
+
+### Converting PNG to WebP
+
+Use the provided conversion script:
+
+```sh
+# Convert a single file
+./tools/convert-to-webp.sh app/assets/gift-cards/mycard.png
+
+# Convert all PNGs in the gift-cards directory
+./tools/convert-to-webp.sh --dir app/assets/gift-cards
+
+# With custom quality (default is 80)
+./tools/convert-to-webp.sh -q 85 --dir app/assets/gift-cards
+```
+
+Requires `cwebp` - install with `brew install webp` or run via nix:
+
+```sh
+nix shell nixpkgs#libwebp --command ./tools/convert-to-webp.sh --dir app/assets/gift-cards
+```
