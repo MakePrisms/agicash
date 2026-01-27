@@ -18,7 +18,7 @@ import { useCashuTokenSwapRepository } from '../receive/cashu-token-swap-reposit
 import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import type { Transaction } from './transaction';
-import { useSuspenseTransaction } from './transaction-hooks';
+import { useTransaction } from './transaction-hooks';
 
 const augmentProofsWithState = (
   proofs: CashuProof[] | Proof[],
@@ -206,7 +206,7 @@ const getDetails = (transaction: Transaction, account: CashuAccount) => {
 export function TransactionAdditionalDetails({
   transactionId,
 }: { transactionId: string }) {
-  const { data: transaction } = useSuspenseTransaction(transactionId);
+  const { data: transaction } = useTransaction(transactionId);
   const account = useAccount(transaction.accountId);
 
   if (account.type !== 'cashu') {
