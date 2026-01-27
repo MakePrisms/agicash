@@ -19,7 +19,10 @@ import {
 import type { AgicashDb } from '../agicash-db/database';
 import { NotFoundError } from '../shared/error';
 import { sparkWalletQueryOptions } from '../shared/spark';
-import { ReadUserRepository } from '../user/user-repository';
+import {
+  ReadUserDefaultAccountRepository,
+  ReadUserRepository,
+} from '../user/user-repository';
 import { getLightningQuote } from './cashu-receive-quote-core';
 import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-repository.server';
 import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
@@ -82,11 +85,7 @@ export class LightningAddressService {
     this.queryClient = queryClient;
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
-    this.userRepository = new ReadUserRepository(
-      db,
-      queryClient,
-      getSparkWalletMnemonic,
-    );
+    this.userRepository = new ReadUserRepository(db);
     this.bypassAmountValidation = options?.bypassAmountValidation ?? false;
     this.baseUrl = new URL(request.url).origin;
     this.minSendable = new Money({
@@ -169,10 +168,16 @@ export class LightningAddressService {
         };
       }
 
+      const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
+        this.db,
+        this.queryClient,
+        getSparkWalletMnemonic,
+      );
+
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
       // However, if bypassAmountValidation is enabled, we can use the user's default currency
       // and perform exchange rate conversion to create an invoice in their preferred currency.
-      const account = await this.userRepository.getDefaultAccount(
+      const account = await userDefaultAccountRepository.getDefaultAccount(
         userId,
         this.bypassAmountValidation ? undefined : 'BTC',
       );

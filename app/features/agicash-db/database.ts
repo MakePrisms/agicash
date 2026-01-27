@@ -439,26 +439,42 @@ export type AgicashDbSparkReceiveQuote =
 export type AgicashDbSparkSendQuote =
   Database['wallet']['Tables']['spark_send_quotes']['Row'];
 
+/**
+ * Checks if the account is a cashu account.
+ * @param data Database account data.
+ * @returns True if the account is a cashu account, false otherwise.
+ * @throws If the account is of type 'cashu' but the details are not valid.
+ */
 export function isCashuAccount(
   data: AgicashDbAccount,
 ): data is AgicashDbAccount & {
   type: 'cashu';
   details: CashuAccountDetailsDbData;
 } {
-  return (
-    data.type === 'cashu' &&
-    CashuAccountDetailsDbDataSchema.safeParse(data.details).success
-  );
+  if (data.type !== 'cashu') {
+    return false;
+  }
+
+  CashuAccountDetailsDbDataSchema.parse(data.details);
+  return true;
 }
 
+/**
+ * Checks if the account is a spark account.
+ * @param data Database account data.
+ * @returns True if the account is a spark account, false otherwise.
+ * @throws If the account is of type 'spark' but the details are not valid.
+ */
 export function isSparkAccount(
   data: AgicashDbAccount,
 ): data is AgicashDbAccount & {
   type: 'spark';
   details: SparkAccountDetailsDbData;
 } {
-  return (
-    data.type === 'spark' &&
-    SparkAccountDetailsDbDataSchema.safeParse(data.details).success
-  );
+  if (data.type !== 'spark') {
+    return false;
+  }
+
+  SparkAccountDetailsDbDataSchema.parse(data.details);
+  return true;
 }
