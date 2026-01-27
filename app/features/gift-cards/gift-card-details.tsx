@@ -11,7 +11,7 @@ import { Button } from '~/components/ui/button';
 import { getAccountBalance } from '~/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { GiftCardItem } from '~/features/gift-cards/gift-card-item';
-import { getGiftCardImageByMintUrl } from '~/features/gift-cards/use-discover-cards';
+import { getGiftCardImageByUrl } from '~/features/gift-cards/use-discover-cards';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { TransactionList } from '~/features/transactions/transaction-list';
 import { LinkWithViewTransition } from '~/lib/transitions';
@@ -80,7 +80,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
                 const item = (
                   <GiftCardItem
                     account={account}
-                    image={getGiftCardImageByMintUrl(account.mintUrl)}
+                    image={getGiftCardImageByUrl(account.mintUrl)}
                     className="w-full max-w-none"
                     hideOverlayContent={isSelected}
                   />
@@ -134,7 +134,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
                 >
                   <GiftCardItem
                     account={account}
-                    image={getGiftCardImageByMintUrl(account.mintUrl)}
+                    image={getGiftCardImageByUrl(account.mintUrl)}
                     className="w-full max-w-none"
                   />
                 </div>

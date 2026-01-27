@@ -17,7 +17,7 @@ import { DiscoverGiftCards } from './discover-gift-cards';
 import { EmptyState } from './empty-state';
 import { GiftCardItem } from './gift-card-item';
 import {
-  getGiftCardImageByMintUrl,
+  getGiftCardImageByUrl,
   useDiscoverGiftCards,
 } from './use-discover-cards';
 
@@ -80,7 +80,7 @@ export function GiftCards() {
                     >
                       <GiftCardItem
                         account={account}
-                        image={getGiftCardImageByMintUrl(account.mintUrl)}
+                        image={getGiftCardImageByUrl(account.mintUrl)}
                         className="w-full max-w-none"
                       />
                     </button>
