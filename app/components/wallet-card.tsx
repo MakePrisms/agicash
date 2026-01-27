@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import type * as React from 'react';
-import { Skeleton } from '~/components/ui/skeleton';
 import { cn } from '~/lib/utils';
 
 export const CARD_SIZES = {
@@ -100,24 +98,14 @@ export function WalletCardBackgroundImage({
   alt = '',
   className,
 }: WalletCardBackgroundProps) {
-  const [loaded, setLoaded] = useState(false);
-
   return (
-    <>
-      {!loaded && <Skeleton className="h-full w-full rounded-[inherit]" />}
-      <WalletCardOverlay>
-        <img
-          src={src}
-          alt={alt}
-          loading="lazy"
-          onLoad={() => setLoaded(true)}
-          className={cn(
-            'h-full w-full object-cover transition-opacity duration-200',
-            loaded ? 'opacity-100' : 'opacity-0',
-            className,
-          )}
-        />
-      </WalletCardOverlay>
-    </>
+    <WalletCardOverlay className="bg-primary/70">
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        className={cn('h-full w-full object-cover', className)}
+      />
+    </WalletCardOverlay>
   );
 }
