@@ -41,7 +41,7 @@ export class MintQuoteSubscriptionManager {
         });
         console.debug(
           'Mint quote updates subscription already exists for mint. Updated callback.',
-          { mintUrl, quoteIds },
+          { mintUrl, quoteCount: quoteIds.length },
         );
         return () => {
           unsubscribe();
@@ -59,7 +59,7 @@ export class MintQuoteSubscriptionManager {
 
     console.debug('Subscribing to mint quote updates for mint', {
       mintUrl,
-      quoteIds,
+      quoteCount: quoteIds.length,
     });
 
     const subscriptionCallback = (mintQuote: MintQuoteResponse) => {

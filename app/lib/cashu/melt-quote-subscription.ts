@@ -43,10 +43,7 @@ export function useOnMeltQuoteStateChange({
 
   const handleMeltQuoteUpdate = useCallback(
     async (meltQuote: PartialMeltQuoteResponse, handleExpiry = false) => {
-      console.debug(`Melt quote state changed: ${meltQuote.state}`, {
-        request: meltQuote.request,
-        unit: meltQuote.unit,
-      });
+      console.debug(`Melt quote state changed: ${meltQuote.state}`);
 
       const quoteData = getQuoteDataRef.current(meltQuote.quote);
       if (!quoteData) {

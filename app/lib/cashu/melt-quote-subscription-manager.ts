@@ -41,8 +41,7 @@ export class MeltQuoteSubscriptionManager {
         });
         console.debug(
           'Melt quote updates subscription already exists for mint. Updated callback.',
-          mintUrl,
-          quoteIds,
+          { mintUrl, quoteCount: quoteIds.length },
         );
         return () => {
           unsubscribe();
@@ -56,11 +55,10 @@ export class MeltQuoteSubscriptionManager {
 
     const wallet = getCashuWallet(mintUrl);
 
-    console.debug(
-      'Subscribing to melt quote updates for mint',
+    console.debug('Subscribing to melt quote updates for mint', {
       mintUrl,
-      quoteIds,
-    );
+      quoteCount: quoteIds.length,
+    });
 
     const subscriptionCallback = (meltQuote: MeltQuoteResponse) => {
       const currentSubscription = this.subscriptions.get(mintUrl);
