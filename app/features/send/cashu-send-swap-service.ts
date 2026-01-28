@@ -342,13 +342,6 @@ export class CashuSendSwapService {
     let proofAmountSelected = sumProofs(send);
     const amountToSend = requestedAmountNumber + feeToSwapSelectedProofs;
 
-    console.debug('proofSelection', {
-      selectedProofs: send.map((p) => p.amount),
-      proofAmountSelected,
-      amountToSend,
-      feeToSwapSelectedProofs,
-    });
-
     if (proofAmountSelected === amountToSend) {
       return {
         keep: keep.map(toCashuProof),
@@ -399,11 +392,6 @@ export class CashuSendSwapService {
         `Insufficient balance. Total amount including fees is ${totalAmount.toLocaleString({ unit })}.`,
       );
     }
-
-    console.debug('fees', {
-      cashuSendFee,
-      cashuReceiveFee,
-    });
 
     return {
       keep: keep.map(toCashuProof),

@@ -393,7 +393,9 @@ export class SparkSendQuoteService {
           'encodedInvoice' in transfer.userRequest &&
           transfer.userRequest.encodedInvoice === paymentRequest
         ) {
-          console.log('found existing LightningSendRequest', transfer);
+          console.debug('Found existing LightningSendRequest', {
+            transferId: transfer.id,
+          });
           return transfer.userRequest as LightningSendRequest;
         }
       }

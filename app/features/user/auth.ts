@@ -55,7 +55,7 @@ export const authQueryOptions = () =>
         const response = await fetchUser();
         return { isLoggedIn: true, user: response.user } as const;
       } catch (error) {
-        console.error('Failed to fetch user:', error);
+        console.error('Failed to fetch user', { cause: error });
         return { isLoggedIn: false } as const;
       }
     },
@@ -381,10 +381,7 @@ export const useHandleSessionExpiry = ({
         await signOut();
       }
     } catch (e) {
-      console.error(
-        'Failed to handle session expiry. Performing manual log out.',
-        e,
-      );
+      console.error('Failed to handle session expiry', { cause: e });
       removeKeys();
       window.location.reload();
     }

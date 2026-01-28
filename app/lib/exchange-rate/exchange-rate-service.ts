@@ -54,17 +54,18 @@ export class ExchangeRateService {
         return { ...rates, ...providerRates };
       } catch (e) {
         if (!signal?.aborted) {
-          console.warn(`Error fetching rates from provider ${provider}`, e);
+          console.warn(`Error fetching rates from provider ${provider}`, {
+            cause: e,
+          });
         }
         errors.push(e);
       }
     }
 
     if (!signal?.aborted) {
-      console.error(
-        `Failed to fetch rates for tickers ${remainingTickers}`,
-        errors,
-      );
+      console.error('Failed to fetch rates for tickers', {
+        cause: errors,
+      });
     }
     const errorMessage = signal?.aborted
       ? 'Fetch rates aborted'

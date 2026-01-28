@@ -44,16 +44,24 @@ export const agicashDbClient = createClient<Database>(
       schema: 'wallet',
     },
     realtime: {
-      logger: (kind: string, msg: unknown, data?: unknown) => {
+      logger: (kind: string, msg: string, data?: unknown) => {
         const now = Date.now();
-        console.debug(
-          `Realtime -> ${kind}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`,
-          {
-            timestamp: now,
-            time: new Date(now).toISOString(),
-            data,
-          },
-        );
+        const logData: Record<string, unknown> = {
+          timestamp: now,
+          time: new Date(now).toISOString(),
+          data,
+        };
+        if (
+          process.env.NODE_ENV === 'production' &&
+          kind === 'receive' &&
+          typeof logData.data === 'object' &&
+          logData.data != null &&
+          'payload' in logData.data
+        ) {
+          // We don't want this to log the app data for receive messages in production.
+          logData.data.payload = '<redacted>';
+        }
+        console.debug(`Realtime ${kind}: ${msg}`, logData);
       },
       logLevel: 'info',
     },

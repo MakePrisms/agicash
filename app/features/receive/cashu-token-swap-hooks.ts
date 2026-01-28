@@ -260,10 +260,10 @@ export function useProcessCashuTokenSwapTasks() {
     },
     retry: 3,
     throwOnError: true,
-    onError: (error, swap) => {
+    onError: (error, tokenHash) => {
       console.error('Error finalizing token swap', {
         cause: error,
-        swap,
+        tokenHash,
       });
     },
   });

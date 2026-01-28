@@ -371,8 +371,11 @@ const useTrackMintQuotesWithPolling = ({
 
           return mintQuoteResponse;
         } catch (error) {
-          console.error(error);
-          throw error;
+          console.warn('Error checking mint quote', {
+            cause: error,
+            quoteId: quote.quoteId,
+          });
+          return null;
         }
       },
       staleTime: 0,

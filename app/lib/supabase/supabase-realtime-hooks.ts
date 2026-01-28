@@ -87,7 +87,7 @@ export function useSupabaseRealtime({
       .subscribe(onConnectedCallback)
       .catch((error) => {
         console.error('Error subscribing to realtime channel', {
-          error,
+          cause: error,
           topic: channel.topic,
         });
       });
@@ -100,7 +100,7 @@ export function useSupabaseRealtime({
 
       cleanup().catch((error) => {
         console.error('Error cleaning up realtime channel', {
-          error,
+          cause: error,
           topic: channel.topic,
         });
       });

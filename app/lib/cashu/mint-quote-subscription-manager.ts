@@ -41,8 +41,7 @@ export class MintQuoteSubscriptionManager {
         });
         console.debug(
           'Mint quote updates subscription already exists for mint. Updated callback.',
-          mintUrl,
-          quoteIds,
+          { mintUrl, quoteIds },
         );
         return () => {
           unsubscribe();
@@ -50,17 +49,18 @@ export class MintQuoteSubscriptionManager {
         };
       }
 
-      console.debug('Unsubscribing from mint quote updates for mint', mintUrl);
+      console.debug('Unsubscribing from mint quote updates for mint', {
+        mintUrl,
+      });
       unsubscribe();
     }
 
     const wallet = getCashuWallet(mintUrl);
 
-    console.debug(
-      'Subscribing to mint quote updates for mint',
+    console.debug('Subscribing to mint quote updates for mint', {
       mintUrl,
       quoteIds,
-    );
+    });
 
     const subscriptionCallback = (mintQuote: MintQuoteResponse) => {
       const currentSubscription = this.subscriptions.get(mintUrl);

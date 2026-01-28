@@ -18,7 +18,7 @@ export const shareContent = async (data: ShareData): Promise<boolean> => {
     await navigator.share(data);
     return true;
   } catch (error) {
-    console.error('Error sharing:', error);
+    console.error('Share error', { cause: error });
     return false;
   }
 };

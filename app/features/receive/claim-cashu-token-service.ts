@@ -237,7 +237,7 @@ export class ClaimCashuTokenService {
     } catch (error) {
       console.error('Failed to complete the swap while claiming the token', {
         cause: error,
-        tokenSwapId: tokenSwap.tokenHash,
+        tokenHash: tokenSwap.tokenHash,
         accountId: account.id,
       });
       return { success: false };
