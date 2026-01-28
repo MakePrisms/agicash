@@ -32,21 +32,24 @@ export class ProofStateSubscriptionManager {
     swaps: PendingCashuSendSwap[];
     onSpent: (swap: CashuSendSwap) => void;
   }): Promise<() => void> {
-    const ids = new Set(swaps.map((x) => x.id));
+    const ids = swaps.map((x) => x.id);
+    const idsSet = new Set(ids);
     const mintSubscription = this.subscriptions.get(mintUrl);
 
     if (mintSubscription) {
       const unsubscribe = await mintSubscription.subscriptionPromise;
 
-      if (isSubset(ids, mintSubscription.ids)) {
+      if (isSubset(idsSet, mintSubscription.ids)) {
         this.subscriptions.set(mintUrl, {
           ...mintSubscription,
           onSpent,
         });
         console.debug(
           'Proof state updates subscription already exists for mint. Updated callback.',
-          mintUrl,
-          swaps,
+          {
+            mintUrl,
+            swapIds: ids,
+          },
         );
         return () => {
           unsubscribe();
@@ -62,7 +65,7 @@ export class ProofStateSubscriptionManager {
 
     console.debug('Subscribing to proof state updates for mint', {
       mintUrl,
-      swaps,
+      swapIds: ids,
     });
 
     const subscriptionCallback = (
@@ -88,7 +91,7 @@ export class ProofStateSubscriptionManager {
     );
 
     this.subscriptions.set(mintUrl, {
-      ids,
+      ids: idsSet,
       subscriptionPromise,
       onSpent,
     });

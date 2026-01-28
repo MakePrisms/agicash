@@ -63,10 +63,9 @@ export function useAnimatedQRDecoder({
         decodeRef.current(decoded);
       }
     } catch (e) {
-      console.error('Failed to decode QR fragment', e);
-      setError(
-        e instanceof Error ? e : new Error('Failed to decode QR fragment'),
-      );
+      const message = 'Failed to decode QR fragment';
+      console.error(message, { cause: e });
+      setError(e instanceof Error ? e : new Error(message));
     }
   }, [fragment, decoder]);
 

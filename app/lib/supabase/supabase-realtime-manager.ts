@@ -583,7 +583,7 @@ export class SupabaseRealtimeManager {
               callback();
             } catch (error) {
               console.error('Error calling onConnected callback', {
-                error,
+                cause: error,
                 topic: channel.topic,
               });
             }
@@ -645,7 +645,7 @@ export class SupabaseRealtimeManager {
           listener();
         } catch (error) {
           console.error('Error calling listener', {
-            error,
+            cause: error,
             topic: channelTopic,
           });
         }

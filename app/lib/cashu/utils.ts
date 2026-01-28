@@ -207,10 +207,7 @@ export class ExtendedCashuWallet extends CashuWallet {
       // then the melt quote will be pending or paid.
       const latestMeltQuote = await this.checkMeltQuote(meltQuote.quote);
       if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
-        console.warn('meltProofs was called but melt quote is not unpaid', {
-          meltQuote,
-          latestMeltQuote,
-        });
+        console.debug('meltProofs was called but melt quote is not unpaid');
         return latestMeltQuote;
       }
       throw error;

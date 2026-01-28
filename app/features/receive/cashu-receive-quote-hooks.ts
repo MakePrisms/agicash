@@ -371,8 +371,11 @@ const useTrackMintQuotesWithPolling = ({
 
           return mintQuoteResponse;
         } catch (error) {
-          console.error(error);
-          throw error;
+          console.warn('Error checking mint quote', {
+            cause: error,
+            quoteId: quote.quoteId,
+          });
+          return null;
         }
       },
       staleTime: 0,
@@ -533,11 +536,6 @@ const useOnMintQuoteStateChange = ({
 
   const processMintQuote = useCallback(
     async (mintQuote: MintQuoteResponse) => {
-      console.debug(`Mint quote state changed: ${mintQuote.state}`, {
-        paymentRequest: mintQuote.request,
-        unit: mintQuote.unit,
-      });
-
       const relatedReceiveQuote = pendingQuotesCache.getByMintQuoteId(
         mintQuote.quote,
       );
@@ -546,6 +544,11 @@ const useOnMintQuoteStateChange = ({
         console.warn('No related receive quote found for the mint quote');
         return;
       }
+
+      console.debug(`Mint quote state changed: ${mintQuote.state}`, {
+        receiveQuoteId: relatedReceiveQuote.id,
+        unit: mintQuote.unit,
+      });
 
       const expiresAt = new Date(relatedReceiveQuote.expiresAt);
       const now = new Date();
