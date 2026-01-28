@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import { useLocation } from 'react-router';
 import { SparkIcon } from '~/components/spark-icon';
 import { Card } from '~/components/ui/card';
 import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
@@ -152,6 +153,7 @@ function TransactionRow({
 }: {
   transaction: Transaction;
 }) {
+  const location = useLocation();
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
   const { setAckStatus, statuses: ackStatuses } =
     useTransactionAckStatusStore();

@@ -198,40 +198,32 @@ export function useAccounts<
       (data: Account[]) => {
         const extendedData = AccountService.getExtendedAccounts(user, data);
 
-        if (!currency && !type && isOnline === undefined && !purpose) {
-          return extendedData
-            .slice()
-            .sort(
-              (a, b) =>
-                new Date(a.createdAt).getTime() -
-                new Date(b.createdAt).getTime(),
-            ) as ExtendedAccount<T>[];
-        }
-
-        const filteredData = extendedData.filter(
-          (account): account is ExtendedAccount<T> => {
-            if (currency && account.currency !== currency) {
-              return false;
-            }
-            if (type && account.type !== type) {
-              return false;
-            }
-            if (isOnline !== undefined && account.isOnline !== isOnline) {
-              return false;
-            }
-            if (purpose && account.purpose !== purpose) {
-              return false;
-            }
-            return true;
-          },
-        );
-
-        return filteredData
+        const sortedData = extendedData
           .slice()
           .sort(
             (a, b) =>
               new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-          );
+          ) as ExtendedAccount<T>[];
+
+        if (!currency && !type && isOnline === undefined && !purpose) {
+          return sortedData;
+        }
+
+        return sortedData.filter((account) => {
+          if (currency && account.currency !== currency) {
+            return false;
+          }
+          if (type && account.type !== type) {
+            return false;
+          }
+          if (isOnline !== undefined && account.isOnline !== isOnline) {
+            return false;
+          }
+          if (purpose && account.purpose !== purpose) {
+            return false;
+          }
+          return true;
+        });
       },
       [currency, type, isOnline, purpose, user],
     ),

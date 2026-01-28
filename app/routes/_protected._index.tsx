@@ -34,7 +34,7 @@ export default function Index() {
 
   return (
     <Page>
-      <PageHeader className="absolute inset-x-0 top-0 z-20 mb-0 px-4 pt-4 pb-4">
+      <PageHeader className="z-10 px-4">
         <PageHeaderItem position="left">
           <LinkWithViewTransition
             to="/gift-cards"

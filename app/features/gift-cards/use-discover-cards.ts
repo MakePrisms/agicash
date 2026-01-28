@@ -16,7 +16,7 @@ export type GiftCardInfo = {
 };
 
 /**
- * Hardcoded list of gift cardsavailable for discovery.
+ * Hardcoded list of gift cards available for discovery.
  */
 export const GIFT_CARDS: GiftCardInfo[] = [
   {
