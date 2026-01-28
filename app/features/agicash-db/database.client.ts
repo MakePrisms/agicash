@@ -40,7 +40,6 @@ export const agicashDbClient = createClient<Database>(
   supabaseUrl,
   supabasePublishableKey,
   {
-    accessToken: getSupabaseSessionToken,
     db: {
       schema: 'wallet',
     },
