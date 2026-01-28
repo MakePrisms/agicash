@@ -71,7 +71,7 @@ function useTrackDatabaseChanges({ handlers, onConnected }: Props) {
 
   useSupabaseRealtime({
     channel: agicashRealtimeClient
-      .channel(`wallet:${userId}`, { private: false })
+      .channel(`wallet:${userId}`, { private: true })
       .on('broadcast', { event: '*' }, ({ event, payload }) => {
         const handler = handlers.find((handler) => handler.event === event);
         handler?.handleEvent(payload);
