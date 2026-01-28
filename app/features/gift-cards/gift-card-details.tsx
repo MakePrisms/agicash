@@ -60,13 +60,13 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
         </PageHeaderItem>
       </PageHeader>
 
-      <PageContent className="scrollbar-none relative min-h-0 overflow-y-auto pt-16 pb-0">
+      <PageContent className="scrollbar-none relative min-h-0 gap-0 overflow-y-auto pt-16 pb-0">
         {/* Card area - split-stack positioning */}
         <div className="w-full px-4">
           <div
             className="relative mx-auto w-full"
             style={{
-              minHeight: CARD_HEIGHT + 16,
+              minHeight: CARD_HEIGHT,
               maxWidth: CARD_WIDTH,
             }}
           >
@@ -118,12 +118,13 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
               }
 
               // Cards above selected: transition to off-screen at bottom
+              // Use fixed positioning so they don't scroll into view
               const offsetBelowViewport =
                 (index - selectedIndex - 1) * VERTICAL_CARD_OFFSET_IN_STACK;
               return (
                 <div
                   key={account.id}
-                  className="absolute left-0 w-full"
+                  className="-translate-x-1/2 fixed left-1/2 w-full px-4"
                   style={{
                     top: `calc(100vh + ${offsetBelowViewport}px)`,
                     zIndex,
@@ -143,10 +144,10 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
           </div>
         </div>
 
-        <div className="view-transition-transactions mx-auto flex flex-col items-center gap-4 px-4 pt-4 pb-8">
+        <div className="view-transition-transactions mx-auto flex flex-col items-center px-4 pt-3 pb-8">
           {balance && <MoneyWithConvertedAmount money={balance} size="md" />}
 
-          <div className="grid w-72 grid-cols-2 gap-10">
+          <div className="mt-6 grid w-72 grid-cols-2 gap-10">
             <LinkWithViewTransition
               to={`/receive?accountId=${card.id}`}
               transition="slideUp"
@@ -163,7 +164,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
             </LinkWithViewTransition>
           </div>
 
-          <div className="w-full max-w-sm pb-14">
+          <div className="mt-4 w-full max-w-sm pb-14">
             <TransactionList
               accountId={card.id}
               className="h-auto overflow-visible"
