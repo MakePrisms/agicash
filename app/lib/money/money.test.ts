@@ -1,8 +1,14 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { Big } from 'big.js';
 import { Money } from '.';
+import { CurrencyRegistry } from './currency-registry';
 
 describe('Money', () => {
+  afterEach(() => {
+    // Reset registry after each test to avoid test pollution
+    CurrencyRegistry.getInstance().reset();
+  });
+
   describe('USD', () => {
     it('handles basic dollar amounts', () => {
       const money = new Money({ amount: 1000, currency: 'USD' });
@@ -147,6 +153,157 @@ describe('Money', () => {
       const money = new Money({ amount: 100, currency: 'USD' });
       const result = money.divide(2);
       expect(result.amount().toString()).toBe('50');
+    });
+  });
+
+  describe('Money.configure', () => {
+    it('allows changing BTC base unit to satoshis', () => {
+      Money.configure({
+        currencies: {
+          BTC: {
+            baseUnit: 'sat',
+            units: [
+              {
+                name: 'sat',
+                symbol: 'sat',
+              },
+            ],
+          },
+        },
+      });
+
+      // Without unit specified, should use configured base unit (sat)
+      const money = new Money({ amount: 1, currency: 'BTC' });
+      expect(money.amount().toString()).toBe('1'); // In sats
+      expect(money.toLocaleString()).toBe('sat1'); // In sats
+      expect(money.toLocaleString({ unit: 'btc' })).toBe('₿0.00000001'); // Can still convert to btc
+    });
+
+    it('affects default unit used in toString and amount', () => {
+      // First without configuration (default is 'btc')
+      const moneyBeforeConfig = new Money({
+        amount: 1,
+        currency: 'BTC',
+      });
+      expect(moneyBeforeConfig.toString()).toBe('1.00000000'); // 1 BTC
+
+      // Reset and configure
+      CurrencyRegistry.getInstance().reset();
+      Money.configure({
+        currencies: {
+          BTC: {
+            baseUnit: 'sat',
+          },
+        },
+      });
+
+      // After configuration (default is 'sat')
+      const moneyAfterConfig = new Money({
+        amount: 100000,
+        currency: 'BTC',
+      });
+      expect(moneyAfterConfig.toString()).toBe('100000'); // 100000 sats
+    });
+
+    it('preserves all existing units when overriding base unit', () => {
+      Money.configure({
+        currencies: {
+          BTC: {
+            baseUnit: 'sat',
+          },
+        },
+      });
+
+      const money = new Money({ amount: 100000, currency: 'BTC' });
+
+      // All units should still be accessible
+      expect(money.amount('btc').toString()).toBe('0.001');
+      expect(money.amount('sat').toString()).toBe('100000');
+      expect(money.amount('msat').toString()).toBe('100000000');
+    });
+
+    it('works with Money.zero using configured base unit', () => {
+      Money.configure({
+        currencies: {
+          BTC: {
+            baseUnit: 'sat',
+          },
+        },
+      });
+
+      const zero = Money.zero('BTC');
+      expect(zero.toString()).toBe('0'); // In sats (0 decimals)
+      expect(zero.amount().toString()).toBe('0');
+    });
+
+    it('works with Money.sum using configured base unit', () => {
+      Money.configure({
+        currencies: {
+          BTC: {
+            baseUnit: 'sat',
+          },
+        },
+      });
+
+      const amounts = [
+        new Money({ amount: 1000, currency: 'BTC' }), // 1000 sats
+        new Money({ amount: 2000, currency: 'BTC' }), // 2000 sats
+      ];
+
+      const total = Money.sum(amounts);
+      expect(total.toString()).toBe('3000'); // In sats
+    });
+
+    it('affects conversion target currency', () => {
+      Money.configure({
+        currencies: {
+          BTC: {
+            baseUnit: 'sat',
+          },
+        },
+      });
+
+      const usd = new Money({ amount: 100, currency: 'USD' });
+      const rate = new Big(0.000002); // 1 USD = 0.000002 BTC = 200 sats
+      const btc = usd.convert('BTC', rate);
+
+      // Result should be in configured base unit (sats)
+      expect(btc.toString()).toBe('20000'); // 20000 sats
+      expect(btc.amount().toString()).toBe('20000');
+    });
+
+    it('affects conversion source currency', () => {
+      Money.configure({
+        currencies: {
+          BTC: {
+            baseUnit: 'sat',
+          },
+        },
+      });
+
+      const btc = new Money({ amount: 25, currency: 'BTC' }); // 25 sats
+      const rate = new Big(89168); // 1 BTC = 89168 USD
+      const usd = btc.convert('USD', rate);
+
+      // 25 sats = 25 * 1e-8 BTC = 0.00000025 BTC
+      // 0.00000025 BTC * 89168 USD/BTC = 0.022292 USD
+      // Rounded to 2 decimals = 0.02 USD
+      expect(usd.toString()).toBe('0.02');
+      expect(usd.amount().toString()).toBe('0.02');
+    });
+  });
+
+  describe('Money static methods', () => {
+    it('getRegisteredCurrencies returns default currencies', () => {
+      const currencies = Money.getRegisteredCurrencies();
+      expect(currencies).toContain('USD');
+      expect(currencies).toContain('BTC');
+    });
+
+    it('isCurrencyRegistered checks for currency', () => {
+      expect(Money.isCurrencyRegistered('USD')).toBe(true);
+      expect(Money.isCurrencyRegistered('BTC')).toBe(true);
+      expect(Money.isCurrencyRegistered('EUR')).toBe(false);
     });
   });
 });

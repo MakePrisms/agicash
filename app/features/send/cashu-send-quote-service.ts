@@ -10,7 +10,6 @@ import { getCashuUnit, sumProofs } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import { type CashuProof, toProof } from '../accounts/cashu-account';
-import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
 import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
 import {
@@ -167,12 +166,10 @@ export class CashuSendQuoteService {
       unit: cashuUnit,
     });
 
-    const unit = getDefaultUnit(account.currency);
-
     const sumOfSendProofs = sumProofs(proofs);
     if (sumOfSendProofs < amountWithLightningFee) {
       throw new DomainError(
-        `Insufficient balance. Estimated total including fee is ${amountToReceive.add(lightningFeeReserve).toLocaleString({ unit })}.`,
+        `Insufficient balance. Estimated total including fee is ${amountToReceive.add(lightningFeeReserve).toLocaleString()}.`,
       );
     }
 
@@ -264,11 +261,10 @@ export class CashuSendQuoteService {
       unit: cashuUnit,
     });
     const estimatedTotalFee = lightningFeeReserve.add(cashuFee);
-    const unit = getDefaultUnit(account.currency);
 
     if (proofsToSendSum < totalAmountToSend) {
       throw new DomainError(
-        `Insufficient balance. Estimated total including fee is ${amountToReceive.add(estimatedTotalFee).toLocaleString({ unit })}.`,
+        `Insufficient balance. Estimated total including fee is ${amountToReceive.add(estimatedTotalFee).toLocaleString()}.`,
       );
     }
 

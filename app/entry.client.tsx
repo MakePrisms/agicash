@@ -8,8 +8,9 @@ import * as Sentry from '@sentry/react-router';
 import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
+import { configureMoney } from './configuration';
 import { getEnvironment, isServedLocally } from './environment';
-import { Money } from './lib/money/money';
+import { Money } from './lib/money';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
 if (process.env.NODE_ENV === 'development') {
@@ -30,6 +31,8 @@ configure({
   apiUrl: openSecretApiUrl,
   clientId: openSecretClientId,
 });
+
+configureMoney();
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {

@@ -19,7 +19,6 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
@@ -78,22 +77,14 @@ const AmountBreakdownCard = ({
         <div className="flex items-center justify-between">
           <p className="text-muted-foreground">Receive</p>
           <div>
-            <MoneyDisplay
-              size="sm"
-              money={amount}
-              unit={getDefaultUnit(amount.currency)}
-            />
+            <MoneyDisplay size="sm" money={amount} />
           </div>
         </div>
         <div />
         <div className="flex items-center justify-between">
           <p className="text-muted-foreground">Fee</p>
           <div>
-            <MoneyDisplay
-              size="sm"
-              money={mintingFee}
-              unit={getDefaultUnit(amount.currency)}
-            />
+            <MoneyDisplay size="sm" money={mintingFee} />
           </div>
         </div>
       </CardContent>

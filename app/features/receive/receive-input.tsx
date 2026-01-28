@@ -16,7 +16,6 @@ import {
   toAccountSelectorOption,
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
-import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useToast } from '~/hooks/use-toast';
@@ -49,12 +48,7 @@ const ConvertedMoneySwitcher = ({
       className="flex items-center gap-1"
       onClick={onSwitchInputCurrency}
     >
-      <MoneyDisplay
-        money={money}
-        unit={getDefaultUnit(money.currency)}
-        size="sm"
-        variant="muted"
-      />
+      <MoneyDisplay money={money} size="sm" variant="muted" />
       <ArrowUpDown className="mb-1 text-muted-foreground" />
     </button>
   );
@@ -69,7 +63,6 @@ export default function ReceiveInput() {
   const receiveAccountId = useReceiveStore((s) => s.accountId);
   const receiveAccount = useAccount(receiveAccountId);
   const receiveAmount = useReceiveStore((s) => s.amount);
-  const receiveCurrencyUnit = getDefaultUnit(receiveAccount.currency);
   const setReceiveAccount = useReceiveStore((s) => s.setAccount);
   const setReceiveAmount = useReceiveStore((s) => s.setAmount);
   const { data: accounts } = useAccounts();
@@ -83,7 +76,7 @@ export default function ReceiveInput() {
     handleNumberInput,
     switchInputCurrency,
   } = useMoneyInput({
-    initialRawInputValue: receiveAmount?.toString(receiveCurrencyUnit) || '0',
+    initialRawInputValue: receiveAmount?.toString() || '0',
     initialInputCurrency: receiveAccount.currency,
     initialOtherCurrency: receiveAccount.currency === 'BTC' ? 'USD' : 'BTC',
   });
@@ -161,7 +154,6 @@ export default function ReceiveInput() {
             <MoneyInputDisplay
               inputValue={rawInputValue}
               currency={inputValue.currency}
-              unit={getDefaultUnit(inputValue.currency)}
             />
           </div>
 

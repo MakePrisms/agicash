@@ -2,18 +2,48 @@ import type { Big } from 'big.js';
 
 export type NumberInput = number | string | Big;
 
-/** supported currencies */
-export type Currency = 'USD' | 'BTC';
+declare global {
+  /**
+   * Extend this interface to add type-safe custom currencies.
+   *
+   * Example:
+   * ```typescript
+   * declare global {
+   *   interface CustomCurrencies {
+   *     EUR: { units: 'eur' | 'cent' };
+   *   }
+   * }
+   * ```
+   */
+  interface CustomCurrencies {
+    // Apps will augment this interface with their custom currencies
+  }
+}
+
+/** Built-in currencies with full type support */
+export type KnownCurrency = 'USD' | 'BTC';
+
+/** All supported currencies: known currencies, custom currencies, and runtime strings */
+export type Currency = KnownCurrency | keyof CustomCurrencies | (string & {});
 
 export type UsdUnit = 'usd' | 'cent';
 export type BtcUnit = 'btc' | 'sat' | 'msat';
 
-/** Unit to denominate the given currency */
-export type CurrencyUnit<T extends Currency = Currency> = T extends 'USD'
+type KnownCurrencyUnit<T extends KnownCurrency> = T extends 'USD'
   ? UsdUnit
   : T extends 'BTC'
     ? BtcUnit
     : never;
+
+/** Unit to denominate the given currency */
+export type CurrencyUnit<T extends Currency = Currency> =
+  T extends KnownCurrency
+    ? KnownCurrencyUnit<T>
+    : T extends keyof CustomCurrencies
+      ? CustomCurrencies[T] extends { units: infer U }
+        ? U
+        : string
+      : string;
 
 export type MoneyInput<T extends Currency = Currency> = {
   /**
@@ -80,7 +110,8 @@ export type MoneyData<T extends Currency> = {
 };
 
 export type CurrencyDataMap = {
-  [K in Currency]: CurrencyData<K>;
+  // biome-ignore lint/suspicious/noExplicitAny: Dynamic currency support requires any
+  [key: string]: CurrencyData<any>;
 };
 
 export interface LocalizedStringParts {
@@ -107,3 +138,59 @@ export interface LocalizedStringParts {
   /** Whether the currency symbol appears at the start or end */
   currencySymbolPosition: 'prefix' | 'suffix';
 }
+
+/**
+ * Partial unit data for configuration (functions optional for overrides)
+ */
+export type PartialUnitData<T extends Currency> = {
+  name: CurrencyUnit<T>;
+  decimals?: number;
+  symbol?: string;
+  factor?: Big;
+  formatToParts?: (
+    value: number,
+    options?: FormatOptions,
+  ) => Intl.NumberFormatPart[];
+  format?: (value: number, options?: FormatOptions) => string;
+};
+
+/**
+ * Complete unit data (all fields required for new units)
+ */
+export type CompleteUnitData<T extends Currency> = {
+  name: CurrencyUnit<T>;
+  decimals: number;
+  symbol: string;
+  factor: Big;
+  formatToParts: (
+    value: number,
+    options?: FormatOptions,
+  ) => Intl.NumberFormatPart[];
+  format: (value: number, options?: FormatOptions) => string;
+};
+
+/**
+ * Partial currency data for configuration
+ */
+export type PartialCurrencyData<T extends Currency> = {
+  baseUnit?: CurrencyUnit<T>;
+  units?: Array<PartialUnitData<T>>;
+};
+
+/**
+ * Complete currency data (all fields required for new currencies)
+ */
+export type CompleteCurrencyData<T extends Currency> = {
+  baseUnit: CurrencyUnit<T>;
+  units: Array<CompleteUnitData<T>>;
+};
+
+/**
+ * Configuration for Money class
+ */
+export type MoneyConfiguration = {
+  currencies?: {
+    // biome-ignore lint/suspicious/noExplicitAny: Dynamic currency support requires any
+    [key: string]: PartialCurrencyData<any>;
+  };
+};

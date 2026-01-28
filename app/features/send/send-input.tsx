@@ -45,7 +45,6 @@ import {
 } from '~/lib/transitions';
 import { AddContactDrawer, ContactsList } from '../contacts';
 import type { Contact } from '../contacts/contact';
-import { getDefaultUnit } from '../shared/currencies';
 import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
 
@@ -70,12 +69,7 @@ const ConvertedMoneySwitcher = ({
         onSwitchInputCurrency();
       }}
     >
-      <MoneyDisplay
-        money={money}
-        unit={getDefaultUnit(money.currency)}
-        size="sm"
-        variant="muted"
-      />
+      <MoneyDisplay money={money} size="sm" variant="muted" />
       <ArrowUpDown className="mb-1 text-muted-foreground" />
     </button>
   );
@@ -99,9 +93,6 @@ export function SendInput() {
   const continueSend = useSendStore((s) => s.proceedWithSend);
   const status = useSendStore((s) => s.status);
 
-  const sendAmountCurrencyUnit = sendAmount
-    ? getDefaultUnit(sendAmount.currency)
-    : undefined;
   const initialInputCurrency = sendAmount?.currency ?? sendAccount.currency;
 
   const {
@@ -114,7 +105,7 @@ export function SendInput() {
     switchInputCurrency,
     setInputValue,
   } = useMoneyInput({
-    initialRawInputValue: sendAmount?.toString(sendAmountCurrencyUnit) || '0',
+    initialRawInputValue: sendAmount?.toString() || '0',
     initialInputCurrency: initialInputCurrency,
     initialOtherCurrency: initialInputCurrency === 'BTC' ? 'USD' : 'BTC',
   });
@@ -180,11 +171,10 @@ export function SendInput() {
     let latestConvertedValue = convertedValue;
 
     if (amount) {
-      const defaultUnit = getDefaultUnit(amount.currency);
       ({
         newInputValue: latestInputValue,
         newConvertedValue: latestConvertedValue,
-      } = setInputValue(amount.toString(defaultUnit), amount.currency));
+      } = setInputValue(amount.toString(), amount.currency));
     }
 
     await handleContinue(latestInputValue, latestConvertedValue);
@@ -214,7 +204,6 @@ export function SendInput() {
               <MoneyInputDisplay
                 inputValue={rawInputValue}
                 currency={inputValue.currency}
-                unit={getDefaultUnit(inputValue.currency)}
               />
             </div>
 

@@ -20,7 +20,6 @@ import {
   useCashuTokenSwapService,
 } from '../receive/cashu-token-swap-service';
 import { getTokenHash } from '../shared/cashu';
-import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
 import type { CashuSendSwap } from './cashu-send-swap';
 import {
@@ -367,10 +366,8 @@ export class CashuSendSwapService {
         currency: currency,
         unit: cashuUnit,
       });
-      const unit = getDefaultUnit(currency);
-
       throw new DomainError(
-        `Insufficient balance. Total amount including fees is ${totalAmount.toLocaleString({ unit })}.`,
+        `Insufficient balance. Total amount including fees is ${totalAmount.toLocaleString()}.`,
       );
     }
 
@@ -393,10 +390,8 @@ export class CashuSendSwapService {
         currency: currency,
         unit: cashuUnit,
       });
-      const unit = getDefaultUnit(currency);
-
       throw new DomainError(
-        `Insufficient balance. Total amount including fees is ${totalAmount.toLocaleString({ unit })}.`,
+        `Insufficient balance. Total amount including fees is ${totalAmount.toLocaleString()}.`,
       );
     }
 

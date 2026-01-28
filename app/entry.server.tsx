@@ -1,6 +1,5 @@
 import './instrument.server';
 import { PassThrough } from 'node:stream';
-
 import { createReadableStreamFromReadable } from '@react-router/node';
 import * as Sentry from '@sentry/react-router';
 import {
@@ -15,8 +14,11 @@ import type {
   unstable_RouterContextProvider,
 } from 'react-router';
 import { ServerRouter } from 'react-router';
+import { configureMoney } from './configuration';
 
 export const streamTimeout = 5_000;
+
+configureMoney();
 
 function handleRequest(
   request: Request,

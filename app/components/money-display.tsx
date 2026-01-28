@@ -52,7 +52,7 @@ interface MoneyInputDisplayProps<C extends Currency = Currency> {
   /** Raw input value from user (e.g., "1", "1.", "1.0") */
   inputValue: string;
   currency: C;
-  unit: CurrencyUnit<C>;
+  unit?: CurrencyUnit<C>;
   locale?: string;
 }
 

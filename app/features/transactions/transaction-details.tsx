@@ -15,7 +15,6 @@ import { useToast } from '~/hooks/use-toast';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
 import { AccountTypeIcon } from '../accounts/account-icons';
-import { getDefaultUnit } from '../shared/currencies';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
@@ -138,14 +137,10 @@ export function TransactionDetails({
 
   // Log transaction details with proper formatting for each type
   const { type, direction, state, details } = transaction;
-  const unit = getDefaultUnit(transaction.amount.currency);
 
   console.debug(
     `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-    {
-      unit,
-      details,
-    },
+    { details },
   );
 
   return (

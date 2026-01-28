@@ -1,217 +1,20 @@
 import { Big } from 'big.js';
+import { CurrencyRegistry } from './currency-registry';
 import type {
-  BaseFormatOptions,
   Currency,
   CurrencyData,
-  CurrencyDataMap,
   CurrencyUnit,
   FormatOptions,
   LocalizedStringParts,
+  MoneyConfiguration,
   MoneyData,
   MoneyInput,
   NumberInput,
   UnitData,
 } from './types';
 
-function getCurrencyFormatter(options: BaseFormatOptions) {
-  const { locale, minimumFractionDigits, maximumFractionDigits, currency } =
-    options;
-  const formatOptions: Parameters<typeof Intl.NumberFormat>[1] = {
-    minimumFractionDigits:
-      minimumFractionDigits === 'max'
-        ? maximumFractionDigits
-        : minimumFractionDigits,
-    maximumFractionDigits,
-  };
-  if (currency) {
-    formatOptions.style = 'currency';
-    formatOptions.currency = currency;
-    formatOptions.currencyDisplay = 'narrowSymbol';
-  }
-  return Intl.NumberFormat(locale, formatOptions);
-}
-const trimWhitespaceFromEnds = (
-  parts: Intl.NumberFormatPart[],
-): Intl.NumberFormatPart[] => {
-  if (parts.length === 0) {
-    return [];
-  }
-
-  let result = parts;
-
-  const firstPart = result[0];
-  if (firstPart.type === 'literal' && firstPart.value.trim() === '') {
-    result = result.slice(1);
-  }
-
-  const lastPart = result[result.length - 1];
-  if (lastPart.type === 'literal' && lastPart.value.trim() === '') {
-    result = result.slice(0, -1);
-  }
-
-  return result;
-};
-
-const currencyDataMap: CurrencyDataMap = {
-  USD: {
-    baseUnit: 'usd',
-    units: [
-      {
-        name: 'usd',
-        decimals: 2,
-        symbol: '$',
-        factor: new Big(1),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-          return formatter.formatToParts(value);
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-          return formatter.format(value);
-        },
-      },
-      {
-        name: 'cent',
-        decimals: 0,
-        symbol: '¢',
-        factor: new Big(10 ** -2),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-
-          const parts = formatter.formatToParts(value);
-          const partsWithoutSymbol = parts.filter(
-            ({ type }) => type !== 'currency',
-          );
-          const trimmedPartsWithoutSymbol =
-            trimWhitespaceFromEnds(partsWithoutSymbol);
-          const partsWithNewSymbolAppended = [
-            ...trimmedPartsWithoutSymbol,
-            { type: 'currency' as const, value: this.symbol },
-          ];
-
-          return partsWithNewSymbolAppended;
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          return this.formatToParts(value, options)
-            .map(({ value }) => value)
-            .join('');
-        },
-      },
-    ],
-  },
-  BTC: {
-    baseUnit: 'btc',
-    units: [
-      {
-        name: 'btc',
-        decimals: 8,
-        symbol: '₿',
-        factor: new Big(1),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-
-          const parts = formatter.formatToParts(value);
-          const partsWithoutSymbol = parts.filter(
-            ({ type }) => type !== 'currency',
-          );
-          const trimmedPartsWithoutSymbol =
-            trimWhitespaceFromEnds(partsWithoutSymbol);
-          const partsWithNewSymbolPrepended = [
-            { type: 'currency' as const, value: this.symbol },
-            ...trimmedPartsWithoutSymbol,
-          ];
-
-          return partsWithNewSymbolPrepended;
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          return this.formatToParts(value, options)
-            .map(({ value }) => value)
-            .join('');
-        },
-      },
-      {
-        name: 'sat',
-        decimals: 0,
-        symbol: '₿',
-        factor: new Big(10 ** -8),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-
-          const parts = formatter.formatToParts(value);
-          const partsWithoutSymbol = parts.filter(
-            ({ type }) => type !== 'currency',
-          );
-          const trimmedPartsWithoutSymbol =
-            trimWhitespaceFromEnds(partsWithoutSymbol);
-          const partsWithNewSymbolPrepended = [
-            { type: 'currency' as const, value: this.symbol },
-            ...trimmedPartsWithoutSymbol,
-          ];
-
-          return partsWithNewSymbolPrepended;
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          return this.formatToParts(value, options)
-            .map(({ value }) => value)
-            .join('');
-        },
-      },
-      {
-        name: 'msat',
-        decimals: 0,
-        symbol: 'msat',
-        factor: new Big(10 ** -11),
-        formatToParts: function (value: number, options: FormatOptions = {}) {
-          const formatter = getCurrencyFormatter({
-            ...options,
-            maximumFractionDigits: this.decimals,
-          });
-
-          const parts = formatter.formatToParts(value);
-          const partsWithoutSymbol = parts.filter(
-            ({ type }) => type !== 'currency',
-          );
-          const trimmedPartsWithoutSymbol =
-            trimWhitespaceFromEnds(partsWithoutSymbol);
-          const partsWithNewSymbolAppended = [
-            ...trimmedPartsWithoutSymbol,
-            { type: 'literal' as const, value: ' ' },
-            { type: 'currency' as const, value: this.symbol },
-          ];
-
-          return partsWithNewSymbolAppended;
-        },
-        format: function (value: number, options: FormatOptions = {}) {
-          return this.formatToParts(value, options)
-            .map(({ value }) => value)
-            .join('');
-        },
-      },
-    ],
-  },
-};
-
 const getCurrencyData = <T extends Currency>(currency: T) => {
-  const currencyData = currencyDataMap[currency];
-  if (!currencyData) {
-    throw new Error(`Unsupported currency: ${currency}`);
-  }
-  return currencyData;
+  return CurrencyRegistry.getInstance().getCurrencyData(currency);
 };
 
 const getCurrencyBaseUnit = <T extends Currency>(currency: T) => {
@@ -235,89 +38,8 @@ const getCurrencyMinUnit = <T extends Currency>(currency: T) => {
 };
 
 export class Money<T extends Currency = Currency> {
+  private static registry = CurrencyRegistry.getInstance();
   private readonly _data: MoneyData<T>;
-
-  /**
-   * Returns the class tag for better console output.
-   * Shows as "Money" in Object.prototype.toString.call()
-   */
-  get [Symbol.toStringTag](): string {
-    return 'Money';
-  }
-
-  /**
-   * Returns a formatted string representation for debugging.
-   * Visible when expanding the object in browser DevTools.
-   */
-  get formatted(): string {
-    return this.toLocaleString();
-  }
-
-  /**
-   * Custom inspect method for Node.js console output.
-   * Shows formatted value instead of internal structure.
-   */
-  [Symbol.for('nodejs.util.inspect.custom')](): string {
-    return `Money { ${this.toLocaleString()} }`;
-  }
-
-  /**
-   * Registers a Chrome DevTools custom formatter for Money instances.
-   * Call this once at app startup to enable pretty console output.
-   *
-   * To enable custom formatters in Chrome DevTools:
-   * 1. Open DevTools (F12)
-   * 2. Click Settings (gear icon) or press F1
-   * 3. Under "Console", check "Custom formatters"
-   *
-   * After enabling, Money instances will display as: Money ₿1,234.00
-   */
-  static registerDevToolsFormatter(): void {
-    if (typeof window === 'undefined') return;
-
-    const formatter = {
-      header: (obj: unknown) => {
-        if (!(obj instanceof Money)) return null;
-        return [
-          'div',
-          { style: 'font-weight: bold; color: #9c27b0;' },
-          `Money ${obj.toLocaleString()}`,
-        ];
-      },
-      hasBody: (obj: unknown) => obj instanceof Money,
-      body: (obj: unknown) => {
-        if (!(obj instanceof Money)) return null;
-        const money = obj as Money;
-        return [
-          'div',
-          { style: 'margin-left: 12px;' },
-          [
-            'div',
-            {},
-            ['span', { style: 'color: #888;' }, 'currency: '],
-            money.currency,
-          ],
-          [
-            'div',
-            {},
-            ['span', { style: 'color: #888;' }, 'amount: '],
-            money.amount().toString(),
-          ],
-          [
-            'div',
-            {},
-            ['span', { style: 'color: #888;' }, 'formatted: '],
-            money.toLocaleString(),
-          ],
-        ];
-      },
-    };
-
-    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
-    window.devtoolsFormatters = window.devtoolsFormatters || [];
-    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
-    window.devtoolsFormatters.push(formatter);
-  }
 
   constructor(data: MoneyInput<T>) {
     const { baseUnit, minUnit, selectedUnit } =
@@ -336,6 +58,40 @@ export class Money<T extends Currency = Currency> {
 
     Object.freeze(this);
     Object.freeze(this._data);
+  }
+
+  /**
+   * Configure Money class. Delegates to CurrencyRegistry.
+   *
+   * @example
+   * ```typescript
+   * Money.configure({
+   *   currencies: {
+   *     BTC: { baseUnit: 'sat' }, // Override BTC base unit
+   *     EUR: { // Add new currency
+   *       baseUnit: 'eur',
+   *       units: [...]
+   *     }
+   *   }
+   * });
+   * ```
+   */
+  static configure(config: MoneyConfiguration): void {
+    Money.registry.configure(config);
+  }
+
+  /**
+   * Get registered currencies
+   */
+  static getRegisteredCurrencies(): string[] {
+    return Money.registry.getRegisteredCurrencies();
+  }
+
+  /**
+   * Check if a currency is registered
+   */
+  static isCurrencyRegistered(currency: string): boolean {
+    return Money.registry.isCurrencyRegistered(currency);
   }
 
   /**
@@ -651,32 +407,140 @@ export class Money<T extends Currency = Currency> {
     };
   };
 
-  toJSON = () => {
-    return {
-      amount: this.toNumber(),
-      currency: this.currency,
-    };
-  };
-
   /**
    * Converts the money to the provided currency based on the provided exchange rate.
+   *
+   * The exchange rate must be expressed in standard currency units (factor=1), not in
+   * sub-units like sats or cents. For example, use the BTC/USD rate (e.g., 89168), not
+   * a sat/USD rate. The source amount is automatically converted from its configured
+   * base unit to standard units before applying the rate, and the result is automatically
+   * converted to the configured base unit of the target currency.
+   *
    * @param currency Currency to convert the money to (target currency)
-   * @param exchangeRate Exchange rate to apply. The rate has to be in source/target currency format. E.g. if converting
-   * USD to BTC, the rate should be in USD/BTC format. If converting BTC to usd it should be in USD/BTC format.
+   * @param exchangeRate Exchange rate in source/target currency format using standard units.
+   * E.g. if converting BTC to USD, the rate should be the BTC/USD rate (how many USD per 1 BTC).
    */
   convert = <U extends Currency>(
     currency: U,
     exchangeRate: NumberInput,
   ): Money<U> => {
+    const sourceCurrencyBaseUnit = getCurrencyBaseUnit(this.currency);
     const destinationCurrencyBaseUnit = getCurrencyBaseUnit(currency);
-    const amount = this.amount()
-      .mul(exchangeRate)
+    const amountInStandardUnit = this.amount()
+      .mul(sourceCurrencyBaseUnit.factor)
+      .mul(exchangeRate);
+    const amount = amountInStandardUnit
+      .div(destinationCurrencyBaseUnit.factor)
       .round(destinationCurrencyBaseUnit.decimals, Big.roundHalfUp);
-    return new Money({ amount, currency });
+    return new Money({
+      amount,
+      currency,
+      unit: destinationCurrencyBaseUnit.name,
+    });
   };
 
+  /**
+   * Returns a JSON representation of the money object.
+   * @returns {Object} A JSON object with the amount, currency, and unit.
+   */
+  toJSON = () => {
+    return {
+      amount: this.toNumber(),
+      currency: this.currency,
+      unit: this.getCurrencyUnit().name,
+    };
+  };
+
+  /**
+   * Returns the class tag for better console output.
+   * Shows as "Money" in Object.prototype.toString.call()
+   */
+  get [Symbol.toStringTag](): string {
+    return 'Money';
+  }
+
+  /**
+   * Returns a formatted string representation for debugging.
+   * Visible when expanding the object in browser DevTools.
+   */
+  get formatted(): string {
+    return this.toLocaleString();
+  }
+
+  /**
+   * Custom inspect method for Node.js console output.
+   * Shows formatted value instead of internal structure.
+   */
+  [Symbol.for('nodejs.util.inspect.custom')](): string {
+    return `Money { ${this.toLocaleString()} }`;
+  }
+
+  /**
+   * Registers a Chrome DevTools custom formatter for Money instances.
+   * Call this once at app startup to enable pretty console output.
+   *
+   * To enable custom formatters in Chrome DevTools:
+   * 1. Open DevTools (F12)
+   * 2. Click Settings (gear icon) or press F1
+   * 3. Under "Console", check "Custom formatters"
+   *
+   * After enabling, Money instances will display as: Money ₿1,234.00
+   */
+  static registerDevToolsFormatter(): void {
+    if (typeof window === 'undefined') return;
+
+    const formatter = {
+      header: (obj: unknown) => {
+        if (!(obj instanceof Money)) return null;
+        return [
+          'div',
+          { style: 'font-weight: bold; color: #9c27b0;' },
+          `Money ${obj.toLocaleString()}`,
+        ];
+      },
+      hasBody: (obj: unknown) => obj instanceof Money,
+      body: (obj: unknown) => {
+        if (!(obj instanceof Money)) return null;
+        const money = obj as Money;
+        return [
+          'div',
+          { style: 'margin-left: 12px;' },
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'currency: '],
+            money.currency,
+          ],
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'unit: '],
+            money.getCurrencyUnit().name,
+          ],
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'amount: '],
+            money.amount().toString(),
+          ],
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'formatted: '],
+            money.toLocaleString(),
+          ],
+        ];
+      },
+    };
+
+    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
+    window.devtoolsFormatters = window.devtoolsFormatters || [];
+    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
+    window.devtoolsFormatters.push(formatter);
+  }
+
   private get currencyData(): CurrencyData<T> {
-    return currencyDataMap[this.currency];
+    return Money.registry.getCurrencyData(this.currency);
   }
 
   private static getCurrencyDataForInput<T extends Currency>(
@@ -686,10 +550,7 @@ export class Money<T extends Currency = Currency> {
     minUnit: UnitData<T>;
     selectedUnit: UnitData<T> | undefined;
   } {
-    const currencyData = currencyDataMap[data.currency];
-    if (!currencyData) {
-      throw new Error(`Unsupported currency: ${data.currency}`);
-    }
+    const currencyData = Money.registry.getCurrencyData(data.currency);
 
     const minUnit = currencyData.units.reduce((minItem, currentItem) => {
       return currentItem.factor.lt(minItem.factor) ? currentItem : minItem;
