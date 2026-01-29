@@ -8,8 +8,8 @@ import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
 import { CashuReceiveQuoteRepository } from '~/features/receive/cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from '~/features/receive/cashu-receive-quote-service';
-import { CashuTokenSwapRepository } from '~/features/receive/cashu-token-swap-repository';
-import { CashuTokenSwapService } from '~/features/receive/cashu-token-swap-service';
+import { CashuReceiveSwapRepository } from '~/features/receive/cashu-receive-swap-repository';
+import { CashuReceiveSwapService } from '~/features/receive/cashu-receive-swap-service';
 import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
 import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
@@ -52,12 +52,12 @@ const getClaimCashuTokenService = async () => {
     getSparkWalletMnemonic,
   );
   const accountService = new AccountService(accountRepository);
-  const tokenSwapRepository = new CashuTokenSwapRepository(
+  const receiveSwapRepository = new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,
     accountRepository,
   );
-  const tokenSwapService = new CashuTokenSwapService(tokenSwapRepository);
+  const receiveSwapService = new CashuReceiveSwapService(receiveSwapRepository);
   const cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
     agicashDbClient,
     encryption,
@@ -86,7 +86,7 @@ const getClaimCashuTokenService = async () => {
     queryClient,
     accountRepository,
     accountService,
-    tokenSwapService,
+    receiveSwapService,
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
     receiveCashuTokenService,

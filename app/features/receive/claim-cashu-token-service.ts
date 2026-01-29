@@ -12,8 +12,8 @@ import type { User } from '../user/user';
 import { userQueryKey } from '../user/user-hooks';
 import type { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
-import type { CashuTokenSwap } from './cashu-token-swap';
-import type { CashuTokenSwapService } from './cashu-token-swap-service';
+import type { CashuReceiveSwap } from './cashu-receive-swap';
+import type { CashuReceiveSwapService } from './cashu-receive-swap-service';
 import { isClaimingToSameCashuAccount } from './receive-cashu-token-models';
 import type {
   CrossAccountReceiveQuotesResult,
@@ -32,7 +32,7 @@ export class ClaimCashuTokenService {
     private readonly queryClient: QueryClient,
     private readonly accountRepository: AccountRepository,
     private readonly accountService: AccountService,
-    private readonly tokenSwapService: CashuTokenSwapService,
+    private readonly receiveSwapService: CashuReceiveSwapService,
     private readonly cashuReceiveQuoteService: CashuReceiveQuoteService,
     private readonly sparkReceiveQuoteService: SparkReceiveQuoteService,
     private readonly receiveCashuTokenService: ReceiveCashuTokenService,
@@ -141,7 +141,7 @@ export class ClaimCashuTokenService {
     );
 
     if (isSameAccountClaim) {
-      const { swap, account } = await this.tokenSwapService.create({
+      const { swap, account } = await this.receiveSwapService.create({
         userId: user.id,
         token,
         account: receiveAccount as CashuAccount,
@@ -220,14 +220,14 @@ export class ClaimCashuTokenService {
 
   private async tryCompleteSwap(
     account: CashuAccount,
-    tokenSwap: CashuTokenSwap,
+    receiveSwap: CashuReceiveSwap,
   ): Promise<
-    | { success: true; swap: CashuTokenSwap; account: CashuAccount }
-    | { success: false; swap?: CashuTokenSwap }
+    | { success: true; swap: CashuReceiveSwap; account: CashuAccount }
+    | { success: false; swap?: CashuReceiveSwap }
   > {
     try {
       const { swap: updatedSwap, account: updatedAccount } =
-        await this.tokenSwapService.completeSwap(account, tokenSwap);
+        await this.receiveSwapService.completeSwap(account, receiveSwap);
 
       if (updatedSwap.state === 'FAILED') {
         return { success: false, swap: updatedSwap };
@@ -237,7 +237,7 @@ export class ClaimCashuTokenService {
     } catch (error) {
       console.error('Failed to complete the swap while claiming the token', {
         cause: error,
-        tokenHash: tokenSwap.tokenHash,
+        tokenHash: receiveSwap.tokenHash,
         accountId: account.id,
       });
       return { success: false };
