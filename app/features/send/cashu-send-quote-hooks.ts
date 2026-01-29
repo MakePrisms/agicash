@@ -153,7 +153,12 @@ export function useCreateCashuLightningSendQuote() {
         paymentRequest,
         exchangeRate,
       }),
-    retry: 1,
+    retry: (failureCount, error) => {
+      if (error instanceof DomainError) {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
 }
 

@@ -294,6 +294,12 @@ export function useCreateSparkLightningSendQuote() {
         amount: amount as Money<'BTC'>,
       });
     },
+    retry: (failureCount, error) => {
+      if (error instanceof DomainError) {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
 }
 
