@@ -2,7 +2,6 @@ import { useSearchParams } from 'react-router';
 import logo from '~/assets/full_logo.png';
 import termsContent from '~/assets/terms-of-use.md?raw';
 import { Markdown } from '~/components/markdown';
-import { ScrollArea } from '~/components/ui/scroll-area';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 export default function TermsPage() {
@@ -10,7 +9,7 @@ export default function TermsPage() {
   const redirectTo = searchParams.get('redirectTo');
 
   return (
-    <ScrollArea className="mx-auto h-dvh max-w-4xl px-4 py-8" hideScrollbar>
+    <div className="mx-auto h-dvh max-w-4xl overflow-y-auto overflow-x-hidden px-4 py-8 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <header className="mb-8 flex items-center justify-start">
         <LinkWithViewTransition
           to={{
@@ -25,6 +24,6 @@ export default function TermsPage() {
       <main>
         <Markdown content={termsContent} />
       </main>
-    </ScrollArea>
+    </div>
   );
 }
