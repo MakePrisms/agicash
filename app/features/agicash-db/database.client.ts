@@ -59,7 +59,10 @@ export const agicashDbClient = createClient<Database>(
           'payload' in logData.data
         ) {
           // We don't want this to log the app data for receive messages in production.
-          logData.data.payload = '<redacted>';
+          logData.data = {
+            ...logData.data,
+            payload: '<redacted>',
+          };
         }
         console.debug(`Realtime ${kind}: ${msg}`, logData);
       },
