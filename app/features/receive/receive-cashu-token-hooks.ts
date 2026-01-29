@@ -19,6 +19,7 @@ import {
   type AccountSelectorOption,
   toAccountSelectorOption,
 } from '../accounts/account-selector';
+import { DomainError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { ReceiveCashuTokenAccount } from './receive-cashu-token-models';
 import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
@@ -279,6 +280,12 @@ export function useCreateCrossAccountReceiveQuotes() {
           exchangeRate,
         },
       );
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof DomainError) {
+        return false;
+      }
+      return failureCount < 1;
     },
   });
 }
