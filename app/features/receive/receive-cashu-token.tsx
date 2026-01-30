@@ -31,7 +31,7 @@ import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { AcceptTerms } from '../signup/accept-terms';
 import { useAuthActions } from '../user/auth';
-import { useCreateCashuTokenSwap } from './cashu-token-swap-hooks';
+import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
   useCashuTokenWithClaimableProofs,
   useCreateCrossAccountReceiveQuotes,
@@ -116,7 +116,7 @@ export default function ReceiveToken({
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
 
-  const { mutateAsync: createCashuTokenSwap } = useCreateCashuTokenSwap();
+  const { mutateAsync: createCashuReceiveSwap } = useCreateCashuReceiveSwap();
   const { mutateAsync: createCrossAccountReceiveQuotes } =
     useCreateCrossAccountReceiveQuotes();
 
@@ -142,7 +142,7 @@ export default function ReceiveToken({
       if (isSameAccountClaim) {
         const {
           swap: { transactionId },
-        } = await createCashuTokenSwap({
+        } = await createCashuReceiveSwap({
           token,
           accountId: account.id,
         });

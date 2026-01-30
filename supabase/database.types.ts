@@ -55,9 +55,9 @@ export type Database = {
           account_id: string
           amount: string
           cashu_receive_quote_id: string | null
+          cashu_receive_swap_token_hash: string | null
           cashu_send_quote_id: string | null
           cashu_send_swap_id: string | null
-          cashu_token_swap_token_hash: string | null
           created_at: string
           dleq: Json | null
           id: string
@@ -78,9 +78,9 @@ export type Database = {
           account_id: string
           amount: string
           cashu_receive_quote_id?: string | null
+          cashu_receive_swap_token_hash?: string | null
           cashu_send_quote_id?: string | null
           cashu_send_swap_id?: string | null
-          cashu_token_swap_token_hash?: string | null
           created_at?: string
           dleq?: Json | null
           id?: string
@@ -101,9 +101,9 @@ export type Database = {
           account_id?: string
           amount?: string
           cashu_receive_quote_id?: string | null
+          cashu_receive_swap_token_hash?: string | null
           cashu_send_quote_id?: string | null
           cashu_send_swap_id?: string | null
-          cashu_token_swap_token_hash?: string | null
           created_at?: string
           dleq?: Json | null
           id?: string
@@ -150,6 +150,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cashu_proofs_receive_swap_fkey"
+            columns: ["cashu_receive_swap_token_hash", "user_id"]
+            isOneToOne: false
+            referencedRelation: "cashu_receive_swaps"
+            referencedColumns: ["token_hash", "user_id"]
+          },
+          {
             foreignKeyName: "cashu_proofs_spending_cashu_send_quote_id_fkey"
             columns: ["spending_cashu_send_quote_id"]
             isOneToOne: false
@@ -162,13 +169,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "cashu_send_swaps"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cashu_proofs_token_swap_fkey"
-            columns: ["cashu_token_swap_token_hash", "user_id"]
-            isOneToOne: false
-            referencedRelation: "cashu_token_swaps"
-            referencedColumns: ["token_hash", "user_id"]
           },
           {
             foreignKeyName: "cashu_proofs_user_id_fkey"
@@ -254,6 +254,70 @@ export type Database = {
           },
           {
             foreignKeyName: "cashu_receive_quotes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cashu_receive_swaps: {
+        Row: {
+          account_id: string
+          created_at: string
+          encrypted_data: string
+          failure_reason: string | null
+          keyset_counter: number
+          keyset_id: string
+          state: string
+          token_hash: string
+          transaction_id: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          encrypted_data: string
+          failure_reason?: string | null
+          keyset_counter: number
+          keyset_id: string
+          state?: string
+          token_hash: string
+          transaction_id: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          encrypted_data?: string
+          failure_reason?: string | null
+          keyset_counter?: number
+          keyset_id?: string
+          state?: string
+          token_hash?: string
+          transaction_id?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashu_receive_swaps_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cashu_receive_swaps_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cashu_receive_swaps_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -403,70 +467,6 @@ export type Database = {
           },
           {
             foreignKeyName: "cashu_send_swaps_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      cashu_token_swaps: {
-        Row: {
-          account_id: string
-          created_at: string
-          encrypted_data: string
-          failure_reason: string | null
-          keyset_counter: number
-          keyset_id: string
-          state: string
-          token_hash: string
-          transaction_id: string
-          user_id: string
-          version: number
-        }
-        Insert: {
-          account_id: string
-          created_at?: string
-          encrypted_data: string
-          failure_reason?: string | null
-          keyset_counter: number
-          keyset_id: string
-          state?: string
-          token_hash: string
-          transaction_id: string
-          user_id: string
-          version?: number
-        }
-        Update: {
-          account_id?: string
-          created_at?: string
-          encrypted_data?: string
-          failure_reason?: string | null
-          keyset_counter?: number
-          keyset_id?: string
-          state?: string
-          token_hash?: string
-          transaction_id?: string
-          user_id?: string
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cashu_token_swaps_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cashu_token_swaps_transaction_id_fkey"
-            columns: ["transaction_id"]
-            isOneToOne: false
-            referencedRelation: "transactions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cashu_token_swaps_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -842,9 +842,9 @@ export type Database = {
         Args: {
           p_account_id: string
           p_cashu_receive_quote_id?: string
+          p_cashu_receive_swap_token_hash?: string
           p_cashu_send_quote_id?: string
           p_cashu_send_swap_id?: string
-          p_cashu_token_swap_token_hash?: string
           p_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
           p_proofs_state?: string
           p_spending_cashu_send_swap_id?: string
@@ -856,9 +856,9 @@ export type Database = {
         Args: {
           p_account_id: string
           p_cashu_receive_quote_id?: string
+          p_cashu_receive_swap_token_hash?: string
           p_cashu_send_quote_id?: string
           p_cashu_send_swap_id?: string
-          p_cashu_token_swap_token_hash?: string
           p_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
           p_proofs_state?: string
           p_spending_cashu_send_swap_id?: string
@@ -904,6 +904,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      complete_cashu_receive_swap: {
+        Args: {
+          p_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
+          p_token_hash: string
+          p_user_id: string
+        }
+        Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_receive_swap_result"]
+        SetofOptions: {
+          from: "*"
+          to: "complete_cashu_receive_swap_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       complete_cashu_send_quote: {
         Args: {
           p_change_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
@@ -924,20 +938,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "complete_cashu_send_swap_result"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      complete_cashu_token_swap: {
-        Args: {
-          p_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
-          p_token_hash: string
-          p_user_id: string
-        }
-        Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_token_swap_result"]
-        SetofOptions: {
-          from: "*"
-          to: "complete_cashu_token_swap_result"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1036,6 +1036,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_cashu_receive_swap: {
+        Args: {
+          p_account_id: string
+          p_currency: string
+          p_encrypted_data: string
+          p_keyset_id: string
+          p_number_of_outputs: number
+          p_reversed_transaction_id?: string
+          p_token_hash: string
+          p_user_id: string
+        }
+        Returns: Database["wallet"]["CompositeTypes"]["create_cashu_receive_swap_result"]
+        SetofOptions: {
+          from: "*"
+          to: "create_cashu_receive_swap_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_cashu_send_quote: {
         Args: {
           p_account_id: string
@@ -1074,25 +1093,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "create_cashu_send_swap_result"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      create_cashu_token_swap: {
-        Args: {
-          p_account_id: string
-          p_currency: string
-          p_encrypted_data: string
-          p_keyset_id: string
-          p_number_of_outputs: number
-          p_reversed_transaction_id?: string
-          p_token_hash: string
-          p_user_id: string
-        }
-        Returns: Database["wallet"]["CompositeTypes"]["create_cashu_token_swap_result"]
-        SetofOptions: {
-          from: "*"
-          to: "create_cashu_token_swap_result"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1260,27 +1260,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      fail_cashu_send_quote: {
-        Args: { p_failure_reason: string; p_quote_id: string }
-        Returns: Database["wallet"]["CompositeTypes"]["fail_cashu_send_quote_result"]
-        SetofOptions: {
-          from: "*"
-          to: "fail_cashu_send_quote_result"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      fail_cashu_send_swap: {
-        Args: { p_reason: string; p_swap_id: string }
-        Returns: Database["wallet"]["CompositeTypes"]["fail_cashu_send_swap_result"]
-        SetofOptions: {
-          from: "*"
-          to: "fail_cashu_send_swap_result"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      fail_cashu_token_swap: {
+      fail_cashu_receive_swap: {
         Args: {
           p_failure_reason: string
           p_token_hash: string
@@ -1301,7 +1281,27 @@ export type Database = {
         }
         SetofOptions: {
           from: "*"
-          to: "cashu_token_swaps"
+          to: "cashu_receive_swaps"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fail_cashu_send_quote: {
+        Args: { p_failure_reason: string; p_quote_id: string }
+        Returns: Database["wallet"]["CompositeTypes"]["fail_cashu_send_quote_result"]
+        SetofOptions: {
+          from: "*"
+          to: "fail_cashu_send_quote_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fail_cashu_send_swap: {
+        Args: { p_reason: string; p_swap_id: string }
+        Returns: Database["wallet"]["CompositeTypes"]["fail_cashu_send_swap_result"]
+        SetofOptions: {
+          from: "*"
+          to: "fail_cashu_send_swap_result"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1595,6 +1595,13 @@ export type Database = {
           | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
           | null
       }
+      complete_cashu_receive_swap_result: {
+        swap: Database["wallet"]["Tables"]["cashu_receive_swaps"]["Row"] | null
+        account: Json | null
+        added_proofs:
+          | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
+          | null
+      }
       complete_cashu_send_quote_result: {
         quote: Database["wallet"]["Tables"]["cashu_send_quotes"]["Row"] | null
         account: Json | null
@@ -1614,12 +1621,9 @@ export type Database = {
           | null
         failure_reason: string | null
       }
-      complete_cashu_token_swap_result: {
-        swap: Database["wallet"]["Tables"]["cashu_token_swaps"]["Row"] | null
+      create_cashu_receive_swap_result: {
+        swap: Database["wallet"]["Tables"]["cashu_receive_swaps"]["Row"] | null
         account: Json | null
-        added_proofs:
-          | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
-          | null
       }
       create_cashu_send_quote_result: {
         quote: Database["wallet"]["Tables"]["cashu_send_quotes"]["Row"] | null
@@ -1634,10 +1638,6 @@ export type Database = {
         reserved_proofs:
           | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
           | null
-      }
-      create_cashu_token_swap_result: {
-        swap: Database["wallet"]["Tables"]["cashu_token_swaps"]["Row"] | null
-        account: Json | null
       }
       expire_cashu_send_quote_result: {
         quote: Database["wallet"]["Tables"]["cashu_send_quotes"]["Row"] | null

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useProcessCashuReceiveQuoteTasks } from '../receive/cashu-receive-quote-hooks';
-import { useProcessCashuTokenSwapTasks } from '../receive/cashu-token-swap-hooks';
+import { useProcessCashuReceiveSwapTasks } from '../receive/cashu-receive-swap-hooks';
 import { useProcessSparkReceiveQuoteTasks } from '../receive/spark-receive-quote-hooks';
 import { useProcessCashuSendQuoteTasks } from '../send/cashu-send-quote-hooks';
 import { useProcessCashuSendSwapTasks } from '../send/cashu-send-swap-hooks';
@@ -74,7 +74,7 @@ export const useTakeTaskProcessingLead = () => {
  */
 export const TaskProcessor = () => {
   useProcessCashuReceiveQuoteTasks();
-  useProcessCashuTokenSwapTasks();
+  useProcessCashuReceiveSwapTasks();
   useProcessCashuSendQuoteTasks();
   useProcessCashuSendSwapTasks();
   useProcessSparkReceiveQuoteTasks();

@@ -14,9 +14,9 @@ import {
   usePendingCashuReceiveQuotesCache,
 } from '../receive/cashu-receive-quote-hooks';
 import {
-  useCashuTokenSwapChangeHandlers,
-  usePendingCashuTokenSwapsCache,
-} from '../receive/cashu-token-swap-hooks';
+  useCashuReceiveSwapChangeHandlers,
+  usePendingCashuReceiveSwapsCache,
+} from '../receive/cashu-receive-swap-hooks';
 import {
   usePendingSparkReceiveQuotesCache,
   useSparkReceiveQuoteChangeHandlers,
@@ -86,7 +86,7 @@ export const useTrackWalletChanges = () => {
   const accountChangeHandlers = useAccountChangeHandlers();
   const transactionChangeHandlers = useTransactionChangeHandlers();
   const cashuReceiveQuoteChangeHandlers = useCashuReceiveQuoteChangeHandlers();
-  const cashuTokenSwapChangeHandlers = useCashuTokenSwapChangeHandlers();
+  const cashuReceiveSwapChangeHandlers = useCashuReceiveSwapChangeHandlers();
   const cashuSendQuoteChangeHandlers = useCashuSendQuoteChangeHandlers();
   const cashuSendSwapChangeHandlers = useCashuSendSwapChangeHandlers();
   const contactChangeHandlers = useContactChangeHandlers();
@@ -96,7 +96,7 @@ export const useTrackWalletChanges = () => {
   const accountsCache = useAccountsCache();
   const transactionsCache = useTransactionsCache();
   const pendingCashuReceiveQuotesCache = usePendingCashuReceiveQuotesCache();
-  const pendingCashuTokenSwapsCache = usePendingCashuTokenSwapsCache();
+  const pendingCashuReceiveSwapsCache = usePendingCashuReceiveSwapsCache();
   const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const contactsCache = useContactsCache();
@@ -108,7 +108,7 @@ export const useTrackWalletChanges = () => {
       ...accountChangeHandlers,
       ...transactionChangeHandlers,
       ...cashuReceiveQuoteChangeHandlers,
-      ...cashuTokenSwapChangeHandlers,
+      ...cashuReceiveSwapChangeHandlers,
       ...cashuSendQuoteChangeHandlers,
       ...cashuSendSwapChangeHandlers,
       ...contactChangeHandlers,
@@ -122,7 +122,7 @@ export const useTrackWalletChanges = () => {
       accountsCache.invalidate();
       transactionsCache.invalidate();
       pendingCashuReceiveQuotesCache.invalidate();
-      pendingCashuTokenSwapsCache.invalidate();
+      pendingCashuReceiveSwapsCache.invalidate();
       unresolvedCashuSendQuotesCache.invalidate();
       unresolvedCashuSendSwapsCache.invalidate();
       contactsCache.invalidate();

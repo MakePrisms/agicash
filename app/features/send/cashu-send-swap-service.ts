@@ -16,9 +16,9 @@ import {
 } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import {
-  type CashuTokenSwapService,
-  useCashuTokenSwapService,
-} from '../receive/cashu-token-swap-service';
+  type CashuReceiveSwapService,
+  useCashuReceiveSwapService,
+} from '../receive/cashu-receive-swap-service';
 import { getTokenHash } from '../shared/cashu';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
@@ -41,7 +41,7 @@ export type CashuSwapQuote = {
 export class CashuSendSwapService {
   constructor(
     private readonly cashuSendSwapRepository: CashuSendSwapRepository,
-    private readonly cashuTokenSwapService: CashuTokenSwapService,
+    private readonly cashuReceiveSwapService: CashuReceiveSwapService,
   ) {}
 
   /**
@@ -282,7 +282,7 @@ export class CashuSendSwapService {
       throw new Error('Swap does not belong to account');
     }
 
-    await this.cashuTokenSwapService.create({
+    await this.cashuReceiveSwapService.create({
       account,
       userId: swap.userId,
       token: {
@@ -467,9 +467,9 @@ export class CashuSendSwapService {
 
 export function useCashuSendSwapService() {
   const cashuSendSwapRepository = useCashuSendSwapRepository();
-  const cashuTokenSwapService = useCashuTokenSwapService();
+  const cashuReceiveSwapService = useCashuReceiveSwapService();
   return new CashuSendSwapService(
     cashuSendSwapRepository,
-    cashuTokenSwapService,
+    cashuReceiveSwapService,
   );
 }

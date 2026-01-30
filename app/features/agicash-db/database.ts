@@ -8,7 +8,7 @@ import type { Currency, CurrencyUnit } from '~/lib/money';
 import type { AccountType } from '../accounts/account';
 import type { CashuProof } from '../accounts/cashu-account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
-import type { CashuTokenSwap } from '../receive/cashu-token-swap';
+import type { CashuReceiveSwap } from '../receive/cashu-receive-swap';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 import type { CashuSendQuote } from '../send/cashu-send-quote';
 import type { CashuSendSwap } from '../send/cashu-send-swap';
@@ -69,13 +69,13 @@ type FailCashuSendQuoteResult = {
   released_proofs: AgicashDbCashuProof[];
 };
 
-type CreateCashuTokenSwapResult = {
-  swap: AgicashDbCashuTokenSwap;
+type CreateCashuReceiveSwapResult = {
+  swap: AgicashDbCashuReceiveSwap;
   account: AgicashDbAccountWithProofs;
 };
 
-type CompleteCashuTokenSwapResult = {
-  swap: AgicashDbCashuTokenSwap;
+type CompleteCashuReceiveSwapResult = {
+  swap: AgicashDbCashuReceiveSwap;
   account: AgicashDbAccountWithProofs;
   added_proofs: AgicashDbCashuProof[];
 };
@@ -168,21 +168,21 @@ export type Database = MergeDeep<
             type?: CashuReceiveQuote['type'];
           };
         };
-        cashu_token_swaps: {
+        cashu_receive_swaps: {
           Row: {
             currency: Currency;
             unit: CurrencyUnit;
-            state: CashuTokenSwap['state'];
+            state: CashuReceiveSwap['state'];
           };
           Insert: {
             currency: Currency;
             unit: CurrencyUnit;
-            state: CashuTokenSwap['state'];
+            state: CashuReceiveSwap['state'];
           };
           Update: {
             currency?: Currency;
             unit?: CurrencyUnit;
-            state?: CashuTokenSwap['state'];
+            state?: CashuReceiveSwap['state'];
           };
         };
         cashu_send_quotes: {
@@ -305,14 +305,14 @@ export type Database = MergeDeep<
         mark_cashu_receive_quote_cashu_token_melt_initiated: {
           Returns: AgicashDbCashuReceiveQuote;
         };
-        create_cashu_token_swap: {
+        create_cashu_receive_swap: {
           Args: {
             p_currency: Currency;
           };
-          Returns: CreateCashuTokenSwapResult;
+          Returns: CreateCashuReceiveSwapResult;
         };
-        complete_cashu_token_swap: {
-          Returns: CompleteCashuTokenSwapResult;
+        complete_cashu_receive_swap: {
+          Returns: CompleteCashuReceiveSwapResult;
         };
         create_cashu_send_quote: {
           Args: {
@@ -332,8 +332,8 @@ export type Database = MergeDeep<
         fail_cashu_send_quote: {
           Returns: FailCashuSendQuoteResult;
         };
-        fail_cashu_token_swap: {
-          Returns: AgicashDbCashuTokenSwap;
+        fail_cashu_receive_swap: {
+          Returns: AgicashDbCashuReceiveSwap;
         };
         create_cashu_send_swap: {
           Args: {
@@ -400,8 +400,8 @@ export type Database = MergeDeep<
         complete_cashu_send_quote_result: CompleteCashuSendQuoteResult;
         expire_cashu_send_quote_result: ExpireCashuSendQuoteResult;
         fail_cashu_send_quote_result: FailCashuSendQuoteResult;
-        create_cashu_token_swap_result: CreateCashuTokenSwapResult;
-        complete_cashu_token_swap_result: CompleteCashuTokenSwapResult;
+        create_cashu_receive_swap_result: CreateCashuReceiveSwapResult;
+        complete_cashu_receive_swap_result: CompleteCashuReceiveSwapResult;
         create_cashu_send_swap_result: CreateCashuSendSwapResult;
         commit_proofs_to_send_result: CommitProofsToSendResult;
         complete_cashu_send_swap_result: CompleteCashuSendSwapResult;
@@ -425,8 +425,8 @@ export type AgicashDbAccountWithProofs = AgicashDbAccount & {
 };
 export type AgicashDbCashuReceiveQuote =
   Database['wallet']['Tables']['cashu_receive_quotes']['Row'];
-export type AgicashDbCashuTokenSwap =
-  Database['wallet']['Tables']['cashu_token_swaps']['Row'];
+export type AgicashDbCashuReceiveSwap =
+  Database['wallet']['Tables']['cashu_receive_swaps']['Row'];
 export type AgicashDbCashuSendQuote =
   Database['wallet']['Tables']['cashu_send_quotes']['Row'];
 export type AgicashDbTransaction =

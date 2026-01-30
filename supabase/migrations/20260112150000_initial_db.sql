@@ -283,7 +283,7 @@ create table if not exists "wallet"."cashu_proofs" (
   "reserved_at" timestamp with time zone,
   "spent_at" timestamp with time zone,
   "cashu_receive_quote_id" "uuid",
-  "cashu_token_swap_token_hash" "text",
+  "cashu_receive_swap_token_hash" "text",
   "cashu_send_quote_id" "uuid",
   "spending_cashu_send_quote_id" "uuid",
   "cashu_send_swap_id" "uuid",
@@ -308,7 +308,7 @@ comment on column "wallet"."cashu_proofs"."created_at" is 'Timestamp when the pr
 comment on column "wallet"."cashu_proofs"."reserved_at" is 'Timestamp when the proof was reserved for spending';
 comment on column "wallet"."cashu_proofs"."spent_at" is 'Timestamp when the proof was spent (transaction that spent it was completed)';
 comment on column "wallet"."cashu_proofs"."cashu_receive_quote_id" is 'The receive quote that added this proof (if added via a cashu receive quote)';
-comment on column "wallet"."cashu_proofs"."cashu_token_swap_token_hash" is 'The token hash of the token swap that added this proof (if added via a cashu token swap). Combined with user_id to reference cashu_token_swaps table';
+comment on column "wallet"."cashu_proofs"."cashu_receive_swap_token_hash" is 'The token hash of the receive swap that added this proof (if added via a cashu receive swap). Combined with user_id to reference cashu_receive_swaps table';
 comment on column "wallet"."cashu_proofs"."cashu_send_quote_id" is 'The send quote that added this proof as a change (if added via a send quote)';
 comment on column "wallet"."cashu_proofs"."spending_cashu_send_quote_id" is 'The send quote that spent or reserved this proof for sending. Will be null for unspent proofs or if proof was not spent with a send quote';
 comment on column "wallet"."cashu_proofs"."cashu_send_swap_id" is 'The send swap that added this proof as a change (if added via a send swap)';
@@ -324,7 +324,7 @@ create index "cashu_proofs_receive_quote_id_idx" on "wallet"."cashu_proofs" usin
 create index "cashu_proofs_send_quote_id_idx" on "wallet"."cashu_proofs" using "btree" ("cashu_send_quote_id") where ("cashu_send_quote_id" is not null);
 create index "cashu_proofs_spending_send_quote_id_idx" on "wallet"."cashu_proofs" using "btree" ("spending_cashu_send_quote_id") where ("spending_cashu_send_quote_id" is not null);
 create index "cashu_proofs_spending_send_swap_id_idx" on "wallet"."cashu_proofs" using "btree" ("spending_cashu_send_swap_id") where ("spending_cashu_send_swap_id" is not null);
-create index "cashu_proofs_user_token_swap_idx" on "wallet"."cashu_proofs" using "btree" ("user_id", "cashu_token_swap_token_hash");
+create index "cashu_proofs_user_receive_swap_idx" on "wallet"."cashu_proofs" using "btree" ("user_id", "cashu_receive_swap_token_hash");
 create index "idx_cashu_proofs_state_spent_at" on "wallet"."cashu_proofs" using "btree" ("state", "spent_at") where ("state" = 'SPENT'::"text");
 
 -- RLS policies for cashu_proofs
@@ -385,8 +385,8 @@ using ((( select auth.uid() as uid) = user_id))
 with check ((( select auth.uid() as uid) = user_id));
 
 
--- Table: cashu_token_swaps
-create table if not exists "wallet"."cashu_token_swaps" (
+-- Table: cashu_receive_swaps
+create table if not exists "wallet"."cashu_receive_swaps" (
   "token_hash" "text" not null,
   "created_at" timestamp with time zone default "now"() not null,
   "account_id" "uuid" not null references "wallet"."accounts"("id"),
@@ -398,21 +398,21 @@ create table if not exists "wallet"."cashu_token_swaps" (
   "failure_reason" "text",
   "transaction_id" "uuid" not null references "wallet"."transactions"("id"),
   "encrypted_data" "text" not null,
-  constraint "cashu_token_swaps_state_check" check (("state" = any (array['PENDING'::"text", 'COMPLETED'::"text", 'FAILED'::"text"]))),
+  constraint "cashu_receive_swaps_state_check" check (("state" = any (array['PENDING'::"text", 'COMPLETED'::"text", 'FAILED'::"text"]))),
   primary key ("token_hash", "user_id")
 );
 
 -- Indexes
-create index "idx_cashu_token_swaps_state_created_at" on "wallet"."cashu_token_swaps" using "btree" ("state", "created_at");
-create index "idx_cashu_token_swaps_account_id" on "wallet"."cashu_token_swaps" using "btree" ("account_id");
-create index "idx_cashu_token_swaps_user_id" on "wallet"."cashu_token_swaps" using "btree" ("user_id");
-create index "idx_cashu_token_swaps_transaction_id" on "wallet"."cashu_token_swaps" using "btree" ("transaction_id");
+create index "idx_cashu_receive_swaps_state_created_at" on "wallet"."cashu_receive_swaps" using "btree" ("state", "created_at");
+create index "idx_cashu_receive_swaps_account_id" on "wallet"."cashu_receive_swaps" using "btree" ("account_id");
+create index "idx_cashu_receive_swaps_user_id" on "wallet"."cashu_receive_swaps" using "btree" ("user_id");
+create index "idx_cashu_receive_swaps_transaction_id" on "wallet"."cashu_receive_swaps" using "btree" ("transaction_id");
 
--- RLS policies for cashu_token_swaps
-alter table "wallet"."cashu_token_swaps" enable row level security;
+-- RLS policies for cashu_receive_swaps
+alter table "wallet"."cashu_receive_swaps" enable row level security;
 
-create policy "Enable CRUD for cashu token swaps based on user_id"
-on "wallet"."cashu_token_swaps"
+create policy "Enable CRUD for cashu receive swaps based on user_id"
+on "wallet"."cashu_receive_swaps"
 as permissive
 for all
 to authenticated
@@ -512,7 +512,7 @@ alter table only "wallet"."cashu_proofs"
     add constraint "cashu_proofs_spending_cashu_send_swap_id_fkey" foreign key ("spending_cashu_send_swap_id") references "wallet"."cashu_send_swaps"("id") on delete set null;
 
 alter table only "wallet"."cashu_proofs"
-    add constraint "cashu_proofs_token_swap_fkey" foreign key ("cashu_token_swap_token_hash", "user_id") references "wallet"."cashu_token_swaps"("token_hash", "user_id") on delete set null;
+    add constraint "cashu_proofs_receive_swap_fkey" foreign key ("cashu_receive_swap_token_hash", "user_id") references "wallet"."cashu_receive_swaps"("token_hash", "user_id") on delete set null;
 
 
 -- Table: spark_receive_quotes
@@ -722,7 +722,7 @@ create or replace function "wallet"."add_cashu_proofs"(
   "p_account_id" "uuid",
   "p_proofs_state" "text" default 'UNSPENT'::"text",
   "p_cashu_receive_quote_id" "uuid" default null::"uuid",
-  "p_cashu_token_swap_token_hash" "text" default null::"text",
+  "p_cashu_receive_swap_token_hash" "text" default null::"text",
   "p_cashu_send_quote_id" "uuid" default null::"uuid",
   "p_cashu_send_swap_id" "uuid" default null::"uuid",
   "p_spending_cashu_send_swap_id" "uuid" default null::"uuid"
@@ -743,7 +743,7 @@ begin
       user_id,
       account_id,
       cashu_receive_quote_id,
-      cashu_token_swap_token_hash,
+      cashu_receive_swap_token_hash,
       cashu_send_quote_id,
       cashu_send_swap_id,
       spending_cashu_send_swap_id,
@@ -760,7 +760,7 @@ begin
       p_user_id,
       p_account_id,
       p_cashu_receive_quote_id,
-      p_cashu_token_swap_token_hash,
+      p_cashu_receive_swap_token_hash,
       p_cashu_send_quote_id,
       p_cashu_send_swap_id,
       p_spending_cashu_send_swap_id,
@@ -794,7 +794,7 @@ create or replace function "wallet"."add_cashu_proofs_and_update_account"(
   "p_account_id" "uuid",
   "p_proofs_state" "text" default 'UNSPENT'::"text",
   "p_cashu_receive_quote_id" "uuid" default null::"uuid",
-  "p_cashu_token_swap_token_hash" "text" default null::"text",
+  "p_cashu_receive_swap_token_hash" "text" default null::"text",
   "p_cashu_send_quote_id" "uuid" default null::"uuid",
   "p_cashu_send_swap_id" "uuid" default null::"uuid",
   "p_spending_cashu_send_swap_id" "uuid" default null::"uuid"
@@ -815,7 +815,7 @@ begin
     p_account_id,
     p_proofs_state,
     p_cashu_receive_quote_id,
-    p_cashu_token_swap_token_hash,
+    p_cashu_receive_swap_token_hash,
     p_cashu_send_quote_id,
     p_cashu_send_swap_id,
     p_spending_cashu_send_swap_id
@@ -1423,15 +1423,15 @@ end;
 $function$;
 
 -- -----------------------------------------------------------------------------
--- CASHU TOKEN SWAP FUNCTIONS
+-- CASHU RECEIVE SWAP FUNCTIONS
 -- -----------------------------------------------------------------------------
 
-create type "wallet"."create_cashu_token_swap_result" as (
-	"swap" "wallet"."cashu_token_swaps",
+create type "wallet"."create_cashu_receive_swap_result" as (
+	"swap" "wallet"."cashu_receive_swaps",
 	"account" "jsonb"
 );
 
-create or replace function "wallet"."create_cashu_token_swap"(
+create or replace function "wallet"."create_cashu_receive_swap"(
   "p_token_hash" "text",
   "p_account_id" "uuid",
   "p_user_id" "uuid",
@@ -1441,7 +1441,7 @@ create or replace function "wallet"."create_cashu_token_swap"(
   "p_encrypted_data" "text",
   "p_reversed_transaction_id" "uuid" default null::"uuid"
 )
-returns "wallet"."create_cashu_token_swap_result"
+returns "wallet"."create_cashu_receive_swap_result"
 language plpgsql
 security invoker
 set search_path = ''
@@ -1450,7 +1450,7 @@ declare
   v_account wallet.accounts;
   v_counter integer;
   v_transaction_id uuid;
-  v_token_swap wallet.cashu_token_swaps;
+  v_receive_swap wallet.cashu_receive_swaps;
   v_account_with_proofs jsonb;
 begin
   if p_number_of_outputs <= 0 then
@@ -1499,7 +1499,7 @@ begin
     p_encrypted_data
   ) returning id into v_transaction_id;
 
-  insert into wallet.cashu_token_swaps (
+  insert into wallet.cashu_receive_swaps (
     token_hash,
     account_id,
     user_id,
@@ -1515,94 +1515,94 @@ begin
     v_counter,
     p_encrypted_data,
     v_transaction_id
-  ) returning * into v_token_swap;
+  ) returning * into v_receive_swap;
 
   v_account_with_proofs := wallet.to_account_with_proofs(v_account);
 
-  return (v_token_swap, v_account_with_proofs);
+  return (v_receive_swap, v_account_with_proofs);
 end;
 $function$;
 
-create type "wallet"."complete_cashu_token_swap_result" as (
-	"swap" "wallet"."cashu_token_swaps",
+create type "wallet"."complete_cashu_receive_swap_result" as (
+	"swap" "wallet"."cashu_receive_swaps",
 	"account" "jsonb",
 	"added_proofs" "wallet"."cashu_proofs"[]
 );
 
-create or replace function "wallet"."complete_cashu_token_swap"(
+create or replace function "wallet"."complete_cashu_receive_swap"(
   "p_token_hash" "text",
   "p_user_id" "uuid",
   "p_proofs" "wallet"."cashu_proof_input"[]
 )
-returns "wallet"."complete_cashu_token_swap_result"
+returns "wallet"."complete_cashu_receive_swap_result"
 language plpgsql
 security invoker
 set search_path = ''
 as $function$
 declare
-  v_token_swap wallet.cashu_token_swaps;
+  v_receive_swap wallet.cashu_receive_swaps;
   v_reversed_transaction_id uuid;
   v_send_swap wallet.cashu_send_swaps;
   v_account wallet.accounts;
   v_account_with_proofs jsonb;
   v_added_proofs wallet.cashu_proofs[];
 begin
-  select * into v_token_swap
-  from wallet.cashu_token_swaps
+  select * into v_receive_swap
+  from wallet.cashu_receive_swaps
   where token_hash = p_token_hash and user_id = p_user_id
   for update;
 
-  if v_token_swap is null then
+  if v_receive_swap is null then
     raise exception
       using
         hint = 'NOT_FOUND',
         message = format('Swap for token hash %s not found.', p_token_hash);
   end if;
 
-  if v_token_swap.state = 'COMPLETED' then
-    v_account_with_proofs := wallet.get_account_with_proofs(v_token_swap.account_id);
+  if v_receive_swap.state = 'COMPLETED' then
+    v_account_with_proofs := wallet.get_account_with_proofs(v_receive_swap.account_id);
 
     select array_agg(row(cp.*)::wallet.cashu_proofs)
     into v_added_proofs
     from wallet.cashu_proofs cp
-    where cp.cashu_token_swap_token_hash = v_token_swap.token_hash 
-      and cp.user_id = v_token_swap.user_id;
+    where cp.cashu_receive_swap_token_hash = v_receive_swap.token_hash 
+      and cp.user_id = v_receive_swap.user_id;
 
-    return (v_token_swap, v_account_with_proofs, v_added_proofs);
+    return (v_receive_swap, v_account_with_proofs, v_added_proofs);
   end if;
 
-  if v_token_swap.state != 'PENDING' then
+  if v_receive_swap.state != 'PENDING' then
     raise exception
       using
         hint = 'INVALID_STATE',
         message = format('Cannot complete swap for token hash %s.', p_token_hash),
-        detail = format('Swap is not in PENDING state. Current state: %s.', v_token_swap.state);
+        detail = format('Swap is not in PENDING state. Current state: %s.', v_receive_swap.state);
   end if;
 
-  update wallet.cashu_token_swaps
+  update wallet.cashu_receive_swaps
   set state = 'COMPLETED',
       version = version + 1
   where token_hash = p_token_hash and user_id = p_user_id
-  returning * into v_token_swap;
+  returning * into v_receive_swap;
 
   select * into v_account_with_proofs, v_added_proofs
   from wallet.add_cashu_proofs_and_update_account(
     p_proofs,
-    v_token_swap.user_id,
-    v_token_swap.account_id,
-    p_cashu_token_swap_token_hash => v_token_swap.token_hash
+    v_receive_swap.user_id,
+    v_receive_swap.account_id,
+    p_cashu_receive_swap_token_hash => v_receive_swap.token_hash
   );
 
   update wallet.transactions
   set state = 'COMPLETED',
-      -- Only set acknowledgment status to pending if the token swap is not reversing a send swap
+      -- Only set acknowledgment status to pending if the receive swap is not reversing a send swap
       acknowledgment_status = case when reversed_transaction_id is null then 'pending' else null end,
       completed_at = now()
-  where id = v_token_swap.transaction_id
+  where id = v_receive_swap.transaction_id
   returning reversed_transaction_id into v_reversed_transaction_id;
 
   if v_reversed_transaction_id is null then
-    return (v_token_swap, v_account_with_proofs, v_added_proofs);
+    return (v_receive_swap, v_account_with_proofs, v_added_proofs);
   end if;
 
   -- If here it means that this receive swap is reversing a send swap
@@ -1622,7 +1622,7 @@ begin
 
   -- If the send swap is already reversed, there is nothing to do
   if v_send_swap.state = 'REVERSED' then
-    return (v_token_swap, v_account_with_proofs, v_added_proofs);
+    return (v_receive_swap, v_account_with_proofs, v_added_proofs);
   end if;
 
   if v_send_swap.state != 'PENDING' then
@@ -1652,46 +1652,46 @@ begin
       reversed_at = now()
   where id = v_reversed_transaction_id;
 
-  return (v_token_swap, v_account_with_proofs, v_added_proofs);
+  return (v_receive_swap, v_account_with_proofs, v_added_proofs);
 end;
 $function$;
 
-create or replace function "wallet"."fail_cashu_token_swap"(
+create or replace function "wallet"."fail_cashu_receive_swap"(
   "p_token_hash" "text",
   "p_user_id" "uuid",
   "p_failure_reason" "text"
 )
-returns "wallet"."cashu_token_swaps"
+returns "wallet"."cashu_receive_swaps"
 language plpgsql
 security invoker
 set search_path = ''
 as $function$
 declare
-    v_token_swap wallet.cashu_token_swaps;
+    v_receive_swap wallet.cashu_receive_swaps;
     v_reversed_transaction_id uuid;
 begin
-    select * into v_token_swap
-    from wallet.cashu_token_swaps
+    select * into v_receive_swap
+    from wallet.cashu_receive_swaps
     where token_hash = p_token_hash and user_id = p_user_id
     for update;
 
-    if v_token_swap is null then
+    if v_receive_swap is null then
       raise exception
         using
           hint = 'NOT_FOUND',
           message = format('Swap for token hash %s not found.', p_token_hash);
     end if;
 
-    if v_token_swap.state = 'FAILED' then
-      return v_token_swap;
+    if v_receive_swap.state = 'FAILED' then
+      return v_receive_swap;
     end if;
 
-    if v_token_swap.state != 'PENDING' then
+    if v_receive_swap.state != 'PENDING' then
       raise exception
         using
           hint = 'INVALID_STATE',
           message = format('Cannot fail swap for token hash %s.', p_token_hash),
-          detail = format('Swap is not in PENDING state. Current state: %s.', v_token_swap.state);
+          detail = format('Swap is not in PENDING state. Current state: %s.', v_receive_swap.state);
     end if;
 
     -- special handling for "Token already claimed" failures
@@ -1704,10 +1704,10 @@ begin
     -- 6. without this handling, the original send swap would stay in pending state forever
     -- this ensures the original send swap is properly marked as completed when the reversal fails due to the token being claimed
     if p_failure_reason = 'Token already claimed' then
-        -- get the reversed transaction id if this token swap is reversing a send transaction
+        -- get the reversed transaction id if this receive swap is reversing a send transaction
         select reversed_transaction_id into v_reversed_transaction_id
         from wallet.transactions
-        where id = v_token_swap.transaction_id
+        where id = v_receive_swap.transaction_id
         for update;
 
         -- if this is reversing a send transaction, update the corresponding send swap
@@ -1727,21 +1727,21 @@ begin
         end if;
     end if;
 
-    -- update the token swap to failed with optimistic concurrency
-    update wallet.cashu_token_swaps
+    -- update the receive swap to failed with optimistic concurrency
+    update wallet.cashu_receive_swaps
     set state = 'FAILED',
         failure_reason = p_failure_reason,
         version = version + 1
     where token_hash = p_token_hash and user_id = p_user_id
-    returning * into v_token_swap;
+    returning * into v_receive_swap;
 
     -- update the transaction state to failed
     update wallet.transactions
     set state = 'FAILED',
         failed_at = now()
-    where id = v_token_swap.transaction_id;
+    where id = v_receive_swap.transaction_id;
 
-    return v_token_swap;
+    return v_receive_swap;
 end;
 $function$;
 
@@ -2624,7 +2624,7 @@ begin
 
   if v_reversal_transaction_state is not null and v_reversal_transaction_state != 'FAILED' then
     -- If there's a reversal transaction that is not failed, return early.
-    -- The token swap completion will handle updating the send swap state.
+    -- The receive swap completion will handle updating the send swap state.
     return ('FAILED'::text, v_swap, null::jsonb, null::wallet.cashu_proofs[], 'Reversal in progress'::text);
   end if;
 
@@ -3626,7 +3626,7 @@ $function$;
 
 create constraint trigger "broadcast_cashu_receive_quotes_changes_trigger" after insert or update on "wallet"."cashu_receive_quotes" deferrable initially deferred for each row execute function "wallet"."broadcast_cashu_receive_quotes_changes"();
 
-create or replace function "wallet"."broadcast_cashu_token_swaps_changes"()
+create or replace function "wallet"."broadcast_cashu_receive_swaps_changes"()
 returns "trigger"
 language plpgsql
 security invoker
@@ -3636,9 +3636,9 @@ declare
   v_event text;
 begin
   if tg_op = 'INSERT' then
-    v_event := 'CASHU_TOKEN_SWAP_CREATED';
+    v_event := 'CASHU_RECEIVE_SWAP_CREATED';
   elsif tg_op = 'UPDATE' then
-    v_event := 'CASHU_TOKEN_SWAP_UPDATED';
+    v_event := 'CASHU_RECEIVE_SWAP_UPDATED';
   end if;
 
   -- Broadcast using realtime.send
@@ -3654,7 +3654,7 @@ begin
 end;
 $function$;
 
-create constraint trigger "broadcast_cashu_token_swaps_changes_trigger" after insert or update on "wallet"."cashu_token_swaps" deferrable initially deferred for each row execute function "wallet"."broadcast_cashu_token_swaps_changes"();
+create constraint trigger "broadcast_cashu_receive_swaps_changes_trigger" after insert or update on "wallet"."cashu_receive_swaps" deferrable initially deferred for each row execute function "wallet"."broadcast_cashu_receive_swaps_changes"();
 
 create or replace function "wallet"."broadcast_cashu_send_quotes_changes"()
 returns "trigger"
@@ -3809,8 +3809,8 @@ select cron.schedule('cleanup-cashu-receive-quotes', '0 0 * * *', $$
   where state in ('EXPIRED', 'COMPLETED') and created_at < now() - interval '1 day';
 $$);
 
-select cron.schedule('cleanup-cashu-token-swaps', '0 0 * * *', $$
-  delete from wallet.cashu_token_swaps
+select cron.schedule('cleanup-cashu-receive-swaps', '0 0 * * *', $$
+  delete from wallet.cashu_receive_swaps
   where state in ('COMPLETED', 'FAILED') and created_at < now() - interval '1 day';
 $$);
 

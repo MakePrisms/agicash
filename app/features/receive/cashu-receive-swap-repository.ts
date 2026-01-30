@@ -10,20 +10,23 @@ import {
 } from '../accounts/account-repository';
 import type {
   AgicashDb,
-  AgicashDbCashuTokenSwap,
+  AgicashDbCashuReceiveSwap,
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuSwapReceiveDbDataSchema } from '../agicash-db/json-models';
 import { getTokenHash } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { UniqueConstraintError } from '../shared/error';
-import { type CashuTokenSwap, CashuTokenSwapSchema } from './cashu-token-swap';
+import {
+  type CashuReceiveSwap,
+  CashuReceiveSwapSchema,
+} from './cashu-receive-swap';
 
 type Options = {
   abortSignal?: AbortSignal;
 };
 
-type CreateTokenSwap = {
+type CreateReceiveSwap = {
   /**
    * ID of the receiving user.
    */
@@ -62,7 +65,7 @@ type CreateTokenSwap = {
   reversedTransactionId?: string;
 };
 
-export class CashuTokenSwapRepository {
+export class CashuReceiveSwapRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly encryption: Encryption,
@@ -70,9 +73,9 @@ export class CashuTokenSwapRepository {
   ) {}
 
   /**
-   * Creates a cashu token swap and updates the account keyset counter.
-   * @returns Created cashu token swap.
-   * @throws Error if a token swap with the same token hash already exists.
+   * Creates a cashu receive swap and updates the account keyset counter.
+   * @returns Created cashu receive swap.
+   * @throws Error if a receive swap with the same token hash already exists.
    * @throws Error if outputAmounts is invalid.
    */
   async create(
@@ -86,10 +89,10 @@ export class CashuTokenSwapRepository {
       receiveAmount,
       outputAmounts,
       reversedTransactionId,
-    }: CreateTokenSwap,
+    }: CreateReceiveSwap,
     options?: Options,
   ): Promise<{
-    swap: CashuTokenSwap;
+    swap: CashuReceiveSwap;
     account: CashuAccount;
   }> {
     const currency = inputAmount.currency;
@@ -107,7 +110,7 @@ export class CashuTokenSwapRepository {
 
     const encryptedData = await this.encryption.encrypt(receiveData);
 
-    const query = this.db.rpc('create_cashu_token_swap', {
+    const query = this.db.rpc('create_cashu_receive_swap', {
       p_token_hash: tokenHash,
       p_account_id: accountId,
       p_user_id: userId,
@@ -128,11 +131,11 @@ export class CashuTokenSwapRepository {
       if (error.code === '23505') {
         throw new UniqueConstraintError('This token has already been claimed');
       }
-      throw new Error('Failed to create token swap', { cause: error });
+      throw new Error('Failed to create receive swap', { cause: error });
     }
 
     const [swap, account] = await Promise.all([
-      this.toTokenSwap(data.swap),
+      this.toReceiveSwap(data.swap),
       this.accountRepository.toAccount<CashuAccount>(data.account),
     ]);
 
@@ -146,7 +149,7 @@ export class CashuTokenSwapRepository {
    * Completes the token claiming process.
    * Updates the account with new proofs and sets the state to COMPLETED.
    */
-  async completeTokenSwap(
+  async completeReceiveSwap(
     {
       tokenHash,
       userId,
@@ -157,7 +160,7 @@ export class CashuTokenSwapRepository {
        */
       tokenHash: string;
       /**
-       * ID of the user that is completing the token swap.
+       * ID of the user that is completing the receive swap.
        */
       userId: string;
       /**
@@ -167,7 +170,7 @@ export class CashuTokenSwapRepository {
     },
     options?: Options,
   ): Promise<{
-    swap: CashuTokenSwap;
+    swap: CashuReceiveSwap;
     account: CashuAccount;
     addedProofs: string[];
   }> {
@@ -186,7 +189,7 @@ export class CashuTokenSwapRepository {
       };
     });
 
-    const query = this.db.rpc('complete_cashu_token_swap', {
+    const query = this.db.rpc('complete_cashu_receive_swap', {
       p_token_hash: tokenHash,
       p_user_id: userId,
       p_proofs: encryptedProofs,
@@ -203,11 +206,11 @@ export class CashuTokenSwapRepository {
     }
 
     if (!data) {
-      throw new Error('No data returned from complete_cashu_token_swap');
+      throw new Error('No data returned from complete_cashu_receive_swap');
     }
 
     const [swap, account] = await Promise.all([
-      this.toTokenSwap(data.swap),
+      this.toReceiveSwap(data.swap),
       this.accountRepository.toAccount<CashuAccount>(data.account),
     ]);
 
@@ -219,7 +222,7 @@ export class CashuTokenSwapRepository {
   }
 
   /**
-   * Updates the state of a token swap to FAILED.
+   * Updates the state of a receive swap to FAILED.
    */
   async fail(
     {
@@ -232,7 +235,7 @@ export class CashuTokenSwapRepository {
        */
       tokenHash: string;
       /**
-       * ID of the user that is failing the token swap.
+       * ID of the user that is failing the receive swap.
        */
       userId: string;
       /**
@@ -241,8 +244,8 @@ export class CashuTokenSwapRepository {
       reason: string;
     },
     options?: Options,
-  ): Promise<CashuTokenSwap> {
-    const query = this.db.rpc('fail_cashu_token_swap', {
+  ): Promise<CashuReceiveSwap> {
+    const query = this.db.rpc('fail_cashu_receive_swap', {
       p_token_hash: tokenHash,
       p_user_id: userId,
       p_failure_reason: reason,
@@ -255,18 +258,18 @@ export class CashuTokenSwapRepository {
     const { data, error } = await query;
 
     if (error) {
-      throw new Error('Failed to fail token swap', { cause: error });
+      throw new Error('Failed to fail receive swap', { cause: error });
     }
 
-    return this.toTokenSwap(data);
+    return this.toReceiveSwap(data);
   }
 
   async getByTransactionId(
     transactionId: string,
     options?: Options,
-  ): Promise<CashuTokenSwap | null> {
+  ): Promise<CashuReceiveSwap | null> {
     const query = this.db
-      .from('cashu_token_swaps')
+      .from('cashu_receive_swaps')
       .select()
       .eq('transaction_id', transactionId);
 
@@ -277,23 +280,23 @@ export class CashuTokenSwapRepository {
     const { data, error } = await query.maybeSingle();
 
     if (error) {
-      throw new Error('Failed to get cashu token swap by transaction id', {
+      throw new Error('Failed to get cashu receive swap by transaction id', {
         cause: error,
       });
     }
 
-    return data ? this.toTokenSwap(data) : null;
+    return data ? this.toReceiveSwap(data) : null;
   }
 
   /**
-   * Gets all pending token swaps for a given user.
-   * @returns All token swaps in a PENDING state for the given user.
+   * Gets all pending receive swaps for a given user.
+   * @returns All receive swaps in a PENDING state for the given user.
    */
   async getPending(
     userId: string,
     options?: Options,
-  ): Promise<CashuTokenSwap[]> {
-    const query = this.db.from('cashu_token_swaps').select().match({
+  ): Promise<CashuReceiveSwap[]> {
+    const query = this.db.from('cashu_receive_swaps').select().match({
       user_id: userId,
       state: 'PENDING',
     });
@@ -305,19 +308,21 @@ export class CashuTokenSwapRepository {
     const { data, error } = await query;
 
     if (error) {
-      throw new Error('Failed to get pending token swaps', { cause: error });
+      throw new Error('Failed to get pending receive swaps', { cause: error });
     }
 
-    return Promise.all(data.map((item) => this.toTokenSwap(item)));
+    return Promise.all(data.map((item) => this.toReceiveSwap(item)));
   }
 
-  async toTokenSwap(data: AgicashDbCashuTokenSwap): Promise<CashuTokenSwap> {
+  async toReceiveSwap(
+    data: AgicashDbCashuReceiveSwap,
+  ): Promise<CashuReceiveSwap> {
     const decryptedData = await this.encryption.decrypt(data.encrypted_data);
     const receiveData = CashuSwapReceiveDbDataSchema.parse(decryptedData);
 
     // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
-    // schema parse then is doing cashu token swap invariant check at runtime. For example it makes sure that failureReason is present when state is FAILED.
-    return CashuTokenSwapSchema.parse({
+    // schema parse then is doing cashu receive swap invariant check at runtime. For example it makes sure that failureReason is present when state is FAILED.
+    return CashuReceiveSwapSchema.parse({
       tokenHash: data.token_hash,
       tokenProofs: receiveData.tokenProofs,
       tokenDescription: receiveData.tokenDescription,
@@ -334,14 +339,16 @@ export class CashuTokenSwapRepository {
       createdAt: data.created_at,
       state: data.state,
       failureReason: data.failure_reason,
-    } satisfies AllUnionFieldsRequired<z.output<typeof CashuTokenSwapSchema>>);
+    } satisfies AllUnionFieldsRequired<
+      z.output<typeof CashuReceiveSwapSchema>
+    >);
   }
 }
 
-export function useCashuTokenSwapRepository() {
+export function useCashuReceiveSwapRepository() {
   const encryption = useEncryption();
   const accountRepository = useAccountRepository();
-  return new CashuTokenSwapRepository(
+  return new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,
     accountRepository,
