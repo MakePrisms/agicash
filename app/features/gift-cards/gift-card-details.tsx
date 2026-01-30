@@ -124,9 +124,10 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
               return (
                 <div
                   key={account.id}
-                  className="-translate-x-1/2 fixed left-1/2 w-full px-4"
+                  className="fixed inset-x-0 mx-auto w-full"
                   style={{
                     top: `calc(100vh + ${offsetBelowViewport}px)`,
+                    maxWidth: CARD_WIDTH,
                     zIndex,
                     viewTransitionName: isTransitioning
                       ? `card-${account.id}`
