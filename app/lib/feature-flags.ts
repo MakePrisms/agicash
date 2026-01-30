@@ -1,5 +1,6 @@
 const FEATURE_FLAGS = {
   GUEST_SIGNUP: import.meta.env.VITE_FF_GUEST_SIGNUP === 'true',
+  GIFT_CARDS: import.meta.env.VITE_FF_GIFT_CARDS === 'true',
 } as const;
 
 /**

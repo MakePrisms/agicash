@@ -17,6 +17,7 @@ import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
 import { useUser } from '~/features/user/user-hooks';
+import { useFeatureFlag } from '~/lib/feature-flags';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 export const links: LinksFunction = () => [
@@ -31,18 +32,21 @@ export default function Index() {
   const defaultUsdAccountId = useUser((user) => user.defaultUsdAccountId);
   const defaultCurrency = useDefaultAccount().currency;
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
+  const giftCardsEnabled = useFeatureFlag('GIFT_CARDS');
 
   return (
     <Page>
       <PageHeader className="z-10 px-4">
         <PageHeaderItem position="left">
-          <LinkWithViewTransition
-            to="/gift-cards"
-            transition="slideRight"
-            applyTo="newView"
-          >
-            <GiftIcon className="text-muted-foreground" />
-          </LinkWithViewTransition>
+          {giftCardsEnabled && (
+            <LinkWithViewTransition
+              to="/gift-cards"
+              transition="slideRight"
+              applyTo="newView"
+            >
+              <GiftIcon className="text-muted-foreground" />
+            </LinkWithViewTransition>
+          )}
         </PageHeaderItem>
 
         <PageHeaderItem position="right" className="flex gap-6">
