@@ -57,7 +57,9 @@ function preprocessData(obj: unknown): unknown {
     return { __type: 'number', value: obj.toString() };
   }
 
-  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj === null || typeof obj !== 'object' || obj instanceof Money) {
+    return obj;
+  }
 
   if (obj instanceof Date) {
     return { __type: 'Date', value: obj.toISOString() };
@@ -65,10 +67,6 @@ function preprocessData(obj: unknown): unknown {
 
   if (Array.isArray(obj)) {
     return obj.map(preprocessData);
-  }
-
-  if (obj instanceof Money) {
-    return { __type: 'Money', amount: obj.amount(), currency: obj.currency };
   }
 
   const result: Record<string, unknown> = {};
@@ -97,6 +95,7 @@ function deserializeData<T = unknown>(serializedData: string): T {
           return new Money({
             amount: value.amount,
             currency: value.currency,
+            unit: value.unit,
           });
       }
     }

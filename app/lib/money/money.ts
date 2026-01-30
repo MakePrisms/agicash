@@ -436,6 +436,14 @@ export class Money<T extends Currency = Currency> {
   }
 
   /**
+   * Gets the base unit name for the currency.
+   * @returns The base unit name for the currency.
+   */
+  getBaseUnit = (): CurrencyUnit<T> => {
+    return this.currencyData.baseUnit;
+  };
+
+  /**
    * Returns the money amount in the requested currency unit. If no unit is provided it uses the
    * default/base unit (bitcoin, dollar, ...).
    *
@@ -651,10 +659,18 @@ export class Money<T extends Currency = Currency> {
     };
   };
 
+  /**
+   * Returns the money value as a JSON object.
+   * This method is used by JSON.stringify to serialize the money object.
+   * @returns The money value as a JSON object.
+   */
   toJSON = () => {
+    const unit = this.getBaseUnit();
     return {
-      amount: this.toNumber(),
+      __type: 'Money',
+      amount: this.toNumber(unit),
       currency: this.currency,
+      unit,
     };
   };
 
