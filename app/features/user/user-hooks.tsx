@@ -83,6 +83,7 @@ export const defaultAccounts = [
     name: 'Bitcoin',
     network: 'MAINNET',
     isDefault: true,
+    purpose: 'transactional',
   },
   ...(isDevelopmentMode
     ? ([
@@ -93,6 +94,7 @@ export const defaultAccounts = [
           mintUrl: 'https://testnut.cashu.space',
           isTestMint: true,
           isDefault: false,
+          purpose: 'transactional',
         },
         {
           type: 'cashu',
@@ -101,6 +103,7 @@ export const defaultAccounts = [
           mintUrl: 'https://testnut.cashu.space',
           isTestMint: true,
           isDefault: true,
+          purpose: 'transactional',
         },
       ] as const)
     : []),

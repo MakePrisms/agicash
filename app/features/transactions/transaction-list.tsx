@@ -7,9 +7,9 @@ import {
   useMemo,
   useRef,
 } from 'react';
+import { useLocation } from 'react-router';
 import { SparkIcon } from '~/components/spark-icon';
 import { Card } from '~/components/ui/card';
-import { ScrollArea } from '~/components/ui/scroll-area';
 import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
 import { useIsVisible } from '~/hooks/use-is-visible';
 import {
@@ -17,6 +17,7 @@ import {
   VIEW_TRANSITION_DURATION_MS,
 } from '~/lib/transitions';
 import { useLatest } from '~/lib/use-latest';
+import { cn } from '~/lib/utils';
 import { getDefaultUnit } from '../shared/currencies';
 import type { Transaction } from './transaction';
 import {
@@ -152,6 +153,7 @@ function TransactionRow({
 }: {
   transaction: Transaction;
 }) {
+  const location = useLocation();
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
   const { setAckStatus, statuses: ackStatuses } =
     useTransactionAckStatusStore();
@@ -170,7 +172,10 @@ function TransactionRow({
 
   return (
     <LinkWithViewTransition
-      to={`/transactions/${transaction.id}`}
+      to={{
+        pathname: `/transactions/${transaction.id}`,
+        search: `redirectTo=${encodeURIComponent(location.pathname + location.search)}`,
+      }}
       transition="slideUp"
       applyTo="newView"
       className="flex w-full items-center justify-start gap-4"
@@ -266,7 +271,10 @@ function usePartitionTransactions(transactions: Transaction[]) {
   };
 }
 
-export function TransactionList() {
+export function TransactionList({
+  accountId,
+  className,
+}: { accountId?: string; className?: string } = {}) {
   const { setIfMissing: setAckStatusIfMissing } =
     useTransactionAckStatusStore();
   const {
@@ -276,7 +284,7 @@ export function TransactionList() {
     hasNextPage,
     isFetchingNextPage,
     status,
-  } = useTransactions();
+  } = useTransactions(accountId);
 
   const allTransactions = useMemo(
     () => data?.pages.flatMap((page) => page.transactions) ?? [],
@@ -326,7 +334,9 @@ export function TransactionList() {
   }
 
   return (
-    <ScrollArea className="h-full min-h-0 " hideScrollbar>
+    <div
+      className={cn('scrollbar-none h-full min-h-0 overflow-y-auto', className)}
+    >
       <div className="w-full space-y-6">
         <TransactionSection
           title="Pending"
@@ -345,6 +355,6 @@ export function TransactionList() {
           isLoading={isFetchingNextPage}
         />
       )}
-    </ScrollArea>
+    </div>
   );
 }

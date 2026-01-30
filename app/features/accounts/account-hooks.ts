@@ -12,6 +12,7 @@ import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
+  type AccountPurpose,
   type AccountType,
   type CashuAccount,
   type ExtendedAccount,
@@ -140,15 +141,54 @@ export const accountsQueryOptions = ({
   });
 };
 
-export function useAccounts<T extends AccountType = AccountType>(select?: {
-  currency?: Currency;
-  type?: T;
-  isOnline?: boolean;
-}): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
+/**
+ * Filter options for `useAccounts` hook.
+ * Results are sorted by creation date (oldest first).
+ */
+type UseAccountsSelect<
+  T extends AccountType = AccountType,
+  P extends AccountPurpose = AccountPurpose,
+> = P extends 'gift-card'
+  ? {
+      /** Filter by currency (e.g., 'BTC', 'USD') */
+      currency?: Currency;
+      /** Must be 'cashu' when purpose is 'gift-card'. */
+      type?: 'cashu';
+      /** Filter by online status */
+      isOnline?: boolean;
+      /** Filter for gift-card accounts. Returns `CashuAccount[]` since gift cards are always cashu. */
+      purpose: P;
+    }
+  : {
+      /** Filter by currency (e.g., 'BTC', 'USD') */
+      currency?: Currency;
+      /** Filter by account type ('cashu' | 'spark'). Narrows the return type. */
+      type?: T;
+      /** Filter by online status */
+      isOnline?: boolean;
+      /** Filter by purpose. When omitted or 'transactional', any account type is allowed. */
+      purpose?: P;
+    };
+
+export function useAccounts(
+  select: UseAccountsSelect<'cashu', 'gift-card'>,
+): UseSuspenseQueryResult<ExtendedAccount<'cashu'>[]>;
+export function useAccounts<
+  T extends AccountType = AccountType,
+  P extends AccountPurpose = AccountPurpose,
+>(
+  select?: UseAccountsSelect<T, P>,
+): UseSuspenseQueryResult<ExtendedAccount<T>[]>;
+export function useAccounts<
+  T extends AccountType = AccountType,
+  P extends AccountPurpose = AccountPurpose,
+>(
+  select?: UseAccountsSelect<T, P>,
+): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
 
-  const { currency, type, isOnline } = select ?? {};
+  const { currency, type, isOnline, purpose } = select ?? {};
 
   return useSuspenseQuery({
     ...accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -158,28 +198,34 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
       (data: Account[]) => {
         const extendedData = AccountService.getExtendedAccounts(user, data);
 
-        if (!currency && !type && isOnline === undefined) {
-          return extendedData as ExtendedAccount<T>[];
+        const sortedData = extendedData
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          ) as ExtendedAccount<T>[];
+
+        if (!currency && !type && isOnline === undefined && !purpose) {
+          return sortedData;
         }
 
-        const filteredData = extendedData.filter(
-          (account): account is ExtendedAccount<T> => {
-            if (currency && account.currency !== currency) {
-              return false;
-            }
-            if (type && account.type !== type) {
-              return false;
-            }
-            if (isOnline !== undefined && account.isOnline !== isOnline) {
-              return false;
-            }
-            return true;
-          },
-        );
-
-        return filteredData;
+        return sortedData.filter((account) => {
+          if (currency && account.currency !== currency) {
+            return false;
+          }
+          if (type && account.type !== type) {
+            return false;
+          }
+          if (isOnline !== undefined && account.isOnline !== isOnline) {
+            return false;
+          }
+          if (purpose && account.purpose !== purpose) {
+            return false;
+          }
+          return true;
+        });
       },
-      [currency, type, isOnline, user],
+      [currency, type, isOnline, purpose, user],
     ),
   });
 }
@@ -284,6 +330,20 @@ export function useDefaultAccount() {
   return defaultAccount;
 }
 
+/**
+ * Hook to get an account by ID or fall back to the default account.
+ * @param accountId - Optional account ID. If not provided or account not found, returns the default account.
+ * @returns The matching account or the default account.
+ */
+export function useAccountOrDefault(accountId: string | null) {
+  const { data: accounts } = useAccounts();
+  const defaultAccount = useDefaultAccount();
+
+  return accountId
+    ? (accounts.find((a) => a.id === accountId) ?? defaultAccount)
+    : defaultAccount;
+}
+
 export function useAddCashuAccount() {
   const userId = useUser((x) => x.id);
   const accountCache = useAccountsCache();
@@ -304,11 +364,14 @@ export function useAddCashuAccount() {
 }
 
 /**
- * Hook to get the sum of all account balances for a given currency.
+ * Hook to get the sum of all transactional account balances for a given currency.
  * Null balances are ignored.
  */
 export function useBalance(currency: Currency) {
-  const { data: accounts } = useAccounts({ currency });
+  const { data: accounts } = useAccounts({
+    currency,
+    purpose: 'transactional',
+  });
   const balance = accounts.reduce((acc, account) => {
     const accountBalance = getAccountBalance(account);
     return accountBalance !== null ? acc.add(accountBalance) : acc;

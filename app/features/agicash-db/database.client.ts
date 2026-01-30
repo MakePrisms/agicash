@@ -33,7 +33,7 @@ if (!supabaseAnonKey) {
 
 /**
  * The client-side Supabase database client.
- * Cannot be used on the server. Use `agicashDbServer` instead.
+ * If you need to use a client on the server, which bypasses RLS, use `agicashDbServer` instead.
  */
 export const agicashDbClient = createClient<Database>(
   supabaseUrl,

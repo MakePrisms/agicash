@@ -16,6 +16,7 @@ export type Database = {
           details: Json
           id: string
           name: string
+          purpose: string
           type: string
           user_id: string
           version: number
@@ -26,6 +27,7 @@ export type Database = {
           details: Json
           id?: string
           name: string
+          purpose?: string
           type: string
           user_id: string
           version?: number
@@ -36,6 +38,7 @@ export type Database = {
           details?: Json
           id?: string
           name?: string
+          purpose?: string
           type?: string
           user_id?: string
           version?: number
@@ -1372,6 +1375,7 @@ export type Database = {
       get_account_with_proofs: { Args: { p_account_id: string }; Returns: Json }
       list_transactions: {
         Args: {
+          p_account_id?: string
           p_cursor_created_at?: string
           p_cursor_id?: string
           p_cursor_state_sort_order?: number
@@ -1551,6 +1555,7 @@ export type Database = {
         name: string | null
         details: Json | null
         is_default: boolean | null
+        purpose: string | null
       }
       add_cashu_proofs_and_update_account_result: {
         account: Json | null

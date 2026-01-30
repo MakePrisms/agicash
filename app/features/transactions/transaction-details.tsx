@@ -14,7 +14,7 @@ import type { Transaction } from '~/features/transactions/transaction';
 import { useToast } from '~/hooks/use-toast';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
-import { AccountTypeIcon } from '../accounts/account-icons';
+import { AccountIcon } from '../accounts/account-icons';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
@@ -157,7 +157,7 @@ export function TransactionDetails({
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <AccountTypeIcon type={account?.type} />
+                <AccountIcon account={account} />
                 <span>{account?.name}</span>
               </div>
 
