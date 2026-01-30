@@ -61,6 +61,7 @@ jobs:
           additional_permissions: |
             actions: read
           claude_args: |
+            --allowedTools "Bash(git fetch origin *),Bash(git checkout *),Bash(git switch *)"
             --system-prompt "Read CLAUDE.md first for project-specific coding standards and patterns.
 
             You are running in a GitHub Actions workflow.
