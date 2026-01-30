@@ -364,7 +364,7 @@ export class CashuSendQuoteService {
   /**
    * Completes the send quote after successful payment.
    * If the send quote is already paid, it's a no-op that returns back passed quote.
-   * @throws An error if the account does not match the send quote account or the quote does not match the melt quote or the send quote is not pending.
+   * @throws An error if the account does not match the send quote account or the quote does not match the melt quote or the send quote is not pending or unpaid.
    * @returns The updated send quote.
    */
   async completeSendQuote(
@@ -376,9 +376,9 @@ export class CashuSendQuoteService {
       return sendQuote;
     }
 
-    if (sendQuote.state !== 'PENDING') {
+    if (!['PENDING', 'UNPAID'].includes(sendQuote.state)) {
       throw new Error(
-        `Cannot complete send quote that is not pending. Current state: ${sendQuote.state}`,
+        `Cannot complete send quote that is not pending or unpaid. Current state: ${sendQuote.state}`,
       );
     }
 
