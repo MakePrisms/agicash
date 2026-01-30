@@ -1,20 +1,17 @@
-import { useSearchParams } from 'react-router';
 import logo from '~/assets/full_logo.png';
 import termsContent from '~/assets/terms-of-use.md?raw';
 import { Markdown } from '~/components/markdown';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 export default function TermsPage() {
-  const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirectTo');
+  const { redirectTo } = useRedirectTo('/');
 
   return (
     <div className="mx-auto h-dvh max-w-4xl overflow-y-auto overflow-x-hidden px-4 py-8 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <header className="mb-8 flex items-center justify-start">
         <LinkWithViewTransition
-          to={{
-            pathname: redirectTo ?? '/',
-          }}
+          to={redirectTo}
           transition="slideDown"
           applyTo="oldView"
         >
