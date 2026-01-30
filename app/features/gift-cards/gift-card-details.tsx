@@ -150,14 +150,14 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
 
           <div className="mt-6 grid w-72 grid-cols-2 gap-10">
             <LinkWithViewTransition
-              to={`/receive?accountId=${card.id}`}
+              to={`/receive?accountId=${card.id}&redirectTo=${encodeURIComponent(`/gift-cards/${card.id}`)}`}
               transition="slideUp"
               applyTo="newView"
             >
               <Button className="w-full px-7 py-6 text-lg">Add</Button>
             </LinkWithViewTransition>
             <LinkWithViewTransition
-              to={`/send?accountId=${card.id}`}
+              to={`/send?accountId=${card.id}&redirectTo=${encodeURIComponent(`/gift-cards/${card.id}`)}`}
               transition="slideUp"
               applyTo="newView"
             >

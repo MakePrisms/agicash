@@ -10,6 +10,7 @@ import { Card, CardContent } from '~/components/ui/card';
 import type { CashuAccount, SparkAccount } from '~/features/accounts/account';
 import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Money } from '~/lib/money';
@@ -51,10 +52,16 @@ const BaseConfirmation = ({
   loading?: boolean;
   error?: string;
 }) => {
+  const { buildTo } = useRedirectTo('/');
+
   return (
     <Page>
       <PageHeader className="z-10">
-        <PageBackButton to="/send" transition="slideDown" applyTo="oldView" />
+        <PageBackButton
+          to={buildTo('/send')}
+          transition="slideDown"
+          applyTo="oldView"
+        />
         <PageHeaderTitle>Confirm Payment</PageHeaderTitle>
       </PageHeader>
       <PageContent className="flex flex-col items-center gap-4">
@@ -92,18 +99,22 @@ type UsePayBolt11Props = {
   quote: CashuLightningQuote | SparkLightningQuote;
   /** Additional details about the destination to include in the Agicash DB record.*/
   destinationDetails?: DestinationDetails;
+  /** Where to redirect after the transaction is complete. */
+  redirectTo: string;
 };
 
 /**
  * A hook that is used to pay bolt11 invoices from a Cashu account or a Spark account.
  * @param account - The account to send from.
  * @param quote - The quote to pay
+ * @param redirectTo - Where to redirect after the transaction is complete.
  * @returns A function to handle the confirmation of the payment and a boolean indicating if the payment is pending.
  */
 const usePayBolt11 = ({
   account,
   quote,
   destinationDetails,
+  redirectTo,
 }: UsePayBolt11Props) => {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
@@ -111,10 +122,16 @@ const usePayBolt11 = ({
   const { mutate: initiateCashuSend, status: initiateCashuSendQuoteStatus } =
     useInitiateCashuSendQuote({
       onSuccess: (data) => {
-        navigate(`/transactions/${data.transactionId}?redirectTo=/`, {
-          transition: 'slideLeft',
-          applyTo: 'newView',
-        });
+        navigate(
+          {
+            pathname: `/transactions/${data.transactionId}`,
+            search: `?redirectTo=${encodeURIComponent(redirectTo)}`,
+          },
+          {
+            transition: 'slideLeft',
+            applyTo: 'newView',
+          },
+        );
       },
       onError: (error) => {
         if (error instanceof DomainError) {
@@ -133,10 +150,16 @@ const usePayBolt11 = ({
   const { mutate: initiateSparkSend, status: initiateSparkSendQuoteStatus } =
     useInitiateSparkSendQuote({
       onSuccess: (sendQuote) => {
-        navigate(`/transactions/${sendQuote.transactionId}?redirectTo=/`, {
-          transition: 'slideLeft',
-          applyTo: 'newView',
-        });
+        navigate(
+          {
+            pathname: `/transactions/${sendQuote.transactionId}`,
+            search: `?redirectTo=${encodeURIComponent(redirectTo)}`,
+          },
+          {
+            transition: 'slideLeft',
+            applyTo: 'newView',
+          },
+        );
       },
       onError: (error) => {
         console.error('Failed to initiate spark send', { cause: error });
@@ -197,10 +220,12 @@ export const PayBolt11Confirmation = ({
   destinationDisplay,
   destinationDetails,
 }: PayBolt11ConfirmationProps) => {
+  const { redirectTo } = useRedirectTo('/');
   const { handleConfirm, isPending } = usePayBolt11({
     account,
     quote: bolt11Quote,
     destinationDetails,
+    redirectTo,
   });
 
   const { description } = decodeBolt11(destination);
@@ -266,11 +291,12 @@ export const CreateCashuTokenConfirmation = ({
 }: CreateCashuTokenConfirmationProps) => {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
+  const { buildTo } = useRedirectTo('/');
 
   const { mutate: createCashuSendSwap, status: createSwapStatus } =
     useCreateCashuSendSwap({
       onSuccess: (swap) => {
-        navigate(`/send/share/${swap.id}`, {
+        navigate(buildTo(`/send/share/${swap.id}`), {
           transition: 'slideUp',
           applyTo: 'newView',
         });

@@ -20,6 +20,7 @@ import {
   CarouselItem,
 } from '~/components/ui/carousel';
 import useLocationData from '~/hooks/use-location';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
@@ -33,6 +34,7 @@ type Props = {
 export function ShareCashuToken({ token }: Props) {
   const { toast } = useToast();
   const { origin } = useLocationData();
+  const { redirectTo } = useRedirectTo('/');
   const [, copyToClipboard] = useCopyToClipboard();
   const amount = tokenToMoney(token);
   const [showOk, setShowOk] = useState(false);
@@ -45,7 +47,11 @@ export function ShareCashuToken({ token }: Props) {
   return (
     <Page>
       <PageHeader>
-        <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
+        <ClosePageButton
+          to={redirectTo}
+          transition="slideDown"
+          applyTo="oldView"
+        />
         <PageHeaderTitle>Send</PageHeaderTitle>
         {canShare() && (
           <PageHeaderItem position="right">
@@ -110,7 +116,7 @@ export function ShareCashuToken({ token }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to="/"
+              to={redirectTo}
               transition="slideDown"
               applyTo="oldView"
             >

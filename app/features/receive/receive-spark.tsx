@@ -12,12 +12,10 @@ import { Button } from '~/components/ui/button';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
-import {
-  LinkWithViewTransition,
-  useNavigateWithViewTransition,
-} from '~/lib/transitions';
+import { LinkWithViewTransition } from '~/lib/transitions';
 import type { SparkAccount } from '../accounts/account';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
+import { useReceiveFlowStep } from './receive-flow';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import {
   useCreateSparkReceiveQuote,
@@ -68,19 +66,16 @@ const useCreateQuote = ({
 };
 
 export default function ReceiveSpark({ amount, account }: Props) {
-  const navigate = useNavigateWithViewTransition();
   const [showOk, setShowOk] = useState(false);
   const [, copyToClipboard] = useCopyToClipboard();
   const { toast } = useToast();
+  const { back, onSuccess } = useReceiveFlowStep('sparkLightningInvoice');
 
   const { quote, errorMessage, isLoading } = useCreateQuote({
     account,
     amount,
     onPaid: (quote) => {
-      navigate(`/transactions/${quote.transactionId}?redirectTo=/`, {
-        transition: 'fade',
-        applyTo: 'newView',
-      });
+      onSuccess(quote.transactionId);
     },
   });
 
@@ -98,9 +93,9 @@ export default function ReceiveSpark({ amount, account }: Props) {
     <>
       <PageHeader>
         <ClosePageButton
-          to="/receive"
-          transition="slideDown"
-          applyTo="oldView"
+          to={back.to}
+          transition={back.transition}
+          applyTo={back.applyTo}
         />
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
@@ -118,9 +113,9 @@ export default function ReceiveSpark({ amount, account }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to="/"
-              transition="slideDown"
-              applyTo="oldView"
+              to={back.to}
+              transition={back.transition}
+              applyTo={back.applyTo}
             >
               OK
             </LinkWithViewTransition>
