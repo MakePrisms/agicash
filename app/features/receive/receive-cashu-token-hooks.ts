@@ -346,10 +346,10 @@ function usePlacholderAccounts(
 }
 
 /**
- * Returns the placeholder accounts that can be receive the cashu token.
+ * Returns the placeholder accounts that can receive the cashu token.
  * Use to present the receive options when user is not signed in and we can't know which accounts they have.
- * Spark account is set as the receive account by default, unless the source cannot send to Lightning
- * (test mints and gift cards can only be claimed to the same mint).
+ * Spark account is set as the receive account by default, unless the source cannot send to Lightning (test
+ * mints and gift cards can only be claimed to the same mint).
  */
 export function useReceiveCashuTokenAccountPlaceholders(token: Token) {
   const allPlaceholderAccounts = usePlacholderAccounts(token);
