@@ -18,6 +18,7 @@ import {
   useCashuCryptography,
 } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
+import { DomainError } from '../shared/error';
 import {
   getInitializedSparkWallet,
   sparkMnemonicQueryOptions,
@@ -150,6 +151,10 @@ export class AccountRepository {
     const { data, error, status } = resp;
 
     if (error) {
+      if (error.hint === 'LIMIT_REACHED') {
+        throw new DomainError(`${error.message} ${error.details}`);
+      }
+
       const message =
         status === 409 && accountInput.type === 'cashu'
           ? 'Account for this mint and currency already exists'

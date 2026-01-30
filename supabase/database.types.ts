@@ -12,34 +12,34 @@ export type Database = {
       accounts: {
         Row: {
           created_at: string
-          currency: string
+          currency: Database["wallet"]["Enums"]["currency"]
           details: Json
           id: string
           name: string
-          purpose: string
-          type: string
+          purpose: Database["wallet"]["Enums"]["account_purpose"]
+          type: Database["wallet"]["Enums"]["account_type"]
           user_id: string
           version: number
         }
         Insert: {
           created_at?: string
-          currency: string
+          currency: Database["wallet"]["Enums"]["currency"]
           details: Json
           id?: string
           name: string
-          purpose?: string
-          type: string
+          purpose?: Database["wallet"]["Enums"]["account_purpose"]
+          type: Database["wallet"]["Enums"]["account_type"]
           user_id: string
           version?: number
         }
         Update: {
           created_at?: string
-          currency?: string
+          currency?: Database["wallet"]["Enums"]["currency"]
           details?: Json
           id?: string
           name?: string
-          purpose?: string
-          type?: string
+          purpose?: Database["wallet"]["Enums"]["account_purpose"]
+          type?: Database["wallet"]["Enums"]["account_type"]
           user_id?: string
           version?: number
         }
@@ -58,9 +58,9 @@ export type Database = {
           account_id: string
           amount: string
           cashu_receive_quote_id: string | null
+          cashu_receive_swap_token_hash: string | null
           cashu_send_quote_id: string | null
           cashu_send_swap_id: string | null
-          cashu_token_swap_token_hash: string | null
           created_at: string
           dleq: Json | null
           id: string
@@ -71,7 +71,7 @@ export type Database = {
           spending_cashu_send_quote_id: string | null
           spending_cashu_send_swap_id: string | null
           spent_at: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_proof_state"]
           unblinded_signature: string
           user_id: string
           version: number
@@ -81,9 +81,9 @@ export type Database = {
           account_id: string
           amount: string
           cashu_receive_quote_id?: string | null
+          cashu_receive_swap_token_hash?: string | null
           cashu_send_quote_id?: string | null
           cashu_send_swap_id?: string | null
-          cashu_token_swap_token_hash?: string | null
           created_at?: string
           dleq?: Json | null
           id?: string
@@ -94,7 +94,7 @@ export type Database = {
           spending_cashu_send_quote_id?: string | null
           spending_cashu_send_swap_id?: string | null
           spent_at?: string | null
-          state?: string
+          state?: Database["wallet"]["Enums"]["cashu_proof_state"]
           unblinded_signature: string
           user_id: string
           version?: number
@@ -104,9 +104,9 @@ export type Database = {
           account_id?: string
           amount?: string
           cashu_receive_quote_id?: string | null
+          cashu_receive_swap_token_hash?: string | null
           cashu_send_quote_id?: string | null
           cashu_send_swap_id?: string | null
-          cashu_token_swap_token_hash?: string | null
           created_at?: string
           dleq?: Json | null
           id?: string
@@ -117,7 +117,7 @@ export type Database = {
           spending_cashu_send_quote_id?: string | null
           spending_cashu_send_swap_id?: string | null
           spent_at?: string | null
-          state?: string
+          state?: Database["wallet"]["Enums"]["cashu_proof_state"]
           unblinded_signature?: string
           user_id?: string
           version?: number
@@ -153,6 +153,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cashu_proofs_receive_swap_fkey"
+            columns: ["cashu_receive_swap_token_hash", "user_id"]
+            isOneToOne: false
+            referencedRelation: "cashu_receive_swaps"
+            referencedColumns: ["token_hash", "user_id"]
+          },
+          {
             foreignKeyName: "cashu_proofs_spending_cashu_send_quote_id_fkey"
             columns: ["spending_cashu_send_quote_id"]
             isOneToOne: false
@@ -165,13 +172,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "cashu_send_swaps"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cashu_proofs_token_swap_fkey"
-            columns: ["cashu_token_swap_token_hash", "user_id"]
-            isOneToOne: false
-            referencedRelation: "cashu_token_swaps"
-            referencedColumns: ["token_hash", "user_id"]
           },
           {
             foreignKeyName: "cashu_proofs_user_id_fkey"
@@ -196,9 +196,9 @@ export type Database = {
           locking_derivation_path: string
           payment_hash: string
           quote_id_hash: string
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -215,9 +215,9 @@ export type Database = {
           locking_derivation_path: string
           payment_hash: string
           quote_id_hash: string
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version?: number
         }
@@ -234,9 +234,9 @@ export type Database = {
           locking_derivation_path?: string
           payment_hash?: string
           quote_id_hash?: string
-          state?: string
+          state?: Database["wallet"]["Enums"]["cashu_receive_quote_state"]
           transaction_id?: string
-          type?: string
+          type?: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id?: string
           version?: number
         }
@@ -264,11 +264,75 @@ export type Database = {
           },
         ]
       }
+      cashu_receive_swaps: {
+        Row: {
+          account_id: string
+          created_at: string
+          encrypted_data: string
+          failure_reason: string | null
+          keyset_counter: number
+          keyset_id: string
+          state: Database["wallet"]["Enums"]["cashu_receive_swap_state"]
+          token_hash: string
+          transaction_id: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          encrypted_data: string
+          failure_reason?: string | null
+          keyset_counter: number
+          keyset_id: string
+          state?: Database["wallet"]["Enums"]["cashu_receive_swap_state"]
+          token_hash: string
+          transaction_id: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          encrypted_data?: string
+          failure_reason?: string | null
+          keyset_counter?: number
+          keyset_id?: string
+          state?: Database["wallet"]["Enums"]["cashu_receive_swap_state"]
+          token_hash?: string
+          transaction_id?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashu_receive_swaps_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cashu_receive_swaps_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cashu_receive_swaps_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cashu_send_quotes: {
         Row: {
           account_id: string
           created_at: string
-          currency_requested: string
+          currency_requested: Database["wallet"]["Enums"]["currency"]
           encrypted_data: string
           expires_at: string
           failure_reason: string | null
@@ -278,7 +342,7 @@ export type Database = {
           number_of_change_outputs: number
           payment_hash: string
           quote_id_hash: string
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_send_quote_state"]
           transaction_id: string
           user_id: string
           version: number
@@ -286,7 +350,7 @@ export type Database = {
         Insert: {
           account_id: string
           created_at?: string
-          currency_requested: string
+          currency_requested: Database["wallet"]["Enums"]["currency"]
           encrypted_data: string
           expires_at: string
           failure_reason?: string | null
@@ -296,7 +360,7 @@ export type Database = {
           number_of_change_outputs: number
           payment_hash: string
           quote_id_hash: string
-          state?: string
+          state?: Database["wallet"]["Enums"]["cashu_send_quote_state"]
           transaction_id: string
           user_id: string
           version?: number
@@ -304,7 +368,7 @@ export type Database = {
         Update: {
           account_id?: string
           created_at?: string
-          currency_requested?: string
+          currency_requested?: Database["wallet"]["Enums"]["currency"]
           encrypted_data?: string
           expires_at?: string
           failure_reason?: string | null
@@ -314,7 +378,7 @@ export type Database = {
           number_of_change_outputs?: number
           payment_hash?: string
           quote_id_hash?: string
-          state?: string
+          state?: Database["wallet"]["Enums"]["cashu_send_quote_state"]
           transaction_id?: string
           user_id?: string
           version?: number
@@ -353,7 +417,7 @@ export type Database = {
           keyset_counter: number | null
           keyset_id: string | null
           requires_input_proofs_swap: boolean
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_send_swap_state"]
           token_hash: string | null
           transaction_id: string
           user_id: string
@@ -368,7 +432,7 @@ export type Database = {
           keyset_counter?: number | null
           keyset_id?: string | null
           requires_input_proofs_swap?: boolean
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_send_swap_state"]
           token_hash?: string | null
           transaction_id: string
           user_id: string
@@ -383,7 +447,7 @@ export type Database = {
           keyset_counter?: number | null
           keyset_id?: string | null
           requires_input_proofs_swap?: boolean
-          state?: string
+          state?: Database["wallet"]["Enums"]["cashu_send_swap_state"]
           token_hash?: string | null
           transaction_id?: string
           user_id?: string
@@ -406,70 +470,6 @@ export type Database = {
           },
           {
             foreignKeyName: "cashu_send_swaps_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      cashu_token_swaps: {
-        Row: {
-          account_id: string
-          created_at: string
-          encrypted_data: string
-          failure_reason: string | null
-          keyset_counter: number
-          keyset_id: string
-          state: string
-          token_hash: string
-          transaction_id: string
-          user_id: string
-          version: number
-        }
-        Insert: {
-          account_id: string
-          created_at?: string
-          encrypted_data: string
-          failure_reason?: string | null
-          keyset_counter: number
-          keyset_id: string
-          state?: string
-          token_hash: string
-          transaction_id: string
-          user_id: string
-          version?: number
-        }
-        Update: {
-          account_id?: string
-          created_at?: string
-          encrypted_data?: string
-          failure_reason?: string | null
-          keyset_counter?: number
-          keyset_id?: string
-          state?: string
-          token_hash?: string
-          transaction_id?: string
-          user_id?: string
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cashu_token_swaps_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cashu_token_swaps_transaction_id_fkey"
-            columns: ["transaction_id"]
-            isOneToOne: false
-            referencedRelation: "transactions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cashu_token_swaps_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -526,9 +526,9 @@ export type Database = {
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -544,9 +544,9 @@ export type Database = {
           receiver_identity_pubkey?: string | null
           spark_id: string
           spark_transfer_id?: string | null
-          state?: string
+          state?: Database["wallet"]["Enums"]["spark_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version?: number
         }
@@ -562,9 +562,9 @@ export type Database = {
           receiver_identity_pubkey?: string | null
           spark_id?: string
           spark_transfer_id?: string | null
-          state?: string
+          state?: Database["wallet"]["Enums"]["spark_receive_quote_state"]
           transaction_id?: string
-          type?: string
+          type?: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id?: string
           version?: number
         }
@@ -604,7 +604,7 @@ export type Database = {
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_send_quote_state"]
           transaction_id: string
           user_id: string
           version: number
@@ -620,7 +620,7 @@ export type Database = {
           payment_request_is_amountless?: boolean
           spark_id?: string | null
           spark_transfer_id?: string | null
-          state?: string
+          state?: Database["wallet"]["Enums"]["spark_send_quote_state"]
           transaction_id: string
           user_id: string
           version?: number
@@ -636,7 +636,7 @@ export type Database = {
           payment_request_is_amountless?: boolean
           spark_id?: string | null
           spark_transfer_id?: string | null
-          state?: string
+          state?: Database["wallet"]["Enums"]["spark_send_quote_state"]
           transaction_id?: string
           user_id?: string
           version?: number
@@ -694,59 +694,65 @@ export type Database = {
       transactions: {
         Row: {
           account_id: string
-          acknowledgment_status: string | null
+          acknowledgment_status:
+            | Database["wallet"]["Enums"]["acknowledgment_status"]
+            | null
           completed_at: string | null
           created_at: string
-          currency: string
-          direction: string
+          currency: Database["wallet"]["Enums"]["currency"]
+          direction: Database["wallet"]["Enums"]["transaction_direction"]
           encrypted_transaction_details: string
           failed_at: string | null
           id: string
           pending_at: string | null
           reversed_at: string | null
           reversed_transaction_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order: number | null
           transaction_details: Json | null
-          type: string
+          type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
         }
         Insert: {
           account_id: string
-          acknowledgment_status?: string | null
+          acknowledgment_status?:
+            | Database["wallet"]["Enums"]["acknowledgment_status"]
+            | null
           completed_at?: string | null
           created_at?: string
-          currency: string
-          direction: string
+          currency: Database["wallet"]["Enums"]["currency"]
+          direction: Database["wallet"]["Enums"]["transaction_direction"]
           encrypted_transaction_details: string
           failed_at?: string | null
           id?: string
           pending_at?: string | null
           reversed_at?: string | null
           reversed_transaction_id?: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order?: number | null
           transaction_details?: Json | null
-          type: string
+          type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
         }
         Update: {
           account_id?: string
-          acknowledgment_status?: string | null
+          acknowledgment_status?:
+            | Database["wallet"]["Enums"]["acknowledgment_status"]
+            | null
           completed_at?: string | null
           created_at?: string
-          currency?: string
-          direction?: string
+          currency?: Database["wallet"]["Enums"]["currency"]
+          direction?: Database["wallet"]["Enums"]["transaction_direction"]
           encrypted_transaction_details?: string
           failed_at?: string | null
           id?: string
           pending_at?: string | null
           reversed_at?: string | null
           reversed_transaction_id?: string | null
-          state?: string
+          state?: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order?: number | null
           transaction_details?: Json | null
-          type?: string
+          type?: Database["wallet"]["Enums"]["transaction_type"]
           user_id?: string
         }
         Relationships: [
@@ -778,7 +784,7 @@ export type Database = {
           cashu_locking_xpub: string
           created_at: string
           default_btc_account_id: string | null
-          default_currency: string
+          default_currency: Database["wallet"]["Enums"]["currency"]
           default_usd_account_id: string | null
           email: string | null
           email_verified: boolean
@@ -793,7 +799,7 @@ export type Database = {
           cashu_locking_xpub: string
           created_at?: string
           default_btc_account_id?: string | null
-          default_currency?: string
+          default_currency?: Database["wallet"]["Enums"]["currency"]
           default_usd_account_id?: string | null
           email?: string | null
           email_verified: boolean
@@ -808,7 +814,7 @@ export type Database = {
           cashu_locking_xpub?: string
           created_at?: string
           default_btc_account_id?: string | null
-          default_currency?: string
+          default_currency?: Database["wallet"]["Enums"]["currency"]
           default_usd_account_id?: string | null
           email?: string | null
           email_verified?: boolean
@@ -845,11 +851,11 @@ export type Database = {
         Args: {
           p_account_id: string
           p_cashu_receive_quote_id?: string
+          p_cashu_receive_swap_token_hash?: string
           p_cashu_send_quote_id?: string
           p_cashu_send_swap_id?: string
-          p_cashu_token_swap_token_hash?: string
           p_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
-          p_proofs_state?: string
+          p_proofs_state?: Database["wallet"]["Enums"]["cashu_proof_state"]
           p_spending_cashu_send_swap_id?: string
           p_user_id: string
         }
@@ -859,11 +865,11 @@ export type Database = {
         Args: {
           p_account_id: string
           p_cashu_receive_quote_id?: string
+          p_cashu_receive_swap_token_hash?: string
           p_cashu_send_quote_id?: string
           p_cashu_send_swap_id?: string
-          p_cashu_token_swap_token_hash?: string
           p_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
-          p_proofs_state?: string
+          p_proofs_state?: Database["wallet"]["Enums"]["cashu_proof_state"]
           p_spending_cashu_send_swap_id?: string
           p_user_id: string
         }
@@ -907,6 +913,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      complete_cashu_receive_swap: {
+        Args: {
+          p_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
+          p_token_hash: string
+          p_user_id: string
+        }
+        Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_receive_swap_result"]
+        SetofOptions: {
+          from: "*"
+          to: "complete_cashu_receive_swap_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       complete_cashu_send_quote: {
         Args: {
           p_change_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
@@ -931,20 +951,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      complete_cashu_token_swap: {
-        Args: {
-          p_proofs: Database["wallet"]["CompositeTypes"]["cashu_proof_input"][]
-          p_token_hash: string
-          p_user_id: string
-        }
-        Returns: Database["wallet"]["CompositeTypes"]["complete_cashu_token_swap_result"]
-        SetofOptions: {
-          from: "*"
-          to: "complete_cashu_token_swap_result"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       complete_spark_receive_quote: {
         Args: {
           p_encrypted_data: string
@@ -963,9 +969,9 @@ export type Database = {
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -989,7 +995,7 @@ export type Database = {
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_send_quote_state"]
           transaction_id: string
           user_id: string
           version: number
@@ -1004,13 +1010,13 @@ export type Database = {
       create_cashu_receive_quote: {
         Args: {
           p_account_id: string
-          p_currency: string
+          p_currency: Database["wallet"]["Enums"]["currency"]
           p_encrypted_data: string
           p_expires_at: string
           p_locking_derivation_path: string
           p_payment_hash: string
           p_quote_id_hash: string
-          p_receive_type: string
+          p_receive_type: Database["wallet"]["Enums"]["receive_quote_type"]
           p_user_id: string
         }
         Returns: {
@@ -1026,9 +1032,9 @@ export type Database = {
           locking_derivation_path: string
           payment_hash: string
           quote_id_hash: string
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -1039,11 +1045,30 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_cashu_receive_swap: {
+        Args: {
+          p_account_id: string
+          p_currency: Database["wallet"]["Enums"]["currency"]
+          p_encrypted_data: string
+          p_keyset_id: string
+          p_number_of_outputs: number
+          p_reversed_transaction_id?: string
+          p_token_hash: string
+          p_user_id: string
+        }
+        Returns: Database["wallet"]["CompositeTypes"]["create_cashu_receive_swap_result"]
+        SetofOptions: {
+          from: "*"
+          to: "create_cashu_receive_swap_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_cashu_send_quote: {
         Args: {
           p_account_id: string
-          p_currency: string
-          p_currency_requested: string
+          p_currency: Database["wallet"]["Enums"]["currency"]
+          p_currency_requested: Database["wallet"]["Enums"]["currency"]
           p_encrypted_data: string
           p_expires_at: string
           p_keyset_id: string
@@ -1064,7 +1089,7 @@ export type Database = {
       create_cashu_send_swap: {
         Args: {
           p_account_id: string
-          p_currency: string
+          p_currency: Database["wallet"]["Enums"]["currency"]
           p_encrypted_data: string
           p_input_proofs: string[]
           p_keyset_id?: string
@@ -1081,33 +1106,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      create_cashu_token_swap: {
-        Args: {
-          p_account_id: string
-          p_currency: string
-          p_encrypted_data: string
-          p_keyset_id: string
-          p_number_of_outputs: number
-          p_reversed_transaction_id?: string
-          p_token_hash: string
-          p_user_id: string
-        }
-        Returns: Database["wallet"]["CompositeTypes"]["create_cashu_token_swap_result"]
-        SetofOptions: {
-          from: "*"
-          to: "create_cashu_token_swap_result"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       create_spark_receive_quote: {
         Args: {
           p_account_id: string
-          p_currency: string
+          p_currency: Database["wallet"]["Enums"]["currency"]
           p_encrypted_data: string
           p_expires_at: string
           p_payment_hash: string
-          p_receive_type: string
+          p_receive_type: Database["wallet"]["Enums"]["receive_quote_type"]
           p_receiver_identity_pubkey: string
           p_spark_id: string
           p_user_id: string
@@ -1124,9 +1130,9 @@ export type Database = {
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -1140,7 +1146,7 @@ export type Database = {
       create_spark_send_quote: {
         Args: {
           p_account_id: string
-          p_currency: string
+          p_currency: Database["wallet"]["Enums"]["currency"]
           p_encrypted_data: string
           p_expires_at?: string
           p_payment_hash: string
@@ -1158,7 +1164,7 @@ export type Database = {
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_send_quote_state"]
           transaction_id: string
           user_id: string
           version: number
@@ -1185,9 +1191,9 @@ export type Database = {
           locking_derivation_path: string
           payment_hash: string
           quote_id_hash: string
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -1222,9 +1228,9 @@ export type Database = {
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -1250,15 +1256,41 @@ export type Database = {
           locking_derivation_path: string
           payment_hash: string
           quote_id_hash: string
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
         SetofOptions: {
           from: "*"
           to: "cashu_receive_quotes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      fail_cashu_receive_swap: {
+        Args: {
+          p_failure_reason: string
+          p_token_hash: string
+          p_user_id: string
+        }
+        Returns: {
+          account_id: string
+          created_at: string
+          encrypted_data: string
+          failure_reason: string | null
+          keyset_counter: number
+          keyset_id: string
+          state: Database["wallet"]["Enums"]["cashu_receive_swap_state"]
+          token_hash: string
+          transaction_id: string
+          user_id: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cashu_receive_swaps"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1283,32 +1315,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      fail_cashu_token_swap: {
-        Args: {
-          p_failure_reason: string
-          p_token_hash: string
-          p_user_id: string
-        }
-        Returns: {
-          account_id: string
-          created_at: string
-          encrypted_data: string
-          failure_reason: string | null
-          keyset_counter: number
-          keyset_id: string
-          state: string
-          token_hash: string
-          transaction_id: string
-          user_id: string
-          version: number
-        }
-        SetofOptions: {
-          from: "*"
-          to: "cashu_token_swaps"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       fail_spark_receive_quote: {
         Args: { p_failure_reason: string; p_quote_id: string }
         Returns: {
@@ -1323,9 +1329,9 @@ export type Database = {
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -1349,7 +1355,7 @@ export type Database = {
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_send_quote_state"]
           transaction_id: string
           user_id: string
           version: number
@@ -1384,21 +1390,23 @@ export type Database = {
         }
         Returns: {
           account_id: string
-          acknowledgment_status: string | null
+          acknowledgment_status:
+            | Database["wallet"]["Enums"]["acknowledgment_status"]
+            | null
           completed_at: string | null
           created_at: string
-          currency: string
-          direction: string
+          currency: Database["wallet"]["Enums"]["currency"]
+          direction: Database["wallet"]["Enums"]["transaction_direction"]
           encrypted_transaction_details: string
           failed_at: string | null
           id: string
           pending_at: string | null
           reversed_at: string | null
           reversed_transaction_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order: number | null
           transaction_details: Json | null
-          type: string
+          type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
         }[]
         SetofOptions: {
@@ -1423,9 +1431,9 @@ export type Database = {
           locking_derivation_path: string
           payment_hash: string
           quote_id_hash: string
-          state: string
+          state: Database["wallet"]["Enums"]["cashu_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -1460,9 +1468,9 @@ export type Database = {
           receiver_identity_pubkey: string | null
           spark_id: string
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_receive_quote_state"]
           transaction_id: string
-          type: string
+          type: Database["wallet"]["Enums"]["receive_quote_type"]
           user_id: string
           version: number
         }
@@ -1491,7 +1499,7 @@ export type Database = {
           payment_request_is_amountless: boolean
           spark_id: string | null
           spark_transfer_id: string | null
-          state: string
+          state: Database["wallet"]["Enums"]["spark_send_quote_state"]
           transaction_id: string
           user_id: string
           version: number
@@ -1546,16 +1554,50 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      account_purpose: "transactional" | "gift-card"
+      account_type: "cashu" | "spark"
+      acknowledgment_status: "pending" | "acknowledged"
+      cashu_proof_state: "UNSPENT" | "RESERVED" | "SPENT"
+      cashu_receive_quote_state:
+        | "UNPAID"
+        | "EXPIRED"
+        | "PAID"
+        | "COMPLETED"
+        | "FAILED"
+      cashu_receive_swap_state: "PENDING" | "COMPLETED" | "FAILED"
+      cashu_send_quote_state:
+        | "UNPAID"
+        | "PENDING"
+        | "EXPIRED"
+        | "FAILED"
+        | "PAID"
+      cashu_send_swap_state:
+        | "DRAFT"
+        | "PENDING"
+        | "COMPLETED"
+        | "FAILED"
+        | "REVERSED"
+      currency: "BTC" | "USD"
+      receive_quote_type: "LIGHTNING" | "CASHU_TOKEN"
+      spark_receive_quote_state: "UNPAID" | "EXPIRED" | "PAID" | "FAILED"
+      spark_send_quote_state: "UNPAID" | "PENDING" | "COMPLETED" | "FAILED"
+      transaction_direction: "SEND" | "RECEIVE"
+      transaction_state:
+        | "DRAFT"
+        | "PENDING"
+        | "COMPLETED"
+        | "FAILED"
+        | "REVERSED"
+      transaction_type: "CASHU_LIGHTNING" | "CASHU_TOKEN" | "SPARK_LIGHTNING"
     }
     CompositeTypes: {
       account_input: {
-        type: string | null
-        currency: string | null
+        type: Database["wallet"]["Enums"]["account_type"] | null
+        purpose: Database["wallet"]["Enums"]["account_purpose"] | null
+        currency: Database["wallet"]["Enums"]["currency"] | null
         name: string | null
         details: Json | null
         is_default: boolean | null
-        purpose: string | null
       }
       add_cashu_proofs_and_update_account_result: {
         account: Json | null
@@ -1600,6 +1642,13 @@ export type Database = {
           | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
           | null
       }
+      complete_cashu_receive_swap_result: {
+        swap: Database["wallet"]["Tables"]["cashu_receive_swaps"]["Row"] | null
+        account: Json | null
+        added_proofs:
+          | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
+          | null
+      }
       complete_cashu_send_quote_result: {
         quote: Database["wallet"]["Tables"]["cashu_send_quotes"]["Row"] | null
         account: Json | null
@@ -1619,12 +1668,9 @@ export type Database = {
           | null
         failure_reason: string | null
       }
-      complete_cashu_token_swap_result: {
-        swap: Database["wallet"]["Tables"]["cashu_token_swaps"]["Row"] | null
+      create_cashu_receive_swap_result: {
+        swap: Database["wallet"]["Tables"]["cashu_receive_swaps"]["Row"] | null
         account: Json | null
-        added_proofs:
-          | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
-          | null
       }
       create_cashu_send_quote_result: {
         quote: Database["wallet"]["Tables"]["cashu_send_quotes"]["Row"] | null
@@ -1639,10 +1685,6 @@ export type Database = {
         reserved_proofs:
           | Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
           | null
-      }
-      create_cashu_token_swap_result: {
-        swap: Database["wallet"]["Tables"]["cashu_token_swaps"]["Row"] | null
-        account: Json | null
       }
       expire_cashu_send_quote_result: {
         quote: Database["wallet"]["Tables"]["cashu_send_quotes"]["Row"] | null
@@ -1796,7 +1838,47 @@ export type CompositeTypes<
 
 export const Constants = {
   wallet: {
-    Enums: {},
+    Enums: {
+      account_purpose: ["transactional", "gift-card"],
+      account_type: ["cashu", "spark"],
+      acknowledgment_status: ["pending", "acknowledged"],
+      cashu_proof_state: ["UNSPENT", "RESERVED", "SPENT"],
+      cashu_receive_quote_state: [
+        "UNPAID",
+        "EXPIRED",
+        "PAID",
+        "COMPLETED",
+        "FAILED",
+      ],
+      cashu_receive_swap_state: ["PENDING", "COMPLETED", "FAILED"],
+      cashu_send_quote_state: [
+        "UNPAID",
+        "PENDING",
+        "EXPIRED",
+        "FAILED",
+        "PAID",
+      ],
+      cashu_send_swap_state: [
+        "DRAFT",
+        "PENDING",
+        "COMPLETED",
+        "FAILED",
+        "REVERSED",
+      ],
+      currency: ["BTC", "USD"],
+      receive_quote_type: ["LIGHTNING", "CASHU_TOKEN"],
+      spark_receive_quote_state: ["UNPAID", "EXPIRED", "PAID", "FAILED"],
+      spark_send_quote_state: ["UNPAID", "PENDING", "COMPLETED", "FAILED"],
+      transaction_direction: ["SEND", "RECEIVE"],
+      transaction_state: [
+        "DRAFT",
+        "PENDING",
+        "COMPLETED",
+        "FAILED",
+        "REVERSED",
+      ],
+      transaction_type: ["CASHU_LIGHTNING", "CASHU_TOKEN", "SPARK_LIGHTNING"],
+    },
   },
 } as const
 

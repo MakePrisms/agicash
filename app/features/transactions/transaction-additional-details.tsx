@@ -14,7 +14,7 @@ import type { CashuAccount } from '../accounts/account';
 import { useAccount } from '../accounts/account-hooks';
 import { type CashuProof, toProof } from '../accounts/cashu-account';
 import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
-import { useCashuTokenSwapRepository } from '../receive/cashu-token-swap-repository';
+import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
 import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import type { Transaction } from './transaction';
@@ -149,14 +149,14 @@ function CashuTokenReceiveDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const repository = useCashuTokenSwapRepository();
+  const repository = useCashuReceiveSwapRepository();
 
   const { data: swap } = useSuspenseQuery({
     queryKey: ['transaction-details', transaction.id],
     queryFn: async () => {
       const swap = await repository.getByTransactionId(transaction.id);
       if (!swap) {
-        throw new Error('No token swap found for transaction');
+        throw new Error('No receive swap found for transaction');
       }
       return swap;
     },

@@ -14,18 +14,20 @@ import {
 import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
-import type { CashuTokenSwap } from './cashu-token-swap';
+import type { CashuReceiveSwap } from './cashu-receive-swap';
 import {
-  type CashuTokenSwapRepository,
-  useCashuTokenSwapRepository,
-} from './cashu-token-swap-repository';
+  type CashuReceiveSwapRepository,
+  useCashuReceiveSwapRepository,
+} from './cashu-receive-swap-repository';
 
-export class CashuTokenSwapService {
-  constructor(private readonly tokenSwapRepository: CashuTokenSwapRepository) {}
+export class CashuReceiveSwapService {
+  constructor(
+    private readonly receiveSwapRepository: CashuReceiveSwapRepository,
+  ) {}
 
   /**
-   * Starts the cashu token receive process by creating a new token swap and updating the account keyset counter.
-   * @returns The created token swap and updatedaccount.
+   * Starts the cashu receive swap process by creating a new receive swap and updating the account keyset counter.
+   * @returns The created receive swap and updated account.
    * @throws An error if creating the swap fails.
    */
   async create({
@@ -51,7 +53,7 @@ export class CashuTokenSwapService {
      */
     reversedTransactionId?: string;
   }): Promise<{
-    swap: CashuTokenSwap;
+    swap: CashuReceiveSwap;
     account: CashuAccount;
   }> {
     if (!areMintUrlsEqual(account.mintUrl, token.mint)) {
@@ -89,7 +91,7 @@ export class CashuTokenSwapService {
 
     const outputAmounts = getOutputAmounts(amountToReceive, keys);
 
-    return await this.tokenSwapRepository.create({
+    return await this.receiveSwapRepository.create({
       token,
       userId,
       accountId: account.id,
@@ -103,28 +105,28 @@ export class CashuTokenSwapService {
   }
 
   /**
-   * Completes the token swap by executing the swap with the mint and storing the output proofs.
-   * If the token swap is already completed, it's a no-op that returns back passed token swap, account and an empty list of added proof ids.
-   * If the call to the mint to swap the proofs fails because the token is already claimed, then the token swap is failed and the account is not updated.
+   * Completes the receive swap by executing the swap with the mint and storing the output proofs.
+   * If the receive swap is already completed, it's a no-op that returns back passed receive swap, account and an empty list of added proof ids.
+   * If the call to the mint to swap the proofs fails because the token is already claimed, then the receive swap is failed and the account is not updated.
    * @param account The account to receive the proofs into.
-   * @param tokenSwap The token swap to complete.
-   * @returns The completed or failed token swap, account with the updated proofs (if the swap was completed) and a list of added proof ids (empty if the swap was failed).
-   * @throws An error if the token swap is not pending or if completing the swap fails.
+   * @param receiveSwap The receive swap to complete.
+   * @returns The completed or failed receive swap, account with the updated proofs (if the swap was completed) and a list of added proof ids (empty if the swap was failed).
+   * @throws An error if the receive swap is not pending or if completing the swap fails.
    */
   async completeSwap(
     account: CashuAccount,
-    tokenSwap: CashuTokenSwap,
+    receiveSwap: CashuReceiveSwap,
   ): Promise<{
-    swap: CashuTokenSwap;
+    swap: CashuReceiveSwap;
     account: CashuAccount;
     addedProofs: string[];
   }> {
-    if (tokenSwap.state === 'COMPLETED') {
-      return { swap: tokenSwap, account, addedProofs: [] };
+    if (receiveSwap.state === 'COMPLETED') {
+      return { swap: receiveSwap, account, addedProofs: [] };
     }
 
-    if (tokenSwap.state !== 'PENDING') {
-      throw new Error('Token swap is not pending');
+    if (receiveSwap.state !== 'PENDING') {
+      throw new Error('Receive swap is not pending');
     }
 
     const wallet = account.wallet;
@@ -134,7 +136,7 @@ export class CashuTokenSwapService {
       keysetCounter,
       amountReceived: receiveAmount,
       outputAmounts,
-    } = tokenSwap;
+    } = receiveSwap;
 
     const keys = await wallet.getKeys(keysetId);
     const outputData = OutputData.createDeterministicData(
@@ -146,21 +148,21 @@ export class CashuTokenSwapService {
     );
 
     try {
-      const newProofs = await this.swapProofs(wallet, tokenSwap, outputData);
+      const newProofs = await this.swapProofs(wallet, receiveSwap, outputData);
 
-      return await this.tokenSwapRepository.completeTokenSwap({
-        tokenHash: tokenSwap.tokenHash,
-        userId: tokenSwap.userId,
+      return await this.receiveSwapRepository.completeReceiveSwap({
+        tokenHash: receiveSwap.tokenHash,
+        userId: receiveSwap.userId,
         proofs: newProofs,
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'TOKEN_ALREADY_CLAIMED') {
-        const failedTokenSwap = await this.tokenSwapRepository.fail({
-          tokenHash: tokenSwap.tokenHash,
-          userId: tokenSwap.userId,
+        const failedReceiveSwap = await this.receiveSwapRepository.fail({
+          tokenHash: receiveSwap.tokenHash,
+          userId: receiveSwap.userId,
           reason: 'Token already claimed',
         });
-        return { swap: failedTokenSwap, account, addedProofs: [] };
+        return { swap: failedReceiveSwap, account, addedProofs: [] };
       }
 
       throw error;
@@ -169,15 +171,15 @@ export class CashuTokenSwapService {
 
   private async swapProofs(
     wallet: CashuWallet,
-    tokenSwap: CashuTokenSwap,
+    receiveSwap: CashuReceiveSwap,
     outputData: OutputData[],
   ) {
     try {
       const { send: newProofs } = await wallet.swap(
-        tokenSwap.amountReceived.toNumber(
-          getCashuUnit(tokenSwap.amountReceived.currency),
+        receiveSwap.amountReceived.toNumber(
+          getCashuUnit(receiveSwap.amountReceived.currency),
         ),
-        tokenSwap.tokenProofs,
+        receiveSwap.tokenProofs,
         {
           outputData: { send: outputData },
         },
@@ -197,10 +199,10 @@ export class CashuTokenSwapService {
             .includes('outputs have already been signed before'))
       ) {
         const { proofs } = await wallet.restore(
-          tokenSwap.keysetCounter,
-          tokenSwap.outputAmounts.length,
+          receiveSwap.keysetCounter,
+          receiveSwap.outputAmounts.length,
           {
-            keysetId: tokenSwap.keysetId,
+            keysetId: receiveSwap.keysetId,
           },
         );
 
@@ -220,7 +222,7 @@ export class CashuTokenSwapService {
   }
 }
 
-export function useCashuTokenSwapService() {
-  const tokenSwapRepository = useCashuTokenSwapRepository();
-  return new CashuTokenSwapService(tokenSwapRepository);
+export function useCashuReceiveSwapService() {
+  const receiveSwapRepository = useCashuReceiveSwapRepository();
+  return new CashuReceiveSwapService(receiveSwapRepository);
 }

@@ -1,19 +1,6 @@
 import type { createClient } from '@supabase/supabase-js';
-import type {
-  Database as DatabaseGenerated,
-  Json,
-} from 'supabase/database.types';
+import type { Database as DatabaseGenerated } from 'supabase/database.types';
 import type { MergeDeep } from 'type-fest';
-import type { Currency, CurrencyUnit } from '~/lib/money';
-import type { AccountPurpose, AccountType } from '../accounts/account';
-import type { CashuProof } from '../accounts/cashu-account';
-import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
-import type { CashuTokenSwap } from '../receive/cashu-token-swap';
-import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
-import type { CashuSendQuote } from '../send/cashu-send-quote';
-import type { CashuSendSwap } from '../send/cashu-send-swap';
-import type { SparkSendQuote } from '../send/spark-send-quote';
-import type { Transaction } from '../transactions/transaction';
 import {
   type CashuAccountDetailsDbData,
   CashuAccountDetailsDbDataSchema,
@@ -69,13 +56,13 @@ type FailCashuSendQuoteResult = {
   released_proofs: AgicashDbCashuProof[];
 };
 
-type CreateCashuTokenSwapResult = {
-  swap: AgicashDbCashuTokenSwap;
+type CreateCashuReceiveSwapResult = {
+  swap: AgicashDbCashuReceiveSwap;
   account: AgicashDbAccountWithProofs;
 };
 
-type CompleteCashuTokenSwapResult = {
-  swap: AgicashDbCashuTokenSwap;
+type CompleteCashuReceiveSwapResult = {
+  swap: AgicashDbCashuReceiveSwap;
   account: AgicashDbAccountWithProofs;
   added_proofs: AgicashDbCashuProof[];
 };
@@ -122,170 +109,6 @@ export type Database = MergeDeep<
   DatabaseGenerated,
   {
     wallet: {
-      Tables: {
-        users: {
-          Row: {
-            default_currency: Currency;
-          };
-          Insert: {
-            default_currency?: Currency;
-          };
-          Update: {
-            default_currency?: Currency;
-          };
-        };
-        accounts: {
-          Row: {
-            currency: Currency;
-            type: AccountType;
-            purpose: AccountPurpose;
-          };
-          Insert: {
-            currency: Currency;
-            type: AccountType;
-            purpose?: AccountPurpose;
-          };
-          Update: {
-            currency?: Currency;
-            type?: AccountType;
-            purpose?: AccountPurpose;
-          };
-        };
-        cashu_receive_quotes: {
-          Row: {
-            currency: Currency;
-            unit: CurrencyUnit;
-            state: CashuReceiveQuote['state'];
-            type: CashuReceiveQuote['type'];
-          };
-          Insert: {
-            currency: Currency;
-            unit: CurrencyUnit;
-            state: CashuReceiveQuote['state'];
-            type: CashuReceiveQuote['type'];
-          };
-          Update: {
-            currency?: Currency;
-            unit?: CurrencyUnit;
-            state?: CashuReceiveQuote['state'];
-            type?: CashuReceiveQuote['type'];
-          };
-        };
-        cashu_token_swaps: {
-          Row: {
-            currency: Currency;
-            unit: CurrencyUnit;
-            state: CashuTokenSwap['state'];
-          };
-          Insert: {
-            currency: Currency;
-            unit: CurrencyUnit;
-            state: CashuTokenSwap['state'];
-          };
-          Update: {
-            currency?: Currency;
-            unit?: CurrencyUnit;
-            state?: CashuTokenSwap['state'];
-          };
-        };
-        cashu_send_quotes: {
-          Row: {
-            currency: Currency;
-            unit: CurrencyUnit;
-            currency_requested: Currency;
-            state: CashuSendQuote['state'];
-          };
-          Insert: {
-            currency: Currency;
-            unit: CurrencyUnit;
-            currency_requested: Currency;
-            state: CashuSendQuote['state'];
-          };
-          Update: {
-            currency?: Currency;
-            unit?: CurrencyUnit;
-            currency_requested?: Currency;
-            state?: CashuSendQuote['state'];
-          };
-        };
-        cashu_send_swaps: {
-          Row: {
-            state: CashuSendSwap['state'];
-            currency: Currency;
-            unit: CurrencyUnit;
-          };
-          Insert: {
-            state: CashuSendSwap['state'];
-            currency: Currency;
-            unit: CurrencyUnit;
-          };
-          Update: {
-            state?: CashuSendSwap['state'];
-            currency?: Currency;
-            unit?: CurrencyUnit;
-          };
-        };
-        spark_receive_quotes: {
-          Row: {
-            type: SparkReceiveQuote['type'];
-            state: SparkReceiveQuote['state'];
-            currency: Currency;
-            unit: CurrencyUnit;
-          };
-          Insert: {
-            type: SparkReceiveQuote['type'];
-            state?: SparkReceiveQuote['state'];
-            currency: Currency;
-            unit: CurrencyUnit;
-          };
-          Update: {
-            type?: SparkReceiveQuote['type'];
-            state?: SparkReceiveQuote['state'];
-            currency?: Currency;
-            unit?: CurrencyUnit;
-          };
-        };
-        spark_send_quotes: {
-          Row: {
-            state: SparkSendQuote['state'];
-            currency: Currency;
-            unit: CurrencyUnit;
-          };
-          Insert: {
-            state: SparkSendQuote['state'];
-            currency: Currency;
-            unit: CurrencyUnit;
-          };
-          Update: {
-            state?: SparkSendQuote['state'];
-            currency?: Currency;
-            unit?: CurrencyUnit;
-          };
-        };
-        transactions: {
-          Row: {
-            currency: Currency;
-            unit: CurrencyUnit;
-            reversed_transaction_id: string | null;
-            direction: Transaction['direction'];
-            type: Transaction['type'];
-            state: Transaction['state'];
-            acknowledgment_status: Transaction['acknowledgmentStatus'];
-            transaction_details: { [key: string]: Json | undefined } | null;
-          };
-        };
-        cashu_proofs: {
-          Row: {
-            state: CashuProof['state'];
-          };
-          Insert: {
-            state: CashuProof['state'];
-          };
-          Update: {
-            state?: CashuProof['state'];
-          };
-        };
-      };
       Functions: {
         upsert_user_with_accounts: {
           Args: {
@@ -293,34 +116,19 @@ export type Database = MergeDeep<
           };
           Returns: UpsertUserWithAccountsResult;
         };
-        create_cashu_receive_quote: {
-          Args: {
-            p_currency: Currency;
-          };
-          Returns: AgicashDbCashuReceiveQuote;
-        };
         process_cashu_receive_quote_payment: {
           Returns: CashuReceiveQuotePaymentResult;
         };
         complete_cashu_receive_quote: {
           Returns: CompleteCashuReceiveQuoteResult;
         };
-        mark_cashu_receive_quote_cashu_token_melt_initiated: {
-          Returns: AgicashDbCashuReceiveQuote;
+        create_cashu_receive_swap: {
+          Returns: CreateCashuReceiveSwapResult;
         };
-        create_cashu_token_swap: {
-          Args: {
-            p_currency: Currency;
-          };
-          Returns: CreateCashuTokenSwapResult;
-        };
-        complete_cashu_token_swap: {
-          Returns: CompleteCashuTokenSwapResult;
+        complete_cashu_receive_swap: {
+          Returns: CompleteCashuReceiveSwapResult;
         };
         create_cashu_send_quote: {
-          Args: {
-            p_currency: Currency;
-          };
           Returns: CreateCashuSendQuoteResult;
         };
         mark_cashu_send_quote_as_pending: {
@@ -335,13 +143,7 @@ export type Database = MergeDeep<
         fail_cashu_send_quote: {
           Returns: FailCashuSendQuoteResult;
         };
-        fail_cashu_token_swap: {
-          Returns: AgicashDbCashuTokenSwap;
-        };
         create_cashu_send_swap: {
-          Args: {
-            p_currency: Currency;
-          };
           Returns: CreateCashuSendSwapResult;
         };
         commit_proofs_to_send: {
@@ -355,44 +157,15 @@ export type Database = MergeDeep<
         };
         list_transactions: {
           Args: {
-            p_user_id: string;
             p_cursor_state_sort_order?: number | null;
             p_cursor_created_at?: string | null;
             p_cursor_id?: string | null;
-            p_page_size?: number;
           };
-          Returns: AgicashDbTransaction[];
         };
         create_spark_receive_quote: {
           Args: {
-            p_currency: Currency;
             p_receiver_identity_pubkey: string | null;
           };
-          Returns: AgicashDbSparkReceiveQuote;
-        };
-        complete_spark_receive_quote: {
-          Returns: AgicashDbSparkReceiveQuote;
-        };
-        expire_spark_receive_quote: {
-          Returns: AgicashDbSparkReceiveQuote;
-        };
-        mark_spark_receive_quote_cashu_token_melt_initiated: {
-          Returns: AgicashDbSparkReceiveQuote;
-        };
-        create_spark_send_quote: {
-          Args: {
-            p_currency: Currency;
-          };
-          Returns: AgicashDbSparkSendQuote;
-        };
-        mark_spark_send_quote_as_pending: {
-          Returns: AgicashDbSparkSendQuote;
-        };
-        complete_spark_send_quote: {
-          Returns: AgicashDbSparkSendQuote;
-        };
-        fail_spark_send_quote: {
-          Returns: AgicashDbSparkSendQuote;
         };
       };
       CompositeTypes: {
@@ -403,8 +176,8 @@ export type Database = MergeDeep<
         complete_cashu_send_quote_result: CompleteCashuSendQuoteResult;
         expire_cashu_send_quote_result: ExpireCashuSendQuoteResult;
         fail_cashu_send_quote_result: FailCashuSendQuoteResult;
-        create_cashu_token_swap_result: CreateCashuTokenSwapResult;
-        complete_cashu_token_swap_result: CompleteCashuTokenSwapResult;
+        create_cashu_receive_swap_result: CreateCashuReceiveSwapResult;
+        complete_cashu_receive_swap_result: CompleteCashuReceiveSwapResult;
         create_cashu_send_swap_result: CreateCashuSendSwapResult;
         commit_proofs_to_send_result: CommitProofsToSendResult;
         complete_cashu_send_swap_result: CompleteCashuSendSwapResult;
@@ -428,8 +201,8 @@ export type AgicashDbAccountWithProofs = AgicashDbAccount & {
 };
 export type AgicashDbCashuReceiveQuote =
   Database['wallet']['Tables']['cashu_receive_quotes']['Row'];
-export type AgicashDbCashuTokenSwap =
-  Database['wallet']['Tables']['cashu_token_swaps']['Row'];
+export type AgicashDbCashuReceiveSwap =
+  Database['wallet']['Tables']['cashu_receive_swaps']['Row'];
 export type AgicashDbCashuSendQuote =
   Database['wallet']['Tables']['cashu_send_quotes']['Row'];
 export type AgicashDbTransaction =

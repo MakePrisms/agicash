@@ -3,9 +3,9 @@ import { ProofSchema } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 
 /**
- * Base schema for a cashu token swap.
+ * Base schema for a cashu receive swap.
  *
- * A token swap is the process of receiving a Cashu token into
+ * A receive swap is the process of receiving a Cashu token into
  * the user's account that matches the mint of the token by using
  * the `/v1/swap` endpoint of the mint as defined in [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md).
  *
@@ -14,7 +14,7 @@ import { Money } from '~/lib/money';
  *
  * All PENDING swaps are tracked upon insert and completed in the background.
  */
-const CashuTokenSwapBaseSchema = z.object({
+const CashuReceiveSwapBaseSchema = z.object({
   /**
    * Hash of the token being received used to identify the swap.
    */
@@ -67,31 +67,31 @@ const CashuTokenSwapBaseSchema = z.object({
    */
   transactionId: z.string(),
   /**
-   * Timestamp when the token swap was created
+   * Timestamp when the receive swap was created
    */
   createdAt: z.string(),
   /**
-   * Version of the token swap.
+   * Version of the receive swap.
    * Can be used for optimistic concurrency control.
    */
   version: z.number(),
 });
 
-const CashuTokenSwapPendingStateSchema = z.object({
+const CashuReceiveSwapPendingStateSchema = z.object({
   /**
    * The swap was created, but we still need to swap with the mint and store the proofs
    */
   state: z.literal('PENDING'),
 });
 
-const CashuTokenSwapCompletedStateSchema = z.object({
+const CashuReceiveSwapCompletedStateSchema = z.object({
   /**
    * The swap is completed, and the proofs have been stored
    */
   state: z.literal('COMPLETED'),
 });
 
-const CashuTokenSwapFailedStateSchema = z.object({
+const CashuReceiveSwapFailedStateSchema = z.object({
   /**
    * The swap failed
    */
@@ -103,15 +103,15 @@ const CashuTokenSwapFailedStateSchema = z.object({
 });
 
 /**
- * Schema for cashu token swap.
+ * Schema for cashu receive swap.
  */
-export const CashuTokenSwapSchema = z.intersection(
-  CashuTokenSwapBaseSchema,
+export const CashuReceiveSwapSchema = z.intersection(
+  CashuReceiveSwapBaseSchema,
   z.union([
-    CashuTokenSwapPendingStateSchema,
-    CashuTokenSwapCompletedStateSchema,
-    CashuTokenSwapFailedStateSchema,
+    CashuReceiveSwapPendingStateSchema,
+    CashuReceiveSwapCompletedStateSchema,
+    CashuReceiveSwapFailedStateSchema,
   ]),
 );
 
-export type CashuTokenSwap = z.infer<typeof CashuTokenSwapSchema>;
+export type CashuReceiveSwap = z.infer<typeof CashuReceiveSwapSchema>;
