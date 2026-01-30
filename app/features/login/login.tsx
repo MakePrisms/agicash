@@ -15,7 +15,6 @@ export function Login() {
   const handleLoginWithGoogle = async () => {
     try {
       const response = await initiateGoogleAuth();
-      console.debug('Initiate google login response: ', response);
       window.location.href = response.authUrl;
     } catch (error) {
       console.error('Failed to initiate google login', { cause: error });

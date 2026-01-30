@@ -1,13 +1,12 @@
 import {
   HttpResponseError,
+  MintOperationError,
   type MintQuoteResponse,
   type WebSocketSupport,
 } from '@cashu/cashu-ts';
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type Query,
   type QueryClient,
-  type UseQueryResult,
   useMutation,
   useQueries,
   useQuery,
@@ -15,14 +14,13 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  type MintInfo,
-  areMintUrlsEqual,
+  MintQuoteSubscriptionManager,
   getCashuUnit,
   getCashuWallet,
-  getWalletCurrency,
+  sumProofs,
+  useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
-import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
 import {
   type LongTimeout,
   clearLongTimeout,
@@ -31,94 +29,115 @@ import {
 import { useLatest } from '~/lib/use-latest';
 import type { CashuAccount } from '../accounts/account';
 import {
-  useAccountsCache,
-  useGetLatestCashuAccount,
+  useGetCashuAccount,
+  useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import {
-  type AgicashDbCashuReceiveQuote,
-  agicashDb,
-} from '../agicash-db/database';
+import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
-import {
-  CashuReceiveQuoteRepository,
-  useCashuReceiveQuoteRepository,
-} from './cashu-receive-quote-repository';
+import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { useCashuReceiveQuoteService } from './cashu-receive-quote-service';
-import { MintQuoteSubscriptionManager } from './mint-quote-subscription-manager';
 
 type CreateProps = {
   account: CashuAccount;
   amount: Money;
   description?: string;
 };
-
-// Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
-// We want to track active quote even after it is expired and completed which is why we can't use pending quotes query.
-// Pending quotes query is used for active pending quote plus "background" pending quotes. "Background" quotes are quotes
-// that were created in previous browser sessions.
-const cashuReceiveQuoteQueryKey = 'cashu-receive-quote';
-// Query that tracks all pending cashu receive quotes (active and background ones).
-const pendingCashuReceiveQuotesQueryKey = 'pending-cashu-receive-quotes';
-
 class CashuReceiveQuoteCache {
+  // Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
+  // We want to track active quote even after it is expired and completed which is why we can't use pending quotes query.
+  // Pending quotes query is used for active pending quote plus "background" pending quotes. "Background" quotes are quotes
+  // that were created in previous browser sessions.
+  public static Key = 'cashu-receive-quote';
+
   constructor(private readonly queryClient: QueryClient) {}
 
   get(quoteId: string) {
     return this.queryClient.getQueryData<CashuReceiveQuote>([
-      cashuReceiveQuoteQueryKey,
+      CashuReceiveQuoteCache.Key,
       quoteId,
     ]);
   }
 
   add(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote>(
-      [cashuReceiveQuoteQueryKey, quote.id],
+      [CashuReceiveQuoteCache.Key, quote.id],
       quote,
     );
   }
 
   updateIfExists(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote>(
-      [cashuReceiveQuoteQueryKey, quote.id],
-      (curr) => (curr ? quote : undefined),
+      [CashuReceiveQuoteCache.Key, quote.id],
+      (curr) => (curr && curr.version < quote.version ? quote : undefined),
     );
   }
 }
 
-class PendingCashuReceiveQuotesCache {
+export class PendingCashuReceiveQuotesCache {
+  // Query that tracks all pending cashu receive quotes (active and background ones).
+  public static Key = 'pending-cashu-receive-quotes';
+
   constructor(private readonly queryClient: QueryClient) {}
+
+  get(quoteId: string) {
+    return this.queryClient
+      .getQueryData<CashuReceiveQuote[]>([PendingCashuReceiveQuotesCache.Key])
+      ?.find((q) => q.id === quoteId);
+  }
 
   add(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote[]>(
-      [pendingCashuReceiveQuotesQueryKey],
+      [PendingCashuReceiveQuotesCache.Key],
       (curr) => [...(curr ?? []), quote],
     );
   }
 
   update(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote[]>(
-      [pendingCashuReceiveQuotesQueryKey],
-      (curr) => curr?.map((q) => (q.id === quote.id ? quote : q)),
+      [PendingCashuReceiveQuotesCache.Key],
+      (curr) =>
+        curr?.map((q) =>
+          q.id === quote.id && q.version < quote.version ? quote : q,
+        ),
     );
   }
 
   remove(quote: CashuReceiveQuote) {
     this.queryClient.setQueryData<CashuReceiveQuote[]>(
-      [pendingCashuReceiveQuotesQueryKey],
+      [PendingCashuReceiveQuotesCache.Key],
       (curr) => curr?.filter((q) => q.id !== quote.id),
     );
   }
 
   getByMintQuoteId(mintQuoteId: string) {
     const quotes = this.queryClient.getQueryData<CashuReceiveQuote[]>([
-      pendingCashuReceiveQuotesQueryKey,
+      PendingCashuReceiveQuotesCache.Key,
     ]);
     return quotes?.find((q) => q.quoteId === mintQuoteId);
   }
+
+  getByMeltQuoteId(
+    meltQuoteId: string,
+  ): (CashuReceiveQuote & { type: 'CASHU_TOKEN' }) | undefined {
+    const quotes = this.queryClient.getQueryData<CashuReceiveQuote[]>([
+      PendingCashuReceiveQuotesCache.Key,
+    ]);
+    return quotes?.find(
+      (q): q is CashuReceiveQuote & { type: 'CASHU_TOKEN' } =>
+        q.type === 'CASHU_TOKEN' &&
+        q.tokenReceiveData.meltQuoteId === meltQuoteId,
+    );
+  }
+
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [PendingCashuReceiveQuotesCache.Key],
+    });
+  }
 }
 
-function usePendingCashuReceiveQuotesCache() {
+export function usePendingCashuReceiveQuotesCache() {
   const queryClient = useQueryClient();
   return useMemo(
     () => new PendingCashuReceiveQuotesCache(queryClient),
@@ -132,13 +151,12 @@ export function useCreateCashuReceiveQuote() {
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
 
   return useMutation({
-    mutationKey: ['create-cashu-receive-quote'],
     scope: {
       id: 'create-cashu-receive-quote',
     },
     mutationFn: async ({ account, amount, description }: CreateProps) => {
       const lightningQuote = await cashuReceiveQuoteService.getLightningQuote({
-        account,
+        wallet: account.wallet,
         amount,
         description,
       });
@@ -147,26 +165,13 @@ export function useCreateCashuReceiveQuote() {
         userId,
         account,
         receiveType: 'LIGHTNING',
-        receiveQuote: lightningQuote,
+        lightningQuote,
       });
     },
     onSuccess: (data) => {
       cashuReceiveQuoteCache.add(data);
     },
     retry: 1,
-  });
-}
-
-export function useFailCashuReceiveQuote() {
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
-  return useMutation({
-    mutationFn: ({
-      quoteId,
-      version,
-      reason,
-    }: { quoteId: string; version: number; reason: string }) =>
-      cashuReceiveQuoteRepository.fail({ id: quoteId, version, reason }),
-    retry: 3,
   });
 }
 
@@ -202,7 +207,7 @@ export function useCashuReceiveQuote({
   const cache = useCashuReceiveQuoteCache();
 
   const { data } = useQuery({
-    queryKey: [cashuReceiveQuoteQueryKey, quoteId],
+    queryKey: [CashuReceiveQuoteCache.Key, quoteId],
     queryFn: () => cache.get(quoteId ?? ''),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -230,90 +235,91 @@ export function useCashuReceiveQuote({
   };
 }
 
-function useOnCashuReceiveQuoteChange({
-  onCreated,
-  onUpdated,
-}: {
-  onCreated: (quote: CashuReceiveQuote) => void;
-  onUpdated: (quote: CashuReceiveQuote) => void;
-}) {
-  const onCreatedRef = useLatest(onCreated);
-  const onUpdatedRef = useLatest(onUpdated);
-  const queryClient = useQueryClient();
+/**
+ * Hook that returns a cashu receive quote change handler.
+ */
+export function useCashuReceiveQuoteChangeHandlers() {
+  const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
+  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
+  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
 
-  return useSupabaseRealtimeSubscription({
-    channelFactory: () =>
-      agicashDb.channel('cashu-receive-quotes').on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'wallet',
-          table: 'cashu_receive_quotes',
-        },
-        (
-          payload: RealtimePostgresChangesPayload<AgicashDbCashuReceiveQuote>,
-        ) => {
-          if (payload.eventType === 'INSERT') {
-            const addedQuote = CashuReceiveQuoteRepository.toQuote(payload.new);
-            onCreatedRef.current(addedQuote);
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedQuote = CashuReceiveQuoteRepository.toQuote(
-              payload.new,
-            );
-            onUpdatedRef.current(updatedQuote);
-          }
-        },
-      ),
-    onReconnected: () => {
-      // Invalidate the pending cashu receive quotes query so that the quotes are re-fetched and the cache is updated.
-      // This is needed to get any data that might have been updated while the re-connection was in progress.
-      queryClient.invalidateQueries({
-        queryKey: [pendingCashuReceiveQuotesQueryKey],
-      });
+  return [
+    {
+      event: 'CASHU_RECEIVE_QUOTE_CREATED',
+      handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
+        const addedQuote = await cashuReceiveQuoteRepository.toQuote(payload);
+        pendingQuotesCache.add(addedQuote);
+      },
     },
-  });
+    {
+      event: 'CASHU_RECEIVE_QUOTE_UPDATED',
+      handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
+        const quote = await cashuReceiveQuoteRepository.toQuote(payload);
+
+        cashuReceiveQuoteCache.updateIfExists(quote);
+
+        const isQuoteStillPending = ['UNPAID', 'PAID'].includes(quote.state);
+        if (isQuoteStillPending) {
+          pendingQuotesCache.update(quote);
+        } else {
+          pendingQuotesCache.remove(quote);
+        }
+      },
+    },
+  ];
 }
 
 const usePendingCashuReceiveQuotes = () => {
   const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
   const userId = useUser((user) => user.id);
+  const selectReceiveQuotesWithOnlineAccount =
+    useSelectItemsWithOnlineAccount();
 
   const { data } = useQuery({
-    queryKey: [pendingCashuReceiveQuotesQueryKey],
+    queryKey: [PendingCashuReceiveQuotesCache.Key],
     queryFn: () => cashuReceiveQuoteRepository.getPending(userId),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
+    select: selectReceiveQuotesWithOnlineAccount,
   });
 
   return data ?? [];
 };
 
-const mintsToExcludeFromWebSockets = [
-  // The reason that we need to exlude cubabitcoin is that there was a bug which would not update the invoice state unless a GET request
-  // is made to check the quote status. We can remove this when cubabitcoin is updated to nutshell > 0.17.1 - https://github.com/cashubtc/nutshell/releases/tag/0.17.1
-  'https://mint.cubabitcoin.org',
-];
+const usePendingMeltQuotes = (
+  pendingCashuReceiveQuotes: CashuReceiveQuote[],
+) => {
+  return useMemo(
+    () =>
+      pendingCashuReceiveQuotes
+        .filter(
+          (q): q is CashuReceiveQuote & { type: 'CASHU_TOKEN' } =>
+            q.type === 'CASHU_TOKEN',
+        )
+        .map((q) => ({
+          id: q.tokenReceiveData.meltQuoteId,
+          mintUrl: q.tokenReceiveData.sourceMintUrl,
+          expiryInMs: new Date(q.expiresAt).getTime(),
+          inputAmount: sumProofs(q.tokenReceiveData.tokenProofs),
+        })),
+    [pendingCashuReceiveQuotes],
+  );
+};
 
 const checkIfMintSupportsWebSocketsForMintQuotes = (
-  mintUrl: string,
-  mintInfo: MintInfo,
+  account: CashuAccount,
   currency: string,
 ): boolean => {
-  if (mintsToExcludeFromWebSockets.some((x) => areMintUrlsEqual(x, mintUrl))) {
-    return false;
-  }
-  const wallet = getCashuWallet(mintUrl);
-  const walletCurrency = getWalletCurrency(wallet);
-  const nut17Info = mintInfo.isSupported(17);
+  const nut17Info = account.wallet.mintInfo.isSupported(17);
   const params = nut17Info.params ?? [];
   const supportsWebSocketsForMintQuotes =
     nut17Info.supported &&
     params.some(
       (support: WebSocketSupport) =>
         support.method === 'bolt11' &&
-        walletCurrency === currency &&
+        account.currency === currency &&
         support.commands.includes('bolt11_mint_quote'),
     );
 
@@ -322,7 +328,6 @@ const checkIfMintSupportsWebSocketsForMintQuotes = (
 
 type TrackMintQuotesWithPollingProps = {
   quotes: CashuReceiveQuote[];
-  getCashuAccount: (accountId: string) => Promise<CashuAccount>;
   onFetched: (mintQuoteResponse: MintQuoteResponse) => void;
 };
 
@@ -331,7 +336,7 @@ const checkMintQuote = async (
   quote: CashuReceiveQuote,
 ): Promise<MintQuoteResponse> => {
   const cashuUnit = getCashuUnit(quote.amount.currency);
-  const wallet = getCashuWallet(account.mintUrl, { unit: cashuUnit });
+  const wallet = account.wallet;
 
   const partialMintQuoteResponse = await wallet.checkMintQuote(quote.quoteId);
 
@@ -350,23 +355,27 @@ const checkMintQuote = async (
  */
 const useTrackMintQuotesWithPolling = ({
   quotes,
-  getCashuAccount,
   onFetched,
 }: TrackMintQuotesWithPollingProps) => {
+  const getCashuAccount = useGetCashuAccount();
+
   useQueries({
     queries: quotes.map((quote) => ({
       queryKey: ['mint-quote', quote.quoteId],
       queryFn: async () => {
         try {
-          const account = await getCashuAccount(quote.accountId);
+          const account = getCashuAccount(quote.accountId);
           const mintQuoteResponse = await checkMintQuote(account, quote);
 
           onFetched(mintQuoteResponse);
 
           return mintQuoteResponse;
         } catch (error) {
-          console.error(error);
-          throw error;
+          console.warn('Error checking mint quote', {
+            cause: error,
+            quoteId: quote.quoteId,
+          });
+          return null;
         }
       },
       staleTime: 0,
@@ -390,7 +399,6 @@ const useTrackMintQuotesWithPolling = ({
 
 type TrackMintQuotesWithWebSocketProps = {
   quotesByMint: Record<string, CashuReceiveQuote[]>;
-  getCashuAccount: (accountId: string) => Promise<CashuAccount>;
   onUpdate: (mintQuoteResponse: MintQuoteResponse) => void;
 };
 
@@ -399,9 +407,9 @@ type TrackMintQuotesWithWebSocketProps = {
  */
 const useTrackMintQuotesWithWebSocket = ({
   quotesByMint,
-  getCashuAccount,
   onUpdate,
 }: TrackMintQuotesWithWebSocketProps) => {
+  const getCashuAccount = useGetCashuAccount();
   const [subscriptionManager] = useState(
     () => new MintQuoteSubscriptionManager(),
   );
@@ -421,7 +429,7 @@ const useTrackMintQuotesWithWebSocket = ({
 
   useEffect(() => {
     Object.entries(quotesByMint).map(([mintUrl, quotes]) =>
-      subscribe({ mintUrl, quotes, onUpdate }),
+      subscribe({ mintUrl, quoteIds: quotes.map((q) => q.quoteId), onUpdate }),
     );
   }, [subscribe, quotesByMint, onUpdate]);
 
@@ -429,8 +437,8 @@ const useTrackMintQuotesWithWebSocket = ({
     (receiveQuote: CashuReceiveQuote) =>
       queryClient.fetchQuery({
         queryKey: ['check-mint-quote', receiveQuote.quoteId],
-        queryFn: async () => {
-          const account = await getCashuAccount(receiveQuote.accountId);
+        queryFn: () => {
+          const account = getCashuAccount(receiveQuote.accountId);
           return checkMintQuote(account, receiveQuote);
         },
         retry: 5,
@@ -441,17 +449,18 @@ const useTrackMintQuotesWithWebSocket = ({
   );
 
   useEffect(() => {
-    // We need to check the state of the quote upon expiration because there is no state change for the expiration
-    // so socket will not notify us.
+    // For unpaid receive quotes, we need to check the state of the mint's quote upon expiration because
+    // there is no state change for the expiration so socket will not notify us. We don't need to do this
+    // for other states besides unpaid because for those we are sure that the quote hasn't expired.
     if (Object.keys(quotesByMint).length === 0) return;
 
-    const receiveQuotes = Object.entries(quotesByMint).flatMap(
-      ([_, quotes]) => quotes,
-    );
+    const unpaidReceiveQuotes = Object.entries(quotesByMint)
+      .flatMap(([_, quotes]) => quotes)
+      .filter((quote) => quote.state === 'UNPAID');
 
     const timeouts: LongTimeout[] = [];
 
-    for (const receiveQuote of receiveQuotes) {
+    for (const receiveQuote of unpaidReceiveQuotes) {
       const expiresAt = new Date(receiveQuote.expiresAt);
       const msUntilExpiration = expiresAt.getTime() - Date.now();
 
@@ -475,66 +484,10 @@ const useTrackMintQuotesWithWebSocket = ({
   }, [quotesByMint, getMintQuote, onUpdate]);
 };
 
-type MintInfoQueryResult = UseQueryResult<
-  {
-    mintUrl: string;
-    mintInfo: MintInfo;
-  },
-  Error
->;
-
-const combineMintInfoQueryResults = (results: MintInfoQueryResult[]) => {
-  return results.reduce((acc, curr) => {
-    if (curr.data) {
-      acc.set(curr.data.mintUrl, curr);
-    }
-    return acc;
-  }, new Map<string, MintInfoQueryResult>());
-};
-
-const mintInfoStaleTimeInMs = 30 * 60 * 1000;
-
 const usePartitionQuotesByStateCheckType = ({
   quotes,
-  accountsCache,
-}: {
-  quotes: CashuReceiveQuote[];
-  accountsCache: ReturnType<typeof useAccountsCache>;
-}) => {
-  const getCashuAccount = useCallback(
-    (accountId: string) => {
-      const account = accountsCache.get(accountId);
-      if (!account || account.type !== 'cashu') {
-        throw new Error(`Cashu account not found for id: ${accountId}`);
-      }
-      return account;
-    },
-    [accountsCache],
-  );
-
-  const mintUrls = useMemo(() => {
-    const distinctAccountIds = [...new Set(quotes.map((q) => q.accountId))];
-    const accounts = distinctAccountIds.map(getCashuAccount);
-    return [...new Set(accounts.map((x) => x.mintUrl))];
-  }, [quotes, getCashuAccount]);
-
-  const mintInfoMap = useQueries({
-    queries: mintUrls.map((mintUrl) => ({
-      queryKey: ['mint-info', mintUrl],
-      queryFn: async () => {
-        const wallet = getCashuWallet(mintUrl);
-        const mintInfo = await wallet.getMintInfo();
-        return { mintUrl, mintInfo };
-      },
-      initialData: {
-        mintUrl,
-        mintInfo: null,
-      },
-      initialDataUpdatedAt: Date.now() - (mintInfoStaleTimeInMs + 1000),
-      staleTime: mintInfoStaleTimeInMs,
-    })),
-    combine: combineMintInfoQueryResults,
-  });
+}: { quotes: CashuReceiveQuote[] }) => {
+  const getCashuAccount = useGetCashuAccount();
 
   return useMemo(() => {
     const quotesToSubscribeTo: Record<string, CashuReceiveQuote[]> = {};
@@ -542,34 +495,9 @@ const usePartitionQuotesByStateCheckType = ({
 
     quotes.forEach((quote) => {
       const account = getCashuAccount(quote.accountId);
-      const mintInfoQueryResult = mintInfoMap.get(account.mintUrl);
-      if (
-        !mintInfoQueryResult ||
-        mintInfoQueryResult.isPending ||
-        !mintInfoQueryResult.data?.mintInfo
-      ) {
-        // Mint info query result is not available yet or pending so this quote is not partitioned yet.
-        // When the query result is available, this will be re-run and the quote will be partitioned.
-        return;
-      }
-
-      if (mintInfoQueryResult.isError) {
-        console.warn(
-          `Fetching mint info failed for ${account.mintUrl}. Will fallback to polling.`,
-          {
-            accountId: account.id,
-            error: mintInfoQueryResult.error,
-          },
-        );
-        quotesToPoll.push(quote);
-        return;
-      }
-
-      const mintInfo = mintInfoQueryResult.data.mintInfo;
 
       const mintSupportsWebSockets = checkIfMintSupportsWebSocketsForMintQuotes(
-        account.mintUrl,
-        mintInfo,
+        account,
         account.currency,
       );
 
@@ -582,14 +510,14 @@ const usePartitionQuotesByStateCheckType = ({
     });
 
     return { quotesToSubscribeTo, quotesToPoll };
-  }, [mintInfoMap, quotes, getCashuAccount]);
+  }, [quotes, getCashuAccount]);
 };
 
 type OnMintQuoteStateChangeProps = {
   quotes: CashuReceiveQuote[];
-  onPaid: (account: CashuAccount, quote: CashuReceiveQuote) => void;
-  onIssued: (account: CashuAccount, quote: CashuReceiveQuote) => void;
-  onExpired: (quote: CashuReceiveQuote) => void;
+  onPaid: (quoteId: string) => void;
+  onIssued: (quoteId: string) => void;
+  onExpired: (quoteId: string) => void;
 };
 
 /**
@@ -604,14 +532,10 @@ const useOnMintQuoteStateChange = ({
   const onPaidRef = useLatest(onPaid);
   const onIssuedRef = useLatest(onIssued);
   const onExpiredRef = useLatest(onExpired);
-  const accountsCache = useAccountsCache();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
-  const getCashuAccount = useGetLatestCashuAccount();
 
   const processMintQuote = useCallback(
     async (mintQuote: MintQuoteResponse) => {
-      console.debug('Mint quote updated', mintQuote);
-
       const relatedReceiveQuote = pendingQuotesCache.getByMintQuoteId(
         mintQuote.quote,
       );
@@ -621,130 +545,247 @@ const useOnMintQuoteStateChange = ({
         return;
       }
 
-      const account = await getCashuAccount(relatedReceiveQuote.accountId);
+      console.debug(`Mint quote state changed: ${mintQuote.state}`, {
+        receiveQuoteId: relatedReceiveQuote.id,
+        unit: mintQuote.unit,
+      });
 
       const expiresAt = new Date(relatedReceiveQuote.expiresAt);
       const now = new Date();
 
-      if (
-        mintQuote.state === 'UNPAID' &&
-        expiresAt < now &&
-        relatedReceiveQuote.state !== 'EXPIRED'
-      ) {
-        onExpiredRef.current(relatedReceiveQuote);
-      } else if (
-        mintQuote.state === 'PAID' &&
-        relatedReceiveQuote.state !== 'PAID'
-      ) {
-        onPaidRef.current(account, relatedReceiveQuote);
-      } else if (
-        mintQuote.state === 'ISSUED' &&
-        relatedReceiveQuote.state !== 'COMPLETED'
-      ) {
-        onIssuedRef.current(account, relatedReceiveQuote);
+      if (mintQuote.state === 'UNPAID' && expiresAt < now) {
+        onExpiredRef.current(relatedReceiveQuote.id);
+      } else if (mintQuote.state === 'PAID') {
+        onPaidRef.current(relatedReceiveQuote.id);
+      } else if (mintQuote.state === 'ISSUED') {
+        onIssuedRef.current(relatedReceiveQuote.id);
       }
     },
-    [pendingQuotesCache, getCashuAccount],
+    [pendingQuotesCache],
   );
 
   const { quotesToSubscribeTo, quotesToPoll } =
-    usePartitionQuotesByStateCheckType({
-      quotes,
-      accountsCache,
-    });
+    usePartitionQuotesByStateCheckType({ quotes });
 
   useTrackMintQuotesWithWebSocket({
     quotesByMint: quotesToSubscribeTo,
-    getCashuAccount,
     onUpdate: processMintQuote,
   });
 
   useTrackMintQuotesWithPolling({
     quotes: quotesToPoll,
-    getCashuAccount,
     onFetched: processMintQuote,
   });
 };
 
-export function useTrackPendingCashuReceiveQuotes() {
-  const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
-  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-
-  return useOnCashuReceiveQuoteChange({
-    onCreated: (quote) => {
-      pendingQuotesCache.add(quote);
-    },
-    onUpdated: (quote) => {
-      cashuReceiveQuoteCache.updateIfExists(quote);
-
-      const isQuoteStillPending = ['UNPAID', 'PAID'].includes(quote.state);
-      if (isQuoteStillPending) {
-        pendingQuotesCache.update(quote);
-      } else {
-        pendingQuotesCache.remove(quote);
-      }
-    },
-  });
-}
-
 export function useProcessCashuReceiveQuoteTasks() {
   const cashuReceiveQuoteService = useCashuReceiveQuoteService();
-  const pendingQuotes = usePendingCashuReceiveQuotes();
-  const getCashuAccount = useGetLatestCashuAccount();
+  const pendingCashuReceiveQuotes = usePendingCashuReceiveQuotes();
+  const pendingMeltQuotes = usePendingMeltQuotes(pendingCashuReceiveQuotes);
+  const getCashuAccount = useGetCashuAccount();
+  const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
 
   const { mutate: completeReceiveQuote } = useMutation({
-    mutationFn: async (receiveQuoteId: string) => {
-      const quote = pendingQuotes.find((q) => q.id === receiveQuoteId);
+    mutationFn: async (quoteId: string) => {
+      const quote = pendingQuotesCache.get(quoteId);
       if (!quote) {
-        // This means that the quote is not pending anymore so it was removed from the cache.
-        // This can happen if the quote was completed or failed in the meantime.
+        // This can happen when the quote was updated in the meantime so it's not pending anymore.
         return;
       }
-      const account = await getCashuAccount(quote.accountId);
-
-      return cashuReceiveQuoteService.completeReceive(account, quote);
+      const account = getCashuAccount(quote.accountId);
+      return await cashuReceiveQuoteService.completeReceive(account, quote);
     },
     retry: 3,
     throwOnError: true,
-    onError: (error, receiveQuoteId) => {
-      console.error('Complete receive quote error', {
+    onSuccess: (data) => {
+      if (data) {
+        pendingQuotesCache.update(data.quote);
+      }
+    },
+    onError: (error, quoteId) => {
+      console.error('Complete cashu receive quote error', {
         cause: error,
-        receiveQuoteId,
+        receiveQuoteId: quoteId,
       });
     },
   });
 
   const { mutate: expireReceiveQuote } = useMutation({
-    mutationFn: async (receiveQuoteId: string) => {
-      const quote = pendingQuotes.find((q) => q.id === receiveQuoteId);
+    mutationFn: async (quoteId: string) => {
+      const quote = pendingQuotesCache.get(quoteId);
       if (!quote) {
-        // This means that the quote is not pending anymore so it was removed from the cache.
-        // This can happen if the quote was completed or failed in the meantime.
+        // This can happen when the quote was updated in the meantime so it's not pending anymore.
         return;
       }
-
       await cashuReceiveQuoteService.expire(quote);
     },
     retry: 3,
     throwOnError: true,
-    onError: (error, receiveQuoteId) => {
-      console.error('Expire receive quote error', {
+    onError: (error, quoteId) => {
+      console.error('Expire cashu receive quote error', {
         cause: error,
-        receiveQuoteId,
+        receiveQuoteId: quoteId,
+      });
+    },
+  });
+
+  const { mutate: failReceiveQuote } = useMutation({
+    mutationFn: async ({
+      quoteId,
+      reason,
+    }: { quoteId: string; reason: string }) => {
+      const quote = pendingQuotesCache.get(quoteId);
+      if (!quote) {
+        // This can happen when the quote was updated in the meantime so it's not pending anymore.
+        return;
+      }
+      await cashuReceiveQuoteService.fail(quote, reason);
+    },
+    retry: 3,
+    throwOnError: true,
+    onError: (error, { quoteId }) => {
+      console.error('Fail cashu receive quote error', {
+        cause: error,
+        receiveQuoteId: quoteId,
+      });
+    },
+  });
+
+  const { mutate: initiateMelt } = useMutation({
+    mutationFn: async (quoteId: string) => {
+      const quote = pendingQuotesCache.get(quoteId);
+      if (quote?.type !== 'CASHU_TOKEN') {
+        // Quote not defined can happen when the quote was updated in the meantime so it's not pending anymore.
+        // Quote type not CASHU_TOKEN should never happen.
+        return;
+      }
+
+      const cashuUnit = getCashuUnit(quote.amount.currency);
+      const sourceWallet = getCashuWallet(
+        quote.tokenReceiveData.sourceMintUrl,
+        {
+          unit: cashuUnit,
+        },
+      );
+
+      await sourceWallet.meltProofsIdempotent(
+        {
+          quote: quote.tokenReceiveData.meltQuoteId,
+          amount: quote.amount.toNumber(cashuUnit),
+        },
+        quote.tokenReceiveData.tokenProofs,
+      );
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof MintOperationError) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    onError: (error, quoteId) => {
+      if (error instanceof MintOperationError) {
+        console.warn('Failed to initiate melt.', {
+          cause: error,
+          receiveQuoteId: quoteId,
+        });
+        failReceiveQuote(
+          {
+            quoteId,
+            reason: error.message,
+          },
+          { scope: { id: `cashu-receive-quote-${quoteId}` } },
+        );
+      } else {
+        console.error('Initiate melt error', {
+          cause: error,
+          receiveQuoteId: quoteId,
+        });
+      }
+    },
+  });
+
+  const { mutate: markMeltInitiated } = useMutation({
+    mutationFn: async (quoteId: string) => {
+      const quote = pendingQuotesCache.get(quoteId);
+      if (quote?.type !== 'CASHU_TOKEN') {
+        // Quote not defined can happen when the quote was updated in the meantime so it's not pending anymore.
+        // Quote type not CASHU_TOKEN should never happen.
+        return;
+      }
+
+      await cashuReceiveQuoteService.markMeltInitiated(quote);
+    },
+    retry: 3,
+    onError: (error, quoteId) => {
+      console.error('Mark melt initiated error', {
+        cause: error,
+        receiveQuoteId: quoteId,
       });
     },
   });
 
   useOnMintQuoteStateChange({
-    quotes: pendingQuotes,
-    onPaid: (_, quote) => {
-      completeReceiveQuote(quote.id);
+    quotes: pendingCashuReceiveQuotes,
+    onPaid: (quoteId) => {
+      completeReceiveQuote(quoteId, {
+        scope: { id: `cashu-receive-quote-${quoteId}` },
+      });
     },
-    onIssued: (_, quote) => {
-      completeReceiveQuote(quote.id);
+    onIssued: (quoteId) => {
+      // We need to call completeReceiveQuote again here because, when the complete is triggered from the onPaid callback, there could be some issue
+      // that causes switching the receive quote state to COMPLETED to fail after minting the proofs (e.g. user killed the browser before that was
+      // executed). When that happpens, next time when the app is opened, the mint quote will have state ISSUED so this callback will be called and
+      // we need to call completeReceiveQuote again to finish the process.
+      completeReceiveQuote(quoteId, {
+        scope: { id: `cashu-receive-quote-${quoteId}` },
+      });
     },
-    onExpired: (quote) => {
-      expireReceiveQuote(quote.id);
+    onExpired: (quoteId) => {
+      expireReceiveQuote(quoteId, {
+        scope: { id: `cashu-receive-quote-${quoteId}` },
+      });
+    },
+  });
+
+  useOnMeltQuoteStateChange({
+    quotes: pendingMeltQuotes,
+    onUnpaid: (meltQuote) => {
+      const receiveQuote = pendingQuotesCache.getByMeltQuoteId(meltQuote.quote);
+      if (!receiveQuote) {
+        return;
+      }
+
+      if (receiveQuote.tokenReceiveData.meltInitiated) {
+        // If melt was initiated but the quote is again in the unpaid state, it means that the melt failed.
+        failReceiveQuote(
+          { quoteId: receiveQuote.id, reason: 'Cashu token melt failed.' },
+          { scope: { id: `cashu-receive-quote-${receiveQuote.id}` } },
+        );
+      } else {
+        initiateMelt(receiveQuote.id, {
+          scope: { id: `cashu-receive-quote-${receiveQuote.id}` },
+        });
+      }
+    },
+    onPending: (meltQuote) => {
+      const receiveQuote = pendingQuotesCache.getByMeltQuoteId(meltQuote.quote);
+      if (!receiveQuote) {
+        return;
+      }
+
+      markMeltInitiated(receiveQuote.id, {
+        scope: { id: `cashu-receive-quote-${receiveQuote.id}` },
+      });
+    },
+    onExpired: (meltQuote) => {
+      const receiveQuote = pendingQuotesCache.getByMeltQuoteId(meltQuote.quote);
+      if (!receiveQuote) {
+        return;
+      }
+
+      expireReceiveQuote(receiveQuote.id, {
+        scope: { id: `cashu-receive-quote-${receiveQuote.id}` },
+      });
     },
   });
 }

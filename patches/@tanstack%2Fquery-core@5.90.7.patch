@@ -1,0 +1,316 @@
+diff --git a/node_modules/@tanstack/query-core/.bun-tag-5beee6cd8c7878a b/.bun-tag-5beee6cd8c7878a
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/build/legacy/hydration-CeGZtiZv.d.ts b/build/legacy/hydration-CeGZtiZv.d.ts
+index b124f2460a561d4b49b95725118b558fb13eedcd..bb353f2a3c3446c5104da4d2968b87b423f8ca75 100644
+--- a/build/legacy/hydration-CeGZtiZv.d.ts
++++ b/build/legacy/hydration-CeGZtiZv.d.ts
+@@ -1211,6 +1211,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
+     onSuccess?: (data: TData, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
+     onError?: (error: TError, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
+     onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
++    scope?: MutationScope;
+ }
+ type MutateFunction<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> = (variables: TVariables, options?: MutateOptions<TData, TError, TVariables, TOnMutateResult>) => Promise<TData>;
+ interface MutationObserverBaseResult<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> extends MutationState<TData, TError, TVariables, TOnMutateResult> {
+diff --git a/build/legacy/hydration-DWB9yu-g.d.cts b/build/legacy/hydration-DWB9yu-g.d.cts
+index 0d040ca651d00dda13238e9bf11d31890d199dfd..335220ae973377d2316ef7b26414801cd60c0ac7 100644
+--- a/build/legacy/hydration-DWB9yu-g.d.cts
++++ b/build/legacy/hydration-DWB9yu-g.d.cts
+@@ -1211,6 +1211,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
+     onSuccess?: (data: TData, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
+     onError?: (error: TError, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
+     onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
++    scope?: MutationScope;
+ }
+ type MutateFunction<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> = (variables: TVariables, options?: MutateOptions<TData, TError, TVariables, TOnMutateResult>) => Promise<TData>;
+ interface MutationObserverBaseResult<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> extends MutationState<TData, TError, TVariables, TOnMutateResult> {
+diff --git a/build/legacy/mutationObserver.cjs b/build/legacy/mutationObserver.cjs
+index c4f23105e82a9b576a3c32f221e81e24fc36aa32..389bd6c85a58fd5f4654eab3875e63aa5d0e2dab 100644
+--- a/build/legacy/mutationObserver.cjs
++++ b/build/legacy/mutationObserver.cjs
+@@ -35,7 +35,7 @@ var import_mutation = require("./mutation.cjs");
+ var import_notifyManager = require("./notifyManager.cjs");
+ var import_subscribable = require("./subscribable.cjs");
+ var import_utils = require("./utils.cjs");
+-var _client, _currentResult, _currentMutation, _mutateOptions, _MutationObserver_instances, updateResult_fn, notify_fn;
++var _client, _currentResult, _currentMutation, _mutateOptions, _mutationScopeOverride, _MutationObserver_instances, updateResult_fn, notify_fn;
+ var MutationObserver = class extends import_subscribable.Subscribable {
+   constructor(client, options) {
+     super();
+@@ -44,6 +44,7 @@ var MutationObserver = class extends import_subscribable.Subscribable {
+     __privateAdd(this, _currentResult);
+     __privateAdd(this, _currentMutation);
+     __privateAdd(this, _mutateOptions);
++    __privateAdd(this, _mutationScopeOverride);
+     __privateSet(this, _client, client);
+     this.setOptions(options);
+     this.bindMethods();
+@@ -67,7 +68,10 @@ var MutationObserver = class extends import_subscribable.Subscribable {
+     if ((prevOptions == null ? void 0 : prevOptions.mutationKey) && this.options.mutationKey && (0, import_utils.hashKey)(prevOptions.mutationKey) !== (0, import_utils.hashKey)(this.options.mutationKey)) {
+       this.reset();
+     } else if (((_a = __privateGet(this, _currentMutation)) == null ? void 0 : _a.state.status) === "pending") {
+-      __privateGet(this, _currentMutation).setOptions(this.options);
++      const shouldPreserveScope = __privateGet(this, _mutationScopeOverride) && __privateGet(this, _currentMutation).options.scope;
++      __privateGet(this, _currentMutation).setOptions(
++        shouldPreserveScope ? { ...this.options, scope: __privateGet(this, _currentMutation).options.scope } : this.options
++      );
+     }
+   }
+   onUnsubscribe() {
+@@ -87,14 +91,17 @@ var MutationObserver = class extends import_subscribable.Subscribable {
+     var _a;
+     (_a = __privateGet(this, _currentMutation)) == null ? void 0 : _a.removeObserver(this);
+     __privateSet(this, _currentMutation, void 0);
++    __privateSet(this, _mutationScopeOverride, void 0);
+     __privateMethod(this, _MutationObserver_instances, updateResult_fn).call(this);
+     __privateMethod(this, _MutationObserver_instances, notify_fn).call(this);
+   }
+   mutate(variables, options) {
+-    var _a;
++    var _a, _b;
+     __privateSet(this, _mutateOptions, options);
+     (_a = __privateGet(this, _currentMutation)) == null ? void 0 : _a.removeObserver(this);
+-    __privateSet(this, _currentMutation, __privateGet(this, _client).getMutationCache().build(__privateGet(this, _client), this.options));
++    __privateSet(this, _mutationScopeOverride, !!(options == null ? void 0 : options.scope));
++    const mutationOptions = (options == null ? void 0 : options.scope) ? { ...this.options, scope: options.scope } : this.options;
++    __privateSet(this, _currentMutation, __privateGet(this, _client).getMutationCache().build(__privateGet(this, _client), mutationOptions));
+     __privateGet(this, _currentMutation).addObserver(this);
+     return __privateGet(this, _currentMutation).execute(variables);
+   }
+@@ -103,6 +110,7 @@ _client = new WeakMap();
+ _currentResult = new WeakMap();
+ _currentMutation = new WeakMap();
+ _mutateOptions = new WeakMap();
++_mutationScopeOverride = new WeakMap();
+ _MutationObserver_instances = new WeakSet();
+ updateResult_fn = function() {
+   var _a;
+diff --git a/build/legacy/mutationObserver.js b/build/legacy/mutationObserver.js
+index 99a20d09831f19a1ba2bf457e4be2148b219380f..44a9e387af9212fd8be4b63bb70b500bc2ef0f24 100644
+--- a/build/legacy/mutationObserver.js
++++ b/build/legacy/mutationObserver.js
+@@ -10,7 +10,7 @@ import { getDefaultState } from "./mutation.js";
+ import { notifyManager } from "./notifyManager.js";
+ import { Subscribable } from "./subscribable.js";
+ import { hashKey, shallowEqualObjects } from "./utils.js";
+-var _client, _currentResult, _currentMutation, _mutateOptions, _MutationObserver_instances, updateResult_fn, notify_fn;
++var _client, _currentResult, _currentMutation, _mutateOptions, _mutationScopeOverride, _MutationObserver_instances, updateResult_fn, notify_fn;
+ var MutationObserver = class extends Subscribable {
+   constructor(client, options) {
+     super();
+@@ -19,6 +19,7 @@ var MutationObserver = class extends Subscribable {
+     __privateAdd(this, _currentResult);
+     __privateAdd(this, _currentMutation);
+     __privateAdd(this, _mutateOptions);
++    __privateAdd(this, _mutationScopeOverride);
+     __privateSet(this, _client, client);
+     this.setOptions(options);
+     this.bindMethods();
+@@ -42,7 +43,10 @@ var MutationObserver = class extends Subscribable {
+     if ((prevOptions == null ? void 0 : prevOptions.mutationKey) && this.options.mutationKey && hashKey(prevOptions.mutationKey) !== hashKey(this.options.mutationKey)) {
+       this.reset();
+     } else if (((_a = __privateGet(this, _currentMutation)) == null ? void 0 : _a.state.status) === "pending") {
+-      __privateGet(this, _currentMutation).setOptions(this.options);
++      const shouldPreserveScope = __privateGet(this, _mutationScopeOverride) && __privateGet(this, _currentMutation).options.scope;
++      __privateGet(this, _currentMutation).setOptions(
++        shouldPreserveScope ? { ...this.options, scope: __privateGet(this, _currentMutation).options.scope } : this.options
++      );
+     }
+   }
+   onUnsubscribe() {
+@@ -62,14 +66,17 @@ var MutationObserver = class extends Subscribable {
+     var _a;
+     (_a = __privateGet(this, _currentMutation)) == null ? void 0 : _a.removeObserver(this);
+     __privateSet(this, _currentMutation, void 0);
++    __privateSet(this, _mutationScopeOverride, void 0);
+     __privateMethod(this, _MutationObserver_instances, updateResult_fn).call(this);
+     __privateMethod(this, _MutationObserver_instances, notify_fn).call(this);
+   }
+   mutate(variables, options) {
+-    var _a;
++    var _a, _b;
+     __privateSet(this, _mutateOptions, options);
+     (_a = __privateGet(this, _currentMutation)) == null ? void 0 : _a.removeObserver(this);
+-    __privateSet(this, _currentMutation, __privateGet(this, _client).getMutationCache().build(__privateGet(this, _client), this.options));
++    __privateSet(this, _mutationScopeOverride, !!(options == null ? void 0 : options.scope));
++    const mutationOptions = (options == null ? void 0 : options.scope) ? { ...this.options, scope: options.scope } : this.options;
++    __privateSet(this, _currentMutation, __privateGet(this, _client).getMutationCache().build(__privateGet(this, _client), mutationOptions));
+     __privateGet(this, _currentMutation).addObserver(this);
+     return __privateGet(this, _currentMutation).execute(variables);
+   }
+@@ -78,6 +85,7 @@ _client = new WeakMap();
+ _currentResult = new WeakMap();
+ _currentMutation = new WeakMap();
+ _mutateOptions = new WeakMap();
++_mutationScopeOverride = new WeakMap();
+ _MutationObserver_instances = new WeakSet();
+ updateResult_fn = function() {
+   var _a;
+diff --git a/build/modern/hydration-CeGZtiZv.d.ts b/build/modern/hydration-CeGZtiZv.d.ts
+index b124f2460a561d4b49b95725118b558fb13eedcd..bb353f2a3c3446c5104da4d2968b87b423f8ca75 100644
+--- a/build/modern/hydration-CeGZtiZv.d.ts
++++ b/build/modern/hydration-CeGZtiZv.d.ts
+@@ -1211,6 +1211,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
+     onSuccess?: (data: TData, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
+     onError?: (error: TError, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
+     onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
++    scope?: MutationScope;
+ }
+ type MutateFunction<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> = (variables: TVariables, options?: MutateOptions<TData, TError, TVariables, TOnMutateResult>) => Promise<TData>;
+ interface MutationObserverBaseResult<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> extends MutationState<TData, TError, TVariables, TOnMutateResult> {
+diff --git a/build/modern/mutationObserver.cjs b/build/modern/mutationObserver.cjs
+index d5394d179cdb04f5980dbc9a81be0d3396464627..08fbf45d38e5decb37439c88ab15a71b18ffdaa4 100644
+--- a/build/modern/mutationObserver.cjs
++++ b/build/modern/mutationObserver.cjs
+@@ -32,6 +32,7 @@ var MutationObserver = class extends import_subscribable.Subscribable {
+   #currentResult = void 0;
+   #currentMutation;
+   #mutateOptions;
++  #mutationScopeOverride;
+   constructor(client, options) {
+     super();
+     this.#client = client;
+@@ -56,7 +57,10 @@ var MutationObserver = class extends import_subscribable.Subscribable {
+     if (prevOptions?.mutationKey && this.options.mutationKey && (0, import_utils.hashKey)(prevOptions.mutationKey) !== (0, import_utils.hashKey)(this.options.mutationKey)) {
+       this.reset();
+     } else if (this.#currentMutation?.state.status === "pending") {
+-      this.#currentMutation.setOptions(this.options);
++      const shouldPreserveScope = this.#mutationScopeOverride && this.#currentMutation.options.scope;
++      this.#currentMutation.setOptions(
++        shouldPreserveScope ? { ...this.options, scope: this.#currentMutation.options.scope } : this.options
++      );
+     }
+   }
+   onUnsubscribe() {
+@@ -74,13 +78,16 @@ var MutationObserver = class extends import_subscribable.Subscribable {
+   reset() {
+     this.#currentMutation?.removeObserver(this);
+     this.#currentMutation = void 0;
++    this.#mutationScopeOverride = void 0;
+     this.#updateResult();
+     this.#notify();
+   }
+   mutate(variables, options) {
+     this.#mutateOptions = options;
+     this.#currentMutation?.removeObserver(this);
+-    this.#currentMutation = this.#client.getMutationCache().build(this.#client, this.options);
++    this.#mutationScopeOverride = !!options?.scope;
++    const mutationOptions = options?.scope ? { ...this.options, scope: options.scope } : this.options;
++    this.#currentMutation = this.#client.getMutationCache().build(this.#client, mutationOptions);
+     this.#currentMutation.addObserver(this);
+     return this.#currentMutation.execute(variables);
+   }
+diff --git a/build/modern/mutationObserver.js b/build/modern/mutationObserver.js
+index 70a790d4118d846dd92bb71d6e129c6a41cf74fe..9472654d965645d27342e1a626bf8fa49dd8ac0e 100644
+--- a/build/modern/mutationObserver.js
++++ b/build/modern/mutationObserver.js
+@@ -8,6 +8,7 @@ var MutationObserver = class extends Subscribable {
+   #currentResult = void 0;
+   #currentMutation;
+   #mutateOptions;
++  #mutationScopeOverride;
+   constructor(client, options) {
+     super();
+     this.#client = client;
+@@ -32,7 +33,10 @@ var MutationObserver = class extends Subscribable {
+     if (prevOptions?.mutationKey && this.options.mutationKey && hashKey(prevOptions.mutationKey) !== hashKey(this.options.mutationKey)) {
+       this.reset();
+     } else if (this.#currentMutation?.state.status === "pending") {
+-      this.#currentMutation.setOptions(this.options);
++      const shouldPreserveScope = this.#mutationScopeOverride && this.#currentMutation.options.scope;
++      this.#currentMutation.setOptions(
++        shouldPreserveScope ? { ...this.options, scope: this.#currentMutation.options.scope } : this.options
++      );
+     }
+   }
+   onUnsubscribe() {
+@@ -50,13 +54,16 @@ var MutationObserver = class extends Subscribable {
+   reset() {
+     this.#currentMutation?.removeObserver(this);
+     this.#currentMutation = void 0;
++    this.#mutationScopeOverride = void 0;
+     this.#updateResult();
+     this.#notify();
+   }
+   mutate(variables, options) {
+     this.#mutateOptions = options;
+     this.#currentMutation?.removeObserver(this);
+-    this.#currentMutation = this.#client.getMutationCache().build(this.#client, this.options);
++    this.#mutationScopeOverride = !!options?.scope;
++    const mutationOptions = options?.scope ? { ...this.options, scope: options.scope } : this.options;
++    this.#currentMutation = this.#client.getMutationCache().build(this.#client, mutationOptions);
+     this.#currentMutation.addObserver(this);
+     return this.#currentMutation.execute(variables);
+   }
+diff --git a/src/mutationObserver.ts b/src/mutationObserver.ts
+index abb2a5389c13adf685f725af22fafab03459e7f4..6ca89db580e4b2f22b120c1b4388338e4731977f 100644
+--- a/src/mutationObserver.ts
++++ b/src/mutationObserver.ts
+@@ -39,6 +39,7 @@ export class MutationObserver<
+   > = undefined!
+   #currentMutation?: Mutation<TData, TError, TVariables, TOnMutateResult>
+   #mutateOptions?: MutateOptions<TData, TError, TVariables, TOnMutateResult>
++  #mutationScopeOverride?: boolean
+ 
+   constructor(
+     client: QueryClient,
+@@ -89,7 +90,17 @@ export class MutationObserver<
+     ) {
+       this.reset()
+     } else if (this.#currentMutation?.state.status === 'pending') {
+-      this.#currentMutation.setOptions(this.options)
++      // Preserve the current mutation's scope if it was set via mutate() options override
++      // This ensures that scope overrides from mutate() calls are not lost when setOptions
++      // is called (e.g., during React re-renders), while still allowing scope updates
++      // when the scope is defined in the observer options
++      const shouldPreserveScope =
++        this.#mutationScopeOverride && this.#currentMutation.options.scope
++      this.#currentMutation.setOptions(
++        shouldPreserveScope
++          ? { ...this.options, scope: this.#currentMutation.options.scope }
++          : this.options,
++      )
+     }
+   }
+ 
+@@ -121,6 +132,7 @@ export class MutationObserver<
+     // another mutate call will yield a new mutation!
+     this.#currentMutation?.removeObserver(this)
+     this.#currentMutation = undefined
++    this.#mutationScopeOverride = undefined
+     this.#updateResult()
+     this.#notify()
+   }
+@@ -133,9 +145,18 @@ export class MutationObserver<
+ 
+     this.#currentMutation?.removeObserver(this)
+ 
++    // Track if scope was provided via mutate options (not observer options)
++    // This flag is used in setOptions to preserve scope overrides
++    this.#mutationScopeOverride = !!options?.scope
++
++    // Merge scope from mutate options if provided
++    const mutationOptions = options?.scope
++      ? { ...this.options, scope: options.scope }
++      : this.options
++
+     this.#currentMutation = this.#client
+       .getMutationCache()
+-      .build(this.#client, this.options)
++      .build(this.#client, mutationOptions)
+ 
+     this.#currentMutation.addObserver(this)
+ 
+diff --git a/src/types.ts b/src/types.ts
+index ebfcf2c6bb731983283508ef11f501e433c15524..f74849b2b632cf08171961f829496b942e3f484e 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -1176,6 +1176,7 @@ export interface MutateOptions<
+     onMutateResult: TOnMutateResult | undefined,
+     context: MutationFunctionContext,
+   ) => void
++  scope?: MutationScope
+ }
+ 
+ export type MutateFunction<

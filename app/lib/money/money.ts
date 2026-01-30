@@ -237,6 +237,88 @@ const getCurrencyMinUnit = <T extends Currency>(currency: T) => {
 export class Money<T extends Currency = Currency> {
   private readonly _data: MoneyData<T>;
 
+  /**
+   * Returns the class tag for better console output.
+   * Shows as "Money" in Object.prototype.toString.call()
+   */
+  get [Symbol.toStringTag](): string {
+    return 'Money';
+  }
+
+  /**
+   * Returns a formatted string representation for debugging.
+   * Visible when expanding the object in browser DevTools.
+   */
+  get formatted(): string {
+    return this.toLocaleString();
+  }
+
+  /**
+   * Custom inspect method for Node.js console output.
+   * Shows formatted value instead of internal structure.
+   */
+  [Symbol.for('nodejs.util.inspect.custom')](): string {
+    return `Money { ${this.toLocaleString()} }`;
+  }
+
+  /**
+   * Registers a Chrome DevTools custom formatter for Money instances.
+   * Call this once at app startup to enable pretty console output.
+   *
+   * To enable custom formatters in Chrome DevTools:
+   * 1. Open DevTools (F12)
+   * 2. Click Settings (gear icon) or press F1
+   * 3. Under "Console", check "Custom formatters"
+   *
+   * After enabling, Money instances will display as: Money ₿1,234.00
+   */
+  static registerDevToolsFormatter(): void {
+    if (typeof window === 'undefined') return;
+
+    const formatter = {
+      header: (obj: unknown) => {
+        if (!(obj instanceof Money)) return null;
+        return [
+          'div',
+          { style: 'font-weight: bold; color: #9c27b0;' },
+          `Money ${obj.toLocaleString()}`,
+        ];
+      },
+      hasBody: (obj: unknown) => obj instanceof Money,
+      body: (obj: unknown) => {
+        if (!(obj instanceof Money)) return null;
+        const money = obj as Money;
+        return [
+          'div',
+          { style: 'margin-left: 12px;' },
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'currency: '],
+            money.currency,
+          ],
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'amount: '],
+            money.amount().toString(),
+          ],
+          [
+            'div',
+            {},
+            ['span', { style: 'color: #888;' }, 'formatted: '],
+            money.toLocaleString(),
+          ],
+        ];
+      },
+    };
+
+    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
+    window.devtoolsFormatters = window.devtoolsFormatters || [];
+    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
+    window.devtoolsFormatters.push(formatter);
+  }
+
   constructor(data: MoneyInput<T>) {
     const { baseUnit, minUnit, selectedUnit } =
       Money.getCurrencyDataForInput<T>(data);
@@ -352,6 +434,14 @@ export class Money<T extends Currency = Currency> {
   getCurrencySymbol(unit?: CurrencyUnit<T>): string {
     return this.getCurrencyUnit(unit).symbol;
   }
+
+  /**
+   * Gets the base unit name for the currency.
+   * @returns The base unit name for the currency.
+   */
+  getBaseUnit = (): CurrencyUnit<T> => {
+    return this.currencyData.baseUnit;
+  };
 
   /**
    * Returns the money amount in the requested currency unit. If no unit is provided it uses the
@@ -569,10 +659,18 @@ export class Money<T extends Currency = Currency> {
     };
   };
 
+  /**
+   * Returns the money value as a JSON object.
+   * This method is used by JSON.stringify to serialize the money object.
+   * @returns The money value as a JSON object.
+   */
   toJSON = () => {
+    const unit = this.getBaseUnit();
     return {
-      amount: this.toNumber(),
+      __type: 'Money',
+      amount: this.toNumber(unit),
       currency: this.currency,
+      unit,
     };
   };
 

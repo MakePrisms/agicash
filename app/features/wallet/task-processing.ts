@@ -1,15 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { agicashDb } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
 import { useProcessCashuReceiveQuoteTasks } from '../receive/cashu-receive-quote-hooks';
-import { useProcessCashuTokenSwapTasks } from '../receive/cashu-token-swap-hooks';
+import { useProcessCashuReceiveSwapTasks } from '../receive/cashu-receive-swap-hooks';
+import { useProcessSparkReceiveQuoteTasks } from '../receive/spark-receive-quote-hooks';
 import { useProcessCashuSendQuoteTasks } from '../send/cashu-send-quote-hooks';
 import { useProcessCashuSendSwapTasks } from '../send/cashu-send-swap-hooks';
+import { useProcessSparkSendQuoteTasks } from '../send/spark-send-quote-hooks';
 import { useUser } from '../user/user-hooks';
 import { TaskProcessingLockRepository } from './task-processing-lock-repository';
 
 const taskProcessingLockRepository = new TaskProcessingLockRepository(
-  agicashDb,
+  agicashDbClient,
 );
 
 /**
@@ -35,7 +37,7 @@ export const useTakeTaskProcessingLead = () => {
       return taskProcessingLockRepository.takeLead(userId, clientId);
     },
     refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   useEffect(() => {
@@ -72,8 +74,10 @@ export const useTakeTaskProcessingLead = () => {
  */
 export const TaskProcessor = () => {
   useProcessCashuReceiveQuoteTasks();
-  useProcessCashuTokenSwapTasks();
+  useProcessCashuReceiveSwapTasks();
   useProcessCashuSendQuoteTasks();
   useProcessCashuSendSwapTasks();
+  useProcessSparkReceiveQuoteTasks();
+  useProcessSparkSendQuoteTasks();
   return null;
 };

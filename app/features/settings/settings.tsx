@@ -1,4 +1,4 @@
-import { Copy, Edit, Share, SunMoon, Users } from 'lucide-react';
+import { Copy, Edit, Share, Users } from 'lucide-react';
 import { useLocation } from 'react-router';
 import { useCopyToClipboard } from 'usehooks-ts';
 import DiscordLogo from '~/assets/discord_logo.svg';
@@ -10,6 +10,7 @@ import {
   PageContent,
   PageFooter,
   PageHeader,
+  PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { SettingsNavButton } from '~/features/settings/ui/settings-nav-button';
@@ -19,9 +20,9 @@ import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
 import { useDefaultAccount } from '../accounts/account-hooks';
-import { AccountTypeIcon } from '../accounts/account-icons';
+import { AccountIcon } from '../accounts/account-icons';
 import { ColorModeToggle } from '../theme/color-mode-toggle';
-import { useAuthActions } from '../user/auth';
+import { useSignOut } from '../user/auth';
 import { useUser } from '../user/user-hooks';
 
 function LnAddressDisplay({
@@ -71,13 +72,13 @@ function LnAddressDisplay({
         <span>{username}</span>
         <span className="text-muted-foreground/50">@{domain}</span>
       </div>
-      <Copy className="mr-4 ml-2 h-4 w-4 shrink-0" />
+      <Copy className="ml-2 h-4 w-4 shrink-0" />
     </button>
   );
 }
 
 export default function Settings() {
-  const { signOut } = useAuthActions();
+  const { isSigningOut, signOut } = useSignOut();
   const defaultAccount = useDefaultAccount();
   const username = useUser((s) => s.username);
   const location = useLocation();
@@ -97,9 +98,11 @@ export default function Settings() {
       <PageHeader>
         <ClosePageButton to="/" transition="slideRight" applyTo="oldView" />
         {canShare() && (
-          <button type="button" onClick={handleShare} className="px-6">
-            <Share />
-          </button>
+          <PageHeaderItem position="right">
+            <button type="button" onClick={handleShare} className="px-1">
+              <Share />
+            </button>
+          </PageHeaderItem>
         )}
       </PageHeader>
 
@@ -111,7 +114,7 @@ export default function Settings() {
         </SettingsNavButton>
 
         <SettingsNavButton to="/settings/accounts">
-          <AccountTypeIcon type={defaultAccount.type} />
+          <AccountIcon account={defaultAccount} />
           <span>{defaultAccount.name}</span>
         </SettingsNavButton>
 
@@ -119,21 +122,20 @@ export default function Settings() {
           <Users />
           Contacts
         </SettingsNavButton>
-
-        <div className="flex w-full items-center justify-between pl-4">
-          <div className="flex items-center gap-2">
-            <SunMoon className="h-4 w-4" />
-            <span className="text-sm">Theme</span>
-          </div>
-          <ColorModeToggle className="mr-1" />
-        </div>
       </PageContent>
 
       <PageFooter className="mx-auto flex w-36 flex-col gap-6 pb-10">
-        <Button className="mx-auto w-full" onClick={signOut}>
+        <Button
+          className="mx-auto w-full"
+          onClick={signOut}
+          loading={isSigningOut}
+        >
           Sign Out
         </Button>
-        <div className="flex w-full justify-between gap-4 text-muted-foreground text-sm">
+
+        <ColorModeToggle />
+
+        <div className="flex w-full justify-between text-muted-foreground text-sm">
           <LinkWithViewTransition
             to={{
               pathname: '/terms',
@@ -145,6 +147,7 @@ export default function Settings() {
           >
             Terms
           </LinkWithViewTransition>
+          <span>&</span>
           <LinkWithViewTransition
             to={{
               pathname: '/privacy',
@@ -173,7 +176,7 @@ export default function Settings() {
             <img src={NostrLogo} alt="Nostr" className="h-5 w-5" />
           </a>
           <a
-            href="https://github.com/MakePrisms/boardwalkcash/tree/master"
+            href="https://github.com/MakePrisms/agicash"
             target="_blank"
             rel="noopener noreferrer"
           >

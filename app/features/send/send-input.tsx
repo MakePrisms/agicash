@@ -28,7 +28,11 @@ import { DrawerTrigger } from '~/components/ui/drawer';
 import { Drawer } from '~/components/ui/drawer';
 import { Skeleton } from '~/components/ui/skeleton';
 import { useAccounts } from '~/features/accounts/account-hooks';
-import { AccountSelector } from '~/features/accounts/account-selector';
+import {
+  AccountSelector,
+  toAccountSelectorOption,
+} from '~/features/accounts/account-selector';
+import { accountOfflineToast } from '~/features/accounts/utils';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useToast } from '~/hooks/use-toast';
@@ -41,7 +45,6 @@ import {
 } from '~/lib/transitions';
 import { AddContactDrawer, ContactsList } from '../contacts';
 import type { Contact } from '../contacts/contact';
-import { useContacts } from '../contacts/contact-hooks';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
@@ -70,9 +73,10 @@ const ConvertedMoneySwitcher = ({
       <MoneyDisplay
         money={money}
         unit={getDefaultUnit(money.currency)}
-        variant="secondary"
+        size="sm"
+        variant="muted"
       />
-      <ArrowUpDown className="mb-1" />
+      <ArrowUpDown className="mb-1 text-muted-foreground" />
     </button>
   );
 };
@@ -83,6 +87,8 @@ export function SendInput() {
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
   const { data: accounts } = useAccounts();
+  const [selectDestinationDrawerOpen, setSelectDestinationDrawerOpen] =
+    useState(false);
 
   const sendAmount = useSendStore((s) => s.amount);
   const sendAccount = useSendStore((s) => s.getSourceAccount());
@@ -90,7 +96,7 @@ export function SendInput() {
   const destinationDisplay = useSendStore((s) => s.destinationDisplay);
   const selectDestination = useSendStore((s) => s.selectDestination);
   const clearDestination = useSendStore((s) => s.clearDestination);
-  const getQuote = useSendStore((s) => s.getQuote);
+  const continueSend = useSendStore((s) => s.proceedWithSend);
   const status = useSendStore((s) => s.status);
 
   const sendAmountCurrencyUnit = sendAmount
@@ -117,12 +123,8 @@ export function SendInput() {
     inputValue: Money,
     convertedValue: Money | undefined,
   ) => {
-    if (sendAccount.type !== 'cashu') {
-      toast({
-        title: 'Not implemented',
-        description: 'Only sends from the cashu accounts are supported',
-        variant: 'destructive',
-      });
+    if (!sendAccount.isOnline) {
+      toast(accountOfflineToast);
       return;
     }
 
@@ -130,7 +132,7 @@ export function SendInput() {
       return;
     }
 
-    const result = await getQuote(inputValue, convertedValue);
+    const result = await continueSend(inputValue, convertedValue);
     if (!result.success) {
       const toastOptions =
         result.error instanceof DomainError
@@ -145,6 +147,11 @@ export function SendInput() {
             };
 
       toast(toastOptions);
+      return;
+    }
+
+    if (result.next === 'selectDestination') {
+      setSelectDestinationDrawerOpen(true);
       return;
     }
 
@@ -234,14 +241,17 @@ export function SendInput() {
 
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
-            accounts={accounts}
-            selectedAccount={sendAccount}
+            accounts={accounts.map((account) =>
+              toAccountSelectorOption(account),
+            )}
+            selectedAccount={toAccountSelectorOption(sendAccount)}
             onSelect={(account) => {
               selectSourceAccount(account);
               if (account.currency !== inputValue.currency) {
                 switchInputCurrency();
               }
             }}
+            disabled={accounts.length === 1}
           />
         </div>
 
@@ -260,7 +270,11 @@ export function SendInput() {
                 <Scan />
               </LinkWithViewTransition>
 
-              <SelectContactOrLud16Drawer onSelect={handleSelectDestination} />
+              <SelectDestinationDrawer
+                open={selectDestinationDrawerOpen}
+                onOpenChange={setSelectDestinationDrawerOpen}
+                onSelect={handleSelectDestination}
+              />
             </div>
             <div /> {/* spacer */}
             <div className="flex items-center justify-end">
@@ -287,7 +301,9 @@ export function SendInput() {
   );
 }
 
-type SelectContactOrLud16DrawerProps = {
+type SelectDestinationDrawerProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onSelect: (contactOrLnAddress: Contact | string) => Promise<boolean>;
 };
 
@@ -296,25 +312,20 @@ const validateLightningAddressFormat = buildLightningAddressFormatValidator({
   allowLocalhost: import.meta.env.MODE === 'development',
 });
 
-function SelectContactOrLud16Drawer({
+function SelectDestinationDrawer({
+  open,
+  onOpenChange,
   onSelect,
-}: SelectContactOrLud16DrawerProps) {
-  const [open, setOpen] = useState(false);
+}: SelectDestinationDrawerProps) {
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<'idle' | 'selecting'>('idle');
-
-  const contacts = useContacts((contacts) =>
-    contacts.filter((contact) =>
-      contact.username.toLowerCase().includes(input.toLowerCase()),
-    ),
-  );
 
   const handleSelect = async (selection: string | Contact) => {
     setStatus('selecting');
 
     const selected = await onSelect(selection);
     if (selected) {
-      setOpen(false);
+      onOpenChange(false);
       setInput('');
     }
 
@@ -324,41 +335,45 @@ function SelectContactOrLud16Drawer({
   const isLnAddressFormat = validateLightningAddressFormat(input) === true;
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerTrigger asChild>
-        <button type="button" onClick={() => setOpen(true)}>
+        <button type="button" onClick={() => onOpenChange(true)}>
           <AtSign />
         </button>
       </DrawerTrigger>
-      <DrawerContent className="h-[75vh] pb-14 font-primary">
-        <DrawerHeader className="flex items-center justify-between">
+      <DrawerContent className="h-[90svh] font-primary sm:h-[75vh]">
+        <DrawerHeader className="flex shrink-0 items-center justify-between">
           <DrawerTitle>Send to User</DrawerTitle>
           <AddContactDrawer />
         </DrawerHeader>
-        <div className="mx-auto flex h-full w-full max-w-sm flex-col gap-3 px-4 sm:px-0">
-          <SearchBar
-            placeholder="Username or Lightning Address"
-            onSearch={(value) => setInput(value.toLowerCase())}
-          />
+        <div className="mx-auto flex min-h-0 w-full max-w-sm flex-1 flex-col gap-3 px-4 sm:px-0">
+          <div className="shrink-0">
+            <SearchBar
+              placeholder="Username or Lightning Address"
+              onSearch={(value) => setInput(value.toLowerCase())}
+            />
+          </div>
 
-          {isLnAddressFormat && (
-            <button
-              className="flex w-full items-center gap-3 p-3 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
-              onClick={() => handleSelect(input)}
-              type="button"
-              disabled={status === 'selecting'}
-            >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground text-sm">
-                {status === 'idle' ? (
-                  <ZapIcon />
-                ) : (
-                  <LoaderCircle className="animate-spin text-muted-foreground" />
-                )}
-              </div>
-              <p>Send to Lightning Address: {input}</p>
-            </button>
-          )}
-          <ContactsList contacts={contacts} onSelect={handleSelect} />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {isLnAddressFormat && (
+              <button
+                className="flex w-full items-center gap-3 p-3 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+                onClick={() => handleSelect(input)}
+                type="button"
+                disabled={status === 'selecting'}
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-semibold text-primary-foreground text-sm">
+                  {status === 'idle' ? (
+                    <ZapIcon />
+                  ) : (
+                    <LoaderCircle className="animate-spin text-muted-foreground" />
+                  )}
+                </div>
+                <p>Send to Lightning Address: {input}</p>
+              </button>
+            )}
+            <ContactsList onSelect={handleSelect} searchQuery={input} />
+          </div>
         </div>
       </DrawerContent>
     </Drawer>

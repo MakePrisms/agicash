@@ -1,9 +1,18 @@
-import { Redirect } from '~/components/redirect';
+import {
+  ClosePageButton,
+  Page,
+  PageContent,
+  PageHeader,
+  PageHeaderTitle,
+} from '~/components/page';
+import { QRCode } from '~/components/qr-code';
+import { toProof } from '~/features/accounts/cashu-account';
 import {
   useCashuSendSwap,
   useTrackCashuSendSwap,
 } from '~/features/send/cashu-send-swap-hooks';
 import { ShareCashuToken } from '~/features/send/share-cashu-token';
+import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { getCashuProtocolUnit } from '~/lib/cashu';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import type { Route } from './+types/_protected.send.share.$swapId';
@@ -23,15 +32,28 @@ export default function SendShare({ params }: Route.ComponentProps) {
     },
   });
 
-  // Don't redirect if we're about to handle completion or if already completed
-  // This prevents the race condition where state updates before onCompleted callback
+  // Skeleton view for DRAFT swaps. Once the swap is PENDING we have proofs to send and can show the token.
+  // Once the swap is COMPLETED the onCompleted callback will navigate to the transaction page.
   if (swap.state !== 'PENDING' && swap.state !== 'COMPLETED') {
-    return <Redirect to="/send" logMessage="Swap not pending" />;
+    return (
+      <Page>
+        <PageHeader>
+          <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
+          <PageHeaderTitle>Send</PageHeaderTitle>
+        </PageHeader>
+        <PageContent className="animate-in items-center gap-0 overflow-x-hidden overflow-y-hidden duration-300">
+          <MoneyWithConvertedAmount money={swap.amountToSend} />
+          <div className="flex w-full flex-col items-center justify-center px-4 py-4 pb-8">
+            <QRCode isLoading={true} />
+          </div>
+        </PageContent>
+      </Page>
+    );
   }
 
   const token = {
     mint: swap.account.mintUrl,
-    proofs: swap.proofsToSend,
+    proofs: swap.proofsToSend.map((p) => toProof(p)),
     unit: getCashuProtocolUnit(swap.amountToSend.currency),
   };
 

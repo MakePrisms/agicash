@@ -10,7 +10,7 @@ app/
 ├── features/      # Feature-specific components and logic
 │   ├── shared/    # Shared feature code (if needed)
 │   └── [feature]/ # Feature-specific code
-├── routes/        # Remix routes
+├── routes/        # React router routes
 └── root.tsx       # Root layout component
 ```
 

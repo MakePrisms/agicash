@@ -3,6 +3,10 @@ name: CI Pipeline
 on:
   pull_request:
 
+env:
+  SELF_SIGNED_CERT_PATH: "../certs/ci-localhost-cert.pem"
+  SELF_SIGNED_CERT_KEY_PATH: "../certs/ci-localhost-key.pem"
+
 jobs:
   code-checks:
     name: "Format, Lint, and Types Check"
@@ -19,6 +23,33 @@ jobs:
 
       - name: Database Types Check
         run: |
+          git fetch origin ${{ github.base_ref }}
+
+          MIGRATIONS_CHANGED=false
+          CLI_VERSION_CHANGED=false
+
+          if ! git diff --quiet origin/${{ github.base_ref }}..HEAD -- supabase/migrations/; then
+            MIGRATIONS_CHANGED=true
+          fi
+
+          if git diff origin/${{ github.base_ref }}..HEAD -- package.json | grep -qE '"supabase": "[0-9]+\.[0-9]+\.[0-9]+"'; then
+            CLI_VERSION_CHANGED=true
+          fi
+
+          if [ "$MIGRATIONS_CHANGED" = false ] && [ "$CLI_VERSION_CHANGED" = false ]; then
+            echo "No migration or supabase CLI version changes detected, skipping database types check."
+            exit 0
+          fi
+
+          if [ "$MIGRATIONS_CHANGED" = true ]; then
+            echo "Migration changes detected."
+          fi
+
+          if [ "$CLI_VERSION_CHANGED" = true ]; then
+            echo "Supabase CLI version changed."
+          fi
+
+          echo "Checking types..."
           bun supabase db start
           bun supabase gen types typescript --local --schema wallet > supabase/database.types.ts
           if ! git diff --ignore-space-at-eol --exit-code --quiet supabase/database.types.ts; then

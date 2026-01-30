@@ -7,7 +7,8 @@ import { Page } from '~/components/page';
 import { PageContent } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
-import type { CashuAccount } from '~/features/accounts/account';
+import type { CashuAccount, SparkAccount } from '~/features/accounts/account';
+import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useToast } from '~/hooks/use-toast';
 import { decodeBolt11 } from '~/lib/bolt11';
@@ -15,21 +16,12 @@ import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
-import {
-  useInitiateCashuSendQuote,
-  useTrackCashuSendQuote,
-} from './cashu-send-quote-hooks';
-import type { CashuLightningQuote } from './cashu-send-quote-service';
+import type { DestinationDetails } from './cashu-send-quote';
+import { useInitiateCashuSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwap } from './cashu-send-swap-hooks';
-import { useTrackCashuSendSwap } from './cashu-send-swap-hooks';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
-
-const formatDestination = (destination: string) => {
-  if (destination && destination.length > 20) {
-    return `${destination.slice(0, 5)}...${destination.slice(-5)}`;
-  }
-  return destination;
-};
+import { useInitiateSparkSendQuote } from './spark-send-quote-hooks';
+import type { SparkLightningQuote } from './spark-send-quote-service';
 
 const ConfirmationRow = ({
   label,
@@ -93,74 +85,123 @@ const BaseConfirmation = ({
   );
 };
 
-type PayBolt11ConfirmationProps = {
-  /** The bolt11 invoice to pay */
-  destination: string;
-  /** The account to send from */
-  account: CashuAccount;
-  /** The destination to display in the UI. For sends to bolt11 this will be the same as the bolt11, for ln addresses it will be the ln address. */
-  destinationDisplay: string;
-  /** The quote to display in the UI. */
-  quote: CashuLightningQuote;
+type UsePayBolt11Props = {
+  /** The account to send from. */
+  account: CashuAccount | SparkAccount;
+  /** The quote to pay. */
+  quote: CashuLightningQuote | SparkLightningQuote;
+  /** Additional details about the destination to include in the Agicash DB record.*/
+  destinationDetails?: DestinationDetails;
 };
 
 /**
- * This component first creates a melt quote to estimate the fee.
- * Once the user confirms the payment details, then we need to get proofs
- * that match the total amount to pay the invoice. This is the fee + the invoice amount.
+ * A hook that is used to pay bolt11 invoices from a Cashu account or a Spark account.
+ * @param account - The account to send from.
+ * @param quote - The quote to pay
+ * @returns A function to handle the confirmation of the payment and a boolean indicating if the payment is pending.
+ */
+const usePayBolt11 = ({
+  account,
+  quote,
+  destinationDetails,
+}: UsePayBolt11Props) => {
+  const { toast } = useToast();
+  const navigate = useNavigateWithViewTransition();
+
+  const { mutate: initiateCashuSend, status: initiateCashuSendQuoteStatus } =
+    useInitiateCashuSendQuote({
+      onSuccess: (data) => {
+        navigate(`/transactions/${data.transactionId}?redirectTo=/`, {
+          transition: 'slideLeft',
+          applyTo: 'newView',
+        });
+      },
+      onError: (error) => {
+        if (error instanceof DomainError) {
+          toast({ description: error.message });
+        } else {
+          console.error('Failed to initiate cashu send', { cause: error });
+          toast({
+            title: 'Error',
+            description: 'Failed to initiate payment. Please try again.',
+            variant: 'destructive',
+          });
+        }
+      },
+    });
+
+  const { mutate: initiateSparkSend, status: initiateSparkSendQuoteStatus } =
+    useInitiateSparkSendQuote({
+      onSuccess: (sendQuote) => {
+        navigate(`/transactions/${sendQuote.transactionId}?redirectTo=/`, {
+          transition: 'slideLeft',
+          applyTo: 'newView',
+        });
+      },
+      onError: (error) => {
+        console.error('Failed to initiate spark send', { cause: error });
+        toast({
+          title: 'Error',
+          description: 'Failed to initiate payment. Please try again.',
+        });
+      },
+    });
+
+  const handleConfirm = () => {
+    if (account.type === 'cashu') {
+      initiateCashuSend({
+        accountId: account.id,
+        sendQuote: quote as CashuLightningQuote,
+        destinationDetails,
+      });
+    } else if (account.type === 'spark') {
+      initiateSparkSend({
+        account: account,
+        quote: quote as SparkLightningQuote,
+      });
+    }
+  };
+
+  const isPending =
+    account.type === 'cashu'
+      ? ['pending', 'success'].includes(initiateCashuSendQuoteStatus)
+      : ['pending', 'success'].includes(initiateSparkSendQuoteStatus);
+
+  return { handleConfirm, isPending };
+};
+
+type PayBolt11ConfirmationProps = {
+  /** The account to send from */
+  account: CashuAccount | SparkAccount;
+  /** The bolt11 invoice to pay */
+  destination: string;
+  /** The destination to display in the UI. For sends to bolt11 this will be the same as the bolt11, for ln addresses it will be the ln address. */
+  destinationDisplay: string;
+  destinationDetails?: DestinationDetails;
+  /** The quote to display in the UI. */
+  quote: CashuLightningQuote | SparkLightningQuote;
+};
+
+/**
+ * Confirmation component for paying a bolt11 invoice from a Cashu or Spark account.
  *
- * Then, once proofs are create we give them to the mint to melt.
+ * For Cashu accounts: Creates a melt quote to estimate the fee, then once confirmed,
+ * gets proofs matching the total amount (fee + invoice amount) and gives them to the mint to melt.
+ *
+ * For Spark accounts: Initiates a Lightning send using the Spark SDK.
  */
 export const PayBolt11Confirmation = ({
   account,
   quote: bolt11Quote,
   destination,
   destinationDisplay,
+  destinationDetails,
 }: PayBolt11ConfirmationProps) => {
-  const { toast } = useToast();
-  const navigate = useNavigateWithViewTransition();
-
-  const {
-    mutate: initiateSend,
-    data: { id: sendQuoteId, transactionId } = {},
-    isPending: isCreatingSendQuote,
-  } = useInitiateCashuSendQuote({
-    onError: (error) => {
-      if (error instanceof DomainError) {
-        toast({ description: error.message });
-      } else {
-        console.error('Error initiating send quote', { cause: error });
-        toast({
-          title: 'Error',
-          description: 'Failed to initiate send quote. Please try again.',
-          variant: 'destructive',
-        });
-      }
-    },
+  const { handleConfirm, isPending } = usePayBolt11({
+    account,
+    quote: bolt11Quote,
+    destinationDetails,
   });
-
-  const { status: quoteStatus } = useTrackCashuSendQuote({
-    sendQuoteId,
-    onExpired: () => {
-      toast({
-        title: 'Send quote expired',
-        description: 'Please try again',
-      });
-    },
-    onPending: () => {
-      navigate(`/transactions/${transactionId}?redirectTo=/`, {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
-    },
-  });
-
-  const handleConfirm = () =>
-    initiateSend({ accountId: account.id, sendQuote: bolt11Quote });
-
-  const paymentInProgress =
-    ['LOADING', 'UNPAID', 'PENDING'].includes(quoteStatus) ||
-    isCreatingSendQuote;
 
   const { description } = decodeBolt11(destination);
 
@@ -168,14 +209,14 @@ export const PayBolt11Confirmation = ({
     <BaseConfirmation
       amount={bolt11Quote.estimatedTotalAmount}
       onConfirm={handleConfirm}
-      loading={paymentInProgress}
+      loading={isPending}
     >
       {[
         {
           label: 'Recipient gets',
           value: (
             <MoneyDisplay
-              variant="secondary"
+              size="sm"
               money={bolt11Quote.amountToReceive}
               unit={getDefaultUnit(bolt11Quote.amountToReceive.currency)}
             />
@@ -185,14 +226,14 @@ export const PayBolt11Confirmation = ({
           label: 'Estimated fee',
           value: (
             <MoneyDisplay
-              variant="secondary"
+              size="sm"
               money={bolt11Quote.estimatedTotalFee}
               unit={getDefaultUnit(bolt11Quote.estimatedTotalFee.currency)}
             />
           ),
         },
         { label: 'From', value: account.name },
-        { label: 'Paying', value: formatDestination(destinationDisplay) },
+        { label: 'Paying', value: destinationDisplay },
       ].map((row) => (
         <ConfirmationRow key={row.label} label={row.label} value={row.value} />
       ))}
@@ -226,33 +267,26 @@ export const CreateCashuTokenConfirmation = ({
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
 
-  const {
-    data: createSwapData,
-    mutate: createCashuSendSwap,
-    isPending: isCreatingSwap,
-  } = useCreateCashuSendSwap({
-    onError: (error) => {
-      console.error('Error creating cashu send swap', { cause: error });
-      toast({
-        title: 'Error',
-        description: 'Failed to create cashu send swap. Please try again.',
-      });
-    },
-  });
-
-  const { status } = useTrackCashuSendSwap({
-    id: createSwapData?.id,
-    onPending: (swap) => {
-      console.log('swap pending', { swap });
-      navigate(`/send/share/${swap.id}`, {
-        transition: 'slideUp',
-        applyTo: 'newView',
-      });
-    },
-  });
-
-  const swapInProgress =
-    ['LOADING', 'DRAFT', 'PENDING'].includes(status) || isCreatingSwap;
+  const { mutate: createCashuSendSwap, status: createSwapStatus } =
+    useCreateCashuSendSwap({
+      onSuccess: (swap) => {
+        navigate(`/send/share/${swap.id}`, {
+          transition: 'slideUp',
+          applyTo: 'newView',
+        });
+      },
+      onError: (error) => {
+        if (error instanceof DomainError) {
+          toast({ description: error.message });
+        } else {
+          console.error('Failed to create cashu send swap', { cause: error });
+          toast({
+            title: 'Error',
+            description: 'Failed to initiate the send. Please try again.',
+          });
+        }
+      },
+    });
 
   return (
     <BaseConfirmation
@@ -263,14 +297,16 @@ export const CreateCashuTokenConfirmation = ({
           amount: quote.amountRequested,
         })
       }
-      loading={swapInProgress}
+      // there is a delay between the swap being created and navigating to the share page
+      // so we show a loading state while the mutation is pending, then wait for navigation after mutation is complete
+      loading={['pending', 'success'].includes(createSwapStatus)}
     >
       {[
         {
           label: 'Recipient gets',
           value: (
             <MoneyDisplay
-              variant="secondary"
+              size="sm"
               money={quote.amountRequested}
               unit={getDefaultUnit(quote.amountRequested.currency)}
             />
@@ -280,7 +316,7 @@ export const CreateCashuTokenConfirmation = ({
           label: 'Estimated fee',
           value: (
             <MoneyDisplay
-              variant="secondary"
+              size="sm"
               money={quote.totalFee}
               unit={getDefaultUnit(quote.totalFee.currency)}
             />

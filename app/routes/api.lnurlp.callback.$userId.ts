@@ -3,9 +3,10 @@
  * defined by LUD 06: https://github.com/lnurl/luds/blob/luds/06.md
  */
 
-import { agicashDbServiceRole } from '~/features/agicash-db/database.server';
+import { agicashDbServer } from '~/features/agicash-db/database.server';
 import { LightningAddressService } from '~/features/receive/lightning-address-service';
 import { Money } from '~/lib/money';
+import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/api.lnurlp.callback.$userId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -17,6 +18,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (!amountMsat || Number.isNaN(Number(amountMsat))) {
     return new Response(
       JSON.stringify({ status: 'ERROR', reason: 'Invalid amount' }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      },
     );
   }
 
@@ -29,9 +36,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const bypassAmountValidation =
     url.searchParams.get('bypassAmountValidation') === 'true';
 
+  const queryClient = getQueryClient();
   const lightningAddressService = new LightningAddressService(
     request,
-    agicashDbServiceRole,
+    agicashDbServer,
+    queryClient,
     { bypassAmountValidation },
   );
 
@@ -41,6 +50,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   );
 
   return new Response(JSON.stringify(response), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
   });
 }

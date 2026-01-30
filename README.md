@@ -1,16 +1,14 @@
 # Agicash
 
-This app is using [Remix](https://remix.run/docs) framework, but it is hosted on a custom [Express](https://expressjs.com/) server. However, currently Express
-server is only used when running locally. When deployed to Vercel, Express server is not used.
+This app is using [React Router](https://reactrouter.com/home) framework mode. It is hosted on Vercel, but in development it is run on a custom [Express](https://expressjs.com/) server.
 
-For auth and storing sensitive data the app is using Open Secret platform. The rest of the data is stored to Postgres
-database hosted on Supabase. 
+For identity/auth, key management, and encryption, the app uses the [Open Secret](https://opensecret.cloud) platform. The rest of the data is stored in a Postgres database hosted on Supabase. Any sensitive data is encrypted using keys from the Open Secret platform.
 
 ## Getting started
 
 We use [Nix](https://nixos.org/) and [devenv](https://devenv.sh/) to set up the development environment. To start:
-1. Install `Nix` (on macOS run `curl -L https://github.com/NixOS/experimental-nix-installer/releases/download/0.27.0/nix-installer.sh | sh -s -- install`
-2. Install `devenv` (on macOS run `nix-env -iA devenv -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable`
+1. Install `Nix` (on macOS run `curl -L https://github.com/NixOS/experimental-nix-installer/releases/download/0.27.0/nix-installer.sh | sh -s -- install`)
+2. Install `devenv` (on macOS run `nix-env -iA devenv -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable`)
 3. Install `direnv` (for automatic shell activation):
     * on macOS run `brew install direnv`
     * add the direnv hook to your shell as described [here](https://direnv.net/docs/hook.html)
@@ -21,10 +19,10 @@ We use [Nix](https://nixos.org/) and [devenv](https://devenv.sh/) to set up the 
 1. Create `.env` file:
 
 ```sh
-mv .env.example .env
+cp .env.example .env
 ```
 
-If needed, update the `.env` file with alternative values. This file is git ignored and used only for local development.
+If needed, update the `.env` file with alternative values. This file is ignored by git and used only for local development.
 
 2. Start Supabase local stack:
 
@@ -38,10 +36,15 @@ bun run supabase start
 bun run dev
 ```
 
+Note that when running locally the app is still using hosted Open Secret environment which is dedicated for the local development, while 
+our hosted envs have their own dedicated Open Secret environments. This means that even while working on your machine you still need 
+internet connection for identity/auth, key management, etc. Configurations for the local Open Secret environment can be seen in 
+[Agicash local](https://app.opensecret.cloud/orgs/a92d07fb-3837-42e0-9a83-f109c425391e/projects/77f98196-3e2f-43ad-83d1-decdac01b0fa) project.
+
 When testing the app on an actual mobile device, you need to connect to the same Wi-Fi as the machine hosting the app 
-and access it via local IP or hostname. Unlike localhost or 127.0.0.1 those are not considered as safe context by the
-browser so the browser APIs which require safe context won't work. To solve this issue you need to run the app on HTTPS
-instead. To run the dev server on HTTPS execute:
+and access it via local IP or hostname. Unlike localhost or 127.0.0.1, those are not considered a safe context by the
+browser, so the browser APIs that require a safe context won't work. To solve this issue, you need to run the app on HTTPS
+instead. To run the dev server on HTTPS, execute:
 
 ```sh
 bun run dev --https
@@ -49,18 +52,25 @@ bun run dev --https
 
 A self-signed certificate is used for HTTPS. The certificate is managed by devenv automatically. If you need to
 regenerate the certificate (for example, if your local IP has changed), reload devenv by executing `direnv reload`
-or run the certificate script directly by executing `generate-ssl-cert`. 
+or run the certificate script directly by executing `generate-ssl-cert`.
 
-`master` is the main branch. When working on a feature, branch of `master` and when ready make a PR back to `master`.
+**Installing the root certificate on iOS:** Mobile browsers require the root CA to be trusted. Find your mkcert root CA
+by running `mkcert -CAROOT` (typically `~/Library/Application Support/mkcert/rootCA.pem`), then AirDrop or email it to
+your device. Install via **Settings → General → VPN & Device Management**, then enable trust in **Settings → General →
+About → Certificate Trust Settings**.
+
+`master` is the main branch. When working on a feature, branch off `master` and, when ready, make a PR back to `master`.
 Try to make feature branches short-lived and concise (avoid implementing multiple features in one PR).
 
-### Updating development environment
+### Updating the development environment
 
-To update devenv packages run `devenv update`. When updating `bun`, make sure to update the `engines` version in 
+To update devenv CLI on your machine, for macOS run `nix-env --upgrade --attr devenv -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable`.
+
+To update devenv packages, run `devenv update`. When updating `bun`, make sure to update the `engines` version in
 `package.json` and version specified in `.github/actions/setup-environment/action.yml`. When updating `node`, update the
-`.nvmrc` file and `engines` version in `package.json`. Note that Vercel does not allow pinning to exact node version so
-in the `package.json` file we specify the max patch version while in the `.nvmrc` we specify the max version possible 
-for that range because that is what Vercel will be using when building too. 
+`.nvmrc` file and `engines` version in `package.json`. Note that Vercel does not allow pinning to an exact node version, so
+in the `package.json` file, we specify the max patch version, while in the `.nvmrc`, we specify the max version possible
+for that range because that is what Vercel will be using when building, too.
 
 ## Deployment
 
@@ -76,41 +86,66 @@ Then run the app in production mode:
 bun start
 ```
 
-The app is deployed to Vercel. Every push to GitHub triggers a new Vercel deployment. Pushes to `master` branch
-are deploying a new live version. Currently, Vercel doesn't support running Remix with custom server (see the docs 
-[here](https://vercel.com/docs/frameworks/remix#using-a-custom-server-file)). This means that our custom express server
-is used only when running locally. We are still keeping the express server because the plan is to eventually move to
-self-hosting.
+This starts an Express server that runs the React Router framework app. However, this is not what we are currently using in our
+hosted environments. We are using Vercel instead, but this gives us the option to deploy the app to a "full server" if we ever
+need to.
 
-The database and realtime service are hosted on Supabase platform. Supabase [branching](https://supabase.com/docs/guides/deployment/branching) is used which creates a new
-environment for every new feature branch. Additionally, there is a production environment which corresponds to `master`
-branch. Every pull request open in GitHub results in a new Supabase environment being created with database migrations
-being applied automatically. Every additional push to GitHub applies new migrations (if any) to the Supabase 
-environment. Supabase-Vercel integration sets the corresponding env variables in Vercel so that each Vercel preview 
-deploy can use this dedicated Supabase environment. When the feature branch is merged, corresponding Supabase
-environment is deleted. Merging to `master` branch updates the production environment and applies new db migrations to
-the live database if any.
+Currently, we have `next` and `alpha` environments and temporary preview deployments for individual features. The app is deployed to
+Vercel. Every push to GitHub triggers a new Vercel deployment. Pushes to `master` branch are deploying a new next version. Pushes to
+`alpha` branch are deploying a new alpha version.
+
+The database and realtime service are hosted on the Supabase platform. Supabase [branching](https://supabase.com/docs/guides/deployment/branching)
+is used to manage different environments. We have `next` and `alpha` as Supabase persisted branches/environments. Database migrations
+are applied automatically by Supabase whenever a new migration is merged to the corresponding Git branch. Preview deployments (feature
+branches) are pointing to the `next` Supabase environment by default. However, if the preview deployment has some database migrations,
+Supabase automatically creates an on-demand branch/environment and uses Supabase-Vercel integration to set the corresponding env variables
+in Vercel to override the default setting that points the preview deployment to the `next` Supabase environment. The Supabase preview
+branch/environment is automatically deleted once the feature branch is merged.
+
+To release a new `alpha` version, make a pull request from `master` to the `alpha` branch.
+
+`alpha` environment has dedicated [Agicash Alpha](https://app.opensecret.cloud/orgs/a92d07fb-3837-42e0-9a83-f109c425391e/projects/ae22a864-b2f7-4e7e-bef0-2d194e0d20b6)
+Open Secret environment.
+`next` environment has dedicated [Agicash Next](https://app.opensecret.cloud/orgs/a92d07fb-3837-42e0-9a83-f109c425391e/projects/343cef25-2328-43b8-abc0-68a433bfc40e)
+Open Secret environment. 
+
+All preview deployments of the Agicash app are also using Agicash Next Open Secret environment. However, since Supabase envs for preview
+deployments are created on demand and currently there is no way to configure static JWT secret for them, if you want the preview deployment to work with Open Secret
+you need to copy the shared secret value used by Agicash Next Open Secret env and create the a new JWT signing key in the corresponding Supabase env. To do that:
+1. Find the current value of the secret used by Agicash Next Open Secret env (ask other devs to share it)
+2. Go to [Supabase dashboard](https://supabase.com/dashboard/) and in the JWT Keys section of the corresponding Supabase project settings create a new Standby Key. Pick `HS256 (Shared Secret)` signing algorithm, select to import existing secret and paste the secret there. Make sure not to select `Secret is already Base64 encoded`. Once the key is created, then rotate the keys to make the new one used by Supabase.
+
+### Configuring a new Open Secret environment
+
+If there is a new Agicash app environment that needs to have a dedicated Open Secret environment, create a new project in [Open Secret cloud dashboard](https://app.opensecret.cloud/orgs/a92d07fb-3837-42e0-9a83-f109c425391e/projects). Things that need to be configured are:
+1. Google OAuth settings - Open Secret needs Google Auth client id and secret. You can get those in the [Google Cloud Console](https://console.cloud.google.com/auth/clients) from the existing client or create a new one.
+2. Resend email settings - Open Secret uses [Resend](https://resend.com/) platform to send emails and needs the API key. You can create the API key [here](https://resend.com/api-keys). Additionally you need to configure the email to send from (e.g. noreply@agi.cash) and URL for email verification link (when user receives an email for email address
+verification, the email will contain this link).
+3. Third-Party JWT Secret - Open Secret creates JWTs that are then used by Supabase to authorize if the user should have access to the requested data. For this to work, Open Secret and Supabase need to share the secret that signed the JWT. To create a secret, go to [Supabase dashboard](https://supabase.com/dashboard/) and in the JWT Keys section of the corresponding Supabase project settings create a new Standby Key (pick `HS256 (Shared Secret)` signing algorithm) and then rotate the keys to make newly created one used by Supabase. Once that is done, paste the same secret into Open Secret dashboard.
+
+Lastly we need to point the Agicash app to the new Open Secret environment. To do that set `VITE_OPEN_SECRET_CLIENT_ID` env variable to the client ID of the created Open Secret project.
 
 ## Dependencies
 
-Dependency should be added only if the benefits are clear. Avoid adding it for trivial stuff. Any dependency added 
-should be inspected and pinned to exact version (`bun add <package_name>@<version> --exact`). For any dependency added
+A dependency should be added only if the benefits are clear. Avoid adding it for trivial stuff. Any dependency added
+should be inspected and pinned to an exact version (`bun add <package_name>@<version> --exact`). For any dependency added
 to the client side, be mindful of the bundle size. [Bundlephobia](https://bundlephobia.com/) can be used to check the
 total size of the dependency (the actual impact on the app bundle size could be smaller if we are using only some 
 elements and the lib supports tree shaking).
 
 ## Database
 
-Sensitive data is stored in Open Secret platform. The rest of the data is stored to Postgres database hosted on Supabase.
-While developing locally local Supabase stack is used. To start it run `bun run supabase start` command. To stop it run
-`bun run supabase stop` command. Start command will start the database and realtime service plus other services useful
-for development like Supabase Studio. You can use Supabase Studio to inspect the database and run queries. Supabase is
-configured in `supabase/config.toml` file.
+Auth data (user ID, email, etc.) is stored on the Open Secret platform. The rest of the data is stored in a Postgres database
+hosted on Supabase. Sensitive data is encrypted with the key from the Open Secret platform, which is accessible only to the
+logged-in user. While developing locally, the local Supabase stack is used. To start it, run `bun run supabase start` command.
+To stop it, run `bun run supabase stop` command. The start command will start the database and realtime service, plus other
+services useful for development, like Supabase Studio. You can use Supabase Studio to inspect the database and run queries.
+Supabase is configured in the `supabase/config.toml` file.
 
 ### Database migrations
 
-Schema changes to the Postgres database should be done using migrations. Migrations are stored in `supabase/migrations`
-folder. Always try to make the schema changes in a backwards compatible way.
+Schema changes to the Postgres database should be done using migrations. Migrations are stored in the `supabase/migrations`
+folder. Always try to make the schema changes in a backward compatible way.
 
 Database migrations can be done in two ways:
 1. Using Supabase Studio. With this approach you can make db changes directly to your local database in the Studio UI
@@ -119,28 +154,29 @@ Database migrations can be done in two ways:
    `supabase/migrations` folder where you can then write the SQL commands to make the changes. To apply the migration to
    the local database run `bun supabase db push`.
 
-To keep the db typescript types in sync with the database schema run `bun run db:generate-types` command. If you forget
+To keep the db TypeScript types in sync with the database schema run `bun run db:generate-types` command. If you forget
 to run this command after making changes to the database, the types will be updated by the pre-commit hook. To skip the
-pre-commit hook use `--no-verify` param with `git commit` command. This can be useful when committing temporary code but
-the CI will check if the types are up to date and if not will not allow merging to `master`.
+pre-commit hook, use `--no-verify` param with `git commit` command. This can be useful when committing temporary code, but
+the CI will check if the types are up to date and, if not, will not allow merging to `master`.
 
-To reset local database run `bun supabase db reset`. Note that this will delete any existing local data and run all
-migrations on clean db.
+To reset the local database, run `bun supabase db reset`. Note that this will delete any existing local data and run all
+migrations on a clean database.
 
 Migrations are applied to hosted envs automatically by the Supabase platform. You can track the migrations applied in the 
-Supabase dahsboard by going to the branches page and checking the logs for respective branch. If the migration fails for the
-feature branch you can reapply it by just resetting the branch. If it fails for the production you will need to resolve the issue and push migrations from your machine by doing:
-1. Switch to the production branch by running `git checkout master` and make sure you have the latest version by running `git pull origin master`.
-2. Run `bun supabase login` to login to Supabase dahsboard so CLI can access it.
-3. Run `bun supabase link` to link to the remote project. For this you will need database password. Ask other team members for current db password (the password can also be reset from the dashboard if needed).
+Supabase dashboard by going to the branches page and checking the logs for the respective branch. If the migration fails for the
+feature branch you can reapply it by just resetting the branch. If it fails for the persisted or production you will need to
+resolve the issue and push migrations from your machine by doing:
+1. Switch to the persisted/production branch by running `git checkout <branch_name>` (e.g. `git checkout master` for next env) and make sure you have the latest version by running `git pull origin <branch_name>`.
+2. Run `bun supabase login` to log in to the Supabase dashboard so the CLI can access it.
+3. Run `bun supabase link` to link to the remote project. For this, you will need the database password. Ask other team members for the current db password (the password can also be reset from the dashboard if needed).
 4. Run `bun supabase db push` to apply migrations to the remote database.
 
-Steps 2 and 3 can be skipped if you already logged in and linked the project before.
+Steps 2 and 3 can be skipped if you have already logged in and linked the project before.
 
 
 ## Code style & formatting
 
-Type checking is separated from build and is performed using Typescript compiler. To run type check manually run 
+Type checking is separated from build and is performed using TypeScript compiler. To run type check manually run
 `bun run typecheck` command.
 
 [Biome](https://biomejs.dev/) is used for code linting and formatting. Supported commands:
@@ -152,30 +188,55 @@ Type checking is separated from build and is performed using Typescript compiler
 - `bun run fix:staged` - runs type checking, linter and formatter on git staged files only and performs safe fixes
 - `bun run check:all` - runs type, lint and format checks only
 
-Types, formatting and code styles are enforced using pre-commit hook. For nicer development experience it is recommended 
+Types, formatting and code styles are enforced using pre-commit hook. For a nicer development experience, it is recommended
 to enable auto linting and formatting on file save in IDE. Instructions for that can be found [here](https://biomejs.dev/guides/editors/first-party-extensions/).
-Pre-commit hook is configured using devenv (see `devenv.nix` file) and it runs `bun run fix:staged` command. To skip the
+Pre-commit hook is configured using devenv (see the `devenv.nix` file), and it runs `bun run fix:staged` command. To skip the
 pre-commit hook use `--no-verify` param with `git commit` command. This can be useful when committing temporary code but
-the CI will run the checks again and won't allow any non-conforming code to be commited to `master`.
+the CI will run the checks again and won't allow any non-conforming code to be committed to `master`.
 
-Lint & formatting configs are defined in `biome.jsonc` file.
+Lint & formatting configs are defined in the `biome.jsonc` file.
 
 ## Testing
 
-The idea is to cover key lower level reusable pieces with unit tests and main app flows with e2e Playwright tests. We 
-are not aiming for any specific coverage. Use your best judgement. 
+The idea is to cover key lower-level reusable pieces with unit tests and main app flows with e2e Playwright tests. We
+are not aiming for any specific coverage. Use your best judgment.
 
-Bun is used to run unit tests. To run them use `bun test` or `bun run test`. Colocate the test file next to the piece it 
+Bun is used to run unit tests. To run them use `bun test` or `bun run test`. Colocate the test file next to the piece it
 tests and name the file `<name_of_the_unit_tested>.test.ts(x)`.
 
-E2e tests are written in [Playwright](https://playwright.dev/). In these tests we are mocking Open Secret API so tests
-can be run offline, and so we can simulate any desired Open Secret behavior. For some example on how to use the mocking
-see the existing tests. E2e tests can be found in top level `e2e` folder. To run them use `bun run test:e2e` (add `--ui`
+E2e tests are written in [Playwright](https://playwright.dev/). In these tests we are mocking the Open Secret API so tests
+can be run offline, and so we can simulate any desired Open Secret behavior. For some examples on how to use the mocking
+see the existing tests. E2e tests can be found in the top-level `e2e` folder. To run them use `bun run test:e2e` (add `--ui`
 param to run them in Playwright UI). The tests will also start a local Supabase stack, if it is not already running.
-New e2e test suits should be added to `e2e` folder and named `<name_of_the_suite>.spec.ts`.
+New e2e test suites should be added to the `e2e` folder and named `<name_of_the_suite>.spec.ts`.
 
 ## CI
 
-Every pull request created will trigger GitHub Actions CI pipeline. The pipeline is running three jobs in parallel. One
-that checks code format, lint and types. Another that runs the unit tests and third one that runs e2e tests. If any of
-the jobs fail, merging to `master` will not be allowed.
+Every pull request created will trigger the GitHub Actions CI pipeline. The pipeline runs three jobs in parallel. One
+checks code format, lint, and types. Another runs the unit tests, and a third one runs e2e tests. If any of the jobs fail,
+merging to `master` will not be allowed.
+
+## Gift Card Assets
+
+Gift card images should use the **WebP format** for better compression and faster loading.
+
+### Converting PNG to WebP
+
+Use the provided conversion script:
+
+```sh
+# Convert a single file
+./tools/convert-to-webp.sh app/assets/gift-cards/mycard.png
+
+# Convert all PNGs in the gift-cards directory
+./tools/convert-to-webp.sh --dir app/assets/gift-cards
+
+# With custom quality (default is 80)
+./tools/convert-to-webp.sh -q 85 --dir app/assets/gift-cards
+```
+
+Requires `cwebp` - install with `brew install webp` or run via nix:
+
+```sh
+nix shell nixpkgs#libwebp --command ./tools/convert-to-webp.sh --dir app/assets/gift-cards
+```

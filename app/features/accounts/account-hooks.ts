@@ -1,112 +1,66 @@
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
+  queryOptions,
   useMutation,
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
-import type { DistributedOmit } from 'type-fest';
-import { checkIsTestMint } from '~/lib/cashu';
+import { useCallback, useMemo, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
-import { useSupabaseRealtimeSubscription } from '~/lib/supabase/supabase-realtime';
-import { useLatest } from '~/lib/use-latest';
-import { type AgicashDbAccount, agicashDb } from '../agicash-db/database';
-import { useCashuCryptography } from '../shared/cashu';
-import type { User } from '../user/user';
+import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
+  type AccountPurpose,
   type AccountType,
   type CashuAccount,
   type ExtendedAccount,
+  type SparkAccount,
   getAccountBalance,
 } from './account';
-import { AccountRepository, useAccountRepository } from './account-repository';
-
-const accountsQueryKey = 'accounts';
-const accountVersionsQueryKey = 'account-versions';
-
-/**
- * Cache that stores the latest known version of each account.
- * This is used when we have the information about the latest version of the account before we have the full account data.
- */
-class AccountVersionsCache {
-  constructor(
-    private readonly queryClient: QueryClient,
-    private readonly accountsCache: AccountsCache,
-  ) {}
-
-  /**
-   * Get the latest known version of the account.
-   * @param accountId - The id of the account.
-   * @returns The latest known version of the account or -1 if the account is not found.
-   */
-  getLatestVersion(accountId: string) {
-    const version = this.queryClient.getQueryData<number>([
-      accountVersionsQueryKey,
-      accountId,
-    ]);
-
-    if (version) {
-      return version;
-    }
-
-    const account = this.accountsCache.get(accountId);
-    if (!account) {
-      return -1;
-    }
-
-    return account.version;
-  }
-
-  /**
-   * Update the latest known version of the account if it is stale.
-   * @param accountId - The id of the account.
-   * @param version - The new version of the account. If the version passed is lower than the latest known version, it will be ignored.
-   */
-  updateLatestVersionIfStale(accountId: string, version: number) {
-    const latestVersion = this.getLatestVersion(accountId);
-    if (latestVersion < version) {
-      this.queryClient.setQueryData<number>(
-        [accountVersionsQueryKey, accountId],
-        version,
-      );
-    }
-  }
-}
+import {
+  type AccountRepository,
+  useAccountRepository,
+} from './account-repository';
+import { AccountService, useAccountService } from './account-service';
 
 export class AccountsCache {
-  private readonly accountVersionsCache;
+  public static Key = 'accounts';
 
-  constructor(private readonly queryClient: QueryClient) {
-    this.accountVersionsCache = new AccountVersionsCache(queryClient, this);
-  }
+  constructor(private readonly queryClient: QueryClient) {}
 
   upsert(account: Account) {
-    this.accountVersionsCache.updateLatestVersionIfStale(
-      account.id,
-      account.version,
-    );
-
-    this.queryClient.setQueryData([accountsQueryKey], (curr: Account[]) => {
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) => {
       const existingAccountIndex = curr.findIndex((x) => x.id === account.id);
       if (existingAccountIndex !== -1) {
-        return curr.map((x) => (x.id === account.id ? account : x));
+        return curr.map((x) =>
+          x.id === account.id && account.version > x.version ? account : x,
+        );
       }
       return [...curr, account];
     });
   }
 
   update(account: Account) {
-    this.accountVersionsCache.updateLatestVersionIfStale(
-      account.id,
-      account.version,
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
+      curr.map((x) =>
+        x.id === account.id && account.version > x.version ? account : x,
+      ),
     );
+  }
 
-    this.queryClient.setQueryData([accountsQueryKey], (curr: Account[]) =>
-      curr.map((x) => (x.id === account.id ? account : x)),
+  updateSparkBalance(account: SparkAccount) {
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
+      curr.map((x) =>
+        x.id === account.id &&
+        x.type === 'spark' &&
+        !(x.balance ?? Money.zero(account.currency)).equals(
+          account.balance ?? Money.zero(account.currency),
+        )
+          ? { ...x, balance: account.balance }
+          : x,
+      ),
     );
   }
 
@@ -116,7 +70,7 @@ export class AccountsCache {
    * @returns The list of accounts.
    */
   getAll() {
-    return this.queryClient.getQueryData<Account[]>([accountsQueryKey]);
+    return this.queryClient.getQueryData<Account[]>([AccountsCache.Key]);
   }
 
   /**
@@ -131,64 +85,11 @@ export class AccountsCache {
   }
 
   /**
-   * Set the latest known version of an account.
-   * Use when we know the latest version of an account before we can update the account data in cache. `getLatest` can then be used to wait for the account to be updated with the latest data.
-   * @param id - The id of the account.
-   * @param version - The new version of the account. If the version passed is lower than the latest known version, it will be ignored.
+   * Invalidates the accounts cache.
    */
-  setLatestVersion(id: string, version: number) {
-    this.accountVersionsCache.updateLatestVersionIfStale(id, version);
-  }
-
-  /**
-   * Get the latest account by id.
-   * Returns the latest version of the account. If we don't have the full data for the latest known version yet, this will wait for the account data to be updated.
-   * @param id - The id of the account.
-   * @returns The latest account or null if the account is not found.
-   */
-  async getLatest(id: string): Promise<Account | null> {
-    const latestKnownVersion = this.accountVersionsCache.getLatestVersion(id);
-
-    const account = this.get(id);
-    if (!account || account.version >= latestKnownVersion) {
-      return account;
-    }
-
-    return new Promise<Account | null>((resolve) => {
-      const unsubscribe = this.subscribe((accounts) => {
-        const updatedAccount = accounts.find((x) => x.id === id);
-        if (!updatedAccount) {
-          resolve(null);
-          unsubscribe();
-          return;
-        }
-
-        if (updatedAccount.version >= latestKnownVersion) {
-          this.accountVersionsCache.updateLatestVersionIfStale(
-            id,
-            updatedAccount.version,
-          );
-          resolve(updatedAccount);
-          unsubscribe();
-        }
-      });
-    });
-  }
-
-  /**
-   * Subscribe to changes in the accounts cache.
-   * @param callback - The callback to call when the accounts cache changes.
-   * @returns A function to unsubscribe from the accounts cache.
-   */
-  private subscribe(callback: (accounts: Account[]) => void) {
-    const cache = this.queryClient.getQueryCache();
-    return cache.subscribe((event) => {
-      if (
-        event.query.queryKey.length === 1 &&
-        event.query.queryKey[0] === accountsQueryKey
-      ) {
-        callback(event.query.state.data);
-      }
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [AccountsCache.Key],
     });
   }
 }
@@ -204,118 +105,128 @@ export function useAccountsCache() {
   return useMemo(() => new AccountsCache(queryClient), [queryClient]);
 }
 
-function isDefaultAccount(user: User, account: Account) {
-  if (account.currency === 'BTC') {
-    return user.defaultBtcAccountId === account.id;
-  }
-  if (account.currency === 'USD') {
-    return user.defaultUsdAccountId === account.id;
-  }
-  return false;
-}
-
-function useOnAccountChange({
-  onCreated,
-  onUpdated,
-}: {
-  onCreated: (account: Account) => void;
-  onUpdated: (account: Account) => void;
-}) {
-  const cashuCryptography = useCashuCryptography();
-  const onCreatedRef = useLatest(onCreated);
-  const onUpdatedRef = useLatest(onUpdated);
+/**
+ * Hook that returns an account change handlers.
+ */
+export function useAccountChangeHandlers() {
+  const accountRepository = useAccountRepository();
   const accountCache = useAccountsCache();
-  const queryClient = useQueryClient();
 
-  return useSupabaseRealtimeSubscription({
-    channelFactory: () =>
-      agicashDb.channel('accounts').on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'wallet',
-          table: 'accounts',
-        },
-        async (payload: RealtimePostgresChangesPayload<AgicashDbAccount>) => {
-          if (payload.eventType === 'INSERT') {
-            const addedAccount = await AccountRepository.toAccount(
-              payload.new,
-              cashuCryptography.decrypt,
-            );
-            onCreatedRef.current(addedAccount);
-          } else if (payload.eventType === 'UPDATE') {
-            // We are updating the latest known version of the account here so anyone who needs the latest version (who uses account cache `getLatest`)
-            // can know as soon as possible and thus can wait for the account data to be decrypted and updated in the cache instead of processing the old version.
-            accountCache.setLatestVersion(payload.new.id, payload.new.version);
-
-            const updatedAccount = await AccountRepository.toAccount(
-              payload.new,
-              cashuCryptography.decrypt,
-            );
-
-            onUpdatedRef.current(updatedAccount);
-          }
-        },
-      ),
-    onReconnected: () => {
-      // Invalidate the accounts query so that the accounts are re-fetched and the cache is updated.
-      // This is needed to get any data that might have been updated while the re-connection was in progress.
-      queryClient.invalidateQueries({ queryKey: [accountsQueryKey] });
+  return [
+    {
+      event: 'ACCOUNT_CREATED',
+      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
+        const addedAccount = await accountRepository.toAccount(payload);
+        accountCache.upsert(addedAccount);
+      },
     },
-  });
+    {
+      event: 'ACCOUNT_UPDATED',
+      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
+        const updatedAccount = await accountRepository.toAccount(payload);
+        accountCache.update(updatedAccount);
+      },
+    },
+  ];
 }
 
-export function useTrackAccounts() {
-  // Makes sure the accounts are loaded in the cache.
-  useAccounts();
-
-  const accountCache = useAccountsCache();
-
-  return useOnAccountChange({
-    onCreated: (account) => accountCache.upsert(account),
-    onUpdated: (account) => accountCache.update(account),
+export const accountsQueryOptions = ({
+  userId,
+  accountRepository,
+}: { userId: string; accountRepository: AccountRepository }) => {
+  return queryOptions({
+    queryKey: [AccountsCache.Key],
+    queryFn: () => accountRepository.getAll(userId),
+    staleTime: Number.POSITIVE_INFINITY,
   });
-}
+};
 
-export function useAccounts<T extends AccountType = AccountType>(select?: {
-  currency?: Currency;
-  type?: T;
-}): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
+/**
+ * Filter options for `useAccounts` hook.
+ * Results are sorted by creation date (oldest first).
+ */
+type UseAccountsSelect<
+  T extends AccountType = AccountType,
+  P extends AccountPurpose = AccountPurpose,
+> = P extends 'gift-card'
+  ? {
+      /** Filter by currency (e.g., 'BTC', 'USD') */
+      currency?: Currency;
+      /** Must be 'cashu' when purpose is 'gift-card'. */
+      type?: 'cashu';
+      /** Filter by online status */
+      isOnline?: boolean;
+      /** Filter for gift-card accounts. Returns `CashuAccount[]` since gift cards are always cashu. */
+      purpose: P;
+    }
+  : {
+      /** Filter by currency (e.g., 'BTC', 'USD') */
+      currency?: Currency;
+      /** Filter by account type ('cashu' | 'spark'). Narrows the return type. */
+      type?: T;
+      /** Filter by online status */
+      isOnline?: boolean;
+      /** Filter by purpose. When omitted or 'transactional', any account type is allowed. */
+      purpose?: P;
+    };
+
+export function useAccounts(
+  select: UseAccountsSelect<'cashu', 'gift-card'>,
+): UseSuspenseQueryResult<ExtendedAccount<'cashu'>[]>;
+export function useAccounts<
+  T extends AccountType = AccountType,
+  P extends AccountPurpose = AccountPurpose,
+>(
+  select?: UseAccountsSelect<T, P>,
+): UseSuspenseQueryResult<ExtendedAccount<T>[]>;
+export function useAccounts<
+  T extends AccountType = AccountType,
+  P extends AccountPurpose = AccountPurpose,
+>(
+  select?: UseAccountsSelect<T, P>,
+): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
   const accountRepository = useAccountRepository();
 
+  const { currency, type, isOnline, purpose } = select ?? {};
+
   return useSuspenseQuery({
-    queryKey: [accountsQueryKey],
-    queryFn: () => accountRepository.getAll(user.id),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...accountsQueryOptions({ userId: user.id, accountRepository }),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
-    select: (data) => {
-      const extendedData = data
-        .map((x) => ({
-          ...x,
-          isDefault: isDefaultAccount(user, x),
-        }))
-        .sort((_, b) => (b.isDefault ? 1 : -1)); // Sort the default account to the top
+    select: useCallback(
+      (data: Account[]) => {
+        const extendedData = AccountService.getExtendedAccounts(user, data);
 
-      if (!select) {
-        return extendedData as ExtendedAccount<T>[];
-      }
+        const sortedData = extendedData
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          ) as ExtendedAccount<T>[];
 
-      const filteredData = extendedData.filter(
-        (account): account is ExtendedAccount<T> => {
-          if (select.currency && account.currency !== select.currency) {
+        if (!currency && !type && isOnline === undefined && !purpose) {
+          return sortedData;
+        }
+
+        return sortedData.filter((account) => {
+          if (currency && account.currency !== currency) {
             return false;
           }
-          if (select.type && account.type !== select.type) {
+          if (type && account.type !== type) {
+            return false;
+          }
+          if (isOnline !== undefined && account.isOnline !== isOnline) {
+            return false;
+          }
+          if (purpose && account.purpose !== purpose) {
             return false;
           }
           return true;
-        },
-      );
-
-      return filteredData;
-    },
+        });
+      },
+      [currency, type, isOnline, purpose, user],
+    ),
   });
 }
 
@@ -325,44 +236,37 @@ export function useAccounts<T extends AccountType = AccountType>(select?: {
  * @returns The specified account.
  * @throws Error if the account is not found.
  */
-export function useAccount<T extends ExtendedAccount = ExtendedAccount>(
-  id: string,
-) {
-  const user = useUser();
-  const { data: accounts } = useAccounts();
+export function useAccount<T extends AccountType = AccountType>(id: string) {
+  const { data: accounts } = useAccounts<T>();
   const account = accounts.find((x) => x.id === id);
 
   if (!account) {
     throw new Error(`Account with id ${id} not found`);
   }
 
-  return { ...account, isDefault: isDefaultAccount(user, account) } as T;
+  return account;
 }
 
 type AccountTypeMap = {
   cashu: CashuAccount;
+  spark: SparkAccount;
 };
 
 /**
- * Hook to get the method which return the latest version of the account.
- * If we know that the account was updated but we don't have the full account data yet, we can use this hook to wait for the account data to be updated in the cache.
- * Prefer using this hook whenever using the account's version property to minimize the errors that result in retries which are caused by using the old version of the account.
- * @param type - The type of the account to get the latest version of. If provided the type of the returned account will be narrowed.
- * @returns The latest version of the account.
- * @throws Error if the account is not found.
+ * Hook to get the method which returns the account from the cache or throws an error if not found.
+ * @param type - The type of the account to get. If provided the type of the returned account will be narrowed.
+ * @returns The method which returns the account or throws an error if the account is not found or if the account type does not match the provided type.
  */
-export function useGetLatestAccount<T extends keyof AccountTypeMap>(
+export function useGetAccount<T extends keyof AccountTypeMap>(
   type: T,
-): (id: string) => Promise<AccountTypeMap[T]>;
-export function useGetLatestAccount(
-  type?: undefined,
-): (id: string) => Promise<Account>;
-export function useGetLatestAccount(type?: keyof AccountTypeMap) {
+): (id: string) => AccountTypeMap[T];
+export function useGetAccount(type?: undefined): (id: string) => Account;
+export function useGetAccount(type?: keyof AccountTypeMap) {
   const accountsCache = useAccountsCache();
 
   return useCallback(
-    async (id: string) => {
-      const account = await accountsCache.getLatest(id);
+    (id: string) => {
+      const account = accountsCache.get(id);
       if (!account) {
         throw new Error(`Account not found for id: ${id}`);
       }
@@ -376,14 +280,19 @@ export function useGetLatestAccount(type?: keyof AccountTypeMap) {
 }
 
 /**
- * Hook to get the method which return the latest version of the cashu account.
- * If we know that the account was updated but we don't have the full account data yet, we can use this hook to wait for the account data to be updated in the cache.
- * Prefer using this hook whenever using the account's version property to minimize the errors that result in retries which are caused by using the old version of the account.
- * @returns The latest version of the cashu account.
- * @throws Error if the account is not found.
+ * Hook to get the method which returns the cashu account from the cache or throws an error if not found.
+ * @returns The method which returns the cashu account or throws an error if the account is not found or if the account type is not cashu.
  */
-export function useGetLatestCashuAccount() {
-  return useGetLatestAccount('cashu');
+export function useGetCashuAccount() {
+  return useGetAccount('cashu');
+}
+
+/**
+ * Hook to get the method which returns the spark account from the cache or throws an error if not found.
+ * @returns The method which returns the spark account or throws an error if the account is not found or if the account type is not spark.
+ */
+export function useGetSparkAccount() {
+  return useGetAccount('spark');
 }
 
 export function useDefaultAccount() {
@@ -391,48 +300,59 @@ export function useDefaultAccount() {
   const { data: accounts } = useAccounts({ currency: defaultCurrency });
 
   const defaultBtcAccountId = useUser((x) => x.defaultBtcAccountId);
-  const defaultUsdccountId = useUser((x) => x.defaultUsdAccountId);
+  const defaultUsdAccountId = useUser((x) => x.defaultUsdAccountId);
 
   const defaultAccount = accounts.find(
     (x) =>
       (x.currency === 'BTC' && x.id === defaultBtcAccountId) ||
-      (x.currency === 'USD' && x.id === defaultUsdccountId),
+      (x.currency === 'USD' && x.id === defaultUsdAccountId),
   );
 
+  // In the case that there are multiple instances of the app open and the user creates a new account and sets it as default,
+  // the user's default account ID might be updated before the new account is propagated to other instances.
+  // This is a fallback to maintain the previous default account until the new account is propagated.
+  const previousDefaultAccountIdRef = useRef(defaultAccount?.id);
+
   if (!defaultAccount) {
-    throw new Error(`No default account found for currency ${defaultCurrency}`);
+    // prefer the previous default account if available, otherwise use first account with the user's default currency
+    const fallbackAccount =
+      accounts.find((x) => x.id === previousDefaultAccountIdRef.current) ??
+      accounts.find((x) => x.currency === defaultCurrency);
+    if (!fallbackAccount) {
+      throw new Error(
+        `No default account found for currency ${defaultCurrency}`,
+      );
+    }
+    return fallbackAccount;
   }
 
+  previousDefaultAccountIdRef.current = defaultAccount?.id;
   return defaultAccount;
+}
+
+/**
+ * Hook to get an account by ID or fall back to the default account.
+ * @param accountId - Optional account ID. If not provided or account not found, returns the default account.
+ * @returns The matching account or the default account.
+ */
+export function useAccountOrDefault(accountId: string | null) {
+  const { data: accounts } = useAccounts();
+  const defaultAccount = useDefaultAccount();
+
+  return accountId
+    ? (accounts.find((a) => a.id === accountId) ?? defaultAccount)
+    : defaultAccount;
 }
 
 export function useAddCashuAccount() {
   const userId = useUser((x) => x.id);
-  const accountRepository = useAccountRepository();
   const accountCache = useAccountsCache();
+  const accountService = useAccountService();
 
   const { mutateAsync } = useMutation({
     mutationFn: async (
-      account: DistributedOmit<
-        CashuAccount,
-        | 'id'
-        | 'createdAt'
-        | 'isTestMint'
-        | 'keysetCounters'
-        | 'proofs'
-        | 'version'
-      >,
-    ): Promise<CashuAccount> => {
-      const isTestMint = await checkIsTestMint(account.mintUrl);
-
-      return accountRepository.create<CashuAccount>({
-        ...account,
-        userId,
-        isTestMint,
-        keysetCounters: {},
-        proofs: [],
-      });
-    },
+      account: Parameters<typeof accountService.addCashuAccount>[0]['account'],
+    ) => accountService.addCashuAccount({ userId, account }),
     onSuccess: (account) => {
       // We add the account as soon as it is created so that it is available in the cache immediately.
       // This is important when using other hooks that are trying to use the account immediately after it is created.
@@ -443,14 +363,35 @@ export function useAddCashuAccount() {
   return mutateAsync;
 }
 
+/**
+ * Hook to get the sum of all transactional account balances for a given currency.
+ * Null balances are ignored.
+ */
 export function useBalance(currency: Currency) {
-  const { data: accounts } = useAccounts({ currency });
-  const balance = accounts.reduce(
-    (acc, account) => {
-      const accountBalance = getAccountBalance(account);
-      return acc.add(accountBalance);
-    },
-    new Money({ amount: 0, currency }),
-  );
+  const { data: accounts } = useAccounts({
+    currency,
+    purpose: 'transactional',
+  });
+  const balance = accounts.reduce((acc, account) => {
+    const accountBalance = getAccountBalance(account);
+    return accountBalance !== null ? acc.add(accountBalance) : acc;
+  }, Money.zero(currency));
   return balance;
+}
+
+/**
+ * Hook that returns a selector function to filter out items with offline accounts.
+ */
+export function useSelectItemsWithOnlineAccount() {
+  const accountsCache = useAccountsCache();
+
+  return useCallback(
+    <T extends { accountId: string }>(items: T[]): T[] => {
+      return items.filter((item) => {
+        const account = accountsCache.get(item.accountId);
+        return account?.isOnline;
+      });
+    },
+    [accountsCache],
+  );
 }

@@ -1,19 +1,35 @@
-import { type UserResponse, useOpenSecret } from '@opensecret/react';
-import { useQueryClient } from '@tanstack/react-query';
+import {
+  type UserResponse,
+  fetchUser,
+  confirmPasswordReset as osConfirmPasswordReset,
+  convertGuestToUserAccount as osConvertGuestToFullAccount,
+  initiateGoogleAuth as osInitiateGoogleAuth,
+  requestPasswordReset as osRequestPasswordReset,
+  signIn as osSignIn,
+  signInGuest as osSignInGuest,
+  signOut as osSignOut,
+  signUp as osSignUp,
+  signUpGuest as osSignUpGuest,
+  verifyEmail as osVerifyEmail,
+} from '@opensecret/react';
+import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
+import {
+  queryOptions,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
-import { useCallback, useRef } from 'react';
+import { useCallback, useState } from 'react';
+import { useNavigate, useRevalidator } from 'react-router';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { generateRandomPassword } from '~/lib/password-generator';
 import { computeSHA256 } from '~/lib/sha256';
-import { supabaseSessionStore } from '../agicash-db/supabase-session-store';
-import { cashuSeedStore } from '../shared/cashu';
 import { guestAccountStorage } from './guest-account-storage';
+import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 
 export type AuthUser = UserResponse['user'];
 
-type AuthState = {
-  loading: boolean;
-} & (
+type AuthState =
   | {
       isLoggedIn: true;
       user: AuthUser;
@@ -21,27 +37,41 @@ type AuthState = {
   | {
       isLoggedIn: false;
       user?: undefined;
-    }
-);
+    };
+
+export const authStateQueryKey = 'auth-state';
+
+export const authQueryOptions = () =>
+  queryOptions({
+    queryKey: [authStateQueryKey],
+    queryFn: async () => {
+      const access_token = window.localStorage.getItem('access_token');
+      const refresh_token = window.localStorage.getItem('refresh_token');
+      if (!access_token || !refresh_token) {
+        return { isLoggedIn: false } as const;
+      }
+
+      try {
+        const response = await fetchUser();
+        return { isLoggedIn: true, user: response.user } as const;
+      } catch (error) {
+        console.error('Failed to fetch user', { cause: error });
+        return { isLoggedIn: false } as const;
+      }
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+  });
 
 export const useAuthState = (): AuthState => {
-  const {
-    auth: { loading, user: openSecretResponse },
-  } = useOpenSecret();
-  const user = openSecretResponse?.user;
+  const { data } = useSuspenseQuery(authQueryOptions());
+  return data;
+};
 
-  if (!user) {
-    return {
-      loading,
-      isLoggedIn: false,
-    };
-  }
-
-  return {
-    loading,
-    isLoggedIn: true,
-    user,
-  };
+type SignOutOptions = {
+  /**
+   * The URL to redirect to after signing out. If not provided, the user will be redirected to the singup page by the protected layout.
+   */
+  redirectTo?: string;
 };
 
 type AuthActions = {
@@ -67,8 +97,9 @@ type AuthActions = {
 
   /**
    * Signs out the current user
+   * @param options Options for the sign out
    */
-  signOut: () => Promise<void>;
+  signOut: (options?: SignOutOptions) => Promise<void>;
 
   /**
    * Requests a password reset for the account
@@ -104,11 +135,17 @@ type AuthActions = {
   }>;
 
   /**
-   * Handles the Google authentication callback
-   * @param code The code from the Google authentication callback
-   * @param state The state from the Google authentication callback
+   * Verifies the email address
+   * @param code The code from the email verification
    */
-  handleGoogleAuthCallback: (code: string, state: string) => Promise<void>;
+  verifyEmail: (code: string) => Promise<void>;
+
+  /**
+   * Converts a guest account to a full account
+   * @param email The email address of the user
+   * @param password The password of the user
+   */
+  convertGuestToFullAccount: (email: string, password: string) => Promise<void>;
 };
 
 /**
@@ -120,40 +157,85 @@ type AuthActions = {
  * @returns {AuthActions}
  */
 export const useAuthActions = (): AuthActions => {
-  const openSecret = useOpenSecret();
   const queryClient = useQueryClient();
+  const { revalidate } = useRevalidator();
+  const navigate = useNavigate();
 
-  // We are doing this to keep references for these actions constant. Open secret implementation currently creates a new
-  // reference for each render. See https://github.com/OpenSecretCloud/OpenSecret-SDK/blob/master/src/lib/main.tsx#L350
-  const signUpRef = useRef<AuthActions['signUp']>(null);
-  if (!signUpRef.current) {
-    signUpRef.current = (email: string, password: string) =>
-      openSecret.signUp(email, password, '');
-  }
-  const signUpGuestRef = useRef(openSecret.signUpGuest);
-  const signInRef = useRef(openSecret.signIn);
-  const signInGuestRef = useRef(openSecret.signInGuest);
-  const signOutRef = useRef(openSecret.signOut);
-  const requestPasswordResetRef = useRef(openSecret.requestPasswordReset);
-  const confirmPasswordResetRef = useRef(openSecret.confirmPasswordReset);
-  const initiateGoogleAuthRef = useRef<AuthActions['initiateGoogleAuth']>(null);
-  if (!initiateGoogleAuthRef.current) {
-    initiateGoogleAuthRef.current = () =>
-      openSecret.initiateGoogleAuth('').then((response) => ({
-        authUrl: response.auth_url,
-      }));
-  }
-  const handleGoogleAuthCallbackRef =
-    useRef<AuthActions['handleGoogleAuthCallback']>(null);
-  if (!handleGoogleAuthCallbackRef.current) {
-    handleGoogleAuthCallbackRef.current = (code: string, state: string) =>
-      openSecret.handleGoogleCallback(code, state, '');
-  }
+  const refreshSession = useCallback(
+    async (redirectTo?: string) => {
+      await queryClient.invalidateQueries({
+        queryKey: [authStateQueryKey],
+        refetchType: 'all',
+      });
+      if (redirectTo) {
+        await navigate(redirectTo);
+      } else {
+        await revalidate();
+      }
+    },
+    [queryClient, navigate, revalidate],
+  );
 
-  const signUpGuest = useCallback(() => {
+  const signUp = useCallback(
+    async (email: string, password: string) => {
+      await osSignUp(email, password, '');
+      await refreshSession();
+    },
+    [refreshSession],
+  );
+
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      await osSignIn(email, password);
+      await refreshSession();
+    },
+    [refreshSession],
+  );
+
+  const signInGuest = useCallback(
+    async (id: string, password: string) => {
+      await osSignInGuest(id, password);
+      await refreshSession();
+    },
+    [refreshSession],
+  );
+
+  const signOut = useCallback(
+    async (options: SignOutOptions = {}) => {
+      await osSignOut();
+      await refreshSession(options.redirectTo);
+      queryClient.clear();
+    },
+    [refreshSession, queryClient],
+  );
+
+  const initiateGoogleAuth = useCallback(async () => {
+    const response = await osInitiateGoogleAuth('');
+
+    const authLocation = new URL(response.auth_url);
+    const stateParam = authLocation.searchParams.get('state');
+    const state = stateParam
+      ? JSON.parse(new TextDecoder().decode(decodeURLSafe(stateParam)))
+      : {};
+
+    const oauthLoginSession = oauthLoginSessionStorage.create({
+      search: location.search,
+      hash: location.hash,
+    });
+    state.sessionId = oauthLoginSession.sessionId;
+
+    const stateEncoded = encodeURLSafe(
+      new TextEncoder().encode(JSON.stringify(state)),
+    );
+    authLocation.searchParams.set('state', stateEncoded);
+
+    return { authUrl: authLocation.href };
+  }, []);
+
+  const signUpGuest = useCallback(async () => {
     const existingGuestAccount = guestAccountStorage.get();
     if (existingGuestAccount) {
-      return signInGuestRef.current(
+      return signInGuest(
         existingGuestAccount.id,
         existingGuestAccount.password,
       );
@@ -161,37 +243,60 @@ export const useAuthActions = (): AuthActions => {
 
     const createGuestAccount = async () => {
       const password = await generateRandomPassword(32);
-      const guestAccount = await signUpGuestRef.current(password, '');
+      const guestAccount = await osSignUpGuest(password, '');
       guestAccountStorage.store({ id: guestAccount.id, password });
+      await refreshSession();
     };
 
-    return createGuestAccount();
-  }, []);
+    await createGuestAccount();
+  }, [signInGuest, refreshSession]);
 
   const requestPasswordReset = useCallback(async (email: string) => {
     const secret = await generateRandomPassword(20);
     const hash = await computeSHA256(secret);
-    await requestPasswordResetRef.current(email, hash);
+    await osRequestPasswordReset(email, hash);
     return { email, secret };
   }, []);
 
-  const signOut = useCallback(async () => {
-    await signOutRef.current();
-    supabaseSessionStore.getState().clear();
-    cashuSeedStore.getState().clear();
-    queryClient.clear();
-  }, [queryClient]);
+  const verifyEmail = useCallback(
+    async (code: string) => {
+      await osVerifyEmail(code);
+      await refreshSession();
+    },
+    [refreshSession],
+  );
+
+  const convertGuestToFullAccount = useCallback(
+    async (email: string, password: string) => {
+      await osConvertGuestToFullAccount(email, password);
+      await refreshSession();
+    },
+    [refreshSession],
+  );
 
   return {
-    signUp: signUpRef.current,
+    signUp,
     signUpGuest,
-    signIn: signInRef.current,
+    signIn,
     signOut,
     requestPasswordReset,
-    confirmPasswordReset: confirmPasswordResetRef.current,
-    initiateGoogleAuth: initiateGoogleAuthRef.current,
-    handleGoogleAuthCallback: handleGoogleAuthCallbackRef.current,
+    confirmPasswordReset: osConfirmPasswordReset,
+    initiateGoogleAuth,
+    verifyEmail,
+    convertGuestToFullAccount,
   };
+};
+
+export const useSignOut = () => {
+  const { signOut } = useAuthActions();
+  const [loading, setLoading] = useState(false);
+
+  const handleSignOut = async () => {
+    setLoading(true);
+    await signOut({ redirectTo: '/home' });
+    setLoading(false);
+  };
+  return { isSigningOut: loading, signOut: handleSignOut };
 };
 
 type OpenSecretJwt = {
@@ -276,10 +381,7 @@ export const useHandleSessionExpiry = ({
         await signOut();
       }
     } catch (e) {
-      console.error(
-        'Failed to handle session expiry. Performing manual log out.',
-        e,
-      );
+      console.error('Failed to handle session expiry', { cause: e });
       removeKeys();
       window.location.reload();
     }

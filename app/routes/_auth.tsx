@@ -1,36 +1,51 @@
-import { Outlet, useLocation } from 'react-router';
-import { Redirect } from '~/components/redirect';
+import { Outlet, redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
-import { useAuthState } from '~/features/user/auth';
+import { authQueryOptions } from '~/features/user/auth';
+import { getQueryClient } from '~/query-client';
+import type { Route } from './+types/_auth';
 
-export default function AuthRoute() {
-  const location = useLocation();
-  const { loading, isLoggedIn, user } = useAuthState();
+const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
+  { request },
+  next,
+) => {
+  const location = new URL(request.url);
+  const queryClient = getQueryClient();
+  const { isLoggedIn, user } = await queryClient.ensureQueryData(
+    authQueryOptions(),
+  );
 
   console.debug('Rendering auth layout', {
+    time: new Date().toISOString(),
     location: location.pathname,
-    loading,
     isLoggedIn,
     user,
   });
 
-  if (loading) {
-    return <LoadingScreen />;
-  }
-
   if (isLoggedIn) {
-    const searchParams = new URLSearchParams(location.search);
-    const redirectTo = searchParams.get('redirectTo') || '/';
+    const redirectTo = location.searchParams.get('redirectTo') ?? '/';
+    location.searchParams.delete('redirectTo');
+    const newSearch = `?${location.searchParams.toString()}`;
 
-    return (
-      <Redirect
-        to={{ ...location, pathname: redirectTo }}
-        logMessage="Redirecting from auth page"
-      >
-        <LoadingScreen />
-      </Redirect>
-    );
+    // We have to use window.location.hash because location that comes from the request does not have the hash
+    throw redirect(`${redirectTo}${newSearch}${window.location.hash}`);
   }
 
+  await next();
+};
+
+export const unstable_clientMiddleware: Route.unstable_ClientMiddlewareFunction[] =
+  [routeGuardMiddleware];
+
+export async function clientLoader() {
+  // We are keeping this clientLoader to force client rendering for all auth routes.
+}
+
+clientLoader.hydrate = true as const;
+
+export function HydrateFallback() {
+  return <LoadingScreen />;
+}
+
+export default function AuthRoute() {
   return <Outlet />;
 }

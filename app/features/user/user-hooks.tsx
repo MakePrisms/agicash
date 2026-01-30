@@ -1,21 +1,55 @@
-import { useOpenSecret } from '@opensecret/react';
-import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
+import { requestNewVerificationCode } from '@opensecret/react';
+import {
+  type QueryClient,
+  useMutation,
+  useSuspenseQuery,
+} from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { type AuthUser, useAuthState } from '~/features/user/auth';
+import { useAuthActions, useAuthState } from '~/features/user/auth';
 import type { Currency } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
+import { getQueryClient } from '~/query-client';
 import type { Account } from '../accounts/account';
-import {
-  BASE_CASHU_LOCKING_DERIVATION_PATH,
-  useCashuCryptography,
-} from '../shared/cashu';
-import { useEncryptionPublicKeyHex } from '../shared/encryption';
 import { guestAccountStorage } from './guest-account-storage';
 import type { User } from './user';
-import { type UpdateUser, useUserRepository } from './user-repository';
+import {
+  type ReadUserRepository,
+  type UpdateUser,
+  useReadUserRepository,
+  useWriteUserRepository,
+} from './user-repository';
+import { useUserService } from './user-service';
 
-const userQueryKey = 'user';
+export const userQueryKey = 'user';
+
+export const getUserFromCache = (
+  queryClient: QueryClient = getQueryClient(),
+) => {
+  return queryClient.getQueryData<User>([userQueryKey]) ?? null;
+};
+
+export const getUserFromCacheOrThrow = () => {
+  const user = getUserFromCache();
+  if (!user) {
+    throw new Error('User not found');
+  }
+  return user;
+};
+
+export const userQueryOptions = <TData = User>({
+  userId,
+  userRepository,
+  select,
+}: {
+  userId: string;
+  userRepository: ReadUserRepository;
+  select?: (data: User) => TData;
+}) => ({
+  queryKey: [userQueryKey],
+  queryFn: () => userRepository.get(userId),
+  select,
+});
 
 /**
  * This hook returns the logged in user data.
@@ -31,56 +65,36 @@ export const useUser = <TData = User>(
     throw new Error('Cannot use useUser hook in anonymous context');
   }
 
-  const userRepository = useUserRepository();
+  const userRepository = useReadUserRepository();
 
-  const response = useSuspenseQuery({
-    queryKey: [userQueryKey],
-    queryFn: () => userRepository.get(authUser.id),
-    select,
-  });
+  const { data } = useSuspenseQuery(
+    userQueryOptions({ userId: authUser.id, userRepository, select }),
+  );
 
-  return response.data;
+  return data;
 };
 
 const isDevelopmentMode = import.meta.env.MODE === 'development';
 
-const defaultAccounts = [
+export const defaultAccounts = [
   {
-    type: 'cashu',
+    type: 'spark',
     currency: 'BTC',
-    name: 'Minibits',
-    mintUrl: 'https://mint.minibits.cash/Bitcoin',
-    isTestMint: false,
-  },
-  {
-    type: 'cashu',
-    currency: 'USD',
-    name: 'Voltz',
-    mintUrl: 'https://mint.lnvoltz.com',
-    isTestMint: false,
+    name: 'Bitcoin',
+    network: 'MAINNET',
+    isDefault: true,
+    purpose: 'transactional',
   },
   ...(isDevelopmentMode
     ? ([
         {
           type: 'cashu',
           currency: 'BTC',
-          name: 'Testnut BTC (nofees)',
-          mintUrl: 'https://nofees.testnut.cashu.space',
-          isTestMint: true,
-        },
-        {
-          type: 'cashu',
-          currency: 'USD',
-          name: 'Testnut USD (nofees)',
-          mintUrl: 'https://nofees.testnut.cashu.space',
-          isTestMint: true,
-        },
-        {
-          type: 'cashu',
-          currency: 'BTC',
           name: 'Testnut BTC',
           mintUrl: 'https://testnut.cashu.space',
           isTestMint: true,
+          isDefault: false,
+          purpose: 'transactional',
         },
         {
           type: 'cashu',
@@ -88,42 +102,12 @@ const defaultAccounts = [
           name: 'Testnut USD',
           mintUrl: 'https://testnut.cashu.space',
           isTestMint: true,
+          isDefault: true,
+          purpose: 'transactional',
         },
       ] as const)
     : []),
 ] as const;
-
-export const useUpsertUser = () => {
-  const queryClient = useQueryClient();
-  const userRepository = useUserRepository();
-  const cashuCryptography = useCashuCryptography();
-  const encryptionPublicKey = useEncryptionPublicKeyHex();
-
-  return useMutation({
-    mutationKey: ['user-upsert'],
-    mutationFn: async (user: AuthUser) => {
-      const cashuLockingXpub = await cashuCryptography.getXpub(
-        BASE_CASHU_LOCKING_DERIVATION_PATH,
-      );
-
-      return userRepository.upsert({
-        id: user.id,
-        email: user.email,
-        emailVerified: user.email_verified,
-        accounts: [...defaultAccounts],
-        cashuLockingXpub,
-        encryptionPublicKey,
-      });
-    },
-    scope: {
-      id: 'user-upsert',
-    },
-    onSuccess: (user) => {
-      queryClient.setQueryData<User>([userQueryKey], user);
-    },
-    throwOnError: true,
-  });
-};
 
 export const useUserRef = () => {
   const user = useUser();
@@ -135,7 +119,7 @@ export const useUpgradeGuestToFullAccount = (): ((
   password: string,
 ) => Promise<void>) => {
   const userRef = useUserRef();
-  const { convertGuestToUserAccount } = useOpenSecret();
+  const { convertGuestToFullAccount } = useAuthActions();
 
   const { mutateAsync } = useMutation({
     mutationKey: ['upgrade-guest-to-full-account'],
@@ -144,7 +128,7 @@ export const useUpgradeGuestToFullAccount = (): ((
         throw new Error('User already has a full account');
       }
 
-      return convertGuestToUserAccount(
+      return convertGuestToFullAccount(
         variables.email,
         variables.password,
       ).then(() => {
@@ -164,7 +148,6 @@ export const useUpgradeGuestToFullAccount = (): ((
 
 export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
   const userRef = useUserRef();
-  const { requestNewVerificationCode } = useOpenSecret();
 
   const { mutateAsync } = useMutation({
     mutationKey: ['request-new-email-verification-code'],
@@ -188,10 +171,9 @@ export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
 
 export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
   const userRef = useUserRef();
-  const { verifyEmail, refetchUser } = useOpenSecret();
+  const { verifyEmail } = useAuthActions();
 
   const { mutateAsync } = useMutation({
-    mutationKey: ['verify-email'],
     mutationFn: (code: string) => {
       if (userRef.current.isGuest) {
         throw new Error('Cannot verify email for guest account');
@@ -200,7 +182,7 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
         throw new Error('Email is already verified');
       }
 
-      return verifyEmail(code).then(refetchUser);
+      return verifyEmail(code);
     },
     scope: {
       id: 'verify-email',
@@ -213,14 +195,12 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
 const useUpdateUser = () => {
   const queryClient = useQueryClient();
   const userId = useUser((user) => user.id);
-  const userRepository = useUserRepository();
+  const userRepository = useWriteUserRepository();
 
   return useMutation({
     mutationFn: (updates: UpdateUser) => userRepository.update(userId, updates),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: [userQueryKey],
-      });
+    onSuccess: (data) => {
+      queryClient.setQueryData([userQueryKey], data);
     },
   });
 };
@@ -235,24 +215,19 @@ export const useSetDefaultCurrency = () => {
 };
 
 export const useSetDefaultAccount = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const userService = useUserService();
+  const user = useUserRef();
+  const queryClient = useQueryClient();
 
-  return useCallback(
-    async (account: Account) => {
-      if (account.currency === 'BTC') {
-        return updateUser({
-          defaultBtcAccountId: account.id,
-        });
-      }
-      if (account.currency === 'USD') {
-        return updateUser({
-          defaultUsdAccountId: account.id,
-        });
-      }
-      throw new Error('Unsupported currency');
+  const { mutateAsync } = useMutation({
+    mutationFn: (account: Account) =>
+      userService.setDefaultAccount(user.current, account),
+    onSuccess: (data) => {
+      queryClient.setQueryData([userQueryKey], data);
     },
-    [updateUser],
-  );
+  });
+
+  return mutateAsync;
 };
 
 export const useUpdateUsername = () => {

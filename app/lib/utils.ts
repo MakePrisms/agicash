@@ -39,3 +39,7 @@ export function isSubset<T>(subset: Set<T>, superset: Set<T>): boolean {
   }
   return true;
 }
+
+export function isObject(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}

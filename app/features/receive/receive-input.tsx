@@ -11,7 +11,11 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Skeleton } from '~/components/ui/skeleton';
-import { AccountSelector } from '~/features/accounts/account-selector';
+import {
+  AccountSelector,
+  toAccountSelectorOption,
+} from '~/features/accounts/account-selector';
+import { accountOfflineToast } from '~/features/accounts/utils';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
@@ -48,9 +52,10 @@ const ConvertedMoneySwitcher = ({
       <MoneyDisplay
         money={money}
         unit={getDefaultUnit(money.currency)}
-        variant="secondary"
+        size="sm"
+        variant="muted"
       />
-      <ArrowUpDown className="mb-1" />
+      <ArrowUpDown className="mb-1 text-muted-foreground" />
     </button>
   );
 };
@@ -84,6 +89,11 @@ export default function ReceiveInput() {
   });
 
   const handleContinue = async () => {
+    if (!receiveAccount.isOnline) {
+      toast(accountOfflineToast);
+      return;
+    }
+
     if (inputValue.currency === receiveAccount.currency) {
       setReceiveAmount(inputValue);
     } else {
@@ -100,10 +110,9 @@ export default function ReceiveInput() {
         applyTo: 'newView',
       });
     } else {
-      toast({
-        title: 'Not implemented',
-        description: 'Choose a cashu account and try again.',
-        variant: 'destructive',
+      navigate('/receive/spark', {
+        transition: 'slideLeft',
+        applyTo: 'newView',
       });
     }
   };
@@ -124,8 +133,14 @@ export default function ReceiveInput() {
       return;
     }
 
+    const encodedToken = getEncodedToken(token);
+    const hash = `#${encodedToken}`;
+
+    // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
+    // See https://github.com/remix-run/remix/discussions/10721
+    window.history.replaceState(null, '', hash);
     navigate(
-      `/receive/cashu/token?selectedAccountId=${receiveAccountId}#${getEncodedToken(token)}`,
+      `/receive/cashu/token?selectedAccountId=${receiveAccountId}${hash}`,
       {
         transition: 'slideLeft',
         applyTo: 'newView',
@@ -160,14 +175,17 @@ export default function ReceiveInput() {
 
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
-            accounts={accounts}
-            selectedAccount={receiveAccount}
+            accounts={accounts.map((account) =>
+              toAccountSelectorOption(account),
+            )}
+            selectedAccount={toAccountSelectorOption(receiveAccount)}
             onSelect={(account) => {
               setReceiveAccount(account);
               if (account.currency !== inputValue.currency) {
                 switchInputCurrency();
               }
             }}
+            disabled={accounts.length === 1}
           />
         </div>
 

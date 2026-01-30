@@ -1,9 +1,7 @@
 import useLocationData from '~/hooks/use-location';
-import {
-  type AgicashDb,
-  type AgicashDbContact,
-  agicashDb,
-} from '../agicash-db/database';
+import type { AgicashDb, AgicashDbContact } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { DomainError } from '../shared/error';
 import type { UserProfile } from '../user/user';
 import type { Contact } from './contact';
 
@@ -88,6 +86,10 @@ export class ContactRepository {
     const { data, error } = await query.single();
 
     if (error) {
+      if (error.hint === 'LIMIT_REACHED') {
+        throw new DomainError(`${error.message} ${error.details}`);
+      }
+
       throw new Error('Failed to create contact', error);
     }
 
@@ -165,5 +167,5 @@ export class ContactRepository {
 
 export function useContactRepository() {
   const { domain } = useLocationData();
-  return new ContactRepository(agicashDb, domain);
+  return new ContactRepository(agicashDbClient, domain);
 }

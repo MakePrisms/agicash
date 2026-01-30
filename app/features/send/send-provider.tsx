@@ -6,13 +6,11 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
-import {
-  useAccountsCache,
-  useGetLatestAccount,
-} from '../accounts/account-hooks';
-import { useCreateCashuSendQuote } from './cashu-send-quote-hooks';
-import { useGetCashuSendSwapQuote } from './cashu-send-swap-hooks';
+import { useGetAccount } from '../accounts/account-hooks';
+import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
+import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
 import { type SendState, type SendStore, createSendStore } from './send-store';
+import { useCreateSparkLightningSendQuote } from './spark-send-quote-hooks';
 import { useGetInvoiceFromLud16 } from './use-get-invoice-from-lud16';
 
 const SendContext = createContext<SendStore | null>(null);
@@ -24,19 +22,21 @@ type Props = PropsWithChildren<{
 
 export const SendProvider = ({ initialAccount, children }: Props) => {
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
-  const { mutateAsync: createCashuSendQuote } = useCreateCashuSendQuote();
-  const { mutateAsync: getCashuSendSwapQuote } = useGetCashuSendSwapQuote();
-  const accountsCache = useAccountsCache();
-  const getLatestAccount = useGetLatestAccount();
+  const { mutateAsync: getCashuLightningQuote } =
+    useCreateCashuLightningSendQuote();
+  const { mutateAsync: getCashuSwapQuote } = useCreateCashuSendSwapQuote();
+  const { mutateAsync: getSparkLightningQuote } =
+    useCreateSparkLightningSendQuote();
+  const getAccount = useGetAccount();
 
   const [store] = useState(() =>
     createSendStore({
       initialAccount,
-      accountsCache,
-      getLatestAccount,
+      getAccount,
       getInvoiceFromLud16,
-      createCashuSendQuote,
-      getCashuSendSwapQuote,
+      getCashuLightningQuote,
+      getCashuSwapQuote,
+      getSparkLightningQuote,
     }),
   );
 

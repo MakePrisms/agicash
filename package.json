@@ -1,16 +1,12 @@
 {
   "name": "agicash",
   "private": true,
-  "sideEffects": ["./app/instrument.server.mjs"],
-  "sideEffects:comments": {
-    "./app/instrument.server.mjs": "If we don't mark this as side effect, vite will remove it from the bundle. This is needed because we are using it to instrument the server code with Sentry."
-  },
   "type": "module",
   "scripts": {
     "build": "run-p build:client build:server",
     "build:client": "react-router build",
     "build:server": "cross-env NODE_ENV=production bun build ./app/server.ts --target=node --format=esm --outdir=./build --external=build/server/index.js",
-    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=8192' tsx watch --exclude 'vite.config.ts.timestamp-*' ./app/server.ts",
+    "dev": "cross-env NODE_OPTIONS='--max-old-space-size=8192' tsx watch ./app/server.ts",
     "start": "cross-env NODE_ENV=production node -r dotenv/config ./build/server.js",
     "typecheck": "react-router typegen && tsc",
     "lint": "biome lint --write",
@@ -26,20 +22,23 @@
     "db:generate-types": "supabase gen types typescript --local --schema wallet > supabase/database.types.ts"
   },
   "scripts:comments": {
-    "dev": "We are using tsx instead of bun because bun doesn't support all node APIs that Remix development server needs. See https://bun.sh/guides/ecosystem/remix. We need to exclude the config file from tsx watch because vite seems to be writing to those temporary files which causes watcher loop.",
+    "dev": "We are using tsx instead of bun because with bun server just hangs and eventually we get an error: 'ELOOP: too many symbolic links encountered...'.",
     "build:server": "We are building for node for now. We will see what we will be using in the runtime once we implement the deployment. Depending on that we might change this to target bun. 'cross-env NODE_ENV=production' is needed because bun build otherwise seems to be setting it to 'development'.",
     "start": "We are running the build in node because atm we are using node as the build target."
   },
   "dependencies": {
-    "@cashu/cashu-ts": "jbojcic1/cashu-ts#socket-onclose-callback-with-build-artifacts",
+    "@buildonspark/spark-sdk": "0.5.5",
+    "@cashu/cashu-ts": "2.6.0",
     "@cashu/crypto": "0.3.4",
     "@jbojcic/bc-ur": "https://github.com/jbojcic1/bc-ur",
-    "@noble/ciphers": "1.0.0",
-    "@noble/curves": "1.7.0",
-    "@noble/hashes": "1.6.1",
-    "@opensecret/react": "1.1.0",
+    "@noble/ciphers": "1.3.0",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
+    "@opensecret/react": "jbojcic1/OpenSecret-SDK#suspense-compatible-alternative-with-build-2",
+    "@radix-ui/react-checkbox": "1.3.3",
     "@radix-ui/react-dialog": "1.1.6",
     "@radix-ui/react-dropdown-menu": "2.1.15",
+    "@radix-ui/react-hover-card": "1.1.15",
     "@radix-ui/react-label": "2.1.1",
     "@radix-ui/react-radio-group": "1.2.3",
     "@radix-ui/react-scroll-area": "1.2.4",
@@ -48,18 +47,17 @@
     "@radix-ui/react-slot": "1.1.1",
     "@radix-ui/react-tabs": "1.1.1",
     "@radix-ui/react-toast": "1.2.5",
-    "@react-router/express": "7.7.0",
-    "@react-router/fs-routes": "7.7.0",
-    "@react-router/node": "7.7.0",
-    "@scure/bip32": "1.6.2",
-    "@scure/bip39": "1.5.4",
-    "@sentry/core": "9.43.0",
-    "@sentry/react-router": "9.43.0",
-    "@supabase/supabase-js": "2.53.0",
-    "@tanstack/react-query": "5.76.1",
-    "@tanstack/react-query-devtools": "5.76.1",
-    "@vercel/analytics": "1.4.1",
-    "@vercel/react-router": "1.2.2",
+    "@react-router/express": "7.8.1",
+    "@react-router/fs-routes": "7.8.1",
+    "@react-router/node": "7.8.1",
+    "@scure/bip32": "1.7.0",
+    "@scure/bip39": "1.6.0",
+    "@sentry/react-router": "10.14.0",
+    "@supabase/supabase-js": "2.88.0",
+    "@tanstack/react-query": "5.90.7",
+    "@tanstack/react-query-devtools": "5.90.2",
+    "@vercel/analytics": "1.5.0",
+    "@vercel/react-router": "1.2.3",
     "big.js": "6.2.2",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
@@ -77,18 +75,18 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "7.54.0",
-    "react-router": "7.7.0",
+    "react-router": "7.8.1",
     "tailwind-merge": "2.5.5",
     "tailwindcss-animate": "1.0.7",
     "usehooks-ts": "3.1.1",
     "vaul": "1.1.2",
-    "zod": "3.24.1",
+    "zod": "4.1.13",
     "zustand": "5.0.2"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@playwright/test": "1.49.1",
-    "@react-router/dev": "7.7.0",
+    "@react-router/dev": "7.8.1",
     "@stablelib/base64": "2.0.1",
     "@stablelib/chacha20poly1305": "2.0.1",
     "@types/big.js": "6.2.2",
@@ -103,22 +101,34 @@
     "jwt-encode": "1.0.1",
     "npm-run-all": "4.1.5",
     "postcss": "8.4.49",
-    "supabase": "2.33.7",
+    "supabase": "2.67.2",
     "tailwindcss": "3.4.16",
     "tsx": "4.19.2",
     "type-fest": "4.34.1",
     "typescript": "5.7.2",
-    "vite": "6.3.5",
+    "vite": "6.4.1",
     "vite-plugin-devtools-json": "0.3.0",
     "vite-tsconfig-paths": "5.1.4",
     "ws": "8.18.2"
   },
   "engines": {
-    "bun": "1.2.18",
-    "node": "22.x"
+    "bun": "1.3.4",
+    "node": "24.x"
   },
   "engines:comments": {
     "bun": "Bun is pinned to this version because that is the version of bun installed by devenv. See if we can specify that version somehow instead of taking whatever devenv gives us",
     "node": "Node is pinned to major version of node because vercel doesn't allow pinning minor or patch version. See https://vercel.com/docs/functions/runtimes/node-js/node-js-versions"
+  },
+  "patchedDependencies": {
+    "react-router@7.8.1": "patches/react-router@7.8.1.patch",
+    "@sentry/core@10.14.0": "patches/@sentry%2Fcore@10.14.0.patch",
+    "@tanstack/query-core@5.90.7": "patches/@tanstack%2Fquery-core@5.90.7.patch",
+    "@cashu/cashu-ts@2.6.0": "patches/@cashu%2Fcashu-ts@2.6.0.patch"
+  },
+  "patchedDependencies:comments": {
+    "react-router@7.8.1": "This patch is needed to make @vercel/react-router work with react router middleware. See https://github.com/vercel/vercel/issues/13327 for more details. Remove the patch once that has been handled.",
+    "@sentry/core@10.14.0": "This patch was added because we noticed that logs in Sentry dashboard started to show timstamps different than what our logs would record when the app would be in the background for a while and then brought back to the foreground. We suspected (not 100% sure but it seems like our patch has fixed it) that it is related to their logic which uses the Performance API to get the timestamp for greater precision (browser sometimes stops the performance api clock when the computer is asleep), so we opted out of that and are just using the Date API instead. Remove the patch once that has been solved.",
+    "@tanstack/query-core@5.90.7": "This patch is needed to add support for dynamic mutation scope. See https://github.com/TanStack/query/discussions/7126#discussioncomment-8815577 for more details. Remove the patch if tanstack query ever adds support for this natively.",
+    "@cashu/cashu-ts@2.6.0": "This patch is needed to add support for the Prefer header with respond-async value for async melt responses. This won't be needed once we migrate to cashu-ts 3.x.x"
   }
 }

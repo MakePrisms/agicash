@@ -1,4 +1,9 @@
-import { useOpenSecret } from '@opensecret/react';
+import {
+  getPrivateKey,
+  getPrivateKeyBytes,
+  getPublicKey,
+  signMessage,
+} from '@opensecret/react';
 import { HDKey } from '@scure/bip32';
 import { useMemo } from 'react';
 
@@ -8,24 +13,14 @@ import { useMemo } from 'react';
  * @returns The OpenSecret cryptography functions.
  */
 export const useCryptography = () => {
-  const {
-    // getPrivateKey returns a mnemonic (not a private key) that can derive the seed, so we rename it to getMnemonic
-    getPrivateKey: getMnemonic,
-    signMessage,
-    getPublicKey,
-    getPrivateKeyBytes,
-  } = useOpenSecret();
-
-  // All OpenSecret functions used here are stable and don't change between renders.
-  // See: https://github.com/OpenSecretCloud/OpenSecret-SDK/blob/master/src/lib/main.tsx#L929
   return useMemo(() => {
     return {
-      getMnemonic,
+      getMnemonic: getPrivateKey,
       signMessage,
       getPublicKey,
       getPrivateKeyBytes,
     };
-  }, [getMnemonic, signMessage, getPublicKey, getPrivateKeyBytes]);
+  }, []);
 };
 
 /**

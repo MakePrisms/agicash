@@ -1,63 +1,102 @@
-import { useNavigate, useSearchParams } from 'react-router';
+import { handleGoogleCallback } from '@opensecret/react';
+import { decodeURLSafe } from '@stablelib/base64';
+import { redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { getErrorMessage } from '~/features/shared/error';
-import { useAuthActions } from '~/features/user/auth';
-import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
-import { useToast } from '~/hooks/use-toast';
+import { authStateQueryKey } from '~/features/user/auth';
+import { oauthLoginSessionStorage } from '~/features/user/oauth-login-session-storage';
+import { toast } from '~/hooks/use-toast';
+import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/_auth.oauth.$provider';
 
-export default function OAuthCallback({
+class UnsupportedOAuthProviderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsupportedOAuthProviderError';
+  }
+}
+
+export async function clientLoader({
+  request,
   params: { provider },
-}: Route.ComponentProps) {
-  const { handleGoogleAuthCallback } = useAuthActions();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { toast } = useToast();
+}: Route.ClientLoaderArgs) {
+  const location = new URL(request.url);
+  const code = location.searchParams.get('code');
+  const state = location.searchParams.get('state');
 
-  console.debug('OAuthCallback', provider);
-  console.debug('searchParams', searchParams.toString());
+  if (!code || !state) {
+    const message = 'Missing code or state parameter';
+    console.warn(message);
+    toast({
+      title: 'Login failed',
+      description: message,
+      variant: 'destructive',
+      duration: 8000,
+    });
+    throw redirect('/login');
+  }
 
-  useEffectNoStrictMode(() => {
-    async function handleCallback() {
-      const code = searchParams.get('code');
-      const state = searchParams.get('state');
-
-      if (!code || !state) {
-        const message = 'Missing code or state parameter';
-        console.warn(message);
-        toast({
-          title: 'Login failed',
-          description: message,
-          variant: 'destructive',
-        });
-        navigate('/login');
-        return;
-      }
-
-      console.debug('code', code);
-      console.debug('state', state);
-
-      try {
-        switch (provider) {
-          case 'google':
-            await handleGoogleAuthCallback(code, state);
-            break;
-          default:
-            throw new Error('Unsupported OAuth provider');
-        }
-      } catch (error) {
-        console.error('OAuth callback error', { cause: error });
-        toast({
-          title: 'Login failed',
-          description: getErrorMessage(error),
-          variant: 'destructive',
-        });
-        navigate('/login');
+  try {
+    switch (provider) {
+      case 'google':
+        await handleGoogleCallback(code, state, '');
+        break;
+      default: {
+        throw new UnsupportedOAuthProviderError(
+          `Unsupported OAuth provider: ${provider}`,
+        );
       }
     }
+  } catch (error) {
+    if (error instanceof UnsupportedOAuthProviderError) {
+      console.warn(error.message);
+    } else {
+      console.error('OAuth callback error', { cause: error });
+    }
 
-    handleCallback();
-  }, [provider, searchParams, handleGoogleAuthCallback, navigate, toast]);
+    toast({
+      title: 'Login failed',
+      description: getErrorMessage(error),
+      variant: 'destructive',
+      duration: 8000,
+    });
+    throw redirect('/login');
+  }
 
+  const queryClient = getQueryClient();
+  await queryClient.invalidateQueries({
+    queryKey: [authStateQueryKey],
+    refetchType: 'all',
+  });
+
+  const stateValue = JSON.parse(new TextDecoder().decode(decodeURLSafe(state)));
+  const oauthLoginSession = oauthLoginSessionStorage.get(
+    stateValue.sessionId ?? '',
+  );
+
+  if (!oauthLoginSession) {
+    throw redirect('/');
+  }
+
+  const searchParams = new URLSearchParams(oauthLoginSession.search);
+  const redirectTo = searchParams.get('redirectTo') ?? '/';
+  searchParams.delete('redirectTo');
+  const url = `${redirectTo}${searchParams.toString()}${oauthLoginSession.hash}`;
+
+  oauthLoginSessionStorage.remove(oauthLoginSession.sessionId);
+
+  // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
+  // See https://github.com/remix-run/remix/discussions/10721
+  window.history.replaceState(null, '', oauthLoginSession.hash);
+  throw redirect(url);
+}
+
+clientLoader.hydrate = true as const;
+
+export function HydrateFallback() {
   return <LoadingScreen />;
+}
+
+export default function OAuthCallback() {
+  return null;
 }

@@ -1,44 +1,51 @@
 import type { Proof } from '@cashu/cashu-ts';
-import { sumProofs } from '~/lib/cashu';
-import { Money } from '~/lib/money';
-import {
-  type AgicashDb,
-  type AgicashDbCashuSendSwap,
-  agicashDb,
+import type { z } from 'zod';
+import { proofToY } from '~/lib/cashu';
+import type { Money } from '~/lib/money';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
+import type { CashuProof } from '../accounts/cashu-account';
+import type {
+  AgicashDb,
+  AgicashDbCashuProof,
+  AgicashDbCashuSendSwap,
 } from '../agicash-db/database';
-import { useCashuCryptography } from '../shared/cashu';
-import { getDefaultUnit } from '../shared/currencies';
-import type { CashuSendSwapTransactionDetails } from '../transactions/transaction';
-import type { CashuSendSwap } from './cashu-send-swap';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { CashuSwapSendDbDataSchema } from '../agicash-db/json-models';
+import { type Encryption, useEncryption } from '../shared/encryption';
+import { ConcurrencyError } from '../shared/error';
+import { type CashuSendSwap, CashuSendSwapSchema } from './cashu-send-swap';
+import { toDecryptedCashuProofs } from './utils';
 
 type Options = {
   abortSignal?: AbortSignal;
 };
 
-type Encryption = {
-  encrypt: <T = unknown>(data: T) => Promise<string>;
-  decrypt: <T = unknown>(data: string) => Promise<T>;
-};
-
 type CreateSendSwap = {
   /**
-   * The id of the account to send from
+   * The id of the account to send from.
    */
   accountId: string;
   /**
-   * The id of the user creating the swap
+   * The id of the user creating the swap.
    */
   userId: string;
   /**
+   * The URL of the mint creating the token.
+   */
+  tokenMintUrl: string;
+  /**
    * The requested amount to send in the account's currency.
+   * This is the amount that the sender wants the receiver to receive.
    */
   amountRequested: Money;
   /**
-   * The full amount to send including the fee in the account's currency.
+   * The full amount to send including the receive fee in the account's currency.
+   * This is `amountRequested` plus `cashuReceiveFee`.
    */
   amountToSend: Money;
   /**
-   * The total amount spent. This is the sum of amountToSend and the fees.
+   * The total amount spent for this send.
+   * This is the sum of `amountToSend` and `cashuSendFee`.
    */
   totalAmount: Money;
   /**
@@ -51,41 +58,31 @@ type CreateSendSwap = {
   cashuReceiveFee: Money;
   /**
    * The proofs being spent as inputs.
+   * The sum of these might be greater than amountToSend, in which case we will need to swap to get the correct amount.
    */
-  inputProofs: Proof[];
+  inputProofs: CashuProof[];
   /**
-   * The proofs that we can send.
-   * If inputProofs sums to amountToSend, these will be the same;
-   * otherwise this will be undefined and we will need to swap to get the correct amount.
+   * The sum of the input proofs in the account's currency.
    */
-  proofsToSend?: Proof[];
+  inputAmount: Money;
   /**
-   * The hash of the token being sent
+   * The hash of the token being sent.
+   * Should be set only when send swap is not needed (sum of input proofs is equal to amount to send).
    */
   tokenHash?: string;
   /**
-   * All remaining proofs to keep in the account.
-   */
-  accountProofs: Proof[];
-  /**
    * The keyset id that was used to create the output data.
+   * Should be set only when send swap is needed (sum of input proofs is greater than amount to send).
    */
   keysetId?: string;
   /**
-   * The starting counter of the keyset that was used to create the output data.
-   */
-  keysetCounter?: number;
-  /**
    * The output data to use for performing the swap.
+   * Should be set only when send swap is needed (sum of input proofs is greater than amount to send).
    */
   outputAmounts?: {
-    keep: number[];
     send: number[];
+    change: number[];
   };
-  /**
-   * The version seen by the client for optimistic concurrency control.
-   */
-  accountVersion: number;
 };
 
 export class CashuSendSwapRepository {
@@ -98,75 +95,56 @@ export class CashuSendSwapRepository {
     {
       accountId,
       userId,
+      tokenMintUrl,
       amountRequested,
       amountToSend,
       totalAmount,
       cashuSendFee,
       cashuReceiveFee,
       inputProofs,
-      proofsToSend,
+      inputAmount,
       tokenHash,
-      accountProofs,
       keysetId,
-      keysetCounter,
       outputAmounts,
-      accountVersion,
     }: CreateSendSwap,
     options?: Options,
   ) {
-    const unit = getDefaultUnit(amountToSend.currency);
+    const requiresInputProofsSwap = !inputAmount.equals(amountToSend);
 
-    const details: CashuSendSwapTransactionDetails = {
+    const dataToEncrypt = CashuSwapSendDbDataSchema.parse({
+      tokenMintUrl,
+      amountReceived: amountRequested,
+      amountToSend,
+      cashuReceiveFee,
+      cashuSendFee,
       amountSpent: totalAmount,
-      cashuSendFee: cashuSendFee,
-      cashuReceiveFee: cashuReceiveFee,
-      totalFees: cashuSendFee.add(cashuReceiveFee),
-      amountToReceive: amountToSend.subtract(cashuReceiveFee),
-    };
+      amountReserved: inputAmount,
+      totalFee: cashuSendFee.add(cashuReceiveFee),
+      outputAmounts: outputAmounts
+        ? {
+            send: outputAmounts.send,
+            change: outputAmounts.change,
+          }
+        : undefined,
+    } satisfies z.input<typeof CashuSwapSendDbDataSchema>);
 
-    const [
-      encryptedInputProofs,
-      encryptedAccountProofs,
-      encryptedProofsToSend,
-      encryptedTransactionDetails,
-    ] = await Promise.all([
-      this.encryption.encrypt(inputProofs),
-      this.encryption.encrypt(accountProofs),
-      proofsToSend ? this.encryption.encrypt(proofsToSend) : undefined,
-      this.encryption.encrypt(details),
-    ]);
+    const encryptedData = await this.encryption.encrypt(dataToEncrypt);
 
-    const updatedKeysetCounter =
-      keysetCounter !== undefined
-        ? keysetCounter +
-          (outputAmounts
-            ? outputAmounts.keep.length + outputAmounts.send.length
-            : 0)
-        : undefined;
+    const numberOfOutputs = requiresInputProofsSwap
+      ? (outputAmounts?.send?.length ?? 0) +
+        (outputAmounts?.change?.length ?? 0)
+      : undefined;
 
     const query = this.db.rpc('create_cashu_send_swap', {
       p_user_id: userId,
       p_account_id: accountId,
-      p_amount_requested: amountRequested.toNumber(unit),
-      p_amount_to_send: amountToSend.toNumber(unit),
-      p_receive_swap_fee: cashuReceiveFee.toNumber(unit),
-      p_send_swap_fee: cashuSendFee.toNumber(unit),
-      p_total_amount: totalAmount.toNumber(unit),
-      p_input_proofs: encryptedInputProofs,
-      p_input_amount: sumProofs(inputProofs),
-      p_account_proofs: encryptedAccountProofs,
-      p_keyset_id: keysetId,
-      p_keyset_counter: keysetCounter,
-      p_send_output_amounts: outputAmounts?.send ?? undefined,
-      p_keep_output_amounts: outputAmounts?.keep ?? undefined,
-      p_updated_keyset_counter: updatedKeysetCounter,
+      p_input_proofs: inputProofs.map((p) => p.id),
       p_currency: amountToSend.currency,
-      p_unit: unit,
-      p_state: proofsToSend ? 'PENDING' : 'DRAFT',
-      p_account_version: accountVersion,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
-      p_proofs_to_send: encryptedProofsToSend,
+      p_encrypted_data: encryptedData,
+      p_requires_input_proofs_swap: requiresInputProofsSwap,
       p_token_hash: tokenHash,
+      p_keyset_id: keysetId,
+      p_number_of_outputs: numberOfOutputs,
     });
 
     if (options?.abortSignal) {
@@ -176,61 +154,71 @@ export class CashuSendSwapRepository {
     const { data, error } = await query;
 
     if (error) {
+      if (error.hint === 'CONCURRENCY_ERROR') {
+        throw new ConcurrencyError(error.message, error.details);
+      }
+
       throw new Error('Failed to create cashu send swap', {
         cause: error,
       });
     }
 
-    return CashuSendSwapRepository.toSwap(data, this.encryption.decrypt).catch(
-      (e) => {
-        console.error('Failed to create cashu send swap', {
-          cause: e,
-          data,
-        });
-        throw e;
-      },
-    );
+    const swapWithInputProofs = {
+      ...data.swap,
+      cashu_proofs: data.reserved_proofs,
+    };
+
+    return await this.toSwap(swapWithInputProofs);
   }
 
   async commitProofsToSend({
     swap,
-    accountVersion,
-    proofsToSend,
-    accountProofs,
     tokenHash,
+    proofsToSend,
+    changeProofs,
   }: {
     /**
      * The swap to complete.
      */
     swap: CashuSendSwap;
     /**
-     * The version of the account to complete.
+     * The hash of the token being sent
      */
-    accountVersion: number;
+    tokenHash: string;
     /**
      * The sendable proofs
      */
     proofsToSend: Proof[];
     /**
-     * The hash of the token being sent
+     * The change proofs to add back to the account.
      */
-    tokenHash: string;
-    /**
-     * The account proofs to keep.
-     */
-    accountProofs: Proof[];
+    changeProofs: Proof[];
   }) {
-    const [encryptedProofsToSend, encryptedAccountProofs] = await Promise.all([
-      this.encryption.encrypt(proofsToSend),
-      this.encryption.encrypt(accountProofs),
-    ]);
+    const allProofs = proofsToSend.concat(changeProofs);
+    const proofDataToEncrypt = allProofs.flatMap((x) => [x.amount, x.secret]);
+
+    const encryptedProofData =
+      await this.encryption.encryptBatch(proofDataToEncrypt);
+
+    const encryptedProofs = allProofs.map((x, index) => {
+      const encryptedDataIndex = index * 2;
+      return {
+        keysetId: x.id,
+        amount: encryptedProofData[encryptedDataIndex],
+        secret: encryptedProofData[encryptedDataIndex + 1],
+        unblindedSignature: x.C,
+        publicKeyY: proofToY(x),
+        dleq: x.dleq ?? null,
+        witness: x.witness ?? null,
+      };
+    });
+    const encryptedProofsToSend = encryptedProofs.slice(0, proofsToSend.length);
+    const encryptedChangeProofs = encryptedProofs.slice(proofsToSend.length);
 
     const query = this.db.rpc('commit_proofs_to_send', {
       p_swap_id: swap.id,
-      p_swap_version: swap.version,
-      p_account_version: accountVersion,
       p_proofs_to_send: encryptedProofsToSend,
-      p_account_proofs: encryptedAccountProofs,
+      p_change_proofs: encryptedChangeProofs,
       p_token_hash: tokenHash,
     });
 
@@ -243,13 +231,9 @@ export class CashuSendSwapRepository {
     }
   }
 
-  async complete({
-    swapId,
-    swapVersion,
-  }: { swapId: string; swapVersion: number }) {
+  async complete(swapId: string) {
     const query = this.db.rpc('complete_cashu_send_swap', {
       p_swap_id: swapId,
-      p_swap_version: swapVersion,
     });
 
     const { error } = await query;
@@ -261,14 +245,9 @@ export class CashuSendSwapRepository {
     }
   }
 
-  async fail({
-    swapId,
-    swapVersion,
-    reason,
-  }: { swapId: string; swapVersion: number; reason: string }) {
+  async fail({ swapId, reason }: { swapId: string; reason: string }) {
     const query = this.db.rpc('fail_cashu_send_swap', {
       p_swap_id: swapId,
-      p_swap_version: swapVersion,
       p_reason: reason,
     });
 
@@ -284,7 +263,7 @@ export class CashuSendSwapRepository {
   async getUnresolved(userId: string, options?: Options) {
     const query = this.db
       .from('cashu_send_swaps')
-      .select()
+      .select('*, cashu_proofs!spending_cashu_send_swap_id(*)')
       .eq('user_id', userId)
       .in('state', ['DRAFT', 'PENDING']);
 
@@ -300,15 +279,14 @@ export class CashuSendSwapRepository {
       });
     }
 
-    return await Promise.all(
-      data.map((data) =>
-        CashuSendSwapRepository.toSwap(data, this.encryption.decrypt),
-      ),
-    );
+    return await Promise.all(data.map((data) => this.toSwap(data)));
   }
 
   async get(id: string, options?: Options) {
-    const query = this.db.from('cashu_send_swaps').select().eq('id', id);
+    const query = this.db
+      .from('cashu_send_swaps')
+      .select('*, cashu_proofs!spending_cashu_send_swap_id(*)')
+      .eq('id', id);
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
@@ -322,15 +300,13 @@ export class CashuSendSwapRepository {
       });
     }
 
-    return data
-      ? CashuSendSwapRepository.toSwap(data, this.encryption.decrypt)
-      : null;
+    return data ? this.toSwap(data) : null;
   }
 
   async getByTransactionId(transactionId: string, options?: Options) {
     const query = this.db
       .from('cashu_send_swaps')
-      .select()
+      .select('*, cashu_proofs!spending_cashu_send_swap_id(*)')
       .eq('transaction_id', transactionId);
 
     if (options?.abortSignal) {
@@ -345,111 +321,71 @@ export class CashuSendSwapRepository {
       });
     }
 
-    return data
-      ? CashuSendSwapRepository.toSwap(data, this.encryption.decrypt)
-      : null;
+    return data ? await this.toSwap(data) : null;
   }
 
-  static async toSwap(
-    data: AgicashDbCashuSendSwap,
-    decrypt: Encryption['decrypt'],
+  async toSwap(
+    data: AgicashDbCashuSendSwap & { cashu_proofs: AgicashDbCashuProof[] },
   ): Promise<CashuSendSwap> {
-    const [inputProofs, proofsToSend] = await Promise.all([
-      decrypt<Proof[]>(data.input_proofs),
-      data.proofs_to_send ? decrypt<Proof[]>(data.proofs_to_send) : undefined,
+    const encryptedInputProofs = data.cashu_proofs.filter(
+      (p) => p.cashu_send_swap_id !== data.id,
+    );
+    const encryptedProofsToSend = data.cashu_proofs.filter(
+      (p) =>
+        p.cashu_send_swap_id === data.id || !data.requires_input_proofs_swap,
+    );
+    const encryptedProofs = encryptedInputProofs.concat(encryptedProofsToSend);
+    const proofsDataToDecrypt = encryptedProofs.flatMap((x) => [
+      x.amount,
+      x.secret,
     ]);
 
-    const toMoney = (amount: number) => {
-      return new Money({
-        amount,
-        currency: data.currency,
-        unit: data.unit,
-      });
-    };
+    const [decryptedData, ...decryptedProofsData] =
+      await this.encryption.decryptBatch([
+        data.encrypted_data,
+        ...proofsDataToDecrypt,
+      ]);
 
-    const commonData = {
+    const decryptedProofs = toDecryptedCashuProofs(
+      encryptedProofs,
+      decryptedProofsData,
+    );
+    const inputProofs = decryptedProofs.slice(0, encryptedInputProofs.length);
+    const proofsToSend = decryptedProofs.slice(encryptedInputProofs.length);
+
+    const sendData = CashuSwapSendDbDataSchema.parse(decryptedData);
+
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing cashu send swap invariant check at runtime. For example it makes sure that sendOutputAmounts and changeOutputAmounts are defined when needed.
+    return CashuSendSwapSchema.parse({
       id: data.id,
       accountId: data.account_id,
       userId: data.user_id,
       transactionId: data.transaction_id,
-      amountRequested: toMoney(data.amount_requested),
-      amountToSend: toMoney(data.amount_to_send),
-      totalAmount: toMoney(data.total_amount),
-      cashuReceiveFee: toMoney(data.receive_swap_fee),
-      cashuSendFee: toMoney(data.send_swap_fee),
-      inputProofs,
-      inputAmount: toMoney(data.input_amount),
-      currency: data.currency,
+      amountReceived: sendData.amountReceived,
+      amountToSend: sendData.amountToSend,
+      amountSpent: sendData.amountSpent,
+      cashuReceiveFee: sendData.cashuReceiveFee,
+      cashuSendFee: sendData.cashuSendFee,
+      inputProofs: inputProofs,
+      inputAmount: sendData.amountReserved,
+      totalFee: sendData.totalFee,
       version: data.version,
       state: data.state,
       createdAt: new Date(data.created_at),
-    };
-
-    if (data.state === 'DRAFT') {
-      if (
-        !data.keyset_id ||
-        data.keyset_counter === null ||
-        !data.send_output_amounts ||
-        !data.keep_output_amounts
-      ) {
-        throw new Error('Invalid swap, DRAFT state is missing data', {
-          cause: data,
-        });
-      }
-      return {
-        ...commonData,
-        keysetId: data.keyset_id,
-        keysetCounter: data.keyset_counter,
-        outputAmounts: {
-          keep: data.keep_output_amounts,
-          send: data.send_output_amounts,
-        },
-        state: 'DRAFT',
-      };
-    }
-
-    if (data.state === 'PENDING' || data.state === 'COMPLETED') {
-      if (!data.token_hash || !proofsToSend) {
-        throw new Error(
-          'Invalid swap, token hash or proofs to send are missing',
-          {
-            cause: data,
-          },
-        );
-      }
-      return {
-        ...commonData,
-        proofsToSend: proofsToSend,
-        tokenHash: data.token_hash,
-        state: data.state,
-      };
-    }
-
-    if (data.state === 'FAILED') {
-      if (!data.failure_reason) {
-        throw new Error('Invalid swap, failure reason is missing', {
-          cause: data,
-        });
-      }
-      return {
-        ...commonData,
-        state: 'FAILED',
-        failureReason: data.failure_reason,
-      };
-    }
-
-    if (data.state === 'REVERSED') {
-      return {
-        ...commonData,
-        state: 'REVERSED',
-      };
-    }
-
-    throw new Error(`Unexpected swap state ${data.state}`);
+      outputAmounts: sendData.outputAmounts
+        ? sendData.outputAmounts
+        : undefined,
+      keysetId: data.keyset_id ?? undefined,
+      keysetCounter: data.keyset_counter ?? undefined,
+      tokenHash: data.token_hash,
+      proofsToSend: proofsToSend,
+      failureReason: data.failure_reason,
+    } satisfies AllUnionFieldsRequired<z.output<typeof CashuSendSwapSchema>>);
   }
 }
 
 export function useCashuSendSwapRepository() {
-  const encryption = useCashuCryptography();
-  return new CashuSendSwapRepository(agicashDb, encryption);
+  const encryption = useEncryption();
+  return new CashuSendSwapRepository(agicashDbClient, encryption);
 }

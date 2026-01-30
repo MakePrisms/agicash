@@ -1,0 +1,84 @@
+diff --git a/dist/development/chunk-IFMMFE4R.mjs b/dist/development/chunk-IFMMFE4R.mjs
+index d66ce5f707200cc01fe067726d1ed01c161cc395..d379a78c30bc155aa9fa0495ef79bed7ea2389ea 100644
+--- a/dist/development/chunk-IFMMFE4R.mjs
++++ b/dist/development/chunk-IFMMFE4R.mjs
+@@ -1099,11 +1099,11 @@ var createRequestHandler = (build, mode) => {
+     };
+     if (_build.future.unstable_middleware) {
+       if (initialContext && !(initialContext instanceof unstable_RouterContextProvider)) {
+-        let error = new Error(
+-          "Invalid `context` value provided to `handleRequest`. When middleware is enabled you must return an instance of `unstable_RouterContextProvider` from your `getLoadContext` function."
+-        );
+-        handleError(error);
+-        return returnLastResortErrorResponse(error, serverMode);
++        const map = new Map();
++        for (const key in initialContext) {
++          map.set(key, initialContext[key]);
++        }
++        initialContext = new unstable_RouterContextProvider(map);
+       }
+       loadContext = initialContext || new unstable_RouterContextProvider();
+     } else {
+diff --git a/dist/development/index.js b/dist/development/index.js
+index d58ac2ef8e73b47b873747b17415e9edcd5762ef..39e9e2d1cacfde7cae014e1d9ffa977700705955 100644
+--- a/dist/development/index.js
++++ b/dist/development/index.js
+@@ -1184,11 +1184,11 @@ var createRequestHandler = (build, mode) => {
+     };
+     if (_build.future.unstable_middleware) {
+       if (initialContext && !(initialContext instanceof _chunkTGXCWGPTjs.unstable_RouterContextProvider)) {
+-        let error = new Error(
+-          "Invalid `context` value provided to `handleRequest`. When middleware is enabled you must return an instance of `unstable_RouterContextProvider` from your `getLoadContext` function."
+-        );
+-        handleError(error);
+-        return returnLastResortErrorResponse(error, serverMode);
++        const map = new Map();
++        for (const key in initialContext) {
++          map.set(key, initialContext[key]);
++        }
++        initialContext = new (0, _chunkTGXCWGPTjs.unstable_RouterContextProvider)(map);
+       }
+       loadContext = initialContext || new (0, _chunkTGXCWGPTjs.unstable_RouterContextProvider)();
+     } else {
+diff --git a/dist/production/chunk-5Y7ELDIJ.mjs b/dist/production/chunk-5Y7ELDIJ.mjs
+index b28c5112241aa5e507f329bac17fac5ffae8df39..dcce4ecad67d1d21bcd7e0ac0effaa85aac0b5f4 100644
+--- a/dist/production/chunk-5Y7ELDIJ.mjs
++++ b/dist/production/chunk-5Y7ELDIJ.mjs
+@@ -1099,11 +1099,11 @@ var createRequestHandler = (build, mode) => {
+     };
+     if (_build.future.unstable_middleware) {
+       if (initialContext && !(initialContext instanceof unstable_RouterContextProvider)) {
+-        let error = new Error(
+-          "Invalid `context` value provided to `handleRequest`. When middleware is enabled you must return an instance of `unstable_RouterContextProvider` from your `getLoadContext` function."
+-        );
+-        handleError(error);
+-        return returnLastResortErrorResponse(error, serverMode);
++        const map = new Map();
++        for (const key in initialContext) {
++          map.set(key, initialContext[key]);
++        }
++        initialContext = new unstable_RouterContextProvider(map);
+       }
+       loadContext = initialContext || new unstable_RouterContextProvider();
+     } else {
+diff --git a/dist/production/index.js b/dist/production/index.js
+index 65c5960001a65f6e4ec58967c407b52329efe510..689ad164ef16c0d5581b36bf6262b69d70dd7565 100644
+--- a/dist/production/index.js
++++ b/dist/production/index.js
+@@ -1184,11 +1184,11 @@ var createRequestHandler = (build, mode) => {
+     };
+     if (_build.future.unstable_middleware) {
+       if (initialContext && !(initialContext instanceof _chunkKHPQXKYMjs.unstable_RouterContextProvider)) {
+-        let error = new Error(
+-          "Invalid `context` value provided to `handleRequest`. When middleware is enabled you must return an instance of `unstable_RouterContextProvider` from your `getLoadContext` function."
+-        );
+-        handleError(error);
+-        return returnLastResortErrorResponse(error, serverMode);
++        const map = new Map();
++        for (const key in initialContext) {
++          map.set(key, initialContext[key]);
++        }
++        initialContext = new (0, _chunkKHPQXKYMjs.unstable_RouterContextProvider)(map);
+       }
+       loadContext = initialContext || new (0, _chunkKHPQXKYMjs.unstable_RouterContextProvider)();
+     } else {

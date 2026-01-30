@@ -87,9 +87,7 @@ export function useMoneyInput({
     `${state.converted.currency}-${state.input.currency}`,
   ];
 
-  const { data: rates, error: exchangeRateError } = useExchangeRates(
-    tickers.sort(),
-  );
+  const { data: rates, error: exchangeRateError } = useExchangeRates(tickers);
 
   const inputMoney = toMoney(state.input);
 

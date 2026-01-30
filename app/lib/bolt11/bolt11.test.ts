@@ -16,6 +16,8 @@ describe('decodeBolt11', () => {
       expiryUnixMs: 1496314718000,
       network: 'bitcoin',
       description: '1 cup coffee',
+      paymentHash:
+        '0001020304050607080900010203040506070809000102030405060708090102',
     });
   });
 
@@ -27,6 +29,8 @@ describe('decodeBolt11', () => {
       expiryUnixMs: undefined,
       network: 'testnet',
       description: undefined,
+      paymentHash:
+        '0001020304050607080900010203040506070809000102030405060708090102',
     });
   });
 
@@ -38,6 +42,8 @@ describe('decodeBolt11', () => {
       expiryUnixMs: 1496314718000,
       network: 'bitcoin',
       description: '1 cup coffee',
+      paymentHash:
+        '0001020304050607080900010203040506070809000102030405060708090102',
     });
   });
 });

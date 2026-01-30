@@ -39,8 +39,14 @@ export default function Scan() {
               return;
             }
 
+            const encodedToken = getEncodedToken(token);
+            const hash = `#${encodedToken}`;
+
+            // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
+            // See https://github.com/remix-run/remix/discussions/10721
+            window.history.replaceState(null, '', hash);
             navigate(
-              `/receive/cashu/token?selectedAccountId=${receiveAccountId}#${getEncodedToken(token)}`,
+              `/receive/cashu/token?selectedAccountId=${receiveAccountId}${hash}`,
               {
                 transition: 'slideLeft',
                 applyTo: 'newView',

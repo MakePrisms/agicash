@@ -23,10 +23,7 @@ const getGuestAccount = (): GuestAccountDetails | null => {
     parseResult.data,
   );
   if (!validationResult.success) {
-    console.error(
-      'Invalid guest account data found in the storage',
-      parseResult.data,
-    );
+    console.warn('Invalid guest account data found in the storage');
     return null;
   }
   return validationResult.data;

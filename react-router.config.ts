@@ -1,6 +1,15 @@
 import type { Config, Preset } from '@react-router/dev/config';
 import { sentryOnBuildEnd } from '@sentry/react-router';
 import { vercelPreset } from '@vercel/react-router/vite';
+import type { NavigateOptions, To } from 'react-router';
+
+// Check https://reactrouter.com/api/hooks/useNavigate#return-type-augmentation to see why this is needed
+declare module 'react-router' {
+  interface NavigateFunction {
+    (to: To, options?: NavigateOptions): Promise<void>;
+    (delta: number): Promise<void>;
+  }
+}
 
 export default {
   ssr: true,
@@ -15,6 +24,10 @@ export default {
     (preset): preset is Preset => Boolean(preset),
   ),
   async prerender() {
-    return ['/terms', '/privacy', '/mint-risks'];
+    return ['/terms', '/privacy', '/mint-risks', '/home'];
+  },
+  future: {
+    unstable_middleware: true,
+    unstable_splitRouteModules: 'enforce',
   },
 } satisfies Config;

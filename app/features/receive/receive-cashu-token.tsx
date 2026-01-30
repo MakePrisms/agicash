@@ -1,12 +1,13 @@
-import {
-  MintOperationError,
-  type Token,
-  getEncodedToken,
-} from '@cashu/cashu-ts';
+import { type Token, getEncodedToken } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import {
+  type Location,
+  type NavigateFunction,
+  useLocation,
+  useNavigate,
+} from 'react-router';
 import { useCopyToClipboard } from 'usehooks-ts';
 import {
   ClosePageButton,
@@ -17,36 +18,36 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useToast } from '~/hooks/use-toast';
-import { areMintUrlsEqual } from '~/lib/cashu';
+import { useFeatureFlag } from '~/lib/feature-flags';
 import type { Currency } from '~/lib/money';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { useDefaultAccount } from '../accounts/account-hooks';
 import { AccountSelector } from '../accounts/account-selector';
+import { GiftCardItem } from '../gift-cards/gift-card-item';
+import { getGiftCardImageByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
+import { AcceptTerms } from '../signup/accept-terms';
 import { useAuthActions } from '../user/auth';
+import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
-  useSetDefaultAccount,
-  useSetDefaultCurrency,
-} from '../user/user-hooks';
-import { useFailCashuReceiveQuote } from './cashu-receive-quote-hooks';
-import { useCreateCashuTokenSwap } from './cashu-token-swap-hooks';
-import {
-  useCashuTokenSourceAccountQuery,
   useCashuTokenWithClaimableProofs,
   useCreateCrossAccountReceiveQuotes,
+  useReceiveCashuTokenAccountPlaceholders,
   useReceiveCashuTokenAccounts,
 } from './receive-cashu-token-hooks';
+import {
+  type CashuAccountWithTokenFlags,
+  type ReceiveCashuTokenAccount,
+  isClaimingToSameCashuAccount,
+} from './receive-cashu-token-models';
 
 type Props = {
   token: Token;
-  autoClaimToken: boolean;
   /** The initially selected receive account will be set to this account if it exists.*/
   preferredReceiveAccountId?: string;
 };
@@ -61,7 +62,7 @@ function TokenAmountDisplay({
 }: {
   token: Token;
   claimableToken: Token | null;
-  receiveAccountCurrency: Currency;
+  receiveAccountCurrency: Currency | undefined;
 }) {
   const [_, copyToClipboard] = useCopyToClipboard();
   const { toast } = useToast();
@@ -89,117 +90,82 @@ function TokenAmountDisplay({
 /**
  * Shared component for displaying error when token cannot be claimed
  */
-function TokenErrorDisplay({
-  cannotClaimReason,
-}: { cannotClaimReason: string }) {
+function TokenErrorDisplay({ message }: { message: string }) {
   return (
     <div className="mx-4 flex w-full flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4">
       <AlertCircle className="h-8 w-8 text-foreground" />
-      <p className="text-center text-muted-foreground text-sm">
-        {cannotClaimReason}
-      </p>
+      <p className="text-center text-muted-foreground text-sm">{message}</p>
     </div>
   );
 }
 
 export default function ReceiveToken({
   token,
-  autoClaimToken,
   preferredReceiveAccountId,
 }: Props) {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
-  const defaultAccount = useDefaultAccount();
-  const setDefaultAccount = useSetDefaultAccount();
-  const setDefaultCurrency = useSetDefaultCurrency();
   const { claimableToken, cannotClaimReason } =
-    useCashuTokenWithClaimableProofs({
-      token,
-    });
+    useCashuTokenWithClaimableProofs({ token });
   const {
     selectableAccounts,
     receiveAccount,
-    isCrossMintSwapDisabled,
     sourceAccount,
     setReceiveAccount,
     addAndSetReceiveAccount,
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
 
-  const isReceiveAccountAdded = receiveAccount.id !== '';
+  const isGiftCardSource = sourceAccount.purpose === 'gift-card';
 
-  const onTransactionCreated = (transactionId: string) => {
-    navigate(`/transactions/${transactionId}?redirectTo=/`, {
-      transition: 'slideLeft',
-      applyTo: 'newView',
-    });
-  };
+  const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
 
-  const { mutateAsync: createCashuTokenSwap } = useCreateCashuTokenSwap();
-  const {
-    mutateAsync: createCrossAccountReceiveQuotes,
-    data: crossAccountReceiveQuotes,
-  } = useCreateCrossAccountReceiveQuotes();
-  const { mutate: failCashuReceiveQuote } = useFailCashuReceiveQuote();
+  const { mutateAsync: createCashuReceiveSwap } = useCreateCashuReceiveSwap();
+  const { mutateAsync: createCrossAccountReceiveQuotes } =
+    useCreateCrossAccountReceiveQuotes();
 
   const { mutate: claimTokenMutation, status: claimTokenStatus } = useMutation({
     mutationFn: async ({
       token,
-      isAutoClaim,
+      sourceAccount,
+      receiveAccount,
     }: {
       token: Token;
-      isAutoClaim: boolean;
+      sourceAccount: CashuAccountWithTokenFlags;
+      receiveAccount: ReceiveCashuTokenAccount;
     }) => {
-      const preferredAccount =
-        isAutoClaim && sourceAccount?.selectable
-          ? sourceAccount
-          : receiveAccount;
+      const account = receiveAccount.isUnknown
+        ? await addAndSetReceiveAccount(receiveAccount)
+        : receiveAccount;
 
-      // Use the preferred account if it exists, otherwise create it
-      let account = preferredAccount;
-      if (account.id === '') {
-        account = await addAndSetReceiveAccount(preferredAccount);
-      }
-
-      const isSameAccountClaim =
-        account.currency === tokenToMoney(token).currency &&
-        areMintUrlsEqual(account.mintUrl, token.mint);
+      const isSameAccountClaim = isClaimingToSameCashuAccount(
+        account,
+        sourceAccount,
+      );
 
       if (isSameAccountClaim) {
-        const { transactionId } = await createCashuTokenSwap({
+        const {
+          swap: { transactionId },
+        } = await createCashuReceiveSwap({
           token,
           accountId: account.id,
         });
-        onTransactionCreated(transactionId);
-      } else {
-        const { sourceWallet, cashuMeltQuote, cashuReceiveQuote } =
-          await createCrossAccountReceiveQuotes({ token, account });
-        onTransactionCreated(cashuReceiveQuote.transactionId);
-        await sourceWallet.meltProofs(cashuMeltQuote, token.proofs);
+        return transactionId;
       }
 
-      return { account, isAutoClaim };
+      const result = await createCrossAccountReceiveQuotes({
+        token,
+        destinationAccount: account,
+        sourceAccount,
+      });
+      return result.lightningReceiveQuote.transactionId;
     },
-    onSuccess: async ({ account, isAutoClaim }) => {
-      // Only set defaults for auto claim and if the account is different from current default
-      if (isAutoClaim && account.id !== defaultAccount.id) {
-        try {
-          await setDefaultAccount(account);
-          await setDefaultCurrency(account.currency);
-        } catch (error) {
-          console.error('Error setting defaults after auto claim', {
-            cause: error,
-          });
-        }
-      }
+    onSuccess: (transactionId) => {
+      navigate(`/transactions/${transactionId}?redirectTo=/`, {
+        transition: 'slideLeft',
+        applyTo: 'newView',
+      });
     },
     onError: (error) => {
-      if (error instanceof MintOperationError && crossAccountReceiveQuotes) {
-        failCashuReceiveQuote({
-          quoteId: crossAccountReceiveQuotes.cashuReceiveQuote.id,
-          version: crossAccountReceiveQuotes.cashuReceiveQuote.version,
-          reason: error.message,
-        });
-      }
       console.error('Error claiming token', { cause: error });
       toast({
         title: 'Failed to claim token',
@@ -208,20 +174,6 @@ export default function ReceiveToken({
       });
     },
   });
-
-  const handleClaim = async () => {
-    if (!claimableToken) {
-      return;
-    }
-
-    claimTokenMutation({ token: claimableToken, isAutoClaim: false });
-  };
-
-  useEffectNoStrictMode(() => {
-    if (!claimableToken || !autoClaimToken) return;
-
-    claimTokenMutation({ token: claimableToken, isAutoClaim: true });
-  }, [autoClaimToken, claimableToken, claimTokenMutation]);
 
   return (
     <>
@@ -237,37 +189,57 @@ export default function ReceiveToken({
         <TokenAmountDisplay
           token={token}
           claimableToken={claimableToken}
-          receiveAccountCurrency={receiveAccount.currency}
+          receiveAccountCurrency={receiveAccount?.currency}
         />
 
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
-          {claimableToken ? (
+          {claimableToken && receiveAccount ? (
             <div className="w-full max-w-sm px-4">
-              <AccountSelector
-                accounts={selectableAccounts}
-                selectedAccount={receiveAccount}
-                disabled={isCrossMintSwapDisabled}
-                onSelect={setReceiveAccount}
-              />
+              {isGiftCardSource ? (
+                <GiftCardItem
+                  account={sourceAccount}
+                  image={getGiftCardImageByUrl(sourceAccount.mintUrl)}
+                  hideOverlayContent
+                />
+              ) : (
+                <AccountSelector
+                  accounts={selectableAccounts}
+                  selectedAccount={receiveAccount}
+                  disabled={selectableAccounts.length <= 1}
+                  onSelect={setReceiveAccount}
+                />
+              )}
             </div>
           ) : (
-            <TokenErrorDisplay cannotClaimReason={cannotClaimReason} />
+            <TokenErrorDisplay
+              message={
+                !claimableToken
+                  ? cannotClaimReason
+                  : 'Token from this mint cannot be claimed'
+              }
+            />
           )}
         </div>
       </PageContent>
 
-      {claimableToken && (
+      {claimableToken && receiveAccount && (
         <PageFooter className="pb-14">
           <Button
-            disabled={receiveAccount.selectable === false}
-            onClick={handleClaim}
+            disabled={receiveAccount.isSelectable === false}
+            onClick={() => {
+              claimTokenMutation({
+                token: claimableToken,
+                sourceAccount,
+                receiveAccount,
+              });
+            }}
             className="w-[200px]"
             // loading while the mutation is running or while waiting for navigation after mutation success
             loading={
               claimTokenStatus === 'pending' || claimTokenStatus === 'success'
             }
           >
-            {isReceiveAccountAdded ? 'Claim' : 'Add Mint and Claim'}
+            {isReceiveAccountKnown ? 'Claim' : 'Add Mint and Claim'}
           </Button>
         </PageFooter>
       )}
@@ -275,18 +247,46 @@ export default function ReceiveToken({
   );
 }
 
+const addClaimToSearchParam = (
+  navigate: NavigateFunction,
+  location: Location,
+  claimTo: 'spark' | 'cashu',
+) => {
+  const searchParams = new URLSearchParams(location.search);
+  searchParams.set('claimTo', claimTo);
+  navigate(
+    {
+      search: `?${searchParams.toString()}`,
+      hash: location.hash,
+    },
+    {
+      replace: true,
+    },
+  );
+};
+
+type PublicReceiveStep = 'show-token' | 'accept-terms';
+
 export function PublicReceiveCashuToken({ token }: { token: Token }) {
+  const [step, setStep] = useState<PublicReceiveStep>('show-token');
   const [signingUpGuest, setSigningUpGuest] = useState(false);
-  const { signUpGuest } = useAuthActions();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { signUpGuest } = useAuthActions();
   const { toast } = useToast();
+  const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
   const {
-    data: { sourceAccount },
-  } = useCashuTokenSourceAccountQuery(token);
+    selectableAccounts,
+    receiveAccount,
+    setReceiveAccount,
+    sourceAccount,
+  } = useReceiveCashuTokenAccountPlaceholders(token);
   const { claimableToken, cannotClaimReason } =
     useCashuTokenWithClaimableProofs({
       token,
     });
+
+  const isGiftCardSource = sourceAccount.purpose === 'gift-card';
 
   const encodedToken = getEncodedToken(claimableToken ?? token);
 
@@ -299,11 +299,15 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
     try {
       // Modify the URL before signing up because as soon as the user is logged in,
       // they will be redirected to the protected receive cashu token page
-      navigate(
-        { hash: encodedToken, search: 'autoClaim=true' },
-        { replace: true },
-      );
+      addClaimToSearchParam(navigate, location, receiveAccount.type);
+
       await signUpGuest();
+
+      // We are not setting signingUpGuest to false here because the navigation
+      // after signup will trigger a new render and the component will unmount.
+      // If we would set it to false here, the component would show clickable
+      // button for a brief moment before the navigation is complete (awaiting
+      // navigate to complete is not enough for some reason).
     } catch (error) {
       console.error('Error signing up guest', { cause: error });
       toast({
@@ -311,19 +315,28 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
         description: 'Please try again or contact support',
         variant: 'destructive',
       });
-    } finally {
       setSigningUpGuest(false);
     }
   };
 
+  if (step === 'accept-terms') {
+    return (
+      <>
+        <PageContent className="justify-center">
+          <AcceptTerms
+            onAccept={handleClaimAsGuest}
+            onBack={() => setStep('show-token')}
+            loading={signingUpGuest}
+          />
+        </PageContent>
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader className="z-10">
-        <ClosePageButton
-          to="/signup"
-          transition="slideDown"
-          applyTo="oldView"
-        />
+        <ClosePageButton to="/home" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
       <PageContent className="flex flex-col items-center">
@@ -336,14 +349,23 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken ? (
             <div className="w-full max-w-sm px-4">
-              <AccountSelector
-                accounts={[]}
-                selectedAccount={sourceAccount}
-                disabled={true}
-              />
+              {isGiftCardSource ? (
+                <GiftCardItem
+                  account={sourceAccount}
+                  image={getGiftCardImageByUrl(sourceAccount.mintUrl)}
+                  hideOverlayContent
+                />
+              ) : (
+                <AccountSelector
+                  accounts={selectableAccounts}
+                  selectedAccount={receiveAccount}
+                  disabled={selectableAccounts.length <= 1}
+                  onSelect={setReceiveAccount}
+                />
+              )}
             </div>
           ) : (
-            <TokenErrorDisplay cannotClaimReason={cannotClaimReason} />
+            <TokenErrorDisplay message={cannotClaimReason} />
           )}
         </div>
       </PageContent>
@@ -351,16 +373,22 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
       {claimableToken && (
         <PageFooter className="pb-14">
           <div className="flex flex-col gap-4">
-            <Button
-              onClick={handleClaimAsGuest}
-              className="w-[200px]"
-              loading={signingUpGuest}
-            >
-              Claim as Guest
-            </Button>
+            {guestSignupEnabled && (
+              <Button
+                onClick={() => setStep('accept-terms')}
+                loading={signingUpGuest}
+                className="w-[200px]"
+              >
+                Claim as Guest
+              </Button>
+            )}
 
             <LinkWithViewTransition
-              to={`/login?redirectTo=receive-cashu-token#${encodedToken}`}
+              to={{
+                pathname: '/login',
+                search: 'redirectTo=/receive/cashu/token',
+                hash: encodedToken,
+              }}
               transition="slideUp"
               applyTo="newView"
             >

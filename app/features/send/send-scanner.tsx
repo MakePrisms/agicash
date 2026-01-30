@@ -38,14 +38,14 @@ export default function SendScanner() {
 
   const sendAccount = useSendStore((state) => state.getSourceAccount());
   const selectDestination = useSendStore((state) => state.selectDestination);
-  const getQuote = useSendStore((state) => state.getQuote);
+  const continueSend = useSendStore((state) => state.proceedWithSend);
 
   const convert = useConverter(sendAccount);
 
   const handleDecode = async (input: string) => {
     const selectDestinationResult = await selectDestination(input);
     if (!selectDestinationResult.success) {
-      // TODO: implement this https://github.com/MakePrisms/boardwalkcash/pull/331#discussion_r2024690976
+      // TODO: implement this https://github.com/MakePrisms/agicash/pull/331#discussion_r2024690976
       return toast({
         title: 'Invalid input',
         description: selectDestinationResult.error,
@@ -65,9 +65,9 @@ export default function SendScanner() {
 
     const convertedAmount =
       amount.currency !== sendAccount.currency ? convert(amount) : undefined;
-    const getQuoteResult = await getQuote(amount, convertedAmount);
+    const result = await continueSend(amount, convertedAmount);
 
-    if (!getQuoteResult.success) {
+    if (!result.success || result.next !== 'confirmQuote') {
       return toast({
         title: 'Error',
         description: 'Failed to get a send quote. Please try again',

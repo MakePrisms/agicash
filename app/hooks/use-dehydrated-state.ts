@@ -12,7 +12,7 @@ export const useDehydratedState = (): DehydratedState | undefined => {
   const dehydratedState = matches
     .map(
       (match) =>
-        (match.data as { dehydratedState?: DehydratedState } | undefined)
+        (match.loaderData as { dehydratedState?: DehydratedState } | undefined)
           ?.dehydratedState,
     )
     .filter((x): x is DehydratedState => Boolean(x));

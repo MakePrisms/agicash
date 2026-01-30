@@ -12,6 +12,7 @@ export default function SendConfirmationPage() {
     amount: sendAmount,
     destination,
     destinationDisplay,
+    destinationDetails,
     quote,
   } = useSendStore();
   const sendAccount = getSourceAccount();
@@ -20,7 +21,7 @@ export default function SendConfirmationPage() {
     return <Redirect to="/send" logMessage="Missing send data" />;
   }
 
-  if (sendAccount.type !== 'cashu') {
+  if (sendAccount.type !== 'cashu' && sendAccount.type !== 'spark') {
     return <Redirect to="/send" logMessage="Invalid sending account" />;
   }
 
@@ -33,19 +34,35 @@ export default function SendConfirmationPage() {
       return <Redirect to="/send" logMessage="Missing destination data" />;
     }
 
+    const details =
+      sendType === 'LN_ADDRESS'
+        ? ({
+            sendType,
+            lnAddress: destinationDetails.lnAddress,
+          } as const)
+        : sendType === 'AGICASH_CONTACT'
+          ? ({
+              sendType,
+              contactId: destinationDetails.id,
+            } as const)
+          : undefined;
+
     return (
       <PayBolt11Confirmation
         account={sendAccount}
         quote={quote}
         destination={destination}
         destinationDisplay={destinationDisplay}
+        destinationDetails={details}
       />
     );
   }
 
   if (sendType === 'CASHU_TOKEN') {
-    if (!quote) {
-      return <Redirect to="/send" logMessage="Missing quote" />;
+    if (!quote || sendAccount.type !== 'cashu') {
+      return (
+        <Redirect to="/send" logMessage="Missing quote or invalid account" />
+      );
     }
 
     return <CreateCashuTokenConfirmation quote={quote} account={sendAccount} />;

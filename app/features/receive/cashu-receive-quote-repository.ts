@@ -1,95 +1,37 @@
 import type { Proof } from '@cashu/cashu-ts';
-import { getCashuUnit } from '~/lib/cashu';
-import { Money } from '~/lib/money';
+import type { z } from 'zod';
+import { proofToY } from '~/lib/cashu';
+import { computeSHA256 } from '~/lib/sha256';
+import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type { CashuAccount } from '../accounts/account';
-import { AccountRepository } from '../accounts/account-repository';
 import {
-  type AgicashDb,
-  type AgicashDbCashuReceiveQuote,
-  agicashDb,
-} from '../agicash-db/database';
-import { getDefaultUnit } from '../shared/currencies';
-import { useEncryption } from '../shared/encryption';
+  type AccountRepository,
+  useAccountRepository,
+} from '../accounts/account-repository';
 import type {
-  CashuReceiveQuoteTransactionDetails,
-  CashuReceiveSwapTransactionDetails,
-} from '../transactions/transaction';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
+  AgicashDb,
+  AgicashDbCashuReceiveQuote,
+} from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { CashuLightningReceiveDbDataSchema } from '../agicash-db/json-models';
+import { type Encryption, useEncryption } from '../shared/encryption';
+import {
+  type CashuReceiveQuote,
+  CashuReceiveQuoteSchema,
+} from './cashu-receive-quote';
+import type { RepositoryCreateQuoteParams } from './cashu-receive-quote-core';
 
 type Options = {
   abortSignal?: AbortSignal;
 };
 
-type Encryption = {
-  encrypt: <T = unknown>(data: T) => Promise<string>;
-  decrypt: <T = unknown>(data: string) => Promise<T>;
-};
-
-type CreateQuote = {
-  /**
-   * ID of the receiving user.
-   */
-  userId: string;
-  /**
-   * ID of the receiving account.
-   */
-  accountId: string;
-  /**
-   * Amount of the quote.
-   */
-  amount: Money;
-  /**
-   * ID of the mint's quote. Used after the payment to exchange the quote for proofs.
-   */
-  quoteId: string;
-  /**
-   * Lightning payment request.
-   */
-  paymentRequest: string;
-  /**
-   * Expiry of the quote in ISO 8601 format.
-   */
-  expiresAt: string;
-  /**
-   * Description of the quote.
-   */
-  description?: string;
-  /**
-   * State of the quote.
-   */
-  state: CashuReceiveQuote['state'];
-  /**
-   * The full BIP32 derivation path used to derive the public key for locking the cashu mint quote.
-   */
-  lockingDerivationPath: string;
-  /**
-   * Type of the receive.
-   * LIGHTNING - The money is received via Lightning.
-   * TOKEN - The money is received as cashu token. Those proofs are then used to mint tokens for the receiver's account via Lightning.
-   *         Used for cross-account cashu token receives where the receiver chooses to claim a token to an account different from the mint/unit the token originated from, thus requiring a lightning payment.
-   */
-  receiveType: CashuReceiveQuote['type'];
-} & (
-  | {
-      receiveType: 'LIGHTNING';
-    }
-  | {
-      receiveType: 'TOKEN';
-      /**
-       * The amount of the token to receive.
-       */
-      tokenAmount: Money;
-      /**
-       * The fee in the unit of the token that will be incurred for spending the proofs as inputs to the melt operation.
-       */
-      cashuReceiveFee: number;
-    }
-);
+type CreateQuote = RepositoryCreateQuoteParams;
 
 export class CashuReceiveQuoteRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly encryption: Encryption,
+    private readonly accountRepository: AccountRepository,
   ) {}
 
   /**
@@ -106,95 +48,65 @@ export class CashuReceiveQuoteRepository {
       amount,
       quoteId,
       paymentRequest,
+      paymentHash,
       expiresAt,
       description,
-      state,
       lockingDerivationPath,
       receiveType,
+      mintingFee,
+      totalFee,
     } = params;
 
-    const unit = getDefaultUnit(amount.currency);
+    const receiveData = CashuLightningReceiveDbDataSchema.parse({
+      paymentRequest,
+      mintQuoteId: quoteId,
+      amountReceived: amount,
+      description,
+      mintingFee,
+      cashuTokenMeltData:
+        receiveType === 'CASHU_TOKEN' ? params.meltData : undefined,
+      totalFee,
+    } satisfies z.input<typeof CashuLightningReceiveDbDataSchema>);
 
-    let details:
-      | CashuReceiveQuoteTransactionDetails
-      | CashuReceiveSwapTransactionDetails;
-
-    if (receiveType === 'TOKEN') {
-      const { cashuReceiveFee, tokenAmount } = params;
-
-      const cashuReceiveFeeMoney = new Money({
-        amount: cashuReceiveFee,
-        currency: amount.currency,
-        unit: getCashuUnit(amount.currency),
-      });
-
-      details = {
-        amountReceived: amount,
-        tokenAmount,
-        cashuReceiveFee: cashuReceiveFeeMoney,
-        totalFees: cashuReceiveFeeMoney,
-      } satisfies CashuReceiveSwapTransactionDetails;
-    } else {
-      details = {
-        amountReceived: amount,
-        paymentRequest,
-        description,
-      } satisfies CashuReceiveQuoteTransactionDetails;
-    }
-
-    const encryptedTransactionDetails = await this.encryption.encrypt(details);
+    const [encryptedReceiveData, quoteIdHash] = await Promise.all([
+      this.encryption.encrypt(receiveData),
+      computeSHA256(quoteId),
+    ]);
 
     const query = this.db.rpc('create_cashu_receive_quote', {
       p_user_id: userId,
       p_account_id: accountId,
-      p_amount: amount.toNumber(unit),
       p_currency: amount.currency,
-      p_unit: unit,
-      p_quote_id: quoteId,
-      p_payment_request: paymentRequest,
       p_expires_at: expiresAt,
-      p_description: description,
-      p_state: state,
       p_locking_derivation_path: lockingDerivationPath,
       p_receive_type: receiveType,
-      p_encrypted_transaction_details: encryptedTransactionDetails,
+      p_encrypted_data: encryptedReceiveData,
+      p_quote_id_hash: quoteIdHash,
+      p_payment_hash: paymentHash,
     });
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to create cashu receive quote', { cause: error });
     }
 
-    return CashuReceiveQuoteRepository.toQuote(data);
+    return this.toQuote(data);
   }
 
   /**
    * Expires the cashu receive quote by setting the state to EXPIRED.
+   * @param id - The id of the cashu receive quote to expire.
+   * @param options - The options for the query.
+   * @throws An error if expiring the quote fails.
    */
-  async expire(
-    {
-      id,
-      version,
-    }: {
-      /**
-       * ID of the cashu receive quote.
-       */
-      id: string;
-      /**
-       * Version of the cashu receive quote as seen by the client. Used for optimistic concurrency control.
-       */
-      version: number;
-    },
-    options?: Options,
-  ): Promise<void> {
+  async expire(id: string, options?: Options): Promise<void> {
     const query = this.db.rpc('expire_cashu_receive_quote', {
       p_quote_id: id,
-      p_quote_version: version,
     });
 
     if (options?.abortSignal) {
@@ -208,20 +120,19 @@ export class CashuReceiveQuoteRepository {
     }
   }
 
+  /**
+   * Fails the cashu receive quote by setting the state to FAILED.
+   * @throws An error if failing the quote fails.
+   */
   async fail(
     {
       id,
-      version,
       reason,
     }: {
       /**
        * ID of the cashu receive quote.
        */
       id: string;
-      /**
-       * Version of the cashu receive quote as seen by the client. Used for optimistic concurrency control.
-       */
-      version: number;
       /**
        * Reason for the failure.
        */
@@ -231,7 +142,6 @@ export class CashuReceiveQuoteRepository {
   ): Promise<void> {
     const query = this.db.rpc('fail_cashu_receive_quote', {
       p_quote_id: id,
-      p_quote_version: version,
       p_failure_reason: reason,
     });
 
@@ -247,55 +157,105 @@ export class CashuReceiveQuoteRepository {
   }
 
   /**
-   * Processes the payment of the cashu receive quote with the given id.
+   * Marks the melt as initiated for a CASHU_TOKEN type cashu receive quote.
+   * This sets the cashu_token_melt_initiated column to true.
+   */
+  async markMeltInitiated(
+    quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' },
+    options?: Options,
+  ): Promise<CashuReceiveQuote & { type: 'CASHU_TOKEN' }> {
+    const query = this.db.rpc(
+      'mark_cashu_receive_quote_cashu_token_melt_initiated',
+      {
+        p_quote_id: quote.id,
+      },
+    );
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error('Failed to mark melt initiated for cashu receive quote', {
+        cause: error,
+      });
+    }
+
+    const updatedQuote = await this.toQuote(data);
+
+    return updatedQuote as CashuReceiveQuote & {
+      type: 'CASHU_TOKEN';
+    };
+  }
+
+  /**
+   * Processes the payment of the cashu receive quote.
    * Marks the quote as paid and updates the related data. It also updates the account counter for the keyset.
+   * @returns The updated quote and account.
+   * @throws An error if processing the payment fails.
    */
   async processPayment(
     {
-      quoteId,
-      quoteVersion,
+      quote,
       keysetId,
-      keysetCounter,
       outputAmounts,
-      accountVersion,
     }: {
       /**
-       * ID of the cashu receive quote.
+       * The cashu receive quote to process.
        */
-      quoteId: string;
-      /**
-       * Version of the cashu receive quote as seen by the client. Used for optimistic concurrency control.
-       */
-      quoteVersion: number;
+      quote: CashuReceiveQuote;
       /**
        * ID of the keyset used to create the blinded messages.
        */
       keysetId: string;
       /**
-       * Counter value for the keyset at the time the time of quote payment.
-       */
-      keysetCounter: number;
-      /**
-       * Amounts for each blinded message
+       * Amounts for each blinded message created for this receive.
        */
       outputAmounts: number[];
-      /**
-       * Version of the account as seen by the client. Used for optimistic concurrency control.
-       */
-      accountVersion: number;
     },
     options?: Options,
   ): Promise<{
-    updatedQuote: CashuReceiveQuote;
-    updatedAccount: CashuAccount;
+    /**
+     * The updated quote.
+     */
+    quote: CashuReceiveQuote;
+    /**
+     * The updated account.
+     */
+    account: CashuAccount;
   }> {
+    const cashuTokenMeltData =
+      quote.type === 'CASHU_TOKEN'
+        ? {
+            tokenAmount: quote.tokenReceiveData.tokenAmount,
+            tokenProofs: quote.tokenReceiveData.tokenProofs,
+            tokenMintUrl: quote.tokenReceiveData.sourceMintUrl,
+            meltQuoteId: quote.tokenReceiveData.meltQuoteId,
+            cashuReceiveFee: quote.tokenReceiveData.cashuReceiveFee,
+            lightningFeeReserve: quote.tokenReceiveData.lightningFeeReserve,
+          }
+        : undefined;
+
+    const receiveData = CashuLightningReceiveDbDataSchema.parse({
+      paymentRequest: quote.paymentRequest,
+      mintQuoteId: quote.quoteId,
+      amountReceived: quote.amount,
+      description: quote.description,
+      mintingFee: quote.mintingFee,
+      cashuTokenMeltData,
+      totalFee: quote.totalFee,
+      outputAmounts,
+    } satisfies z.input<typeof CashuLightningReceiveDbDataSchema>);
+
+    const encryptedData = await this.encryption.encrypt(receiveData);
+
     const query = this.db.rpc('process_cashu_receive_quote_payment', {
-      p_quote_id: quoteId,
-      p_quote_version: quoteVersion,
+      p_quote_id: quote.id,
       p_keyset_id: keysetId,
-      p_keyset_counter: keysetCounter,
-      p_output_amounts: outputAmounts,
-      p_account_version: accountVersion,
+      p_number_of_outputs: outputAmounts.length,
+      p_encrypted_data: encryptedData,
     });
 
     if (options?.abortSignal) {
@@ -310,71 +270,92 @@ export class CashuReceiveQuoteRepository {
       });
     }
 
-    const updatedQuote = CashuReceiveQuoteRepository.toQuote(
-      data.updated_quote,
-    );
-    const updatedAccount = await AccountRepository.toAccount(
-      data.updated_account,
-      this.encryption.decrypt,
-    );
+    const [updatedQuote, account] = await Promise.all([
+      this.toQuote(data.quote),
+      this.accountRepository.toAccount<CashuAccount>(data.account),
+    ]);
 
-    return {
-      updatedQuote,
-      updatedAccount: updatedAccount as CashuAccount,
-    };
+    return { quote: updatedQuote, account };
   }
 
   /**
    * Completes the cashu receive quote with the given id.
-   * Completing the quote means that the quote is paid and the tokens have been minted, so the quote state is updated to COMPLETED and the account is updated with the new proofs.
+   * Completing the quote means that the quote is paid and the tokens have been minted, so the quote state is updated to COMPLETED and the proofs are stored in the database.
+   * @returns The updated quote, account and a list of added proof ids.
+   * @throws An error if completing the quote fails.
    */
   async completeReceive(
     {
       quoteId,
-      quoteVersion,
       proofs,
-      accountVersion,
     }: {
       /**
        * ID of the cashu receive quote.
        */
       quoteId: string;
       /**
-       * Version of the cashu receive quote as seen by the client. Used for optimistic concurrency control.
-       */
-      quoteVersion: number;
-      /**
        * Proofs minted for the receive.
        */
       proofs: Proof[];
-      /**
-       * Version of the account as seen by the client. Used for optimistic concurrency control.
-       */
-      accountVersion: number;
     },
     options?: Options,
-  ): Promise<void> {
-    const encryptedProofs = await this.encryption.encrypt(proofs);
+  ): Promise<{
+    /**
+     * The updated quote.
+     */
+    quote: CashuReceiveQuote;
+    /**
+     * The updated account with all the proofs including newly added ones.
+     */
+    account: CashuAccount;
+    /**
+     * A list of added proof ids.
+     * Use if you need to know which proofs from the account proofs list are newly added.
+     */
+    addedProofs: string[];
+  }> {
+    const dataToEncrypt = proofs.flatMap((x) => [x.amount, x.secret]);
+    const encryptedData = await this.encryption.encryptBatch(dataToEncrypt);
+    const encryptedProofs = proofs.map((x, index) => {
+      const encryptedDataIndex = index * 2;
+      return {
+        keysetId: x.id,
+        amount: encryptedData[encryptedDataIndex],
+        secret: encryptedData[encryptedDataIndex + 1],
+        unblindedSignature: x.C,
+        publicKeyY: proofToY(x),
+        dleq: x.dleq ?? null,
+        witness: x.witness ?? null,
+      };
+    });
 
-    // TODO: The function should also create the related history item.
     const query = this.db.rpc('complete_cashu_receive_quote', {
       p_quote_id: quoteId,
-      p_quote_version: quoteVersion,
       p_proofs: encryptedProofs,
-      p_account_version: accountVersion,
     });
 
     if (options?.abortSignal) {
       query.abortSignal(options.abortSignal);
     }
 
-    const { error } = await query;
+    const { data, error } = await query;
 
     if (error) {
       throw new Error('Failed to complete cashu receive quote', {
         cause: error,
       });
     }
+
+    const [quote, account] = await Promise.all([
+      this.toQuote(data.quote),
+      this.accountRepository.toAccount<CashuAccount>(data.account),
+    ]);
+
+    return {
+      quote,
+      account,
+      addedProofs: data.added_proofs.map((x) => x.id),
+    };
   }
 
   /**
@@ -395,7 +376,31 @@ export class CashuReceiveQuoteRepository {
       throw new Error('Failed to get cashu receive quote', { cause: error });
     }
 
-    return data ? CashuReceiveQuoteRepository.toQuote(data) : null;
+    return data ? this.toQuote(data) : null;
+  }
+
+  async getByTransactionId(
+    transactionId: string,
+    options?: Options,
+  ): Promise<CashuReceiveQuote | null> {
+    const query = this.db
+      .from('cashu_receive_quotes')
+      .select()
+      .eq('transaction_id', transactionId);
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      throw new Error('Failed to get cashu receive quote by transaction id', {
+        cause: error,
+      });
+    }
+
+    return data ? this.toQuote(data) : null;
   }
 
   /**
@@ -423,60 +428,62 @@ export class CashuReceiveQuoteRepository {
       throw new Error('Failed to get cashu receive quotes', { cause: error });
     }
 
-    return data.map((data) => CashuReceiveQuoteRepository.toQuote(data));
+    return Promise.all(data.map((data) => this.toQuote(data)));
   }
 
-  static toQuote(data: AgicashDbCashuReceiveQuote): CashuReceiveQuote {
-    const commonData = {
+  async toQuote(data: AgicashDbCashuReceiveQuote): Promise<CashuReceiveQuote> {
+    const decryptedData = await this.encryption.decrypt(data.encrypted_data);
+    const receiveData = CashuLightningReceiveDbDataSchema.parse(decryptedData);
+
+    // `satisfies AllUnionFieldsRequired` gives compile time safety and makes sure that all fields are present and of the correct type.
+    // schema parse then is doing cashu receive quote invariant check at runtime. For example it makes sure that tokenReceiveData is present when type is CASHU_TOKEN, etc.
+    return CashuReceiveQuoteSchema.parse({
       id: data.id,
       userId: data.user_id,
       accountId: data.account_id,
-      quoteId: data.quote_id,
-      amount: new Money({
-        amount: data.amount,
-        currency: data.currency,
-        unit: data.unit,
-      }),
-      description: data.description ?? undefined,
+      quoteId: receiveData.mintQuoteId,
+      amount: receiveData.amountReceived,
+      description: receiveData.description,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      paymentRequest: data.payment_request,
+      paymentRequest: receiveData.paymentRequest,
+      paymentHash: data.payment_hash,
       version: data.version,
       lockingDerivationPath: data.locking_derivation_path,
       transactionId: data.transaction_id,
-      type: data.type as CashuReceiveQuote['type'],
-    };
-
-    if (data.state === 'PAID' || data.state === 'COMPLETED') {
-      return {
-        ...commonData,
-        state: data.state,
-        keysetId: data.keyset_id ?? '',
-        keysetCounter: data.keyset_counter ?? 0,
-        outputAmounts: data.output_amounts ?? [],
-      };
-    }
-
-    if (data.state === 'UNPAID' || data.state === 'EXPIRED') {
-      return {
-        ...commonData,
-        state: data.state,
-      };
-    }
-
-    if (data.state === 'FAILED') {
-      return {
-        ...commonData,
-        state: data.state,
-        failureReason: data.failure_reason ?? '',
-      };
-    }
-
-    throw new Error(`Unexpected quote state ${data.state}`);
+      mintingFee: receiveData.mintingFee,
+      totalFee: receiveData.totalFee,
+      type: data.type,
+      state: data.state,
+      tokenReceiveData: receiveData.cashuTokenMeltData
+        ? {
+            sourceMintUrl: receiveData.cashuTokenMeltData.tokenMintUrl,
+            tokenAmount: receiveData.cashuTokenMeltData.tokenAmount,
+            tokenProofs: receiveData.cashuTokenMeltData.tokenProofs,
+            meltQuoteId: receiveData.cashuTokenMeltData.meltQuoteId,
+            // zod parse will do a runtime check that will make sure that cashu_token_melt_initiated is not null when type is CASHU_TOKEN
+            meltInitiated: data.cashu_token_melt_initiated as boolean,
+            cashuReceiveFee: receiveData.cashuTokenMeltData.cashuReceiveFee,
+            lightningFeeReserve:
+              receiveData.cashuTokenMeltData.lightningFeeReserve,
+          }
+        : undefined,
+      keysetId: data.keyset_id,
+      keysetCounter: data.keyset_counter,
+      outputAmounts: receiveData.outputAmounts,
+      failureReason: data.failure_reason,
+    } satisfies AllUnionFieldsRequired<
+      z.output<typeof CashuReceiveQuoteSchema>
+    >);
   }
 }
 
 export function useCashuReceiveQuoteRepository() {
   const encryption = useEncryption();
-  return new CashuReceiveQuoteRepository(agicashDb, encryption);
+  const accountRepository = useAccountRepository();
+  return new CashuReceiveQuoteRepository(
+    agicashDbClient,
+    encryption,
+    accountRepository,
+  );
 }

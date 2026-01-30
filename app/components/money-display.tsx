@@ -1,6 +1,58 @@
+import { type VariantProps, cva } from 'class-variance-authority';
 import type { Currency, CurrencyUnit } from '~/lib/money';
 import { Money } from '~/lib/money';
 import { cn } from '~/lib/utils';
+
+const textVariants = cva('', {
+  variants: {
+    variant: {
+      default: '',
+      muted: 'text-muted-foreground',
+    },
+    size: {
+      xs: 'font-semibold',
+      sm: 'font-semibold',
+      md: 'font-bold',
+      lg: 'font-bold',
+    },
+  },
+  defaultVariants: {
+    variant: 'default',
+    size: 'lg',
+  },
+});
+
+const symbolVariants = cva('', {
+  variants: {
+    size: {
+      xs: 'text-[1.1rem]',
+      sm: 'text-[1.33rem]',
+      md: 'text-[2.85rem]',
+      lg: 'text-[3.45rem]',
+    },
+  },
+  defaultVariants: {
+    size: 'lg',
+  },
+});
+
+const valueVariants = cva('font-numeric', {
+  variants: {
+    size: {
+      xs: 'pt-0.5 text-xl',
+      sm: 'pt-1 text-2xl',
+      md: 'pt-1.5 text-5xl',
+      lg: 'pt-2 text-6xl',
+    },
+  },
+  defaultVariants: {
+    size: 'lg',
+  },
+});
+
+type Variants = VariantProps<typeof textVariants> &
+  VariantProps<typeof symbolVariants> &
+  VariantProps<typeof valueVariants>;
 
 interface MoneyInputDisplayProps<C extends Currency = Currency> {
   /** Raw input value from user (e.g., "1", "1.", "1.0") */
@@ -45,13 +97,13 @@ export function MoneyInputDisplay<C extends Currency>({
     : '';
 
   const symbol = (
-    <span className="text-[3.45rem] text-currencySymbol">{currencySymbol}</span>
+    <span className={symbolVariants({ size: 'lg' })}>{currencySymbol}</span>
   );
 
   return (
-    <span className="font-bold">
+    <span className={textVariants({ size: 'lg' })}>
       {currencySymbolPosition === 'prefix' && symbol}
-      <span className="pt-2 font-numeric text-6xl">
+      <span className={valueVariants({ size: 'lg' })}>
         {integer}
         {(inputDecimals || needsPaddedZeros) && (
           <>
@@ -72,28 +124,15 @@ type MoneyDisplayProps<C extends Currency = Currency> = {
   money: Money<C>;
   locale?: string;
   unit?: CurrencyUnit<C>;
-  variant?: 'default' | 'secondary';
   className?: string;
-};
-
-const variants = {
-  default: {
-    symbol: 'text-[3.45rem] text-currencySymbol',
-    value: 'text-6xl pt-2',
-    wrapper: 'font-bold',
-  },
-  secondary: {
-    symbol: 'text-[1.33rem] text-foreground',
-    value: 'text-2xl pt-1 text-foreground',
-    wrapper: 'font-semibold',
-  },
-} as const;
+} & Variants;
 
 export function MoneyDisplay<C extends Currency>({
   money,
   locale,
   unit,
-  variant = 'default',
+  variant,
+  size,
   className,
 }: MoneyDisplayProps<C>) {
   const {
@@ -107,15 +146,13 @@ export function MoneyDisplay<C extends Currency>({
   const value = `${integer}${decimalSeparator}${fraction}`;
 
   const symbol = (
-    <span className={variants[variant].symbol}>{currencySymbol}</span>
+    <span className={symbolVariants({ size })}>{currencySymbol}</span>
   );
 
   return (
-    <span className={cn(variants[variant].wrapper, className)}>
+    <span className={cn(textVariants({ variant, size }), className)}>
       {currencySymbolPosition === 'prefix' && symbol}
-      <span className={cn('font-numeric', variants[variant].value)}>
-        {value}
-      </span>
+      <span className={valueVariants({ size })}>{value}</span>
       {currencySymbolPosition === 'suffix' && symbol}
     </span>
   );

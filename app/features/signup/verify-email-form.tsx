@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '~/components/ui/button';
 import {
@@ -10,24 +9,17 @@ import {
 } from '~/components/ui/card';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
-import {
-  useRequestEmailVerificationCode,
-  useVerifyEmailOnLoad,
-} from '~/features/signup/verify-email';
-import { useAuthActions } from '~/features/user/auth';
+import { useRequestEmailVerificationCode } from '~/features/signup/verify-email';
+import { useSignOut } from '~/features/user/auth';
 import type { FullUser } from '~/features/user/user';
 import { useToast } from '~/hooks/use-toast';
 import { useVerifyEmail } from '../user/user-hooks';
 
 type FormValues = { code: string };
-type Step = 'auto-verification' | 'manual-verification';
-type Props = { user: FullUser; code?: string };
+type Props = { user: FullUser };
 
-export function VerifyEmailForm({ user, code }: Props) {
-  const [step, setStep] = useState<Step>(() => {
-    return code ? 'auto-verification' : 'manual-verification';
-  });
-  const { signOut } = useAuthActions();
+export function VerifyEmailForm({ user }: Props) {
+  const { isSigningOut, signOut } = useSignOut();
   const verifyEmail = useVerifyEmail();
   const { toast } = useToast();
   const { requestingEmailVerificationCode, requestEmailVerificationCode } =
@@ -37,15 +29,6 @@ export function VerifyEmailForm({ user, code }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>();
-
-  useVerifyEmailOnLoad({
-    code,
-    onFailed: () => setStep('manual-verification'),
-  });
-
-  if (step === 'auto-verification') {
-    return <div className="text-center">Verifying email...</div>;
-  }
 
   const onSubmit = async (data: FormValues) => {
     try {
@@ -115,6 +98,7 @@ export function VerifyEmailForm({ user, code }: Props) {
             className="w-full"
             variant="outline"
             onClick={signOut}
+            loading={isSigningOut}
           >
             Log Out
           </Button>

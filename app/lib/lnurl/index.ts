@@ -83,10 +83,12 @@ export const getInvoiceFromLud16 = async (
       routes: callbackRes.routes ?? [],
     };
   } catch (error) {
-    console.error('Failed to get invoice:', error);
-    const msg =
-      error instanceof Error ? error.message : 'Failed to get invoice';
-    return { status: 'ERROR', reason: msg };
+    const message = 'Failed to get invoice';
+    console.error(message, { cause: error });
+    return {
+      status: 'ERROR',
+      reason: error instanceof Error ? error.message : message,
+    };
   }
 };
 

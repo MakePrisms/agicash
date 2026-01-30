@@ -3,7 +3,7 @@ import { hashToCurve } from '@cashu/crypto/modules/common';
 import { parseSecret } from './secret';
 
 /** Sum the amounts from a list of proofs. */
-export const sumProofs = (proofs: Proof[]): number => {
+export const sumProofs = (proofs: Pick<Proof, 'amount'>[]): number => {
   return proofs.reduce((acc, proof) => {
     return acc + proof.amount;
   }, 0);

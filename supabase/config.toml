@@ -12,14 +12,17 @@ port = 54321
 # endpoints. `public` and `graphql_public` schemas are included by default.
 schemas = ["wallet"]
 # Extra schemas to add to the search_path of every request.
-extra_search_path = ["public", "extensions"]
-# The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
+extra_search_path = ["wallet"]
+# The maximum number of rows returned from a view, table, or stored procedure. Limits payload size
 # for accidental or malicious requests.
-max_rows = 1000
+max_rows = 6000
 
 [api.tls]
 # Enable HTTPS endpoints locally using a self-signed certificate.
-enabled = false
+enabled = true
+# Paths to self-signed certificate pair.
+cert_path = "env(SELF_SIGNED_CERT_PATH)"
+key_path = "env(SELF_SIGNED_CERT_KEY_PATH)"
 
 [db]
 # Port to use for the local database URL.
@@ -28,7 +31,7 @@ port = 54322
 shadow_port = 54320
 # The database major version to use. This has to be the same as your remote database's. Run `SHOW
 # server_version;` on the remote database to check.
-major_version = 15
+major_version = 17
 
 [db.pooler]
 enabled = false
@@ -78,7 +81,7 @@ port = 54324
 # sender_name = "Admin"
 
 [storage]
-enabled = true
+enabled = false
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
@@ -278,26 +281,22 @@ s3_access_key = "env(S3_ACCESS_KEY)"
 s3_secret_key = "env(S3_SECRET_KEY)"
 
 # CONFIGS FOR PERSISTENT BRANCHES BELLOW:
-# Settings above are applied to local enviroment and hosted preview environments (feature branches) that are ephemeral.
-# For persitent branches like `master` we need to use [remotes]. See the docs here
-# https://supabase.com/docs/guides/deployment/branching?queryGroups=platform&platform=existing#branch-configuration-with-remotes
+# Settings above are default configurations for all branches/environments.
+# To override the default configs or add new ones for persistent branches like 'next', 'alpha' and 'live' we need to use [remotes]. 
+# See the docs here: https://supabase.com/docs/guides/deployment/branching/configuration
 
-# Master configs (live enviroment):
-# we are only specifying overriden defaults here for now
-[remotes.master]
-project_id = "rpexjlmybmlwlfgnhbsq"
+# Next environment:
+# This environment is connected to the 'master' git branch.
+# This environment is additionally used by all preview deployments that don't make any database changes.
+[remotes.next]
+project_id = "szuncqupizxelsxkxlpq"
 
-[remotes.master.api]
-# Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
-# endpoints. `public` and `graphql_public` schemas are included by default.
-schemas = ["wallet"]
-# Extra schemas to add to the search_path of every request.
-extra_search_path = ["public", "extensions"]
+# Alpha environment:
+[remotes.alpha]
+project_id = "wxrdobmevsrtakazrnch"
 
-[remotes.master.auth]
-# Allow/disallow new user signups to your project.
-enable_signup = false
-
-[remotes.master.auth.email]
-# Allow/disallow new user signups via email to your project.
-enable_signup = false
+# Live environment:
+# Note that this environment is called 'main' in Supabase, but points to the 'live' git branch.
+# Atm it doesn't seem to be possible to rename the Supabase name for this.
+[remotes.live]
+project_id = "hrebgkfhjpkbxpztqqke"

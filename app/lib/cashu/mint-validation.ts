@@ -1,11 +1,13 @@
-import { CashuMint, type WebSocketSupport } from '@cashu/cashu-ts';
-import type {
-  CashuProtocolUnit,
-  MintInfo,
-  NUT,
-  NUT17WebSocketCommand,
+import type { MintKeyset, WebSocketSupport } from '@cashu/cashu-ts';
+import { z } from 'zod';
+import {
+  CASHU_PROTOCOL_UNITS,
+  type CashuProtocolUnit,
+  type MintInfo,
+  type NUT,
+  type NUT17WebSocketCommand,
 } from './types';
-import { getCashuWallet } from './utils';
+import { areMintUrlsEqual } from './utils';
 
 type NutValidationResult =
   | { isValid: false; message: string }
@@ -15,6 +17,16 @@ type NutValidation = {
   nut: NUT;
   validate: (info: MintInfo, unit: string) => NutValidationResult;
 };
+
+export const MintBlocklistSchema = z.array(
+  z.object({
+    mintUrl: z.url(),
+    /** If null, the entire mint is blocked */
+    unit: z.enum(CASHU_PROTOCOL_UNITS).nullable(),
+  }),
+);
+
+type MintBlocklist = z.infer<typeof MintBlocklistSchema>;
 
 type BuildMintValidatorOptions = {
   /**
@@ -26,6 +38,10 @@ type BuildMintValidatorOptions = {
    * @default: ['bolt11_mint_quote', 'bolt11_melt_quote', 'proof_state']
    */
   requiredWebSocketCommands?: NUT17WebSocketCommand[];
+  /**
+   * A list of mint URL + unit combinations to block.
+   */
+  blocklist?: MintBlocklist;
 };
 
 /**
@@ -34,30 +50,32 @@ type BuildMintValidatorOptions = {
  * @returns The validator function
  */
 export const buildMintValidator = (params: BuildMintValidatorOptions) => {
-  return async (
+  return (
     mintUrl: string,
     selectedUnit: CashuProtocolUnit,
-    mintInfo?: MintInfo,
-  ): Promise<string | true> => {
+    mintInfo: MintInfo,
+    keysets: MintKeyset[],
+  ): string | true => {
     if (!/^https?:\/\/.+/.test(mintUrl)) {
       return 'Must be a valid URL starting with http(s)://';
     }
 
-    const units = await getUnitsSupportedByMint(mintUrl);
-
-    if (!units) {
-      return 'Failed to connect to mint. Please make sure the URL is correct or try again.';
+    for (const entry of params.blocklist ?? []) {
+      if (!areMintUrlsEqual(entry.mintUrl, mintUrl)) continue;
+      if (entry.unit === null) return 'This mint is not supported';
+      if (entry.unit === selectedUnit)
+        return 'This mint is not supported for the selected currency';
     }
 
-    if (!units.includes(selectedUnit)) {
+    const activeUnits = keysets.filter((ks) => ks.active).map((ks) => ks.unit);
+
+    if (!activeUnits.includes(selectedUnit)) {
       return 'Mint does not support this currency';
     }
 
     try {
-      const info = mintInfo ?? (await getCashuWallet(mintUrl).getMintInfo());
-
-      const featuresResult = await validateMintFeatures(
-        info,
+      const featuresResult = validateMintFeatures(
+        mintInfo,
         selectedUnit,
         createNutValidators(params),
       );
@@ -234,11 +252,11 @@ const validateWebSocketSupport = (
   return { isValid: true };
 };
 
-const validateMintFeatures = async (
+const validateMintFeatures = (
   mintInfo: MintInfo,
   unit: string,
   nutValidators: NutValidation[],
-): Promise<NutValidationResult> => {
+): NutValidationResult => {
   try {
     for (const { validate } of nutValidators) {
       const result = validate(mintInfo, unit);
@@ -253,21 +271,5 @@ const validateMintFeatures = async (
       isValid: false,
       message: 'Failed to connect to mint or validate features',
     };
-  }
-};
-
-const getUnitsSupportedByMint = async (
-  mintUrl: string,
-): Promise<string[] | null> => {
-  try {
-    const mint = new CashuMint(mintUrl);
-    const { keysets } = await mint.getKeySets();
-    const activeUnits = keysets
-      .filter((x: { active: boolean }) => x.active)
-      .map((x: { unit: string }) => x.unit);
-    const distinctActiveUnits = [...new Set(activeUnits)];
-    return distinctActiveUnits;
-  } catch {
-    return null;
   }
 };

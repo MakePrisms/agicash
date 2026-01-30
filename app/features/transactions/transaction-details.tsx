@@ -1,12 +1,5 @@
-import {
-  BanIcon,
-  CheckIcon,
-  ClockIcon,
-  LandmarkIcon,
-  UndoIcon,
-  XIcon,
-} from 'lucide-react';
-
+import { BanIcon, CheckIcon, ClockIcon, UndoIcon, XIcon } from 'lucide-react';
+import { useEffect } from 'react';
 import { PageContent, PageFooter } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import {
@@ -16,22 +9,17 @@ import {
   CardHeader,
   CardTitle,
 } from '~/components/ui/card';
-import type {
-  CashuReceiveQuoteTransactionDetails,
-  CashuReceiveSwapTransactionDetails,
-  CashuSendSwapTransactionDetails,
-  CompletedCashuSendQuoteTransactionDetails,
-  IncompleteCashuSendQuoteTransactionDetails,
-  Transaction,
-} from '~/features/transactions/transaction';
+import { accountOfflineToast } from '~/features/accounts/utils';
+import type { Transaction } from '~/features/transactions/transaction';
 import { useToast } from '~/hooks/use-toast';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
-import { getDefaultUnit } from '../shared/currencies';
+import { AccountIcon } from '../accounts/account-icons';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
   isTransactionReversable,
+  useAcknowledgeTransaction,
   useReverseTransaction,
 } from './transaction-hooks';
 
@@ -80,6 +68,12 @@ const transactionIconMap = {
 
 function getTransactionIcon(transaction: Transaction) {
   if (transaction.state === 'DRAFT') {
+    if (
+      transaction.type === 'SPARK_LIGHTNING' &&
+      transaction.direction === 'SEND'
+    ) {
+      return transactionIconMap.PENDING;
+    }
     throw new Error('Transaction is in draft state');
   }
   return transactionIconMap[transaction.state];
@@ -88,6 +82,13 @@ function getTransactionIcon(transaction: Transaction) {
 function getTransactionLabel(transaction: Transaction) {
   if (transaction.state === 'REVERSED') {
     return 'Reclaimed';
+  }
+  if (
+    transaction.state === 'DRAFT' &&
+    transaction.type === 'SPARK_LIGHTNING' &&
+    transaction.direction === 'SEND'
+  ) {
+    return 'Pending';
   }
   return transaction.state.toLowerCase();
 }
@@ -101,6 +102,13 @@ export function TransactionDetails({
 }) {
   const account = useAccount(transaction.accountId);
   const { toast } = useToast();
+  const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
+
+  useEffect(() => {
+    if (transaction.acknowledgmentStatus === 'pending') {
+      acknowledgeTransaction({ transaction });
+    }
+  }, [transaction, acknowledgeTransaction]);
 
   const {
     mutate: reverseTransaction,
@@ -127,111 +135,6 @@ export function TransactionDetails({
     (didReclaimMutationSucceed && !isWaitingForStateUpdate) ||
     (!shouldShowReclaimButton && defaultShowOkayButton);
 
-  // Log transaction details with proper formatting for each type
-  const { type, direction, state, details } = transaction;
-  const unit = getDefaultUnit(transaction.amount.currency);
-
-  if (type === 'CASHU_LIGHTNING' && direction === 'SEND') {
-    if (state === 'COMPLETED') {
-      const completedDetails =
-        details as CompletedCashuSendQuoteTransactionDetails;
-      console.debug(
-        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-        {
-          amountReserved: completedDetails.amountReserved.toLocaleString({
-            unit,
-          }),
-          totalAmount: completedDetails.amountSpent.toLocaleString({ unit }),
-          amountToReceive: completedDetails.amountToReceive.toLocaleString({
-            unit,
-          }),
-          lightningFeeReserve:
-            completedDetails.lightningFeeReserve.toLocaleString({ unit }),
-          cashuSendFee: completedDetails.cashuSendFee.toLocaleString({
-            unit,
-          }),
-          totalFees: completedDetails.totalFees.toLocaleString({ unit }),
-          lightningFee: completedDetails.lightningFee.toLocaleString({
-            unit,
-          }),
-          paymentRequest: completedDetails.paymentRequest,
-          preimage: completedDetails.preimage,
-        },
-      );
-    } else {
-      const incompleteDetails =
-        details as IncompleteCashuSendQuoteTransactionDetails;
-      console.debug(
-        `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-        {
-          amountReserved: incompleteDetails.amountReserved.toLocaleString({
-            unit,
-          }),
-          amountToReceive: incompleteDetails.amountToReceive.toLocaleString({
-            unit,
-          }),
-          lightningFeeReserve:
-            incompleteDetails.lightningFeeReserve.toLocaleString({ unit }),
-          cashuSendFee: incompleteDetails.cashuSendFee.toLocaleString({
-            unit,
-          }),
-          paymentRequest: incompleteDetails.paymentRequest,
-        },
-      );
-    }
-  }
-
-  if (type === 'CASHU_LIGHTNING' && direction === 'RECEIVE') {
-    const receiveDetails = details as CashuReceiveQuoteTransactionDetails;
-    console.debug(
-      `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-      {
-        amountReceived: receiveDetails.amountReceived.toLocaleString({ unit }),
-        paymentRequest: receiveDetails.paymentRequest,
-        description: receiveDetails.description,
-      },
-    );
-  }
-
-  if (type === 'CASHU_TOKEN' && direction === 'SEND') {
-    const sendSwapDetails = details as CashuSendSwapTransactionDetails;
-    console.debug(
-      `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-      {
-        amountSpent: sendSwapDetails.amountSpent.toLocaleString({ unit }),
-        amountToReceive: sendSwapDetails.amountToReceive.toLocaleString({
-          unit,
-        }),
-        cashuSendFee: sendSwapDetails.cashuSendFee.toLocaleString({
-          unit,
-        }),
-        cashuReceiveFee: sendSwapDetails.cashuReceiveFee.toLocaleString({
-          unit,
-        }),
-        totalFees: sendSwapDetails.totalFees.toLocaleString({ unit }),
-      },
-    );
-  }
-
-  if (type === 'CASHU_TOKEN' && direction === 'RECEIVE') {
-    const receiveSwapDetails = details as CashuReceiveSwapTransactionDetails;
-    console.debug(
-      `TX ${transaction.id.slice(0, 8)} [${type}_${direction}_${state}]:`,
-      {
-        amountReceived: receiveSwapDetails.amountReceived.toLocaleString({
-          unit,
-        }),
-        // NOTE: these should never be undefined, but there's a bug we need to fix
-        // see https://github.com/MakePrisms/boardwalkcash/pull/541
-        tokenAmount: receiveSwapDetails.tokenAmount?.toLocaleString({ unit }),
-        cashuReceiveFee: receiveSwapDetails.cashuReceiveFee?.toLocaleString({
-          unit,
-        }),
-        totalFees: receiveSwapDetails.totalFees?.toLocaleString({ unit }),
-      },
-    );
-  }
-
   return (
     <>
       <PageContent className="flex w-full max-w-md flex-1 flex-col items-center justify-between gap-8">
@@ -254,7 +157,7 @@ export function TransactionDetails({
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <LandmarkIcon size={18} className="text-muted-foreground" />
+                <AccountIcon account={account} />
                 <span>{account?.name}</span>
               </div>
 
@@ -287,7 +190,13 @@ export function TransactionDetails({
         <PageFooter className="pb-14">
           <Button
             className="w-[100px]"
-            onClick={() => reverseTransaction({ transaction })}
+            onClick={() => {
+              if (!account.isOnline) {
+                toast(accountOfflineToast);
+                return;
+              }
+              reverseTransaction({ transaction });
+            }}
             loading={isReclaimInProgress}
           >
             Reclaim

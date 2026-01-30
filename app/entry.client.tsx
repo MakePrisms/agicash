@@ -1,3 +1,4 @@
+import { configure } from '@opensecret/react';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -7,37 +8,28 @@ import * as Sentry from '@sentry/react-router';
 import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
+import { getEnvironment, isServedLocally } from './environment';
+import { Money } from './lib/money/money';
 
-/**
- * Checks if running on a local server. Returns true if built for development or if
- * host is localhost, 127.0.0.1, .local domain or a local IP address.
- */
-const isLocalServer = (): boolean => {
-  // Check environment variables first
-  if (
-    process.env.NODE_ENV === 'development' ||
-    process.env.LOCAL_DEV === 'true'
-  ) {
-    return true;
-  }
+// Register Chrome DevTools custom formatter for Money class (dev only)
+if (process.env.NODE_ENV === 'development') {
+  Money.registerDevToolsFormatter();
+}
 
-  // Auto-detect local environment using browser APIs
-  const hostname = window.location.hostname;
+const openSecretApiUrl = import.meta.env.VITE_OPEN_SECRET_API_URL ?? '';
+if (!openSecretApiUrl) {
+  throw new Error('VITE_OPEN_SECRET_API_URL is not set');
+}
 
-  // Check if hostname indicates local environment
-  if (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname.endsWith('.local') ||
-    hostname.startsWith('192.168.') ||
-    hostname.startsWith('10.') ||
-    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
-  ) {
-    return true;
-  }
+const openSecretClientId = import.meta.env.VITE_OPEN_SECRET_CLIENT_ID ?? '';
+if (!openSecretClientId) {
+  throw new Error('VITE_OPEN_SECRET_CLIENT_ID is not set');
+}
 
-  return false;
-};
+configure({
+  apiUrl: openSecretApiUrl,
+  clientId: openSecretClientId,
+});
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {
@@ -49,10 +41,13 @@ Sentry.init({
   // Adds request headers and IP for users, for more info visit:
   // https://docs.sentry.io/platforms/javascript/guides/react-router/configuration/options/#sendDefaultPii
   sendDefaultPii: false,
-  integrations: [],
-  enabled: process.env.NODE_ENV === 'production' && !isLocalServer(),
-  environment: 'preview', // TODO: set proper environment
+  enabled:
+    process.env.NODE_ENV === 'production' &&
+    !isServedLocally(window.location.hostname),
+  environment: getEnvironment(),
   tunnel: '/api/logs',
+  enableLogs: true,
+  integrations: [Sentry.consoleLoggingIntegration()],
 });
 
 startTransition(() => {

@@ -153,6 +153,9 @@ function getViewTransitionState(state: unknown): ViewTransitionState | null {
   return { transition: state.transition, applyTo };
 }
 
+// This value is repeated in transitions.css. When changing make sure to keep them in sync!
+export const VIEW_TRANSITION_DURATION_MS = 180;
+
 /**
  * Applies the animation direction styles based on the navigation state.
  * Must be used in the root component of the app.
@@ -174,7 +177,7 @@ export function useViewTransitionEffect() {
       // If we don't do this, then subsequent animations may reuse the old values.
 
       // Wait for current animation to finish before cleanup, otherwise the animation gets interrupted.
-      const animationDurationMs = 80; // This value is repeated in transitions.css. When changing make sure to keep them in sync!
+      const animationDurationMs = VIEW_TRANSITION_DURATION_MS;
       new Promise((resolve) => setTimeout(resolve, animationDurationMs)).then(
         () => {
           removeTransitionStyles();
@@ -214,9 +217,17 @@ export function LinkWithViewTransition<
   const commonProps = {
     ...props,
     prefetch: props.prefetch ?? 'viewport',
-    onClick: props.onClick,
+    onClick: (event: React.MouseEvent<HTMLAnchorElement>) => {
+      // Apply styles synchronously on click, before React Router starts the view transition.
+      // This is necessary because Link navigations to prefetched/cached routes skip the
+      // "loading" state entirely, so our useEffect never gets a chance to apply styles.
+      // Browser back/forward (popstate) navigations still go through loading state and
+      // will be handled by useViewTransitionEffect.
+      applyTransitionStyles(transition, applyTo);
+      props.onClick?.(event);
+    },
     viewTransition: true,
-    state: linkState,
+    state: { ...props.state, ...linkState },
   };
 
   if (as === NavLink) {
@@ -241,6 +252,9 @@ export function useNavigateWithViewTransition() {
       ...options
     }: NavigateWithViewTransitionOptions,
   ) => {
+    // Apply styles synchronously before navigate, for the same reason as in LinkWithViewTransition.
+    applyTransitionStyles(transition, applyTo);
+
     navigate(to, {
       ...options,
       viewTransition: true,

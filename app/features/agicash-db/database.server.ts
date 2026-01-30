@@ -11,7 +11,11 @@ if (!supabaseServiceRoleKey) {
   throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
 }
 
-export const agicashDbServiceRole = createClient<Database>(
+/**
+ * The server-side Supabase database client.
+ * Cannot be used on the client. Use `agicashDbClient` instead.
+ */
+export const agicashDbServer = createClient<Database>(
   supabaseUrl,
   supabaseServiceRoleKey,
   {

@@ -78,23 +78,22 @@ describe('getClaimableProofs', () => {
 
 describe('sumProofs', () => {
   test('should sum the amounts of a list of proofs', () => {
-    expect(
-      sumProofs([
-        {
-          amount: 1,
-          secret:
-            '0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7',
-          C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
-          id: '009a1f293253e41e',
-        },
-        {
-          amount: 1,
-          secret:
-            '0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a8',
-          C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
-          id: '009a1f293253e41e',
-        },
-      ]),
-    ).toBe(2);
+    const proofs = [
+      {
+        amount: 1,
+        secret:
+          '0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7',
+        C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
+        id: '009a1f293253e41e',
+      },
+      {
+        amount: 1,
+        secret:
+          '0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a8',
+        C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
+        id: '009a1f293253e41e',
+      },
+    ];
+    expect(sumProofs(proofs)).toBe(2);
   });
 });

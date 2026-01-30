@@ -1,11 +1,11 @@
-import { Laptop, Moon, Sun } from 'lucide-react';
-import { Button } from '~/components/ui/button';
+import { Moon, Sun, SunMoon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu';
+import { cn } from '~/lib/utils';
 import { colorModes } from './theme.constants';
 import type { ColorMode } from './theme.types';
 import { useTheme } from './use-theme';
@@ -16,29 +16,28 @@ export function ColorModeToggle({ className }: { className?: string }) {
   const getIcon = (mode: ColorMode) => {
     switch (mode) {
       case 'light':
-        return <Sun className="h-4 w-4" />;
+        return <Sun className="h-5 w-5" />;
       case 'dark':
-        return <Moon className="h-4 w-4" />;
+        return <Moon className="h-5 w-5" />;
       case 'system':
-        return <Laptop className="h-4 w-4" />;
+        return <SunMoon className="h-5 w-5" />;
       default:
-        return <Sun className="h-4 w-4" />;
+        return <Sun className="h-5 w-5" />;
     }
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
+        <button
+          type="button"
           aria-label={`Current color mode: ${colorMode}. Click to switch.`}
-          className={className}
+          className={cn(className, 'focus-visible:outline-none')}
         >
           {getIcon(colorMode)}
-        </Button>
+        </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="mt-2">
         {colorModes.map((mode) => (
           <DropdownMenuItem
             key={mode}

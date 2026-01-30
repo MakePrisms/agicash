@@ -1,0 +1,165 @@
+diff --git a/node_modules/@sentry/core/.bun-tag-13c4c89a99b46fd b/.bun-tag-13c4c89a99b46fd
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-7f447b0ab8be8393 b/.bun-tag-7f447b0ab8be8393
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-93df3377343ec96 b/.bun-tag-93df3377343ec96
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-a5eced411eedc26a b/.bun-tag-a5eced411eedc26a
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-a9ff31826d7647ad b/.bun-tag-a9ff31826d7647ad
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-aa8768c77c3af962 b/.bun-tag-aa8768c77c3af962
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-bc6b85bd23c04b41 b/.bun-tag-bc6b85bd23c04b41
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-c5e75f8b53dcbf28 b/.bun-tag-c5e75f8b53dcbf28
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@sentry/core/.bun-tag-d02cf43cb32db12a b/.bun-tag-d02cf43cb32db12a
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/build/cjs/logs/console-integration.js b/build/cjs/logs/console-integration.js
+index 6d53aa83fb09cc78a9634dfc4d4313fec572e3ea..6e33229b97e66df9c4896d77f5bed49a3a9c4faf 100644
+--- a/build/cjs/logs/console-integration.js
++++ b/build/cjs/logs/console-integration.js
+@@ -35,6 +35,10 @@ const _consoleLoggingIntegration = ((options = {}) => {
+         const firstArg = args[0];
+         const followingArgs = args.slice(1);
+ 
++        const secondArg = args[1];
++        const timestamp = secondArg && typeof secondArg === 'object' ? secondArg.timestamp : undefined;
++        const timestampInSeconds = timestamp ? timestamp / 1000 : undefined;
++
+         if (level === 'assert') {
+           if (!firstArg) {
+             const assertionMessage =
+@@ -53,9 +57,12 @@ const _consoleLoggingIntegration = ((options = {}) => {
+         const attributes = {
+           ...DEFAULT_ATTRIBUTES,
+           ...(shouldGenerateTemplate ? utils.createConsoleTemplateAttributes(firstArg, followingArgs) : {}),
++          patchSource: 'cjs',
++          timestampRecordedByApp: timestampInSeconds || '-',
+         };
+ 
+         internal._INTERNAL_captureLog({
++          timestamp: timestampInSeconds,
+           level: isLevelLog ? 'info' : level,
+           message: utils.formatConsoleArgs(args, normalizeDepth, normalizeMaxBreadth),
+           severityNumber: isLevelLog ? 10 : undefined,
+diff --git a/build/cjs/logs/internal.js b/build/cjs/logs/internal.js
+index b6b11f4c6840e226a2b2b2c48714426c48113f03..9a70ceaf0480589e6af06b1a39ce67910174cd8e 100644
+--- a/build/cjs/logs/internal.js
++++ b/build/cjs/logs/internal.js
+@@ -182,7 +182,7 @@ function _INTERNAL_captureLog(
+   const { level, message, attributes = {}, severityNumber } = log;
+ 
+   const serializedLog = {
+-    timestamp: time.timestampInSeconds(),
++    timestamp: beforeLog.timestamp ?? time.timestampInSeconds(),
+     level,
+     body: message,
+     trace_id: traceContext?.trace_id,
+diff --git a/build/cjs/utils/time.js b/build/cjs/utils/time.js
+index f1632bc0a634a108aba0237f8e53fe6452ab4265..e832293b25c6c34b0efa4a03c6a6eb095f46d29d 100644
+--- a/build/cjs/utils/time.js
++++ b/build/cjs/utils/time.js
+@@ -46,21 +46,11 @@ function createUnixTimestampInSecondsFunc() {
+   };
+ }
+ 
+-let _cachedTimestampInSeconds;
+-
+ /**
+- * Returns a timestamp in seconds since the UNIX epoch using either the Performance or Date APIs, depending on the
+- * availability of the Performance API.
+- *
+- * BUG: Note that because of how browsers implement the Performance API, the clock might stop when the computer is
+- * asleep. This creates a skew between `dateTimestampInSeconds` and `timestampInSeconds`. The
+- * skew can grow to arbitrary amounts like days, weeks or months.
+- * See https://github.com/getsentry/sentry-javascript/issues/2590.
++ * Returns a timestamp in seconds since the UNIX epoch using Date APIs.
+  */
+ function timestampInSeconds() {
+-  // We store this in a closure so that we don't have to create a new function every time this is called.
+-  const func = _cachedTimestampInSeconds ?? (_cachedTimestampInSeconds = createUnixTimestampInSecondsFunc());
+-  return func();
++  return dateTimestampInSeconds();
+ }
+ 
+ /**
+diff --git a/build/esm/logs/console-integration.js b/build/esm/logs/console-integration.js
+index 2811cc868dc1e36cec3a077a0893a0237d22e752..8c9ae38e8270bbab308b75428bf75944eeb51deb 100644
+--- a/build/esm/logs/console-integration.js
++++ b/build/esm/logs/console-integration.js
+@@ -33,6 +33,10 @@ const _consoleLoggingIntegration = ((options = {}) => {
+         const firstArg = args[0];
+         const followingArgs = args.slice(1);
+ 
++        const secondArg = args[1];
++        const timestamp = secondArg && typeof secondArg === 'object' ? secondArg.timestamp : undefined;
++        const timestampInSeconds = timestamp ? (timestamp / 1000) : undefined;
++
+         if (level === 'assert') {
+           if (!firstArg) {
+             const assertionMessage =
+@@ -51,9 +55,12 @@ const _consoleLoggingIntegration = ((options = {}) => {
+         const attributes = {
+           ...DEFAULT_ATTRIBUTES,
+           ...(shouldGenerateTemplate ? createConsoleTemplateAttributes(firstArg, followingArgs) : {}),
++          patchSource: 'esm',
++          timestampRecordedByApp: timestampInSeconds || '-',
+         };
+ 
+         _INTERNAL_captureLog({
++          timestamp: timestampInSeconds,
+           level: isLevelLog ? 'info' : level,
+           message: formatConsoleArgs(args, normalizeDepth, normalizeMaxBreadth),
+           severityNumber: isLevelLog ? 10 : undefined,
+diff --git a/build/esm/logs/internal.js b/build/esm/logs/internal.js
+index aa44af0802b69496e43e2ac82f8ff1733a091406..ca24568b413e69a557cb487e9a8c565f8ec69d06 100644
+--- a/build/esm/logs/internal.js
++++ b/build/esm/logs/internal.js
+@@ -180,7 +180,7 @@ function _INTERNAL_captureLog(
+   const { level, message, attributes = {}, severityNumber } = log;
+ 
+   const serializedLog = {
+-    timestamp: timestampInSeconds(),
++    timestamp: beforeLog.timestamp ?? timestampInSeconds(),
+     level,
+     body: message,
+     trace_id: traceContext?.trace_id,
+diff --git a/build/esm/utils/time.js b/build/esm/utils/time.js
+index 571c0d6278356a2c0ec6941760b8c0d951d4b074..05ab054b20849ee526d32d0d431b558e771e76a0 100644
+--- a/build/esm/utils/time.js
++++ b/build/esm/utils/time.js
+@@ -44,21 +44,11 @@ function createUnixTimestampInSecondsFunc() {
+   };
+ }
+ 
+-let _cachedTimestampInSeconds;
+-
+ /**
+- * Returns a timestamp in seconds since the UNIX epoch using either the Performance or Date APIs, depending on the
+- * availability of the Performance API.
+- *
+- * BUG: Note that because of how browsers implement the Performance API, the clock might stop when the computer is
+- * asleep. This creates a skew between `dateTimestampInSeconds` and `timestampInSeconds`. The
+- * skew can grow to arbitrary amounts like days, weeks or months.
+- * See https://github.com/getsentry/sentry-javascript/issues/2590.
++ * Returns a timestamp in seconds since the UNIX epoch using Date APIs.
+  */
+ function timestampInSeconds() {
+-  // We store this in a closure so that we don't have to create a new function every time this is called.
+-  const func = _cachedTimestampInSeconds ?? (_cachedTimestampInSeconds = createUnixTimestampInSecondsFunc());
+-  return func();
++  return dateTimestampInSeconds();
+ }
+ 
+ /**

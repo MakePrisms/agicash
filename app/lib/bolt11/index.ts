@@ -6,6 +6,7 @@ export type DecodedBolt11 = {
   expiryUnixMs: number | undefined;
   network: string | undefined;
   description: string | undefined;
+  paymentHash: string;
 };
 
 /**
@@ -38,7 +39,20 @@ export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
   const descriptionSection = findSection(sections, 'description');
   const description = descriptionSection?.value;
 
-  return { amountMsat, amountSat, expiryUnixMs, network, description };
+  const paymentHashSection = findSection(sections, 'payment_hash');
+  const paymentHash = paymentHashSection?.value;
+  if (!paymentHash) {
+    throw new Error('Invalid lightning invoice: missing payment hash');
+  }
+
+  return {
+    amountMsat,
+    amountSat,
+    expiryUnixMs,
+    network,
+    description,
+    paymentHash,
+  };
 };
 
 /**

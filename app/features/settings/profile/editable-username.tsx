@@ -12,9 +12,9 @@ type FormValues = {
 };
 
 function validateUsername(username: string) {
-  // Check length (3-20 characters)
-  if (username.length < 3 || username.length > 20) {
-    return 'Username must be between 3 and 20 characters';
+  // Check length (5-20 characters)
+  if (username.length < 5 || username.length > 20) {
+    return 'Username must be between 5 and 20 characters';
   }
 
   // Check characters (only a-z, 0-9, underscore, hyphen allowed)
