@@ -15,10 +15,6 @@ import { CashuLightningSendDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
 import {
-  type TransactionRepository,
-  useTransactionRepository,
-} from '../transactions/transaction-repository';
-import {
   type CashuSendQuote,
   CashuSendQuoteSchema,
   type DestinationDetails,
@@ -100,7 +96,6 @@ export class CashuSendQuoteRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly encryption: Encryption,
-    private readonly transactionRepository: TransactionRepository,
   ) {}
 
   /**
@@ -215,19 +210,6 @@ export class CashuSendQuoteRepository {
       .subtract(quote.cashuFee);
 
     const totalFee = actualLightningFee.add(quote.cashuFee);
-
-    const transaction = await this.transactionRepository.get(
-      quote.transactionId,
-    );
-
-    if (
-      !transaction ||
-      transaction.type !== 'CASHU_LIGHTNING' ||
-      transaction.direction !== 'SEND' ||
-      transaction.state !== 'PENDING'
-    ) {
-      throw new Error(`Transaction not found for quote ${quote.id}.`);
-    }
 
     const sendData = CashuLightningSendDbDataSchema.parse({
       paymentRequest: quote.paymentRequest,
@@ -509,10 +491,5 @@ export class CashuSendQuoteRepository {
 
 export function useCashuSendQuoteRepository() {
   const encryption = useEncryption();
-  const transactionRepository = useTransactionRepository();
-  return new CashuSendQuoteRepository(
-    agicashDbClient,
-    encryption,
-    transactionRepository,
-  );
+  return new CashuSendQuoteRepository(agicashDbClient, encryption);
 }
