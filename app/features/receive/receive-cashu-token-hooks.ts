@@ -1,10 +1,11 @@
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import type {
-  Account,
-  CashuAccount,
-  ExtendedAccount,
+import {
+  type Account,
+  type CashuAccount,
+  type ExtendedAccount,
+  canSendToLightning,
 } from '~/features/accounts/account';
 import {
   useAccounts,
@@ -345,21 +346,30 @@ function usePlacholderAccounts(
 }
 
 /**
- * Returns the placeholder accounts that can be receive the cashu token.
+ * Returns the placeholder accounts that can receive the cashu token.
  * Use to present the receive options when user is not signed in and we can't know which accounts they have.
- * Spark account is set as the receive account by default.
+ * Spark account is set as the receive account by default, unless the source cannot send to Lightning (test
+ * mints and gift cards can only be claimed to the same mint).
  */
 export function useReceiveCashuTokenAccountPlaceholders(token: Token) {
-  const allSelectableAccounts = usePlacholderAccounts(token);
-  const [sparkAccount, tokenCashuAccount] = allSelectableAccounts;
+  const allPlaceholderAccounts = usePlacholderAccounts(token);
+  const [sparkAccount, tokenCashuAccount] = allPlaceholderAccounts;
+
+  const sourceCanSendToLightning = canSendToLightning(tokenCashuAccount);
+  const selectableAccounts = sourceCanSendToLightning
+    ? allPlaceholderAccounts
+    : [tokenCashuAccount];
+  const defaultAccount = sourceCanSendToLightning
+    ? sparkAccount
+    : tokenCashuAccount;
 
   const [receiveAccount, setReceiveAccount] = useState(() =>
-    toOption(sparkAccount),
+    toOption(defaultAccount),
   );
 
   return {
     sourceAccount: tokenCashuAccount,
-    selectableAccounts: allSelectableAccounts.map(toOption),
+    selectableAccounts: selectableAccounts.map(toOption),
     receiveAccount,
     setReceiveAccount,
   };

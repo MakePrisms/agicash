@@ -286,6 +286,8 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
       token,
     });
 
+  const isGiftCardSource = sourceAccount.purpose === 'gift-card';
+
   const encodedToken = getEncodedToken(claimableToken ?? token);
 
   const handleClaimAsGuest = async () => {
@@ -347,12 +349,20 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken ? (
             <div className="w-full max-w-sm px-4">
-              <AccountSelector
-                accounts={selectableAccounts}
-                selectedAccount={receiveAccount}
-                disabled={selectableAccounts.length <= 1}
-                onSelect={setReceiveAccount}
-              />
+              {isGiftCardSource ? (
+                <GiftCardItem
+                  account={sourceAccount}
+                  image={getGiftCardImageByUrl(sourceAccount.mintUrl)}
+                  hideOverlayContent
+                />
+              ) : (
+                <AccountSelector
+                  accounts={selectableAccounts}
+                  selectedAccount={receiveAccount}
+                  disabled={selectableAccounts.length <= 1}
+                  onSelect={setReceiveAccount}
+                />
+              )}
             </div>
           ) : (
             <TokenErrorDisplay message={cannotClaimReason} />
