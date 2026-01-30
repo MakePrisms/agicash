@@ -124,9 +124,10 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
               return (
                 <div
                   key={account.id}
-                  className="-translate-x-1/2 fixed left-1/2 w-full px-4"
+                  className="-translate-x-1/2 fixed left-1/2"
                   style={{
                     top: `calc(100vh + ${offsetBelowViewport}px)`,
+                    width: CARD_WIDTH,
                     zIndex,
                     viewTransitionName: isTransitioning
                       ? `card-${account.id}`
@@ -144,7 +145,12 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
           </div>
         </div>
 
-        <div className="view-transition-transactions mx-auto flex flex-col items-center px-4 pt-3 pb-8">
+        <div
+          className="mx-auto flex flex-col items-center px-4 pt-3 pb-8"
+          style={{
+            viewTransitionName: isTransitioning ? 'transactions' : undefined,
+          }}
+        >
           {balance && <MoneyWithConvertedAmount money={balance} size="md" />}
 
           <div className="mt-6 grid w-72 grid-cols-2 gap-10">

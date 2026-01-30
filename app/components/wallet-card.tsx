@@ -17,6 +17,7 @@ export type WalletCardProps = {
   className?: string;
   children: React.ReactNode;
   size?: WalletCardSize;
+  style?: React.CSSProperties;
 };
 
 type WalletCardBackgroundProps = {
@@ -36,6 +37,7 @@ export function WalletCard({
   className,
   children,
   size = 'default',
+  style,
 }: WalletCardProps) {
   return (
     <div
@@ -46,6 +48,7 @@ export function WalletCard({
       )}
       style={{
         aspectRatio: CARD_ASPECT_RATIO,
+        ...style,
       }}
     >
       {children}
@@ -103,7 +106,6 @@ export function WalletCardBackgroundImage({
       <img
         src={src}
         alt={alt}
-        loading="lazy"
         className={cn('h-full w-full object-cover', className)}
       />
     </WalletCardOverlay>

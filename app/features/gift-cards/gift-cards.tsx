@@ -31,7 +31,13 @@ export function GiftCards() {
   });
 
   const navigate = useNavigate();
-  const isTransitioning = useViewTransitionState('/gift-cards/:accountId');
+  const isTransitioningToCard = useViewTransitionState(
+    '/gift-cards/:accountId',
+  );
+  const isTransitioningToAdd = useViewTransitionState(
+    '/gift-cards/add/:mintUrl/:currency',
+  );
+  const isTransitioning = isTransitioningToCard || isTransitioningToAdd;
 
   const hasCards = accounts.length > 0;
   const stackedHeight =
@@ -44,7 +50,12 @@ export function GiftCards() {
 
   return (
     <Page className="px-0 pb-0">
-      <PageHeader className="absolute inset-x-0 top-0 z-20 flex w-full items-center justify-between px-4 pt-4 pb-4">
+      <PageHeader
+        className="absolute inset-x-0 top-0 z-20 flex w-full items-center justify-between px-4 pt-4 pb-4"
+        style={{
+          viewTransitionName: isTransitioning ? 'gift-cards-header' : undefined,
+        }}
+      >
         <ClosePageButton to="/" transition="slideLeft" applyTo="oldView" />
         <PageHeaderTitle>Gift Cards</PageHeaderTitle>
       </PageHeader>
@@ -56,8 +67,17 @@ export function GiftCards() {
           )}
 
           {hasCards ? (
-            <div className="flex w-full shrink-0 flex-col items-center pb-8">
-              <h2 className="mb-3 w-full px-4 text-white">Your Cards</h2>
+            <div className="relative z-10 flex w-full shrink-0 flex-col items-center pb-8">
+              <h2
+                className="mb-3 w-full px-4 text-white"
+                style={{
+                  viewTransitionName: isTransitioningToAdd
+                    ? 'your-cards-heading'
+                    : undefined,
+                }}
+              >
+                Your Cards
+              </h2>
               <div className="w-full px-4">
                 <div
                   className="relative mx-auto w-full"
@@ -73,7 +93,7 @@ export function GiftCards() {
                       style={{
                         transform: `translateY(${index * VERTICAL_CARD_OFFSET_IN_STACK}px)`,
                         zIndex: 1 + index,
-                        viewTransitionName: isTransitioning
+                        viewTransitionName: isTransitioningToCard
                           ? `card-${account.id}`
                           : undefined,
                       }}
@@ -89,7 +109,15 @@ export function GiftCards() {
               </div>
             </div>
           ) : (
-            <EmptyState />
+            <div
+              style={{
+                viewTransitionName: isTransitioningToAdd
+                  ? 'empty-state'
+                  : undefined,
+              }}
+            >
+              <EmptyState />
+            </div>
           )}
         </div>
       </PageContent>

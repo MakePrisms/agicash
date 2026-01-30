@@ -94,7 +94,12 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
 
   return (
     <Page className="relative">
-      <PageHeader className="z-10">
+      <PageHeader
+        className="z-10"
+        style={{
+          viewTransitionName: isTransitioning ? 'add-card-header' : undefined,
+        }}
+      >
         <PageHeaderItem position="left">
           <button type="button" onClick={handleBack} aria-label="Close">
             <X />
@@ -108,11 +113,13 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
           viewTransition
           state={location.state}
           className="flex w-full max-w-sm items-center justify-center"
-          style={{
-            viewTransitionName: isTransitioning ? 'discover-card' : undefined,
-          }}
         >
-          <WalletCard className="w-full max-w-none">
+          <WalletCard
+            className="w-full max-w-none"
+            style={{
+              viewTransitionName: isTransitioning ? 'discover-card' : undefined,
+            }}
+          >
             <WalletCardBackgroundImage
               src={giftCard.image}
               alt={giftCard.name}
@@ -121,7 +128,12 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
         </Link>
       </PageContent>
 
-      <PageFooter className="z-10 pb-14">
+      <PageFooter
+        className="z-10 pb-14"
+        style={{
+          viewTransitionName: isTransitioning ? 'add-card-footer' : undefined,
+        }}
+      >
         <Button
           className="w-[200px]"
           onClick={handleAddCard}

@@ -47,21 +47,15 @@ function useRestoreScrollPosition() {
 type DiscoverCardLinkProps = {
   card: GiftCardInfo;
   scrollPositionRef: React.RefObject<number>;
-  children: React.ReactNode;
 };
 
 /**
  * Link wrapper for a discover card that applies view transition name when navigating forward only.
  * Passes current scroll position in navigation state for restoration on back navigation.
  */
-function DiscoverCardLink({
-  card,
-  scrollPositionRef,
-  children,
-}: DiscoverCardLinkProps) {
+function DiscoverCardLink({ card, scrollPositionRef }: DiscoverCardLinkProps) {
   const navigate = useNavigate();
   const to = `/gift-cards/add/${encodeURIComponent(card.url)}/${card.currency}`;
-
   const isNavigatingToThisCard = useViewTransitionState(to);
 
   // Use onClick to capture scroll position at click time, not render time
@@ -76,16 +70,17 @@ function DiscoverCardLink({
   };
 
   return (
-    <Link
-      to={to}
-      onClick={handleClick}
-      style={{
-        viewTransitionName: isNavigatingToThisCard
-          ? 'discover-card'
-          : undefined,
-      }}
-    >
-      {children}
+    <Link to={to} onClick={handleClick}>
+      <WalletCard
+        size="sm"
+        style={{
+          viewTransitionName: isNavigatingToThisCard
+            ? 'discover-card'
+            : undefined,
+        }}
+      >
+        <WalletCardBackgroundImage src={card.image} alt={card.name} />
+      </WalletCard>
     </Link>
   );
 }
@@ -100,18 +95,31 @@ type DiscoverSectionProps = {
  */
 export function DiscoverGiftCards({ giftCards }: DiscoverSectionProps) {
   const { isMobile } = useUserAgent();
-  const isTransitioning = useViewTransitionState('/gift-cards/:accountId');
+  const isTransitioningToCard = useViewTransitionState(
+    '/gift-cards/:accountId',
+  );
+  const isTransitioningToAdd = useViewTransitionState(
+    '/gift-cards/add/:mintUrl/:currency',
+  );
+  const isTransitioning = isTransitioningToCard || isTransitioningToAdd;
   const { scrollRef, scrollPositionRef, handleScroll } =
     useRestoreScrollPosition();
 
   return (
     <div
-      className="w-full shrink-0"
+      className="w-full shrink-0 overflow-hidden"
       style={{
         viewTransitionName: isTransitioning ? 'available-cards' : undefined,
       }}
     >
-      <h2 className="mb-3 px-4 text-white">Discover</h2>
+      <h2
+        className="mb-3 px-4 text-white"
+        style={{
+          viewTransitionName: isTransitioning ? 'discover-heading' : undefined,
+        }}
+      >
+        Discover
+      </h2>
       <div className="sm:px-4">
         <div
           ref={scrollRef}
@@ -123,23 +131,13 @@ export function DiscoverGiftCards({ giftCards }: DiscoverSectionProps) {
               : '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-1.5',
           )}
         >
-          <div className="flex w-max gap-3 pb-2">
-            {giftCards.map((card, index) => (
+          <div className="flex w-max gap-3 px-4 pb-2 sm:px-0">
+            {giftCards.map((card) => (
               <DiscoverCardLink
                 key={`${card.url}:${card.currency}`}
                 card={card}
                 scrollPositionRef={scrollPositionRef}
-              >
-                <WalletCard
-                  size="sm"
-                  className={cn(
-                    index === 0 && 'ml-4 sm:ml-0',
-                    index === giftCards.length - 1 && 'mr-4 sm:mr-0',
-                  )}
-                >
-                  <WalletCardBackgroundImage src={card.image} alt={card.name} />
-                </WalletCard>
-              </DiscoverCardLink>
+              />
             ))}
           </div>
         </div>
