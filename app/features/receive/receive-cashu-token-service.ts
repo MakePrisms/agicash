@@ -169,20 +169,20 @@ export class ReceiveCashuTokenService {
       return preferredReceiveAccount;
     }
 
-    if (sourceAccount.canReceive) {
-      return sourceAccount;
-    }
-
     const defaultAccount = possibleDestinationAccounts.find(
       (account) =>
         account.isDefault && account.currency === sourceAccount.currency,
     );
 
-    if (!defaultAccount?.canReceive) {
-      return null;
+    if (defaultAccount?.canReceive) {
+      return defaultAccount;
     }
 
-    return defaultAccount;
+    if (sourceAccount.canReceive) {
+      return sourceAccount;
+    }
+
+    return null;
   }
 
   private augmentNonSourceAccountsWithTokenFlags(
