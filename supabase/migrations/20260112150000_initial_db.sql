@@ -1664,7 +1664,7 @@ begin
   update wallet.transactions
   set state = 'COMPLETED',
       -- Only set acknowledgment status to pending if the receive swap is not reversing a send swap
-      acknowledgment_status = case when reversed_transaction_id is null then 'pending' else null end,
+      acknowledgment_status = case when reversed_transaction_id is null then 'pending'::wallet.acknowledgment_status else null end,
       completed_at = now()
   where id = v_receive_swap.transaction_id
   returning reversed_transaction_id into v_reversed_transaction_id;
