@@ -1,7 +1,12 @@
 import { useState } from 'react';
-import { PageContent } from '~/components/page';
+import {
+  PageBackButton,
+  PageContent,
+  PageHeader,
+  PageHeaderItem,
+  PageHeaderTitle,
+} from '~/components/page';
 import { AddContactDrawer, ContactsList } from '~/features/contacts';
-import { SettingsViewHeader } from '~/features/settings/ui/settings-view-header';
 import { SearchBar } from '../../components/search-bar';
 
 export default function Contacts() {
@@ -9,16 +14,17 @@ export default function Contacts() {
 
   return (
     <>
-      <SettingsViewHeader
-        title="Contacts"
-        navBack={{
-          to: '/settings',
-          transition: 'slideRight',
-          applyTo: 'oldView',
-        }}
-      >
-        <AddContactDrawer />
-      </SettingsViewHeader>
+      <PageHeader>
+        <PageBackButton
+          to="/settings"
+          transition="slideRight"
+          applyTo="oldView"
+        />
+        <PageHeaderTitle>Contacts</PageHeaderTitle>
+        <PageHeaderItem position="right">
+          <AddContactDrawer />
+        </PageHeaderItem>
+      </PageHeader>
       <PageContent className="overflow-hidden">
         <SearchBar onSearch={setSearchQuery} placeholder="Search contacts..." />
 

@@ -1,7 +1,11 @@
-import { PageContent } from '~/components/page';
+import {
+  PageBackButton,
+  PageContent,
+  PageHeader,
+  PageHeaderTitle,
+} from '~/components/page';
 import { Separator } from '~/components/ui/separator';
 import { UpgradeGuestForm } from '~/features/settings/profile/upgrade-guest-form';
-import { SettingsViewHeader } from '~/features/settings/ui/settings-view-header';
 import { useUser } from '~/features/user/user-hooks';
 import EditableUsername from './editable-username';
 
@@ -10,14 +14,14 @@ export default function EditProfile() {
 
   return (
     <>
-      <SettingsViewHeader
-        title="Edit Profile"
-        navBack={{
-          to: '/settings',
-          transition: 'slideRight',
-          applyTo: 'oldView',
-        }}
-      />
+      <PageHeader>
+        <PageBackButton
+          to="/settings"
+          transition="slideRight"
+          applyTo="oldView"
+        />
+        <PageHeaderTitle>Edit Profile</PageHeaderTitle>
+      </PageHeader>
       <PageContent className="gap-6">
         <EditableUsername />
         {isGuest && (
