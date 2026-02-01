@@ -2,13 +2,12 @@ import { CheckStateEnum } from '@cashu/cashu-ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { PageContent } from '~/components/page';
+import { PageBackButton, PageContent, PageHeader } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { ScrollArea } from '~/components/ui/scroll-area';
 import type { CashuAccount } from '~/features/accounts/account';
 import { useAccount } from '~/features/accounts/account-hooks';
 import type { CashuProof } from '~/features/accounts/cashu-account';
-import { SettingsViewHeader } from '~/features/settings/ui/settings-view-header';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { getCashuUnit, sumProofs } from '~/lib/cashu';
 import { Money } from '~/lib/money';
@@ -165,13 +164,13 @@ export default function AccountProofs({ accountId }: { accountId: string }) {
 
   return (
     <>
-      <SettingsViewHeader
-        navBack={{
-          to: `/settings/accounts/${accountId}`,
-          transition: 'slideRight',
-          applyTo: 'oldView',
-        }}
-      />
+      <PageHeader>
+        <PageBackButton
+          to={`/settings/accounts/${accountId}`}
+          transition="slideRight"
+          applyTo="oldView"
+        />
+      </PageHeader>
       <PageContent className="overflow-hidden">
         <ScrollArea className="h-full">
           <div className="space-y-8">

@@ -1,10 +1,9 @@
-import { PageContent } from '~/components/page';
+import { PageBackButton, PageContent, PageHeader } from '~/components/page';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { getAccountBalance } from '~/features/accounts/account';
 import { useAccount } from '~/features/accounts/account-hooks';
 import { BalanceOfflineHoverCard } from '~/features/accounts/balance-offline-hover-card';
-import { SettingsViewHeader } from '~/features/settings/ui/settings-view-header';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useSetDefaultAccount } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
@@ -47,13 +46,13 @@ export default function SingleAccount({ accountId }: { accountId: string }) {
 
   return (
     <>
-      <SettingsViewHeader
-        navBack={{
-          to: '/settings/accounts',
-          transition: 'slideRight',
-          applyTo: 'oldView',
-        }}
-      />
+      <PageHeader>
+        <PageBackButton
+          to="/settings/accounts"
+          transition="slideRight"
+          applyTo="oldView"
+        />
+      </PageHeader>
       <PageContent>
         <div className="flex w-full flex-col gap-12 pt-4">
           <div className="flex flex-col gap-12">
