@@ -5,6 +5,9 @@ import { useToast } from '~/hooks/use-toast';
 import { useAnimatedQRDecoder } from '~/lib/cashu/animated-qr-code';
 import { useLatest } from '~/lib/use-latest';
 
+// Time before a failed QR code can be retried to prevent error spam
+const DECODE_COOLDOWN_MS = 3000;
+
 const AnimatedScanProgress = ({ progress }: { progress: number }) => {
   if (progress === 0) return null;
 
@@ -28,9 +31,9 @@ const AnimatedScanProgress = ({ progress }: { progress: number }) => {
 
 type QRScannerProps = {
   /**
-   * The callback function to be called when the QR code is decoded.
+   * Return `true` to stop scanning, `false` to continue scanning.
    */
-  onDecode: (decoded: string) => void;
+  onDecode: (decoded: string) => Promise<boolean> | boolean;
 };
 
 /**
@@ -48,32 +51,64 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
   const [currentFragment, setCurrentFragment] = useState('');
   const decodeRef = useLatest(onDecode);
 
+  const processingValue = useRef<string | null>(null);
+  const lastFailed = useRef<{ value: string; time: number } | null>(null);
+
+  // Deduplicates rapid scan events to prevent error spam while QR is held up
+  const handleDecodeRef = useLatest(
+    async (decoded: string): Promise<boolean> => {
+      if (processingValue.current === decoded) {
+        return false;
+      }
+
+      const failed = lastFailed.current;
+      if (
+        failed?.value === decoded &&
+        Date.now() - failed.time < DECODE_COOLDOWN_MS
+      ) {
+        return false;
+      }
+
+      processingValue.current = decoded;
+      const shouldStop = await decodeRef.current(decoded);
+      processingValue.current = null;
+
+      if (shouldStop) {
+        scanner.current?.destroy();
+      } else {
+        lastFailed.current = { value: decoded, time: Date.now() };
+      }
+
+      return shouldStop;
+    },
+  );
+
   const { progress, error } = useAnimatedQRDecoder({
     fragment: currentFragment,
-    onDecode: (decoded) => {
+    onDecode: async (decoded) => {
       setCurrentFragment('');
-      decodeRef.current(decoded);
-      scanner.current?.destroy();
+      await handleDecodeRef.current(decoded);
     },
   });
+
   const { toast } = useToast();
 
   useEffect(() => {
-    error &&
+    if (error) {
       toast({
         title: 'Error decoding QR code',
         description: error.message,
         variant: 'destructive',
       });
+    }
   }, [error, toast]);
 
   useEffect(() => {
-    const handleResult = (result: Scanner.ScanResult): void => {
+    const handleResult = async (result: Scanner.ScanResult): Promise<void> => {
       if (result.data.toLowerCase().startsWith('ur:')) {
         setCurrentFragment(result.data);
       } else {
-        decodeRef.current(result.data);
-        scanner.current?.destroy();
+        await handleDecodeRef.current(result.data);
       }
     };
 
