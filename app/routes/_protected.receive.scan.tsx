@@ -1,10 +1,10 @@
 import { Page } from '~/components/page';
-import Scan from '~/features/receive/scan';
+import ReceiveScanner from '~/features/receive/receive-scanner';
 
 export default function ReceiveScan() {
   return (
     <Page>
-      <Scan />
+      <ReceiveScanner />
     </Page>
   );
 }
