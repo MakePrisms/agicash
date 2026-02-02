@@ -12,6 +12,7 @@ type CommonUserData = {
   cashuLockingXpub: string;
   encryptionPublicKey: string;
   sparkIdentityPublicKey: string;
+  termsAcceptedAt: string | null;
 };
 
 export type FullUser = CommonUserData & {
@@ -29,4 +30,8 @@ export type UserProfile = Pick<User, 'id' | 'username'>;
 
 export function shouldVerifyEmail(user: User): user is FullUser {
   return !user.isGuest && !user.emailVerified;
+}
+
+export function shouldAcceptTerms(user: User): boolean {
+  return user.termsAcceptedAt === null;
 }

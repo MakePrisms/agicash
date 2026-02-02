@@ -28,6 +28,7 @@ export type UpdateUser = {
   defaultUsdAccountId?: string | null;
   defaultCurrency?: Currency;
   username?: string;
+  termsAcceptedAt?: string;
 };
 
 type Options = {
@@ -68,6 +69,7 @@ function toUser(dbUser: AgicashDbUser): User {
       defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
       defaultUsdAccountId: dbUser.default_usd_account_id ?? null,
       defaultCurrency: dbUser.default_currency,
+      termsAcceptedAt: dbUser.terms_accepted_at ?? null,
       isGuest: false,
     };
   }
@@ -81,6 +83,7 @@ function toUser(dbUser: AgicashDbUser): User {
     defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
     defaultUsdAccountId: dbUser.default_usd_account_id ?? null,
     defaultCurrency: dbUser.default_currency,
+    termsAcceptedAt: dbUser.terms_accepted_at ?? null,
     isGuest: true,
     cashuLockingXpub: dbUser.cashu_locking_xpub,
     encryptionPublicKey: dbUser.encryption_public_key,
@@ -112,6 +115,7 @@ export class WriteUserRepository {
         default_usd_account_id: data.defaultUsdAccountId,
         default_currency: data.defaultCurrency,
         username: data.username,
+        terms_accepted_at: data.termsAcceptedAt,
       })
       .eq('id', userId)
       .select();
@@ -168,6 +172,10 @@ export class WriteUserRepository {
        * The user's Spark identity public key.
        */
       sparkIdentityPublicKey: string;
+      /**
+       * Timestamp when user accepted terms of service in ISO 8601 format.
+       */
+      termsAcceptedAt?: string | null;
     },
     options?: Options,
   ): Promise<{ user: User; accounts: Account[] }> {
@@ -200,6 +208,7 @@ export class WriteUserRepository {
       p_cashu_locking_xpub: user.cashuLockingXpub,
       p_encryption_public_key: user.encryptionPublicKey,
       p_spark_identity_public_key: user.sparkIdentityPublicKey,
+      p_terms_accepted_at: user.termsAcceptedAt ?? undefined,
     });
 
     if (options?.abortSignal) {
