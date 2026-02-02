@@ -13,12 +13,26 @@ export function getStartOfDay(date: Date): Date {
 }
 
 /**
- * Returns the start of the week (Sunday at midnight) for a given date in local timezone.
+ * Returns the start of the week for a given date in local timezone.
+ * Uses the browser's locale to determine the first day of the week.
+ * Falls back to Sunday if locale info is unavailable.
  */
 export function getStartOfWeek(date: Date): Date {
+  const locale = new Intl.Locale(navigator.language);
+  // getWeekInfo().firstDay: 1 = Monday, 7 = Sunday
+  const firstDayOfWeek = locale.getWeekInfo?.()?.firstDay ?? 7;
+
   const result = getStartOfDay(date);
-  const dayOfWeek = result.getDay(); // 0 = Sunday, 6 = Saturday
-  result.setDate(result.getDate() - dayOfWeek);
+
+  // getDay(): 0 = Sunday, 6 = Saturday
+  // Convert firstDayOfWeek from ISO (1-7) to JS (0-6)
+  const localeFirstDay = firstDayOfWeek === 7 ? 0 : firstDayOfWeek;
+  const currentDay = result.getDay();
+
+  // Calculate days to subtract to reach the start of week
+  const daysToSubtract = (currentDay - localeFirstDay + 7) % 7;
+  result.setDate(result.getDate() - daysToSubtract);
+
   return result;
 }
 
