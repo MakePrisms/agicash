@@ -28,6 +28,7 @@ export type UpdateUser = {
   defaultUsdAccountId?: string | null;
   defaultCurrency?: Currency;
   username?: string;
+  termsAcceptedAt?: string;
 };
 
 type Options = {
@@ -54,38 +55,26 @@ type AccountInput = {
  * @returns The user object.
  */
 function toUser(dbUser: AgicashDbUser): User {
-  if (dbUser.email) {
-    return {
-      id: dbUser.id,
-      username: dbUser.username,
-      email: dbUser.email,
-      emailVerified: dbUser.email_verified,
-      createdAt: dbUser.created_at,
-      updatedAt: dbUser.updated_at,
-      cashuLockingXpub: dbUser.cashu_locking_xpub,
-      encryptionPublicKey: dbUser.encryption_public_key,
-      sparkIdentityPublicKey: dbUser.spark_identity_public_key,
-      defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
-      defaultUsdAccountId: dbUser.default_usd_account_id ?? null,
-      defaultCurrency: dbUser.default_currency,
-      isGuest: false,
-    };
-  }
-
-  return {
+  const commonData = {
     id: dbUser.id,
     username: dbUser.username,
     emailVerified: dbUser.email_verified,
     createdAt: dbUser.created_at,
     updatedAt: dbUser.updated_at,
-    defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
-    defaultUsdAccountId: dbUser.default_usd_account_id ?? null,
-    defaultCurrency: dbUser.default_currency,
-    isGuest: true,
     cashuLockingXpub: dbUser.cashu_locking_xpub,
     encryptionPublicKey: dbUser.encryption_public_key,
     sparkIdentityPublicKey: dbUser.spark_identity_public_key,
+    defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
+    defaultUsdAccountId: dbUser.default_usd_account_id,
+    defaultCurrency: dbUser.default_currency,
+    termsAcceptedAt: dbUser.terms_accepted_at,
   };
+
+  if (dbUser.email) {
+    return { ...commonData, email: dbUser.email, isGuest: false };
+  }
+
+  return { ...commonData, isGuest: true };
 }
 
 export class WriteUserRepository {
@@ -112,6 +101,7 @@ export class WriteUserRepository {
         default_usd_account_id: data.defaultUsdAccountId,
         default_currency: data.defaultCurrency,
         username: data.username,
+        terms_accepted_at: data.termsAcceptedAt,
       })
       .eq('id', userId)
       .select();
@@ -168,6 +158,11 @@ export class WriteUserRepository {
        * The user's Spark identity public key.
        */
       sparkIdentityPublicKey: string;
+      /**
+       * Timestamp when user accepted terms of service in ISO 8601 format.
+       * Optional because new OAuth users using the login flow are created before accepting TOS.
+       */
+      termsAcceptedAt?: string;
     },
     options?: Options,
   ): Promise<{ user: User; accounts: Account[] }> {
@@ -200,6 +195,7 @@ export class WriteUserRepository {
       p_cashu_locking_xpub: user.cashuLockingXpub,
       p_encryption_public_key: user.encryptionPublicKey,
       p_spark_identity_public_key: user.sparkIdentityPublicKey,
+      p_terms_accepted_at: user.termsAcceptedAt,
     });
 
     if (options?.abortSignal) {

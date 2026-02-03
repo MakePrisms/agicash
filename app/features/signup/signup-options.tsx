@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '~/components/ui/card';
+import { pendingTermsStorage } from '~/features/user/pending-terms-storage';
 import { useFeatureFlag } from '~/lib/feature-flags';
 import { AcceptTerms } from './accept-terms';
 
@@ -33,6 +34,8 @@ export function SignupOptions({ onSelect }: Props) {
   if (step.name === 'accept-terms') {
     const handleAcceptTerms = async () => {
       if (step.submitting) return;
+
+      pendingTermsStorage.set(new Date().toISOString());
 
       setStep({ ...step, submitting: true });
       await onSelect(step.selectedOption);

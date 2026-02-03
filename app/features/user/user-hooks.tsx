@@ -238,3 +238,12 @@ export const useUpdateUsername = () => {
     [updateUser],
   );
 };
+
+export const useAcceptTerms = () => {
+  const { mutateAsync: updateUser } = useUpdateUser();
+
+  return useCallback(
+    () => updateUser({ termsAcceptedAt: new Date().toISOString() }),
+    [updateUser],
+  );
+};

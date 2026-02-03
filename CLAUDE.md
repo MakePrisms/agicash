@@ -96,6 +96,12 @@ All sensitive data encrypted client-side before storage. Keys derived from Open 
 - Derived state in useState (calculate instead)
 - Props drilling (use context or TanStack Query)
 - Components >200 lines (split them)
+- Redundant nullish coalescing (`value ?? null` when value is already `T | null`)
+- Returning `null` from functions when `undefined` is more idiomatic (avoids `?? undefined` conversions)
+- Excessive code duplication - extract common fields into shared objects. Some duplication is OK if it reduces complexity, but large repeated blocks should be refactored
+- Over-abstracting simple code into separate files (e.g., inline simple middleware in route files)
+- Adding boilerplate that parent components already handle (e.g., child routes don't need `clientLoader.hydrate` if parent layout has it)
+- Writing comments that guess at reasons - verify the actual reason first
 
 ## Commands
 

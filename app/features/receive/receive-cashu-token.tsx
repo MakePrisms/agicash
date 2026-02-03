@@ -33,6 +33,7 @@ import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { AcceptTerms } from '../signup/accept-terms';
 import { useAuthActions } from '../user/auth';
+import { pendingTermsStorage } from '../user/pending-terms-storage';
 import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
   useCashuTokenWithClaimableProofs,
@@ -297,6 +298,9 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
     setSigningUpGuest(true);
     try {
+      // Store terms acceptance timestamp so it's available when user record is created
+      pendingTermsStorage.set(new Date().toISOString());
+
       // Modify the URL before signing up because as soon as the user is logged in,
       // they will be redirected to the protected receive cashu token page
       addClaimToSearchParam(navigate, location, receiveAccount.type);
