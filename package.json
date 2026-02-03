@@ -27,7 +27,7 @@
     "start": "We are running the build in node because atm we are using node as the build target."
   },
   "dependencies": {
-    "@buildonspark/spark-sdk": "0.5.5",
+    "@buildonspark/spark-sdk": "0.5.8",
     "@cashu/cashu-ts": "2.6.0",
     "@cashu/crypto": "0.3.4",
     "@jbojcic/bc-ur": "https://github.com/jbojcic1/bc-ur",
