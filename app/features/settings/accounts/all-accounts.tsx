@@ -1,5 +1,10 @@
 import { Plus } from 'lucide-react';
-import { PageContent } from '~/components/page';
+import {
+  PageBackButton,
+  PageContent,
+  PageHeader,
+  PageHeaderTitle,
+} from '~/components/page';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { Card } from '~/components/ui/card';
@@ -8,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
 import { getAccountBalance } from '~/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { BalanceOfflineHoverCard } from '~/features/accounts/balance-offline-hover-card';
-import { SettingsViewHeader } from '~/features/settings/ui/settings-view-header';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useUser } from '~/features/user/user-hooks';
 import type { Currency } from '~/lib/money';
@@ -71,14 +75,14 @@ export default function AllAccounts() {
 
   return (
     <>
-      <SettingsViewHeader
-        title="Accounts"
-        navBack={{
-          to: '/settings',
-          transition: 'slideRight',
-          applyTo: 'oldView',
-        }}
-      />
+      <PageHeader>
+        <PageBackButton
+          to="/settings"
+          transition="slideRight"
+          applyTo="oldView"
+        />
+        <PageHeaderTitle>Accounts</PageHeaderTitle>
+      </PageHeader>
       <PageContent>
         <Tabs defaultValue={defaultTab.value}>
           <TabsList className="grid w-full grid-cols-2 bg-primary">

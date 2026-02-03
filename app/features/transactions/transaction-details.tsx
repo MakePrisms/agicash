@@ -12,6 +12,7 @@ import {
 import { accountOfflineToast } from '~/features/accounts/utils';
 import type { Transaction } from '~/features/transactions/transaction';
 import { useToast } from '~/hooks/use-toast';
+import { isThisWeek, isToday, isYesterday } from '~/lib/date';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
 import { AccountIcon } from '../accounts/account-icons';
@@ -25,6 +26,7 @@ import {
 
 /**
  * Formats a timestamp into a human-readable relative time string with specific time of day.
+ * Uses calendar day boundaries in the user's local timezone.
  * Examples:
  * - "Today at 2:30 PM"
  * - "Yesterday at 9:15 AM"
@@ -33,24 +35,19 @@ import {
  */
 function formatRelativeTimestampWithTime(timestamp: string): string {
   const date = new Date(timestamp);
-  const now = new Date();
-  const oneDay = 24 * 60 * 60 * 1000;
-  const oneWeek = 7 * oneDay;
-
-  const diff = now.getTime() - date.getTime();
 
   const timeString = date.toLocaleTimeString(undefined, {
     hour: 'numeric',
     minute: '2-digit',
   });
 
-  if (diff < oneDay) {
+  if (isToday(date)) {
     return `Today at ${timeString}`;
   }
-  if (diff < 2 * oneDay) {
+  if (isYesterday(date)) {
     return `Yesterday at ${timeString}`;
   }
-  if (diff < oneWeek) {
+  if (isThisWeek(date)) {
     return `${date.toLocaleDateString(undefined, { weekday: 'long' })} at ${timeString}`;
   }
   return `${date.toLocaleDateString(undefined, {

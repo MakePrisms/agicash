@@ -1,7 +1,12 @@
 import { Share, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useCopyToClipboard } from 'usehooks-ts';
-import { PageContent } from '~/components/page';
+import {
+  PageBackButton,
+  PageContent,
+  PageHeader,
+  PageHeaderItem,
+} from '~/components/page';
 import { Button } from '~/components/ui/button';
 import useLocationData from '~/hooks/use-location';
 import { useToast } from '~/hooks/use-toast';
@@ -9,7 +14,6 @@ import { canShare, shareContent } from '~/lib/share';
 import type { Contact } from '../contacts/contact';
 import { ContactAvatar } from '../contacts/contact-avatar';
 import { useDeleteContact } from '../contacts/contact-hooks';
-import { SettingsViewHeader } from './ui/settings-view-header';
 
 export function SingleContact({ contact }: { contact: Contact }) {
   const { origin } = useLocationData();
@@ -64,22 +68,22 @@ export function SingleContact({ contact }: { contact: Contact }) {
 
   return (
     <>
-      <SettingsViewHeader
-        title=""
-        navBack={{
-          to: '/settings/contacts',
-          transition: 'slideRight',
-          applyTo: 'oldView',
-        }}
-      >
-        <button
-          type="button"
-          onClick={handleShare}
-          className="rounded-full p-2 hover:bg-muted"
-        >
-          <Share className="h-5 w-5" />
-        </button>
-      </SettingsViewHeader>
+      <PageHeader>
+        <PageBackButton
+          to="/settings/contacts"
+          transition="slideRight"
+          applyTo="oldView"
+        />
+        <PageHeaderItem position="right">
+          <button
+            type="button"
+            onClick={handleShare}
+            className="rounded-full p-2 hover:bg-muted"
+          >
+            <Share className="h-5 w-5" />
+          </button>
+        </PageHeaderItem>
+      </PageHeader>
 
       <PageContent>
         <div className="flex flex-col gap-8">

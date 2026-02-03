@@ -12,6 +12,7 @@ import { SparkIcon } from '~/components/spark-icon';
 import { Card } from '~/components/ui/card';
 import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
 import { useIsVisible } from '~/hooks/use-is-visible';
+import { getStartOfWeek, isToday } from '~/lib/date';
 import {
   LinkWithViewTransition,
   VIEW_TRANSITION_DURATION_MS,
@@ -235,11 +236,9 @@ function TransactionSection({
   );
 }
 
-/** Filter transactions by status and time range */
+/** Filter transactions by status and time range using calendar day boundaries */
 function usePartitionTransactions(transactions: Transaction[]) {
-  const now = Date.now();
-  const oneDayAgo = now - 24 * 60 * 60 * 1000;
-  const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const startOfWeek = getStartOfWeek(new Date());
 
   const pendingTransactions: Transaction[] = [];
   const todayTransactions: Transaction[] = [];
@@ -252,10 +251,10 @@ function usePartitionTransactions(transactions: Transaction[]) {
     if (transaction.state === 'PENDING') {
       pendingTransactions.push(transaction);
     } else if (['COMPLETED', 'REVERSED'].includes(transaction.state)) {
-      const createdTime = new Date(transaction.createdAt).getTime();
-      if (createdTime > oneDayAgo) {
+      const createdDate = new Date(transaction.createdAt);
+      if (isToday(createdDate)) {
         todayTransactions.push(transaction);
-      } else if (createdTime > oneWeekAgo) {
+      } else if (createdDate >= startOfWeek) {
         thisWeekTransactions.push(transaction);
       } else {
         olderTransactions.push(transaction);

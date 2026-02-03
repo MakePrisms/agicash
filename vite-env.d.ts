@@ -1,5 +1,16 @@
 /// <reference types="vite/client" />
 
+// Augment Intl.Locale with getWeekInfo (not yet in TypeScript's lib)
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/getWeekInfo
+declare namespace Intl {
+  interface Locale {
+    getWeekInfo?(): {
+      firstDay: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+      weekend: number[];
+    };
+  }
+}
+
 // biome-ignore lint/correctness/noUnusedVariables: this is needed to augment the ImportMetaEnv type
 interface ViteTypeOptions {
   // By adding this line, you can make the type of ImportMetaEnv strict
