@@ -1,26 +1,33 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { redirect, useNavigate } from 'react-router';
 import { Page, PageContent } from '~/components/page';
-import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { AcceptTerms } from '~/features/signup/accept-terms';
-import { acceptTermsRouteGuard } from '~/features/signup/accept-terms-route';
 import { useSignOut } from '~/features/user/auth';
-import { useAcceptTerms } from '~/features/user/user-hooks';
+import { shouldAcceptTerms } from '~/features/user/user';
+import {
+  getUserFromCacheOrThrow,
+  useAcceptTerms,
+} from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.accept-terms';
 
+const acceptTermsRouteGuard: Route.unstable_ClientMiddlewareFunction = async (
+  { request },
+  next,
+) => {
+  const user = getUserFromCacheOrThrow();
+
+  if (!shouldAcceptTerms(user)) {
+    const location = new URL(request.url);
+    const redirectTo = location.searchParams.get('redirectTo') || '/';
+    throw redirect(`${redirectTo}${window.location.hash}`);
+  }
+
+  await next();
+};
+
 export const unstable_clientMiddleware: Route.unstable_ClientMiddlewareFunction[] =
   [acceptTermsRouteGuard];
-
-export async function clientLoader() {
-  return {};
-}
-
-clientLoader.hydrate = true as const;
-
-export function HydrateFallback() {
-  return <LoadingScreen />;
-}
 
 export default function AcceptTermsRoute() {
   const { toast } = useToast();
@@ -39,13 +46,14 @@ export default function AcceptTermsRoute() {
       const hash = window.location.hash;
       navigate(`${redirectTo}${hash}`);
     } catch (e) {
-      setIsAccepting(false);
       console.error('Failed to accept terms', { cause: e });
       toast({
         variant: 'destructive',
         title: 'Failed to accept terms',
         description: 'Please try again',
       });
+    } finally {
+      setIsAccepting(false);
     }
   };
 

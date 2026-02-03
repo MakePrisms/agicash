@@ -70,7 +70,7 @@ const hasUserChanged = (user: User, authUser: AuthUser) => {
 const ensureUserData = async (
   queryClient: QueryClient,
   authUser: AuthUser,
-  termsAcceptedAt?: string | null,
+  termsAcceptedAt?: string,
 ): Promise<User> => {
   let user = getUserFromCache(queryClient);
 
