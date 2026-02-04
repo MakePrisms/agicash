@@ -1,32 +1,5 @@
-diff --git a/node_modules/@sentry/core/.bun-tag-13c4c89a99b46fd b/.bun-tag-13c4c89a99b46fd
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@sentry/core/.bun-tag-7f447b0ab8be8393 b/.bun-tag-7f447b0ab8be8393
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@sentry/core/.bun-tag-93df3377343ec96 b/.bun-tag-93df3377343ec96
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@sentry/core/.bun-tag-a5eced411eedc26a b/.bun-tag-a5eced411eedc26a
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@sentry/core/.bun-tag-a9ff31826d7647ad b/.bun-tag-a9ff31826d7647ad
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@sentry/core/.bun-tag-aa8768c77c3af962 b/.bun-tag-aa8768c77c3af962
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@sentry/core/.bun-tag-bc6b85bd23c04b41 b/.bun-tag-bc6b85bd23c04b41
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@sentry/core/.bun-tag-c5e75f8b53dcbf28 b/.bun-tag-c5e75f8b53dcbf28
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/node_modules/@sentry/core/.bun-tag-d02cf43cb32db12a b/.bun-tag-d02cf43cb32db12a
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/build/cjs/logs/console-integration.js b/build/cjs/logs/console-integration.js
-index 6d53aa83fb09cc78a9634dfc4d4313fec572e3ea..6e33229b97e66df9c4896d77f5bed49a3a9c4faf 100644
+index 32383d1cd276d2f15a2406e8096104ac32eb76ce..eecebba0031e7b17a5a019ea97f8c5a5167a5dc3 100644
 --- a/build/cjs/logs/console-integration.js
 +++ b/build/cjs/logs/console-integration.js
 @@ -35,6 +35,10 @@ const _consoleLoggingIntegration = ((options = {}) => {
@@ -54,11 +27,11 @@ index 6d53aa83fb09cc78a9634dfc4d4313fec572e3ea..6e33229b97e66df9c4896d77f5bed49a
            message: utils.formatConsoleArgs(args, normalizeDepth, normalizeMaxBreadth),
            severityNumber: isLevelLog ? 10 : undefined,
 diff --git a/build/cjs/logs/internal.js b/build/cjs/logs/internal.js
-index b6b11f4c6840e226a2b2b2c48714426c48113f03..9a70ceaf0480589e6af06b1a39ce67910174cd8e 100644
+index c297a85b44e2b85f77c10119fa5ecfa431b2863d..b446baacbf40c6f6472541202da9f1cfb3de565b 100644
 --- a/build/cjs/logs/internal.js
 +++ b/build/cjs/logs/internal.js
-@@ -182,7 +182,7 @@ function _INTERNAL_captureLog(
-   const { level, message, attributes = {}, severityNumber } = log;
+@@ -151,7 +151,7 @@ function _INTERNAL_captureLog(
+   const { level, message, attributes: logAttributes = {}, severityNumber } = log;
  
    const serializedLog = {
 -    timestamp: time.timestampInSeconds(),
@@ -67,10 +40,10 @@ index b6b11f4c6840e226a2b2b2c48714426c48113f03..9a70ceaf0480589e6af06b1a39ce6791
      body: message,
      trace_id: traceContext?.trace_id,
 diff --git a/build/cjs/utils/time.js b/build/cjs/utils/time.js
-index f1632bc0a634a108aba0237f8e53fe6452ab4265..e832293b25c6c34b0efa4a03c6a6eb095f46d29d 100644
+index d8e7fbd444c2c7a83693a5dfc8fea6f7ea74ff3c..9979cca761fe2a7428cb06aeaf4e9aa815b6cc87 100644
 --- a/build/cjs/utils/time.js
 +++ b/build/cjs/utils/time.js
-@@ -46,21 +46,11 @@ function createUnixTimestampInSecondsFunc() {
+@@ -47,21 +47,11 @@ function createUnixTimestampInSecondsFunc() {
    };
  }
  
@@ -95,7 +68,7 @@ index f1632bc0a634a108aba0237f8e53fe6452ab4265..e832293b25c6c34b0efa4a03c6a6eb09
  
  /**
 diff --git a/build/esm/logs/console-integration.js b/build/esm/logs/console-integration.js
-index 2811cc868dc1e36cec3a077a0893a0237d22e752..8c9ae38e8270bbab308b75428bf75944eeb51deb 100644
+index 52cbeb4d26b2eaa16151b4ec92e067b841165254..d2671fec204c3949b5f228c57e9209a05e100b70 100644
 --- a/build/esm/logs/console-integration.js
 +++ b/build/esm/logs/console-integration.js
 @@ -33,6 +33,10 @@ const _consoleLoggingIntegration = ((options = {}) => {
@@ -123,11 +96,11 @@ index 2811cc868dc1e36cec3a077a0893a0237d22e752..8c9ae38e8270bbab308b75428bf75944
            message: formatConsoleArgs(args, normalizeDepth, normalizeMaxBreadth),
            severityNumber: isLevelLog ? 10 : undefined,
 diff --git a/build/esm/logs/internal.js b/build/esm/logs/internal.js
-index aa44af0802b69496e43e2ac82f8ff1733a091406..ca24568b413e69a557cb487e9a8c565f8ec69d06 100644
+index 76a57455bf0de1b7a12f62e0a8f24b1be81b6281..2da8e60fa3c461f7797fd057ff442f9575dfc749 100644
 --- a/build/esm/logs/internal.js
 +++ b/build/esm/logs/internal.js
-@@ -180,7 +180,7 @@ function _INTERNAL_captureLog(
-   const { level, message, attributes = {}, severityNumber } = log;
+@@ -149,7 +149,7 @@ function _INTERNAL_captureLog(
+   const { level, message, attributes: logAttributes = {}, severityNumber } = log;
  
    const serializedLog = {
 -    timestamp: timestampInSeconds(),
@@ -136,10 +109,10 @@ index aa44af0802b69496e43e2ac82f8ff1733a091406..ca24568b413e69a557cb487e9a8c565f
      body: message,
      trace_id: traceContext?.trace_id,
 diff --git a/build/esm/utils/time.js b/build/esm/utils/time.js
-index 571c0d6278356a2c0ec6941760b8c0d951d4b074..05ab054b20849ee526d32d0d431b558e771e76a0 100644
+index 7709a2b5d8e7dea2f2eeb87bd7db389d5ef52179..2e4c47c1d69f3e68809118825f58201759a62528 100644
 --- a/build/esm/utils/time.js
 +++ b/build/esm/utils/time.js
-@@ -44,21 +44,11 @@ function createUnixTimestampInSecondsFunc() {
+@@ -45,21 +45,11 @@ function createUnixTimestampInSecondsFunc() {
    };
  }
  

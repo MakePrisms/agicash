@@ -140,7 +140,7 @@ const ensureUserData = async (
   return user;
 };
 
-const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
+const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   { request },
   next,
 ) => {
@@ -204,8 +204,9 @@ const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
   await next();
 };
 
-export const unstable_clientMiddleware: Route.unstable_ClientMiddlewareFunction[] =
-  [routeGuardMiddleware];
+export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
+  routeGuardMiddleware,
+];
 
 export async function clientLoader() {
   // We are keeping this clientLoader to force client rendering for all protected routes.
