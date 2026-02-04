@@ -4,18 +4,23 @@ const possibleEnvironments = [
   'alpha',
   'next',
   'preview',
-] as const;
+];
 
-type Environment = (typeof possibleEnvironments)[number];
+function getEnvVar(key) {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key];
+  }
+  return import.meta.env[key];
+}
 
 /**
  * Returns the environment name based on the branch name if running on Vercel.
  * If not running on Vercel, returns 'local'.
  */
-export const getEnvironment = (): Environment => {
-  const environment = import.meta.env.VITE_ENVIRONMENT;
+export const getEnvironment = () => {
+  const environment = getEnvVar('VITE_ENVIRONMENT');
 
-  if (!possibleEnvironments.includes(environment as Environment)) {
+  if (!possibleEnvironments.includes(environment)) {
     throw new Error(
       `Invalid environment: ${environment}. Set VITE_ENVIRONMENT env var to one of: ${possibleEnvironments.join(
         ', ',
@@ -23,10 +28,10 @@ export const getEnvironment = (): Environment => {
     );
   }
 
-  return environment as Environment;
+  return environment;
 };
 
-const isLocalIp = (value: string) => {
+const isLocalIp = (value) => {
   return (
     value.startsWith('192.168.') ||
     value.startsWith('10.') ||
@@ -41,11 +46,11 @@ const isLocalIp = (value: string) => {
  * c) hostname is localhost, 127.0.0.1, .local domain or a local IP address.
  * d) any of the IP addresses in the ips array is a local IP address.
  */
-export const isServedLocally = (hostname: string, ips?: string[]): boolean => {
+export const isServedLocally = (hostname, ips) => {
   // Check environment variables first
   if (
     process.env.NODE_ENV === 'development' ||
-    import.meta.env.VITE_LOCAL_DEV === 'true'
+    getEnvVar('VITE_LOCAL_DEV') === 'true'
   ) {
     return true;
   }

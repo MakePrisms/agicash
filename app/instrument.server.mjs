@@ -1,3 +1,6 @@
+console.log('HERE HERE. Instrument.server.mjs is imported.');
+import 'dotenv/config';
+
 /**
  * Instruments the server code with Sentry.
  *
@@ -5,7 +8,7 @@
  */
 import * as os from 'node:os';
 import * as Sentry from '@sentry/react-router';
-import { getEnvironment, isServedLocally } from './environment';
+import { getEnvironment, isServedLocally } from './environment.mjs';
 
 const hostname = os.hostname();
 
@@ -14,9 +17,9 @@ const ips = Object.values(networkInterfaces)
   .flat()
   .filter((iface) => iface?.family === 'IPv4' && !iface.internal)
   .map((iface) => iface?.address)
-  .filter((x): x is string => Boolean(x));
+  .filter((x) => Boolean(x));
 
-const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
+const sentryDsn = process.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {
   throw new Error('VITE_SENTRY_DSN is not set');
 }

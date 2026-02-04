@@ -1,4 +1,3 @@
-import './instrument.server';
 import { PassThrough } from 'node:stream';
 
 import { createReadableStreamFromReadable } from '@react-router/node';

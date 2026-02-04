@@ -8,7 +8,7 @@ import * as Sentry from '@sentry/react-router';
 import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
-import { getEnvironment, isServedLocally } from './environment';
+import { getEnvironment, isServedLocally } from './environment.mjs';
 import { Money } from './lib/money/money';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
