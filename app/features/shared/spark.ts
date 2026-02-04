@@ -121,6 +121,10 @@ export function useTrackAndUpdateSparkAccountBalances() {
           () => account.wallet.getBalance(),
           { accountId: account.id },
         );
+        console.debug('Fetched Spark balance', {
+          accountId: account.id,
+          balance,
+        });
 
         accountCache.updateSparkBalance({
           ...account,
@@ -166,6 +170,9 @@ export async function getInitializedSparkWallet(
           'SparkWallet.getBalance',
           () => wallet.getBalance(),
         );
+        console.debug('Fetched Spark balance to initialize wallet', {
+          balance: balanceSats,
+        });
         const balance = new Money({
           amount: Number(balanceSats),
           currency: 'BTC',
