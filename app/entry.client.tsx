@@ -9,7 +9,8 @@ import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
-import { Money } from './lib/money/money';
+import { Money } from './lib/money';
+import { getTracesSampleRate, sanitizeUrl } from './lib/sentry';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
 if (process.env.NODE_ENV === 'development') {
@@ -47,7 +48,27 @@ Sentry.init({
   environment: getEnvironment(),
   tunnel: '/api/logs',
   enableLogs: true,
-  integrations: [Sentry.consoleLoggingIntegration()],
+
+  // Performance monitoring
+  tracesSampleRate: getTracesSampleRate(),
+
+  integrations: [
+    Sentry.consoleLoggingIntegration(),
+    Sentry.reactRouterTracingIntegration(),
+  ],
+
+  // Sanitize sensitive URL parameters before sending to Sentry
+  beforeSendSpan(span) {
+    const url = span.data?.['http.url'] || span.data?.url;
+    if (typeof url === 'string') {
+      const sanitizedUrl = sanitizeUrl(url);
+      span.data['http.url'] = sanitizedUrl;
+      if (span.data.url) {
+        span.data.url = sanitizedUrl;
+      }
+    }
+    return span;
+  },
 });
 
 startTransition(() => {
