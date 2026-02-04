@@ -24,7 +24,8 @@ import {
   authQueryOptions,
   useAuthState,
 } from '~/features/user/auth';
-import type { User } from '~/features/user/user';
+import { pendingTermsStorage } from '~/features/user/pending-terms-storage';
+import { type User, shouldAcceptTerms } from '~/features/user/user';
 import {
   defaultAccounts,
   getUserFromCache,
@@ -43,6 +44,19 @@ const shouldUserVerifyEmail = (user: AuthUser) => {
   return !isGuest && !user.email_verified;
 };
 
+const buildRedirectWithReturnUrl = (
+  destinationRoute: string,
+  location: URL,
+  hash: string,
+) => {
+  const searchParams = new URLSearchParams(location.search);
+  if (location.pathname !== '/') {
+    searchParams.set('redirectTo', location.pathname);
+  }
+  const search = `?${searchParams.toString()}`;
+  return redirect(`${destinationRoute}${search}${hash}`);
+};
+
 const hasUserChanged = (user: User, authUser: AuthUser) => {
   const currentAuthUserEmail = authUser.email ?? null;
   const currentUserEmail = user.isGuest ? null : user.email;
@@ -56,6 +70,7 @@ const hasUserChanged = (user: User, authUser: AuthUser) => {
 const ensureUserData = async (
   queryClient: QueryClient,
   authUser: AuthUser,
+  termsAcceptedAt?: string,
 ): Promise<User> => {
   let user = getUserFromCache(queryClient);
 
@@ -110,6 +125,7 @@ const ensureUserData = async (
       cashuLockingXpub,
       encryptionPublicKey,
       sparkIdentityPublicKey,
+      termsAcceptedAt,
     });
     user = upsertedUser;
     const readUserRepository = new ReadUserRepository(agicashDbClient);
@@ -124,7 +140,7 @@ const ensureUserData = async (
   return user;
 };
 
-const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
+const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   { request },
   next,
 ) => {
@@ -162,23 +178,35 @@ const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
     throw redirect(`/home${search}${hash}`);
   }
 
-  await ensureUserData(queryClient, authUser);
+  const pendingTermsAcceptedAt = pendingTermsStorage.get();
+  if (pendingTermsAcceptedAt) {
+    pendingTermsStorage.remove();
+  }
+
+  const user = await ensureUserData(
+    queryClient,
+    authUser,
+    pendingTermsAcceptedAt,
+  );
 
   if (shouldRedirectToVerifyEmail) {
-    const searchParams = new URLSearchParams(location.search);
-    if (location.pathname !== '/') {
-      searchParams.set('redirectTo', location.pathname);
-    }
-    const search = `?${searchParams.toString()}`;
+    throw buildRedirectWithReturnUrl('/verify-email', location, hash);
+  }
 
-    throw redirect(`/verify-email${search}${hash}`);
+  const isAcceptTermsRoute = location.pathname.startsWith('/accept-terms');
+  const shouldRedirectToAcceptTerms =
+    shouldAcceptTerms(user) && !isAcceptTermsRoute;
+
+  if (shouldRedirectToAcceptTerms) {
+    throw buildRedirectWithReturnUrl('/accept-terms', location, hash);
   }
 
   await next();
 };
 
-export const unstable_clientMiddleware: Route.unstable_ClientMiddlewareFunction[] =
-  [routeGuardMiddleware];
+export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
+  routeGuardMiddleware,
+];
 
 export async function clientLoader() {
   // We are keeping this clientLoader to force client rendering for all protected routes.

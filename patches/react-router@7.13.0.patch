@@ -1,0 +1,84 @@
+diff --git a/dist/development/chunk-4LKRSAEJ.mjs b/dist/development/chunk-4LKRSAEJ.mjs
+index 8e1b379d0b141ff030b0c37d123e6a9c4b4e5eb3..4a4ee9d90aaeaaa3c72424c55bf3e736108dae08 100644
+--- a/dist/development/chunk-4LKRSAEJ.mjs
++++ b/dist/development/chunk-4LKRSAEJ.mjs
+@@ -1113,11 +1113,11 @@ function derive(build, mode) {
+     };
+     if (build.future.v8_middleware) {
+       if (initialContext && !(initialContext instanceof RouterContextProvider)) {
+-        let error = new Error(
+-          "Invalid `context` value provided to `handleRequest`. When middleware is enabled you must return an instance of `RouterContextProvider` from your `getLoadContext` function."
+-        );
+-        handleError(error);
+-        return returnLastResortErrorResponse(error, serverMode);
++        const map = new Map();
++        for (const key in initialContext) {
++          map.set(key, initialContext[key]);
++        }
++        initialContext = new RouterContextProvider(map);
+       }
+       loadContext = initialContext || new RouterContextProvider();
+     } else {
+diff --git a/dist/development/index.js b/dist/development/index.js
+index dce641e586e41f64e1be8d45fb54eadf6a468ff4..6a13f522cb7ebdc08db2f8dfd8a89ca2d334f8d8 100644
+--- a/dist/development/index.js
++++ b/dist/development/index.js
+@@ -1211,11 +1211,11 @@ function derive(build, mode) {
+     };
+     if (build.future.v8_middleware) {
+       if (initialContext && !(initialContext instanceof _chunkWICQJKU6js.RouterContextProvider)) {
+-        let error = new Error(
+-          "Invalid `context` value provided to `handleRequest`. When middleware is enabled you must return an instance of `RouterContextProvider` from your `getLoadContext` function."
+-        );
+-        handleError(error);
+-        return returnLastResortErrorResponse(error, serverMode);
++        const map = new Map();
++        for (const key in initialContext) {
++          map.set(key, initialContext[key]);
++        }
++        initialContext = new (0, _chunkWICQJKU6js.RouterContextProvider)(map);
+       }
+       loadContext = initialContext || new (0, _chunkWICQJKU6js.RouterContextProvider)();
+     } else {
+diff --git a/dist/production/chunk-GSFLVUYQ.mjs b/dist/production/chunk-GSFLVUYQ.mjs
+index 81727a6d8a800fc735cdb2988b69a9728cdb76d1..b3343d1e3c347ec375d38db92500440933cd2c34 100644
+--- a/dist/production/chunk-GSFLVUYQ.mjs
++++ b/dist/production/chunk-GSFLVUYQ.mjs
+@@ -1113,11 +1113,11 @@ function derive(build, mode) {
+     };
+     if (build.future.v8_middleware) {
+       if (initialContext && !(initialContext instanceof RouterContextProvider)) {
+-        let error = new Error(
+-          "Invalid `context` value provided to `handleRequest`. When middleware is enabled you must return an instance of `RouterContextProvider` from your `getLoadContext` function."
+-        );
+-        handleError(error);
+-        return returnLastResortErrorResponse(error, serverMode);
++        const map = new Map();
++        for (const key in initialContext) {
++          map.set(key, initialContext[key]);
++        }
++        initialContext = new RouterContextProvider(map);
+       }
+       loadContext = initialContext || new RouterContextProvider();
+     } else {
+diff --git a/dist/production/index.js b/dist/production/index.js
+index 439b88cdabc6492147302ac0015c682aa0c1953f..dacce637f410146ca97ca9c36907d798bed97792 100644
+--- a/dist/production/index.js
++++ b/dist/production/index.js
+@@ -1211,11 +1211,11 @@ function derive(build, mode) {
+     };
+     if (build.future.v8_middleware) {
+       if (initialContext && !(initialContext instanceof _chunkQSNCZFX5js.RouterContextProvider)) {
+-        let error = new Error(
+-          "Invalid `context` value provided to `handleRequest`. When middleware is enabled you must return an instance of `RouterContextProvider` from your `getLoadContext` function."
+-        );
+-        handleError(error);
+-        return returnLastResortErrorResponse(error, serverMode);
++        const map = new Map();
++        for (const key in initialContext) {
++          map.set(key, initialContext[key]);
++        }
++        initialContext = new (0, _chunkQSNCZFX5js.RouterContextProvider)(map);
+       }
+       loadContext = initialContext || new (0, _chunkQSNCZFX5js.RouterContextProvider)();
+     } else {

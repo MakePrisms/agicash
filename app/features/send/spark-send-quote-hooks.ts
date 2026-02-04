@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 import type { Money } from '~/lib/money';
+import { measureOperation } from '~/lib/performance';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
@@ -183,8 +184,10 @@ export function useOnSparkSendStateChange({
 
       const account = getSparkAccount(quote.accountId);
 
-      const sendRequest = await account.wallet.getLightningSendRequest(
-        quote.sparkId,
+      const sendRequest = await measureOperation(
+        'SparkWallet.getLightningSendRequest',
+        () => account.wallet.getLightningSendRequest(quote.sparkId),
+        { sendRequestId: quote.sparkId },
       );
 
       if (!sendRequest) {

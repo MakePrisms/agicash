@@ -6,6 +6,7 @@ import type {
 } from '@buildonspark/spark-sdk/types';
 import type { Proof } from '@cashu/cashu-ts';
 import { Money } from '~/lib/money';
+import { measureOperation } from '~/lib/performance';
 import { moneyFromSparkAmount } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
 
@@ -217,12 +218,16 @@ export async function getLightningQuote({
   receiverIdentityPubkey,
   description,
 }: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
-  const response = await wallet.createLightningInvoice({
-    amountSats: amount.toNumber('sat'),
-    includeSparkAddress: false,
-    receiverIdentityPubkey,
-    memo: description,
-  });
+  const response = await measureOperation(
+    'SparkWallet.createLightningInvoice',
+    () =>
+      wallet.createLightningInvoice({
+        amountSats: amount.toNumber('sat'),
+        includeSparkAddress: false,
+        receiverIdentityPubkey,
+        memo: description,
+      }),
+  );
   return {
     id: response.id,
     createdAt: response.createdAt,

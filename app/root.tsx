@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/react-router';
 import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { Analytics } from '@vercel/analytics/react';
+import { Analytics, type BeforeSendEvent } from '@vercel/analytics/react';
 import { Suspense, useEffect } from 'react';
 import {
   Links,
@@ -35,6 +35,7 @@ import { LoadingScreen } from './features/loading/LoadingScreen';
 import { NotFoundError } from './features/shared/error';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
 import { getQueryClient } from './query-client';
+import { sanitizeUrl } from './tracing-utils';
 
 export const links: LinksFunction = () => [
   { rel: 'stylesheet', href: stylesheet },
@@ -169,7 +170,15 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         {children}
         <ScrollRestoration />
         <Scripts />
-        <Analytics mode={vercelAnalyticsMode} />
+        <Analytics
+          mode={vercelAnalyticsMode}
+          beforeSend={(event: BeforeSendEvent) => {
+            return {
+              ...event,
+              url: sanitizeUrl(event.url),
+            };
+          }}
+        />
         <Toaster />
       </body>
     </html>
@@ -303,7 +312,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   );
 }
 
-const timingMiddleware: Route.unstable_ClientMiddlewareFunction = async (
+const timingMiddleware: Route.ClientMiddlewareFunction = async (
   { request },
   next,
 ) => {
@@ -326,5 +335,6 @@ const timingMiddleware: Route.unstable_ClientMiddlewareFunction = async (
   );
 };
 
-export const unstable_clientMiddleware: Route.unstable_ClientMiddlewareFunction[] =
-  [timingMiddleware];
+export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
+  timingMiddleware,
+];

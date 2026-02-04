@@ -1,6 +1,6 @@
 import { verifyEmail as osVerifyEmail } from '@opensecret/react';
 import { useState } from 'react';
-import { redirect, unstable_createContext } from 'react-router';
+import { createContext, redirect } from 'react-router';
 import { useToast } from '~/hooks/use-toast';
 import { getQueryClient } from '~/query-client';
 import type { Route } from '../../routes/+types/_protected.verify-email.($code)';
@@ -9,20 +9,22 @@ import { type FullUser, shouldVerifyEmail } from '../user/user';
 import { useRequestNewEmailVerificationCode } from '../user/user-hooks';
 import { getUserFromCacheOrThrow } from '../user/user-hooks';
 
-export const verifyEmailContext = unstable_createContext<FullUser>();
+export const verifyEmailContext = createContext<FullUser>();
 
-export const verifyEmailRouteGuard: Route.unstable_ClientMiddlewareFunction =
-  async ({ request, context }, next) => {
-    const user = getUserFromCacheOrThrow();
+export const verifyEmailRouteGuard: Route.ClientMiddlewareFunction = async (
+  { request, context },
+  next,
+) => {
+  const user = getUserFromCacheOrThrow();
 
-    if (!shouldVerifyEmail(user)) {
-      throw getRedirectAwayFromVerifyEmail(request);
-    }
+  if (!shouldVerifyEmail(user)) {
+    throw getRedirectAwayFromVerifyEmail(request);
+  }
 
-    context.set(verifyEmailContext, user);
+  context.set(verifyEmailContext, user);
 
-    await next();
-  };
+  await next();
+};
 
 export const getRedirectAwayFromVerifyEmail = (request: Request) => {
   const location = new URL(request.url);
