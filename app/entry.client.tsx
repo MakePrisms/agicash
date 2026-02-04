@@ -10,7 +10,7 @@ import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
 import { Money } from './lib/money';
-import { getTracesSampleRate, sanitizeUrl } from './lib/sentry';
+import { getTracesSampleRate, sanitizeUrl } from './sentry-utils';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
 if (process.env.NODE_ENV === 'development') {
