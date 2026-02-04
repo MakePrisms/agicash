@@ -8,7 +8,7 @@ import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import * as Sentry from '@sentry/react-router';
 import type { unstable_ServerInstrumentation } from 'react-router';
 import { getEnvironment, isServedLocally } from './environment';
-import { getTracesSampleRate, sanitizeUrl } from './sentry-utils';
+import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 /**
  * Docs for Sentry - React Router: https://docs.sentry.io/platforms/javascript/guides/react-router/
