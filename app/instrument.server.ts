@@ -23,17 +23,16 @@ export const sentryInstrumentation: unstable_ServerInstrumentation = {
     handler.instrument({
       async request(handleRequest, { request }) {
         const url = new URL(request.url);
-        const sanitizedPath = sanitizeUrl(url.pathname);
 
         await Sentry.startSpan(
           {
-            name: `${request.method} ${sanitizedPath}`,
+            name: `${request.method} ${url.pathname}`,
             op: 'http.server',
             forceTransaction: true,
             attributes: {
               'http.method': request.method,
-              'http.url': sanitizeUrl(request.url),
-              'http.target': sanitizedPath,
+              'http.url': request.url,
+              'http.target': url.pathname,
             },
           },
           async () => handleRequest(),
