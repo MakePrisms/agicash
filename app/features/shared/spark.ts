@@ -2,6 +2,7 @@ import {
   type NetworkType as SparkNetwork,
   SparkWallet,
 } from '@buildonspark/spark-sdk';
+import { sha256 } from '@noble/hashes/sha2';
 import { getPrivateKey as getMnemonic } from '@opensecret/react';
 import {
   type QueryClient,
@@ -121,9 +122,12 @@ export function useTrackAndUpdateSparkAccountBalances() {
           () => account.wallet.getBalance(),
           { accountId: account.id },
         );
+        const identityPublicKey = await account.wallet.getIdentityPublicKey();
         console.debug('Fetched Spark balance', {
           accountId: account.id,
           balance: balance.toString(),
+          network: account.network,
+          identityPublicKey,
         });
 
         accountCache.updateSparkBalance({
@@ -166,12 +170,16 @@ export async function getInitializedSparkWallet(
         const wallet = await queryClient.fetchQuery(
           sparkWalletQueryOptions({ network, mnemonic }),
         );
+        const identityPublicKey = await wallet.getIdentityPublicKey();
         const { balance: balanceSats } = await measureOperation(
           'SparkWallet.getBalance',
           () => wallet.getBalance(),
         );
         console.debug('Fetched Spark balance to initialize wallet', {
           balance: balanceSats.toString(),
+          network,
+          mnemonicHash: sha256(mnemonic),
+          identityPublicKey,
         });
         const balance = new Money({
           amount: Number(balanceSats),
