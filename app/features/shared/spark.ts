@@ -2,7 +2,6 @@ import {
   type NetworkType as SparkNetwork,
   SparkWallet,
 } from '@buildonspark/spark-sdk';
-import { sha256 } from '@noble/hashes/sha2';
 import { getPrivateKey as getMnemonic } from '@opensecret/react';
 import {
   type QueryClient,
@@ -178,7 +177,6 @@ export async function getInitializedSparkWallet(
         console.debug('Fetched Spark balance to initialize wallet', {
           balance: balanceSats.toString(),
           network,
-          mnemonicHash: sha256(mnemonic),
           identityPublicKey,
         });
         const balance = new Money({
