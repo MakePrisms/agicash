@@ -12,6 +12,7 @@ import type {
   LNURLVerifyResult,
 } from '~/lib/lnurl/types';
 import { Money } from '~/lib/money';
+import { measureOperation } from '~/lib/performance';
 import {
   decryptXChaCha20Poly1305,
   encryptXChaCha20Poly1305,
@@ -319,8 +320,11 @@ export class LightningAddressService {
       sparkWalletQueryOptions({ network: 'MAINNET', mnemonic: sparkMnemonic }),
     );
 
-    const receiveRequest =
-      await wallet.getLightningReceiveRequest(receiveRequestId);
+    const receiveRequest = await measureOperation(
+      'SparkWallet.getLightningReceiveRequest',
+      () => wallet.getLightningReceiveRequest(receiveRequestId),
+      { receiveRequestId },
+    );
 
     if (!receiveRequest) {
       throw new NotFoundError(

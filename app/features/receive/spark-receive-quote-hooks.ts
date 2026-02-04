@@ -14,6 +14,7 @@ import {
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
+import { measureOperation } from '~/lib/performance';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
@@ -375,8 +376,10 @@ export function useOnSparkReceiveStateChange({
   const checkQuoteStatus = async (quote: SparkReceiveQuote) => {
     try {
       const account = getSparkAccount(quote.accountId);
-      const receiveRequest = await account.wallet.getLightningReceiveRequest(
-        quote.sparkId,
+      const receiveRequest = await measureOperation(
+        'SparkWallet.getLightningReceiveRequest',
+        () => account.wallet.getLightningReceiveRequest(quote.sparkId),
+        { receiveRequestId: quote.sparkId },
       );
 
       if (!receiveRequest) {
