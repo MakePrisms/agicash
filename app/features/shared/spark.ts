@@ -9,6 +9,7 @@ import {
   useQueries,
 } from '@tanstack/react-query';
 import { type Currency, Money } from '~/lib/money';
+import { measureOperation } from '~/lib/performance';
 import {
   createSparkWalletStub,
   getSparkIdentityPublicKeyFromMnemonic,
@@ -63,19 +64,30 @@ export const sparkWalletQueryOptions = ({
     queryFn: async ({ client }) => {
       const mnemonicToUse =
         mnemonic ?? (await client.fetchQuery(sparkMnemonicQueryOptions()));
-      const { wallet } = await SparkWallet.initialize({
-        mnemonicOrSeed: mnemonicToUse,
-        options: {
-          network,
-          optimizationOptions: {
-            auto: true,
-            multiplicity: 5,
-          },
+
+      const wallet = await measureOperation(
+        'SparkWallet.initialize',
+        async () => {
+          const { wallet } = await SparkWallet.initialize({
+            mnemonicOrSeed: mnemonicToUse,
+            options: {
+              network,
+              optimizationOptions: {
+                auto: true,
+                multiplicity: 5,
+              },
+            },
+          });
+
+          // Privacy mode hides the wallet from Spark explorers (e.g. sparkscan.io), but not from Spark Operators.
+          // Toggling this setting retroactively hides/reveals all transactions, not just future ones.
+          await wallet.setPrivacyEnabled(true);
+
+          return wallet;
         },
-      });
-      // Privacy mode hides the wallet from Spark explorers (e.g. sparkscan.io), but not from Spark Operators.
-      // Toggling this setting retroactively hides/reveals all transactions, not just future ones.
-      await wallet.setPrivacyEnabled(true);
+        { 'spark.network': network },
+      );
+
       return wallet;
     },
     staleTime: Number.POSITIVE_INFINITY,
@@ -104,7 +116,15 @@ export function useTrackAndUpdateSparkAccountBalances() {
           return null;
         }
 
-        const { balance } = await account.wallet.getBalance();
+        const { balance } = await measureOperation(
+          'SparkWallet.getBalance',
+          () => account.wallet.getBalance(),
+          { accountId: account.id },
+        );
+        console.debug('Fetched Spark balance', {
+          accountId: account.id,
+          balance,
+        });
 
         accountCache.updateSparkBalance({
           ...account,
@@ -139,25 +159,37 @@ export async function getInitializedSparkWallet(
   mnemonic: string,
   network: SparkNetwork,
 ): Promise<{ wallet: SparkWallet; balance: Money | null; isOnline: boolean }> {
-  try {
-    const wallet = await queryClient.fetchQuery(
-      sparkWalletQueryOptions({ network, mnemonic }),
-    );
-    const { balance: balanceSats } = await wallet.getBalance();
-    const balance = new Money({
-      amount: Number(balanceSats),
-      currency: 'BTC',
-      unit: 'sat',
-    }) as Money;
-    return { wallet, balance, isOnline: true };
-  } catch (error) {
-    console.error('Failed to initialize spark wallet', { cause: error });
-    return {
-      wallet: createSparkWalletStub(
-        'Spark is offline, please try again later.',
-      ),
-      balance: null,
-      isOnline: false,
-    };
-  }
+  return measureOperation(
+    'getInitializedSparkWallet',
+    async () => {
+      try {
+        const wallet = await queryClient.fetchQuery(
+          sparkWalletQueryOptions({ network, mnemonic }),
+        );
+        const { balance: balanceSats } = await measureOperation(
+          'SparkWallet.getBalance',
+          () => wallet.getBalance(),
+        );
+        console.debug('Fetched Spark balance to initialize wallet', {
+          balance: balanceSats,
+        });
+        const balance = new Money({
+          amount: Number(balanceSats),
+          currency: 'BTC',
+          unit: 'sat',
+        }) as Money;
+        return { wallet, balance, isOnline: true };
+      } catch (error) {
+        console.error('Failed to initialize spark wallet', { cause: error });
+        return {
+          wallet: createSparkWalletStub(
+            'Spark is offline, please try again later.',
+          ),
+          balance: null,
+          isOnline: false,
+        };
+      }
+    },
+    { sparkNetwork: network },
+  );
 }

@@ -1,6 +1,7 @@
 import { SparkError, type SparkWallet } from '@buildonspark/spark-sdk';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
+import { measureOperation } from '~/lib/performance';
 import {
   isInsufficentBalanceError,
   isInvoiceAlreadyPaidError,
@@ -144,11 +145,14 @@ export class SparkSendQuoteService {
       throw new Error('Unknown send amount');
     }
 
-    const estimatedLightningFeeSats =
-      await account.wallet.getLightningSendFeeEstimate({
-        amountSats: amountRequestedInBtc.toNumber('sat'),
-        encodedInvoice: paymentRequest,
-      });
+    const estimatedLightningFeeSats = await measureOperation(
+      'SparkWallet.getLightningSendFeeEstimate',
+      () =>
+        account.wallet.getLightningSendFeeEstimate({
+          amountSats: amountRequestedInBtc.toNumber('sat'),
+          encodedInvoice: paymentRequest,
+        }),
+    );
 
     const estimatedLightningFee = new Money({
       amount: estimatedLightningFeeSats,
@@ -310,14 +314,18 @@ export class SparkSendQuoteService {
     sendQuote: SparkSendQuote,
   ): Promise<LightningSendRequest> {
     try {
-      const request = await wallet.payLightningInvoice({
-        invoice: sendQuote.paymentRequest,
-        maxFeeSats: sendQuote.estimatedFee.toNumber('sat'),
-        preferSpark: false,
-        amountSatsToSend: sendQuote.paymentRequestIsAmountless
-          ? sendQuote.amount.toNumber('sat')
-          : undefined,
-      });
+      const request = await measureOperation(
+        'SparkWallet.payLightningInvoice',
+        () =>
+          wallet.payLightningInvoice({
+            invoice: sendQuote.paymentRequest,
+            maxFeeSats: sendQuote.estimatedFee.toNumber('sat'),
+            preferSpark: false,
+            amountSatsToSend: sendQuote.paymentRequestIsAmountless
+              ? sendQuote.amount.toNumber('sat')
+              : undefined,
+          }),
+      );
 
       // Type guard to ensure we have a LightningSendRequest not a WalletTransfer
       if (!('encodedInvoice' in request)) {
@@ -374,7 +382,11 @@ export class SparkSendQuoteService {
     let offset = 0;
 
     while (true) {
-      const { transfers } = await wallet.getTransfers(PAGE_SIZE, offset);
+      const { transfers } = await measureOperation(
+        'SparkWallet.getTransfers',
+        () => wallet.getTransfers(PAGE_SIZE, offset),
+        { pageSize: PAGE_SIZE, offset: offset },
+      );
 
       if (transfers.length === 0) {
         return null;

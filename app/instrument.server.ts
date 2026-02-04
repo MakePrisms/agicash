@@ -8,12 +8,7 @@ import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import * as Sentry from '@sentry/react-router';
 import type { unstable_ServerInstrumentation } from 'react-router';
 import { getEnvironment, isServedLocally } from './environment';
-
-function sanitizeUrl(url: string): string {
-  const uuidRegex =
-    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-  return url.replace(uuidRegex, ':id');
-}
+import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 /**
  * Docs for Sentry - React Router: https://docs.sentry.io/platforms/javascript/guides/react-router/
@@ -28,17 +23,16 @@ export const sentryInstrumentation: unstable_ServerInstrumentation = {
     handler.instrument({
       async request(handleRequest, { request }) {
         const url = new URL(request.url);
-        const sanitizedPath = sanitizeUrl(url.pathname);
 
         await Sentry.startSpan(
           {
-            name: `${request.method} ${sanitizedPath}`,
+            name: `${request.method} ${url.pathname}`,
             op: 'http.server',
             forceTransaction: true,
             attributes: {
               'http.method': request.method,
-              'http.url': sanitizeUrl(request.url),
-              'http.target': sanitizedPath,
+              'http.url': request.url,
+              'http.target': url.pathname,
             },
           },
           async () => handleRequest(),
@@ -108,6 +102,8 @@ if (!sentryDsn) {
   throw new Error('VITE_SENTRY_DSN is not set');
 }
 
+const sampleRate = getTracesSampleRate();
+
 Sentry.init({
   dsn: sentryDsn,
   // Adds request headers and IP for users, for more info visit:
@@ -117,10 +113,26 @@ Sentry.init({
     process.env.NODE_ENV === 'production' && !isServedLocally(hostname, ips),
   environment: getEnvironment(),
   enableLogs: true,
+
   integrations: [
     Sentry.consoleLoggingIntegration(),
     nodeProfilingIntegration(),
   ],
-  tracesSampleRate: 1.0,
-  profilesSampleRate: 1.0,
+
+  // Performance monitoring
+  tracesSampleRate: sampleRate,
+  profilesSampleRate: sampleRate,
+
+  // Sanitize sensitive URL parameters before sending to Sentry
+  beforeSendSpan(span) {
+    const url = span.data?.['http.url'] || span.data?.url;
+    if (typeof url === 'string') {
+      const sanitizedUrl = sanitizeUrl(url);
+      span.data['http.url'] = sanitizedUrl;
+      if (span.data.url) {
+        span.data.url = sanitizedUrl;
+      }
+    }
+    return span;
+  },
 });
