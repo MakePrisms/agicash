@@ -123,7 +123,7 @@ export function useTrackAndUpdateSparkAccountBalances() {
         );
         console.debug('Fetched Spark balance', {
           accountId: account.id,
-          balance,
+          balance: balance.toString(),
         });
 
         accountCache.updateSparkBalance({
@@ -171,7 +171,7 @@ export async function getInitializedSparkWallet(
           () => wallet.getBalance(),
         );
         console.debug('Fetched Spark balance to initialize wallet', {
-          balance: balanceSats,
+          balance: balanceSats.toString(),
         });
         const balance = new Money({
           amount: Number(balanceSats),
