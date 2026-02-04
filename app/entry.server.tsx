@@ -1,6 +1,7 @@
-import './instrument.server';
-import { PassThrough } from 'node:stream';
+// First import to initialize Sentry as soon as possible
+import { sentryInstrumentation } from './instrument.server';
 
+import { PassThrough } from 'node:stream';
 import { createReadableStreamFromReadable } from '@react-router/node';
 import * as Sentry from '@sentry/react-router';
 import {
@@ -14,6 +15,8 @@ import type { EntryContext, RouterContextProvider } from 'react-router';
 import { ServerRouter } from 'react-router';
 
 export const streamTimeout = 5_000;
+
+export const unstable_instrumentations = [sentryInstrumentation];
 
 function handleRequest(
   request: Request,
