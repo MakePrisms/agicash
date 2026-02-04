@@ -303,7 +303,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   );
 }
 
-const timingMiddleware: Route.unstable_ClientMiddlewareFunction = async (
+const timingMiddleware: Route.ClientMiddlewareFunction = async (
   { request },
   next,
 ) => {
@@ -326,5 +326,6 @@ const timingMiddleware: Route.unstable_ClientMiddlewareFunction = async (
   );
 };
 
-export const unstable_clientMiddleware: Route.unstable_ClientMiddlewareFunction[] =
-  [timingMiddleware];
+export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
+  timingMiddleware,
+];

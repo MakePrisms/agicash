@@ -47,9 +47,9 @@
     "@radix-ui/react-slot": "1.1.1",
     "@radix-ui/react-tabs": "1.1.1",
     "@radix-ui/react-toast": "1.2.5",
-    "@react-router/express": "7.8.1",
-    "@react-router/fs-routes": "7.8.1",
-    "@react-router/node": "7.8.1",
+    "@react-router/express": "7.13.0",
+    "@react-router/fs-routes": "7.13.0",
+    "@react-router/node": "7.13.0",
     "@scure/bip32": "1.7.0",
     "@scure/bip39": "1.6.0",
     "@sentry/react-router": "10.14.0",
@@ -57,7 +57,7 @@
     "@tanstack/react-query": "5.90.7",
     "@tanstack/react-query-devtools": "5.90.2",
     "@vercel/analytics": "1.5.0",
-    "@vercel/react-router": "1.2.3",
+    "@vercel/react-router": "1.2.5",
     "big.js": "6.2.2",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
@@ -75,7 +75,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "7.54.0",
-    "react-router": "7.8.1",
+    "react-router": "7.13.0",
     "tailwind-merge": "2.5.5",
     "tailwindcss-animate": "1.0.7",
     "usehooks-ts": "3.1.1",
@@ -86,7 +86,7 @@
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@playwright/test": "1.49.1",
-    "@react-router/dev": "7.8.1",
+    "@react-router/dev": "7.13.0",
     "@stablelib/base64": "2.0.1",
     "@stablelib/chacha20poly1305": "2.0.1",
     "@types/big.js": "6.2.2",
@@ -120,13 +120,13 @@
     "node": "Node is pinned to major version of node because vercel doesn't allow pinning minor or patch version. See https://vercel.com/docs/functions/runtimes/node-js/node-js-versions"
   },
   "patchedDependencies": {
-    "react-router@7.8.1": "patches/react-router@7.8.1.patch",
     "@sentry/core@10.14.0": "patches/@sentry%2Fcore@10.14.0.patch",
     "@tanstack/query-core@5.90.7": "patches/@tanstack%2Fquery-core@5.90.7.patch",
-    "@cashu/cashu-ts@2.6.0": "patches/@cashu%2Fcashu-ts@2.6.0.patch"
+    "@cashu/cashu-ts@2.6.0": "patches/@cashu%2Fcashu-ts@2.6.0.patch",
+    "react-router@7.13.0": "patches/react-router@7.13.0.patch"
   },
   "patchedDependencies:comments": {
-    "react-router@7.8.1": "This patch is needed to make @vercel/react-router work with react router middleware. See https://github.com/vercel/vercel/issues/13327 for more details. Remove the patch once that has been handled.",
+    "react-router@7.13.0": "This patch is needed to make @vercel/react-router work with react router middleware. See https://github.com/vercel/vercel/issues/13327 for more details. Remove the patch once that has been handled.",
     "@sentry/core@10.14.0": "This patch was added because we noticed that logs in Sentry dashboard started to show timstamps different than what our logs would record when the app would be in the background for a while and then brought back to the foreground. We suspected (not 100% sure but it seems like our patch has fixed it) that it is related to their logic which uses the Performance API to get the timestamp for greater precision (browser sometimes stops the performance api clock when the computer is asleep), so we opted out of that and are just using the Date API instead. Remove the patch once that has been solved.",
     "@tanstack/query-core@5.90.7": "This patch is needed to add support for dynamic mutation scope. See https://github.com/TanStack/query/discussions/7126#discussioncomment-8815577 for more details. Remove the patch if tanstack query ever adds support for this natively.",
     "@cashu/cashu-ts@2.6.0": "This patch is needed to add support for the Prefer header with respond-async value for async melt responses. This won't be needed once we migrate to cashu-ts 3.x.x"

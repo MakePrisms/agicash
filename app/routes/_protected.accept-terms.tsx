@@ -11,7 +11,7 @@ import {
 import { useToast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.accept-terms';
 
-const acceptTermsRouteGuard: Route.unstable_ClientMiddlewareFunction = async (
+const acceptTermsRouteGuard: Route.ClientMiddlewareFunction = async (
   { request },
   next,
 ) => {
@@ -26,8 +26,9 @@ const acceptTermsRouteGuard: Route.unstable_ClientMiddlewareFunction = async (
   await next();
 };
 
-export const unstable_clientMiddleware: Route.unstable_ClientMiddlewareFunction[] =
-  [acceptTermsRouteGuard];
+export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
+  acceptTermsRouteGuard,
+];
 
 export default function AcceptTermsRoute() {
   const { toast } = useToast();

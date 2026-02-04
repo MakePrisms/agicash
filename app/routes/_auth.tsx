@@ -4,7 +4,7 @@ import { authQueryOptions } from '~/features/user/auth';
 import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/_auth';
 
-const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
+const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   { request },
   next,
 ) => {
@@ -33,8 +33,9 @@ const routeGuardMiddleware: Route.unstable_ClientMiddlewareFunction = async (
   await next();
 };
 
-export const unstable_clientMiddleware: Route.unstable_ClientMiddlewareFunction[] =
-  [routeGuardMiddleware];
+export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
+  routeGuardMiddleware,
+];
 
 export async function clientLoader() {
   // We are keeping this clientLoader to force client rendering for all auth routes.
