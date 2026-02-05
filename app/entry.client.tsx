@@ -62,7 +62,7 @@ Sentry.init({
   profileSessionSampleRate: sampleRate,
   profileLifecycle: 'trace',
 
-  // Sanitize sensitive URL parameters before sending to Sentry
+  // Sanitize sensitive URL parts before sending to Sentry
   beforeSendSpan(span) {
     const url = span.data?.['http.url'] || span.data?.url;
     if (typeof url === 'string') {

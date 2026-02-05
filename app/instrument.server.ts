@@ -124,7 +124,7 @@ Sentry.init({
   profilesSampleRate: sampleRate,
   profileLifecycle: 'trace',
 
-  // Sanitize sensitive URL parameters before sending to Sentry
+  // Sanitize sensitive URL parts before sending to Sentry
   beforeSendSpan(span) {
     const url = span.data?.['http.url'] || span.data?.url;
     if (typeof url === 'string') {
@@ -135,5 +135,19 @@ Sentry.init({
       }
     }
     return span;
+  },
+
+  beforeSend(event) {
+    // Filter out 404s from error reporting
+    if (event.exception) {
+      const error = event.exception.values?.[0];
+      if (
+        error?.type === 'NotFoundException' ||
+        error?.value?.includes('404')
+      ) {
+        return null;
+      }
+    }
+    return event;
   },
 });
