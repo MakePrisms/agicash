@@ -37,6 +37,8 @@ if (!sentryDsn) {
   throw new Error('VITE_SENTRY_DSN is not set');
 }
 
+const sampleRate = getTracesSampleRate();
+
 Sentry.init({
   dsn: sentryDsn,
   // Adds request headers and IP for users, for more info visit:
@@ -49,15 +51,18 @@ Sentry.init({
   tunnel: '/api/logs',
   enableLogs: true,
 
-  // Performance monitoring
-  tracesSampleRate: getTracesSampleRate(),
-
   integrations: [
     Sentry.consoleLoggingIntegration(),
     Sentry.reactRouterTracingIntegration(),
+    Sentry.browserProfilingIntegration(),
   ],
 
-  // Sanitize sensitive URL parameters before sending to Sentry
+  // Performance monitoring
+  tracesSampleRate: sampleRate,
+  profileSessionSampleRate: sampleRate,
+  profileLifecycle: 'trace',
+
+  // Sanitize sensitive URL parts before sending to Sentry
   beforeSendSpan(span) {
     const url = span.data?.['http.url'] || span.data?.url;
     if (typeof url === 'string') {
