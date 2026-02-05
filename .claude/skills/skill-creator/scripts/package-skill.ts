@@ -10,27 +10,9 @@
  *     bun package-skill.ts skills/public/my-skill ./dist
  */
 
-import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
-import { basename, dirname, join, relative, resolve } from 'path';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { validateSkill } from './quick-validate';
-
-/**
- * Recursively get all files in a directory
- */
-function getAllFiles(dirPath: string, arrayOfFiles: string[] = []): string[] {
-  const files = readdirSync(dirPath);
-
-  for (const file of files) {
-    const filePath = join(dirPath, file);
-    if (statSync(filePath).isDirectory()) {
-      getAllFiles(filePath, arrayOfFiles);
-    } else {
-      arrayOfFiles.push(filePath);
-    }
-  }
-
-  return arrayOfFiles;
-}
 
 /**
  * Create a zip file from skill directory
@@ -79,14 +61,14 @@ async function packageSkill(
 
   // Validate SKILL.md exists
   const skillMd = join(resolvedSkillPath, 'SKILL.md');
-  if (!existsSync(skillMd)) {
+  if (!(await Bun.file(skillMd).exists())) {
     console.log(`❌ Error: SKILL.md not found in ${resolvedSkillPath}`);
     return null;
   }
 
   // Run validation before packaging
   console.log('🔍 Validating skill...');
-  const { valid, message } = validateSkill(resolvedSkillPath);
+  const { valid, message } = await validateSkill(resolvedSkillPath);
   if (!valid) {
     console.log(`❌ Validation failed: ${message}`);
     console.log('   Please fix the validation errors before packaging.');
@@ -109,10 +91,9 @@ async function packageSkill(
   }
 
   // List files being added
-  const allFiles = getAllFiles(resolvedSkillPath);
-  for (const filePath of allFiles) {
-    const arcName = join(skillName, relative(resolvedSkillPath, filePath));
-    console.log(`  Added: ${arcName}`);
+  const glob = new Bun.Glob('**/*');
+  for await (const relPath of glob.scan({ cwd: resolvedSkillPath, onlyFiles: true })) {
+    console.log(`  Added: ${join(skillName, relPath)}`);
   }
 
   // Create the .skill file (zip format)
@@ -137,7 +118,7 @@ function printUsage(): void {
 
 // CLI entry point
 if (import.meta.main) {
-  const args = process.argv.slice(2);
+  const args = Bun.argv.slice(2);
 
   if (args.length < 1) {
     printUsage();

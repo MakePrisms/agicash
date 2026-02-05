@@ -11,8 +11,8 @@
  *     bun init-skill.ts custom-skill --path /custom/location
  */
 
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join, resolve } from 'path';
+import { chmodSync, existsSync, mkdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 const SKILL_TEMPLATE = `---
 name: {skill_name}
@@ -90,7 +90,7 @@ Documentation and reference material intended to be loaded into context to infor
 Files not intended to be loaded into context, but rather used within the output Claude produces.
 
 **Examples from other skills:**
-- Brand styling: PowerPoint template files (.pptx), logo files
+- Brand guidelines: PowerPoint template files (.pptx), logo files
 - Frontend builder: HTML/React boilerplate project directories
 - Typography: Font files (.ttf, .woff2)
 
@@ -191,7 +191,7 @@ function titleCaseSkillName(skillName: string): string {
     .join(' ');
 }
 
-function initSkill(skillName: string, path: string): string | null {
+async function initSkill(skillName: string, path: string): Promise<string | null> {
   const skillDir = resolve(path, skillName);
 
   // Check if directory already exists
@@ -218,7 +218,7 @@ function initSkill(skillName: string, path: string): string | null {
 
   const skillMdPath = join(skillDir, 'SKILL.md');
   try {
-    writeFileSync(skillMdPath, skillContent);
+    await Bun.write(skillMdPath, skillContent);
     console.log('✅ Created SKILL.md');
   } catch (e) {
     console.log(`❌ Error creating SKILL.md: ${e}`);
@@ -232,7 +232,7 @@ function initSkill(skillName: string, path: string): string | null {
     mkdirSync(scriptsDir, { recursive: true });
     const exampleScriptPath = join(scriptsDir, 'example.ts');
     const scriptContent = EXAMPLE_SCRIPT.replace(/{skill_name}/g, skillName);
-    writeFileSync(exampleScriptPath, scriptContent);
+    await Bun.write(exampleScriptPath, scriptContent);
     chmodSync(exampleScriptPath, 0o755);
     console.log('✅ Created scripts/example.ts');
 
@@ -241,14 +241,14 @@ function initSkill(skillName: string, path: string): string | null {
     mkdirSync(referencesDir, { recursive: true });
     const exampleRefPath = join(referencesDir, 'api_reference.md');
     const refContent = EXAMPLE_REFERENCE.replace(/{skill_title}/g, skillTitle);
-    writeFileSync(exampleRefPath, refContent);
+    await Bun.write(exampleRefPath, refContent);
     console.log('✅ Created references/api_reference.md');
 
     // Create assets/ directory with example asset placeholder
     const assetsDir = join(skillDir, 'assets');
     mkdirSync(assetsDir, { recursive: true });
     const exampleAssetPath = join(assetsDir, 'example_asset.txt');
-    writeFileSync(exampleAssetPath, EXAMPLE_ASSET);
+    await Bun.write(exampleAssetPath, EXAMPLE_ASSET);
     console.log('✅ Created assets/example_asset.txt');
   } catch (e) {
     console.log(`❌ Error creating resource directories: ${e}`);
@@ -286,7 +286,7 @@ function printUsage(): void {
 
 // CLI entry point
 if (import.meta.main) {
-  const args = process.argv.slice(2);
+  const args = Bun.argv.slice(2);
 
   if (args.length < 3 || args[1] !== '--path') {
     printUsage();
@@ -300,7 +300,7 @@ if (import.meta.main) {
   console.log(`   Location: ${path}`);
   console.log();
 
-  const result = initSkill(skillName, path);
+  const result = await initSkill(skillName, path);
 
   if (result) {
     process.exit(0);

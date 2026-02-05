@@ -8,7 +8,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "ignore": ["supabase/database.types.ts"]
+    "ignore": ["supabase/database.types.ts", ".claude/"]
   },
   "formatter": {
     "enabled": true,

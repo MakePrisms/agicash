@@ -3,8 +3,7 @@
  * Quick validation script for skills - minimal version
  */
 
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
+import { join } from 'node:path';
 
 const ALLOWED_PROPERTIES = new Set([
   'name',
@@ -53,19 +52,20 @@ function parseSimpleYaml(yamlText: string): Record<string, string> {
   return result;
 }
 
-export function validateSkill(skillPath: string): {
+export async function validateSkill(skillPath: string): Promise<{
   valid: boolean;
   message: string;
-} {
+}> {
   const skillMdPath = join(skillPath, 'SKILL.md');
 
   // Check SKILL.md exists
-  if (!existsSync(skillMdPath)) {
+  const skillFile = Bun.file(skillMdPath);
+  if (!(await skillFile.exists())) {
     return { valid: false, message: 'SKILL.md not found' };
   }
 
   // Read and validate frontmatter
-  const content = readFileSync(skillMdPath, 'utf-8');
+  const content = await skillFile.text();
   if (!content.startsWith('---')) {
     return { valid: false, message: 'No YAML frontmatter found' };
   }
@@ -167,13 +167,13 @@ export function validateSkill(skillPath: string): {
 
 // CLI entry point
 if (import.meta.main) {
-  const args = process.argv.slice(2);
+  const args = Bun.argv.slice(2);
   if (args.length !== 1) {
     console.log('Usage: bun quick-validate.ts <skill_directory>');
     process.exit(1);
   }
 
-  const { valid, message } = validateSkill(args[0]);
+  const { valid, message } = await validateSkill(args[0]);
   console.log(message);
   process.exit(valid ? 0 : 1);
 }

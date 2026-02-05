@@ -17,7 +17,7 @@ function extractSection(content: string, sectionName: string): string | null {
   return content.slice(startIdx, endIdx).trim();
 }
 
-const args = process.argv.slice(2);
+const args = Bun.argv.slice(2);
 if (args.length !== 2) {
   console.log('Usage: bun scripts/parse-nut.ts <nut_file> <section_name>');
   process.exit(1);
