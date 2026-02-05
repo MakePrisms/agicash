@@ -86,5 +86,5 @@ function handleRequest(
 export default wrapSentryHandleRequest(handleRequest as any);
 
 export const handleError = Sentry.createSentryHandleError({
-  logErrors: true,
+  logErrors: !Sentry.isEnabled(),
 });

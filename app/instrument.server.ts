@@ -143,7 +143,8 @@ Sentry.init({
       const error = event.exception.values?.[0];
       if (
         error?.type === 'NotFoundException' ||
-        error?.value?.includes('404')
+        error?.value?.includes('404') ||
+        error?.value?.includes('No route matches URL')
       ) {
         return null;
       }
