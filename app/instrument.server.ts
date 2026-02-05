@@ -122,6 +122,7 @@ Sentry.init({
   // Performance monitoring
   tracesSampleRate: sampleRate,
   profilesSampleRate: sampleRate,
+  profileLifecycle: 'trace',
 
   // Sanitize sensitive URL parameters before sending to Sentry
   beforeSendSpan(span) {
