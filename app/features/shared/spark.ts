@@ -2,6 +2,9 @@ import {
   type NetworkType as SparkNetwork,
   SparkWallet,
 } from '@buildonspark/spark-sdk';
+import type { SparkProto } from '@buildonspark/spark-sdk/types';
+
+type TreeNode = SparkProto.TreeNode;
 import { getPrivateKey as getMnemonic } from '@opensecret/react';
 import {
   type QueryClient,
@@ -17,6 +20,21 @@ import {
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
+
+function getLeafDenominations(leaves: TreeNode[]) {
+  return Object.entries(
+    leaves.reduce(
+      (acc, leaf) => {
+        acc[leaf.value] = (acc[leaf.value] || 0) + 1;
+        return acc;
+      },
+      {} as Record<number, number>,
+    ),
+  )
+    .map(([value, count]) => ({ value: Number(value), count }))
+    .sort((a, b) => b.value - a.value)
+    .map((d) => `${d.count}x ${d.value} sats`);
+}
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
 
@@ -116,17 +134,24 @@ export function useTrackAndUpdateSparkAccountBalances() {
           return null;
         }
 
-        const { balance } = await measureOperation(
-          'SparkWallet.getBalance',
-          () => account.wallet.getBalance(),
-          { accountId: account.id },
-        );
-        const identityPublicKey = await account.wallet.getIdentityPublicKey();
+        const [{ balance }, leaves, identityPublicKey, isOptimizing] =
+          await Promise.all([
+            measureOperation(
+              'SparkWallet.getBalance',
+              () => account.wallet.getBalance(),
+              { accountId: account.id },
+            ),
+            account.wallet.getLeaves(true),
+            account.wallet.getIdentityPublicKey(),
+            account.wallet.isOptimizationInProgress(),
+          ]);
         console.debug('Fetched Spark balance', {
           accountId: account.id,
           balance: balance.toString(),
           network: account.network,
           identityPublicKey,
+          isOptimizing,
+          leaves: getLeafDenominations(leaves),
         });
 
         accountCache.updateSparkBalance({
@@ -169,15 +194,23 @@ export async function getInitializedSparkWallet(
         const wallet = await queryClient.fetchQuery(
           sparkWalletQueryOptions({ network, mnemonic }),
         );
-        const identityPublicKey = await wallet.getIdentityPublicKey();
-        const { balance: balanceSats } = await measureOperation(
-          'SparkWallet.getBalance',
-          () => wallet.getBalance(),
-        );
+        const [
+          { balance: balanceSats },
+          leaves,
+          identityPublicKey,
+          isOptimizing,
+        ] = await Promise.all([
+          measureOperation('SparkWallet.getBalance', () => wallet.getBalance()),
+          wallet.getLeaves(true),
+          wallet.getIdentityPublicKey(),
+          wallet.isOptimizationInProgress(),
+        ]);
         console.debug('Fetched Spark balance to initialize wallet', {
           balance: balanceSats.toString(),
           network,
           identityPublicKey,
+          isOptimizing,
+          leaves: getLeafDenominations(leaves),
         });
         const balance = new Money({
           amount: Number(balanceSats),
