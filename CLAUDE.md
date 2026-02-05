@@ -8,7 +8,6 @@
 - **Cashu**: Ecash protocol using blind signatures. Mints sign tokens without seeing their content (privacy). Users hold cryptographic proofs that can be transferred peer-to-peer or redeemed.
 - **Spark**: Lightning Network SDK for Bitcoin payments
 - **Accounts**: Users have Cashu accounts (connected to mints) and Spark accounts (Lightning wallets)
-- **Proof**: The protocol representation of ecash where each proof is the equivelant of a bank note that can be minted (by sending bitcoin to the mint), swapped (exchanged with the mint by spending the specific note), and melted (exchange ecash for bitcoin).
 
 ## Working Approach
 
@@ -38,6 +37,8 @@
 
 ## File Structure
 
+See `GUIDELINES.md` for detailed directory structure and import hierarchy rules.
+
 ```
 app/
 ├── routes/           # Filesystem routes (_auth, _protected, _public layouts)
@@ -66,7 +67,9 @@ feature/
 ```ts
 import { Money } from '~/lib/money';
 // ALWAYS use Money class - never raw arithmetic
-Money.fromSats(1000).add(Money.fromSats(500)); // ✓
+const a = new Money({ amount: 1000, currency: 'BTC', unit: 'sat' });
+const b = new Money({ amount: 500, currency: 'BTC', unit: 'sat' });
+a.add(b); // ✓
 1000 + 500; // ✗ floating point errors
 ```
 
@@ -113,4 +116,41 @@ bun test             # Unit tests (ask first)
 bun run test:e2e     # E2E tests (ask first)
 ```
 
-**Database**: `bun run db:generate-types` after schema changes
+**Database**: `bun run db:generate-types` after schema changes (requires migration to be applied first via `supabase db push` or Supabase dashboard)
+
+## Database & Supabase
+
+See `.cursor/rules/` for detailed guidelines:
+- `create-migration.mdc` - Migration file naming and structure
+- `create-rls-policies.mdc` - Row Level Security patterns
+- `create-db-functions.mdc` - Database function conventions
+- `postgres-sql-style-guide.mdc` - SQL style (lowercase, comments)
+- `writing-supabase-edge-functions.mdc` - Edge function patterns
+
+**Key rules:**
+- Always enable RLS on new tables
+- Separate policies per operation (select/insert/update/delete) and role (anon/authenticated)
+- Migration files: `YYYYMMDDHHmmss_short_description.sql`
+- Write SQL in lowercase
+
+**Ask first:**
+- Applying local migrations (`supabase migration up`)
+
+**Never do:**
+- `supabase db reset` - destroys local database data
+- `supabase db push` or any remote database operations
+- Drop tables/columns without explicit approval
+
+## Skills
+
+Use these for specialized guidance:
+- `/agicash-wallet-documentation` - Send/receive flows, Quote/Swap/Transaction entities, payment logic
+- `/cashu-protocol` - Cashu NUT specifications for ecash protocol
+- `/design-motion-principles` - Animation and motion design
+- `/skill-creator` - Create new Claude Code skills
+- `/update-context` - Analyze and update this CLAUDE.md file
+
+## Slash Commands
+
+Utility commands for development:
+- `/lnurl-test` - Test Lightning Address server endpoints (LUD-16, LUD-06, LUD-21)
