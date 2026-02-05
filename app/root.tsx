@@ -209,6 +209,26 @@ const useErrorDetails = (error: unknown) => {
     window.location.reload();
   };
 
+  if (
+    error instanceof NotFoundError ||
+    (isRouteErrorResponse(error) && error.status === 404)
+  ) {
+    return {
+      title: 'Not Found',
+      message: 'The requested page could not be found.',
+      footer: (
+        <Button
+          className="mt-4"
+          variant="default"
+          type="button"
+          onClick={() => navigate('/')}
+        >
+          Go Home
+        </Button>
+      ),
+    };
+  }
+
   if (isRouteErrorResponse(error)) {
     return {
       message: `${error.status} - ${error.statusText || 'Error'}`,
@@ -220,22 +240,6 @@ const useErrorDetails = (error: unknown) => {
       footer: (
         <Button variant="default" type="button" onClick={reload}>
           Reload Page
-        </Button>
-      ),
-    };
-  }
-
-  if (error instanceof NotFoundError) {
-    return {
-      message: error.message,
-      footer: (
-        <Button
-          className="mt-4"
-          variant="default"
-          type="button"
-          onClick={() => navigate('/')}
-        >
-          Go Home
         </Button>
       ),
     };
