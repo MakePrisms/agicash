@@ -2,5 +2,16 @@
   "framework": "react-router",
   "installCommand": "bun install",
   "buildCommand": "bun run build",
-  "outputDirectory": "build"
+  "outputDirectory": "build",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Document-Policy",
+          "value": "js-profiling"
+        }
+      ]
+    }
+  ]
 }
