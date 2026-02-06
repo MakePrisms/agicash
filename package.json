@@ -106,9 +106,9 @@
     "tsx": "4.21.0",
     "type-fest": "5.4.3",
     "typescript": "5.9.3",
-    "vite": "6.4.1",
-    "vite-plugin-devtools-json": "0.3.0",
-    "vite-tsconfig-paths": "5.1.4"
+    "vite": "7.3.1",
+    "vite-plugin-devtools-json": "1.0.0",
+    "vite-tsconfig-paths": "6.0.5"
   },
   "engines": {
     "bun": "1.3.8",
