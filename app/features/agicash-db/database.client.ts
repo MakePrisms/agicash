@@ -26,9 +26,10 @@ const getSupabaseUrl = () => {
 
 const supabaseUrl = getSupabaseUrl();
 
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
-if (!supabaseAnonKey) {
-  throw new Error('VITE_SUPABASE_ANON_KEY is not set');
+const supabasePublishableKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '';
+if (!supabasePublishableKey) {
+  throw new Error('VITE_SUPABASE_PUBLISHABLE_KEY is not set');
 }
 
 /**
@@ -37,7 +38,7 @@ if (!supabaseAnonKey) {
  */
 export const agicashDbClient = createClient<Database>(
   supabaseUrl,
-  supabaseAnonKey,
+  supabasePublishableKey,
   {
     accessToken: getSupabaseSessionToken,
     db: {
