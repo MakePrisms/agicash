@@ -46,7 +46,7 @@ app.use(
     : express.static('build/client'),
 );
 
-app.all('*', createRequestHandler({ build }));
+app.all('/{*splat}', createRequestHandler({ build }));
 
 if (setupHttps) {
   const httpsOptions = {
