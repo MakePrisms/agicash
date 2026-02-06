@@ -21,6 +21,20 @@ import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
 
+function getSparkAuthStatus(wallet: SparkWallet): string {
+  try {
+    // biome-ignore lint/suspicious/noExplicitAny: accessing private SDK fields for diagnostics
+    const cm = (wallet as any).connectionManager;
+    const cache: Map<string, string> = cm?.constructor?.authTokenCache;
+    if (!cache || cache.size === 0) return 'no-token';
+    const token = cache.values().next().value as string;
+    // Log a fingerprint so we can see if the token changes between polls
+    return `present (${token.slice(0, 12)}...)`;
+  } catch {
+    return 'unknown';
+  }
+}
+
 function getLeafDenominations(leaves: TreeNode[]) {
   return Object.entries(
     leaves.reduce(
@@ -152,6 +166,7 @@ export function useTrackAndUpdateSparkAccountBalances() {
           identityPublicKey,
           isOptimizing,
           leaves: getLeafDenominations(leaves),
+          auth: getSparkAuthStatus(account.wallet),
         });
 
         accountCache.updateSparkBalance({
