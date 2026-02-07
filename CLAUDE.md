@@ -8,7 +8,6 @@
 - **Cashu**: Ecash protocol using blind signatures. Mints sign tokens without seeing their content (privacy). Users hold cryptographic proofs that can be transferred peer-to-peer or redeemed.
 - **Spark**: Lightning Network SDK for Bitcoin payments
 - **Accounts**: Users have Cashu accounts (connected to mints) and Spark accounts (Lightning wallets)
-- **Proof**: The protocol representation of ecash where each proof is the equivelant of a bank note that can be minted (by sending bitcoin to the mint), swapped (exchanged with the mint by spending the specific note), and melted (exchange ecash for bitcoin).
 
 ## Working Approach
 
@@ -18,11 +17,15 @@
 
 **Summarize**: Report files changed, key decisions, and how it works.
 
+**Verify before using**: Before using any function or module — internal or third-party — read its source or type definitions to understand its signature, behavior, and return type. Don't assume based on the name. For third-party packages, check `node_modules/` type declarations. For internal code, read the source file. Never guess at APIs.
+
 ## Autonomy
 
-**Ask first:** Tests, browser tools, migrations, installing dependencies.
+**Ask first:** Installing dependencies, running migrations, destructive operations.
 
-**Do autonomously:** Read/edit code, run `bun run fix:all`, start dev server if needed.
+**Do autonomously:** Read/edit code, run tests, use browser tools, run `bun run fix:all`, start dev server.
+
+**After editing TypeScript**: Run `bun run fix:all` to catch type errors before considering the task complete. Don't wait for the user to discover build failures.
 
 ## Tech Stack
 
@@ -37,6 +40,8 @@
 | DB | Supabase (PostgreSQL) |
 
 ## File Structure
+
+See `GUIDELINES.md` for detailed directory structure and import hierarchy rules.
 
 ```
 app/
@@ -66,23 +71,68 @@ feature/
 ```ts
 import { Money } from '~/lib/money';
 // ALWAYS use Money class - never raw arithmetic
-Money.fromSats(1000).add(Money.fromSats(500)); // ✓
+const a = new Money({ amount: 1000, currency: 'BTC', unit: 'sat' });
+const b = new Money({ amount: 500, currency: 'BTC', unit: 'sat' });
+a.add(b); // ✓
 1000 + 500; // ✗ floating point errors
 ```
 
-### Authentication Flow
-1. Open Secret handles login (email, Google, guest)
-2. JWT exchanged for Supabase session token
-3. Supabase RLS enforces per-user data access
-4. Keys derived client-side, encrypted before storage
+### Authentication & Encryption
 
-**Route layouts:**
-- `_protected.tsx` - Requires auth
-- `_auth.tsx` - Login/signup (redirects if logged in)
-- `_public.tsx` - No auth required
+**Open Secret** handles auth (email, Google, guest) and stores the user's BIP39 seed. From this seed, the app derives separate keys for Cashu wallets, Spark wallets, and encryption—all client-side.
 
-### Encryption
-All sensitive data encrypted client-side before storage. Keys derived from Open Secret seed via BIP32. Server never sees plaintext.
+**Key constraint:** Private keys never leave the browser. Sensitive data (proofs, transaction details) is encrypted client-side before storage. Server cannot decrypt user data.
+
+**Auth flow:** Open Secret JWT → `generateThirdPartyToken()` → Supabase session → RLS enforcement
+
+**Route layouts:** `_protected.tsx` (requires auth), `_auth.tsx` (login/signup), `_public.tsx` (no auth)
+
+### State Management
+
+| State Type | Use | Example |
+|-----------|-----|---------|
+| **Multi-step flow** | Zustand store | SendStore, ReceiveStore (persists across pages) |
+| **Server data** | TanStack Query | Accounts, User, Transactions (caching, refetch) |
+| **Transient UI** | useState | Modal open, animation state |
+| **Cache control** | Custom Cache class | CashuSendQuoteCache (version-based updates) |
+
+**Rules:**
+- Context is for dependency injection only, not state
+- Never use `useEffect` for data fetching - use TanStack Query
+- Zustand stores accept dependencies via factory function (`createSendStore(deps)`)
+- Use `queryOptions()` for reusable query configs
+- Use `useSuspenseQuery` for required data (lets Suspense handle loading)
+
+### Error Handling
+
+**Toast notifications** (Radix UI):
+- One toast at a time, 3s duration
+- `variant: 'destructive'` for errors
+- Use `toast({ description: message })` for simple messages
+
+**Error handling pattern:**
+```ts
+onError: (error) => {
+  if (error instanceof DomainError) {
+    toast({ description: error.message }); // User-friendly message
+  } else {
+    console.error('Failed to X', { cause: error });
+    toast({ description: 'Failed to X. Please try again.', variant: 'destructive' });
+  }
+}
+```
+
+**Retry logic** (TanStack Query):
+- `DomainError` → never retry (validation/business rule)
+- `ConcurrencyError` → always retry
+- Network errors → retry once
+
+**Custom error classes** (`app/features/shared/error.ts`):
+- `DomainError` - Business rule violations (user-friendly messages)
+- `ConcurrencyError` - Optimistic locking failures
+- `NotFoundError` - Missing resources
+
+**Background tasks**: Log errors to console but don't show toasts (avoid alert spam).
 
 ## Code Standards
 
@@ -113,4 +163,69 @@ bun test             # Unit tests (ask first)
 bun run test:e2e     # E2E tests (ask first)
 ```
 
-**Database**: `bun run db:generate-types` after schema changes
+**Database**: `bun run db:generate-types` after schema changes (requires migration to be applied first via `supabase db push` or Supabase dashboard)
+
+## Key Files
+
+| Purpose | Location |
+|---------|----------|
+| Error classes | `app/features/shared/error.ts` - DomainError, ConcurrencyError, NotFoundError |
+| Cashu integration | `app/features/shared/cashu.ts` - wallet init, mint validation, cryptography hooks |
+| Spark integration | `app/features/shared/spark.ts` - wallet init, balance tracking |
+| Encryption | `app/features/shared/encryption.ts` - useEncryption(), client-side encrypt/decrypt |
+| Key derivation | `app/features/shared/cryptography.ts` - useCryptography(), BIP32 derivation |
+| Account hooks | `app/features/accounts/account-hooks.ts` - useAccounts(), useAccount(), cache |
+| Account types | `app/features/accounts/account.ts` - Account, CashuAccount, SparkAccount types |
+| Cashu protocol | `app/lib/cashu/` - proof schemas, token parsing, secret handling |
+| Common utils | `app/lib/utils.ts` |
+
+## Naming Conventions
+
+**Hooks**: `use{Action}{Entity}` or `use{Entity}`
+- `useInitiateCashuSendQuote`, `useAccounts`, `useUser`
+
+**Query options**: `{entity}QueryOptions`
+- `accountsQueryOptions`, `userQueryOptions`
+
+**Cache classes**: `{Entity}Cache` with static `Key` property
+- `AccountsCache`, `CashuSendQuoteCache`, `TransactionsCache`
+
+**Store files**: `{feature}-store.ts`
+- `send-store.ts`, `receive-store.ts`
+
+## Database & Supabase
+
+See `.cursor/rules/` for detailed guidelines:
+- `create-migration.mdc` - Migration file naming and structure
+- `create-rls-policies.mdc` - Row Level Security patterns
+- `create-db-functions.mdc` - Database function conventions
+- `postgres-sql-style-guide.mdc` - SQL style (lowercase, comments)
+- `writing-supabase-edge-functions.mdc` - Edge function patterns
+
+**Key rules:**
+- Always enable RLS on new tables
+- Separate policies per operation (select/insert/update/delete) and role (anon/authenticated)
+- Migration files: `YYYYMMDDHHmmss_short_description.sql`
+- Write SQL in lowercase
+
+**Ask first:**
+- Applying local migrations (`supabase migration up`)
+
+**Never do:**
+- `supabase db reset` - destroys local database data
+- `supabase db push` or any remote database operations
+- Drop tables/columns without explicit approval
+
+## Skills
+
+Use these for specialized guidance:
+- `/agicash-wallet-documentation` - Send/receive flows, Quote/Swap/Transaction entities, payment logic
+- `/cashu-protocol` - Cashu NUT specifications for ecash protocol
+- `/design-motion-principles` - Animation and motion design
+- `/skill-creator` - Create new Claude Code skills
+- `/update-context` - Analyze and update this CLAUDE.md file
+
+## Slash Commands
+
+Utility commands for development:
+- `/lnurl-test` - Test Lightning Address server endpoints (LUD-16, LUD-06, LUD-21)
