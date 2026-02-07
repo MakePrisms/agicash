@@ -5,6 +5,8 @@ import { useToast } from '~/hooks/use-toast';
 import { useAnimatedQRDecoder } from '~/lib/cashu/animated-qr-code';
 import { useLatest } from '~/lib/use-latest';
 
+const DEFAULT_FAILURE_COOLDOWN_MS = 3000;
+
 const AnimatedScanProgress = ({ progress }: { progress: number }) => {
   if (progress === 0) return null;
 
@@ -28,9 +30,16 @@ const AnimatedScanProgress = ({ progress }: { progress: number }) => {
 
 type QRScannerProps = {
   /**
-   * The callback function to be called when the QR code is decoded.
+   * Called when a QR code is decoded. Throw an error to trigger cooldown
+   * tracking (prevents the same QR from being processed repeatedly).
+   * To stop scanning, unmount the component.
    */
-  onDecode: (decoded: string) => void;
+  onDecode: (decoded: string) => Promise<void> | void;
+  /**
+   * Time in ms before a failed QR code can be retried. Set to 0 to disable.
+   * @default 3000
+   */
+  failureCooldownMs?: number;
 };
 
 /**
@@ -39,41 +48,66 @@ type QRScannerProps = {
  * The scanner can read static QR codes and
  * [BC-UR](https://github.com/BlockchainCommons/UR) encoded animated QR codes.
  *
- * Calls `onDecode` with the text decoded from the QR code and toasts any errors
- * that occur during decoding.
+ * Calls `onDecode` with the text decoded from the QR code. The scanner continues
+ * scanning until unmounted - to stop scanning, unmount the component.
  */
-export const QRScanner = ({ onDecode }: QRScannerProps) => {
+export const QRScanner = ({
+  onDecode,
+  failureCooldownMs = DEFAULT_FAILURE_COOLDOWN_MS,
+}: QRScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const scanner = useRef<Scanner>(null);
   const [currentFragment, setCurrentFragment] = useState('');
-  const decodeRef = useLatest(onDecode);
+  const processingValue = useRef<string | null>(null);
+  const lastFailed = useRef<{ value: string; time: number } | null>(null);
+
+  // Deduplicates scan events and tracks failures to prevent error spam
+  const handleDecodeRef = useLatest(async (decoded: string): Promise<void> => {
+    if (processingValue.current === decoded) return;
+
+    const failed = lastFailed.current;
+    if (
+      failed?.value === decoded &&
+      Date.now() - failed.time < failureCooldownMs
+    ) {
+      return;
+    }
+
+    processingValue.current = decoded;
+    try {
+      await onDecode(decoded);
+    } catch {
+      lastFailed.current = { value: decoded, time: Date.now() };
+    } finally {
+      processingValue.current = null;
+    }
+  });
 
   const { progress, error } = useAnimatedQRDecoder({
     fragment: currentFragment,
-    onDecode: (decoded) => {
+    onDecode: async (decoded) => {
       setCurrentFragment('');
-      decodeRef.current(decoded);
-      scanner.current?.destroy();
+      await handleDecodeRef.current(decoded);
     },
   });
+
   const { toast } = useToast();
 
   useEffect(() => {
-    error &&
+    if (error) {
       toast({
         title: 'Error decoding QR code',
         description: error.message,
         variant: 'destructive',
       });
+    }
   }, [error, toast]);
 
   useEffect(() => {
-    const handleResult = (result: Scanner.ScanResult): void => {
+    const handleResult = async (result: Scanner.ScanResult): Promise<void> => {
       if (result.data.toLowerCase().startsWith('ur:')) {
         setCurrentFragment(result.data);
       } else {
-        decodeRef.current(result.data);
-        scanner.current?.destroy();
+        await handleDecodeRef.current(result.data);
       }
     };
 
@@ -86,7 +120,6 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
       highlightScanRegion: true,
       highlightCodeOutline: true,
     });
-    scanner.current = scannerInstance;
 
     const startedPromise = scannerInstance.start();
 
