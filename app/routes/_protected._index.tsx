@@ -1,4 +1,5 @@
 import { Clock, GiftIcon, UserCircle2 } from 'lucide-react';
+import { useEffect } from 'react';
 import type { LinksFunction } from 'react-router';
 import agicashIcon192 from '~/assets/icon-192x192.png';
 import {
@@ -13,6 +14,7 @@ import {
   useDefaultAccount,
 } from '~/features/accounts/account-hooks';
 import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-switcher';
+import { scheduleGiftCardPredecode } from '~/features/gift-cards/gift-card-predecode';
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
@@ -33,6 +35,14 @@ export default function Index() {
   const defaultCurrency = useDefaultAccount().currency;
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
   const giftCardsEnabled = useFeatureFlag('GIFT_CARDS');
+
+  useEffect(() => {
+    if (!giftCardsEnabled) {
+      return;
+    }
+
+    scheduleGiftCardPredecode();
+  }, [giftCardsEnabled]);
 
   return (
     <Page>
