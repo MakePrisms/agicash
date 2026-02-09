@@ -102,7 +102,7 @@ export default function EditableUsername() {
                   inputRef.current = el;
                 }}
                 type="text"
-                className="w-full bg-transparent text-2xl text-white outline-none"
+                className="w-full bg-transparent text-2xl text-white outline-hidden"
                 // biome-ignore lint/a11y/noAutofocus: the rule is for accessibility reasons, but for this case it makes sense to autofocus so that the user is editing as soon as they click the edit button
                 autoFocus
                 spellCheck="false"
