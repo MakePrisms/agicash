@@ -163,7 +163,7 @@ bun test             # Unit tests (ask first)
 bun run test:e2e     # E2E tests (ask first)
 ```
 
-**Database**: `bun run db:generate-types` after schema changes (requires migration to be applied first via `supabase db push` or Supabase dashboard)
+**Database**: `bun run db:generate-types` after schema changes — but this only works if the migration has been applied first. If you created a new migration file, ask the user to apply it (via Supabase dashboard or `supabase migration up`) before running type generation. Do NOT run `db:generate-types` against unapplied migrations — it will silently produce stale types and cause confusing errors downstream.
 
 ## Key Files
 
@@ -195,12 +195,9 @@ bun run test:e2e     # E2E tests (ask first)
 
 ## Database & Supabase
 
-See `.cursor/rules/` for detailed guidelines:
-- `create-migration.mdc` - Migration file naming and structure
-- `create-rls-policies.mdc` - Row Level Security patterns
-- `create-db-functions.mdc` - Database function conventions
-- `postgres-sql-style-guide.mdc` - SQL style (lowercase, comments)
-- `writing-supabase-edge-functions.mdc` - Edge function patterns
+Detailed guidelines are available as skills (Claude loads them automatically when relevant):
+- `supabase-database` - Migrations, RLS policies, functions, SQL style guide
+- `supabase-edge-functions` - Edge function patterns (Deno/TypeScript)
 
 **Key rules:**
 - Always enable RLS on new tables
@@ -224,6 +221,9 @@ Use these for specialized guidance:
 - `/design-motion-principles` - Animation and motion design
 - `/skill-creator` - Create new Claude Code skills
 - `/update-context` - Analyze and update this CLAUDE.md file
+- `/supabase-database` - Migrations, functions, RLS policies, SQL style
+- `/supabase-edge-functions` - Deno/TypeScript edge function patterns
+- `/shadcn-ui` - Component library usage and installation
 
 ## Slash Commands
 

@@ -1,5 +1,5 @@
 ---
-name: Cashu Protocol
+name: cashu-protocol
 description: Use this skill when the task requires referencing Cashu NUT (Notation, Usage, and Terminology) specifications for the ecash protocol on Bitcoin. Invoke for learning, explaining, implementing, or debugging Cashu concepts like minting, swapping, melting, blind signatures, keysets, or quote flows.
 ---
 

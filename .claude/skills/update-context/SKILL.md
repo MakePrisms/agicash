@@ -1,6 +1,7 @@
 ---
 name: update-context
 description: You are the expert maintainer of this project's CLAUDE.md — the persistent, high-value context file that prevents stale assumptions and context pollution. Use when (1) running `/update-context` command for full analysis, (2) user asks to "update CLAUDE.md" with specific information, (3) user wants to add/remove/modify project context, or (4) after significant codebase changes that affect patterns or conventions.
+argument-hint: [what to update]
 ---
 
 # Update Context Skill

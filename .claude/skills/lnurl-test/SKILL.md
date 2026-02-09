@@ -1,20 +1,32 @@
+---
+name: lnurl-test
+description: Test the Lightning Address (LNURL) server functionality by validating LUD-16, LUD-06, and LUD-21 endpoints.
+argument-hint: [username] or [on <url> with username <name>]
+---
+
 # LNURL Server Test
 
 Test the Lightning Address (LNURL) server functionality by validating LUD-16, LUD-06, and LUD-21 endpoints.
 
 ## Arguments
 
-- `$ARGUMENTS` - Optional username to test. If not provided, ask the user for their username.
+- `$ARGUMENTS` - Username and optional base URL. Examples:
+  - `/lnurl-test damian` - test against local dev server
+  - `/lnurl-test on https://agi.cash with username damian` - test against production
+  - If not provided, ask the user for their username.
 
 ## Test Workflow
 
-### Step 1: Get Username
-If no username was provided when invoking this command, ask the user for their username.
+### Step 1: Parse Arguments
+Extract the **username** and **base URL** from arguments.
+- Default base URL: `http://localhost:3000`
+- If the user specifies a URL (e.g., "on https://agi.cash"), use that instead.
+- If no username was provided, ask the user for their username.
 
 ### Step 2: Test with Current Default Account
 
 #### 2a. LUD-16 Test (Initial Request)
-Use WebFetch to test: `http://localhost:3000/.well-known/lnurlp/{username}`
+Use WebFetch to test: `{baseUrl}/.well-known/lnurlp/{username}`
 
 **Validate response contains:**
 - `callback` - URL string containing `/api/lnurlp/callback/`
@@ -26,7 +38,7 @@ Use WebFetch to test: `http://localhost:3000/.well-known/lnurlp/{username}`
 **Extract:** `userId` from the callback URL (last path segment)
 
 #### 2b. LUD-06 Test (Invoice Creation)
-Use WebFetch to test: `http://localhost:3000/api/lnurlp/callback/{userId}?amount=10000` (10 sats in millisats)
+Use WebFetch to test: `{baseUrl}/api/lnurlp/callback/{userId}?amount={amount}` (default 10000 millisats = 10 sats, or use amount specified by user)
 
 **Validate response contains:**
 - `pr` - string starting with `lnbc` (Lightning invoice)
@@ -65,7 +77,7 @@ LNURL SERVER TEST RESULTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Username: {username}
-Lightning Address: {username}@localhost:3000
+Lightning Address: {username}@{host}
 
 TEST: TESTNUT Account
   LUD-16 (Initial Request): ✓ PASS / ✗ FAIL
@@ -126,5 +138,5 @@ TEST: SPARK Account
 
 - **Testnut FakeWallet**: Automatically pays invoices, so `settled` should be `true` after waiting
 - **Spark Account**: No auto-payment, so `settled` should be `false`
-- Always test against `localhost:3000` (dev server must be running)
+- Default base URL is `http://localhost:3000` (dev server must be running). User can specify a different URL (e.g., `https://agi.cash`).
 - The `amount` parameter in LUD-06 is in **millisatoshis** (10000 = 10 sats)

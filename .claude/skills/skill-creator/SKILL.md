@@ -304,15 +304,30 @@ Any example files and directories not needed for the skill should be deleted. Th
 
 ##### Frontmatter
 
-Write the YAML frontmatter with `name` and `description`:
+Write the YAML frontmatter. Only `description` is recommended; all fields are optional:
 
-- `name`: The skill name
-- `description`: This is the primary triggering mechanism for your skill, and helps Claude understand when to use the skill.
-  - Include both what the Skill does and specific triggers/contexts for when to use it.
-  - Include all "when to use" information here - Not in the body. The body is only loaded after triggering, so "When to Use This Skill" sections in the body are not helpful to Claude.
-  - Example description for a `docx` skill: "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. Use when Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks"
+| Field | Description |
+|-------|-------------|
+| `name` | Display name for the skill. If omitted, uses the directory name. Lowercase letters, numbers, and hyphens only (max 64 chars). |
+| `description` | What the skill does and when to use it. **This is the primary triggering mechanism** — Claude uses it to decide when to load the skill. Include both what the skill does and specific triggers/contexts. Include all "when to use" information here, not in the body (the body only loads after triggering). |
+| `argument-hint` | Hint shown during autocomplete for expected arguments. Example: `[issue-number]` or `[filename] [format]`. |
+| `disable-model-invocation` | Set to `true` to prevent Claude from automatically loading this skill. Use for workflows you want to trigger manually with `/name` (e.g., deploy, commit). Default: `false`. |
+| `user-invocable` | Set to `false` to hide from the `/` menu. Use for background knowledge users shouldn't invoke directly. Default: `true`. |
+| `allowed-tools` | Tools Claude can use without asking permission when this skill is active. Example: `Read, Grep, Glob`. |
+| `model` | Model to use when this skill is active. **Only effective with `context: fork`** — inline skills use the session's model. |
+| `context` | Set to `fork` to run in a forked subagent context (isolated from conversation history). |
+| `agent` | Which subagent type to use when `context: fork` is set. Options: `Explore`, `Plan`, `general-purpose`, or a custom agent from `.claude/agents/`. |
+| `hooks` | Hooks scoped to this skill's lifecycle. |
 
-Do not include any other fields in YAML frontmatter.
+**Invocation control summary:**
+
+| Frontmatter | User can invoke | Claude can invoke |
+|-------------|-----------------|-------------------|
+| (default) | Yes | Yes |
+| `disable-model-invocation: true` | Yes | No |
+| `user-invocable: false` | No | Yes |
+
+Example description for a `docx` skill: "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. Use when working with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks"
 
 ##### Body
 
