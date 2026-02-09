@@ -87,7 +87,11 @@ export default function EditableUsername() {
           <div className={cn('flex-1', animationClass)}>
             <span className="text-2xl text-white">{watch('username')}</span>
           </div>
-          <button type="button" onClick={() => setIsEditing(true)}>
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="cursor-pointer"
+          >
             <Edit className="h-4 w-4" />
           </button>
         </div>
@@ -113,7 +117,7 @@ export default function EditableUsername() {
                 }}
               />
             </div>
-            <button type="submit">
+            <button type="submit" className="cursor-pointer">
               <Check className="h-4 w-4" />
             </button>
           </div>

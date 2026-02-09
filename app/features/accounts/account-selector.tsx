@@ -98,7 +98,7 @@ export function AccountSelector<T extends Account>({
       <DrawerTrigger disabled={disabled} asChild>
         <button
           type="button"
-          className="flex w-full items-center rounded-lg border border-primary bg-background pr-4"
+          className="flex w-full cursor-pointer items-center rounded-lg border border-primary bg-background pr-4"
         >
           <AccountItem account={selectedAccount} />
           {!disabled &&
@@ -126,7 +126,7 @@ export function AccountSelector<T extends Account>({
                   key={account.id}
                   onClick={() => handleAccountSelect(account)}
                   className={cn(
-                    'rounded-lg hover:bg-muted',
+                    'cursor-pointer rounded-lg hover:bg-muted',
                     selectedAccount.id === account.id && 'bg-muted',
                     account.isSelectable === false &&
                       'pointer-events-none cursor-not-allowed opacity-50',

@@ -54,7 +54,12 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
     <Page className="px-0 pb-0">
       <PageHeader className="absolute inset-x-0 top-0 z-[60] flex w-full items-center justify-between px-4 pt-4 pb-4">
         <PageHeaderItem position="left">
-          <button type="button" onClick={handleBack} aria-label="Close">
+          <button
+            type="button"
+            onClick={handleBack}
+            aria-label="Close"
+            className="cursor-pointer"
+          >
             <X />
           </button>
         </PageHeaderItem>
@@ -105,7 +110,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
                       <button
                         type="button"
                         onClick={handleBack}
-                        className="w-full"
+                        className="w-full cursor-pointer"
                         aria-label={`Close ${account.name} card`}
                       >
                         {item}

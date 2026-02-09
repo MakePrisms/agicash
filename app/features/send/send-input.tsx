@@ -65,7 +65,7 @@ const ConvertedMoneySwitcher = ({
   return (
     <button
       type="button"
-      className="flex items-center gap-1"
+      className="flex cursor-pointer items-center gap-1"
       onClick={() => {
         onSwitchInputCurrency();
       }}
@@ -258,7 +258,11 @@ export function SendInput() {
         <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
           <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
             <div className="flex items-center justify-start gap-4">
-              <button type="button" onClick={handlePaste}>
+              <button
+                type="button"
+                onClick={handlePaste}
+                className="cursor-pointer"
+              >
                 <Clipboard />
               </button>
 
@@ -337,7 +341,11 @@ function SelectDestinationDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerTrigger asChild>
-        <button type="button" onClick={() => onOpenChange(true)}>
+        <button
+          type="button"
+          onClick={() => onOpenChange(true)}
+          className="cursor-pointer"
+        >
           <AtSign />
         </button>
       </DrawerTrigger>

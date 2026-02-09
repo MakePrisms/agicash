@@ -97,7 +97,7 @@ function SearchResults({
           {results.map((searchResult) => (
             <button
               key={searchResult.username}
-              className="flex w-full items-center gap-3 rounded-lg"
+              className="flex w-full cursor-pointer items-center gap-3 rounded-lg"
               onClick={() =>
                 setSelectedContact(
                   selectedContact?.username === searchResult.username

@@ -43,7 +43,7 @@ function ContactsListItems({
           onSelect ? (
             <button
               key={contact.id}
-              className="flex w-full items-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+              className="flex w-full cursor-pointer items-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
               onClick={() => handleClick(contact)}
               type="button"
               disabled={state.status === 'selecting'}

@@ -44,7 +44,7 @@ function CurrencyOption({ data, isSelected, onSelect }: CurrencyOptionProps) {
   return (
     <button
       type="button"
-      className="flex w-full items-center justify-between"
+      className="flex w-full cursor-pointer items-center justify-between"
       onClick={() => onSelect(currency)}
     >
       <div className="flex flex-col items-start gap-1">
@@ -81,7 +81,10 @@ export function DefaultCurrencySwitcher() {
   return (
     <Drawer open={isOpen} onOpenChange={setIsOpen}>
       <DrawerTrigger asChild>
-        <button type="button" className="flex items-center gap-1">
+        <button
+          type="button"
+          className="flex cursor-pointer items-center gap-1"
+        >
           {defaultCurrency}
           <ChevronDown className="h-4 w-4" />
         </button>

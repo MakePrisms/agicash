@@ -78,7 +78,7 @@ export function SingleContact({ contact }: { contact: Contact }) {
           <button
             type="button"
             onClick={handleShare}
-            className="rounded-full p-2 hover:bg-muted"
+            className="cursor-pointer rounded-full p-2 hover:bg-muted"
           >
             <Share className="h-5 w-5" />
           </button>
