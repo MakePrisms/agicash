@@ -92,7 +92,10 @@ async function packageSkill(
 
   // List files being added
   const glob = new Bun.Glob('**/*');
-  for await (const relPath of glob.scan({ cwd: resolvedSkillPath, onlyFiles: true })) {
+  for await (const relPath of glob.scan({
+    cwd: resolvedSkillPath,
+    onlyFiles: true,
+  })) {
     console.log(`  Added: ${join(skillName, relPath)}`);
   }
 
@@ -102,9 +105,9 @@ async function packageSkill(
   if (success) {
     console.log(`\n✅ Successfully packaged skill to: ${outputPath}`);
     return outputPath;
-  } else {
-    return null;
   }
+
+  return null;
 }
 
 function printUsage(): void {

@@ -8,7 +8,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "ignore": ["supabase/database.types.ts", ".claude/"]
+    "ignore": ["supabase/database.types.ts"]
   },
   "formatter": {
     "enabled": true,
@@ -119,6 +119,6 @@
   ],
   "javascript": {
     "formatter": { "quoteStyle": "single" },
-    "globals": ["React"]
+    "globals": ["React", "Bun"]
   }
 }

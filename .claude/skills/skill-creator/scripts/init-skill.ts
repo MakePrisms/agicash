@@ -191,7 +191,10 @@ function titleCaseSkillName(skillName: string): string {
     .join(' ');
 }
 
-async function initSkill(skillName: string, path: string): Promise<string | null> {
+async function initSkill(
+  skillName: string,
+  path: string,
+): Promise<string | null> {
   const skillDir = resolve(path, skillName);
 
   // Check if directory already exists
