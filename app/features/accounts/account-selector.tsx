@@ -98,7 +98,7 @@ export function AccountSelector<T extends Account>({
       <DrawerTrigger disabled={disabled} asChild>
         <button
           type="button"
-          className="flex w-full cursor-pointer items-center rounded-lg border border-primary bg-background pr-4"
+          className="flex w-full cursor-pointer items-center rounded-lg border border-primary bg-background pr-4 disabled:cursor-not-allowed"
         >
           <AccountItem account={selectedAccount} />
           {!disabled &&
