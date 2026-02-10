@@ -1,11 +1,8 @@
-diff --git a/node_modules/@tanstack/query-core/.bun-tag-5beee6cd8c7878a b/.bun-tag-5beee6cd8c7878a
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
-diff --git a/build/legacy/hydration-CeGZtiZv.d.ts b/build/legacy/hydration-CeGZtiZv.d.ts
-index b124f2460a561d4b49b95725118b558fb13eedcd..bb353f2a3c3446c5104da4d2968b87b423f8ca75 100644
---- a/build/legacy/hydration-CeGZtiZv.d.ts
-+++ b/build/legacy/hydration-CeGZtiZv.d.ts
-@@ -1211,6 +1211,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
+diff --git a/build/legacy/hydration-BlEVG2Lp.d.ts b/build/legacy/hydration-BlEVG2Lp.d.ts
+index 8d5a8e37a1aa174e9dbec609d3cbb5a5a1a6b5ba..77b34e3759edc1c1a4473abf47fa41a1fb3e53e0 100644
+--- a/build/legacy/hydration-BlEVG2Lp.d.ts
++++ b/build/legacy/hydration-BlEVG2Lp.d.ts
+@@ -1219,6 +1219,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
      onSuccess?: (data: TData, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
      onError?: (error: TError, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
      onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
@@ -13,11 +10,11 @@ index b124f2460a561d4b49b95725118b558fb13eedcd..bb353f2a3c3446c5104da4d2968b87b4
  }
  type MutateFunction<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> = (variables: TVariables, options?: MutateOptions<TData, TError, TVariables, TOnMutateResult>) => Promise<TData>;
  interface MutationObserverBaseResult<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> extends MutationState<TData, TError, TVariables, TOnMutateResult> {
-diff --git a/build/legacy/hydration-DWB9yu-g.d.cts b/build/legacy/hydration-DWB9yu-g.d.cts
-index 0d040ca651d00dda13238e9bf11d31890d199dfd..335220ae973377d2316ef7b26414801cd60c0ac7 100644
---- a/build/legacy/hydration-DWB9yu-g.d.cts
-+++ b/build/legacy/hydration-DWB9yu-g.d.cts
-@@ -1211,6 +1211,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
+diff --git a/build/legacy/hydration-uphG6M-i.d.cts b/build/legacy/hydration-uphG6M-i.d.cts
+index fdea1ed1c168a70de17ba765be2febdc601e1498..fe9b260f8b3bef149f6f508cd1492a65ede4508e 100644
+--- a/build/legacy/hydration-uphG6M-i.d.cts
++++ b/build/legacy/hydration-uphG6M-i.d.cts
+@@ -1219,6 +1219,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
      onSuccess?: (data: TData, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
      onError?: (error: TError, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
      onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
@@ -26,7 +23,7 @@ index 0d040ca651d00dda13238e9bf11d31890d199dfd..335220ae973377d2316ef7b26414801c
  type MutateFunction<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> = (variables: TVariables, options?: MutateOptions<TData, TError, TVariables, TOnMutateResult>) => Promise<TData>;
  interface MutationObserverBaseResult<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> extends MutationState<TData, TError, TVariables, TOnMutateResult> {
 diff --git a/build/legacy/mutationObserver.cjs b/build/legacy/mutationObserver.cjs
-index c4f23105e82a9b576a3c32f221e81e24fc36aa32..389bd6c85a58fd5f4654eab3875e63aa5d0e2dab 100644
+index b0f81836e76ab351dce18cdb50ab16d484884db8..0d143a8b2e8cd86ae4badeb15cb2af525a74d6c0 100644
 --- a/build/legacy/mutationObserver.cjs
 +++ b/build/legacy/mutationObserver.cjs
 @@ -35,7 +35,7 @@ var import_mutation = require("./mutation.cjs");
@@ -87,7 +84,7 @@ index c4f23105e82a9b576a3c32f221e81e24fc36aa32..389bd6c85a58fd5f4654eab3875e63aa
  updateResult_fn = function() {
    var _a;
 diff --git a/build/legacy/mutationObserver.js b/build/legacy/mutationObserver.js
-index 99a20d09831f19a1ba2bf457e4be2148b219380f..44a9e387af9212fd8be4b63bb70b500bc2ef0f24 100644
+index c3817fa9d52bd978ef0d2189f1be26d5c57e60b6..c05a80785a6aa8823dc4f318b87deaa02828eb74 100644
 --- a/build/legacy/mutationObserver.js
 +++ b/build/legacy/mutationObserver.js
 @@ -10,7 +10,7 @@ import { getDefaultState } from "./mutation.js";
@@ -147,11 +144,23 @@ index 99a20d09831f19a1ba2bf457e4be2148b219380f..44a9e387af9212fd8be4b63bb70b500b
  _MutationObserver_instances = new WeakSet();
  updateResult_fn = function() {
    var _a;
-diff --git a/build/modern/hydration-CeGZtiZv.d.ts b/build/modern/hydration-CeGZtiZv.d.ts
-index b124f2460a561d4b49b95725118b558fb13eedcd..bb353f2a3c3446c5104da4d2968b87b423f8ca75 100644
---- a/build/modern/hydration-CeGZtiZv.d.ts
-+++ b/build/modern/hydration-CeGZtiZv.d.ts
-@@ -1211,6 +1211,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
+diff --git a/build/modern/hydration-BlEVG2Lp.d.ts b/build/modern/hydration-BlEVG2Lp.d.ts
+index 8d5a8e37a1aa174e9dbec609d3cbb5a5a1a6b5ba..77b34e3759edc1c1a4473abf47fa41a1fb3e53e0 100644
+--- a/build/modern/hydration-BlEVG2Lp.d.ts
++++ b/build/modern/hydration-BlEVG2Lp.d.ts
+@@ -1219,6 +1219,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
+     onSuccess?: (data: TData, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
+     onError?: (error: TError, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
+     onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
++    scope?: MutationScope;
+ }
+ type MutateFunction<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> = (variables: TVariables, options?: MutateOptions<TData, TError, TVariables, TOnMutateResult>) => Promise<TData>;
+ interface MutationObserverBaseResult<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> extends MutationState<TData, TError, TVariables, TOnMutateResult> {
+diff --git a/build/modern/hydration-uphG6M-i.d.cts b/build/modern/hydration-uphG6M-i.d.cts
+index fdea1ed1c168a70de17ba765be2febdc601e1498..fe9b260f8b3bef149f6f508cd1492a65ede4508e 100644
+--- a/build/modern/hydration-uphG6M-i.d.cts
++++ b/build/modern/hydration-uphG6M-i.d.cts
+@@ -1219,6 +1219,7 @@ interface MutateOptions<TData = unknown, TError = DefaultError, TVariables = voi
      onSuccess?: (data: TData, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
      onError?: (error: TError, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
      onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, onMutateResult: TOnMutateResult | undefined, context: MutationFunctionContext) => void;
@@ -160,7 +169,7 @@ index b124f2460a561d4b49b95725118b558fb13eedcd..bb353f2a3c3446c5104da4d2968b87b4
  type MutateFunction<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> = (variables: TVariables, options?: MutateOptions<TData, TError, TVariables, TOnMutateResult>) => Promise<TData>;
  interface MutationObserverBaseResult<TData = unknown, TError = DefaultError, TVariables = void, TOnMutateResult = unknown> extends MutationState<TData, TError, TVariables, TOnMutateResult> {
 diff --git a/build/modern/mutationObserver.cjs b/build/modern/mutationObserver.cjs
-index d5394d179cdb04f5980dbc9a81be0d3396464627..08fbf45d38e5decb37439c88ab15a71b18ffdaa4 100644
+index b7dc73db382d099b197a99127b8656c9e8f1aef7..d4a160a6a2ec9142c11340ed2cd3cf284d9f3ba2 100644
 --- a/build/modern/mutationObserver.cjs
 +++ b/build/modern/mutationObserver.cjs
 @@ -32,6 +32,7 @@ var MutationObserver = class extends import_subscribable.Subscribable {
@@ -202,7 +211,7 @@ index d5394d179cdb04f5980dbc9a81be0d3396464627..08fbf45d38e5decb37439c88ab15a71b
      return this.#currentMutation.execute(variables);
    }
 diff --git a/build/modern/mutationObserver.js b/build/modern/mutationObserver.js
-index 70a790d4118d846dd92bb71d6e129c6a41cf74fe..9472654d965645d27342e1a626bf8fa49dd8ac0e 100644
+index dd2b2de9113eb4837fe2cfcc8a050b15a1c8db45..d4e17ee384802c8ce15902504e2a1ebb42a295b7 100644
 --- a/build/modern/mutationObserver.js
 +++ b/build/modern/mutationObserver.js
 @@ -8,6 +8,7 @@ var MutationObserver = class extends Subscribable {
@@ -244,7 +253,7 @@ index 70a790d4118d846dd92bb71d6e129c6a41cf74fe..9472654d965645d27342e1a626bf8fa4
      return this.#currentMutation.execute(variables);
    }
 diff --git a/src/mutationObserver.ts b/src/mutationObserver.ts
-index abb2a5389c13adf685f725af22fafab03459e7f4..6ca89db580e4b2f22b120c1b4388338e4731977f 100644
+index 21523963ceb22527d865cddc7e0a6d7193eedbd9..8714d47bcb395df33cf36f0349c933b0e7c9fe69 100644
 --- a/src/mutationObserver.ts
 +++ b/src/mutationObserver.ts
 @@ -39,6 +39,7 @@ export class MutationObserver<
@@ -303,10 +312,10 @@ index abb2a5389c13adf685f725af22fafab03459e7f4..6ca89db580e4b2f22b120c1b4388338e
      this.#currentMutation.addObserver(this)
  
 diff --git a/src/types.ts b/src/types.ts
-index ebfcf2c6bb731983283508ef11f501e433c15524..f74849b2b632cf08171961f829496b942e3f484e 100644
+index 4f3f4caed2095e882bcacfe01083025e5aaab9e3..07eff4f25a350a397f5fb74d4f1cfa7534ac8e68 100644
 --- a/src/types.ts
 +++ b/src/types.ts
-@@ -1176,6 +1176,7 @@ export interface MutateOptions<
+@@ -1180,6 +1180,7 @@ export interface MutateOptions<
      onMutateResult: TOnMutateResult | undefined,
      context: MutationFunctionContext,
    ) => void

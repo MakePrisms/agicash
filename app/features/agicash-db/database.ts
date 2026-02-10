@@ -10,6 +10,39 @@ import {
   SparkAccountDetailsDbDataSchema,
 } from './json-models/spark-account-details-db-data';
 
+// These row types are defined from DatabaseGenerated (before Database) to
+// break a circular reference: result types → row types → Database → result types.
+// The MergeDeep below only overrides Functions/CompositeTypes, not Tables,
+// so these are identical to Database row types.
+export type AgicashDbUser =
+  DatabaseGenerated['wallet']['Tables']['users']['Row'];
+export type AgicashDbAccount =
+  DatabaseGenerated['wallet']['Tables']['accounts']['Row'];
+export type AgicashDbCashuProof =
+  DatabaseGenerated['wallet']['Tables']['cashu_proofs']['Row'];
+/**
+ * Account joined with cashu_proofs. For non-cashu accounts, cashu_proofs is an empty array and can be ignored.
+ */
+export type AgicashDbAccountWithProofs = AgicashDbAccount & {
+  cashu_proofs: AgicashDbCashuProof[];
+};
+export type AgicashDbCashuReceiveQuote =
+  DatabaseGenerated['wallet']['Tables']['cashu_receive_quotes']['Row'];
+export type AgicashDbCashuReceiveSwap =
+  DatabaseGenerated['wallet']['Tables']['cashu_receive_swaps']['Row'];
+export type AgicashDbCashuSendQuote =
+  DatabaseGenerated['wallet']['Tables']['cashu_send_quotes']['Row'];
+export type AgicashDbCashuSendSwap =
+  DatabaseGenerated['wallet']['Tables']['cashu_send_swaps']['Row'];
+export type AgicashDbTransaction =
+  DatabaseGenerated['wallet']['Tables']['transactions']['Row'];
+export type AgicashDbContact =
+  DatabaseGenerated['wallet']['Tables']['contacts']['Row'];
+export type AgicashDbSparkReceiveQuote =
+  DatabaseGenerated['wallet']['Tables']['spark_receive_quotes']['Row'];
+export type AgicashDbSparkSendQuote =
+  DatabaseGenerated['wallet']['Tables']['spark_send_quotes']['Row'];
+
 type UpsertUserWithAccountsResult = {
   user: AgicashDbUser;
   accounts: AgicashDbAccountWithProofs[];
@@ -188,32 +221,6 @@ export type Database = MergeDeep<
 >;
 
 export type AgicashDb = ReturnType<typeof createClient<Database>>;
-
-export type AgicashDbUser = Database['wallet']['Tables']['users']['Row'];
-export type AgicashDbAccount = Database['wallet']['Tables']['accounts']['Row'];
-export type AgicashDbCashuProof =
-  Database['wallet']['Tables']['cashu_proofs']['Row'];
-/**
- * Account joined with cashu_proofs. For non-cashu accounts, cashu_proofs is an empty array and can be ignored.
- */
-export type AgicashDbAccountWithProofs = AgicashDbAccount & {
-  cashu_proofs: AgicashDbCashuProof[];
-};
-export type AgicashDbCashuReceiveQuote =
-  Database['wallet']['Tables']['cashu_receive_quotes']['Row'];
-export type AgicashDbCashuReceiveSwap =
-  Database['wallet']['Tables']['cashu_receive_swaps']['Row'];
-export type AgicashDbCashuSendQuote =
-  Database['wallet']['Tables']['cashu_send_quotes']['Row'];
-export type AgicashDbTransaction =
-  Database['wallet']['Tables']['transactions']['Row'];
-export type AgicashDbContact = Database['wallet']['Tables']['contacts']['Row'];
-export type AgicashDbCashuSendSwap =
-  Database['wallet']['Tables']['cashu_send_swaps']['Row'];
-export type AgicashDbSparkReceiveQuote =
-  Database['wallet']['Tables']['spark_receive_quotes']['Row'];
-export type AgicashDbSparkSendQuote =
-  Database['wallet']['Tables']['spark_send_quotes']['Row'];
 
 /**
  * Checks if the account is a cashu account.
