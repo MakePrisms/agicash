@@ -71,7 +71,7 @@ function TokenAmountDisplay({
   return (
     <button
       type="button"
-      className="z-10 cursor-pointer transition-transform active:scale-95"
+      className="z-10 transition-transform active:scale-95"
       onClick={() => {
         copyToClipboard(getEncodedToken(claimableToken ?? token));
         toast({

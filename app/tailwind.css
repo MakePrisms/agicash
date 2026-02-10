@@ -200,4 +200,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Restore v3 cursor behavior for buttons */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }

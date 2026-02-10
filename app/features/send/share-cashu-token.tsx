@@ -56,7 +56,6 @@ export function ShareCashuToken({ token }: Props) {
                   url: shareableLink,
                 });
               }}
-              className="cursor-pointer"
             >
               <Share />
             </button>

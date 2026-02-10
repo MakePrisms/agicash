@@ -54,7 +54,7 @@ function LnAddressDisplay({
     <button
       type="button"
       onClick={handleCopyLightningAddress}
-      className="flex w-full cursor-pointer items-center justify-between"
+      className="flex w-full items-center justify-between"
     >
       <div
         className={cn(
@@ -99,11 +99,7 @@ export default function Settings() {
         <ClosePageButton to="/" transition="slideRight" applyTo="oldView" />
         {canShare() && (
           <PageHeaderItem position="right">
-            <button
-              type="button"
-              onClick={handleShare}
-              className="cursor-pointer px-1"
-            >
+            <button type="button" onClick={handleShare} className="px-1">
               <Share />
             </button>
           </PageHeaderItem>

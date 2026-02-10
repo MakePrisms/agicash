@@ -69,7 +69,7 @@ export function GiftCards() {
                       type="button"
                       onClick={() => handleCardClick(account)}
                       aria-label={`Select ${account.name} card, ${index + 1} of ${accounts.length}`}
-                      className="absolute left-0 w-full cursor-pointer"
+                      className="absolute left-0 w-full"
                       style={{
                         transform: `translateY(${index * VERTICAL_CARD_OFFSET_IN_STACK}px)`,
                         zIndex: 1 + index,

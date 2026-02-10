@@ -36,7 +36,7 @@ function ProofRow({
       >
         <button
           type="button"
-          className="col-span-2 grid cursor-pointer grid-cols-[8rem_1fr] items-center gap-2 overflow-hidden text-left"
+          className="col-span-2 grid grid-cols-[8rem_1fr] items-center gap-2 overflow-hidden text-left"
           onClick={() => setExpanded((e) => !e)}
         >
           <span className="block w-32">

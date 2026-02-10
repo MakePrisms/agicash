@@ -97,7 +97,7 @@ export function QRCode({
           onClick={onClick}
           className={cn(
             baseClasses,
-            'cursor-pointer bg-foreground transition-transform active:scale-95',
+            'bg-foreground transition-transform active:scale-95',
           )}
         >
           {animate ? (

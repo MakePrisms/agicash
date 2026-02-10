@@ -96,12 +96,7 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
     <Page className="relative">
       <PageHeader className="z-10">
         <PageHeaderItem position="left">
-          <button
-            type="button"
-            onClick={handleBack}
-            aria-label="Close"
-            className="cursor-pointer"
-          >
+          <button type="button" onClick={handleBack} aria-label="Close">
             <X />
           </button>
         </PageHeaderItem>

@@ -12,7 +12,7 @@ export function SettingsNavButton({ children, to }: SettingsNavButtonProps) {
     <LinkWithViewTransition to={to} transition="slideLeft" applyTo="newView">
       <button
         type="button"
-        className="flex h-10 w-full cursor-pointer items-center justify-between py-2 [&_svg]:size-4 [&_svg]:shrink-0"
+        className="flex h-10 w-full items-center justify-between py-2 [&_svg]:size-4 [&_svg]:shrink-0"
       >
         <div className="flex items-center gap-2">{children}</div>
         <ChevronRight />
