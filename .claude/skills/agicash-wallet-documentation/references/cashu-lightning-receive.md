@@ -43,7 +43,7 @@ When a Cashu token cannot be claimed via same-mint swap (different mint, differe
       + Transaction record (PENDING — payment is guaranteed to be initiated)
 2. Initiate melt on source mint (POST /v1/melt/bolt11)
    → Melts token proofs → pays the Lightning invoice
-3. markMeltInitiated() → sets meltInitiated=true (idempotency flag)
+3. markMeltInitiated() → sets meltInitiated=true (tracks that melt was attempted — needed because Cashu has no failed state for melts; if quote reverts to UNPAID with this flag true, the melt failed)
 4. When mint quote becomes PAID: Generate BlindedMessages
 5. Mint proofs on destination mint (POST /v1/mint/bolt11)
 6. Store proofs → COMPLETED
@@ -101,7 +101,7 @@ CashuReceiveQuote has two `type` values:
 For `CASHU_TOKEN`, the `tokenReceiveData` field contains `CashuTokenMeltData`:
 - `sourceMintUrl`, `tokenProofs`, `meltQuoteId`
 - `tokenAmount` (Money — original token value)
-- `meltInitiated` (boolean — idempotency flag for crash recovery)
+- `meltInitiated` (boolean — tracks whether melt was attempted; disambiguates "never triggered" vs "attempted but failed" since Cashu has no failed state for melts)
 - `cashuReceiveFee`, `lightningFeeReserve` (required — known at quote creation)
 - `lightningFee` (optional — actual fee, set on melt completion)
 

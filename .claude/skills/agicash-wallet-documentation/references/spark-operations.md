@@ -75,7 +75,7 @@ Note: `PAID` is the terminal success state. NO separate `COMPLETED` state.
   - `tokenReceiveData` contains `CashuTokenMeltData`:
     - `sourceMintUrl`, `tokenProofs`, `meltQuoteId`
     - `tokenAmount` (Money — original token value)
-    - `meltInitiated` (boolean — idempotency flag)
+    - `meltInitiated` (boolean — tracks whether melt was attempted; disambiguates "never triggered" vs "attempted but failed" since Cashu has no failed state for melts)
     - `cashuReceiveFee`, `lightningFeeReserve` (required — known at quote creation)
     - `lightningFee` (optional — actual fee, set on melt completion)
 

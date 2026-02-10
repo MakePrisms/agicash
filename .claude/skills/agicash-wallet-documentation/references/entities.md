@@ -46,7 +46,7 @@ Operations are designed so that if the app crashes mid-flow, recovery can resume
 
 - **Accepting multiple source states:** `completeSendQuote()` accepts both UNPAID and PENDING, because if the app crashes after payment but before `markAsPending()`, the WebSocket PAID event can still complete the quote directly from UNPAID.
 - **Decoupled initiation and status:** For Cashu sends, `initiateSend()` fires the melt and returns. The mint's WebSocket events separately drive `markAsPending()` and `completeSendQuote()`. These are independent — missing one doesn't block the other.
-- **Idempotency flags:** CashuReceiveQuote (CASHU_TOKEN type) has a `meltInitiated` boolean that prevents duplicate melt attempts on retry.
+- **Melt tracking flags:** CashuReceiveQuote (CASHU_TOKEN type) has a `meltInitiated` boolean that tracks whether the melt was attempted. The Cashu protocol has no explicit "failed" state for melt quotes — a failed melt reverts to UNPAID. The flag disambiguates: `UNPAID + meltInitiated: false` means the melt was never triggered, while `UNPAID + meltInitiated: true` means it was attempted but failed.
 - **Deterministic outputs:** Keyset counters are reserved atomically in the DB before generating blinded messages. If the app crashes after reserving but before minting, the same counter range produces the same outputs on retry (NUT-13).
 
 ### Optimistic Locking (Version Field)
