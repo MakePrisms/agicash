@@ -1,21 +1,20 @@
 ---
-description: 
-globs: 
-alwaysApply: false
+name: supabase-edge-functions
+description: Guidelines for writing Supabase Edge Functions with TypeScript and Deno runtime. Use when creating or modifying edge functions in supabase/functions/.
 ---
 
 # Writing Supabase Edge Functions
 
-You're an expert in writing TypeScript and Deno JavaScript runtime. Generate **high-quality Supabase Edge Functions** that adhere to the following best practices:
+Generate high-quality Supabase Edge Functions that adhere to the following best practices.
 
 ## Guidelines
 
-1. Try to use Web APIs and Deno’s core APIs instead of external dependencies (eg: use fetch instead of Axios, use WebSockets API instead of node-ws)
+1. Try to use Web APIs and Deno's core APIs instead of external dependencies (eg: use fetch instead of Axios, use WebSockets API instead of node-ws)
 2. If you are reusing utility methods between Edge Functions, add them to `supabase/functions/_shared` and import using a relative path. Do NOT have cross dependencies between Edge Functions.
-3. Do NOT use bare specifiers when importing dependecnies. If you need to use an external dependency, make sure it's prefixed with either `npm:` or `jsr:`. For example, `@supabase/supabase-js` should be written as `npm:@supabase/supabase-js`.
+3. Do NOT use bare specifiers when importing dependencies. If you need to use an external dependency, make sure it's prefixed with either `npm:` or `jsr:`. For example, `@supabase/supabase-js` should be written as `npm:@supabase/supabase-js`.
 4. For external imports, always define a version. For example, `npm:@express` should be written as `npm:express@4.18.2`.
-5. For external dependencies, importing via `npm:` and `jsr:` is preferred. Minimize the use of imports from @`deno.land/x` , `esm.sh` and @`unpkg.com` . If you have a package from one of those CDNs, you can replace the CDN hostname with `npm:` specifier.
-6. You can also use Node built-in APIs. You will need to import them using `node:` specifier. For example, to import Node process: `import process from "node:process". Use Node APIs when you find gaps in Deno APIs.
+5. For external dependencies, importing via `npm:` and `jsr:` is preferred. Minimize the use of imports from `deno.land/x`, `esm.sh` and `unpkg.com`. If you have a package from one of those CDNs, you can replace the CDN hostname with `npm:` specifier.
+6. You can also use Node built-in APIs. You will need to import them using `node:` specifier. For example, to import Node process: `import process from "node:process"`. Use Node APIs when you find gaps in Deno APIs.
 7. Do NOT use `import { serve } from "https://deno.land/std@0.168.0/http/server.ts"`. Instead use the built-in `Deno.serve`.
 8. Following environment variables (ie. secrets) are pre-populated in both local and hosted Supabase environments. Users don't need to manually set them:
    - SUPABASE_URL
@@ -54,7 +53,6 @@ Deno.serve(async (req: Request) => {
 
 ```tsx
 import { randomBytes } from 'node:crypto'
-import { createServer } from 'node:http'
 import process from 'node:process'
 
 const generateRandomString = (length) => {
@@ -65,12 +63,11 @@ const generateRandomString = (length) => {
 const randomString = generateRandomString(10)
 console.log(randomString)
 
-const server = createServer((req, res) => {
-  const message = `Hello`
-  res.end(message)
+Deno.serve(async (req: Request) => {
+  return new Response('Hello', {
+    headers: { 'Content-Type': 'text/plain' },
+  })
 })
-
-server.listen(9999)
 ```
 
 ### Using npm packages in Functions

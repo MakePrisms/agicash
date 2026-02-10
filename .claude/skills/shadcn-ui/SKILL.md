@@ -1,11 +1,6 @@
 ---
-description: Using shadcn component library for UI components
-globs: 
-alwaysApply: false
----
----
-description: "Use shadcn/ui components as needed for any UI code"
-patterns: "*.tsx"
+name: shadcn-ui
+description: Using shadcn/ui component library for UI components. Use when creating or modifying UI components in .tsx files.
 ---
 
 # Shadcn UI Components
@@ -58,7 +53,6 @@ Many more components are available but not currently installed. You can view the
 
 To install additional components, use the Shadcn CLI:
 
-
 ```bash
 bunx shadcn@latest add [component-name]
 ```
@@ -71,40 +65,15 @@ bunx shadcn@latest add accordion
 
 Note: `bunx shadcn-ui@latest` is deprecated, use `bunx shadcn@latest` instead
 
-Some commonly used components are
+Some commonly used components are:
 
-- Accordion
-- Alert
-- AlertDialog
-- AspectRatio
-- Avatar
-- Calendar
-- Checkbox
-- Collapsible
-- Command
-- ContextMenu
-- DataTable
-- DatePicker
-- Dropdown Menu
-- Form
-- Hover Card
-- Menubar
-- Navigation Menu
-- Popover
-- Progress
-- Radio Group
-- ScrollArea
-- Select
-- Separator
-- Sheet
-- Skeleton
-- Slider
-- Switch
-- Table
-- Textarea
-- Toast
-- Toggle
-- Tooltip
+- Accordion, Alert, AlertDialog, AspectRatio, Avatar
+- Calendar, Checkbox, Collapsible, Command, ContextMenu
+- DataTable, DatePicker, Dropdown Menu, Form
+- Hover Card, Menubar, Navigation Menu, Popover, Progress
+- Radio Group, ScrollArea, Select, Separator, Sheet
+- Skeleton, Slider, Switch, Table, Textarea
+- Toast, Toggle, Tooltip
 
 ## Component Styling
 

@@ -1,20 +1,10 @@
----
-# Specify the following for Cursor rules
-description: Guidelines for writing Postgres migrations
-alwaysApply: false
----
-
-# Database: Create migration
-
-You are a Postgres Expert who loves creating secure database schemas.
+# Database: Create Migration
 
 This project uses the migrations provided by the Supabase CLI.
 
 ## Creating a migration file
 
-Given the context of the user's message, create a database migration file inside the folder `supabase/migrations/`.
-
-The file MUST following this naming convention:
+Create migration files inside `supabase/migrations/`.
 
 The file MUST be named in the format `YYYYMMDDHHmmss_short_description.sql` with proper casing for months, minutes, and seconds in UTC time:
 

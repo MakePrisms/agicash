@@ -1,9 +1,3 @@
----
-# Specify the following for Cursor rules
-description: Guidelines for writing Postgres SQL
-alwaysApply: false
----
-
 # Postgres SQL Style Guide
 
 ## General
@@ -12,7 +6,7 @@ alwaysApply: false
 - Employ consistent, descriptive identifiers for tables, columns, and other database objects.
 - Use white space and indentation to enhance the readability of your code.
 - Store dates in ISO 8601 format (`yyyy-mm-ddThh:mm:ss.sssss`).
-- Include comments for complex logic, using '/_ ... _/' for block comments and '--' for line comments.
+- Include comments for complex logic, using '/* ... */' for block comments and '--' for line comments.
 
 ## Naming Conventions
 
@@ -23,7 +17,7 @@ alwaysApply: false
 
 ## Tables
 
-- Avoid prefixes like 'tbl\_' and ensure no table name matches any of its column names.
+- Avoid prefixes like 'tbl_' and ensure no table name matches any of its column names.
 - Always add an `id` column of type `identity generated always` unless otherwise specified.
 - Create all tables in the `public` schema unless otherwise specified.
 - Always add the schema to SQL queries for clarity.

@@ -119,6 +119,6 @@
   ],
   "javascript": {
     "formatter": { "quoteStyle": "single" },
-    "globals": ["React"]
+    "globals": ["React", "Bun"]
   }
 }
