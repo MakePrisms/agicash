@@ -5,18 +5,23 @@ Pay a Lightning invoice by melting Cashu proofs.
 ## Flow
 
 ```
-1. Create quote
+1. Get quote (user picks amount, clicks Continue)
    a) getLightningQuote() → get melt quote from mint (POST /v1/melt/quote/bolt11)
       → Returns quoteId, fee_reserve
    b) Select proofs >= amount + lightningFeeReserve + cashuFee
-   c) createSendQuote() → CashuSendQuote in DB (UNPAID) + Transaction record (PENDING)
+   → Quote displayed on confirmation screen with fee breakdown
+2. Confirm (user reviews fees, clicks Confirm)
+   a) createSendQuote() → CashuSendQuote in DB (UNPAID) + Transaction record (PENDING)
       → Proofs marked as RESERVED
       → Keyset counter incremented if change outputs needed
-2. User confirms → initiateSend() fires melt (POST /v1/melt/bolt11) and returns
-3. Monitor for settlement via WebSocket (NUT-17):
-   → Mint confirms in-progress → markSendQuoteAsPending()
+   → User navigated to transaction screen
+3. Background processing (automatic, no user action)
+   a) useProcessCashuSendQuoteTasks() picks up UNPAID quote
+   b) Subscribes to mint WebSocket (NUT-17) for melt quote state
+   c) initiateSend() fires melt (POST /v1/melt/bolt11)
    (initiateSend and markAsPending are decoupled — matters for crash recovery)
-4. Settlement:
+4. Settlement (via WebSocket state changes):
+   → Mint confirms in-progress → markSendQuoteAsPending()
    → PAID: mark proofs SPENT, store change proofs as UNSPENT
    → FAILED: verify with mint first, then release reserved proofs back to UNSPENT
 ```
@@ -71,9 +76,9 @@ Change proofs returned by mint account for both fee reserve surplus AND proof de
 
 | Method | Transition | Description |
 |--------|------------|-------------|
-| `getLightningQuote()` | (pre-quote) | Get fee estimate before user confirms |
-| `createSendQuote()` | → UNPAID | Create quote, reserve proofs |
-| `initiateSend()` | (fires melt) | Send proofs to mint for melting (UNPAID required) |
+| `getLightningQuote()` | (pre-quote) | Get fee estimate when user clicks Continue |
+| `createSendQuote()` | → UNPAID | Create quote, reserve proofs when user clicks Confirm |
+| `initiateSend()` | (fires melt) | Background task fires melt (UNPAID required) |
 | `markSendQuoteAsPending()` | UNPAID → PENDING | Mint acknowledges melt in-progress |
 | `completeSendQuote()` | UNPAID/PENDING → PAID | Process success, mark proofs SPENT, store change |
 | `failSendQuote()` | UNPAID/PENDING → FAILED | Verify with mint first, then release reserved proofs |
