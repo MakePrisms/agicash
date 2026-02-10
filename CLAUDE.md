@@ -25,6 +25,8 @@
 
 **Do autonomously:** Read/edit code, run tests, use browser tools, run `bun run fix:all`, start dev server.
 
+**Package manager:** Always use `bun` and `bunx`. Never use `npm`, `npx`, `yarn`, or `pnpm`.
+
 **After editing TypeScript**: Run `bun run fix:all` to catch type errors before considering the task complete. Don't wait for the user to discover build failures.
 
 ## Tech Stack
@@ -123,13 +125,14 @@ onError: (error) => {
 ```
 
 **Retry logic** (TanStack Query):
+- Queries default to 3 retries; mutations default to 0 (no retries). These defaults apply to all errors, not just network errors.
 - `DomainError` → never retry (validation/business rule)
 - `ConcurrencyError` → always retry
-- Network errors → retry once
+- Network/other errors → always retried (fall through to `failureCount < N` limit)
 
 **Custom error classes** (`app/features/shared/error.ts`):
 - `DomainError` - Business rule violations (user-friendly messages)
-- `ConcurrencyError` - Optimistic locking failures
+- `ConcurrencyError` - Errors caused by concurrent data updates
 - `NotFoundError` - Missing resources
 
 **Background tasks**: Log errors to console but don't show toasts (avoid alert spam).
@@ -215,17 +218,29 @@ Detailed guidelines are available as skills (Claude loads them automatically whe
 
 ## Skills
 
-Use these for specialized guidance:
-- `/agicash-wallet-documentation` - Send/receive flows, Quote/Swap/Transaction entities, payment logic
-- `/cashu-protocol` - Cashu NUT specifications for ecash protocol
-- `/design-motion-principles` - Animation and motion design
-- `/skill-creator` - Create new Claude Code skills
-- `/update-context` - Analyze and update this CLAUDE.md file
-- `/supabase-database` - Migrations, functions, RLS policies, SQL style
-- `/supabase-edge-functions` - Deno/TypeScript edge function patterns
-- `/shadcn-ui` - Component library usage and installation
+Skills are loaded on demand and provide domain context that prevents mistakes. Available skills and their descriptions are listed in the system prompt. The guidance below helps you decide **when** to load them and **how** they relate to each other.
 
-## Slash Commands
+**Principle:** Load a skill before making changes in its domain, not after. It's cheaper to read context upfront than to fix a wrong assumption about a state machine or protocol flow.
 
-Utility commands for development:
-- `/lnurl-test` - Test Lightning Address server endpoints (LUD-16, LUD-06, LUD-21)
+### Payment & wallet logic
+
+Most features in this app involve payment flows. These three skills cover different layers of the same system — load what's relevant to your task's depth:
+
+- **`/agicash-wallet-documentation`** — The app's payment implementation. Load when touching `app/features/send/`, `app/features/receive/`, `app/features/wallet/`, token receive routes, Lightning Address routes, or account selection logic. Its `SKILL.md` has a reference index — find the right doc for your specific flow rather than reading everything.
+- **`/cashu-protocol`** — The underlying Cashu ecash protocol (NUT specs). Load when you need to understand *why* the app does something (blind signatures, keyset rotation, spending conditions), not just *what* it does. Complements `/agicash-wallet-documentation` — the wallet docs describe our implementation, this describes the protocol it implements.
+- **`/lnurl-test`** — Validation tool, not reference docs. Load *after* modifying Lightning Address routes (`app/routes/[.]well-known.*`, `app/routes/api.lnurlp.*`) or `lightning-address-service.ts` to verify the endpoints still work against a running dev server.
+
+### Database
+
+- **`/supabase-database`** — Load when writing migrations, RLS policies, SQL functions, or modifying the schema. Covers naming conventions, policy patterns, and the `lowercase SQL` style rule.
+- **`/supabase-edge-functions`** — Load when creating or modifying functions in `supabase/functions/`. Covers Deno runtime patterns and deployment conventions.
+
+### UI
+
+- **`/shadcn-ui`** — Load when adding new UI components or modifying existing shadcn/ui components in `app/components/ui/`. Covers installation, customization, and usage patterns.
+- **`/design-motion-principles`** — Load when implementing or reviewing animations, transitions, or interaction states. Useful for code review of motion work, not just implementation.
+
+### Meta
+
+- **`/update-context`** — Load when this CLAUDE.md needs updating after significant codebase changes.
+- **`/skill-creator`** — Load when creating or updating a skill.

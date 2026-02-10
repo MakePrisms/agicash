@@ -261,7 +261,7 @@ export class CashuSendSwapService {
     }
 
     if (swap.state !== 'DRAFT') {
-      throw new Error(`Swap is not PENDING. Current state: ${swap.state}`);
+      throw new Error(`Swap is not DRAFT. Current state: ${swap.state}`);
     }
 
     return this.cashuSendSwapRepository.fail({

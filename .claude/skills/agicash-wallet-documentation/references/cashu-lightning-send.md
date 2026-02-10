@@ -5,26 +5,33 @@ Pay a Lightning invoice by melting Cashu proofs.
 ## Flow
 
 ```
-1. Get melt quote from mint (POST /v1/melt/quote/bolt11)
-   → Returns quoteId, fee_reserve
-2. Select proofs >= amount + lightningFeeReserve + cashuFee
-3. Create CashuSendQuote (UNPAID), reserve proofs
-4. User confirms → Initiate melt (POST /v1/melt/bolt11)
-5. Monitor for settlement:
-   → WebSocket (NUT-17) if mint supports it
-   → Polling fallback
-6. Settlement → PAID (with change proofs) or FAILED
+1. Create quote
+   a) getLightningQuote() → get melt quote from mint (POST /v1/melt/quote/bolt11)
+      → Returns quoteId, fee_reserve
+   b) Select proofs >= amount + lightningFeeReserve + cashuFee
+   c) createSendQuote() → CashuSendQuote in DB (UNPAID) + Transaction record (PENDING)
+      → Proofs marked as RESERVED
+      → Keyset counter incremented if change outputs needed
+2. User confirms → initiateSend() fires melt (POST /v1/melt/bolt11) and returns
+3. Monitor for settlement via WebSocket (NUT-17):
+   → Mint confirms in-progress → markSendQuoteAsPending()
+   (initiateSend and markAsPending are decoupled — matters for crash recovery)
+4. Settlement:
+   → PAID: mark proofs SPENT, store change proofs as UNSPENT
+   → FAILED: verify with mint first, then release reserved proofs back to UNSPENT
 ```
 
 ## State Machine
 
-```
-UNPAID → PENDING → PAID (terminal)
-    ↓        ↓
-  FAILED   FAILED
-    ↓
-  EXPIRED
-```
+**States:** UNPAID, PENDING, EXPIRED, FAILED, PAID
+
+**Transitions:**
+- UNPAID → PENDING (mint acknowledges melt in-progress)
+- UNPAID → PAID (melt completes before PENDING recorded — crash recovery)
+- UNPAID → FAILED (melt rejected)
+- UNPAID → EXPIRED (quote past expiresAt)
+- PENDING → PAID (melt succeeds)
+- PENDING → FAILED (melt fails)
 
 **State-specific fields:**
 - PAID: `paymentPreimage`, `lightningFee`, `amountSpent`, `totalFee`
@@ -33,10 +40,11 @@ UNPAID → PENDING → PAID (terminal)
 
 ## Proof Lifecycle
 
-```
-UNSPENT → RESERVED (quote created) → SPENT (quote PAID)
-                                   → UNSPENT (quote FAILED/EXPIRED)
-```
+**Transitions:**
+- UNSPENT → RESERVED (quote created)
+- RESERVED → SPENT (quote PAID)
+- RESERVED → UNSPENT (quote FAILED/EXPIRED)
+
 Change proofs added as UNSPENT on completion.
 
 ## Key Fields
@@ -54,17 +62,21 @@ Change proofs added as UNSPENT on completion.
 
 ```
 totalRequired = amountReceived + lightningFeeReserve + cashuFee
-change = lightningFeeReserve - lightningFee (returned as proofs)
+amountSpent = sumProofs(inputProofs) - sumProofs(changeProofs)
 ```
+
+Change proofs returned by mint account for both fee reserve surplus AND proof denomination overpayment.
 
 ## Service Methods
 
 | Method | Transition | Description |
 |--------|------------|-------------|
+| `getLightningQuote()` | (pre-quote) | Get fee estimate before user confirms |
 | `createSendQuote()` | → UNPAID | Create quote, reserve proofs |
-| `markSendQuoteAsPending()` | UNPAID → PENDING | Mark melt initiated |
-| `completeSendQuote()` | → PAID | Process success, mark proofs SPENT, store change |
-| `failSendQuote()` | → FAILED | Release reserved proofs |
+| `initiateSend()` | (fires melt) | Send proofs to mint for melting (UNPAID required) |
+| `markSendQuoteAsPending()` | UNPAID → PENDING | Mint acknowledges melt in-progress |
+| `completeSendQuote()` | UNPAID/PENDING → PAID | Process success, mark proofs SPENT, store change |
+| `failSendQuote()` | UNPAID/PENDING → FAILED | Verify with mint first, then release reserved proofs |
 | `expireSendQuote()` | UNPAID → EXPIRED | Release reserved proofs (validates expiresAt) |
 
 ## Files

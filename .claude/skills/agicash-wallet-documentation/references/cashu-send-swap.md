@@ -5,37 +5,41 @@ Create peer-to-peer ecash tokens for direct transfers.
 ## Flow
 
 ```
-1. Select proofs from account
-2. If exact amount: use proofs directly → PENDING
-   If need change: create DRAFT with outputAmounts
-3. DRAFT: Execute swap (POST /v1/swap) → get proofsToSend + change
-4. Encode token (cashuB...) with proofsToSend → PENDING
-5. Share token with recipient
-6. Monitor proofs → COMPLETED when spent, or user reverses → REVERSED
+1. Create swap
+   a) Select proofs from account that cover the send amount
+   b) Create CashuSendSwap in DB + Transaction record (PENDING)
+      → Proofs marked as RESERVED
+      → If selected proofs sum to exact send amount: no mint swap needed,
+        swap starts as PENDING, tokenHash computed immediately
+      → If selected proofs exceed send amount: mint swap needed to split
+        into send + change, swap starts as DRAFT, keyset counter incremented
+2. DRAFT path: Execute swap (POST /v1/swap)
+   → Get proofsToSend + change proofs
+   → Encode token (cashuB...) → PENDING
+3. Share token with recipient
+4. Monitor proofs → COMPLETED when spent, or user reverses → REVERSED
+   → FAILED: release reserved proofs back to UNSPENT
 ```
 
 ## State Machine
 
-```
-         create()
-             │
-  ┌──────────┴──────────┐
-  │                     │
-(need change)     (exact amount)
-  │                     │
-  ▼                     │
-DRAFT ──────────────────┼─→ PENDING → COMPLETED
-  │                     │       │
-  ▼                     │       ▼
-FAILED ←────────────────┼── REVERSED
-```
+**States:** DRAFT, PENDING, COMPLETED, FAILED, REVERSED
 
-**Key insight:** Goes directly to PENDING if `inputAmount == amountToSend` (no swap needed).
+**Two creation paths:**
+- `inputAmount == amountToSend` (no swap needed): created as PENDING
+- `inputAmount != amountToSend` (swap needed): created as DRAFT
+
+**Transitions:**
+- DRAFT → PENDING (swap executed, proofsToSend created)
+- DRAFT → FAILED (swap fails)
+- PENDING → COMPLETED (recipient claimed — proofs spent)
+- PENDING → REVERSED (sender cancelled before claim)
 
 **State-specific fields:**
-- DRAFT: `keysetId`, `keysetCounter`, `outputAmounts` (NO `proofsToSend`)
+- DRAFT: `keysetId`, `keysetCounter`, `outputAmounts` (no `proofsToSend`)
 - PENDING/COMPLETED: `proofsToSend`, `tokenHash`
 - FAILED: `failureReason`
+- REVERSED: no extra fields
 
 ## Key Fields
 
