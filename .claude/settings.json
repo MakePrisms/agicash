@@ -1,4 +1,46 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(bun run build:*)",
+      "Bash(bun run dev:*)",
+      "Bash(bun run fix:all:*)",
+      "Bash(bun run fix:staged:*)",
+      "Bash(bun run typecheck:*)",
+      "Bash(bun run lint:*)",
+      "Bash(bun run lint\\:check:*)",
+      "Bash(bun run format:*)",
+      "Bash(bun run format\\:check:*)",
+      "Bash(bun run check:all:*)",
+      "Bash(bun run db:generate-types:*)",
+      "Bash(bun test:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(supabase db reset:*)",
+      "Bash(supabase db push:*)",
+      "Bash(npx:*)",
+      "Bash(npm:*)",
+      "Bash(yarn:*)",
+      "Bash(pnpm:*)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(supabase/.env)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-on-save.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "postgres-best-practices@supabase-agent-skills": true,
     "feature-dev@claude-plugins-official": true,
