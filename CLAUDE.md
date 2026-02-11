@@ -43,7 +43,7 @@
 
 ## File Structure
 
-See `GUIDELINES.md` for detailed directory structure and import hierarchy rules.
+See `docs/guidelines.md` for detailed directory structure and import hierarchy rules.
 
 ```
 app/
@@ -224,8 +224,9 @@ Skills are loaded on demand and provide domain context that prevents mistakes. A
 
 ### Payment & wallet logic
 
-Most features in this app involve payment flows. These three skills cover different layers of the same system — load what's relevant to your task's depth:
+Most features in this app involve payment flows. These skills cover different layers of the same system — load what's relevant to your task's depth:
 
+- **`/agicash-wallet-architecture`** — System-level architecture: components (Server, Client, Open Secret, DB), their responsibilities, and boundaries. Load when working on cross-component concerns, deciding where new functionality should live (server vs client), or modifying encryption/auth/realtime flows. See also `docs/architecture.md` for diagrams.
 - **`/agicash-wallet-documentation`** — The app's payment implementation. Load when touching `app/features/send/`, `app/features/receive/`, `app/features/wallet/`, token receive routes, Lightning Address routes, or account selection logic. Its `SKILL.md` has a reference index — find the right doc for your specific flow rather than reading everything.
 - **`/cashu-protocol`** — The underlying Cashu ecash protocol (NUT specs). Load when you need to understand *why* the app does something (blind signatures, keyset rotation, spending conditions), not just *what* it does. Complements `/agicash-wallet-documentation` — the wallet docs describe our implementation, this describes the protocol it implements.
 - **`/lnurl-test`** — Validation tool, not reference docs. Load *after* modifying Lightning Address routes (`app/routes/[.]well-known.*`, `app/routes/api.lnurlp.*`) or `lightning-address-service.ts` to verify the endpoints still work against a running dev server.
