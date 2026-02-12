@@ -222,6 +222,10 @@ Skills are loaded on demand and provide domain context that prevents mistakes. A
 
 **Principle:** Load a skill before making changes in its domain, not after. It's cheaper to read context upfront than to fix a wrong assumption about a state machine or protocol flow.
 
+### Frameworks and Libraries
+
+- **`/react-router-framework-mode`** — React Router v7 framework conventions: route modules, loaders/actions, forms, pending/optimistic UI, error boundaries, and `react-router.config.ts`. Load when creating or modifying routes in `app/routes/`, working with data loading patterns, or handling navigation/form submissions.
+
 ### Payment & wallet logic
 
 Most features in this app involve payment flows. These skills cover different layers of the same system — load what's relevant to your task's depth:
