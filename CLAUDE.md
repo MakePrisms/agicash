@@ -19,6 +19,10 @@
 
 **Verify before using**: Before using any function or module — internal or third-party — read its source or type definitions to understand its signature, behavior, and return type. Don't assume based on the name. For third-party packages, check `node_modules/` type declarations. For internal code, read the source file. Never guess at APIs.
 
+**Verify by running**: When unsure how something works — a library API, a runtime behavior, or an edge case — don't guess or hallucinate. Instead, verify by running code: write a small test script and execute it with `bun`, write a quick unit test, or use the Chrome DevTools MCP to test behavior in the browser. Prefer evidence over assumptions.
+
+**Bug fixing**: Reproduce first, then fix. Write a failing test (or use Chrome DevTools MCP to reproduce in the browser), apply the fix, then verify the test passes. When the test has lasting value as a regression test, ask the user if they want to keep it.
+
 ## Autonomy
 
 **Ask first:** Installing dependencies, running migrations, destructive operations.
@@ -166,7 +170,7 @@ bun test             # Unit tests (ask first)
 bun run test:e2e     # E2E tests (ask first)
 ```
 
-**Database**: `bun run db:generate-types` after schema changes — but this only works if the migration has been applied first. If you created a new migration file, ask the user to apply it (via Supabase dashboard or `supabase migration up`) before running type generation. Do NOT run `db:generate-types` against unapplied migrations — it will silently produce stale types and cause confusing errors downstream.
+**Database**: `bun run db:generate-types` after schema changes — but this only works if the migration has been applied first. If you created a new migration file, ask the user to apply it (via Supabase dashboard or `bun supabase migration up`) before running type generation. Do NOT run `db:generate-types` against unapplied migrations — it will silently produce stale types and cause confusing errors downstream.
 
 ## Key Files
 
@@ -197,6 +201,8 @@ bun run test:e2e     # E2E tests (ask first)
 - `send-store.ts`, `receive-store.ts`
 
 ## Database & Supabase
+
+**Schema:** App data lives in the `wallet` schema (not `public`). Users are in `wallet.users` (not `auth.users`). Always query `wallet.*` tables when working with app data.
 
 Detailed guidelines are available as skills (Claude loads them automatically when relevant):
 - `supabase-database` - Migrations, RLS policies, functions, SQL style guide
