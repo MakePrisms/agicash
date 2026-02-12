@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": ["chrome-devtools-mcp@latest"],
+      "env": {}
+    },
+    "supabase-next": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=szuncqupizxelsxkxlpq&read_only=true"
+    },
+    "supabase-local": {
+      "type": "http",
+      "url": "https://localhost:54321/mcp"
+    },
+    "sentry": {
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp/4509706567680000/4509707316690944"
+    }
+  }
+}
