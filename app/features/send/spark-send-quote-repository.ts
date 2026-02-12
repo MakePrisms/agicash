@@ -301,7 +301,7 @@ export class SparkSendQuoteRepository {
     // schema parse then is doing spark send quote invariant check at runtime. For example it makes sure that sparkId, sparkTransferId, fee and paymentPreimage are not undefined when state is COMPLETED.
     return SparkSendQuoteSchema.parse({
       id: data.id,
-      sparkId: data.spark_id,
+      sparkId: data.spark_id ?? undefined,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
       amount: sendData.amountReceived,
@@ -314,10 +314,10 @@ export class SparkSendQuoteRepository {
       version: data.version,
       paymentRequestIsAmountless: data.payment_request_is_amountless,
       state: data.state,
-      sparkTransferId: data.spark_transfer_id,
+      sparkTransferId: data.spark_transfer_id ?? undefined,
       fee: sendData.lightningFee,
       paymentPreimage: sendData.paymentPreimage,
-      failureReason: data.failure_reason,
+      failureReason: data.failure_reason ?? undefined,
     } satisfies AllUnionFieldsRequired<z.output<typeof SparkSendQuoteSchema>>);
   }
 }
