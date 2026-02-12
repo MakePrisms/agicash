@@ -338,7 +338,7 @@ export class CashuReceiveSwapRepository {
       version: data.version,
       createdAt: data.created_at,
       state: data.state,
-      failureReason: data.failure_reason,
+      failureReason: data.failure_reason ?? undefined,
     } satisfies AllUnionFieldsRequired<
       z.output<typeof CashuReceiveSwapSchema>
     >);

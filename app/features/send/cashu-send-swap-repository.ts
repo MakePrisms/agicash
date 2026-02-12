@@ -380,7 +380,7 @@ export class CashuSendSwapRepository {
       keysetCounter: data.keyset_counter ?? undefined,
       tokenHash: data.token_hash,
       proofsToSend: proofsToSend,
-      failureReason: data.failure_reason,
+      failureReason: data.failure_reason ?? undefined,
     } satisfies AllUnionFieldsRequired<z.output<typeof CashuSendSwapSchema>>);
   }
 }
