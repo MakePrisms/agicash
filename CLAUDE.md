@@ -19,6 +19,10 @@
 
 **Verify before using**: Before using any function or module — internal or third-party — read its source or type definitions to understand its signature, behavior, and return type. Don't assume based on the name. For third-party packages, check `node_modules/` type declarations. For internal code, read the source file. Never guess at APIs.
 
+**Verify by running**: When unsure how something works — a library API, a runtime behavior, or an edge case — don't guess or hallucinate. Instead, verify by running code: write a small test script and execute it with `bun`, write a quick unit test, or use the Chrome DevTools MCP to test behavior in the browser. Prefer evidence over assumptions.
+
+**Bug fixing**: Reproduce first, then fix. Write a failing test (or use Chrome DevTools MCP to reproduce in the browser), apply the fix, then verify the test passes. When the test has lasting value as a regression test, ask the user if they want to keep it.
+
 ## Autonomy
 
 **Ask first:** Installing dependencies, running migrations, destructive operations.
@@ -43,7 +47,7 @@
 
 ## File Structure
 
-See `GUIDELINES.md` for detailed directory structure and import hierarchy rules.
+See `docs/guidelines.md` for detailed directory structure and import hierarchy rules.
 
 ```
 app/
@@ -166,7 +170,7 @@ bun test             # Unit tests (ask first)
 bun run test:e2e     # E2E tests (ask first)
 ```
 
-**Database**: `bun run db:generate-types` after schema changes — but this only works if the migration has been applied first. If you created a new migration file, ask the user to apply it (via Supabase dashboard or `supabase migration up`) before running type generation. Do NOT run `db:generate-types` against unapplied migrations — it will silently produce stale types and cause confusing errors downstream.
+**Database**: `bun run db:generate-types` after schema changes — but this only works if the migration has been applied first. If you created a new migration file, ask the user to apply it (via Supabase dashboard or `bun supabase migration up`) before running type generation. Do NOT run `db:generate-types` against unapplied migrations — it will silently produce stale types and cause confusing errors downstream.
 
 ## Key Files
 
@@ -198,6 +202,8 @@ bun run test:e2e     # E2E tests (ask first)
 
 ## Database & Supabase
 
+**Schema:** App data lives in the `wallet` schema (not `public`). Users are in `wallet.users` (not `auth.users`). Always query `wallet.*` tables when working with app data.
+
 Detailed guidelines are available as skills (Claude loads them automatically when relevant):
 - `supabase-database` - Migrations, RLS policies, functions, SQL style guide
 - `supabase-edge-functions` - Edge function patterns (Deno/TypeScript)
@@ -222,10 +228,15 @@ Skills are loaded on demand and provide domain context that prevents mistakes. A
 
 **Principle:** Load a skill before making changes in its domain, not after. It's cheaper to read context upfront than to fix a wrong assumption about a state machine or protocol flow.
 
+### Frameworks and Libraries
+
+- **`/react-router-framework-mode`** — React Router v7 framework conventions: route modules, loaders/actions, forms, pending/optimistic UI, error boundaries, and `react-router.config.ts`. Load when creating or modifying routes in `app/routes/`, working with data loading patterns, or handling navigation/form submissions.
+
 ### Payment & wallet logic
 
-Most features in this app involve payment flows. These three skills cover different layers of the same system — load what's relevant to your task's depth:
+Most features in this app involve payment flows. These skills cover different layers of the same system — load what's relevant to your task's depth:
 
+- **`/agicash-wallet-architecture`** — System-level architecture: components (Server, Client, Open Secret, DB), their responsibilities, and boundaries. Load when working on cross-component concerns, deciding where new functionality should live (server vs client), or modifying encryption/auth/realtime flows. See also `docs/architecture.md` for diagrams.
 - **`/agicash-wallet-documentation`** — The app's payment implementation. Load when touching `app/features/send/`, `app/features/receive/`, `app/features/wallet/`, token receive routes, Lightning Address routes, or account selection logic. Its `SKILL.md` has a reference index — find the right doc for your specific flow rather than reading everything.
 - **`/cashu-protocol`** — The underlying Cashu ecash protocol (NUT specs). Load when you need to understand *why* the app does something (blind signatures, keyset rotation, spending conditions), not just *what* it does. Complements `/agicash-wallet-documentation` — the wallet docs describe our implementation, this describes the protocol it implements.
 - **`/lnurl-test`** — Validation tool, not reference docs. Load *after* modifying Lightning Address routes (`app/routes/[.]well-known.*`, `app/routes/api.lnurlp.*`) or `lightning-address-service.ts` to verify the endpoints still work against a running dev server.

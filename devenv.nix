@@ -10,9 +10,11 @@
     pkgs.jq
     pkgs.bun
     pkgs.fnm
-    pkgs.nodePackages.vercel
     pkgs.mkcert
     pkgs.nss.tools
+    pkgs.gh
+    pkgs.nodePackages.typescript-language-server
+    pkgs.nodePackages.vercel
   ];
 
   # https://devenv.sh/languages/
@@ -36,6 +38,9 @@
     git --version
     echo Bun version: $(bun --version)
     generate-ssl-cert
+
+    # Trust mkcert CA in Node.js (Makes node trust local cert and solves the issue with Supabase local MCP failing because of untrusted cert.)
+    export NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem"
   '';
 
   # https://devenv.sh/tasks/

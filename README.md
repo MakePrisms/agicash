@@ -4,6 +4,8 @@ This app is using [React Router](https://reactrouter.com/home) framework mode. I
 
 For identity/auth, key management, and encryption, the app uses the [Open Secret](https://opensecret.cloud) platform. The rest of the data is stored in a Postgres database hosted on Supabase. Any sensitive data is encrypted using keys from the Open Secret platform.
 
+For more details about the architecture, see [here](docs/architecture.md).
+
 ## Getting started
 
 We use [Nix](https://nixos.org/) and [devenv](https://devenv.sh/) to set up the development environment. To start:
