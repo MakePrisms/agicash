@@ -10,10 +10,11 @@
     pkgs.jq
     pkgs.bun
     pkgs.fnm
-    pkgs.nodePackages.vercel
     pkgs.mkcert
     pkgs.nss.tools
     pkgs.gh
+    pkgs.nodePackages.typescript-language-server
+    pkgs.nodePackages.vercel
   ];
 
   # https://devenv.sh/languages/
