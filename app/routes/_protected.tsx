@@ -153,8 +153,10 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   );
   const shouldRedirectToSignup = !isLoggedIn;
   const shouldVerifyEmail = authUser ? shouldUserVerifyEmail(authUser) : false;
+  const isAcceptTermsRoute = location.pathname.startsWith('/accept-terms');
   const isVerifyEmailRoute = location.pathname.startsWith('/verify-email');
-  const shouldRedirectToVerifyEmail = shouldVerifyEmail && !isVerifyEmailRoute;
+  const shouldRedirectToVerifyEmail =
+    shouldVerifyEmail && !isVerifyEmailRoute && !isAcceptTermsRoute;
 
   console.debug('Rendering protected layout', {
     time: new Date().toISOString(),
@@ -163,6 +165,7 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     shouldRedirectToSignup,
     userId: authUser?.id,
     shouldVerifyEmail,
+    isAcceptTermsRoute,
     isVerifyEmailRoute,
     shouldRedirectToVerifyEmail,
   });
@@ -189,16 +192,15 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     pendingTermsAcceptedAt,
   );
 
-  if (shouldRedirectToVerifyEmail) {
-    throw buildRedirectWithReturnUrl('/verify-email', location, hash);
-  }
-
-  const isAcceptTermsRoute = location.pathname.startsWith('/accept-terms');
   const shouldRedirectToAcceptTerms =
     shouldAcceptTerms(user) && !isAcceptTermsRoute;
 
   if (shouldRedirectToAcceptTerms) {
     throw buildRedirectWithReturnUrl('/accept-terms', location, hash);
+  }
+
+  if (shouldRedirectToVerifyEmail) {
+    throw buildRedirectWithReturnUrl('/verify-email', location, hash);
   }
 
   await next();
