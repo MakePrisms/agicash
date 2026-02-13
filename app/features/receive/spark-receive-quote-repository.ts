@@ -317,7 +317,7 @@ export class SparkReceiveQuoteRepository {
       state: data.state,
       paymentPreimage: receiveData.paymentPreimage,
       sparkTransferId: data.spark_transfer_id,
-      failureReason: data.failure_reason,
+      failureReason: data.failure_reason ?? undefined,
       tokenReceiveData: receiveData.cashuTokenMeltData
         ? {
             sourceMintUrl: receiveData.cashuTokenMeltData.tokenMintUrl,

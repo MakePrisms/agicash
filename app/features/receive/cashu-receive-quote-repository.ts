@@ -471,7 +471,7 @@ export class CashuReceiveQuoteRepository {
       keysetId: data.keyset_id,
       keysetCounter: data.keyset_counter,
       outputAmounts: receiveData.outputAmounts,
-      failureReason: data.failure_reason,
+      failureReason: data.failure_reason ?? undefined,
     } satisfies AllUnionFieldsRequired<
       z.output<typeof CashuReceiveQuoteSchema>
     >);

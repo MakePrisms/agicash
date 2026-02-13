@@ -10,9 +10,12 @@ import {
   type QueryClient,
   queryOptions,
   useQueries,
+  useQueryClient,
 } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
+import { computeSHA256 } from '~/lib/sha256';
 import {
   createSparkWalletStub,
   getSparkIdentityPublicKeyFromMnemonic,
@@ -76,18 +79,15 @@ export const sparkIdentityPublicKeyQueryOptions = ({
 export const sparkWalletQueryOptions = ({
   network,
   mnemonic,
-}: { network: SparkNetwork; mnemonic?: string }) =>
+}: { network: SparkNetwork; mnemonic: string }) =>
   queryOptions({
-    queryKey: ['spark-wallet', network],
-    queryFn: async ({ client }) => {
-      const mnemonicToUse =
-        mnemonic ?? (await client.fetchQuery(sparkMnemonicQueryOptions()));
-
+    queryKey: ['spark-wallet', computeSHA256(mnemonic), network],
+    queryFn: async () => {
       const wallet = await measureOperation(
         'SparkWallet.initialize',
         async () => {
           const { wallet } = await SparkWallet.initialize({
-            mnemonicOrSeed: mnemonicToUse,
+            mnemonicOrSeed: mnemonic,
             options: {
               network,
               optimizationOptions: {
@@ -119,6 +119,27 @@ export function sparkBalanceQueryKey(accountId: string) {
 export function useTrackAndUpdateSparkAccountBalances() {
   const { data: sparkAccounts } = useAccounts({ type: 'spark' });
   const accountCache = useAccountsCache();
+  const queryClient = useQueryClient();
+
+  // Needed for workaround below.
+  // TODO: Remove when workaround is removed.
+  const verifiedZeroBalanceAccounts = useRef(new Set<string>());
+
+  useEffect(() => {
+    const clear = () => verifiedZeroBalanceAccounts.current.clear();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') clear();
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('online', clear);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('online', clear);
+    };
+  }, []);
+  // end workaround
 
   useQueries({
     queries: sparkAccounts.map((account) => ({
@@ -154,16 +175,75 @@ export function useTrackAndUpdateSparkAccountBalances() {
           leaves: getLeafDenominations(leaves),
         });
 
-        accountCache.updateSparkBalance({
+        // WORKAROUND: Spark SDK sometimes returns 0 for balance incorrectly.
+        // The bug seems to be resolved after the wallet is reinitialized.
+        // Reinitialize the wallet and re-check balance.
+        // TODO: Remove when Spark fixes the bug.
+        let effectiveBalance = balance;
+        let effectiveWallet = account.wallet;
+        if (Number(balance) === 0) {
+          if (!verifiedZeroBalanceAccounts.current.has(account.id)) {
+            try {
+              const { balance: freshBalance, wallet: newWallet } =
+                await measureOperation(
+                  'SparkWallet.balanceRecovery',
+                  async () => {
+                    console.warn(
+                      'Spark balance returned 0, reinitializing wallet',
+                      {
+                        accountId: account.id,
+                        network: account.network,
+                      },
+                    );
+
+                    const mnemonic = await queryClient.fetchQuery(
+                      sparkMnemonicQueryOptions(),
+                    );
+                    const newWallet = await queryClient.fetchQuery({
+                      ...sparkWalletQueryOptions({
+                        network: account.network,
+                        mnemonic,
+                      }),
+                      staleTime: 0, // Forces a refetch
+                    });
+
+                    const { balance: freshBalance } =
+                      await newWallet.getBalance();
+                    return { balance: freshBalance, wallet: newWallet };
+                  },
+                  { accountId: account.id },
+                );
+
+              effectiveBalance = freshBalance;
+              effectiveWallet = newWallet;
+
+              if (Number(freshBalance) === 0) {
+                verifiedZeroBalanceAccounts.current.add(account.id);
+              }
+            } catch (error) {
+              console.error('Failed to reinitialize Spark wallet', {
+                cause: error,
+                accountId: account.id,
+              });
+              return balance;
+            }
+          }
+        } else {
+          verifiedZeroBalanceAccounts.current.delete(account.id);
+        }
+        // END WORKAROUND
+
+        accountCache.updateSparkAccountIfBalanceOrWalletChanged({
           ...account,
+          wallet: effectiveWallet,
           balance: new Money({
-            amount: Number(balance),
+            amount: Number(effectiveBalance),
             currency: account.currency as Currency,
             unit: getDefaultUnit(account.currency),
           }),
         });
 
-        return balance;
+        return effectiveBalance;
       },
       staleTime: Number.POSITIVE_INFINITY,
       gcTime: Number.POSITIVE_INFINITY,
