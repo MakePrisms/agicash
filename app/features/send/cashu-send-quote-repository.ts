@@ -480,7 +480,7 @@ export class CashuSendQuoteRepository {
       version: data.version,
       transactionId: data.transaction_id,
       state: data.state,
-      failureReason: data.failure_reason,
+      failureReason: data.failure_reason ?? undefined,
       paymentPreimage: sendData.paymentPreimage,
       amountSpent: sendData.amountSpent,
       lightningFee: sendData.lightningFee,
