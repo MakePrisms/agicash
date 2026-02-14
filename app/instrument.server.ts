@@ -117,6 +117,7 @@ Sentry.init({
   integrations: [
     Sentry.consoleLoggingIntegration(),
     nodeProfilingIntegration(),
+    Sentry.extraErrorDataIntegration({ depth: 5 }),
   ],
 
   // Performance monitoring

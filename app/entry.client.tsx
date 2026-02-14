@@ -55,6 +55,7 @@ Sentry.init({
     Sentry.consoleLoggingIntegration(),
     Sentry.reactRouterTracingIntegration(),
     Sentry.browserProfilingIntegration(),
+    Sentry.extraErrorDataIntegration({ depth: 5 }),
   ],
 
   // Performance monitoring
