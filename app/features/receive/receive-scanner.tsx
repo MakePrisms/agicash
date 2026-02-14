@@ -36,7 +36,7 @@ export default function ReceiveScanner() {
                 description: 'Please scan a valid cashu token',
                 variant: 'destructive',
               });
-              return false; // Keep scanning
+              return;
             }
 
             const encodedToken = getEncodedToken(token);
@@ -52,7 +52,6 @@ export default function ReceiveScanner() {
                 applyTo: 'newView',
               },
             );
-            return true;
           }}
         />
       </PageContent>

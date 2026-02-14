@@ -3,9 +3,8 @@ import Scanner from 'qr-scanner';
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '~/hooks/use-toast';
 import { useAnimatedQRDecoder } from '~/lib/cashu/animated-qr-code';
-import { useLatest } from '~/lib/use-latest';
+import { useThrottle } from '~/lib/use-throttle';
 
-// Time before a failed QR code can be retried to prevent error spam
 const DECODE_COOLDOWN_MS = 3000;
 
 const AnimatedScanProgress = ({ progress }: { progress: number }) => {
@@ -30,10 +29,7 @@ const AnimatedScanProgress = ({ progress }: { progress: number }) => {
 };
 
 type QRScannerProps = {
-  /**
-   * Return `true` to stop scanning, `false` to continue scanning.
-   */
-  onDecode: (decoded: string) => Promise<boolean> | boolean;
+  onDecode: (decoded: string) => void;
 };
 
 /**
@@ -42,52 +38,26 @@ type QRScannerProps = {
  * The scanner can read static QR codes and
  * [BC-UR](https://github.com/BlockchainCommons/UR) encoded animated QR codes.
  *
- * Calls `onDecode` with the text decoded from the QR code and toasts any errors
- * that occur during decoding.
+ * Calls `onDecode` with the text decoded from the QR code (throttled to prevent
+ * spam) and toasts any errors that occur during decoding. To stop scanning,
+ * unmount the component (e.g. by navigating away).
  */
 export const QRScanner = ({ onDecode }: QRScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const scanner = useRef<Scanner>(null);
   const [currentFragment, setCurrentFragment] = useState('');
-  const decodeRef = useLatest(onDecode);
 
-  const processingValue = useRef<string | null>(null);
-  const lastFailed = useRef<{ value: string; time: number } | null>(null);
-
-  // Deduplicates rapid scan events to prevent error spam while QR is held up
-  const handleDecodeRef = useLatest(
-    async (decoded: string): Promise<boolean> => {
-      if (processingValue.current === decoded) {
-        return false;
-      }
-
-      const failed = lastFailed.current;
-      if (
-        failed?.value === decoded &&
-        Date.now() - failed.time < DECODE_COOLDOWN_MS
-      ) {
-        return false;
-      }
-
-      processingValue.current = decoded;
-      const shouldStop = await decodeRef.current(decoded);
-      processingValue.current = null;
-
-      if (shouldStop) {
-        scanner.current?.destroy();
-      } else {
-        lastFailed.current = { value: decoded, time: Date.now() };
-      }
-
-      return shouldStop;
-    },
-  );
+  // Leading-edge only: the scanner fires continuously, so the next leading
+  // edge after the cooldown naturally handles retries. Trailing would cause
+  // a second invocation while the first async handler is still in-flight.
+  const throttledDecode = useThrottle(onDecode, DECODE_COOLDOWN_MS, {
+    trailing: false,
+  });
 
   const { progress, error } = useAnimatedQRDecoder({
     fragment: currentFragment,
-    onDecode: async (decoded) => {
+    onDecode: (decoded) => {
       setCurrentFragment('');
-      await handleDecodeRef.current(decoded);
+      throttledDecode(decoded);
     },
   });
 
@@ -104,11 +74,11 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
   }, [error, toast]);
 
   useEffect(() => {
-    const handleResult = async (result: Scanner.ScanResult): Promise<void> => {
+    const handleResult = (result: Scanner.ScanResult): void => {
       if (result.data.toLowerCase().startsWith('ur:')) {
         setCurrentFragment(result.data);
       } else {
-        await handleDecodeRef.current(result.data);
+        throttledDecode(result.data);
       }
     };
 
@@ -121,22 +91,13 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
       highlightScanRegion: true,
       highlightCodeOutline: true,
     });
-    scanner.current = scannerInstance;
 
-    const startedPromise = scannerInstance.start();
+    scannerInstance.start();
 
     return () => {
-      startedPromise
-        .catch((e) => {
-          // Catch is there not to show this error in console https://developer.chrome.com/blog/play-request-was-interrupted.
-          // This happens when useEffect is triggered twice in short amount of time. E.g. when strict mode is on.
-          console.debug(e);
-        })
-        .finally(() => {
-          scannerInstance.destroy();
-        });
+      scannerInstance.destroy();
     };
-  }, []);
+  }, [throttledDecode]);
 
   return (
     <section className="fixed inset-0 h-screen w-screen sm:relative sm:aspect-square sm:h-[400px] sm:w-[400px]">

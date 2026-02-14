@@ -43,7 +43,7 @@ export default function SendScanner() {
 
   const convert = useConverter(sendAccount);
 
-  const handleDecode = async (input: string): Promise<boolean> => {
+  const handleDecode = async (input: string) => {
     const selectDestinationResult = await selectDestination(input);
     if (!selectDestinationResult.success) {
       toast({
@@ -51,18 +51,17 @@ export default function SendScanner() {
         description: selectDestinationResult.error,
         variant: 'destructive',
       });
-      return false; // Keep scanning
+      return;
     }
 
     const { amount } = selectDestinationResult.data;
 
     if (!amount) {
-      // Navigate to send input to enter the amount
       navigate('/send', {
         applyTo: 'oldView',
         transition: 'slideDown',
       });
-      return true;
+      return;
     }
 
     const convertedAmount =
@@ -83,18 +82,17 @@ export default function SendScanner() {
             };
 
       toast(toastOptions);
-      return false; // Keep scanning
+      return;
     }
 
     if (result.next !== 'confirmQuote') {
-      return false; // Keep scanning
+      return;
     }
 
     navigate('/send/confirm', {
       applyTo: 'newView',
       transition: 'slideUp',
     });
-    return true;
   };
 
   return (
