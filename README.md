@@ -68,11 +68,11 @@ Try to make feature branches short-lived and concise (avoid implementing multipl
 
 To update devenv CLI on your machine, for macOS run `nix-env --upgrade --attr devenv -f https://github.com/NixOS/nixpkgs/tarball/nixpkgs-unstable`.
 
-To update devenv packages, run `devenv update`. When updating `bun`, make sure to update the `engines` version in
-`package.json` and version specified in `.github/actions/setup-environment/action.yml`. When updating `node`, update the
-`.nvmrc` file and `engines` version in `package.json`. Note that Vercel does not allow pinning to an exact node version, so
-in the `package.json` file, we specify the max patch version, while in the `.nvmrc`, we specify the max version possible
-for that range because that is what Vercel will be using when building, too.
+To update devenv packages, run `devenv update`. When updating `bun`, make sure to update the `engines` version and version of the `@types/bun`
+package in `package.json` and version specified in `.github/actions/setup-environment/action.yml`. When updating `node`, update the `.nvmrc`
+file and `engines` version in `package.json`. Note that Vercel does not allow pinning to an exact node version, so in the `package.json` file,
+we specify the max patch version, while in the `.nvmrc`, we specify the max version possible for that range because that is what Vercel will be
+using when building, too.
 
 ## Deployment
 
