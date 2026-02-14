@@ -105,6 +105,35 @@ export class CashuReceiveSwapService {
   }
 
   /**
+   * Fails a cashu receive swap.
+   * If the swap is already failed, it's a no-op that returns the passed swap.
+   * @param swap The receive swap to fail.
+   * @param reason The reason for the failure.
+   * @returns The failed receive swap.
+   * @throws An error if the swap is not in a PENDING state.
+   */
+  async fail(
+    swap: CashuReceiveSwap,
+    reason: string,
+  ): Promise<CashuReceiveSwap> {
+    if (swap.state === 'FAILED') {
+      return swap;
+    }
+
+    if (swap.state !== 'PENDING') {
+      throw new Error(
+        `Cannot fail receive swap that is not pending. Current state: ${swap.state}`,
+      );
+    }
+
+    return this.receiveSwapRepository.fail({
+      tokenHash: swap.tokenHash,
+      userId: swap.userId,
+      reason,
+    });
+  }
+
+  /**
    * Completes the receive swap by executing the swap with the mint and storing the output proofs.
    * If the receive swap is already completed, it's a no-op that returns back passed receive swap, account and an empty list of added proof ids.
    * If the call to the mint to swap the proofs fails because the token is already claimed, then the receive swap is failed and the account is not updated.
@@ -157,11 +186,10 @@ export class CashuReceiveSwapService {
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'TOKEN_ALREADY_CLAIMED') {
-        const failedReceiveSwap = await this.receiveSwapRepository.fail({
-          tokenHash: receiveSwap.tokenHash,
-          userId: receiveSwap.userId,
-          reason: 'Token already claimed',
-        });
+        const failedReceiveSwap = await this.fail(
+          receiveSwap,
+          'Token already claimed',
+        );
         return { swap: failedReceiveSwap, account, addedProofs: [] };
       }
 
