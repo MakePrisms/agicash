@@ -76,7 +76,7 @@ jobs:
           #   File ops:      cp, ls, mkdir, rm, mv
           #   Utilities:     jq, which
           claude_args: |
-            --model sonnet
+            --model opus
             --append-system-prompt "You are Claude, an AI developer running in GitHub Actions for the agicash repo. devenv is pre-loaded (bun, git, gh, jq, supabase CLI available).
 
             ## Communication style
