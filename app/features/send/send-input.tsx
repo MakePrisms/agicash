@@ -230,10 +230,7 @@ export function SendInput() {
             {destinationDisplay && (
               <>
                 <p>{destinationDisplay}</p>
-                <X
-                  onClick={clearDestination}
-                  className="h-4 w-4 cursor-pointer"
-                />
+                <X onClick={clearDestination} className="h-4 w-4" />
               </>
             )}
           </div>

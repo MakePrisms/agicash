@@ -48,7 +48,7 @@ function ContactsListItems({
               type="button"
               disabled={state.status === 'selecting'}
             >
-              <div className="flex w-full cursor-pointer items-center gap-3">
+              <div className="flex w-full items-center gap-3">
                 {state.status === 'selecting' &&
                 state.selected.id === contact.id ? (
                   <LoaderCircle className="h-8 w-8 animate-spin text-muted-foreground" />
