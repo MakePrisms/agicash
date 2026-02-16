@@ -90,6 +90,18 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
       returnDetailedScanResult: true,
       highlightScanRegion: true,
       highlightCodeOutline: true,
+      calculateScanRegion: (video) => {
+        const smallestDimension = Math.min(video.videoWidth, video.videoHeight);
+        const scanRegionSize = Math.round((2 / 3) * smallestDimension);
+        return {
+          x: Math.round((video.videoWidth - scanRegionSize) / 2),
+          y: Math.round((video.videoHeight - scanRegionSize) / 2),
+          width: scanRegionSize,
+          height: scanRegionSize,
+          downScaledWidth: 1024,
+          downScaledHeight: 1024,
+        };
+      },
     });
 
     scannerInstance.start();
