@@ -1,3 +1,4 @@
+import type { MintKeyset } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { useLocation, useNavigate } from 'react-router';
@@ -19,7 +20,11 @@ import {
 } from '~/features/shared/cashu';
 import { useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
-import { getCashuProtocolUnit, getMintPurpose } from '~/lib/cashu';
+import {
+  type MintInfo,
+  getCashuProtocolUnit,
+  getMintPurpose,
+} from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
@@ -34,17 +39,56 @@ const currencies = [
   { value: 'USD', label: 'USD' },
 ];
 
+type GetMintInfoAndKeysetsResult =
+  | {
+      success: true;
+      data: {
+        mintInfo: MintInfo;
+        keysets: MintKeyset[];
+      };
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
+const getMintInfoAndKeysets = async (
+  mintUrl: string,
+  queryClient: QueryClient,
+): Promise<GetMintInfoAndKeysetsResult> => {
+  try {
+    const [mintInfo, allKeysets] = await Promise.all([
+      queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
+      queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
+    ]);
+    return { success: true, data: { mintInfo, keysets: allKeysets.keysets } };
+  } catch (error) {
+    console.debug('Failed to validate mint', { cause: error });
+    return {
+      success: false,
+      error:
+        'Mint not found or temporarily unavailable. Make sure the URL is correct or try again later.',
+    };
+  }
+};
+
 const validateMint = async (
   value: string,
   formValues: FormValues,
   queryClient: QueryClient,
 ): Promise<string | true> => {
   const unit = getCashuProtocolUnit(formValues.currency);
-  const [mintInfo, keysets] = await Promise.all([
-    queryClient.fetchQuery(mintInfoQueryOptions(value)),
-    queryClient.fetchQuery(allMintKeysetsQueryOptions(value)),
-  ]);
-  return cashuMintValidator(value, unit, mintInfo, keysets.keysets);
+  const result = await getMintInfoAndKeysets(value, queryClient);
+  if (!result.success) {
+    return result.error;
+  }
+
+  return cashuMintValidator(
+    value,
+    unit,
+    result.data.mintInfo,
+    result.data.keysets,
+  );
 };
 
 export function AddMintForm() {
