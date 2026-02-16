@@ -29,7 +29,7 @@ const AnimatedScanProgress = ({ progress }: { progress: number }) => {
 };
 
 type QRScannerProps = {
-  onDecode: (decoded: string) => void;
+  onDecode: (decoded: string) => void | Promise<void>;
 };
 
 /**
@@ -46,10 +46,22 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentFragment, setCurrentFragment] = useState('');
 
+  const isProcessingRef = useRef(false);
+
+  const guardedDecode = async (decoded: string) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    try {
+      await onDecode(decoded);
+    } finally {
+      isProcessingRef.current = false;
+    }
+  };
+
   // Leading-edge only: the scanner fires continuously, so the next leading
   // edge after the cooldown naturally handles retries. Trailing would cause
   // a second invocation while the first async handler is still in-flight.
-  const throttledDecode = useThrottle(onDecode, DECODE_COOLDOWN_MS, {
+  const throttledDecode = useThrottle(guardedDecode, DECODE_COOLDOWN_MS, {
     trailing: false,
   });
 
