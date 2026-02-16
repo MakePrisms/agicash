@@ -1,5 +1,5 @@
-name: 'Setup Environment'
-description: 'Sets up Agicash development environment'
+name: 'Setup Environment (CI)'
+description: 'Lightweight setup for CI jobs. Installs only bun and dependencies. Use setup-devenv for the full Nix development environment.'
 runs:
   using: composite
   steps:

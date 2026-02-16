@@ -6,76 +6,110 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    types: [opened, assigned, labeled]
   pull_request_review:
     types: [submitted]
 
 jobs:
   claude:
-    if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    # --- Trigger filter ---
+    # Comments & reviews: @claude must be mentioned in the body
+    # Issues: @claude in title/body, assigned to "claude", or "claude" label added
+    if: >-
+      github.event_name == 'issue_comment'
+        && contains(github.event.comment.body, '@claude')
+      ||
+      github.event_name == 'pull_request_review_comment'
+        && contains(github.event.comment.body, '@claude')
+      ||
+      github.event_name == 'pull_request_review'
+        && contains(github.event.review.body, '@claude')
+      ||
+      github.event_name == 'issues' && (
+        contains(github.event.issue.title, '@claude')
+        || contains(github.event.issue.body, '@claude')
+        || github.event.action == 'assigned'
+            && github.event.assignee.login == 'claude'
+        || github.event.action == 'labeled'
+            && github.event.label.name == 'claude'
+      )
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: false
     permissions:
-      contents: read        # Read code (not push commits)
-      pull-requests: write  # POST comments on PRs
-      issues: write         # POST comments on issues
-      id-token: write
-      actions: read         # Read CI results on PRs
+      contents: write       # Push commits, create branches
+      pull-requests: write  # Create/comment on PRs
+      issues: write         # Create/comment on issues
+      actions: read         # Read CI results
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 50
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-
-      - name: Setup devenv cache
-        uses: cachix/cachix-action@v16
+      - name: Setup Devenv
+        uses: ./.github/actions/setup-devenv
         with:
-          name: devenv
-
-      - name: Install devenv and direnv
-        run: nix profile install nixpkgs#devenv nixpkgs#direnv
-
-      - name: Build devenv and export environment
-        run: |
-          devenv shell -- true
-          direnv allow .
-          direnv export gha >> "$GITHUB_ENV"
-
-      - name: Setup environment
-        run: cp .env.example .env
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+          frozen-lockfile: 'false'
 
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_commit_signing: true # Commits via GitHub API → "Verified" badge, no extra setup. Disallows rebase/cherry-pick (use ssh_signing_key for that).
+          assignee_trigger: claude
+          label_trigger: claude
+          allowed_non_write_users: ''
           additional_permissions: |
             actions: read
+          # Claude Code auto-loads CLAUDE.md (coding standards, commands, patterns).
+          # --append-system-prompt adds GitHub-specific context without replacing the
+          # default system prompt or affecting mode detection.
+          #
+          # Allowed Bash tools:
+          #   Package mgmt: bun, bunx
+          #   Version ctrl:  git (scoped subcommands — no reset/clean/force)
+          #   GitHub CLI:    gh (PRs, issues, CI)
+          #   File ops:      cp, ls, mkdir, rm, mv
+          #   Utilities:     jq, which
           claude_args: |
-            --allowedTools "Bash(git fetch origin *),Bash(git checkout *),Bash(git switch *)"
-            --system-prompt "Read CLAUDE.md first for project-specific coding standards and patterns.
+            --model opus
+            --append-system-prompt "You are Claude, an AI developer running in GitHub Actions for the agicash repo. devenv is pre-loaded (bun, git, gh, jq, supabase CLI available).
 
-            You are running in a GitHub Actions workflow.
+            ## Communication style
+            - Match response length to complexity. Simple fix = short comment. Architectural change = explain the reasoning.
+            - No filler, no preamble, no restating the request. Get to the point.
+            - Always say what you did and why. Link relevant files/lines if helpful.
+            - If you can't do something, say what blocked you concisely.
 
-            Environment: The devenv environment is pre-loaded. Tools like bun, git, and jq are available directly. Supabase CLI is available via bun.
+            ## General rules
+            - Read CLAUDE.md and relevant code before making changes.
+            - Run bun run fix:all after editing TypeScript to catch errors early.
+            - NEVER install packages unless explicitly asked. When asked, use bun add --exact.
+            - Keep changes minimal and focused on what was requested.
 
-            Available Commands:
-            - bun run dev - Start the dev server (http://127.0.0.1:3000)
-            - bun run fix:all - Run linting, formatting, and type checking
-            - bun test - Run unit tests
-            - bun run supabase db start - Start local Supabase database
-            - bun run db:generate-types - Regenerate DB types
+            ## Behavior by context
 
-            Guidelines:
-            - Only start the dev server or database if needed to investigate the issue
-            - Always run bun run fix:all before suggesting code changes to verify they pass checks
-            - Run tests if the changes affect tested code paths"
+            **Issue (feature request or bug):**
+            - If requirements are ambiguous, ask clarifying questions as a comment — don't guess.
+            - Implement on a new branch, then open a PR linking the issue.
+
+            **PR review feedback:**
+            - Address every comment. If you disagree, explain why briefly.
+            - Push follow-up commits to the existing branch — don't open a new PR.
+
+            **PR with failing CI:**
+            - Read CI logs with the CI MCP tools (get_ci_status, download_job_log).
+            - Fix and push to the same branch. If stuck, comment what's wrong.
+
+            **General question or discussion:**
+            - Answer directly in a comment. Don't open PRs for questions.
+
+            ## PR workflow
+            - Branch naming: claude/issue-NUMBER-short-description
+            - Commit messages: concise, imperative tense (e.g. 'fix balance calculation for zero-amount proofs')
+            - One logical change per commit when possible."
+            --allowedTools "Bash(bun *),Bash(bunx *),Bash(git add *),Bash(git commit *),Bash(git push *),Bash(git checkout *),Bash(git switch *),Bash(git branch *),Bash(git diff *),Bash(git log *),Bash(git status *),Bash(git fetch *),Bash(git merge *),Bash(git stash *),Bash(git rev-parse *),Bash(gh *),Bash(cp *),Bash(ls *),Bash(mkdir *),Bash(rm *),Bash(mv *),Bash(jq *),Bash(which *)"
