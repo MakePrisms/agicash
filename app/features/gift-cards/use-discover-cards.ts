@@ -57,6 +57,8 @@ export const GIFT_CARDS: GiftCardInfo[] = [
   },
 ];
 
+export const GIFT_CARD_IMAGES = GIFT_CARDS.map((card) => card.image);
+
 /**
  * Returns the gift card image for a given URL, if one exists.
  */
