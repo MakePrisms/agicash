@@ -1,0 +1,43 @@
+name: 'Setup Environment (Devenv)'
+description: 'Full Nix devenv setup with all project tools (bun, git, jq, mkcert, etc). Slower than setup-environment but matches local dev. Use for Claude Code and workflows that need the complete toolchain.'
+
+inputs:
+  frozen-lockfile:
+    description: 'Use --frozen-lockfile for bun install (set false to allow lockfile changes)'
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
+
+    - name: Setup devenv cache
+      uses: cachix/cachix-action@v16
+      with:
+        name: devenv
+
+    - name: Install devenv and direnv
+      shell: bash
+      run: nix profile install nixpkgs#devenv nixpkgs#direnv
+
+    - name: Build devenv and export environment
+      shell: bash
+      run: |
+        devenv shell -- true
+        direnv allow .
+        direnv export gha >> "$GITHUB_ENV"
+
+    - name: Setup .env
+      shell: bash
+      run: cp .env.example .env
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        if [ "${{ inputs.frozen-lockfile }}" = "true" ]; then
+          bun install --frozen-lockfile
+        else
+          bun install
+        fi

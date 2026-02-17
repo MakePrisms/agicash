@@ -11,7 +11,7 @@ import { extractCashuToken } from '~/lib/cashu';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { useReceiveStore } from './receive-provider';
 
-export default function Scan() {
+export default function ReceiveScanner() {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
   const receiveAccountId = useReceiveStore((s) => s.accountId);

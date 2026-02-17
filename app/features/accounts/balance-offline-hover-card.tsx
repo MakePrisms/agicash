@@ -25,7 +25,7 @@ export function BalanceOfflineHoverCard({
             e.stopPropagation();
           }}
           className={cn(
-            'flex items-center gap-1 text-muted-foreground focus-visible:outline-none',
+            'flex items-center gap-1 text-muted-foreground focus-visible:outline-hidden',
             className,
           )}
         >

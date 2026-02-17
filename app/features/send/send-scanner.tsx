@@ -10,6 +10,7 @@ import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions/view-transition';
 import type { Account } from '../accounts/account';
+import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
 
 /**
@@ -45,34 +46,47 @@ export default function SendScanner() {
   const handleDecode = async (input: string) => {
     const selectDestinationResult = await selectDestination(input);
     if (!selectDestinationResult.success) {
-      // TODO: implement this https://github.com/MakePrisms/agicash/pull/331#discussion_r2024690976
-      return toast({
+      toast({
         title: 'Invalid input',
         description: selectDestinationResult.error,
         variant: 'destructive',
       });
+      return;
     }
 
     const { amount } = selectDestinationResult.data;
 
     if (!amount) {
-      // Navigate to send input to enter the amount
-      return navigate('/send', {
+      navigate('/send', {
         applyTo: 'oldView',
         transition: 'slideDown',
       });
+      return;
     }
 
     const convertedAmount =
       amount.currency !== sendAccount.currency ? convert(amount) : undefined;
     const result = await continueSend(amount, convertedAmount);
 
-    if (!result.success || result.next !== 'confirmQuote') {
-      return toast({
-        title: 'Error',
-        description: 'Failed to get a send quote. Please try again',
-        variant: 'destructive',
-      });
+    if (!result.success) {
+      const toastOptions =
+        result.error instanceof DomainError
+          ? { description: result.error.message }
+          : {
+              title: 'Error',
+              description: getErrorMessage(
+                result.error,
+                'Failed to get a send quote. Please try again',
+              ),
+              variant: 'destructive' as const,
+            };
+
+      toast(toastOptions);
+      return;
+    }
+
+    if (result.next !== 'confirmQuote') {
+      return;
     }
 
     navigate('/send/confirm', {

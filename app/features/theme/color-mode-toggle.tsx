@@ -32,7 +32,7 @@ export function ColorModeToggle({ className }: { className?: string }) {
         <button
           type="button"
           aria-label={`Current color mode: ${colorMode}. Click to switch.`}
-          className={cn(className, 'focus-visible:outline-none')}
+          className={cn(className, 'focus-visible:outline-hidden')}
         >
           {getIcon(colorMode)}
         </button>

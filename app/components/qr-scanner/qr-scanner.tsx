@@ -3,7 +3,9 @@ import Scanner from 'qr-scanner';
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '~/hooks/use-toast';
 import { useAnimatedQRDecoder } from '~/lib/cashu/animated-qr-code';
-import { useLatest } from '~/lib/use-latest';
+import { useThrottle } from '~/lib/use-throttle';
+
+const DECODE_COOLDOWN_MS = 3000;
 
 const AnimatedScanProgress = ({ progress }: { progress: number }) => {
   if (progress === 0) return null;
@@ -27,10 +29,7 @@ const AnimatedScanProgress = ({ progress }: { progress: number }) => {
 };
 
 type QRScannerProps = {
-  /**
-   * The callback function to be called when the QR code is decoded.
-   */
-  onDecode: (decoded: string) => void;
+  onDecode: (decoded: string) => void | Promise<void>;
 };
 
 /**
@@ -39,32 +38,51 @@ type QRScannerProps = {
  * The scanner can read static QR codes and
  * [BC-UR](https://github.com/BlockchainCommons/UR) encoded animated QR codes.
  *
- * Calls `onDecode` with the text decoded from the QR code and toasts any errors
- * that occur during decoding.
+ * Calls `onDecode` with the text decoded from the QR code (throttled to prevent
+ * spam) and toasts any errors that occur during decoding. To stop scanning,
+ * unmount the component (e.g. by navigating away).
  */
 export const QRScanner = ({ onDecode }: QRScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const scanner = useRef<Scanner>(null);
   const [currentFragment, setCurrentFragment] = useState('');
-  const decodeRef = useLatest(onDecode);
+
+  const isProcessingRef = useRef(false);
+
+  const guardedDecode = async (decoded: string) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    try {
+      await onDecode(decoded);
+    } finally {
+      isProcessingRef.current = false;
+    }
+  };
+
+  // Leading-edge only: the scanner fires continuously, so the next leading
+  // edge after the cooldown naturally handles retries. Trailing would cause
+  // a second invocation while the first async handler is still in-flight.
+  const throttledDecode = useThrottle(guardedDecode, DECODE_COOLDOWN_MS, {
+    trailing: false,
+  });
 
   const { progress, error } = useAnimatedQRDecoder({
     fragment: currentFragment,
     onDecode: (decoded) => {
       setCurrentFragment('');
-      decodeRef.current(decoded);
-      scanner.current?.destroy();
+      throttledDecode(decoded);
     },
   });
+
   const { toast } = useToast();
 
   useEffect(() => {
-    error &&
+    if (error) {
       toast({
         title: 'Error decoding QR code',
         description: error.message,
         variant: 'destructive',
       });
+    }
   }, [error, toast]);
 
   useEffect(() => {
@@ -72,8 +90,7 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
       if (result.data.toLowerCase().startsWith('ur:')) {
         setCurrentFragment(result.data);
       } else {
-        decodeRef.current(result.data);
-        scanner.current?.destroy();
+        throttledDecode(result.data);
       }
     };
 
@@ -86,22 +103,13 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
       highlightScanRegion: true,
       highlightCodeOutline: true,
     });
-    scanner.current = scannerInstance;
 
-    const startedPromise = scannerInstance.start();
+    scannerInstance.start();
 
     return () => {
-      startedPromise
-        .catch((e) => {
-          // Catch is there not to show this error in console https://developer.chrome.com/blog/play-request-was-interrupted.
-          // This happens when useEffect is triggered twice in short amount of time. E.g. when strict mode is on.
-          console.debug(e);
-        })
-        .finally(() => {
-          scannerInstance.destroy();
-        });
+      scannerInstance.destroy();
     };
-  }, []);
+  }, [throttledDecode]);
 
   return (
     <section className="fixed inset-0 h-screen w-screen sm:relative sm:aspect-square sm:h-[400px] sm:w-[400px]">

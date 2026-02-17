@@ -117,6 +117,7 @@ Sentry.init({
   integrations: [
     Sentry.consoleLoggingIntegration(),
     nodeProfilingIntegration(),
+    Sentry.extraErrorDataIntegration({ depth: 5 }),
   ],
 
   // Performance monitoring
@@ -138,17 +139,16 @@ Sentry.init({
   },
 
   beforeSend(event) {
-    // Filter out 404s from error reporting
-    if (event.exception) {
-      const error = event.exception.values?.[0];
-      if (
-        error?.type === 'NotFoundException' ||
-        error?.value?.includes('404') ||
-        error?.value?.includes('No route matches URL')
-      ) {
-        return null;
-      }
+    // Filter out 4xx React Router errors (bots, crawlers, invalid requests)
+    const serialized = event.extra?.__serialized__ as
+      | { status?: number }
+      | undefined;
+    const status = serialized?.status;
+
+    if (status !== undefined && status >= 400 && status < 500) {
+      return null;
     }
+
     return event;
   },
 });
