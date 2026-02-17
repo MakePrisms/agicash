@@ -4,7 +4,7 @@ import { GIFT_CARD_IMAGES } from '~/features/gift-cards/use-discover-cards';
 
 export const links: LinksFunction = () =>
   GIFT_CARD_IMAGES.map((imageUrl) => ({
-    rel: 'prefetch',
+    rel: 'preload',
     href: imageUrl,
     as: 'image',
   }));
