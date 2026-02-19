@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import blockAndBeanCard from '~/assets/gift-cards/blockandbean.agi.cash.webp';
 import compassCoffeeCard from '~/assets/gift-cards/compass.agi.cash.webp';
-import fakeCard from '~/assets/gift-cards/fake.agi.cash.webp';
-import fake4Card from '~/assets/gift-cards/fake4.agi.cash.webp';
+import mapleCard from '~/assets/gift-cards/maple.agi.cash.webp';
 import pinkOwlCoffeeCard from '~/assets/gift-cards/pinkowl.agi.cash.webp';
+import pubkeyCard from '~/assets/gift-cards/pubkey.agi.cash.webp';
 import theShackCard from '~/assets/gift-cards/shack.agi.cash.webp';
 import type { Currency } from '~/lib/money';
 import { useAccounts } from '../accounts/account-hooks';
@@ -26,15 +26,15 @@ export const GIFT_CARDS: GiftCardInfo[] = [
     currency: 'BTC',
   },
   {
-    url: 'https://fake.agi.cash',
+    url: 'https://pubkey.agi.cash',
     name: 'Pubkey',
-    image: fakeCard,
+    image: pubkeyCard,
     currency: 'BTC',
   },
   {
-    url: 'https://fake4.agi.cash',
+    url: 'https://maple.agi.cash',
     name: 'Maple',
-    image: fake4Card,
+    image: mapleCard,
     currency: 'BTC',
   },
   {
