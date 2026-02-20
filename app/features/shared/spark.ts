@@ -1,10 +1,12 @@
 import {
+  getInitializedSparkWallet as getInitializedSparkWalletCore,
+  getLeafDenominations,
+} from '@agicash/core/features/shared/spark';
+import type { Cache } from '@agicash/core/interfaces/cache';
+import {
   type NetworkType as SparkNetwork,
   SparkWallet,
 } from '@buildonspark/spark-sdk';
-import type { SparkProto } from '@buildonspark/spark-sdk/types';
-
-type TreeNode = SparkProto.TreeNode;
 import { getPrivateKey as getMnemonic } from '@opensecret/react';
 import {
   type QueryClient,
@@ -16,28 +18,13 @@ import { useEffect, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
-import {
-  createSparkWalletStub,
-  getSparkIdentityPublicKeyFromMnemonic,
-} from '~/lib/spark';
+import { getSparkIdentityPublicKeyFromMnemonic } from '~/lib/spark';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
 
-function getLeafDenominations(leaves: TreeNode[]) {
-  return Object.entries(
-    leaves.reduce(
-      (acc, leaf) => {
-        acc[leaf.value] = (acc[leaf.value] || 0) + 1;
-        return acc;
-      },
-      {} as Record<number, number>,
-    ),
-  )
-    .map(([value, count]) => ({ value: Number(value), count }))
-    .sort((a, b) => b.value - a.value)
-    .map((d) => `${d.count}x ${d.value} sats`);
-}
+// Re-export core functions for backward compatibility
+export { getLeafDenominations } from '@agicash/core/features/shared/spark';
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
 
@@ -114,6 +101,22 @@ export const sparkWalletQueryOptions = ({
 
 export function sparkBalanceQueryKey(accountId: string) {
   return ['spark-balance', accountId];
+}
+
+/**
+ * Initializes a Spark wallet with offline handling.
+ * Wraps the core function to accept QueryClient (adapts to Cache interface).
+ */
+export async function getInitializedSparkWallet(
+  queryClient: QueryClient,
+  mnemonic: string,
+  network: SparkNetwork,
+) {
+  const cache: Cache = {
+    fetchQuery: (opts) => queryClient.fetchQuery(opts),
+    cancelQueries: (params) => queryClient.cancelQueries(params),
+  };
+  return getInitializedSparkWalletCore(cache, mnemonic, network);
 }
 
 export function useTrackAndUpdateSparkAccountBalances() {
@@ -252,63 +255,4 @@ export function useTrackAndUpdateSparkAccountBalances() {
       refetchOnReconnect: 'always' as const,
     })),
   });
-}
-
-/**
- * Initializes a Spark wallet with offline handling.
- * If Spark is offline or times out, returns a minimal wallet with isOnline: false.
- * @param queryClient - The query client to use for async queries and caching.
- * @param mnemonic - The Spark wallet mnemonic.
- * @param network - The Spark network that the wallet is on.
- * @returns The wallet, balance and online status.
- */
-export async function getInitializedSparkWallet(
-  queryClient: QueryClient,
-  mnemonic: string,
-  network: SparkNetwork,
-): Promise<{ wallet: SparkWallet; balance: Money | null; isOnline: boolean }> {
-  return measureOperation(
-    'getInitializedSparkWallet',
-    async () => {
-      try {
-        const wallet = await queryClient.fetchQuery(
-          sparkWalletQueryOptions({ network, mnemonic }),
-        );
-        const [
-          { balance: balanceSats },
-          leaves,
-          identityPublicKey,
-          isOptimizing,
-        ] = await Promise.all([
-          measureOperation('SparkWallet.getBalance', () => wallet.getBalance()),
-          wallet.getLeaves(true),
-          wallet.getIdentityPublicKey(),
-          wallet.isOptimizationInProgress(),
-        ]);
-        console.debug('Fetched Spark balance to initialize wallet', {
-          balance: balanceSats.toString(),
-          network,
-          identityPublicKey,
-          isOptimizing,
-          leaves: getLeafDenominations(leaves),
-        });
-        const balance = new Money({
-          amount: Number(balanceSats),
-          currency: 'BTC',
-          unit: 'sat',
-        }) as Money;
-        return { wallet, balance, isOnline: true };
-      } catch (error) {
-        console.error('Failed to initialize spark wallet', { cause: error });
-        return {
-          wallet: createSparkWalletStub(
-            'Spark is offline, please try again later.',
-          ),
-          balance: null,
-          isOnline: false,
-        };
-      }
-    },
-    { sparkNetwork: network },
-  );
 }

@@ -1,3 +1,5 @@
+import { configure as configureCoreConfig } from '@agicash/core/config';
+import { setMeasureOperation } from '@agicash/core/performance';
 import { configure } from '@opensecret/react';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
@@ -10,6 +12,7 @@ import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
 import { Money } from './lib/money';
+import { measureOperation as sentryMeasureOperation } from './lib/performance/sentry-performance';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
@@ -31,6 +34,17 @@ configure({
   apiUrl: openSecretApiUrl,
   clientId: openSecretClientId,
 });
+
+configureCoreConfig({
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+  cashuMintBlocklist: JSON.parse(
+    import.meta.env.VITE_CASHU_MINT_BLOCKLIST ?? '[]',
+  ),
+  environment: getEnvironment(),
+});
+
+setMeasureOperation(sentryMeasureOperation);
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {

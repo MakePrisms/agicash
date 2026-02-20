@@ -1,8 +1,10 @@
+import type { Cache } from '@agicash/core/interfaces/cache';
 import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
 import { hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import type { QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import { queryClientAsCache } from '~/lib/cache-adapter';
 import { getCashuWallet } from '~/lib/cashu';
 import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
 import type {
@@ -68,6 +70,7 @@ export class LightningAddressService {
   private maxSendable: Money<'BTC'>;
   private exchangeRateService: ExchangeRateService;
   private queryClient: QueryClient;
+  private cache: Cache;
   /**
    * A client can flag that they will not validate the invoice amount.
    * This is useful for agicash <-> agicash payments so that the receiver can receive into their default currency
@@ -84,6 +87,7 @@ export class LightningAddressService {
     },
   ) {
     this.queryClient = queryClient;
+    this.cache = queryClientAsCache(queryClient);
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
     this.userRepository = new ReadUserRepository(db);
@@ -171,7 +175,7 @@ export class LightningAddressService {
 
       const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
         this.db,
-        this.queryClient,
+        this.cache,
         getSparkWalletMnemonic,
       );
 

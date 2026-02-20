@@ -1,0 +1,14 @@
+{
+  "name": "@agicash/cli",
+  "private": true,
+  "type": "module",
+  "bin": { "agicash": "./src/index.ts" },
+  "dependencies": {
+    "@agicash/core": "workspace:*",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
+    "@scure/bip32": "1.7.0",
+    "@scure/bip39": "1.6.0",
+    "@supabase/supabase-js": "2.95.2"
+  }
+}
