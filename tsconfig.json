@@ -26,7 +26,9 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./app/*"]
+      "~/*": ["./app/*"],
+      "@agicash/core": ["./packages/core/src/index.ts"],
+      "@agicash/core/*": ["./packages/core/src/*"]
     },
 
     // Vite takes care of building everything, not tsc.

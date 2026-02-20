@@ -1,2 +1,1 @@
-export * from './exchange-rate-service';
-export * from './providers/types';
+export * from '@agicash/core/lib/exchange-rate';

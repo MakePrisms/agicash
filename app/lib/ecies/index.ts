@@ -1,1 +1,1 @@
-export * from './ecies';
+export * from '@agicash/core/lib/ecies';
