@@ -16,7 +16,7 @@ export function EmptyState() {
           <WalletCardBlank />
           <WalletCardOverlay className="flex items-center justify-center">
             <div className="w-full text-center">
-              <p className="text-lg text-white">Bitcoin Gifts</p>
+              <p className="text-lg text-white">Add a gift card</p>
               <p className="mt-2 text-white/60">
                 The easiest way to share
                 <br />
