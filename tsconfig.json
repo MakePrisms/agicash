@@ -9,7 +9,7 @@
     ".claude/**/*.ts",
     ".react-router/types/**/*"
   ],
-  "exclude": ["node_modules"],
+  "exclude": ["node_modules", "supabase/functions"],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "types": ["@react-router/node", "vite/client", "bun"],

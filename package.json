@@ -19,6 +19,7 @@
     "check:all": "run-p typecheck lint:check format:check",
     "test": "bun test",
     "test:e2e": "playwright test",
+    "cli": "bun packages/cli/src/index.ts",
     "supabase": "supabase",
     "db:generate-types": "supabase gen types typescript --local --schema wallet > supabase/database.types.ts && cp supabase/database.types.ts packages/core/src/db/database-generated.types.ts && biome format --write supabase/database.types.ts packages/core/src/db/database-generated.types.ts"
   },

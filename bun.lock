@@ -89,6 +89,20 @@
         "vite-tsconfig-paths": "6.0.5",
       },
     },
+    "packages/cli": {
+      "name": "@agicash/cli",
+      "bin": {
+        "agicash": "./src/index.ts",
+      },
+      "dependencies": {
+        "@agicash/core": "workspace:*",
+        "@noble/curves": "1.9.7",
+        "@noble/hashes": "1.8.0",
+        "@scure/bip32": "1.7.0",
+        "@scure/bip39": "1.6.0",
+        "@supabase/supabase-js": "2.95.2",
+      },
+    },
     "packages/core": {
       "name": "@agicash/core",
       "dependencies": {
@@ -121,6 +135,8 @@
     "@sentry/core@10.38.0": "patches/@sentry%2Fcore@10.38.0.patch",
   },
   "packages": {
+    "@agicash/cli": ["@agicash/cli@workspace:packages/cli"],
+
     "@agicash/core": ["@agicash/core@workspace:packages/core"],
 
     "@apm-js-collab/code-transformer": ["@apm-js-collab/code-transformer@0.8.2", "", {}, "sha512-YRjJjNq5KFSjDUoqu5pFUWrrsvGOxl6c3bu+uMFc9HNNptZ2rNU/TI2nLw4jnhQNtka972Ee2m3uqbvDQtPeCA=="],

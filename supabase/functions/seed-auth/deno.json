@@ -1,0 +1,7 @@
+{
+  "extends": "../deno.json",
+  "imports": {
+    "@noble/curves/secp256k1": "npm:@noble/curves@1.9.7/secp256k1",
+    "jose": "npm:jose@6.0.11"
+  }
+}

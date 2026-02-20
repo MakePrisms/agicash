@@ -1,4 +1,5 @@
-import { Copy, Edit, Share, Users } from 'lucide-react';
+import { getPrivateKey } from '@opensecret/react';
+import { Copy, Edit, Key, Share, Users } from 'lucide-react';
 import { useLocation } from 'react-router';
 import { useCopyToClipboard } from 'usehooks-ts';
 import DiscordLogo from '~/assets/discord_logo.svg';
@@ -82,9 +83,25 @@ export default function Settings() {
   const defaultAccount = useDefaultAccount();
   const username = useUser((s) => s.username);
   const location = useLocation();
+  const { toast } = useToast();
+  const [_, copyToClipboard] = useCopyToClipboard();
 
   const { domain } = useLocationData();
   const lightningAddress = `${username}@${domain}`;
+
+  const handleExportSeed = async () => {
+    try {
+      const { mnemonic } = await getPrivateKey();
+      await copyToClipboard(mnemonic);
+      toast({ title: 'Seed phrase copied to clipboard', duration: 1000 });
+    } catch {
+      toast({
+        title: 'Failed to export seed',
+        variant: 'destructive',
+        duration: 1000,
+      });
+    }
+  };
 
   const handleShare = async () => {
     const data = {
@@ -122,6 +139,18 @@ export default function Settings() {
           <Users />
           Contacts
         </SettingsNavButton>
+
+        <button
+          type="button"
+          onClick={handleExportSeed}
+          className="flex h-10 w-full items-center justify-between py-2 [&_svg]:size-4 [&_svg]:shrink-0"
+        >
+          <div className="flex items-center gap-2">
+            <Key />
+            <span>Export seed</span>
+          </div>
+          <Copy />
+        </button>
       </PageContent>
 
       <PageFooter className="mx-auto flex w-36 flex-col gap-6 pb-10">
