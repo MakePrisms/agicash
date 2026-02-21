@@ -27,7 +27,7 @@
     "start": "We are running the build in node because atm we are using node as the build target."
   },
   "dependencies": {
-    "@agicash/qr-scanner": "github:MakePrisms/qr-scanner",
+    "@agicash/qr-scanner": "0.1.0",
     "@buildonspark/spark-sdk": "0.6.3",
     "@cashu/cashu-ts": "2.6.0",
     "@cashu/crypto": "0.3.4",

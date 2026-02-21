@@ -5,7 +5,7 @@
     "": {
       "name": "agicash",
       "dependencies": {
-        "@agicash/qr-scanner": "github:MakePrisms/qr-scanner",
+        "@agicash/qr-scanner": "0.1.0",
         "@buildonspark/spark-sdk": "0.6.3",
         "@cashu/cashu-ts": "2.6.0",
         "@cashu/crypto": "0.3.4",
@@ -95,7 +95,7 @@
     "@sentry/core@10.38.0": "patches/@sentry%2Fcore@10.38.0.patch",
   },
   "packages": {
-    "@agicash/qr-scanner": ["@agicash/qr-scanner@github:MakePrisms/qr-scanner#2ae760b", { "dependencies": { "zxing-wasm": "2.2.4" } }, "MakePrisms-qr-scanner-2ae760b"],
+    "@agicash/qr-scanner": ["@agicash/qr-scanner@0.1.0", "", { "dependencies": { "zxing-wasm": "2.2.4" } }, "sha512-+jK5MyKYtAAkW7W19AjdRIEzGd2alHpjlk/OVw0PVwezJTMkNVm07MxMaqCOqzzbVxfek8LfU1n8ubHAzxIgTA=="],
 
     "@apm-js-collab/code-transformer": ["@apm-js-collab/code-transformer@0.8.2", "", {}, "sha512-YRjJjNq5KFSjDUoqu5pFUWrrsvGOxl6c3bu+uMFc9HNNptZ2rNU/TI2nLw4jnhQNtka972Ee2m3uqbvDQtPeCA=="],
 
