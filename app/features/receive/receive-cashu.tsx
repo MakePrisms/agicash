@@ -15,10 +15,7 @@ import type { CashuAccount } from '~/features/accounts/account';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
-import {
-  LinkWithViewTransition,
-  useNavigateWithViewTransition,
-} from '~/lib/transitions';
+import { LinkWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
@@ -26,6 +23,7 @@ import {
   useCashuReceiveQuote,
   useCreateCashuReceiveQuote,
 } from './cashu-receive-quote-hooks';
+import { useReceiveFlowStep } from './receive-flow';
 
 type CreateQuoteProps = {
   account: CashuAccount;
@@ -110,16 +108,13 @@ export default function ReceiveCashu({ amount, account }: Props) {
   const [showOk, setShowOk] = useState(false);
   const [, copyToClipboard] = useCopyToClipboard();
   const { toast } = useToast();
-  const navigate = useNavigateWithViewTransition();
+  const { back, onSuccess } = useReceiveFlowStep('cashuLightningInvoice');
 
   const { quote, errorMessage, isLoading } = useCreateQuote({
     account,
     amount,
     onPaid: (quote) => {
-      navigate(`/transactions/${quote.transactionId}?redirectTo=/`, {
-        transition: 'fade',
-        applyTo: 'newView',
-      });
+      onSuccess(quote.transactionId);
     },
   });
 
@@ -141,9 +136,9 @@ export default function ReceiveCashu({ amount, account }: Props) {
     <>
       <PageHeader>
         <ClosePageButton
-          to="/receive"
-          transition="slideDown"
-          applyTo="oldView"
+          to={back.to}
+          transition={back.transition}
+          applyTo={back.applyTo}
         />
         <PageHeaderTitle>Receive Ecash</PageHeaderTitle>
       </PageHeader>
@@ -172,9 +167,9 @@ export default function ReceiveCashu({ amount, account }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to="/"
-              transition="slideDown"
-              applyTo="oldView"
+              to={back.to}
+              transition={back.transition}
+              applyTo={back.applyTo}
             >
               OK
             </LinkWithViewTransition>
