@@ -9,6 +9,16 @@ import { useToast } from '~/hooks/use-toast';
 import { useAnimatedQRDecoder } from '~/lib/cashu/animated-qr-code';
 import { useThrottle } from '~/lib/use-throttle';
 
+declare global {
+  interface Window {
+    QrScanner?: typeof QrScanner;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.QrScanner = QrScanner;
+}
+
 const DECODE_COOLDOWN_MS = 3000;
 
 const AnimatedScanProgress = ({ progress }: { progress: number }) => {
