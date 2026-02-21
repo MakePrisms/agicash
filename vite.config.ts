@@ -24,6 +24,14 @@ export default defineConfig((config) => ({
     // We don't want to upload source maps to Sentry when building locally.
     process.env.VERCEL ? sentryReactRouter(sentryConfig, config) : null,
   ].filter((plugin) => Boolean(plugin)),
+  // Exclude from pre-bundling so the library's internal `new URL('./worker.js', import.meta.url)`
+  // resolves correctly. Pre-bundling inlines the library into a single file, breaking the
+  // relative URL used to load the Web Worker.
+  // Trade-off: the browser makes a few extra HTTP requests in dev for this library's modules
+  // instead of one pre-bundled file. Negligible for a small library. No impact on production.
+  optimizeDeps: {
+    exclude: ['@agicash/qr-scanner'],
+  },
   build: {
     emptyOutDir: false,
     rollupOptions: {

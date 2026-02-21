@@ -103,7 +103,6 @@ export function WalletCardBackgroundImage({
       <img
         src={src}
         alt={alt}
-        loading="lazy"
         className={cn('h-full w-full object-cover', className)}
       />
     </WalletCardOverlay>

@@ -31,6 +31,8 @@
 
 **Package manager:** Always use `bun` and `bunx`. Never use `npm`, `npx`, `yarn`, or `pnpm`.
 
+**Git branch:** The default branch is `master` (not `main`). Always use `master` when referencing the base branch for PRs, diffs, rebases, etc.
+
 **After editing TypeScript**: Run `bun run fix:all` to catch type errors before considering the task complete. Don't wait for the user to discover build failures.
 
 ## Tech Stack

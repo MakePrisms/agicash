@@ -1,5 +1,9 @@
-import '~/components/qr-scanner/qr-scanner.css';
-import Scanner from 'qr-scanner';
+import QrScanner, {
+  CameraNotFoundError,
+  CameraPermissionError,
+  type ScanResult,
+} from '@agicash/qr-scanner';
+import * as Sentry from '@sentry/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '~/hooks/use-toast';
 import { useAnimatedQRDecoder } from '~/lib/cashu/animated-qr-code';
@@ -45,6 +49,7 @@ type QRScannerProps = {
 export const QRScanner = ({ onDecode }: QRScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentFragment, setCurrentFragment] = useState('');
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const isProcessingRef = useRef(false);
 
@@ -86,7 +91,7 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
   }, [error, toast]);
 
   useEffect(() => {
-    const handleResult = (result: Scanner.ScanResult): void => {
+    const handleResult = (result: ScanResult): void => {
       if (result.data.toLowerCase().startsWith('ur:')) {
         setCurrentFragment(result.data);
       } else {
@@ -98,13 +103,26 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
       throw new Error('Expected video element to be present');
     }
 
-    const scannerInstance = new Scanner(videoRef.current, handleResult, {
-      returnDetailedScanResult: true,
+    const scannerInstance = new QrScanner(videoRef.current, handleResult, {
       highlightScanRegion: true,
       highlightCodeOutline: true,
     });
 
-    scannerInstance.start();
+    scannerInstance.start().catch((err: unknown) => {
+      setCameraError(
+        err instanceof Error ? err.message : 'Failed to start camera',
+      );
+      if (
+        !(err instanceof CameraPermissionError) &&
+        !(err instanceof CameraNotFoundError)
+      ) {
+        Sentry.captureException(
+          new Error('Failed to start QR scanner', { cause: err }),
+        );
+      } else {
+        console.debug('Failed to start QR scanner', { cause: err });
+      }
+    });
 
     return () => {
       scannerInstance.destroy();
@@ -114,12 +132,18 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
   return (
     <section className="fixed inset-0 h-screen w-screen sm:relative sm:aspect-square sm:h-[400px] sm:w-[400px]">
       <div className="relative h-full w-full">
-        <video
-          ref={videoRef}
-          aria-label="QR code scanner"
-          muted
-          className="absolute inset-0 h-full w-full object-cover"
-        />
+        {cameraError ? (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black p-6 text-center">
+            <p className="text-sm text-white">{cameraError}</p>
+          </div>
+        ) : (
+          <video
+            ref={videoRef}
+            aria-label="QR code scanner"
+            muted
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
         <AnimatedScanProgress progress={progress} />
       </div>
     </section>

@@ -27,6 +27,7 @@
     "start": "We are running the build in node because atm we are using node as the build target."
   },
   "dependencies": {
+    "@agicash/qr-scanner": "0.1.0",
     "@buildonspark/spark-sdk": "0.6.3",
     "@cashu/cashu-ts": "2.6.0",
     "@cashu/crypto": "0.3.4",
@@ -70,7 +71,6 @@
     "ky": "1.14.3",
     "light-bolt11-decoder": "3.2.0",
     "lucide-react": "0.468.0",
-    "qr-scanner": "1.4.2",
     "qrcode.react": "4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
