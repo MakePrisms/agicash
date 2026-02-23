@@ -327,7 +327,7 @@ export function TransactionList({
   if (!allTransactions.length) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
-        <span className="text-muted-foreground">No transactions found</span>
+        <span className="text-muted-foreground">No transactions yet</span>
       </div>
     );
   }
