@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@agicash/qr-scanner": "0.1.1",
-    "@buildonspark/spark-sdk": "0.6.3",
+    "@buildonspark/spark-sdk": "0.6.6",
     "@cashu/cashu-ts": "2.6.0",
     "@cashu/crypto": "0.3.4",
     "@jbojcic/bc-ur": "https://github.com/jbojcic1/bc-ur",
