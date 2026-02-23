@@ -1,3 +1,4 @@
+import { OpenFeature } from '@openfeature/web-sdk';
 import {
   type UserResponse,
   fetchUser,
@@ -203,6 +204,7 @@ export const useAuthActions = (): AuthActions => {
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
       await osSignOut();
+      OpenFeature.setContext({});
       await refreshSession(options.redirectTo);
       queryClient.clear();
     },

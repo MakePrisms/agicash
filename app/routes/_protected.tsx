@@ -1,3 +1,4 @@
+import { OpenFeature } from '@openfeature/web-sdk';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { AccountsCache } from '~/features/accounts/account-hooks';
@@ -201,6 +202,10 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
 
   if (shouldRedirectToVerifyEmail) {
     throw buildRedirectWithReturnUrl('/verify-email', location, hash);
+  }
+
+  if (OpenFeature.getContext().targetingKey !== authUser.id) {
+    OpenFeature.setContext({ targetingKey: authUser.id });
   }
 
   await next();

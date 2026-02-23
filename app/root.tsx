@@ -1,3 +1,4 @@
+import { OpenFeatureProvider } from '@openfeature/react-sdk';
 import * as Sentry from '@sentry/react-router';
 import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -24,6 +25,7 @@ import {
   CardTitle,
 } from '~/components/ui/card';
 import { Toaster } from '~/components/ui/toaster';
+import { initFeatureFlags } from '~/features/shared/feature-flags';
 import { ThemeProvider, useTheme } from '~/features/theme';
 import { getBgColorForTheme } from '~/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
@@ -36,6 +38,8 @@ import { NotFoundError } from './features/shared/error';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
 import { getQueryClient } from './query-client';
 import { sanitizeUrl } from './tracing-utils';
+
+initFeatureFlags();
 
 export const links: LinksFunction = () => [
   { rel: 'stylesheet', href: stylesheet },
@@ -192,12 +196,14 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <HydrationBoundary state={dehydratedState}>
-        <Suspense fallback={<LoadingScreen />}>
-          <Outlet />
-        </Suspense>
-        <ReactQueryDevtools initialIsOpen={false} />
-      </HydrationBoundary>
+      <OpenFeatureProvider>
+        <HydrationBoundary state={dehydratedState}>
+          <Suspense fallback={<LoadingScreen />}>
+            <Outlet />
+          </Suspense>
+          <ReactQueryDevtools initialIsOpen={false} />
+        </HydrationBoundary>
+      </OpenFeatureProvider>
     </QueryClientProvider>
   );
 }
