@@ -137,11 +137,6 @@ export function shouldRevalidate() {
   return false;
 }
 
-const vercelAnalyticsMode =
-  process.env.NODE_ENV === 'production' && process.env.VERCEL
-    ? 'production'
-    : 'development';
-
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
@@ -171,7 +166,6 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         <ScrollRestoration />
         <Scripts />
         <Analytics
-          mode={vercelAnalyticsMode}
           beforeSend={(event: BeforeSendEvent) => {
             return {
               ...event,
