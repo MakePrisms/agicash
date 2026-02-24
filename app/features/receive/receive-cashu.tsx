@@ -14,6 +14,7 @@ import { Card, CardContent } from '~/components/ui/card';
 import type { CashuAccount } from '~/features/accounts/account';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
 import {
@@ -112,7 +113,8 @@ export default function ReceiveCashu({ amount, account }: Props) {
   const [, copyToClipboard] = useCopyToClipboard();
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
-  const { redirectTo, buildTo } = useRedirectTo('/');
+  const { redirectTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const { quote, errorMessage, isLoading } = useCreateQuote({
     account,
@@ -146,7 +148,7 @@ export default function ReceiveCashu({ amount, account }: Props) {
     <>
       <PageHeader>
         <ClosePageButton
-          to={buildTo('/receive')}
+          to={buildLinkWithSearchParams('/receive')}
           transition="slideRight"
           applyTo="oldView"
         />
@@ -177,7 +179,7 @@ export default function ReceiveCashu({ amount, account }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to={buildTo('/receive')}
+              to={buildLinkWithSearchParams('/receive')}
               transition="slideRight"
               applyTo="oldView"
             >

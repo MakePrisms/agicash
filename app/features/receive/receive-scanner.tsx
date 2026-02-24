@@ -6,7 +6,7 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { QRScanner } from '~/components/qr-scanner';
-import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
@@ -15,14 +15,14 @@ import { useReceiveStore } from './receive-provider';
 export default function ReceiveScanner() {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
-  const { buildTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const receiveAccountId = useReceiveStore((s) => s.accountId);
 
   return (
     <>
       <PageHeader className="z-10">
         <PageBackButton
-          to={buildTo('/receive')}
+          to={buildLinkWithSearchParams('/receive')}
           transition="slideDown"
           applyTo="oldView"
         />
@@ -49,7 +49,7 @@ export default function ReceiveScanner() {
             window.history.replaceState(null, '', hash);
             navigate(
               {
-                ...buildTo('/receive/cashu/token', {
+                ...buildLinkWithSearchParams('/receive/cashu/token', {
                   selectedAccountId: receiveAccountId,
                 }),
                 hash,

@@ -20,6 +20,7 @@ import {
 import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
 import {
@@ -107,7 +108,8 @@ export default function ReceiveToken({
 }: Props) {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
-  const { redirectTo, buildTo } = useRedirectTo('/');
+  const { redirectTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { claimableToken, cannotClaimReason } =
     useCashuTokenWithClaimableProofs({ token });
   const {
@@ -185,7 +187,7 @@ export default function ReceiveToken({
     <>
       <PageHeader className="z-10">
         <PageBackButton
-          to={buildTo('/receive')}
+          to={buildLinkWithSearchParams('/receive')}
           transition="slideRight"
           applyTo="oldView"
         />

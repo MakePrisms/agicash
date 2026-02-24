@@ -11,6 +11,7 @@ import { QRCode } from '~/components/qr-code';
 import { Button } from '~/components/ui/button';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
 import {
@@ -73,7 +74,8 @@ export default function ReceiveSpark({ amount, account }: Props) {
   const [, copyToClipboard] = useCopyToClipboard();
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
-  const { redirectTo, buildTo } = useRedirectTo('/');
+  const { redirectTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const { quote, errorMessage, isLoading } = useCreateQuote({
     account,
@@ -103,7 +105,7 @@ export default function ReceiveSpark({ amount, account }: Props) {
     <>
       <PageHeader>
         <ClosePageButton
-          to={buildTo('/receive')}
+          to={buildLinkWithSearchParams('/receive')}
           transition="slideDown"
           applyTo="oldView"
         />
@@ -123,7 +125,7 @@ export default function ReceiveSpark({ amount, account }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to={buildTo('/receive')}
+              to={buildLinkWithSearchParams('/receive')}
               transition="slideDown"
               applyTo="oldView"
             >

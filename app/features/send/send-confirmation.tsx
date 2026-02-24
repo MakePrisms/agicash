@@ -11,6 +11,7 @@ import type { CashuAccount, SparkAccount } from '~/features/accounts/account';
 import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Money } from '~/lib/money';
@@ -52,13 +53,13 @@ const BaseConfirmation = ({
   loading?: boolean;
   error?: string;
 }) => {
-  const { buildTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   return (
     <Page>
       <PageHeader className="z-10">
         <PageBackButton
-          to={buildTo('/send')}
+          to={buildLinkWithSearchParams('/send')}
           transition="slideDown"
           applyTo="oldView"
         />
@@ -291,12 +292,12 @@ export const CreateCashuTokenConfirmation = ({
 }: CreateCashuTokenConfirmationProps) => {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
-  const { buildTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const { mutate: createCashuSendSwap, status: createSwapStatus } =
     useCreateCashuSendSwap({
       onSuccess: (swap) => {
-        navigate(buildTo(`/send/share/${swap.id}`), {
+        navigate(buildLinkWithSearchParams(`/send/share/${swap.id}`), {
           transition: 'slideUp',
           applyTo: 'newView',
         });

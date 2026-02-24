@@ -6,7 +6,7 @@ import {
 } from '~/components/page';
 import { QRScanner } from '~/components/qr-scanner';
 import { useExchangeRate } from '~/hooks/use-exchange-rate';
-import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions/view-transition';
@@ -37,7 +37,7 @@ const useConverter = (sendAccount: Account) => {
 export default function SendScanner() {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
-  const { buildTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const sendAccount = useSendStore((state) => state.getSourceAccount());
   const selectDestination = useSendStore((state) => state.selectDestination);
@@ -60,7 +60,7 @@ export default function SendScanner() {
 
     if (!amount) {
       // Navigate to send input to enter the amount
-      return navigate(buildTo('/send'), {
+      return navigate(buildLinkWithSearchParams('/send'), {
         applyTo: 'oldView',
         transition: 'slideDown',
       });
@@ -91,7 +91,7 @@ export default function SendScanner() {
       return;
     }
 
-    navigate(buildTo('/send/confirm'), {
+    navigate(buildLinkWithSearchParams('/send/confirm'), {
       applyTo: 'newView',
       transition: 'slideUp',
     });
@@ -101,7 +101,7 @@ export default function SendScanner() {
     <>
       <PageHeader className="z-10">
         <PageBackButton
-          to={buildTo('/send')}
+          to={buildLinkWithSearchParams('/send')}
           transition="slideDown"
           applyTo="oldView"
         />

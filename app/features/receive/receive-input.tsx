@@ -20,6 +20,7 @@ import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
@@ -64,7 +65,8 @@ const ConvertedMoneySwitcher = ({
 export default function ReceiveInput() {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
-  const { redirectTo, buildTo } = useRedirectTo('/');
+  const { redirectTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
 
@@ -108,7 +110,7 @@ export default function ReceiveInput() {
 
     const nextPath =
       receiveAccount.type === 'cashu' ? '/receive/cashu' : '/receive/spark';
-    navigate(buildTo(nextPath), {
+    navigate(buildLinkWithSearchParams(nextPath), {
       transition: 'slideLeft',
       applyTo: 'newView',
     });
@@ -138,7 +140,7 @@ export default function ReceiveInput() {
     window.history.replaceState(null, '', hash);
     navigate(
       {
-        ...buildTo('/receive/cashu/token', {
+        ...buildLinkWithSearchParams('/receive/cashu/token', {
           selectedAccountId: receiveAccountId,
         }),
         hash,
@@ -200,7 +202,7 @@ export default function ReceiveInput() {
               </button>
 
               <LinkWithViewTransition
-                to={buildTo('/receive/scan')}
+                to={buildLinkWithSearchParams('/receive/scan')}
                 transition="slideUp"
                 applyTo="newView"
               >
