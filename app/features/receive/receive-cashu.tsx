@@ -13,9 +13,13 @@ import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
 import type { CashuAccount } from '~/features/accounts/account';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
-import { LinkWithViewTransition } from '~/lib/transitions';
+import {
+  LinkWithViewTransition,
+  useNavigateWithViewTransition,
+} from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
@@ -23,7 +27,6 @@ import {
   useCashuReceiveQuote,
   useCreateCashuReceiveQuote,
 } from './cashu-receive-quote-hooks';
-import { useReceiveFlowStep } from './receive-flow';
 
 type CreateQuoteProps = {
   account: CashuAccount;
@@ -108,13 +111,20 @@ export default function ReceiveCashu({ amount, account }: Props) {
   const [showOk, setShowOk] = useState(false);
   const [, copyToClipboard] = useCopyToClipboard();
   const { toast } = useToast();
-  const { back, onSuccess } = useReceiveFlowStep('cashuLightningInvoice');
+  const navigate = useNavigateWithViewTransition();
+  const { redirectTo, buildTo } = useRedirectTo('/');
 
   const { quote, errorMessage, isLoading } = useCreateQuote({
     account,
     amount,
     onPaid: (quote) => {
-      onSuccess(quote.transactionId);
+      navigate(
+        {
+          pathname: `/transactions/${quote.transactionId}`,
+          search: `redirectTo=${encodeURIComponent(redirectTo)}`,
+        },
+        { transition: 'slideLeft', applyTo: 'newView' },
+      );
     },
   });
 
@@ -136,9 +146,9 @@ export default function ReceiveCashu({ amount, account }: Props) {
     <>
       <PageHeader>
         <ClosePageButton
-          to={back.to}
-          transition={back.transition}
-          applyTo={back.applyTo}
+          to={buildTo('/receive')}
+          transition="slideRight"
+          applyTo="oldView"
         />
         <PageHeaderTitle>Receive Ecash</PageHeaderTitle>
       </PageHeader>
@@ -167,9 +177,9 @@ export default function ReceiveCashu({ amount, account }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to={back.to}
-              transition={back.transition}
-              applyTo={back.applyTo}
+              to={buildTo('/receive')}
+              transition="slideRight"
+              applyTo="oldView"
             >
               OK
             </LinkWithViewTransition>

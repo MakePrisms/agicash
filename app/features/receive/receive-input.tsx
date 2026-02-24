@@ -19,6 +19,7 @@ import { accountOfflineToast } from '~/features/accounts/utils';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
@@ -28,7 +29,6 @@ import {
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
 import { useAccount, useAccounts } from '../accounts/account-hooks';
-import { useReceiveFlowStep } from './receive-flow';
 import { useReceiveStore } from './receive-provider';
 
 type ConvertedMoneySwitcherProps = {
@@ -64,7 +64,7 @@ const ConvertedMoneySwitcher = ({
 export default function ReceiveInput() {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
-  const { close, next, actions } = useReceiveFlowStep('amountInput');
+  const { redirectTo, buildTo } = useRedirectTo('/');
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
 
@@ -106,13 +106,11 @@ export default function ReceiveInput() {
       setReceiveAmount(convertedValue);
     }
 
-    const nextStep =
-      receiveAccount.type === 'cashu'
-        ? next.cashuLightningInvoice
-        : next.sparkLightningInvoice;
-    navigate(nextStep.to, {
-      transition: nextStep.transition,
-      applyTo: nextStep.applyTo,
+    const nextPath =
+      receiveAccount.type === 'cashu' ? '/receive/cashu' : '/receive/spark';
+    navigate(buildTo(nextPath), {
+      transition: 'slideLeft',
+      applyTo: 'newView',
     });
   };
 
@@ -138,13 +136,14 @@ export default function ReceiveInput() {
     // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
     // See https://github.com/remix-run/remix/discussions/10721
     window.history.replaceState(null, '', hash);
-    const tokenAction = actions.claimCashuToken(receiveAccountId);
     navigate(
-      { ...tokenAction.to, hash },
       {
-        transition: tokenAction.transition,
-        applyTo: tokenAction.applyTo,
+        ...buildTo('/receive/cashu/token', {
+          selectedAccountId: receiveAccountId,
+        }),
+        hash,
       },
+      { transition: 'slideLeft', applyTo: 'newView' },
     );
   };
 
@@ -152,9 +151,9 @@ export default function ReceiveInput() {
     <>
       <PageHeader>
         <ClosePageButton
-          to={close.to}
-          transition={close.transition}
-          applyTo={close.applyTo}
+          to={{ pathname: redirectTo, search: '' }}
+          transition="slideDown"
+          applyTo="oldView"
         />
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
@@ -201,9 +200,9 @@ export default function ReceiveInput() {
               </button>
 
               <LinkWithViewTransition
-                to={actions.scanToken.to}
-                transition={actions.scanToken.transition}
-                applyTo={actions.scanToken.applyTo}
+                to={buildTo('/receive/scan')}
+                transition="slideUp"
+                applyTo="newView"
               >
                 <Scan />
               </LinkWithViewTransition>
