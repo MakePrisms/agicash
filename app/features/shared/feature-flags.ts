@@ -8,11 +8,18 @@ import {
   type ResolutionDetails,
   StandardResolutionReasons,
 } from '@openfeature/web-sdk';
-import { agicashDbClient } from '~/features/agicash-db/database.client';
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '~/features/agicash-db/database';
 
 export type FeatureFlag = 'GUEST_SIGNUP' | 'GIFT_CARDS';
 
 type FeatureFlags = Partial<Record<FeatureFlag, boolean>>;
+
+const featureFlagsClient = createClient<Database>(
+  import.meta.env.VITE_SUPABASE_URL ?? '',
+  import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+  { db: { schema: 'wallet' } },
+);
 
 class SupabaseFeatureFlagProvider implements Provider {
   public readonly runsOn = 'client' as const;
@@ -21,7 +28,9 @@ class SupabaseFeatureFlagProvider implements Provider {
   private flags: FeatureFlags = {};
 
   private async fetchFlags(): Promise<FeatureFlags> {
-    const { data, error } = await agicashDbClient.rpc('evaluate_feature_flags');
+    const { data, error } = await featureFlagsClient.rpc(
+      'evaluate_feature_flags',
+    );
 
     if (error) {
       console.error('Failed to fetch feature flags', { cause: error });
