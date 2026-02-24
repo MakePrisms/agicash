@@ -513,6 +513,33 @@ export type Database = {
           },
         ]
       }
+      feature_flags: {
+        Row: {
+          created_at: string
+          description: string | null
+          enabled: boolean
+          key: string
+          rules: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          key: string
+          rules?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          key?: string
+          rules?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       spark_receive_quotes: {
         Row: {
           account_id: string
@@ -1176,6 +1203,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      evaluate_feature_flags: { Args: never; Returns: Json }
       expire_cashu_receive_quote: {
         Args: { p_quote_id: string }
         Returns: {
