@@ -3,7 +3,7 @@ import { agicashDbClient } from '~/features/agicash-db/database.client';
 
 export type FeatureFlag = 'GUEST_SIGNUP' | 'GIFT_CARDS';
 
-type FeatureFlags = Partial<Record<FeatureFlag, boolean>>;
+type FeatureFlags = Record<FeatureFlag, boolean>;
 
 const FEATURE_FLAG_DEFAULTS: Record<FeatureFlag, boolean> = {
   GUEST_SIGNUP: false,
@@ -16,7 +16,7 @@ export const featureFlagsQueryOptions = queryOptions({
     const { data, error } = await agicashDbClient.rpc('evaluate_feature_flags');
     if (error) {
       console.error('Failed to fetch feature flags', { cause: error });
-      return {} as FeatureFlags;
+      return FEATURE_FLAG_DEFAULTS;
     }
     return data as FeatureFlags;
   },
@@ -25,5 +25,5 @@ export const featureFlagsQueryOptions = queryOptions({
 
 export function useFeatureFlag(flag: FeatureFlag): boolean {
   const { data } = useSuspenseQuery(featureFlagsQueryOptions);
-  return data[flag] ?? FEATURE_FLAG_DEFAULTS[flag];
+  return data[flag];
 }

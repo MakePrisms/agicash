@@ -170,6 +170,7 @@ export const useAuthActions = (): AuthActions => {
         }),
         queryClient.invalidateQueries({
           queryKey: ['feature-flags'],
+          refetchType: 'all',
         }),
       ]);
       if (redirectTo) {
