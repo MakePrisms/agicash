@@ -33,6 +33,7 @@ import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
 import { LoadingScreen } from './features/loading/LoadingScreen';
 import { NotFoundError } from './features/shared/error';
+import { anonFeatureFlagsQueryOptions } from './features/shared/feature-flags';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
 import { getQueryClient } from './query-client';
 import { sanitizeUrl } from './tracing-utils';
@@ -310,6 +311,15 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   );
 }
 
+const prefetchFeatureFlagsMiddleware: Route.ClientMiddlewareFunction = async (
+  _,
+  next,
+) => {
+  const queryClient = getQueryClient();
+  queryClient.prefetchQuery(anonFeatureFlagsQueryOptions);
+  await next();
+};
+
 const timingMiddleware: Route.ClientMiddlewareFunction = async (
   { request },
   next,
@@ -334,5 +344,6 @@ const timingMiddleware: Route.ClientMiddlewareFunction = async (
 };
 
 export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
+  prefetchFeatureFlagsMiddleware,
   timingMiddleware,
 ];

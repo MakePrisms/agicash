@@ -95,9 +95,6 @@ begin
 end;
 $$;
 
--- Grant execute to all roles (function is security definer, so it can read the table)
-grant execute on function "wallet"."evaluate_feature_flags"() to anon, authenticated, service_role;
-
 -- Seed initial flags (matching current env-var flags)
 insert into "wallet"."feature_flags" ("key", "enabled", "description") values
   ('GUEST_SIGNUP', false, 'Allow guest signup without email/OAuth'),
