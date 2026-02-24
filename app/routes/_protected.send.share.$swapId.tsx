@@ -30,7 +30,9 @@ export default function SendShare({ params }: Route.ComponentProps) {
     id: params.swapId,
     onCompleted: (swap) => {
       navigate(
-        buildLinkWithSearchParams(`/transactions/${swap.transactionId}`),
+        buildLinkWithSearchParams(`/transactions/${swap.transactionId}`, {
+          showOkButton: 'true',
+        }),
         {
           transition: 'fade',
           applyTo: 'newView',

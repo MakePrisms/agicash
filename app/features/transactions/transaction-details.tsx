@@ -1,5 +1,6 @@
 import { BanIcon, CheckIcon, ClockIcon, UndoIcon, XIcon } from 'lucide-react';
 import { useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import { PageContent, PageFooter } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import {
@@ -96,6 +97,8 @@ export function TransactionDetails({
 }: {
   transaction: Transaction;
 }) {
+  const [searchParams] = useSearchParams();
+  const showOkButton = searchParams.get('showOkButton') === 'true';
   const { redirectTo } = useRedirectTo('/transactions');
   const account = useAccount(transaction.accountId);
   const { toast } = useToast();
@@ -130,7 +133,7 @@ export function TransactionDetails({
     isTransactionReversable(transaction) || isReclaimInProgress;
   const shouldShowOkButton =
     (didReclaimMutationSucceed && !isWaitingForStateUpdate) ||
-    !shouldShowReclaimButton;
+    (!shouldShowReclaimButton && showOkButton);
 
   return (
     <>

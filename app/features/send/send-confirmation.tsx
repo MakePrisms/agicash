@@ -120,7 +120,9 @@ const usePayBolt11 = ({
     useInitiateCashuSendQuote({
       onSuccess: (data) => {
         navigate(
-          buildLinkWithSearchParams(`/transactions/${data.transactionId}`),
+          buildLinkWithSearchParams(`/transactions/${data.transactionId}`, {
+            showOkButton: 'true',
+          }),
           {
             transition: 'slideLeft',
             applyTo: 'newView',
@@ -145,7 +147,10 @@ const usePayBolt11 = ({
     useInitiateSparkSendQuote({
       onSuccess: (sendQuote) => {
         navigate(
-          buildLinkWithSearchParams(`/transactions/${sendQuote.transactionId}`),
+          buildLinkWithSearchParams(
+            `/transactions/${sendQuote.transactionId}`,
+            { showOkButton: 'true' },
+          ),
           {
             transition: 'slideLeft',
             applyTo: 'newView',

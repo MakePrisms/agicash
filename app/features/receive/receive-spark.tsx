@@ -80,7 +80,9 @@ export default function ReceiveSpark({ amount, account }: Props) {
     amount,
     onPaid: (quote) => {
       navigate(
-        buildLinkWithSearchParams(`/transactions/${quote.transactionId}`),
+        buildLinkWithSearchParams(`/transactions/${quote.transactionId}`, {
+          showOkButton: 'true',
+        }),
         { transition: 'slideLeft', applyTo: 'newView' },
       );
     },

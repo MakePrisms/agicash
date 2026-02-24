@@ -163,10 +163,15 @@ export default function ReceiveToken({
       return result.lightningReceiveQuote.transactionId;
     },
     onSuccess: (transactionId) => {
-      navigate(buildLinkWithSearchParams(`/transactions/${transactionId}`), {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
+      navigate(
+        buildLinkWithSearchParams(`/transactions/${transactionId}`, {
+          showOkButton: 'true',
+        }),
+        {
+          transition: 'slideLeft',
+          applyTo: 'newView',
+        },
+      );
     },
     onError: (error) => {
       console.error('Error claiming token', { cause: error });
