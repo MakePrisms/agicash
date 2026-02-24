@@ -50,6 +50,7 @@ Sentry.init({
   environment: getEnvironment(),
   tunnel: '/api/logs',
   enableLogs: true,
+  normalizeDepth: 5,
 
   integrations: [
     Sentry.consoleLoggingIntegration(),
