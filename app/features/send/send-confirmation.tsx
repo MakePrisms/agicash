@@ -10,7 +10,6 @@ import { Card, CardContent } from '~/components/ui/card';
 import type { CashuAccount, SparkAccount } from '~/features/accounts/account';
 import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
-import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { decodeBolt11 } from '~/lib/bolt11';
@@ -100,34 +99,28 @@ type UsePayBolt11Props = {
   quote: CashuLightningQuote | SparkLightningQuote;
   /** Additional details about the destination to include in the Agicash DB record.*/
   destinationDetails?: DestinationDetails;
-  /** Where to redirect after the transaction is complete. */
-  redirectTo: string;
 };
 
 /**
  * A hook that is used to pay bolt11 invoices from a Cashu account or a Spark account.
  * @param account - The account to send from.
  * @param quote - The quote to pay
- * @param redirectTo - Where to redirect after the transaction is complete.
  * @returns A function to handle the confirmation of the payment and a boolean indicating if the payment is pending.
  */
 const usePayBolt11 = ({
   account,
   quote,
   destinationDetails,
-  redirectTo,
 }: UsePayBolt11Props) => {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const { mutate: initiateCashuSend, status: initiateCashuSendQuoteStatus } =
     useInitiateCashuSendQuote({
       onSuccess: (data) => {
         navigate(
-          {
-            pathname: `/transactions/${data.transactionId}`,
-            search: `?redirectTo=${encodeURIComponent(redirectTo)}`,
-          },
+          buildLinkWithSearchParams(`/transactions/${data.transactionId}`),
           {
             transition: 'slideLeft',
             applyTo: 'newView',
@@ -152,10 +145,7 @@ const usePayBolt11 = ({
     useInitiateSparkSendQuote({
       onSuccess: (sendQuote) => {
         navigate(
-          {
-            pathname: `/transactions/${sendQuote.transactionId}`,
-            search: `?redirectTo=${encodeURIComponent(redirectTo)}`,
-          },
+          buildLinkWithSearchParams(`/transactions/${sendQuote.transactionId}`),
           {
             transition: 'slideLeft',
             applyTo: 'newView',
@@ -221,12 +211,10 @@ export const PayBolt11Confirmation = ({
   destinationDisplay,
   destinationDetails,
 }: PayBolt11ConfirmationProps) => {
-  const { redirectTo } = useRedirectTo('/');
   const { handleConfirm, isPending } = usePayBolt11({
     account,
     quote: bolt11Quote,
     destinationDetails,
-    redirectTo,
   });
 
   const { description } = decodeBolt11(destination);

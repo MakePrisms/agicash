@@ -19,7 +19,6 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
-import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
@@ -108,7 +107,6 @@ export default function ReceiveToken({
 }: Props) {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
-  const { redirectTo } = useRedirectTo('/');
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { claimableToken, cannotClaimReason } =
     useCashuTokenWithClaimableProofs({ token });
@@ -165,13 +163,10 @@ export default function ReceiveToken({
       return result.lightningReceiveQuote.transactionId;
     },
     onSuccess: (transactionId) => {
-      navigate(
-        {
-          pathname: `/transactions/${transactionId}`,
-          search: `redirectTo=${encodeURIComponent(redirectTo)}`,
-        },
-        { transition: 'slideLeft', applyTo: 'newView' },
-      );
+      navigate(buildLinkWithSearchParams(`/transactions/${transactionId}`), {
+        transition: 'slideLeft',
+        applyTo: 'newView',
+      });
     },
     onError: (error) => {
       console.error('Error claiming token', { cause: error });

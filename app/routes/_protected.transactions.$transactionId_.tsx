@@ -31,7 +31,7 @@ export default function TransactionDetailsPage({
               : 'Sent'}
         </PageHeaderTitle>
       </PageHeader>
-      <TransactionDetails transaction={transaction} redirectTo={redirectTo} />
+      <TransactionDetails transaction={transaction} />
     </Page>
   );
 }

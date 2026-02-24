@@ -14,6 +14,7 @@ import { GiftCardItem } from '~/features/gift-cards/gift-card-item';
 import { getGiftCardImageByUrl } from '~/features/gift-cards/use-discover-cards';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { TransactionList } from '~/features/transactions/transaction-list';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import {
   CARD_HEIGHT,
@@ -27,6 +28,7 @@ type GiftCardDetailsProps = {
 
 export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
   const navigate = useNavigate();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const isTransitioning = useViewTransitionState('/gift-cards');
 
   const { data: giftCardAccounts } = useAccounts({
@@ -150,14 +152,20 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
 
           <div className="mt-6 grid w-72 grid-cols-2 gap-10">
             <LinkWithViewTransition
-              to={`/receive?accountId=${card.id}&redirectTo=${encodeURIComponent(`/gift-cards/${card.id}`)}`}
+              to={buildLinkWithSearchParams('/receive', {
+                accountId: card.id,
+                redirectTo: `/gift-cards/${card.id}`,
+              })}
               transition="slideUp"
               applyTo="newView"
             >
               <Button className="w-full px-7 py-6 text-lg">Add</Button>
             </LinkWithViewTransition>
             <LinkWithViewTransition
-              to={`/send?accountId=${card.id}&redirectTo=${encodeURIComponent(`/gift-cards/${card.id}`)}`}
+              to={buildLinkWithSearchParams('/send', {
+                accountId: card.id,
+                redirectTo: `/gift-cards/${card.id}`,
+              })}
               transition="slideUp"
               applyTo="newView"
             >

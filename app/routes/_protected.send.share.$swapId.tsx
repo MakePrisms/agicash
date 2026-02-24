@@ -14,6 +14,7 @@ import {
 import { ShareCashuToken } from '~/features/send/share-cashu-token';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { getCashuProtocolUnit } from '~/lib/cashu';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import type { Route } from './+types/_protected.send.share.$swapId';
@@ -21,6 +22,7 @@ import type { Route } from './+types/_protected.send.share.$swapId';
 export default function SendShare({ params }: Route.ComponentProps) {
   const navigate = useNavigateWithViewTransition();
   const { redirectTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const { data: swap } = useCashuSendSwap(params.swapId);
 
@@ -28,10 +30,7 @@ export default function SendShare({ params }: Route.ComponentProps) {
     id: params.swapId,
     onCompleted: (swap) => {
       navigate(
-        {
-          pathname: `/transactions/${swap.transactionId}`,
-          search: `?redirectTo=${encodeURIComponent(redirectTo)}`,
-        },
+        buildLinkWithSearchParams(`/transactions/${swap.transactionId}`),
         {
           transition: 'fade',
           applyTo: 'newView',

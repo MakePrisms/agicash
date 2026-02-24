@@ -11,6 +11,7 @@ import {
 } from '~/components/ui/card';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import type { Transaction } from '~/features/transactions/transaction';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { isThisWeek, isToday, isYesterday } from '~/lib/date';
 import { LinkWithViewTransition } from '~/lib/transitions';
@@ -92,11 +93,10 @@ function getTransactionLabel(transaction: Transaction) {
 
 export function TransactionDetails({
   transaction,
-  redirectTo = '/',
 }: {
   transaction: Transaction;
-  redirectTo?: string;
 }) {
+  const { redirectTo } = useRedirectTo('/transactions');
   const account = useAccount(transaction.accountId);
   const { toast } = useToast();
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
