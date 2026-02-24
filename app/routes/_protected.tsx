@@ -15,7 +15,6 @@ import {
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
-import { authedFeatureFlagsQueryOptions } from '~/features/shared/feature-flags';
 import {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
@@ -182,12 +181,6 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     throw redirect(`/home${search}${hash}`);
   }
 
-  // Start fetching authed flags in parallel with ensureUserData.
-  // Awaited before next() so flags are in cache before components render (no flash).
-  const authedFlagsPromise = queryClient.ensureQueryData(
-    authedFeatureFlagsQueryOptions,
-  );
-
   const pendingTermsAcceptedAt = pendingTermsStorage.get();
   if (pendingTermsAcceptedAt) {
     pendingTermsStorage.remove();
@@ -210,7 +203,6 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     throw buildRedirectWithReturnUrl('/verify-email', location, hash);
   }
 
-  await authedFlagsPromise;
   await next();
 };
 

@@ -163,10 +163,15 @@ export const useAuthActions = (): AuthActions => {
 
   const refreshSession = useCallback(
     async (redirectTo?: string) => {
-      await queryClient.invalidateQueries({
-        queryKey: [authStateQueryKey],
-        refetchType: 'all',
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [authStateQueryKey],
+          refetchType: 'all',
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['feature-flags'],
+        }),
+      ]);
       if (redirectTo) {
         await navigate(redirectTo);
       } else {
