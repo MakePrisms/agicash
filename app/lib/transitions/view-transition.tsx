@@ -1,5 +1,11 @@
 import { type ComponentProps, useEffect } from 'react';
-import { Link, NavLink, useNavigate, useNavigation } from 'react-router';
+import {
+  Link,
+  NavLink,
+  useLocation,
+  useNavigate,
+  useNavigation,
+} from 'react-router';
 import type { NavigateOptions, To } from 'react-router';
 
 const transitions = [
@@ -153,25 +159,114 @@ function getViewTransitionState(state: unknown): ViewTransitionState | null {
   return { transition: state.transition, applyTo };
 }
 
+const REVERSE_TRANSITION: Record<Transition, Transition> = {
+  slideLeft: 'slideRight',
+  slideRight: 'slideLeft',
+  slideUp: 'slideDown',
+  slideDown: 'slideUp',
+  fade: 'fade',
+};
+
+const REVERSE_APPLY_TO: Record<ApplyTo, ApplyTo> = {
+  newView: 'oldView',
+  oldView: 'newView',
+  bothViews: 'bothViews',
+};
+
+function reverseViewTransitionState(
+  state: ViewTransitionState,
+): ViewTransitionState {
+  return {
+    transition: REVERSE_TRANSITION[state.transition],
+    applyTo: REVERSE_APPLY_TO[state.applyTo],
+  };
+}
+
+// Track history position to detect browser back vs forward navigation.
+// React Router stores { usr, key, idx } in window.history.state where idx
+// is an incrementing history index.
+let lastHistoryIdx: number | undefined;
+let popDirection: 'back' | 'forward' | null = null;
+
+function getHistoryIdx(): number | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const state = window.history.state as { idx?: number } | null;
+  return state?.idx;
+}
+
+function initPopStateTracking() {
+  if (typeof window === 'undefined') return;
+
+  lastHistoryIdx = getHistoryIdx();
+
+  window.addEventListener('popstate', () => {
+    const currentIdx = getHistoryIdx();
+    if (lastHistoryIdx != null && currentIdx != null) {
+      popDirection = currentIdx < lastHistoryIdx ? 'back' : 'forward';
+    }
+    lastHistoryIdx = currentIdx;
+  });
+}
+
+initPopStateTracking();
+
 // This value is repeated in transitions.css. When changing make sure to keep them in sync!
 export const VIEW_TRANSITION_DURATION_MS = 180;
 
 /**
  * Applies the animation direction styles based on the navigation state.
  * Must be used in the root component of the app.
+ *
+ * For programmatic navigations (links, navigate calls), transition styles are
+ * applied synchronously in the click/navigate handler before React Router starts.
+ *
+ * For browser back/forward (popstate) navigations, this hook determines the
+ * correct transition by comparing history indices:
+ * - Back: reverses the transition used to arrive at the current page
+ * - Forward: uses the transition stored in the target page's state
  */
 export function useViewTransitionEffect() {
   const navigation = useNavigation();
+  const location = useLocation();
 
   useEffect(() => {
     if (navigation.state === 'loading') {
-      const state = getViewTransitionState(navigation.location.state);
-      if (state) {
-        applyTransitionStyles(state.transition, state.applyTo);
+      if (popDirection === 'back') {
+        // Browser back: reverse the transition that was used to navigate
+        // to the current page so the animation visually "undoes" the arrival.
+        popDirection = null;
+        const currentState = getViewTransitionState(location.state);
+        if (currentState) {
+          const reversed = reverseViewTransitionState(currentState);
+          applyTransitionStyles(reversed.transition, reversed.applyTo);
+        } else {
+          removeTransitionStyles();
+        }
+      } else if (popDirection === 'forward') {
+        // Browser forward: use the transition stored in the target page,
+        // which is the transition originally used to navigate there.
+        popDirection = null;
+        const state = getViewTransitionState(navigation.location.state);
+        if (state) {
+          applyTransitionStyles(state.transition, state.applyTo);
+        } else {
+          removeTransitionStyles();
+        }
       } else {
-        removeTransitionStyles();
+        // Programmatic navigation: styles are already applied synchronously
+        // by LinkWithViewTransition/useNavigateWithViewTransition. This branch
+        // handles the fallback for non-prefetched routes that go through loading.
+        const state = getViewTransitionState(navigation.location.state);
+        if (state) {
+          applyTransitionStyles(state.transition, state.applyTo);
+        } else {
+          removeTransitionStyles();
+        }
       }
     } else if (navigation.state === 'idle') {
+      // Update tracked history index after programmatic navigations complete.
+      lastHistoryIdx = getHistoryIdx();
+
       // Clear transition CSS variables after navigation completes to prevent
       // stale values from causing incorrect animation directions on subsequent navigations.
       // If we don't do this, then subsequent animations may reuse the old values.
@@ -184,7 +279,7 @@ export function useViewTransitionEffect() {
         },
       );
     }
-  }, [navigation]);
+  }, [navigation, location.state]);
 }
 
 type ViewTransitionCommonProps = {
