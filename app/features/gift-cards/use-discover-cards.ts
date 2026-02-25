@@ -1,19 +1,29 @@
 import { useMemo } from 'react';
+import { z } from 'zod';
 import blockAndBeanCard from '~/assets/gift-cards/blockandbean.agi.cash.webp';
 import compassCoffeeCard from '~/assets/gift-cards/compass.agi.cash.webp';
 import mapleCard from '~/assets/gift-cards/maple.agi.cash.webp';
 import pinkOwlCoffeeCard from '~/assets/gift-cards/pinkowl.agi.cash.webp';
 import pubkeyCard from '~/assets/gift-cards/pubkey.agi.cash.webp';
 import theShackCard from '~/assets/gift-cards/shack.agi.cash.webp';
-import type { Currency } from '~/lib/money';
 import { useAccounts } from '../accounts/account-hooks';
 
-export type GiftCardInfo = {
-  url: string;
-  name: string;
+const GiftCardConfigSchema = z.array(
+  z.object({
+    url: z.string(),
+    name: z.string().min(1),
+    currency: z.enum(['USD', 'BTC']),
+    addCardDisclaimer: z.string().optional(),
+  }),
+);
+
+const JsonGiftCardConfigSchema = z
+  .string()
+  .transform((str) => JSON.parse(str))
+  .pipe(GiftCardConfigSchema);
+
+export type GiftCardInfo = z.infer<typeof GiftCardConfigSchema>[number] & {
   image: string;
-  currency: Currency;
-  addCardDisclaimer?: string;
 };
 
 const GIFT_CARD_IMAGES: Record<string, string> = {
@@ -27,22 +37,20 @@ const GIFT_CARD_IMAGES: Record<string, string> = {
 
 function loadGiftCardsFromEnv(): GiftCardInfo[] {
   const raw = import.meta.env.VITE_GIFT_CARDS;
-  if (!raw) return [];
-  try {
-    const cards = JSON.parse(raw) as Array<{
-      url: string;
-      name: string;
-      currency: Currency;
-      addCardDisclaimer?: string;
-    }>;
-    return cards.map((card) => ({
-      ...card,
-      image: GIFT_CARD_IMAGES[card.url] ?? '',
-    }));
-  } catch {
-    console.error('Failed to parse VITE_GIFT_CARDS');
+  if (!raw) {
     return [];
   }
+
+  const result = JsonGiftCardConfigSchema.safeParse(raw);
+  if (!result.success) {
+    console.error('Invalid VITE_GIFT_CARDS', { cause: result.error });
+    return [];
+  }
+
+  return result.data.map((card) => ({
+    ...card,
+    image: GIFT_CARD_IMAGES[card.url] ?? '',
+  }));
 }
 
 export const GIFT_CARDS: GiftCardInfo[] = loadGiftCardsFromEnv();
