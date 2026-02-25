@@ -102,7 +102,7 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
         </PageHeaderItem>
       </PageHeader>
 
-      <PageContent className="flex flex-col items-center justify-center">
+      <PageContent className="flex flex-col items-center justify-center gap-4">
         <Link
           to="/gift-cards"
           viewTransition
@@ -119,6 +119,11 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
             />
           </WalletCard>
         </Link>
+        {giftCard.addCardDisclaimer && (
+          <p className="max-w-sm px-4 text-center text-muted-foreground text-sm">
+            {giftCard.addCardDisclaimer}
+          </p>
+        )}
       </PageContent>
 
       <PageFooter className="z-10 pb-14">
