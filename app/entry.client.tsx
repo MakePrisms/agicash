@@ -90,6 +90,8 @@ Sentry.init({
   },
 });
 
+console.log('Testing new gh account');
+
 startTransition(() => {
   hydrateRoot(
     document,
