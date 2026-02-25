@@ -13,55 +13,52 @@ export type GiftCardInfo = {
   name: string;
   image: string;
   currency: Currency;
+  addCardDisclaimer?: string;
 };
 
-/**
- * Hardcoded list of gift cards available for discovery.
- */
-export const GIFT_CARDS: GiftCardInfo[] = [
-  {
-    url: 'https://blockandbean.agi.cash',
-    name: 'Block and Bean',
-    image: blockAndBeanCard,
-    currency: 'BTC',
-  },
-  {
-    url: 'https://pubkey.agi.cash',
-    name: 'Pubkey',
-    image: pubkeyCard,
-    currency: 'BTC',
-  },
-  {
-    url: 'https://maple.agi.cash',
-    name: 'Maple',
-    image: mapleCard,
-    currency: 'BTC',
-  },
-  {
-    url: 'https://compass.agi.cash',
-    name: 'Compass Coffee',
-    image: compassCoffeeCard,
-    currency: 'BTC',
-  },
-  {
-    url: 'https://pinkowl.agi.cash',
-    name: 'Pink Owl Coffee',
-    image: pinkOwlCoffeeCard,
-    currency: 'BTC',
-  },
-  {
-    url: 'https://shack.agi.cash',
-    name: 'The Shack',
-    image: theShackCard,
-    currency: 'BTC',
-  },
-];
+const GIFT_CARD_IMAGES: Record<string, string> = {
+  'https://blockandbean.agi.cash': blockAndBeanCard,
+  'https://pubkey.agi.cash': pubkeyCard,
+  'https://maple.agi.cash': mapleCard,
+  'https://compass.agi.cash': compassCoffeeCard,
+  'https://pinkowl.agi.cash': pinkOwlCoffeeCard,
+  'https://shack.agi.cash': theShackCard,
+};
+
+function loadGiftCardsFromEnv(): GiftCardInfo[] {
+  const raw = import.meta.env.VITE_GIFT_CARDS;
+  if (!raw) return [];
+  try {
+    const cards = JSON.parse(raw) as Array<{
+      url: string;
+      name: string;
+      currency: Currency;
+      addCardDisclaimer?: string;
+    }>;
+    return cards.map((card) => ({
+      ...card,
+      image: GIFT_CARD_IMAGES[card.url] ?? '',
+    }));
+  } catch {
+    console.error('Failed to parse VITE_GIFT_CARDS');
+    return [];
+  }
+}
+
+export const GIFT_CARDS: GiftCardInfo[] = loadGiftCardsFromEnv();
 
 /**
  * Returns the gift card image for a given URL, if one exists.
  */
 export function getGiftCardImageByUrl(url: string): string | undefined {
   return GIFT_CARDS.find((card) => card.url === url)?.image;
+}
+
+/**
+ * Returns the gift card info for a given mint URL, if one exists.
+ */
+export function getGiftCardByUrl(url: string): GiftCardInfo | undefined {
+  return GIFT_CARDS.find((card) => card.url === url);
 }
 
 /**
