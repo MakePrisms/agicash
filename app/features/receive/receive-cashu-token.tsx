@@ -18,8 +18,8 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
+import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useToast } from '~/hooks/use-toast';
-import { useFeatureFlag } from '~/lib/feature-flags';
 import type { Currency } from '~/lib/money';
 import {
   LinkWithViewTransition,
@@ -27,7 +27,7 @@ import {
 } from '~/lib/transitions';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
-import { getGiftCardImageByUrl } from '../gift-cards/use-discover-cards';
+import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
@@ -116,7 +116,7 @@ export default function ReceiveToken({
     addAndSetReceiveAccount,
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
 
-  const isGiftCardSource = sourceAccount.purpose === 'gift-card';
+  const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
 
@@ -196,12 +196,19 @@ export default function ReceiveToken({
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken && receiveAccount ? (
             <div className="w-full max-w-sm px-4">
-              {isGiftCardSource ? (
-                <GiftCardItem
-                  account={sourceAccount}
-                  image={getGiftCardImageByUrl(sourceAccount.mintUrl)}
-                  hideOverlayContent
-                />
+              {giftCard ? (
+                <div className="flex flex-col items-center gap-3">
+                  <GiftCardItem
+                    account={sourceAccount}
+                    image={giftCard?.image}
+                    hideOverlayContent
+                  />
+                  {giftCard?.addCardDisclaimer && (
+                    <p className="text-center text-muted-foreground text-sm">
+                      {giftCard.addCardDisclaimer}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
@@ -287,7 +294,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
       token,
     });
 
-  const isGiftCardSource = sourceAccount.purpose === 'gift-card';
+  const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
 
   const encodedToken = getEncodedToken(claimableToken ?? token);
 
@@ -353,12 +360,19 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken ? (
             <div className="w-full max-w-sm px-4">
-              {isGiftCardSource ? (
-                <GiftCardItem
-                  account={sourceAccount}
-                  image={getGiftCardImageByUrl(sourceAccount.mintUrl)}
-                  hideOverlayContent
-                />
+              {giftCard ? (
+                <div className="flex flex-col items-center gap-3">
+                  <GiftCardItem
+                    account={sourceAccount}
+                    image={giftCard?.image}
+                    hideOverlayContent
+                  />
+                  {giftCard?.addCardDisclaimer && (
+                    <p className="text-center text-muted-foreground text-sm">
+                      {giftCard.addCardDisclaimer}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}

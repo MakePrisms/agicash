@@ -29,9 +29,7 @@ interface ImportMetaEnv {
   readonly VITE_ENVIRONMENT: string | undefined;
   readonly VITE_LOCAL_DEV: string | undefined;
   readonly VITE_CASHU_MINT_BLOCKLIST: string | undefined;
-  // Feature flags
-  readonly VITE_FF_GUEST_SIGNUP: string | undefined;
-  readonly VITE_FF_GIFT_CARDS: string | undefined;
+  readonly VITE_GIFT_CARDS: string | undefined;
 }
 
 // biome-ignore lint/correctness/noUnusedVariables: this is needed to augment the ImportMeta type
