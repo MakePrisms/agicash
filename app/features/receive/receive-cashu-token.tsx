@@ -18,8 +18,8 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
+import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useToast } from '~/hooks/use-toast';
-import { useFeatureFlag } from '~/lib/feature-flags';
 import type { Currency } from '~/lib/money';
 import {
   LinkWithViewTransition,

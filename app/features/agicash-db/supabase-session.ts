@@ -11,9 +11,10 @@ export const supabaseSessionTokenQuery = (): FetchQueryOptions<
   queryKey: ['supabase-session-token'],
   queryFn: async () => {
     const apiUrl = getApiUrl();
-    if (!apiUrl) {
-      // Open Secret config is not initialized yet. We need this because we are passing getSupabaseSessionToken
-      // when creating Supabase client and Supabase code immidiately calls it. Since we are creating the client
+    const isLoggedIn = !!window.localStorage.getItem('access_token');
+    if (!apiUrl || !isLoggedIn) {
+      // !apiUrl: Open Secret config is not initialized yet. We need this because we are passing getSupabaseSessionToken
+      // when creating Supabase client and Supabase code immediately calls it. Since we are creating the client
       // when the module is resolved, the OpenSecret config which is set once the React app is started is not
       // set yet.
       return null;

@@ -8,8 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from '~/components/ui/card';
+import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { pendingTermsStorage } from '~/features/user/pending-terms-storage';
-import { useFeatureFlag } from '~/lib/feature-flags';
 import { AcceptTerms } from './accept-terms';
 
 type Option = 'email' | 'google' | 'guest';

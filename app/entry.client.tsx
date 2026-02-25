@@ -1,4 +1,4 @@
-import { configure } from '@opensecret/react';
+import { configure, setApiUrl } from '@opensecret/react';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -9,7 +9,9 @@ import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
+import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { Money } from './lib/money';
+import { getQueryClient } from './query-client';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
@@ -31,6 +33,16 @@ configure({
   apiUrl: openSecretApiUrl,
   clientId: openSecretClientId,
 });
+
+// Immediately set the apiUrl while we are waiting for the configure() call to complete.
+// This is needed so that we can get a session token for logged-in users on the first attempt.
+setApiUrl(openSecretApiUrl);
+
+// Prefetch feature flags as early as possible.
+// Before login the DB client uses the anon key (no access token),
+// so we get global flags. After login, refreshSession invalidates
+// this query and re-fetches with the user's JWT for user-targeted flags.
+getQueryClient().prefetchQuery(featureFlagsQueryOptions);
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {
