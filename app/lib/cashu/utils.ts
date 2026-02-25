@@ -9,7 +9,6 @@ import {
   type MintQuoteResponse,
   OutputData,
   type Proof,
-  type SwapMethod,
 } from '@cashu/cashu-ts';
 import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
@@ -84,14 +83,7 @@ export const getCashuProtocolUnit = (currency: Currency) => {
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
 ): 'gift-card' | 'transactional' => {
-  // TODO: This should check this.mintInfo?.agicash?.closed_loop once Agicash mints change to that
-  // TODO: Should the mint explicitly signal the purpose?
-  const bolt11Method = mintInfo?.nuts?.[5]?.methods?.find(
-    (m) => m.method === 'bolt11',
-  ) as SwapMethod & { options?: { internal_melts_only?: boolean } };
-  return bolt11Method?.options?.internal_melts_only
-    ? 'gift-card'
-    : 'transactional';
+  return mintInfo?.agicash?.closed_loop ? 'gift-card' : 'transactional';
 };
 
 export const getWalletCurrency = (wallet: CashuWallet) => {
