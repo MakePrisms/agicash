@@ -1,4 +1,5 @@
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
+import * as Sentry from '@sentry/react-router';
+import { queryOptions, useQuery } from '@tanstack/react-query';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 
 export type FeatureFlag = 'GUEST_SIGNUP' | 'GIFT_CARDS';
@@ -15,15 +16,19 @@ export const featureFlagsQueryOptions = queryOptions({
   queryFn: async () => {
     const { data, error } = await agicashDbClient.rpc('evaluate_feature_flags');
     if (error) {
-      console.error('Failed to fetch feature flags', { cause: error });
-      return FEATURE_FLAG_DEFAULTS;
+      throw new Error('Failed to fetch feature flags', { cause: error });
     }
     return data as FeatureFlags;
   },
+  retry: 2,
   staleTime: 5 * 60 * 1000,
+  throwOnError: (error) => {
+    Sentry.captureException(error);
+    return false;
+  },
 });
 
 export function useFeatureFlag(flag: FeatureFlag): boolean {
-  const { data } = useSuspenseQuery(featureFlagsQueryOptions);
-  return data[flag];
+  const { data } = useQuery(featureFlagsQueryOptions);
+  return data?.[flag] ?? FEATURE_FLAG_DEFAULTS[flag];
 }
