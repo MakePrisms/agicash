@@ -30,9 +30,9 @@ function saveCookies(
 ) {
   if (typeof window === 'object') {
     const oneYear = 60 * 60 * 24 * 365;
-    document.cookie = `${THEME_COOKIE_NAME}=${theme}; samesite=lax; max-age=${oneYear}`;
-    document.cookie = `${COLOR_MODE_COOKIE_NAME}=${colorMode}; samesite=lax; max-age=${oneYear}`;
-    document.cookie = `${SYSTEM_COLOR_MODE_COOKIE_NAME}=${systemColorMode}; samesite=lax; max-age=${oneYear}`;
+    document.cookie = `${THEME_COOKIE_NAME}=${theme}; path=/; samesite=lax; max-age=${oneYear}`;
+    document.cookie = `${COLOR_MODE_COOKIE_NAME}=${colorMode}; path=/; samesite=lax; max-age=${oneYear}`;
+    document.cookie = `${SYSTEM_COLOR_MODE_COOKIE_NAME}=${systemColorMode}; path=/; samesite=lax; max-age=${oneYear}`;
   }
 }
 
