@@ -23,6 +23,12 @@ import {
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
+import { getFeatureFlag } from './feature-flags';
+
+function sparkDebugLog(message: string, data?: unknown) {
+  if (!getFeatureFlag('DEBUG_LOGGING_SPARK')) return;
+  console.debug(`[Spark] ${message}`, data);
+}
 
 function getLeafDenominations(leaves: TreeNode[]) {
   return Object.entries(
@@ -166,7 +172,7 @@ export function useTrackAndUpdateSparkAccountBalances() {
             account.wallet.getIdentityPublicKey(),
             account.wallet.isOptimizationInProgress(),
           ]);
-        console.debug('Fetched Spark balance', {
+        sparkDebugLog('Fetched balance', {
           accountId: account.id,
           balance: balance.toString(),
           network: account.network,
@@ -189,7 +195,7 @@ export function useTrackAndUpdateSparkAccountBalances() {
                   'SparkWallet.balanceRecovery',
                   async () => {
                     console.warn(
-                      'Spark balance returned 0, reinitializing wallet',
+                      '[Spark] Balance returned 0, reinitializing wallet',
                       {
                         accountId: account.id,
                         network: account.network,
@@ -285,7 +291,7 @@ export async function getInitializedSparkWallet(
           wallet.getIdentityPublicKey(),
           wallet.isOptimizationInProgress(),
         ]);
-        console.debug('Fetched Spark balance to initialize wallet', {
+        sparkDebugLog('Fetched balance to initialize wallet', {
           balance: balanceSats.toString(),
           network,
           identityPublicKey,
