@@ -1,6 +1,7 @@
 import { createContext, useEffect, useState } from 'react';
 import { useRouteLoaderData } from 'react-router';
 import { getBgColorForTheme } from './colors';
+import { getClientThemeCookies } from './theme-cookies.client';
 import type { getThemeCookies } from './theme-cookies.server';
 import {
   COLOR_MODE_COOKIE_NAME,
@@ -29,9 +30,9 @@ function saveCookies(
 ) {
   if (typeof window === 'object') {
     const oneYear = 60 * 60 * 24 * 365;
-    document.cookie = `${THEME_COOKIE_NAME}=${theme}; samesite=lax; max-age=${oneYear}`;
-    document.cookie = `${COLOR_MODE_COOKIE_NAME}=${colorMode}; samesite=lax; max-age=${oneYear}`;
-    document.cookie = `${SYSTEM_COLOR_MODE_COOKIE_NAME}=${systemColorMode}; samesite=lax; max-age=${oneYear}`;
+    document.cookie = `${THEME_COOKIE_NAME}=${theme}; path=/; samesite=lax; max-age=${oneYear}`;
+    document.cookie = `${COLOR_MODE_COOKIE_NAME}=${colorMode}; path=/; samesite=lax; max-age=${oneYear}`;
+    document.cookie = `${SYSTEM_COLOR_MODE_COOKIE_NAME}=${systemColorMode}; path=/; samesite=lax; max-age=${oneYear}`;
   }
 }
 
@@ -65,7 +66,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const rootData = useRouteLoaderData<{
     cookieSettings: ReturnType<typeof getThemeCookies>;
   }>('root');
-  const cookieSettings = rootData?.cookieSettings;
+
+  // Use loader data when available, otherwise fall back to reading cookies
+  // directly from document.cookie. This handles statically prerendered routes
+  // where useRouteLoaderData('root') returns undefined during hydration.
+  const cookieSettings =
+    rootData?.cookieSettings ??
+    (typeof document !== 'undefined' ? getClientThemeCookies() : null);
 
   const [theme, setThemeState] = useState<Theme>(
     cookieSettings?.theme || defaultTheme,
@@ -86,7 +93,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return defaultSystemColorMode;
     }
 
-    // Client-side, check system preference
+    // Client-side: use actual system preference so we match the inline
+    // theme script (which also uses matchMedia) and avoid hydration mismatches
     return window.matchMedia('(prefers-color-scheme: dark)').matches
       ? 'dark'
       : 'light';
@@ -95,7 +103,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const effectiveColorMode =
     colorMode === 'system' ? systemColorMode : colorMode;
 
-  // Save cookies on first load if they don't exist
+  // Save cookies on first load if they don't exist yet (first-time user)
   useEffect(() => {
     if (!cookieSettings) {
       saveCookies(theme, colorMode, systemColorMode);
