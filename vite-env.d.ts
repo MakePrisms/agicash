@@ -20,7 +20,7 @@ interface ViteTypeOptions {
 
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string | undefined;
-  readonly VITE_SUPABASE_ANON_KEY: string | undefined;
+  readonly VITE_SUPABASE_PUBLISHABLE_KEY: string | undefined;
   readonly VITE_OPEN_SECRET_API_URL: string | undefined;
   readonly VITE_OPEN_SECRET_CLIENT_ID: string | undefined;
   readonly VITE_SENTRY_HOST: string | undefined;
