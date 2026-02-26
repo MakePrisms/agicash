@@ -5,15 +5,14 @@ import mapleCard from '~/assets/gift-cards/maple.agi.cash.webp';
 import pinkOwlCoffeeCard from '~/assets/gift-cards/pinkowl.agi.cash.webp';
 import pubkeyCard from '~/assets/gift-cards/pubkey.agi.cash.webp';
 import theShackCard from '~/assets/gift-cards/shack.agi.cash.webp';
-import type { Currency } from '~/lib/money';
 import { useAccounts } from '../accounts/account-hooks';
+import {
+  type GiftCardConfig,
+  JsonGiftCardConfigSchema,
+} from './gift-card-config';
 
-export type GiftCardInfo = {
-  url: string;
-  name: string;
+export type GiftCardInfo = GiftCardConfig & {
   image: string;
-  currency: Currency;
-  addCardDisclaimer?: string;
 };
 
 const GIFT_CARD_IMAGES: Record<string, string> = {
@@ -28,21 +27,12 @@ const GIFT_CARD_IMAGES: Record<string, string> = {
 function loadGiftCardsFromEnv(): GiftCardInfo[] {
   const raw = import.meta.env.VITE_GIFT_CARDS;
   if (!raw) return [];
-  try {
-    const cards = JSON.parse(raw) as Array<{
-      url: string;
-      name: string;
-      currency: Currency;
-      addCardDisclaimer?: string;
-    }>;
-    return cards.map((card) => ({
-      ...card,
-      image: GIFT_CARD_IMAGES[card.url] ?? '',
-    }));
-  } catch {
-    console.error('Failed to parse VITE_GIFT_CARDS');
-    return [];
-  }
+
+  // Validated at build time by vite.config.ts — safe to throw here.
+  return JsonGiftCardConfigSchema.parse(raw).map((card) => ({
+    ...card,
+    image: GIFT_CARD_IMAGES[card.url] ?? '',
+  }));
 }
 
 export const GIFT_CARDS: GiftCardInfo[] = loadGiftCardsFromEnv();

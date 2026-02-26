@@ -6,6 +6,7 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { QRScanner } from '~/components/qr-scanner';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
@@ -14,13 +15,14 @@ import { useReceiveStore } from './receive-provider';
 export default function ReceiveScanner() {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const receiveAccountId = useReceiveStore((s) => s.accountId);
 
   return (
     <>
       <PageHeader className="z-10">
         <PageBackButton
-          to="/receive"
+          to={buildLinkWithSearchParams('/receive')}
           transition="slideDown"
           applyTo="oldView"
         />
@@ -46,11 +48,13 @@ export default function ReceiveScanner() {
             // See https://github.com/remix-run/remix/discussions/10721
             window.history.replaceState(null, '', hash);
             navigate(
-              `/receive/cashu/token?selectedAccountId=${receiveAccountId}${hash}`,
               {
-                transition: 'slideLeft',
-                applyTo: 'newView',
+                ...buildLinkWithSearchParams('/receive/cashu/token', {
+                  selectedAccountId: receiveAccountId,
+                }),
+                hash,
               },
+              { transition: 'slideLeft', applyTo: 'newView' },
             );
           }}
         />

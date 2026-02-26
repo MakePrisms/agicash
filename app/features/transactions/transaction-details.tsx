@@ -1,5 +1,6 @@
 import { BanIcon, CheckIcon, ClockIcon, UndoIcon, XIcon } from 'lucide-react';
 import { useEffect } from 'react';
+import { useSearchParams } from 'react-router';
 import { PageContent, PageFooter } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import {
@@ -11,6 +12,7 @@ import {
 } from '~/components/ui/card';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import type { Transaction } from '~/features/transactions/transaction';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { isThisWeek, isToday, isYesterday } from '~/lib/date';
 import { LinkWithViewTransition } from '~/lib/transitions';
@@ -92,11 +94,12 @@ function getTransactionLabel(transaction: Transaction) {
 
 export function TransactionDetails({
   transaction,
-  defaultShowOkayButton = false,
 }: {
   transaction: Transaction;
-  defaultShowOkayButton?: boolean;
 }) {
+  const [searchParams] = useSearchParams();
+  const showOkButton = searchParams.get('showOkButton') === 'true';
+  const { redirectTo } = useRedirectTo('/transactions');
   const account = useAccount(transaction.accountId);
   const { toast } = useToast();
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
@@ -130,7 +133,7 @@ export function TransactionDetails({
     isTransactionReversable(transaction) || isReclaimInProgress;
   const shouldShowOkButton =
     (didReclaimMutationSucceed && !isWaitingForStateUpdate) ||
-    (!shouldShowReclaimButton && defaultShowOkayButton);
+    (!shouldShowReclaimButton && showOkButton);
 
   return (
     <>
@@ -204,7 +207,7 @@ export function TransactionDetails({
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to="/"
+              to={redirectTo}
               transition="slideDown"
               applyTo="oldView"
             >

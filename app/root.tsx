@@ -27,14 +27,15 @@ import { Toaster } from '~/components/ui/toaster';
 import { ThemeProvider, useTheme } from '~/features/theme';
 import { getBgColorForTheme } from '~/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
+import { getThemeScript } from '~/features/theme/theme-script';
 import { SupabaseRealtimeError } from '~/lib/supabase/supabase-realtime-hooks';
 import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
 import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
 import { LoadingScreen } from './features/loading/LoadingScreen';
 import { NotFoundError } from './features/shared/error';
+import { getQueryClient } from './features/shared/query-client';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
-import { getQueryClient } from './query-client';
 import { sanitizeUrl } from './tracing-utils';
 
 export const links: LinksFunction = () => [
@@ -153,6 +154,10 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: inline script to prevent theme flash - must run before paint
+          dangerouslySetInnerHTML={{ __html: getThemeScript() }}
+        />
         <meta
           name="theme-color"
           content={getBgColorForTheme(theme, effectiveColorMode)}

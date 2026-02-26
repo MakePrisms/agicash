@@ -35,6 +35,8 @@ import {
 import { accountOfflineToast } from '~/features/accounts/utils';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
 import type { Money } from '~/lib/money';
@@ -84,6 +86,8 @@ const ConvertedMoneySwitcher = ({
 export function SendInput() {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
+  const { redirectTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
   const { data: accounts } = useAccounts();
@@ -155,7 +159,7 @@ export function SendInput() {
       return;
     }
 
-    navigate('/send/confirm', {
+    navigate(buildLinkWithSearchParams('/send/confirm'), {
       applyTo: 'newView',
       transition: 'slideLeft',
     });
@@ -203,7 +207,11 @@ export function SendInput() {
   return (
     <>
       <PageHeader>
-        <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
+        <ClosePageButton
+          to={redirectTo}
+          transition="slideDown"
+          applyTo="oldView"
+        />
         <PageHeaderTitle>Send</PageHeaderTitle>
       </PageHeader>
 
@@ -260,7 +268,7 @@ export function SendInput() {
               </button>
 
               <LinkWithViewTransition
-                to="/send/scan"
+                to={buildLinkWithSearchParams('/send/scan')}
                 transition="slideUp"
                 applyTo="newView"
               >

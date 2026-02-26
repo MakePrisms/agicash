@@ -10,6 +10,7 @@ import { Card, CardContent } from '~/components/ui/card';
 import type { CashuAccount, SparkAccount } from '~/features/accounts/account';
 import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Money } from '~/lib/money';
@@ -51,10 +52,16 @@ const BaseConfirmation = ({
   loading?: boolean;
   error?: string;
 }) => {
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
+
   return (
     <Page>
       <PageHeader className="z-10">
-        <PageBackButton to="/send" transition="slideDown" applyTo="oldView" />
+        <PageBackButton
+          to={buildLinkWithSearchParams('/send')}
+          transition="slideDown"
+          applyTo="oldView"
+        />
         <PageHeaderTitle>Confirm Payment</PageHeaderTitle>
       </PageHeader>
       <PageContent className="flex flex-col items-center gap-4">
@@ -107,14 +114,20 @@ const usePayBolt11 = ({
 }: UsePayBolt11Props) => {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const { mutate: initiateCashuSend, status: initiateCashuSendQuoteStatus } =
     useInitiateCashuSendQuote({
       onSuccess: (data) => {
-        navigate(`/transactions/${data.transactionId}?redirectTo=/`, {
-          transition: 'slideLeft',
-          applyTo: 'newView',
-        });
+        navigate(
+          buildLinkWithSearchParams(`/transactions/${data.transactionId}`, {
+            showOkButton: 'true',
+          }),
+          {
+            transition: 'slideLeft',
+            applyTo: 'newView',
+          },
+        );
       },
       onError: (error) => {
         if (error instanceof DomainError) {
@@ -133,10 +146,16 @@ const usePayBolt11 = ({
   const { mutate: initiateSparkSend, status: initiateSparkSendQuoteStatus } =
     useInitiateSparkSendQuote({
       onSuccess: (sendQuote) => {
-        navigate(`/transactions/${sendQuote.transactionId}?redirectTo=/`, {
-          transition: 'slideLeft',
-          applyTo: 'newView',
-        });
+        navigate(
+          buildLinkWithSearchParams(
+            `/transactions/${sendQuote.transactionId}`,
+            { showOkButton: 'true' },
+          ),
+          {
+            transition: 'slideLeft',
+            applyTo: 'newView',
+          },
+        );
       },
       onError: (error) => {
         console.error('Failed to initiate spark send', { cause: error });
@@ -266,11 +285,12 @@ export const CreateCashuTokenConfirmation = ({
 }: CreateCashuTokenConfirmationProps) => {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const { mutate: createCashuSendSwap, status: createSwapStatus } =
     useCreateCashuSendSwap({
       onSuccess: (swap) => {
-        navigate(`/send/share/${swap.id}`, {
+        navigate(buildLinkWithSearchParams(`/send/share/${swap.id}`), {
           transition: 'slideUp',
           applyTo: 'newView',
         });

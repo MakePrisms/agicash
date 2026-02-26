@@ -19,6 +19,8 @@ import { accountOfflineToast } from '~/features/accounts/utils';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
@@ -63,6 +65,8 @@ const ConvertedMoneySwitcher = ({
 export default function ReceiveInput() {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
+  const { redirectTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
 
@@ -104,17 +108,12 @@ export default function ReceiveInput() {
       setReceiveAmount(convertedValue);
     }
 
-    if (receiveAccount.type === 'cashu') {
-      navigate('/receive/cashu', {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
-    } else {
-      navigate('/receive/spark', {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
-    }
+    const nextPath =
+      receiveAccount.type === 'cashu' ? '/receive/cashu' : '/receive/spark';
+    navigate(buildLinkWithSearchParams(nextPath), {
+      transition: 'slideLeft',
+      applyTo: 'newView',
+    });
   };
 
   const handlePaste = async () => {
@@ -140,18 +139,24 @@ export default function ReceiveInput() {
     // See https://github.com/remix-run/remix/discussions/10721
     window.history.replaceState(null, '', hash);
     navigate(
-      `/receive/cashu/token?selectedAccountId=${receiveAccountId}${hash}`,
       {
-        transition: 'slideLeft',
-        applyTo: 'newView',
+        ...buildLinkWithSearchParams('/receive/cashu/token', {
+          selectedAccountId: receiveAccountId,
+        }),
+        hash,
       },
+      { transition: 'slideLeft', applyTo: 'newView' },
     );
   };
 
   return (
     <>
       <PageHeader>
-        <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
+        <ClosePageButton
+          to={{ pathname: redirectTo, search: '' }}
+          transition="slideDown"
+          applyTo="oldView"
+        />
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
 
@@ -197,7 +202,7 @@ export default function ReceiveInput() {
               </button>
 
               <LinkWithViewTransition
-                to="/receive/scan"
+                to={buildLinkWithSearchParams('/receive/scan')}
                 transition="slideUp"
                 applyTo="newView"
               >

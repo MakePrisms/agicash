@@ -1407,6 +1407,7 @@ export type Database = {
         Returns: Database["wallet"]["Tables"]["cashu_proofs"]["Row"][]
       }
       get_account_with_proofs: { Args: { p_account_id: string }; Returns: Json }
+      is_feature_enabled: { Args: { p_flag_key: string }; Returns: boolean }
       list_transactions: {
         Args: {
           p_account_id?: string

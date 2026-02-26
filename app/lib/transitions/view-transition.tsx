@@ -1,5 +1,11 @@
-import { type ComponentProps, useEffect } from 'react';
-import { Link, NavLink, useNavigate, useNavigation } from 'react-router';
+import { type ComponentProps, useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  Link,
+  NavLink,
+  useLocation,
+  useNavigate,
+  useNavigation,
+} from 'react-router';
 import type { NavigateOptions, To } from 'react-router';
 
 const transitions = [
@@ -9,13 +15,13 @@ const transitions = [
   'slideDown',
   'fade',
 ] as const;
-type Transition = (typeof transitions)[number];
+export type Transition = (typeof transitions)[number];
 
 const isTransition = (value: unknown): value is Transition =>
   transitions.includes(value as Transition);
 
 const applyToTypes = ['newView', 'oldView', 'bothViews'] as const;
-type ApplyTo = (typeof applyToTypes)[number];
+export type ApplyTo = (typeof applyToTypes)[number];
 
 const isApplyTo = (value: unknown): value is ApplyTo =>
   applyToTypes.includes(value as ApplyTo);
@@ -153,25 +159,105 @@ function getViewTransitionState(state: unknown): ViewTransitionState | null {
   return { transition: state.transition, applyTo };
 }
 
+const REVERSE_TRANSITION: Record<Transition, Transition> = {
+  slideLeft: 'slideRight',
+  slideRight: 'slideLeft',
+  slideUp: 'slideDown',
+  slideDown: 'slideUp',
+  fade: 'fade',
+};
+
+const REVERSE_APPLY_TO: Record<ApplyTo, ApplyTo> = {
+  newView: 'oldView',
+  oldView: 'newView',
+  bothViews: 'bothViews',
+};
+
+function reverseViewTransitionState(
+  state: ViewTransitionState,
+): ViewTransitionState {
+  return {
+    transition: REVERSE_TRANSITION[state.transition],
+    applyTo: REVERSE_APPLY_TO[state.applyTo],
+  };
+}
+
+function getHistoryIdx(): number | undefined {
+  const state = window.history.state as { idx?: number } | null;
+  return state?.idx;
+}
+
+function applyViewTransitionState(state: ViewTransitionState | null) {
+  if (state) {
+    applyTransitionStyles(state.transition, state.applyTo);
+  } else {
+    removeTransitionStyles();
+  }
+}
+
 // This value is repeated in transitions.css. When changing make sure to keep them in sync!
 export const VIEW_TRANSITION_DURATION_MS = 180;
 
 /**
  * Applies the animation direction styles based on the navigation state.
  * Must be used in the root component of the app.
+ *
+ * For programmatic navigations (links, navigate calls), transition styles are
+ * applied synchronously in the click/navigate handler before React Router starts.
+ *
+ * For browser back/forward (popstate) navigations, this hook determines the
+ * correct transition by comparing history indices:
+ * - Back: reverses the transition used to arrive at the current page
+ * - Forward: uses the transition stored in the target page's state
  */
 export function useViewTransitionEffect() {
   const navigation = useNavigation();
+  const location = useLocation();
+  const lastHistoryIdxRef = useRef<number | undefined>(undefined);
+  const isPendingPopBackRef = useRef(false);
+
+  // Track history position to detect browser back vs forward navigation.
+  // React Router stores { usr, key, idx } in window.history.state where idx
+  // is an incrementing history index.
+  useLayoutEffect(() => {
+    lastHistoryIdxRef.current = getHistoryIdx();
+
+    const handlePopState = () => {
+      const currentIdx = getHistoryIdx();
+      const lastIdx = lastHistoryIdxRef.current;
+      isPendingPopBackRef.current =
+        lastIdx != null && currentIdx != null && currentIdx < lastIdx;
+      lastHistoryIdxRef.current = currentIdx;
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (navigation.state === 'loading') {
-      const state = getViewTransitionState(navigation.location.state);
-      if (state) {
-        applyTransitionStyles(state.transition, state.applyTo);
+      if (isPendingPopBackRef.current) {
+        // Browser back: reverse the transition that was used to navigate
+        // to the current page so the animation visually "undoes" the arrival.
+        isPendingPopBackRef.current = false;
+        const currentState = getViewTransitionState(location.state);
+        applyViewTransitionState(
+          currentState ? reverseViewTransitionState(currentState) : null,
+        );
       } else {
-        removeTransitionStyles();
+        // Browser forward or programmatic navigation: use the transition
+        // stored in the target page's state. For programmatic navigations,
+        // styles are already applied synchronously by LinkWithViewTransition/
+        // useNavigateWithViewTransition; this handles the fallback for
+        // non-prefetched routes that go through loading.
+        applyViewTransitionState(
+          getViewTransitionState(navigation.location.state),
+        );
       }
     } else if (navigation.state === 'idle') {
+      // Update tracked history index after programmatic navigations complete.
+      lastHistoryIdxRef.current = getHistoryIdx();
+
       // Clear transition CSS variables after navigation completes to prevent
       // stale values from causing incorrect animation directions on subsequent navigations.
       // If we don't do this, then subsequent animations may reuse the old values.
@@ -184,7 +270,7 @@ export function useViewTransitionEffect() {
         },
       );
     }
-  }, [navigation]);
+  }, [navigation, location.state]);
 }
 
 type ViewTransitionCommonProps = {

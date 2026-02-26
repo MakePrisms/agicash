@@ -15,6 +15,7 @@
     pkgs.gh
     pkgs.nodePackages.typescript-language-server
     pkgs.nodePackages.vercel
+    (pkgs.callPackage ./tools/convert-to-webp {})
   ];
 
   # https://devenv.sh/languages/
@@ -32,6 +33,15 @@
   '';
   scripts.webstorm.exec = "$DEVENV_ROOT/tools/devenv/webstorm.sh $@";
   scripts.generate-ssl-cert.exec = "$DEVENV_ROOT/tools/devenv/generate-ssl-cert.sh";
+  scripts.convert-gift-card-images.exec = ''
+    shopt -s nullglob
+    pngs=("$DEVENV_ROOT/app/assets/gift-cards/"*.png)
+    if [ ''${#pngs[@]} -eq 0 ]; then
+      echo "No PNG files found in app/assets/gift-cards/"
+      exit 0
+    fi
+    convert-to-webp "''${pngs[@]}"
+  '';
 
   enterShell = ''
     hello

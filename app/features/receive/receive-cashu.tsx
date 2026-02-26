@@ -13,6 +13,7 @@ import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
 import type { CashuAccount } from '~/features/accounts/account';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
 import {
@@ -111,15 +112,18 @@ export default function ReceiveCashu({ amount, account }: Props) {
   const [, copyToClipboard] = useCopyToClipboard();
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const { quote, errorMessage, isLoading } = useCreateQuote({
     account,
     amount,
     onPaid: (quote) => {
-      navigate(`/transactions/${quote.transactionId}?redirectTo=/`, {
-        transition: 'fade',
-        applyTo: 'newView',
-      });
+      navigate(
+        buildLinkWithSearchParams(`/transactions/${quote.transactionId}`, {
+          showOkButton: 'true',
+        }),
+        { transition: 'slideLeft', applyTo: 'newView' },
+      );
     },
   });
 
@@ -141,8 +145,8 @@ export default function ReceiveCashu({ amount, account }: Props) {
     <>
       <PageHeader>
         <ClosePageButton
-          to="/receive"
-          transition="slideDown"
+          to={buildLinkWithSearchParams('/receive')}
+          transition="slideRight"
           applyTo="oldView"
         />
         <PageHeaderTitle>Receive Ecash</PageHeaderTitle>
@@ -172,8 +176,8 @@ export default function ReceiveCashu({ amount, account }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to="/"
-              transition="slideDown"
+              to={buildLinkWithSearchParams('/receive')}
+              transition="slideRight"
               applyTo="oldView"
             >
               OK
