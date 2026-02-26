@@ -1,7 +1,7 @@
 import { generateThirdPartyToken, getApiUrl } from '@opensecret/react';
 import type { FetchQueryOptions } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
-import { getQueryClient } from '~/query-client';
+import { getQueryClient } from '~/features/shared/query-client';
 
 const queryClient = getQueryClient();
 

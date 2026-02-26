@@ -24,13 +24,13 @@ import {
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
+import { getQueryClient } from '~/features/shared/query-client';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
 import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
-import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 

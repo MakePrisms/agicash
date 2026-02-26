@@ -2,9 +2,9 @@ import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token';
+import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
 import { extractCashuToken } from '~/lib/cashu';
-import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/_public.receive-cashu-token';
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {

@@ -15,6 +15,7 @@ import {
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
+import { getQueryClient } from '~/features/shared/query-client';
 import {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
@@ -36,7 +37,6 @@ import {
   WriteUserRepository,
 } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
-import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/_protected';
 
 const shouldUserVerifyEmail = (user: AuthUser) => {

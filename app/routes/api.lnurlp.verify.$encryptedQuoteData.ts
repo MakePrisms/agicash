@@ -5,7 +5,7 @@
 
 import { agicashDbServer } from '~/features/agicash-db/database.server';
 import { LightningAddressService } from '~/features/receive/lightning-address-service';
-import { getQueryClient } from '~/query-client';
+import { getQueryClient } from '~/features/shared/query-client';
 import type { Route } from './+types/api.lnurlp.verify.$encryptedQuoteData';
 
 export async function loader({ request, params }: Route.LoaderArgs) {

@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/react-router';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
-import { getQueryClient } from '~/query-client';
+import { getQueryClient } from '~/features/shared/query-client';
 
 export type FeatureFlag = 'GUEST_SIGNUP' | 'GIFT_CARDS' | 'DEBUG_LOGGING_SPARK';
 
