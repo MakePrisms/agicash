@@ -19,6 +19,7 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
 import {
@@ -106,6 +107,7 @@ export default function ReceiveToken({
 }: Props) {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { claimableToken, cannotClaimReason } =
     useCashuTokenWithClaimableProofs({ token });
   const {
@@ -161,10 +163,15 @@ export default function ReceiveToken({
       return result.lightningReceiveQuote.transactionId;
     },
     onSuccess: (transactionId) => {
-      navigate(`/transactions/${transactionId}?redirectTo=/`, {
-        transition: 'slideLeft',
-        applyTo: 'newView',
-      });
+      navigate(
+        buildLinkWithSearchParams(`/transactions/${transactionId}`, {
+          showOkButton: 'true',
+        }),
+        {
+          transition: 'slideLeft',
+          applyTo: 'newView',
+        },
+      );
     },
     onError: (error) => {
       console.error('Error claiming token', { cause: error });
@@ -180,7 +187,7 @@ export default function ReceiveToken({
     <>
       <PageHeader className="z-10">
         <PageBackButton
-          to="/receive"
+          to={buildLinkWithSearchParams('/receive')}
           transition="slideRight"
           applyTo="oldView"
         />

@@ -10,6 +10,7 @@ import {
 import { QRCode } from '~/components/qr-code';
 import { Button } from '~/components/ui/button';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
 import {
@@ -68,19 +69,22 @@ const useCreateQuote = ({
 };
 
 export default function ReceiveSpark({ amount, account }: Props) {
-  const navigate = useNavigateWithViewTransition();
   const [showOk, setShowOk] = useState(false);
   const [, copyToClipboard] = useCopyToClipboard();
   const { toast } = useToast();
+  const navigate = useNavigateWithViewTransition();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const { quote, errorMessage, isLoading } = useCreateQuote({
     account,
     amount,
     onPaid: (quote) => {
-      navigate(`/transactions/${quote.transactionId}?redirectTo=/`, {
-        transition: 'fade',
-        applyTo: 'newView',
-      });
+      navigate(
+        buildLinkWithSearchParams(`/transactions/${quote.transactionId}`, {
+          showOkButton: 'true',
+        }),
+        { transition: 'slideLeft', applyTo: 'newView' },
+      );
     },
   });
 
@@ -98,8 +102,8 @@ export default function ReceiveSpark({ amount, account }: Props) {
     <>
       <PageHeader>
         <ClosePageButton
-          to="/receive"
-          transition="slideDown"
+          to={buildLinkWithSearchParams('/receive')}
+          transition="slideRight"
           applyTo="oldView"
         />
         <PageHeaderTitle>Receive</PageHeaderTitle>
@@ -118,7 +122,7 @@ export default function ReceiveSpark({ amount, account }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to="/"
+              to={buildLinkWithSearchParams('/receive')}
               transition="slideDown"
               applyTo="oldView"
             >
