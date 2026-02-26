@@ -12,6 +12,8 @@ type TokenFlags = {
   isUnknown: boolean;
   /** Whether the account can receive the cashu token. */
   canReceive: boolean;
+  /** Why the account cannot receive, if applicable. */
+  cannotReceiveReason?: string;
 };
 
 export type CashuAccountWithTokenFlags = ExtendedCashuAccount & TokenFlags;
