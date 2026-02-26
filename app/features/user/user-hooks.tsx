@@ -6,10 +6,10 @@ import {
 } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
+import { getQueryClient } from '~/features/shared/query-client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import type { Currency } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
-import { getQueryClient } from '~/query-client';
 import type { Account } from '../accounts/account';
 import { guestAccountStorage } from './guest-account-storage';
 import type { User } from './user';

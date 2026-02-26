@@ -3,10 +3,10 @@ import { decodeURLSafe } from '@stablelib/base64';
 import { redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { getErrorMessage } from '~/features/shared/error';
+import { getQueryClient } from '~/features/shared/query-client';
 import { authStateQueryKey } from '~/features/user/auth';
 import { oauthLoginSessionStorage } from '~/features/user/oauth-login-session-storage';
 import { toast } from '~/hooks/use-toast';
-import { getQueryClient } from '~/query-client';
 import type { Route } from './+types/_auth.oauth.$provider';
 
 class UnsupportedOAuthProviderError extends Error {

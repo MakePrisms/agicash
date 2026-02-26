@@ -1,8 +1,8 @@
 import { verifyEmail as osVerifyEmail } from '@opensecret/react';
 import { useState } from 'react';
 import { createContext, redirect } from 'react-router';
+import { getQueryClient } from '~/features/shared/query-client';
 import { useToast } from '~/hooks/use-toast';
-import { getQueryClient } from '~/query-client';
 import type { Route } from '../../routes/+types/_protected.verify-email.($code)';
 import { authStateQueryKey } from '../user/auth';
 import { type FullUser, shouldVerifyEmail } from '../user/user';

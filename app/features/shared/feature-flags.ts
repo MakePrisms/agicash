@@ -1,14 +1,16 @@
 import * as Sentry from '@sentry/react-router';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
+import { getQueryClient } from '~/features/shared/query-client';
 
-export type FeatureFlag = 'GUEST_SIGNUP' | 'GIFT_CARDS';
+export type FeatureFlag = 'GUEST_SIGNUP' | 'GIFT_CARDS' | 'DEBUG_LOGGING_SPARK';
 
 type FeatureFlags = Record<FeatureFlag, boolean>;
 
 const FEATURE_FLAG_DEFAULTS: FeatureFlags = {
   GUEST_SIGNUP: false,
   GIFT_CARDS: false,
+  DEBUG_LOGGING_SPARK: false,
 };
 
 const MAX_RETRIES = 2;
@@ -44,4 +46,15 @@ export const featureFlagsQueryOptions = queryOptions({
 export function useFeatureFlag(flag: FeatureFlag): boolean {
   const { data } = useSuspenseQuery(featureFlagsQueryOptions);
   return data[flag];
+}
+
+/**
+ * Reads a feature flag from the query cache.
+ * Returns the default value if flags haven't been fetched yet.
+ */
+export function getFeatureFlag(flag: FeatureFlag): boolean {
+  const data = getQueryClient().getQueryData<FeatureFlags>(
+    featureFlagsQueryOptions.queryKey,
+  );
+  return data?.[flag] ?? FEATURE_FLAG_DEFAULTS[flag];
 }

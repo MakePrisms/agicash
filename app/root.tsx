@@ -34,8 +34,8 @@ import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
 import { LoadingScreen } from './features/loading/LoadingScreen';
 import { NotFoundError } from './features/shared/error';
+import { getQueryClient } from './features/shared/query-client';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
-import { getQueryClient } from './query-client';
 import { sanitizeUrl } from './tracing-utils';
 
 export const links: LinksFunction = () => [
