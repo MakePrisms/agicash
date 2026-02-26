@@ -15,6 +15,7 @@ import type { DistributedOmit } from 'type-fest';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
 import type {
+  ExtendedGetInfoResponse,
   ExtendedLockedMintQuoteResponse,
   ExtendedMintInfo,
   ExtendedMintQuoteResponse,
@@ -79,11 +80,26 @@ export const getCashuProtocolUnit = (currency: Currency) => {
 
 /**
  * Determines the purpose of a mint based on its info.
+ *
+ * Accepts either a raw GetInfoResponse or the MintInfo class wrapper.
+ * The MintInfo class hides the raw response in a private `_mintInfo` field,
+ * so we unwrap it to access custom extension fields like `agicash`.
+ *
+ * TODO: We can remove this when we upgrade to cashu-ts v3 and then we can have better control of the MintInfo class.
  */
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
 ): 'gift-card' | 'transactional' => {
-  return mintInfo?.agicash?.closed_loop ? 'gift-card' : 'transactional';
+  // The MintInfo class may be double-wrapped (mintInfoQueryOptions returns a
+  // MintInfo class, and the CashuWallet constructor wraps it again). Unwrap
+  // all layers to reach the raw GetInfoResponse.
+  let raw: unknown = mintInfo;
+  while (raw != null && typeof raw === 'object' && '_mintInfo' in raw) {
+    raw = (raw as { _mintInfo: unknown })._mintInfo;
+  }
+  return (raw as ExtendedGetInfoResponse | undefined)?.agicash?.closed_loop
+    ? 'gift-card'
+    : 'transactional';
 };
 
 export const getWalletCurrency = (wallet: CashuWallet) => {
