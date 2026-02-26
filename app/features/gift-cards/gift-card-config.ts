@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const GiftCardConfigSchema = z.array(
   z.object({
-    url: z.string(),
+    url: z.url(),
     name: z.string().min(1),
     currency: z.enum(['USD', 'BTC']),
     addCardDisclaimer: z.string().optional(),
