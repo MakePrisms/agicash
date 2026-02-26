@@ -230,7 +230,8 @@ export default function ReceiveToken({
               message={
                 !claimableToken
                   ? cannotClaimReason
-                  : 'Token from this mint cannot be claimed'
+                  : (sourceAccount.cannotReceiveReason ??
+                    'Token from this mint cannot be claimed')
               }
             />
           )}
@@ -365,7 +366,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
         />
 
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
-          {claimableToken ? (
+          {claimableToken && sourceAccount.canReceive ? (
             <div className="w-full max-w-sm px-4">
               {giftCard ? (
                 <div className="flex flex-col items-center gap-3">
@@ -390,12 +391,19 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
               )}
             </div>
           ) : (
-            <TokenErrorDisplay message={cannotClaimReason} />
+            <TokenErrorDisplay
+              message={
+                !claimableToken
+                  ? cannotClaimReason
+                  : (sourceAccount.cannotReceiveReason ??
+                    'Token from this mint cannot be claimed')
+              }
+            />
           )}
         </div>
       </PageContent>
 
-      {claimableToken && (
+      {claimableToken && sourceAccount.canReceive && (
         <PageFooter className="pb-14">
           <div className="flex flex-col gap-4">
             {guestSignupEnabled && (
