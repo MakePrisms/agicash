@@ -1,4 +1,4 @@
-import { type ComponentProps, useEffect } from 'react';
+import { type ComponentProps, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Link,
   NavLink,
@@ -182,34 +182,10 @@ function reverseViewTransitionState(
   };
 }
 
-// Track history position to detect browser back vs forward navigation.
-// React Router stores { usr, key, idx } in window.history.state where idx
-// is an incrementing history index.
-let lastHistoryIdx: number | undefined;
-let isPendingPopBack = false;
-
 function getHistoryIdx(): number | undefined {
-  if (typeof window === 'undefined') return undefined;
   const state = window.history.state as { idx?: number } | null;
   return state?.idx;
 }
-
-function initPopStateTracking() {
-  if (typeof window === 'undefined') return;
-
-  lastHistoryIdx = getHistoryIdx();
-
-  window.addEventListener('popstate', () => {
-    const currentIdx = getHistoryIdx();
-    isPendingPopBack =
-      lastHistoryIdx != null &&
-      currentIdx != null &&
-      currentIdx < lastHistoryIdx;
-    lastHistoryIdx = currentIdx;
-  });
-}
-
-initPopStateTracking();
 
 function applyViewTransitionState(state: ViewTransitionState | null) {
   if (state) {
@@ -237,13 +213,33 @@ export const VIEW_TRANSITION_DURATION_MS = 180;
 export function useViewTransitionEffect() {
   const navigation = useNavigation();
   const location = useLocation();
+  const lastHistoryIdxRef = useRef<number | undefined>(undefined);
+  const isPendingPopBackRef = useRef(false);
+
+  // Track history position to detect browser back vs forward navigation.
+  // React Router stores { usr, key, idx } in window.history.state where idx
+  // is an incrementing history index.
+  useLayoutEffect(() => {
+    lastHistoryIdxRef.current = getHistoryIdx();
+
+    const handlePopState = () => {
+      const currentIdx = getHistoryIdx();
+      const lastIdx = lastHistoryIdxRef.current;
+      isPendingPopBackRef.current =
+        lastIdx != null && currentIdx != null && currentIdx < lastIdx;
+      lastHistoryIdxRef.current = currentIdx;
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (navigation.state === 'loading') {
-      if (isPendingPopBack) {
+      if (isPendingPopBackRef.current) {
         // Browser back: reverse the transition that was used to navigate
         // to the current page so the animation visually "undoes" the arrival.
-        isPendingPopBack = false;
+        isPendingPopBackRef.current = false;
         const currentState = getViewTransitionState(location.state);
         applyViewTransitionState(
           currentState ? reverseViewTransitionState(currentState) : null,
@@ -260,7 +256,7 @@ export function useViewTransitionEffect() {
       }
     } else if (navigation.state === 'idle') {
       // Update tracked history index after programmatic navigations complete.
-      lastHistoryIdx = getHistoryIdx();
+      lastHistoryIdxRef.current = getHistoryIdx();
 
       // Clear transition CSS variables after navigation completes to prevent
       // stale values from causing incorrect animation directions on subsequent navigations.
