@@ -260,6 +260,35 @@ const useErrorDetails = (error: unknown) => {
     };
   }
 
+  if (error instanceof DOMException && error.name === 'SecurityError') {
+    // Verify this is actually a storage access issue, not some other SecurityError
+    // When storage is blocked on Safari, getting the item from localStorage will throw.
+    let storageBlocked = false;
+    try {
+      window.localStorage.getItem('__test__');
+    } catch {
+      storageBlocked = true;
+    }
+
+    if (storageBlocked) {
+      return {
+        title: 'Storage Access Required',
+        message:
+          'Agicash needs browser storage to work. Please enable cookies and storage in your browser settings and reload the page.',
+        footer: (
+          <Button
+            className="mt-4"
+            variant="default"
+            type="button"
+            onClick={reload}
+          >
+            Reload Page
+          </Button>
+        ),
+      };
+    }
+  }
+
   if (error instanceof Error) {
     return {
       message: 'An unexpected error occurred. Please try again later.',
