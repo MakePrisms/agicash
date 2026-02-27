@@ -1,10 +1,9 @@
 import { verifyEmail as osVerifyEmail } from '@opensecret/react';
 import { useState } from 'react';
 import { createContext, redirect } from 'react-router';
-import { getQueryClient } from '~/features/shared/query-client';
 import { useToast } from '~/hooks/use-toast';
 import type { Route } from '../../routes/+types/_protected.verify-email.($code)';
-import { authStateQueryKey } from '../user/auth';
+import { invalidateAuthQueries } from '../user/auth';
 import { type FullUser, shouldVerifyEmail } from '../user/user';
 import { useRequestNewEmailVerificationCode } from '../user/user-hooks';
 import { getUserFromCacheOrThrow } from '../user/user-hooks';
@@ -38,11 +37,7 @@ export const verifyEmail = async (
 ): Promise<{ verified: true } | { verified: false; error: Error }> => {
   try {
     await osVerifyEmail(code);
-    const queryClient = getQueryClient();
-    await queryClient.invalidateQueries({
-      queryKey: [authStateQueryKey],
-      refetchType: 'all',
-    });
+    await invalidateAuthQueries();
     return { verified: true };
   } catch (e) {
     const error = new Error('Failed to verify email', { cause: e });
