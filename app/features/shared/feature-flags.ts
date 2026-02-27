@@ -13,7 +13,7 @@ const FEATURE_FLAG_DEFAULTS: FeatureFlags = {
   DEBUG_LOGGING_SPARK: false,
 };
 
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 3;
 
 async function fetchFeatureFlags(): Promise<FeatureFlags> {
   const { data, error } = await agicashDbClient.rpc('evaluate_feature_flags');
@@ -40,6 +40,7 @@ export const featureFlagsQueryOptions = queryOptions({
     Sentry.captureException(lastError);
     return FEATURE_FLAG_DEFAULTS;
   },
+  retry: false,
   staleTime: 5 * 60 * 1000,
 });
 
