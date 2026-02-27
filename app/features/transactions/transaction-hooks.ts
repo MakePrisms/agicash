@@ -13,6 +13,7 @@ import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
+import { NotFoundError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { Transaction } from './transaction';
 import {
@@ -107,7 +108,21 @@ export function useTransaction(id: string) {
 
   return useSuspenseQuery({
     queryKey: [TransactionsCache.Key, id],
-    queryFn: () => transactionRepository.get(id),
+    queryFn: async () => {
+      const transaction = await transactionRepository.get(id);
+
+      if (!transaction) {
+        throw new NotFoundError(`Transaction not found for id: ${id}`);
+      }
+
+      return transaction;
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof NotFoundError) {
+        return false;
+      }
+      return failureCount <= 3;
+    },
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
