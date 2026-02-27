@@ -21,6 +21,7 @@ import {
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
+import { getQueryClient } from '~/features/shared/query-client';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { generateRandomPassword } from '~/lib/password-generator';
 import { computeSHA256 } from '~/lib/sha256';
@@ -61,6 +62,24 @@ export const authQueryOptions = () =>
     },
     staleTime: Number.POSITIVE_INFINITY,
   });
+
+/**
+ * Invalidates all queries that depend on the current auth session.
+ * Call after any auth state change (login, logout, email verification, etc.)
+ */
+export const invalidateAuthQueries = async () => {
+  const queryClient = getQueryClient();
+  await Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: [authStateQueryKey],
+      refetchType: 'all',
+    }),
+    queryClient.invalidateQueries({
+      queryKey: ['feature-flags'],
+      refetchType: 'all',
+    }),
+  ]);
+};
 
 export const useAuthState = (): AuthState => {
   const { data } = useSuspenseQuery(authQueryOptions());
@@ -163,23 +182,14 @@ export const useAuthActions = (): AuthActions => {
 
   const refreshSession = useCallback(
     async (redirectTo?: string) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: [authStateQueryKey],
-          refetchType: 'all',
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ['feature-flags'],
-          refetchType: 'all',
-        }),
-      ]);
+      await invalidateAuthQueries();
       if (redirectTo) {
         await navigate(redirectTo);
       } else {
         await revalidate();
       }
     },
-    [queryClient, navigate, revalidate],
+    [navigate, revalidate],
   );
 
   const signUp = useCallback(
