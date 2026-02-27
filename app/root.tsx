@@ -262,7 +262,7 @@ const useErrorDetails = (error: unknown) => {
 
   if (error instanceof DOMException && error.name === 'SecurityError') {
     // Verify this is actually a storage access issue, not some other SecurityError
-    // When storage is blocked on Safari, getting the item from localStorage will throw.
+    // When storage is blocked in browser, getting the item from localStorage will throw.
     let storageBlocked = false;
     try {
       window.localStorage.getItem('__test__');
