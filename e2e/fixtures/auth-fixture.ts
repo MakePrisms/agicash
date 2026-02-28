@@ -1,4 +1,4 @@
-import type { UserResponse } from '@opensecret/react';
+import type { UserResponse } from '@agicash/opensecret';
 import { test as base } from '@playwright/test';
 import { createAccessToken, createRefreshToken } from '../mocks/open-secret';
 import type { OpenSecretFixture } from './open-secret/fixture';

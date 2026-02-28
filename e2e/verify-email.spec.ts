@@ -1,4 +1,4 @@
-import type { UserResponse } from '@opensecret/react';
+import type { UserResponse } from '@agicash/opensecret';
 import { expect, test } from './fixtures';
 import { openSecretBaseUrl } from './fixtures/open-secret/fixture';
 import { expectHomePage } from './helpers';

@@ -3,7 +3,7 @@ import {
   getPrivateKeyBytes,
   getPublicKey,
   signMessage,
-} from '@opensecret/react';
+} from '@agicash/opensecret';
 import { HDKey } from '@scure/bip32';
 import { useMemo } from 'react';
 

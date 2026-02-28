@@ -1,4 +1,4 @@
-import type { UserResponse } from '@opensecret/react';
+import type { UserResponse } from '@agicash/opensecret';
 import sign from 'jwt-encode';
 
 export const userId = '960f8a38-62c3-4756-9937-6cc3a64c4907';

@@ -1,4 +1,4 @@
-import { getPrivateKeyBytes, getPublicKey } from '@opensecret/react';
+import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
 import { decode, encode } from '@stablelib/base64';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';

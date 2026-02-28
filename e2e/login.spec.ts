@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { LoginResponse, UserResponse } from '@opensecret/react';
+import type { LoginResponse, UserResponse } from '@agicash/opensecret';
 import { expect, test } from './fixtures';
 import { expectHomePage } from './helpers';
 import {

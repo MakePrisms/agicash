@@ -1,4 +1,4 @@
-import { generateThirdPartyToken } from '@opensecret/react';
+import { generateThirdPartyToken } from '@agicash/opensecret';
 import type { FetchQueryOptions } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
 import { getQueryClient } from '~/features/shared/query-client';
