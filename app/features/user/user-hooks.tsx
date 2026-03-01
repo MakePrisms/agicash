@@ -1,4 +1,4 @@
-import { requestNewVerificationCode } from '@opensecret/react';
+import { requestNewVerificationCode } from '@agicash/opensecret';
 import {
   type QueryClient,
   useMutation,

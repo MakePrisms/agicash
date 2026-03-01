@@ -1,4 +1,4 @@
-import { verifyEmail as osVerifyEmail } from '@opensecret/react';
+import { verifyEmail as osVerifyEmail } from '@agicash/opensecret';
 import { useState } from 'react';
 import { createContext, redirect } from 'react-router';
 import { useToast } from '~/hooks/use-toast';

@@ -1,4 +1,4 @@
-import { configure, setApiUrl } from '@opensecret/react';
+import { configure } from '@agicash/opensecret';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -33,10 +33,6 @@ configure({
   apiUrl: openSecretApiUrl,
   clientId: openSecretClientId,
 });
-
-// Immediately set the apiUrl while we are waiting for the configure() call to complete.
-// This is needed so that we can get a session token for logged-in users on the first attempt.
-setApiUrl(openSecretApiUrl);
 
 // Prefetch feature flags as early as possible.
 // Before login the DB client uses the anon key (no access token),

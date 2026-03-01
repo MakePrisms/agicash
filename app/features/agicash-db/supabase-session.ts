@@ -1,4 +1,4 @@
-import { generateThirdPartyToken, getApiUrl } from '@opensecret/react';
+import { generateThirdPartyToken } from '@agicash/opensecret';
 import type { FetchQueryOptions } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
 import { getQueryClient } from '~/features/shared/query-client';
@@ -20,12 +20,7 @@ export const supabaseSessionTokenQuery = (): FetchQueryOptions<
 > => ({
   queryKey: ['supabase-session-token'],
   queryFn: async () => {
-    const apiUrl = getApiUrl();
-    if (!apiUrl || !isLoggedIn()) {
-      // !apiUrl: Open Secret config is not initialized yet. We need this because we are passing getSupabaseSessionToken
-      // when creating Supabase client and Supabase code immediately calls it. Since we are creating the client
-      // when the module is resolved, the OpenSecret config which is set once the React app is started is not
-      // set yet.
+    if (!isLoggedIn()) {
       return null;
     }
     const response = await generateThirdPartyToken();

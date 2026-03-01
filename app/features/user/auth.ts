@@ -11,7 +11,7 @@ import {
   signUp as osSignUp,
   signUpGuest as osSignUpGuest,
   verifyEmail as osVerifyEmail,
-} from '@opensecret/react';
+} from '@agicash/opensecret';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import {
   queryOptions,

@@ -1,4 +1,4 @@
-import { handleGoogleCallback } from '@opensecret/react';
+import { handleGoogleCallback } from '@agicash/opensecret';
 import { decodeURLSafe } from '@stablelib/base64';
 import { redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
