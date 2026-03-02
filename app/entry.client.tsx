@@ -55,7 +55,7 @@ Sentry.init({
   ignoreErrors: [
     // View Transitions API throws when document is hidden (e.g., user switched apps).
     // The transition is simply skipped; navigation still works. This is a React Router
-    // internal call we can't wrap. See AGICASH-19.
+    // internal call we can't wrap. See https://make-prisms.sentry.io/issues/6786605134/?project=4509707316690944.
     /^View transition was skipped because document visibility state is hidden\.$/,
   ],
   enabled:
