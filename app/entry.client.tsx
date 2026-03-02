@@ -52,6 +52,12 @@ Sentry.init({
   // Adds request headers and IP for users, for more info visit:
   // https://docs.sentry.io/platforms/javascript/guides/react-router/configuration/options/#sendDefaultPii
   sendDefaultPii: false,
+  ignoreErrors: [
+    // View Transitions API throws when document is hidden (e.g., user switched apps).
+    // The transition is simply skipped; navigation still works. This is a React Router
+    // internal call we can't wrap. See https://make-prisms.sentry.io/issues/6786605134/?project=4509707316690944.
+    /^View transition was skipped because document visibility state is hidden\.$/,
+  ],
   enabled:
     process.env.NODE_ENV === 'production' &&
     !isServedLocally(window.location.hostname),
@@ -65,6 +71,10 @@ Sentry.init({
     Sentry.reactRouterTracingIntegration(),
     Sentry.browserProfilingIntegration(),
     Sentry.extraErrorDataIntegration({ depth: 5 }),
+    Sentry.thirdPartyErrorFilterIntegration({
+      filterKeys: ['agicash'],
+      behaviour: 'drop-error-if-exclusively-contains-third-party-frames',
+    }),
   ],
 
   // Performance monitoring
