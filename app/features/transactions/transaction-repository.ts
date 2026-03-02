@@ -191,6 +191,7 @@ export class TransactionRepository {
       reversedTransactionId: data.reversed_transaction_id,
       reversedAt: data.reversed_at,
       acknowledgmentStatus: data.acknowledgment_status,
+      version: data.version,
       direction: data.direction,
       type: data.type,
       state: data.state,
