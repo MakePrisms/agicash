@@ -14,6 +14,9 @@ const sentryConfig: SentryReactRouterBuildOptions = {
   project: 'agicash',
   // An auth token is required for uploading source maps.
   authToken: process.env.SENTRY_AUTH_TOKEN,
+  unstable_sentryVitePluginOptions: {
+    applicationKey: 'agicash',
+  },
 };
 
 function validateEnv(mode: string) {
