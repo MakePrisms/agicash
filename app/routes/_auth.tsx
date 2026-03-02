@@ -18,7 +18,9 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     time: new Date().toISOString(),
     location: location.pathname,
     isLoggedIn,
-    user,
+    user: user
+      ? { id: user.id, isGuest: !user.email, loginMethod: user.login_method }
+      : undefined,
   });
 
   if (isLoggedIn) {
