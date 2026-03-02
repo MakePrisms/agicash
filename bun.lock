@@ -90,6 +90,7 @@
     },
   },
   "patchedDependencies": {
+    "@sentry/react-router@10.38.0": "patches/@sentry%2Freact-router@10.38.0.patch",
     "@tanstack/query-core@5.90.20": "patches/@tanstack%2Fquery-core@5.90.20.patch",
     "react-router@7.13.0": "patches/react-router@7.13.0.patch",
     "@sentry/core@10.38.0": "patches/@sentry%2Fcore@10.38.0.patch",
