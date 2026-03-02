@@ -34,10 +34,8 @@ export const Wallet = ({ children }: PropsWithChildren) => {
       isGuest: user.isGuest,
       defaultCurrency: user.defaultCurrency,
     });
-
-    return () => {
-      Sentry.setUser(null);
-    };
+    // No cleanup — unmounting Wallet doesn't mean the user logged out.
+    // Logout handles clearing Sentry user on actual logout.
   }, [user]);
 
   useHandleSessionExpiry({

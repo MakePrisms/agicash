@@ -12,6 +12,7 @@ import {
   signUpGuest as osSignUpGuest,
   verifyEmail as osVerifyEmail,
 } from '@agicash/opensecret';
+import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import {
   queryOptions,
@@ -53,10 +54,19 @@ export const authQueryOptions = () =>
       }
 
       try {
+        // We want to set Sentry user id here to make sure that Sentry events are associated with the user as soon as possible.
+        const { sub } = jwtDecode(access_token);
+        Sentry.setUser({ id: sub });
+
         const response = await fetchUser();
+
+        // Set Sentry user again to include the isGuest flag
+        Sentry.setUser({ id: response.user.id, isGuest: !response.user.email });
+
         return { isLoggedIn: true, user: response.user } as const;
       } catch (error) {
         console.error('Failed to fetch user', { cause: error });
+        Sentry.setUser(null);
         return { isLoggedIn: false } as const;
       }
     },
@@ -220,6 +230,7 @@ export const useAuthActions = (): AuthActions => {
     async (options: SignOutOptions = {}) => {
       await osSignOut();
       await refreshSession(options.redirectTo);
+      Sentry.setUser(null);
       queryClient.clear();
     },
     [refreshSession, queryClient],

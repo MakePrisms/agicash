@@ -30,12 +30,9 @@ import { type User, shouldAcceptTerms } from '~/features/user/user';
 import {
   defaultAccounts,
   getUserFromCache,
-  userQueryOptions,
+  userQueryKey,
 } from '~/features/user/user-hooks';
-import {
-  ReadUserRepository,
-  WriteUserRepository,
-} from '~/features/user/user-repository';
+import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
 import type { Route } from './+types/_protected';
 
@@ -128,12 +125,7 @@ const ensureUserData = async (
       termsAcceptedAt,
     });
     user = upsertedUser;
-    const readUserRepository = new ReadUserRepository(agicashDbClient);
-    const { queryKey: userQueryKey } = userQueryOptions({
-      userId: authUser.id,
-      userRepository: readUserRepository,
-    });
-    queryClient.setQueryData(userQueryKey, user);
+    queryClient.setQueryData([userQueryKey], user);
     queryClient.setQueryData([AccountsCache.Key], accounts);
   }
 
