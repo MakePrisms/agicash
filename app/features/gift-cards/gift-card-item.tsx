@@ -31,8 +31,11 @@ export function GiftCardItem({
 }: GiftCardItemProps) {
   const isTransitioning = useViewTransitionState('/gift-cards/:accountId');
   const balance = getAccountBalance(account);
+  const mintInfoName = account.isOnline
+    ? account.wallet.mintInfo.name
+    : undefined;
   const name =
-    account.wallet.mintInfo?.name ??
+    mintInfoName ??
     account.mintUrl.replace('https://', '').replace('http://', '');
 
   return (
