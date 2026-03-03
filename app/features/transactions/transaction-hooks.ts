@@ -35,46 +35,13 @@ class TransactionsCache {
    * Adds a new transaction or updates an existing transaction in the individual transaction cache.
    * Only updates when the incoming version is higher than the cached version, to avoid
    * overwriting newer data with older in case of out-of-order events.
-   *
    * @param transaction - The transaction to add or update.
-   * @param options.trackAcknowledgment - Whether to adjust the unacknowledged count based on
-   * acknowledgment status transitions. Defaults to true.
-   * @param options.previousAcknowledgmentStatus - The previous acknowledgment status from the DB.
-   * Falls back to the cached value when not provided. Will be ignored if trackAcknowledgment is false.
    */
-  upsert(
-    transaction: Transaction,
-    options?: {
-      previousAcknowledgmentStatus?: Transaction['acknowledgmentStatus'];
-      trackAcknowledgment?: boolean;
-    },
-  ) {
-    const { previousAcknowledgmentStatus, trackAcknowledgment = true } =
-      options ?? {};
-
+  upsert(transaction: Transaction) {
     this.queryClient.setQueryData<Transaction>(
       [TransactionsCache.Key, transaction.id],
-      (curr) => {
-        if (curr && transaction.version <= curr.version) {
-          return undefined;
-        }
-
-        if (trackAcknowledgment) {
-          const prevAck =
-            previousAcknowledgmentStatus !== undefined
-              ? previousAcknowledgmentStatus
-              : curr?.acknowledgmentStatus;
-          const newAck = transaction.acknowledgmentStatus;
-
-          if (prevAck == null && newAck === 'pending') {
-            this.incrementUnacknowledgedCount();
-          } else if (prevAck === 'pending' && newAck === 'acknowledged') {
-            this.decrementUnacknowledgedCount();
-          }
-        }
-
-        return transaction;
-      },
+      (curr) =>
+        !curr || transaction.version > curr.version ? transaction : undefined,
     );
   }
 
@@ -95,29 +62,13 @@ class TransactionsCache {
     ]);
   }
 
-  private incrementUnacknowledgedCount() {
-    const currentCount = this.getUnacknowledgedCount();
-    this.setUnacknowledgedCount(currentCount + 1);
-  }
-
-  private decrementUnacknowledgedCount() {
-    const currentCount = this.getUnacknowledgedCount();
-    this.setUnacknowledgedCount(currentCount - 1);
-  }
-
-  private getUnacknowledgedCount(): number {
-    return (
-      this.queryClient.getQueryData<number>([
-        TransactionsCache.UnacknowledgedCountKey,
-      ]) ?? 0
-    );
-  }
-
-  private setUnacknowledgedCount(count: number) {
-    this.queryClient.setQueryData<number>(
-      [TransactionsCache.UnacknowledgedCountKey],
-      Math.max(0, count), // Ensure count never goes negative
-    );
+  /**
+   * Invalidates the unacknowledged count query.
+   */
+  invalidateUnacknowledgedCount() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [TransactionsCache.UnacknowledgedCountKey],
+    });
   }
 }
 
@@ -171,7 +122,7 @@ export function useTransactions(accountId?: string) {
       });
 
       for (const transaction of result.transactions) {
-        transactionsCache.upsert(transaction, { trackAcknowledgment: false });
+        transactionsCache.upsert(transaction);
       }
 
       return {
@@ -240,6 +191,7 @@ export function useAcknowledgeTransaction() {
   const transactionRepository = useTransactionRepository();
   const userId = useUser((user) => user.id);
   const queryClient = useQueryClient();
+  const transactionsCache = useTransactionsCache();
 
   return useMutation({
     mutationFn: async ({ transaction }: { transaction: Transaction }) => {
@@ -250,6 +202,7 @@ export function useAcknowledgeTransaction() {
     },
     onSuccess: (_, { transaction }) => {
       acknowledgeTransactionInHistoryCache(queryClient, transaction);
+      transactionsCache.invalidateUnacknowledgedCount();
     },
     retry: 1,
   });
@@ -324,6 +277,10 @@ export function useTransactionChangeHandlers() {
       handleEvent: async (payload: AgicashDbTransaction) => {
         const transaction = await transactionRepository.toTransaction(payload);
         transactionsCache.upsert(transaction);
+
+        if (transaction.acknowledgmentStatus === 'pending') {
+          transactionsCache.invalidateUnacknowledgedCount();
+        }
       },
     },
     {
@@ -334,9 +291,14 @@ export function useTransactionChangeHandlers() {
         },
       ) => {
         const transaction = await transactionRepository.toTransaction(payload);
-        transactionsCache.upsert(transaction, {
-          previousAcknowledgmentStatus: payload.previous_acknowledgment_status,
-        });
+        transactionsCache.upsert(transaction);
+
+        if (
+          payload.previous_acknowledgment_status !==
+          transaction.acknowledgmentStatus
+        ) {
+          transactionsCache.invalidateUnacknowledgedCount();
+        }
       },
     },
   ];
