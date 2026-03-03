@@ -76,14 +76,7 @@ feature/
 - Suspense boundaries for loading states
 
 ### Money Handling (CRITICAL)
-```ts
-import { Money } from '~/lib/money';
-// ALWAYS use Money class - never raw arithmetic
-const a = new Money({ amount: 1000, currency: 'BTC', unit: 'sat' });
-const b = new Money({ amount: 500, currency: 'BTC', unit: 'sat' });
-a.add(b); // ✓
-1000 + 500; // ✗ floating point errors
-```
+Always use `Money` class (`~/lib/money`) — never raw arithmetic. Floating point errors will cause real financial bugs.
 
 ### Authentication & Encryption
 
@@ -104,44 +97,15 @@ a.add(b); // ✓
 | **Transient UI** | useState | Modal open, animation state |
 | **Cache control** | Custom Cache class | CashuSendQuoteCache (version-based updates) |
 
-**Rules:**
-- Context is for dependency injection only, not state
-- Never use `useEffect` for data fetching - use TanStack Query
-- Zustand stores accept dependencies via factory function (`createSendStore(deps)`)
-- Use `queryOptions()` for reusable query configs
-- Use `useSuspenseQuery` for required data (lets Suspense handle loading)
+**Rules:** Context is for dependency injection only, not state. Zustand stores accept dependencies via factory function (`createSendStore(deps)`). Use `useSuspenseQuery` for required data (lets Suspense handle loading).
 
 ### Error Handling
 
-**Toast notifications** (Radix UI):
-- One toast at a time, 3s duration
-- `variant: 'destructive'` for errors
-- Use `toast({ description: message })` for simple messages
+**Error classes** (`app/features/shared/error.ts`): `DomainError` (user-friendly, never retry), `ConcurrencyError` (always retry), `NotFoundError`.
 
-**Error handling pattern:**
-```ts
-onError: (error) => {
-  if (error instanceof DomainError) {
-    toast({ description: error.message }); // User-friendly message
-  } else {
-    console.error('Failed to X', { cause: error });
-    toast({ description: 'Failed to X. Please try again.', variant: 'destructive' });
-  }
-}
-```
+**Toasts** (Radix UI): One at a time, 3s. `DomainError` → show `error.message`. Unknown errors → `variant: 'destructive'` with generic message + `console.error`. Background tasks → log only, no toasts.
 
-**Retry logic** (TanStack Query):
-- Queries default to 3 retries; mutations default to 0 (no retries). These defaults apply to all errors, not just network errors.
-- `DomainError` → never retry (validation/business rule)
-- `ConcurrencyError` → always retry
-- Network/other errors → always retried (fall through to `failureCount < N` limit)
-
-**Custom error classes** (`app/features/shared/error.ts`):
-- `DomainError` - Business rule violations (user-friendly messages)
-- `ConcurrencyError` - Errors caused by concurrent data updates
-- `NotFoundError` - Missing resources
-
-**Background tasks**: Log errors to console but don't show toasts (avoid alert spam).
+**Retry** (TanStack Query): Queries default 3 retries, mutations 0. `DomainError` → never retry. `ConcurrencyError` → always retry.
 
 ## Code Standards
 
@@ -174,33 +138,9 @@ bun run test:e2e     # E2E tests (ask first)
 
 **Database**: `bun run db:generate-types` after schema changes — but this only works if the migration has been applied first. If you created a new migration file, ask the user to apply it (via Supabase dashboard or `bun supabase migration up`) before running type generation. Do NOT run `db:generate-types` against unapplied migrations — it will silently produce stale types and cause confusing errors downstream.
 
-## Key Files
-
-| Purpose | Location |
-|---------|----------|
-| Error classes | `app/features/shared/error.ts` - DomainError, ConcurrencyError, NotFoundError |
-| Cashu integration | `app/features/shared/cashu.ts` - wallet init, mint validation, cryptography hooks |
-| Spark integration | `app/features/shared/spark.ts` - wallet init, balance tracking |
-| Encryption | `app/features/shared/encryption.ts` - useEncryption(), client-side encrypt/decrypt |
-| Key derivation | `app/features/shared/cryptography.ts` - useCryptography(), BIP32 derivation |
-| Account hooks | `app/features/accounts/account-hooks.ts` - useAccounts(), useAccount(), cache |
-| Account types | `app/features/accounts/account.ts` - Account, CashuAccount, SparkAccount types |
-| Cashu protocol | `app/lib/cashu/` - proof schemas, token parsing, secret handling |
-| Common utils | `app/lib/utils.ts` |
-
 ## Naming Conventions
 
-**Hooks**: `use{Action}{Entity}` or `use{Entity}`
-- `useInitiateCashuSendQuote`, `useAccounts`, `useUser`
-
-**Query options**: `{entity}QueryOptions`
-- `accountsQueryOptions`, `userQueryOptions`
-
-**Cache classes**: `{Entity}Cache` with static `Key` property
-- `AccountsCache`, `CashuSendQuoteCache`, `TransactionsCache`
-
-**Store files**: `{feature}-store.ts`
-- `send-store.ts`, `receive-store.ts`
+Hooks: `use{Action}{Entity}`. Query options: `{entity}QueryOptions`. Cache classes: `{Entity}Cache` with static `Key`. Stores: `{feature}-store.ts`.
 
 ## Database & Supabase
 
@@ -226,34 +166,4 @@ Detailed guidelines are available as skills (Claude loads them automatically whe
 
 ## Skills
 
-Skills are loaded on demand and provide domain context that prevents mistakes. Available skills and their descriptions are listed in the system prompt. The guidance below helps you decide **when** to load them and **how** they relate to each other.
-
-**Principle:** Load a skill before making changes in its domain, not after. It's cheaper to read context upfront than to fix a wrong assumption about a state machine or protocol flow.
-
-### Frameworks and Libraries
-
-- **`/react-router-framework-mode`** — React Router v7 framework conventions: route modules, loaders/actions, forms, pending/optimistic UI, error boundaries, and `react-router.config.ts`. Load when creating or modifying routes in `app/routes/`, working with data loading patterns, or handling navigation/form submissions.
-
-### Payment & wallet logic
-
-Most features in this app involve payment flows. These skills cover different layers of the same system — load what's relevant to your task's depth:
-
-- **`/agicash-wallet-architecture`** — System-level architecture: components (Server, Client, Open Secret, DB), their responsibilities, and boundaries. Load when working on cross-component concerns, deciding where new functionality should live (server vs client), or modifying encryption/auth/realtime flows. See also `docs/architecture.md` for diagrams.
-- **`/agicash-wallet-documentation`** — The app's payment implementation. Load when touching `app/features/send/`, `app/features/receive/`, `app/features/wallet/`, token receive routes, Lightning Address routes, or account selection logic. Its `SKILL.md` has a reference index — find the right doc for your specific flow rather than reading everything.
-- **`/cashu-protocol`** — The underlying Cashu ecash protocol (NUT specs). Load when you need to understand *why* the app does something (blind signatures, keyset rotation, spending conditions), not just *what* it does. Complements `/agicash-wallet-documentation` — the wallet docs describe our implementation, this describes the protocol it implements.
-- **`/lnurl-test`** — Validation tool, not reference docs. Load *after* modifying Lightning Address routes (`app/routes/[.]well-known.*`, `app/routes/api.lnurlp.*`) or `lightning-address-service.ts` to verify the endpoints still work against a running dev server.
-
-### Database
-
-- **`/supabase-database`** — Load when writing migrations, RLS policies, SQL functions, or modifying the schema. Covers naming conventions, policy patterns, and the `lowercase SQL` style rule.
-- **`/supabase-edge-functions`** — Load when creating or modifying functions in `supabase/functions/`. Covers Deno runtime patterns and deployment conventions.
-
-### UI
-
-- **`/shadcn-ui`** — Load when adding new UI components or modifying existing shadcn/ui components in `app/components/ui/`. Covers installation, customization, and usage patterns.
-- **`/design-motion-principles`** — Load when implementing or reviewing animations, transitions, or interaction states. Useful for code review of motion work, not just implementation.
-
-### Meta
-
-- **`/update-context`** — Load when this CLAUDE.md needs updating after significant codebase changes.
-- **`/skill-creator`** — Load when creating or updating a skill.
+Load a skill before making changes in its domain, not after. Skill descriptions in the system prompt explain when each applies. See also `docs/architecture.md` for system diagrams.

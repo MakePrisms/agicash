@@ -1,6 +1,6 @@
 ---
 name: agicash-wallet-documentation
-description: Documentation for Agicash wallet transaction flows and entities. Use when modifying send/receive features, working with Quote/Swap/Transaction entities, or understanding payment state machines.
+description: Documentation for Agicash wallet transaction flows and entities. Use when touching app/features/send/, app/features/receive/, app/features/wallet/, token receive routes, Lightning Address routes, account selection logic, or working with Quote/Swap/Transaction entities and payment state machines.
 ---
 
 # Agicash Wallet Documentation
