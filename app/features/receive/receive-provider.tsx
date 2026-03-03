@@ -6,8 +6,11 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '../accounts/account';
+import { useGetAccount } from '../accounts/account-hooks';
+import { useCreateCashuReceiveQuote } from './cashu-receive-quote-hooks';
 import type { ReceiveState, ReceiveStore } from './receive-store';
 import { createReceiveStore } from './receive-store';
+import { useCreateSparkReceiveQuote } from './spark-receive-quote-hooks';
 
 const ReceiveContext = createContext<ReceiveStore | null>(null);
 
@@ -17,10 +20,17 @@ type Props = PropsWithChildren<{
 }>;
 
 export const ReceiveProvider = ({ children, initialAccount }: Props) => {
+  const getAccount = useGetAccount();
+  const { mutateAsync: createCashuReceiveQuote } = useCreateCashuReceiveQuote();
+  const { mutateAsync: createSparkReceiveQuote } = useCreateSparkReceiveQuote();
+
   const [store] = useState(() =>
     createReceiveStore({
       initialAccount,
       initialAmount: null,
+      getAccount,
+      createCashuReceiveQuote,
+      createSparkReceiveQuote,
     }),
   );
 
