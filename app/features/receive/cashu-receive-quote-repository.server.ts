@@ -13,6 +13,7 @@ import type { RepositoryCreateQuoteParams } from './cashu-receive-quote-core';
  */
 export type CashuReceiveQuoteCreated = {
   id: string;
+  transactionId: string;
   quoteId: string;
   paymentRequest: string;
   paymentHash: string;
@@ -106,6 +107,7 @@ export class CashuReceiveQuoteRepositoryServer {
 
     return {
       id: data.id,
+      transactionId: data.transaction_id,
       quoteId,
       paymentRequest,
       paymentHash,

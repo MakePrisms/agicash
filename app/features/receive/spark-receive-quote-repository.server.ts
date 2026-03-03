@@ -16,6 +16,7 @@ type Options = {
  */
 export type SparkReceiveQuoteCreated = {
   id: string;
+  transactionId: string;
   sparkId: string;
   paymentRequest: string;
   paymentHash: string;
@@ -102,6 +103,7 @@ export class SparkReceiveQuoteRepositoryServer {
 
     return {
       id: data.id,
+      transactionId: data.transaction_id,
       receiveType,
       sparkId: data.spark_id,
       paymentRequest,

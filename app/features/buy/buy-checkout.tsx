@@ -20,7 +20,7 @@ import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { CashAppLogo, buildCashAppDeepLink } from './cash-app';
 
-function CashAppCheckout({
+export function CashAppCheckout({
   paymentRequest,
   amount,
   errorMessage,
@@ -68,8 +68,8 @@ function CashAppCheckout({
 
                 <Button asChild size="lg" className="w-full gap-2">
                   <a href={deepLinkUrl}>
+                    Open
                     <CashAppLogo className="h-5" />
-                    Open Cash App
                   </a>
                 </Button>
               </>

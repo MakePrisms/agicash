@@ -1,4 +1,6 @@
 import { Info } from 'lucide-react';
+import { type MouseEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import {
   ClosePageButton,
   PageHeader,
@@ -6,6 +8,7 @@ import {
   type PageHeaderPosition,
   PageHeaderTitle,
 } from '~/components/page';
+import { Button } from '~/components/ui/button';
 import {
   Drawer,
   DrawerContent,
@@ -32,7 +35,8 @@ import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { useAccount, useAccounts } from '../accounts/account-hooks';
 import { useReceiveStore } from '../receive/receive-provider';
-import { CashAppLogo, buildCashAppDeepLink } from './cash-app';
+import { useUser } from '../user/user-hooks';
+import { CashAppLogo } from './cash-app';
 
 export default function BuyInput() {
   const navigate = useNavigateWithViewTransition();
@@ -40,7 +44,7 @@ export default function BuyInput() {
   const { toast } = useToast();
   const { redirectTo } = useRedirectTo('/');
   const { isMobile } = useUserAgent();
-
+  const userId = useUser((user) => user.id);
   const buyAccountId = useReceiveStore((s) => s.accountId);
   const buyAccount = useAccount(buyAccountId);
   const buyAmount = useReceiveStore((s) => s.amount);
@@ -49,6 +53,24 @@ export default function BuyInput() {
   const getReceiveQuote = useReceiveStore((s) => s.getReceiveQuote);
   const status = useReceiveStore((s) => s.status);
   const { data: accounts } = useAccounts();
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('error') === 'quote_failed') {
+      toast({
+        description: 'Failed to create invoice. Please try again.',
+        variant: 'destructive',
+      });
+      setSearchParams(
+        (prev) => {
+          prev.delete('error');
+          return prev;
+        },
+        { replace: true },
+      );
+    }
+  }, [searchParams, setSearchParams, toast]);
 
   const field = useMoneyInputField({
     initialRawInputValue: buyAmount?.toString(buyCurrencyUnit) || '0',
@@ -88,14 +110,47 @@ export default function BuyInput() {
       return;
     }
 
-    if (isMobile) {
-      window.open(buildCashAppDeepLink(result.quote.paymentRequest), '_blank');
-    }
-
     navigate(buildLinkWithSearchParams('/buy/checkout'), {
       transition: 'slideLeft',
       applyTo: 'newView',
     });
+  };
+
+  const redirectUrl = useMemo(() => {
+    const amount =
+      field.inputValue.currency === buyAccount.currency
+        ? field.inputValue
+        : (field.convertedValue ?? field.inputValue);
+
+    const unit = getDefaultUnit(amount.currency);
+    const params = new URLSearchParams({
+      accountId: buyAccountId,
+      amount: amount.toString(unit),
+      currency: amount.currency,
+      unit,
+    });
+    return `/api/buy/cashapp-redirect/${userId}?${params.toString()}`;
+  }, [
+    userId,
+    buyAccountId,
+    buyAccount.currency,
+    field.inputValue,
+    field.convertedValue,
+  ]);
+
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  const handleMobileLinkClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (field.inputValue.isZero() || isRedirecting) {
+      e.preventDefault();
+      return;
+    }
+    if (!buyAccount.isOnline) {
+      e.preventDefault();
+      toast(accountOfflineToast);
+      return;
+    }
+    setIsRedirecting(true);
   };
 
   return (
@@ -114,6 +169,25 @@ export default function BuyInput() {
         field={field}
         onContinue={handleContinue}
         continueLoading={status === 'quoting'}
+        renderContinueButton={
+          isMobile
+            ? ({ disabled }) => (
+                <Button
+                  asChild
+                  disabled={disabled || isRedirecting}
+                  loading={isRedirecting}
+                >
+                  <a
+                    href={redirectUrl}
+                    onClick={handleMobileLinkClick}
+                    aria-disabled={disabled || isRedirecting}
+                  >
+                    Continue
+                  </a>
+                </Button>
+              )
+            : undefined
+        }
         actions={
           <span className="flex items-center gap-2 whitespace-nowrap text-sm">
             Pay with

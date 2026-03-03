@@ -1,8 +1,10 @@
 import * as Sentry from '@sentry/react-router';
 import { type PropsWithChildren, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { useToast } from '~/hooks/use-toast';
 import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
 import { agicashRealtimeClient } from '../agicash-db/database.client';
+import { getPendingCashAppBuy } from '../buy/pending-cashapp-buy';
 import { useTrackAndUpdateSparkAccountBalances } from '../shared/spark';
 import { useTheme } from '../theme';
 import { useHandleSessionExpiry } from '../user/auth';
@@ -21,6 +23,32 @@ const useSyncThemeWithDefaultCurrency = () => {
     const theme = defaultCurrency === 'BTC' ? 'btc' : 'usd';
     setTheme(theme);
   }, [defaultCurrency, setTheme]);
+};
+
+const usePendingCashAppBuyRedirect = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAndRedirect = () => {
+      const pending = getPendingCashAppBuy();
+      if (pending && !window.location.pathname.startsWith('/buy/checkout')) {
+        navigate('/buy/checkout');
+      }
+    };
+
+    checkAndRedirect();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkAndRedirect();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [navigate]);
 };
 
 export const Wallet = ({ children }: PropsWithChildren) => {
@@ -54,6 +82,7 @@ export const Wallet = ({ children }: PropsWithChildren) => {
   useTrackWalletChanges();
   useSupabaseRealtimeActivityTracking(agicashRealtimeClient);
   useTrackAndUpdateSparkAccountBalances();
+  usePendingCashAppBuyRedirect();
 
   const isLead = useTakeTaskProcessingLead();
 

@@ -90,6 +90,8 @@ type MoneyInputLayoutProps = {
   /** Content rendered alongside MoneyInputDisplay (e.g. destination display in send).
    *  When provided, display and this content are wrapped in a flex column. */
   belowDisplay?: React.ReactNode;
+  /** Custom continue button renderer. When provided, replaces the default Button. */
+  renderContinueButton?: (props: { disabled: boolean }) => React.ReactNode;
 };
 
 /**
@@ -114,6 +116,7 @@ export function MoneyInputLayout({
   continueDisabled,
   continueLoading,
   belowDisplay,
+  renderContinueButton,
 }: MoneyInputLayoutProps) {
   const display = (
     <MoneyInputDisplay
@@ -147,13 +150,19 @@ export function MoneyInputLayout({
             </div>
             <div />
             <div className="flex items-center justify-end">
-              <Button
-                onClick={onContinue}
-                disabled={field.inputValue.isZero() || continueDisabled}
-                loading={continueLoading}
-              >
-                {continueLabel}
-              </Button>
+              {renderContinueButton ? (
+                renderContinueButton({
+                  disabled: field.inputValue.isZero() || !!continueDisabled,
+                })
+              ) : (
+                <Button
+                  onClick={onContinue}
+                  disabled={field.inputValue.isZero() || continueDisabled}
+                  loading={continueLoading}
+                >
+                  {continueLabel}
+                </Button>
+              )}
             </div>
           </div>
         </div>

@@ -266,6 +266,24 @@ export class ReadUserDefaultAccountRepository {
     return await this.toAccount(account);
   }
 
+  async getAccountByIdWithWallet(
+    userId: string,
+    accountId: string,
+  ): Promise<RedactedAccount> {
+    const { data, error } = await this.db
+      .from('accounts')
+      .select('*')
+      .eq('id', accountId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      throw new Error('Failed to get account by id', { cause: error });
+    }
+
+    return this.toAccount(data);
+  }
+
   private async toAccount(data: AgicashDbAccount): Promise<RedactedAccount> {
     const commonData = {
       id: data.id,
