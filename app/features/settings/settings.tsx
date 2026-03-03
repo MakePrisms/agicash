@@ -162,7 +162,7 @@ export default function Settings() {
         </div>
         <div className="flex w-full justify-between">
           <a
-            href="https://x.com/boardwalk_cash"
+            href="https://x.com/agi_cash"
             target="_blank"
             rel="noopener noreferrer"
           >
