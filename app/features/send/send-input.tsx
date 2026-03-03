@@ -7,16 +7,12 @@ import {
   ZapIcon,
 } from 'lucide-react';
 import { useState } from 'react';
-import { Numpad } from '~/components/numpad';
 import {
   ClosePageButton,
-  PageContent,
-  PageFooter,
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
 import { SearchBar } from '~/components/search-bar';
-import { Button } from '~/components/ui/button';
 import {
   Drawer,
   DrawerContent,
@@ -30,8 +26,10 @@ import {
   toAccountSelectorOption,
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
-import { MoneyInputDisplay } from '~/features/shared/money-input-display';
-import { useMoneyInputField } from '~/features/shared/use-money-input-field';
+import {
+  MoneyInputLayout,
+  useMoneyInputField,
+} from '~/features/shared/money-input-layout';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
@@ -169,17 +167,13 @@ export function SendInput() {
         <PageHeaderTitle>Send</PageHeaderTitle>
       </PageHeader>
 
-      <PageContent className="mx-auto flex flex-col items-center justify-between">
-        <div className="flex flex-col items-center justify-between gap-4">
-          <MoneyInputDisplay
-            inputErrorClassName={field.inputErrorClassName}
-            rawInputValue={field.rawInputValue}
-            inputValue={field.inputValue}
-            convertedValue={field.convertedValue}
-            exchangeRateError={field.exchangeRateError}
-            onSwitchCurrency={field.switchInputCurrency}
-          />
-
+      <MoneyInputLayout
+        field={field}
+        onContinue={() =>
+          handleContinue(field.inputValue, field.convertedValue)
+        }
+        continueLoading={status === 'quoting'}
+        belowDisplay={
           <div className="flex h-[24px] items-center justify-center gap-4">
             {destinationDisplay && (
               <>
@@ -188,8 +182,27 @@ export function SendInput() {
               </>
             )}
           </div>
-        </div>
-
+        }
+        actions={
+          <>
+            <button type="button" onClick={handlePaste}>
+              <Clipboard />
+            </button>
+            <LinkWithViewTransition
+              to={buildLinkWithSearchParams('/send/scan')}
+              transition="slideUp"
+              applyTo="newView"
+            >
+              <Scan />
+            </LinkWithViewTransition>
+            <SelectDestinationDrawer
+              open={selectDestinationDrawerOpen}
+              onOpenChange={setSelectDestinationDrawerOpen}
+              onSelect={handleSelectDestination}
+            />
+          </>
+        }
+      >
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
             accounts={accounts.map((account) =>
@@ -205,49 +218,7 @@ export function SendInput() {
             disabled={accounts.length === 1}
           />
         </div>
-
-        <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
-          <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
-            <div className="flex items-center justify-start gap-4">
-              <button type="button" onClick={handlePaste}>
-                <Clipboard />
-              </button>
-
-              <LinkWithViewTransition
-                to={buildLinkWithSearchParams('/send/scan')}
-                transition="slideUp"
-                applyTo="newView"
-              >
-                <Scan />
-              </LinkWithViewTransition>
-
-              <SelectDestinationDrawer
-                open={selectDestinationDrawerOpen}
-                onOpenChange={setSelectDestinationDrawerOpen}
-                onSelect={handleSelectDestination}
-              />
-            </div>
-            <div /> {/* spacer */}
-            <div className="flex items-center justify-end">
-              <Button
-                onClick={() =>
-                  handleContinue(field.inputValue, field.convertedValue)
-                }
-                disabled={field.inputValue.isZero()}
-                loading={status === 'quoting'}
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        </div>
-      </PageContent>
-      <PageFooter className="sm:pb-14">
-        <Numpad
-          showDecimal={field.showDecimal}
-          onButtonClick={field.handleNumberInput}
-        />
-      </PageFooter>
+      </MoneyInputLayout>
     </>
   );
 }

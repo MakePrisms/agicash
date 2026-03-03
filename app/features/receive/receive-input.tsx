@@ -1,22 +1,20 @@
 import { getEncodedToken } from '@cashu/cashu-ts';
 import { Clipboard, Scan } from 'lucide-react';
-import { Numpad } from '~/components/numpad';
 import {
   ClosePageButton,
-  PageContent,
-  PageFooter,
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
-import { Button } from '~/components/ui/button';
 import {
   AccountSelector,
   toAccountSelectorOption,
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { getDefaultUnit } from '~/features/shared/currencies';
-import { MoneyInputDisplay } from '~/features/shared/money-input-display';
-import { useMoneyInputField } from '~/features/shared/use-money-input-field';
+import {
+  MoneyInputLayout,
+  useMoneyInputField,
+} from '~/features/shared/money-input-layout';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
@@ -116,16 +114,24 @@ export default function ReceiveInput() {
         <PageHeaderTitle>Receive</PageHeaderTitle>
       </PageHeader>
 
-      <PageContent className="mx-auto flex flex-col items-center justify-between">
-        <MoneyInputDisplay
-          inputErrorClassName={field.inputErrorClassName}
-          rawInputValue={field.rawInputValue}
-          inputValue={field.inputValue}
-          convertedValue={field.convertedValue}
-          exchangeRateError={field.exchangeRateError}
-          onSwitchCurrency={field.switchInputCurrency}
-        />
-
+      <MoneyInputLayout
+        field={field}
+        onContinue={handleContinue}
+        actions={
+          <>
+            <button type="button" onClick={handlePaste}>
+              <Clipboard />
+            </button>
+            <LinkWithViewTransition
+              to={buildLinkWithSearchParams('/receive/scan')}
+              transition="slideUp"
+              applyTo="newView"
+            >
+              <Scan />
+            </LinkWithViewTransition>
+          </>
+        }
+      >
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
             accounts={accounts.map((account) =>
@@ -141,38 +147,7 @@ export default function ReceiveInput() {
             disabled={accounts.length === 1}
           />
         </div>
-
-        <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
-          <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
-            <div className="flex items-center justify-start gap-4">
-              <button type="button" onClick={handlePaste}>
-                <Clipboard />
-              </button>
-
-              <LinkWithViewTransition
-                to={buildLinkWithSearchParams('/receive/scan')}
-                transition="slideUp"
-                applyTo="newView"
-              >
-                <Scan />
-              </LinkWithViewTransition>
-            </div>
-            <div /> {/* spacer */}
-            <Button
-              onClick={handleContinue}
-              disabled={field.inputValue.isZero()}
-            >
-              Continue
-            </Button>
-          </div>
-        </div>
-      </PageContent>
-      <PageFooter className="sm:pb-14">
-        <Numpad
-          showDecimal={field.showDecimal}
-          onButtonClick={field.handleNumberInput}
-        />
-      </PageFooter>
+      </MoneyInputLayout>
     </>
   );
 }
