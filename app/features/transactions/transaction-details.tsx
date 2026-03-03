@@ -99,7 +99,7 @@ export function TransactionDetails({
 }) {
   const [searchParams] = useSearchParams();
   const showOkButton = searchParams.get('showOkButton') === 'true';
-  const { redirectTo } = useRedirectTo('/transactions');
+  const { redirectTo } = useRedirectTo('/');
   const account = useAccount(transaction.accountId);
   const { toast } = useToast();
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();

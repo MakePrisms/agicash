@@ -124,7 +124,7 @@ const usePayBolt11 = ({
             showOkButton: 'true',
           }),
           {
-            transition: 'slideLeft',
+            transition: 'fade',
             applyTo: 'newView',
           },
         );
