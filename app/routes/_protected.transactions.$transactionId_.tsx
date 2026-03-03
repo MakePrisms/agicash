@@ -13,7 +13,7 @@ export default function TransactionDetailsPage({
   params: { transactionId },
 }: Route.ComponentProps) {
   const { data: transaction } = useTransaction(transactionId);
-  const { redirectTo } = useRedirectTo('/transactions');
+  const { redirectTo } = useRedirectTo('/');
 
   return (
     <Page>

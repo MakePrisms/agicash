@@ -83,7 +83,7 @@ export default function ReceiveSpark({ amount, account }: Props) {
         buildLinkWithSearchParams(`/transactions/${quote.transactionId}`, {
           showOkButton: 'true',
         }),
-        { transition: 'slideLeft', applyTo: 'newView' },
+        { transition: 'fade', applyTo: 'newView' },
       );
     },
   });
