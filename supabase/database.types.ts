@@ -739,6 +739,7 @@ export type Database = {
           transaction_details: Json | null
           type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
+          version: number
         }
         Insert: {
           account_id: string
@@ -760,6 +761,7 @@ export type Database = {
           transaction_details?: Json | null
           type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
+          version?: number
         }
         Update: {
           account_id?: string
@@ -781,6 +783,7 @@ export type Database = {
           transaction_details?: Json | null
           type?: Database["wallet"]["Enums"]["transaction_type"]
           user_id?: string
+          version?: number
         }
         Relationships: [
           {
@@ -1437,6 +1440,7 @@ export type Database = {
           transaction_details: Json | null
           type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
+          version: number
         }[]
         SetofOptions: {
           from: "*"
