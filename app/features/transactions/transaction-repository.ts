@@ -48,13 +48,13 @@ export class TransactionRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       throw new Error('Failed to get transaction', { cause: error });
     }
 
-    return this.toTransaction(data);
+    return data ? this.toTransaction(data) : null;
   }
 
   async list({
@@ -191,6 +191,7 @@ export class TransactionRepository {
       reversedTransactionId: data.reversed_transaction_id,
       reversedAt: data.reversed_at,
       acknowledgmentStatus: data.acknowledgment_status,
+      version: data.version,
       direction: data.direction,
       type: data.type,
       state: data.state,

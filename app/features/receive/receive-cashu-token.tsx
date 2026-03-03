@@ -168,7 +168,7 @@ export default function ReceiveToken({
           showOkButton: 'true',
         }),
         {
-          transition: 'slideLeft',
+          transition: 'fade',
           applyTo: 'newView',
         },
       );

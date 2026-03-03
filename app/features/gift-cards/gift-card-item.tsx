@@ -1,4 +1,3 @@
-import { useViewTransitionState } from 'react-router';
 import { MoneyDisplay } from '~/components/money-display';
 import {
   WalletCard,
@@ -29,10 +28,12 @@ export function GiftCardItem({
   className,
   hideOverlayContent,
 }: GiftCardItemProps) {
-  const isTransitioning = useViewTransitionState('/gift-cards/:accountId');
   const balance = getAccountBalance(account);
+  const mintInfoName = account.isOnline
+    ? account.wallet.mintInfo.name
+    : undefined;
   const name =
-    account.wallet.mintInfo?.name ??
+    mintInfoName ??
     account.mintUrl.replace('https://', '').replace('http://', '');
 
   return (
@@ -56,9 +57,6 @@ export function GiftCardItem({
             style={{
               height: VERTICAL_CARD_OFFSET_IN_STACK,
               opacity: hideOverlayContent ? 0 : 1,
-              viewTransitionName: isTransitioning
-                ? `card-overlay-${account.id}`
-                : undefined,
             }}
           >
             <span className="text-lg text-white drop-shadow-md">{name}</span>

@@ -13,6 +13,7 @@ import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
+import { NotFoundError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { Transaction } from './transaction';
 import {
@@ -20,80 +21,54 @@ import {
   useTransactionRepository,
 } from './transaction-repository';
 
-const allTransactionsQueryKey = 'all-transactions';
-
 /**
  * Cache that manages transaction data and acknowledgment counts.
  */
 class TransactionsCache {
   public static Key = 'transactions';
+  public static AllTransactionsKey = 'all-transactions';
   public static UnacknowledgedCountKey = 'unacknowledged-transactions-count';
 
   constructor(private readonly queryClient: QueryClient) {}
 
   /**
-   * Update a transaction in the individual transaction cache.
-   * @param transaction - The updated transaction.
+   * Adds a new transaction or updates an existing transaction in the individual transaction cache.
+   * Only updates when the incoming version is higher than the cached version, to avoid
+   * overwriting newer data with older in case of out-of-order events.
+   * @param transaction - The transaction to add or update.
    */
-  update(transaction: Transaction) {
+  upsert(transaction: Transaction) {
     this.queryClient.setQueryData<Transaction>(
       [TransactionsCache.Key, transaction.id],
-      transaction,
+      (curr) =>
+        !curr || transaction.version > curr.version ? transaction : undefined,
     );
   }
 
   /**
-   * Add a new transaction to the individual transaction cache.
-   * @param transaction - The new transaction to add.
+   * Invalidates all transaction caches.
    */
-  add(transaction: Transaction) {
-    if (transaction.acknowledgmentStatus === 'pending') {
-      this.incrementUnacknowledgedCount();
-    }
-
-    this.queryClient.setQueryData<Transaction>(
-      [TransactionsCache.Key, transaction.id],
-      transaction,
-    );
-  }
-
-  incrementUnacknowledgedCount() {
-    const currentCount = this.getUnacknowledgedCount();
-    this.setUnacknowledgedCount(currentCount + 1);
-  }
-
-  decrementUnacknowledgedCount() {
-    const currentCount = this.getUnacknowledgedCount();
-    this.setUnacknowledgedCount(currentCount - 1);
-  }
-
-  private getUnacknowledgedCount(): number {
-    return (
-      this.queryClient.getQueryData<number>([
-        TransactionsCache.UnacknowledgedCountKey,
-      ]) ?? 0
-    );
-  }
-
-  private setUnacknowledgedCount(count: number) {
-    this.queryClient.setQueryData<number>(
-      [TransactionsCache.UnacknowledgedCountKey],
-      Math.max(0, count), // Ensure count never goes negative
-    );
-  }
-
   invalidate() {
     return Promise.all([
       this.queryClient.invalidateQueries({
         queryKey: [TransactionsCache.Key],
       }),
       this.queryClient.invalidateQueries({
-        queryKey: [allTransactionsQueryKey],
+        queryKey: [TransactionsCache.AllTransactionsKey],
       }),
       this.queryClient.invalidateQueries({
         queryKey: [TransactionsCache.UnacknowledgedCountKey],
       }),
     ]);
+  }
+
+  /**
+   * Invalidates the unacknowledged count query.
+   */
+  invalidateUnacknowledgedCount() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [TransactionsCache.UnacknowledgedCountKey],
+    });
   }
 }
 
@@ -107,7 +82,21 @@ export function useTransaction(id: string) {
 
   return useSuspenseQuery({
     queryKey: [TransactionsCache.Key, id],
-    queryFn: () => transactionRepository.get(id),
+    queryFn: async () => {
+      const transaction = await transactionRepository.get(id);
+
+      if (!transaction) {
+        throw new NotFoundError(`Transaction not found for id: ${id}`);
+      }
+
+      return transaction;
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof NotFoundError) {
+        return false;
+      }
+      return failureCount <= 3;
+    },
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -119,9 +108,10 @@ const PAGE_SIZE = 25;
 export function useTransactions(accountId?: string) {
   const userId = useUser((user) => user.id);
   const transactionRepository = useTransactionRepository();
+  const transactionsCache = useTransactionsCache();
 
   const result = useInfiniteQuery({
-    queryKey: [allTransactionsQueryKey, accountId],
+    queryKey: [TransactionsCache.AllTransactionsKey, accountId],
     initialPageParam: null,
     queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
       const result = await transactionRepository.list({
@@ -130,6 +120,11 @@ export function useTransactions(accountId?: string) {
         pageSize: PAGE_SIZE,
         accountId,
       });
+
+      for (const transaction of result.transactions) {
+        transactionsCache.upsert(transaction);
+      }
+
       return {
         transactions: result.transactions,
         nextCursor:
@@ -173,7 +168,7 @@ const acknowledgeTransactionInHistoryCache = (
       transactions: Transaction[];
       nextCursor: Cursor | null;
     }>
-  >({ queryKey: [allTransactionsQueryKey] });
+  >({ queryKey: [TransactionsCache.AllTransactionsKey] });
 
   queries.forEach(([queryKey, data]) => {
     if (!data) return;
@@ -196,6 +191,7 @@ export function useAcknowledgeTransaction() {
   const transactionRepository = useTransactionRepository();
   const userId = useUser((user) => user.id);
   const queryClient = useQueryClient();
+  const transactionsCache = useTransactionsCache();
 
   return useMutation({
     mutationFn: async ({ transaction }: { transaction: Transaction }) => {
@@ -206,6 +202,7 @@ export function useAcknowledgeTransaction() {
     },
     onSuccess: (_, { transaction }) => {
       acknowledgeTransactionInHistoryCache(queryClient, transaction);
+      transactionsCache.invalidateUnacknowledgedCount();
     },
     retry: 1,
   });
@@ -278,9 +275,12 @@ export function useTransactionChangeHandlers() {
     {
       event: 'TRANSACTION_CREATED',
       handleEvent: async (payload: AgicashDbTransaction) => {
-        const addedTransaction =
-          await transactionRepository.toTransaction(payload);
-        transactionsCache.add(addedTransaction);
+        const transaction = await transactionRepository.toTransaction(payload);
+        transactionsCache.upsert(transaction);
+
+        if (transaction.acknowledgmentStatus === 'pending') {
+          transactionsCache.invalidateUnacknowledgedCount();
+        }
       },
     },
     {
@@ -290,23 +290,14 @@ export function useTransactionChangeHandlers() {
           previous_acknowledgment_status: Transaction['acknowledgmentStatus'];
         },
       ) => {
-        const updatedTransaction =
-          await transactionRepository.toTransaction(payload);
-
-        transactionsCache.update(updatedTransaction);
+        const transaction = await transactionRepository.toTransaction(payload);
+        transactionsCache.upsert(transaction);
 
         if (
-          payload.acknowledgment_status !==
-          payload.previous_acknowledgment_status
+          payload.previous_acknowledgment_status !==
+          transaction.acknowledgmentStatus
         ) {
-          const newStatus = updatedTransaction.acknowledgmentStatus;
-          const prevStatus = payload.previous_acknowledgment_status;
-
-          if (prevStatus === null && newStatus === 'pending') {
-            transactionsCache.incrementUnacknowledgedCount();
-          } else if (prevStatus === 'pending' && newStatus === 'acknowledged') {
-            transactionsCache.decrementUnacknowledgedCount();
-          }
+          transactionsCache.invalidateUnacknowledgedCount();
         }
       },
     },

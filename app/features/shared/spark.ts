@@ -5,7 +5,7 @@ import {
 import type { SparkProto } from '@buildonspark/spark-sdk/types';
 
 type TreeNode = SparkProto.TreeNode;
-import { getPrivateKey as getMnemonic } from '@opensecret/react';
+import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import {
   type QueryClient,
   queryOptions,

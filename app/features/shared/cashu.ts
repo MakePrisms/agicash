@@ -1,4 +1,8 @@
 import {
+  getPrivateKey as getMnemonic,
+  getPrivateKeyBytes,
+} from '@agicash/opensecret';
+import {
   CashuMint,
   type MintActiveKeys,
   type MintAllKeysets,
@@ -6,10 +10,6 @@ import {
   type Token,
   getEncodedToken,
 } from '@cashu/cashu-ts';
-import {
-  getPrivateKey as getMnemonic,
-  getPrivateKeyBytes,
-} from '@opensecret/react';
 import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import {

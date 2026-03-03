@@ -1,4 +1,4 @@
-import { URDecoder } from '@jbojcic/bc-ur';
+import { URDecoder } from '@agicash/bc-ur';
 import { useEffect, useState } from 'react';
 import { useLatest } from '~/lib/use-latest';
 

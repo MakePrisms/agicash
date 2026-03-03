@@ -18,7 +18,7 @@ import { isThisWeek, isToday, isYesterday } from '~/lib/date';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
 import { AccountIcon } from '../accounts/account-icons';
-import { getErrorMessage } from '../shared/error';
+import { NotFoundError, getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
   isTransactionReversable,
@@ -73,7 +73,7 @@ function getTransactionIcon(transaction: Transaction) {
     ) {
       return transactionIconMap.PENDING;
     }
-    throw new Error('Transaction is in draft state');
+    throw new NotFoundError(`Transaction not found for id: ${transaction.id}`);
   }
   return transactionIconMap[transaction.state];
 }
@@ -99,7 +99,7 @@ export function TransactionDetails({
 }) {
   const [searchParams] = useSearchParams();
   const showOkButton = searchParams.get('showOkButton') === 'true';
-  const { redirectTo } = useRedirectTo('/transactions');
+  const { redirectTo } = useRedirectTo('/');
   const account = useAccount(transaction.accountId);
   const { toast } = useToast();
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();

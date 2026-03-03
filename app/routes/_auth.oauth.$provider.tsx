@@ -1,10 +1,9 @@
-import { handleGoogleCallback } from '@opensecret/react';
+import { handleGoogleCallback } from '@agicash/opensecret';
 import { decodeURLSafe } from '@stablelib/base64';
 import { redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { getErrorMessage } from '~/features/shared/error';
-import { getQueryClient } from '~/features/shared/query-client';
-import { authStateQueryKey } from '~/features/user/auth';
+import { invalidateAuthQueries } from '~/features/user/auth';
 import { oauthLoginSessionStorage } from '~/features/user/oauth-login-session-storage';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_auth.oauth.$provider';
@@ -63,11 +62,7 @@ export async function clientLoader({
     throw redirect('/login');
   }
 
-  const queryClient = getQueryClient();
-  await queryClient.invalidateQueries({
-    queryKey: [authStateQueryKey],
-    refetchType: 'all',
-  });
+  await invalidateAuthQueries();
 
   const stateValue = JSON.parse(new TextDecoder().decode(decodeURLSafe(state)));
   const oauthLoginSession = oauthLoginSessionStorage.get(

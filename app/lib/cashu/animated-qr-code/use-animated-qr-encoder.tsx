@@ -1,4 +1,4 @@
-import { UR, UREncoder } from '@jbojcic/bc-ur';
+import { UR, UREncoder } from '@agicash/bc-ur';
 import { useEffect, useState } from 'react';
 import { useInterval } from 'usehooks-ts';
 

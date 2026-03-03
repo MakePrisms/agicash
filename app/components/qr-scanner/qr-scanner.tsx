@@ -119,6 +119,10 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
     });
 
     scannerInstance.start().catch((err: unknown) => {
+      // video.play() rejects with AbortError when the video element is removed
+      // from the DOM (e.g. during cleanup). This is transient, not a real error.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+
       setCameraError(
         err instanceof Error ? err.message : 'Failed to start camera',
       );

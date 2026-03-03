@@ -97,6 +97,11 @@ export const BaseTransactionSchema = z.object({
    * Date and time the transaction was reversed in ISO 8601 format.
    */
   reversedAt: z.string().nullish(),
+  /**
+   * Version of the transaction.
+   * Incremented on every update.
+   */
+  version: z.number(),
 });
 
 const CashuTokenSendTransactionSchema = BaseTransactionSchema.extend({

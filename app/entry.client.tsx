@@ -1,4 +1,4 @@
-import { configure, setApiUrl } from '@opensecret/react';
+import { configure } from '@agicash/opensecret';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -34,10 +34,6 @@ configure({
   clientId: openSecretClientId,
 });
 
-// Immediately set the apiUrl while we are waiting for the configure() call to complete.
-// This is needed so that we can get a session token for logged-in users on the first attempt.
-setApiUrl(openSecretApiUrl);
-
 // Prefetch feature flags as early as possible.
 // Before login the DB client uses the anon key (no access token),
 // so we get global flags. After login, refreshSession invalidates
@@ -56,6 +52,12 @@ Sentry.init({
   // Adds request headers and IP for users, for more info visit:
   // https://docs.sentry.io/platforms/javascript/guides/react-router/configuration/options/#sendDefaultPii
   sendDefaultPii: false,
+  ignoreErrors: [
+    // View Transitions API throws when document is hidden (e.g., user switched apps).
+    // The transition is simply skipped; navigation still works. This is a React Router
+    // internal call we can't wrap. See https://make-prisms.sentry.io/issues/6786605134/?project=4509707316690944.
+    /^View transition was skipped because document visibility state is hidden\.$/,
+  ],
   enabled:
     process.env.NODE_ENV === 'production' &&
     !isServedLocally(window.location.hostname),
@@ -69,6 +71,10 @@ Sentry.init({
     Sentry.reactRouterTracingIntegration(),
     Sentry.browserProfilingIntegration(),
     Sentry.extraErrorDataIntegration({ depth: 5 }),
+    Sentry.thirdPartyErrorFilterIntegration({
+      filterKeys: ['agicash'],
+      behaviour: 'drop-error-if-exclusively-contains-third-party-frames',
+    }),
   ],
 
   // Performance monitoring

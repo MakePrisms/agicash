@@ -11,7 +11,8 @@ import {
   signUp as osSignUp,
   signUpGuest as osSignUpGuest,
   verifyEmail as osVerifyEmail,
-} from '@opensecret/react';
+} from '@agicash/opensecret';
+import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import {
   queryOptions,
@@ -21,6 +22,7 @@ import {
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
+import { getQueryClient } from '~/features/shared/query-client';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { generateRandomPassword } from '~/lib/password-generator';
 import { computeSHA256 } from '~/lib/sha256';
@@ -52,15 +54,42 @@ export const authQueryOptions = () =>
       }
 
       try {
+        // We want to set Sentry user id here to make sure that Sentry events are associated with the user as soon as possible.
+        const { sub } = jwtDecode(access_token);
+        Sentry.setUser({ id: sub });
+
         const response = await fetchUser();
+
+        // Set Sentry user again to include the isGuest flag
+        Sentry.setUser({ id: response.user.id, isGuest: !response.user.email });
+
         return { isLoggedIn: true, user: response.user } as const;
       } catch (error) {
         console.error('Failed to fetch user', { cause: error });
+        Sentry.setUser(null);
         return { isLoggedIn: false } as const;
       }
     },
     staleTime: Number.POSITIVE_INFINITY,
   });
+
+/**
+ * Invalidates all queries that depend on the current auth session.
+ * Call after any auth state change (login, logout, email verification, etc.)
+ */
+export const invalidateAuthQueries = async () => {
+  const queryClient = getQueryClient();
+  await Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: [authStateQueryKey],
+      refetchType: 'all',
+    }),
+    queryClient.invalidateQueries({
+      queryKey: ['feature-flags'],
+      refetchType: 'all',
+    }),
+  ]);
+};
 
 export const useAuthState = (): AuthState => {
   const { data } = useSuspenseQuery(authQueryOptions());
@@ -163,23 +192,14 @@ export const useAuthActions = (): AuthActions => {
 
   const refreshSession = useCallback(
     async (redirectTo?: string) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: [authStateQueryKey],
-          refetchType: 'all',
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ['feature-flags'],
-          refetchType: 'all',
-        }),
-      ]);
+      await invalidateAuthQueries();
       if (redirectTo) {
         await navigate(redirectTo);
       } else {
         await revalidate();
       }
     },
-    [queryClient, navigate, revalidate],
+    [navigate, revalidate],
   );
 
   const signUp = useCallback(
@@ -210,6 +230,7 @@ export const useAuthActions = (): AuthActions => {
     async (options: SignOutOptions = {}) => {
       await osSignOut();
       await refreshSession(options.redirectTo);
+      Sentry.setUser(null);
       queryClient.clear();
     },
     [refreshSession, queryClient],
