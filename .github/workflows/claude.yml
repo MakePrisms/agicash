@@ -43,6 +43,7 @@ jobs:
       pull-requests: write  # Create/comment on PRs
       issues: write         # Create/comment on issues
       actions: read         # Read CI results
+      id-token: write       # OIDC token for claude-code-action auth
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
