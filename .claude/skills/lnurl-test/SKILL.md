@@ -1,6 +1,6 @@
 ---
 name: lnurl-test
-description: Test the Lightning Address (LNURL) server functionality by validating LUD-16, LUD-06, and LUD-21 endpoints.
+description: Validation tool for Lightning Address endpoints. Use after modifying Lightning Address routes (app/routes/[.]well-known.*, app/routes/api.lnurlp.*) or lightning-address-service.ts to verify LUD-16, LUD-06, and LUD-21 endpoints still work.
 argument-hint: [username] or [on <url> with username <name>]
 ---
 
