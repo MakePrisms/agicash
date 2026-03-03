@@ -130,7 +130,7 @@ export default function ReceiveInput() {
 
       <PageContent className="mx-auto flex flex-col items-center justify-between">
         <MoneyInputDisplay
-          shakeClassName={shakeAnimationClass}
+          inputErrorClassName={shakeAnimationClass}
           rawInputValue={rawInputValue}
           inputValue={inputValue}
           convertedValue={convertedValue}

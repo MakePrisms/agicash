@@ -105,8 +105,8 @@ type MoneyInputDisplayProps = {
   exchangeRateError?: Error | null;
   /** Toggle between input and converted currency */
   onSwitchCurrency: () => void;
-  /** CSS class for shake animation (from useAnimation) */
-  shakeClassName?: string;
+  /** CSS class applied to the amount display on invalid input */
+  inputErrorClassName?: string;
 };
 
 /**
@@ -121,7 +121,7 @@ type MoneyInputDisplayProps = {
  * const moneyInput = useMoneyInput({ ... });
  *
  * <MoneyInputDisplay
- *   shakeClassName={animationClass}
+ *   inputErrorClassName={animationClass}
  *   rawInputValue={moneyInput.rawInputValue}
  *   inputValue={moneyInput.inputValue}
  *   convertedValue={moneyInput.convertedValue}
@@ -137,11 +137,11 @@ export function MoneyInputDisplay({
   convertedValue,
   exchangeRateError,
   onSwitchCurrency,
-  shakeClassName,
+  inputErrorClassName,
 }: MoneyInputDisplayProps) {
   return (
     <div className="flex h-[124px] flex-col items-center gap-2">
-      <div className={shakeClassName}>
+      <div className={inputErrorClassName}>
         <RawMoneyDisplay
           inputValue={rawInputValue}
           currency={inputValue.currency}

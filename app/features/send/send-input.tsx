@@ -184,7 +184,7 @@ export function SendInput() {
       <PageContent className="mx-auto flex flex-col items-center justify-between">
         <div className="flex flex-col items-center justify-between gap-4">
           <MoneyInputDisplay
-            shakeClassName={shakeAnimationClass}
+            inputErrorClassName={shakeAnimationClass}
             rawInputValue={rawInputValue}
             inputValue={inputValue}
             convertedValue={convertedValue}
