@@ -31,8 +31,7 @@ import {
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { MoneyInputDisplay } from '~/features/shared/money-input-display';
-import useAnimation from '~/hooks/use-animation';
-import { useMoneyInput } from '~/hooks/use-money-input';
+import { useMoneyInputField } from '~/features/shared/use-money-input-field';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
@@ -54,8 +53,6 @@ export function SendInput() {
   const navigate = useNavigateWithViewTransition();
   const { redirectTo } = useRedirectTo('/');
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
-  const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
-    useAnimation({ name: 'shake' });
   const { data: accounts } = useAccounts();
   const [selectDestinationDrawerOpen, setSelectDestinationDrawerOpen] =
     useState(false);
@@ -74,16 +71,7 @@ export function SendInput() {
     : undefined;
   const initialInputCurrency = sendAmount?.currency ?? sendAccount.currency;
 
-  const {
-    rawInputValue,
-    maxInputDecimals,
-    inputValue,
-    convertedValue,
-    exchangeRateError,
-    handleNumberInput,
-    switchInputCurrency,
-    setInputValue,
-  } = useMoneyInput({
+  const field = useMoneyInputField({
     initialRawInputValue: sendAmount?.toString(sendAmountCurrencyUnit) || '0',
     initialInputCurrency: initialInputCurrency,
     initialOtherCurrency: initialInputCurrency === 'BTC' ? 'USD' : 'BTC',
@@ -146,15 +134,15 @@ export function SendInput() {
       data: { amount },
     } = result;
 
-    let latestInputValue = inputValue;
-    let latestConvertedValue = convertedValue;
+    let latestInputValue = field.inputValue;
+    let latestConvertedValue = field.convertedValue;
 
     if (amount) {
       const defaultUnit = getDefaultUnit(amount.currency);
       ({
         newInputValue: latestInputValue,
         newConvertedValue: latestConvertedValue,
-      } = setInputValue(amount.toString(defaultUnit), amount.currency));
+      } = field.setInputValue(amount.toString(defaultUnit), amount.currency));
     }
 
     await handleContinue(latestInputValue, latestConvertedValue);
@@ -184,12 +172,12 @@ export function SendInput() {
       <PageContent className="mx-auto flex flex-col items-center justify-between">
         <div className="flex flex-col items-center justify-between gap-4">
           <MoneyInputDisplay
-            inputErrorClassName={shakeAnimationClass}
-            rawInputValue={rawInputValue}
-            inputValue={inputValue}
-            convertedValue={convertedValue}
-            exchangeRateError={exchangeRateError}
-            onSwitchCurrency={switchInputCurrency}
+            inputErrorClassName={field.inputErrorClassName}
+            rawInputValue={field.rawInputValue}
+            inputValue={field.inputValue}
+            convertedValue={field.convertedValue}
+            exchangeRateError={field.exchangeRateError}
+            onSwitchCurrency={field.switchInputCurrency}
           />
 
           <div className="flex h-[24px] items-center justify-center gap-4">
@@ -210,8 +198,8 @@ export function SendInput() {
             selectedAccount={toAccountSelectorOption(sendAccount)}
             onSelect={(account) => {
               selectSourceAccount(account);
-              if (account.currency !== inputValue.currency) {
-                switchInputCurrency();
+              if (account.currency !== field.inputValue.currency) {
+                field.switchInputCurrency();
               }
             }}
             disabled={accounts.length === 1}
@@ -242,8 +230,10 @@ export function SendInput() {
             <div /> {/* spacer */}
             <div className="flex items-center justify-end">
               <Button
-                onClick={() => handleContinue(inputValue, convertedValue)}
-                disabled={inputValue.isZero()}
+                onClick={() =>
+                  handleContinue(field.inputValue, field.convertedValue)
+                }
+                disabled={field.inputValue.isZero()}
                 loading={status === 'quoting'}
               >
                 Continue
@@ -254,10 +244,8 @@ export function SendInput() {
       </PageContent>
       <PageFooter className="sm:pb-14">
         <Numpad
-          showDecimal={maxInputDecimals > 0}
-          onButtonClick={(value) => {
-            handleNumberInput(value, startShakeAnimation);
-          }}
+          showDecimal={field.showDecimal}
+          onButtonClick={field.handleNumberInput}
         />
       </PageFooter>
     </>

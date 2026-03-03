@@ -16,8 +16,7 @@ import {
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import { MoneyInputDisplay } from '~/features/shared/money-input-display';
-import useAnimation from '~/hooks/use-animation';
-import { useMoneyInput } from '~/hooks/use-money-input';
+import { useMoneyInputField } from '~/features/shared/use-money-input-field';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
@@ -35,9 +34,6 @@ export default function ReceiveInput() {
   const { toast } = useToast();
   const { redirectTo } = useRedirectTo('/');
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
-  const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
-    useAnimation({ name: 'shake' });
-
   const receiveAccountId = useReceiveStore((s) => s.accountId);
   const receiveAccount = useAccount(receiveAccountId);
   const receiveAmount = useReceiveStore((s) => s.amount);
@@ -46,15 +42,7 @@ export default function ReceiveInput() {
   const setReceiveAmount = useReceiveStore((s) => s.setAmount);
   const { data: accounts } = useAccounts();
 
-  const {
-    rawInputValue,
-    maxInputDecimals,
-    inputValue,
-    convertedValue,
-    exchangeRateError,
-    handleNumberInput,
-    switchInputCurrency,
-  } = useMoneyInput({
+  const field = useMoneyInputField({
     initialRawInputValue: receiveAmount?.toString(receiveCurrencyUnit) || '0',
     initialInputCurrency: receiveAccount.currency,
     initialOtherCurrency: receiveAccount.currency === 'BTC' ? 'USD' : 'BTC',
@@ -66,14 +54,14 @@ export default function ReceiveInput() {
       return;
     }
 
-    if (inputValue.currency === receiveAccount.currency) {
-      setReceiveAmount(inputValue);
+    if (field.inputValue.currency === receiveAccount.currency) {
+      setReceiveAmount(field.inputValue);
     } else {
-      if (!convertedValue) {
+      if (!field.convertedValue) {
         // Can't happen because when there is no converted value, the toggle will not be shown so input currency and receive currency must be the same
         return;
       }
-      setReceiveAmount(convertedValue);
+      setReceiveAmount(field.convertedValue);
     }
 
     const nextPath =
@@ -130,12 +118,12 @@ export default function ReceiveInput() {
 
       <PageContent className="mx-auto flex flex-col items-center justify-between">
         <MoneyInputDisplay
-          inputErrorClassName={shakeAnimationClass}
-          rawInputValue={rawInputValue}
-          inputValue={inputValue}
-          convertedValue={convertedValue}
-          exchangeRateError={exchangeRateError}
-          onSwitchCurrency={switchInputCurrency}
+          inputErrorClassName={field.inputErrorClassName}
+          rawInputValue={field.rawInputValue}
+          inputValue={field.inputValue}
+          convertedValue={field.convertedValue}
+          exchangeRateError={field.exchangeRateError}
+          onSwitchCurrency={field.switchInputCurrency}
         />
 
         <div className="w-full max-w-sm sm:max-w-none">
@@ -146,8 +134,8 @@ export default function ReceiveInput() {
             selectedAccount={toAccountSelectorOption(receiveAccount)}
             onSelect={(account) => {
               setReceiveAccount(account);
-              if (account.currency !== inputValue.currency) {
-                switchInputCurrency();
+              if (account.currency !== field.inputValue.currency) {
+                field.switchInputCurrency();
               }
             }}
             disabled={accounts.length === 1}
@@ -170,7 +158,10 @@ export default function ReceiveInput() {
               </LinkWithViewTransition>
             </div>
             <div /> {/* spacer */}
-            <Button onClick={handleContinue} disabled={inputValue.isZero()}>
+            <Button
+              onClick={handleContinue}
+              disabled={field.inputValue.isZero()}
+            >
               Continue
             </Button>
           </div>
@@ -178,10 +169,8 @@ export default function ReceiveInput() {
       </PageContent>
       <PageFooter className="sm:pb-14">
         <Numpad
-          showDecimal={maxInputDecimals > 0}
-          onButtonClick={(value) => {
-            handleNumberInput(value, startShakeAnimation);
-          }}
+          showDecimal={field.showDecimal}
+          onButtonClick={field.handleNumberInput}
         />
       </PageFooter>
     </>
