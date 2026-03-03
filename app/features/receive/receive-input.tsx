@@ -1,6 +1,5 @@
 import { getEncodedToken } from '@cashu/cashu-ts';
-import { ArrowUpDown, Clipboard, Scan } from 'lucide-react';
-import { MoneyDisplay, MoneyInputDisplay } from '~/components/money-display';
+import { Clipboard, Scan } from 'lucide-react';
 import { Numpad } from '~/components/numpad';
 import {
   ClosePageButton,
@@ -10,20 +9,19 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { Skeleton } from '~/components/ui/skeleton';
 import {
   AccountSelector,
   toAccountSelectorOption,
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { getDefaultUnit } from '~/features/shared/currencies';
+import { MoneyInputDisplay } from '~/features/shared/money-input-display';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,
@@ -31,36 +29,6 @@ import {
 } from '~/lib/transitions';
 import { useAccount, useAccounts } from '../accounts/account-hooks';
 import { useReceiveStore } from './receive-provider';
-
-type ConvertedMoneySwitcherProps = {
-  onSwitchInputCurrency: () => void;
-  money?: Money;
-};
-
-const ConvertedMoneySwitcher = ({
-  onSwitchInputCurrency,
-  money,
-}: ConvertedMoneySwitcherProps) => {
-  if (!money) {
-    return <Skeleton className="h-6 w-24" />;
-  }
-
-  return (
-    <button
-      type="button"
-      className="flex items-center gap-1"
-      onClick={onSwitchInputCurrency}
-    >
-      <MoneyDisplay
-        money={money}
-        unit={getDefaultUnit(money.currency)}
-        size="sm"
-        variant="muted"
-      />
-      <ArrowUpDown className="mb-1 text-muted-foreground" />
-    </button>
-  );
-};
 
 export default function ReceiveInput() {
   const navigate = useNavigateWithViewTransition();
@@ -161,22 +129,14 @@ export default function ReceiveInput() {
       </PageHeader>
 
       <PageContent className="mx-auto flex flex-col items-center justify-between">
-        <div className="flex h-[124px] flex-col items-center gap-2">
-          <div className={shakeAnimationClass}>
-            <MoneyInputDisplay
-              inputValue={rawInputValue}
-              currency={inputValue.currency}
-              unit={getDefaultUnit(inputValue.currency)}
-            />
-          </div>
-
-          {!exchangeRateError && (
-            <ConvertedMoneySwitcher
-              onSwitchInputCurrency={switchInputCurrency}
-              money={convertedValue}
-            />
-          )}
-        </div>
+        <MoneyInputDisplay
+          shakeClassName={shakeAnimationClass}
+          rawInputValue={rawInputValue}
+          inputValue={inputValue}
+          convertedValue={convertedValue}
+          exchangeRateError={exchangeRateError}
+          onSwitchCurrency={switchInputCurrency}
+        />
 
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector

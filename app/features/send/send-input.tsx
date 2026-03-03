@@ -1,5 +1,4 @@
 import {
-  ArrowUpDown,
   AtSign,
   Clipboard,
   LoaderCircle,
@@ -8,7 +7,6 @@ import {
   ZapIcon,
 } from 'lucide-react';
 import { useState } from 'react';
-import { MoneyDisplay, MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
   ClosePageButton,
@@ -20,19 +18,19 @@ import {
 import { SearchBar } from '~/components/search-bar';
 import { Button } from '~/components/ui/button';
 import {
+  Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
+  DrawerTrigger,
 } from '~/components/ui/drawer';
-import { DrawerTrigger } from '~/components/ui/drawer';
-import { Drawer } from '~/components/ui/drawer';
-import { Skeleton } from '~/components/ui/skeleton';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import {
   AccountSelector,
   toAccountSelectorOption,
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
+import { MoneyInputDisplay } from '~/features/shared/money-input-display';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
@@ -50,38 +48,6 @@ import type { Contact } from '../contacts/contact';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
-
-type ConvertedMoneySwitcherProps = {
-  onSwitchInputCurrency: () => void;
-  money?: Money;
-};
-
-const ConvertedMoneySwitcher = ({
-  onSwitchInputCurrency,
-  money,
-}: ConvertedMoneySwitcherProps) => {
-  if (!money) {
-    return <Skeleton className="h-6 w-24" />;
-  }
-
-  return (
-    <button
-      type="button"
-      className="flex items-center gap-1"
-      onClick={() => {
-        onSwitchInputCurrency();
-      }}
-    >
-      <MoneyDisplay
-        money={money}
-        unit={getDefaultUnit(money.currency)}
-        size="sm"
-        variant="muted"
-      />
-      <ArrowUpDown className="mb-1 text-muted-foreground" />
-    </button>
-  );
-};
 
 export function SendInput() {
   const { toast } = useToast();
@@ -217,22 +183,14 @@ export function SendInput() {
 
       <PageContent className="mx-auto flex flex-col items-center justify-between">
         <div className="flex flex-col items-center justify-between gap-4">
-          <div className="flex h-[124px] flex-col items-center gap-2">
-            <div className={shakeAnimationClass}>
-              <MoneyInputDisplay
-                inputValue={rawInputValue}
-                currency={inputValue.currency}
-                unit={getDefaultUnit(inputValue.currency)}
-              />
-            </div>
-
-            {!exchangeRateError && (
-              <ConvertedMoneySwitcher
-                onSwitchInputCurrency={switchInputCurrency}
-                money={convertedValue}
-              />
-            )}
-          </div>
+          <MoneyInputDisplay
+            shakeClassName={shakeAnimationClass}
+            rawInputValue={rawInputValue}
+            inputValue={inputValue}
+            convertedValue={convertedValue}
+            exchangeRateError={exchangeRateError}
+            onSwitchCurrency={switchInputCurrency}
+          />
 
           <div className="flex h-[24px] items-center justify-center gap-4">
             {destinationDisplay && (
