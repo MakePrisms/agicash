@@ -321,19 +321,6 @@ export function TransactionList({
     olderTransactions,
   } = usePartitionTransactions(allTransactions);
 
-  if (status === 'error') {
-    return (
-      <div className="flex h-full flex-col items-center justify-center p-8">
-        <Card className="max-w-sm p-6">
-          <div className="flex flex-col items-center gap-3 text-center text-primary-foreground">
-            <AlertCircle className="h-8 w-8" />
-            <span>{error?.message || 'Unable to load transactions'}</span>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
   if (status === 'pending') {
     return (
       <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
@@ -342,13 +329,51 @@ export function TransactionList({
     );
   }
 
-  if (!allTransactions.length) {
+  const content = (() => {
+    if (status === 'error') {
+      return (
+        <div className="flex h-full flex-col items-center justify-center p-8">
+          <Card className="max-w-sm p-6">
+            <div className="flex flex-col items-center gap-3 text-center text-primary-foreground">
+              <AlertCircle className="h-8 w-8" />
+              <span>{error?.message || 'Unable to load transactions'}</span>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+
+    if (!allTransactions.length) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
+          <span className="text-muted-foreground">No transactions yet</span>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
-        <span className="text-muted-foreground">No transactions yet</span>
-      </div>
+      <>
+        <div className="w-full space-y-6">
+          <TransactionSection
+            title="Pending"
+            transactions={pendingTransactions}
+          />
+          <TransactionSection title="Today" transactions={todayTransactions} />
+          <TransactionSection
+            title="This Week"
+            transactions={thisWeekTransactions}
+          />
+          <TransactionSection title="Older" transactions={olderTransactions} />
+        </div>
+        {hasNextPage && (
+          <LoadMore
+            onReached={() => !isFetchingNextPage && fetchNextPage()}
+            isLoading={isFetchingNextPage}
+          />
+        )}
+      </>
     );
-  }
+  })();
 
   return (
     <div
@@ -375,24 +400,7 @@ export function TransactionList({
             style={{ opacity: Math.min(pullDistance / 24, 1) }}
           />
         </div>
-        <div className="w-full space-y-6">
-          <TransactionSection
-            title="Pending"
-            transactions={pendingTransactions}
-          />
-          <TransactionSection title="Today" transactions={todayTransactions} />
-          <TransactionSection
-            title="This Week"
-            transactions={thisWeekTransactions}
-          />
-          <TransactionSection title="Older" transactions={olderTransactions} />
-        </div>
-        {hasNextPage && (
-          <LoadMore
-            onReached={() => !isFetchingNextPage && fetchNextPage()}
-            isLoading={isFetchingNextPage}
-          />
-        )}
+        {content}
       </div>
     </div>
   );
