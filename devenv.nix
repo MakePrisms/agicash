@@ -33,6 +33,9 @@
   '';
   scripts.webstorm.exec = "$DEVENV_ROOT/tools/devenv/webstorm.sh $@";
   scripts.generate-ssl-cert.exec = "$DEVENV_ROOT/tools/devenv/generate-ssl-cert.sh";
+  scripts.wt.exec = ''bun run "$DEVENV_ROOT/tools/worktree-db/wt.ts" "$@"'';
+  scripts.db.exec = ''bun run "$DEVENV_ROOT/tools/worktree-db/db.ts" "$@"'';
+
   scripts.convert-gift-card-images.exec = ''
     shopt -s nullglob
     pngs=("$DEVENV_ROOT/app/assets/gift-cards/"*.png)
@@ -69,7 +72,8 @@
  git-hooks.hooks.generate-db-types = {
     enable = true;
     name = "Generate database types from local db";
-    entry = "bun run db:generate-types";
+    entry = "${pkgs.bash}/bin/bash tools/worktree-db/hooks/generate-db-types.sh";
+    pass_filenames = false;
   };
   
  git-hooks.hooks.typecheck = {
