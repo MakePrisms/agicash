@@ -11,7 +11,13 @@ import {
 import { QRCode } from '~/components/qr-code';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '~/components/ui/popover';
 import type { CashuAccount } from '~/features/accounts/account';
+import { formatCountdown, useCountdown } from '~/hooks/use-countdown';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
@@ -47,7 +53,9 @@ const useCreateQuote = ({ account, amount, onPaid }: CreateQuoteProps) => {
     onPaid: onPaid,
   });
 
-  const isExpired = quotePaymentStatus === 'EXPIRED';
+  const secondsRemaining = useCountdown(quote?.expiresAt);
+  const isExpired =
+    quotePaymentStatus === 'EXPIRED' || (secondsRemaining === 0 && !!quote);
 
   useEffectNoStrictMode(() => {
     if (!quote && createQuoteStatus === 'idle') {
@@ -57,10 +65,12 @@ const useCreateQuote = ({ account, amount, onPaid }: CreateQuoteProps) => {
 
   return {
     quote,
+    secondsRemaining,
     errorMessage: isExpired
-      ? 'This invoice has expired. Please create a new one.'
+      ? 'This invoice has expired. Refresh to create a new one.'
       : error?.message,
     isLoading: ['pending', 'idle'].includes(createQuoteStatus),
+    regenerate: () => createQuote({ account, amount }),
   };
 };
 
@@ -114,18 +124,19 @@ export default function ReceiveCashu({ amount, account }: Props) {
   const navigate = useNavigateWithViewTransition();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
-  const { quote, errorMessage, isLoading } = useCreateQuote({
-    account,
-    amount,
-    onPaid: (quote) => {
-      navigate(
-        buildLinkWithSearchParams(`/transactions/${quote.transactionId}`, {
-          showOkButton: 'true',
-        }),
-        { transition: 'fade', applyTo: 'newView' },
-      );
-    },
-  });
+  const { quote, secondsRemaining, errorMessage, isLoading, regenerate } =
+    useCreateQuote({
+      account,
+      amount,
+      onPaid: (quote) => {
+        navigate(
+          buildLinkWithSearchParams(`/transactions/${quote.transactionId}`, {
+            showOkButton: 'true',
+          }),
+          { transition: 'fade', applyTo: 'newView' },
+        );
+      },
+    });
 
   const handleCopy = (paymentRequest: string) => {
     copyToClipboard(paymentRequest);
@@ -155,7 +166,9 @@ export default function ReceiveCashu({ amount, account }: Props) {
         <MoneyWithConvertedAmount money={displayAmount} />
         <QRCode
           value={paymentRequest}
-          description="Scan with any Lightning wallet."
+          description={
+            errorMessage ? undefined : 'Scan with any Lightning wallet.'
+          }
           error={errorMessage}
           isLoading={isLoading}
           onClick={
@@ -164,6 +177,20 @@ export default function ReceiveCashu({ amount, account }: Props) {
           className="gap-4"
           size={256}
         />
+        {!errorMessage && !isLoading && quote && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <p className="text-center text-muted-foreground text-xs tabular-nums">
+                Expires in {formatCountdown(secondsRemaining)}
+              </p>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto px-3 py-2">
+              <p className="text-xs">
+                {new Date(quote.expiresAt).toLocaleString()}
+              </p>
+            </PopoverContent>
+          </Popover>
+        )}
         {mintingFee && (
           <AmountBreakdownCard
             amount={amount}
@@ -172,7 +199,14 @@ export default function ReceiveCashu({ amount, account }: Props) {
           />
         )}
       </PageContent>
-      {showOk && (
+      {errorMessage && (
+        <PageFooter className="pb-14">
+          <Button onClick={regenerate} loading={isLoading}>
+            Refresh
+          </Button>
+        </PageFooter>
+      )}
+      {showOk && !errorMessage && (
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
