@@ -107,8 +107,3 @@ function getStoppedServiceContainers(): string[] {
   const stopped = new Set(output.trim().split('\n').filter(Boolean));
   return SERVICE_CONTAINERS.filter((c) => stopped.has(c));
 }
-
-export function getDbPort(): number {
-  const status = getSupabaseStatus();
-  return status.dbPort ?? 54322;
-}

@@ -32,6 +32,7 @@ export function psqlQuiet(sql: string, db = 'postgres'): string {
 }
 
 export function databaseExists(name: string): boolean {
+  assertSafeDbName(name);
   const result = psqlQuiet(
     `SELECT 1 FROM pg_database WHERE datname = '${name}'`,
   );
@@ -88,7 +89,6 @@ export function forkDatabase(sourceName: string, targetName: string): void {
 }
 
 export function renameDatabase(oldName: string, newName: string): void {
-  terminateConnections(oldName);
   psql(`ALTER DATABASE "${oldName}" RENAME TO "${newName}"`, 'template1');
 }
 
@@ -98,6 +98,7 @@ export function dropDatabase(name: string): void {
 }
 
 export function terminateConnections(dbName: string): void {
+  assertSafeDbName(dbName);
   try {
     psql(
       `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbName}' AND pid <> pg_backend_pid()`,
@@ -105,6 +106,12 @@ export function terminateConnections(dbName: string): void {
     );
   } catch {
     // Ignore — connections may already be gone
+  }
+}
+
+function assertSafeDbName(name: string): void {
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    throw new Error(`Unsafe database name: "${name}"`);
   }
 }
 

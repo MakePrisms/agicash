@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { createRequestHandler } from '@react-router/express';
 import express from 'express';
 
+const PORT = Number.parseInt(process.env.PORT || '3000', 10);
+
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const certPath = path.join(dirname, '../certs/localhost-cert.pem');
@@ -63,18 +65,18 @@ if (setupHttps) {
 
   const httpsApp = https.createServer(httpsOptions, app);
 
-  httpsApp.listen(3000, () => {
-    console.log('App listening on https://localhost:3000');
-    console.log(`Also available at https://${hostname}:3000`);
+  httpsApp.listen(PORT, () => {
+    console.log(`App listening on https://localhost:${PORT}`);
+    console.log(`Also available at https://${hostname}:${PORT}`);
     if (localIP) {
-      console.log(`Also available at https://${localIP}:3000`);
+      console.log(`Also available at https://${localIP}:${PORT}`);
     }
   });
 } else {
   if (useHttps && !certificateExists) {
     console.warn('HTTPS certificates not found. Falling back to HTTP.');
   }
-  app.listen(3000, () => {
-    console.log('App listening on http://localhost:3000');
+  app.listen(PORT, () => {
+    console.log(`App listening on http://localhost:${PORT}`);
   });
 }

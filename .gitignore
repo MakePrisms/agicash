@@ -36,6 +36,7 @@ node_modules
 # Worktree & DB branching
 .worktree-state.json
 .worktree-state.lock
+.trees/
 
 .react-router/
 

@@ -8,6 +8,46 @@ brainstorm: docs/brainstorms/2026-03-02-worktree-db-branching-brainstorm.md
 
 # Worktree & Database Branching CLI Tools
 
+## Implementation Notes
+
+Discrepancies between this plan and the actual implementation on branch `tools/worktree-db-cli`.
+
+### File structure changes
+
+- **Tools relocated**: `tools/wt.ts` and `tools/db.ts` moved to `tools/worktree-db/wt.ts` and `tools/worktree-db/db.ts`. Shared modules moved from `tools/shared/` to `tools/worktree-db/shared/`.
+- **Modules consolidated**: `lock.ts` and `worktree.ts` were not created as separate files. Lock logic (`acquireLock`, `releaseLock`) and worktree context functions (`currentWorktreePath`, `getProjectRoot`) are in `config.ts`.
+- **Hook path changed**: `tools/hooks/generate-db-types.sh` → `tools/worktree-db/hooks/generate-db-types.sh`.
+- **Added `tools/worktree-db/tsconfig.json`** (not in plan).
+
+### Design decisions that changed
+
+- **`child_process.execSync` instead of `Bun.spawn()`**: Plan specified Bun APIs for runtime consistency. Implementation uses Node's `execSync` throughout.
+- **`docker stop`/`docker start` instead of `supabase stop`/`supabase start`**: Plan used Supabase CLI for service management. Implementation directly manages individual Docker containers, which is faster (no full Supabase restart) but couples to container naming.
+- **Supabase project ID hardcoded**: Plan said to read from `supabase/config.toml`. Implementation hardcodes `SUPABASE_PROJECT_ID = 'agicash'` in `supabase.ts`.
+- **Branch names allow uppercase**: Plan specified "lowercase alphanumeric, hyphens, underscores". `sanitizeBranchName` allows uppercase (`[a-zA-Z0-9_-]`).
+- **Hyphens kept in DB names**: Plan said to replace `-` with `_` in database names (e.g., `wt_my_feature`). Implementation keeps hyphens (e.g., `wt_my-feature`) and uses quoted identifiers in SQL.
+- **`confirm()` lives in `config.ts`**, not `log.ts` as the plan's architecture implied.
+- **`wt setup` runs `direnv allow`** in the new worktree (not in plan).
+
+### Features not implemented
+
+- **`db status` migration diff**: Plan specified comparing `supabase/migrations/` filenames against the `schema_migrations` table. Implementation only shows active vs linked branch — no migration comparison.
+- **Dev server DB branch mismatch warning**: Plan specified a `checkDbBranchAlignment()` function in `app/server.ts` that warns at startup. Not implemented — `app/server.ts` only got the `PORT` env var change.
+- **`db switch` running dev server detection**: Plan mentioned detecting running dev servers and warning before switch. Implementation has a simple `[y/N]` confirmation with no server detection.
+- **Port availability validation**: Plan specified checking actual port availability (EADDRINUSE). Implementation only checks the state file for used ports.
+- **Log spinners**: Plan listed spinners in `log.ts` scope. Only static colored output was implemented.
+- **Unit tests**: Plan required tests for shared modules and `db switch` rollback logic. No tests were written.
+- **Documentation**: Plan specified adding to `CLAUDE.md` and creating `docs/solutions/worktree-db-branching.md`. Not done.
+
+### Features added beyond plan
+
+- **`db doctor` command implemented** (Phase 5): Detects orphaned state entries, unregistered worktrees, missing databases, unregistered `wt_*` databases, and stale sentinels. Offers auto-fix for fixable issues.
+- **`wt init` re-run support**: If worktree already registered, re-runs setup steps (bun install, direnv allow) while preserving existing port and DB branch.
+
+### Bug: Hook state file path broken in worktrees
+
+The plan used `$DEVENV_ROOT/.worktree-state.json` for the hook. The implementation uses `$(git rev-parse --show-toplevel)/.worktree-state.json`. In a worktree, `--show-toplevel` returns the worktree path (e.g., `.trees/feature-x/`), not the project root where the state file lives. The hook silently falls back to default behavior in worktrees — it won't do branch-aware type generation. Needs to use `git rev-parse --git-common-dir` to find the project root (as `config.ts` does).
+
 ## Overview
 
 Build two CLI tools (`wt` and `db`) that make working with multiple git worktrees seamless by providing worktree lifecycle management, local database branching via Supabase's database rename trick, and branch-aware type generation.
