@@ -1,4 +1,5 @@
 import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
+import { hexToBytes } from '@noble/hashes/utils';
 import { decode, encode } from '@stablelib/base64';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -9,7 +10,6 @@ import {
   eciesEncryptBatch,
 } from '~/lib/ecies';
 import { Money } from '~/lib/money';
-import { hexToUint8Array } from '~/lib/utils';
 
 // 10111099 is 'enc' (for encryption) in ascii
 const encryptionKeyDerivationPath = `m/10111099'/0'`;
@@ -20,7 +20,7 @@ export const encryptionPrivateKeyQueryOptions = () =>
     queryFn: () =>
       getPrivateKeyBytes({
         private_key_derivation_path: encryptionKeyDerivationPath,
-      }).then((response) => hexToUint8Array(response.private_key)),
+      }).then((response) => hexToBytes(response.private_key)),
     staleTime: Number.POSITIVE_INFINITY,
   });
 
@@ -117,7 +117,7 @@ export function encryptToPublicKey<T = unknown>(
 
   const encoder = new TextEncoder();
   const dataBytes = encoder.encode(serialized);
-  const publicKeyBytes = hexToUint8Array(publicKeyHex);
+  const publicKeyBytes = hexToBytes(publicKeyHex);
 
   const encryptedBytes = eciesEncrypt(dataBytes, publicKeyBytes);
   return encode(encryptedBytes);
@@ -140,7 +140,7 @@ export function encryptBatchToPublicKey<T extends readonly unknown[]>(
     const serialized = JSON.stringify(preprocessedData);
     return encoder.encode(serialized);
   });
-  const publicKeyBytes = hexToUint8Array(publicKeyHex);
+  const publicKeyBytes = hexToBytes(publicKeyHex);
 
   const encryptedBytes = eciesEncryptBatch(dataBytes, publicKeyBytes);
   return encryptedBytes.map((x) => encode(x));
