@@ -4,7 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { PageBackButton, PageContent, PageHeader } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { ScrollArea } from '~/components/ui/scroll-area';
+
 import type { CashuAccount } from '~/features/accounts/account';
 import { useAccount } from '~/features/accounts/account-hooks';
 import type { CashuProof } from '~/features/accounts/cashu-account';
@@ -172,7 +172,7 @@ export default function AccountProofs({ accountId }: { accountId: string }) {
         />
       </PageHeader>
       <PageContent className="overflow-hidden">
-        <ScrollArea className="h-full">
+        <div className="scrollbar-none h-full overflow-y-auto">
           <div className="space-y-8">
             <div className="space-y-2">
               <h1 className="text-center text-2xl">{account.name} - Proofs</h1>
@@ -225,7 +225,7 @@ export default function AccountProofs({ accountId }: { accountId: string }) {
               showRemove
             />
           </div>
-        </ScrollArea>
+        </div>
       </PageContent>
     </>
   );
