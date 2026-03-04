@@ -1,4 +1,10 @@
-import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
+import {
+  AlertCircle,
+  BanknoteIcon,
+  LoaderCircle,
+  UserIcon,
+  ZapIcon,
+} from 'lucide-react';
 import {
   type Ref,
   useCallback,
@@ -12,6 +18,7 @@ import { SparkIcon } from '~/components/spark-icon';
 import { Card } from '~/components/ui/card';
 import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
 import { useIsVisible } from '~/hooks/use-is-visible';
+import { usePullToRefresh } from '~/hooks/use-pull-to-refresh';
 import { getStartOfWeek, isToday } from '~/lib/date';
 import {
   LinkWithViewTransition,
@@ -282,8 +289,19 @@ export function TransactionList({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    refetch,
     status,
   } = useTransactions(accountId);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const {
+    state: pullState,
+    pullDistance,
+    touchHandlers,
+  } = usePullToRefresh({
+    onRefresh: () => refetch(),
+    scrollRef,
+  });
 
   const allTransactions = useMemo(
     () => data?.pages.flatMap((page) => page.transactions) ?? [],
@@ -334,26 +352,48 @@ export function TransactionList({
 
   return (
     <div
+      ref={scrollRef}
       className={cn('scrollbar-none h-full min-h-0 overflow-y-auto', className)}
+      {...touchHandlers}
     >
-      <div className="w-full space-y-6">
-        <TransactionSection
-          title="Pending"
-          transactions={pendingTransactions}
-        />
-        <TransactionSection title="Today" transactions={todayTransactions} />
-        <TransactionSection
-          title="This Week"
-          transactions={thisWeekTransactions}
-        />
-        <TransactionSection title="Older" transactions={olderTransactions} />
+      <div
+        className="transition-transform duration-200 ease-out"
+        style={{
+          transform:
+            pullState !== 'idle' ? `translateY(${pullDistance}px)` : undefined,
+        }}
+      >
+        <div
+          className="flex items-center justify-center overflow-hidden transition-all duration-200 ease-out"
+          style={{ height: pullState !== 'idle' ? `${pullDistance}px` : '0px' }}
+        >
+          <LoaderCircle
+            className={cn(
+              'h-5 w-5 text-muted-foreground transition-opacity',
+              pullState === 'refreshing' && 'animate-spin',
+            )}
+            style={{ opacity: Math.min(pullDistance / 24, 1) }}
+          />
+        </div>
+        <div className="w-full space-y-6">
+          <TransactionSection
+            title="Pending"
+            transactions={pendingTransactions}
+          />
+          <TransactionSection title="Today" transactions={todayTransactions} />
+          <TransactionSection
+            title="This Week"
+            transactions={thisWeekTransactions}
+          />
+          <TransactionSection title="Older" transactions={olderTransactions} />
+        </div>
+        {hasNextPage && (
+          <LoadMore
+            onReached={() => !isFetchingNextPage && fetchNextPage()}
+            isLoading={isFetchingNextPage}
+          />
+        )}
       </div>
-      {hasNextPage && (
-        <LoadMore
-          onReached={() => !isFetchingNextPage && fetchNextPage()}
-          isLoading={isFetchingNextPage}
-        />
-      )}
     </div>
   );
 }
