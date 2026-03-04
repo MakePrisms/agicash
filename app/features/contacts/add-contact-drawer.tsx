@@ -8,7 +8,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '~/components/ui/drawer';
-import { ScrollArea } from '~/components/ui/scroll-area';
+
 import { useToast } from '~/hooks/use-toast';
 import { SearchBar } from '../../components/search-bar';
 import { getErrorMessage } from '../shared/error';
@@ -89,10 +89,7 @@ function SearchResults({
 
   return (
     <>
-      <ScrollArea
-        className="relative flex h-full flex-1 flex-col py-6"
-        hideScrollbar
-      >
+      <div className="scrollbar-none relative flex h-full flex-1 flex-col overflow-y-auto py-6">
         <div className="flex flex-col gap-6 pb-16">
           {results.map((searchResult) => (
             <button
@@ -115,7 +112,7 @@ function SearchResults({
             </button>
           ))}
         </div>
-      </ScrollArea>
+      </div>
       {selectedContact && (
         <Button
           onClick={() => onAddContact(selectedContact.username)}

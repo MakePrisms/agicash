@@ -1,6 +1,6 @@
 import { LoaderCircle } from 'lucide-react';
 import { Suspense, useState } from 'react';
-import { ScrollArea } from '~/components/ui/scroll-area';
+
 import { LinkWithViewTransition } from '~/lib/transitions';
 import type { Contact } from './contact';
 import { ContactAvatar } from './contact-avatar';
@@ -88,7 +88,7 @@ export function ContactsList({
   onSelect,
 }: ContactsListProps) {
   return (
-    <ScrollArea className="flex h-full flex-1 flex-col" hideScrollbar>
+    <div className="scrollbar-none flex h-full flex-1 flex-col overflow-y-auto">
       <Suspense
         fallback={
           <div className="flex flex-col gap-6 py-6">
@@ -100,6 +100,6 @@ export function ContactsList({
       >
         <ContactsListItems searchQuery={searchQuery} onSelect={onSelect} />
       </Suspense>
-    </ScrollArea>
+    </div>
   );
 }
