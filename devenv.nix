@@ -33,6 +33,9 @@
   '';
   scripts.webstorm.exec = "$DEVENV_ROOT/tools/devenv/webstorm.sh $@";
   scripts.generate-ssl-cert.exec = "$DEVENV_ROOT/tools/devenv/generate-ssl-cert.sh";
+  scripts.wt.exec = ''bun run "$DEVENV_ROOT/tools/wt.ts" "$@"'';
+  scripts.db.exec = ''bun run "$DEVENV_ROOT/tools/db.ts" "$@"'';
+
   scripts.convert-gift-card-images.exec = ''
     shopt -s nullglob
     pngs=("$DEVENV_ROOT/app/assets/gift-cards/"*.png)

@@ -33,6 +33,10 @@ node_modules
 .claude/settings.local.json
 .claude/worktrees/
 
+# Worktree & DB branching
+.worktree-state.json
+.worktree-state.lock
+
 .react-router/
 
 # Local SSL certificates
