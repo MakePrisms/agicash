@@ -27,6 +27,7 @@ import {
 import { DrawerTrigger } from '~/components/ui/drawer';
 import { Drawer } from '~/components/ui/drawer';
 import { Skeleton } from '~/components/ui/skeleton';
+import { getAccountBalance } from '~/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import {
   AccountSelector,
@@ -39,7 +40,7 @@ import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
-import type { Money } from '~/lib/money';
+import { Money } from '~/lib/money';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,
@@ -122,6 +123,17 @@ export function SendInput() {
     initialInputCurrency: initialInputCurrency,
     initialOtherCurrency: initialInputCurrency === 'BTC' ? 'USD' : 'BTC',
   });
+
+  const accountBalance = getAccountBalance(sendAccount);
+  const amountInAccountCurrency =
+    inputValue.currency === sendAccount.currency ? inputValue : convertedValue;
+
+  const insufficientBalance =
+    amountInAccountCurrency != null &&
+    !amountInAccountCurrency.isZero() &&
+    amountInAccountCurrency.greaterThan(
+      accountBalance ?? Money.zero(sendAccount.currency),
+    );
 
   const handleContinue = async (
     inputValue: Money,
@@ -226,11 +238,15 @@ export function SendInput() {
               />
             </div>
 
-            {!exchangeRateError && (
-              <ConvertedMoneySwitcher
-                onSwitchInputCurrency={switchInputCurrency}
-                money={convertedValue}
-              />
+            {insufficientBalance ? (
+              <p className="text-destructive text-sm">Insufficient balance</p>
+            ) : (
+              !exchangeRateError && (
+                <ConvertedMoneySwitcher
+                  onSwitchInputCurrency={switchInputCurrency}
+                  money={convertedValue}
+                />
+              )
             )}
           </div>
 
@@ -285,7 +301,7 @@ export function SendInput() {
             <div className="flex items-center justify-end">
               <Button
                 onClick={() => handleContinue(inputValue, convertedValue)}
-                disabled={inputValue.isZero()}
+                disabled={inputValue.isZero() || insufficientBalance}
                 loading={status === 'quoting'}
               >
                 Continue
