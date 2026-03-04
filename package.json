@@ -29,7 +29,7 @@
   "dependencies": {
     "@agicash/bc-ur": "0.1.0",
     "@agicash/opensecret": "0.1.0",
-    "@agicash/qr-scanner": "0.1.1",
+    "@agicash/qr-scanner": "0.1.2",
     "@buildonspark/spark-sdk": "0.6.6",
     "@cashu/cashu-ts": "2.6.0",
     "@cashu/crypto": "0.3.4",
