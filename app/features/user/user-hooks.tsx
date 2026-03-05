@@ -37,7 +37,7 @@ export const getUserFromCacheOrThrow = () => {
   return user;
 };
 
-export const userQueryOptions = <TData = User>({
+const userQueryOptions = <TData = User>({
   userId,
   userRepository,
   select,
