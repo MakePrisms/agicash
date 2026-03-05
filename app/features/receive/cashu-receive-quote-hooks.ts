@@ -42,6 +42,7 @@ type CreateProps = {
   account: CashuAccount;
   amount: Money;
   description?: string;
+  receiveType?: 'LIGHTNING' | 'BUY';
 };
 class CashuReceiveQuoteCache {
   // Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
@@ -154,7 +155,12 @@ export function useCreateCashuReceiveQuote() {
     scope: {
       id: 'create-cashu-receive-quote',
     },
-    mutationFn: async ({ account, amount, description }: CreateProps) => {
+    mutationFn: async ({
+      account,
+      amount,
+      description,
+      receiveType = 'LIGHTNING',
+    }: CreateProps) => {
       const lightningQuote = await cashuReceiveQuoteService.getLightningQuote({
         wallet: account.wallet,
         amount,
@@ -164,7 +170,7 @@ export function useCreateCashuReceiveQuote() {
       return cashuReceiveQuoteService.createReceiveQuote({
         userId,
         account,
-        receiveType: 'LIGHTNING',
+        receiveType,
         lightningQuote,
       });
     },

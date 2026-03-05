@@ -79,9 +79,11 @@ export type CreateQuoteBaseParams = {
   | {
       /**
        * Type of the receive.
-       * LIGHTNING - Standard lightning receive.
+       * LIGHTNING - The money is received via a regular lightning payment.
+       * BUY - A purchase of bitcoin. The receive quote is created by the buyer, who pays the Lightning invoice through an external payment method.
+       * TRANSFER - An internal transfer between accounts. The receive quote is created and paid automatically by the app.
        */
-      receiveType: 'LIGHTNING';
+      receiveType: 'LIGHTNING' | 'BUY' | 'TRANSFER';
     }
   | {
       /**
@@ -165,9 +167,11 @@ export type RepositoryCreateQuoteParams = {
   | {
       /**
        * Type of the receive.
-       * LIGHTNING - Standard lightning receive.
+       * LIGHTNING - The money is received via a regular lightning payment.
+       * BUY - A purchase of bitcoin. The receive quote is created by the buyer, who pays the Lightning invoice through an external payment method.
+       * TRANSFER - An internal transfer between accounts. The receive quote is created and paid automatically by the app.
        */
-      receiveType: 'LIGHTNING';
+      receiveType: 'LIGHTNING' | 'BUY' | 'TRANSFER';
     }
   | {
       /**
@@ -256,16 +260,16 @@ export async function getLightningQuote({
  * For CASHU_TOKEN type, returns the earlier of lightning and melt quote expiry.
  */
 export function computeQuoteExpiry(params: CreateQuoteBaseParams): string {
-  if (params.receiveType === 'LIGHTNING') {
-    return params.lightningQuote.invoice.expiresAt;
+  if (params.receiveType === 'CASHU_TOKEN') {
+    return new Date(
+      Math.min(
+        new Date(params.lightningQuote.invoice.expiresAt).getTime(),
+        new Date(params.meltQuoteExpiresAt).getTime(),
+      ),
+    ).toISOString();
   }
 
-  return new Date(
-    Math.min(
-      new Date(params.lightningQuote.invoice.expiresAt).getTime(),
-      new Date(params.meltQuoteExpiresAt).getTime(),
-    ),
-  ).toISOString();
+  return params.lightningQuote.invoice.expiresAt;
 }
 
 /**
@@ -279,12 +283,12 @@ export function getAmountAndFee(params: CreateQuoteBaseParams): {
 } {
   const amount = moneyFromSparkAmount(params.lightningQuote.invoice.amount);
 
-  if (params.receiveType === 'LIGHTNING') {
-    return { amount, totalFee: Money.zero(amount.currency) };
+  if (params.receiveType === 'CASHU_TOKEN') {
+    return {
+      amount,
+      totalFee: params.cashuReceiveFee.add(params.lightningFeeReserve),
+    };
   }
 
-  return {
-    amount,
-    totalFee: params.cashuReceiveFee.add(params.lightningFeeReserve),
-  };
+  return { amount, totalFee: Money.zero(amount.currency) };
 }

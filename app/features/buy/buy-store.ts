@@ -38,11 +38,13 @@ type CreateBuyStoreProps = {
     account: CashuAccount;
     amount: Money;
     description?: string;
+    receiveType: 'BUY';
   }) => Promise<CashuReceiveQuote>;
   createSparkReceiveQuote: (params: {
     account: SparkAccount;
     amount: Money;
     description?: string;
+    receiveType: 'BUY';
   }) => Promise<SparkReceiveQuote>;
 };
 
@@ -72,6 +74,7 @@ export const createBuyStore = ({
             account,
             amount,
             description: 'Pay to Agicash',
+            receiveType: 'BUY',
           });
           quote = {
             id: cashuQuote.id,
@@ -84,6 +87,7 @@ export const createBuyStore = ({
             account,
             amount,
             description: 'Pay to Agicash',
+            receiveType: 'BUY',
           });
           quote = {
             id: sparkQuote.id,

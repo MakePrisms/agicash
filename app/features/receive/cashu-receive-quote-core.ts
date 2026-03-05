@@ -78,13 +78,15 @@ export type CreateQuoteBaseParams = {
   /**
    * Type of the receive.
    * - LIGHTNING - The money is received via a regular lightning payment.
+   * - BUY - A purchase of bitcoin. The receive quote is created by the buyer, who pays the Lightning invoice through an external payment method.
+   * - TRANSFER - An internal transfer between accounts. The receive quote is created and paid automatically by the app.
    * - CASHU_TOKEN - The money is received as a cashu token. The proofs will be melted
    *   from the account they originated from to pay the request for this receive quote.
    */
-  receiveType: 'LIGHTNING' | 'CASHU_TOKEN';
+  receiveType: 'LIGHTNING' | 'BUY' | 'TRANSFER' | 'CASHU_TOKEN';
 } & (
   | {
-      receiveType: 'LIGHTNING';
+      receiveType: 'LIGHTNING' | 'BUY' | 'TRANSFER';
     }
   | {
       receiveType: 'CASHU_TOKEN';
@@ -176,7 +178,7 @@ export type RepositoryCreateQuoteParams = {
   totalFee: Money;
 } & (
   | {
-      receiveType: 'LIGHTNING';
+      receiveType: 'LIGHTNING' | 'BUY' | 'TRANSFER';
     }
   | {
       receiveType: 'CASHU_TOKEN';
@@ -282,16 +284,16 @@ export async function getLightningQuote(
  * For CASHU_TOKEN type quotes, the expiry is the earler of the mint quote expiry and the melt quote expiry.
  */
 export function computeQuoteExpiry(params: CreateQuoteBaseParams): string {
-  if (params.receiveType === 'LIGHTNING') {
-    return params.lightningQuote.expiresAt;
+  if (params.receiveType === 'CASHU_TOKEN') {
+    return new Date(
+      Math.min(
+        new Date(params.lightningQuote.expiresAt).getTime(),
+        new Date(params.meltQuoteExpiresAt).getTime(),
+      ),
+    ).toISOString();
   }
 
-  return new Date(
-    Math.min(
-      new Date(params.lightningQuote.expiresAt).getTime(),
-      new Date(params.meltQuoteExpiresAt).getTime(),
-    ),
-  ).toISOString();
+  return params.lightningQuote.expiresAt;
 }
 
 /**
@@ -304,9 +306,11 @@ export function computeTotalFee(params: CreateQuoteBaseParams): Money {
     params.lightningQuote.mintingFee ??
     Money.zero(params.lightningQuote.amount.currency);
 
-  if (params.receiveType === 'LIGHTNING') {
-    return mintingFee;
+  if (params.receiveType === 'CASHU_TOKEN') {
+    return mintingFee
+      .add(params.cashuReceiveFee)
+      .add(params.lightningFeeReserve);
   }
 
-  return mintingFee.add(params.cashuReceiveFee).add(params.lightningFeeReserve);
+  return mintingFee;
 }
