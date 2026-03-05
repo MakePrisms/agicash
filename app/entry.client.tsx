@@ -57,6 +57,9 @@ Sentry.init({
     // The transition is simply skipped; navigation still works. This is a React Router
     // internal call we can't wrap. See https://make-prisms.sentry.io/issues/6786605134/?project=4509707316690944.
     /^View transition was skipped because document visibility state is hidden\.$/,
+    // DuckDuckGo on iOS (WebKit) throws when encountering @media (hover: hover)
+    // from Tailwind v4. No stack trace, not our code. See AGICASH-7B.
+    /^feature named `.*` was not found$/,
   ],
   enabled:
     process.env.NODE_ENV === 'production' &&
