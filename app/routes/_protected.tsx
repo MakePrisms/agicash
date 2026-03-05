@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
+import { ZodError } from 'zod';
 import { AccountsCache } from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
@@ -34,6 +35,7 @@ import {
 } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
+import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
 
 const shouldUserVerifyEmail = (user: AuthUser) => {
@@ -114,15 +116,24 @@ const ensureUserData = async (
       accountRepository,
     );
 
-    const { user: upsertedUser, accounts } = await writeUserRepository.upsert({
-      id: authUser.id,
-      email: authUser.email,
-      emailVerified: authUser.email_verified,
-      accounts: [...defaultAccounts],
-      cashuLockingXpub,
-      encryptionPublicKey,
-      sparkIdentityPublicKey,
-      termsAcceptedAt,
+    const { user: upsertedUser, accounts } = await withRetry({
+      fn: () =>
+        writeUserRepository.upsert({
+          id: authUser.id,
+          email: authUser.email,
+          emailVerified: authUser.email_verified,
+          accounts: [...defaultAccounts],
+          cashuLockingXpub,
+          encryptionPublicKey,
+          sparkIdentityPublicKey,
+          termsAcceptedAt,
+        }),
+      retry: (attemptIndex, error) => {
+        if (error instanceof ZodError) {
+          return false;
+        }
+        return attemptIndex < 2;
+      },
     });
     user = upsertedUser;
     queryClient.setQueryData([userQueryKey], user);
