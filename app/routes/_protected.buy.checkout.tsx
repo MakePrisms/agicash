@@ -17,17 +17,9 @@ export default function BuyCheckoutPage() {
   return (
     <Page>
       {account.type === 'cashu' ? (
-        <BuyCheckoutCashu
-          quote={quote}
-          amount={buyAmount}
-          accountName={account.name}
-        />
+        <BuyCheckoutCashu quote={quote} amount={buyAmount} account={account} />
       ) : (
-        <BuyCheckoutSpark
-          quote={quote}
-          amount={buyAmount}
-          accountName={account.name}
-        />
+        <BuyCheckoutSpark quote={quote} amount={buyAmount} account={account} />
       )}
     </Page>
   );
