@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
@@ -36,6 +37,7 @@ export default function BuyInput() {
   const { redirectTo } = useRedirectTo('/');
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
+  const [isContinuing, setIsContinuing] = useState(false);
 
   const buyAccountId = useBuyStore((s) => s.accountId);
   const buyAccount = useAccount(buyAccountId);
@@ -76,9 +78,11 @@ export default function BuyInput() {
       amount = convertedValue;
     }
 
+    setIsContinuing(true);
     const result = await getBuyQuote(amount);
 
     if (!result.success) {
+      setIsContinuing(false);
       if (result.error instanceof DomainError) {
         toast({ description: result.error.message });
       } else {
@@ -158,7 +162,7 @@ export default function BuyInput() {
               <Button
                 onClick={handleContinue}
                 disabled={inputValue.isZero()}
-                loading={status === 'quoting' || status === 'success'}
+                loading={status === 'quoting' || isContinuing}
               >
                 Continue
               </Button>

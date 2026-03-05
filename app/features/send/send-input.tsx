@@ -60,6 +60,7 @@ export function SendInput() {
   const { data: accounts } = useAccounts();
   const [selectDestinationDrawerOpen, setSelectDestinationDrawerOpen] =
     useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
 
   const sendAmount = useSendStore((s) => s.amount);
   const sendAccount = useSendStore((s) => s.getSourceAccount());
@@ -103,8 +104,10 @@ export function SendInput() {
       return;
     }
 
+    setIsContinuing(true);
     const result = await continueSend(inputValue, convertedValue);
     if (!result.success) {
+      setIsContinuing(false);
       const toastOptions =
         result.error instanceof DomainError
           ? { description: result.error.message }
@@ -123,6 +126,7 @@ export function SendInput() {
 
     if (result.next === 'selectDestination') {
       setSelectDestinationDrawerOpen(true);
+      setIsContinuing(false);
       return;
     }
 
@@ -253,7 +257,7 @@ export function SendInput() {
               <Button
                 onClick={() => handleContinue(inputValue, convertedValue)}
                 disabled={inputValue.isZero()}
-                loading={status === 'quoting' || status === 'success'}
+                loading={status === 'quoting' || isContinuing}
               >
                 Continue
               </Button>

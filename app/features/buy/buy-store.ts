@@ -16,7 +16,7 @@ type GetBuyQuoteResult =
   | { success: false; error: unknown };
 
 export type BuyState<T extends Currency = Currency> = {
-  status: 'idle' | 'quoting' | 'success';
+  status: 'idle' | 'quoting';
   /** The ID of the account to buy into */
   accountId: string;
   /** The amount to buy */
@@ -92,7 +92,7 @@ export const createBuyStore = ({
           };
         }
 
-        set({ status: 'success', quote });
+        set({ status: 'idle', quote });
         return { success: true, quote };
       } catch (error) {
         set({ status: 'idle' });
