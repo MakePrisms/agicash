@@ -111,7 +111,7 @@ type DecodedDestination = {
 };
 
 type State = {
-  status: 'idle' | 'quoting' | 'success';
+  status: 'idle' | 'quoting';
   /**
    * Amount to send.
    */
@@ -481,7 +481,7 @@ export const createSendStore = ({
           }
         }
 
-        set({ status: 'success' });
+        set({ status: 'idle' });
         return { success: true, next: 'confirmQuote' };
       },
     };
