@@ -1,5 +1,4 @@
 import {
-  ArrowUpDown,
   AtSign,
   Clipboard,
   LoaderCircle,
@@ -8,7 +7,7 @@ import {
   ZapIcon,
 } from 'lucide-react';
 import { useState } from 'react';
-import { MoneyDisplay, MoneyInputDisplay } from '~/components/money-display';
+import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
   ClosePageButton,
@@ -20,19 +19,19 @@ import {
 import { SearchBar } from '~/components/search-bar';
 import { Button } from '~/components/ui/button';
 import {
+  Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
+  DrawerTrigger,
 } from '~/components/ui/drawer';
-import { DrawerTrigger } from '~/components/ui/drawer';
-import { Drawer } from '~/components/ui/drawer';
-import { Skeleton } from '~/components/ui/skeleton';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import {
   AccountSelector,
   toAccountSelectorOption,
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
+import { ConvertedMoneySwitcher } from '~/features/shared/converted-money-switcher';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
@@ -51,38 +50,6 @@ import { getDefaultUnit } from '../shared/currencies';
 import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
 
-type ConvertedMoneySwitcherProps = {
-  onSwitchInputCurrency: () => void;
-  money?: Money;
-};
-
-const ConvertedMoneySwitcher = ({
-  onSwitchInputCurrency,
-  money,
-}: ConvertedMoneySwitcherProps) => {
-  if (!money) {
-    return <Skeleton className="h-6 w-24" />;
-  }
-
-  return (
-    <button
-      type="button"
-      className="flex items-center gap-1"
-      onClick={() => {
-        onSwitchInputCurrency();
-      }}
-    >
-      <MoneyDisplay
-        money={money}
-        unit={getDefaultUnit(money.currency)}
-        size="sm"
-        variant="muted"
-      />
-      <ArrowUpDown className="mb-1 text-muted-foreground" />
-    </button>
-  );
-};
-
 export function SendInput() {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
@@ -93,6 +60,7 @@ export function SendInput() {
   const { data: accounts } = useAccounts();
   const [selectDestinationDrawerOpen, setSelectDestinationDrawerOpen] =
     useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
 
   const sendAmount = useSendStore((s) => s.amount);
   const sendAccount = useSendStore((s) => s.getSourceAccount());
@@ -136,8 +104,10 @@ export function SendInput() {
       return;
     }
 
+    setIsContinuing(true);
     const result = await continueSend(inputValue, convertedValue);
     if (!result.success) {
+      setIsContinuing(false);
       const toastOptions =
         result.error instanceof DomainError
           ? { description: result.error.message }
@@ -156,6 +126,7 @@ export function SendInput() {
 
     if (result.next === 'selectDestination') {
       setSelectDestinationDrawerOpen(true);
+      setIsContinuing(false);
       return;
     }
 
@@ -228,7 +199,7 @@ export function SendInput() {
 
             {!exchangeRateError && (
               <ConvertedMoneySwitcher
-                onSwitchInputCurrency={switchInputCurrency}
+                onSwitch={switchInputCurrency}
                 money={convertedValue}
               />
             )}
@@ -286,7 +257,7 @@ export function SendInput() {
               <Button
                 onClick={() => handleContinue(inputValue, convertedValue)}
                 disabled={inputValue.isZero()}
-                loading={status === 'quoting'}
+                loading={status === 'quoting' || isContinuing}
               >
                 Continue
               </Button>

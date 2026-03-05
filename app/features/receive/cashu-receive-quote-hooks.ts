@@ -27,6 +27,7 @@ import {
   setLongTimeout,
 } from '~/lib/timeout';
 import { useLatest } from '~/lib/use-latest';
+import { withRetry } from '~/lib/with-retry';
 import type { CashuAccount } from '../accounts/account';
 import {
   useGetCashuAccount,
@@ -413,8 +414,6 @@ const useTrackMintQuotesWithWebSocket = ({
   const [subscriptionManager] = useState(
     () => new MintQuoteSubscriptionManager(),
   );
-  const queryClient = useQueryClient();
-
   const { mutate: subscribe } = useMutation({
     mutationFn: (props: Parameters<typeof subscriptionManager.subscribe>[0]) =>
       subscriptionManager.subscribe(props),
@@ -435,17 +434,14 @@ const useTrackMintQuotesWithWebSocket = ({
 
   const getMintQuote = useCallback(
     (receiveQuote: CashuReceiveQuote) =>
-      queryClient.fetchQuery({
-        queryKey: ['check-mint-quote', receiveQuote.quoteId],
-        queryFn: () => {
+      withRetry({
+        fn: () => {
           const account = getCashuAccount(receiveQuote.accountId);
           return checkMintQuote(account, receiveQuote);
         },
         retry: 5,
-        staleTime: 0,
-        gcTime: 0,
       }),
-    [queryClient, getCashuAccount],
+    [getCashuAccount],
   );
 
   useEffect(() => {

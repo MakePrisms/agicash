@@ -1,5 +1,4 @@
-import { getEncodedToken } from '@cashu/cashu-ts';
-import { Clipboard, Scan } from 'lucide-react';
+import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
@@ -7,6 +6,7 @@ import {
   PageContent,
   PageFooter,
   PageHeader,
+  PageHeaderItem,
   PageHeaderTitle,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
@@ -17,34 +17,35 @@ import {
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { ConvertedMoneySwitcher } from '~/features/shared/converted-money-switcher';
 import { getDefaultUnit } from '~/features/shared/currencies';
+import { DomainError } from '~/features/shared/error';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { extractCashuToken } from '~/lib/cashu';
-import { readClipboard } from '~/lib/read-clipboard';
-import {
-  LinkWithViewTransition,
-  useNavigateWithViewTransition,
-} from '~/lib/transitions';
+import type { Money } from '~/lib/money';
+import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { useAccount, useAccounts } from '../accounts/account-hooks';
-import { useReceiveStore } from './receive-provider';
+import { BuyFaqDrawer } from './buy-faq-drawer';
+import { useBuyStore } from './buy-provider';
+import { CashAppLogo } from './cash-app';
 
-export default function ReceiveInput() {
+export default function BuyInput() {
   const navigate = useNavigateWithViewTransition();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { toast } = useToast();
   const { redirectTo } = useRedirectTo('/');
-  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
+  const [isContinuing, setIsContinuing] = useState(false);
 
-  const receiveAccountId = useReceiveStore((s) => s.accountId);
-  const receiveAccount = useAccount(receiveAccountId);
-  const receiveAmount = useReceiveStore((s) => s.amount);
-  const receiveCurrencyUnit = getDefaultUnit(receiveAccount.currency);
-  const setReceiveAccount = useReceiveStore((s) => s.setAccount);
-  const setReceiveAmount = useReceiveStore((s) => s.setAmount);
+  const buyAccountId = useBuyStore((s) => s.accountId);
+  const buyAccount = useAccount(buyAccountId);
+  const buyAmount = useBuyStore((s) => s.amount);
+  const buyCurrencyUnit = getDefaultUnit(buyAccount.currency);
+  const setBuyAccount = useBuyStore((s) => s.setAccount);
+  const getBuyQuote = useBuyStore((s) => s.getBuyQuote);
+  const status = useBuyStore((s) => s.status);
   const { data: accounts } = useAccounts();
 
   const {
@@ -56,66 +57,48 @@ export default function ReceiveInput() {
     handleNumberInput,
     switchInputCurrency,
   } = useMoneyInput({
-    initialRawInputValue: receiveAmount?.toString(receiveCurrencyUnit) || '0',
-    initialInputCurrency: receiveAccount.currency,
-    initialOtherCurrency: receiveAccount.currency === 'BTC' ? 'USD' : 'BTC',
+    initialRawInputValue: buyAmount?.toString(buyCurrencyUnit) || '0',
+    initialInputCurrency: buyAccount.currency,
+    initialOtherCurrency: buyAccount.currency === 'BTC' ? 'USD' : 'BTC',
   });
 
   const handleContinue = async () => {
-    if (!receiveAccount.isOnline) {
+    if (!buyAccount.isOnline) {
       toast(accountOfflineToast);
       return;
     }
 
-    if (inputValue.currency === receiveAccount.currency) {
-      setReceiveAmount(inputValue);
+    let amount: Money;
+    if (inputValue.currency === buyAccount.currency) {
+      amount = inputValue;
     } else {
       if (!convertedValue) {
-        // Can't happen because when there is no converted value, the toggle will not be shown so input currency and receive currency must be the same
         return;
       }
-      setReceiveAmount(convertedValue);
+      amount = convertedValue;
     }
 
-    const nextPath =
-      receiveAccount.type === 'cashu' ? '/receive/cashu' : '/receive/spark';
-    navigate(buildLinkWithSearchParams(nextPath), {
+    setIsContinuing(true);
+    const result = await getBuyQuote(amount);
+
+    if (!result.success) {
+      setIsContinuing(false);
+      if (result.error instanceof DomainError) {
+        toast({ description: result.error.message });
+      } else {
+        console.error('Failed to create invoice', { cause: result.error });
+        toast({
+          description: 'Failed to create invoice. Please try again.',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+
+    navigate(buildLinkWithSearchParams('/buy/checkout'), {
       transition: 'slideLeft',
       applyTo: 'newView',
     });
-  };
-
-  const handlePaste = async () => {
-    const clipboardContent = await readClipboard();
-    if (!clipboardContent) {
-      return;
-    }
-
-    const token = extractCashuToken(clipboardContent);
-    if (!token) {
-      toast({
-        title: 'Invalid input',
-        description: 'Please paste a valid cashu token',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const encodedToken = getEncodedToken(token);
-    const hash = `#${encodedToken}`;
-
-    // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
-    // See https://github.com/remix-run/remix/discussions/10721
-    window.history.replaceState(null, '', hash);
-    navigate(
-      {
-        ...buildLinkWithSearchParams('/receive/cashu/token', {
-          selectedAccountId: receiveAccountId,
-        }),
-        hash,
-      },
-      { transition: 'slideLeft', applyTo: 'newView' },
-    );
   };
 
   return (
@@ -126,7 +109,10 @@ export default function ReceiveInput() {
           transition="slideDown"
           applyTo="oldView"
         />
-        <PageHeaderTitle>Receive</PageHeaderTitle>
+        <PageHeaderTitle>Buy</PageHeaderTitle>
+        <PageHeaderItem position="right">
+          <BuyFaqDrawer />
+        </PageHeaderItem>
       </PageHeader>
 
       <PageContent className="mx-auto flex flex-col items-center justify-between">
@@ -152,9 +138,9 @@ export default function ReceiveInput() {
             accounts={accounts.map((account) =>
               toAccountSelectorOption(account),
             )}
-            selectedAccount={toAccountSelectorOption(receiveAccount)}
+            selectedAccount={toAccountSelectorOption(buyAccount)}
             onSelect={(account) => {
-              setReceiveAccount(account);
+              setBuyAccount(account);
               if (account.currency !== inputValue.currency) {
                 switchInputCurrency();
               }
@@ -166,22 +152,21 @@ export default function ReceiveInput() {
         <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
           <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
             <div className="flex items-center justify-start gap-4">
-              <button type="button" onClick={handlePaste}>
-                <Clipboard />
-              </button>
-
-              <LinkWithViewTransition
-                to={buildLinkWithSearchParams('/receive/scan')}
-                transition="slideUp"
-                applyTo="newView"
-              >
-                <Scan />
-              </LinkWithViewTransition>
+              <span className="ml-1 flex items-center gap-2 whitespace-nowrap text-sm">
+                Pay with
+                <CashAppLogo className="-translate-y-[0.5px] h-5" />
+              </span>
             </div>
-            <div /> {/* spacer */}
-            <Button onClick={handleContinue} disabled={inputValue.isZero()}>
-              Continue
-            </Button>
+            <div />
+            <div className="flex items-center justify-end">
+              <Button
+                onClick={handleContinue}
+                disabled={inputValue.isZero()}
+                loading={status === 'quoting' || isContinuing}
+              >
+                Continue
+              </Button>
+            </div>
           </div>
         </div>
       </PageContent>

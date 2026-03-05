@@ -84,14 +84,27 @@ export default function Index() {
           <div />
         )}
 
-        <div className="grid w-72 grid-cols-2 gap-10">
-          <LinkWithViewTransition
-            to="/receive"
-            transition="slideUp"
-            applyTo="newView"
-          >
-            <Button className="w-full px-7 py-6 text-lg">Receive</Button>
-          </LinkWithViewTransition>
+        <div className="flex w-72 flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <LinkWithViewTransition
+              to="/receive"
+              transition="slideUp"
+              applyTo="newView"
+            >
+              <Button variant="secondary" className="w-full px-7 py-6 text-lg">
+                Receive
+              </Button>
+            </LinkWithViewTransition>
+            <LinkWithViewTransition
+              to="/buy"
+              transition="slideUp"
+              applyTo="newView"
+            >
+              <Button variant="secondary" className="w-full px-7 py-6 text-lg">
+                Buy
+              </Button>
+            </LinkWithViewTransition>
+          </div>
           <LinkWithViewTransition
             to="/send"
             transition="slideUp"
