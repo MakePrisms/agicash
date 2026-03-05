@@ -14,6 +14,7 @@ import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import useUserAgent from '~/hooks/use-user-agent';
 import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
+import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import { useCashuReceiveQuote } from '../receive/cashu-receive-quote-hooks';
 import { useSparkReceiveQuote } from '../receive/spark-receive-quote-hooks';
 import { getDefaultUnit } from '../shared/currencies';
@@ -31,15 +32,24 @@ const getErrorMessageFromQuoteStatus = (status: string) => {
   return undefined;
 };
 
-const useNavigateToTransaction = () => {
+const getRedirectTo = (account: Account) => {
+  if (account.purpose === 'gift-card') {
+    return `/gift-cards/${account.id}`;
+  }
+  return undefined;
+};
+
+const useNavigateToTransaction = (redirectTo?: string) => {
   const navigate = useNavigateWithViewTransition();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   return (transactionId: string) => {
+    const params: Record<string, string> = { showOkButton: 'true' };
+    if (redirectTo) {
+      params.redirectTo = redirectTo;
+    }
     navigate(
-      buildLinkWithSearchParams(`/transactions/${transactionId}`, {
-        showOkButton: 'true',
-      }),
+      buildLinkWithSearchParams(`/transactions/${transactionId}`, params),
       { transition: 'fade', applyTo: 'newView' },
     );
   };
@@ -144,7 +154,7 @@ function DesktopCheckoutContent({
         description="Scan with Cash App"
         className="gap-4"
       />
-      <div className="max-w-sm">
+      <div className="w-full max-w-sm">
         <ConfirmationDetails accountName={accountName} fee={fee} />
       </div>
     </>
@@ -197,7 +207,7 @@ function CashAppCheckout({
       </PageContent>
       {isMobile && !errorMessage && (
         <PageFooter className="pb-14">
-          <Button asChild>
+          <Button asChild className="w-[80px]">
             <a href={deepLinkUrl}>Pay</a>
           </Button>
         </PageFooter>
@@ -209,13 +219,15 @@ function CashAppCheckout({
 export function BuyCheckoutCashu({
   quote,
   amount,
-  accountName,
+  account,
 }: {
   quote: BuyQuote;
   amount: Money;
-  accountName: string;
+  account: CashuAccount;
 }) {
-  const navigateToTransaction = useNavigateToTransaction();
+  const navigateToTransaction = useNavigateToTransaction(
+    getRedirectTo(account),
+  );
 
   const { status: quotePaymentStatus } = useCashuReceiveQuote({
     quoteId: quote.id,
@@ -228,7 +240,7 @@ export function BuyCheckoutCashu({
     <CashAppCheckout
       paymentRequest={quote.paymentRequest}
       amount={amount}
-      accountName={accountName}
+      accountName={account.name}
       errorMessage={getErrorMessageFromQuoteStatus(quotePaymentStatus)}
       fee={quote.mintingFee}
     />
@@ -238,13 +250,15 @@ export function BuyCheckoutCashu({
 export function BuyCheckoutSpark({
   quote,
   amount,
-  accountName,
+  account,
 }: {
   quote: BuyQuote;
   amount: Money;
-  accountName: string;
+  account: SparkAccount;
 }) {
-  const navigateToTransaction = useNavigateToTransaction();
+  const navigateToTransaction = useNavigateToTransaction(
+    getRedirectTo(account),
+  );
 
   const { status: quotePaymentStatus } = useSparkReceiveQuote({
     quoteId: quote.id,
@@ -257,7 +271,7 @@ export function BuyCheckoutSpark({
     <CashAppCheckout
       paymentRequest={quote.paymentRequest}
       amount={amount}
-      accountName={accountName}
+      accountName={account.name}
       errorMessage={getErrorMessageFromQuoteStatus(quotePaymentStatus)}
     />
   );
