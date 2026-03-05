@@ -268,6 +268,10 @@ type CreateProps = {
    * If not provided, the invoice will be created for the user that owns the Spark wallet.
    */
   receiverIdentityPubkey?: string;
+  /**
+   * Description to include in the Lightning invoice memo.
+   */
+  description?: string;
 };
 
 /**
@@ -287,11 +291,13 @@ export function useCreateSparkReceiveQuote() {
       account,
       amount,
       receiverIdentityPubkey,
+      description,
     }: CreateProps) => {
       const lightningQuote = await getLightningQuote({
         wallet: account.wallet,
         amount,
         receiverIdentityPubkey,
+        description,
       });
 
       return sparkReceiveQuoteService.createReceiveQuote({
