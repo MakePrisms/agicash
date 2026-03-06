@@ -8,7 +8,7 @@ import {
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { Card } from '~/components/ui/card';
-import { ScrollArea } from '~/components/ui/scroll-area';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
 import { getAccountBalance } from '~/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
@@ -94,9 +94,9 @@ export default function AllAccounts() {
           </TabsList>
           {tabs.map((tab) => (
             <TabsContent value={tab.value} key={tab.value} className="mt-8">
-              <ScrollArea className="h-[calc(100vh-280px)]">
+              <div className="scrollbar-none h-[calc(100vh-280px)] overflow-y-auto">
                 <CurrencyAccounts currency={tab.value} />
-              </ScrollArea>
+              </div>
             </TabsContent>
           ))}
         </Tabs>

@@ -8,7 +8,6 @@ import {
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
-import { ScrollArea } from '~/components/ui/scroll-area';
 import { proofToY } from '~/lib/cashu';
 import type { CashuAccount } from '../accounts/account';
 import { useAccount } from '../accounts/account-hooks';
@@ -226,11 +225,11 @@ export function TransactionAdditionalDetails({
         <PageHeaderTitle>Txn Details</PageHeaderTitle>
       </PageHeader>
       <PageContent className="overflow-hidden">
-        <ScrollArea className="h-full">
+        <div className="scrollbar-none h-full overflow-y-auto">
           <div className="mb-2 text-xs">type: {transaction.type}</div>
           <div className="mb-2 text-xs">direction: {transaction.direction}</div>
           {details}
-        </ScrollArea>
+        </div>
       </PageContent>
     </Page>
   );
