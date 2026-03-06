@@ -8,6 +8,8 @@ export const TransactionTypeSchema = z.enum([
   'CASHU_LIGHTNING',
   'CASHU_TOKEN',
   'SPARK_LIGHTNING',
+  'BUY',
+  'TRANSFER',
 ]);
 
 export type TransactionType = z.infer<typeof TransactionTypeSchema>;

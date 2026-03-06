@@ -74,9 +74,11 @@ const SparkReceiveQuoteBaseSchema = z.object({
 const SparkReceiveQuoteLightningTypeSchema = z.object({
   /**
    * Type of the receive.
-   * LIGHTNING - The money is received via regular Lightning flow. User provides the lightning invoice to the payer who then pays the invoice.
+   * LIGHTNING - The money is received via a regular lightning payment.
+   * BUY - A purchase of bitcoin. The receive quote is created by the buyer, who pays the Lightning invoice through an external payment method.
+   * TRANSFER - An internal transfer between accounts. The receive quote is created and paid automatically by the app.
    */
-  type: z.literal('LIGHTNING'),
+  type: z.enum(['LIGHTNING', 'BUY', 'TRANSFER']),
 });
 
 const SparkReceiveQuoteCashuTokenTypeSchema = z.object({

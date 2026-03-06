@@ -1612,7 +1612,7 @@ export type Database = {
         | "FAILED"
         | "REVERSED"
       currency: "BTC" | "USD"
-      receive_quote_type: "LIGHTNING" | "CASHU_TOKEN"
+      receive_quote_type: "LIGHTNING" | "CASHU_TOKEN" | "TRANSFER" | "BUY"
       spark_receive_quote_state: "UNPAID" | "EXPIRED" | "PAID" | "FAILED"
       spark_send_quote_state: "UNPAID" | "PENDING" | "COMPLETED" | "FAILED"
       transaction_direction: "SEND" | "RECEIVE"
@@ -1622,7 +1622,12 @@ export type Database = {
         | "COMPLETED"
         | "FAILED"
         | "REVERSED"
-      transaction_type: "CASHU_LIGHTNING" | "CASHU_TOKEN" | "SPARK_LIGHTNING"
+      transaction_type:
+        | "CASHU_LIGHTNING"
+        | "CASHU_TOKEN"
+        | "SPARK_LIGHTNING"
+        | "TRANSFER"
+        | "BUY"
     }
     CompositeTypes: {
       account_input: {
@@ -1900,7 +1905,7 @@ export const Constants = {
         "REVERSED",
       ],
       currency: ["BTC", "USD"],
-      receive_quote_type: ["LIGHTNING", "CASHU_TOKEN"],
+      receive_quote_type: ["LIGHTNING", "CASHU_TOKEN", "TRANSFER", "BUY"],
       spark_receive_quote_state: ["UNPAID", "EXPIRED", "PAID", "FAILED"],
       spark_send_quote_state: ["UNPAID", "PENDING", "COMPLETED", "FAILED"],
       transaction_direction: ["SEND", "RECEIVE"],
@@ -1911,7 +1916,13 @@ export const Constants = {
         "FAILED",
         "REVERSED",
       ],
-      transaction_type: ["CASHU_LIGHTNING", "CASHU_TOKEN", "SPARK_LIGHTNING"],
+      transaction_type: [
+        "CASHU_LIGHTNING",
+        "CASHU_TOKEN",
+        "SPARK_LIGHTNING",
+        "TRANSFER",
+        "BUY",
+      ],
     },
   },
 } as const

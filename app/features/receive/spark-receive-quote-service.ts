@@ -55,7 +55,7 @@ export class SparkReceiveQuoteService {
 
     return this.repository.create({
       ...baseParams,
-      receiveType: 'LIGHTNING',
+      receiveType: params.receiveType,
     });
   }
 

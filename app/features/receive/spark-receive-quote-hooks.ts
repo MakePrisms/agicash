@@ -272,6 +272,10 @@ type CreateProps = {
    * Description to include in the Lightning invoice memo.
    */
   description?: string;
+  /**
+   * Type of the receive. Defaults to 'LIGHTNING'.
+   */
+  receiveType?: 'LIGHTNING' | 'BUY';
 };
 
 /**
@@ -292,6 +296,7 @@ export function useCreateSparkReceiveQuote() {
       amount,
       receiverIdentityPubkey,
       description,
+      receiveType = 'LIGHTNING',
     }: CreateProps) => {
       const lightningQuote = await getLightningQuote({
         wallet: account.wallet,
@@ -304,7 +309,7 @@ export function useCreateSparkReceiveQuote() {
         userId,
         account,
         lightningQuote,
-        receiveType: 'LIGHTNING',
+        receiveType,
       });
     },
     onSuccess: (data) => {
