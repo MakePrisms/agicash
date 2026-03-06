@@ -324,7 +324,7 @@ const checkIfMintSupportsWebSocketsForMintQuotes = (
   account: CashuAccount,
   currency: string,
 ): boolean => {
-  const nut17Info = account.wallet.mintInfo.isSupported(17);
+  const nut17Info = account.wallet.getMintInfo().isSupported(17);
   const params = nut17Info.params ?? [];
   const supportsWebSocketsForMintQuotes =
     nut17Info.supported &&

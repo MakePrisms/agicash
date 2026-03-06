@@ -1,8 +1,8 @@
 import {
-  type CashuWallet,
   MintOperationError,
   OutputData,
   type Proof,
+  type Wallet,
 } from '@cashu/cashu-ts';
 import type { CashuAccount } from '~/features/accounts/account';
 import { type CashuProof, toProof } from '~/features/accounts/cashu-account';
@@ -149,8 +149,10 @@ export class CashuSendSwapService {
         unit: getCashuProtocolUnit(amount.currency),
       });
     } else {
-      const keys = await wallet.getKeys();
-      keysetId = keys.id;
+      const keyset = wallet.getKeyset();
+      keysetId = keyset.id;
+      const keys = keyset.toMintKeys();
+      if (!keys) throw new Error('Keys not loaded for keyset');
       const amountToKeep =
         sumProofs(inputProofs) - totalAmountToSend - cashuSendFee;
       outputAmounts = {
@@ -196,7 +198,9 @@ export class CashuSendSwapService {
 
     const wallet = account.wallet;
 
-    const keys = await wallet.getKeys(swap.keysetId);
+    const keyset = wallet.getKeyset(swap.keysetId);
+    const keys = keyset.toMintKeys();
+    if (!keys) throw new Error('Keys not loaded for keyset');
     const currency = swap.amountToSend.currency;
     const cashuUnit = getCashuUnit(currency);
     const sendAmount = swap.amountToSend.toNumber(cashuUnit);
@@ -312,8 +316,8 @@ export class CashuSendSwapService {
     }
 
     if (includeFeesInSendAmount) {
-      // If we want to do fee calculation, then the keys are required
-      await wallet.getKeys();
+      // If we want to do fee calculation, then the keyset with keys is required
+      wallet.getKeyset();
     }
 
     const accountProofsMap = new Map<string, CashuProof>(
@@ -402,7 +406,7 @@ export class CashuSendSwapService {
   }
 
   private async swapProofs(
-    wallet: CashuWallet,
+    wallet: Wallet,
     swap: CashuSendSwap & { state: 'DRAFT' },
     outputData: {
       keep: OutputData[];
@@ -414,12 +418,15 @@ export class CashuSendSwapService {
     );
 
     try {
-      return await wallet.swap(
+      return await wallet.send(
         amountToSend,
         swap.inputProofs.map((p) => toProof(p)),
         {
-          outputData,
           keysetId: swap.keysetId,
+        },
+        {
+          send: { type: 'custom', data: outputData.send },
+          keep: { type: 'custom', data: outputData.keep },
         },
       );
     } catch (error) {

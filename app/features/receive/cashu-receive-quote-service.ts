@@ -242,7 +242,9 @@ export class CashuReceiveQuoteService {
     addedProofs: string[];
   }> {
     const keysetId = wallet.keysetId;
-    const keys = await wallet.getKeys(keysetId);
+    const keyset = wallet.getKeyset(keysetId);
+    const keys = keyset.toMintKeys();
+    if (!keys) throw new Error('Keys not loaded for keyset');
     const cashuUnit = getCashuUnit(quote.amount.currency);
     const amountInCashuUnit = quote.amount.toNumber(cashuUnit);
     const outputAmounts = getOutputAmounts(amountInCashuUnit, keys);
@@ -269,7 +271,9 @@ export class CashuReceiveQuoteService {
     }
 
     const cashuUnit = getCashuUnit(quote.amount.currency);
-    const keys = await wallet.getKeys(quote.keysetId);
+    const keyset = wallet.getKeyset(quote.keysetId);
+    const keys = keyset.toMintKeys();
+    if (!keys) throw new Error('Keys not loaded for keyset');
 
     const outputData = OutputData.createDeterministicData(
       quote.amount.toNumber(cashuUnit),
@@ -306,11 +310,8 @@ export class CashuReceiveQuoteService {
         quote.lockingDerivationPath,
       );
 
-      const proofs = await wallet.mintProofs(
+      const proofs = await wallet.mintProofsBolt11(
         amount,
-        // NOTE: cashu-ts makes us pass the mint quote response instead of just the quote id
-        // if we want to use the private key to create a signature. However, the implementation
-        // only ends up using the quote id.
         {
           quote: quote.quoteId,
           request: quote.paymentRequest,
@@ -321,9 +322,9 @@ export class CashuReceiveQuoteService {
         },
         {
           keysetId: quote.keysetId,
-          outputData,
-          privateKey: unlockingKey,
+          privkey: unlockingKey,
         },
+        { type: 'custom', data: outputData },
       );
 
       return proofs;

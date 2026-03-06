@@ -3,9 +3,9 @@ import {
   getPrivateKeyBytes,
 } from '@agicash/opensecret';
 import {
-  CashuMint,
-  type MintActiveKeys,
-  type MintAllKeysets,
+  type GetKeysResponse,
+  type GetKeysetsResponse,
+  Mint,
   NetworkError,
   type Token,
   getEncodedToken,
@@ -187,7 +187,7 @@ export const mintKeysQueryKey = (mintUrl: string, keysetId?: string) => [
 export const mintInfoQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: mintInfoQueryKey(mintUrl),
-    queryFn: async () => getCashuWallet(mintUrl).getMintInfo(),
+    queryFn: async () => new Mint(mintUrl).getLazyMintInfo(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -200,7 +200,7 @@ export const mintInfoQueryOptions = (mintUrl: string) =>
 export const allMintKeysetsQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: allMintKeysetsQueryKey(mintUrl),
-    queryFn: async () => CashuMint.getKeySets(mintUrl),
+    queryFn: async () => new Mint(mintUrl).getKeySets(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -215,7 +215,7 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
 export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
   queryOptions({
     queryKey: mintKeysQueryKey(mintUrl, keysetId),
-    queryFn: async () => CashuMint.getKeys(mintUrl, keysetId),
+    queryFn: async () => new Mint(mintUrl).getKeys(keysetId),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -245,8 +245,8 @@ export async function getInitializedCashuWallet(
     'getInitializedCashuWallet',
     async () => {
       let mintInfo: MintInfo;
-      let allMintKeysets: MintAllKeysets;
-      let mintActiveKeys: MintActiveKeys;
+      let allMintKeysets: GetKeysetsResponse;
+      let mintActiveKeys: GetKeysResponse;
 
       try {
         [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
@@ -303,13 +303,11 @@ export async function getInitializedCashuWallet(
       const wallet = getCashuWallet(mintUrl, {
         unit: getCashuUnit(currency),
         bip39seed: bip39seed ?? undefined,
-        mintInfo,
+        mintInfo: mintInfo.cache,
         keys: activeKeysForUnit,
         keysets: unitKeysets,
+        keysetId: activeKeyset.id,
       });
-
-      // The constructor does not set the keysetId, so we need to set it manually
-      wallet.keysetId = activeKeyset.id;
 
       return { wallet, isOnline: true };
     },

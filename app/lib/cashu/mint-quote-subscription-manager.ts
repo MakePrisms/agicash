@@ -69,7 +69,7 @@ export class MintQuoteSubscriptionManager {
       }
     };
 
-    const subscriptionPromise = wallet.onMintQuoteUpdates(
+    const subscriptionPromise = wallet.on.mintQuoteUpdates(
       Array.from(ids),
       subscriptionCallback,
       (error) =>

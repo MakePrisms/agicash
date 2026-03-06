@@ -30,7 +30,7 @@ export function GiftCardItem({
 }: GiftCardItemProps) {
   const balance = getAccountBalance(account);
   const mintInfoName = account.isOnline
-    ? account.wallet.mintInfo.name
+    ? account.wallet.getMintInfo().name
     : undefined;
   const name =
     mintInfoName ??

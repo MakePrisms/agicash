@@ -67,13 +67,13 @@ export class ReceiveCashuTokenService {
       };
     }
 
-    const mintInfo = wallet.mintInfo;
+    const mintInfo = wallet.getMintInfo();
     const unit = getCashuProtocolUnit(currency);
     const validationResult = cashuMintValidator(
       mintUrl,
       unit,
       mintInfo,
-      wallet.keysets,
+      wallet.keyChain.getKeysets().map((ks) => ks.toMintKeyset()),
     );
 
     const isTestMint = await this.queryClient.fetchQuery(
