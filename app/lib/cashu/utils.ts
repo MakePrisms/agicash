@@ -83,25 +83,14 @@ export const getCashuProtocolUnit = (currency: Currency) => {
 /**
  * Determines the purpose of a mint based on its info.
  *
- * Accepts either a raw GetInfoResponse or the MintInfo class wrapper.
- * The MintInfo class hides the raw response in a private `_mintInfo` field,
- * so we unwrap it to access custom extension fields like `agicash`.
- *
- * TODO: We can remove this when we upgrade to cashu-ts v3 and then we can have better control of the MintInfo class.
+ * Uses the v3 MintInfo `.cache` getter to access the raw GetInfoResponse,
+ * then checks for agicash-specific extensions.
  */
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
 ): 'gift-card' | 'transactional' => {
-  // The MintInfo class may be double-wrapped (mintInfoQueryOptions returns a
-  // MintInfo class, and the CashuWallet constructor wraps it again). Unwrap
-  // all layers to reach the raw GetInfoResponse.
-  let raw: unknown = mintInfo;
-  while (raw != null && typeof raw === 'object' && '_mintInfo' in raw) {
-    raw = (raw as { _mintInfo: unknown })._mintInfo;
-  }
-  return (raw as ExtendedGetInfoResponse | undefined)?.agicash?.closed_loop
-    ? 'gift-card'
-    : 'transactional';
+  const raw = mintInfo?.cache as ExtendedGetInfoResponse | undefined;
+  return raw?.agicash?.closed_loop ? 'gift-card' : 'transactional';
 };
 
 export const getWalletCurrency = (wallet: Wallet) => {
