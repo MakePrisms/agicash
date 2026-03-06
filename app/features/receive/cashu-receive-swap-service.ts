@@ -3,12 +3,12 @@ import {
   OutputData,
   type Token,
   type Wallet,
+  splitAmount,
 } from '@cashu/cashu-ts';
 import {
   CashuErrorCodes,
   areMintUrlsEqual,
   getCashuUnit,
-  getOutputAmounts,
   sumProofs,
 } from '~/lib/cashu';
 import { Money } from '~/lib/money';
@@ -91,7 +91,7 @@ export class CashuReceiveSwapService {
       unit: cashuUnit,
     });
 
-    const outputAmounts = getOutputAmounts(amountToReceive, keys);
+    const outputAmounts = splitAmount(amountToReceive, keys.keys);
 
     return await this.receiveSwapRepository.create({
       token,

@@ -3,6 +3,7 @@ import {
   OutputData,
   type Proof,
   type Wallet,
+  splitAmount,
 } from '@cashu/cashu-ts';
 import type { CashuAccount } from '~/features/accounts/account';
 import { type CashuProof, toProof } from '~/features/accounts/cashu-account';
@@ -11,7 +12,6 @@ import {
   type ExtendedCashuWallet,
   getCashuProtocolUnit,
   getCashuUnit,
-  getOutputAmounts,
   sumProofs,
 } from '~/lib/cashu';
 import { Money } from '~/lib/money';
@@ -156,8 +156,8 @@ export class CashuSendSwapService {
       const amountToKeep =
         sumProofs(inputProofs) - totalAmountToSend - cashuSendFee;
       outputAmounts = {
-        send: getOutputAmounts(totalAmountToSend, keys),
-        change: getOutputAmounts(amountToKeep, keys),
+        send: splitAmount(totalAmountToSend, keys.keys),
+        change: splitAmount(amountToKeep, keys.keys),
       };
     }
 

@@ -3,12 +3,12 @@ import {
   MintQuoteState,
   OutputData,
   type Proof,
+  splitAmount,
 } from '@cashu/cashu-ts';
 import {
   CashuErrorCodes,
   type ExtendedCashuWallet,
   getCashuUnit,
-  getOutputAmounts,
 } from '~/lib/cashu';
 import type { CashuAccount } from '../accounts/account';
 import {
@@ -238,7 +238,7 @@ export class CashuReceiveQuoteService {
     if (!keys) throw new Error('Keys not loaded for keyset');
     const cashuUnit = getCashuUnit(quote.amount.currency);
     const amountInCashuUnit = quote.amount.toNumber(cashuUnit);
-    const outputAmounts = getOutputAmounts(amountInCashuUnit, keys);
+    const outputAmounts = splitAmount(amountInCashuUnit, keys.keys);
 
     const result = await this.cashuReceiveQuoteRepository.processPayment({
       quote,
