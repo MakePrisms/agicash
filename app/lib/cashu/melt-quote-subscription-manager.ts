@@ -67,7 +67,7 @@ export class MeltQuoteSubscriptionManager {
       }
     };
 
-    const subscriptionPromise = wallet.onMeltQuoteUpdates(
+    const subscriptionPromise = wallet.on.meltQuoteUpdates(
       Array.from(ids),
       subscriptionCallback,
       (error) =>

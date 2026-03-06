@@ -145,7 +145,6 @@ export class CashuSendQuoteService {
 
     const cashuUnit = getCashuUnit(account.currency);
     const wallet = account.wallet;
-    await wallet.getKeys();
 
     const meltQuote = await wallet.createMeltQuote(paymentRequest);
 
@@ -235,8 +234,8 @@ export class CashuSendQuoteService {
 
     const cashuUnit = getCashuUnit(account.currency);
     const wallet = account.wallet;
-    const keys = await wallet.getKeys();
-    const keysetId = keys.id;
+    const keyset = wallet.getKeyset();
+    const keysetId = keyset.id;
 
     const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
 
@@ -336,6 +335,9 @@ export class CashuSendQuoteService {
       sendQuote.proofs.map((p) => toProof(p)),
       {
         keysetId: sendQuote.keysetId,
+      },
+      {
+        type: 'deterministic',
         counter: sendQuote.keysetCounter,
       },
     );
@@ -407,7 +409,9 @@ export class CashuSendQuoteService {
     // This is needed because we need the deterministic output data to be able to convert the change signatures to proofs.
     // See https://github.com/cashubtc/cashu-ts/issues/287 for more details. If cashu-ts eventually exposes the way to create
     // blank outputs we will be able to simplify this.
-    const keys = await wallet.getKeys(sendQuote.keysetId);
+    const keyset = wallet.getKeyset(sendQuote.keysetId);
+    const keys = keyset.toMintKeys();
+    if (!keys) throw new Error('Keys not loaded for keyset');
     const amounts = sendQuote.numberOfChangeOutputs
       ? Array(sendQuote.numberOfChangeOutputs).fill(1)
       : [];

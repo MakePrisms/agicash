@@ -1,8 +1,8 @@
 import {
-  type CashuWallet,
   MintOperationError,
   OutputData,
   type Token,
+  type Wallet,
 } from '@cashu/cashu-ts';
 import {
   CashuErrorCodes,
@@ -69,7 +69,9 @@ export class CashuReceiveSwapService {
 
     const wallet = account.wallet;
 
-    const keys = await wallet.getKeys();
+    const keyset = wallet.getKeyset();
+    const keys = keyset.toMintKeys();
+    if (!keys) throw new Error('Keys not loaded for keyset');
     const fee = wallet.getFeesForProofs(token.proofs);
     const amountToReceive = sumProofs(token.proofs) - fee;
 
@@ -167,7 +169,9 @@ export class CashuReceiveSwapService {
       outputAmounts,
     } = receiveSwap;
 
-    const keys = await wallet.getKeys(keysetId);
+    const keyset = wallet.getKeyset(keysetId);
+    const keys = keyset.toMintKeys();
+    if (!keys) throw new Error('Keys not loaded for keyset');
     const outputData = OutputData.createDeterministicData(
       receiveAmount.toNumber(getCashuUnit(receiveAmount.currency)),
       wallet.seed,
@@ -198,18 +202,19 @@ export class CashuReceiveSwapService {
   }
 
   private async swapProofs(
-    wallet: CashuWallet,
+    wallet: Wallet,
     receiveSwap: CashuReceiveSwap,
     outputData: OutputData[],
   ) {
     try {
-      const { send: newProofs } = await wallet.swap(
+      const { send: newProofs } = await wallet.send(
         receiveSwap.amountReceived.toNumber(
           getCashuUnit(receiveSwap.amountReceived.currency),
         ),
         receiveSwap.tokenProofs,
+        {},
         {
-          outputData: { send: outputData },
+          send: { type: 'custom', data: outputData },
         },
       );
       return newProofs;

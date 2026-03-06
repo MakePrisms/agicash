@@ -1,4 +1,4 @@
-import type { CashuWallet } from '@cashu/cashu-ts';
+import type { Wallet } from '@cashu/cashu-ts';
 import { z } from 'zod';
 import { nullToUndefined } from '../zod';
 
@@ -185,7 +185,7 @@ export type P2PKSecret = NUT10Secret & { kind: 'P2PK' };
  * A class that represents the data fetched from the mint's
  * [NUT-06 info endpoint](https://github.com/cashubtc/nuts/blob/main/06.md)
  */
-export type MintInfo = Awaited<ReturnType<CashuWallet['getMintInfo']>>;
+export type MintInfo = ReturnType<Wallet['getMintInfo']>;
 
 /**
  * A subset of the supported currency units as defined by the Cashu protocol.
