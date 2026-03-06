@@ -20,7 +20,12 @@ export type ProofSecret =
     }
   | {
       type: 'nut10';
-      secret: { kind: SecretKind; nonce: string; data: string; tags?: string[][] };
+      secret: {
+        kind: SecretKind;
+        nonce: string;
+        data: string;
+        tags?: string[][];
+      };
     };
 
 type ParseSecretResult =

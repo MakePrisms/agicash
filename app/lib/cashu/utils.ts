@@ -1,10 +1,10 @@
 import {
   type Keys,
-  type MeltQuoteResponse,
+  type MeltQuoteBolt11Response,
   MeltQuoteState,
   Mint,
   type MintKeyset,
-  type MintQuoteResponse,
+  type MintQuoteBolt11Response,
   type Proof,
   Wallet,
 } from '@cashu/cashu-ts';
@@ -144,13 +144,13 @@ export class ExtendedCashuWallet extends Wallet {
   }
 
   /**
-   * This method overrides the createMintQuote method from CashuWallet to return ExtendedMintQuoteResponse
+   * This method overrides the createMintQuoteBolt11 method from Wallet to return ExtendedMintQuoteResponse
    */
-  async createMintQuote(
-    amount: Parameters<Wallet['createMintQuote']>[0],
-    description?: Parameters<Wallet['createMintQuote']>[1],
+  override async createMintQuoteBolt11(
+    amount: Parameters<Wallet['createMintQuoteBolt11']>[0],
+    description?: Parameters<Wallet['createMintQuoteBolt11']>[1],
   ): Promise<ExtendedMintQuoteResponse> {
-    return super.createMintQuote(
+    return super.createMintQuoteBolt11(
       amount,
       description,
     ) as Promise<ExtendedMintQuoteResponse>;
@@ -172,12 +172,14 @@ export class ExtendedCashuWallet extends Wallet {
   }
 
   /**
-   * This method overrides the checkMintQuote method from CashuWallet to return ExtendedMintQuoteResponse
+   * This method overrides the checkMintQuoteBolt11 method from Wallet to return ExtendedMintQuoteResponse
    */
-  override async checkMintQuote(
-    quote: MintQuoteResponse | string,
+  override async checkMintQuoteBolt11(
+    quote: MintQuoteBolt11Response | string,
   ): Promise<ExtendedMintQuoteResponse> {
-    return super.checkMintQuote(quote) as Promise<ExtendedMintQuoteResponse>;
+    return super.checkMintQuoteBolt11(
+      quote,
+    ) as Promise<ExtendedMintQuoteResponse>;
   }
 
   /**
@@ -214,23 +216,25 @@ export class ExtendedCashuWallet extends Wallet {
    * This handles the case where meltProofs is called twice for the same quote.
    */
   async meltProofsIdempotent(
-    meltQuote: Pick<MeltQuoteResponse, 'quote' | 'amount'>,
+    meltQuote: Pick<MeltQuoteBolt11Response, 'quote' | 'amount'>,
     proofs: Proof[],
-    config?: Parameters<Wallet['meltProofs']>[2],
-    outputType?: Parameters<Wallet['meltProofs']>[3],
+    config?: Parameters<Wallet['meltProofsBolt11']>[2],
+    outputType?: Parameters<Wallet['meltProofsBolt11']>[3],
   ) {
-    // meltProofs method doesn't use anything but quote and amount so we can pass a dummy MeltQuoteResponse
-    return this.meltProofs(
-      meltQuote as MeltQuoteResponse,
+    // meltProofsBolt11 method doesn't use anything but quote and amount so we can pass a dummy MeltQuoteBolt11Response
+    return this.meltProofsBolt11(
+      meltQuote as MeltQuoteBolt11Response,
       proofs,
       config,
       outputType,
     ).catch(async (error) => {
-      // Melt should be idempotent: if meltProofs was already called once and did not fail,
+      // Melt should be idempotent: if meltProofsBolt11 was already called once and did not fail,
       // then the melt quote will be pending or paid.
-      const latestMeltQuote = await this.checkMeltQuote(meltQuote.quote);
+      const latestMeltQuote = await this.checkMeltQuoteBolt11(meltQuote.quote);
       if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
-        console.debug('meltProofs was called but melt quote is not unpaid');
+        console.debug(
+          'meltProofsBolt11 was called but melt quote is not unpaid',
+        );
         return latestMeltQuote;
       }
       throw error;
@@ -313,7 +317,7 @@ export const checkIsTestMint = async (mintUrl: string): Promise<boolean> => {
     return true;
   }
   const wallet = getCashuWallet(mintUrl);
-  const { request: bolt11 } = await wallet.createMintQuote(1);
+  const { request: bolt11 } = await wallet.createMintQuoteBolt11(1);
   const { network } = decodeBolt11(bolt11);
   return network !== 'bitcoin';
 };
@@ -339,4 +343,3 @@ export const areMintUrlsEqual = (a: string, b: string) => {
     b.toLowerCase().replace(/\/+$/, '').trim()
   );
 };
-
