@@ -71,15 +71,23 @@ describe('parseSecret', () => {
     });
   });
 
-  describe('should return failure for invalid NUT10 secret if', () => {
-    test('secret is not in WELL_KNOWN_SECRET_KINDS', () => {
-      const result = parseSecret('["HTLC",{"nonce":"0","data":"0","tags":[]}]');
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toBeDefined();
-      }
-    });
+  test('should successfully parse a valid HTLC secret', () => {
+    const result = parseSecret('["HTLC",{"nonce":"0","data":"0","tags":[]}]');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({
+        type: 'nut10',
+        secret: {
+          kind: 'HTLC',
+          nonce: '0',
+          data: '0',
+          tags: [],
+        },
+      });
+    }
+  });
 
+  describe('should return failure for invalid NUT10 secret if', () => {
     test('nonce is not a string', () => {
       const result = parseSecret('["P2PK",{"nonce":123,"data":"test"}]');
       expect(result.success).toBe(false);
