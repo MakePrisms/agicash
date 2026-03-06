@@ -1,8 +1,7 @@
 import {
-  type MeltQuoteResponse,
+  type MeltQuoteBolt11Response,
   MeltQuoteState,
   OutputData,
-  type PartialMeltQuoteResponse,
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
 import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
@@ -56,7 +55,7 @@ export type CashuLightningQuote = {
   /**
    * The mint's melt quote.
    */
-  meltQuote: MeltQuoteResponse;
+  meltQuote: MeltQuoteBolt11Response;
   /**
    * The amount that the receiver will receive.
    */
@@ -89,7 +88,7 @@ export type SendQuoteRequest = {
   paymentRequest: string;
   amountRequested: Money;
   amountRequestedInBtc: Money<'BTC'>;
-  meltQuote: MeltQuoteResponse;
+  meltQuote: MeltQuoteBolt11Response;
 };
 
 export class CashuSendQuoteService {
@@ -147,7 +146,7 @@ export class CashuSendQuoteService {
     const cashuUnit = getCashuUnit(account.currency);
     const wallet = account.wallet;
 
-    const meltQuote = await wallet.createMeltQuote(paymentRequest);
+    const meltQuote = await wallet.createMeltQuoteBolt11(paymentRequest);
 
     const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
 
@@ -328,7 +327,7 @@ export class CashuSendQuoteService {
   async initiateSend(
     account: CashuAccount,
     sendQuote: CashuSendQuote,
-    meltQuote: Pick<MeltQuoteResponse, 'quote' | 'amount'>,
+    meltQuote: Pick<MeltQuoteBolt11Response, 'quote' | 'amount'>,
   ) {
     if (account.id !== sendQuote.accountId) {
       throw new Error('Account does not match');
@@ -386,7 +385,7 @@ export class CashuSendQuoteService {
   async completeSendQuote(
     account: CashuAccount,
     sendQuote: CashuSendQuote,
-    meltQuote: PartialMeltQuoteResponse,
+    meltQuote: MeltQuoteBolt11Response,
   ) {
     if (sendQuote.state === 'PAID') {
       return sendQuote;
@@ -478,7 +477,9 @@ export class CashuSendQuoteService {
       throw new Error('Account does not match the quote account');
     }
 
-    const latestMeltQuote = await account.wallet.checkMeltQuote(quote.quoteId);
+    const latestMeltQuote = await account.wallet.checkMeltQuoteBolt11(
+      quote.quoteId,
+    );
     if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
       // Pending and paid melt quotes should not be failed because that means the send is in progress or has already been completed.
       // If the mint fails to pay the melt quote, then the melt quote state will be changed to UNPAID again.

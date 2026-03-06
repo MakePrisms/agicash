@@ -3,12 +3,7 @@
  * See PROTOCOL_EXTENSIONS.md for detailed documentation.
  */
 
-import type {
-  GetInfoResponse,
-  LockedMintQuoteResponse,
-  MintQuoteResponse,
-  PartialMintQuoteResponse,
-} from '@cashu/cashu-ts';
+import type { GetInfoResponse, MintQuoteBolt11Response } from '@cashu/cashu-ts';
 import type { MintInfo } from './types';
 
 /**
@@ -51,10 +46,10 @@ export type ExtendedMintInfo = MintInfo & {
   agicash?: AgicashMintExtension;
 };
 
-export type ExtendedMintQuoteResponse = MintQuoteResponse & MintQuoteFee;
+export type ExtendedMintQuoteResponse = MintQuoteBolt11Response & MintQuoteFee;
 
-export type ExtendedLockedMintQuoteResponse = LockedMintQuoteResponse &
+export type ExtendedLockedMintQuoteResponse = MintQuoteBolt11Response &
   MintQuoteFee;
 
-export type ExtendedPartialMintQuoteResponse = PartialMintQuoteResponse &
+export type ExtendedPartialMintQuoteResponse = MintQuoteBolt11Response &
   MintQuoteFee;
