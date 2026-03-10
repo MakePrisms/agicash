@@ -35,6 +35,10 @@ export const CashuLightningReceiveTransactionDetailsSchema = z.object({
    * In this case it is equal to `mintingFee` or zero if the mint has no minting fee.
    */
   totalFee: z.instanceof(Money),
+  /**
+   * UUID linking paired send/receive transactions for internal transfers.
+   */
+  transferId: z.string().optional(),
 });
 
 export type CashuLightningReceiveTransactionDetails = z.infer<
@@ -48,6 +52,7 @@ export const CashuLightningReceiveTransactionDetailsParser = z
     state: TransactionStateSchema,
     transactionDetails: z.object({
       paymentHash: z.string(),
+      transferId: z.string().optional(),
     }),
     decryptedTransactionDetails: CashuLightningReceiveDbDataSchema,
   })
@@ -63,6 +68,7 @@ export const CashuLightningReceiveTransactionDetailsParser = z
         mintingFee: decryptedTransactionDetails.mintingFee,
         amount: decryptedTransactionDetails.amountReceived,
         totalFee: decryptedTransactionDetails.totalFee,
+        transferId: transactionDetails.transferId,
       };
     },
   ) satisfies TransactionDetailsParserShape;

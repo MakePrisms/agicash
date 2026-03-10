@@ -177,9 +177,9 @@ const CompletedSparkLightningSendTransactionSchema =
   });
 
 /**
- * Schema for all transaction types.
+ * Union of all transaction type/direction/state variants.
  */
-export const TransactionSchema = z.union([
+const TransactionByTypeSchema = z.union([
   CashuTokenSendTransactionSchema,
   CashuTokenReceiveTransactionSchema,
   IncompleteCashuLightningSendTransactionSchema,
@@ -189,6 +189,23 @@ export const TransactionSchema = z.union([
   CompletedSparkLightningReceiveTransactionSchema,
   IncompleteSparkLightningSendTransactionSchema,
   CompletedSparkLightningSendTransactionSchema,
+]);
+
+/**
+ * Schema for all transaction types.
+ */
+export const TransactionSchema = z.union([
+  TransactionByTypeSchema.and(
+    z.object({
+      purpose: z.literal('TRANSFER'),
+      details: z.object({ transferId: z.string() }),
+    }),
+  ),
+  TransactionByTypeSchema.and(
+    z.object({
+      purpose: z.enum(['PAYMENT', 'BUY_CASHAPP']),
+    }),
+  ),
 ]);
 
 export type Transaction = z.infer<typeof TransactionSchema>;

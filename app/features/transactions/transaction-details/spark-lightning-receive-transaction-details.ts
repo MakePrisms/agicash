@@ -30,6 +30,10 @@ export const IncompleteSparkLightningReceiveTransactionDetailsSchema = z.object(
      * This is the amount of the bolt 11 payment request.
      */
     amount: z.instanceof(Money),
+    /**
+     * UUID linking paired send/receive transactions for internal transfers.
+     */
+    transferId: z.string().optional(),
   },
 );
 
@@ -74,6 +78,7 @@ export const SparkLightningReceiveTransactionDetailsParser = z
       paymentHash: z.string(),
       sparkId: z.string(),
       sparkTransferId: z.string().optional(),
+      transferId: z.string().optional(),
     }),
     decryptedTransactionDetails: SparkLightningReceiveDbDataSchema,
   })
@@ -92,6 +97,7 @@ export const SparkLightningReceiveTransactionDetailsParser = z
           sparkId: transactionDetails.sparkId,
           description: decryptedTransactionDetails.description,
           amount: decryptedTransactionDetails.amountReceived,
+          transferId: transactionDetails.transferId,
         };
 
       if (state === 'COMPLETED') {
