@@ -69,6 +69,7 @@ export class SparkReceiveQuoteRepository {
       p_receive_type: receiveType,
       p_encrypted_data: encryptedData,
       p_purpose: params.purpose,
+      p_transfer_id: params.transferId,
     });
 
     if (options?.abortSignal) {

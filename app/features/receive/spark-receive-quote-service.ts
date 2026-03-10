@@ -21,7 +21,7 @@ export class SparkReceiveQuoteService {
   async createReceiveQuote(
     params: CreateQuoteParams,
   ): Promise<SparkReceiveQuote> {
-    const { userId, account, lightningQuote, purpose } = params;
+    const { userId, account, lightningQuote, purpose, transferId } = params;
     const expiresAt = computeQuoteExpiry(params);
     const { amount, totalFee } = getAmountAndFee(params);
 
@@ -37,6 +37,7 @@ export class SparkReceiveQuoteService {
       receiverIdentityPubkey: lightningQuote.receiverIdentityPublicKey,
       totalFee,
       purpose,
+      transferId,
     };
 
     if (params.receiveType === 'CASHU_TOKEN') {

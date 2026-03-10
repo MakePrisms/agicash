@@ -152,8 +152,8 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
 
           <div className="mt-6 grid w-72 grid-cols-2 gap-10">
             <LinkWithViewTransition
-              to={buildLinkWithSearchParams('/receive', {
-                accountId: card.id,
+              to={buildLinkWithSearchParams('/transfer', {
+                destinationAccountId: card.id,
                 redirectTo: `/gift-cards/${card.id}`,
               })}
               transition="slideUp"

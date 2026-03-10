@@ -277,6 +277,10 @@ type CreateProps = {
    * The purpose of this transaction (e.g. a Cash App buy).
    */
   purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 };
 
 /**
@@ -298,6 +302,7 @@ export function useCreateSparkReceiveQuote() {
       receiverIdentityPubkey,
       description,
       purpose,
+      transferId,
     }: CreateProps) => {
       const lightningQuote = await getLightningQuote({
         wallet: account.wallet,
@@ -312,6 +317,7 @@ export function useCreateSparkReceiveQuote() {
         lightningQuote,
         receiveType: 'LIGHTNING',
         purpose,
+        transferId,
       });
     },
     onSuccess: (data) => {

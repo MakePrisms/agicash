@@ -8,6 +8,7 @@ import type {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { SparkLightningSendDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { type SparkSendQuote, SparkSendQuoteSchema } from './spark-send-quote';
 
 type Options = {
@@ -47,6 +48,14 @@ type CreateQuoteParams = {
    * Expiry of the lightning invoice in ISO 8601 format.
    */
   expiresAt?: Date | null;
+  /**
+   * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   */
+  purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 };
 
 export class SparkSendQuoteRepository {
@@ -90,6 +99,8 @@ export class SparkSendQuoteRepository {
       p_payment_request_is_amountless: paymentRequestIsAmountless,
       p_encrypted_data: encryptedData,
       p_expires_at: expiresAt?.toISOString(),
+      p_purpose: params.purpose,
+      p_transfer_id: params.transferId,
     });
 
     if (options?.abortSignal) {

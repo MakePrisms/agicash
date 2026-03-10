@@ -123,6 +123,14 @@ const getTransactionDescription = (transaction: Transaction) => {
       ? 'Reclaimed received'
       : 'Reclaimed send';
   }
+  if (transaction.purpose === 'TRANSFER') {
+    if (transaction.state === 'PENDING') {
+      return 'Pending transfer';
+    }
+    return transaction.direction === 'RECEIVE'
+      ? 'Transferred in'
+      : 'Transferred out';
+  }
   if (transaction.state === 'PENDING') {
     return transaction.direction === 'RECEIVE'
       ? 'Pending receive'

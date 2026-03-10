@@ -1,0 +1,199 @@
+import { getEncodedToken } from '@cashu/cashu-ts';
+import { Clipboard, Scan } from 'lucide-react';
+import { useState } from 'react';
+import { MoneyInputDisplay } from '~/components/money-display';
+import { Numpad } from '~/components/numpad';
+import {
+  PageBackButton,
+  PageContent,
+  PageFooter,
+  PageHeader,
+  PageHeaderTitle,
+} from '~/components/page';
+import { Button } from '~/components/ui/button';
+import { accountOfflineToast } from '~/features/accounts/utils';
+import { ConvertedMoneySwitcher } from '~/features/shared/converted-money-switcher';
+import { getDefaultUnit } from '~/features/shared/currencies';
+import { DomainError } from '~/features/shared/error';
+import useAnimation from '~/hooks/use-animation';
+import { useMoneyInput } from '~/hooks/use-money-input';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
+import { useToast } from '~/hooks/use-toast';
+import { extractCashuToken } from '~/lib/cashu';
+import type { Money } from '~/lib/money';
+import { readClipboard } from '~/lib/read-clipboard';
+import {
+  LinkWithViewTransition,
+  useNavigateWithViewTransition,
+} from '~/lib/transitions';
+import { useAccount } from '../accounts/account-hooks';
+import { useTransferStore } from './transfer-provider';
+
+export default function TransferInput() {
+  const navigate = useNavigateWithViewTransition();
+  const { redirectTo } = useRedirectTo('/');
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
+  const { toast } = useToast();
+  const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
+    useAnimation({ name: 'shake' });
+  const [isContinuing, setIsContinuing] = useState(false);
+
+  const sourceAccountId = useTransferStore((s) => s.sourceAccountId);
+  const sourceAccount = useAccount(sourceAccountId);
+  const destinationAccountId = useTransferStore((s) => s.destinationAccountId);
+  const amount = useTransferStore((s) => s.amount);
+  const currencyUnit = getDefaultUnit(sourceAccount.currency);
+  const createTransferQuote = useTransferStore((s) => s.createTransferQuote);
+  const status = useTransferStore((s) => s.status);
+
+  const {
+    rawInputValue,
+    maxInputDecimals,
+    inputValue,
+    convertedValue,
+    exchangeRateError,
+    handleNumberInput,
+    switchInputCurrency,
+  } = useMoneyInput({
+    initialRawInputValue: amount?.toString(currencyUnit) || '0',
+    initialInputCurrency: sourceAccount.currency,
+    initialOtherCurrency: sourceAccount.currency === 'BTC' ? 'USD' : 'BTC',
+  });
+
+  const handleContinue = async () => {
+    if (!sourceAccount.isOnline) {
+      toast(accountOfflineToast);
+      return;
+    }
+
+    let transferAmount: Money;
+    if (inputValue.currency === sourceAccount.currency) {
+      transferAmount = inputValue;
+    } else {
+      if (!convertedValue) {
+        return;
+      }
+      transferAmount = convertedValue;
+    }
+
+    setIsContinuing(true);
+    const result = await createTransferQuote(transferAmount);
+
+    if (!result.success) {
+      setIsContinuing(false);
+      if (result.error instanceof DomainError) {
+        toast({ description: result.error.message });
+      } else {
+        console.error('Failed to create transfer', { cause: result.error });
+        toast({
+          description: 'Failed to create transfer. Please try again.',
+          variant: 'destructive',
+        });
+      }
+      return;
+    }
+
+    navigate(buildLinkWithSearchParams('/transfer/confirm'), {
+      transition: 'slideLeft',
+      applyTo: 'newView',
+    });
+  };
+
+  const handlePaste = async () => {
+    const clipboardContent = await readClipboard();
+    if (!clipboardContent) {
+      return;
+    }
+
+    const token = extractCashuToken(clipboardContent);
+    if (!token) {
+      toast({
+        title: 'Invalid input',
+        description: 'Please paste a valid cashu token',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const encodedToken = getEncodedToken(token);
+    const hash = `#${encodedToken}`;
+
+    window.history.replaceState(null, '', hash);
+    navigate(
+      {
+        ...buildLinkWithSearchParams('/receive/cashu/token', {
+          selectedAccountId: destinationAccountId,
+        }),
+        hash,
+      },
+      { transition: 'slideLeft', applyTo: 'newView' },
+    );
+  };
+
+  return (
+    <>
+      <PageHeader>
+        <PageBackButton
+          to={redirectTo}
+          transition="slideRight"
+          applyTo="oldView"
+        />
+        <PageHeaderTitle>Add</PageHeaderTitle>
+      </PageHeader>
+
+      <PageContent className="mx-auto flex flex-col items-center justify-between">
+        <div className="flex h-[124px] flex-col items-center gap-2">
+          <div className={shakeAnimationClass}>
+            <MoneyInputDisplay
+              inputValue={rawInputValue}
+              currency={inputValue.currency}
+              unit={getDefaultUnit(inputValue.currency)}
+            />
+          </div>
+
+          {!exchangeRateError && (
+            <ConvertedMoneySwitcher
+              onSwitch={switchInputCurrency}
+              money={convertedValue}
+            />
+          )}
+        </div>
+
+        <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
+          <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
+            <div className="flex items-center justify-start gap-4">
+              <button type="button" onClick={handlePaste}>
+                <Clipboard />
+              </button>
+
+              <LinkWithViewTransition
+                to={buildLinkWithSearchParams('/transfer/scan')}
+                transition="slideUp"
+                applyTo="newView"
+              >
+                <Scan />
+              </LinkWithViewTransition>
+            </div>
+            <div />
+            <Button
+              onClick={handleContinue}
+              disabled={inputValue.isZero()}
+              loading={status === 'quoting' || isContinuing}
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      </PageContent>
+      <PageFooter className="sm:pb-14">
+        <Numpad
+          showDecimal={maxInputDecimals > 0}
+          onButtonClick={(value) => {
+            handleNumberInput(value, startShakeAnimation);
+          }}
+        />
+      </PageFooter>
+    </>
+  );
+}

@@ -81,6 +81,10 @@ export type CreateQuoteBaseParams = {
    * When not provided, the transaction will be created with PAYMENT purpose.
    */
   purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 } & (
   | {
       /**
@@ -172,6 +176,10 @@ export type RepositoryCreateQuoteParams = {
    * When not provided, the transaction will be created with PAYMENT purpose.
    */
   purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 } & (
   | {
       /**

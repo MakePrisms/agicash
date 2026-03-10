@@ -12,6 +12,7 @@ import type { CashuAccount } from '../accounts/account';
 import { type CashuProof, toProof } from '../accounts/cashu-account';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
 import {
   type CashuSendQuoteRepository,
@@ -206,6 +207,8 @@ export class CashuSendQuoteService {
     account,
     sendQuote,
     destinationDetails,
+    purpose,
+    transferId,
   }: {
     /**
      * ID of the sender.
@@ -224,6 +227,14 @@ export class CashuSendQuoteService {
      * This will be undefined if the send is directly paying a bolt11.
      */
     destinationDetails?: DestinationDetails;
+    /**
+     * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+     */
+    purpose?: TransactionPurpose;
+    /**
+     * UUID linking paired send/receive transactions in a transfer.
+     */
+    transferId?: string;
   }) {
     const meltQuote = sendQuote.meltQuote;
     const expiresAt = new Date(meltQuote.expiry * 1000);
@@ -304,6 +315,8 @@ export class CashuSendQuoteService {
       proofsToSend: proofs,
       amountReserved,
       destinationDetails,
+      purpose,
+      transferId,
     });
   }
 
