@@ -23,6 +23,7 @@ import {
 } from '../accounts/account-hooks';
 import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { sparkBalanceQueryKey } from '../shared/spark';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useUser } from '../user/user-hooks';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import { getLightningQuote } from './spark-receive-quote-core';
@@ -272,6 +273,10 @@ type CreateProps = {
    * Description to include in the Lightning invoice memo.
    */
   description?: string;
+  /**
+   * The purpose of this transaction (e.g. a Cash App buy).
+   */
+  purpose?: TransactionPurpose;
 };
 
 /**
@@ -292,6 +297,7 @@ export function useCreateSparkReceiveQuote() {
       amount,
       receiverIdentityPubkey,
       description,
+      purpose,
     }: CreateProps) => {
       const lightningQuote = await getLightningQuote({
         wallet: account.wallet,
@@ -305,6 +311,7 @@ export function useCreateSparkReceiveQuote() {
         account,
         lightningQuote,
         receiveType: 'LIGHTNING',
+        purpose,
       });
     },
     onSuccess: (data) => {

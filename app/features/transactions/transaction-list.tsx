@@ -128,6 +128,9 @@ const getTransactionDescription = (transaction: Transaction) => {
       ? 'Pending receive'
       : 'Pending send';
   }
+  if (transaction.purpose === 'BUY_CASHAPP') {
+    return 'Bought';
+  }
   return transaction.direction === 'RECEIVE' ? 'Received' : 'Sent';
 };
 

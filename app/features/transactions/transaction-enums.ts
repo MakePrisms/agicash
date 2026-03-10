@@ -29,3 +29,11 @@ export const TransactionStateSchema = z.enum([
 ]);
 
 export type TransactionState = z.infer<typeof TransactionStateSchema>;
+
+export const TransactionPurposeSchema = z.enum([
+  'PAYMENT',
+  'BUY_CASHAPP',
+  'TRANSFER',
+]);
+
+export type TransactionPurpose = z.infer<typeof TransactionPurposeSchema>;

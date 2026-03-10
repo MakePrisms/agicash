@@ -189,6 +189,7 @@ export class TransactionRepository {
       completedAt: data.completed_at,
       failedAt: data.failed_at,
       reversedTransactionId: data.reversed_transaction_id,
+      purpose: data.purpose,
       reversedAt: data.reversed_at,
       acknowledgmentStatus: data.acknowledgment_status,
       version: data.version,
