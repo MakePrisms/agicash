@@ -83,6 +83,7 @@ export class CashuReceiveQuoteRepository {
       p_encrypted_data: encryptedReceiveData,
       p_quote_id_hash: quoteIdHash,
       p_payment_hash: paymentHash,
+      p_purpose: params.purpose,
     });
 
     if (options?.abortSignal) {

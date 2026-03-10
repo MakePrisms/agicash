@@ -732,11 +732,13 @@ export type Database = {
           failed_at: string | null
           id: string
           pending_at: string | null
+          purpose: Database["wallet"]["Enums"]["transaction_purpose"]
           reversed_at: string | null
           reversed_transaction_id: string | null
           state: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order: number | null
           transaction_details: Json | null
+          transfer_id: string | null
           type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
           version: number
@@ -754,11 +756,13 @@ export type Database = {
           failed_at?: string | null
           id?: string
           pending_at?: string | null
+          purpose?: Database["wallet"]["Enums"]["transaction_purpose"]
           reversed_at?: string | null
           reversed_transaction_id?: string | null
           state: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order?: number | null
           transaction_details?: Json | null
+          transfer_id?: string | null
           type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
           version?: number
@@ -776,11 +780,13 @@ export type Database = {
           failed_at?: string | null
           id?: string
           pending_at?: string | null
+          purpose?: Database["wallet"]["Enums"]["transaction_purpose"]
           reversed_at?: string | null
           reversed_transaction_id?: string | null
           state?: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order?: number | null
           transaction_details?: Json | null
+          transfer_id?: string | null
           type?: Database["wallet"]["Enums"]["transaction_type"]
           user_id?: string
           version?: number
@@ -1045,8 +1051,10 @@ export type Database = {
           p_expires_at: string
           p_locking_derivation_path: string
           p_payment_hash: string
+          p_purpose?: Database["wallet"]["Enums"]["transaction_purpose"]
           p_quote_id_hash: string
           p_receive_type: Database["wallet"]["Enums"]["receive_quote_type"]
+          p_transfer_id?: string
           p_user_id: string
         }
         Returns: {
@@ -1105,7 +1113,9 @@ export type Database = {
           p_number_of_change_outputs: number
           p_payment_hash: string
           p_proofs_to_send: string[]
+          p_purpose?: Database["wallet"]["Enums"]["transaction_purpose"]
           p_quote_id_hash: string
+          p_transfer_id?: string
           p_user_id: string
         }
         Returns: Database["wallet"]["CompositeTypes"]["create_cashu_send_quote_result"]
@@ -1143,9 +1153,11 @@ export type Database = {
           p_encrypted_data: string
           p_expires_at: string
           p_payment_hash: string
+          p_purpose?: Database["wallet"]["Enums"]["transaction_purpose"]
           p_receive_type: Database["wallet"]["Enums"]["receive_quote_type"]
           p_receiver_identity_pubkey: string
           p_spark_id: string
+          p_transfer_id?: string
           p_user_id: string
         }
         Returns: {
@@ -1181,6 +1193,8 @@ export type Database = {
           p_expires_at?: string
           p_payment_hash: string
           p_payment_request_is_amountless: boolean
+          p_purpose?: Database["wallet"]["Enums"]["transaction_purpose"]
+          p_transfer_id?: string
           p_user_id: string
         }
         Returns: {
@@ -1433,11 +1447,13 @@ export type Database = {
           failed_at: string | null
           id: string
           pending_at: string | null
+          purpose: Database["wallet"]["Enums"]["transaction_purpose"]
           reversed_at: string | null
           reversed_transaction_id: string | null
           state: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order: number | null
           transaction_details: Json | null
+          transfer_id: string | null
           type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
           version: number
@@ -1616,6 +1632,7 @@ export type Database = {
       spark_receive_quote_state: "UNPAID" | "EXPIRED" | "PAID" | "FAILED"
       spark_send_quote_state: "UNPAID" | "PENDING" | "COMPLETED" | "FAILED"
       transaction_direction: "SEND" | "RECEIVE"
+      transaction_purpose: "PAYMENT" | "BUY_CASHAPP" | "TRANSFER"
       transaction_state:
         | "DRAFT"
         | "PENDING"
@@ -1904,6 +1921,7 @@ export const Constants = {
       spark_receive_quote_state: ["UNPAID", "EXPIRED", "PAID", "FAILED"],
       spark_send_quote_state: ["UNPAID", "PENDING", "COMPLETED", "FAILED"],
       transaction_direction: ["SEND", "RECEIVE"],
+      transaction_purpose: ["PAYMENT", "BUY_CASHAPP", "TRANSFER"],
       transaction_state: [
         "DRAFT",
         "PENDING",
