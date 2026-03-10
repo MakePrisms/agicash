@@ -2,34 +2,32 @@
 --
 -- Purpose:
 -- 1. Track the purpose of a transaction — e.g. PAYMENT, BUY_CASHAPP, TRANSFER
--- 2. Link paired send/receive transactions via transfer_id for transfers
+-- 2. Link paired send/receive transactions via transferId stored in
+--    transaction_details JSONB (same pattern as sparkTransferId, paymentHash)
 -- 3. Accept purpose and transfer_id when creating quotes so the purpose is recorded
 --    at creation time
 --
 -- Notes:
 -- - purpose defaults to 'PAYMENT' for organic send/receive transactions
--- - transfer_id is nullable: null = non-transfer transaction
--- - The unique partial index on (transfer_id, direction) ensures at most one
---   send and one receive per transfer, and excludes nulls to avoid indexing
---   the common case
+-- - transferId in transaction_details is optional: absent = non-transfer transaction
+-- - The unique partial index on (transaction_details->>'transferId', direction)
+--   ensures at most one send and one receive per transfer, and excludes nulls
+--   to avoid indexing the common case
 
--- 1. Schema changes: enum, columns, index
+-- 1. Schema changes: enum, column, index, constraint
 
 create type "wallet"."transaction_purpose" as enum ('PAYMENT', 'BUY_CASHAPP', 'TRANSFER');
 
 alter table "wallet"."transactions"
   add column "purpose" "wallet"."transaction_purpose" not null default 'PAYMENT';
 
-alter table "wallet"."transactions"
-  add column "transfer_id" uuid;
-
 create unique index "idx_transactions_transfer_id_direction"
-  on "wallet"."transactions" ("transfer_id", "direction")
-  where "transfer_id" is not null;
+  on "wallet"."transactions" (("transaction_details" ->> 'transferId'), "direction")
+  where ("transaction_details" ->> 'transferId') is not null;
 
 alter table "wallet"."transactions"
   add constraint "chk_transfer_id_required_for_transfer"
-  check (purpose != 'TRANSFER' or transfer_id is not null);
+  check (purpose != 'TRANSFER' or ("transaction_details" ->> 'transferId') is not null);
 
 -- 2. Cashu receive quote: drop old signature, recreate with p_purpose and p_transfer_id
 
@@ -62,6 +60,7 @@ declare
   v_cashu_token_melt_initiated boolean;
   v_transaction_id uuid;
   v_quote wallet.cashu_receive_quotes;
+  v_transaction_details jsonb;
 begin
   v_transaction_type := case p_receive_type
     when 'LIGHTNING' then 'CASHU_LIGHTNING'
@@ -91,6 +90,11 @@ begin
     else null
   end;
 
+  v_transaction_details := jsonb_build_object('paymentHash', p_payment_hash);
+  if p_transfer_id is not null then
+    v_transaction_details := v_transaction_details || jsonb_build_object('transferId', p_transfer_id::text);
+  end if;
+
   -- Store encrypted data in transactions table as encrypted_transaction_details
   insert into wallet.transactions (
     user_id,
@@ -101,8 +105,7 @@ begin
     currency,
     encrypted_transaction_details,
     transaction_details,
-    purpose,
-    transfer_id
+    purpose
   ) values (
     p_user_id,
     p_account_id,
@@ -111,9 +114,8 @@ begin
     v_transaction_state,
     p_currency,
     p_encrypted_data,
-    jsonb_build_object('paymentHash', p_payment_hash),
-    p_purpose,
-    p_transfer_id
+    v_transaction_details,
+    p_purpose
   ) returning id into v_transaction_id;
 
   insert into wallet.cashu_receive_quotes (
@@ -177,6 +179,7 @@ declare
   v_cashu_token_melt_initiated boolean;
   v_transaction_id uuid;
   v_quote wallet.spark_receive_quotes;
+  v_transaction_details jsonb;
 begin
   v_transaction_type := case p_receive_type
     when 'LIGHTNING' then 'SPARK_LIGHTNING'
@@ -206,6 +209,11 @@ begin
     else null
   end;
 
+  v_transaction_details := jsonb_build_object('sparkId', p_spark_id, 'paymentHash', p_payment_hash);
+  if p_transfer_id is not null then
+    v_transaction_details := v_transaction_details || jsonb_build_object('transferId', p_transfer_id::text);
+  end if;
+
   insert into wallet.transactions (
     user_id,
     account_id,
@@ -215,8 +223,7 @@ begin
     currency,
     encrypted_transaction_details,
     transaction_details,
-    purpose,
-    transfer_id
+    purpose
   ) values (
     p_user_id,
     p_account_id,
@@ -225,9 +232,8 @@ begin
     v_transaction_state,
     p_currency,
     p_encrypted_data,
-    jsonb_build_object('sparkId', p_spark_id, 'paymentHash', p_payment_hash),
-    p_purpose,
-    p_transfer_id
+    v_transaction_details,
+    p_purpose
   ) returning id into v_transaction_id;
 
   insert into wallet.spark_receive_quotes (
@@ -294,6 +300,7 @@ declare
   v_counter integer;
   v_transaction_id uuid;
   v_reserved_proofs wallet.cashu_proofs[];
+  v_transaction_details jsonb;
 begin
   if p_number_of_change_outputs < 0 then
     raise exception
@@ -329,6 +336,11 @@ begin
     v_counter := coalesce((v_account.details->'keyset_counters'->>p_keyset_id)::integer, 0);
   end if;
 
+  v_transaction_details := jsonb_build_object('paymentHash', p_payment_hash);
+  if p_transfer_id is not null then
+    v_transaction_details := v_transaction_details || jsonb_build_object('transferId', p_transfer_id::text);
+  end if;
+
   insert into wallet.transactions (
     user_id,
     account_id,
@@ -338,8 +350,7 @@ begin
     currency,
     encrypted_transaction_details,
     transaction_details,
-    purpose,
-    transfer_id
+    purpose
   ) values (
     p_user_id,
     p_account_id,
@@ -348,9 +359,8 @@ begin
     'PENDING',
     p_currency,
     p_encrypted_data,
-    jsonb_build_object('paymentHash', p_payment_hash),
-    p_purpose,
-    p_transfer_id
+    v_transaction_details,
+    p_purpose
   ) returning id into v_transaction_id;
 
   insert into wallet.cashu_send_quotes (
@@ -436,7 +446,13 @@ as $function$
 declare
   v_transaction_id uuid;
   v_quote wallet.spark_send_quotes;
+  v_transaction_details jsonb;
 begin
+  v_transaction_details := jsonb_build_object('paymentHash', p_payment_hash);
+  if p_transfer_id is not null then
+    v_transaction_details := v_transaction_details || jsonb_build_object('transferId', p_transfer_id::text);
+  end if;
+
   insert into wallet.transactions (
     user_id,
     account_id,
@@ -447,8 +463,7 @@ begin
     encrypted_transaction_details,
     transaction_details,
     pending_at,
-    purpose,
-    transfer_id
+    purpose
   ) values (
     p_user_id,
     p_account_id,
@@ -457,10 +472,9 @@ begin
     'DRAFT',
     p_currency,
     p_encrypted_data,
-    jsonb_build_object('paymentHash', p_payment_hash),
+    v_transaction_details,
     now(),
-    p_purpose,
-    p_transfer_id
+    p_purpose
   ) returning id into v_transaction_id;
 
   insert into wallet.spark_send_quotes (
