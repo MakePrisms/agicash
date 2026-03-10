@@ -738,7 +738,6 @@ export type Database = {
           state: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order: number | null
           transaction_details: Json | null
-          transfer_id: string | null
           type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
           version: number
@@ -762,7 +761,6 @@ export type Database = {
           state: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order?: number | null
           transaction_details?: Json | null
-          transfer_id?: string | null
           type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
           version?: number
@@ -786,7 +784,6 @@ export type Database = {
           state?: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order?: number | null
           transaction_details?: Json | null
-          transfer_id?: string | null
           type?: Database["wallet"]["Enums"]["transaction_type"]
           user_id?: string
           version?: number
@@ -1453,7 +1450,6 @@ export type Database = {
           state: Database["wallet"]["Enums"]["transaction_state"]
           state_sort_order: number | null
           transaction_details: Json | null
-          transfer_id: string | null
           type: Database["wallet"]["Enums"]["transaction_type"]
           user_id: string
           version: number

@@ -50,6 +50,10 @@ export const IncompleteSparkLightningSendTransactionDetailsSchema = z.object({
    * Available after the payment is initiated.
    */
   sparkTransferId: z.string().optional(),
+  /**
+   * UUID linking paired send/receive transactions for internal transfers.
+   */
+  transferId: z.string().optional(),
 });
 
 export type IncompleteSparkLightningSendTransactionDetails = z.infer<
@@ -63,6 +67,8 @@ export const CompletedSparkLightningSendTransactionDetailsSchema =
   IncompleteSparkLightningSendTransactionDetailsSchema.required().extend({
     /** The preimage of the lightning payment. */
     paymentPreimage: z.string(),
+    /** transferId remains optional — only present for TRANSFER transactions. */
+    transferId: z.string().optional(),
   });
 
 export type CompletedSparkLightningSendTransactionDetails = z.infer<
@@ -87,6 +93,7 @@ export const SparkLightningSendTransactionDetailsParser = z
       paymentHash: z.string(),
       sparkId: z.string().optional(),
       sparkTransferId: z.string().optional(),
+      transferId: z.string().optional(),
     }),
     decryptedTransactionDetails: SparkLightningSendDbDataSchema,
   })
@@ -111,6 +118,7 @@ export const SparkLightningSendTransactionDetailsParser = z
             ),
           sparkId: transactionDetails.sparkId,
           sparkTransferId: transactionDetails.sparkTransferId,
+          transferId: transactionDetails.transferId,
           fee:
             decryptedTransactionDetails.lightningFee ??
             decryptedTransactionDetails.estimatedLightningFee,
