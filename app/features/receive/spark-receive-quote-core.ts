@@ -78,6 +78,7 @@ export type CreateQuoteBaseParams = {
   lightningQuote: SparkReceiveLightningQuote;
   /**
    * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   * When not provided, the transaction will be created with PAYMENT purpose.
    */
   purpose?: TransactionPurpose;
 } & (
@@ -167,7 +168,8 @@ export type RepositoryCreateQuoteParams = {
    */
   totalFee: Money;
   /**
-   * The intent behind this transaction (e.g. a Cash App buy).
+   * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   * When not provided, the transaction will be created with PAYMENT purpose.
    */
   purpose?: TransactionPurpose;
 } & (
