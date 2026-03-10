@@ -10,11 +10,12 @@ import {
 import { QRCode } from '~/components/qr-code';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import useUserAgent from '~/hooks/use-user-agent';
 import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
-import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
+import type { CashuAccount, SparkAccount } from '../accounts/account';
 import { useCashuReceiveQuote } from '../receive/cashu-receive-quote-hooks';
 import { useSparkReceiveQuote } from '../receive/spark-receive-quote-hooks';
 import { getDefaultUnit } from '../shared/currencies';
@@ -32,24 +33,16 @@ const getErrorMessageFromQuoteStatus = (status: string) => {
   return undefined;
 };
 
-const getRedirectTo = (account: Account) => {
-  if (account.purpose === 'gift-card') {
-    return `/gift-cards/${account.id}`;
-  }
-  return undefined;
-};
-
-const useNavigateToTransaction = (redirectTo?: string) => {
+const useNavigateToTransaction = (redirectTo: string) => {
   const navigate = useNavigateWithViewTransition();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   return (transactionId: string) => {
-    const params: Record<string, string> = { showOkButton: 'true' };
-    if (redirectTo) {
-      params.redirectTo = redirectTo;
-    }
     navigate(
-      buildLinkWithSearchParams(`/transactions/${transactionId}`, params),
+      buildLinkWithSearchParams(`/transactions/${transactionId}`, {
+        showOkButton: 'true',
+        redirectTo,
+      }),
       { transition: 'fade', applyTo: 'newView' },
     );
   };
@@ -225,9 +218,10 @@ export function BuyCheckoutCashu({
   amount: Money;
   account: CashuAccount;
 }) {
-  const navigateToTransaction = useNavigateToTransaction(
-    getRedirectTo(account),
+  const { redirectTo } = useRedirectTo(
+    account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/',
   );
+  const navigateToTransaction = useNavigateToTransaction(redirectTo);
 
   const { status: quotePaymentStatus } = useCashuReceiveQuote({
     quoteId: quote.id,
@@ -256,9 +250,10 @@ export function BuyCheckoutSpark({
   amount: Money;
   account: SparkAccount;
 }) {
-  const navigateToTransaction = useNavigateToTransaction(
-    getRedirectTo(account),
+  const { redirectTo } = useRedirectTo(
+    account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/',
   );
+  const navigateToTransaction = useNavigateToTransaction(redirectTo);
 
   const { status: quotePaymentStatus } = useSparkReceiveQuote({
     quoteId: quote.id,
