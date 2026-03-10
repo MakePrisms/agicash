@@ -19,6 +19,7 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
@@ -117,6 +118,11 @@ export default function ReceiveToken({
     setReceiveAccount,
     addAndSetReceiveAccount,
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
+  const { redirectTo } = useRedirectTo(
+    receiveAccount?.purpose === 'gift-card'
+      ? `/gift-cards/${receiveAccount.id}`
+      : '/',
+  );
 
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
 
@@ -166,6 +172,7 @@ export default function ReceiveToken({
       navigate(
         buildLinkWithSearchParams(`/transactions/${transactionId}`, {
           showOkButton: 'true',
+          redirectTo,
         }),
         {
           transition: 'fade',

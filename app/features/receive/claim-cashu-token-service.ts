@@ -24,7 +24,12 @@ import { ReceiveCashuTokenService } from './receive-cashu-token-service';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import type { SparkReceiveQuoteService } from './spark-receive-quote-service';
 
-type ClaimTokenResult = { success: true } | { success: false; message: string };
+type ClaimTokenResult =
+  | {
+      success: true;
+      destinationAccount: Pick<Account, 'id' | 'purpose'>;
+    }
+  | { success: false; message: string };
 
 export class ClaimCashuTokenService {
   private readonly accountsCache: AccountsCache;
@@ -194,7 +199,13 @@ export class ClaimCashuTokenService {
       }
     }
 
-    return { success: true };
+    return {
+      success: true,
+      destinationAccount: {
+        id: receiveAccount.id,
+        purpose: receiveAccount.purpose,
+      },
+    };
   }
 
   private async trySetDefaultAccount(
