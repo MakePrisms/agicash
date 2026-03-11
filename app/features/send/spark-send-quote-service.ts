@@ -94,6 +94,7 @@ type CreateSendQuoteParams = {
   quote: SparkLightningQuote;
   /**
    * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   * When not provided, the transaction will be created with PAYMENT purpose.
    */
   purpose?: TransactionPurpose;
   /**

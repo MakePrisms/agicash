@@ -229,6 +229,7 @@ export class CashuSendQuoteService {
     destinationDetails?: DestinationDetails;
     /**
      * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+     * When not provided, the transaction will be created with PAYMENT purpose.
      */
     purpose?: TransactionPurpose;
     /**

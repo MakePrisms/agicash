@@ -7,7 +7,7 @@ import {
 import { useStore } from 'zustand';
 import type { Account } from '../accounts/account';
 import { useGetAccount } from '../accounts/account-hooks';
-import { useCreateTransferQuote } from './transfer-hooks';
+import { useGetTransferQuote } from './transfer-hooks';
 import type { TransferState, TransferStore } from './transfer-store';
 import { createTransferStore } from './transfer-store';
 
@@ -24,14 +24,14 @@ export const TransferProvider = ({
   destinationAccount,
 }: Props) => {
   const getAccount = useGetAccount();
-  const { mutateAsync: createTransferQuote } = useCreateTransferQuote();
+  const { mutateAsync: getTransferQuote } = useGetTransferQuote();
 
   const [store] = useState(() =>
     createTransferStore({
       sourceAccount,
       destinationAccount,
       getAccount,
-      createTransferQuote,
+      getTransferQuote,
     }),
   );
 

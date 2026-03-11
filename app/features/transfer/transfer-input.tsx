@@ -44,7 +44,7 @@ export default function TransferInput() {
   const destinationAccountId = useTransferStore((s) => s.destinationAccountId);
   const amount = useTransferStore((s) => s.amount);
   const currencyUnit = getDefaultUnit(sourceAccount.currency);
-  const createTransferQuote = useTransferStore((s) => s.createTransferQuote);
+  const getTransferQuote = useTransferStore((s) => s.getTransferQuote);
   const status = useTransferStore((s) => s.status);
 
   const {
@@ -78,14 +78,14 @@ export default function TransferInput() {
     }
 
     setIsContinuing(true);
-    const result = await createTransferQuote(transferAmount);
+    const result = await getTransferQuote(transferAmount);
 
     if (!result.success) {
       setIsContinuing(false);
       if (result.error instanceof DomainError) {
         toast({ description: result.error.message });
       } else {
-        console.error('Failed to create transfer', { cause: result.error });
+        console.error('Failed to get transfer quote', { cause: result.error });
         toast({
           description: 'Failed to create transfer. Please try again.',
           variant: 'destructive',
@@ -94,10 +94,13 @@ export default function TransferInput() {
       return;
     }
 
-    navigate(buildLinkWithSearchParams('/transfer/confirm'), {
-      transition: 'slideLeft',
-      applyTo: 'newView',
-    });
+    navigate(
+      buildLinkWithSearchParams(`/transfer/${destinationAccountId}/confirm`),
+      {
+        transition: 'slideLeft',
+        applyTo: 'newView',
+      },
+    );
   };
 
   const handlePaste = async () => {
@@ -168,7 +171,9 @@ export default function TransferInput() {
               </button>
 
               <LinkWithViewTransition
-                to={buildLinkWithSearchParams('/transfer/scan')}
+                to={buildLinkWithSearchParams(
+                  `/transfer/${destinationAccountId}/scan`,
+                )}
                 transition="slideUp"
                 applyTo="newView"
               >

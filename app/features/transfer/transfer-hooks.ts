@@ -5,7 +5,7 @@ import { useUser } from '../user/user-hooks';
 import type { TransferQuote } from './transfer-service';
 import { useTransferService } from './transfer-service';
 
-export function useCreateTransferQuote() {
+export function useGetTransferQuote() {
   const transferService = useTransferService();
 
   return useMutation({
@@ -18,7 +18,7 @@ export function useCreateTransferQuote() {
       destinationAccount: Account;
       amount: Money;
     }) => {
-      return transferService.createTransferQuote({
+      return transferService.getTransferQuote({
         sourceAccount,
         destinationAccount,
         amount,
@@ -27,13 +27,13 @@ export function useCreateTransferQuote() {
   });
 }
 
-export function useConfirmTransfer() {
+export function useInitiateTransfer() {
   const userId = useUser((user) => user.id);
   const transferService = useTransferService();
 
   return useMutation({
     mutationFn: ({ quote }: { quote: TransferQuote }) => {
-      return transferService.confirmTransfer({ userId, quote });
+      return transferService.initiateTransfer({ userId, quote });
     },
   });
 }

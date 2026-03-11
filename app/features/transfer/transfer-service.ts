@@ -68,15 +68,15 @@ export class TransferService {
   ) {}
 
   /**
-   * Creates a transfer quote for the given amount.
-   * This only creates the lightning quotes and does not persist the quotes.
+   * Gets a transfer quote for the given amount.
+   * This only fetches the lightning quotes and does not persist them.
    * @param sourceAccount - The account sending the money.
    * @param destinationAccount - The account receiving the money.
    * @param amount - The amount to transfer.
    * @returns A transfer quote.
    * @throws An error if the source account cannot send Lightning payments or the destination account cannot receive Lightning payments.
    */
-  async createTransferQuote({
+  async getTransferQuote({
     sourceAccount,
     destinationAccount,
     amount,
@@ -108,20 +108,24 @@ export class TransferService {
   }
 
   /**
-   * Confirms a transfer quote by persisting the receive and send quotes.
+   * Initiates a transfer by persisting the receive and send quotes.
    * The task processing will pick up the created send quote and initiate the send.
-   * @param userId - The ID of the user confirming the transfer.
-   * @param quote - The transfer quote to confirm.
-   * @returns The ID of the receive transaction.
+   * @param userId - The ID of the user initiating the transfer.
+   * @param quote - The quote to initiate the transfer with.
+   * @returns The transfer ID and both send/receive transaction IDs.
    * @throws An error if the receive or send quote fails to persist.
    */
-  async confirmTransfer({
+  async initiateTransfer({
     userId,
     quote,
   }: {
     userId: string;
     quote: TransferQuote;
-  }): Promise<{ receiveTransactionId: string }> {
+  }): Promise<{
+    transferId: string;
+    receiveTransactionId: string;
+    sendTransactionId: string;
+  }> {
     const transferId = crypto.randomUUID();
     const { receive, send } = quote;
 
@@ -132,8 +136,12 @@ export class TransferService {
     );
 
     try {
-      await this.persistSendQuote(userId, send, transferId);
-      return { receiveTransactionId: receiveQuote.transactionId };
+      const sendQuote = await this.persistSendQuote(userId, send, transferId);
+      return {
+        transferId,
+        receiveTransactionId: receiveQuote.transactionId,
+        sendTransactionId: sendQuote.transactionId,
+      };
     } catch (error) {
       try {
         await this.failReceiveQuote(receive, receiveQuote);
@@ -240,10 +248,10 @@ export class TransferService {
     userId: string,
     send: TransferSendSide,
     transferId: string,
-  ): Promise<void> {
+  ): Promise<{ transactionId: string }> {
     if (send.account.type === 'cashu') {
       const quote = send.lightningQuote as CashuLightningQuote;
-      await this.cashuSendQuoteService.createSendQuote({
+      return this.cashuSendQuoteService.createSendQuote({
         userId,
         account: send.account,
         sendQuote: {
@@ -255,9 +263,8 @@ export class TransferService {
         purpose: 'TRANSFER',
         transferId,
       });
-      return;
     }
-    await this.sparkSendQuoteService.createSendQuote({
+    return this.sparkSendQuoteService.createSendQuote({
       userId,
       account: send.account,
       quote: send.lightningQuote as SparkLightningQuote,

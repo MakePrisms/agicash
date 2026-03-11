@@ -14,21 +14,25 @@ import { useToast } from '~/hooks/use-toast';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
-import { useConfirmTransfer } from './transfer-hooks';
+import { useInitiateTransfer } from './transfer-hooks';
 import type { TransferQuote } from './transfer-service';
 
 type Props = {
   quote: TransferQuote;
+  destinationAccountId: string;
 };
 
-export default function TransferConfirmation({ quote }: Props) {
+export default function TransferConfirmation({
+  quote,
+  destinationAccountId,
+}: Props) {
   const navigate = useNavigateWithViewTransition();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { toast } = useToast();
-  const { mutate: confirmTransfer, status } = useConfirmTransfer();
+  const { mutate: initiateTransfer, status } = useInitiateTransfer();
 
   const handleConfirm = () => {
-    confirmTransfer(
+    initiateTransfer(
       { quote },
       {
         onSuccess: (result) => {
@@ -59,7 +63,7 @@ export default function TransferConfirmation({ quote }: Props) {
     <>
       <PageHeader className="z-10">
         <PageBackButton
-          to={buildLinkWithSearchParams('/transfer')}
+          to={buildLinkWithSearchParams(`/transfer/${destinationAccountId}`)}
           transition="slideRight"
           applyTo="oldView"
         />

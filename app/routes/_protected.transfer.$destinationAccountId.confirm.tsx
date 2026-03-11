@@ -7,11 +7,12 @@ import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 export default function TransferConfirmPage() {
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const quote = useTransferStore((s) => s.quote);
+  const destinationAccountId = useTransferStore((s) => s.destinationAccountId);
 
   if (!quote) {
     return (
       <Redirect
-        to={buildLinkWithSearchParams('/transfer')}
+        to={buildLinkWithSearchParams(`/transfer/${destinationAccountId}`)}
         logMessage="Missing transfer plan"
       />
     );
@@ -19,7 +20,10 @@ export default function TransferConfirmPage() {
 
   return (
     <Page>
-      <TransferConfirmation quote={quote} />
+      <TransferConfirmation
+        quote={quote}
+        destinationAccountId={destinationAccountId}
+      />
     </Page>
   );
 }

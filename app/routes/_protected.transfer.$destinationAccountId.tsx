@@ -4,17 +4,13 @@ import {
   useAccountOrDefault,
 } from '~/features/accounts/account-hooks';
 import { TransferProvider } from '~/features/transfer/transfer-provider';
+import type { Route } from './+types/_protected.transfer.$destinationAccountId';
 
-export default function TransferLayout() {
+export default function TransferLayout({ params }: Route.ComponentProps) {
   const [searchParams] = useSearchParams();
-  const destinationAccountId = searchParams.get('destinationAccountId');
   const sourceAccountId = searchParams.get('sourceAccountId');
 
-  if (!destinationAccountId) {
-    throw new Error('Missing destinationAccountId search param');
-  }
-
-  const destinationAccount = useAccount(destinationAccountId);
+  const destinationAccount = useAccount(params.destinationAccountId);
   const sourceAccount = useAccountOrDefault(sourceAccountId);
 
   return (

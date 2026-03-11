@@ -22,7 +22,7 @@ export default function TransferScanner() {
     <>
       <PageHeader className="z-10">
         <PageBackButton
-          to={buildLinkWithSearchParams('/transfer')}
+          to={buildLinkWithSearchParams(`/transfer/${destinationAccountId}`)}
           transition="slideDown"
           applyTo="oldView"
         />

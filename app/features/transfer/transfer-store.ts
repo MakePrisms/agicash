@@ -3,7 +3,7 @@ import type { Currency, Money } from '~/lib/money';
 import type { Account } from '../accounts/account';
 import type { TransferQuote } from './transfer-service';
 
-type CreateTransferQuoteResult =
+type TransferQuoteResult =
   | { success: true; quote: TransferQuote }
   | { success: false; error: unknown };
 
@@ -14,14 +14,14 @@ export type TransferState<T extends Currency = Currency> = {
   amount: Money<T> | null;
   quote: TransferQuote | null;
   setAmount: (amount: Money<T>) => void;
-  createTransferQuote: (amount: Money) => Promise<CreateTransferQuoteResult>;
+  getTransferQuote: (amount: Money) => Promise<TransferQuoteResult>;
 };
 
 type CreateTransferStoreProps = {
   sourceAccount: Account;
   destinationAccount: Account;
   getAccount: (id: string) => Account;
-  createTransferQuote: (params: {
+  getTransferQuote: (params: {
     sourceAccount: Account;
     destinationAccount: Account;
     amount: Money;
@@ -32,7 +32,7 @@ export const createTransferStore = ({
   sourceAccount,
   destinationAccount,
   getAccount,
-  createTransferQuote,
+  getTransferQuote,
 }: CreateTransferStoreProps) => {
   return create<TransferState>((set, get) => ({
     status: 'idle',
@@ -41,13 +41,13 @@ export const createTransferStore = ({
     amount: null,
     quote: null,
     setAmount: (amount) => set({ amount }),
-    createTransferQuote: async (amount) => {
+    getTransferQuote: async (amount) => {
       const source = getAccount(get().sourceAccountId);
       const destination = getAccount(get().destinationAccountId);
       set({ status: 'quoting', amount });
 
       try {
-        const result = await createTransferQuote({
+        const result = await getTransferQuote({
           sourceAccount: source,
           destinationAccount: destination,
           amount,
