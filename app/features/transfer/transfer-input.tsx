@@ -72,6 +72,7 @@ export default function TransferInput() {
       transferAmount = inputValue;
     } else {
       if (!convertedValue) {
+        // Can't happen because when there is no converted value, the toggle will not be shown so input currency and source currency must be the same
         return;
       }
       transferAmount = convertedValue;
