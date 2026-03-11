@@ -19,17 +19,14 @@ import type { TransferQuote } from './transfer-service';
 
 type Props = {
   quote: TransferQuote;
-  destinationAccountId: string;
 };
 
-export default function TransferConfirmation({
-  quote,
-  destinationAccountId,
-}: Props) {
+export default function TransferConfirmation({ quote }: Props) {
   const navigate = useNavigateWithViewTransition();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { toast } = useToast();
   const { mutate: initiateTransfer, status } = useInitiateTransfer();
+  const destinationAccountId = quote.receive.account.id;
 
   const handleConfirm = () => {
     initiateTransfer(

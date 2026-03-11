@@ -20,10 +20,7 @@ export default function TransferConfirmPage() {
 
   return (
     <Page>
-      <TransferConfirmation
-        quote={quote}
-        destinationAccountId={destinationAccountId}
-      />
+      <TransferConfirmation quote={quote} />
     </Page>
   );
 }
