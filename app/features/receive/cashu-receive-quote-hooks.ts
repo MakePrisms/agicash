@@ -45,6 +45,7 @@ type CreateProps = {
   amount: Money;
   description?: string;
   purpose?: TransactionPurpose;
+  transferId?: string;
 };
 class CashuReceiveQuoteCache {
   // Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
@@ -162,6 +163,7 @@ export function useCreateCashuReceiveQuote() {
       amount,
       description,
       purpose,
+      transferId,
     }: CreateProps) => {
       const lightningQuote = await cashuReceiveQuoteService.getLightningQuote({
         wallet: account.wallet,
@@ -175,6 +177,7 @@ export function useCreateCashuReceiveQuote() {
         receiveType: 'LIGHTNING',
         lightningQuote,
         purpose,
+        transferId,
       });
     },
     onSuccess: (data) => {

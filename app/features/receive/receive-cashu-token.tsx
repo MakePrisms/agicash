@@ -19,7 +19,6 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
-import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
@@ -118,12 +117,6 @@ export default function ReceiveToken({
     setReceiveAccount,
     addAndSetReceiveAccount,
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
-  const { redirectTo } = useRedirectTo(
-    receiveAccount?.purpose === 'gift-card'
-      ? `/gift-cards/${receiveAccount.id}`
-      : '/',
-  );
-
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
@@ -158,7 +151,7 @@ export default function ReceiveToken({
           token,
           accountId: account.id,
         });
-        return transactionId;
+        return { transactionId, account };
       }
 
       const result = await createCrossAccountReceiveQuotes({
@@ -166,9 +159,14 @@ export default function ReceiveToken({
         destinationAccount: account,
         sourceAccount,
       });
-      return result.lightningReceiveQuote.transactionId;
+      return {
+        transactionId: result.lightningReceiveQuote.transactionId,
+        account,
+      };
     },
-    onSuccess: (transactionId) => {
+    onSuccess: ({ transactionId, account }) => {
+      const redirectTo =
+        account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/';
       navigate(
         buildLinkWithSearchParams(`/transactions/${transactionId}`, {
           showOkButton: 'true',

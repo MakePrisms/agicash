@@ -14,6 +14,7 @@ import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuLightningSendDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { ConcurrencyError } from '../shared/error';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 import {
   type CashuSendQuote,
   CashuSendQuoteSchema,
@@ -90,6 +91,14 @@ type CreateSendQuote = {
    * Destination details of the send. This will be undefined if the send is directly paying a bolt11.
    */
   destinationDetails?: DestinationDetails;
+  /**
+   * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   */
+  purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 };
 
 export class CashuSendQuoteRepository {
@@ -120,6 +129,8 @@ export class CashuSendQuoteRepository {
       proofsToSend,
       amountReserved,
       destinationDetails,
+      purpose,
+      transferId,
     }: CreateSendQuote,
     options?: Options,
   ): Promise<CashuSendQuote> {
@@ -152,6 +163,8 @@ export class CashuSendQuoteRepository {
       p_encrypted_data: encryptedData,
       p_quote_id_hash: quoteIdHash,
       p_payment_hash: paymentHash,
+      p_purpose: purpose,
+      p_transfer_id: transferId,
     });
 
     if (options?.abortSignal) {
