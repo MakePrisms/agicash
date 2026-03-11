@@ -148,6 +148,9 @@ export class TransferService {
       } catch (failError) {
         console.error('Failed to cleanup receive quote', {
           cause: failError,
+          transferId,
+          receiveAccountId: receive.account.id,
+          sendAccountId: send.account.id,
         });
       }
       throw error;

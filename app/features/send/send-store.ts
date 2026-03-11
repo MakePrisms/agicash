@@ -425,7 +425,7 @@ export const createSendStore = ({
             set({ quote });
           } catch (error) {
             console.error(error);
-            set({ status: 'idle' });
+            set({ status: 'idle', quote: null });
             return { success: false, error };
           }
         }
@@ -446,7 +446,7 @@ export const createSendStore = ({
             set({ destination: bolt11 });
           } catch (error) {
             console.error(error);
-            set({ status: 'idle' });
+            set({ status: 'idle', quote: null });
             return { success: false, error };
           }
         }
@@ -476,7 +476,7 @@ export const createSendStore = ({
             if (!(error instanceof DomainError)) {
               console.error(error);
             }
-            set({ status: 'idle' });
+            set({ status: 'idle', quote: null });
             return { success: false, error };
           }
         }

@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import type { Money } from '~/lib/money';
 import type { Account } from '../accounts/account';
+import { ConcurrencyError, DomainError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { TransferQuote } from './transfer-service';
 import { useTransferService } from './transfer-service';
@@ -24,6 +25,13 @@ export function useGetTransferQuote() {
         amount,
       });
     },
+    retry: (failureCount, error) => {
+      if (error instanceof DomainError) {
+        return false;
+      }
+
+      return failureCount < 1;
+    },
   });
 }
 
@@ -34,6 +42,17 @@ export function useInitiateTransfer() {
   return useMutation({
     mutationFn: ({ quote }: { quote: TransferQuote }) => {
       return transferService.initiateTransfer({ userId, quote });
+    },
+    retry: (failureCount, error) => {
+      if (error instanceof ConcurrencyError) {
+        return true;
+      }
+
+      if (error instanceof DomainError) {
+        return false;
+      }
+
+      return failureCount < 1;
     },
   });
 }
