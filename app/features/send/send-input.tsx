@@ -246,11 +246,13 @@ export function SendInput() {
                 <Scan />
               </LinkWithViewTransition>
 
-              <SelectDestinationDrawer
-                open={selectDestinationDrawerOpen}
-                onOpenChange={setSelectDestinationDrawerOpen}
-                onSelect={handleSelectDestination}
-              />
+              {sendAccount.purpose !== 'gift-card' && (
+                <SelectDestinationDrawer
+                  open={selectDestinationDrawerOpen}
+                  onOpenChange={setSelectDestinationDrawerOpen}
+                  onSelect={handleSelectDestination}
+                />
+              )}
             </div>
             <div /> {/* spacer */}
             <div className="flex items-center justify-end">
