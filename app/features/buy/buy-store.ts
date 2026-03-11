@@ -3,6 +3,7 @@ import type { Currency, Money } from '~/lib/money';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 
 export type BuyQuote = {
   id: string;
@@ -38,11 +39,13 @@ type CreateBuyStoreProps = {
     account: CashuAccount;
     amount: Money;
     description?: string;
+    purpose?: TransactionPurpose;
   }) => Promise<CashuReceiveQuote>;
   createSparkReceiveQuote: (params: {
     account: SparkAccount;
     amount: Money;
     description?: string;
+    purpose?: TransactionPurpose;
   }) => Promise<SparkReceiveQuote>;
 };
 
@@ -72,6 +75,7 @@ export const createBuyStore = ({
             account,
             amount,
             description: 'Pay to Agicash',
+            purpose: 'BUY_CASHAPP',
           });
           quote = {
             id: cashuQuote.id,
@@ -84,6 +88,7 @@ export const createBuyStore = ({
             account,
             amount,
             description: 'Pay to Agicash',
+            purpose: 'BUY_CASHAPP',
           });
           quote = {
             id: sparkQuote.id,

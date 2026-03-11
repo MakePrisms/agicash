@@ -62,7 +62,14 @@ export class CashuReceiveQuoteService {
   async createReceiveQuote(
     params: CreateQuoteParams,
   ): Promise<CashuReceiveQuote> {
-    const { userId, account, lightningQuote, receiveType } = params;
+    const {
+      userId,
+      account,
+      lightningQuote,
+      receiveType,
+      purpose,
+      transferId,
+    } = params;
 
     if (lightningQuote.mintQuote.state !== MintQuoteState.UNPAID) {
       throw new Error('Mint quote must be unpaid');
@@ -84,6 +91,8 @@ export class CashuReceiveQuoteService {
       mintingFee: lightningQuote.mintingFee,
       totalFee,
       receiveType,
+      purpose,
+      transferId,
     };
 
     if (receiveType === 'CASHU_TOKEN') {

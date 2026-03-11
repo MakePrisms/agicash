@@ -89,6 +89,14 @@ function getTransactionLabel(transaction: Transaction) {
   ) {
     return 'Pending';
   }
+  if (transaction.purpose === 'BUY_CASHAPP') {
+    return 'Bought';
+  }
+  if (transaction.state === 'COMPLETED' && transaction.purpose === 'TRANSFER') {
+    return transaction.direction === 'RECEIVE'
+      ? 'Transferred in'
+      : 'Transferred out';
+  }
   return transaction.state.toLowerCase();
 }
 

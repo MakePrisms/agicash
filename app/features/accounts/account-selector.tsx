@@ -8,7 +8,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '~/components/ui/drawer';
-import { ScrollArea } from '~/components/ui/scroll-area';
+
 import { cn } from '~/lib/utils';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { type Account, getAccountBalance } from './account';
@@ -114,7 +114,7 @@ export function AccountSelector<T extends Account>({
           <DrawerHeader>
             <DrawerTitle>Select account</DrawerTitle>
           </DrawerHeader>
-          <ScrollArea hideScrollbar>
+          <div className="scrollbar-none overflow-y-auto">
             <div className="flex flex-col gap-2 p-2">
               {[
                 selectedAccount,
@@ -136,7 +136,7 @@ export function AccountSelector<T extends Account>({
                 </button>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </DrawerContent>
     </Drawer>

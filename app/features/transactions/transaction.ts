@@ -18,6 +18,7 @@ import {
 import { TransactionDetailsSchema } from './transaction-details/transaction-details-types';
 import {
   TransactionDirectionSchema,
+  TransactionPurposeSchema,
   TransactionStateSchema,
   TransactionTypeSchema,
 } from './transaction-enums';
@@ -70,6 +71,11 @@ export const BaseTransactionSchema = z.object({
    * UUID of the transaction that is reversed by this transaction.
    */
   reversedTransactionId: z.string().nullish(),
+  /**
+   * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   * Defaults to 'PAYMENT' for organic send/receive transactions.
+   */
+  purpose: TransactionPurposeSchema,
   /**
    * Whether or not the transaction has been acknowledged by the user.
    * - `null`: There is nothing to acknowledge.
@@ -171,9 +177,9 @@ const CompletedSparkLightningSendTransactionSchema =
   });
 
 /**
- * Schema for all transaction types.
+ * Union of all transaction type/direction/state variants.
  */
-export const TransactionSchema = z.union([
+const TransactionByTypeSchema = z.union([
   CashuTokenSendTransactionSchema,
   CashuTokenReceiveTransactionSchema,
   IncompleteCashuLightningSendTransactionSchema,
@@ -183,6 +189,23 @@ export const TransactionSchema = z.union([
   CompletedSparkLightningReceiveTransactionSchema,
   IncompleteSparkLightningSendTransactionSchema,
   CompletedSparkLightningSendTransactionSchema,
+]);
+
+/**
+ * Schema for all transaction types.
+ */
+export const TransactionSchema = z.union([
+  TransactionByTypeSchema.and(
+    z.object({
+      purpose: z.literal('TRANSFER'),
+      details: z.object({ transferId: z.string() }),
+    }),
+  ),
+  TransactionByTypeSchema.and(
+    z.object({
+      purpose: z.enum(['PAYMENT', 'BUY_CASHAPP']),
+    }),
+  ),
 ]);
 
 export type Transaction = z.infer<typeof TransactionSchema>;

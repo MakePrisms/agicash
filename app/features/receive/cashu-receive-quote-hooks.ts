@@ -34,6 +34,7 @@ import {
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
@@ -43,6 +44,8 @@ type CreateProps = {
   account: CashuAccount;
   amount: Money;
   description?: string;
+  purpose?: TransactionPurpose;
+  transferId?: string;
 };
 class CashuReceiveQuoteCache {
   // Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
@@ -155,7 +158,13 @@ export function useCreateCashuReceiveQuote() {
     scope: {
       id: 'create-cashu-receive-quote',
     },
-    mutationFn: async ({ account, amount, description }: CreateProps) => {
+    mutationFn: async ({
+      account,
+      amount,
+      description,
+      purpose,
+      transferId,
+    }: CreateProps) => {
       const lightningQuote = await cashuReceiveQuoteService.getLightningQuote({
         wallet: account.wallet,
         amount,
@@ -167,6 +176,8 @@ export function useCreateCashuReceiveQuote() {
         account,
         receiveType: 'LIGHTNING',
         lightningQuote,
+        purpose,
+        transferId,
       });
     },
     onSuccess: (data) => {

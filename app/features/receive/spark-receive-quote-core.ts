@@ -9,6 +9,7 @@ import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { moneyFromSparkAmount } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 
 export type SparkReceiveLightningQuote = {
   /**
@@ -75,6 +76,15 @@ export type CreateQuoteBaseParams = {
    * The lightning quote to create the Spark receive quote from.
    */
   lightningQuote: SparkReceiveLightningQuote;
+  /**
+   * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   * When not provided, the transaction will be created with PAYMENT purpose.
+   */
+  purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 } & (
   | {
       /**
@@ -161,6 +171,15 @@ export type RepositoryCreateQuoteParams = {
    * Total fee for the receive.
    */
   totalFee: Money;
+  /**
+   * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   * When not provided, the transaction will be created with PAYMENT purpose.
+   */
+  purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 } & (
   | {
       /**

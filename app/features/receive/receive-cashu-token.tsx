@@ -117,7 +117,6 @@ export default function ReceiveToken({
     setReceiveAccount,
     addAndSetReceiveAccount,
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
-
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
@@ -152,7 +151,7 @@ export default function ReceiveToken({
           token,
           accountId: account.id,
         });
-        return transactionId;
+        return { transactionId, account };
       }
 
       const result = await createCrossAccountReceiveQuotes({
@@ -160,12 +159,18 @@ export default function ReceiveToken({
         destinationAccount: account,
         sourceAccount,
       });
-      return result.lightningReceiveQuote.transactionId;
+      return {
+        transactionId: result.lightningReceiveQuote.transactionId,
+        account,
+      };
     },
-    onSuccess: (transactionId) => {
+    onSuccess: ({ transactionId, account }) => {
+      const redirectTo =
+        account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/';
       navigate(
         buildLinkWithSearchParams(`/transactions/${transactionId}`, {
           showOkButton: 'true',
+          redirectTo,
         }),
         {
           transition: 'fade',

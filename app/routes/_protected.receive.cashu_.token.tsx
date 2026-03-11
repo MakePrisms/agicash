@@ -135,7 +135,18 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
         duration: 8000,
       });
     }
-    const redirectTo = location.searchParams.get('redirectTo') ?? '/';
+
+    const explicitRedirectTo = location.searchParams.get('redirectTo');
+    let redirectTo = explicitRedirectTo ?? '/';
+
+    if (
+      !explicitRedirectTo &&
+      result.success &&
+      result.destinationAccount.purpose === 'gift-card'
+    ) {
+      redirectTo = `/gift-cards/${result.destinationAccount.id}`;
+    }
+
     throw redirect(redirectTo);
   }
 

@@ -6,6 +6,7 @@ import { Money } from '~/lib/money';
 import type { RedactedCashuAccount } from '../accounts/account';
 import { BASE_CASHU_LOCKING_DERIVATION_PATH } from '../shared/cashu';
 import { derivePublicKey } from '../shared/cryptography';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 
 export type CashuReceiveLightningQuote = {
@@ -82,6 +83,15 @@ export type CreateQuoteBaseParams = {
    *   from the account they originated from to pay the request for this receive quote.
    */
   receiveType: 'LIGHTNING' | 'CASHU_TOKEN';
+  /**
+   * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   * When not provided, the transaction will be created with PAYMENT purpose.
+   */
+  purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 } & (
   | {
       receiveType: 'LIGHTNING';
@@ -174,6 +184,15 @@ export type RepositoryCreateQuoteParams = {
    * Total fee for the receive.
    */
   totalFee: Money;
+  /**
+   * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   * When not provided, the transaction will be created with PAYMENT purpose.
+   */
+  purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 } & (
   | {
       receiveType: 'LIGHTNING';

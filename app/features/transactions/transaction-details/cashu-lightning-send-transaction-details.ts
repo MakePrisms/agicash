@@ -58,6 +58,10 @@ export const IncompleteCashuLightningSendTransactionDetailsSchema = z.object({
    * This is the sum of `amountReceived` and `totalFee`.
    */
   amount: z.instanceof(Money),
+  /**
+   * UUID linking paired send/receive transactions for internal transfers.
+   */
+  transferId: z.string().optional(),
 });
 
 export type IncompleteCashuLightningSendTransactionDetails = z.infer<
@@ -107,6 +111,7 @@ export const CashuLightningSendTransactionDetailsParser = z
     state: TransactionStateSchema,
     transactionDetails: z.object({
       paymentHash: z.string(),
+      transferId: z.string().optional(),
     }),
     decryptedTransactionDetails: CashuLightningSendDbDataSchema,
   })
@@ -132,6 +137,7 @@ export const CashuLightningSendTransactionDetailsParser = z
               decryptedTransactionDetails.cashuSendFee,
             ),
           amount: decryptedTransactionDetails.amountReserved,
+          transferId: transactionDetails.transferId,
         };
 
       if (state === 'COMPLETED') {

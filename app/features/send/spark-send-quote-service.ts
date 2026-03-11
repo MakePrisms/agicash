@@ -9,6 +9,7 @@ import {
 } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
 import { DomainError } from '../shared/error';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 import type { SparkSendQuote } from './spark-send-quote';
 import {
   type SparkSendQuoteRepository,
@@ -91,6 +92,15 @@ type CreateSendQuoteParams = {
    * The fee estimate returned by getLightningSendQuote.
    */
   quote: SparkLightningQuote;
+  /**
+   * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
+   * When not provided, the transaction will be created with PAYMENT purpose.
+   */
+  purpose?: TransactionPurpose;
+  /**
+   * UUID linking paired send/receive transactions in a transfer.
+   */
+  transferId?: string;
 };
 
 type InitiateSendParams = {
@@ -192,6 +202,8 @@ export class SparkSendQuoteService {
     userId,
     account,
     quote,
+    purpose,
+    transferId,
   }: CreateSendQuoteParams): Promise<SparkSendQuote> {
     if (quote.expiresAt && quote.expiresAt < new Date()) {
       throw new DomainError('Lightning invoice has expired');
@@ -215,6 +227,8 @@ export class SparkSendQuoteService {
       paymentHash: quote.paymentHash,
       paymentRequestIsAmountless: quote.paymentRequestIsAmountless,
       expiresAt: quote.expiresAt,
+      purpose,
+      transferId,
     });
   }
 

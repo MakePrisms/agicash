@@ -13,6 +13,7 @@ import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
 import type { CashuAccount } from '~/features/accounts/account';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
@@ -113,6 +114,9 @@ export default function ReceiveCashu({ amount, account }: Props) {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
+  const { redirectTo } = useRedirectTo(
+    account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/',
+  );
 
   const { quote, errorMessage, isLoading } = useCreateQuote({
     account,
@@ -121,6 +125,7 @@ export default function ReceiveCashu({ amount, account }: Props) {
       navigate(
         buildLinkWithSearchParams(`/transactions/${quote.transactionId}`, {
           showOkButton: 'true',
+          redirectTo,
         }),
         { transition: 'fade', applyTo: 'newView' },
       );
