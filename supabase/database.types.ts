@@ -718,6 +718,21 @@ export type Database = {
           },
         ]
       }
+      test: {
+        Row: {
+          description: string | null
+          id: string
+        }
+        Insert: {
+          description?: string | null
+          id: string
+        }
+        Update: {
+          description?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           account_id: string
