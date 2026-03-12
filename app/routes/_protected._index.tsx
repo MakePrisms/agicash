@@ -13,6 +13,7 @@ import {
   useDefaultAccount,
 } from '~/features/accounts/account-hooks';
 import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-switcher';
+import { CASH_APP_LOGO_URL } from '~/features/buy/cash-app';
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
@@ -21,8 +22,9 @@ import { useUser } from '~/features/user/user-hooks';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 export const links: LinksFunction = () => [
-  // This icon is used in the PWA dialog and prefetched here to avoid a flash while loading
-  { rel: 'preload', href: agicashIcon192, as: 'image' },
+  // Prefetched at low priority so they're cached before the user needs them
+  { rel: 'prefetch', href: agicashIcon192, as: 'image' },
+  { rel: 'prefetch', href: CASH_APP_LOGO_URL, as: 'image' },
 ];
 
 export default function Index() {
