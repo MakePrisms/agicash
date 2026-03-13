@@ -52,6 +52,7 @@ network round trip during wallet setup.
       instead of constructing a full `MintQuoteBolt11Response` object.
 - [x] Use `wallet.receive()` in `cashu-receive-swap-service.ts` instead of `wallet.send()` for
       token claims — semantically correct v3 API.
+- [x] Use `wallet.ops` builders for send, receive, and mint operations where readability improves.
 - [ ] Investigate whether `send/cashu-send-quote-service.ts` can stop rebuilding deterministic
       change outputs manually and switch to `prepareMelt()` + `completeMelt()`.
 - [ ] Evaluate `onceMintPaid` / `onceMeltPaid` to simplify subscription managers for

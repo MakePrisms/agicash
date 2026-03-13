@@ -231,7 +231,10 @@ small enough to land as one.
 | 3 | `4f94dbf` | Replace `getOutputAmounts` hack with v3 `splitAmount` |
 | 4 | `759eab4` | Replace local NUT-10 secret types with cashu-ts v3 exports |
 | 5 | `0866a6a` | Update deprecated cashu-ts type/method names to Bolt11 variants |
-| 6 | (staged) | `loadMintFromCache` init, string `quoteId`, `wallet.receive()`, keyset cleanup |
+| 6 | `8fcd58e` | Remove `toMintKeys()` indirection — use v3 `Keyset` directly |
+| 7 | `41a504a` | Replace deprecated constructor preload with `loadMintFromCache()` |
+| 8 | `823cd73` | Simplify `mintProofsBolt11` call — pass string quote ID |
+| 9 | `a0181cc` | Use `wallet.ops` builders for send, receive, and mint operations |
 
 **Verification:** `bun run fix:all` passes (zero type errors). Manual smoke test pending.
 
@@ -243,42 +246,37 @@ See `cashu-ts-v3-todo.md` for the full checklist. Summary of what's left:
       reconstruction in `cashu-send-quote-service.ts`. Significant but valuable refactor.
 - [ ] **P2: `onceMintPaid` / `onceMeltPaid`** — could simplify subscription managers for
       single-quote Lightning flows.
-- [ ] **P3: `wallet.ops` builder** — optional, current positional API works.
 - [ ] **P3: `KeyChainCache` consolidation** — could replace 3 TanStack Query caches with 1.
 - [ ] **P3: `CounterSource` backed by Supabase** — deferred, `{ type: 'custom' }` pattern works.
 
-See `cashu-ts-v3-api-audit.md` for the full v3 API reference and prioritized refactoring plan.
+See `cashu-ts-v3-api-audit.md` for the full v3 API reference and future adoption candidates.
 
 ## Resolved questions
 
-1. **`ExtendedCashuWallet` subclassing** — v3 `Wallet(url, opts)` takes URL string. `super(url, opts)` works. Constructor also accepts `keys`, `keysets`, `keysetId` in options.
+1. **`ExtendedCashuWallet` subclassing** — v3 `Wallet(url, opts)` takes URL string.
+   `super(url, opts)` works.
 
-2. **`wallet.keys` removal** — `getFeesEstimateToReceiveAtLeast` uses `this.keys.get(keyset.id)`. In v3: `this.keyChain.getKeyset(keyset.id).toMintKeys()`. `Keyset` also exposes `.keys` (raw `Keys` record) and `.fee` directly.
+2. **`wallet.keys` removal** — `Keyset` exposes `.keys` (raw `Keys` record) and `.fee`
+   directly. No `toMintKeys()` needed in most cases.
 
-3. **`OutputData` with `HasKeysetKeys`** — `HasKeysetKeys = { id: string; keys: Keys }`. `MintKeys` has both fields, so existing calls satisfy the constraint.
+3. **`OutputData` with `HasKeysetKeys`** — `HasKeysetKeys = { id: string; keys: Keys }`.
+   `Keyset` satisfies this directly.
 
-4. **`wallet.mint` access** — v3 `Wallet` has `public readonly mint: Mint`. `wallet.mint.webSocketConnection` still works.
+4. **`wallet.mint` access** — v3 `Wallet` has `public readonly mint: Mint`.
+   `wallet.mint.webSocketConnection` still works.
 
-5. **Counter management** — v3's `{ type: 'custom', data: [...] }` OutputType bypasses all counter logic. Our DB-persisted counter pattern works unchanged. See "Counter management: our migration path" above.
+5. **Counter management** — `{ type: 'custom', data: [...] }` bypasses all counter logic.
+   Our DB-persisted counter pattern works unchanged.
 
-6. **`loadMint()` vs pre-fetch** — Keep our TanStack Query pre-fetch pattern. `loadMint()` would add a network call we already avoid by injecting cached data. Our pattern is faster for returning users.
+6. **`loadMint()` vs pre-fetch** — Keep TanStack Query pre-fetch + `loadMintFromCache()`.
 
-## Resolved questions
+7. **NUT-10 secret migration** — v3's `Secret`, `parseSecret`, `parseP2PKSecret` replace
+   our Zod types. Existing stored secrets parse correctly.
 
-1. **NUT-10 secret migration** — Replaced our Zod types with v3's `Secret`, `SecretKind`,
-   `SecretData`, `parseSecret`, `parseP2PKSecret`. Existing stored secrets parse correctly.
+8. **`meltProofsIdempotent` in v3** — Works unchanged. `MintOperationError` shape is the same.
 
-2. **`meltProofsIdempotent` in v3** — Works unchanged. `meltProofsBolt11` uses `OutputType`
-   instead of `{ counter }` but `MintOperationError` shape is the same.
+9. **`wallet.restore()` API** — Signature unchanged. Internally calls `ensureKeysetKeys()`.
 
-3. **`wallet.restore()` API** — Signature unchanged: `restore(start, count, config?)`.
-   Internally calls `ensureKeysetKeys()`, so no manual guard needed before restore.
+10. **`checkProofsStates` API** — Signature unchanged in v3.
 
-4. **`checkProofsStates` API** — Signature unchanged in v3.
-
-5. **`loadMint()` vs pre-fetch** — Keep our TanStack Query pre-fetch pattern.
-   `loadMint()` adds a network call we already avoid. Use `loadMintFromCache()` with
-   `KeyChain.mintToCacheDTO()` to build the cache from prefetched data.
-
-6. **`wallet.receive()` for token claims** — Adopted. Semantically correct, returns
-   `Proof[]` directly (no `.send` unwrapping from `SendResponse`).
+11. **`wallet.receive()` for token claims** — Adopted. Returns `Proof[]` directly.

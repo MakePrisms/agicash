@@ -2,34 +2,32 @@
 
 ## How to read this doc
 
-**Section 1** lists every v3 API we currently use — confirming what's correct and what's not.
-**Section 2** lists v3 APIs we *don't* use yet that would improve our code.
-**Section 3** is a prioritized list of refactoring recommendations.
+**Section 1** lists every v3 API we use and confirms our usage is idiomatic.
+**Section 2** lists v3 APIs we don't use yet but could adopt in the future.
+**Section 3** is the complete v3 API reference (Agicash-relevant subset).
 
 ---
 
-## 1. Current Usage — What We Have
+## 1. Current Usage
 
 ### Wallet Construction & Initialization
 
 | What we do | Where | Idiomatic? |
 |------------|-------|------------|
-| `new ExtendedCashuWallet(mintUrl, { keys, keysets, mintInfo, ... })` | `getInitializedCashuWallet` in `shared/cashu.ts:303` | **No** — `keys`, `keysets`, `mintInfo` constructor options are **deprecated** in v3. v3 wants `loadMintFromCache()` after construction. |
-| Fetch info/keysets/keys separately via TanStack Query then inject | `shared/cashu.ts:252-272` | Pattern is fine, but injection point should change to `loadMintFromCache` |
-| `getCashuWallet(mintUrl)` for throwaway wallets (subscriptions, test mint check) | `mint-quote-subscription-manager.ts:58`, `melt-quote-subscription-manager.ts:56`, `utils.ts:314` | **Problem** — these wallets are never initialized with `loadMint()`. Works only because subscription methods don't need keysets. But fragile. |
-
-**Recommendation:** Switch to `loadMintFromCache(mintInfo, keyChainCache)` pattern. See Section 3.1.
+| `getCashuWallet(mintUrl, { unit, bip39seed })` then `loadMintFromCache(mintInfo.cache, keyChainCache)` | `getInitializedCashuWallet` in `shared/cashu.ts` | Yes — v3-preferred cache init pattern. |
+| `KeyChain.mintToCacheDTO(unit, mintUrl, keysets, keys)` to build cache | `shared/cashu.ts` | Yes — converts prefetched TanStack Query data to `KeyChainCache`. |
+| `getCashuWallet(mintUrl)` for throwaway wallets (subscriptions, test mint check) | `mint-quote-subscription-manager.ts`, `melt-quote-subscription-manager.ts`, `utils.ts` | Works — subscription methods don't need keysets. Fragile but acceptable. |
 
 ### Core Operations
 
 | Operation | v3 API used | Where | Idiomatic? |
 |-----------|-------------|-------|------------|
-| **Melt (send Lightning)** | `wallet.meltProofsIdempotent()` → wraps `meltProofsBolt11()` | `cashu-send-quote-service.ts:346` | Yes — our idempotent wrapper is app-specific logic. Using `{ type: 'deterministic', counter: N }` here is correct. |
-| **Melt change reconstruction** | Manual `OutputData.createDeterministicData` + `outputData[i].toProof(s, keyset)` | `cashu-send-quote-service.ts:430-438` | **Not idiomatic** — v3 has `prepareMelt()` + `completeMelt()` which handles change proofs internally. See Section 2.2. |
-| **Send swap (split proofs)** | `wallet.send(amount, proofs, config, outputConfig)` | `cashu-send-swap-service.ts:418-428` | Yes — using `{ type: 'custom', data }` for both send and keep outputs. |
-| **Receive swap (claim token)** | `wallet.send(amount, tokenProofs, {}, { send: { type: 'custom', data } })` | `cashu-receive-swap-service.ts:207-216` | **Not idiomatic** — using `send()` to receive a token. v3 has `wallet.receive(token)` which is semantically correct and handles the swap automatically. See Section 2.1. |
-| **Mint proofs** | `wallet.mintProofsBolt11(amount, quoteObj, config, { type: 'custom', data })` | `cashu-receive-quote-service.ts:310-325` | Passing a full MintQuote object is fine but unnecessary — v3 accepts a string quote ID directly: `mintProofsBolt11(amount, quoteId, ...)`. We construct the full object anyway at line 312-319. |
-| **Proof selection** | `wallet.selectProofsToSend(proofs, amount, includeFees)` | `cashu-send-quote-service.ts:544`, `cashu-send-swap-service.ts:336` | Yes — correct API. |
+| **Melt (send Lightning)** | `wallet.meltProofsIdempotent()` → wraps `meltProofsBolt11()` | `cashu-send-quote-service.ts` | Yes — idempotent wrapper is app-specific. |
+| **Melt change reconstruction** | Manual `OutputData.createDeterministicData` + `toProof()` | `cashu-send-quote-service.ts` | Works but verbose — v3 has `prepareMelt()` + `completeMelt()` (see Section 2). |
+| **Send swap (split proofs)** | `wallet.ops.send().keyset().asCustom().keepAsCustom().run()` | `cashu-send-swap-service.ts` | Yes — using v3 fluent builder. |
+| **Receive swap (claim token)** | `wallet.ops.receive().asCustom().run()` | `cashu-receive-swap-service.ts` | Yes — semantically correct v3 API via builder. |
+| **Mint proofs** | `wallet.ops.mintBolt11().keyset().privkey().asCustom().run()` | `cashu-receive-quote-service.ts` | Yes — string quote ID via builder. |
+| **Proof selection** | `wallet.selectProofsToSend(proofs, amount, includeFees)` | `cashu-send-quote-service.ts`, `cashu-send-swap-service.ts` | Yes |
 | **Fee calculation** | `wallet.getFeesForProofs(proofs)` | multiple files | Yes |
 | **Restore** | `wallet.restore(counter, count, { keysetId })` | 3 service files | Yes — signature unchanged in v3. |
 
@@ -37,29 +35,29 @@
 
 | What we do | Where | Idiomatic? |
 |------------|-------|------------|
-| `wallet.getKeyset()` / `wallet.getKeyset(id)` | All 4 service files | Yes — v3 `getKeyset()` enforces wallet binding. |
-| `wallet.keysetId` getter | `cashu-receive-quote-service.ts:244`, `cashu-receive-swap-service.ts:98` | Yes |
-| `wallet.keyChain.ensureKeysetKeys(id)` | 3 service files | Yes — ensures keys are loaded before use. |
-| `wallet.keyChain.getCheapestKeyset()` | `utils.ts:193` (in fee estimation) | Yes |
-| `keyset.keys` (raw `Keys` record) | `utils.ts:200`, `cashu-send-swap-service.ts:157-158` | Yes — accessing keys directly from Keyset is correct. |
+| `wallet.getKeyset()` / `wallet.getKeyset(id)` | All 4 service files | Yes — returns `Keyset` directly, no `toMintKeys()` needed. |
+| `wallet.keysetId` getter | `cashu-receive-quote-service.ts`, `cashu-receive-swap-service.ts` | Yes |
+| `wallet.keyChain.ensureKeysetKeys(id)` | 3 service files | Yes — ensures keys are loaded for historical keysets. |
+| `wallet.keyChain.getCheapestKeyset()` | `utils.ts` (fee estimation) | Yes |
+| `keyset.keys` (raw `Keys` record) | `utils.ts`, `cashu-send-swap-service.ts` | Yes — direct access, no `toMintKeys()` indirection. |
 
 ### Output Data & Counters
 
 | What we do | Where | Idiomatic? |
 |------------|-------|------------|
-| `OutputData.createDeterministicData(amount, seed, counter, keyset, amounts)` | 5 call sites across 4 service files | Yes for `{ type: 'custom' }` pattern. But see below for simplification opportunities. |
-| `{ type: 'custom', data: outputData }` | send swap, receive swap, mint proofs | Yes — correctly bypasses v3 counter system when we manage counters ourselves. |
-| `{ type: 'deterministic', counter: N }` | `cashu-send-quote-service.ts:352-355` (initiateSend/melt) | Yes — but note this lets v3 handle output creation. Inconsistent with other sites that create `OutputData` manually. |
-| `splitAmount(amount, keyset.keys)` | `cashu-send-swap-service.ts:157-158`, `cashu-receive-swap-service.ts:92`, `cashu-receive-quote-service.ts:248` | Yes — using v3 export correctly. |
+| `OutputData.createDeterministicData(amount, seed, counter, keyset, amounts)` | 5 call sites across 4 service files | Yes — `Keyset` satisfies `HasKeysetKeys` directly. |
+| `{ type: 'custom', data: outputData }` via `.asCustom()` builder | send swap, receive swap, mint proofs | Yes — bypasses v3 counter system; we manage counters in DB. |
+| `{ type: 'deterministic', counter: N }` | `cashu-send-quote-service.ts` (melt) | Yes — lets v3 handle output creation for melt change. |
+| `splitAmount(amount, keyset.keys)` | 3 service files | Yes — v3 export, uses `keyset.keys` directly. |
 
 ### Subscriptions & Events
 
 | What we do | Where | Idiomatic? |
 |------------|-------|------------|
-| `wallet.on.mintQuoteUpdates(ids, cb, errCb)` | `mint-quote-subscription-manager.ts:72` | Yes — correct v3 event API. |
-| `wallet.on.meltQuoteUpdates(ids, cb, errCb)` | `melt-quote-subscription-manager.ts:70` | Yes |
-| `wallet.mint.webSocketConnection?.onClose(cb)` | Both subscription managers | Yes — accessing mint's WS connection. |
-| Manual subscription tracking with Map/Set | Both managers | **Verbose** — v3 has `on.group()` for managing multiple subscriptions. |
+| `wallet.on.mintQuoteUpdates(ids, cb, errCb)` | `mint-quote-subscription-manager.ts` | Yes |
+| `wallet.on.meltQuoteUpdates(ids, cb, errCb)` | `melt-quote-subscription-manager.ts` | Yes |
+| `wallet.mint.webSocketConnection?.onClose(cb)` | Both subscription managers | Yes |
+| Manual subscription tracking with Map/Set | Both managers | Works — v3 `on.group()` could simplify (see Section 2). |
 
 ### Types
 
@@ -69,310 +67,63 @@
 | `MintQuoteBolt11Response`, `MeltQuoteBolt11Response` | `@cashu/cashu-ts` | Yes |
 | `MintQuoteState`, `MeltQuoteState`, `CheckStateEnum` | `@cashu/cashu-ts` | Yes |
 | `OutputData`, `splitAmount`, `MintOperationError`, `NetworkError` | `@cashu/cashu-ts` | Yes |
-| `MintInfo` (our type alias: `ReturnType<Wallet['getMintInfo']>`) | `lib/cashu/types.ts:49` | **Redundant** — v3 exports `MintInfo` as a class. We could import directly. But our alias does the same thing so low priority. |
-| `ProofSchema` (Zod) | `lib/cashu/types.ts:30` | Correct — v3 doesn't ship Zod schemas. |
-| `CashuProtocolUnit` | `lib/cashu/types.ts:64` | Correct — v3 uses `string` for units. |
+| `MintInfo` class | `@cashu/cashu-ts` | Yes — imported directly. |
+| `ProofSchema` (Zod) | `lib/cashu/types.ts` | Correct — v3 doesn't ship Zod schemas. |
+| `CashuProtocolUnit` | `lib/cashu/types.ts` | Correct — v3 uses `string` for units. |
 
 ---
 
-## 2. v3 APIs We Should Adopt
+## 2. v3 APIs to Consider in the Future
 
-### 2.1. `wallet.receive(token)` — Replace `send()` for token claims
+### `prepareMelt()` + `completeMelt()` — Replace manual change reconstruction
 
-**Current:** `cashu-receive-swap-service.ts` uses `wallet.send(amount, tokenProofs, {}, { send: { type: 'custom', data } })` to claim incoming tokens. This works but is semantically wrong — `send()` is for splitting your own proofs, `receive()` is for claiming someone else's token.
+`cashu-send-quote-service.ts` manually reconstructs change proofs after melt via
+`OutputData.createDeterministicData` + `toProof()`. v3's `prepareMelt()` returns a
+serializable `MeltPreview` and `completeMelt()` returns `{ quote, change }` directly.
 
-**v3 API:**
-```ts
-// Simple:
-const proofs = await wallet.receive(token, config?, outputType?);
+Requires persisting `MeltPreview` — significant refactor but eliminates manual blind
+signature math.
 
-// Builder:
-const proofs = await wallet.ops.receive(token)
-  .asCustom(outputData)
-  .keyset(keysetId)
-  .run();
-```
+### `onceMintPaid` / `onceMeltPaid` — Promise-based quote watching
 
-**Benefits:**
-- Semantically correct — `receive()` handles token parsing, validation, DLEQ checks
-- Returns `Proof[]` directly instead of `SendResponse` (no `.send` unwrapping)
-- v3 automatically handles the swap with the mint
-- Simpler error handling
-
-**Impact:** `cashu-receive-swap-service.ts` `swapProofs()` method. Medium refactor.
-
-### 2.2. `prepareMelt()` + `completeMelt()` — Replace manual change reconstruction
-
-**Current:** `cashu-send-quote-service.ts:420-438` manually reconstructs change proofs after melt by:
-1. Re-creating `OutputData.createDeterministicData` with same counter
-2. Calling `outputData[i].toProof(signature, keyset)` for each change signature
-
-**v3 API:**
-```ts
-// Step 1: Prepare (before melt)
-const preview = await wallet.prepareMelt('bolt11', meltQuote, proofs, config?, outputType?);
-// preview has: inputs, outputData, keysetId, quote
-
-// Step 2: Execute
-const { quote, change } = await wallet.completeMelt(preview, privkey?);
-// change is already Proof[]!
-```
-
-**Benefits:**
-- No manual change proof reconstruction
-- The `MeltPreview` is serializable — can be persisted and completed later
-- v3 handles all the blind signature math internally
-- Eliminates the `OutputData.createDeterministicData` + `toProof` dance in `completeSendQuote`
-
-**Impact:** Requires rethinking the melt flow. `prepareMelt` should happen at initiation time, `completeMelt` at completion. The `MeltPreview` needs to be persisted (in the send quote DB row). This is a **significant but valuable refactor**.
-
-### 2.3. `wallet.ops` Builder Pattern — Cleaner Operation Composition
-
-**Current:** Operations pass positional args to methods:
-```ts
-wallet.send(amount, proofs, { keysetId }, { send: { type: 'custom', data: sendOD }, keep: { type: 'custom', data: keepOD } })
-```
-
-**v3 API:**
-```ts
-const { keep, send } = await wallet.ops
-  .send(amount, proofs)
-  .asCustom(sendOD)
-  .keepAsCustom(keepOD)
-  .keyset(keysetId)
-  .run();
-```
-
-**Benefits:**
-- More readable
-- Discoverable API via method chaining
-- `.prepare()` returns a `SwapPreview` (can preview before executing)
-- Each builder is single-use, reducing mistakes
-
-**Impact:** Optional improvement. Most useful where we compose complex operations. Low priority since our current code works.
-
-### 2.4. `onceMintPaid(quoteId)` / `onceMeltPaid(quoteId)` — Promise-based quote watching
-
-**Current:** Our `MintQuoteSubscriptionManager` and `MeltQuoteSubscriptionManager` manage WebSocket subscriptions manually with Maps, Sets, and callback routing.
-
-**v3 API:**
-```ts
-try {
-  const paidQuote = await wallet.on.onceMintPaid(quoteId, {
-    signal: abortController.signal,
-    timeoutMs: 60_000,
-  });
-  // Quote is paid!
-} catch (e) {
-  if (e.name === 'AbortError') { /* user cancelled */ }
-}
-```
-
-Also: `onceAnyMintPaid(ids[])` for racing multiple quotes.
-
-**Benefits:**
-- One-liner replaces entire subscription manager for single-quote use cases
-- Built-in abort signal support
-- Built-in timeout
-- Auto-cleanup on resolve/reject
-- `onceAnyMintPaid` races multiple quotes — useful for batch operations
-
-**Impact:** Could significantly simplify the quote subscription code. However, our managers handle multi-quote subscriptions with callback updates, which is different from the "wait for one" pattern. Consider using `onceMintPaid` for the single-quote case (Lightning receive) and keeping the manager for batch scenarios.
-
-### 2.5. `wallet.on.group()` — Composite subscription management
-
-**v3 API:**
-```ts
-const cancelAll = wallet.on.group();
-cancelAll.add(wallet.on.mintQuoteUpdates(ids, cb, errCb));
-cancelAll.add(wallet.on.meltQuoteUpdates(ids, cb, errCb));
-// later:
-cancelAll(); // disposes everything
-```
-
-**Benefits:** Replaces manual Map-based subscription tracking. Simpler cleanup.
-
-### 2.6. `loadMintFromCache()` + `KeyChainCache` — Proper cache initialization
-
-**Current:** We pass `keys`, `keysets`, `mintInfo` as deprecated constructor options.
-
-**v3 API:**
-```ts
-const wallet = new Wallet(mintUrl, { unit, bip39seed });
-wallet.loadMintFromCache(mintInfo, keyChainCache);
-// or: await wallet.loadMint(); // fetches from network
-```
-
-Where `keyChainCache` comes from:
-```ts
-// Build from raw data (what we have):
-const cache = KeyChain.mintToCacheDTO(unit, mintUrl, allKeysets, allKeys);
-
-// Or get from existing wallet:
-const cache = wallet.keyChain.cache;
-```
-
-**Benefits:**
-- Not using deprecated options
-- `KeyChainCache` is a single serializable object — can replace 3 separate TanStack Query caches
-- `loadMintFromCache` is synchronous (no network)
-
-### 2.7. `groupProofsByState(proofs)` — Proof state grouping
-
-**v3 API:**
-```ts
-const { unspent, pending, spent } = await wallet.groupProofsByState(proofs);
-```
-
-**Benefits:** Single call instead of `checkProofsStates` + manual filtering.
-
-### 2.8. `wallet.withKeyset(id)` — Multi-keyset operations
-
-**v3 API:**
-```ts
-const walletForOldKeyset = wallet.withKeyset(oldKeysetId);
-// Shares same CounterSource — counters remain monotonic
-```
-
-**Benefits:** When operating on proofs from different keysets, instead of calling `wallet.keyChain.ensureKeysetKeys(id)` + `wallet.getKeyset(id)`, create a derived wallet bound to that keyset.
-
-### 2.9. `mintProofsBolt11(amount, quoteId: string, ...)` — String quote ID
-
-**Current:** We construct a full `MintQuoteBolt11Response` object to pass to `mintProofsBolt11`:
-```ts
-// cashu-receive-quote-service.ts:312-319
-wallet.mintProofsBolt11(amount, {
-  quote: quote.quoteId,
-  request: quote.paymentRequest,
-  state: MintQuoteState.PAID,
-  expiry: ...,
-  amount,
-  unit: wallet.unit,
-}, ...)
-```
-
-**v3 accepts:** `mintProofsBolt11(amount, quote.quoteId, config, outputType)` — just the string ID.
-
-**Benefits:** Delete 6 lines of object construction.
-
-### 2.10. `CounterSource` Interface — Custom counter persistence
-
-**v3 Interface:**
-```ts
-type CounterSource = {
-  reserve(keysetId: string, n: number): Promise<{ start: number; count: number }>;
-  advanceToAtLeast(keysetId: string, minNext: number): Promise<void>;
-  setNext?(keysetId: string, next: number): Promise<void>;
-  snapshot?(): Promise<Record<string, number>>;
-};
-```
-
-**Future opportunity:** Implement `CounterSource` backed by our Supabase RPC. This would let v3 manage counter allocation during operations rather than our current pattern of allocating counters at quote-creation time. **Not recommended for this migration** — our current `{ type: 'custom', data }` pattern works and preserves transactional guarantees.
-
----
-
-## 3. Refactoring Recommendations (Prioritized)
-
-### P0 — Fix deprecated usage (do before merging)
-
-#### 3.1. Replace deprecated constructor options with `loadMintFromCache()`
-
-**Files:** `shared/cashu.ts` (`getInitializedCashuWallet`)
-
-**Current:**
-```ts
-const wallet = getCashuWallet(mintUrl, {
-  unit: getCashuUnit(currency),
-  bip39seed,
-  mintInfo: mintInfo.cache,
-  keys: activeKeysForUnit,
-  keysets: unitKeysets,
-  keysetId: activeKeyset.id,
-});
-```
-
-**Proposed:**
-```ts
-const wallet = getCashuWallet(mintUrl, {
-  unit: getCashuUnit(currency),
-  bip39seed,
-  keysetId: activeKeyset.id,
-});
-const keyChainCache = KeyChain.mintToCacheDTO(
-  getCashuProtocolUnit(currency),
-  mintUrl,
-  unitKeysets,
-  [activeKeysForUnit],
-);
-wallet.loadMintFromCache(mintInfo.cache, keyChainCache);
-```
-
-`keysetId` in the constructor is NOT deprecated — it controls binding. Only `keys`, `keysets`, `mintInfo` are deprecated.
-
-### P1 — Quick wins (low risk, high value)
-
-#### 3.2. Simplify `mintProofsBolt11` call — pass string quote ID
-
-**File:** `cashu-receive-quote-service.ts:310-325`
-
-Replace the full object with just `quote.quoteId`. Delete 6 lines.
-
-#### 3.3. Use `wallet.receive()` for token claims
-
-**File:** `cashu-receive-swap-service.ts`
-
-Replace `wallet.send(amount, tokenProofs, {}, { send: { type: 'custom', data } })` with `wallet.receive(token, {}, { type: 'custom', data: outputData })`. The `receive()` method:
-- Accepts `Token | string` directly
-- Returns `Proof[]` (not `SendResponse`)
-- Handles token validation
-
-The idempotent restore-on-error logic stays the same.
-
-### P2 — Medium refactors (good ROI, needs care)
-
-#### 3.4. Use `prepareMelt()` + `completeMelt()` for Lightning sends
-
-**Files:** `cashu-send-quote-service.ts`
-
-This eliminates the manual change proof reconstruction in `completeSendQuote`. The flow becomes:
-1. `initiateSend`: Call `wallet.prepareMelt('bolt11', meltQuote, proofs, config, outputType)` → persist `MeltPreview`
-2. `completeSendQuote`: Call `wallet.completeMelt(meltPreview)` → get `{ quote, change }` directly
-
-**Risk:** Requires persisting `MeltPreview` (it's serializable but has `OutputDataLike[]`). May need a new column or blob storage for the preview data.
-
-#### 3.5. Use `onceMintPaid` for single Lightning receive flows
-
-**File:** Could simplify how receive flows wait for payment.
-
-For the common case of "wait for this one mint quote to be paid", replace subscription manager usage with:
+One-liner replacement for subscription managers in single-quote Lightning flows:
 ```ts
 const paid = await wallet.on.onceMintPaid(quoteId, { signal, timeoutMs });
 ```
 
-Keep the subscription manager for multi-quote batch scenarios.
+Keep subscription managers for multi-quote batch scenarios.
 
-### P3 — Nice to have (optional, consider later)
+### `wallet.on.group()` — Composite subscription management
 
-#### 3.6. Consolidate TanStack Query caches using `KeyChainCache`
+```ts
+const cancelAll = wallet.on.group();
+cancelAll.add(wallet.on.mintQuoteUpdates(ids, cb, errCb));
+cancelAll(); // disposes everything
+```
 
-Currently we have 3 separate query caches:
-- `mintInfoQueryOptions(mintUrl)` → `MintInfo`
-- `allMintKeysetsQueryOptions(mintUrl)` → `GetKeysetsResponse`
-- `mintKeysQueryOptions(mintUrl)` → `GetKeysResponse`
+Could replace manual Map-based subscription tracking.
 
-Could consolidate into a single `KeyChainCache` query plus the `MintInfo` query. This simplifies `getInitializedCashuWallet` and makes cache invalidation easier.
+### `groupProofsByState(proofs)` — Proof state grouping
 
-#### 3.7. Adopt `wallet.ops` builder for complex operations
+```ts
+const { unspent, pending, spent } = await wallet.groupProofsByState(proofs);
+```
 
-Low priority. Current positional API works fine. Consider when adding new operations.
+Single call instead of `checkProofsStates` + manual filtering.
 
-#### 3.8. Implement `CounterSource` backed by Supabase
+### `KeyChainCache` consolidation
 
-Would allow v3 to manage counter allocation during operations. Deferred — our `{ type: 'custom', data }` pattern is correct and well-tested.
+Could replace 3 separate TanStack Query caches (`mintInfo`, `allMintKeysets`, `mintKeys`)
+with a single `KeyChainCache` query. Simplifies `getInitializedCashuWallet`.
+
+### `CounterSource` backed by Supabase
+
+Would let v3 manage counter allocation during operations. Deferred — our `{ type: 'custom' }`
+pattern works and preserves transactional guarantees.
 
 ---
 
-## 4. Complete v3 API Reference (Agicash-relevant subset)
+## 3. Complete v3 API Reference (Agicash-relevant subset)
 
 ### Wallet Class
 
