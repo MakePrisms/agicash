@@ -309,14 +309,7 @@ export class CashuReceiveQuoteService {
 
       const proofs = await wallet.mintProofsBolt11(
         amount,
-        {
-          quote: quote.quoteId,
-          request: quote.paymentRequest,
-          state: MintQuoteState.PAID,
-          expiry: Math.floor(new Date(quote.expiresAt).getTime() / 1000),
-          amount,
-          unit: wallet.unit,
-        },
+        quote.quoteId,
         {
           keysetId: quote.keysetId,
           privkey: unlockingKey,
