@@ -410,17 +410,15 @@ export class CashuSendSwapService {
     );
 
     try {
-      return await wallet.send(
-        amountToSend,
-        swap.inputProofs.map((p) => toProof(p)),
-        {
-          keysetId: swap.keysetId,
-        },
-        {
-          send: { type: 'custom', data: outputData.send },
-          keep: { type: 'custom', data: outputData.keep },
-        },
-      );
+      return await wallet.ops
+        .send(
+          amountToSend,
+          swap.inputProofs.map((p) => toProof(p)),
+        )
+        .keyset(swap.keysetId)
+        .asCustom(outputData.send)
+        .keepAsCustom(outputData.keep)
+        .run();
     } catch (error) {
       if (
         error instanceof MintOperationError &&

@@ -204,17 +204,14 @@ export class CashuReceiveSwapService {
     outputData: OutputData[],
   ) {
     try {
-      const { send: newProofs } = await wallet.send(
-        receiveSwap.amountReceived.toNumber(
-          getCashuUnit(receiveSwap.amountReceived.currency),
-        ),
-        receiveSwap.tokenProofs,
-        {},
-        {
-          send: { type: 'custom', data: outputData },
-        },
-      );
-      return newProofs;
+      return await wallet.ops
+        .receive({
+          mint: wallet.mint.mintUrl,
+          proofs: receiveSwap.tokenProofs,
+          unit: wallet.unit,
+        })
+        .asCustom(outputData)
+        .run();
     } catch (error) {
       if (
         error instanceof MintOperationError &&

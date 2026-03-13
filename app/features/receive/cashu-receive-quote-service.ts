@@ -307,17 +307,12 @@ export class CashuReceiveQuoteService {
         quote.lockingDerivationPath,
       );
 
-      const proofs = await wallet.mintProofsBolt11(
-        amount,
-        quote.quoteId,
-        {
-          keysetId: quote.keysetId,
-          privkey: unlockingKey,
-        },
-        { type: 'custom', data: outputData },
-      );
-
-      return proofs;
+      return await wallet.ops
+        .mintBolt11(amount, quote.quoteId)
+        .keyset(quote.keysetId)
+        .privkey(unlockingKey)
+        .asCustom(outputData)
+        .run();
     } catch (error) {
       if (
         error instanceof MintOperationError &&
