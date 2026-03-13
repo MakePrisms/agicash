@@ -5,7 +5,9 @@ import {
 import {
   type GetKeysResponse,
   type GetKeysetsResponse,
+  KeyChain,
   Mint,
+  MintInfo,
   NetworkError,
   type Token,
   getEncodedToken,
@@ -20,7 +22,6 @@ import {
 import { useMemo } from 'react';
 import {
   type ExtendedCashuWallet,
-  type MintInfo,
   checkIsTestMint,
   getCashuProtocolUnit,
   getCashuUnit,
@@ -187,7 +188,7 @@ export const mintKeysQueryKey = (mintUrl: string, keysetId?: string) => [
 export const mintInfoQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: mintInfoQueryKey(mintUrl),
-    queryFn: async () => new Mint(mintUrl).getLazyMintInfo(),
+    queryFn: async () => new MintInfo(await new Mint(mintUrl).getInfo()),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -303,11 +304,14 @@ export async function getInitializedCashuWallet(
       const wallet = getCashuWallet(mintUrl, {
         unit: getCashuUnit(currency),
         bip39seed: bip39seed ?? undefined,
-        mintInfo: mintInfo.cache,
-        keys: activeKeysForUnit,
-        keysets: unitKeysets,
-        keysetId: activeKeyset.id,
       });
+      const keyChainCache = KeyChain.mintToCacheDTO(
+        wallet.unit,
+        mintUrl,
+        unitKeysets,
+        [activeKeysForUnit],
+      );
+      wallet.loadMintFromCache(mintInfo.cache, keyChainCache);
 
       return { wallet, isOnline: true };
     },
