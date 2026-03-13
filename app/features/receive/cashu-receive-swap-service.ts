@@ -1,14 +1,14 @@
 import {
-  type CashuWallet,
   MintOperationError,
   OutputData,
   type Token,
+  type Wallet,
+  splitAmount,
 } from '@cashu/cashu-ts';
 import {
   CashuErrorCodes,
   areMintUrlsEqual,
   getCashuUnit,
-  getOutputAmounts,
   sumProofs,
 } from '~/lib/cashu';
 import { Money } from '~/lib/money';
@@ -69,7 +69,7 @@ export class CashuReceiveSwapService {
 
     const wallet = account.wallet;
 
-    const keys = await wallet.getKeys();
+    const keyset = wallet.getKeyset();
     const fee = wallet.getFeesForProofs(token.proofs);
     const amountToReceive = sumProofs(token.proofs) - fee;
 
@@ -89,7 +89,7 @@ export class CashuReceiveSwapService {
       unit: cashuUnit,
     });
 
-    const outputAmounts = getOutputAmounts(amountToReceive, keys);
+    const outputAmounts = splitAmount(amountToReceive, keyset.keys);
 
     return await this.receiveSwapRepository.create({
       token,
@@ -167,12 +167,13 @@ export class CashuReceiveSwapService {
       outputAmounts,
     } = receiveSwap;
 
-    const keys = await wallet.getKeys(keysetId);
+    await wallet.keyChain.ensureKeysetKeys(keysetId);
+    const keyset = wallet.getKeyset(keysetId);
     const outputData = OutputData.createDeterministicData(
       receiveAmount.toNumber(getCashuUnit(receiveAmount.currency)),
       wallet.seed,
       keysetCounter,
-      keys,
+      keyset,
       outputAmounts,
     );
 
@@ -198,21 +199,19 @@ export class CashuReceiveSwapService {
   }
 
   private async swapProofs(
-    wallet: CashuWallet,
+    wallet: Wallet,
     receiveSwap: CashuReceiveSwap,
     outputData: OutputData[],
   ) {
     try {
-      const { send: newProofs } = await wallet.swap(
-        receiveSwap.amountReceived.toNumber(
-          getCashuUnit(receiveSwap.amountReceived.currency),
-        ),
-        receiveSwap.tokenProofs,
-        {
-          outputData: { send: outputData },
-        },
-      );
-      return newProofs;
+      return await wallet.ops
+        .receive({
+          mint: wallet.mint.mintUrl,
+          proofs: receiveSwap.tokenProofs,
+          unit: wallet.unit,
+        })
+        .asCustom(outputData)
+        .run();
     } catch (error) {
       if (
         error instanceof MintOperationError &&

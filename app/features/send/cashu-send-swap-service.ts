@@ -1,8 +1,9 @@
 import {
-  type CashuWallet,
   MintOperationError,
   OutputData,
   type Proof,
+  type Wallet,
+  splitAmount,
 } from '@cashu/cashu-ts';
 import type { CashuAccount } from '~/features/accounts/account';
 import { type CashuProof, toProof } from '~/features/accounts/cashu-account';
@@ -11,7 +12,6 @@ import {
   type ExtendedCashuWallet,
   getCashuProtocolUnit,
   getCashuUnit,
-  getOutputAmounts,
   sumProofs,
 } from '~/lib/cashu';
 import { Money } from '~/lib/money';
@@ -149,13 +149,13 @@ export class CashuSendSwapService {
         unit: getCashuProtocolUnit(amount.currency),
       });
     } else {
-      const keys = await wallet.getKeys();
-      keysetId = keys.id;
+      const keyset = wallet.getKeyset();
+      keysetId = keyset.id;
       const amountToKeep =
         sumProofs(inputProofs) - totalAmountToSend - cashuSendFee;
       outputAmounts = {
-        send: getOutputAmounts(totalAmountToSend, keys),
-        change: getOutputAmounts(amountToKeep, keys),
+        send: splitAmount(totalAmountToSend, keyset.keys),
+        change: splitAmount(amountToKeep, keyset.keys),
       };
     }
 
@@ -196,7 +196,8 @@ export class CashuSendSwapService {
 
     const wallet = account.wallet;
 
-    const keys = await wallet.getKeys(swap.keysetId);
+    await wallet.keyChain.ensureKeysetKeys(swap.keysetId);
+    const keyset = wallet.getKeyset(swap.keysetId);
     const currency = swap.amountToSend.currency;
     const cashuUnit = getCashuUnit(currency);
     const sendAmount = swap.amountToSend.toNumber(cashuUnit);
@@ -204,7 +205,7 @@ export class CashuSendSwapService {
       sendAmount,
       wallet.seed,
       swap.keysetCounter,
-      keys,
+      keyset,
       swap.outputAmounts.send,
     );
 
@@ -216,7 +217,7 @@ export class CashuSendSwapService {
       amountToKeep,
       wallet.seed,
       swap.keysetCounter + sendOutputData.length,
-      keys,
+      keyset,
       swap.outputAmounts.change,
     );
 
@@ -311,11 +312,6 @@ export class CashuSendSwapService {
       );
     }
 
-    if (includeFeesInSendAmount) {
-      // If we want to do fee calculation, then the keys are required
-      await wallet.getKeys();
-    }
-
     const accountProofsMap = new Map<string, CashuProof>(
       accountProofs.map((p) => [p.secret, p]),
     );
@@ -402,7 +398,7 @@ export class CashuSendSwapService {
   }
 
   private async swapProofs(
-    wallet: CashuWallet,
+    wallet: Wallet,
     swap: CashuSendSwap & { state: 'DRAFT' },
     outputData: {
       keep: OutputData[];
@@ -414,14 +410,15 @@ export class CashuSendSwapService {
     );
 
     try {
-      return await wallet.swap(
-        amountToSend,
-        swap.inputProofs.map((p) => toProof(p)),
-        {
-          outputData,
-          keysetId: swap.keysetId,
-        },
-      );
+      return await wallet.ops
+        .send(
+          amountToSend,
+          swap.inputProofs.map((p) => toProof(p)),
+        )
+        .keyset(swap.keysetId)
+        .asCustom(outputData.send)
+        .keepAsCustom(outputData.keep)
+        .run();
     } catch (error) {
       if (
         error instanceof MintOperationError &&

@@ -1,11 +1,11 @@
-import type { MintQuoteResponse } from '@cashu/cashu-ts';
+import type { MintQuoteBolt11Response } from '@cashu/cashu-ts';
 import { getCashuWallet } from '~/lib/cashu';
 import { isSubset } from '~/lib/utils';
 
 type SubscriptionData = {
   ids: Set<string>;
   subscriptionPromise: Promise<() => void>;
-  onUpdate: (mintQuoteResponse: MintQuoteResponse) => void;
+  onUpdate: (mintQuoteResponse: MintQuoteBolt11Response) => void;
 };
 
 export class MintQuoteSubscriptionManager {
@@ -26,7 +26,7 @@ export class MintQuoteSubscriptionManager {
   }: {
     mintUrl: string;
     quoteIds: string[];
-    onUpdate: (mintQuoteResponse: MintQuoteResponse) => void;
+    onUpdate: (mintQuoteResponse: MintQuoteBolt11Response) => void;
   }): Promise<() => void> {
     const ids = new Set(quoteIds);
     const mintSubscription = this.subscriptions.get(mintUrl);
@@ -62,14 +62,14 @@ export class MintQuoteSubscriptionManager {
       quoteCount: quoteIds.length,
     });
 
-    const subscriptionCallback = (mintQuote: MintQuoteResponse) => {
+    const subscriptionCallback = (mintQuote: MintQuoteBolt11Response) => {
       const currentSubscription = this.subscriptions.get(mintUrl);
       if (currentSubscription) {
         currentSubscription.onUpdate(mintQuote);
       }
     };
 
-    const subscriptionPromise = wallet.onMintQuoteUpdates(
+    const subscriptionPromise = wallet.on.mintQuoteUpdates(
       Array.from(ids),
       subscriptionCallback,
       (error) =>

@@ -3,9 +3,10 @@ import {
   getPrivateKeyBytes,
 } from '@agicash/opensecret';
 import {
-  CashuMint,
-  type MintActiveKeys,
-  type MintAllKeysets,
+  type GetKeysResponse,
+  type GetKeysetsResponse,
+  KeyChain,
+  Mint,
   NetworkError,
   type Token,
   getEncodedToken,
@@ -20,7 +21,7 @@ import {
 import { useMemo } from 'react';
 import {
   type ExtendedCashuWallet,
-  type MintInfo,
+  ExtendedMintInfo,
   checkIsTestMint,
   getCashuProtocolUnit,
   getCashuUnit,
@@ -187,7 +188,8 @@ export const mintKeysQueryKey = (mintUrl: string, keysetId?: string) => [
 export const mintInfoQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: mintInfoQueryKey(mintUrl),
-    queryFn: async () => getCashuWallet(mintUrl).getMintInfo(),
+    queryFn: async () =>
+      new ExtendedMintInfo(await new Mint(mintUrl).getInfo()),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -200,7 +202,7 @@ export const mintInfoQueryOptions = (mintUrl: string) =>
 export const allMintKeysetsQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: allMintKeysetsQueryKey(mintUrl),
-    queryFn: async () => CashuMint.getKeySets(mintUrl),
+    queryFn: async () => new Mint(mintUrl).getKeySets(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -215,7 +217,7 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
 export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
   queryOptions({
     queryKey: mintKeysQueryKey(mintUrl, keysetId),
-    queryFn: async () => CashuMint.getKeys(mintUrl, keysetId),
+    queryFn: async () => new Mint(mintUrl).getKeys(keysetId),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -244,9 +246,9 @@ export async function getInitializedCashuWallet(
   return measureOperation(
     'getInitializedCashuWallet',
     async () => {
-      let mintInfo: MintInfo;
-      let allMintKeysets: MintAllKeysets;
-      let mintActiveKeys: MintActiveKeys;
+      let mintInfo: ExtendedMintInfo;
+      let allMintKeysets: GetKeysetsResponse;
+      let mintActiveKeys: GetKeysResponse;
 
       try {
         [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
@@ -303,13 +305,14 @@ export async function getInitializedCashuWallet(
       const wallet = getCashuWallet(mintUrl, {
         unit: getCashuUnit(currency),
         bip39seed: bip39seed ?? undefined,
-        mintInfo,
-        keys: activeKeysForUnit,
-        keysets: unitKeysets,
       });
-
-      // The constructor does not set the keysetId, so we need to set it manually
-      wallet.keysetId = activeKeyset.id;
+      const keyChainCache = KeyChain.mintToCacheDTO(
+        wallet.unit,
+        mintUrl,
+        unitKeysets,
+        [activeKeysForUnit],
+      );
+      wallet.loadMintFromCache(mintInfo.cache, keyChainCache);
 
       return { wallet, isOnline: true };
     },

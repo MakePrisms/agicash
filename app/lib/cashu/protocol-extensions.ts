@@ -3,13 +3,11 @@
  * See PROTOCOL_EXTENSIONS.md for detailed documentation.
  */
 
-import type {
-  GetInfoResponse,
-  LockedMintQuoteResponse,
-  MintQuoteResponse,
-  PartialMintQuoteResponse,
+import {
+  type GetInfoResponse,
+  MintInfo,
+  type MintQuoteBolt11Response,
 } from '@cashu/cashu-ts';
-import type { MintInfo } from './types';
 
 /**
  * Extension type for mint quote responses that include a deposit fee.
@@ -39,22 +37,25 @@ export type AgicashMintExtension = {
  * Extended GetInfoResponse that includes agicash-specific extensions.
  * This is the raw response from the mint's info endpoint with agicash extensions.
  */
-export type ExtendedGetInfoResponse = GetInfoResponse & {
+type ExtendedGetInfoResponse = GetInfoResponse & {
   agicash?: AgicashMintExtension;
 };
 
 /**
  * Extended MintInfo that includes agicash-specific extensions.
- * This extends the cashu-ts MintInfo class type with the agicash extension.
+ * Extends the v3 MintInfo class to provide typed access to agicash
+ * extensions from the raw mint info response.
  */
-export type ExtendedMintInfo = MintInfo & {
-  agicash?: AgicashMintExtension;
-};
+export class ExtendedMintInfo extends MintInfo {
+  get agicash(): AgicashMintExtension | undefined {
+    return (this.cache as ExtendedGetInfoResponse).agicash;
+  }
+}
 
-export type ExtendedMintQuoteResponse = MintQuoteResponse & MintQuoteFee;
+export type ExtendedMintQuoteResponse = MintQuoteBolt11Response & MintQuoteFee;
 
-export type ExtendedLockedMintQuoteResponse = LockedMintQuoteResponse &
+export type ExtendedLockedMintQuoteResponse = MintQuoteBolt11Response &
   MintQuoteFee;
 
-export type ExtendedPartialMintQuoteResponse = PartialMintQuoteResponse &
+export type ExtendedPartialMintQuoteResponse = MintQuoteBolt11Response &
   MintQuoteFee;

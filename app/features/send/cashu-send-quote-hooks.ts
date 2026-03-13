@@ -1,6 +1,6 @@
 import {
+  type MeltQuoteBolt11Response,
   MintOperationError,
-  type PartialMeltQuoteResponse,
 } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -456,7 +456,7 @@ export function useProcessCashuSendQuoteTasks() {
       meltQuote,
     }: {
       sendQuoteId: string;
-      meltQuote: PartialMeltQuoteResponse;
+      meltQuote: MeltQuoteBolt11Response;
     }) => {
       const sendQuote = unresolvedSendQuotesCache.get(sendQuoteId);
       if (!sendQuote) {
@@ -548,7 +548,7 @@ export function useProcessCashuSendQuoteTasks() {
       meltQuote,
     }: {
       sendQuoteId: string;
-      meltQuote: PartialMeltQuoteResponse;
+      meltQuote: MeltQuoteBolt11Response;
     }) => {
       const sendQuote = unresolvedSendQuotesCache.get(sendQuoteId);
       if (!sendQuote) {

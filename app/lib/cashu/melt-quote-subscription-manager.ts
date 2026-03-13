@@ -1,11 +1,11 @@
-import type { MeltQuoteResponse } from '@cashu/cashu-ts';
+import type { MeltQuoteBolt11Response } from '@cashu/cashu-ts';
 import { getCashuWallet } from '~/lib/cashu';
 import { isSubset } from '~/lib/utils';
 
 type SubscriptionData = {
   ids: Set<string>;
   subscriptionPromise: Promise<() => void>;
-  onUpdate: (meltQuoteResponse: MeltQuoteResponse) => void;
+  onUpdate: (meltQuoteResponse: MeltQuoteBolt11Response) => void;
 };
 
 export class MeltQuoteSubscriptionManager {
@@ -26,7 +26,7 @@ export class MeltQuoteSubscriptionManager {
   }: {
     mintUrl: string;
     quoteIds: string[];
-    onUpdate: (meltQuoteResponse: MeltQuoteResponse) => void;
+    onUpdate: (meltQuoteResponse: MeltQuoteBolt11Response) => void;
   }): Promise<() => void> {
     const ids = new Set(quoteIds);
     const mintSubscription = this.subscriptions.get(mintUrl);
@@ -60,14 +60,14 @@ export class MeltQuoteSubscriptionManager {
       quoteCount: quoteIds.length,
     });
 
-    const subscriptionCallback = (meltQuote: MeltQuoteResponse) => {
+    const subscriptionCallback = (meltQuote: MeltQuoteBolt11Response) => {
       const currentSubscription = this.subscriptions.get(mintUrl);
       if (currentSubscription) {
         currentSubscription.onUpdate(meltQuote);
       }
     };
 
-    const subscriptionPromise = wallet.onMeltQuoteUpdates(
+    const subscriptionPromise = wallet.on.meltQuoteUpdates(
       Array.from(ids),
       subscriptionCallback,
       (error) =>
