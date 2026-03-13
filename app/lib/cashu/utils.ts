@@ -196,13 +196,8 @@ export class ExtendedCashuWallet extends Wallet {
       return 0;
     }
 
-    const mintKeys = keyset.toMintKeys();
-    if (!mintKeys) {
-      throw new Error('Keys not found');
-    }
-
     const minNumberOfProofs = this.getMinNumberOfProofsForAmount(
-      mintKeys.keys,
+      keyset.keys,
       amountBig,
     );
     const fee = this.getFeeForNumberOfProofs(minNumberOfProofs, keyset.fee);

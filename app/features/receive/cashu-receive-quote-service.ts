@@ -243,11 +243,9 @@ export class CashuReceiveQuoteService {
   }> {
     const keysetId = wallet.keysetId;
     const keyset = wallet.getKeyset(keysetId);
-    const keys = keyset.toMintKeys();
-    if (!keys) throw new Error('Keys not loaded for keyset');
     const cashuUnit = getCashuUnit(quote.amount.currency);
     const amountInCashuUnit = quote.amount.toNumber(cashuUnit);
-    const outputAmounts = splitAmount(amountInCashuUnit, keys.keys);
+    const outputAmounts = splitAmount(amountInCashuUnit, keyset.keys);
 
     const result = await this.cashuReceiveQuoteRepository.processPayment({
       quote,
@@ -271,15 +269,14 @@ export class CashuReceiveQuoteService {
     }
 
     const cashuUnit = getCashuUnit(quote.amount.currency);
+    await wallet.keyChain.ensureKeysetKeys(quote.keysetId);
     const keyset = wallet.getKeyset(quote.keysetId);
-    const keys = keyset.toMintKeys();
-    if (!keys) throw new Error('Keys not loaded for keyset');
 
     const outputData = OutputData.createDeterministicData(
       quote.amount.toNumber(cashuUnit),
       wallet.seed,
       quote.keysetCounter,
-      keys,
+      keyset,
       quote.outputAmounts,
     );
 

@@ -70,8 +70,6 @@ export class CashuReceiveSwapService {
     const wallet = account.wallet;
 
     const keyset = wallet.getKeyset();
-    const keys = keyset.toMintKeys();
-    if (!keys) throw new Error('Keys not loaded for keyset');
     const fee = wallet.getFeesForProofs(token.proofs);
     const amountToReceive = sumProofs(token.proofs) - fee;
 
@@ -91,7 +89,7 @@ export class CashuReceiveSwapService {
       unit: cashuUnit,
     });
 
-    const outputAmounts = splitAmount(amountToReceive, keys.keys);
+    const outputAmounts = splitAmount(amountToReceive, keyset.keys);
 
     return await this.receiveSwapRepository.create({
       token,
@@ -169,14 +167,13 @@ export class CashuReceiveSwapService {
       outputAmounts,
     } = receiveSwap;
 
+    await wallet.keyChain.ensureKeysetKeys(keysetId);
     const keyset = wallet.getKeyset(keysetId);
-    const keys = keyset.toMintKeys();
-    if (!keys) throw new Error('Keys not loaded for keyset');
     const outputData = OutputData.createDeterministicData(
       receiveAmount.toNumber(getCashuUnit(receiveAmount.currency)),
       wallet.seed,
       keysetCounter,
-      keys,
+      keyset,
       outputAmounts,
     );
 

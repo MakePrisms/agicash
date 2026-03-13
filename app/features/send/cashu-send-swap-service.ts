@@ -151,13 +151,11 @@ export class CashuSendSwapService {
     } else {
       const keyset = wallet.getKeyset();
       keysetId = keyset.id;
-      const keys = keyset.toMintKeys();
-      if (!keys) throw new Error('Keys not loaded for keyset');
       const amountToKeep =
         sumProofs(inputProofs) - totalAmountToSend - cashuSendFee;
       outputAmounts = {
-        send: splitAmount(totalAmountToSend, keys.keys),
-        change: splitAmount(amountToKeep, keys.keys),
+        send: splitAmount(totalAmountToSend, keyset.keys),
+        change: splitAmount(amountToKeep, keyset.keys),
       };
     }
 
@@ -198,9 +196,8 @@ export class CashuSendSwapService {
 
     const wallet = account.wallet;
 
+    await wallet.keyChain.ensureKeysetKeys(swap.keysetId);
     const keyset = wallet.getKeyset(swap.keysetId);
-    const keys = keyset.toMintKeys();
-    if (!keys) throw new Error('Keys not loaded for keyset');
     const currency = swap.amountToSend.currency;
     const cashuUnit = getCashuUnit(currency);
     const sendAmount = swap.amountToSend.toNumber(cashuUnit);
@@ -208,7 +205,7 @@ export class CashuSendSwapService {
       sendAmount,
       wallet.seed,
       swap.keysetCounter,
-      keys,
+      keyset,
       swap.outputAmounts.send,
     );
 
@@ -220,7 +217,7 @@ export class CashuSendSwapService {
       amountToKeep,
       wallet.seed,
       swap.keysetCounter + sendOutputData.length,
-      keys,
+      keyset,
       swap.outputAmounts.change,
     );
 
@@ -313,11 +310,6 @@ export class CashuSendSwapService {
       throw new Error(
         'Sender must pay fees - this feature is not yet implemented',
       );
-    }
-
-    if (includeFeesInSendAmount) {
-      // If we want to do fee calculation, then the keyset with keys is required
-      wallet.getKeyset();
     }
 
     const accountProofsMap = new Map<string, CashuProof>(
