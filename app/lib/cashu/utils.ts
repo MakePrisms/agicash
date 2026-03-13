@@ -1,5 +1,4 @@
 import {
-  type Keys,
   type MeltQuoteBolt11Response,
   MeltQuoteState,
   Mint,
@@ -7,21 +6,17 @@ import {
   type MintQuoteBolt11Response,
   type Proof,
   Wallet,
+  splitAmount,
 } from '@cashu/cashu-ts';
-import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
-import type {
-  ExtendedGetInfoResponse,
-  ExtendedLockedMintQuoteResponse,
+import {
+  type ExtendedLockedMintQuoteResponse,
   ExtendedMintInfo,
-  ExtendedMintQuoteResponse,
+  type ExtendedMintQuoteResponse,
 } from './protocol-extensions';
 import type { CashuProtocolUnit } from './types';
-
-// Re-export v3 class names under v2 aliases to minimize churn across the codebase
-export { Wallet as CashuWallet, Mint as CashuMint } from '@cashu/cashu-ts';
 
 const knownTestMints = [
   'https://testnut.cashu.space',
@@ -80,15 +75,11 @@ export const getCashuProtocolUnit = (currency: Currency) => {
 
 /**
  * Determines the purpose of a mint based on its info.
- *
- * Uses the v3 MintInfo `.cache` getter to access the raw GetInfoResponse,
- * then checks for agicash-specific extensions.
  */
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
 ): 'gift-card' | 'transactional' => {
-  const raw = mintInfo?.cache as ExtendedGetInfoResponse | undefined;
-  return raw?.agicash?.closed_loop ? 'gift-card' : 'transactional';
+  return mintInfo?.agicash?.closed_loop ? 'gift-card' : 'transactional';
 };
 
 export const getWalletCurrency = (wallet: Wallet) => {
@@ -130,10 +121,9 @@ export class ExtendedCashuWallet extends Wallet {
 
   /**
    * Returns the mint info with agicash-specific extensions.
-   * This overrides the base class getMintInfo method to return the extended type.
    */
   override getMintInfo(): ExtendedMintInfo {
-    return super.getMintInfo() as ExtendedMintInfo;
+    return new ExtendedMintInfo(super.getMintInfo().cache);
   }
 
   /**
@@ -188,18 +178,14 @@ export class ExtendedCashuWallet extends Wallet {
    * @param amount - The minimum amount to receive
    * @returns The estimated fee
    */
-  getFeesEstimateToReceiveAtLeast(amount: number | Big) {
-    const amountBig = new Big(amount);
+  getFeesEstimateToReceiveAtLeast(amount: number) {
     const keyset = this.keyChain.getCheapestKeyset();
 
     if (!keyset?.fee) {
       return 0;
     }
 
-    const minNumberOfProofs = this.getMinNumberOfProofsForAmount(
-      keyset.keys,
-      amountBig,
-    );
+    const minNumberOfProofs = splitAmount(amount, keyset.keys).length;
     const fee = this.getFeeForNumberOfProofs(minNumberOfProofs, keyset.fee);
 
     return fee;
@@ -234,43 +220,6 @@ export class ExtendedCashuWallet extends Wallet {
       }
       throw error;
     });
-  }
-
-  private getMinNumberOfProofsForAmount(keys: Keys, amount: Big) {
-    const availableDenominations = Object.keys(keys).map((x) => new Big(x));
-    const biggestDenomination = availableDenominations.reduce(
-      (max, curr) => (curr.gt(max) ? curr : max),
-      new Big(0),
-    );
-
-    return this.getInPowersOfTwo(new Big(amount), biggestDenomination).length;
-  }
-
-  /**
-   * Get the powers of two that sum up to the given number
-   * @param n - The number to get the powers of two for
-   * @param maxValue - The maximum power of two value that can be used
-   * @returns The powers of two that sum up to the given number
-   */
-  private getInPowersOfTwo(number: Big, maxValue: Big): Big[] {
-    const result: Big[] = [];
-    let n = number;
-
-    for (let pow = maxValue; pow.gte(1); pow = pow.div(2).round(0, 0)) {
-      const count = n.div(pow).round(0, 0); // floor division
-      if (count.gt(0)) {
-        for (let i = 0; i < count.toNumber(); i++) {
-          result.push(pow);
-        }
-        n = n.minus(count.times(pow));
-      }
-      if (n.eq(0)) break;
-    }
-
-    if (n.gt(0))
-      throw new Error('Cannot represent number with given max value');
-
-    return result;
   }
 
   private getFeeForNumberOfProofs(numberOfProofs: number, inputFeePpk: number) {

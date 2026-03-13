@@ -1,4 +1,3 @@
-import type { Wallet } from '@cashu/cashu-ts';
 import { z } from 'zod';
 import { nullToUndefined } from '../zod';
 
@@ -41,12 +40,6 @@ export const ProofSchema = z.object({
   /** Witness for P2PK or HTLC spending conditions. */
   witness: nullToUndefined(WitnessSchema.optional()).optional(),
 });
-
-/**
- * A class that represents the data fetched from the mint's
- * [NUT-06 info endpoint](https://github.com/cashubtc/nuts/blob/main/06.md)
- */
-export type MintInfo = ReturnType<Wallet['getMintInfo']>;
 
 /**
  * A subset of the supported currency units as defined by the Cashu protocol.

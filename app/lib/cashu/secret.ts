@@ -49,7 +49,6 @@ export const parseSecret = (secret: string): ParseSecretResult => {
     return { success: false, error: 'Invalid secret' };
   }
 
-  // Use v3's parseSecret for NUT-10 validation
   let nut10Secret: Secret;
   try {
     nut10Secret = parseNut10Secret(secret);
