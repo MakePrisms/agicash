@@ -1,8 +1,7 @@
 import {
   type MeltQuoteBolt11Response,
   MeltQuoteState,
-  Mint,
-  type MintKeyset,
+  type Mint,
   type MintQuoteBolt11Response,
   type Proof,
   Wallet,
@@ -264,15 +263,6 @@ export const checkIsTestMint = async (mintUrl: string): Promise<boolean> => {
   const { request: bolt11 } = await wallet.createMintQuoteBolt11(1);
   const { network } = decodeBolt11(bolt11);
   return network !== 'bitcoin';
-};
-
-export const getKeysets = async (
-  mintUrl: string,
-  _unit: CurrencyUnit,
-): Promise<Array<MintKeyset>> => {
-  const mint = new Mint(mintUrl);
-  const response = await mint.getKeySets();
-  return response.keysets;
 };
 
 /**
