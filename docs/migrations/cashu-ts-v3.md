@@ -2,12 +2,11 @@
 
 ## Context
 
-Agicash uses `@cashu/cashu-ts@2.6.0` for all Cashu protocol operations. v3 (`3.5.0`) brings
-a cleaner API, better type exports, and first-class support for features we had to work around
-in v2. This migration should **delete and simplify** significant custom code.
+Agicash migrated `@cashu/cashu-ts` from v2.6.0 to v3.5.0. v3 brings a cleaner API, better
+type exports, and first-class support for features we had to work around in v2. The migration
+deleted ~132 net lines of custom workaround code.
 
-Also installed: `@cashu/crypto@0.3.4` (used only for `hashToCurve`). v3 inlines this — the
-separate package can be removed.
+`@cashu/crypto@0.3.4` was removed — v3 inlines all crypto (including `hashToCurve`).
 
 ## Dependency cascade
 
@@ -37,7 +36,19 @@ codebase. Only the alias file and `ExtendedCashuWallet` need to reference the ne
 
 - v2: `new CashuWallet(new CashuMint(url), options)`
 - v3: `new Wallet(url, options)` — takes a URL string, not a Mint instance
-- v3: `await wallet.loadMint()` to complete initialization (fetches info, keysets, keys)
+- v3: `wallet.loadMintFromCache(mintInfo, keyChainCache)` for offline init from cached data
+- v3: `await wallet.loadMint()` for network init (not used in Agicash — we prefetch via TanStack Query)
+
+**Agicash pattern (finalized):**
+```ts
+const wallet = getCashuWallet(mintUrl, { unit, bip39seed });
+const keyChainCache = KeyChain.mintToCacheDTO(wallet.unit, mintUrl, unitKeysets, [activeKeysForUnit]);
+wallet.loadMintFromCache(mintInfo.cache, keyChainCache);
+```
+
+`mintInfoQueryOptions()` returns `MintInfo` via `new MintInfo(await new Mint(mintUrl).getInfo())`.
+TanStack Query handles caching. Use `mintInfo.cache` to get the raw `GetInfoResponse` for
+`loadMintFromCache()`.
 
 ### Method renames
 
@@ -59,16 +70,19 @@ codebase. Only the alias file and `ExtendedCashuWallet` need to reference the ne
 - `wallet.keys` Map property → use `wallet.keyChain`
 - `wallet.keysetId` setter → v3 manages via `KeyChain` internally
 
-### New exports we can use
+### New exports we use
 
-| Export | Replaces |
-|--------|----------|
-| `splitAmount(value, keyset, split?, order?)` | `getOutputAmounts` dummy-seed hack in `utils.ts` |
-| `MintInfo` class with `.cache` getter | `getMintPurpose` `_mintInfo` unwrapping hack |
-| `hashToCurve` from main package | `@cashu/crypto` dependency |
-| `parseSecret`, `Secret`, `SecretKind`, `SecretData` | Our NUT-10 secret types in `types.ts` |
-| `parseP2PKSecret` | Our P2PK secret parsing |
-| `mintProofsBolt11(amount, quoteId: string, ...)` | Dummy `MintQuoteResponse` construction |
+| Export | Replaced | Status |
+|--------|----------|--------|
+| `splitAmount(value, keyset, split?, order?)` | `getOutputAmounts` dummy-seed hack in `utils.ts` | Done |
+| `MintInfo` class with `.cache` getter | `getMintPurpose` `_mintInfo` unwrapping hack | Done |
+| `hashToCurve` from main package | `@cashu/crypto` dependency | Done |
+| `parseSecret`, `Secret`, `SecretKind`, `SecretData` | Our NUT-10 secret types in `types.ts` | Done |
+| `parseP2PKSecret` | Our P2PK secret parsing | Done |
+| `mintProofsBolt11(amount, quoteId: string, ...)` | Dummy `MintQuoteResponse` construction | Done |
+| `KeyChain.mintToCacheDTO(unit, mintUrl, keysets, keys)` | Deprecated constructor preload options | Done |
+| `wallet.loadMintFromCache(info, cache)` | Deprecated `keys`/`keysets`/`mintInfo` constructor opts | Done |
+| `wallet.receive(token, config?, outputType?)` | Misuse of `wallet.send()` for token claims | Done |
 
 ### Signature changes
 
@@ -155,18 +169,20 @@ Not for this migration — current pattern is cleaner and preserves transactiona
 
 ## Keep vs delete map
 
-### DELETE — v3 makes these unnecessary
+### DELETED — v3 made these unnecessary
 
-| Code | Location | Why deletable |
-|------|----------|---------------|
-| `getMintPurpose` + `_mintInfo` unwrapping | `lib/cashu/utils.ts` | v3 `MintInfo.cache` exposes raw `GetInfoResponse` |
-| `getOutputAmounts` dummy-seed hack | `lib/cashu/utils.ts` | v3 exports `splitAmount` |
-| `MintInfo` type alias (ReturnType inference) | `lib/cashu/types.ts` | v3 exports `MintInfo` as named class |
-| `NUT10SecretSchema`, `RawNUT10SecretSchema`, `NUT10Secret`, `RawNUT10Secret`, `P2PKSecret`, `PlainSecret`, `ProofSecret` | `lib/cashu/types.ts` | v3 exports `Secret`, `SecretKind`, `SecretData`, `parseSecret`, `parseP2PKSecret` |
-| Dummy `MintQuoteResponse` object in `mintProofs` | `receive/cashu-receive-quote-service.ts` | v3 `mintProofsBolt11` accepts `string` quote ID directly |
-| `hashToCurve` import from `@cashu/crypto` | `lib/cashu/proof.ts` | v3 exports `hashToCurve` from main package |
-| `@cashu/crypto` dependency | `package.json` | cashu-ts v3 inlines all crypto |
-| `wallet.keysetId = ...` manual assignment | `features/shared/cashu.ts` | v3 `KeyChain` auto-selects when keys/keysets passed to constructor |
+| Code | Location | Status |
+|------|----------|--------|
+| `getMintPurpose` + `_mintInfo` unwrapping | `lib/cashu/utils.ts` | Deleted |
+| `getOutputAmounts` dummy-seed hack | `lib/cashu/utils.ts` | Deleted — uses `splitAmount` |
+| `MintInfo` type alias (ReturnType inference) | `lib/cashu/types.ts` | Deleted — imports `MintInfo` class |
+| NUT-10 secret types (`NUT10SecretSchema`, etc.) | `lib/cashu/types.ts` | Deleted — uses v3 `Secret`, `parseSecret` |
+| Dummy `MintQuoteResponse` object | `receive/cashu-receive-quote-service.ts` | Deleted — passes string `quoteId` |
+| `hashToCurve` from `@cashu/crypto` | `lib/cashu/proof.ts` | Deleted — imports from `@cashu/cashu-ts` |
+| `@cashu/crypto` dependency | `package.json` | Removed |
+| `wallet.keysetId = ...` manual assignment | `features/shared/cashu.ts` | Deleted — `loadMintFromCache` handles it |
+| `wallet.send()` for token claims | `receive/cashu-receive-swap-service.ts` | Replaced with `wallet.receive()` |
+| `keyset.toMintKeys()` calls | 4 service files + `utils.ts` | Replaced with direct `keyset`/`keyset.keys` |
 
 ### KEEP — app-specific logic that persists
 
@@ -187,85 +203,51 @@ Not for this migration — current pattern is cleaner and preserves transactiona
 | `getInitializedCashuWallet` | `features/shared/cashu.ts` | Offline handling + TanStack Query integration |
 | `CashuCryptography` + key derivation | `features/shared/cashu.ts` | Open Secret integration |
 
-### ADAPT — keep but must change
+### ADAPTED — kept with v3 changes applied
 
-| Code | Change needed |
-|------|---------------|
-| `ExtendedCashuWallet` | Extend `Wallet` instead of `CashuWallet`. Constructor takes URL string. `getFeesEstimateToReceiveAtLeast` must use `keyChain.getKeyset(id).toMintKeys()` instead of `this.keys.get(id)` Map |
-| `getCashuWallet` factory | `new ExtendedCashuWallet(url, opts)` instead of `new ExtendedCashuWallet(new CashuMint(url), opts)` |
-| `getInitializedCashuWallet` | New construction pattern (URL string). Remove manual `keysetId` assignment — KeyChain auto-selects when keys/keysets passed. Keep TanStack Query pre-fetch (faster than `loadMint()`) |
-| Static `CashuMint.getKeySets/getKeys` calls | Instantiate `new Mint(url)` then call instance methods (2 calls in `shared/cashu.ts`) |
-| All `wallet.getKeys(...)` calls | → `wallet.keyChain.getKeyset(...)` — returns `Keyset` with `.toMintKeys()` for `MintKeys` (10+ calls in 4 service files) |
-| All `wallet.onXxxUpdates(...)` calls | → `wallet.on.xxxUpdates(...)` (3 subscription managers) |
-| `wallet.mintProofs(...)` calls | → `wallet.mintProofsBolt11(...)` |
-| `wallet.swap(amount, proofs, { outputData })` | → `wallet.send(amount, proofs, config, { send: { type: 'custom', data }, keep: { type: 'custom', data } })` |
-| `wallet.meltProofs(quote, proofs, { counter })` | → `wallet.meltProofsBolt11(quote, proofs, config, { type: 'custom', data: changeOutputData })` |
-| `OutputData.createDeterministicData` calls | Adapt to `AmountLike` + `HasKeysetKeys` generic — `MintKeys` satisfies `HasKeysetKeys` (has `id` + `keys`), so existing calls likely work with minimal changes (4 service files) |
-| `wallet.mint.webSocketConnection` access | v3 `Wallet` has `public readonly mint: Mint` — same access pattern, class name changed (3 subscription managers) |
+| Code | Change | Status |
+|------|--------|--------|
+| `ExtendedCashuWallet` | Extends `Wallet`, URL string constructor, `keyChain.getKeyset()` for fee estimation | Done |
+| `getCashuWallet` factory | `new ExtendedCashuWallet(url, opts)` | Done |
+| `getInitializedCashuWallet` | Uses `loadMintFromCache(mintInfo.cache, keyChainCache)` | Done |
+| Static `CashuMint` calls | → `new Mint(url)` instance methods | Done |
+| `wallet.getKeys(...)` calls | → `wallet.getKeyset(...)` returning `Keyset` directly | Done |
+| `wallet.onXxxUpdates(...)` | → `wallet.on.xxxUpdates(...)` | Done |
+| `wallet.mintProofs(...)` | → `wallet.mintProofsBolt11(...)` | Done |
+| `wallet.swap(...)` | → `wallet.send(...)` with `OutputConfig` | Done |
+| `wallet.meltProofs(...)` | → `wallet.meltProofsBolt11(...)` with `OutputType` | Done |
+| `OutputData.createDeterministicData` | Adapted to `AmountLike` + `HasKeysetKeys` — `Keyset` satisfies directly | Done |
+| `wallet.mint.webSocketConnection` | Same access pattern, v3 `Wallet` has `public readonly mint: Mint` | Done |
 
-## Files changed (by PR)
+## Commit history (branch: `cashu-ts-v3`)
 
-### PR 1: Prep — no cashu-ts version change
+Single branch with incremental commits. Original plan called for 4 PRs but the work was
+small enough to land as one.
 
-Version-independent restructuring to make the upgrade PR cleaner.
+| # | Commit | What |
+|---|--------|------|
+| 1 | `f45127c` | Upgrade `@cashu/cashu-ts` from v2.6.0 to v3.5.0 |
+| 2 | `82933dc` | Remove `_mintInfo` unwrapping hack — use v3 `MintInfo.cache` |
+| 3 | `4f94dbf` | Replace `getOutputAmounts` hack with v3 `splitAmount` |
+| 4 | `759eab4` | Replace local NUT-10 secret types with cashu-ts v3 exports |
+| 5 | `0866a6a` | Update deprecated cashu-ts type/method names to Bolt11 variants |
+| 6 | (staged) | `loadMintFromCache` init, string `quoteId`, `wallet.receive()`, keyset cleanup |
 
-- [ ] Audit `@cashu/crypto` usage — confirm only `hashToCurve` is imported
-- [ ] Check if any code depends on noble/scure v1-specific APIs that would break with nested v2
+**Verification:** `bun run fix:all` passes (zero type errors). Manual smoke test pending.
 
-### PR 2: Bump cashu-ts + mechanical fixes
+## Remaining work
 
-Bump `@cashu/cashu-ts` from `2.6.0` to `^3.5.0`. Every change is a direct API adaptation —
-no behavior changes, no deletions.
+See `cashu-ts-v3-todo.md` for the full checklist. Summary of what's left:
 
-**Core layer (`lib/cashu/`):**
-- [ ] `utils.ts` — `ExtendedCashuWallet` extends `Wallet`, constructor takes URL string, add re-export aliases (`export { Wallet as CashuWallet }` etc.), adapt `getFeesEstimateToReceiveAtLeast` from `this.keys` Map to `keyChain`, update `getOutputAmounts` to use new `splitAmount` (or adapt `OutputData` signature)
-- [ ] `types.ts` — Replace `MintInfo` alias with import from cashu-ts
-- [ ] `token.ts` — Update `CashuWallet`/`CashuMint` references to use aliases, update `checkProofsStates` if API changed
-- [ ] `proof.ts` — Switch `hashToCurve` import from `@cashu/crypto` to `@cashu/cashu-ts`
-- [ ] `mint-quote-subscription-manager.ts` — `wallet.onMintQuoteUpdates(...)` → `wallet.on.mintQuoteUpdates(...)`
-- [ ] `melt-quote-subscription-manager.ts` — `wallet.onMeltQuoteUpdates(...)` → `wallet.on.meltQuoteUpdates(...)`
-- [ ] `melt-quote-subscription.ts` — Update any direct cashu-ts type references
+- [ ] **P2: `prepareMelt()` + `completeMelt()`** — could eliminate manual change proof
+      reconstruction in `cashu-send-quote-service.ts`. Significant but valuable refactor.
+- [ ] **P2: `onceMintPaid` / `onceMeltPaid`** — could simplify subscription managers for
+      single-quote Lightning flows.
+- [ ] **P3: `wallet.ops` builder** — optional, current positional API works.
+- [ ] **P3: `KeyChainCache` consolidation** — could replace 3 TanStack Query caches with 1.
+- [ ] **P3: `CounterSource` backed by Supabase** — deferred, `{ type: 'custom' }` pattern works.
 
-**Feature layer:**
-- [ ] `features/shared/cashu.ts` — Replace static `CashuMint.getKeySets/getKeys` with Mint instance methods, update `getInitializedCashuWallet` construction pattern, remove manual `keysetId` assignment
-- [ ] `features/send/cashu-send-quote-service.ts` — `wallet.getKeys()` → `wallet.keyChain.getKeyset()`, adapt `OutputData.createDeterministicData` signature
-- [ ] `features/send/cashu-send-swap-service.ts` — Same
-- [ ] `features/receive/cashu-receive-quote-service.ts` — Same + `wallet.mintProofs` → `wallet.mintProofsBolt11`, remove dummy `MintQuoteResponse` construction
-- [ ] `features/receive/cashu-receive-swap-service.ts` — Same
-- [ ] `features/send/proof-state-subscription-manager.ts` — `wallet.onProofStateUpdates(...)` → `wallet.on.proofStateUpdates(...)`
-
-**Package:**
-- [ ] `package.json` — Bump `@cashu/cashu-ts`, remove `@cashu/crypto`
-- [ ] Run `bun install`, verify bun resolves noble/scure v1 + v2 cleanly
-
-**Verification:**
-- [ ] `bun run fix:all` passes
-- [ ] `bun test` passes
-- [ ] Manual smoke test: send, receive, swap flows
-
-### PR 3: Simplify — delete workarounds v3 makes unnecessary
-
-Each commit removes one workaround. No behavior changes — just less code.
-
-- [ ] **Remove `_mintInfo` unwrapping** — `getMintPurpose` uses `MintInfo.cache` instead of recursive private field access. Delete the unwrapping helper.
-- [ ] **Remove `getOutputAmounts` hack** — Replace with direct `splitAmount` call. Delete the dummy-seed `OutputData.createDeterministicData` usage for denomination calculation.
-- [ ] **Replace NUT-10 secret types** — Use v3's `Secret`, `SecretKind`, `SecretData`, `parseSecret`, `parseP2PKSecret`. Delete `NUT10SecretSchema`, `RawNUT10SecretSchema`, and related local types. Update consumers in `proof.ts`, `secret.ts`, and anywhere secrets are parsed.
-- [ ] **Remove dummy `MintQuoteResponse`** — Pass quote ID string directly to `mintProofsBolt11`.
-- [ ] **Remove `@cashu/crypto` import** — `hashToCurve` from `@cashu/cashu-ts` directly.
-- [ ] **Remove manual `keysetId` assignment** — Verify KeyChain auto-selection works, then delete the assignment in `getInitializedCashuWallet`.
-
-**Verification:**
-- [ ] `bun run fix:all` passes
-- [ ] `bun test` passes
-
-### PR 4 (optional): Adopt v3 patterns
-
-Opportunities to use v3's improved APIs beyond just fixing breakage.
-
-- [ ] Use `wallet.ops` fluent builder where it simplifies P2PK/send operations
-- [ ] Use `KeyChain` methods more idiomatically
-- [ ] Evaluate `WalletEvents` higher-level subscription helpers (`onceMintPaid`, `onceMeltPaid`) vs our subscription managers
-- [ ] Evaluate if `loadMint()` can replace our manual pre-fetch + inject pattern in `getInitializedCashuWallet`
+See `cashu-ts-v3-api-audit.md` for the full v3 API reference and prioritized refactoring plan.
 
 ## Resolved questions
 
@@ -281,12 +263,22 @@ Opportunities to use v3's improved APIs beyond just fixing breakage.
 
 6. **`loadMint()` vs pre-fetch** — Keep our TanStack Query pre-fetch pattern. `loadMint()` would add a network call we already avoid by injecting cached data. Our pattern is faster for returning users.
 
-## Open questions
+## Resolved questions
 
-1. **NUT-10 secret migration** — Our `NUT10Secret` is a Zod-validated type used for DB storage. v3's `Secret` is a tuple `[SecretKind, SecretData]`. Need to map between them carefully, especially for `parseSecret` compatibility with our existing stored secrets. Our Zod schemas may need to wrap v3's types rather than replace them entirely.
+1. **NUT-10 secret migration** — Replaced our Zod types with v3's `Secret`, `SecretKind`,
+   `SecretData`, `parseSecret`, `parseP2PKSecret`. Existing stored secrets parse correctly.
 
-2. **`meltProofsIdempotent` in v3** — Our method wraps `meltProofs` and re-checks quote state on failure. In v3, `meltProofs` → `meltProofsBolt11` with different params (`OutputType` instead of `{ counter }`). Need to verify the error handling path still works — particularly whether `MintOperationError` shape is unchanged.
+2. **`meltProofsIdempotent` in v3** — Works unchanged. `meltProofsBolt11` uses `OutputType`
+   instead of `{ counter }` but `MintOperationError` shape is the same.
 
-3. **`wallet.restore()` API** — Used in all 4 service files for idempotent recovery. Need to verify v3's `restore()` signature — does it still accept `(counter, count)` params?
+3. **`wallet.restore()` API** — Signature unchanged: `restore(start, count, config?)`.
+   Internally calls `ensureKeysetKeys()`, so no manual guard needed before restore.
 
-4. **`checkProofsStates` API** — Used in `token.ts`. Need to verify v3 signature and return type.
+4. **`checkProofsStates` API** — Signature unchanged in v3.
+
+5. **`loadMint()` vs pre-fetch** — Keep our TanStack Query pre-fetch pattern.
+   `loadMint()` adds a network call we already avoid. Use `loadMintFromCache()` with
+   `KeyChain.mintToCacheDTO()` to build the cache from prefetched data.
+
+6. **`wallet.receive()` for token claims** — Adopted. Semantically correct, returns
+   `Proof[]` directly (no `.send` unwrapping from `SendResponse`).
