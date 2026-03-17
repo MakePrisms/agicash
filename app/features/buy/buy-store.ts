@@ -100,7 +100,7 @@ export const createBuyStore = ({
         set({ status: 'idle', quote });
         return { success: true, quote };
       } catch (error) {
-        set({ status: 'idle' });
+        set({ status: 'idle', quote: null });
         return { success: false, error };
       }
     },

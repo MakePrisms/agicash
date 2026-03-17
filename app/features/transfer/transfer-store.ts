@@ -56,7 +56,7 @@ export const createTransferStore = ({
         set({ status: 'idle', quote: result });
         return { success: true, quote: result };
       } catch (error) {
-        set({ status: 'idle' });
+        set({ status: 'idle', quote: null });
         return { success: false, error };
       }
     },
