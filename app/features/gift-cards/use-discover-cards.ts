@@ -5,6 +5,7 @@ import mapleCard from '~/assets/gift-cards/maple.agi.cash.webp';
 import pinkOwlCoffeeCard from '~/assets/gift-cards/pinkowl.agi.cash.webp';
 import pubkeyCard from '~/assets/gift-cards/pubkey.agi.cash.webp';
 import theShackCard from '~/assets/gift-cards/shack.agi.cash.webp';
+import theEpicurianTraderCard from '~/assets/gift-cards/theepicureantrader.agi.cash.webp';
 import { useAccounts } from '../accounts/account-hooks';
 import {
   type GiftCardConfig,
@@ -22,6 +23,7 @@ const GIFT_CARD_IMAGES: Record<string, string> = {
   'https://compass.agi.cash': compassCoffeeCard,
   'https://pinkowl.agi.cash': pinkOwlCoffeeCard,
   'https://shack.agi.cash': theShackCard,
+  'https://theepicureantrader.agi.cash': theEpicurianTraderCard,
 };
 
 function loadGiftCardsFromEnv(): GiftCardInfo[] {
