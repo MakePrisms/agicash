@@ -1,4 +1,4 @@
-import type { MeltQuoteResponse, Token } from '@cashu/cashu-ts';
+import type { MeltQuoteBolt11Response, Token } from '@cashu/cashu-ts';
 import { getCashuUnit } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type {
@@ -64,7 +64,7 @@ type CreateCrossAccountReceiveQuotesProps = {
  */
 export type CrossAccountReceiveQuotesResult = {
   /** Melt quote from the source wallet */
-  cashuMeltQuote: MeltQuoteResponse;
+  cashuMeltQuote: MeltQuoteBolt11Response;
   /** Common lightning receive quote interface for unified handling */
   lightningReceiveQuote: LightningReceiveQuote;
 } & (
@@ -216,7 +216,7 @@ export class ReceiveCashuTokenQuoteService {
     description?: string;
   }): Promise<{
     lightningQuote: CashuReceiveLightningQuote | SparkReceiveLightningQuote;
-    meltQuote: MeltQuoteResponse;
+    meltQuote: MeltQuoteBolt11Response;
     amountToMint: Money;
   }> {
     const sourceCurrency = sourceAccount.currency;
@@ -248,7 +248,7 @@ export class ReceiveCashuTokenQuoteService {
         });
 
       const meltQuote =
-        await sourceAccount.wallet.createMeltQuote(paymentRequest);
+        await sourceAccount.wallet.createMeltQuoteBolt11(paymentRequest);
 
       const amountRequired = new Money({
         amount: meltQuote.amount + meltQuote.fee_reserve,

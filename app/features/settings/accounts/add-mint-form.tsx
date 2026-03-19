@@ -21,7 +21,7 @@ import {
 import { useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import {
-  type MintInfo,
+  type ExtendedMintInfo,
   getCashuProtocolUnit,
   getMintPurpose,
 } from '~/lib/cashu';
@@ -43,7 +43,7 @@ type GetMintInfoAndKeysetsResult =
   | {
       success: true;
       data: {
-        mintInfo: MintInfo;
+        mintInfo: ExtendedMintInfo;
         keysets: MintKeyset[];
       };
     }

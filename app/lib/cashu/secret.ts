@@ -1,9 +1,32 @@
+import {
+  type Secret,
+  type SecretKind,
+  parseSecret as parseNut10Secret,
+} from '@cashu/cashu-ts';
 import { safeJsonParse } from '../json';
-import { type ProofSecret, RawNUT10SecretSchema } from './types';
 
 const isValidHexString = (str: string): boolean => {
   return /^[0-9a-fA-F]+$/.test(str);
 };
+
+/**
+ * A proof secret can be either a random hex string (NUT-00 plain secret)
+ * or a NUT-10 structured secret (tuple of [kind, { nonce, data, tags? }]).
+ */
+export type ProofSecret =
+  | {
+      type: 'plain';
+      secret: string;
+    }
+  | {
+      type: 'nut10';
+      secret: {
+        kind: SecretKind;
+        nonce: string;
+        data: string;
+        tags?: string[][];
+      };
+    };
 
 type ParseSecretResult =
   | { success: true; data: ProofSecret }
@@ -26,13 +49,14 @@ export const parseSecret = (secret: string): ParseSecretResult => {
     return { success: false, error: 'Invalid secret' };
   }
 
-  // if not a plain string, then validate the parsed JSON is a valid NUT-10 secret
-  const validatedSecret = RawNUT10SecretSchema.safeParse(parsed.data);
-  if (!validatedSecret.success) {
+  let nut10Secret: Secret;
+  try {
+    nut10Secret = parseNut10Secret(secret);
+  } catch {
     return { success: false, error: 'Invalid secret format' };
   }
 
-  const [kind, { nonce, data, tags }] = validatedSecret.data;
+  const [kind, { nonce, data, tags }] = nut10Secret;
   return {
     success: true,
     data: { type: 'nut10', secret: { kind, nonce, data, tags } },

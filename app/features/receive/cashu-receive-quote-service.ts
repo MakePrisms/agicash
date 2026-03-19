@@ -3,12 +3,12 @@ import {
   MintQuoteState,
   OutputData,
   type Proof,
+  splitAmount,
 } from '@cashu/cashu-ts';
 import {
   CashuErrorCodes,
   type ExtendedCashuWallet,
   getCashuUnit,
-  getOutputAmounts,
 } from '~/lib/cashu';
 import type { CashuAccount } from '../accounts/account';
 import {
@@ -16,6 +16,7 @@ import {
   type CashuCryptography,
   useCashuCryptography,
 } from '../shared/cashu';
+import { derivePublicKey } from '../shared/cryptography';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
   type CashuReceiveLightningQuote,
@@ -242,10 +243,10 @@ export class CashuReceiveQuoteService {
     addedProofs: string[];
   }> {
     const keysetId = wallet.keysetId;
-    const keys = await wallet.getKeys(keysetId);
+    const keyset = wallet.getKeyset(keysetId);
     const cashuUnit = getCashuUnit(quote.amount.currency);
     const amountInCashuUnit = quote.amount.toNumber(cashuUnit);
-    const outputAmounts = getOutputAmounts(amountInCashuUnit, keys);
+    const outputAmounts = splitAmount(amountInCashuUnit, keyset.keys);
 
     const result = await this.cashuReceiveQuoteRepository.processPayment({
       quote,
@@ -269,13 +270,14 @@ export class CashuReceiveQuoteService {
     }
 
     const cashuUnit = getCashuUnit(quote.amount.currency);
-    const keys = await wallet.getKeys(quote.keysetId);
+    await wallet.keyChain.ensureKeysetKeys(quote.keysetId);
+    const keyset = wallet.getKeyset(quote.keysetId);
 
     const outputData = OutputData.createDeterministicData(
       quote.amount.toNumber(cashuUnit),
       wallet.seed,
       quote.keysetCounter,
-      keys,
+      keyset,
       quote.outputAmounts,
     );
 
@@ -306,27 +308,27 @@ export class CashuReceiveQuoteService {
         quote.lockingDerivationPath,
       );
 
-      const proofs = await wallet.mintProofs(
-        amount,
-        // NOTE: cashu-ts makes us pass the mint quote response instead of just the quote id
-        // if we want to use the private key to create a signature. However, the implementation
-        // only ends up using the quote id.
-        {
+      const xPub = await this.cryptography.getXpub(
+        BASE_CASHU_LOCKING_DERIVATION_PATH,
+      );
+      const segments = quote.lockingDerivationPath.split('/');
+      const unhardenedIndex = segments[segments.length - 1];
+      const lockingPublicKey = derivePublicKey(xPub, `m/${unhardenedIndex}`);
+
+      return await wallet.ops
+        .mintBolt11(amount, {
           quote: quote.quoteId,
           request: quote.paymentRequest,
           state: MintQuoteState.PAID,
           expiry: Math.floor(new Date(quote.expiresAt).getTime() / 1000),
+          pubkey: lockingPublicKey,
           amount,
           unit: wallet.unit,
-        },
-        {
-          keysetId: quote.keysetId,
-          outputData,
-          privateKey: unlockingKey,
-        },
-      );
-
-      return proofs;
+        })
+        .keyset(quote.keysetId)
+        .privkey(unlockingKey)
+        .asCustom(outputData)
+        .run();
     } catch (error) {
       if (
         error instanceof MintOperationError &&
