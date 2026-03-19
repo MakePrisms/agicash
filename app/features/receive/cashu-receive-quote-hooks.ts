@@ -1,7 +1,7 @@
 import {
   HttpResponseError,
   MintOperationError,
-  type MintQuoteResponse,
+  type MintQuoteBolt11Response,
   type WebSocketSupport,
 } from '@cashu/cashu-ts';
 import {
@@ -324,7 +324,7 @@ const checkIfMintSupportsWebSocketsForMintQuotes = (
   account: CashuAccount,
   currency: string,
 ): boolean => {
-  const nut17Info = account.wallet.mintInfo.isSupported(17);
+  const nut17Info = account.wallet.getMintInfo().isSupported(17);
   const params = nut17Info.params ?? [];
   const supportsWebSocketsForMintQuotes =
     nut17Info.supported &&
@@ -340,26 +340,7 @@ const checkIfMintSupportsWebSocketsForMintQuotes = (
 
 type TrackMintQuotesWithPollingProps = {
   quotes: CashuReceiveQuote[];
-  onFetched: (mintQuoteResponse: MintQuoteResponse) => void;
-};
-
-const checkMintQuote = async (
-  account: CashuAccount,
-  quote: CashuReceiveQuote,
-): Promise<MintQuoteResponse> => {
-  const cashuUnit = getCashuUnit(quote.amount.currency);
-  const wallet = account.wallet;
-
-  const partialMintQuoteResponse = await wallet.checkMintQuote(quote.quoteId);
-
-  return {
-    ...partialMintQuoteResponse,
-    // Amount and unit were added to the response later and some mints might still not be setting them atm so temporily we set them from the values we stored in the cashu receive quote.
-    // See https://github.com/cashubtc/nuts/commit/e7112cd4ebfe14f0aaffa48cbdb5bd60fc450c51 and https://github.com/cashubtc/cashu-ts/pull/275/files#diff-820f0c31c07f61cf1b853d8a028670f0530af7965d60ec1853b048b626ae46ad
-    // for more details. This can be removed once all the mints are updated and cashu-ts is updated.
-    amount: partialMintQuoteResponse.amount ?? quote.amount.toNumber(cashuUnit),
-    unit: wallet.unit,
-  };
+  onFetched: (mintQuoteResponse: MintQuoteBolt11Response) => void;
 };
 
 /**
@@ -377,7 +358,9 @@ const useTrackMintQuotesWithPolling = ({
       queryFn: async () => {
         try {
           const account = getCashuAccount(quote.accountId);
-          const mintQuoteResponse = await checkMintQuote(account, quote);
+          const mintQuoteResponse = await account.wallet.checkMintQuoteBolt11(
+            quote.quoteId,
+          );
 
           onFetched(mintQuoteResponse);
 
@@ -411,7 +394,7 @@ const useTrackMintQuotesWithPolling = ({
 
 type TrackMintQuotesWithWebSocketProps = {
   quotesByMint: Record<string, CashuReceiveQuote[]>;
-  onUpdate: (mintQuoteResponse: MintQuoteResponse) => void;
+  onUpdate: (mintQuoteResponse: MintQuoteBolt11Response) => void;
 };
 
 /**
@@ -448,7 +431,7 @@ const useTrackMintQuotesWithWebSocket = ({
       withRetry({
         fn: () => {
           const account = getCashuAccount(receiveQuote.accountId);
-          return checkMintQuote(account, receiveQuote);
+          return account.wallet.checkMintQuoteBolt11(receiveQuote.quoteId);
         },
         retry: 5,
       }),
@@ -542,7 +525,7 @@ const useOnMintQuoteStateChange = ({
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
 
   const processMintQuote = useCallback(
-    async (mintQuote: MintQuoteResponse) => {
+    async (mintQuote: MintQuoteBolt11Response) => {
       const relatedReceiveQuote = pendingQuotesCache.getByMintQuoteId(
         mintQuote.quote,
       );

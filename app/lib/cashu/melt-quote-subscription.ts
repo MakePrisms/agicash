@@ -1,4 +1,4 @@
-import { MeltQuoteState, type PartialMeltQuoteResponse } from '@cashu/cashu-ts';
+import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { type LongTimeout, clearLongTimeout, setLongTimeout } from '../timeout';
@@ -14,10 +14,10 @@ type OnMeltQuoteStateChangeProps = {
     expiryInMs: number;
     inputAmount: number;
   }[];
-  onUnpaid?: (meltQuote: PartialMeltQuoteResponse) => void;
-  onPending?: (meltQuote: PartialMeltQuoteResponse) => void;
-  onPaid?: (meltQuote: PartialMeltQuoteResponse) => void;
-  onExpired?: (meltQuote: PartialMeltQuoteResponse) => void;
+  onUnpaid?: (meltQuote: MeltQuoteBolt11Response) => void;
+  onPending?: (meltQuote: MeltQuoteBolt11Response) => void;
+  onPaid?: (meltQuote: MeltQuoteBolt11Response) => void;
+  onExpired?: (meltQuote: MeltQuoteBolt11Response) => void;
 };
 
 export function useOnMeltQuoteStateChange({
@@ -42,7 +42,7 @@ export function useOnMeltQuoteStateChange({
   });
 
   const handleMeltQuoteUpdate = useCallback(
-    async (meltQuote: PartialMeltQuoteResponse, handleExpiry = false) => {
+    async (meltQuote: MeltQuoteBolt11Response, handleExpiry = false) => {
       console.debug(`Melt quote state changed: ${meltQuote.state}`);
 
       const quoteData = getQuoteDataRef.current(meltQuote.quote);
@@ -69,7 +69,9 @@ export function useOnMeltQuoteStateChange({
           !(meltQuote.change && meltQuote.change.length > 0)
         ) {
           const wallet = getCashuWallet(quoteData.mintUrl);
-          const meltQuoteWithChange = await wallet.checkMeltQuote(quoteData.id);
+          const meltQuoteWithChange = await wallet.checkMeltQuoteBolt11(
+            quoteData.id,
+          );
           onPaidRef.current?.(meltQuoteWithChange);
         } else {
           onPaidRef.current?.(meltQuote);
@@ -120,7 +122,7 @@ export function useOnMeltQuoteStateChange({
       const quoteTimeout = setLongTimeout(async () => {
         try {
           const wallet = getCashuWallet(quote.mintUrl);
-          const meltQuote = await wallet.checkMeltQuote(quote.id);
+          const meltQuote = await wallet.checkMeltQuoteBolt11(quote.id);
           return handleMeltQuoteUpdate(meltQuote, true);
         } catch (error) {
           console.error('Error checking melt quote upon expiration', {

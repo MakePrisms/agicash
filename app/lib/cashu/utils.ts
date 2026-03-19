@@ -1,25 +1,18 @@
 import {
-  CashuMint,
-  CashuWallet,
-  type Keys,
-  type MeltQuoteResponse,
+  type MeltQuoteBolt11Response,
   MeltQuoteState,
-  type MintKeys,
-  type MintKeyset,
-  type MintQuoteResponse,
-  OutputData,
+  type Mint,
+  type MintQuoteBolt11Response,
   type Proof,
+  Wallet,
+  splitAmount,
 } from '@cashu/cashu-ts';
-import Big from 'big.js';
 import type { DistributedOmit } from 'type-fest';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
-import type {
-  ExtendedGetInfoResponse,
-  ExtendedLockedMintQuoteResponse,
+import {
   ExtendedMintInfo,
-  ExtendedMintQuoteResponse,
-  ExtendedPartialMintQuoteResponse,
+  type ExtendedMintQuoteBolt11Response,
 } from './protocol-extensions';
 import type { CashuProtocolUnit } from './types';
 
@@ -80,29 +73,14 @@ export const getCashuProtocolUnit = (currency: Currency) => {
 
 /**
  * Determines the purpose of a mint based on its info.
- *
- * Accepts either a raw GetInfoResponse or the MintInfo class wrapper.
- * The MintInfo class hides the raw response in a private `_mintInfo` field,
- * so we unwrap it to access custom extension fields like `agicash`.
- *
- * TODO: We can remove this when we upgrade to cashu-ts v3 and then we can have better control of the MintInfo class.
  */
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
 ): 'gift-card' | 'transactional' => {
-  // The MintInfo class may be double-wrapped (mintInfoQueryOptions returns a
-  // MintInfo class, and the CashuWallet constructor wraps it again). Unwrap
-  // all layers to reach the raw GetInfoResponse.
-  let raw: unknown = mintInfo;
-  while (raw != null && typeof raw === 'object' && '_mintInfo' in raw) {
-    raw = (raw as { _mintInfo: unknown })._mintInfo;
-  }
-  return (raw as ExtendedGetInfoResponse | undefined)?.agicash?.closed_loop
-    ? 'gift-card'
-    : 'transactional';
+  return mintInfo?.agicash?.closed_loop ? 'gift-card' : 'transactional';
 };
 
-export const getWalletCurrency = (wallet: CashuWallet) => {
+export const getWalletCurrency = (wallet: Wallet) => {
   const unit = wallet.unit as keyof typeof cashuProtocolUnitToCurrency;
   if (!cashuProtocolUnitToCurrency[unit]) {
     throw new Error(`Unsupported cashu wallet unit: ${unit}`);
@@ -121,12 +99,12 @@ export const getWalletCurrency = (wallet: CashuWallet) => {
  * - Fee estimation utilities for receiving operations
  * - Access to agicash-specific mint extensions (e.g., closed loop mode)
  */
-export class ExtendedCashuWallet extends CashuWallet {
+export class ExtendedCashuWallet extends Wallet {
   private _bip39Seed: Uint8Array | undefined;
 
   constructor(
-    mint: CashuMint,
-    options: ConstructorParameters<typeof CashuWallet>[1],
+    mint: Mint | string,
+    options: ConstructorParameters<typeof Wallet>[1],
   ) {
     super(mint, options);
     this._bip39Seed = options?.bip39seed;
@@ -141,61 +119,55 @@ export class ExtendedCashuWallet extends CashuWallet {
 
   /**
    * Returns the mint info with agicash-specific extensions.
-   * This overrides the base class mintInfo getter to return the extended type.
    */
-  override get mintInfo(): ExtendedMintInfo {
-    return super.mintInfo as ExtendedMintInfo;
+  override getMintInfo(): ExtendedMintInfo {
+    return new ExtendedMintInfo(super.getMintInfo().cache);
   }
 
   /**
    * Gets the purpose of this mint based on its configuration.
    */
   get purpose(): 'gift-card' | 'transactional' {
-    return getMintPurpose(this.mintInfo);
+    return getMintPurpose(this.getMintInfo());
   }
 
   /**
-   * This method overrides the createMintQuote method from CashuWallet to return ExtendedMintQuoteResponse
+   * This method overrides the createMintQuoteBolt11 method from Wallet to return ExtendedMintQuoteBolt11Response
    */
-  async createMintQuote(
-    amount: Parameters<CashuWallet['createMintQuote']>[0],
-    description?: Parameters<CashuWallet['createMintQuote']>[1],
-  ): Promise<ExtendedMintQuoteResponse> {
-    return super.createMintQuote(
+  override async createMintQuoteBolt11(
+    amount: Parameters<Wallet['createMintQuoteBolt11']>[0],
+    description?: Parameters<Wallet['createMintQuoteBolt11']>[1],
+  ): Promise<ExtendedMintQuoteBolt11Response> {
+    return super.createMintQuoteBolt11(
       amount,
       description,
-    ) as Promise<ExtendedMintQuoteResponse>;
+    ) as Promise<ExtendedMintQuoteBolt11Response>;
   }
 
   /**
-   * This method overrides the createLockedMintQuote method from CashuWallet to return ExtendedLockedMintQuoteResponse
+   * This method overrides the createLockedMintQuote method from CashuWallet to return ExtendedMintQuoteBolt11Response
    */
   async createLockedMintQuote(
-    amount: Parameters<CashuWallet['createLockedMintQuote']>[0],
-    pubkey: Parameters<CashuWallet['createLockedMintQuote']>[1],
-    description?: Parameters<CashuWallet['createLockedMintQuote']>[2],
-  ): Promise<ExtendedLockedMintQuoteResponse> {
+    amount: Parameters<Wallet['createLockedMintQuote']>[0],
+    pubkey: Parameters<Wallet['createLockedMintQuote']>[1],
+    description?: Parameters<Wallet['createLockedMintQuote']>[2],
+  ): Promise<ExtendedMintQuoteBolt11Response> {
     return super.createLockedMintQuote(
       amount,
       pubkey,
       description,
-    ) as Promise<ExtendedLockedMintQuoteResponse>;
+    ) as Promise<ExtendedMintQuoteBolt11Response>;
   }
 
   /**
-   * This method overrides the checkMintQuote method from CashuWallet to return ExtendedMintQuoteResponse
+   * This method overrides the checkMintQuoteBolt11 method from Wallet to return ExtendedMintQuoteBolt11Response
    */
-  checkMintQuote(quote: MintQuoteResponse): Promise<ExtendedMintQuoteResponse>;
-  checkMintQuote(quote: string): Promise<ExtendedPartialMintQuoteResponse>;
-  async checkMintQuote(
-    quote: MintQuoteResponse | string,
-  ): Promise<ExtendedMintQuoteResponse | ExtendedPartialMintQuoteResponse> {
-    if (typeof quote === 'string') {
-      return super.checkMintQuote(
-        quote,
-      ) as Promise<ExtendedPartialMintQuoteResponse>;
-    }
-    return super.checkMintQuote(quote) as Promise<ExtendedMintQuoteResponse>;
+  override async checkMintQuoteBolt11(
+    quote: MintQuoteBolt11Response | string,
+  ): Promise<ExtendedMintQuoteBolt11Response> {
+    return super.checkMintQuoteBolt11(
+      quote,
+    ) as Promise<ExtendedMintQuoteBolt11Response>;
   }
 
   /**
@@ -204,27 +176,15 @@ export class ExtendedCashuWallet extends CashuWallet {
    * @param amount - The minimum amount to receive
    * @returns The estimated fee
    */
-  getFeesEstimateToReceiveAtLeast(amount: number | Big) {
-    const amountBig = new Big(amount);
-    const keyset = this.getActiveKeyset(this.keysets);
+  getFeesEstimateToReceiveAtLeast(amount: number) {
+    const keyset = this.keyChain.getCheapestKeyset();
 
-    if (!keyset?.input_fee_ppk) {
+    if (!keyset?.fee) {
       return 0;
     }
 
-    const { keys = null } = this.keys.get(keyset.id) ?? {};
-    if (!keys) {
-      throw new Error('Keys not found');
-    }
-
-    const minNumberOfProofs = this.getMinNumberOfProofsForAmount(
-      keys,
-      amountBig,
-    );
-    const fee = this.getFeeForNumberOfProofs(
-      minNumberOfProofs,
-      keyset.input_fee_ppk,
-    );
+    const minNumberOfProofs = splitAmount(amount, keyset.keys).length;
+    const fee = this.getFeeForNumberOfProofs(minNumberOfProofs, keyset.fee);
 
     return fee;
   }
@@ -235,62 +195,31 @@ export class ExtendedCashuWallet extends CashuWallet {
    * This handles the case where meltProofs is called twice for the same quote.
    */
   async meltProofsIdempotent(
-    meltQuote: Pick<MeltQuoteResponse, 'quote' | 'amount'>,
+    meltQuote: Pick<MeltQuoteBolt11Response, 'quote' | 'amount'>,
     proofs: Proof[],
-    options?: Parameters<CashuWallet['meltProofs']>[2],
+    config?: Parameters<Wallet['meltProofsBolt11']>[2],
+    outputType?: Parameters<Wallet['meltProofsBolt11']>[3],
   ) {
-    // meltProofs method doesn't use anything but quote and amount so we can pass a dummy MeltQuoteResponse
-    return this.meltProofs(
-      meltQuote as MeltQuoteResponse,
+    // cashu-ts accepts a full MeltQuoteBolt11Response but only reads .quote (the ID)
+    // and .amount (for fee reserve calculation). Some callers only have these two fields
+    // from stored data, so we accept a partial and cast it.
+    return this.meltProofsBolt11(
+      meltQuote as MeltQuoteBolt11Response,
       proofs,
-      options,
+      config,
+      outputType,
     ).catch(async (error) => {
-      // Melt should be idempotent: if meltProofs was already called once and did not fail,
+      // Melt should be idempotent: if meltProofsBolt11 was already called once and did not fail,
       // then the melt quote will be pending or paid.
-      const latestMeltQuote = await this.checkMeltQuote(meltQuote.quote);
+      const latestMeltQuote = await this.checkMeltQuoteBolt11(meltQuote.quote);
       if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
-        console.debug('meltProofs was called but melt quote is not unpaid');
+        console.debug(
+          'meltProofsBolt11 was called but melt quote is not unpaid',
+        );
         return latestMeltQuote;
       }
       throw error;
     });
-  }
-
-  private getMinNumberOfProofsForAmount(keys: Keys, amount: Big) {
-    const availableDenominations = Object.keys(keys).map((x) => new Big(x));
-    const biggestDenomination = availableDenominations.reduce(
-      (max, curr) => (curr.gt(max) ? curr : max),
-      new Big(0),
-    );
-
-    return this.getInPowersOfTwo(new Big(amount), biggestDenomination).length;
-  }
-
-  /**
-   * Get the powers of two that sum up to the given number
-   * @param n - The number to get the powers of two for
-   * @param maxValue - The maximum power of two value that can be used
-   * @returns The powers of two that sum up to the given number
-   */
-  private getInPowersOfTwo(number: Big, maxValue: Big): Big[] {
-    const result: Big[] = [];
-    let n = number;
-
-    for (let pow = maxValue; pow.gte(1); pow = pow.div(2).round(0, 0)) {
-      const count = n.div(pow).round(0, 0); // floor division
-      if (count.gt(0)) {
-        for (let i = 0; i < count.toNumber(); i++) {
-          result.push(pow);
-        }
-        n = n.minus(count.times(pow));
-      }
-      if (n.eq(0)) break;
-    }
-
-    if (n.gt(0))
-      throw new Error('Cannot represent number with given max value');
-
-    return result;
   }
 
   private getFeeForNumberOfProofs(numberOfProofs: number, inputFeePpk: number) {
@@ -300,10 +229,7 @@ export class ExtendedCashuWallet extends CashuWallet {
 
 export const getCashuWallet = (
   mintUrl: string,
-  options: DistributedOmit<
-    ConstructorParameters<typeof CashuWallet>[1],
-    'unit'
-  > & {
+  options: DistributedOmit<ConstructorParameters<typeof Wallet>[1], 'unit'> & {
     unit?: CurrencyUnit;
   } = {},
 ) => {
@@ -311,7 +237,7 @@ export const getCashuWallet = (
   // Cashu calls the unit 'usd' even though the amount is in cents.
   // To avoid this confusion we use 'cent' everywhere and then here we switch the value to 'usd' before creating the Cashu wallet.
   const cashuUnit = options.unit === 'cent' ? 'usd' : options.unit;
-  return new ExtendedCashuWallet(new CashuMint(mintUrl), {
+  return new ExtendedCashuWallet(mintUrl, {
     ...rest,
     unit: cashuUnit,
   });
@@ -335,16 +261,9 @@ export const checkIsTestMint = async (mintUrl: string): Promise<boolean> => {
     return true;
   }
   const wallet = getCashuWallet(mintUrl);
-  const { request: bolt11 } = await wallet.createMintQuote(1);
+  const { request: bolt11 } = await wallet.createMintQuoteBolt11(1);
   const { network } = decodeBolt11(bolt11);
   return network !== 'bitcoin';
-};
-
-export const getKeysets = async (
-  mintUrl: string,
-  unit: CurrencyUnit,
-): Promise<Array<MintKeyset>> => {
-  return getCashuWallet(mintUrl, { unit }).getKeySets();
 };
 
 /**
@@ -358,22 +277,4 @@ export const areMintUrlsEqual = (a: string, b: string) => {
     a.toLowerCase().replace(/\/+$/, '').trim() ===
     b.toLowerCase().replace(/\/+$/, '').trim()
   );
-};
-
-/**
- * Calculates the output amounts needed for a given amount using the provided mint keys.
- * @param amount - The amount to get the output amounts for
- * @param keys - The mint keys to use for the output data
- * @returns The output amounts that sum to the given amount
- */
-export const getOutputAmounts = (amount: number, keys: MintKeys): number[] => {
-  return OutputData.createDeterministicData(
-    amount,
-    // Wallet seed and keyset counter don't matter for getting the output amounts which sum to the provided amount so we are just using dummy values.
-    // We need to do this because splitAmount function used by createDeterministicData is not exposed by cashu-ts (see https://github.com/cashubtc/cashu-ts/blob/v2.6.0/src/model/OutputData.ts#L158)
-    // Using 32 bytes (256 bits) dummy seed to satisfy HDKey requirements
-    new Uint8Array(32),
-    0,
-    keys,
-  ).map((output) => output.blindedMessage.amount);
 };

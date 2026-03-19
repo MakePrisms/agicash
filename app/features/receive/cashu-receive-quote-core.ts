@@ -1,4 +1,4 @@
-import type { MintQuoteResponse, Proof } from '@cashu/cashu-ts';
+import type { MintQuoteBolt11Response, Proof } from '@cashu/cashu-ts';
 import { HARDENED_OFFSET } from '@scure/bip32';
 import { decodeBolt11 } from '~/lib/bolt11';
 import { type ExtendedCashuWallet, getCashuUnit } from '~/lib/cashu';
@@ -13,7 +13,7 @@ export type CashuReceiveLightningQuote = {
   /**
    * The locked mint quote from the mint.
    */
-  mintQuote: MintQuoteResponse;
+  mintQuote: MintQuoteBolt11Response;
   /**
    * The public key that locks the mint quote.
    */
