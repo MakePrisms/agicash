@@ -59,31 +59,38 @@ Three exported functions:
 
 **`extractCashuTokenString(content: string): string | null`**
 
-Regex-only extraction. Returns the raw encoded token string without any decoding. Used by paste/scan handlers to navigate with the original token string, avoiding the lossy decode-then-re-encode cycle.
+Extracts and validates a cashu token string from arbitrary content. Uses regex to find the token, then `getTokenMetadata()` to validate it's a structurally valid token (not just a regex match). Returns the raw encoded token string without full decoding. Used by paste/scan handlers to navigate with the original token string, avoiding the lossy decode-then-re-encode cycle.
 
 ```typescript
 export function extractCashuTokenString(content: string): string | null {
   const tokenMatch = content.match(/cashu[AB][A-Za-z0-9_-]+={0,2}/);
-  return tokenMatch?.[0] ?? null;
+  if (!tokenMatch) return null;
+
+  try {
+    getTokenMetadata(tokenMatch[0]); // validates token structure
+    return tokenMatch[0];
+  } catch {
+    return null;
+  }
 }
 ```
 
 **`extractCashuToken(content: string, getKeysetIds?: (mintUrl: string) => string[] | undefined): Token | null`**
 
-Synchronous v2-aware decode with optional keyset resolver.
+Synchronous v2-aware decode with optional keyset resolver. Follows the cashu.me pattern: try standard decode first, fall back to keyset-resolved decode on failure.
 
 Flow:
-1. Extract token string via regex
+1. Extract and validate token string via `extractCashuTokenString`
 2. Try `getDecodedToken(tokenString)` — succeeds for v1 keysets
-3. If fails, call `getTokenMetadata(tokenString)` to get mint URL without keyset resolution
+3. If fails (v2 keyset), use `getTokenMetadata(tokenString)` to get mint URL without keyset resolution
 4. Call injected `getKeysetIds(mintUrl)` to get cached keyset IDs
-5. Retry `getDecodedToken(tokenString, keysetIds)` with resolution
+5. Decode with `getDecodedToken(tokenString, keysetIds)` for v2 resolution
 
 If no resolver is provided or cache misses, returns null.
 
 **`extractCashuTokenAsync(content: string, fetchKeysetIds: (mintUrl: string) => Promise<string[]>): Promise<Token | null>`**
 
-Async variant with network fallback. Same flow as sync version but the injected resolver can fetch from the network. Used when the sync version returns null (unknown mint, cache miss).
+Async variant with network fallback. Same flow but the injected resolver can fetch from the network. Used when the sync version returns null (unknown mint, cache miss).
 
 ### 2. Keyset Resolver Factory (`app/features/shared/cashu.ts`)
 
@@ -179,9 +186,9 @@ This truncation is correct v4 encoding behavior (short IDs for size). It is NOT 
 
 The public route (`_public.receive-cashu-token.tsx`) runs before the user logs in, so `getInitializedCashuWallet` has never been called and the TanStack Query cache has no keyset data. For v2 tokens, `resolver.fromCache` will miss and `resolver.fromNetwork` will fetch keysets from the mint. This adds one network request to the public receive flow — acceptable since the receive UI already makes network calls (proof state checks, mint info).
 
-### 8. UX Note for Paste/Scan Validation
+### 8. Paste/Scan Validation Preserved
 
-With `extractCashuTokenString`, paste/scan handlers no longer validate the full token structure before navigating. Validation moves to the destination route's clientLoader. For structurally malformed tokens that happen to match the regex, the user sees a brief navigation then redirect back, rather than an immediate toast. The regex `/cashu[AB][A-Za-z0-9_-]+={0,2}/` is specific enough that this rarely occurs in practice, and the tradeoff enables v2 support without making paste/scan handlers async.
+`extractCashuTokenString` validates tokens via `getTokenMetadata()` — not just regex. This catches malformed tokens immediately in paste/scan handlers (same UX as today: instant toast for invalid input). Only structurally valid tokens trigger navigation. Full v2 keyset resolution then happens in the destination route's async clientLoader.
 
 ## Files Changed
 
