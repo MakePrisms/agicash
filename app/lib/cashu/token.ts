@@ -4,6 +4,7 @@ import {
   type Token,
   Wallet,
   getDecodedToken,
+  getTokenMetadata,
 } from '@cashu/cashu-ts';
 import { proofToY } from './proof';
 
@@ -31,43 +32,56 @@ export const getUnspentProofsFromToken = async (
   });
 };
 
-const getDecodedTokenSafe = (
-  encodedToken: string,
-):
-  | {
-      success: true;
-      token: Token;
-    }
-  | {
-      success: false;
-      error: string;
-    } => {
-  try {
-    return { success: true, token: getDecodedToken(encodedToken) };
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to decode token';
-    return { success: false, error: errorMessage };
-  }
-};
+const TOKEN_REGEX = /cashu[AB][A-Za-z0-9_-]+={0,2}/;
 
 /**
- * Extract a cashu token from a string if there is one and then validate it
- * @param content - The content to extract the encoded cashu token from (a string like a URL or a direct token)
- * @returns The extracted token if found and valid, otherwise null
+ * Extract and validate a cashu token string from arbitrary content.
+ * Uses regex to find the token, then getTokenMetadata() to validate it's structurally valid.
+ * Returns the raw encoded string without full decoding (no keyset resolution).
+ * @param content - The content to search for a cashu token (URL, clipboard text, etc.)
+ * @returns The encoded token string if found and valid, otherwise null.
  */
-export const extractCashuToken = (content: string): Token | null => {
-  // Look for V3 (cashuA) or V4 (cashuB) tokens anywhere in the content
-  // Tokens are base64_urlsafe encoded, so they can contain: A-Z, a-z, 0-9, -, _, and optional = padding
-  // See https://github.com/cashubtc/nuts/blob/main/00.md#serialization-of-tokens for more details
-  const tokenMatch = content.match(/cashu[AB][A-Za-z0-9_-]+={0,2}/);
-  if (tokenMatch) {
-    const extractedToken = tokenMatch[0];
-    const result = getDecodedTokenSafe(extractedToken);
-    if (result.success) {
-      return result.token;
-    }
+export function extractCashuTokenString(content: string): string | null {
+  const tokenMatch = content.match(TOKEN_REGEX);
+  if (!tokenMatch) return null;
+
+  try {
+    getTokenMetadata(tokenMatch[0]);
+    return tokenMatch[0];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract and decode a cashu token from arbitrary content.
+ * Tries standard decode first (v1), then fetches keyset IDs from the mint for v2 resolution.
+ *
+ * @param content - The content to extract the encoded cashu token from.
+ * @param fetchKeysetIds - Async resolver: given a mint URL, fetches keyset IDs.
+ * @returns The decoded token if found and valid, otherwise null.
+ */
+export async function extractCashuToken(
+  content: string,
+  fetchKeysetIds: (mintUrl: string) => Promise<string[]>,
+): Promise<Token | null> {
+  const tokenString = extractCashuTokenString(content);
+  if (!tokenString) return null;
+
+  // Try standard decode — succeeds for v1 keyset IDs
+  try {
+    return getDecodedToken(tokenString);
+  } catch {
+    // V2 keyset IDs require resolution — fall through
   }
 
-  return null;
-};
+  // V2 fallback: get mint URL from metadata, fetch keyset IDs, retry
+  try {
+    const { mint } = getTokenMetadata(tokenString);
+    const keysetIds = await fetchKeysetIds(mint);
+    if (!keysetIds.length) return null;
+    return getDecodedToken(tokenString, keysetIds);
+  } catch {
+    return null;
+  }
+}

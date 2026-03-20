@@ -1,4 +1,3 @@
-import { getEncodedToken } from '@cashu/cashu-ts';
 import { Clipboard, Scan } from 'lucide-react';
 import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
@@ -20,7 +19,7 @@ import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { extractCashuToken } from '~/lib/cashu';
+import { extractCashuTokenString } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
@@ -110,8 +109,8 @@ export default function TransferInput() {
       return;
     }
 
-    const token = extractCashuToken(clipboardContent);
-    if (!token) {
+    const tokenString = extractCashuTokenString(clipboardContent);
+    if (!tokenString) {
       toast({
         title: 'Invalid input',
         description: 'Please paste a valid cashu token',
@@ -120,8 +119,7 @@ export default function TransferInput() {
       return;
     }
 
-    const encodedToken = getEncodedToken(token);
-    const hash = `#${encodedToken}`;
+    const hash = `#${tokenString}`;
 
     window.history.replaceState(null, '', hash);
     navigate(

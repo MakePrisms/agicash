@@ -19,10 +19,12 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { getQueryClient } from '~/features/shared/query-client';
 import {
   type ExtendedCashuWallet,
   ExtendedMintInfo,
   checkIsTestMint,
+  extractCashuToken as extractCashuTokenBase,
   getCashuProtocolUnit,
   getCashuUnit,
   getCashuWallet,
@@ -153,9 +155,17 @@ export function useCashuCryptography(): CashuCryptography {
 }
 
 export function getTokenHash(token: Token | string): Promise<string> {
-  const encodedToken =
-    typeof token === 'string' ? token : getEncodedToken(token);
-  return computeSHA256(encodedToken);
+  if (typeof token === 'string') {
+    return computeSHA256(token);
+  }
+  // Deep-clone proofs before encoding to prevent getEncodedToken from
+  // mutating proof.id (it truncates v2 keyset IDs to their short form).
+  // TODO: we can remove this if cashu-ts fixes this issue https://github.com/cashubtc/cashu-ts/issues/535
+  const cloned: Token = {
+    ...token,
+    proofs: token.proofs.map((p) => ({ ...p })),
+  };
+  return computeSHA256(getEncodedToken(cloned));
 }
 
 const mintBlocklist = MintBlocklistSchema.parse(
@@ -205,6 +215,22 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
     queryFn: async () => new Mint(mintUrl).getKeySets(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
+
+/**
+ * Extract and decode a cashu token from arbitrary content.
+ * Supports v1 and v2 keyset IDs — fetches keyset IDs from the mint if needed.
+ */
+export async function extractCashuToken(
+  content: string,
+): Promise<Token | null> {
+  const queryClient = getQueryClient();
+  return extractCashuTokenBase(content, async (mintUrl) => {
+    const data = await queryClient.fetchQuery(
+      allMintKeysetsQueryOptions(mintUrl),
+    );
+    return data.keysets.map((k) => k.id);
+  });
+}
 
 /**
  * Get the mints public keys.
