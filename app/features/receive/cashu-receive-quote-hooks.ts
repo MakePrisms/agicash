@@ -595,8 +595,10 @@ export function useProcessCashuReceiveQuoteTasks() {
         // Updating the quote cache triggers navigation to the transaction details page.
         // Completing the quote also completes the transaction and if navigation to transaction
         // page happens before transaction udpated realtime notification is processed, the
-        // transaction would be stale in the cache with the DRAFT state, which is not allowed on
-        // transaction details page. Thus it needs to be invalidated to force refetch.
+        // transaction would be stale in the cache with the DRAFT state. We are invalidating the
+        // transaction cache here so that it starts refetching the transaction as soon as possible
+        // without relying on realtime notification which might be delayed when reconnecting due to
+        // the app being in background.
         transactionsCache.invalidateTransaction(data.quote.transactionId);
         cashuReceiveQuoteCache.updateIfExists(data.quote);
         pendingQuotesCache.update(data.quote);
