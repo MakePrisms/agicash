@@ -35,6 +35,7 @@ import {
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
+import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
@@ -56,11 +57,10 @@ class CashuReceiveQuoteCache {
 
   constructor(private readonly queryClient: QueryClient) {}
 
-  get(quoteId: string) {
-    return this.queryClient.getQueryData<CashuReceiveQuote>([
-      CashuReceiveQuoteCache.Key,
-      quoteId,
-    ]);
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [CashuReceiveQuoteCache.Key],
+    });
   }
 
   add(quote: CashuReceiveQuote) {
@@ -187,7 +187,7 @@ export function useCreateCashuReceiveQuote() {
   });
 }
 
-function useCashuReceiveQuoteCache() {
+export function useCashuReceiveQuoteCache() {
   const queryClient = useQueryClient();
   return useMemo(() => new CashuReceiveQuoteCache(queryClient), [queryClient]);
 }
@@ -216,11 +216,12 @@ export function useCashuReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const cache = useCashuReceiveQuoteCache();
+  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
 
   const { data } = useQuery({
     queryKey: [CashuReceiveQuoteCache.Key, quoteId],
-    queryFn: () => cache.get(quoteId ?? ''),
+    // biome-ignore lint/style/noNonNullAssertion: quoteId is guaranteed by enabled
+    queryFn: () => cashuReceiveQuoteRepository.get(quoteId!),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -574,6 +575,8 @@ export function useProcessCashuReceiveQuoteTasks() {
   const pendingMeltQuotes = usePendingMeltQuotes(pendingCashuReceiveQuotes);
   const getCashuAccount = useGetCashuAccount();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
+  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
+  const transactionsCache = useTransactionsCache();
 
   const { mutate: completeReceiveQuote } = useMutation({
     mutationFn: async (quoteId: string) => {
@@ -589,6 +592,13 @@ export function useProcessCashuReceiveQuoteTasks() {
     throwOnError: true,
     onSuccess: (data) => {
       if (data) {
+        // Updating the quote cache triggers navigation to the transaction details page.
+        // Completing the quote also completes the transaction and if navigation to transaction
+        // page happens before transaction udpated realtime notification is processed, the
+        // transaction would be stale in the cache with the DRAFT state, which is not allowed on
+        // transaction details page. Thus it needs to be invalidated to force refetch.
+        transactionsCache.invalidateTransaction(data.quote.transactionId);
+        cashuReceiveQuoteCache.updateIfExists(data.quote);
         pendingQuotesCache.update(data.quote);
       }
     },

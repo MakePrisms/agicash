@@ -6,8 +6,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
-import { useLatest } from '~/lib/use-latest';
+import { useMemo } from 'react';
 import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
@@ -22,35 +21,6 @@ type CreateProps = {
   token: Token;
   accountId: string;
 };
-class CashuReceiveSwapCache {
-  // Query to track the active receive swap for a given token hash. The active swap is the one that user created in current browser session, and we track it in order to show the current state of the swap on the receive page.
-  public static Key = 'cashu-receive-swap';
-
-  constructor(private readonly queryClient: QueryClient) {}
-
-  get(tokenHash: string) {
-    return this.queryClient.getQueryData<CashuReceiveSwap>([
-      CashuReceiveSwapCache.Key,
-      tokenHash,
-    ]);
-  }
-
-  add(receiveSwap: CashuReceiveSwap) {
-    this.queryClient.setQueryData<CashuReceiveSwap>(
-      [CashuReceiveSwapCache.Key, receiveSwap.tokenHash],
-      receiveSwap,
-    );
-  }
-
-  updateIfExists(receiveSwap: CashuReceiveSwap) {
-    this.queryClient.setQueryData<CashuReceiveSwap>(
-      [CashuReceiveSwapCache.Key, receiveSwap.tokenHash],
-      (curr) =>
-        curr && curr.version < receiveSwap.version ? receiveSwap : undefined,
-    );
-  }
-}
-
 class PendingCashuReceiveSwapsCache {
   // Query to track all pending receive swaps for a given user (active and ones where recovery is being attempted).
   public static Key = 'pending-cashu-receive-swaps';
@@ -105,15 +75,9 @@ export function usePendingCashuReceiveSwapsCache() {
   );
 }
 
-export function useCashuReceiveSwapCache() {
-  const queryClient = useQueryClient();
-  return useMemo(() => new CashuReceiveSwapCache(queryClient), [queryClient]);
-}
-
 export function useCreateCashuReceiveSwap() {
   const userId = useUser((user) => user.id);
   const receiveSwapService = useCashuReceiveSwapService();
-  const receiveSwapCache = useCashuReceiveSwapCache();
   const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
@@ -129,64 +93,7 @@ export function useCreateCashuReceiveSwap() {
         account,
       });
     },
-    onSuccess: ({ swap }) => {
-      receiveSwapCache.add(swap);
-    },
   });
-}
-
-type UseReceiveSwapProps = {
-  tokenHash?: string;
-  onCompleted?: (swap: CashuReceiveSwap) => void;
-  onFailed?: (swap: CashuReceiveSwap) => void;
-};
-
-type UseReceiveSwapResponse =
-  | {
-      status: 'LOADING';
-    }
-  | {
-      status: CashuReceiveSwap['state'];
-      swap: CashuReceiveSwap;
-    };
-
-export function useReceiveSwap({
-  tokenHash,
-  onCompleted,
-  onFailed,
-}: UseReceiveSwapProps): UseReceiveSwapResponse {
-  const enabled = !!tokenHash;
-  const onCompletedRef = useLatest(onCompleted);
-  const onFailedRef = useLatest(onFailed);
-  const cache = useCashuReceiveSwapCache();
-
-  const { data } = useQuery({
-    queryKey: [CashuReceiveSwapCache.Key, tokenHash],
-    queryFn: () => cache.get(tokenHash ?? ''),
-    staleTime: Number.POSITIVE_INFINITY,
-    refetchOnWindowFocus: 'always',
-    refetchOnReconnect: 'always',
-    enabled,
-  });
-
-  useEffect(() => {
-    if (!data) return;
-
-    if (data.state === 'COMPLETED') {
-      onCompletedRef.current?.(data);
-    } else if (data.state === 'FAILED') {
-      onFailedRef.current?.(data);
-    }
-  }, [data]);
-
-  if (!data) {
-    return { status: 'LOADING' };
-  }
-
-  return {
-    status: data.state,
-    swap: data,
-  };
 }
 
 function usePendingCashuReceiveSwaps() {
@@ -212,7 +119,6 @@ function usePendingCashuReceiveSwaps() {
  */
 export function useCashuReceiveSwapChangeHandlers() {
   const pendingSwapsCache = usePendingCashuReceiveSwapsCache();
-  const receiveSwapCache = useCashuReceiveSwapCache();
   const cashuReceiveSwapRepository = useCashuReceiveSwapRepository();
 
   return [
@@ -227,8 +133,6 @@ export function useCashuReceiveSwapChangeHandlers() {
       event: 'CASHU_RECEIVE_SWAP_UPDATED',
       handleEvent: async (payload: AgicashDbCashuReceiveSwap) => {
         const swap = await cashuReceiveSwapRepository.toReceiveSwap(payload);
-
-        receiveSwapCache.updateIfExists(swap);
 
         const isSwapStillPending = swap.state === 'PENDING';
         if (isSwapStillPending) {

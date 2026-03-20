@@ -63,6 +63,15 @@ class TransactionsCache {
   }
 
   /**
+   * Invalidates a single transaction query by ID.
+   */
+  invalidateTransaction(transactionId: string) {
+    return this.queryClient.invalidateQueries({
+      queryKey: [TransactionsCache.Key, transactionId],
+    });
+  }
+
+  /**
    * Invalidates the unacknowledged count query.
    */
   invalidateUnacknowledgedCount() {
