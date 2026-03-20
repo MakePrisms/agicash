@@ -18,7 +18,7 @@ import { isThisWeek, isToday, isYesterday } from '~/lib/date';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
 import { AccountIcon } from '../accounts/account-icons';
-import { NotFoundError, getErrorMessage } from '../shared/error';
+import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
   isTransactionReversable,
@@ -58,23 +58,15 @@ function formatRelativeTimestampWithTime(timestamp: string): string {
   })} at ${timeString}`;
 }
 
-const transactionIconMap = {
+const transactionIconMap: Record<Transaction['state'], React.ReactNode> = {
+  DRAFT: <ClockIcon size={18} className="text-yellow-500" />,
+  PENDING: <ClockIcon size={18} className="text-yellow-500" />,
   COMPLETED: <CheckIcon size={18} className="text-green-500" />,
   REVERSED: <BanIcon size={18} className="text-red-500" />,
   FAILED: <XIcon size={18} className="text-red-500" />,
-  PENDING: <ClockIcon size={18} className="text-yellow-500" />,
 };
 
 function getTransactionIcon(transaction: Transaction) {
-  if (transaction.state === 'DRAFT') {
-    if (
-      transaction.type === 'SPARK_LIGHTNING' &&
-      transaction.direction === 'SEND'
-    ) {
-      return transactionIconMap.PENDING;
-    }
-    throw new NotFoundError(`Transaction not found for id: ${transaction.id}`);
-  }
   return transactionIconMap[transaction.state];
 }
 
@@ -82,11 +74,7 @@ function getTransactionLabel(transaction: Transaction) {
   if (transaction.state === 'REVERSED') {
     return 'Reclaimed';
   }
-  if (
-    transaction.state === 'DRAFT' &&
-    transaction.type === 'SPARK_LIGHTNING' &&
-    transaction.direction === 'SEND'
-  ) {
+  if (transaction.state === 'DRAFT') {
     return 'Pending';
   }
   if (transaction.purpose === 'BUY_CASHAPP') {
