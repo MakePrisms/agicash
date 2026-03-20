@@ -10,6 +10,7 @@ import {
   useContactsCache,
 } from '../contacts/contact-hooks';
 import {
+  useCashuReceiveQuoteCache,
   useCashuReceiveQuoteChangeHandlers,
   usePendingCashuReceiveQuotesCache,
 } from '../receive/cashu-receive-quote-hooks';
@@ -19,6 +20,7 @@ import {
 } from '../receive/cashu-receive-swap-hooks';
 import {
   usePendingSparkReceiveQuotesCache,
+  useSparkReceiveQuoteCache,
   useSparkReceiveQuoteChangeHandlers,
 } from '../receive/spark-receive-quote-hooks';
 import {
@@ -26,6 +28,7 @@ import {
   useUnresolvedCashuSendQuotesCache,
 } from '../send/cashu-send-quote-hooks';
 import {
+  useCashuSendSwapCache,
   useCashuSendSwapChangeHandlers,
   useUnresolvedCashuSendSwapsCache,
 } from '../send/cashu-send-swap-hooks';
@@ -95,11 +98,14 @@ export const useTrackWalletChanges = () => {
 
   const accountsCache = useAccountsCache();
   const transactionsCache = useTransactionsCache();
+  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
   const pendingCashuReceiveQuotesCache = usePendingCashuReceiveQuotesCache();
   const pendingCashuReceiveSwapsCache = usePendingCashuReceiveSwapsCache();
   const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
+  const cashuSendSwapCache = useCashuSendSwapCache();
   const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const contactsCache = useContactsCache();
+  const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
   const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
 
@@ -121,11 +127,14 @@ export const useTrackWalletChanges = () => {
       // or while it was reconnecting.
       accountsCache.invalidate();
       transactionsCache.invalidate();
+      cashuReceiveQuoteCache.invalidate();
       pendingCashuReceiveQuotesCache.invalidate();
       pendingCashuReceiveSwapsCache.invalidate();
       unresolvedCashuSendQuotesCache.invalidate();
+      cashuSendSwapCache.invalidate();
       unresolvedCashuSendSwapsCache.invalidate();
       contactsCache.invalidate();
+      sparkReceiveQuoteCache.invalidate();
       pendingSparkReceiveQuotesCache.invalidate();
       unresolvedSparkSendQuotesCache.invalidate();
     },

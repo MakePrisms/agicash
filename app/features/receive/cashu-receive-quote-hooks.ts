@@ -56,11 +56,10 @@ class CashuReceiveQuoteCache {
 
   constructor(private readonly queryClient: QueryClient) {}
 
-  get(quoteId: string) {
-    return this.queryClient.getQueryData<CashuReceiveQuote>([
-      CashuReceiveQuoteCache.Key,
-      quoteId,
-    ]);
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [CashuReceiveQuoteCache.Key],
+    });
   }
 
   add(quote: CashuReceiveQuote) {
@@ -187,7 +186,7 @@ export function useCreateCashuReceiveQuote() {
   });
 }
 
-function useCashuReceiveQuoteCache() {
+export function useCashuReceiveQuoteCache() {
   const queryClient = useQueryClient();
   return useMemo(() => new CashuReceiveQuoteCache(queryClient), [queryClient]);
 }
@@ -216,11 +215,12 @@ export function useCashuReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const cache = useCashuReceiveQuoteCache();
+  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
 
   const { data } = useQuery({
     queryKey: [CashuReceiveQuoteCache.Key, quoteId],
-    queryFn: () => cache.get(quoteId ?? ''),
+    // biome-ignore lint/style/noNonNullAssertion: quoteId is guaranteed by enabled
+    queryFn: () => cashuReceiveQuoteRepository.get(quoteId!),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -574,6 +574,7 @@ export function useProcessCashuReceiveQuoteTasks() {
   const pendingMeltQuotes = usePendingMeltQuotes(pendingCashuReceiveQuotes);
   const getCashuAccount = useGetCashuAccount();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
+  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
 
   const { mutate: completeReceiveQuote } = useMutation({
     mutationFn: async (quoteId: string) => {
@@ -589,6 +590,7 @@ export function useProcessCashuReceiveQuoteTasks() {
     throwOnError: true,
     onSuccess: (data) => {
       if (data) {
+        cashuReceiveQuoteCache.updateIfExists(data.quote);
         pendingQuotesCache.update(data.quote);
       }
     },

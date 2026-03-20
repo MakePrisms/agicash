@@ -42,11 +42,10 @@ class CashuSendSwapCache {
     );
   }
 
-  get(swapId: string) {
-    return this.queryClient.getQueryData<CashuSendSwap>([
-      CashuSendSwapCache.Key,
-      swapId,
-    ]);
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [CashuSendSwapCache.Key],
+    });
   }
 
   updateIfExists(swap: CashuSendSwap) {
@@ -102,7 +101,7 @@ export function useUnresolvedCashuSendSwapsCache() {
   );
 }
 
-function useCashuSendSwapCache() {
+export function useCashuSendSwapCache() {
   const queryClient = useQueryClient();
   return useMemo(() => new CashuSendSwapCache(queryClient), [queryClient]);
 }
@@ -268,11 +267,11 @@ export function useTrackCashuSendSwap({
   const onPendingRef = useLatest(onPending);
   const onCompletedRef = useLatest(onCompleted);
   const onFailedRef = useLatest(onFailed);
-  const cashuSendSwapCache = useCashuSendSwapCache();
+  const cashuSendSwapRepository = useCashuSendSwapRepository();
 
   const { data } = useQuery({
     queryKey: [CashuSendSwapCache.Key, id],
-    queryFn: () => cashuSendSwapCache.get(id),
+    queryFn: () => cashuSendSwapRepository.get(id),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -395,6 +394,7 @@ export function useProcessCashuSendSwapTasks() {
   const { draft, pending } = useUnresolvedCashuSendSwaps();
   const cashuSendSwapService = useCashuSendSwapService();
   const getCashuAccount = useGetCashuAccount();
+  const cashuSendSwapCache = useCashuSendSwapCache();
 
   const { mutate: swapForProofsToSend } = useMutation({
     mutationFn: async (swapId: string) => {
@@ -434,6 +434,9 @@ export function useProcessCashuSendSwapTasks() {
     },
     retry: 3,
     throwOnError: true,
+    onSuccess: () => {
+      cashuSendSwapCache.invalidate();
+    },
     onError: (error, swapId) => {
       console.error('Error completing send swap', {
         cause: error,

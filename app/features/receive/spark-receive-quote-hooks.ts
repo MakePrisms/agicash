@@ -39,11 +39,10 @@ class SparkReceiveQuoteCache {
 
   constructor(private readonly queryClient: QueryClient) {}
 
-  get(quoteId: string) {
-    return this.queryClient.getQueryData<SparkReceiveQuote>([
-      SparkReceiveQuoteCache.Key,
-      quoteId,
-    ]);
+  invalidate() {
+    return this.queryClient.invalidateQueries({
+      queryKey: [SparkReceiveQuoteCache.Key],
+    });
   }
 
   add(quote: SparkReceiveQuote) {
@@ -61,7 +60,7 @@ class SparkReceiveQuoteCache {
   }
 }
 
-function useSparkReceiveQuoteCache() {
+export function useSparkReceiveQuoteCache() {
   const queryClient = useQueryClient();
   return useMemo(() => new SparkReceiveQuoteCache(queryClient), [queryClient]);
 }
@@ -90,11 +89,12 @@ export function useSparkReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const cache = useSparkReceiveQuoteCache();
+  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
 
   const { data } = useQuery({
     queryKey: [SparkReceiveQuoteCache.Key, quoteId],
-    queryFn: () => cache.get(quoteId ?? ''),
+    // biome-ignore lint/style/noNonNullAssertion: quoteId is guaranteed by enabled
+    queryFn: () => sparkReceiveQuoteRepository.get(quoteId!),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -472,6 +472,7 @@ export function useProcessSparkReceiveQuoteTasks() {
   const sparkReceiveQuoteService = useSparkReceiveQuoteService();
   const pendingMeltQuotes = usePendingMeltQuotes();
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
+  const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
@@ -499,6 +500,7 @@ export function useProcessSparkReceiveQuoteTasks() {
     throwOnError: true,
     onSuccess: (updatedQuote) => {
       if (updatedQuote) {
+        sparkReceiveQuoteCache.updateIfExists(updatedQuote);
         pendingQuotesCache.remove(updatedQuote);
         // Invalidate spark balance since we received funds
         queryClient.invalidateQueries({
