@@ -24,6 +24,7 @@ import {
 import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { sparkBalanceQueryKey } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
+import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import { getLightningQuote } from './spark-receive-quote-core';
@@ -473,6 +474,7 @@ export function useProcessSparkReceiveQuoteTasks() {
   const pendingMeltQuotes = usePendingMeltQuotes();
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
+  const transactionsCache = useTransactionsCache();
   const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
@@ -500,6 +502,12 @@ export function useProcessSparkReceiveQuoteTasks() {
     throwOnError: true,
     onSuccess: (updatedQuote) => {
       if (updatedQuote) {
+        // Updating the quote cache triggers navigation to the transaction details page.
+        // Completing the quote also completes the transaction and if navigation to transaction
+        // page happens before transaction udpated realtime notification is processed, the
+        // transaction would be stale in the cache with the DRAFT state, which is not allowed on
+        // transaction details page. Thus it needs to be invalidated to force refetch.
+        transactionsCache.invalidateTransaction(updatedQuote.transactionId);
         sparkReceiveQuoteCache.updateIfExists(updatedQuote);
         pendingQuotesCache.remove(updatedQuote);
         // Invalidate spark balance since we received funds
