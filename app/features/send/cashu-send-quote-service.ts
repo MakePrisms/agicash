@@ -1,8 +1,7 @@
 import {
-  type MeltQuoteResponse,
+  type MeltQuoteBolt11Response,
   MeltQuoteState,
   OutputData,
-  type PartialMeltQuoteResponse,
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
 import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
@@ -56,7 +55,7 @@ export type CashuLightningQuote = {
   /**
    * The mint's melt quote.
    */
-  meltQuote: MeltQuoteResponse;
+  meltQuote: MeltQuoteBolt11Response;
   /**
    * The amount that the receiver will receive.
    */
@@ -89,7 +88,7 @@ export type SendQuoteRequest = {
   paymentRequest: string;
   amountRequested: Money;
   amountRequestedInBtc: Money<'BTC'>;
-  meltQuote: MeltQuoteResponse;
+  meltQuote: MeltQuoteBolt11Response;
 };
 
 export class CashuSendQuoteService {
@@ -146,9 +145,8 @@ export class CashuSendQuoteService {
 
     const cashuUnit = getCashuUnit(account.currency);
     const wallet = account.wallet;
-    await wallet.getKeys();
 
-    const meltQuote = await wallet.createMeltQuote(paymentRequest);
+    const meltQuote = await wallet.createMeltQuoteBolt11(paymentRequest);
 
     const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
 
@@ -247,8 +245,8 @@ export class CashuSendQuoteService {
 
     const cashuUnit = getCashuUnit(account.currency);
     const wallet = account.wallet;
-    const keys = await wallet.getKeys();
-    const keysetId = keys.id;
+    const keyset = wallet.getKeyset();
+    const keysetId = keyset.id;
 
     const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
 
@@ -329,7 +327,7 @@ export class CashuSendQuoteService {
   async initiateSend(
     account: CashuAccount,
     sendQuote: CashuSendQuote,
-    meltQuote: Pick<MeltQuoteResponse, 'quote' | 'amount'>,
+    meltQuote: Pick<MeltQuoteBolt11Response, 'quote' | 'amount'>,
   ) {
     if (account.id !== sendQuote.accountId) {
       throw new Error('Account does not match');
@@ -350,6 +348,9 @@ export class CashuSendQuoteService {
       sendQuote.proofs.map((p) => toProof(p)),
       {
         keysetId: sendQuote.keysetId,
+      },
+      {
+        type: 'deterministic',
         counter: sendQuote.keysetCounter,
       },
     );
@@ -384,7 +385,7 @@ export class CashuSendQuoteService {
   async completeSendQuote(
     account: CashuAccount,
     sendQuote: CashuSendQuote,
-    meltQuote: PartialMeltQuoteResponse,
+    meltQuote: MeltQuoteBolt11Response,
   ) {
     if (sendQuote.state === 'PAID') {
       return sendQuote;
@@ -421,7 +422,8 @@ export class CashuSendQuoteService {
     // This is needed because we need the deterministic output data to be able to convert the change signatures to proofs.
     // See https://github.com/cashubtc/cashu-ts/issues/287 for more details. If cashu-ts eventually exposes the way to create
     // blank outputs we will be able to simplify this.
-    const keys = await wallet.getKeys(sendQuote.keysetId);
+    await wallet.keyChain.ensureKeysetKeys(sendQuote.keysetId);
+    const keyset = wallet.getKeyset(sendQuote.keysetId);
     const amounts = sendQuote.numberOfChangeOutputs
       ? Array(sendQuote.numberOfChangeOutputs).fill(1)
       : [];
@@ -429,11 +431,11 @@ export class CashuSendQuoteService {
       amounts.length,
       wallet.seed,
       sendQuote.keysetCounter,
-      keys,
+      keyset,
       amounts,
     );
     const changeProofs =
-      meltQuote.change?.map((s, i) => outputData[i].toProof(s, keys)) ?? [];
+      meltQuote.change?.map((s, i) => outputData[i].toProof(s, keyset)) ?? [];
 
     const amountSpent = new Money({
       amount: sumProofs(sendQuote.proofs) - sumProofs(changeProofs),
@@ -474,7 +476,9 @@ export class CashuSendQuoteService {
       throw new Error('Account does not match the quote account');
     }
 
-    const latestMeltQuote = await account.wallet.checkMeltQuote(quote.quoteId);
+    const latestMeltQuote = await account.wallet.checkMeltQuoteBolt11(
+      quote.quoteId,
+    );
     if (latestMeltQuote.state !== MeltQuoteState.UNPAID) {
       // Pending and paid melt quotes should not be failed because that means the send is in progress or has already been completed.
       // If the mint fails to pay the melt quote, then the melt quote state will be changed to UNPAID again.

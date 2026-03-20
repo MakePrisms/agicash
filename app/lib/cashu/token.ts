@@ -1,9 +1,8 @@
 import {
-  CashuMint,
-  CashuWallet,
   CheckStateEnum,
   type Proof,
   type Token,
+  Wallet,
   getDecodedToken,
 } from '@cashu/cashu-ts';
 import { proofToY } from './proof';
@@ -20,7 +19,7 @@ import { proofToY } from './proof';
 export const getUnspentProofsFromToken = async (
   token: Token,
 ): Promise<Proof[]> => {
-  const wallet = new CashuWallet(new CashuMint(token.mint), {
+  const wallet = new Wallet(token.mint, {
     unit: token.unit,
   });
   const states = await wallet.checkProofsStates(token.proofs);

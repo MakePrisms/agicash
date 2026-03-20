@@ -81,7 +81,7 @@ export class ProofStateSubscriptionManager {
       }
     };
 
-    const subscriptionPromise = wallet.onProofStateUpdates(
+    const subscriptionPromise = wallet.on.proofStateUpdates(
       swaps.flatMap((x) => x.proofsToSend).map((p) => toProof(p)),
       subscriptionCallback,
       (error) =>

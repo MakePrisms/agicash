@@ -1,23 +1,20 @@
 import {
+  type MeltQuoteBolt11Response,
   MintOperationError,
-  type PartialMeltQuoteResponse,
 } from '@cashu/cashu-ts';
 import {
   type QueryClient,
   useMutation,
   useQuery,
   useQueryClient,
-  useSuspenseQuery,
 } from '@tanstack/react-query';
 import type Big from 'big.js';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { sumProofs, useOnMeltQuoteStateChange } from '~/lib/cashu';
 import { MeltQuoteSubscriptionManager } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
-import { useLatest } from '~/lib/use-latest';
 import type { CashuAccount } from '../accounts/account';
 import {
-  useAccount,
   useAccountsCache,
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
@@ -26,7 +23,7 @@ import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendQuote,
 } from '../agicash-db/database';
-import { ConcurrencyError, DomainError, NotFoundError } from '../shared/error';
+import { ConcurrencyError, DomainError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
 import { useCashuSendQuoteRepository } from './cashu-send-quote-repository';
@@ -34,37 +31,6 @@ import {
   type SendQuoteRequest,
   useCashuSendQuoteService,
 } from './cashu-send-quote-service';
-
-class CashuSendQuoteCache {
-  // Query that tracks the "active" cashu send quote. Active one is the one that user created in current browser session.
-  // We want to track active send quote even after it is completed or expired which is why we can't use unresolved send quotes query.
-  // Unresolved send quotes query is used for active unresolved quotes plus "background" unresolved quotes. "Background" quotes are send quotes
-  // that were created in previous browser sessions.
-  public static Key = 'cashu-send-quote';
-
-  constructor(private readonly queryClient: QueryClient) {}
-
-  get(quoteId: string) {
-    return this.queryClient.getQueryData<CashuSendQuote>([
-      CashuSendQuoteCache.Key,
-      quoteId,
-    ]);
-  }
-
-  add(quote: CashuSendQuote) {
-    this.queryClient.setQueryData<CashuSendQuote>(
-      [CashuSendQuoteCache.Key, quote.id],
-      quote,
-    );
-  }
-
-  updateIfExists(quote: CashuSendQuote) {
-    this.queryClient.setQueryData<CashuSendQuote>(
-      [CashuSendQuoteCache.Key, quote.id],
-      (curr) => (curr && curr.version < quote.version ? quote : undefined),
-    );
-  }
-}
 
 class UnresolvedCashuSendQuotesCache {
   // Query that tracks all unresolved cashu send quotes (active and background ones).
@@ -124,11 +90,6 @@ export function useUnresolvedCashuSendQuotesCache() {
   );
 }
 
-function useCashuSendQuoteCache() {
-  const queryClient = useQueryClient();
-  return useMemo(() => new CashuSendQuoteCache(queryClient), [queryClient]);
-}
-
 export function useCreateCashuLightningSendQuote() {
   const cashuSendQuoteService = useCashuSendQuoteService();
 
@@ -171,7 +132,6 @@ export function useInitiateCashuSendQuote({
 }) {
   const userId = useUser((user) => user.id);
   const cashuSendQuoteService = useCashuSendQuoteService();
-  const cashuSendQuoteCache = useCashuSendQuoteCache();
   const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
@@ -197,7 +157,6 @@ export function useInitiateCashuSendQuote({
       });
     },
     onSuccess: (data) => {
-      cashuSendQuoteCache.add(data);
       onSuccess(data);
     },
     onError: onError,
@@ -211,111 +170,6 @@ export function useInitiateCashuSendQuote({
       return failureCount < 1;
     },
   });
-}
-
-type UseTrackCashuSendQuoteProps = {
-  sendQuoteId?: string;
-  onPending?: (send: CashuSendQuote & { state: 'PENDING' }) => void;
-  onPaid?: (send: CashuSendQuote & { state: 'PAID' }) => void;
-  onExpired?: (send: CashuSendQuote & { state: 'EXPIRED' }) => void;
-  onFailed?: (send: CashuSendQuote & { state: 'FAILED' }) => void;
-};
-
-type UseTrackCashuSendQuoteResponse =
-  | {
-      status: 'DISABLED' | 'LOADING';
-      quote?: undefined;
-    }
-  | {
-      status: CashuSendQuote['state'];
-      quote: CashuSendQuote;
-    };
-
-export function useTrackCashuSendQuote({
-  sendQuoteId = '',
-  onPending,
-  onPaid,
-  onExpired,
-  onFailed,
-}: UseTrackCashuSendQuoteProps): UseTrackCashuSendQuoteResponse {
-  const enabled = !!sendQuoteId;
-  const onPendingRef = useLatest(onPending);
-  const onPaidRef = useLatest(onPaid);
-  const onExpiredRef = useLatest(onExpired);
-  const onFailedRef = useLatest(onFailed);
-  const cache = useCashuSendQuoteCache();
-
-  const { data } = useQuery({
-    queryKey: [CashuSendQuoteCache.Key, sendQuoteId],
-    queryFn: () => cache.get(sendQuoteId),
-    staleTime: Number.POSITIVE_INFINITY,
-    refetchOnWindowFocus: 'always',
-    refetchOnReconnect: 'always',
-    enabled,
-  });
-
-  useEffect(() => {
-    if (!data) return;
-
-    if (data.state === 'PENDING') {
-      onPendingRef.current?.(data);
-    } else if (data.state === 'PAID') {
-      onPaidRef.current?.(data);
-    } else if (data.state === 'EXPIRED') {
-      onExpiredRef.current?.(data);
-    } else if (data.state === 'FAILED') {
-      onFailedRef.current?.(data);
-    }
-  }, [data]);
-
-  if (!enabled) {
-    return { status: 'DISABLED' };
-  }
-
-  if (!data) {
-    return { status: 'LOADING' };
-  }
-
-  return {
-    status: data.state,
-    quote: data,
-  };
-}
-
-export function useCashuSendQuote(sendQuoteId: string) {
-  const cashuSendQuoteRepository = useCashuSendQuoteRepository();
-
-  const result = useSuspenseQuery({
-    queryKey: [CashuSendQuoteCache.Key, sendQuoteId],
-    queryFn: async () => {
-      const quote = await cashuSendQuoteRepository.get(sendQuoteId);
-      if (!quote) {
-        throw new NotFoundError(
-          `Cashu send quote not found for id: ${sendQuoteId}`,
-        );
-      }
-      return quote;
-    },
-    retry: (failureCount, error) => {
-      if (error instanceof NotFoundError) {
-        return false;
-      }
-      return failureCount <= 3;
-    },
-    staleTime: Number.POSITIVE_INFINITY,
-    refetchOnWindowFocus: 'always',
-    refetchOnReconnect: 'always',
-  });
-
-  const account = useAccount<'cashu'>(result.data.accountId);
-
-  return {
-    ...result,
-    data: {
-      ...result.data,
-      account,
-    },
-  };
 }
 
 function useUnresolvedCashuSendQuotes() {
@@ -360,7 +214,6 @@ function usePendingMeltQuotes() {
  */
 export function useCashuSendQuoteChangeHandlers() {
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
-  const cashuSendQuoteCache = useCashuSendQuoteCache();
   const cashuSendQuoteRepository = useCashuSendQuoteRepository();
 
   return [
@@ -383,8 +236,6 @@ export function useCashuSendQuoteChangeHandlers() {
         },
       ) => {
         const quote = await cashuSendQuoteRepository.toQuote(payload);
-
-        cashuSendQuoteCache.updateIfExists(quote);
 
         if (['UNPAID', 'PENDING'].includes(quote.state)) {
           unresolvedSendQuotesCache.update(quote);
@@ -456,7 +307,7 @@ export function useProcessCashuSendQuoteTasks() {
       meltQuote,
     }: {
       sendQuoteId: string;
-      meltQuote: PartialMeltQuoteResponse;
+      meltQuote: MeltQuoteBolt11Response;
     }) => {
       const sendQuote = unresolvedSendQuotesCache.get(sendQuoteId);
       if (!sendQuote) {
@@ -548,7 +399,7 @@ export function useProcessCashuSendQuoteTasks() {
       meltQuote,
     }: {
       sendQuoteId: string;
-      meltQuote: PartialMeltQuoteResponse;
+      meltQuote: MeltQuoteBolt11Response;
     }) => {
       const sendQuote = unresolvedSendQuotesCache.get(sendQuoteId);
       if (!sendQuote) {

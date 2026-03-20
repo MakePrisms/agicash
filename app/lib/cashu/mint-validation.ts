@@ -1,9 +1,8 @@
-import type { MintKeyset, WebSocketSupport } from '@cashu/cashu-ts';
+import type { MintInfo, MintKeyset, WebSocketSupport } from '@cashu/cashu-ts';
 import { z } from 'zod';
 import {
   CASHU_PROTOCOL_UNITS,
   type CashuProtocolUnit,
-  type MintInfo,
   type NUT,
   type NUT17WebSocketCommand,
 } from './types';

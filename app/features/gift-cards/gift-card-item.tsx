@@ -29,12 +29,7 @@ export function GiftCardItem({
   hideOverlayContent,
 }: GiftCardItemProps) {
   const balance = getAccountBalance(account);
-  const mintInfoName = account.isOnline
-    ? account.wallet.mintInfo.name
-    : undefined;
-  const name =
-    mintInfoName ??
-    account.mintUrl.replace('https://', '').replace('http://', '');
+  const name = account.name;
 
   return (
     <WalletCard size={size} className={className}>

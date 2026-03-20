@@ -294,7 +294,7 @@ export class LightningAddressService {
     mintUrl: string,
   ): Promise<LNURLVerifyResult> {
     const wallet = getCashuWallet(mintUrl);
-    const mintQuote = await wallet.checkMintQuote(mintQuoteId);
+    const mintQuote = await wallet.checkMintQuoteBolt11(mintQuoteId);
 
     if (['PAID', 'ISSUED'].includes(mintQuote.state)) {
       return {
