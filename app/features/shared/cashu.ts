@@ -247,10 +247,13 @@ export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
-export const isTestMintQueryOptions = (mintUrl: string) =>
+export const isTestMintQueryOptions = (
+  mintUrl: string,
+  mintInfo?: ExtendedMintInfo,
+) =>
   queryOptions({
     queryKey: ['is-test-mint', mintUrl],
-    queryFn: async () => checkIsTestMint(mintUrl),
+    queryFn: async () => checkIsTestMint(mintUrl, mintInfo),
     staleTime: Number.POSITIVE_INFINITY,
   });
 

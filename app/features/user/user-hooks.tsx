@@ -95,6 +95,7 @@ export const defaultAccounts = [
           isTestMint: true,
           isDefault: false,
           purpose: 'transactional',
+          expiresAt: null,
         },
         {
           type: 'cashu',
@@ -104,6 +105,7 @@ export const defaultAccounts = [
           isTestMint: true,
           isDefault: true,
           purpose: 'transactional',
+          expiresAt: null,
         },
       ] as const)
     : []),

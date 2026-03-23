@@ -218,7 +218,7 @@ export function useReceiveCashuTokenAccounts(
   ): Promise<Account> => {
     let newAccount: Account;
     if (accountToAdd.type === 'cashu') {
-      newAccount = await addCashuAccount(accountToAdd);
+      newAccount = await addCashuAccount({ account: accountToAdd });
     } else {
       // Only cashu accounts can be unknown, this should never happen
       throw new Error('Invalid account type');

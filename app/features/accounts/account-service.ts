@@ -1,5 +1,5 @@
 import type { DistributedOmit } from 'type-fest';
-import { checkIsTestMint } from '~/lib/cashu';
+import { type ExtendedMintInfo, checkIsTestMint } from '~/lib/cashu';
 import type { User } from '../user/user';
 import type { Account, CashuAccount, ExtendedAccount } from './account';
 import {
@@ -42,6 +42,7 @@ export class AccountService {
   async addCashuAccount({
     userId,
     account,
+    mintInfo,
   }: {
     userId: string;
     account: DistributedOmit<
@@ -55,8 +56,9 @@ export class AccountService {
       | 'wallet'
       | 'isOnline'
     >;
+    mintInfo?: ExtendedMintInfo;
   }) {
-    const isTestMint = await checkIsTestMint(account.mintUrl);
+    const isTestMint = await checkIsTestMint(account.mintUrl, mintInfo);
 
     return this.accountRepository.create<CashuAccount>({
       ...account,

@@ -41,16 +41,27 @@ export class ReceiveCashuTokenService {
       undefined,
     );
 
+    const purpose = wallet.purpose;
+    let expiresAt: number | null = null;
+    if (purpose === 'offer' && isOnline) {
+      const unit = getCashuProtocolUnit(currency);
+      const activeKeyset = wallet.keyChain
+        .getKeysets()
+        .find((ks) => ks.unit === unit && ks.isActive);
+      expiresAt = activeKeyset?.expiry ?? null;
+    }
+
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
-      purpose: wallet.purpose,
+      purpose,
       name: mintUrl.replace('https://', '').replace('http://', ''),
       mintUrl,
       createdAt: new Date().toISOString(),
       currency,
       version: 0,
       keysetCounters: {},
+      expiresAt,
       proofs: [],
       isDefault: false,
       isSource: true,
@@ -77,7 +88,7 @@ export class ReceiveCashuTokenService {
     );
 
     const isTestMint = await this.queryClient.fetchQuery(
-      isTestMintQueryOptions(mintUrl),
+      isTestMintQueryOptions(mintUrl, mintInfo),
     );
 
     const isValid = validationResult === true;

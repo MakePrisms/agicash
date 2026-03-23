@@ -11,6 +11,7 @@ import type { DistributedOmit } from 'type-fest';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
 import {
+  type AccountPurpose,
   ExtendedMintInfo,
   type ExtendedMintQuoteBolt11Response,
 } from './protocol-extensions';
@@ -76,8 +77,8 @@ export const getCashuProtocolUnit = (currency: Currency) => {
  */
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
-): 'gift-card' | 'transactional' => {
-  return mintInfo?.agicash?.closed_loop ? 'gift-card' : 'transactional';
+): AccountPurpose => {
+  return mintInfo?.agicash?.purpose ?? 'transactional';
 };
 
 export const getWalletCurrency = (wallet: Wallet) => {
@@ -127,7 +128,7 @@ export class ExtendedCashuWallet extends Wallet {
   /**
    * Gets the purpose of this mint based on its configuration.
    */
-  get purpose(): 'gift-card' | 'transactional' {
+  get purpose(): AccountPurpose {
     return getMintPurpose(this.getMintInfo());
   }
 
@@ -245,20 +246,32 @@ export const getCashuWallet = (
 
 /**
  * Check if a mint is a test mint by checking the network of the mint quote
- * and also checking if the mint is in the list of known test mints
+ * and also checking if the mint is in the list of known test mints.
  *
  * Known test mints:
  * - https://testnut.cashu.space
  * - https://nofees.testnut.cashu.space
  *
+ * If the mint has minting disabled (NUT-04), it cannot create a mint quote,
+ * so we fall back to the known-mints check only (assumes mainnet).
+ *
  * @param mintUrl - The URL of the mint
+ * @param mintInfo - Optional mint info to check NUT-04 support
  * @returns True if the mint is not on mainnet
  */
-export const checkIsTestMint = async (mintUrl: string): Promise<boolean> => {
+export const checkIsTestMint = async (
+  mintUrl: string,
+  mintInfo?: ExtendedMintInfo,
+): Promise<boolean> => {
   // Normalize URL by removing trailing slash and converting to lowercase
   const normalizedUrl = mintUrl.toLowerCase().replace(/\/+$/, '');
   if (knownTestMints.includes(normalizedUrl)) {
     return true;
+  }
+  // If minting is disabled, we can't create a mint quote to check the network.
+  // Fall back to known-mints check only (not a known test mint = mainnet).
+  if (mintInfo?.isSupported(4).disabled) {
+    return false;
   }
   const wallet = getCashuWallet(mintUrl);
   const { request: bolt11 } = await wallet.createMintQuoteBolt11(1);

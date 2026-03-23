@@ -16,13 +16,22 @@ import {
 import { DiscoverGiftCards } from './discover-gift-cards';
 import { EmptyState } from './empty-state';
 import { GiftCardItem } from './gift-card-item';
+import { OfferItem } from './offer-item';
 import {
   getGiftCardImageByUrl,
   useDiscoverGiftCards,
 } from './use-discover-cards';
 
+function useActiveOffers() {
+  const { data: offerAccounts } = useAccounts({ purpose: 'offer' });
+  const now = Date.now() / 1000;
+  return offerAccounts.filter(
+    (account) => !account.expiresAt || account.expiresAt > now,
+  );
+}
+
 /**
- * Gift cards view with discover section and card stack.
+ * Gift cards view with discover section, card stack, and offers.
  * Clicking a card navigates to the card details page with view transitions.
  */
 export function GiftCards() {
@@ -37,6 +46,7 @@ export function GiftCards() {
   const stackedHeight =
     CARD_HEIGHT + (accounts.length - 1) * VERTICAL_CARD_OFFSET_IN_STACK;
   const giftCardsToDiscover = useDiscoverGiftCards();
+  const activeOffers = useActiveOffers();
 
   const handleCardClick = (account: CashuAccount) => {
     navigate(`/gift-cards/${account.id}`, { viewTransition: true });
@@ -90,6 +100,20 @@ export function GiftCards() {
             </div>
           ) : (
             <EmptyState />
+          )}
+
+          {activeOffers.length > 0 && (
+            <div className="flex w-full shrink-0 flex-col items-center px-4 pb-8">
+              <h2 className="mb-3 w-full text-white">Offers</h2>
+              <div
+                className="flex w-full flex-col gap-3"
+                style={{ maxWidth: CARD_WIDTH }}
+              >
+                {activeOffers.map((account) => (
+                  <OfferItem key={account.id} account={account} />
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </PageContent>

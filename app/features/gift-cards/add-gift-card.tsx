@@ -34,11 +34,14 @@ function useAddGiftCard() {
 
   return ({ name, currency, url }: AddGiftCardParams) =>
     addCashuAccount({
-      name,
-      currency,
-      mintUrl: url,
-      type: 'cashu',
-      purpose: 'gift-card',
+      account: {
+        name,
+        currency,
+        mintUrl: url,
+        type: 'cashu',
+        purpose: 'gift-card',
+        expiresAt: null,
+      },
     });
 }
 

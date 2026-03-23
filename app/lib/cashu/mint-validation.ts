@@ -185,11 +185,11 @@ const validateBolt11Support = (
   const nut = operation === 'minting' ? 4 : 5;
   const status = info.isSupported(nut);
 
+  // A disabled NUT is still valid — the mint is usable, it just doesn't
+  // support this operation. E.g., offer mints disable minting (NUT-04)
+  // but are still valid for receiving and swapping ecash.
   if (status.disabled) {
-    return {
-      isValid: false,
-      message: `${operation} is disabled on this mint`,
-    };
+    return { isValid: true };
   }
 
   const hasBolt11Support = status.params.some(

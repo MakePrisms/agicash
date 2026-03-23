@@ -117,12 +117,29 @@ export function AddMintForm() {
         mintInfoQueryOptions(data.mintUrl),
       );
       const purpose = getMintPurpose(mintInfo);
+
+      let expiresAt: number | null = null;
+      if (purpose === 'offer') {
+        const allKeysets = await queryClient.fetchQuery(
+          allMintKeysetsQueryOptions(data.mintUrl),
+        );
+        const unit = getCashuProtocolUnit(data.currency);
+        const activeKeyset = allKeysets.keysets.find(
+          (ks) => ks.unit === unit && ks.active,
+        );
+        expiresAt = activeKeyset?.final_expiry ?? null;
+      }
+
       await addAccount({
-        name: data.name,
-        currency: data.currency,
-        mintUrl: data.mintUrl,
-        type: 'cashu',
-        purpose,
+        account: {
+          name: data.name,
+          currency: data.currency,
+          mintUrl: data.mintUrl,
+          type: 'cashu',
+          purpose,
+          expiresAt,
+        },
+        mintInfo,
       });
       toast({
         title: 'Success',

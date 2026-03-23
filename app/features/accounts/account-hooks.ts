@@ -12,13 +12,13 @@ import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
-  type AccountPurpose,
   type AccountType,
   type CashuAccount,
   type ExtendedAccount,
   type SparkAccount,
   getAccountBalance,
 } from './account';
+import type { AccountPurpose } from '~/lib/cashu/protocol-extensions';
 import {
   type AccountRepository,
   useAccountRepository,
@@ -165,15 +165,15 @@ export const accountsQueryOptions = ({
 type UseAccountsSelect<
   T extends AccountType = AccountType,
   P extends AccountPurpose = AccountPurpose,
-> = P extends 'gift-card'
+> = P extends 'gift-card' | 'offer'
   ? {
       /** Filter by currency (e.g., 'BTC', 'USD') */
       currency?: Currency;
-      /** Must be 'cashu' when purpose is 'gift-card'. */
+      /** Must be 'cashu' when purpose is 'gift-card' or 'offer'. */
       type?: 'cashu';
       /** Filter by online status */
       isOnline?: boolean;
-      /** Filter for gift-card accounts. Returns `CashuAccount[]` since gift cards are always cashu. */
+      /** Filter for gift-card or offer accounts. Returns `CashuAccount[]` since these are always cashu. */
       purpose: P;
     }
   : {
@@ -189,6 +189,9 @@ type UseAccountsSelect<
 
 export function useAccounts(
   select: UseAccountsSelect<'cashu', 'gift-card'>,
+): UseSuspenseQueryResult<ExtendedAccount<'cashu'>[]>;
+export function useAccounts(
+  select: UseAccountsSelect<'cashu', 'offer'>,
 ): UseSuspenseQueryResult<ExtendedAccount<'cashu'>[]>;
 export function useAccounts<
   T extends AccountType = AccountType,
@@ -366,10 +369,15 @@ export function useAddCashuAccount() {
   const accountCache = useAccountsCache();
   const accountService = useAccountService();
 
+  type AddAccountParams = Parameters<typeof accountService.addCashuAccount>[0];
   const { mutateAsync } = useMutation({
-    mutationFn: async (
-      account: Parameters<typeof accountService.addCashuAccount>[0]['account'],
-    ) => accountService.addCashuAccount({ userId, account }),
+    mutationFn: async ({
+      account,
+      mintInfo,
+    }: {
+      account: AddAccountParams['account'];
+      mintInfo?: AddAccountParams['mintInfo'];
+    }) => accountService.addCashuAccount({ userId, account, mintInfo }),
     onSuccess: (account) => {
       // We add the account as soon as it is created so that it is available in the cache immediately.
       // This is important when using other hooks that are trying to use the account immediately after it is created.
