@@ -2,10 +2,11 @@ import {
   CheckStateEnum,
   type Proof,
   type Token,
-  Wallet,
   getDecodedToken,
 } from '@cashu/cashu-ts';
+import type { CurrencyUnit } from '../money';
 import { proofToY } from './proof';
+import { getCashuWallet } from './utils';
 
 /**
  * A token consists of a set of proofs, and each proof can be in one of three states:
@@ -19,8 +20,8 @@ import { proofToY } from './proof';
 export const getUnspentProofsFromToken = async (
   token: Token,
 ): Promise<Proof[]> => {
-  const wallet = new Wallet(token.mint, {
-    unit: token.unit,
+  const wallet = getCashuWallet(token.mint, {
+    unit: token.unit as CurrencyUnit,
   });
   const states = await wallet.checkProofsStates(token.proofs);
 
