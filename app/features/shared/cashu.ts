@@ -9,6 +9,7 @@ import {
   Mint,
   NetworkError,
   type Token,
+  getDecodedToken,
   getEncodedToken,
 } from '@cashu/cashu-ts';
 import { HDKey } from '@scure/bip32';
@@ -19,10 +20,12 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { getQueryClient } from '~/features/shared/query-client';
 import {
   type ExtendedCashuWallet,
   ExtendedMintInfo,
   checkIsTestMint,
+  extractCashuToken,
   getCashuProtocolUnit,
   getCashuUnit,
   getCashuWallet,
@@ -153,9 +156,17 @@ export function useCashuCryptography(): CashuCryptography {
 }
 
 export function getTokenHash(token: Token | string): Promise<string> {
-  const encodedToken =
-    typeof token === 'string' ? token : getEncodedToken(token);
-  return computeSHA256(encodedToken);
+  if (typeof token === 'string') {
+    return computeSHA256(token);
+  }
+  // Deep-clone proofs before encoding to prevent getEncodedToken from
+  // mutating proof.id (it truncates v2 keyset IDs to their short form).
+  // TODO: remove this workaround after upgrading to cashu-ts v4+ (fix merged in cashu-ts#536, unreleased as of v3.6.1)
+  const cloned: Token = {
+    ...token,
+    proofs: token.proofs.map((p) => ({ ...p })),
+  };
+  return computeSHA256(getEncodedToken(cloned));
 }
 
 const mintBlocklist = MintBlocklistSchema.parse(
@@ -205,6 +216,27 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
     queryFn: async () => new Mint(mintUrl).getKeySets(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
+
+/**
+ * Extract and decode a cashu token from arbitrary content.
+ * Fetches keyset IDs from the token's mint for v2 keyset resolution.
+ */
+export async function decodeCashuToken(content: string): Promise<Token | null> {
+  const result = extractCashuToken(content);
+  if (!result) return null;
+
+  try {
+    const queryClient = getQueryClient();
+    const data = await queryClient.fetchQuery(
+      allMintKeysetsQueryOptions(result.metadata.mint),
+    );
+    const keysetIds = data.keysets.map((k) => k.id);
+    return getDecodedToken(result.encoded, keysetIds);
+  } catch (error) {
+    console.error('Failed to decode cashu token', error);
+    return null;
+  }
+}
 
 /**
  * Get the mints public keys.

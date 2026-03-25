@@ -1,4 +1,3 @@
-import { getEncodedToken } from '@cashu/cashu-ts';
 import {
   PageBackButton,
   PageContent,
@@ -31,8 +30,8 @@ export default function ReceiveScanner() {
       <PageContent className="relative flex items-center justify-center">
         <QRScanner
           onDecode={(scannedContent) => {
-            const token = extractCashuToken(scannedContent);
-            if (!token) {
+            const encodedToken = extractCashuToken(scannedContent)?.encoded;
+            if (!encodedToken) {
               toast({
                 title: 'Invalid input',
                 description: 'Please scan a valid cashu token',
@@ -41,7 +40,6 @@ export default function ReceiveScanner() {
               return;
             }
 
-            const encodedToken = getEncodedToken(token);
             const hash = `#${encodedToken}`;
 
             // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it

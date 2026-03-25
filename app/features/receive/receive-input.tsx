@@ -1,4 +1,3 @@
-import { getEncodedToken } from '@cashu/cashu-ts';
 import { Clipboard, Scan } from 'lucide-react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
@@ -91,8 +90,8 @@ export default function ReceiveInput() {
       return;
     }
 
-    const token = extractCashuToken(clipboardContent);
-    if (!token) {
+    const encodedToken = extractCashuToken(clipboardContent)?.encoded;
+    if (!encodedToken) {
       toast({
         title: 'Invalid input',
         description: 'Please paste a valid cashu token',
@@ -101,7 +100,6 @@ export default function ReceiveInput() {
       return;
     }
 
-    const encodedToken = getEncodedToken(token);
     const hash = `#${encodedToken}`;
 
     // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
