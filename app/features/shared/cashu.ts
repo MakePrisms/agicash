@@ -6,7 +6,6 @@ import {
   type GetKeysResponse,
   type GetKeysetsResponse,
   KeyChain,
-  Mint,
   NetworkError,
   type Token,
   getEncodedToken,
@@ -23,6 +22,7 @@ import {
   type ExtendedCashuWallet,
   ExtendedMintInfo,
   checkIsTestMint,
+  getCashuMint,
   getCashuProtocolUnit,
   getCashuUnit,
   getCashuWallet,
@@ -189,7 +189,7 @@ export const mintInfoQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: mintInfoQueryKey(mintUrl),
     queryFn: async () =>
-      new ExtendedMintInfo(await new Mint(mintUrl).getInfo()),
+      new ExtendedMintInfo(await getCashuMint(mintUrl).getInfo()),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -202,7 +202,7 @@ export const mintInfoQueryOptions = (mintUrl: string) =>
 export const allMintKeysetsQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: allMintKeysetsQueryKey(mintUrl),
-    queryFn: async () => new Mint(mintUrl).getKeySets(),
+    queryFn: async () => getCashuMint(mintUrl).getKeySets(),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
@@ -217,7 +217,7 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
 export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
   queryOptions({
     queryKey: mintKeysQueryKey(mintUrl, keysetId),
-    queryFn: async () => new Mint(mintUrl).getKeys(keysetId),
+    queryFn: async () => getCashuMint(mintUrl).getKeys(keysetId),
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 

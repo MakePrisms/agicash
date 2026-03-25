@@ -1,7 +1,7 @@
 import {
   type MeltQuoteBolt11Response,
   MeltQuoteState,
-  type Mint,
+  Mint,
   type MintQuoteBolt11Response,
   type Proof,
   Wallet,
@@ -10,6 +10,7 @@ import {
 import type { DistributedOmit } from 'type-fest';
 import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
+import { getMintAuthProvider } from './mint-auth-provider';
 import {
   ExtendedMintInfo,
   type ExtendedMintQuoteBolt11Response,
@@ -238,8 +239,23 @@ export const getCashuWallet = (
   // To avoid this confusion we use 'cent' everywhere and then here we switch the value to 'usd' before creating the Cashu wallet.
   const cashuUnit = options.unit === 'cent' ? 'usd' : options.unit;
   return new ExtendedCashuWallet(mintUrl, {
-    ...rest,
+    authProvider: getMintAuthProvider(),
+    ...rest, // caller can override authProvider if needed
     unit: cashuUnit,
+  });
+};
+
+/**
+ * Create a cashu-ts Mint instance with auth provider injected.
+ * Use this instead of `new Mint(url)` to ensure auth headers are sent.
+ */
+export const getCashuMint = (
+  mintUrl: string,
+  options?: ConstructorParameters<typeof Mint>[1],
+): Mint => {
+  return new Mint(mintUrl, {
+    authProvider: getMintAuthProvider(),
+    ...options,
   });
 };
 
