@@ -122,6 +122,7 @@ export class AccountRepository {
         mint_url: accountInput.mintUrl,
         is_test_mint: accountInput.isTestMint,
         keyset_counters: accountInput.keysetCounters,
+        expires_at: accountInput.expiresAt,
       } satisfies z.input<typeof CashuAccountDetailsDbDataSchema>);
     } else {
       details = SparkAccountDetailsDbDataSchema.parse({
@@ -192,6 +193,7 @@ export class AccountRepository {
         mintUrl: details.mint_url,
         isTestMint: details.is_test_mint,
         keysetCounters: details.keyset_counters,
+        expiresAt: details.expires_at ?? null,
         proofs,
         wallet,
       } as T;
