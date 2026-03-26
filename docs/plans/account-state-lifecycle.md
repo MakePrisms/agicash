@@ -36,7 +36,7 @@ A new `wallet.soft_delete_account(p_account_id uuid)` DB function sets `state = 
 
 Valid: `active -> expired`, `active -> deleted`, `expired -> deleted`. No reactivation. An expired offer account's keyset has expired at the Cashu protocol level -- reactivating it would be misleading. New ecash at the same mint creates a new `active` account (the updated unique index allows this).
 
-Enforced by a BEFORE UPDATE trigger at the DB level.
+Enforced by construction: each DB function's WHERE clause only matches valid source states. No trigger needed — `upsert_user_with_accounts` only transitions `active → expired`, and `soft_delete_account` only transitions `active/expired → deleted`.
 
 ### 6. Realtime handling for deleted accounts
 
@@ -53,41 +53,6 @@ create type "wallet"."account_state" as enum ('active', 'expired', 'deleted');
 
 alter table "wallet"."accounts"
   add column "state" "wallet"."account_state" not null default 'active';
-```
-
-### State transition enforcement trigger
-
-```sql
-create or replace function "wallet"."enforce_account_state_transition"()
-returns trigger
-language plpgsql
-security invoker
-set search_path = ''
-as $function$
-begin
-  if old.state = 'deleted' then
-    raise exception
-      using
-        hint = 'INVALID_TRANSITION',
-        message = 'Cannot transition out of deleted state.';
-  end if;
-
-  if old.state = 'expired' and new.state not in ('expired', 'deleted') then
-    raise exception
-      using
-        hint = 'INVALID_TRANSITION',
-        message = format('Invalid account state transition: %s -> %s', old.state, new.state);
-  end if;
-
-  return new;
-end;
-$function$;
-
-create trigger "enforce_account_state_transition"
-  before update of state on "wallet"."accounts"
-  for each row
-  when (old.state is distinct from new.state)
-  execute function "wallet"."enforce_account_state_transition"();
 ```
 
 ### Index changes
@@ -136,7 +101,8 @@ as $function$
 begin
   update wallet.accounts
   set state = 'deleted', version = version + 1
-  where id = p_account_id;
+  where id = p_account_id
+    and state != 'deleted';
 
   if not found then
     raise exception
