@@ -20,11 +20,11 @@ Expired accounts remain visible in `getAll()` -- the RLS policy does not hide th
 
 ### 3. Auto-expiry mechanism
 
-**Decision: pg_cron, hourly.**
+**Decision: Two layers — eager on user assertion, pg_cron as background cleanup.**
 
-A cron job updates `state = 'expired'` for accounts where `state = 'active'` and `expires_at <= now()`. This UPDATE fires `broadcast_accounts_changes_trigger`, emitting `ACCOUNT_UPDATED` to connected clients.
+**Eager (on login):** `upsert_user_with_accounts` expires stale accounts before returning them. When a user opens the app, any account with `state = 'active'` and `expires_at <= now()` is transitioned to `expired` within the same transaction. The client gets correct state on first load — no stale-then-update flicker.
 
-pg_cron is already installed and used for 8 daily cleanup jobs. No new infrastructure needed. Hourly frequency because expiry visibility matters within an hour. The client-side filter hides visually expired offers immediately; the DB catches up within an hour.
+**Background (pg_cron, hourly):** A cron job catches accounts for users who haven't opened the app. This keeps the DB consistent for realtime broadcasts and prevents stale `active` accounts from accumulating. pg_cron is already installed and used for 8 daily cleanup jobs — no new infrastructure.
 
 ### 4. Soft delete
 
@@ -148,6 +148,23 @@ end;
 $function$;
 ```
 
+### Eager expiry in upsert_user_with_accounts
+
+Add an UPDATE before the account fetch in `upsert_user_with_accounts` to transition stale accounts:
+
+```sql
+-- Expire stale accounts before returning them to the client
+update wallet.accounts
+set state = 'expired', version = version + 1
+where
+  user_id = p_user_id
+  and state = 'active'
+  and (details ->> 'expires_at') is not null
+  and (details ->> 'expires_at')::timestamptz <= now();
+```
+
+This runs inside the existing transaction, before the `accounts_with_proofs` CTE that fetches accounts. The client receives already-expired accounts with `state = 'expired'` — no second round-trip needed.
+
 ### pg_cron job for auto-expiry
 
 ```sql
@@ -203,12 +220,22 @@ function useActiveOffers() {
 
 ## Data Flow
 
-### active -> expired (automatic, hourly)
+### active -> expired (on login, eager)
 
 ```
-pg_cron -> UPDATE state='expired', version+1
+User opens app
+  -> upsert_user_with_accounts(...)
+  -> UPDATE stale accounts to state='expired', version+1 (same transaction)
+  -> accounts returned already have state='expired'
+  -> client renders correct state immediately, no flicker
+```
+
+### active -> expired (background cleanup, hourly)
+
+```
+pg_cron -> UPDATE state='expired', version+1 (for users who haven't logged in)
   -> broadcast_accounts_changes_trigger fires
-  -> realtime ACCOUNT_UPDATED to client
+  -> realtime ACCOUNT_UPDATED to connected clients
   -> accountCache.update(account) [version higher, accepted]
   -> useActiveOffers() re-renders, filtered by state === 'active'
 ```
