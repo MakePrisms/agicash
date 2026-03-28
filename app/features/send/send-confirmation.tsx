@@ -136,7 +136,7 @@ const usePayBolt11 = ({
       },
       onError: (error) => {
         if (error instanceof DomainError) {
-          toast({ description: error.message });
+          toast({ description: error.message, duration: 8000 });
         } else {
           console.error('Failed to initiate cashu send', { cause: error });
           toast({
@@ -163,11 +163,16 @@ const usePayBolt11 = ({
         );
       },
       onError: (error) => {
-        console.error('Failed to initiate spark send', { cause: error });
-        toast({
-          title: 'Error',
-          description: 'Failed to initiate payment. Please try again.',
-        });
+        if (error instanceof DomainError) {
+          toast({ description: error.message, duration: 8000 });
+        } else {
+          console.error('Failed to initiate spark send', { cause: error });
+          toast({
+            title: 'Error',
+            description: 'Failed to initiate payment. Please try again.',
+            variant: 'destructive',
+          });
+        }
       },
     });
 

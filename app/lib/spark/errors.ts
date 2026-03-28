@@ -12,12 +12,16 @@ const InsufficentBalanceErrorSchema = z.object({
     input: [],
     output: InsufficentBalanceErrorContextSchema,
   }),
-  message: z
-    .string()
-    .refine(
-      (message) => message.toLowerCase().includes('insufficient balance'),
-      { error: 'Not an insufficent balance error message' },
-    ),
+  message: z.string().refine(
+    (message) => {
+      const lower = message.toLowerCase();
+      return (
+        lower.includes('insufficient balance') ||
+        lower.includes('exceeds available balance')
+      );
+    },
+    { error: 'Not an insufficent balance error message' },
+  ),
 });
 
 export const isInsufficentBalanceError = (
