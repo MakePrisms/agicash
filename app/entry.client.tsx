@@ -1,4 +1,5 @@
 import { configure } from '@agicash/opensecret';
+import { configure as configureSDK } from '@agicash/sdk';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -32,6 +33,13 @@ if (!openSecretClientId) {
 configure({
   apiUrl: openSecretApiUrl,
   clientId: openSecretClientId,
+});
+
+configureSDK({
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+  cashuMintBlocklist: JSON.parse(import.meta.env.VITE_CASHU_MINT_BLOCKLIST ?? '[]'),
+  environment: getEnvironment(),
 });
 
 // Prefetch feature flags as early as possible.
