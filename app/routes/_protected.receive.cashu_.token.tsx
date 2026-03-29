@@ -16,10 +16,13 @@ import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import {
+  cashuMintValidator,
   decodeCashuToken,
   getCashuCryptography,
   seedQueryOptions,
 } from '~/features/shared/cashu';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
+import { queryClientAsCache } from '~/lib/cache-adapter';
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
@@ -71,7 +74,11 @@ const getClaimCashuTokenService = async () => {
   const sparkReceiveQuoteService = new SparkReceiveQuoteService(
     new SparkReceiveQuoteRepository(agicashDbClient, encryption),
   );
-  const receiveCashuTokenService = new ReceiveCashuTokenService(queryClient);
+  const receiveCashuTokenService = new ReceiveCashuTokenService(
+    queryClientAsCache(queryClient),
+    (flag: string) => getFeatureFlag(flag as Parameters<typeof getFeatureFlag>[0]),
+    cashuMintValidator,
+  );
   const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
@@ -83,7 +90,7 @@ const getClaimCashuTokenService = async () => {
   const userService = new UserService(userRepository);
 
   return new ClaimCashuTokenService(
-    queryClient,
+    queryClientAsCache(queryClient),
     accountRepository,
     accountService,
     receiveSwapService,
@@ -92,6 +99,12 @@ const getClaimCashuTokenService = async () => {
     receiveCashuTokenService,
     receiveCashuTokenQuoteService,
     userService,
+    async (pair: string) => {
+      const { getExchangeRate: getRate } = await import(
+        '~/hooks/use-exchange-rate'
+      );
+      return getRate(queryClient, pair as `${string}-${string}`);
+    },
   );
 };
 
