@@ -110,7 +110,7 @@ export function SendInput() {
       setIsContinuing(false);
       const toastOptions =
         result.error instanceof DomainError
-          ? { description: result.error.message }
+          ? { description: result.error.message, duration: 8000 }
           : {
               title: 'Error',
               description: getErrorMessage(

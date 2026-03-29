@@ -46,7 +46,8 @@ type AccountInput = {
   | 'keysetCounters'
   | 'wallet'
   | 'isOnline'
-  | 'balance'
+  | 'ownedBalance'
+  | 'availableBalance'
 >;
 
 /**
@@ -298,13 +299,14 @@ export class ReadUserDefaultAccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { wallet, balance, isOnline } =
+      const { wallet, ownedBalance, availableBalance, isOnline } =
         await this.getInitializedSparkWallet(network);
 
       return {
         ...commonData,
         type: 'spark',
-        balance,
+        ownedBalance,
+        availableBalance,
         network,
         isOnline,
         wallet,
