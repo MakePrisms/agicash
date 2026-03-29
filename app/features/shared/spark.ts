@@ -10,6 +10,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
+import { queryClientAsCache } from '~/lib/cache-adapter';
 import { type Currency, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
@@ -20,6 +21,14 @@ import {
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
+
+// Re-export SDK items so existing consumers don't break
+export {
+  getInitializedSparkWallet as getInitializedSparkWalletFromCache,
+  sparkWalletCacheKey,
+} from '@agicash/sdk/features/shared/spark';
+
+import { getInitializedSparkWallet as getInitializedSparkWalletFromCache } from '@agicash/sdk/features/shared/spark';
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
 
@@ -237,12 +246,8 @@ export function useTrackAndUpdateSparkAccountBalances() {
 }
 
 /**
- * Initializes a Spark wallet with offline handling.
- * If Spark is offline or times out, returns a minimal wallet with isOnline: false.
- * @param queryClient - The query client to use for async queries and caching.
- * @param mnemonic - The Spark wallet mnemonic.
- * @param network - The Spark network that the wallet is on.
- * @returns The wallet, balance and online status.
+ * Backwards-compatible wrapper for getInitializedSparkWallet that accepts a QueryClient.
+ * Delegates to the SDK version using the cache adapter.
  */
 export async function getInitializedSparkWallet(
   queryClient: QueryClient,
@@ -254,41 +259,9 @@ export async function getInitializedSparkWallet(
   availableBalance: Money | null;
   isOnline: boolean;
 }> {
-  return measureOperation(
-    'getInitializedSparkWallet',
-    async () => {
-      try {
-        const wallet = await queryClient.fetchQuery(
-          sparkWalletQueryOptions({ network, mnemonic }),
-        );
-        const { satsBalance } = await measureOperation(
-          'SparkWallet.getBalance',
-          () => wallet.getBalance(),
-        );
-
-        const ownedBalance = new Money({
-          amount: Number(satsBalance.owned),
-          currency: 'BTC',
-          unit: 'sat',
-        }) as Money;
-        const availableBalance = new Money({
-          amount: Number(satsBalance.available),
-          currency: 'BTC',
-          unit: 'sat',
-        }) as Money;
-        return { wallet, ownedBalance, availableBalance, isOnline: true };
-      } catch (error) {
-        console.error('Failed to initialize spark wallet', { cause: error });
-        return {
-          wallet: createSparkWalletStub(
-            'Spark is offline, please try again later.',
-          ),
-          ownedBalance: null,
-          availableBalance: null,
-          isOnline: false,
-        };
-      }
-    },
-    { sparkNetwork: network },
+  return getInitializedSparkWalletFromCache(
+    queryClientAsCache(queryClient),
+    mnemonic,
+    network,
   );
 }
