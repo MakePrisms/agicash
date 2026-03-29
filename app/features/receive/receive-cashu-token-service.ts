@@ -1,6 +1,10 @@
 import type { Token } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
-import { areMintUrlsEqual, getCashuProtocolUnit } from '~/lib/cashu';
+import {
+  areMintUrlsEqual,
+  getCashuProtocolUnit,
+  getOfferExpiresAt,
+} from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import {
   type ExtendedAccount,
@@ -41,6 +45,14 @@ export class ReceiveCashuTokenService {
       undefined,
     );
 
+    const mintKeysets = wallet.keyChain
+      .getKeysets()
+      .map((ks) => ks.toMintKeyset());
+    const expiresAt =
+      wallet.purpose === 'offer'
+        ? getOfferExpiresAt(mintKeysets, currency)
+        : null;
+
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
@@ -51,6 +63,7 @@ export class ReceiveCashuTokenService {
       currency,
       version: 0,
       keysetCounters: {},
+      expiresAt,
       proofs: [],
       isDefault: false,
       isSource: true,
@@ -77,7 +90,7 @@ export class ReceiveCashuTokenService {
     );
 
     const isTestMint = await this.queryClient.fetchQuery(
-      isTestMintQueryOptions(mintUrl),
+      isTestMintQueryOptions(mintUrl, mintInfo),
     );
 
     const isValid = validationResult === true;

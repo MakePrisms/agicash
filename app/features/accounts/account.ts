@@ -4,17 +4,17 @@ import type {
 } from '@buildonspark/spark-sdk';
 import type { DistributedOmit } from 'type-fest';
 import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
+import type { MintPurpose } from '~/lib/cashu/protocol-extensions';
 import { type Currency, Money } from '~/lib/money';
 import type { CashuProof } from './cashu-account';
 
 export type AccountType = 'cashu' | 'spark';
 
 /**
- * The purpose of this account.
- * - 'transactional': Regular accounts for sending/receiving payments
- * - 'gift-card': Closed-loop accounts for mints that are issuing gift cards
+ * Account purpose. Includes MintPurpose for cashu accounts,
+ * plus 'transactional' which also applies to non-cashu account types (e.g. Spark).
  */
-export type AccountPurpose = 'transactional' | 'gift-card';
+export type AccountPurpose = 'transactional' | MintPurpose;
 
 export type Account = {
   id: string;
@@ -38,6 +38,12 @@ export type Account = {
        * Holds counter value for each mint keyset. Key is the keyset id, value is counter value.
        */
       keysetCounters: Record<string, number>;
+      /**
+       * ISO 8601 timestamp when the account's ecash expires (for offer accounts).
+       * Converted from the active keyset's `final_expiry` unix epoch (NUT-02).
+       * Null for non-offer accounts.
+       */
+      expiresAt: string | null;
       /**
        * Holds all cashu proofs for the account.
        * Amounts are denominated in the cashu units (e.g. sats for BTC accounts, cents for USD accounts).
@@ -78,21 +84,28 @@ export type RedactedCashuAccount = Extract<RedactedAccount, { type: 'cashu' }>;
 
 /**
  * Returns true if the account can send payments through the Lightning network.
- * Returns false for test mints and gift-card accounts.
+ * Returns false for offline wallets, test mints, non-transactional accounts,
+ * and mints with melting disabled (NUT-05).
  */
 export const canSendToLightning = (account: Account): boolean => {
   if (account.type === 'spark') {
     return true;
   }
-  return !account.isTestMint && account.purpose === 'transactional';
+  if (!account.isOnline) return false;
+  if (account.isTestMint) return false;
+  if (account.purpose !== 'transactional') return false;
+  return !account.wallet.getMintInfo().isSupported(5).disabled;
 };
 
 /**
  * Returns true if the account can receive payments via the Lightning network.
- * Returns false for test mints only.
+ * Returns false for offline wallets, test mints, and mints with minting disabled (NUT-04).
  */
 export const canReceiveFromLightning = (account: Account): boolean => {
-  return account.type === 'spark' || !account.isTestMint;
+  if (account.type === 'spark') return true;
+  if (!account.isOnline) return false;
+  if (account.isTestMint) return false;
+  return !account.wallet.getMintInfo().isSupported(4).disabled;
 };
 
 export const getAccountBalance = (account: Account) => {

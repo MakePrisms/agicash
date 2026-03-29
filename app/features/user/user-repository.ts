@@ -293,6 +293,7 @@ export class ReadUserDefaultAccountRepository {
         mintUrl: details.mint_url,
         isTestMint: details.is_test_mint,
         keysetCounters: details.keyset_counters,
+        expiresAt: details.expires_at ?? null,
         wallet,
       };
     }
