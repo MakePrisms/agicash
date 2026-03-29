@@ -8,7 +8,7 @@ import {
   splitAmount,
 } from '@cashu/cashu-ts';
 import type { DistributedOmit } from 'type-fest';
-import { decodeBolt11 } from '~/lib/bolt11';
+import { decodeBolt11 } from '../bolt11';
 import type { Currency, CurrencyUnit } from '../money';
 import {
   ExtendedMintInfo,
