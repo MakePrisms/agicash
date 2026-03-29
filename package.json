@@ -2,6 +2,7 @@
   "name": "agicash",
   "private": true,
   "type": "module",
+  "workspaces": ["packages/*"],
   "scripts": {
     "build": "run-p build:client build:server",
     "build:client": "react-router build",
@@ -27,6 +28,7 @@
     "start": "We are running the build in node because atm we are using node as the build target."
   },
   "dependencies": {
+    "@agicash/sdk": "workspace:*",
     "@agicash/bc-ur": "0.1.0",
     "@agicash/opensecret": "0.1.0",
     "@agicash/qr-scanner": "0.1.2",
