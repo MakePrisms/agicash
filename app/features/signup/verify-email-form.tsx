@@ -11,7 +11,7 @@ import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { useRequestEmailVerificationCode } from '~/features/signup/verify-email';
 import { useSignOut } from '~/features/user/auth';
-import type { FullUser } from '~/features/user/user';
+import type { FullUser } from '@agicash/sdk/features/user/user';
 import { useToast } from '~/hooks/use-toast';
 import { useVerifyEmail } from '../user/user-hooks';
 

@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { ErrorBoundary } from '~/components/error-boundary';
 import { Skeleton } from '~/components/ui/skeleton';
 import { AnimatedQRCode } from '~/lib/cashu/animated-qr-code';
-import { cn } from '~/lib/utils';
+import { cn } from '@agicash/sdk/lib/utils';
 
 type QRCodeProps = {
   /**

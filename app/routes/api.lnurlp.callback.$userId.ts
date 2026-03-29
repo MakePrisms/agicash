@@ -6,7 +6,7 @@
 import { agicashDbServer } from '~/features/agicash-db/database.server';
 import { LightningAddressService } from '~/features/receive/lightning-address-service';
 import { getQueryClient } from '~/features/shared/query-client';
-import { Money } from '~/lib/money';
+import { Money } from '@agicash/sdk/lib/money/index';
 import type { Route } from './+types/api.lnurlp.callback.$userId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {

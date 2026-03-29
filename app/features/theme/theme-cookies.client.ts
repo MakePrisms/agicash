@@ -2,8 +2,8 @@ import {
   COLOR_MODE_COOKIE_NAME,
   SYSTEM_COLOR_MODE_COOKIE_NAME,
   THEME_COOKIE_NAME,
-} from './theme.constants';
-import type { ColorMode, Theme, ThemeCookieValues } from './theme.types';
+} from '@agicash/sdk/features/theme/theme.constants';
+import type { ColorMode, Theme, ThemeCookieValues } from '@agicash/sdk/features/theme/theme.types';
 
 function getCookieValue(name: string): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));

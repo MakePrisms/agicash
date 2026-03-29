@@ -8,11 +8,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
-import type { Currency } from '~/lib/money';
+import type { Currency } from '@agicash/sdk/lib/money/index';
 import { useLatest } from '~/lib/use-latest';
-import type { Account } from '../accounts/account';
+import type { Account } from '@agicash/sdk/features/accounts/account';
 import { guestAccountStorage } from './guest-account-storage';
-import type { User } from './user';
+import type { User } from '@agicash/sdk/features/user/user';
 import {
   type ReadUserRepository,
   type UpdateUser,

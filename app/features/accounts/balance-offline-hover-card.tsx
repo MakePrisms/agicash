@@ -4,8 +4,8 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '~/components/ui/hover-card';
-import { cn } from '~/lib/utils';
-import type { AccountType } from './account';
+import { cn } from '@agicash/sdk/lib/utils';
+import type { AccountType } from '@agicash/sdk/features/accounts/account';
 
 export function BalanceOfflineHoverCard({
   accountType,

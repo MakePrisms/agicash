@@ -5,7 +5,7 @@ import {
   eciesDecryptBatch,
   eciesEncrypt,
   eciesEncryptBatch,
-} from '.';
+} from '@agicash/sdk/lib/ecies/index';
 
 describe('ECIES Encryption/Decryption', () => {
   // Generate test key pair

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { NumpadButton } from '~/components/numpad';
-import { getDefaultUnit } from '~/features/shared/currencies';
-import type { Ticker } from '~/lib/exchange-rate';
-import { getLocaleDecimalSeparator } from '~/lib/locale';
-import type { Currency } from '~/lib/money';
-import { Money } from '~/lib/money';
+import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
+import type { Ticker } from '@agicash/sdk/lib/exchange-rate/index';
+import { getLocaleDecimalSeparator } from '@agicash/sdk/lib/locale/index';
+import type { Currency } from '@agicash/sdk/lib/money/index';
+import { Money } from '@agicash/sdk/lib/money/index';
 import { useExchangeRates } from './use-exchange-rate';
 
 type State = {

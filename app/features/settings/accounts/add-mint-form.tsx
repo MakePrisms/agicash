@@ -25,7 +25,7 @@ import {
   getCashuProtocolUnit,
   getMintPurpose,
 } from '~/lib/cashu';
-import type { Currency } from '~/lib/money';
+import type { Currency } from '@agicash/sdk/lib/money/index';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 type FormValues = {

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { SupabaseRealtimeManager } from '~/lib/supabase';
-import type { Database } from './database';
+import type { Database } from '@agicash/sdk/db/database';
 import { getSupabaseSessionToken } from './supabase-session';
 
 const getSupabaseUrl = () => {

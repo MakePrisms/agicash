@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseSecret } from './secret';
+import { parseSecret } from '@agicash/sdk/lib/cashu/secret';
 
 describe('parseSecret', () => {
   test('should return success with data for a plain secret', () => {

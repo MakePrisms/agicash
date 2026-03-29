@@ -3,16 +3,16 @@ import type {
   Account,
   CashuAccount,
   SparkAccount,
-} from '~/features/accounts/account';
-import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
+} from '@agicash/sdk/features/accounts/account';
+import { type DecodedBolt11, parseBolt11Invoice } from '@agicash/sdk/lib/bolt11/index';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
 import {
   buildLightningAddressFormatValidator,
   isValidLightningAddress,
-} from '~/lib/lnurl';
-import { type Currency, Money } from '~/lib/money';
-import { type Contact, isContact } from '../contacts/contact';
-import { DomainError } from '../shared/error';
+} from '@agicash/sdk/lib/lnurl/index';
+import { type Currency, Money } from '@agicash/sdk/lib/money/index';
+import { type Contact, isContact } from '@agicash/sdk/features/contacts/contact';
+import { DomainError } from '@agicash/sdk/features/shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
 import type { SparkLightningQuote } from './spark-send-quote-service';

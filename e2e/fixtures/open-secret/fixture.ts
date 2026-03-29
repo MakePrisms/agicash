@@ -1,7 +1,7 @@
 import * as crypto from 'node:crypto';
 import { type Page, type Route, test as base, expect } from '@playwright/test';
 import { decode } from '@stablelib/base64';
-import delay from '~/lib/delay';
+import delay from '@agicash/sdk/lib/delay';
 import { session } from '../../mocks/open-secret';
 import { openSecretEncryption } from './encryption';
 

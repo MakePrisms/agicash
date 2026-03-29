@@ -9,8 +9,8 @@ import {
 import {
   type CashuAccount,
   getAccountBalance,
-} from '~/features/accounts/account';
-import { getDefaultUnit } from '../shared/currencies';
+} from '@agicash/sdk/features/accounts/account';
+import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
 import { VERTICAL_CARD_OFFSET_IN_STACK } from './card-stack-constants';
 
 type GiftCardItemProps = {

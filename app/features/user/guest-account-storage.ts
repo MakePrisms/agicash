@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { safeJsonParse } from '~/lib/json';
+import { safeJsonParse } from '@agicash/sdk/lib/json';
 
 const storageKey = 'guestAccount';
 

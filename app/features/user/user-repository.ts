@@ -7,8 +7,8 @@ export {
 
 import type { NetworkType } from '@buildonspark/spark-sdk';
 import type { QueryClient } from '@tanstack/react-query';
-import type { Currency } from '~/lib/money';
-import type { RedactedAccount } from '../accounts/account';
+import type { Currency } from '@agicash/sdk/lib/money/index';
+import type { RedactedAccount } from '@agicash/sdk/features/accounts/account';
 import {
   type AccountRepository,
   useAccountRepository,
@@ -18,7 +18,7 @@ import {
   type AgicashDbAccount,
   isCashuAccount,
   isSparkAccount,
-} from '../agicash-db/database';
+} from '@agicash/sdk/db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import { getInitializedSparkWallet } from '../shared/spark';

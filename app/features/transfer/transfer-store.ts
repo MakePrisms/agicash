@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { Currency, Money } from '~/lib/money';
-import type { Account } from '../accounts/account';
+import type { Currency, Money } from '@agicash/sdk/lib/money/index';
+import type { Account } from '@agicash/sdk/features/accounts/account';
 import type { TransferQuote } from './transfer-service';
 
 type TransferQuoteResult =

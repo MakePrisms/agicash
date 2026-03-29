@@ -1,14 +1,14 @@
-import { Money } from '~/lib/money';
-import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
+import { Money } from '@agicash/sdk/lib/money/index';
+import type { Account, CashuAccount, SparkAccount } from '@agicash/sdk/features/accounts/account';
 import {
   canReceiveFromLightning,
   canSendToLightning,
-} from '../accounts/account';
-import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
+} from '@agicash/sdk/features/accounts/account';
+import type { CashuReceiveQuote } from '@agicash/sdk/features/receive/cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from '../receive/cashu-receive-quote-core';
 import type { CashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';
 import { useCashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';
-import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
+import type { SparkReceiveQuote } from '@agicash/sdk/features/receive/spark-receive-quote';
 import { getLightningQuote as getSparkLightningQuote } from '../receive/spark-receive-quote-core';
 import type { SparkReceiveLightningQuote } from '../receive/spark-receive-quote-core';
 import type { SparkReceiveQuoteService } from '../receive/spark-receive-quote-service';
@@ -23,7 +23,7 @@ import type {
   SparkSendQuoteService,
 } from '../send/spark-send-quote-service';
 import { useSparkSendQuoteService } from '../send/spark-send-quote-service';
-import { DomainError } from '../shared/error';
+import { DomainError } from '@agicash/sdk/features/shared/error';
 
 export type TransferReceiveSide =
   | {

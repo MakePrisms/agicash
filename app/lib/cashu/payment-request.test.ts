@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseCashuPaymentRequest } from './payment-request';
+import { parseCashuPaymentRequest } from '@agicash/sdk/lib/cashu/payment-request';
 
 describe('isCashuPaymentRequest', () => {
   test('returns true for valid cashu payment request', () => {

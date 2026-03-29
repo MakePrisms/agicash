@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { ExchangeRateService } from './exchange-rate-service';
+import { ExchangeRateService } from '@agicash/sdk/lib/exchange-rate/exchange-rate-service';
 
 import type {
   ExchangeRateProvider,
   GetRatesParams,
   Rates,
   Ticker,
-} from './providers/types';
+} from '@agicash/sdk/lib/exchange-rate/providers/types';
 
 class MockExchangeRateProvider implements ExchangeRateProvider {
   readonly supportedTickers: Ticker[] = ['BTC-USD', 'USD-BTC'];

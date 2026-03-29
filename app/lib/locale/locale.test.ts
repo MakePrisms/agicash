@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { getLocaleDecimalSeparator } from './index';
+import { getLocaleDecimalSeparator } from '@agicash/sdk/lib/locale/index';
 
 describe('getLocaleDecimalSeparator', () => {
   test('returns "." for en-US locale', () => {

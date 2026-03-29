@@ -5,13 +5,13 @@ import { useMemo, useState } from 'react';
 import { PageBackButton, PageContent, PageHeader } from '~/components/page';
 import { Button } from '~/components/ui/button';
 
-import type { CashuAccount } from '~/features/accounts/account';
+import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import { useAccount } from '~/features/accounts/account-hooks';
-import type { CashuProof } from '~/features/accounts/cashu-account';
+import type { CashuProof } from '@agicash/sdk/features/accounts/cashu-account';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { getCashuUnit, sumProofs } from '~/lib/cashu';
-import { Money } from '~/lib/money';
-import type { Currency } from '~/lib/money';
+import { Money } from '@agicash/sdk/lib/money/index';
+import type { Currency } from '@agicash/sdk/lib/money/index';
 
 function ProofRow({
   proof,

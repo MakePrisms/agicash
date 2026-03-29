@@ -1,6 +1,6 @@
 import { Delete } from 'lucide-react';
 import { useEffect } from 'react';
-import { getLocaleDecimalSeparator } from '~/lib/locale';
+import { getLocaleDecimalSeparator } from '@agicash/sdk/lib/locale/index';
 import { Button } from './ui/button';
 
 const buttons = [

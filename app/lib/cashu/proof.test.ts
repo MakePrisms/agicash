@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Proof } from '@cashu/cashu-ts';
-import { getClaimableProofs, sumProofs } from './proof';
+import { getClaimableProofs, sumProofs } from '@agicash/sdk/lib/cashu/proof';
 
 const proofWithP2PKSecret: Proof = {
   amount: 1,

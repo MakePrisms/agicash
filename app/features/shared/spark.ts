@@ -11,16 +11,16 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { queryClientAsCache } from '~/lib/cache-adapter';
-import { type Currency, Money } from '~/lib/money';
+import { type Currency, Money } from '@agicash/sdk/lib/money/index';
 import { measureOperation } from '~/lib/performance';
-import { computeSHA256 } from '~/lib/sha256';
+import { computeSHA256 } from '@agicash/sdk/lib/sha256';
 import {
   createSparkWalletStub,
   getSparkIdentityPublicKeyFromMnemonic,
-} from '~/lib/spark';
-import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
+} from '@agicash/sdk/lib/spark/index';
+import { getSeedPhraseDerivationPath } from '@agicash/sdk/features/accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
-import { getDefaultUnit } from './currencies';
+import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
 
 // Re-export SDK items so existing consumers don't break
 export {

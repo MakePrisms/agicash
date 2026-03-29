@@ -18,7 +18,7 @@ import useLocationData from '~/hooks/use-location';
 import { useToast } from '~/hooks/use-toast';
 import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
-import { cn } from '~/lib/utils';
+import { cn } from '@agicash/sdk/lib/utils';
 import { useDefaultAccount } from '../accounts/account-hooks';
 import { AccountIcon } from '../accounts/account-icons';
 import { ColorModeToggle } from '../theme/color-mode-toggle';

@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { cn } from '~/lib/utils';
+import { cn } from '@agicash/sdk/lib/utils';
 
 export const CARD_SIZES = {
   default: { width: 340, className: 'w-[340px] rounded-[14px]' },

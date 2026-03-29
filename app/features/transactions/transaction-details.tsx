@@ -11,14 +11,14 @@ import {
   CardTitle,
 } from '~/components/ui/card';
 import { accountOfflineToast } from '~/features/accounts/utils';
-import type { Transaction } from '~/features/transactions/transaction';
+import type { Transaction } from '@agicash/sdk/features/transactions/transaction';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { isThisWeek, isToday, isYesterday } from '~/lib/date';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccount } from '../accounts/account-hooks';
 import { AccountIcon } from '../accounts/account-icons';
-import { getErrorMessage } from '../shared/error';
+import { getErrorMessage } from '@agicash/sdk/features/shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
   isTransactionReversable,

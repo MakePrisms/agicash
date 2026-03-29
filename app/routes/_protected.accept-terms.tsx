@@ -3,7 +3,7 @@ import { redirect, useNavigate } from 'react-router';
 import { Page, PageContent } from '~/components/page';
 import { AcceptTerms } from '~/features/signup/accept-terms';
 import { useSignOut } from '~/features/user/auth';
-import { shouldAcceptTerms } from '~/features/user/user';
+import { shouldAcceptTerms } from '@agicash/sdk/features/user/user';
 import {
   getUserFromCacheOrThrow,
   useAcceptTerms,

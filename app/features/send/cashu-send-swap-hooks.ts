@@ -7,9 +7,9 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/sdk/lib/money/index';
 import { useLatest } from '~/lib/use-latest';
-import type { CashuAccount } from '../accounts/account';
+import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import {
   useAccount,
   useGetCashuAccount,
@@ -18,10 +18,10 @@ import {
 import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendSwap,
-} from '../agicash-db/database';
-import { ConcurrencyError, DomainError, NotFoundError } from '../shared/error';
+} from '@agicash/sdk/db/database';
+import { ConcurrencyError, DomainError, NotFoundError } from '@agicash/sdk/features/shared/error';
 import { useUser } from '../user/user-hooks';
-import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
+import type { CashuSendSwap, PendingCashuSendSwap } from '@agicash/sdk/features/send/cashu-send-swap';
 import { useCashuSendSwapRepository } from './cashu-send-swap-repository';
 import { useCashuSendSwapService } from './cashu-send-swap-service';
 import { ProofStateSubscriptionManager } from './proof-state-subscription-manager';

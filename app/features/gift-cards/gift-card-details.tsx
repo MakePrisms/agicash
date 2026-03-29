@@ -8,7 +8,7 @@ import {
   PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { getAccountBalance } from '~/features/accounts/account';
+import { getAccountBalance } from '@agicash/sdk/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { GiftCardItem } from '~/features/gift-cards/gift-card-item';
 import { getGiftCardImageByUrl } from '~/features/gift-cards/use-discover-cards';

@@ -27,7 +27,7 @@ import {
   useAuthState,
 } from '~/features/user/auth';
 import { pendingTermsStorage } from '~/features/user/pending-terms-storage';
-import { type User, shouldAcceptTerms } from '~/features/user/user';
+import { type User, shouldAcceptTerms } from '@agicash/sdk/features/user/user';
 import {
   defaultAccounts,
   getUserFromCache,

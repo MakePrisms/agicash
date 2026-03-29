@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTimeout } from 'usehooks-ts';
 import { Button } from '~/components/ui/button';
-import { cn } from '~/lib/utils';
+import { cn } from '@agicash/sdk/lib/utils';
 
 const DEFAULT_DISMISS_DELAY_MS = 300;
 const DEFAULT_INITIAL_SHOW_DELAY_MS = 2000;

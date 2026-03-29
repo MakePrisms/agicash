@@ -1,4 +1,4 @@
-import { cn } from '~/lib/utils';
+import { cn } from '@agicash/sdk/lib/utils';
 
 function Skeleton({
   className,

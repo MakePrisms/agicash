@@ -2,7 +2,7 @@ import { LoaderCircle } from 'lucide-react';
 import { Suspense, useState } from 'react';
 
 import { LinkWithViewTransition } from '~/lib/transitions';
-import type { Contact } from './contact';
+import type { Contact } from '@agicash/sdk/features/contacts/contact';
 import { ContactAvatar } from './contact-avatar';
 import { useContacts } from './contact-hooks';
 

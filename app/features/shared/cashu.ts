@@ -27,12 +27,12 @@ import {
 import {
   MintBlocklistSchema,
   buildMintValidator,
-} from '~/lib/cashu/mint-validation';
+} from '@agicash/sdk/lib/cashu/mint-validation';
 
 import {
   getInitializedCashuWallet as getInitializedCashuWalletCore,
 } from '@agicash/sdk/features/shared/cashu';
-import type { Currency } from '~/lib/money';
+import type { Currency } from '@agicash/sdk/lib/money/index';
 
 // Re-export from SDK
 export {

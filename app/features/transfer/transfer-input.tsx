@@ -12,15 +12,15 @@ import {
 import { Button } from '~/components/ui/button';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { ConvertedMoneySwitcher } from '~/features/shared/converted-money-switcher';
-import { getDefaultUnit } from '~/features/shared/currencies';
-import { DomainError } from '~/features/shared/error';
+import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
+import { DomainError } from '@agicash/sdk/features/shared/error';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/sdk/lib/money/index';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,

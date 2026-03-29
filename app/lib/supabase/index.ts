@@ -1,2 +1,2 @@
 export * from './supabase-realtime-hooks';
-export * from './supabase-realtime-manager';
+export * from '@agicash/sdk/lib/supabase/supabase-realtime-manager';

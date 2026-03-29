@@ -6,7 +6,7 @@ import {
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
-import type { CashuAccount } from '~/features/accounts/account';
+import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import { useAccounts } from '../accounts/account-hooks';
 import {
   CARD_HEIGHT,

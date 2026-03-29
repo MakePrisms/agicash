@@ -1,11 +1,11 @@
 import { Check, Edit } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { UniqueConstraintError } from '~/features/shared/error';
+import { UniqueConstraintError } from '@agicash/sdk/features/shared/error';
 import { useUpdateUsername, useUser } from '~/features/user/user-hooks';
 import useAnimation from '~/hooks/use-animation';
 import { useToast } from '~/hooks/use-toast';
-import { cn } from '~/lib/utils';
+import { cn } from '@agicash/sdk/lib/utils';
 
 type FormValues = {
   username: string;

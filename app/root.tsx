@@ -25,7 +25,7 @@ import {
 } from '~/components/ui/card';
 import { Toaster } from '~/components/ui/toaster';
 import { ThemeProvider, useTheme } from '~/features/theme';
-import { getBgColorForTheme } from '~/features/theme/colors';
+import { getBgColorForTheme } from '@agicash/sdk/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
 import { getThemeScript } from '~/features/theme/theme-script';
 import { SupabaseRealtimeError } from '~/lib/supabase/supabase-realtime-hooks';
@@ -33,7 +33,7 @@ import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
 import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
 import { LoadingScreen } from './features/loading/LoadingScreen';
-import { NotFoundError } from './features/shared/error';
+import { NotFoundError } from '@agicash/sdk/features/shared/error';
 import { getQueryClient } from './features/shared/query-client';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
 import { sanitizeUrl } from './tracing-utils';

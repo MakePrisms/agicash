@@ -11,19 +11,19 @@ import {
 import { QRCode } from '~/components/qr-code';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
-import type { CashuAccount } from '~/features/accounts/account';
+import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/sdk/lib/money/index';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { getDefaultUnit } from '../shared/currencies';
+import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
+import type { CashuReceiveQuote } from '@agicash/sdk/features/receive/cashu-receive-quote';
 import {
   useCashuReceiveQuote,
   useCreateCashuReceiveQuote,

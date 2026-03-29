@@ -6,19 +6,19 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/sdk/lib/money/index';
 import { measureOperation } from '~/lib/performance';
 import { useLatest } from '~/lib/use-latest';
-import type { SparkAccount } from '../accounts/account';
+import type { SparkAccount } from '@agicash/sdk/features/accounts/account';
 import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbSparkSendQuote } from '../agicash-db/database';
-import { DomainError } from '../shared/error';
+import type { AgicashDbSparkSendQuote } from '@agicash/sdk/db/database';
+import { DomainError } from '@agicash/sdk/features/shared/error';
 import { sparkBalanceQueryKey } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
-import type { SparkSendQuote } from './spark-send-quote';
+import type { SparkSendQuote } from '@agicash/sdk/features/send/spark-send-quote';
 import { useSparkSendQuoteRepository } from './spark-send-quote-repository';
 import {
   type SparkLightningQuote,

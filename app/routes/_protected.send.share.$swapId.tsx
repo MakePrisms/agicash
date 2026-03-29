@@ -6,7 +6,7 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { QRCode } from '~/components/qr-code';
-import { toProof } from '~/features/accounts/cashu-account';
+import { toProof } from '@agicash/sdk/features/accounts/cashu-account';
 import {
   useCashuSendSwap,
   useTrackCashuSendSwap,

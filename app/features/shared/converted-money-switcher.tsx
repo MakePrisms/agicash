@@ -1,8 +1,8 @@
 import { ArrowUpDown } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';
 import { Skeleton } from '~/components/ui/skeleton';
-import type { Money } from '~/lib/money';
-import { getDefaultUnit } from './currencies';
+import type { Money } from '@agicash/sdk/lib/money/index';
+import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
 
 type ConvertedMoneySwitcherProps = {
   onSwitch: () => void;

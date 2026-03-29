@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { type Token, getDecodedToken, getEncodedToken } from '@cashu/cashu-ts';
-import { extractCashuToken } from './token';
+import { extractCashuToken } from '@agicash/sdk/lib/cashu/token';
 
 // A real v1 cashuA token (v1 keyset ID starts with "00")
 const V1_TOKEN: Token = {

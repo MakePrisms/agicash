@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
-import type { Money } from '~/lib/money';
-import type { Account } from '../accounts/account';
-import { ConcurrencyError, DomainError } from '../shared/error';
+import type { Money } from '@agicash/sdk/lib/money/index';
+import type { Account } from '@agicash/sdk/features/accounts/account';
+import { ConcurrencyError, DomainError } from '@agicash/sdk/features/shared/error';
 import { useUser } from '../user/user-hooks';
 import type { TransferQuote } from './transfer-service';
 import { useTransferService } from './transfer-service';

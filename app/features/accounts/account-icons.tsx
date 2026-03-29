@@ -1,7 +1,7 @@
 import { GiftIcon, LandmarkIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { SparkIcon as SparkIconSvg } from '~/components/spark-icon';
-import type { Account, AccountType } from './account';
+import type { Account, AccountType } from '@agicash/sdk/features/accounts/account';
 
 const CashuIcon = () => <LandmarkIcon className="h-4 w-4" />;
 const SparkIcon = () => <SparkIconSvg className="h-4 w-4" />;

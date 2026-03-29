@@ -5,7 +5,7 @@ import {
   useState,
 } from 'react';
 import { useStore } from 'zustand';
-import type { Account } from '~/features/accounts/account';
+import type { Account } from '@agicash/sdk/features/accounts/account';
 import { useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';

@@ -9,14 +9,14 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { proofToY } from '~/lib/cashu';
-import type { CashuAccount } from '../accounts/account';
+import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import { useAccount } from '../accounts/account-hooks';
-import { type CashuProof, toProof } from '../accounts/cashu-account';
+import { type CashuProof, toProof } from '@agicash/sdk/features/accounts/cashu-account';
 import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
 import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
 import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
-import type { Transaction } from './transaction';
+import type { Transaction } from '@agicash/sdk/features/transactions/transaction';
 import { useTransaction } from './transaction-hooks';
 
 const augmentProofsWithState = (

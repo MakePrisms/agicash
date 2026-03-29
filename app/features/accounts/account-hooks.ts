@@ -10,8 +10,8 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
 import { queryClientAsCache } from '~/lib/cache-adapter';
-import { type Currency, Money } from '~/lib/money';
-import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
+import { type Currency, Money } from '@agicash/sdk/lib/money/index';
+import type { AgicashDbAccountWithProofs } from '@agicash/sdk/db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useCashuCryptography } from '../shared/cashu';
 import { useEncryption } from '../shared/encryption';
@@ -25,7 +25,7 @@ import {
   type ExtendedAccount,
   type SparkAccount,
   getAccountBalance,
-} from './account';
+} from '@agicash/sdk/features/accounts/account';
 
 export class AccountsCache {
   public static Key = 'accounts';
