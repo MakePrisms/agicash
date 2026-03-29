@@ -20,7 +20,7 @@
     "test": "bun test",
     "test:e2e": "playwright test",
     "supabase": "supabase",
-    "db:generate-types": "supabase gen types typescript --local --schema wallet > supabase/database.types.ts"
+    "db:generate-types": "supabase gen types typescript --local --schema wallet > supabase/database.types.ts && cp supabase/database.types.ts packages/sdk/src/db/database-generated.types.ts"
   },
   "scripts:comments": {
     "dev": "We are using tsx instead of bun because with bun server just hangs and eventually we get an error: 'ELOOP: too many symbolic links encountered...'.",
