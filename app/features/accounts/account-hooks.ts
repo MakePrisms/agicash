@@ -1,3 +1,5 @@
+import { AccountRepository } from '@agicash/sdk/features/accounts/account-repository';
+import { AccountService } from '@agicash/sdk/features/accounts/account-service';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
@@ -7,8 +9,13 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
+import { queryClientAsCache } from '~/lib/cache-adapter';
 import { type Currency, Money } from '~/lib/money';
 import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { useCashuCryptography } from '../shared/cashu';
+import { useEncryption } from '../shared/encryption';
+import { sparkMnemonicQueryOptions } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
@@ -19,11 +26,6 @@ import {
   type SparkAccount,
   getAccountBalance,
 } from './account';
-import {
-  type AccountRepository,
-  useAccountRepository,
-} from './account-repository';
-import { AccountService, useAccountService } from './account-service';
 
 export class AccountsCache {
   public static Key = 'accounts';
@@ -414,4 +416,24 @@ export function useSelectItemsWithOnlineAccount() {
     },
     [accountsCache],
   );
+}
+
+export function useAccountRepository() {
+  const encryption = useEncryption();
+  const queryClient = useQueryClient();
+  const { getSeed: getCashuWalletSeed } = useCashuCryptography();
+  const getSparkWalletMnemonic = () =>
+    queryClient.fetchQuery(sparkMnemonicQueryOptions());
+  return new AccountRepository(
+    agicashDbClient,
+    encryption,
+    queryClientAsCache(queryClient),
+    getCashuWalletSeed,
+    getSparkWalletMnemonic,
+  );
+}
+
+export function useAccountService() {
+  const accountRepository = useAccountRepository();
+  return new AccountService(accountRepository);
 }
