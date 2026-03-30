@@ -26,8 +26,10 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
+import { getAccountHomePath } from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
+import { OfferItem } from '../gift-cards/offer-item';
 import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
@@ -165,8 +167,7 @@ export default function ReceiveToken({
       };
     },
     onSuccess: ({ transactionId, account }) => {
-      const redirectTo =
-        account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/';
+      const redirectTo = getAccountHomePath(account);
       navigate(
         buildLinkWithSearchParams(`/transactions/${transactionId}`, {
           showOkButton: 'true',
@@ -221,6 +222,8 @@ export default function ReceiveToken({
                     </p>
                   )}
                 </div>
+              ) : sourceAccount.purpose === 'offer' ? (
+                <OfferItem account={sourceAccount} />
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
@@ -386,6 +389,8 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
                     </p>
                   )}
                 </div>
+              ) : sourceAccount.purpose === 'offer' ? (
+                <OfferItem account={sourceAccount} />
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
