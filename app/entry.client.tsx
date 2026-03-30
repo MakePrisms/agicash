@@ -38,7 +38,15 @@ configure({
 // Before login the DB client uses the anon key (no access token),
 // so we get global flags. After login, refreshSession invalidates
 // this query and re-fetches with the user's JWT for user-targeted flags.
-getQueryClient().prefetchQuery(featureFlagsQueryOptions);
+getQueryClient()
+  .prefetchQuery(featureFlagsQueryOptions)
+  .then(() => {
+    const flags = getQueryClient().getQueryData(
+      featureFlagsQueryOptions.queryKey,
+    );
+    (globalThis as Record<string, unknown>).__SPARK_SDK_DEBUG__ =
+      flags?.DEBUG_LOGGING_SPARK ?? false;
+  });
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {

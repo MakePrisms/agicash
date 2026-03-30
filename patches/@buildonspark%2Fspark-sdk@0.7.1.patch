@@ -1,0 +1,145 @@
+diff --git a/dist/spark-wallet-DL7eUjY2.js b/dist/spark-wallet-DL7eUjY2.js
+index 8ac67f96a4d2cbef9bcbae240241dc36f441f3db..83470de728b6f4c47d83cf5d6eb00793f554b11c 100644
+--- a/dist/spark-wallet-DL7eUjY2.js
++++ b/dist/spark-wallet-DL7eUjY2.js
+@@ -14548,21 +14548,29 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+ 		return this.sspClient;
+ 	}
+ 	async handleStreamEvent({ event }) {
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
+ 		try {
+ 			if (isReceiverTransferStreamEvent(event) && event.receiverTransfer.transfer.type !== TransferType.COUNTER_SWAP && event.receiverTransfer.transfer.type !== TransferType.COUNTER_SWAP_V3) {
+ 				const transfer = event.receiverTransfer.transfer;
+ 				const { senderIdentityPublicKey, receiverIdentityPublicKey } = transfer;
+ 				if (!equalBytes(senderIdentityPublicKey, receiverIdentityPublicKey)) {
+ 					const incomingLeaves = transfer.leaves.map((l) => l.leaf).filter((l) => !!l);
++					_dl("Receiver transfer — claiming", { transferId: transfer.id, leafCount: incomingLeaves.length, value: incomingLeaves.reduce((s, l) => s + l.value, 0) });
+ 					if (incomingLeaves.length > 0) await this.leafManager.addIncomingLeaves(incomingLeaves, transfer.id);
+ 					await this.claimTransfer({
+ 						transfer,
+ 						emit: true
+ 					});
++					_dl("Transfer claimed", { transferId: transfer.id, owned: this.leafManager.getOwnedBalance(), available: this.leafManager.getAvailableBalance() });
++				} else {
++					_dl("Skipping self-transfer", { transferId: transfer.id });
+ 				}
+-			} else if (isSenderTransferStreamEvent(event)) await this.leafManager.handleTransferEvent(event.senderTransfer.transfer);
+-			else if (isDepositStreamEvent(event)) {
++			} else if (isSenderTransferStreamEvent(event)) {
++				_dl("Sender transfer event", { transferId: event.senderTransfer.transfer.id });
++				await this.leafManager.handleTransferEvent(event.senderTransfer.transfer);
++			} else if (isDepositStreamEvent(event)) {
+ 				const deposit = event.deposit.deposit;
++				_dl("Deposit event", { depositId: deposit.id, status: deposit.status });
+ 				const wasAdded = await this.leafManager.handleDepositEvent(deposit);
+ 				if (deposit.status === "AVAILABLE" && wasAdded) this.emit(SparkWalletEvent.DepositConfirmed, deposit.id, BigInt(this.leafManager.getAvailableBalance()));
+ 			}
+@@ -14574,6 +14582,7 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+ 		const MAX_RETRIES = 10;
+ 		const INITIAL_DELAY = 1e3;
+ 		const MAX_DELAY = 6e4;
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
+ 		const delay = (ms, signal) => {
+ 			return new Promise((resolve) => {
+ 				const timer = setTimeout(() => {
+@@ -14591,39 +14600,54 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+ 		let retryCount = 0;
+ 		const streamController = new AbortController();
+ 		this.streamController = streamController;
++		_dl("Stream setup started");
+ 		while (retryCount <= MAX_RETRIES) try {
++			_dl("Connecting to coordinator stream", { attempt: retryCount });
+ 			const address = this.config.getCoordinatorAddress();
+ 			const stream = await this.connectionManager.subscribeToEvents(address, streamController.signal);
++			_dl("Stream connected, claiming pending transfers");
+ 			const claimedTransfersIds = await this.claimTransfers();
++			_dl("Claimed transfers", { count: claimedTransfersIds.length });
+ 			try {
+ 				for await (const data of stream) {
+-					if (streamController.signal.aborted) break;
++					if (streamController.signal.aborted) { _dl("Stream aborted via controller"); break; }
+ 					if (isConnectedStreamEvent(data.event)) {
++						_dl("Received connected event, resetting retry count");
+ 						this.emit(SparkWalletEvent.StreamConnected);
+ 						retryCount = 0;
+ 					}
+-					if (isReceiverTransferStreamEvent(data.event) && claimedTransfersIds.includes(data.event.receiverTransfer.transfer.id)) continue;
++					if (isReceiverTransferStreamEvent(data.event) && claimedTransfersIds.includes(data.event.receiverTransfer.transfer.id)) {
++						_dl("Skipping already-claimed transfer", { transferId: data.event.receiverTransfer.transfer.id });
++						continue;
++					}
++					_dl("Processing stream event", { eventType: data.event?.$case });
+ 					await this.handleStreamEvent(data);
+ 				}
++				_dl("Stream iterator ended normally");
+ 			} catch (error) {
++				_dl("Stream iterator threw", { error: error instanceof Error ? error.message : String(error) });
+ 				throw error;
+ 			}
+ 		} catch (error) {
+-			if (streamController.signal.aborted) break;
++			if (streamController.signal.aborted) { _dl("Stream aborted, exiting"); break; }
+ 			const backoffDelay = Math.min(INITIAL_DELAY * Math.pow(2, retryCount), MAX_DELAY);
++			_dl("Stream error", { error: error instanceof Error ? error.message : String(error), retryCount, backoffDelay });
+ 			if (retryCount < MAX_RETRIES) {
+ 				retryCount++;
+ 				this.emit(SparkWalletEvent.StreamReconnecting, retryCount, MAX_RETRIES, backoffDelay, error instanceof Error ? error.message : String(error));
++				_dl("Waiting before retry", { retryCount, backoffDelay });
+ 				try {
+-					if (!await delay(backoffDelay, streamController.signal)) break;
++					if (!await delay(backoffDelay, streamController.signal)) { _dl("Delay aborted, exiting"); break; }
+ 				} catch (error) {
+-					if (streamController.signal.aborted) break;
++					if (streamController.signal.aborted) { _dl("Delay error + aborted, exiting"); break; }
+ 				}
+ 			} else {
++				_dl("Max retries reached, stream permanently disconnected");
+ 				this.emit(SparkWalletEvent.StreamDisconnected, "Max reconnection attempts reached");
+ 				break;
+ 			}
+ 		}
++		_dl("setupBackgroundStream exited", { finalRetryCount: retryCount });
+ 	}
+ 	async getLeaves(isBalanceCheck = false) {
+ 		return this.leafManager.getLeaves(isBalanceCheck);
+@@ -14693,8 +14717,11 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+ 		}, intervalMs);
+ 	}
+ 	async syncWallet() {
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
++		_dl("syncWallet started");
+ 		await this.syncTokenOutputs();
+ 		await this.leafManager.sync();
++		_dl("syncWallet completed", { owned: this.leafManager.getOwnedBalance(), available: this.leafManager.getAvailableBalance(), incoming: this.leafManager.getIncomingBalance() });
+ 	}
+ 	/**
+ 	* Gets the identity public key of the wallet.
+@@ -14910,19 +14937,23 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+ 	*   - tokenBalances: Map of the bech32m encoded token identifier to token balances and token info
+ 	*/
+ 	async getBalance() {
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
++		const ownedBefore = this.leafManager.getOwnedBalance();
++		const availableBefore = this.leafManager.getAvailableBalance();
++		_dl("getBalance called", { ownedBefore, availableBefore });
+ 		const freshLeaves = await this.leafManager.getLeaves(true);
+ 		await this.syncTokenOutputs();
++		_dl("Fresh leaves from coordinator", { count: freshLeaves.length, total: freshLeaves.reduce((s, l) => s + l.value, 0) });
+ 		const freshIds = new Set(freshLeaves.map((l) => l.id));
+ 		await this.leafManager.addLeaves(freshLeaves);
+ 		await this.leafManager.evictStaleAvailable(freshIds);
+ 		const available = BigInt(freshLeaves.reduce((sum, l) => sum + l.value, 0));
++		const owned = BigInt(this.leafManager.getOwnedBalance());
++		const incoming = BigInt(this.leafManager.getIncomingBalance());
++		_dl("getBalance result", { available: available.toString(), owned: owned.toString(), incoming: incoming.toString(), ownedChanged: ownedBefore !== Number(owned), availableChanged: availableBefore !== Number(available) });
+ 		return {
+ 			balance: available,
+-			satsBalance: {
+-				available,
+-				owned: BigInt(this.leafManager.getOwnedBalance()),
+-				incoming: BigInt(this.leafManager.getIncomingBalance())
+-			},
++			satsBalance: { available, owned, incoming },
+ 			tokenBalances: await this.getTokenBalanceMap()
+ 		};
+ 	}
