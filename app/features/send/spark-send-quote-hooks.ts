@@ -16,7 +16,7 @@ import {
 } from '../accounts/account-hooks';
 import type { AgicashDbSparkSendQuote } from '../agicash-db/database';
 import { DomainError } from '../shared/error';
-import { sparkBalanceQueryKey } from '../shared/spark';
+import { sparkBalanceQueryKey, sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import type { SparkSendQuote } from './spark-send-quote';
 import { useSparkSendQuoteRepository } from './spark-send-quote-repository';
@@ -206,6 +206,10 @@ export function useOnSparkSendStateChange({
 
         lastTriggeredStateRef.current.set(quoteId, 'COMPLETED');
 
+        sparkDebugLog('Send payment detected as completed', {
+          quoteId: quote.id,
+          accountId: quote.accountId,
+        });
         onCompletedRef.current(quote, {
           paymentPreimage: sendRequest.paymentPreimage,
         });
@@ -463,10 +467,20 @@ export function useProcessSparkSendQuoteTasks() {
       throwOnError: true,
       onSuccess: (updatedQuote) => {
         if (updatedQuote) {
+          sparkDebugLog('Send quote completed — invalidating balance', {
+            quoteId: updatedQuote.id,
+            accountId: updatedQuote.accountId,
+          });
           unresolvedQuotesCache.remove(updatedQuote);
           // Invalidate spark balance since we sent funds
           queryClient.invalidateQueries({
             queryKey: sparkBalanceQueryKey(updatedQuote.accountId),
+          });
+          sparkDebugLog('Balance query invalidated', {
+            accountId: updatedQuote.accountId,
+            queryKey: JSON.stringify(
+              sparkBalanceQueryKey(updatedQuote.accountId),
+            ),
           });
         }
       },

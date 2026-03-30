@@ -20,6 +20,13 @@ import {
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
+import { getFeatureFlag } from './feature-flags';
+
+export function sparkDebugLog(message: string, data?: Record<string, unknown>) {
+  if (getFeatureFlag('DEBUG_LOGGING_SPARK')) {
+    console.debug(`[Spark] ${message}`, data ?? '');
+  }
+}
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
 
@@ -134,14 +141,25 @@ export function useTrackAndUpdateSparkAccountBalances() {
         }
 
         if (!account.isOnline) {
+          sparkDebugLog('Skipping balance poll — account offline', {
+            accountId: account.id,
+          });
           return null;
         }
+
+        sparkDebugLog('Polling balance', { accountId: account.id });
 
         const { satsBalance } = await measureOperation(
           'SparkWallet.getBalance',
           () => account.wallet.getBalance(),
           { accountId: account.id },
         );
+
+        sparkDebugLog('Balance fetched from Spark SDK', {
+          accountId: account.id,
+          owned: String(satsBalance.owned),
+          available: String(satsBalance.available),
+        });
 
         // WORKAROUND: Spark SDK sometimes returns 0 for balance incorrectly.
         // The bug seems to be resolved after the wallet is reinitialized.
@@ -210,19 +228,32 @@ export function useTrackAndUpdateSparkAccountBalances() {
         }
         // END WORKAROUND
 
+        const newOwnedBalance = new Money({
+          amount: Number(effectiveOwnedBalance),
+          currency: account.currency as Currency,
+          unit: getDefaultUnit(account.currency),
+        });
+        const newAvailableBalance = new Money({
+          amount: Number(effectiveAvailableBalance),
+          currency: account.currency as Currency,
+          unit: getDefaultUnit(account.currency),
+        });
+
+        sparkDebugLog('Updating accounts cache', {
+          accountId: account.id,
+          prevOwned: account.ownedBalance?.toString() ?? 'null',
+          newOwned: newOwnedBalance.toString(),
+          prevAvailable: account.availableBalance?.toString() ?? 'null',
+          newAvailable: newAvailableBalance.toString(),
+          walletChanged: String(effectiveWallet !== account.wallet),
+          accountVersion: String(account.version),
+        });
+
         accountCache.updateSparkAccountIfBalanceOrWalletChanged({
           ...account,
           wallet: effectiveWallet,
-          ownedBalance: new Money({
-            amount: Number(effectiveOwnedBalance),
-            currency: account.currency as Currency,
-            unit: getDefaultUnit(account.currency),
-          }),
-          availableBalance: new Money({
-            amount: Number(effectiveAvailableBalance),
-            currency: account.currency as Currency,
-            unit: getDefaultUnit(account.currency),
-          }),
+          ownedBalance: newOwnedBalance,
+          availableBalance: newAvailableBalance,
         });
 
         return effectiveOwnedBalance;

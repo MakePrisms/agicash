@@ -9,6 +9,7 @@ import {
 import { useCallback, useMemo, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
 import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
+import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
@@ -55,14 +56,24 @@ export class AccountsCache {
   // TODO: Update when Spark bug is fixed and workaround is removed.
   updateSparkAccountIfBalanceOrWalletChanged(account: SparkAccount) {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
-      curr.map((x) =>
-        x.id === account.id &&
-        x.type === 'spark' &&
-        account.version >= x.version &&
-        this.hasDifferentBalanceOrWallet(x, account)
-          ? account
-          : x,
-      ),
+      curr.map((x) => {
+        if (x.id !== account.id || x.type !== 'spark') return x;
+
+        const versionOk = account.version >= x.version;
+        const balanceChanged = this.hasDifferentBalanceOrWallet(x, account);
+        const willUpdate = versionOk && balanceChanged;
+
+        sparkDebugLog('Cache update check', {
+          accountId: account.id,
+          cachedVersion: String(x.version),
+          incomingVersion: String(account.version),
+          versionOk: String(versionOk),
+          balanceChanged: String(balanceChanged),
+          willUpdate: String(willUpdate),
+        });
+
+        return willUpdate ? account : x;
+      }),
     );
   }
 
