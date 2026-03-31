@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { parseArgs } from './args';
 import { handleBalanceCommand } from './commands/balance';
+import { handleConfigCommand } from './commands/config';
 import { handleDecodeCommand } from './commands/decode';
 import { handleMintCommand } from './commands/mint';
 import { handlePayCommand } from './commands/pay';
@@ -24,6 +25,9 @@ const HELP_TEXT = {
     'receive <token>': 'Claim a cashu token',
     'decode <input>':
       'Parse any input (bolt11, cashu token, lnurl, Lightning address)',
+    'config set <key> <value>':
+      'Set config (default-btc-account, default-usd-account)',
+    'config list': 'Show all config',
     help: 'Show this help',
     version: 'Show version',
   },
@@ -92,6 +96,17 @@ async function main(): Promise<void> {
       const result = await handleDecodeCommand(parsed);
       if (result.error) {
         printError(result.error, result.code || 'DECODE_ERROR', outputOptions);
+        process.exit(1);
+      }
+      printOutput(result, outputOptions);
+      break;
+    }
+
+    case 'config': {
+      const db = getDb();
+      const result = handleConfigCommand(parsed, db);
+      if (result.action === 'error') {
+        printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);
       }
       printOutput(result, outputOptions);

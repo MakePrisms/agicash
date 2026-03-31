@@ -47,19 +47,47 @@ export async function handleSendCommand(
   }
 
   // Find account with sufficient balance
+  type AccountRow = {
+    id: string;
+    name: string;
+    mint_url: string;
+    currency: string;
+  };
   const accountId = args.flags.account as string | undefined;
-  const account = accountId
-    ? (db
-        .query(
-          "SELECT id, name, mint_url, currency FROM accounts WHERE id = ? AND type = 'cashu'",
-        )
-        .get(accountId) as {
-        id: string;
-        name: string;
-        mint_url: string;
-        currency: string;
-      } | null)
-    : (db
+  let account: AccountRow | null = null;
+
+  if (accountId) {
+    account = db
+      .query(
+        "SELECT id, name, mint_url, currency FROM accounts WHERE id = ? AND type = 'cashu'",
+      )
+      .get(accountId) as AccountRow | null;
+  } else {
+    // Try default accounts first
+    for (const key of ['default-btc-account', 'default-usd-account']) {
+      const cfg = db
+        .query('SELECT value FROM config WHERE key = ?')
+        .get(key) as { value: string } | null;
+      if (cfg) {
+        const candidate = db
+          .query(
+            `SELECT a.id, a.name, a.mint_url, a.currency
+             FROM accounts a
+             JOIN cashu_proofs p ON p.account_id = a.id AND p.state = 'UNSPENT'
+             WHERE a.id = ? AND a.type = 'cashu'
+             GROUP BY a.id
+             HAVING SUM(p.amount) >= ?`,
+          )
+          .get(cfg.value, amount) as AccountRow | null;
+        if (candidate) {
+          account = candidate;
+          break;
+        }
+      }
+    }
+    // Fall back to any account with sufficient balance
+    if (!account) {
+      account = db
         .query(
           `SELECT a.id, a.name, a.mint_url, a.currency
            FROM accounts a
@@ -70,12 +98,9 @@ export async function handleSendCommand(
            ORDER BY SUM(p.amount) ASC
            LIMIT 1`,
         )
-        .get(amount) as {
-        id: string;
-        name: string;
-        mint_url: string;
-        currency: string;
-      } | null);
+        .get(amount) as AccountRow | null;
+    }
+  }
 
   if (!account) {
     return {

@@ -43,6 +43,11 @@ function migrate(db: Database): void {
       version INTEGER NOT NULL DEFAULT 1
     );
 
+    CREATE TABLE IF NOT EXISTS config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS cashu_proofs (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       account_id TEXT NOT NULL REFERENCES accounts(id),

@@ -125,6 +125,19 @@ async function handleMintAdd(
     created_at: string;
   };
 
+  // Auto-set as default if it's the first account for this currency
+  const defaultKey =
+    currency === 'BTC' ? 'default-btc-account' : 'default-usd-account';
+  const hasDefault = db
+    .query('SELECT value FROM config WHERE key = ?')
+    .get(defaultKey) as { value: string } | null;
+  if (!hasDefault) {
+    db.prepare('INSERT INTO config (key, value) VALUES (?, ?)').run(
+      defaultKey,
+      row.id,
+    );
+  }
+
   return {
     action: 'added',
     account: {

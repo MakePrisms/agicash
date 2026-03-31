@@ -314,6 +314,19 @@ interface AccountRow {
 
 function findAccount(db: Database, accountId?: string): AccountRow | null {
   if (accountId) return findAccountById(db, accountId);
+
+  // Check for default BTC account, then USD
+  for (const key of ['default-btc-account', 'default-usd-account']) {
+    const row = db.query('SELECT value FROM config WHERE key = ?').get(key) as {
+      value: string;
+    } | null;
+    if (row) {
+      const account = findAccountById(db, row.value);
+      if (account) return account;
+    }
+  }
+
+  // Fall back to first account
   return db
     .query(
       "SELECT id, name, mint_url, currency FROM accounts WHERE type = 'cashu' ORDER BY created_at LIMIT 1",
