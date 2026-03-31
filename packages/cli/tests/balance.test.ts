@@ -1,37 +1,7 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import { handleBalanceCommand } from '../src/commands/balance';
-
-function freshDb(): Database {
-  const db = new Database(':memory:');
-  db.exec('PRAGMA foreign_keys = ON');
-  db.exec(`
-    CREATE TABLE accounts (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      name TEXT NOT NULL,
-      type TEXT NOT NULL,
-      currency TEXT NOT NULL,
-      purpose TEXT NOT NULL DEFAULT 'transactional',
-      mint_url TEXT,
-      is_test_mint INTEGER DEFAULT 0,
-      keyset_counters TEXT DEFAULT '{}',
-      network TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      version INTEGER NOT NULL DEFAULT 1
-    );
-    CREATE TABLE cashu_proofs (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      account_id TEXT NOT NULL REFERENCES accounts(id),
-      amount INTEGER NOT NULL,
-      secret TEXT NOT NULL,
-      c TEXT NOT NULL,
-      keyset_id TEXT NOT NULL,
-      state TEXT NOT NULL DEFAULT 'UNSPENT',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  return db;
-}
+import { getTestDb } from '../src/db';
 
 function addAccount(
   db: Database,
@@ -61,7 +31,7 @@ describe('balance', () => {
   let db: Database;
 
   beforeEach(() => {
-    db = freshDb();
+    db = getTestDb();
   });
 
   test('returns empty when no accounts', () => {

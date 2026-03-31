@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
 import { handleMintCommand } from '../src/commands/mint';
+import { getTestDb } from '../src/db';
 import type { ParsedArgs } from '../src/args';
 
 function makeArgs(
@@ -14,43 +15,11 @@ function makeArgs(
   };
 }
 
-function freshDb(): Database {
-  const db = new Database(':memory:');
-  db.exec('PRAGMA foreign_keys = ON');
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS accounts (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('cashu', 'spark')),
-      currency TEXT NOT NULL CHECK (currency IN ('BTC', 'USD')),
-      purpose TEXT NOT NULL DEFAULT 'transactional' CHECK (purpose IN ('transactional', 'gift-card')),
-      mint_url TEXT,
-      is_test_mint INTEGER DEFAULT 0,
-      keyset_counters TEXT DEFAULT '{}',
-      network TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      version INTEGER NOT NULL DEFAULT 1
-    );
-
-    CREATE TABLE IF NOT EXISTS cashu_proofs (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      account_id TEXT NOT NULL REFERENCES accounts(id),
-      amount INTEGER NOT NULL,
-      secret TEXT NOT NULL,
-      c TEXT NOT NULL,
-      keyset_id TEXT NOT NULL,
-      state TEXT NOT NULL DEFAULT 'UNSPENT' CHECK (state IN ('UNSPENT', 'PENDING', 'SPENT')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-  return db;
-}
-
 describe('mint add', () => {
   let db: Database;
 
   beforeEach(() => {
-    db = freshDb();
+    db = getTestDb();
   });
 
   test('adds a mint with default BTC currency', async () => {
@@ -134,7 +103,7 @@ describe('mint list', () => {
   let db: Database;
 
   beforeEach(() => {
-    db = freshDb();
+    db = getTestDb();
   });
 
   test('returns empty list when no mints', async () => {
@@ -163,14 +132,14 @@ describe('mint list', () => {
 
 describe('mint unknown subcommand', () => {
   test('returns error for unknown subcommand', async () => {
-    const db = freshDb();
+    const db = getTestDb();
     const result = await handleMintCommand(makeArgs(['delete']), db);
     expect(result.action).toBe('error');
     expect(result.code).toBe('UNKNOWN_SUBCOMMAND');
   });
 
   test('returns error when no subcommand', async () => {
-    const db = freshDb();
+    const db = getTestDb();
     const result = await handleMintCommand(makeArgs([]), db);
     expect(result.action).toBe('error');
     expect(result.code).toBe('UNKNOWN_SUBCOMMAND');
