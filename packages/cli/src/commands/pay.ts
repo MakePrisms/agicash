@@ -120,6 +120,12 @@ export async function handlePayCommand(
     const meltQuote = await wallet.createMeltQuoteBolt11(bolt11);
     const totalNeeded = meltQuote.amount + meltQuote.fee_reserve;
 
+    // Save quote to DB for tracking
+    db.prepare(
+      `INSERT INTO quotes (id, type, account_id, amount, bolt11, state)
+       VALUES (?, 'melt', ?, ?, ?, 'PENDING')`,
+    ).run(meltQuote.quote, account.id, meltQuote.amount, bolt11);
+
     // Select proofs to cover amount + fee
     const selectedProofs: StoredProof[] = [];
     let selectedTotal = 0;
@@ -149,6 +155,11 @@ export async function handlePayCommand(
 
     // Execute melt
     const meltResult = await wallet.meltProofsBolt11(meltQuote, cashuProofs);
+
+    // Mark quote as completed
+    db.prepare("UPDATE quotes SET state = 'COMPLETED' WHERE id = ?").run(
+      meltQuote.quote,
+    );
 
     // Mark spent proofs in SQLite
     const markSpent = db.prepare(

@@ -94,6 +94,12 @@ async function handleReceiveLightning(
 
     const quoteResponse = await wallet.createMintQuoteBolt11(amount);
 
+    // Save quote to DB for tracking
+    db.prepare(
+      `INSERT INTO quotes (id, type, account_id, amount, bolt11, state)
+       VALUES (?, 'mint', ?, ?, ?, 'PENDING')`,
+    ).run(quoteResponse.quote, account.id, amount, quoteResponse.request);
+
     const result: ReceiveResult = {
       action: 'invoice',
       quote: {
@@ -110,6 +116,9 @@ async function handleReceiveLightning(
     };
 
     if (args.flags.wait) {
+      // Print the invoice immediately so the user can pay it while we poll
+      console.log(JSON.stringify(result));
+
       const { MintQuoteState } = await import('@cashu/cashu-ts');
       const POLL_INTERVAL = 2000;
       const MAX_POLLS = 150;
@@ -124,6 +133,9 @@ async function handleReceiveLightning(
             quoteResponse.quote,
           );
           storeProofs(db, account.id, proofs);
+          db.prepare("UPDATE quotes SET state = 'COMPLETED' WHERE id = ?").run(
+            quoteResponse.quote,
+          );
 
           return {
             action: 'minted',
@@ -195,6 +207,9 @@ async function handleCheckQuote(
     if (check.state === MintQuoteState.PAID) {
       const proofs = await wallet.mintProofsBolt11(check.amount, quoteId);
       storeProofs(db, account.id, proofs);
+      db.prepare("UPDATE quotes SET state = 'COMPLETED' WHERE id = ?").run(
+        quoteId,
+      );
 
       return {
         action: 'minted',

@@ -5,6 +5,7 @@ import { handleConfigCommand } from './commands/config';
 import { handleDecodeCommand } from './commands/decode';
 import { handleMintCommand } from './commands/mint';
 import { handlePayCommand } from './commands/pay';
+import { handleQuotesCommand } from './commands/quotes';
 import { handleReceiveCommand } from './commands/receive';
 import { handleSendCommand } from './commands/send';
 import { getDb } from './db';
@@ -25,6 +26,8 @@ const HELP_TEXT = {
     'receive <token>': 'Claim a cashu token',
     'decode <input>':
       'Parse any input (bolt11, cashu token, lnurl, Lightning address)',
+    'quotes list': 'List all pending quotes',
+    'quotes check': 'Check and complete pending mint quotes',
     'config set <key> <value>':
       'Set config (default-btc-account, default-usd-account)',
     'config list': 'Show all config',
@@ -105,6 +108,17 @@ async function main(): Promise<void> {
     case 'config': {
       const db = getDb();
       const result = handleConfigCommand(parsed, db);
+      if (result.action === 'error') {
+        printError(result.error ?? '', result.code ?? '', outputOptions);
+        process.exit(1);
+      }
+      printOutput(result, outputOptions);
+      break;
+    }
+
+    case 'quotes': {
+      const db = getDb();
+      const result = await handleQuotesCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);

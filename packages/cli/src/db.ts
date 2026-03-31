@@ -58,6 +58,16 @@ function migrate(db: Database): void {
       state TEXT NOT NULL DEFAULT 'UNSPENT' CHECK (state IN ('UNSPENT', 'PENDING', 'SPENT')),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS quotes (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL CHECK (type IN ('mint', 'melt')),
+      account_id TEXT NOT NULL REFERENCES accounts(id),
+      amount INTEGER NOT NULL,
+      bolt11 TEXT,
+      state TEXT NOT NULL DEFAULT 'PENDING',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 
