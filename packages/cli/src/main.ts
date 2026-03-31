@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 import { parseArgs } from './args';
+import { handleMintCommand } from './commands/mint';
+import { getDb } from './db';
 import { printError, printOutput } from './output';
 
 const VERSION = '0.1.0';
@@ -8,7 +10,7 @@ const HELP_TEXT = {
   name: 'agicash',
   version: VERSION,
   commands: {
-    'mint add <url>': 'Add a mint',
+    'mint add <url>': 'Add a mint (--currency BTC|USD, --name "My Mint")',
     'mint list': 'List configured mints',
     balance: 'Show wallet balance',
     receive: 'Receive ecash or Lightning',
@@ -24,7 +26,6 @@ const HELP_TEXT = {
 };
 
 async function main(): Promise<void> {
-  // Bun.argv: [bun, script, ...args]
   const userArgs = process.argv.slice(2);
   const parsed = parseArgs(userArgs);
   const outputOptions = { pretty: Boolean(parsed.flags.pretty) };
@@ -37,6 +38,17 @@ async function main(): Promise<void> {
     case 'version':
       printOutput({ version: VERSION }, outputOptions);
       break;
+
+    case 'mint': {
+      const db = getDb();
+      const result = await handleMintCommand(parsed, db);
+      if (result.action === 'error') {
+        printError(result.error!, result.code!, outputOptions);
+        process.exit(1);
+      }
+      printOutput(result, outputOptions);
+      break;
+    }
 
     default:
       printError(
