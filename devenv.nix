@@ -1,5 +1,9 @@
 { pkgs, lib, config, inputs, ... }:
 
+let
+  # Pin biome to v1.9.4 from nixos-24.11 to match biome.jsonc config
+  pkgs-stable = import inputs.nixpkgs-stable { system = pkgs.stdenv.system; };
+in
 {
   # https://devenv.sh/basics/
   env.GREET = "devenv";
@@ -15,6 +19,7 @@
     pkgs.gh
     pkgs.nodePackages.typescript-language-server
     pkgs.nodePackages.vercel
+    pkgs-stable.biome
     (pkgs.callPackage ./tools/convert-to-webp {})
   ];
 
@@ -51,6 +56,13 @@
 
     # Trust mkcert CA in Node.js (Makes node trust local cert and solves the issue with Supabase local MCP failing because of untrusted cert.)
     export NODE_EXTRA_CA_CERTS="$(mkcert -CAROOT)/rootCA.pem"
+
+    # NixOS fix: bun run prepends node_modules/.bin to PATH, and the
+    # npm-installed biome is a dynamically linked binary that NixOS can't
+    # execute. Replace it with a symlink to the Nix-provided biome.
+    if [ -d "$DEVENV_ROOT/node_modules/.bin" ]; then
+      ln -sf "$(command -v biome)" "$DEVENV_ROOT/node_modules/.bin/biome"
+    fi
   '';
 
   # https://devenv.sh/tasks/

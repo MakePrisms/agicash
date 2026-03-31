@@ -31,7 +31,8 @@ export async function handleSendCommand(
   if (!amountStr) {
     return {
       action: 'error',
-      error: 'Usage: agicash send <amount> — creates a cashu token for the given amount in sats',
+      error:
+        'Usage: agicash send <amount> — creates a cashu token for the given amount in sats',
       code: 'MISSING_AMOUNT',
     };
   }

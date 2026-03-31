@@ -16,7 +16,8 @@ export async function handleDecodeCommand(
     return {
       type: 'error',
       raw: '',
-      error: 'Missing input. Usage: agicash decode <bolt11|cashu-token|lnurl|mint-url>',
+      error:
+        'Missing input. Usage: agicash decode <bolt11|cashu-token|lnurl|mint-url>',
       code: 'MISSING_INPUT',
     };
   }
@@ -26,7 +27,11 @@ export async function handleDecodeCommand(
     return decodeCashuToken(input);
   }
 
-  if (input.startsWith('lnbc') || input.startsWith('lntb') || input.startsWith('lnbcrt')) {
+  if (
+    input.startsWith('lnbc') ||
+    input.startsWith('lntb') ||
+    input.startsWith('lnbcrt')
+  ) {
     return decodeBolt11(input);
   }
 
@@ -50,7 +55,7 @@ export async function handleDecodeCommand(
           protocol: url.protocol,
           host: url.hostname,
           path: url.pathname,
-          hint: 'Could be a mint URL. Use: agicash mint add ' + input,
+          hint: `Could be a mint URL. Use: agicash mint add ${input}`,
         },
       };
     }

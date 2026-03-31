@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeEach } from 'bun:test';
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
+import { beforeEach, describe, expect, test } from 'bun:test';
+import type { ParsedArgs } from '../src/args';
 import { handleMintCommand } from '../src/commands/mint';
 import { getTestDb } from '../src/db';
-import type { ParsedArgs } from '../src/args';
 
 function makeArgs(
   positional: string[],
@@ -29,10 +29,10 @@ describe('mint add', () => {
     );
     expect(result.action).toBe('added');
     expect(result.account).toBeDefined();
-    expect(result.account!.mint_url).toBe('https://mint.example.com');
-    expect(result.account!.currency).toBe('BTC');
-    expect(result.account!.type).toBe('cashu');
-    expect(result.account!.name).toBe('BTC Mint');
+    expect(result.account?.mint_url).toBe('https://mint.example.com');
+    expect(result.account?.currency).toBe('BTC');
+    expect(result.account?.type).toBe('cashu');
+    expect(result.account?.name).toBe('BTC Mint');
   });
 
   test('adds a mint with USD currency', async () => {
@@ -41,8 +41,8 @@ describe('mint add', () => {
       db,
     );
     expect(result.action).toBe('added');
-    expect(result.account!.currency).toBe('USD');
-    expect(result.account!.name).toBe('USD Mint');
+    expect(result.account?.currency).toBe('USD');
+    expect(result.account?.name).toBe('USD Mint');
   });
 
   test('adds a mint with custom name', async () => {
@@ -50,7 +50,7 @@ describe('mint add', () => {
       makeArgs(['add', 'https://mint.example.com'], { name: 'My Mint' }),
       db,
     );
-    expect(result.account!.name).toBe('My Mint');
+    expect(result.account?.name).toBe('My Mint');
   });
 
   test('strips trailing slashes from URL', async () => {
@@ -58,14 +58,11 @@ describe('mint add', () => {
       makeArgs(['add', 'https://mint.example.com///']),
       db,
     );
-    expect(result.account!.mint_url).toBe('https://mint.example.com');
+    expect(result.account?.mint_url).toBe('https://mint.example.com');
   });
 
   test('rejects invalid URL', async () => {
-    const result = await handleMintCommand(
-      makeArgs(['add', 'not-a-url']),
-      db,
-    );
+    const result = await handleMintCommand(makeArgs(['add', 'not-a-url']), db);
     expect(result.action).toBe('error');
     expect(result.code).toBe('INVALID_URL');
   });
@@ -77,10 +74,7 @@ describe('mint add', () => {
   });
 
   test('rejects duplicate mint', async () => {
-    await handleMintCommand(
-      makeArgs(['add', 'https://mint.example.com']),
-      db,
-    );
+    await handleMintCommand(makeArgs(['add', 'https://mint.example.com']), db);
     const result = await handleMintCommand(
       makeArgs(['add', 'https://mint.example.com']),
       db,
@@ -113,10 +107,7 @@ describe('mint list', () => {
   });
 
   test('lists added mints', async () => {
-    await handleMintCommand(
-      makeArgs(['add', 'https://mint1.example.com']),
-      db,
-    );
+    await handleMintCommand(makeArgs(['add', 'https://mint1.example.com']), db);
     await handleMintCommand(
       makeArgs(['add', 'https://mint2.example.com'], { currency: 'USD' }),
       db,
@@ -125,8 +116,8 @@ describe('mint list', () => {
     const result = await handleMintCommand(makeArgs(['list']), db);
     expect(result.action).toBe('list');
     expect(result.accounts).toHaveLength(2);
-    expect(result.accounts![0].mint_url).toBe('https://mint1.example.com');
-    expect(result.accounts![1].mint_url).toBe('https://mint2.example.com');
+    expect(result.accounts?.[0].mint_url).toBe('https://mint1.example.com');
+    expect(result.accounts?.[1].mint_url).toBe('https://mint2.example.com');
   });
 });
 

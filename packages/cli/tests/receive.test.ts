@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeEach } from 'bun:test';
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
+import { beforeEach, describe, expect, test } from 'bun:test';
+import type { ParsedArgs } from '../src/args';
 import { handleReceiveCommand } from '../src/commands/receive';
 import { getTestDb } from '../src/db';
-import type { ParsedArgs } from '../src/args';
 
 function makeArgs(
   positional: string[] = [],
@@ -99,8 +99,8 @@ describe('receive Lightning E2E (requires network)', () => {
 
     expect(result.action).toBe('invoice');
     expect(result.quote).toBeDefined();
-    expect(result.quote!.bolt11).toMatch(/^ln/);
-    expect(result.quote!.amount).toBe(1);
+    expect(result.quote?.bolt11).toMatch(/^ln/);
+    expect(result.quote?.amount).toBe(1);
   });
 
   test('accepts amount via --amount flag (backwards compat)', async () => {
@@ -111,6 +111,6 @@ describe('receive Lightning E2E (requires network)', () => {
     );
 
     expect(result.action).toBe('invoice');
-    expect(result.quote!.bolt11).toMatch(/^ln/);
+    expect(result.quote?.bolt11).toMatch(/^ln/);
   });
 });

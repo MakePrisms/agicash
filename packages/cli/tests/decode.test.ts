@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { handleDecodeCommand } from '../src/commands/decode';
 import type { ParsedArgs } from '../src/args';
+import { handleDecodeCommand } from '../src/commands/decode';
 
-function makeArgs(positional: string[] = [], flags: Record<string, string | boolean> = {}): ParsedArgs {
+function makeArgs(
+  positional: string[] = [],
+  flags: Record<string, string | boolean> = {},
+): ParsedArgs {
   return {
     command: 'decode',
     positional,
@@ -20,21 +23,23 @@ describe('decode', () => {
   test('detects and decodes cashu token', async () => {
     // A minimal cashu token for testing
     // We'll test with a real-ish prefix detection
-    const result = await handleDecodeCommand(makeArgs(['cashuAeyJ0b2tlbiI6eyJ']));
+    const result = await handleDecodeCommand(
+      makeArgs(['cashuAeyJ0b2tlbiI6eyJ']),
+    );
     // Should detect as cashu_token type even if decode fails (malformed)
     expect(result.type).toBe('cashu_token');
   });
 
   test('detects bolt11 invoice', async () => {
     // Use a real testnet invoice prefix
-    const result = await handleDecodeCommand(
-      makeArgs(['lnbc10n1ptest']),
-    );
+    const result = await handleDecodeCommand(makeArgs(['lnbc10n1ptest']));
     expect(result.type).toBe('bolt11');
   });
 
   test('detects lnurl', async () => {
-    const result = await handleDecodeCommand(makeArgs(['lnurl1dp68gurn8ghj7test']));
+    const result = await handleDecodeCommand(
+      makeArgs(['lnurl1dp68gurn8ghj7test']),
+    );
     expect(result.type).toBe('lnurl');
     expect(result.data?.hint).toBeDefined();
   });

@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 import { parseArgs } from './args';
 import { handleBalanceCommand } from './commands/balance';
-import { handleMintCommand } from './commands/mint';
-import { handleReceiveCommand } from './commands/receive';
 import { handleDecodeCommand } from './commands/decode';
+import { handleMintCommand } from './commands/mint';
 import { handlePayCommand } from './commands/pay';
+import { handleReceiveCommand } from './commands/receive';
 import { handleSendCommand } from './commands/send';
 import { getDb } from './db';
 import { printError, printOutput } from './output';
@@ -22,7 +22,8 @@ const HELP_TEXT = {
     'pay <invoice>': 'Pay a Lightning invoice',
     'receive <amount>': 'Create Lightning invoice to receive sats',
     'receive <token>': 'Claim a cashu token',
-    'decode <input>': 'Parse any input (bolt11, cashu token, lnurl, Lightning address)',
+    'decode <input>':
+      'Parse any input (bolt11, cashu token, lnurl, Lightning address)',
     help: 'Show this help',
     version: 'Show version',
   },
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
       const db = getDb();
       const result = await handleReceiveCommand(parsed, db);
       if (result.action === 'error') {
-        printError(result.error!, result.code!, outputOptions);
+        printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);
       }
       printOutput(result, outputOptions);
@@ -69,7 +70,7 @@ async function main(): Promise<void> {
       const db = getDb();
       const result = await handleSendCommand(parsed, db);
       if (result.action === 'error') {
-        printError(result.error!, result.code!, outputOptions);
+        printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);
       }
       printOutput(result, outputOptions);
@@ -80,7 +81,7 @@ async function main(): Promise<void> {
       const db = getDb();
       const result = await handlePayCommand(parsed, db);
       if (result.action === 'error') {
-        printError(result.error!, result.code!, outputOptions);
+        printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);
       }
       printOutput(result, outputOptions);
@@ -101,7 +102,7 @@ async function main(): Promise<void> {
       const db = getDb();
       const result = await handleMintCommand(parsed, db);
       if (result.action === 'error') {
-        printError(result.error!, result.code!, outputOptions);
+        printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);
       }
       printOutput(result, outputOptions);

@@ -1,5 +1,5 @@
-import { describe, expect, test, beforeEach } from 'bun:test';
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import { handleBalanceCommand } from '../src/commands/balance';
 import { getTestDb } from '../src/db';
 
@@ -24,7 +24,14 @@ function addProof(
   db.prepare(
     `INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
      VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(accountId, amount, `secret-${Math.random()}`, `c-${Math.random()}`, 'keyset1', state);
+  ).run(
+    accountId,
+    amount,
+    `secret-${Math.random()}`,
+    `c-${Math.random()}`,
+    'keyset1',
+    state,
+  );
 }
 
 describe('balance', () => {
@@ -109,9 +116,21 @@ describe('balance', () => {
   });
 
   test('groups accounts by currency then name', () => {
-    addAccount(db, { name: 'Zebra', currency: 'BTC', mint_url: 'https://z.com' });
-    addAccount(db, { name: 'Alpha', currency: 'BTC', mint_url: 'https://a.com' });
-    addAccount(db, { name: 'USD Mint', currency: 'USD', mint_url: 'https://u.com' });
+    addAccount(db, {
+      name: 'Zebra',
+      currency: 'BTC',
+      mint_url: 'https://z.com',
+    });
+    addAccount(db, {
+      name: 'Alpha',
+      currency: 'BTC',
+      mint_url: 'https://a.com',
+    });
+    addAccount(db, {
+      name: 'USD Mint',
+      currency: 'USD',
+      mint_url: 'https://u.com',
+    });
 
     const result = handleBalanceCommand(db);
     expect(result.accounts[0].name).toBe('Alpha');

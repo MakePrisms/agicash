@@ -174,7 +174,7 @@ async function handleReceiveToken(
 
     // Find or auto-select account for this mint
     const accountId = args.flags.account as string | undefined;
-    let account = accountId
+    const account = accountId
       ? findAccountById(db, accountId)
       : findAccountByMint(db, mintUrl);
 
@@ -228,10 +228,7 @@ interface AccountRow {
   currency: string;
 }
 
-function findAccount(
-  db: Database,
-  accountId?: string,
-): AccountRow | null {
+function findAccount(db: Database, accountId?: string): AccountRow | null {
   if (accountId) return findAccountById(db, accountId);
   return db
     .query(
@@ -248,10 +245,7 @@ function findAccountById(db: Database, id: string): AccountRow | null {
     .get(id) as AccountRow | null;
 }
 
-function findAccountByMint(
-  db: Database,
-  mintUrl: string,
-): AccountRow | null {
+function findAccountByMint(db: Database, mintUrl: string): AccountRow | null {
   return db
     .query(
       "SELECT id, name, mint_url, currency FROM accounts WHERE mint_url = ? AND type = 'cashu' LIMIT 1",

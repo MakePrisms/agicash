@@ -96,15 +96,12 @@ async function handleMintAdd(
   }
 
   // Determine name from flags or generate
-  const name =
-    (args.flags.name as string) || `${currency} Mint`;
+  const name = (args.flags.name as string) || `${currency} Mint`;
 
   // Check if test mint
   let isTestMint = false;
   try {
-    const { checkIsTestMint } = await import(
-      '@agicash/sdk/lib/cashu/utils'
-    );
+    const { checkIsTestMint } = await import('@agicash/sdk/lib/cashu/utils');
     isTestMint = await checkIsTestMint(normalizedUrl);
   } catch {
     // If we can't check, assume mainnet

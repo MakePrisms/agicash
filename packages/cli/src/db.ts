@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 const DATA_DIR = join(homedir(), '.agicash');
 const DB_PATH = join(DATA_DIR, 'agicash.db');

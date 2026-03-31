@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeEach } from 'bun:test';
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
+import { beforeEach, describe, expect, test } from 'bun:test';
+import type { ParsedArgs } from '../src/args';
 import { handlePayCommand } from '../src/commands/pay';
 import { getTestDb } from '../src/db';
-import type { ParsedArgs } from '../src/args';
 
 function makeArgs(
   positional: string[] = [],
@@ -31,11 +31,7 @@ function addAccount(
   return row.id;
 }
 
-function addProof(
-  db: Database,
-  accountId: string,
-  amount: number,
-): void {
+function addProof(db: Database, accountId: string, amount: number): void {
   db.prepare(
     `INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
      VALUES (?, ?, ?, ?, ?, 'UNSPENT')`,
@@ -74,10 +70,7 @@ describe('pay validation', () => {
     const id = addAccount(db);
     addProof(db, id, 100);
     // Will fail at network level but should pass validation
-    const result = await handlePayCommand(
-      makeArgs(['lnbc100n1invalid']),
-      db,
-    );
+    const result = await handlePayCommand(makeArgs(['lnbc100n1invalid']), db);
     // Should get past validation to the network call
     expect(result.code).not.toBe('MISSING_INVOICE');
     expect(result.code).not.toBe('INVALID_INVOICE');
@@ -113,7 +106,10 @@ describe('pay validation', () => {
   });
 
   test('selects account with highest balance by default', async () => {
-    const id1 = addAccount(db, { name: 'Small', mint_url: 'https://small.mint' });
+    const id1 = addAccount(db, {
+      name: 'Small',
+      mint_url: 'https://small.mint',
+    });
     const id2 = addAccount(db, { name: 'Big', mint_url: 'https://big.mint' });
     addProof(db, id1, 10);
     addProof(db, id2, 1000);

@@ -1,8 +1,8 @@
-import { describe, expect, test, beforeEach } from 'bun:test';
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
+import { beforeEach, describe, expect, test } from 'bun:test';
+import type { ParsedArgs } from '../src/args';
 import { handleSendCommand } from '../src/commands/send';
 import { getTestDb } from '../src/db';
-import type { ParsedArgs } from '../src/args';
 
 function makeArgs(
   positional: string[] = [],
@@ -35,7 +35,13 @@ function addProof(db: Database, accountId: string, amount: number): void {
   db.prepare(
     `INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
      VALUES (?, ?, ?, ?, ?, 'UNSPENT')`,
-  ).run(accountId, amount, `secret-${Math.random()}`, `c-${Math.random()}`, 'keyset1');
+  ).run(
+    accountId,
+    amount,
+    `secret-${Math.random()}`,
+    `c-${Math.random()}`,
+    'keyset1',
+  );
 }
 
 describe('send (ecash token) validation', () => {
@@ -92,10 +98,7 @@ describe('send (ecash token) validation', () => {
   });
 
   test('accepts amount via --amount flag', async () => {
-    const result = await handleSendCommand(
-      makeArgs([], { amount: '100' }),
-      db,
-    );
+    const result = await handleSendCommand(makeArgs([], { amount: '100' }), db);
     expect(result.action).toBe('error');
     // Should get past amount parsing
     expect(result.code).not.toBe('MISSING_AMOUNT');
