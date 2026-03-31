@@ -1,9 +1,9 @@
-import { getBgColorForTheme } from '@agicash/sdk/features/theme/colors';
+import { getBgColorForTheme } from '~/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
 import {
   defaultColorMode,
   defaultTheme,
-} from '@agicash/sdk/features/theme/theme.constants';
+} from '~/features/theme/theme.constants';
 import type { Route } from './+types/manifest[.]webmanifest';
 
 interface WebAppManifest {

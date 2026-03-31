@@ -25,7 +25,7 @@ import {
 } from '~/components/ui/card';
 import { Toaster } from '~/components/ui/toaster';
 import { ThemeProvider, useTheme } from '~/features/theme';
-import { getBgColorForTheme } from '@agicash/sdk/features/theme/colors';
+import { getBgColorForTheme } from '~/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
 import { getThemeScript } from '~/features/theme/theme-script';
 import { SupabaseRealtimeError } from '~/lib/supabase/supabase-realtime-hooks';

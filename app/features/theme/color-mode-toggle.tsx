@@ -6,8 +6,8 @@ import {
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu';
 import { cn } from '~/lib/utils';
-import { colorModes } from '@agicash/sdk/features/theme/theme.constants';
-import type { ColorMode } from '@agicash/sdk/features/theme/theme.types';
+import { colorModes } from './theme.constants';
+import type { ColorMode } from './theme.types';
 import { useTheme } from './use-theme';
 
 export function ColorModeToggle({ className }: { className?: string }) {

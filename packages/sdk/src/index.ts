@@ -170,20 +170,6 @@ export {
 } from './features/shared/error';
 export { getInitializedSparkWallet, sparkWalletCacheKey } from './features/shared/spark';
 
-// Theme
-export type { Theme, ColorMode, ThemeCookieValues, ThemeContextType } from './features/theme/theme.types';
-export {
-  themes,
-  colorModes,
-  defaultTheme,
-  defaultColorMode,
-  defaultSystemColorMode,
-  THEME_COOKIE_NAME,
-  COLOR_MODE_COOKIE_NAME,
-  SYSTEM_COLOR_MODE_COOKIE_NAME,
-} from './features/theme/theme.constants';
-export { getBgColorForTheme } from './features/theme/colors';
-
 // Wallet
 export { TaskProcessingLockRepository } from './features/wallet/task-processing-lock-repository';
 

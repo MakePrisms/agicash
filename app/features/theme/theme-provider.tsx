@@ -1,6 +1,6 @@
 import { createContext, useEffect, useState } from 'react';
 import { useRouteLoaderData } from 'react-router';
-import { getBgColorForTheme } from '@agicash/sdk/features/theme/colors';
+import { getBgColorForTheme } from './colors';
 import { getClientThemeCookies } from './theme-cookies.client';
 import type { getThemeCookies } from './theme-cookies.server';
 import {
@@ -11,13 +11,13 @@ import {
   defaultSystemColorMode,
   defaultTheme,
   themes,
-} from '@agicash/sdk/features/theme/theme.constants';
+} from './theme.constants';
 import type {
   ColorMode,
   Theme,
   ThemeContextType,
   ThemeCookieValues,
-} from '@agicash/sdk/features/theme/theme.types';
+} from './theme.types';
 
 export const ThemeContext = createContext<ThemeContextType | undefined>(
   undefined,
