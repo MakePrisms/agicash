@@ -36,6 +36,7 @@ in
   scripts.hello.exec = ''
     echo Hello from $GREET
   '';
+  scripts.agicash.exec = "bun run $DEVENV_ROOT/packages/cli/src/main.ts $@";
   scripts.webstorm.exec = "$DEVENV_ROOT/tools/devenv/webstorm.sh $@";
   scripts.generate-ssl-cert.exec = "$DEVENV_ROOT/tools/devenv/generate-ssl-cert.sh";
   scripts.convert-gift-card-images.exec = ''
