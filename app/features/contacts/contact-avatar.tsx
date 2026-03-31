@@ -1,4 +1,4 @@
-import { cn } from '@agicash/sdk/lib/utils';
+import { cn } from '~/lib/utils';
 
 const getInitials = (username: string) => {
   return username.slice(0, 2).toUpperCase();

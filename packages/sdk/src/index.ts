@@ -213,7 +213,7 @@ export { RealtimeChannelBuilder } from './lib/supabase/supabase-realtime-channel
 export { SupabaseRealtimeChannel } from './lib/supabase/supabase-realtime-channel';
 
 // Lib - Utilities
-export { cn, sum, isSubset, isObject } from './lib/utils';
+export { sum, isSubset, isObject } from './lib/utils';
 export { safeJsonParse } from './lib/json';
 export { computeSHA256 } from './lib/sha256';
 export { getLocaleDecimalSeparator } from './lib/locale';

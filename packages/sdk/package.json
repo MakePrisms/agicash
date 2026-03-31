@@ -18,10 +18,8 @@
     "@supabase/realtime-js": "2.95.2",
     "@supabase/supabase-js": "2.95.2",
     "big.js": "7.0.1",
-    "clsx": "2.1.1",
     "ky": "1.14.3",
     "light-bolt11-decoder": "3.2.0",
-    "tailwind-merge": "3.4.0",
     "zod": "4.3.6"
   },
   "devDependencies": {

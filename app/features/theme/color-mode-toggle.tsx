@@ -5,7 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu';
-import { cn } from '@agicash/sdk/lib/utils';
+import { cn } from '~/lib/utils';
 import { colorModes } from '@agicash/sdk/features/theme/theme.constants';
 import type { ColorMode } from '@agicash/sdk/features/theme/theme.types';
 import { useTheme } from './use-theme';

@@ -4,7 +4,7 @@ import {
   LinkWithViewTransition,
   type ViewTransitionLinkProps,
 } from '~/lib/transitions';
-import { cn } from '@agicash/sdk/lib/utils';
+import { cn } from '~/lib/utils';
 
 export type PageHeaderPosition = 'left' | 'center' | 'right';
 

@@ -5,7 +5,7 @@ import { UniqueConstraintError } from '@agicash/sdk/features/shared/error';
 import { useUpdateUsername, useUser } from '~/features/user/user-hooks';
 import useAnimation from '~/hooks/use-animation';
 import { useToast } from '~/hooks/use-toast';
-import { cn } from '@agicash/sdk/lib/utils';
+import { cn } from '~/lib/utils';
 
 type FormValues = {
   username: string;

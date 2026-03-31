@@ -11,7 +11,7 @@ import {
   WalletCardBackgroundImage,
 } from '~/components/wallet-card';
 import useUserAgent from '~/hooks/use-user-agent';
-import { cn } from '@agicash/sdk/lib/utils';
+import { cn } from '~/lib/utils';
 import type { GiftCardInfo } from './use-discover-cards';
 
 const DiscoverCardsLocationStateSchema = z.object({

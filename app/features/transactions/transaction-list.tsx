@@ -18,7 +18,7 @@ import {
   VIEW_TRANSITION_DURATION_MS,
 } from '~/lib/transitions';
 import { useLatest } from '~/lib/use-latest';
-import { cn } from '@agicash/sdk/lib/utils';
+import { cn } from '~/lib/utils';
 import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
 import type { Transaction } from '@agicash/sdk/features/transactions/transaction';
 import {
