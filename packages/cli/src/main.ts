@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { parseArgs } from './args';
+import { handleBalanceCommand } from './commands/balance';
 import { handleMintCommand } from './commands/mint';
 import { getDb } from './db';
 import { printError, printOutput } from './output';
@@ -38,6 +39,13 @@ async function main(): Promise<void> {
     case 'version':
       printOutput({ version: VERSION }, outputOptions);
       break;
+
+    case 'balance': {
+      const db = getDb();
+      const result = handleBalanceCommand(db);
+      printOutput(result, outputOptions);
+      break;
+    }
 
     case 'mint': {
       const db = getDb();
