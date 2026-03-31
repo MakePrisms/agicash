@@ -1,8 +1,187 @@
+diff --git a/node_modules/@buildonspark/spark-sdk/.bun-tag-80eaa9cdf8a27381 b/.bun-tag-80eaa9cdf8a27381
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@buildonspark/spark-sdk/.bun-tag-b36a28d4f5fa4c5f b/.bun-tag-b36a28d4f5fa4c5f
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@buildonspark/spark-sdk/.bun-tag-dcb374d08a2ba5b4 b/.bun-tag-dcb374d08a2ba5b4
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@buildonspark/spark-sdk/.bun-tag-f306804a397e1327 b/.bun-tag-f306804a397e1327
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/spark-wallet-DL7eUjY2.js b/dist/spark-wallet-DL7eUjY2.js
-index 8ac67f96a4d2cbef9bcbae240241dc36f441f3db..83470de728b6f4c47d83cf5d6eb00793f554b11c 100644
+index 8ac67f96a4d2cbef9bcbae240241dc36f441f3db..6e0feba1026883d79b59f14cd1e9f09e43b9d649 100644
 --- a/dist/spark-wallet-DL7eUjY2.js
 +++ b/dist/spark-wallet-DL7eUjY2.js
-@@ -14548,21 +14548,29 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+@@ -12095,11 +12095,10 @@ var LeafManager = class {
+ 		this.onAutoOptimize = onAutoOptimize;
+ 	}
+ 	emitBalanceUpdate() {
+-		this.onBalanceUpdate?.({
+-			available: this.getAvailableBalance(),
+-			owned: this.getOwnedBalance(),
+-			incoming: this.getIncomingBalance()
+-		});
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
++		const snapshot = { available: this.getAvailableBalance(), owned: this.getOwnedBalance(), incoming: this.getIncomingBalance() };
++		_dl("emitBalanceUpdate", { ...snapshot, leafCount: this.leaves.size });
++		this.onBalanceUpdate?.(snapshot);
+ 	}
+ 	/** Must be called before stream events are processed. Sets the identity
+ 	*  public key used by handleTransferEvent to filter sender events. */
+@@ -12107,6 +12106,8 @@ var LeafManager = class {
+ 		this.identityPublicKey = await this.config.signer.getIdentityPublicKey();
+ 	}
+ 	async sync() {
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
++		_dl("sync started");
+ 		this.identityPublicKey = await this.config.signer.getIdentityPublicKey();
+ 		const [rawLeaves, swaps, outgoingTransfers, incomingTransfers] = await Promise.all([
+ 			this.getLeaves(),
+@@ -12114,6 +12115,7 @@ var LeafManager = class {
+ 			this.getAllPendingOutgoingTransfers(),
+ 			this.transferService.queryPendingTransfers()
+ 		]);
++		_dl("sync: fetched state", { rawLeaves: rawLeaves.length, swaps: swaps.length, outgoingTransfers: outgoingTransfers.length, incomingTransfers: incomingTransfers.transfers.length });
+ 		const leaves = await this.checkRenewLeaves(rawLeaves);
+ 		await this.leavesMutex.runExclusive(() => {
+ 			const preserved = /* @__PURE__ */ new Map();
+@@ -12159,6 +12161,8 @@ var LeafManager = class {
+ 			for (const [id, record] of preserved) this.leaves.set(id, record);
+ 			this.hasSynced = true;
+ 		});
++		const _inv = {}; for (const [, r] of this.leaves) _inv[r.status] = (_inv[r.status] || 0) + r.treeNode.value;
++		_dl("sync: rebuilt leaf map", { total: this.leaves.size, inventory: _inv });
+ 		this.autoOptimizeIfNeeded();
+ 		this.emitBalanceUpdate();
+ 	}
+@@ -12296,12 +12300,18 @@ var LeafManager = class {
+ 		}
+ 	}
+ 	async addLeaves(leaves) {
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
+ 		let changed = false;
++		let _skippedInFlight = 0, _skippedSame = 0, _added = 0;
+ 		await this.leavesMutex.runExclusive(() => {
+ 			for (const leaf of leaves) {
+ 				const existing = this.leaves.get(leaf.id);
+-				if (existing && IN_FLIGHT_STATUSES.has(existing.status)) continue;
+-				if (existing?.status === LeafStatus.AVAILABLE && existing.treeNode.value === leaf.value) continue;
++				if (existing && IN_FLIGHT_STATUSES.has(existing.status)) {
++					_dl("addLeaves: skipped IN_FLIGHT", { leafId: leaf.id.slice(0, 8), status: existing.status, value: leaf.value });
++					_skippedInFlight++; continue;
++				}
++				if (existing?.status === LeafStatus.AVAILABLE && existing.treeNode.value === leaf.value) { _skippedSame++; continue; }
++				_added++;
+ 				this.leaves.set(leaf.id, {
+ 					treeNode: leaf,
+ 					status: LeafStatus.AVAILABLE,
+@@ -12310,16 +12320,23 @@ var LeafManager = class {
+ 				changed = true;
+ 			}
+ 		});
++		_dl("addLeaves done", { total: leaves.length, added: _added, skippedInFlight: _skippedInFlight, skippedSame: _skippedSame, changed });
+ 		if (changed) this.emitBalanceUpdate();
+ 	}
+ 	/** Add leaves as INCOMING (unclaimed transfer or unconfirmed deposit).
+ 	*  Does not overwrite leaves already in the cache with a non-INCOMING status. */
+ 	async addIncomingLeaves(leaves, transferId) {
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
+ 		let changed = false;
++		let _added = 0, _skipped = 0;
+ 		await this.leavesMutex.runExclusive(() => {
+ 			for (const leaf of leaves) {
+ 				const existing = this.leaves.get(leaf.id);
+-				if (existing && existing.status !== LeafStatus.INCOMING) continue;
++				if (existing && existing.status !== LeafStatus.INCOMING) {
++					_dl("addIncomingLeaves: skipped", { leafId: leaf.id.slice(0, 8), existingStatus: existing.status, value: leaf.value });
++					_skipped++; continue;
++				}
++				_added++;
+ 				this.leaves.set(leaf.id, {
+ 					treeNode: leaf,
+ 					status: LeafStatus.INCOMING,
+@@ -12331,6 +12348,7 @@ var LeafManager = class {
+ 				changed = true;
+ 			}
+ 		});
++		_dl("addIncomingLeaves done", { transferId, total: leaves.length, added: _added, skipped: _skipped, changed });
+ 		if (changed) this.emitBalanceUpdate();
+ 	}
+ 	/** Remove stale AVAILABLE leaves not in the fresh coordinator set.
+@@ -12338,13 +12356,17 @@ var LeafManager = class {
+ 	*  (source "transfer") are preserved since they may not yet appear
+ 	*  in the coordinator response. */
+ 	async evictStaleAvailable(freshIds) {
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
+ 		let changed = false;
++		const _evicted = [];
+ 		await this.leavesMutex.runExclusive(() => {
+ 			for (const [id, record] of this.leaves) if (record.status === LeafStatus.AVAILABLE && record.source.kind === "none" && !freshIds.has(id)) {
++				_evicted.push({ leafId: id.slice(0, 8), value: record.treeNode.value });
+ 				this.leaves.delete(id);
+ 				changed = true;
+ 			}
+ 		});
++		if (_evicted.length > 0) _dl("evictStaleAvailable", { evicted: _evicted, freshIdCount: freshIds.size });
+ 		if (changed) this.emitBalanceUpdate();
+ 	}
+ 	async removeLeaves(leafIds) {
+@@ -12358,7 +12380,10 @@ var LeafManager = class {
+ 	*  Unconditionally sets status to AVAILABLE, bypassing the IN_FLIGHT_STATUSES
+ 	*  guard in addLeaves, since successfully claimed leaves are definitively ours. */
+ 	async registerClaimedLeaves(leaves, transferId) {
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
++		_dl("registerClaimedLeaves", { transferId, leafCount: leaves.length, totalValue: leaves.reduce((s, l) => s + l.value, 0) });
+ 		const renewed = await this.checkRenewLeaves(leaves);
++		_dl("registerClaimedLeaves: renewed", { renewed: renewed.length, dropped: leaves.length - renewed.length });
+ 		await this.leavesMutex.runExclusive(() => {
+ 			for (const leaf of renewed) this.leaves.set(leaf.id, {
+ 				treeNode: leaf,
+@@ -12495,7 +12520,13 @@ var LeafManager = class {
+ 		}
+ 	}
+ 	async handleTransferEvent(transfer) {
+-		if (!this.identityPublicKey || !equalBytes(transfer.senderIdentityPublicKey, this.identityPublicKey)) return;
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
++		const isSender = this.identityPublicKey && equalBytes(transfer.senderIdentityPublicKey, this.identityPublicKey);
++		_dl("handleTransferEvent", { transferId: transfer.id, status: transfer.status, type: transfer.type, leafCount: transfer.leaves.length, isSender });
++		if (!this.identityPublicKey || !isSender) {
++			_dl("handleTransferEvent: not our send, skipping");
++			return;
++		}
+ 		const leafIds = transfer.leaves.flatMap((leaf) => leaf.leaf ? [leaf.leaf.id] : []);
+ 		let changed = false;
+ 		await this.leavesMutex.runExclusive(() => {
+@@ -12509,6 +12540,8 @@ var LeafManager = class {
+ 				if (record.status !== LeafStatus.AVAILABLE) return true;
+ 				return !(record.source.kind === "transfer" && record.source.transferId === transfer.id);
+ 			});
++			const _skipped = leafIds.length - activeLeafIds.length;
++			if (_skipped > 0) _dl("handleTransferEvent: skipped reclaimed leaves", { skipped: _skipped });
+ 			switch (transfer.status) {
+ 				case TransferStatus.TRANSFER_STATUS_RETURNED:
+ 					this.transition(activeLeafIds, LeafStatus.AVAILABLE, { source: { kind: "none" } });
+@@ -12767,10 +12800,15 @@ var LeafManager = class {
+ 	* - Unknown leaf ids are skipped (next sync() will pick them up).
+ 	*/
+ 	transition(leafIds, toStatus, meta) {
++		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
+ 		for (const leafId of leafIds) {
+ 			const leaf = this.leaves.get(leafId);
+-			if (!leaf) continue;
+-			if (!VALID_TRANSITIONS[leaf.status].includes(toStatus)) continue;
++			if (!leaf) { _dl("transition: leaf not found", { leafId: leafId.slice(0, 8), toStatus }); continue; }
++			if (!VALID_TRANSITIONS[leaf.status].includes(toStatus)) {
++				_dl("transition: INVALID", { leafId: leafId.slice(0, 8), from: leaf.status, to: toStatus, value: leaf.treeNode.value });
++				continue;
++			}
++			_dl("transition", { leafId: leafId.slice(0, 8), from: leaf.status, to: toStatus, value: leaf.treeNode.value });
+ 			if (toStatus === LeafStatus.SPENT) {
+ 				this.leaves.delete(leafId);
+ 				continue;
+@@ -14548,21 +14586,29 @@ var SparkWallet = class SparkWallet extends EventEmitter {
  		return this.sspClient;
  	}
  	async handleStreamEvent({ event }) {
@@ -34,7 +213,7 @@ index 8ac67f96a4d2cbef9bcbae240241dc36f441f3db..83470de728b6f4c47d83cf5d6eb00793
  				const wasAdded = await this.leafManager.handleDepositEvent(deposit);
  				if (deposit.status === "AVAILABLE" && wasAdded) this.emit(SparkWalletEvent.DepositConfirmed, deposit.id, BigInt(this.leafManager.getAvailableBalance()));
  			}
-@@ -14574,6 +14582,7 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+@@ -14574,6 +14620,7 @@ var SparkWallet = class SparkWallet extends EventEmitter {
  		const MAX_RETRIES = 10;
  		const INITIAL_DELAY = 1e3;
  		const MAX_DELAY = 6e4;
@@ -42,7 +221,7 @@ index 8ac67f96a4d2cbef9bcbae240241dc36f441f3db..83470de728b6f4c47d83cf5d6eb00793
  		const delay = (ms, signal) => {
  			return new Promise((resolve) => {
  				const timer = setTimeout(() => {
-@@ -14591,39 +14600,54 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+@@ -14591,39 +14638,54 @@ var SparkWallet = class SparkWallet extends EventEmitter {
  		let retryCount = 0;
  		const streamController = new AbortController();
  		this.streamController = streamController;
@@ -102,7 +281,7 @@ index 8ac67f96a4d2cbef9bcbae240241dc36f441f3db..83470de728b6f4c47d83cf5d6eb00793
  	}
  	async getLeaves(isBalanceCheck = false) {
  		return this.leafManager.getLeaves(isBalanceCheck);
-@@ -14693,8 +14717,11 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+@@ -14693,8 +14755,11 @@ var SparkWallet = class SparkWallet extends EventEmitter {
  		}, intervalMs);
  	}
  	async syncWallet() {
@@ -114,14 +293,15 @@ index 8ac67f96a4d2cbef9bcbae240241dc36f441f3db..83470de728b6f4c47d83cf5d6eb00793
  	}
  	/**
  	* Gets the identity public key of the wallet.
-@@ -14910,19 +14937,23 @@ var SparkWallet = class SparkWallet extends EventEmitter {
+@@ -14910,19 +14975,24 @@ var SparkWallet = class SparkWallet extends EventEmitter {
  	*   - tokenBalances: Map of the bech32m encoded token identifier to token balances and token info
  	*/
  	async getBalance() {
 +		const _dl = (m, d) => { if (typeof globalThis !== "undefined" && globalThis.__SPARK_SDK_DEBUG__) console.debug(`[Spark SDK] ${m}`, d ?? ""); };
 +		const ownedBefore = this.leafManager.getOwnedBalance();
 +		const availableBefore = this.leafManager.getAvailableBalance();
-+		_dl("getBalance called", { ownedBefore, availableBefore });
++		const _leafInv = () => { const o = {}; for (const [, r] of this.leafManager.leaves) o[r.status] = (o[r.status] || 0) + r.treeNode.value; return o; };
++		_dl("getBalance called", { ownedBefore, availableBefore, inventory: _leafInv() });
  		const freshLeaves = await this.leafManager.getLeaves(true);
  		await this.syncTokenOutputs();
 +		_dl("Fresh leaves from coordinator", { count: freshLeaves.length, total: freshLeaves.reduce((s, l) => s + l.value, 0) });
@@ -131,7 +311,7 @@ index 8ac67f96a4d2cbef9bcbae240241dc36f441f3db..83470de728b6f4c47d83cf5d6eb00793
  		const available = BigInt(freshLeaves.reduce((sum, l) => sum + l.value, 0));
 +		const owned = BigInt(this.leafManager.getOwnedBalance());
 +		const incoming = BigInt(this.leafManager.getIncomingBalance());
-+		_dl("getBalance result", { available: available.toString(), owned: owned.toString(), incoming: incoming.toString(), ownedChanged: ownedBefore !== Number(owned), availableChanged: availableBefore !== Number(available) });
++		_dl("getBalance result", { available: available.toString(), owned: owned.toString(), incoming: incoming.toString(), ownedChanged: ownedBefore !== Number(owned), availableChanged: availableBefore !== Number(available), inventory: _leafInv() });
  		return {
  			balance: available,
 -			satsBalance: {
