@@ -2,6 +2,7 @@ import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import {
   type NetworkType as SparkNetwork,
   SparkWallet,
+  SparkWalletEvent,
 } from '@buildonspark/spark-sdk';
 import {
   type QueryClient,
@@ -10,6 +11,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
+import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { type Currency, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
@@ -129,6 +131,41 @@ export function useTrackAndUpdateSparkAccountBalances() {
     };
   }, []);
   // end workaround
+
+  useEffectNoStrictMode(() => {
+    const walletsWithHandlers = sparkAccounts.map((sparkAccount) => {
+      const balanceUpdateHandler = (balance: {
+        available: bigint;
+        owned: bigint;
+        incoming: bigint;
+      }) => {
+        sparkDebugLog('On balance update handler triggered', {
+          accountId: sparkAccount.id,
+          balance,
+        });
+      };
+
+      return {
+        accountId: sparkAccount.id,
+        wallet: sparkAccount.wallet,
+        balanceUpdateHandler,
+      };
+    });
+
+    walletsWithHandlers.forEach((x) => {
+      x.wallet.on(SparkWalletEvent.BalanceUpdate, x.balanceUpdateHandler);
+
+      sparkDebugLog('Registered BalanceUpdate event handler', {
+        accountId: x.accountId,
+      });
+    });
+
+    return () => {
+      walletsWithHandlers.forEach((x) => {
+        x.wallet.off(SparkWalletEvent.BalanceUpdate, x.balanceUpdateHandler);
+      });
+    };
+  }, [sparkAccounts]);
 
   useQueries({
     queries: sparkAccounts.map((account) => ({
