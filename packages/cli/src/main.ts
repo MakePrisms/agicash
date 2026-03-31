@@ -3,6 +3,7 @@ import { parseArgs } from './args';
 import { handleBalanceCommand } from './commands/balance';
 import { handleMintCommand } from './commands/mint';
 import { handleReceiveCommand } from './commands/receive';
+import { handleSendCommand } from './commands/send';
 import { getDb } from './db';
 import { printError, printOutput } from './output';
 
@@ -51,6 +52,17 @@ async function main(): Promise<void> {
     case 'receive': {
       const db = getDb();
       const result = await handleReceiveCommand(parsed, db);
+      if (result.action === 'error') {
+        printError(result.error!, result.code!, outputOptions);
+        process.exit(1);
+      }
+      printOutput(result, outputOptions);
+      break;
+    }
+
+    case 'send': {
+      const db = getDb();
+      const result = await handleSendCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error!, result.code!, outputOptions);
         process.exit(1);
