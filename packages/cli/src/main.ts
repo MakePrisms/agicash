@@ -3,6 +3,7 @@ import { parseArgs } from './args';
 import { handleBalanceCommand } from './commands/balance';
 import { handleMintCommand } from './commands/mint';
 import { handleReceiveCommand } from './commands/receive';
+import { handleDecodeCommand } from './commands/decode';
 import { handlePayCommand } from './commands/pay';
 import { getDb } from './db';
 import { printError, printOutput } from './output';
@@ -19,6 +20,9 @@ const HELP_TEXT = {
     receive: 'Receive ecash or Lightning',
     'pay <invoice>': 'Pay a Lightning invoice',
     'send <amount>': 'Create ecash token',
+    'receive <amount>': 'Create Lightning invoice to receive sats',
+    'receive <token>': 'Claim a cashu token',
+    'decode <input>': 'Parse any input (bolt11, cashu token, lnurl, Lightning address)',
     help: 'Show this help',
     version: 'Show version',
   },
@@ -66,6 +70,16 @@ async function main(): Promise<void> {
       const result = await handlePayCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error!, result.code!, outputOptions);
+        process.exit(1);
+      }
+      printOutput(result, outputOptions);
+      break;
+    }
+
+    case 'decode': {
+      const result = await handleDecodeCommand(parsed);
+      if (result.error) {
+        printError(result.error, result.code || 'DECODE_ERROR', outputOptions);
         process.exit(1);
       }
       printOutput(result, outputOptions);
