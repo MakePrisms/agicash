@@ -114,6 +114,7 @@ export async function handlePayCommand(
     const { getCashuWallet } = await import('@agicash/sdk/lib/cashu/utils');
     const unit = account.currency === 'BTC' ? 'sat' : 'cent';
     const wallet = getCashuWallet(account.mint_url, { unit });
+    await wallet.loadMint();
 
     // Get melt quote to determine fee
     const meltQuote = await wallet.createMeltQuoteBolt11(bolt11);

@@ -90,6 +90,7 @@ async function handleReceiveLightning(
     const { getCashuWallet } = await import('@agicash/sdk/lib/cashu/utils');
     const unit = account.currency === 'BTC' ? 'sat' : 'cent';
     const wallet = getCashuWallet(account.mint_url, { unit });
+    await wallet.loadMint();
 
     const quoteResponse = await wallet.createMintQuoteBolt11(amount);
 
@@ -187,6 +188,7 @@ async function handleCheckQuote(
     const { MintQuoteState } = await import('@cashu/cashu-ts');
     const unit = account.currency === 'BTC' ? 'sat' : 'cent';
     const wallet = getCashuWallet(account.mint_url, { unit });
+    await wallet.loadMint();
 
     const check = await wallet.checkMintQuoteBolt11(quoteId);
 
@@ -236,10 +238,13 @@ async function handleReceiveToken(
   db: Database,
 ): Promise<ReceiveResult> {
   try {
-    const { getDecodedToken } = await import('@cashu/cashu-ts');
-    const decoded = getDecodedToken(token);
+    // Use getTokenMetadata to extract mint URL without needing keyset IDs.
+    // getDecodedToken fails on v4 (cashuB) tokens with short keyset IDs
+    // unless the mint's full keyset list is provided upfront.
+    const { getTokenMetadata } = await import('@cashu/cashu-ts');
+    const tokenMeta = getTokenMetadata(token);
 
-    const mintUrl = decoded.mint;
+    const mintUrl = tokenMeta.mint;
     if (!mintUrl) {
       return {
         action: 'error',
@@ -262,10 +267,13 @@ async function handleReceiveToken(
       };
     }
 
-    // Receive (swap) the token via the mint to get fresh proofs
+    // Use getCashuWallet (which handles unit mapping) and loadMint to
+    // populate the keychain with all keyset IDs. wallet.receive() internally
+    // calls decodeToken with those IDs, resolving short v2 keyset IDs.
     const { getCashuWallet } = await import('@agicash/sdk/lib/cashu/utils');
     const unit = account.currency === 'BTC' ? 'sat' : 'cent';
     const wallet = getCashuWallet(mintUrl, { unit });
+    await wallet.loadMint();
 
     const receivedProofs = await wallet.receive(token);
 

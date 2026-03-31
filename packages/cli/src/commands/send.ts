@@ -107,11 +107,14 @@ export async function handleSendCommand(
   }
 
   try {
-    const { getCashuWallet } = await import('@agicash/sdk/lib/cashu/utils');
+    const { getCashuWallet, getCashuProtocolUnit } = await import(
+      '@agicash/sdk/lib/cashu/utils'
+    );
     const { getEncodedToken } = await import('@cashu/cashu-ts');
 
     const unit = account.currency === 'BTC' ? 'sat' : 'cent';
     const wallet = getCashuWallet(account.mint_url, { unit });
+    await wallet.loadMint();
 
     // Convert stored proofs to cashu-ts format
     const cashuProofs = proofs.map((p) => ({
@@ -127,11 +130,16 @@ export async function handleSendCommand(
       cashuProofs,
     );
 
-    // Encode the send proofs as a cashu token
+    // Encode the send proofs as a cashu token.
+    // Use the cashu protocol unit ('sat'/'usd') not the app unit ('sat'/'cent')
+    // so the token is correctly decoded by receivers.
+    const protocolUnit = getCashuProtocolUnit(
+      account.currency as 'BTC' | 'USD',
+    );
     const encoded = getEncodedToken({
       mint: account.mint_url,
       proofs: sendProofs,
-      unit,
+      unit: protocolUnit,
     });
 
     // Mark all original proofs as spent (they were all consumed by the swap)
