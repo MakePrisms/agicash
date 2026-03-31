@@ -111,10 +111,10 @@ async function decodeBolt11(invoice: string): Promise<DecodeResult> {
       type: 'bolt11',
       raw: invoice,
       data: {
-        amount_msat: decoded.amount,
+        amount_msat: decoded.amountMsat,
+        amount_sat: decoded.amountSat,
         network: decoded.network,
-        timestamp: decoded.timestamp,
-        expiry: decoded.expiry,
+        expiry_unix_ms: decoded.expiryUnixMs,
         description: decoded.description,
         payment_hash: decoded.paymentHash,
       },

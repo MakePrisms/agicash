@@ -33,6 +33,12 @@ export async function handleReceiveCommand(
   args: ParsedArgs,
   db: Database,
 ): Promise<ReceiveResult> {
+  // Check/resume a previous quote
+  const checkQuoteId = args.flags.check as string;
+  if (checkQuoteId) {
+    return handleCheckQuote(checkQuoteId, args, db);
+  }
+
   const input = args.positional[0] || (args.flags.amount as string);
 
   if (!input) {
@@ -112,27 +118,30 @@ async function handleReceiveLightning(
         const check = await wallet.checkMintQuoteBolt11(quoteResponse.quote);
 
         if (check.state === MintQuoteState.PAID) {
-          const proofs = await wallet.mintTokens(amount, quoteResponse.quote);
-          storeProofs(db, account.id, proofs.proofs);
+          const proofs = await wallet.mintProofsBolt11(
+            amount,
+            quoteResponse.quote,
+          );
+          storeProofs(db, account.id, proofs);
 
           return {
             action: 'minted',
             minted: {
-              amount: proofs.proofs.reduce(
+              amount: proofs.reduce(
                 (sum: number, p: { amount: number }) => sum + p.amount,
                 0,
               ),
-              proof_count: proofs.proofs.length,
+              proof_count: proofs.length,
               account_id: account.id,
             },
           };
         }
 
-        if (check.state === MintQuoteState.EXPIRED) {
+        if (check.state !== MintQuoteState.UNPAID) {
           return {
             action: 'error',
-            error: 'Mint quote expired before payment was received.',
-            code: 'QUOTE_EXPIRED',
+            error: `Unexpected quote state: ${String(check.state)}`,
+            code: 'UNEXPECTED_STATE',
           };
         }
       }
@@ -150,6 +159,73 @@ async function handleReceiveLightning(
       action: 'error',
       error: `Failed to create mint quote: ${err instanceof Error ? err.message : String(err)}`,
       code: 'MINT_QUOTE_FAILED',
+    };
+  }
+}
+
+async function handleCheckQuote(
+  quoteId: string,
+  args: ParsedArgs,
+  db: Database,
+): Promise<ReceiveResult> {
+  // Need an account to know which mint to check against
+  const accountId = args.flags.account as string | undefined;
+  const account = findAccount(db, accountId);
+
+  if (!account) {
+    return {
+      action: 'error',
+      error: accountId
+        ? `Account not found: ${accountId}`
+        : 'No cashu accounts configured. Run: agicash mint add <url>',
+      code: 'NO_ACCOUNT',
+    };
+  }
+
+  try {
+    const { getCashuWallet } = await import('@agicash/sdk/lib/cashu/utils');
+    const { MintQuoteState } = await import('@cashu/cashu-ts');
+    const unit = account.currency === 'BTC' ? 'sat' : 'cent';
+    const wallet = getCashuWallet(account.mint_url, { unit });
+
+    const check = await wallet.checkMintQuoteBolt11(quoteId);
+
+    if (check.state === MintQuoteState.PAID) {
+      const proofs = await wallet.mintProofsBolt11(check.amount, quoteId);
+      storeProofs(db, account.id, proofs);
+
+      return {
+        action: 'minted',
+        minted: {
+          amount: proofs.reduce(
+            (sum: number, p: { amount: number }) => sum + p.amount,
+            0,
+          ),
+          proof_count: proofs.length,
+          account_id: account.id,
+        },
+      };
+    }
+
+    return {
+      action: 'pending',
+      quote: {
+        id: quoteId,
+        bolt11: check.request,
+        amount: check.amount,
+        currency: account.currency,
+        account_id: account.id,
+        account_name: account.name,
+        mint_url: account.mint_url,
+        state: String(check.state),
+        expiry: check.expiry,
+      },
+    };
+  } catch (err) {
+    return {
+      action: 'error',
+      error: `Failed to check quote: ${err instanceof Error ? err.message : String(err)}`,
+      code: 'CHECK_FAILED',
     };
   }
 }
