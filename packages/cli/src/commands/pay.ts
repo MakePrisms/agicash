@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import type { ParsedArgs } from '../args';
 
-export interface SendResult {
+export interface PayResult {
   action: string;
   payment?: {
     bolt11: string;
@@ -28,16 +28,16 @@ interface StoredProof {
   keyset_id: string;
 }
 
-export async function handleSendCommand(
+export async function handlePayCommand(
   args: ParsedArgs,
   db: Database,
-): Promise<SendResult> {
+): Promise<PayResult> {
   const bolt11 = (args.flags.bolt11 as string) || args.positional[0];
   if (!bolt11) {
     return {
       action: 'error',
       error:
-        'Missing invoice. Usage: agicash send --bolt11 <invoice> or agicash send <invoice>',
+        'Missing invoice. Usage: agicash pay --bolt11 <invoice> or agicash pay <invoice>',
       code: 'MISSING_INVOICE',
     };
   }

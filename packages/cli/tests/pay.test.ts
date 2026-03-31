@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach } from 'bun:test';
 import { Database } from 'bun:sqlite';
-import { handleSendCommand } from '../src/commands/send';
+import { handlePayCommand } from '../src/commands/pay';
 import { getTestDb } from '../src/db';
 import type { ParsedArgs } from '../src/args';
 
@@ -9,7 +9,7 @@ function makeArgs(
   flags: Record<string, string | boolean> = {},
 ): ParsedArgs {
   return {
-    command: 'send',
+    command: 'pay',
     positional,
     flags: { pretty: false, ...flags },
   };
@@ -48,7 +48,7 @@ function addProof(
   );
 }
 
-describe('send validation', () => {
+describe('pay validation', () => {
   let db: Database;
 
   beforeEach(() => {
@@ -56,13 +56,13 @@ describe('send validation', () => {
   });
 
   test('rejects missing invoice', async () => {
-    const result = await handleSendCommand(makeArgs(), db);
+    const result = await handlePayCommand(makeArgs(), db);
     expect(result.action).toBe('error');
     expect(result.code).toBe('MISSING_INVOICE');
   });
 
   test('rejects invalid invoice', async () => {
-    const result = await handleSendCommand(
+    const result = await handlePayCommand(
       makeArgs([], { bolt11: 'notaninvoice' }),
       db,
     );
@@ -74,7 +74,7 @@ describe('send validation', () => {
     const id = addAccount(db);
     addProof(db, id, 100);
     // Will fail at network level but should pass validation
-    const result = await handleSendCommand(
+    const result = await handlePayCommand(
       makeArgs(['lnbc100n1invalid']),
       db,
     );
@@ -85,7 +85,7 @@ describe('send validation', () => {
 
   test('rejects when no accounts with balance', async () => {
     addAccount(db); // account with no proofs
-    const result = await handleSendCommand(
+    const result = await handlePayCommand(
       makeArgs([], { bolt11: 'lnbc100n1test' }),
       db,
     );
@@ -94,7 +94,7 @@ describe('send validation', () => {
   });
 
   test('rejects when specified account not found', async () => {
-    const result = await handleSendCommand(
+    const result = await handlePayCommand(
       makeArgs([], { bolt11: 'lnbc100n1test', account: 'nonexistent' }),
       db,
     );
@@ -104,7 +104,7 @@ describe('send validation', () => {
 
   test('rejects when specified account has no proofs', async () => {
     const id = addAccount(db);
-    const result = await handleSendCommand(
+    const result = await handlePayCommand(
       makeArgs([], { bolt11: 'lnbc100n1test', account: id }),
       db,
     );
@@ -119,7 +119,7 @@ describe('send validation', () => {
     addProof(db, id2, 1000);
 
     // Will fail at network but we can check which account was selected
-    const result = await handleSendCommand(
+    const result = await handlePayCommand(
       makeArgs([], { bolt11: 'lnbc100n1test' }),
       db,
     );

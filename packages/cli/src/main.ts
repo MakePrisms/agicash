@@ -3,7 +3,7 @@ import { parseArgs } from './args';
 import { handleBalanceCommand } from './commands/balance';
 import { handleMintCommand } from './commands/mint';
 import { handleReceiveCommand } from './commands/receive';
-import { handleSendCommand } from './commands/send';
+import { handlePayCommand } from './commands/pay';
 import { getDb } from './db';
 import { printError, printOutput } from './output';
 
@@ -17,7 +17,8 @@ const HELP_TEXT = {
     'mint list': 'List configured mints',
     balance: 'Show wallet balance',
     receive: 'Receive ecash or Lightning',
-    send: 'Send ecash or Lightning',
+    'pay <invoice>': 'Pay a Lightning invoice',
+    'send <amount>': 'Create ecash token',
     help: 'Show this help',
     version: 'Show version',
   },
@@ -60,9 +61,9 @@ async function main(): Promise<void> {
       break;
     }
 
-    case 'send': {
+    case 'pay': {
       const db = getDb();
-      const result = await handleSendCommand(parsed, db);
+      const result = await handlePayCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error!, result.code!, outputOptions);
         process.exit(1);
