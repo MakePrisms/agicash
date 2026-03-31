@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { type Ticker, exchangeRateService } from '@agicash/sdk/lib/exchange-rate/index';
+import { type Ticker, getExchangeRateService } from '@agicash/sdk/lib/exchange-rate/index';
 
 /**
  * Gets the normalized set of tickers to fetch.
@@ -35,7 +35,7 @@ export const exchangeRatesQueryOptions = (tickers: Ticker[]) => {
   return queryOptions({
     queryKey: ['exchangeRate', normalizedTickers],
     queryFn: async ({ signal }) => {
-      return exchangeRateService.getRates({
+      return getExchangeRateService().getRates({
         tickers: normalizedTickers,
         signal,
       });

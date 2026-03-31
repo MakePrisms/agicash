@@ -313,10 +313,12 @@ export class Money<T extends Currency = Currency> {
       },
     };
 
-    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
-    window.devtoolsFormatters = window.devtoolsFormatters || [];
-    // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
-    window.devtoolsFormatters.push(formatter);
+    if (typeof window !== 'undefined') {
+      // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
+      window.devtoolsFormatters = window.devtoolsFormatters || [];
+      // @ts-expect-error - devtoolsFormatters is a non-standard Chrome API
+      window.devtoolsFormatters.push(formatter);
+    }
   }
 
   constructor(data: MoneyInput<T>) {

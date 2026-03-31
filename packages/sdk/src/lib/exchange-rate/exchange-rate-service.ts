@@ -96,4 +96,7 @@ export class ExchangeRateService {
   }
 }
 
-export const exchangeRateService = new ExchangeRateService();
+let _instance: ExchangeRateService | undefined;
+export function getExchangeRateService(): ExchangeRateService {
+  return (_instance ??= new ExchangeRateService());
+}

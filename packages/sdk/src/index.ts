@@ -178,7 +178,7 @@ export type { DecodedBolt11 } from './lib/bolt11';
 export { decodeBolt11, parseBolt11Invoice } from './lib/bolt11';
 
 // Lib - Exchange rate
-export { ExchangeRateService, exchangeRateService } from './lib/exchange-rate';
+export { ExchangeRateService, getExchangeRateService } from './lib/exchange-rate';
 export type { ExchangeRateProvider, Ticker, Rates } from './lib/exchange-rate';
 
 // Lib - LNURL
