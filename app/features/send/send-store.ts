@@ -343,19 +343,19 @@ export const createSendStore = ({
 
         const bolt11ParseResult = parseBolt11Invoice(destination);
         if (bolt11ParseResult.valid) {
-          const invoice = bolt11ParseResult.decoded;
           const account = get().getSourceAccount();
           const allowZeroAmount = account.type === 'spark';
-          const result = validateBolt11(invoice, { allowZeroAmount });
+          const result = validateBolt11(bolt11ParseResult.decoded, {
+            allowZeroAmount,
+          });
           if (!result.valid) {
             return { success: false, error: result.error };
           }
 
-          const cleanedDestination = destination.replace(/^lightning:/i, '');
           set({
             sendType: 'BOLT11_INVOICE',
-            destination: cleanedDestination,
-            destinationDisplay: `${cleanedDestination.slice(0, 6)}...${cleanedDestination.slice(-4)}`,
+            destination: bolt11ParseResult.invoice,
+            destinationDisplay: `${bolt11ParseResult.invoice.slice(0, 6)}...${bolt11ParseResult.invoice.slice(-4)}`,
           });
 
           return {
