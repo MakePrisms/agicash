@@ -5,6 +5,7 @@ import { handleMintCommand } from './commands/mint';
 import { handleReceiveCommand } from './commands/receive';
 import { handleDecodeCommand } from './commands/decode';
 import { handlePayCommand } from './commands/pay';
+import { handleSendCommand } from './commands/send';
 import { getDb } from './db';
 import { printError, printOutput } from './output';
 
@@ -17,9 +18,8 @@ const HELP_TEXT = {
     'mint add <url>': 'Add a mint (--currency BTC|USD, --name "My Mint")',
     'mint list': 'List configured mints',
     balance: 'Show wallet balance',
-    receive: 'Receive ecash or Lightning',
+    'send <amount>': 'Create ecash token (sats)',
     'pay <invoice>': 'Pay a Lightning invoice',
-    'send <amount>': 'Create ecash token',
     'receive <amount>': 'Create Lightning invoice to receive sats',
     'receive <token>': 'Claim a cashu token',
     'decode <input>': 'Parse any input (bolt11, cashu token, lnurl, Lightning address)',
@@ -57,6 +57,17 @@ async function main(): Promise<void> {
     case 'receive': {
       const db = getDb();
       const result = await handleReceiveCommand(parsed, db);
+      if (result.action === 'error') {
+        printError(result.error!, result.code!, outputOptions);
+        process.exit(1);
+      }
+      printOutput(result, outputOptions);
+      break;
+    }
+
+    case 'send': {
+      const db = getDb();
+      const result = await handleSendCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error!, result.code!, outputOptions);
         process.exit(1);

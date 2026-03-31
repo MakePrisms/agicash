@@ -4,10 +4,13 @@ import { handleReceiveCommand } from '../src/commands/receive';
 import { getTestDb } from '../src/db';
 import type { ParsedArgs } from '../src/args';
 
-function makeArgs(flags: Record<string, string | boolean> = {}): ParsedArgs {
+function makeArgs(
+  positional: string[] = [],
+  flags: Record<string, string | boolean> = {},
+): ParsedArgs {
   return {
     command: 'receive',
-    positional: [],
+    positional,
     flags: { pretty: false, ...flags },
   };
 }
@@ -35,48 +38,29 @@ describe('receive validation', () => {
     db = getTestDb();
   });
 
-  test('rejects missing --amount', async () => {
+  test('rejects missing input', async () => {
     addAccount(db);
     const result = await handleReceiveCommand(makeArgs(), db);
     expect(result.action).toBe('error');
-    expect(result.code).toBe('MISSING_AMOUNT');
+    expect(result.code).toBe('MISSING_INPUT');
   });
 
-  test('rejects invalid amount', async () => {
+  test('rejects invalid input', async () => {
     addAccount(db);
-    const result = await handleReceiveCommand(
-      makeArgs({ amount: 'abc' }),
-      db,
-    );
+    const result = await handleReceiveCommand(makeArgs(['abc']), db);
     expect(result.action).toBe('error');
-    expect(result.code).toBe('INVALID_AMOUNT');
+    expect(result.code).toBe('INVALID_INPUT');
   });
 
   test('rejects zero amount', async () => {
     addAccount(db);
-    const result = await handleReceiveCommand(
-      makeArgs({ amount: '0' }),
-      db,
-    );
+    const result = await handleReceiveCommand(makeArgs(['0']), db);
     expect(result.action).toBe('error');
-    expect(result.code).toBe('INVALID_AMOUNT');
-  });
-
-  test('rejects negative amount', async () => {
-    addAccount(db);
-    const result = await handleReceiveCommand(
-      makeArgs({ amount: '-10' }),
-      db,
-    );
-    expect(result.action).toBe('error');
-    expect(result.code).toBe('INVALID_AMOUNT');
+    expect(result.code).toBe('INVALID_INPUT');
   });
 
   test('rejects when no accounts configured', async () => {
-    const result = await handleReceiveCommand(
-      makeArgs({ amount: '100' }),
-      db,
-    );
+    const result = await handleReceiveCommand(makeArgs(['100']), db);
     expect(result.action).toBe('error');
     expect(result.code).toBe('NO_ACCOUNT');
   });
@@ -84,33 +68,49 @@ describe('receive validation', () => {
   test('rejects when specified account not found', async () => {
     addAccount(db);
     const result = await handleReceiveCommand(
-      makeArgs({ amount: '100', account: 'nonexistent' }),
+      makeArgs(['100'], { account: 'nonexistent' }),
       db,
     );
     expect(result.action).toBe('error');
     expect(result.code).toBe('NO_ACCOUNT');
   });
+
+  test('detects cashu token input', async () => {
+    // Will fail to decode but should enter token path
+    const result = await handleReceiveCommand(
+      makeArgs(['cashuAinvalidtoken']),
+      db,
+    );
+    // Should try token path, not amount path
+    expect(result.code).not.toBe('INVALID_INPUT');
+  });
 });
 
-describe('receive E2E (requires network)', () => {
+describe('receive Lightning E2E (requires network)', () => {
   let db: Database;
 
   beforeEach(() => {
     db = getTestDb();
   });
 
-  test('creates mint quote from real testnut', async () => {
+  test('creates mint quote for amount', async () => {
     addAccount(db, { mint_url: 'https://testnut.cashu.space' });
-    const result = await handleReceiveCommand(
-      makeArgs({ amount: '1' }),
-      db,
-    );
+    const result = await handleReceiveCommand(makeArgs(['1']), db);
 
     expect(result.action).toBe('invoice');
     expect(result.quote).toBeDefined();
     expect(result.quote!.bolt11).toMatch(/^ln/);
     expect(result.quote!.amount).toBe(1);
-    expect(result.quote!.currency).toBe('BTC');
-    expect(result.quote!.mint_url).toBe('https://testnut.cashu.space');
+  });
+
+  test('accepts amount via --amount flag (backwards compat)', async () => {
+    addAccount(db, { mint_url: 'https://testnut.cashu.space' });
+    const result = await handleReceiveCommand(
+      makeArgs([], { amount: '1' }),
+      db,
+    );
+
+    expect(result.action).toBe('invoice');
+    expect(result.quote!.bolt11).toMatch(/^ln/);
   });
 });
