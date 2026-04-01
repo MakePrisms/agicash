@@ -1,6 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import type { ParsedArgs } from '../args';
 import { withTransaction } from '../db';
+import { getCashuSeed, hasMnemonic } from '../key-provider';
 
 export interface PayResult {
   action: string;
@@ -114,7 +115,10 @@ export async function handlePayCommand(
   try {
     const { getCashuWallet } = await import('@agicash/sdk/lib/cashu/utils');
     const unit = account.currency === 'BTC' ? 'sat' : 'cent';
-    const wallet = getCashuWallet(account.mint_url, { unit });
+    const mnemonic = process.env.AGICASH_MNEMONIC;
+    const bip39seed =
+      hasMnemonic() && mnemonic ? getCashuSeed(mnemonic) : undefined;
+    const wallet = getCashuWallet(account.mint_url, { unit, bip39seed });
     await wallet.loadMint();
 
     // Get melt quote to determine fee

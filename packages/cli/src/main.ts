@@ -9,6 +9,7 @@ import { handlePayCommand } from './commands/pay';
 import { handleReceiveCommand } from './commands/receive';
 import { handleSendCommand } from './commands/send';
 import { getDb } from './db';
+import { hasMnemonic } from './key-provider';
 import { makeStorageProvider } from './opensecret-storage';
 import { printError, printOutput } from './output';
 
@@ -40,6 +41,22 @@ const HELP_TEXT = {
   },
 };
 
+/** Commands that require a mnemonic for wallet operations. */
+const COMMANDS_REQUIRING_MNEMONIC = new Set(['send', 'pay', 'receive']);
+
+function requireMnemonic(command: string, outputOptions: { pretty: boolean }) {
+  if (!COMMANDS_REQUIRING_MNEMONIC.has(command)) return;
+  if (hasMnemonic()) return;
+
+  printError(
+    'AGICASH_MNEMONIC is required. Generate one with:\n' +
+      "bun -e \"import{generateMnemonic}from'@scure/bip39';import{wordlist}from'@scure/bip39/wordlists/english';console.log(generateMnemonic(wordlist))\"",
+    'MISSING_MNEMONIC',
+    outputOptions,
+  );
+  process.exit(1);
+}
+
 function getConfiguredDb(): ReturnType<typeof getDb> {
   const db = getDb();
   if (process.env.OPENSECRET_CLIENT_ID) {
@@ -57,6 +74,8 @@ async function main(): Promise<void> {
   const userArgs = process.argv.slice(2);
   const parsed = parseArgs(userArgs);
   const outputOptions = { pretty: Boolean(parsed.flags.pretty) };
+
+  requireMnemonic(parsed.command, outputOptions);
 
   switch (parsed.command) {
     case 'help':
