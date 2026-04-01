@@ -13,7 +13,7 @@ import { handlePayCommand } from './commands/pay';
 import { handleReceiveCommand } from './commands/receive';
 import { handleSendCommand } from './commands/send';
 import { getDb } from './db';
-import { hasMnemonic } from './key-provider';
+import { detectMode } from './mode';
 import { makeStorageProvider } from './opensecret-storage';
 import { printError, printOutput } from './output';
 import { type SdkContext, getSdkContext } from './sdk-context';
@@ -70,21 +70,8 @@ const HELP_TEXT = {
   },
 };
 
-/** Commands that require a mnemonic for wallet operations. */
-const COMMANDS_REQUIRING_MNEMONIC = new Set(['send', 'pay', 'receive']);
-
-function requireMnemonic(command: string, outputOptions: { pretty: boolean }) {
-  if (!COMMANDS_REQUIRING_MNEMONIC.has(command)) return;
-  if (hasMnemonic()) return;
-
-  printError(
-    'AGICASH_MNEMONIC is required. Generate one with:\n' +
-      "bun -e \"import{generateMnemonic}from'@scure/bip39';import{wordlist}from'@scure/bip39/wordlists/english';console.log(generateMnemonic(wordlist))\"",
-    'MISSING_MNEMONIC',
-    outputOptions,
-  );
-  process.exit(1);
-}
+/** Commands that skip mode detection (no wallet needed). */
+const MODE_BYPASS_COMMANDS = new Set(['help', 'version', 'decode']);
 
 function getConfiguredDb(): ReturnType<typeof getDb> {
   const db = getDb();
@@ -125,7 +112,19 @@ async function main(): Promise<void> {
   const parsed = parseArgs(userArgs);
   const outputOptions = { pretty: Boolean(parsed.flags.pretty) };
 
-  requireMnemonic(parsed.command, outputOptions);
+  // Mode detection — wallet commands need a configured mode
+  if (!MODE_BYPASS_COMMANDS.has(parsed.command)) {
+    try {
+      detectMode();
+    } catch (err) {
+      printError(
+        err instanceof Error ? err.message : String(err),
+        'CONFIG_ERROR',
+        outputOptions,
+      );
+      process.exit(1);
+    }
+  }
 
   switch (parsed.command) {
     case 'help':

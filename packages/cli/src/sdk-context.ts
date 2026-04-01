@@ -22,7 +22,8 @@ import { getSparkIdentityPublicKeyFromMnemonic } from '@agicash/sdk/lib/spark/in
 // packages/cli/src/sdk-context.ts
 import { hexToBytes } from '@noble/hashes/utils';
 import { mnemonicToSeedSync } from '@scure/bip39';
-import { getKeyProvider } from './key-provider';
+import { detectMode } from './mode';
+import { createOpenSecretKeyProvider } from './opensecret-key-provider';
 import { getSupabaseClient } from './supabase-client';
 
 export type SdkContext = {
@@ -51,6 +52,12 @@ let cached: SdkContext | null = null;
 export async function getSdkContext(): Promise<SdkContext> {
   if (cached) return cached;
 
+  if (detectMode() !== 'opensecret') {
+    throw new Error(
+      'Local mode not yet supported after Supabase migration. Use OpenSecret mode.',
+    );
+  }
+
   if (!isConfigured()) {
     throw new Error(
       'Not configured. Set OPENSECRET_CLIENT_ID and SUPABASE_URL in .env',
@@ -60,7 +67,7 @@ export async function getSdkContext(): Promise<SdkContext> {
   const { user } = await fetchUser();
   const userId = user.id;
   const db = getSupabaseClient();
-  const keyProvider = getKeyProvider();
+  const keyProvider = createOpenSecretKeyProvider();
 
   // Encryption
   const encryptionKeyPath = "m/10111099'/0'";
