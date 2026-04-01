@@ -27,6 +27,7 @@ const HELP_TEXT = {
     'auth signup <email> <password>': 'Create an account',
     'auth logout': 'Clear stored credentials',
     'auth status': 'Show current auth state',
+    'auth guest': 'Create or re-use a guest account (for testing)',
     'mint add <url>': 'Add a mint (--currency BTC|USD, --name "My Mint")',
     'mint list': 'List configured mints',
     balance: 'Show wallet balance',
@@ -188,7 +189,7 @@ async function main(): Promise<void> {
     }
 
     case 'auth': {
-      getConfiguredDb(); // ensures configure() is called
+      const db = getConfiguredDb();
       const validation = handleAuthCommand(parsed);
       if (validation.action === 'error') {
         printError(
@@ -198,7 +199,7 @@ async function main(): Promise<void> {
         );
         process.exit(1);
       }
-      const result = await executeAuthCommand(parsed);
+      const result = await executeAuthCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);

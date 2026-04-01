@@ -1,9 +1,12 @@
+import type { Database } from 'bun:sqlite';
 import {
   fetchUser,
   isConfigured,
   signIn,
+  signInGuest,
   signOut,
   signUp,
+  signUpGuest,
 } from '@agicash/opensecret-sdk';
 import type { ParsedArgs } from '../args';
 
@@ -20,7 +23,13 @@ export type AuthResult = {
   code?: string;
 };
 
-const VALID_SUBCOMMANDS = ['login', 'signup', 'logout', 'status'] as const;
+const VALID_SUBCOMMANDS = [
+  'login',
+  'signup',
+  'logout',
+  'status',
+  'guest',
+] as const;
 
 /**
  * Pure arg validation — no SDK dependency. Tests use this directly.
@@ -31,7 +40,7 @@ export function validateAuthArgs(args: ParsedArgs): AuthResult {
   if (!subcommand) {
     return {
       action: 'error',
-      error: 'Usage: agicash auth <login|signup|logout|status>',
+      error: 'Usage: agicash auth <login|signup|logout|status|guest>',
       code: 'MISSING_SUBCOMMAND',
     };
   }
@@ -43,7 +52,7 @@ export function validateAuthArgs(args: ParsedArgs): AuthResult {
   ) {
     return {
       action: 'error',
-      error: `Unknown auth subcommand: ${subcommand}. Use: login, signup, logout, status`,
+      error: `Unknown auth subcommand: ${subcommand}. Use: login, signup, logout, status, guest`,
       code: 'UNKNOWN_SUBCOMMAND',
     };
   }
@@ -96,6 +105,7 @@ export function handleAuthCommand(args: ParsedArgs): AuthResult {
  */
 export async function executeAuthCommand(
   args: ParsedArgs,
+  db: Database,
 ): Promise<AuthResult> {
   const subcommand = args.positional[0];
 
@@ -113,6 +123,8 @@ export async function executeAuthCommand(
       return executeLogout();
     case 'status':
       return executeStatus();
+    case 'guest':
+      return executeGuest(db);
     default:
       return {
         action: 'error',
@@ -193,6 +205,56 @@ async function executeStatus(): Promise<AuthResult> {
       action: 'not_authenticated',
       error: 'Not logged in. Run: agicash auth login <email> <password>',
       code: 'NOT_AUTHENTICATED',
+    };
+  }
+}
+
+async function executeGuest(db: Database): Promise<AuthResult> {
+  try {
+    const existingId = db
+      .query('SELECT value FROM config WHERE key = ?')
+      .get('guest-id') as { value: string } | null;
+    const existingPassword = db
+      .query('SELECT value FROM config WHERE key = ?')
+      .get('guest-password') as { value: string } | null;
+
+    if (existingId && existingPassword) {
+      const response = await signInGuest(
+        existingId.value,
+        existingPassword.value,
+      );
+      return {
+        action: 'guest_logged_in',
+        user: { id: response.id, email: undefined },
+      };
+    }
+
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    const password = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    const response = await signUpGuest(password, '');
+
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run(
+      'guest-id',
+      response.id,
+    );
+    db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)').run(
+      'guest-password',
+      password,
+    );
+
+    return {
+      action: 'guest_logged_in',
+      user: { id: response.id, email: undefined },
+    };
+  } catch (err) {
+    return {
+      action: 'error',
+      error: `Guest auth failed: ${err instanceof Error ? err.message : String(err)}`,
+      code: 'GUEST_AUTH_FAILED',
     };
   }
 }

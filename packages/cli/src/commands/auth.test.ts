@@ -71,4 +71,9 @@ describe('auth arg validation', () => {
     const result = validateAuthArgs(makeArgs(['status']));
     expect(result.action).toBe('validated');
   });
+
+  test('guest passes validation with no extra args', () => {
+    const result = validateAuthArgs(makeArgs(['guest']));
+    expect(result.action).toBe('validated');
+  });
 });
