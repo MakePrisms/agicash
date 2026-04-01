@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { configure } from '@agicash/opensecret-sdk';
 import { parseArgs } from './args';
 import { handleBalanceCommand } from './commands/balance';
@@ -71,6 +73,27 @@ function getConfiguredDb(): ReturnType<typeof getDb> {
 }
 
 async function main(): Promise<void> {
+  // Load .env from current working directory
+  const envPath = join(process.cwd(), '.env');
+  if (existsSync(envPath)) {
+    const envContent = readFileSync(envPath, 'utf-8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex === -1) continue;
+      const key = trimmed.slice(0, eqIndex).trim();
+      const value = trimmed
+        .slice(eqIndex + 1)
+        .trim()
+        .replace(/^["']|["']$/g, '');
+      if (!process.env[key]) {
+        // Don't override existing env vars
+        process.env[key] = value;
+      }
+    }
+  }
+
   const userArgs = process.argv.slice(2);
   const parsed = parseArgs(userArgs);
   const outputOptions = { pretty: Boolean(parsed.flags.pretty) };
