@@ -17,12 +17,24 @@ import { DiscoverGiftCards } from './discover-gift-cards';
 import { EmptyState } from './empty-state';
 import { GiftCardItem } from './gift-card-item';
 import {
+  getCardByUrl,
   getGiftCardImageByUrl,
   useDiscoverGiftCards,
 } from './use-discover-cards';
 
+// TODO: Replace client-side expiry filtering with `account.state === 'active'`
+// once the account state lifecycle (PR #960) lands.
+function useActiveOffers() {
+  const { data: offerAccounts } = useAccounts({ purpose: 'offer' });
+  const now = Date.now();
+  return offerAccounts.filter(
+    (account) =>
+      !account.expiresAt || new Date(account.expiresAt).getTime() > now,
+  );
+}
+
 /**
- * Gift cards view with discover section and card stack.
+ * Gift cards view with discover section, card stack, and offers.
  * Clicking a card navigates to the card details page with view transitions.
  */
 export function GiftCards() {
@@ -31,15 +43,25 @@ export function GiftCards() {
   });
 
   const navigate = useNavigate();
-  const isTransitioning = useViewTransitionState('/gift-cards/:accountId');
+  const isGiftCardTransitioning = useViewTransitionState(
+    '/gift-cards/:accountId',
+  );
+  const isOfferCardTransitioning = useViewTransitionState(
+    '/gift-cards/offers/:accountId',
+  );
 
   const hasCards = accounts.length > 0;
   const stackedHeight =
     CARD_HEIGHT + (accounts.length - 1) * VERTICAL_CARD_OFFSET_IN_STACK;
   const giftCardsToDiscover = useDiscoverGiftCards();
+  const activeOffers = useActiveOffers();
 
   const handleCardClick = (account: CashuAccount) => {
     navigate(`/gift-cards/${account.id}`, { viewTransition: true });
+  };
+
+  const handleOfferClick = (account: CashuAccount) => {
+    navigate(`/gift-cards/offers/${account.id}`, { viewTransition: true });
   };
 
   return (
@@ -53,6 +75,38 @@ export function GiftCards() {
         <div className="flex w-full flex-col items-center gap-4">
           {giftCardsToDiscover.length > 0 && (
             <DiscoverGiftCards giftCards={giftCardsToDiscover} />
+          )}
+
+          {activeOffers.length > 0 && (
+            <div className="flex w-full shrink-0 flex-col items-center px-4 pb-8">
+              <h2 className="mb-3 w-full text-white">Offers</h2>
+              <div
+                className="flex w-full flex-col gap-3"
+                style={{ maxWidth: CARD_WIDTH }}
+              >
+                {activeOffers.map((account) => (
+                  <button
+                    key={account.id}
+                    type="button"
+                    onClick={() => handleOfferClick(account)}
+                    aria-label={`View ${account.name} offer`}
+                    className="w-full"
+                    style={{
+                      viewTransitionName: isOfferCardTransitioning
+                        ? `offer-${account.id}`
+                        : undefined,
+                    }}
+                  >
+                    <GiftCardItem
+                      account={account}
+                      image={getCardByUrl(account.mintUrl)?.image}
+                      hideOverlayContent
+                      className="w-full max-w-none"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {hasCards ? (
@@ -73,7 +127,7 @@ export function GiftCards() {
                       style={{
                         transform: `translateY(${index * VERTICAL_CARD_OFFSET_IN_STACK}px)`,
                         zIndex: 1 + index,
-                        viewTransitionName: isTransitioning
+                        viewTransitionName: isGiftCardTransitioning
                           ? `card-${account.id}`
                           : undefined,
                       }}
@@ -88,9 +142,9 @@ export function GiftCards() {
                 </div>
               </div>
             </div>
-          ) : (
+          ) : activeOffers.length === 0 ? (
             <EmptyState />
-          )}
+          ) : null}
         </div>
       </PageContent>
     </Page>
