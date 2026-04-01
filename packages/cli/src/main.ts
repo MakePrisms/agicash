@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { configure } from '@agicash/opensecret-sdk';
 import { parseArgs } from './args';
+import { executeAuthCommand, handleAuthCommand } from './commands/auth';
 import { handleBalanceCommand } from './commands/balance';
 import { handleConfigCommand } from './commands/config';
 import { handleDecodeCommand } from './commands/decode';
@@ -22,6 +23,10 @@ const HELP_TEXT = {
   name: 'agicash',
   version: VERSION,
   commands: {
+    'auth login <email> <password>': 'Log in with OpenSecret',
+    'auth signup <email> <password>': 'Create an account',
+    'auth logout': 'Clear stored credentials',
+    'auth status': 'Show current auth state',
     'mint add <url>': 'Add a mint (--currency BTC|USD, --name "My Mint")',
     'mint list': 'List configured mints',
     balance: 'Show wallet balance',
@@ -174,6 +179,26 @@ async function main(): Promise<void> {
     case 'mint': {
       const db = getConfiguredDb();
       const result = await handleMintCommand(parsed, db);
+      if (result.action === 'error') {
+        printError(result.error ?? '', result.code ?? '', outputOptions);
+        process.exit(1);
+      }
+      printOutput(result, outputOptions);
+      break;
+    }
+
+    case 'auth': {
+      getConfiguredDb(); // ensures configure() is called
+      const validation = handleAuthCommand(parsed);
+      if (validation.action === 'error') {
+        printError(
+          validation.error ?? '',
+          validation.code ?? '',
+          outputOptions,
+        );
+        process.exit(1);
+      }
+      const result = await executeAuthCommand(parsed);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);
