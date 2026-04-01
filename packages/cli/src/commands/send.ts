@@ -164,42 +164,60 @@ export async function handleSendCommand(
     }
   });
 
+  // Phase 2: Network call — outside transaction
+  const { getCashuWallet, getCashuProtocolUnit } = await import(
+    '@agicash/sdk/lib/cashu/utils'
+  );
+  const { getEncodedToken } = await import('@cashu/cashu-ts');
+
+  const unit = account.currency === 'BTC' ? 'sat' : 'cent';
+  const mnemonic = process.env.AGICASH_MNEMONIC;
+  const bip39seed =
+    hasMnemonic() && mnemonic ? getCashuSeed(mnemonic) : undefined;
+  const wallet = getCashuWallet(account.mint_url, { unit, bip39seed });
+  await wallet.loadMint();
+
+  const cashuProofs = selectedProofs.map((p) => ({
+    amount: p.amount,
+    secret: p.secret,
+    C: p.c,
+    id: p.keyset_id,
+  }));
+
+  let sendProofs: { amount: number; secret: string; C: string; id: string }[];
+  let keepProofs: { amount: number; secret: string; C: string; id: string }[];
+
   try {
-    // Phase 2: Network call — outside transaction
-    const { getCashuWallet, getCashuProtocolUnit } = await import(
-      '@agicash/sdk/lib/cashu/utils'
-    );
-    const { getEncodedToken } = await import('@cashu/cashu-ts');
-
-    const unit = account.currency === 'BTC' ? 'sat' : 'cent';
-    const mnemonic = process.env.AGICASH_MNEMONIC;
-    const bip39seed =
-      hasMnemonic() && mnemonic ? getCashuSeed(mnemonic) : undefined;
-    const wallet = getCashuWallet(account.mint_url, { unit, bip39seed });
-    await wallet.loadMint();
-
-    const cashuProofs = selectedProofs.map((p) => ({
-      amount: p.amount,
-      secret: p.secret,
-      C: p.c,
-      id: p.keyset_id,
-    }));
-
-    const { send: sendProofs, keep: keepProofs } = await wallet.send(
-      amount,
-      cashuProofs,
-    );
-
-    const protocolUnit = getCashuProtocolUnit(
-      account.currency as 'BTC' | 'USD',
-    );
-    const encoded = getEncodedToken({
-      mint: account.mint_url,
-      proofs: sendProofs,
-      unit: protocolUnit,
+    const result = await wallet.send(amount, cashuProofs);
+    sendProofs = result.send;
+    keepProofs = result.keep;
+  } catch (err) {
+    // Phase-2 failure: mint didn't swap, safe to roll back PENDING → UNSPENT
+    withTransaction(db, () => {
+      const markUnspent = db.prepare(
+        "UPDATE cashu_proofs SET state = 'UNSPENT' WHERE id = ?",
+      );
+      for (const proof of selectedProofs) {
+        markUnspent.run(proof.id);
+      }
     });
 
-    // Phase 3: Mark originals SPENT + insert keep proofs in a transaction
+    return {
+      action: 'error',
+      error: `Failed to create ecash token: ${err instanceof Error ? err.message : String(err)}`,
+      code: 'SEND_FAILED',
+    };
+  }
+
+  const protocolUnit = getCashuProtocolUnit(account.currency as 'BTC' | 'USD');
+  const encoded = getEncodedToken({
+    mint: account.mint_url,
+    proofs: sendProofs,
+    unit: protocolUnit,
+  });
+
+  // Phase 3: Mark originals SPENT + insert keep proofs in a transaction
+  try {
     withTransaction(db, () => {
       const markSpent = db.prepare(
         "UPDATE cashu_proofs SET state = 'SPENT' WHERE id = ?",
@@ -224,35 +242,41 @@ export async function handleSendCommand(
         }
       }
     });
-
-    return {
-      action: 'created',
-      token: {
-        encoded,
-        amount: sendProofs.reduce(
-          (sum: number, p: { amount: number }) => sum + p.amount,
-          0,
-        ),
-        mint_url: account.mint_url,
+  } catch (dbErr) {
+    // Phase-3 failure: proofs are already spent at the mint — DO NOT roll back.
+    // Encode keepProofs so the user can recover change manually.
+    const keepEncoded =
+      keepProofs.length > 0
+        ? getEncodedToken({
+            mint: account.mint_url,
+            proofs: keepProofs,
+            unit: protocolUnit,
+          })
+        : null;
+    console.error(
+      JSON.stringify({
+        critical: 'DB_WRITE_FAILED_AFTER_SWAP',
+        error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+        send_token: encoded,
+        keep_token: keepEncoded,
         account_id: account.id,
-        proof_count: sendProofs.length,
-      },
-    };
-  } catch (err) {
-    // Network failure: roll back PENDING proofs to UNSPENT
-    withTransaction(db, () => {
-      const markUnspent = db.prepare(
-        "UPDATE cashu_proofs SET state = 'UNSPENT' WHERE id = ?",
-      );
-      for (const proof of selectedProofs) {
-        markUnspent.run(proof.id);
-      }
-    });
-
-    return {
-      action: 'error',
-      error: `Failed to create ecash token: ${err instanceof Error ? err.message : String(err)}`,
-      code: 'SEND_FAILED',
-    };
+        mint_url: account.mint_url,
+      }),
+    );
+    process.exit(2);
   }
+
+  return {
+    action: 'created',
+    token: {
+      encoded,
+      amount: sendProofs.reduce(
+        (sum: number, p: { amount: number }) => sum + p.amount,
+        0,
+      ),
+      mint_url: account.mint_url,
+      account_id: account.id,
+      proof_count: sendProofs.length,
+    },
+  };
 }

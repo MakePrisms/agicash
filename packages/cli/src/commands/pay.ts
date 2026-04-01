@@ -160,19 +160,36 @@ export async function handlePayCommand(
       }
     });
 
+    // Phase 2: Network call — outside transaction
+    const cashuProofs = selectedProofs.map((p) => ({
+      amount: p.amount,
+      secret: p.secret,
+      C: p.c,
+      id: p.keyset_id,
+    }));
+
+    let meltResult: {
+      change?: { amount: number; secret: string; C: string; id: string }[];
+    };
+
     try {
-      // Phase 2: Network call — outside transaction
-      const cashuProofs = selectedProofs.map((p) => ({
-        amount: p.amount,
-        secret: p.secret,
-        C: p.c,
-        id: p.keyset_id,
-      }));
+      meltResult = await wallet.meltProofsBolt11(meltQuote, cashuProofs);
+    } catch (err) {
+      // Phase-2 failure: mint didn't melt, safe to roll back PENDING → UNSPENT
+      withTransaction(db, () => {
+        const markUnspent = db.prepare(
+          "UPDATE cashu_proofs SET state = 'UNSPENT' WHERE id = ?",
+        );
+        for (const proof of selectedProofs) {
+          markUnspent.run(proof.id);
+        }
+      });
+      throw err;
+    }
 
-      const meltResult = await wallet.meltProofsBolt11(meltQuote, cashuProofs);
-
-      // Phase 3: Mark proofs SPENT + insert change proofs in a transaction
-      let changeCount = 0;
+    // Phase 3: Mark proofs SPENT + insert change proofs in a transaction
+    let changeCount = 0;
+    try {
       withTransaction(db, () => {
         const markSpent = db.prepare(
           "UPDATE cashu_proofs SET state = 'SPENT' WHERE id = ?",
@@ -198,34 +215,40 @@ export async function handlePayCommand(
           }
         }
       });
-
-      return {
-        action: 'paid',
-        payment: {
+    } catch (dbErr) {
+      // Phase-3 failure: proofs are already spent at the mint — DO NOT roll back.
+      // Log recovery info so the user knows the payment succeeded.
+      const changeProofs = meltResult.change ?? [];
+      console.error(
+        JSON.stringify({
+          critical: 'DB_WRITE_FAILED_AFTER_MELT',
+          error: dbErr instanceof Error ? dbErr.message : String(dbErr),
           bolt11,
           amount: meltQuote.amount,
-          fee: meltQuote.fee_reserve,
-          total: selectedTotal,
-          currency: account.currency,
+          fee_reserve: meltQuote.fee_reserve,
+          change_proofs: changeProofs,
           account_id: account.id,
-          account_name: account.name,
           mint_url: account.mint_url,
-          proofs_spent: selectedProofs.length,
-          change_proofs: changeCount,
-        },
-      };
-    } catch (err) {
-      // Network failure: roll back PENDING proofs to UNSPENT
-      withTransaction(db, () => {
-        const markUnspent = db.prepare(
-          "UPDATE cashu_proofs SET state = 'UNSPENT' WHERE id = ?",
-        );
-        for (const proof of selectedProofs) {
-          markUnspent.run(proof.id);
-        }
-      });
-      throw err;
+        }),
+      );
+      process.exit(2);
     }
+
+    return {
+      action: 'paid',
+      payment: {
+        bolt11,
+        amount: meltQuote.amount,
+        fee: meltQuote.fee_reserve,
+        total: selectedTotal,
+        currency: account.currency,
+        account_id: account.id,
+        account_name: account.name,
+        mint_url: account.mint_url,
+        proofs_spent: selectedProofs.length,
+        change_proofs: changeCount,
+      },
+    };
   } catch (err) {
     return {
       action: 'error',

@@ -86,7 +86,7 @@ async function main(): Promise<void> {
       const value = trimmed
         .slice(eqIndex + 1)
         .trim()
-        .replace(/^["']|["']$/g, '');
+        .replace(/^"(.*)"$|^'(.*)'$/, '$1$2');
       if (!process.env[key]) {
         // Don't override existing env vars
         process.env[key] = value;
