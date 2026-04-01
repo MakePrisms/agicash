@@ -13,8 +13,6 @@
     pkgs.mkcert
     pkgs.nss.tools
     pkgs.gh
-    pkgs.nodePackages.typescript-language-server
-    pkgs.nodePackages.vercel
     (pkgs.callPackage ./tools/convert-to-webp {})
   ];
 

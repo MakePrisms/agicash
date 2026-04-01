@@ -20,7 +20,7 @@ runs:
 
     - name: Install devenv and direnv
       shell: bash
-      run: nix profile install github:cachix/devenv/v1.11.2 nixpkgs#direnv
+      run: nix profile install github:cachix/devenv/v2.0.7 nixpkgs#direnv
 
     - name: Build devenv and export environment
       shell: bash
