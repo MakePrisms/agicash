@@ -35,6 +35,8 @@ const HELP_TEXT = {
     'pay <invoice>': 'Pay a Lightning invoice',
     'receive <amount|token>':
       'Receive sats via Lightning invoice, or claim a cashu token',
+    'receive list': 'List all pending quotes',
+    'receive --check-all': 'Recheck all pending quotes and mint paid ones',
     'decode <input>':
       'Parse any input (bolt11, cashu token, lnurl, Lightning address)',
     'config set <key> <value>':

@@ -83,6 +83,7 @@ in
     enable = true;
     name = "Generate database types from local db";
     entry = "bun run db:generate-types";
+    pass_filenames = false;
   };
   
  git-hooks.hooks.typecheck = {

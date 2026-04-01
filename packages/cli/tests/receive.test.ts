@@ -86,6 +86,95 @@ describe('receive validation', () => {
   });
 });
 
+describe('receive list', () => {
+  let db: Database;
+
+  beforeEach(() => {
+    db = getTestDb();
+  });
+
+  test('returns empty array on fresh DB', async () => {
+    const result = await handleReceiveCommand(makeArgs(['list']), db);
+    expect(result.action).toBe('list');
+    expect(result.quotes).toEqual([]);
+  });
+
+  test('returns stored quotes', async () => {
+    const accountId = addAccount(db);
+    db.prepare(
+      'INSERT INTO mint_quotes (id, bolt11, amount, account_id, mint_url, currency, state) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run(
+      'q1',
+      'lnbc1...',
+      100,
+      accountId,
+      'https://testnut.cashu.space',
+      'BTC',
+      'UNPAID',
+    );
+
+    const result = await handleReceiveCommand(makeArgs(['list']), db);
+    expect(result.action).toBe('list');
+    expect(result.quotes).toHaveLength(1);
+    expect(result.quotes?.[0].id).toBe('q1');
+    expect(result.quotes?.[0].amount).toBe(100);
+    expect(result.quotes?.[0].state).toBe('UNPAID');
+  });
+});
+
+describe('receive --check-all', () => {
+  let db: Database;
+
+  beforeEach(() => {
+    db = getTestDb();
+  });
+
+  test('returns zero summary when no pending quotes', async () => {
+    const result = await handleReceiveCommand(
+      makeArgs([], { 'check-all': true }),
+      db,
+    );
+    expect(result.action).toBe('checked');
+    expect(result.checked).toEqual({
+      total: 0,
+      minted: 0,
+      pending: 0,
+      expired: 0,
+    });
+  });
+
+  test('marks expired quotes based on expiry timestamp', async () => {
+    const accountId = addAccount(db);
+    const pastExpiry = Math.floor(Date.now() / 1000) - 3600; // 1 hour ago
+    db.prepare(
+      'INSERT INTO mint_quotes (id, bolt11, amount, account_id, mint_url, currency, state, expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(
+      'q-expired',
+      'lnbc1...',
+      50,
+      accountId,
+      'https://testnut.cashu.space',
+      'BTC',
+      'UNPAID',
+      pastExpiry,
+    );
+
+    const result = await handleReceiveCommand(
+      makeArgs([], { 'check-all': true }),
+      db,
+    );
+    expect(result.action).toBe('checked');
+    expect(result.checked?.expired).toBe(1);
+    expect(result.checked?.total).toBe(1);
+
+    // Verify DB was updated
+    const row = db
+      .query("SELECT state FROM mint_quotes WHERE id = 'q-expired'")
+      .get() as { state: string };
+    expect(row.state).toBe('EXPIRED');
+  });
+});
+
 describe('receive Lightning E2E (requires network)', () => {
   let db: Database;
 

@@ -71,6 +71,18 @@ function migrate(db: Database): void {
       value TEXT NOT NULL,
       PRIMARY KEY (namespace, key)
     );
+
+    CREATE TABLE IF NOT EXISTS mint_quotes (
+      id TEXT PRIMARY KEY,
+      bolt11 TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      account_id TEXT NOT NULL REFERENCES accounts(id),
+      mint_url TEXT NOT NULL,
+      currency TEXT NOT NULL,
+      state TEXT NOT NULL DEFAULT 'UNPAID',
+      expiry INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 

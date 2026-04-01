@@ -1600,7 +1600,7 @@ export type Database = {
       }
     }
     Enums: {
-      account_purpose: "transactional" | "gift-card"
+      account_purpose: "transactional" | "gift-card" | "offer"
       account_type: "cashu" | "spark"
       acknowledgment_status: "pending" | "acknowledged"
       cashu_proof_state: "UNSPENT" | "RESERVED" | "SPENT"
@@ -1886,7 +1886,7 @@ export type CompositeTypes<
 export const Constants = {
   wallet: {
     Enums: {
-      account_purpose: ["transactional", "gift-card"],
+      account_purpose: ["transactional", "gift-card", "offer"],
       account_type: ["cashu", "spark"],
       acknowledgment_status: ["pending", "acknowledged"],
       cashu_proof_state: ["UNSPENT", "RESERVED", "SPENT"],

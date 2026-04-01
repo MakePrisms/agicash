@@ -3,7 +3,11 @@ import type {
   SparkWallet,
 } from '@buildonspark/spark-sdk';
 import type { DistributedOmit } from 'type-fest';
-import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '../../lib/cashu';
+import {
+  type ExtendedCashuWallet,
+  getCashuUnit,
+  sumProofs,
+} from '../../lib/cashu';
 import { type Currency, Money } from '../../lib/money';
 import type { CashuProof } from './cashu-account';
 
@@ -13,8 +17,9 @@ export type AccountType = 'cashu' | 'spark';
  * The purpose of this account.
  * - 'transactional': Regular accounts for sending/receiving payments
  * - 'gift-card': Closed-loop accounts for mints that are issuing gift cards
+ * - 'offer': Accounts for offer/merchant mints
  */
-export type AccountPurpose = 'transactional' | 'gift-card';
+export type AccountPurpose = 'transactional' | 'gift-card' | 'offer';
 
 export type Account = {
   id: string;

@@ -3,6 +3,18 @@ import type { ParsedArgs } from '../args';
 import { withTransaction } from '../db';
 import { createWalletWithCounters } from '../wallet-factory';
 
+export interface MintQuoteRow {
+  id: string;
+  bolt11: string;
+  amount: number;
+  account_id: string;
+  mint_url: string;
+  currency: string;
+  state: string;
+  expiry: number | null;
+  created_at: string;
+}
+
 export interface ReceiveResult {
   action: string;
   quote?: {
@@ -16,6 +28,7 @@ export interface ReceiveResult {
     state: string;
     expiry?: number;
   };
+  quotes?: MintQuoteRow[];
   minted?: {
     amount: number;
     proof_count: number;
@@ -27,6 +40,12 @@ export interface ReceiveResult {
     account_id: string;
     mint_url: string;
   };
+  checked?: {
+    total: number;
+    minted: number;
+    pending: number;
+    expired: number;
+  };
   error?: string;
   code?: string;
 }
@@ -35,6 +54,16 @@ export async function handleReceiveCommand(
   args: ParsedArgs,
   db: Database,
 ): Promise<ReceiveResult> {
+  // List all stored quotes
+  if (args.positional[0] === 'list') {
+    return handleListQuotes(db);
+  }
+
+  // Check all pending quotes at once
+  if (args.flags['check-all']) {
+    return handleCheckAll(db);
+  }
+
   // Check/resume a previous quote
   const checkQuoteId = args.flags.check as string;
   if (checkQuoteId) {
@@ -106,6 +135,19 @@ async function handleReceiveLightning(
 
     const quoteResponse = await wallet.createMintQuoteBolt11(amount);
 
+    db.prepare(
+      'INSERT INTO mint_quotes (id, bolt11, amount, account_id, mint_url, currency, state, expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(
+      quoteResponse.quote,
+      quoteResponse.request,
+      amount,
+      account.id,
+      account.mint_url,
+      account.currency,
+      String(quoteResponse.state),
+      quoteResponse.expiry ?? null,
+    );
+
     const result: ReceiveResult = {
       action: 'invoice',
       quote: {
@@ -138,7 +180,12 @@ async function handleReceiveLightning(
             amount,
             quoteResponse.quote,
           );
-          withTransaction(db, () => storeProofs(db, account.id, proofs));
+          withTransaction(db, () => {
+            storeProofs(db, account.id, proofs);
+            db.prepare(
+              "UPDATE mint_quotes SET state = 'PAID' WHERE id = ?",
+            ).run(quoteResponse.quote);
+          });
 
           return {
             action: 'minted',
@@ -212,7 +259,12 @@ async function handleCheckQuote(
 
     if (check.state === MintQuoteState.PAID) {
       const proofs = await wallet.mintProofsBolt11(check.amount, quoteId);
-      withTransaction(db, () => storeProofs(db, account.id, proofs));
+      withTransaction(db, () => {
+        storeProofs(db, account.id, proofs);
+        db.prepare("UPDATE mint_quotes SET state = 'PAID' WHERE id = ?").run(
+          quoteId,
+        );
+      });
 
       return {
         action: 'minted',
@@ -323,6 +375,116 @@ async function handleReceiveToken(
       code: 'RECEIVE_TOKEN_FAILED',
     };
   }
+}
+
+function handleListQuotes(db: Database): ReceiveResult {
+  const quotes = db
+    .query(
+      'SELECT id, bolt11, amount, account_id, mint_url, currency, state, expiry, created_at FROM mint_quotes ORDER BY created_at DESC',
+    )
+    .all() as MintQuoteRow[];
+  return { action: 'list', quotes };
+}
+
+async function handleCheckAll(db: Database): Promise<ReceiveResult> {
+  const unpaidQuotes = db
+    .query("SELECT * FROM mint_quotes WHERE state = 'UNPAID'")
+    .all() as MintQuoteRow[];
+
+  const summary = {
+    total: unpaidQuotes.length,
+    minted: 0,
+    pending: 0,
+    expired: 0,
+  };
+
+  if (unpaidQuotes.length === 0) {
+    return { action: 'checked', checked: summary };
+  }
+
+  const { MintQuoteState } = await import('@cashu/cashu-ts');
+  const now = Date.now() / 1000;
+
+  // Group quotes by account to reuse wallet instances
+  const byAccount = new Map<
+    string,
+    { account: AccountRow; quotes: MintQuoteRow[] }
+  >();
+  for (const quote of unpaidQuotes) {
+    if (!byAccount.has(quote.account_id)) {
+      const account = db
+        .query(
+          "SELECT id, name, mint_url, currency FROM accounts WHERE id = ? AND type = 'cashu'",
+        )
+        .get(quote.account_id) as AccountRow | null;
+      if (!account) {
+        // Account was deleted — mark expired
+        db.prepare("UPDATE mint_quotes SET state = 'EXPIRED' WHERE id = ?").run(
+          quote.id,
+        );
+        summary.expired++;
+        continue;
+      }
+      byAccount.set(quote.account_id, { account, quotes: [] });
+    }
+    byAccount.get(quote.account_id)?.quotes.push(quote);
+  }
+
+  for (const { account, quotes } of byAccount.values()) {
+    let wallet:
+      | Awaited<ReturnType<typeof createWalletWithCounters>>
+      | undefined;
+
+    for (const quote of quotes) {
+      // Check client-side expiry first
+      if (quote.expiry != null && quote.expiry < now) {
+        db.prepare("UPDATE mint_quotes SET state = 'EXPIRED' WHERE id = ?").run(
+          quote.id,
+        );
+        summary.expired++;
+        continue;
+      }
+
+      try {
+        if (!wallet) {
+          wallet = await createWalletWithCounters(
+            db,
+            account.id,
+            account.mint_url,
+            account.currency,
+          );
+          await wallet.loadMint();
+        }
+
+        const check = await wallet.checkMintQuoteBolt11(quote.id);
+
+        if (check.state === MintQuoteState.PAID) {
+          const proofs = await wallet.mintProofsBolt11(quote.amount, quote.id);
+          withTransaction(db, () => {
+            storeProofs(db, account.id, proofs);
+            db.prepare(
+              "UPDATE mint_quotes SET state = 'PAID' WHERE id = ?",
+            ).run(quote.id);
+          });
+          summary.minted++;
+        } else if (check.state === MintQuoteState.UNPAID) {
+          summary.pending++;
+        } else {
+          // ISSUED or other terminal state
+          db.prepare('UPDATE mint_quotes SET state = ? WHERE id = ?').run(
+            String(check.state),
+            quote.id,
+          );
+          summary.expired++;
+        }
+      } catch {
+        // Network error or mint issue — leave as pending
+        summary.pending++;
+      }
+    }
+  }
+
+  return { action: 'checked', checked: summary };
 }
 
 // Shared helpers
