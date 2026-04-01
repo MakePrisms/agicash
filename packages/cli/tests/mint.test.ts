@@ -1,8 +1,23 @@
 import type { Database } from 'bun:sqlite';
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { ParsedArgs } from '../src/args';
 import { handleMintCommand } from '../src/commands/mint';
 import { getTestDb } from '../src/db';
+
+// Mock @cashu/cashu-ts so mint validation doesn't make network calls.
+// Default: mint supports sat (BTC) with an active keyset.
+let mockKeysets = [{ unit: 'sat', active: true, id: 'mock-keyset' }];
+
+mock.module('@cashu/cashu-ts', () => ({
+  Mint: class MockMint {
+    getInfo() {
+      return Promise.resolve({ name: 'Mock Mint' });
+    }
+    getKeySets() {
+      return Promise.resolve({ keysets: mockKeysets });
+    }
+  },
+}));
 
 function makeArgs(
   positional: string[],
@@ -20,6 +35,7 @@ describe('mint add', () => {
 
   beforeEach(() => {
     db = getTestDb();
+    mockKeysets = [{ unit: 'sat', active: true, id: 'mock-keyset' }];
   });
 
   test('adds a mint with default BTC currency', async () => {
@@ -36,6 +52,7 @@ describe('mint add', () => {
   });
 
   test('adds a mint with USD currency', async () => {
+    mockKeysets = [{ unit: 'usd', active: true, id: 'mock-usd-keyset' }];
     const result = await handleMintCommand(
       makeArgs(['add', 'https://usd.mint.com'], { currency: 'USD' }),
       db,
@@ -98,6 +115,7 @@ describe('mint list', () => {
 
   beforeEach(() => {
     db = getTestDb();
+    mockKeysets = [{ unit: 'sat', active: true, id: 'mock-keyset' }];
   });
 
   test('returns empty list when no mints', async () => {
@@ -108,6 +126,7 @@ describe('mint list', () => {
 
   test('lists added mints', async () => {
     await handleMintCommand(makeArgs(['add', 'https://mint1.example.com']), db);
+    mockKeysets = [{ unit: 'usd', active: true, id: 'mock-usd-keyset' }];
     await handleMintCommand(
       makeArgs(['add', 'https://mint2.example.com'], { currency: 'USD' }),
       db,

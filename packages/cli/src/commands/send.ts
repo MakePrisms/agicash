@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { ParsedArgs } from '../args';
+import { withTransaction } from '../db';
 
 export interface SendResult {
   action: string;
@@ -37,11 +38,18 @@ export async function handleSendCommand(
     };
   }
 
-  const amount = Number.parseInt(amountStr, 10);
-  if (Number.isNaN(amount) || amount <= 0) {
+  if (!/^\d+$/.test(amountStr)) {
     return {
       action: 'error',
-      error: `Invalid amount: ${amountStr}. Must be a positive integer.`,
+      error: `Invalid amount: ${amountStr}. Must be a positive integer (whole number of sats).`,
+      code: 'INVALID_AMOUNT',
+    };
+  }
+  const amount = Number.parseInt(amountStr, 10);
+  if (amount <= 0) {
+    return {
+      action: 'error',
+      error: `Invalid amount: ${amountStr}. Must be greater than zero.`,
       code: 'INVALID_AMOUNT',
     };
   }
@@ -112,8 +120,8 @@ export async function handleSendCommand(
     };
   }
 
-  // Get unspent proofs
-  const proofs = db
+  // Get unspent proofs sorted ASC by amount for optimal selection
+  const allProofs = db
     .query(
       `SELECT id, account_id, amount, secret, c, keyset_id
        FROM cashu_proofs
@@ -122,16 +130,41 @@ export async function handleSendCommand(
     )
     .all(account.id) as StoredProof[];
 
-  const totalAvailable = proofs.reduce((sum, p) => sum + p.amount, 0);
-  if (totalAvailable < amount) {
+  // Select only enough proofs to cover the amount
+  const selectedProofs: StoredProof[] = [];
+  let selectedTotal = 0;
+  for (const proof of allProofs) {
+    selectedProofs.push(proof);
+    selectedTotal += proof.amount;
+    if (selectedTotal >= amount) break;
+  }
+
+  if (selectedTotal < amount) {
     return {
       action: 'error',
-      error: `Insufficient balance. Need ${amount} but only have ${totalAvailable}.`,
+      error: `Insufficient balance. Need ${amount} but only have ${selectedTotal}.`,
       code: 'INSUFFICIENT_BALANCE',
     };
   }
 
+  // Phase 1: Mark selected proofs as PENDING in a transaction
+  withTransaction(db, () => {
+    const markPending = db.prepare(
+      "UPDATE cashu_proofs SET state = 'PENDING' WHERE id = ? AND state = 'UNSPENT'",
+    );
+    let count = 0;
+    for (const proof of selectedProofs) {
+      count += markPending.run(proof.id).changes;
+    }
+    if (count !== selectedProofs.length) {
+      throw new Error(
+        `Concurrency conflict: expected ${selectedProofs.length} proofs, but only ${count} were UNSPENT`,
+      );
+    }
+  });
+
   try {
+    // Phase 2: Network call — outside transaction
     const { getCashuWallet, getCashuProtocolUnit } = await import(
       '@agicash/sdk/lib/cashu/utils'
     );
@@ -141,23 +174,18 @@ export async function handleSendCommand(
     const wallet = getCashuWallet(account.mint_url, { unit });
     await wallet.loadMint();
 
-    // Convert stored proofs to cashu-ts format
-    const cashuProofs = proofs.map((p) => ({
+    const cashuProofs = selectedProofs.map((p) => ({
       amount: p.amount,
       secret: p.secret,
       C: p.c,
       id: p.keyset_id,
     }));
 
-    // Use wallet.send to get exact amount proofs (handles splitting)
     const { send: sendProofs, keep: keepProofs } = await wallet.send(
       amount,
       cashuProofs,
     );
 
-    // Encode the send proofs as a cashu token.
-    // Use the cashu protocol unit ('sat'/'usd') not the app unit ('sat'/'cent')
-    // so the token is correctly decoded by receivers.
     const protocolUnit = getCashuProtocolUnit(
       account.currency as 'BTC' | 'USD',
     );
@@ -167,30 +195,31 @@ export async function handleSendCommand(
       unit: protocolUnit,
     });
 
-    // Mark all original proofs as spent (they were all consumed by the swap)
-    const markSpent = db.prepare(
-      "UPDATE cashu_proofs SET state = 'SPENT' WHERE id = ?",
-    );
-    for (const proof of proofs) {
-      markSpent.run(proof.id);
-    }
-
-    // Store keep (change) proofs
-    if (keepProofs.length > 0) {
-      const insertProof = db.prepare(`
-        INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
-        VALUES (?, ?, ?, ?, ?, 'UNSPENT')
-      `);
-      for (const proof of keepProofs) {
-        insertProof.run(
-          account.id,
-          proof.amount,
-          proof.secret,
-          proof.C,
-          proof.id,
-        );
+    // Phase 3: Mark originals SPENT + insert keep proofs in a transaction
+    withTransaction(db, () => {
+      const markSpent = db.prepare(
+        "UPDATE cashu_proofs SET state = 'SPENT' WHERE id = ?",
+      );
+      for (const proof of selectedProofs) {
+        markSpent.run(proof.id);
       }
-    }
+
+      if (keepProofs.length > 0) {
+        const insertProof = db.prepare(`
+          INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
+          VALUES (?, ?, ?, ?, ?, 'UNSPENT')
+        `);
+        for (const proof of keepProofs) {
+          insertProof.run(
+            account.id,
+            proof.amount,
+            proof.secret,
+            proof.C,
+            proof.id,
+          );
+        }
+      }
+    });
 
     return {
       action: 'created',
@@ -206,6 +235,16 @@ export async function handleSendCommand(
       },
     };
   } catch (err) {
+    // Network failure: roll back PENDING proofs to UNSPENT
+    withTransaction(db, () => {
+      const markUnspent = db.prepare(
+        "UPDATE cashu_proofs SET state = 'UNSPENT' WHERE id = ?",
+      );
+      for (const proof of selectedProofs) {
+        markUnspent.run(proof.id);
+      }
+    });
+
     return {
       action: 'error',
       error: `Failed to create ecash token: ${err instanceof Error ? err.message : String(err)}`,

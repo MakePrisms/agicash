@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { ParsedArgs } from '../args';
+import { withTransaction } from '../db';
 
 export interface PayResult {
   action: string;
@@ -139,59 +140,88 @@ export async function handlePayCommand(
       };
     }
 
-    // Convert to cashu-ts Proof format
-    const cashuProofs = selectedProofs.map((p) => ({
-      amount: p.amount,
-      secret: p.secret,
-      C: p.c,
-      id: p.keyset_id,
-    }));
-
-    // Execute melt
-    const meltResult = await wallet.meltProofsBolt11(meltQuote, cashuProofs);
-
-    // Mark spent proofs in SQLite
-    const markSpent = db.prepare(
-      "UPDATE cashu_proofs SET state = 'SPENT' WHERE id = ?",
-    );
-    for (const proof of selectedProofs) {
-      markSpent.run(proof.id);
-    }
-
-    // Store any change proofs
-    let changeCount = 0;
-    if (meltResult.change && meltResult.change.length > 0) {
-      const insertProof = db.prepare(`
-        INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
-        VALUES (?, ?, ?, ?, ?, 'UNSPENT')
-      `);
-      for (const changeProof of meltResult.change) {
-        insertProof.run(
-          account.id,
-          changeProof.amount,
-          changeProof.secret,
-          changeProof.C,
-          changeProof.id,
-        );
-        changeCount++;
+    // Phase 1: Mark selected proofs as PENDING in a transaction
+    withTransaction(db, () => {
+      const markPending = db.prepare(
+        "UPDATE cashu_proofs SET state = 'PENDING' WHERE id = ? AND state = 'UNSPENT'",
+      );
+      let count = 0;
+      for (const proof of selectedProofs) {
+        count += markPending.run(proof.id).changes;
       }
-    }
+      if (count !== selectedProofs.length) {
+        throw new Error(
+          `Concurrency conflict: expected ${selectedProofs.length} proofs, but only ${count} were UNSPENT`,
+        );
+      }
+    });
 
-    return {
-      action: 'paid',
-      payment: {
-        bolt11,
-        amount: meltQuote.amount,
-        fee: meltQuote.fee_reserve,
-        total: selectedTotal,
-        currency: account.currency,
-        account_id: account.id,
-        account_name: account.name,
-        mint_url: account.mint_url,
-        proofs_spent: selectedProofs.length,
-        change_proofs: changeCount,
-      },
-    };
+    try {
+      // Phase 2: Network call — outside transaction
+      const cashuProofs = selectedProofs.map((p) => ({
+        amount: p.amount,
+        secret: p.secret,
+        C: p.c,
+        id: p.keyset_id,
+      }));
+
+      const meltResult = await wallet.meltProofsBolt11(meltQuote, cashuProofs);
+
+      // Phase 3: Mark proofs SPENT + insert change proofs in a transaction
+      let changeCount = 0;
+      withTransaction(db, () => {
+        const markSpent = db.prepare(
+          "UPDATE cashu_proofs SET state = 'SPENT' WHERE id = ?",
+        );
+        for (const proof of selectedProofs) {
+          markSpent.run(proof.id);
+        }
+
+        if (meltResult.change && meltResult.change.length > 0) {
+          const insertProof = db.prepare(`
+            INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
+            VALUES (?, ?, ?, ?, ?, 'UNSPENT')
+          `);
+          for (const changeProof of meltResult.change) {
+            insertProof.run(
+              account.id,
+              changeProof.amount,
+              changeProof.secret,
+              changeProof.C,
+              changeProof.id,
+            );
+            changeCount++;
+          }
+        }
+      });
+
+      return {
+        action: 'paid',
+        payment: {
+          bolt11,
+          amount: meltQuote.amount,
+          fee: meltQuote.fee_reserve,
+          total: selectedTotal,
+          currency: account.currency,
+          account_id: account.id,
+          account_name: account.name,
+          mint_url: account.mint_url,
+          proofs_spent: selectedProofs.length,
+          change_proofs: changeCount,
+        },
+      };
+    } catch (err) {
+      // Network failure: roll back PENDING proofs to UNSPENT
+      withTransaction(db, () => {
+        const markUnspent = db.prepare(
+          "UPDATE cashu_proofs SET state = 'UNSPENT' WHERE id = ?",
+        );
+        for (const proof of selectedProofs) {
+          markUnspent.run(proof.id);
+        }
+      });
+      throw err;
+    }
   } catch (err) {
     return {
       action: 'error',

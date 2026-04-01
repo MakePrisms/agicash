@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { ParsedArgs } from '../args';
+import { withTransaction } from '../db';
 
 export interface MintCommandResult {
   action: string;
@@ -98,7 +99,35 @@ async function handleMintAdd(
   // Determine name from flags or generate
   const name = (args.flags.name as string) || `${currency} Mint`;
 
-  // Check if test mint
+  // Validate mint is reachable and supports the requested unit
+  try {
+    const { Mint } = await import('@cashu/cashu-ts');
+    const mint = new Mint(normalizedUrl);
+    const [, keysetsResponse] = await Promise.all([
+      mint.getInfo(),
+      mint.getKeySets(),
+    ]);
+    const cashuUnit = currency === 'BTC' ? 'sat' : 'usd';
+    const hasUnit = keysetsResponse.keysets.some(
+      (ks: { unit: string; active: boolean }) =>
+        ks.unit === cashuUnit && ks.active,
+    );
+    if (!hasUnit) {
+      return {
+        action: 'error',
+        error: `Mint does not support ${currency}. Available units: ${[...new Set(keysetsResponse.keysets.map((k: { unit: string }) => k.unit))].join(', ')}`,
+        code: 'UNSUPPORTED_UNIT',
+      };
+    }
+  } catch (err) {
+    return {
+      action: 'error',
+      error: `Could not reach mint at ${normalizedUrl}: ${err instanceof Error ? err.message : String(err)}`,
+      code: 'MINT_UNREACHABLE',
+    };
+  }
+
+  // Check if test mint (best-effort, silent failure defaults to false)
   let isTestMint = false;
   try {
     const { checkIsTestMint } = await import('@agicash/sdk/lib/cashu/utils');
@@ -108,35 +137,44 @@ async function handleMintAdd(
     isTestMint = false;
   }
 
-  // Insert account
-  const stmt = db.prepare(`
-    INSERT INTO accounts (name, type, currency, purpose, mint_url, is_test_mint, keyset_counters)
-    VALUES (?, 'cashu', ?, 'transactional', ?, ?, '{}')
-    RETURNING *
-  `);
+  // Insert account + auto-set default atomically
+  const row = withTransaction(db, () => {
+    const stmt = db.prepare(`
+      INSERT INTO accounts (name, type, currency, purpose, mint_url, is_test_mint, keyset_counters)
+      VALUES (?, 'cashu', ?, 'transactional', ?, ?, '{}')
+      RETURNING *
+    `);
 
-  const row = stmt.get(name, currency, normalizedUrl, isTestMint ? 1 : 0) as {
-    id: string;
-    name: string;
-    type: string;
-    currency: string;
-    mint_url: string;
-    is_test_mint: number;
-    created_at: string;
-  };
+    const inserted = stmt.get(
+      name,
+      currency,
+      normalizedUrl,
+      isTestMint ? 1 : 0,
+    ) as {
+      id: string;
+      name: string;
+      type: string;
+      currency: string;
+      mint_url: string;
+      is_test_mint: number;
+      created_at: string;
+    };
 
-  // Auto-set as default if it's the first account for this currency
-  const defaultKey =
-    currency === 'BTC' ? 'default-btc-account' : 'default-usd-account';
-  const hasDefault = db
-    .query('SELECT value FROM config WHERE key = ?')
-    .get(defaultKey) as { value: string } | null;
-  if (!hasDefault) {
-    db.prepare('INSERT INTO config (key, value) VALUES (?, ?)').run(
-      defaultKey,
-      row.id,
-    );
-  }
+    // Auto-set as default if it's the first account for this currency
+    const defaultKey =
+      currency === 'BTC' ? 'default-btc-account' : 'default-usd-account';
+    const hasDefault = db
+      .query('SELECT value FROM config WHERE key = ?')
+      .get(defaultKey) as { value: string } | null;
+    if (!hasDefault) {
+      db.prepare('INSERT INTO config (key, value) VALUES (?, ?)').run(
+        defaultKey,
+        inserted.id,
+      );
+    }
+
+    return inserted;
+  });
 
   return {
     action: 'added',

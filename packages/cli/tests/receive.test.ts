@@ -49,14 +49,14 @@ describe('receive validation', () => {
     addAccount(db);
     const result = await handleReceiveCommand(makeArgs(['abc']), db);
     expect(result.action).toBe('error');
-    expect(result.code).toBe('INVALID_INPUT');
+    expect(result.code).toBe('INVALID_AMOUNT');
   });
 
   test('rejects zero amount', async () => {
     addAccount(db);
     const result = await handleReceiveCommand(makeArgs(['0']), db);
     expect(result.action).toBe('error');
-    expect(result.code).toBe('INVALID_INPUT');
+    expect(result.code).toBe('INVALID_AMOUNT');
   });
 
   test('rejects when no accounts configured', async () => {
@@ -82,7 +82,7 @@ describe('receive validation', () => {
       db,
     );
     // Should try token path, not amount path
-    expect(result.code).not.toBe('INVALID_INPUT');
+    expect(result.code).not.toBe('INVALID_AMOUNT');
   });
 });
 

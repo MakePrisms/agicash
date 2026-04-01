@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { ParsedArgs } from '../args';
+import { withTransaction } from '../db';
 
 export interface ReceiveResult {
   action: string;
@@ -56,12 +57,19 @@ export async function handleReceiveCommand(
   }
 
   // Treat as amount (Lightning receive)
-  const amount = Number.parseInt(input, 10);
-  if (Number.isNaN(amount) || amount <= 0) {
+  if (!/^\d+$/.test(input)) {
     return {
       action: 'error',
-      error: `Invalid input: ${input}. Provide an amount in sats or a cashu token.`,
-      code: 'INVALID_INPUT',
+      error: `Invalid amount: ${input}. Must be a positive integer (whole number of sats).`,
+      code: 'INVALID_AMOUNT',
+    };
+  }
+  const amount = Number.parseInt(input, 10);
+  if (amount <= 0) {
+    return {
+      action: 'error',
+      error: `Invalid amount: ${input}. Must be greater than zero.`,
+      code: 'INVALID_AMOUNT',
     };
   }
 
@@ -123,7 +131,7 @@ async function handleReceiveLightning(
             amount,
             quoteResponse.quote,
           );
-          storeProofs(db, account.id, proofs);
+          withTransaction(db, () => storeProofs(db, account.id, proofs));
 
           return {
             action: 'minted',
@@ -194,7 +202,7 @@ async function handleCheckQuote(
 
     if (check.state === MintQuoteState.PAID) {
       const proofs = await wallet.mintProofsBolt11(check.amount, quoteId);
-      storeProofs(db, account.id, proofs);
+      withTransaction(db, () => storeProofs(db, account.id, proofs));
 
       return {
         action: 'minted',
@@ -277,8 +285,8 @@ async function handleReceiveToken(
 
     const receivedProofs = await wallet.receive(token);
 
-    // Store new proofs
-    storeProofs(db, account.id, receivedProofs);
+    // Store new proofs atomically
+    withTransaction(db, () => storeProofs(db, account.id, receivedProofs));
 
     const totalAmount = receivedProofs.reduce(
       (sum: number, p: { amount: number }) => sum + p.amount,
