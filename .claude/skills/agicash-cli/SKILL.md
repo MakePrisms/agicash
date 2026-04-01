@@ -10,16 +10,19 @@ Self-custody Cashu ecash + Lightning wallet CLI. JSON output by default, `--pret
 ## Setup
 
 ```bash
-# Required env var for commands that touch the DB:
-export OPENSECRET_CLIENT_ID="your-client-id"
-# Optional (defaults to https://preview.opensecret.cloud):
-export OPENSECRET_API_URL="https://..."
+# 1. Generate a BIP39 mnemonic (one-time):
+bun -e "import{generateMnemonic}from'@scure/bip39';import{wordlist}from'@scure/bip39/wordlists/english';console.log(generateMnemonic(wordlist))"
 
-# Run via bun (dev):
+# 2. Set it in your environment (required for send/pay/receive):
+export AGICASH_MNEMONIC="your twelve word mnemonic phrase goes here ..."
+
+# 3. Run via bun (dev):
 bun run --cwd packages/cli src/main.ts <command> [args] [flags]
 # Or compiled binary:
 agicash <command> [args] [flags]
 ```
+
+**`AGICASH_MNEMONIC`** is required for `send`, `pay`, and `receive`. Other commands (`balance`, `mint`, `config`, `decode`, `help`, `version`) work without it. Store the mnemonic securely — it derives your wallet keys. Same mnemonic = same wallet across sessions.
 
 **First-run workflow:** `mint add <url>` → `receive <amount>` → `balance`
 
