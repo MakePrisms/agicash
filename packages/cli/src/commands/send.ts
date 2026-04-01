@@ -215,6 +215,10 @@ export async function handleSendCommand(
     unit: protocolUnit,
   });
 
+  // Build a set of input secrets so we can distinguish returned-unchanged
+  // proofs from newly-created change proofs.
+  const inputSecrets = new Set(selectedProofs.map((p) => p.secret));
+
   // Phase 3: Mark originals SPENT + insert keep proofs in a transaction
   try {
     withTransaction(db, () => {
@@ -226,18 +230,31 @@ export async function handleSendCommand(
       }
 
       if (keepProofs.length > 0) {
+        // wallet.send() returns keep proofs that may include:
+        //  (a) original input proofs returned unchanged (not swapped)
+        //  (b) new change proofs from the swap
+        // For (a) we restore UNSPENT state; for (b) we INSERT new rows.
+        const restoreUnspent = db.prepare(
+          "UPDATE cashu_proofs SET state = 'UNSPENT' WHERE secret = ? AND state = 'SPENT'",
+        );
         const insertProof = db.prepare(`
           INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
           VALUES (?, ?, ?, ?, ?, 'UNSPENT')
         `);
         for (const proof of keepProofs) {
-          insertProof.run(
-            account.id,
-            proof.amount,
-            proof.secret,
-            proof.C,
-            proof.id,
-          );
+          if (inputSecrets.has(proof.secret)) {
+            // Original proof returned unchanged — restore it
+            restoreUnspent.run(proof.secret);
+          } else {
+            // New change proof from swap
+            insertProof.run(
+              account.id,
+              proof.amount,
+              proof.secret,
+              proof.C,
+              proof.id,
+            );
+          }
         }
       }
     });
