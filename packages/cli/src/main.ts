@@ -16,6 +16,24 @@ import { getDb } from './db';
 import { hasMnemonic } from './key-provider';
 import { makeStorageProvider } from './opensecret-storage';
 import { printError, printOutput } from './output';
+import { type SdkContext, getSdkContext } from './sdk-context';
+
+type OutputOptions = { pretty: boolean };
+
+async function requireSdkContext(
+  outputOptions: OutputOptions,
+): Promise<SdkContext> {
+  try {
+    return await getSdkContext();
+  } catch (err) {
+    printError(
+      `Auth required. Run: agicash auth guest\n${err instanceof Error ? err.message : ''}`,
+      'AUTH_REQUIRED',
+      outputOptions,
+    );
+    process.exit(1);
+  }
+}
 
 const VERSION = '0.1.0';
 
@@ -119,8 +137,9 @@ async function main(): Promise<void> {
       break;
 
     case 'balance': {
-      const db = getConfiguredDb();
-      const result = handleBalanceCommand(db);
+      getConfiguredDb(); // ensure OpenSecret is configured
+      const ctx = await requireSdkContext(outputOptions);
+      const result = await handleBalanceCommand(ctx);
       printOutput(result, outputOptions);
       break;
     }
@@ -137,24 +156,26 @@ async function main(): Promise<void> {
     }
 
     case 'send': {
-      const db = getConfiguredDb();
-      const result = await handleSendCommand(parsed, db);
-      if (result.action === 'error') {
-        printError(result.error ?? '', result.code ?? '', outputOptions);
+      getConfiguredDb();
+      const sendCtx = await requireSdkContext(outputOptions);
+      const sendResult = await handleSendCommand(parsed, sendCtx);
+      if (sendResult.action === 'error') {
+        printError(sendResult.error ?? '', sendResult.code ?? '', outputOptions);
         process.exit(1);
       }
-      printOutput(result, outputOptions);
+      printOutput(sendResult, outputOptions);
       break;
     }
 
     case 'pay': {
-      const db = getConfiguredDb();
-      const result = await handlePayCommand(parsed, db);
-      if (result.action === 'error') {
-        printError(result.error ?? '', result.code ?? '', outputOptions);
+      getConfiguredDb();
+      const payCtx = await requireSdkContext(outputOptions);
+      const payResult = await handlePayCommand(parsed, payCtx);
+      if (payResult.action === 'error') {
+        printError(payResult.error ?? '', payResult.code ?? '', outputOptions);
         process.exit(1);
       }
-      printOutput(result, outputOptions);
+      printOutput(payResult, outputOptions);
       break;
     }
 
@@ -180,8 +201,9 @@ async function main(): Promise<void> {
     }
 
     case 'mint': {
-      const db = getConfiguredDb();
-      const result = await handleMintCommand(parsed, db);
+      getConfiguredDb(); // ensure OpenSecret is configured
+      const ctx = await requireSdkContext(outputOptions);
+      const result = await handleMintCommand(parsed, ctx);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);

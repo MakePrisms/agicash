@@ -1,6 +1,7 @@
-import type { Database } from 'bun:sqlite';
+import type { Currency } from '@agicash/sdk/lib/money/index';
+import { Mint } from '@cashu/cashu-ts';
 import type { ParsedArgs } from '../args';
-import { withTransaction } from '../db';
+import type { SdkContext } from '../sdk-context';
 
 export interface MintCommandResult {
   action: string;
@@ -9,18 +10,18 @@ export interface MintCommandResult {
     name: string;
     type: string;
     currency: string;
-    mint_url: string;
-    is_test_mint: boolean;
-    created_at: string;
+    mintUrl: string;
+    isTestMint: boolean;
+    createdAt: string;
   };
   accounts?: Array<{
     id: string;
     name: string;
     type: string;
     currency: string;
-    mint_url: string;
-    is_test_mint: boolean;
-    created_at: string;
+    mintUrl: string;
+    isTestMint: boolean;
+    createdAt: string;
   }>;
   error?: string;
   code?: string;
@@ -28,15 +29,15 @@ export interface MintCommandResult {
 
 export async function handleMintCommand(
   args: ParsedArgs,
-  db: Database,
+  ctx: SdkContext,
 ): Promise<MintCommandResult> {
   const subcommand = args.positional[0];
 
   switch (subcommand) {
     case 'add':
-      return handleMintAdd(args, db);
+      return handleMintAdd(args, ctx);
     case 'list':
-      return handleMintList(db);
+      return handleMintList(ctx);
     default:
       return {
         action: 'error',
@@ -48,7 +49,7 @@ export async function handleMintCommand(
 
 async function handleMintAdd(
   args: ParsedArgs,
-  db: Database,
+  ctx: SdkContext,
 ): Promise<MintCommandResult> {
   const mintUrl = args.positional[1];
   if (!mintUrl) {
@@ -73,21 +74,9 @@ async function handleMintAdd(
     };
   }
 
-  // Check for duplicate
-  const existing = db
-    .query('SELECT id FROM accounts WHERE mint_url = ? AND type = ?')
-    .get(normalizedUrl, 'cashu') as { id: string } | null;
-
-  if (existing) {
-    return {
-      action: 'error',
-      error: `Mint already added: ${normalizedUrl}`,
-      code: 'DUPLICATE_MINT',
-    };
-  }
-
   // Determine currency from flags (default BTC)
-  const currency = (args.flags.currency as string)?.toUpperCase() || 'BTC';
+  const currency = ((args.flags.currency as string)?.toUpperCase() ||
+    'BTC') as Currency;
   if (currency !== 'BTC' && currency !== 'USD') {
     return {
       action: 'error',
@@ -101,7 +90,6 @@ async function handleMintAdd(
 
   // Validate mint is reachable and supports the requested unit
   try {
-    const { Mint } = await import('@cashu/cashu-ts');
     const mint = new Mint(normalizedUrl);
     const [, keysetsResponse] = await Promise.all([
       mint.getInfo(),
@@ -127,89 +115,60 @@ async function handleMintAdd(
     };
   }
 
-  // Check if test mint (best-effort, silent failure defaults to false)
-  let isTestMint = false;
+  // Create account via SDK service (handles test mint check + DB insert)
   try {
-    const { checkIsTestMint } = await import('@agicash/sdk/lib/cashu/utils');
-    isTestMint = await checkIsTestMint(normalizedUrl);
-  } catch {
-    // If we can't check, assume mainnet
-    isTestMint = false;
-  }
+    const account = await ctx.accountService.addCashuAccount({
+      userId: ctx.userId,
+      account: {
+        name,
+        type: 'cashu',
+        currency,
+        purpose: 'transactional',
+        mintUrl: normalizedUrl,
+      },
+    });
 
-  // Insert account + auto-set default atomically
-  const row = withTransaction(db, () => {
-    const stmt = db.prepare(`
-      INSERT INTO accounts (name, type, currency, purpose, mint_url, is_test_mint, keyset_counters)
-      VALUES (?, 'cashu', ?, 'transactional', ?, ?, '{}')
-      RETURNING *
-    `);
-
-    const inserted = stmt.get(
-      name,
-      currency,
-      normalizedUrl,
-      isTestMint ? 1 : 0,
-    ) as {
-      id: string;
-      name: string;
-      type: string;
-      currency: string;
-      mint_url: string;
-      is_test_mint: number;
-      created_at: string;
+    return {
+      action: 'added',
+      account: {
+        id: account.id,
+        name: account.name,
+        type: account.type,
+        currency: account.currency,
+        mintUrl: account.mintUrl,
+        isTestMint: account.isTestMint,
+        createdAt: account.createdAt,
+      },
     };
-
-    // Auto-set as default if it's the first account for this currency
-    const defaultKey =
-      currency === 'BTC' ? 'default-btc-account' : 'default-usd-account';
-    const hasDefault = db
-      .query('SELECT value FROM config WHERE key = ?')
-      .get(defaultKey) as { value: string } | null;
-    if (!hasDefault) {
-      db.prepare('INSERT INTO config (key, value) VALUES (?, ?)').run(
-        defaultKey,
-        inserted.id,
-      );
-    }
-
-    return inserted;
-  });
-
-  return {
-    action: 'added',
-    account: {
-      id: row.id,
-      name: row.name,
-      type: row.type,
-      currency: row.currency,
-      mint_url: row.mint_url,
-      is_test_mint: Boolean(row.is_test_mint),
-      created_at: row.created_at,
-    },
-  };
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : 'Failed to create account';
+    // The SDK throws with "Account for this mint and currency already exists" on 409
+    return {
+      action: 'error',
+      error: message,
+      code: 'CREATE_FAILED',
+    };
+  }
 }
 
-function handleMintList(db: Database): MintCommandResult {
-  const rows = db
-    .query(
-      "SELECT id, name, type, currency, mint_url, is_test_mint, created_at FROM accounts WHERE type = 'cashu' ORDER BY created_at",
-    )
-    .all() as Array<{
-    id: string;
-    name: string;
-    type: string;
-    currency: string;
-    mint_url: string;
-    is_test_mint: number;
-    created_at: string;
-  }>;
+async function handleMintList(ctx: SdkContext): Promise<MintCommandResult> {
+  const accounts = await ctx.accountRepo.getAll(ctx.userId);
+  const cashuAccounts = accounts.filter((a) => a.type === 'cashu');
 
   return {
     action: 'list',
-    accounts: rows.map((r) => ({
-      ...r,
-      is_test_mint: Boolean(r.is_test_mint),
-    })),
+    accounts: cashuAccounts.map((a) => {
+      if (a.type !== 'cashu') throw new Error('unreachable');
+      return {
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        currency: a.currency,
+        mintUrl: a.mintUrl,
+        isTestMint: a.isTestMint,
+        createdAt: a.createdAt,
+      };
+    }),
   };
 }

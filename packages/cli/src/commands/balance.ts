@@ -1,13 +1,15 @@
-import type { Database } from 'bun:sqlite';
+import { getAccountBalance } from '@agicash/sdk/features/accounts/account';
+import { getCashuUnit } from '@agicash/sdk/lib/cashu/utils';
+import type { SdkContext } from '../sdk-context';
 
 export interface AccountBalance {
   id: string;
   name: string;
   type: string;
   currency: string;
-  mint_url: string | null;
+  mintUrl: string | null;
   balance: number;
-  proof_count: number;
+  proofCount: number;
 }
 
 export interface BalanceResult {
@@ -15,37 +17,33 @@ export interface BalanceResult {
   totals: Record<string, number>;
 }
 
-export function handleBalanceCommand(db: Database): BalanceResult {
-  const accounts = db
-    .query(`
-      SELECT
-        a.id,
-        a.name,
-        a.type,
-        a.currency,
-        a.mint_url,
-        COALESCE(SUM(p.amount), 0) as balance,
-        COUNT(p.id) as proof_count
-      FROM accounts a
-      LEFT JOIN cashu_proofs p ON p.account_id = a.id AND p.state = 'UNSPENT'
-      GROUP BY a.id
-      ORDER BY a.currency, a.name
-    `)
-    .all() as Array<{
-    id: string;
-    name: string;
-    type: string;
-    currency: string;
-    mint_url: string | null;
-    balance: number;
-    proof_count: number;
-  }>;
+export async function handleBalanceCommand(
+  ctx: SdkContext,
+): Promise<BalanceResult> {
+  const accounts = await ctx.accountRepo.getAll(ctx.userId);
+
+  const balanceAccounts: AccountBalance[] = accounts.map((account) => {
+    const balance = getAccountBalance(account);
+    // Use cashu unit (sat/cent) for consistent CLI output
+    const unit = getCashuUnit(account.currency);
+    const balanceNumber = balance?.toNumber(unit) ?? 0;
+
+    return {
+      id: account.id,
+      name: account.name,
+      type: account.type,
+      currency: account.currency,
+      mintUrl: account.type === 'cashu' ? account.mintUrl : null,
+      balance: balanceNumber,
+      proofCount: account.type === 'cashu' ? account.proofs.length : 0,
+    };
+  });
 
   // Compute totals per currency
   const totals: Record<string, number> = {};
-  for (const acct of accounts) {
+  for (const acct of balanceAccounts) {
     totals[acct.currency] = (totals[acct.currency] || 0) + acct.balance;
   }
 
-  return { accounts, totals };
+  return { accounts: balanceAccounts, totals };
 }

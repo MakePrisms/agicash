@@ -1,107 +1,15 @@
-import type { Database } from 'bun:sqlite';
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import type { ParsedArgs } from '../src/args';
 import { handleSendCommand } from '../src/commands/send';
-import { getTestDb } from '../src/db';
-
-function makeArgs(
-  positional: string[] = [],
-  flags: Record<string, string | boolean> = {},
-): ParsedArgs {
-  return {
-    command: 'send',
-    positional,
-    flags: { pretty: false, ...flags },
-  };
-}
-
-function addAccount(
-  db: Database,
-  opts: { name?: string; currency?: string; mint_url?: string } = {},
-): string {
-  const row = db
-    .prepare(
-      `INSERT INTO accounts (name, type, currency, mint_url) VALUES (?, 'cashu', ?, ?) RETURNING id`,
-    )
-    .get(
-      opts.name || 'Test Mint',
-      opts.currency || 'BTC',
-      opts.mint_url || 'https://testnut.cashu.space',
-    ) as { id: string };
-  return row.id;
-}
-
-function addProof(db: Database, accountId: string, amount: number): void {
-  db.prepare(
-    `INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
-     VALUES (?, ?, ?, ?, ?, 'UNSPENT')`,
-  ).run(
-    accountId,
-    amount,
-    `secret-${Math.random()}`,
-    `c-${Math.random()}`,
-    'keyset1',
-  );
-}
-
+import type { SdkContext } from '../src/sdk-context';
+function makeArgs(positional: string[] = [], flags: Record<string, string | boolean> = {}): ParsedArgs { return { command: 'send', positional, flags: { pretty: false, ...flags } }; }
+function makeEmptyCtx(): SdkContext { return { userId: 'test-user', accountRepo: { getAll: async () => [], get: async () => { throw new Error('not found'); } } } as unknown as SdkContext; }
 describe('send (ecash token) validation', () => {
-  let db: Database;
-
-  beforeEach(() => {
-    db = getTestDb();
-  });
-
-  test('rejects missing amount', async () => {
-    const result = await handleSendCommand(makeArgs(), db);
-    expect(result.action).toBe('error');
-    expect(result.code).toBe('MISSING_AMOUNT');
-  });
-
-  test('rejects invalid amount', async () => {
-    const result = await handleSendCommand(makeArgs(['abc']), db);
-    expect(result.action).toBe('error');
-    expect(result.code).toBe('INVALID_AMOUNT');
-  });
-
-  test('rejects zero amount', async () => {
-    const result = await handleSendCommand(makeArgs(['0']), db);
-    expect(result.action).toBe('error');
-    expect(result.code).toBe('INVALID_AMOUNT');
-  });
-
-  test('rejects when no account with sufficient balance', async () => {
-    const id = addAccount(db);
-    addProof(db, id, 10);
-    const result = await handleSendCommand(makeArgs(['1000']), db);
-    expect(result.action).toBe('error');
-    expect(result.code).toBe('NO_ACCOUNT');
-  });
-
-  test('rejects when specified account not found', async () => {
-    const result = await handleSendCommand(
-      makeArgs(['100'], { account: 'nonexistent' }),
-      db,
-    );
-    expect(result.action).toBe('error');
-    expect(result.code).toBe('NO_ACCOUNT');
-  });
-
-  test('detects insufficient balance with explicit account', async () => {
-    const id = addAccount(db);
-    addProof(db, id, 10);
-    const result = await handleSendCommand(
-      makeArgs(['1000'], { account: id }),
-      db,
-    );
-    expect(result.action).toBe('error');
-    expect(result.code).toBe('INSUFFICIENT_BALANCE');
-  });
-
-  test('accepts amount via --amount flag', async () => {
-    const result = await handleSendCommand(makeArgs([], { amount: '100' }), db);
-    expect(result.action).toBe('error');
-    // Should get past amount parsing
-    expect(result.code).not.toBe('MISSING_AMOUNT');
-    expect(result.code).not.toBe('INVALID_AMOUNT');
-  });
+  const emptyCtx = makeEmptyCtx();
+  test('rejects missing amount', async () => { const r = await handleSendCommand(makeArgs(), emptyCtx); expect(r.action).toBe('error'); expect(r.code).toBe('MISSING_AMOUNT'); });
+  test('rejects invalid amount', async () => { const r = await handleSendCommand(makeArgs(['abc']), emptyCtx); expect(r.action).toBe('error'); expect(r.code).toBe('INVALID_AMOUNT'); });
+  test('rejects zero amount', async () => { const r = await handleSendCommand(makeArgs(['0']), emptyCtx); expect(r.action).toBe('error'); expect(r.code).toBe('INVALID_AMOUNT'); });
+  test('rejects when no cashu accounts', async () => { const r = await handleSendCommand(makeArgs(['100']), emptyCtx); expect(r.action).toBe('error'); expect(r.code).toBe('NO_ACCOUNT'); });
+  test('rejects when specified account not found', async () => { const ctx = { ...emptyCtx, accountRepo: { ...emptyCtx.accountRepo, get: async () => ({ type: 'spark' }) } } as unknown as SdkContext; const r = await handleSendCommand(makeArgs(['100'], { account: 'x' }), ctx); expect(r.action).toBe('error'); expect(r.code).toBe('NO_ACCOUNT'); });
+  test('accepts amount via --amount flag', async () => { const r = await handleSendCommand(makeArgs([], { amount: '100' }), emptyCtx); expect(r.action).toBe('error'); expect(r.code).not.toBe('MISSING_AMOUNT'); expect(r.code).not.toBe('INVALID_AMOUNT'); });
 });

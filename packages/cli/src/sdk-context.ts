@@ -30,6 +30,8 @@ export type SdkContext = {
   cashuSendSwapService: CashuSendSwapService;
   // Repos exposed for simple CRUD (balance, list)
   accountRepo: AccountRepository;
+  cashuReceiveQuoteRepo: CashuReceiveQuoteRepository;
+  cashuSendSwapRepo: CashuSendSwapRepository;
   transactionRepo: TransactionRepository;
   // Shared
   cache: Cache;
@@ -131,6 +133,8 @@ export async function getSdkContext(): Promise<SdkContext> {
     cashuSendQuoteService,
     cashuSendSwapService,
     accountRepo,
+    cashuReceiveQuoteRepo,
+    cashuSendSwapRepo,
     transactionRepo,
     cache,
   };
