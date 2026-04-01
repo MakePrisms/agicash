@@ -122,6 +122,9 @@ async function handleReceiveLightning(
     };
 
     if (args.flags.wait) {
+      // Print the invoice immediately so the user can pay it while we poll
+      console.log(JSON.stringify(result));
+
       const { MintQuoteState } = await import('@cashu/cashu-ts');
       const POLL_INTERVAL = 2000;
       const MAX_POLLS = 150;

@@ -8,6 +8,7 @@ import { handleConfigCommand } from './commands/config';
 import { handleDecodeCommand } from './commands/decode';
 import { handleMintCommand } from './commands/mint';
 import { handlePayCommand } from './commands/pay';
+
 import { handleReceiveCommand } from './commands/receive';
 import { handleSendCommand } from './commands/send';
 import { getDb } from './db';
