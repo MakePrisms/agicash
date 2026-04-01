@@ -1,19 +1,10 @@
 import { generateThirdPartyToken } from '@agicash/opensecret';
 import type { FetchQueryOptions } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
+import { isLoggedIn } from '~/features/shared/auth';
 import { getQueryClient } from '~/features/shared/query-client';
 
 const queryClient = getQueryClient();
-
-const isLoggedIn = (): boolean => {
-  const accessToken = window.localStorage.getItem('access_token');
-  const refreshToken = window.localStorage.getItem('refresh_token');
-  if (!accessToken || !refreshToken) {
-    return false;
-  }
-  const decoded = jwtDecode(refreshToken);
-  return !!decoded.exp && decoded.exp * 1000 > Date.now();
-};
 
 export const supabaseSessionTokenQuery = (): FetchQueryOptions<
   string | null

@@ -34,12 +34,11 @@ export class ReceiveCashuTokenService {
     mintUrl: string,
     currency: Currency,
   ): Promise<CashuAccountWithTokenFlags> {
-    const { wallet, isOnline } = await getInitializedCashuWallet(
-      this.queryClient,
+    const { wallet, isOnline } = await getInitializedCashuWallet({
+      queryClient: this.queryClient,
       mintUrl,
       currency,
-      undefined,
-    );
+    });
 
     const baseAccount = {
       id: 'cashu-account-placeholder-id',

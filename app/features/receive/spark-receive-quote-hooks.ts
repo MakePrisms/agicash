@@ -18,6 +18,7 @@ import { measureOperation } from '~/lib/performance';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
+  useGetCashuAccountByMintUrlAndCurrency,
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
@@ -249,6 +250,7 @@ const usePendingMeltQuotes = () => {
         .map((q) => ({
           id: q.tokenReceiveData.meltQuoteId,
           mintUrl: q.tokenReceiveData.sourceMintUrl,
+          currency: q.tokenReceiveData.tokenAmount.currency,
           expiryInMs: new Date(q.expiresAt).getTime(),
           inputAmount: sumProofs(q.tokenReceiveData.tokenProofs),
         })),
@@ -477,6 +479,8 @@ export function useOnSparkReceiveStateChange({
 export function useProcessSparkReceiveQuoteTasks() {
   const sparkReceiveQuoteService = useSparkReceiveQuoteService();
   const pendingMeltQuotes = usePendingMeltQuotes();
+  const getCashuAccountByMintUrlAndCurrency =
+    useGetCashuAccountByMintUrlAndCurrency();
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const transactionsCache = useTransactionsCache();
@@ -593,12 +597,15 @@ export function useProcessSparkReceiveQuoteTasks() {
       }
 
       const cashuUnit = getCashuUnit(quote.amount.currency);
-      const sourceWallet = getCashuWallet(
-        quote.tokenReceiveData.sourceMintUrl,
-        {
-          unit: cashuUnit,
-        },
+      const sourceMintUrl = quote.tokenReceiveData.sourceMintUrl;
+      const sourceAccount = getCashuAccountByMintUrlAndCurrency(
+        sourceMintUrl,
+        quote.tokenReceiveData.tokenAmount.currency,
       );
+
+      const sourceWallet = sourceAccount
+        ? sourceAccount.wallet
+        : getCashuWallet(sourceMintUrl, { unit: cashuUnit });
 
       await sourceWallet.meltProofsIdempotent(
         {
@@ -676,6 +683,13 @@ export function useProcessSparkReceiveQuoteTasks() {
 
   useOnMeltQuoteStateChange({
     quotes: pendingMeltQuotes,
+    getWallet: (mintUrl, currency) => {
+      const sourceAccount = getCashuAccountByMintUrlAndCurrency(
+        mintUrl,
+        currency,
+      );
+      return sourceAccount ? sourceAccount.wallet : getCashuWallet(mintUrl);
+    },
     onUnpaid: (meltQuote) => {
       const receiveQuote = pendingQuotesCache.getByMeltQuoteId(meltQuote.quote);
       if (!receiveQuote) {
