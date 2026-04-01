@@ -1,5 +1,6 @@
 // packages/cli/src/supabase-client.ts
 import { generateThirdPartyToken } from '@agicash/opensecret-sdk';
+import type { AgicashDb, Database } from '@agicash/sdk/db/database';
 import { createClient } from '@supabase/supabase-js';
 
 type ValidateOk = { ok: true; url: string; anonKey: string };
@@ -29,10 +30,7 @@ export function validateSupabaseEnv(
   return { ok: true, url, anonKey };
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: Supabase generics require explicit `any` for untyped Database
-type WalletClient = ReturnType<typeof createClient<any, 'wallet', 'wallet'>>;
-
-let cachedClient: WalletClient | null = null;
+let cachedClient: AgicashDb | null = null;
 
 /**
  * Returns a Supabase client authenticated via OpenSecret's third-party JWT.
@@ -40,7 +38,7 @@ let cachedClient: WalletClient | null = null;
  * The `accessToken` callback calls `generateThirdPartyToken()` on each request,
  * which handles token refresh automatically via the SDK.
  */
-export function getSupabaseClient(): WalletClient {
+export function getSupabaseClient(): AgicashDb {
   if (cachedClient) return cachedClient;
 
   const env = validateSupabaseEnv();
@@ -48,8 +46,7 @@ export function getSupabaseClient(): WalletClient {
     throw new Error(env.error);
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: no generated Database type for CLI yet
-  cachedClient = createClient<any, 'wallet', 'wallet'>(env.url, env.anonKey, {
+  cachedClient = createClient<Database>(env.url, env.anonKey, {
     accessToken: async () => {
       const response = await generateThirdPartyToken();
       return response.token;
