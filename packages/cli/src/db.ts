@@ -13,8 +13,10 @@ export function getDb(): Database {
 
   mkdirSync(DATA_DIR, { recursive: true });
   _db = new Database(DB_PATH);
-  _db.exec('PRAGMA journal_mode = WAL');
-  _db.exec('PRAGMA foreign_keys = ON');
+  _db.run('PRAGMA journal_mode = WAL');
+  _db.run('PRAGMA foreign_keys = ON');
+  _db.run('PRAGMA synchronous = NORMAL');
+  _db.run('PRAGMA busy_timeout = 5000');
   migrate(_db);
   return _db;
 }
@@ -22,13 +24,15 @@ export function getDb(): Database {
 /** For testing — use an in-memory database */
 export function getTestDb(): Database {
   const db = new Database(':memory:');
-  db.exec('PRAGMA foreign_keys = ON');
+  db.run('PRAGMA foreign_keys = ON');
+  db.run('PRAGMA synchronous = NORMAL');
+  db.run('PRAGMA busy_timeout = 5000');
   migrate(db);
   return db;
 }
 
 function migrate(db: Database): void {
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS accounts (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       name TEXT NOT NULL,
@@ -58,7 +62,28 @@ function migrate(db: Database): void {
       state TEXT NOT NULL DEFAULT 'UNSPENT' CHECK (state IN ('UNSPENT', 'PENDING', 'SPENT')),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_cashu_proofs_secret ON cashu_proofs(secret);
+
+    CREATE TABLE IF NOT EXISTS kv_store (
+      namespace TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      PRIMARY KEY (namespace, key)
+    );
   `);
+}
+
+export function withTransaction<T>(db: Database, fn: () => T): T {
+  db.run('BEGIN IMMEDIATE');
+  try {
+    const result = fn();
+    db.run('COMMIT');
+    return result;
+  } catch (err) {
+    db.run('ROLLBACK');
+    throw err;
+  }
 }
 
 export function closeDb(): void {
