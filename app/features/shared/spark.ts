@@ -4,6 +4,7 @@ import {
   SparkWallet,
   SparkWalletEvent,
 } from '@buildonspark/spark-sdk';
+import type { SparkProto } from '@buildonspark/spark-sdk/types';
 import {
   type QueryClient,
   queryOptions,
@@ -23,6 +24,21 @@ import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
 import { getFeatureFlag } from './feature-flags';
+
+function getLeafDenominations(leaves: SparkProto.TreeNode[]) {
+  return Object.entries(
+    leaves.reduce(
+      (acc, leaf) => {
+        acc[leaf.value] = (acc[leaf.value] || 0) + 1;
+        return acc;
+      },
+      {} as Record<number, number>,
+    ),
+  )
+    .map(([value, count]) => ({ value: Number(value), count }))
+    .sort((a, b) => b.value - a.value)
+    .map((d) => `${d.count}x ${d.value} sats`);
+}
 
 export function sparkDebugLog(message: string, data?: Record<string, unknown>) {
   if (getFeatureFlag('DEBUG_LOGGING_SPARK')) {
@@ -186,16 +202,25 @@ export function useTrackAndUpdateSparkAccountBalances() {
 
         sparkDebugLog('Polling balance', { accountId: account.id });
 
-        const { satsBalance } = await measureOperation(
-          'SparkWallet.getBalance',
-          () => account.wallet.getBalance(),
-          { accountId: account.id },
-        );
+        const [{ satsBalance }, leaves, identityPublicKey, isOptimizing] =
+          await Promise.all([
+            measureOperation(
+              'SparkWallet.getBalance',
+              () => account.wallet.getBalance(),
+              { accountId: account.id },
+            ),
+            account.wallet.getLeaves(true),
+            account.wallet.getIdentityPublicKey(),
+            account.wallet.isOptimizationInProgress(),
+          ]);
 
         sparkDebugLog('Balance fetched from Spark SDK', {
           accountId: account.id,
           owned: String(satsBalance.owned),
           available: String(satsBalance.available),
+          identityPublicKey,
+          isOptimizing,
+          leaves: getLeafDenominations(leaves),
         });
 
         // WORKAROUND: Spark SDK sometimes returns 0 for balance incorrectly.
