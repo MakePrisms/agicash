@@ -10,10 +10,15 @@ import { CashuSendQuoteRepository } from '@agicash/sdk/features/send/cashu-send-
 import { CashuSendQuoteService } from '@agicash/sdk/features/send/cashu-send-quote-service';
 import { CashuSendSwapRepository } from '@agicash/sdk/features/send/cashu-send-swap-repository';
 import { CashuSendSwapService } from '@agicash/sdk/features/send/cashu-send-swap-service';
-import { getCashuCryptography } from '@agicash/sdk/features/shared/cashu';
+import {
+  BASE_CASHU_LOCKING_DERIVATION_PATH,
+  getCashuCryptography,
+} from '@agicash/sdk/features/shared/cashu';
 import { getEncryption } from '@agicash/sdk/features/shared/encryption';
 import { TransactionRepository } from '@agicash/sdk/features/transactions/transaction-repository';
+import { WriteUserRepository } from '@agicash/sdk/features/user/user-repository';
 import type { Cache } from '@agicash/sdk/interfaces/cache';
+import { getSparkIdentityPublicKeyFromMnemonic } from '@agicash/sdk/lib/spark/index';
 // packages/cli/src/sdk-context.ts
 import { hexToBytes } from '@noble/hashes/utils';
 import { mnemonicToSeedSync } from '@scure/bip39';
@@ -124,6 +129,37 @@ export async function getSdkContext(): Promise<SdkContext> {
     cashuSendSwapRepo,
     cashuReceiveSwapService,
   );
+
+  // Upsert user into Supabase (mirrors web app's _protected.tsx).
+  // Without this, the user exists in OpenSecret but not in wallet.users,
+  // so all Supabase queries fail with RLS denials.
+  const [cashuLockingXpub, sparkMnemonic] = await Promise.all([
+    cashuCrypto.getXpub(BASE_CASHU_LOCKING_DERIVATION_PATH),
+    getSparkWalletMnemonic(),
+  ]);
+  const sparkIdentityPublicKey = await getSparkIdentityPublicKeyFromMnemonic(
+    sparkMnemonic,
+    'MAINNET',
+  );
+  const writeUserRepo = new WriteUserRepository(db, accountRepo);
+  await writeUserRepo.upsert({
+    id: userId,
+    email: user.email ?? undefined,
+    emailVerified: user.email_verified,
+    accounts: [
+      {
+        type: 'spark',
+        currency: 'BTC',
+        name: 'Bitcoin',
+        network: 'MAINNET',
+        isDefault: true,
+        purpose: 'transactional',
+      },
+    ],
+    cashuLockingXpub,
+    encryptionPublicKey: public_key,
+    sparkIdentityPublicKey,
+  });
 
   cached = {
     userId,
