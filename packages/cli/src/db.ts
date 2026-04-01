@@ -33,37 +33,10 @@ export function getTestDb(): Database {
 
 function migrate(db: Database): void {
   db.run(`
-    CREATE TABLE IF NOT EXISTS accounts (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('cashu', 'spark')),
-      currency TEXT NOT NULL CHECK (currency IN ('BTC', 'USD')),
-      purpose TEXT NOT NULL DEFAULT 'transactional' CHECK (purpose IN ('transactional', 'gift-card')),
-      mint_url TEXT,
-      is_test_mint INTEGER DEFAULT 0,
-      keyset_counters TEXT DEFAULT '{}',
-      network TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      version INTEGER NOT NULL DEFAULT 1
-    );
-
     CREATE TABLE IF NOT EXISTS config (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
-
-    CREATE TABLE IF NOT EXISTS cashu_proofs (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      account_id TEXT NOT NULL REFERENCES accounts(id),
-      amount INTEGER NOT NULL,
-      secret TEXT NOT NULL,
-      c TEXT NOT NULL,
-      keyset_id TEXT NOT NULL,
-      state TEXT NOT NULL DEFAULT 'UNSPENT' CHECK (state IN ('UNSPENT', 'PENDING', 'SPENT')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_cashu_proofs_secret ON cashu_proofs(secret);
 
     CREATE TABLE IF NOT EXISTS kv_store (
       namespace TEXT NOT NULL,
@@ -71,31 +44,7 @@ function migrate(db: Database): void {
       value TEXT NOT NULL,
       PRIMARY KEY (namespace, key)
     );
-
-    CREATE TABLE IF NOT EXISTS mint_quotes (
-      id TEXT PRIMARY KEY,
-      bolt11 TEXT NOT NULL,
-      amount INTEGER NOT NULL,
-      account_id TEXT NOT NULL REFERENCES accounts(id),
-      mint_url TEXT NOT NULL,
-      currency TEXT NOT NULL,
-      state TEXT NOT NULL DEFAULT 'UNPAID',
-      expiry INTEGER,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
   `);
-}
-
-export function withTransaction<T>(db: Database, fn: () => T): T {
-  db.run('BEGIN IMMEDIATE');
-  try {
-    const result = fn();
-    db.run('COMMIT');
-    return result;
-  } catch (err) {
-    db.run('ROLLBACK');
-    throw err;
-  }
 }
 
 export function closeDb(): void {

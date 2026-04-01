@@ -53,20 +53,6 @@ function handleConfigSet(args: ParsedArgs, db: Database): ConfigResult {
     };
   }
 
-  // Validate account exists
-  if (key.startsWith('default-')) {
-    const account = db
-      .query("SELECT id FROM accounts WHERE id = ? AND type = 'cashu'")
-      .get(value) as { id: string } | null;
-    if (!account) {
-      return {
-        action: 'error',
-        error: `Account not found: ${value}`,
-        code: 'ACCOUNT_NOT_FOUND',
-      };
-    }
-  }
-
   db.prepare(
     'INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
   ).run(key, value);
