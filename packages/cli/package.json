@@ -12,7 +12,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@agicash/opensecret-sdk": "github:MakePrisms/OpenSecret-SDK#feat/storage-provider",
+    "@agicash/opensecret-sdk": "MakePrisms/OpenSecret-SDK#dist",
     "@agicash/sdk": "workspace:*"
   },
   "devDependencies": {
