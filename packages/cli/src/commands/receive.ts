@@ -1,21 +1,17 @@
-import type { Database } from 'bun:sqlite';
+import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
+import { areMintUrlsEqual } from '@agicash/sdk/lib/cashu/utils';
+import { Money } from '@agicash/sdk/lib/money/money';
+import {
+  Mint,
+  MintQuoteState,
+  type Token,
+  getDecodedToken,
+  getTokenMetadata,
+} from '@cashu/cashu-ts';
 import type { ParsedArgs } from '../args';
-import { withTransaction } from '../db';
-import { createWalletWithCounters } from '../wallet-factory';
+import type { SdkContext } from '../sdk-context';
 
-export interface MintQuoteRow {
-  id: string;
-  bolt11: string;
-  amount: number;
-  account_id: string;
-  mint_url: string;
-  currency: string;
-  state: string;
-  expiry: number | null;
-  created_at: string;
-}
-
-export interface ReceiveResult {
+export type ReceiveResult = {
   action: string;
   quote?: {
     id: string;
@@ -23,274 +19,226 @@ export interface ReceiveResult {
     amount: number;
     currency: string;
     account_id: string;
-    account_name: string;
     mint_url: string;
     state: string;
-    expiry?: number;
+    expiresAt?: string;
   };
-  quotes?: MintQuoteRow[];
-  minted?: {
+  quotes?: Array<{
+    id: string;
     amount: number;
-    proof_count: number;
+    currency: string;
     account_id: string;
-  };
+    state: string;
+    expiresAt: string;
+    createdAt: string;
+  }>;
+  minted?: { amount: number; currency: string; account_id: string };
   claimed?: {
     amount: number;
-    proof_count: number;
+    fee: number;
+    currency: string;
     account_id: string;
     mint_url: string;
   };
   checked?: {
     total: number;
-    minted: number;
+    completed: number;
     pending: number;
-    expired: number;
+    failed: number;
   };
   error?: string;
   code?: string;
-}
+};
 
 export async function handleReceiveCommand(
   args: ParsedArgs,
-  db: Database,
+  ctx: SdkContext,
 ): Promise<ReceiveResult> {
-  // List all stored quotes
-  if (args.positional[0] === 'list') {
-    return handleListQuotes(db);
-  }
-
-  // Check all pending quotes at once
-  if (args.flags['check-all']) {
-    return handleCheckAll(db);
-  }
-
-  // Check/resume a previous quote
+  if (args.positional[0] === 'list') return handleListQuotes(ctx);
+  if (args.flags['check-all']) return handleCheckAll(ctx);
   const checkQuoteId = args.flags.check as string;
-  if (checkQuoteId) {
-    return handleCheckQuote(checkQuoteId, args, db);
-  }
-
+  if (checkQuoteId) return handleCheckQuote(checkQuoteId, ctx);
   const input = args.positional[0] || (args.flags.amount as string);
-
-  if (!input) {
+  if (!input)
     return {
       action: 'error',
       error:
         'Usage: agicash receive <amount> (Lightning) or agicash receive <cashu-token>',
       code: 'MISSING_INPUT',
     };
-  }
-
-  // Detect intent: cashu token or amount
-  if (input.startsWith('cashuA') || input.startsWith('cashuB')) {
-    return handleReceiveToken(input, args, db);
-  }
-
-  // Treat as amount (Lightning receive)
-  if (!/^\d+$/.test(input)) {
+  if (input.startsWith('cashuA') || input.startsWith('cashuB'))
+    return handleReceiveToken(input, args, ctx);
+  if (!/^\d+$/.test(input))
     return {
       action: 'error',
       error: `Invalid amount: ${input}. Must be a positive integer (whole number of sats).`,
       code: 'INVALID_AMOUNT',
     };
-  }
   const amount = Number.parseInt(input, 10);
-  if (amount <= 0) {
+  if (amount <= 0)
     return {
       action: 'error',
       error: `Invalid amount: ${input}. Must be greater than zero.`,
       code: 'INVALID_AMOUNT',
     };
-  }
-
-  return handleReceiveLightning(amount, args, db);
+  return handleReceiveLightning(amount, args, ctx);
 }
 
 async function handleReceiveLightning(
   amount: number,
   args: ParsedArgs,
-  db: Database,
+  ctx: SdkContext,
 ): Promise<ReceiveResult> {
-  const accountId = args.flags.account as string | undefined;
-  const account = findAccount(db, accountId);
-
-  if (!account) {
+  const account = await findCashuAccount(
+    ctx,
+    args.flags.account as string | undefined,
+  );
+  if (!account)
     return {
       action: 'error',
-      error: accountId
-        ? `Account not found: ${accountId}`
+      error: args.flags.account
+        ? `Account not found: ${args.flags.account}`
         : 'No cashu accounts configured. Run: agicash mint add <url>',
       code: 'NO_ACCOUNT',
     };
-  }
-
   try {
-    const wallet = await createWalletWithCounters(
-      db,
-      account.id,
-      account.mint_url,
-      account.currency,
-    );
-    await wallet.loadMint();
-
-    const quoteResponse = await wallet.createMintQuoteBolt11(amount);
-
-    db.prepare(
-      'INSERT INTO mint_quotes (id, bolt11, amount, account_id, mint_url, currency, state, expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    ).run(
-      quoteResponse.quote,
-      quoteResponse.request,
+    const moneyAmount = new Money({
       amount,
-      account.id,
-      account.mint_url,
-      account.currency,
-      String(quoteResponse.state),
-      quoteResponse.expiry ?? null,
+      currency: account.currency,
+      unit: account.currency === 'BTC' ? 'sat' : 'cent',
+    });
+    const lightningQuote = await ctx.cashuReceiveQuoteService.getLightningQuote(
+      { wallet: account.wallet, amount: moneyAmount },
     );
-
+    const quote = await ctx.cashuReceiveQuoteService.createReceiveQuote({
+      userId: ctx.userId,
+      account,
+      lightningQuote,
+      receiveType: 'LIGHTNING',
+    });
     const result: ReceiveResult = {
       action: 'invoice',
       quote: {
-        id: quoteResponse.quote,
-        bolt11: quoteResponse.request,
+        id: quote.id,
+        bolt11: quote.paymentRequest,
         amount,
         currency: account.currency,
         account_id: account.id,
-        account_name: account.name,
-        mint_url: account.mint_url,
-        state: String(quoteResponse.state),
-        expiry: quoteResponse.expiry,
+        mint_url: account.mintUrl,
+        state: quote.state,
+        expiresAt: quote.expiresAt,
       },
     };
-
     if (args.flags.wait) {
-      // Print the invoice immediately so the user can pay it while we poll
       console.log(JSON.stringify(result));
-
-      const { MintQuoteState } = await import('@cashu/cashu-ts');
-      const POLL_INTERVAL = 2000;
-      const MAX_POLLS = 150;
-
-      for (let i = 0; i < MAX_POLLS; i++) {
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-        const check = await wallet.checkMintQuoteBolt11(quoteResponse.quote);
-
+      for (let i = 0; i < 150; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const check = await account.wallet.checkMintQuoteBolt11(quote.quoteId);
         if (check.state === MintQuoteState.PAID) {
-          const proofs = await wallet.mintProofsBolt11(
-            amount,
-            quoteResponse.quote,
+          const completed = await ctx.cashuReceiveQuoteService.completeReceive(
+            account,
+            quote,
           );
-          withTransaction(db, () => {
-            storeProofs(db, account.id, proofs);
-            db.prepare(
-              "UPDATE mint_quotes SET state = 'PAID' WHERE id = ?",
-            ).run(quoteResponse.quote);
-          });
-
           return {
             action: 'minted',
             minted: {
-              amount: proofs.reduce(
-                (sum: number, p: { amount: number }) => sum + p.amount,
-                0,
+              amount: completed.quote.amount.toNumber(
+                account.currency === 'BTC' ? 'sat' : 'cent',
               ),
-              proof_count: proofs.length,
+              currency: account.currency,
               account_id: account.id,
             },
           };
         }
-
-        if (check.state !== MintQuoteState.UNPAID) {
+        if (check.state !== MintQuoteState.UNPAID)
           return {
             action: 'error',
             error: `Unexpected quote state: ${String(check.state)}`,
             code: 'UNEXPECTED_STATE',
           };
-        }
       }
-
       return {
         action: 'error',
         error: 'Timed out waiting for payment (5 minutes).',
         code: 'TIMEOUT',
       };
     }
-
     return result;
   } catch (err) {
     return {
       action: 'error',
-      error: `Failed to create mint quote: ${err instanceof Error ? err.message : String(err)}`,
-      code: 'MINT_QUOTE_FAILED',
+      error: `Failed to create receive quote: ${err instanceof Error ? err.message : String(err)}`,
+      code: 'RECEIVE_QUOTE_FAILED',
     };
   }
 }
 
 async function handleCheckQuote(
   quoteId: string,
-  args: ParsedArgs,
-  db: Database,
+  ctx: SdkContext,
 ): Promise<ReceiveResult> {
-  // Need an account to know which mint to check against
-  const accountId = args.flags.account as string | undefined;
-  const account = findAccount(db, accountId);
-
-  if (!account) {
-    return {
-      action: 'error',
-      error: accountId
-        ? `Account not found: ${accountId}`
-        : 'No cashu accounts configured. Run: agicash mint add <url>',
-      code: 'NO_ACCOUNT',
-    };
-  }
-
   try {
-    const { MintQuoteState } = await import('@cashu/cashu-ts');
-    const wallet = await createWalletWithCounters(
-      db,
-      account.id,
-      account.mint_url,
-      account.currency,
-    );
-    await wallet.loadMint();
-
-    const check = await wallet.checkMintQuoteBolt11(quoteId);
-
-    if (check.state === MintQuoteState.PAID) {
-      const proofs = await wallet.mintProofsBolt11(check.amount, quoteId);
-      withTransaction(db, () => {
-        storeProofs(db, account.id, proofs);
-        db.prepare("UPDATE mint_quotes SET state = 'PAID' WHERE id = ?").run(
-          quoteId,
-        );
-      });
-
+    const quote = await ctx.cashuReceiveQuoteRepo.get(quoteId);
+    if (!quote)
+      return {
+        action: 'error',
+        error: `Quote not found: ${quoteId}`,
+        code: 'QUOTE_NOT_FOUND',
+      };
+    if (quote.state === 'COMPLETED')
       return {
         action: 'minted',
         minted: {
-          amount: proofs.reduce(
-            (sum: number, p: { amount: number }) => sum + p.amount,
-            0,
+          amount: quote.amount.toNumber(
+            quote.amount.currency === 'BTC' ? 'sat' : 'cent',
           ),
-          proof_count: proofs.length,
+          currency: quote.amount.currency,
+          account_id: quote.accountId,
+        },
+      };
+    if (quote.state === 'EXPIRED' || quote.state === 'FAILED')
+      return {
+        action: 'error',
+        error: `Quote is ${quote.state.toLowerCase()}`,
+        code: `QUOTE_${quote.state}`,
+      };
+    const account = await ctx.accountRepo.get(quote.accountId);
+    if (account.type !== 'cashu')
+      return {
+        action: 'error',
+        error: 'Quote account is not a cashu account',
+        code: 'INVALID_ACCOUNT',
+      };
+    const check = await account.wallet.checkMintQuoteBolt11(quote.quoteId);
+    if (check.state === MintQuoteState.PAID || quote.state === 'PAID') {
+      const completed = await ctx.cashuReceiveQuoteService.completeReceive(
+        account,
+        quote,
+      );
+      return {
+        action: 'minted',
+        minted: {
+          amount: completed.quote.amount.toNumber(
+            account.currency === 'BTC' ? 'sat' : 'cent',
+          ),
+          currency: account.currency,
           account_id: account.id,
         },
       };
     }
-
     return {
       action: 'pending',
       quote: {
-        id: quoteId,
-        bolt11: check.request,
-        amount: check.amount,
-        currency: account.currency,
-        account_id: account.id,
-        account_name: account.name,
-        mint_url: account.mint_url,
+        id: quote.id,
+        bolt11: quote.paymentRequest,
+        amount: quote.amount.toNumber(
+          quote.amount.currency === 'BTC' ? 'sat' : 'cent',
+        ),
+        currency: quote.amount.currency,
+        account_id: quote.accountId,
+        mint_url: account.mintUrl,
         state: String(check.state),
-        expiry: check.expiry,
+        expiresAt: quote.expiresAt,
       },
     };
   } catch (err) {
@@ -303,67 +251,49 @@ async function handleCheckQuote(
 }
 
 async function handleReceiveToken(
-  token: string,
+  tokenString: string,
   args: ParsedArgs,
-  db: Database,
+  ctx: SdkContext,
 ): Promise<ReceiveResult> {
   try {
-    // Use getTokenMetadata to extract mint URL without needing keyset IDs.
-    // getDecodedToken fails on v4 (cashuB) tokens with short keyset IDs
-    // unless the mint's full keyset list is provided upfront.
-    const { getTokenMetadata } = await import('@cashu/cashu-ts');
-    const tokenMeta = getTokenMetadata(token);
-
+    const tokenMeta = getTokenMetadata(tokenString);
     const mintUrl = tokenMeta.mint;
-    if (!mintUrl) {
+    if (!mintUrl)
       return {
         action: 'error',
         error: 'Cashu token does not specify a mint URL.',
         code: 'NO_MINT_IN_TOKEN',
       };
-    }
-
-    // Find or auto-select account for this mint
     const accountId = args.flags.account as string | undefined;
     const account = accountId
-      ? findAccountById(db, accountId)
-      : findAccountByMint(db, mintUrl);
-
-    if (!account) {
+      ? await findCashuAccountById(ctx, accountId)
+      : await findCashuAccountByMint(ctx, mintUrl);
+    if (!account)
       return {
         action: 'error',
-        error: `No account for mint ${mintUrl}. Run: agicash mint add ${mintUrl}`,
-        code: 'NO_ACCOUNT_FOR_MINT',
+        error: accountId
+          ? `Account not found: ${accountId}`
+          : `No account for mint ${mintUrl}. Run: agicash mint add ${mintUrl}`,
+        code: accountId ? 'NO_ACCOUNT' : 'NO_ACCOUNT_FOR_MINT',
       };
-    }
-
-    // Use createWalletWithCounters (which handles unit mapping and counter
-    // persistence) and loadMint to populate the keychain with all keyset IDs.
-    // wallet.receive() internally calls decodeToken with those IDs, resolving
-    // short v2 keyset IDs.
-    const wallet = await createWalletWithCounters(
-      db,
-      account.id,
-      mintUrl,
-      account.currency,
-    );
-    await wallet.loadMint();
-
-    const receivedProofs = await wallet.receive(token);
-
-    // Store new proofs atomically
-    withTransaction(db, () => storeProofs(db, account.id, receivedProofs));
-
-    const totalAmount = receivedProofs.reduce(
-      (sum: number, p: { amount: number }) => sum + p.amount,
-      0,
-    );
-
+    const mint = new Mint(mintUrl);
+    const keysets = await mint.getKeySets();
+    const keysetIds = keysets.keysets.map((k) => k.id);
+    const token: Token = getDecodedToken(tokenString, keysetIds);
+    const { swap } = await ctx.cashuReceiveSwapService.create({
+      userId: ctx.userId,
+      token,
+      account,
+    });
+    const { swap: completedSwap } =
+      await ctx.cashuReceiveSwapService.completeSwap(account, swap);
+    const unit = account.currency === 'BTC' ? 'sat' : 'cent';
     return {
       action: 'claimed',
       claimed: {
-        amount: totalAmount,
-        proof_count: receivedProofs.length,
+        amount: completedSwap.amountReceived.toNumber(unit),
+        fee: completedSwap.feeAmount.toNumber(unit),
+        currency: account.currency,
         account_id: account.id,
         mint_url: mintUrl,
       },
@@ -377,173 +307,116 @@ async function handleReceiveToken(
   }
 }
 
-function handleListQuotes(db: Database): ReceiveResult {
-  const quotes = db
-    .query(
-      'SELECT id, bolt11, amount, account_id, mint_url, currency, state, expiry, created_at FROM mint_quotes ORDER BY created_at DESC',
-    )
-    .all() as MintQuoteRow[];
-  return { action: 'list', quotes };
+async function handleListQuotes(ctx: SdkContext): Promise<ReceiveResult> {
+  try {
+    const quotes = await ctx.cashuReceiveQuoteRepo.getPending(ctx.userId);
+    return {
+      action: 'list',
+      quotes: quotes.map((q) => ({
+        id: q.id,
+        amount: q.amount.toNumber(q.amount.currency === 'BTC' ? 'sat' : 'cent'),
+        currency: q.amount.currency,
+        account_id: q.accountId,
+        state: q.state,
+        expiresAt: q.expiresAt,
+        createdAt: q.createdAt,
+      })),
+    };
+  } catch (err) {
+    return {
+      action: 'error',
+      error: `Failed to list quotes: ${err instanceof Error ? err.message : String(err)}`,
+      code: 'LIST_FAILED',
+    };
+  }
 }
 
-async function handleCheckAll(db: Database): Promise<ReceiveResult> {
-  const unpaidQuotes = db
-    .query("SELECT * FROM mint_quotes WHERE state = 'UNPAID'")
-    .all() as MintQuoteRow[];
-
-  const summary = {
-    total: unpaidQuotes.length,
-    minted: 0,
-    pending: 0,
-    expired: 0,
-  };
-
-  if (unpaidQuotes.length === 0) {
-    return { action: 'checked', checked: summary };
-  }
-
-  const { MintQuoteState } = await import('@cashu/cashu-ts');
-  const now = Date.now() / 1000;
-
-  // Group quotes by account to reuse wallet instances
-  const byAccount = new Map<
-    string,
-    { account: AccountRow; quotes: MintQuoteRow[] }
-  >();
-  for (const quote of unpaidQuotes) {
-    if (!byAccount.has(quote.account_id)) {
-      const account = db
-        .query(
-          "SELECT id, name, mint_url, currency FROM accounts WHERE id = ? AND type = 'cashu'",
-        )
-        .get(quote.account_id) as AccountRow | null;
-      if (!account) {
-        // Account was deleted — mark expired
-        db.prepare("UPDATE mint_quotes SET state = 'EXPIRED' WHERE id = ?").run(
-          quote.id,
-        );
-        summary.expired++;
-        continue;
-      }
-      byAccount.set(quote.account_id, { account, quotes: [] });
-    }
-    byAccount.get(quote.account_id)?.quotes.push(quote);
-  }
-
-  for (const { account, quotes } of byAccount.values()) {
-    let wallet:
-      | Awaited<ReturnType<typeof createWalletWithCounters>>
-      | undefined;
-
+async function handleCheckAll(ctx: SdkContext): Promise<ReceiveResult> {
+  try {
+    const quotes = await ctx.cashuReceiveQuoteRepo.getPending(ctx.userId);
+    const summary = {
+      total: quotes.length,
+      completed: 0,
+      pending: 0,
+      failed: 0,
+    };
+    if (quotes.length === 0) return { action: 'checked', checked: summary };
+    const accountCache = new Map<string, CashuAccount>();
     for (const quote of quotes) {
-      // Check client-side expiry first
-      if (quote.expiry != null && quote.expiry < now) {
-        db.prepare("UPDATE mint_quotes SET state = 'EXPIRED' WHERE id = ?").run(
-          quote.id,
-        );
-        summary.expired++;
-        continue;
-      }
-
       try {
-        if (!wallet) {
-          wallet = await createWalletWithCounters(
-            db,
-            account.id,
-            account.mint_url,
-            account.currency,
-          );
-          await wallet.loadMint();
+        let account = accountCache.get(quote.accountId);
+        if (!account) {
+          const fetched = await ctx.accountRepo.get(quote.accountId);
+          if (fetched.type !== 'cashu') {
+            summary.failed++;
+            continue;
+          }
+          account = fetched;
+          accountCache.set(quote.accountId, account);
         }
-
-        const check = await wallet.checkMintQuoteBolt11(quote.id);
-
+        if (new Date(quote.expiresAt) < new Date()) {
+          await ctx.cashuReceiveQuoteService.expire(quote);
+          summary.failed++;
+          continue;
+        }
+        if (quote.state === 'PAID') {
+          await ctx.cashuReceiveQuoteService.completeReceive(account, quote);
+          summary.completed++;
+          continue;
+        }
+        const check = await account.wallet.checkMintQuoteBolt11(quote.quoteId);
         if (check.state === MintQuoteState.PAID) {
-          const proofs = await wallet.mintProofsBolt11(quote.amount, quote.id);
-          withTransaction(db, () => {
-            storeProofs(db, account.id, proofs);
-            db.prepare(
-              "UPDATE mint_quotes SET state = 'PAID' WHERE id = ?",
-            ).run(quote.id);
-          });
-          summary.minted++;
+          await ctx.cashuReceiveQuoteService.completeReceive(account, quote);
+          summary.completed++;
         } else if (check.state === MintQuoteState.UNPAID) {
           summary.pending++;
         } else {
-          // ISSUED or other terminal state
-          db.prepare('UPDATE mint_quotes SET state = ? WHERE id = ?').run(
-            String(check.state),
-            quote.id,
-          );
-          summary.expired++;
+          summary.failed++;
         }
       } catch {
-        // Network error or mint issue — leave as pending
         summary.pending++;
       }
     }
+    return { action: 'checked', checked: summary };
+  } catch (err) {
+    return {
+      action: 'error',
+      error: `Failed to check quotes: ${err instanceof Error ? err.message : String(err)}`,
+      code: 'CHECK_ALL_FAILED',
+    };
   }
-
-  return { action: 'checked', checked: summary };
 }
 
-// Shared helpers
-
-interface AccountRow {
-  id: string;
-  name: string;
-  mint_url: string;
-  currency: string;
+async function findCashuAccount(
+  ctx: SdkContext,
+  accountId?: string,
+): Promise<CashuAccount | null> {
+  if (accountId) return findCashuAccountById(ctx, accountId);
+  const accounts = await ctx.accountRepo.getAll(ctx.userId);
+  return accounts.find((a): a is CashuAccount => a.type === 'cashu') ?? null;
 }
 
-function findAccount(db: Database, accountId?: string): AccountRow | null {
-  if (accountId) return findAccountById(db, accountId);
-
-  // Check for default BTC account, then USD
-  for (const key of ['default-btc-account', 'default-usd-account']) {
-    const row = db.query('SELECT value FROM config WHERE key = ?').get(key) as {
-      value: string;
-    } | null;
-    if (row) {
-      const account = findAccountById(db, row.value);
-      if (account) return account;
-    }
+async function findCashuAccountById(
+  ctx: SdkContext,
+  id: string,
+): Promise<CashuAccount | null> {
+  try {
+    const account = await ctx.accountRepo.get(id);
+    return account.type === 'cashu' ? account : null;
+  } catch {
+    return null;
   }
-
-  // Fall back to first account
-  return db
-    .query(
-      "SELECT id, name, mint_url, currency FROM accounts WHERE type = 'cashu' ORDER BY created_at LIMIT 1",
-    )
-    .get() as AccountRow | null;
 }
 
-function findAccountById(db: Database, id: string): AccountRow | null {
-  return db
-    .query(
-      "SELECT id, name, mint_url, currency FROM accounts WHERE id = ? AND type = 'cashu'",
-    )
-    .get(id) as AccountRow | null;
-}
-
-function findAccountByMint(db: Database, mintUrl: string): AccountRow | null {
-  return db
-    .query(
-      "SELECT id, name, mint_url, currency FROM accounts WHERE mint_url = ? AND type = 'cashu' LIMIT 1",
-    )
-    .get(mintUrl) as AccountRow | null;
-}
-
-function storeProofs(
-  db: Database,
-  accountId: string,
-  proofs: Array<{ amount: number; secret: string; C: string; id: string }>,
-): void {
-  const insert = db.prepare(`
-    INSERT INTO cashu_proofs (account_id, amount, secret, c, keyset_id, state)
-    VALUES (?, ?, ?, ?, ?, 'UNSPENT')
-  `);
-  for (const proof of proofs) {
-    insert.run(accountId, proof.amount, proof.secret, proof.C, proof.id);
-  }
+async function findCashuAccountByMint(
+  ctx: SdkContext,
+  mintUrl: string,
+): Promise<CashuAccount | null> {
+  const accounts = await ctx.accountRepo.getAll(ctx.userId);
+  return (
+    accounts.find(
+      (a): a is CashuAccount =>
+        a.type === 'cashu' && areMintUrlsEqual(a.mintUrl, mintUrl),
+    ) ?? null
+  );
 }

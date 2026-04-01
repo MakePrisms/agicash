@@ -145,8 +145,9 @@ async function main(): Promise<void> {
     }
 
     case 'receive': {
-      const db = getConfiguredDb();
-      const result = await handleReceiveCommand(parsed, db);
+      getConfiguredDb(); // ensure OpenSecret is configured
+      const receiveCtx = await requireSdkContext(outputOptions);
+      const result = await handleReceiveCommand(parsed, receiveCtx);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
         process.exit(1);
@@ -160,7 +161,11 @@ async function main(): Promise<void> {
       const sendCtx = await requireSdkContext(outputOptions);
       const sendResult = await handleSendCommand(parsed, sendCtx);
       if (sendResult.action === 'error') {
-        printError(sendResult.error ?? '', sendResult.code ?? '', outputOptions);
+        printError(
+          sendResult.error ?? '',
+          sendResult.code ?? '',
+          outputOptions,
+        );
         process.exit(1);
       }
       printOutput(sendResult, outputOptions);
