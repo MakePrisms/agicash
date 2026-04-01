@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import type { ParsedArgs } from '../args';
 import { withTransaction } from '../db';
-import { getCashuSeed, hasMnemonic } from '../key-provider';
+import { createWalletWithCounters } from '../wallet-factory';
 
 export interface SendResult {
   action: string;
@@ -165,16 +165,15 @@ export async function handleSendCommand(
   });
 
   // Phase 2: Network call — outside transaction
-  const { getCashuWallet, getCashuProtocolUnit } = await import(
-    '@agicash/sdk/lib/cashu/utils'
-  );
+  const { getCashuProtocolUnit } = await import('@agicash/sdk/lib/cashu/utils');
   const { getEncodedToken } = await import('@cashu/cashu-ts');
 
-  const unit = account.currency === 'BTC' ? 'sat' : 'cent';
-  const mnemonic = process.env.AGICASH_MNEMONIC;
-  const bip39seed =
-    hasMnemonic() && mnemonic ? getCashuSeed(mnemonic) : undefined;
-  const wallet = getCashuWallet(account.mint_url, { unit, bip39seed });
+  const wallet = await createWalletWithCounters(
+    db,
+    account.id,
+    account.mint_url,
+    account.currency,
+  );
   await wallet.loadMint();
 
   const cashuProofs = selectedProofs.map((p) => ({

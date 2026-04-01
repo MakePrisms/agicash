@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import type { ParsedArgs } from '../args';
 import { withTransaction } from '../db';
-import { getCashuSeed, hasMnemonic } from '../key-provider';
+import { createWalletWithCounters } from '../wallet-factory';
 
 export interface ReceiveResult {
   action: string;
@@ -96,12 +96,12 @@ async function handleReceiveLightning(
   }
 
   try {
-    const { getCashuWallet } = await import('@agicash/sdk/lib/cashu/utils');
-    const unit = account.currency === 'BTC' ? 'sat' : 'cent';
-    const mnemonic = process.env.AGICASH_MNEMONIC;
-    const bip39seed =
-      hasMnemonic() && mnemonic ? getCashuSeed(mnemonic) : undefined;
-    const wallet = getCashuWallet(account.mint_url, { unit, bip39seed });
+    const wallet = await createWalletWithCounters(
+      db,
+      account.id,
+      account.mint_url,
+      account.currency,
+    );
     await wallet.loadMint();
 
     const quoteResponse = await wallet.createMintQuoteBolt11(amount);
@@ -196,13 +196,13 @@ async function handleCheckQuote(
   }
 
   try {
-    const { getCashuWallet } = await import('@agicash/sdk/lib/cashu/utils');
     const { MintQuoteState } = await import('@cashu/cashu-ts');
-    const unit = account.currency === 'BTC' ? 'sat' : 'cent';
-    const mnemonic = process.env.AGICASH_MNEMONIC;
-    const bip39seed =
-      hasMnemonic() && mnemonic ? getCashuSeed(mnemonic) : undefined;
-    const wallet = getCashuWallet(account.mint_url, { unit, bip39seed });
+    const wallet = await createWalletWithCounters(
+      db,
+      account.id,
+      account.mint_url,
+      account.currency,
+    );
     await wallet.loadMint();
 
     const check = await wallet.checkMintQuoteBolt11(quoteId);
@@ -282,15 +282,16 @@ async function handleReceiveToken(
       };
     }
 
-    // Use getCashuWallet (which handles unit mapping) and loadMint to
-    // populate the keychain with all keyset IDs. wallet.receive() internally
-    // calls decodeToken with those IDs, resolving short v2 keyset IDs.
-    const { getCashuWallet } = await import('@agicash/sdk/lib/cashu/utils');
-    const unit = account.currency === 'BTC' ? 'sat' : 'cent';
-    const mnemonic = process.env.AGICASH_MNEMONIC;
-    const bip39seed =
-      hasMnemonic() && mnemonic ? getCashuSeed(mnemonic) : undefined;
-    const wallet = getCashuWallet(mintUrl, { unit, bip39seed });
+    // Use createWalletWithCounters (which handles unit mapping and counter
+    // persistence) and loadMint to populate the keychain with all keyset IDs.
+    // wallet.receive() internally calls decodeToken with those IDs, resolving
+    // short v2 keyset IDs.
+    const wallet = await createWalletWithCounters(
+      db,
+      account.id,
+      mintUrl,
+      account.currency,
+    );
     await wallet.loadMint();
 
     const receivedProofs = await wallet.receive(token);
