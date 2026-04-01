@@ -42,12 +42,14 @@ const HELP_TEXT = {
 
 function getConfiguredDb(): ReturnType<typeof getDb> {
   const db = getDb();
-  configure({
-    apiUrl:
-      process.env.OPENSECRET_API_URL ?? 'https://preview.opensecret.cloud',
-    clientId: process.env.OPENSECRET_CLIENT_ID ?? '',
-    storage: makeStorageProvider(db),
-  });
+  if (process.env.OPENSECRET_CLIENT_ID) {
+    configure({
+      apiUrl:
+        process.env.OPENSECRET_API_URL ?? 'https://preview.opensecret.cloud',
+      clientId: process.env.OPENSECRET_CLIENT_ID,
+      storage: makeStorageProvider(db),
+    });
+  }
   return db;
 }
 
