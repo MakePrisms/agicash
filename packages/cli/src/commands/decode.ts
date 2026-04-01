@@ -73,23 +73,17 @@ export async function handleDecodeCommand(
 
 async function decodeCashuToken(token: string): Promise<DecodeResult> {
   try {
-    const { getDecodedToken } = await import('@cashu/cashu-ts');
-    const decoded = getDecodedToken(token);
-
-    const totalAmount = decoded.proofs.reduce(
-      (sum: number, p: { amount: number }) => sum + p.amount,
-      0,
-    );
-
+    const { getTokenMetadata } = await import('@cashu/cashu-ts');
+    const meta = getTokenMetadata(token);
     return {
       type: 'cashu_token',
       raw: token,
       data: {
-        mint: decoded.mint,
-        unit: decoded.unit,
-        memo: decoded.memo || null,
-        proof_count: decoded.proofs.length,
-        total_amount: totalAmount,
+        mint: meta.mint,
+        unit: meta.unit,
+        memo: meta.memo ?? null,
+        proof_count: meta.incompleteProofs.length,
+        total_amount: meta.amount,
       },
     };
   } catch (err) {

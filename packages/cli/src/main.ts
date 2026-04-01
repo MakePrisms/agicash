@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { configure } from '@agicash/opensecret-sdk';
 import { parseArgs } from './args';
 import { handleBalanceCommand } from './commands/balance';
 import { handleConfigCommand } from './commands/config';
@@ -8,6 +9,7 @@ import { handlePayCommand } from './commands/pay';
 import { handleReceiveCommand } from './commands/receive';
 import { handleSendCommand } from './commands/send';
 import { getDb } from './db';
+import { makeStorageProvider } from './opensecret-storage';
 import { printError, printOutput } from './output';
 
 const VERSION = '0.1.0';
@@ -21,8 +23,8 @@ const HELP_TEXT = {
     balance: 'Show wallet balance',
     'send <amount>': 'Create ecash token (sats)',
     'pay <invoice>': 'Pay a Lightning invoice',
-    'receive <amount>': 'Create Lightning invoice to receive sats',
-    'receive <token>': 'Claim a cashu token',
+    'receive <amount|token>':
+      'Receive sats via Lightning invoice, or claim a cashu token',
     'decode <input>':
       'Parse any input (bolt11, cashu token, lnurl, Lightning address)',
     'config set <key> <value>':
@@ -37,6 +39,17 @@ const HELP_TEXT = {
     '--version': 'Show version',
   },
 };
+
+function getConfiguredDb(): ReturnType<typeof getDb> {
+  const db = getDb();
+  configure({
+    apiUrl:
+      process.env.OPENSECRET_API_URL ?? 'https://preview.opensecret.cloud',
+    clientId: process.env.OPENSECRET_CLIENT_ID ?? '',
+    storage: makeStorageProvider(db),
+  });
+  return db;
+}
 
 async function main(): Promise<void> {
   const userArgs = process.argv.slice(2);
@@ -53,14 +66,14 @@ async function main(): Promise<void> {
       break;
 
     case 'balance': {
-      const db = getDb();
+      const db = getConfiguredDb();
       const result = handleBalanceCommand(db);
       printOutput(result, outputOptions);
       break;
     }
 
     case 'receive': {
-      const db = getDb();
+      const db = getConfiguredDb();
       const result = await handleReceiveCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
@@ -71,7 +84,7 @@ async function main(): Promise<void> {
     }
 
     case 'send': {
-      const db = getDb();
+      const db = getConfiguredDb();
       const result = await handleSendCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
@@ -82,7 +95,7 @@ async function main(): Promise<void> {
     }
 
     case 'pay': {
-      const db = getDb();
+      const db = getConfiguredDb();
       const result = await handlePayCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
@@ -103,7 +116,7 @@ async function main(): Promise<void> {
     }
 
     case 'config': {
-      const db = getDb();
+      const db = getConfiguredDb();
       const result = handleConfigCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
@@ -114,7 +127,7 @@ async function main(): Promise<void> {
     }
 
     case 'mint': {
-      const db = getDb();
+      const db = getConfiguredDb();
       const result = await handleMintCommand(parsed, db);
       if (result.action === 'error') {
         printError(result.error ?? '', result.code ?? '', outputOptions);
