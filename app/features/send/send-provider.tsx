@@ -18,9 +18,15 @@ const SendContext = createContext<SendStore | null>(null);
 type Props = PropsWithChildren<{
   /** Usually the user's default account. This sets the initial account to send from. */
   initialAccount: Account;
+  /** Raw destination string from URL hash (e.g. bolt11 invoice or LN address). */
+  initialDestination?: string | null;
 }>;
 
-export const SendProvider = ({ initialAccount, children }: Props) => {
+export const SendProvider = ({
+  initialAccount,
+  initialDestination,
+  children,
+}: Props) => {
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
   const { mutateAsync: getCashuLightningQuote } =
     useCreateCashuLightningSendQuote();
@@ -32,6 +38,7 @@ export const SendProvider = ({ initialAccount, children }: Props) => {
   const [store] = useState(() =>
     createSendStore({
       initialAccount,
+      initialDestination,
       getAccount,
       getInvoiceFromLud16,
       getCashuLightningQuote,

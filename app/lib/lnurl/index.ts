@@ -113,10 +113,13 @@ export const buildLightningAddressFormatValidator = ({
       return false;
     }
 
+    // Normalize to lowercase — LN addresses are case-insensitive per LUD-16
+    const normalized = value.toLowerCase();
+
     // Handle localhost case if allowed
     if (allowLocalhost) {
-      const localhostRegex = /^[a-zA-Z0-9._%+-]+@localhost(:\d+)?$/;
-      if (localhostRegex.test(value)) {
+      const localhostRegex = /^[a-z0-9._%+-]+@localhost(:\d+)?$/;
+      if (localhostRegex.test(normalized)) {
         return true;
       }
     }
@@ -124,7 +127,7 @@ export const buildLightningAddressFormatValidator = ({
     // Lightning address format is described here https://datatracker.ietf.org/doc/html/rfc5322#section-3.4.1
 
     // Split into local part and domain
-    const [localPart, domain] = value.split('@');
+    const [localPart, domain] = normalized.split('@');
 
     // Check if we have both parts
     if (!localPart || !domain) {

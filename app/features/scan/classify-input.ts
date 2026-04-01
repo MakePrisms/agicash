@@ -32,10 +32,9 @@ export function classifyInput(raw: string): ClassifiedInput {
     };
   }
 
-  // 3. Lightning address (lowercase before validating — validator requires lowercase)
-  const lowered = trimmed.toLowerCase();
-  if (validateLnAddressFormat(lowered) === true) {
-    return { type: 'ln-address', address: lowered };
+  // 3. Lightning address
+  if (validateLnAddressFormat(trimmed) === true) {
+    return { type: 'ln-address', address: trimmed.toLowerCase() };
   }
 
   return { type: 'unknown' };

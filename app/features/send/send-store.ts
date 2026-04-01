@@ -200,6 +200,7 @@ export type SendState = State & Actions;
 
 type CreateSendStoreProps = {
   initialAccount: Account;
+  initialDestination?: string | null;
   getAccount: (accountId: string) => Account;
   getInvoiceFromLud16: (params: {
     lud16: string;
@@ -234,8 +235,39 @@ const isSendTypeSupportedForAccount = (
   return supportedSendTypes[account.type].includes(sendType);
 };
 
+const resolveInitialDestination = (
+  dest: string | null | undefined,
+  accountType: Account['type'],
+) => {
+  if (!dest) return null;
+
+  const bolt11 = parseBolt11Invoice(dest);
+  if (bolt11.valid) {
+    const allowZeroAmount = accountType === 'spark';
+    const validation = validateBolt11(bolt11.decoded, { allowZeroAmount });
+    if (!validation.valid) return null;
+    return {
+      sendType: 'BOLT11_INVOICE' as const,
+      destination: bolt11.invoice,
+      destinationDisplay: `${bolt11.invoice.slice(0, 6)}...${bolt11.invoice.slice(-4)}`,
+    };
+  }
+
+  if (validateLightningAddressFormat(dest) === true) {
+    return {
+      sendType: 'LN_ADDRESS' as const,
+      destination: null as string | null,
+      destinationDisplay: dest,
+      destinationDetails: { lnAddress: dest },
+    };
+  }
+
+  return null;
+};
+
 export const createSendStore = ({
   initialAccount,
+  initialDestination,
   getAccount,
   getInvoiceFromLud16,
   getCashuLightningQuote,
@@ -254,13 +286,22 @@ export const createSendStore = ({
       return value;
     };
 
-    return {
-      status: 'idle',
-      amount: null,
-      accountId: initialAccount.id,
+    const resolved = resolveInitialDestination(
+      initialDestination,
+      initialAccount.type,
+    );
+
+    const initialState = resolved ?? {
       sendType: getDefaultSendType(initialAccount.type),
       destination: null,
       destinationDisplay: null,
+    };
+
+    return {
+      status: 'idle' as const,
+      amount: null,
+      accountId: initialAccount.id,
+      ...initialState,
       quote: null,
       cashuToken: null,
 
