@@ -17,7 +17,8 @@ import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { CARD_WIDTH } from './card-stack-constants';
-import { OfferItem } from './offer-item';
+import { GiftCardItem } from './gift-card-item';
+import { getCardByUrl } from './use-discover-cards';
 
 function formatExpiryDate(expiresAt: string): string {
   const date = new Date(expiresAt);
@@ -83,7 +84,12 @@ export default function OfferDetails({ accountId }: OfferDetailsProps) {
               className="w-full"
               aria-label={`Close ${offer.name} offer`}
             >
-              <OfferItem account={offer} />
+              <GiftCardItem
+                account={offer}
+                image={getCardByUrl(offer.mintUrl)?.image}
+                hideOverlayContent
+                className="w-full max-w-none"
+              />
             </button>
           </div>
 
