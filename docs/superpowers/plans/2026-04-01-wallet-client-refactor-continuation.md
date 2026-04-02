@@ -55,35 +55,96 @@ What this proved:
 - centralized query keys work as long as compatibility key shapes are preserved
 - some app-level helper names need to survive during migration because other files still reference them
 
-## Current WalletClient surface
+### 3. Cashu receive swap
 
-Current `WalletClient` owns:
+Completed:
 
-### Queries
+- moved `PendingCashuReceiveSwapsCache` to SDK (`cashu-receive-swap-queries.ts`)
+- added `pendingCashuReceiveSwapsQuery` with inline online-account filtering
+- created `CashuReceiveSwapTaskProcessor` using `QueryObserver` + scope chains
+- thinned `cashu-receive-swap-hooks.ts` — change handlers use `wallet.repos`, task processor is thin lifecycle wrapper
+
+### 4. Cashu send quote
+
+Completed:
+
+- moved `UnresolvedCashuSendQuotesCache` to SDK (`cashu-send-quote-queries.ts`)
+- added `unresolvedCashuSendQuotesQuery` with online-account filtering
+- created `CashuSendQuoteTaskProcessor` with melt quote subscriptions, state machine (initiate/pending/expire/complete/fail), scope chains
+- thinned `cashu-send-quote-hooks.ts` from ~500 to ~160 lines
+
+### 6. Spark receive
+
+Completed:
+
+- moved `SparkReceiveQuoteCache` and `PendingSparkReceiveQuotesCache` to SDK (`spark-receive-queries.ts`)
+- added `sparkReceiveQuoteQuery` and `pendingSparkReceiveQuotesQuery`
+- created `SparkReceiveQuoteTaskProcessor` with dual mechanisms: Spark API polling (age-based intervals) + melt quote subscriptions for CASHU_TOKEN quotes
+- thinned `spark-receive-quote-hooks.ts` from 702 to ~210 lines
+
+### 7. Spark send
+
+Completed:
+
+- moved `UnresolvedSparkSendQuotesCache` to SDK (`spark-send-quote-queries.ts`)
+- added `unresolvedSparkSendQuotesQuery` with online-account filtering
+- created `SparkSendQuoteTaskProcessor` with Spark API polling, state tracking (`lastTriggeredState` Map), initiate/complete/fail flow
+- thinned `spark-send-quote-hooks.ts` from 511 to ~165 lines
+
+## Current WalletClient surface (after slices 1-4, 6-7)
+
+### Queries (11)
 
 - `listAccountsQuery()`
 - `cashuReceiveQuoteQuery(quoteId?)`
 - `pendingCashuReceiveQuotesQuery()`
+- `pendingCashuReceiveSwapsQuery()`
+- `pendingSparkReceiveQuotesQuery()`
+- `sparkReceiveQuoteQuery(quoteId?)`
+- `unresolvedCashuSendQuotesQuery()`
+- `unresolvedSparkSendQuotesQuery()`
 - `transactionQuery(transactionId)`
 - `transactionsListQuery(accountId?)`
 - `unacknowledgedTransactionsCountQuery()`
 
-### Caches
+### Caches (9)
 
 - `wallet.caches.accounts`
 - `wallet.caches.cashuReceiveQuote`
 - `wallet.caches.pendingCashuReceiveQuotes`
+- `wallet.caches.pendingCashuReceiveSwaps`
+- `wallet.caches.pendingSparkReceiveQuotes`
+- `wallet.caches.sparkReceiveQuote`
 - `wallet.caches.transactions`
+- `wallet.caches.unresolvedCashuSendQuotes`
+- `wallet.caches.unresolvedSparkSendQuotes`
 
-### Task processors
+### Task processors (5)
 
-- `wallet.taskProcessors.cashuReceiveQuote`
+- `wallet.taskProcessors.cashuReceiveQuote` — websocket + polling + melt subscriptions
+- `wallet.taskProcessors.cashuReceiveSwap` — QueryObserver + scope chains
+- `wallet.taskProcessors.cashuSendQuote` — melt subscriptions + state machine
+- `wallet.taskProcessors.sparkReceiveQuote` — Spark API polling + melt subscriptions
+- `wallet.taskProcessors.sparkSendQuote` — Spark API polling + state tracking
+
+### Repos (8)
+
+- `accountRepo`, `cashuReceiveQuoteRepo`, `cashuReceiveSwapRepo`
+- `cashuSendQuoteRepo`, `cashuSendSwapRepo`
+- `sparkReceiveQuoteRepo`, `sparkSendQuoteRepo`
+- `transactionRepo`
+
+### Services (7)
+
+- `accountService`, `cashuReceiveQuoteService`, `cashuReceiveSwapService`
+- `cashuSendQuoteService`, `cashuSendSwapService`
+- `sparkReceiveQuoteService`, `sparkSendQuoteService`
 
 ### Escape hatches still in use
 
-- `wallet.repos.*`
-- `wallet.services.*`
-- `wallet.queryClient`
+- `wallet.repos.*` — change handlers use `repo.toQuote(payload)` / `repo.toReceiveSwap(payload)`
+- `wallet.services.*` — UI mutation hooks use services directly (create quote, create swap, etc.)
+- `wallet.queryClient` — some hooks still use it for cache instantiation
 
 ## Files that now act as the migration anchors
 
@@ -160,7 +221,23 @@ Right now `WalletClient` is a useful orchestration shell, but not the final publ
 
 `packages/cli/src/sdk-context.ts` still upserts the user through `WriteUserRepository` after wallet creation. That is currently part of bootstrap, not part of `createWalletClient()`. If this becomes shared bootstrap behavior later, it probably belongs in a higher-level initializer or explicit action, not hidden in the factory.
 
-### 8. Watch/MCP should stay transport-only
+### 8. Parallel dispatch works for independent verticals
+
+Slices 4, 6, and 7 were executed in parallel by 3 workers. The strategy:
+- Workers create new SDK files + thin app hooks
+- Workers do NOT touch wallet-client.ts or index.ts (shared files)
+- Coordinator integrates: adds imports, wires type + factory, updates exports
+- Conflicts are trivially additive (each adds different entries to the same locations)
+
+This worked because:
+- each slice touches a different feature directory (no file overlap)
+- the pattern is well-established (workers follow existing SDK files as templates)
+- the integration points (wallet-client.ts type + factory, index.ts exports) are mechanical
+
+Biome pre-commit hook catches unused imports and formatting issues from workers.
+Workers should use `catch { ... }` not `catch (error) { ... }` when error var is unused.
+
+### 9. Watch/MCP should stay transport-only
 
 The earlier idea of a daemon is still good, but the learned constraint is:
 
@@ -424,22 +501,59 @@ Manual smoke checklist:
 
 When coming back to this work:
 
-1. read this file
-2. read the original plan and design doc
-3. inspect `packages/sdk/src/core/wallet-client.ts`
-4. inspect current `git status`
-5. pick the next unchecked slice from this file
+1. read this file (especially "Current WalletClient surface" and "Remaining scope assessment")
+2. inspect `packages/sdk/src/core/wallet-client.ts` (type definition + factory)
+3. inspect current `git status` / `git log --oneline -5`
+4. pick the next unchecked slice:
+   - **Slice 5** (cashu send swap) — next, depends on slice 4 (done)
+   - **Slice 8** (shared/user queries) — may be skippable if CLI doesn't need them
+   - **Slice 9** (realtime/runtime) — thin after all processors are SDK-owned
+   - **Slices 10-11** (actions + MCP) — design work
+5. for slice 5: read `app/features/send/cashu-send-swap-hooks.ts` and follow the established pattern
 6. preserve compatibility shims unless the next slice removes the final caller
-7. run the gate before pausing again
+7. run the validation gate before pausing
 
 ## Recommended next slice
 
 If continuing immediately, do:
 
-- **Finish Cashu receive vertical**
+- **Slice 5: Cashu send swap**
 
 Reason:
 
-- it completes an already-started runtime slice
-- it should remove more app-owned receive logic before the send/spark migrations
-- it reuses the patterns already proven by the first two slices
+- it completes the cashu send vertical (slice 4 already landed)
+- it is the last independent feature vertical before consolidation slices
+- after this, all 6 feature verticals (cashu receive quote/swap, cashu send quote/swap, spark receive, spark send) will be SDK-owned
+
+## Remaining scope assessment
+
+### Slice 5 — Cashu send swap (~473 lines in app, medium complexity)
+
+Move from `app/features/send/cashu-send-swap-hooks.ts`:
+- `CashuSendSwapCache` — active swap cache
+- `UnresolvedCashuSendSwapsCache` — unresolved swaps cache
+- Task processor: `swapForProofsToSend` (DRAFT→PENDING) + `completeSwap` (PENDING→COMPLETED) + proof state subscriptions via `ProofStateSubscriptionManager`
+- Keep in app: `useCreateCashuSendSwapQuote`, `useCreateCashuSendSwap`, `useCashuSendSwap`, `useTrackCashuSendSwap`, `useUnresolvedCashuSendSwaps`, change handlers
+
+### Slice 8 — Shared/user query consolidation (low complexity, high breadth)
+
+Mostly about moving query option factories into SDK. Most hooks stay in app.
+
+- `user-hooks.tsx` (249 lines): All 9 user mutation hooks stay in app. Move `userQueryOptions` base query to SDK if useful for CLI.
+- `cashu.ts` (215 lines): All query option factories (`seedQueryOptions`, `xpubQueryOptions`, `mintInfoQueryOptions`, etc.) stay in app — they use `keyProvider` hooks. Already re-exports SDK functions.
+- `spark.ts` (264 lines): `useTrackAndUpdateSparkAccountBalances` stays (browser lifecycle). `sparkBalanceQueryKey` already in SDK query-keys.
+- `encryption.ts` (73 lines): All hooks stay in app. Already re-exports SDK functions.
+
+**Key insight**: Slice 8 may be smaller than originally planned. Most shared helpers are already SDK re-exports or app-layer query option factories that depend on React hooks (`useKeyProvider`). The migration value is low unless CLI needs these queries.
+
+### Slice 9 — Realtime/runtime consolidation (medium complexity)
+
+- `use-track-wallet-changes.ts` (142 lines): Aggregates all change handlers + reconnect invalidation. Could move the handler registry pattern to SDK if CLI/MCP needs realtime.
+- `task-processing.ts` (83 lines): `TaskProcessor` component calls all 6 `useProcess*Tasks()` hooks. `useTakeTaskProcessingLead` is browser-only (leader election). These stay in app but become trivially thin once all task processors are on WalletClient.
+
+### Slices 10-11 — Actions + MCP (future, not started)
+
+- Slice 10: Extract `wallet.actions.*` to replace `wallet.services.*` / `wallet.repos.*` escape hatches
+- Slice 11: MCP transport layer on top of WalletClient
+
+These are design work, not mechanical migration.
