@@ -29,6 +29,7 @@ const VALID_SUBCOMMANDS = [
   'signup',
   'logout',
   'status',
+  'whoami',
   'guest',
 ] as const;
 
@@ -41,7 +42,7 @@ export function validateAuthArgs(args: ParsedArgs): AuthResult {
   if (!subcommand) {
     return {
       action: 'error',
-      error: 'Usage: agicash auth <login|signup|logout|status|guest>',
+      error: 'Usage: agicash auth <login|signup|logout|status|whoami|guest>',
       code: 'MISSING_SUBCOMMAND',
     };
   }
@@ -53,7 +54,7 @@ export function validateAuthArgs(args: ParsedArgs): AuthResult {
   ) {
     return {
       action: 'error',
-      error: `Unknown auth subcommand: ${subcommand}. Use: login, signup, logout, status, guest`,
+      error: `Unknown auth subcommand: ${subcommand}. Use: login, signup, logout, status, whoami, guest`,
       code: 'UNKNOWN_SUBCOMMAND',
     };
   }
@@ -109,6 +110,25 @@ export async function executeAuthCommand(
 ): Promise<AuthResult> {
   const subcommand = args.positional[0];
 
+  // Prevent login/signup/guest when already authenticated
+  if (
+    subcommand === 'login' ||
+    subcommand === 'signup' ||
+    subcommand === 'guest'
+  ) {
+    try {
+      const { user } = await fetchUser();
+      const identity = user.email ?? `guest (${user.id.slice(0, 8)}...)`;
+      return {
+        action: 'error',
+        error: `Already logged in as ${identity}. Run: agicash auth logout`,
+        code: 'ALREADY_AUTHENTICATED',
+      };
+    } catch {
+      // Not authenticated — good, proceed with login/signup/guest
+    }
+  }
+
   switch (subcommand) {
     case 'login':
     case 'signup': {
@@ -122,6 +142,7 @@ export async function executeAuthCommand(
     case 'logout':
       return executeLogout();
     case 'status':
+    case 'whoami':
       return executeStatus();
     case 'guest':
       return executeGuest(db);

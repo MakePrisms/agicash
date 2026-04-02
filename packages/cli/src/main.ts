@@ -48,6 +48,7 @@ const HELP_TEXT = {
     'auth signup <email> <password>': 'Create an account',
     'auth logout': 'Clear stored credentials',
     'auth status': 'Show current auth state',
+    'auth whoami': 'Alias for auth status',
     'auth guest': 'Create or re-use a guest account (for testing)',
     'mint add <url>': 'Add a mint (--currency BTC|USD, --name "My Mint")',
     'mint list': 'List configured mints',
