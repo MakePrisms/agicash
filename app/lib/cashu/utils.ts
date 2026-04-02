@@ -8,7 +8,6 @@ import {
   splitAmount,
 } from '@cashu/cashu-ts';
 import type { DistributedOmit } from 'type-fest';
-import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
 import {
   ExtendedMintInfo,
@@ -244,26 +243,20 @@ export const getCashuWallet = (
 };
 
 /**
- * Check if a mint is a test mint by checking the network of the mint quote
- * and also checking if the mint is in the list of known test mints
+ * Check if a mint is a test mint by checking if the mint is in the list of
+ * known test mints.
  *
  * Known test mints:
  * - https://testnut.cashu.space
  * - https://nofees.testnut.cashu.space
  *
  * @param mintUrl - The URL of the mint
- * @returns True if the mint is not on mainnet
+ * @returns True if the mint is a known test mint
  */
-export const checkIsTestMint = async (mintUrl: string): Promise<boolean> => {
+export const checkIsTestMint = (mintUrl: string): boolean => {
   // Normalize URL by removing trailing slash and converting to lowercase
   const normalizedUrl = mintUrl.toLowerCase().replace(/\/+$/, '');
-  if (knownTestMints.includes(normalizedUrl)) {
-    return true;
-  }
-  const wallet = getCashuWallet(mintUrl);
-  const { request: bolt11 } = await wallet.createMintQuoteBolt11(1);
-  const { network } = decodeBolt11(bolt11);
-  return network !== 'bitcoin';
+  return knownTestMints.includes(normalizedUrl);
 };
 
 /**

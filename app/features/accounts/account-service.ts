@@ -39,7 +39,7 @@ export class AccountService {
       .sort((_, b) => (b.isDefault ? 1 : -1)); // Sort the default account to the top;
   }
 
-  async addCashuAccount({
+  addCashuAccount({
     userId,
     account,
   }: {
@@ -56,7 +56,7 @@ export class AccountService {
       | 'isOnline'
     >;
   }) {
-    const isTestMint = await checkIsTestMint(account.mintUrl);
+    const isTestMint = checkIsTestMint(account.mintUrl);
 
     return this.accountRepository.create<CashuAccount>({
       ...account,

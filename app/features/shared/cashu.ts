@@ -264,7 +264,7 @@ export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
 export const isTestMintQueryOptions = (mintUrl: string) =>
   queryOptions({
     queryKey: ['is-test-mint', mintUrl],
-    queryFn: async () => checkIsTestMint(mintUrl),
+    queryFn: () => checkIsTestMint(mintUrl),
     staleTime: Number.POSITIVE_INFINITY,
   });
 
