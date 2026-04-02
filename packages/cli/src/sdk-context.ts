@@ -26,6 +26,7 @@ function queryClientAsCache(queryClient: WalletClient['queryClient']): Cache {
 
 export type SdkContext = {
   userId: string;
+  wallet: WalletClient;
   accountService: WalletClient['services']['accountService'];
   cashuReceiveQuoteService: WalletClient['services']['cashuReceiveQuoteService'];
   cashuReceiveSwapService: WalletClient['services']['cashuReceiveSwapService'];
@@ -101,6 +102,7 @@ export async function getSdkContext(): Promise<SdkContext> {
 
   cached = {
     userId,
+    wallet,
     accountService: wallet.services.accountService,
     cashuReceiveQuoteService: wallet.services.cashuReceiveQuoteService,
     cashuReceiveSwapService: wallet.services.cashuReceiveSwapService,

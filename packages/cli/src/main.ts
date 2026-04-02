@@ -10,6 +10,7 @@ import { handlePayCommand } from './commands/pay';
 
 import { handleReceiveCommand } from './commands/receive';
 import { handleSendCommand } from './commands/send';
+import { handleWatchCommand } from './commands/watch';
 import { getDb } from './db';
 import { installSdkConsoleBridge } from './logging';
 import { detectMode } from './mode';
@@ -85,6 +86,8 @@ const HELP_TEXT = {
     'receive --check-all': 'Recheck all pending quotes and mint paid ones',
     'decode <input>':
       'Decode or identify bolt11, cashu token, Lightning address, LNURL, or URL. Also supports --input <input>',
+    watch:
+      'Watch pending quotes/swaps and auto-complete (foreground daemon). Supports --receive or --send to filter',
     config: 'Show all config values (same as config list)',
     'config get <key>': 'Show one config value',
     'config set <key> <value>':
@@ -246,6 +249,16 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         printOutput(result, outputOptions);
+        break;
+      }
+
+      case 'watch': {
+        getConfiguredDb();
+        const watchCtx = await requireSdkContext(outputOptions);
+        await handleWatchCommand(watchCtx, watchCtx.wallet, {
+          receive: Boolean(parsed.flags.receive),
+          send: Boolean(parsed.flags.send),
+        });
         break;
       }
 
