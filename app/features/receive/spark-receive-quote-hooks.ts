@@ -1,4 +1,3 @@
-import type { AgicashDbSparkReceiveQuote } from '@agicash/sdk/db/database';
 import type { SparkAccount } from '@agicash/sdk/features/accounts/account';
 import {
   PendingSparkReceiveQuotesCache,
@@ -87,41 +86,6 @@ export function useSparkReceiveQuote({
     status: data.state,
     quote: data,
   };
-}
-
-/**
- * Hook that returns spark receive quote change handlers.
- */
-export function useSparkReceiveQuoteChangeHandlers() {
-  const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
-  const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const wallet = useWalletClient();
-
-  return [
-    {
-      event: 'SPARK_RECEIVE_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const addedQuote =
-          await wallet.repos.sparkReceiveQuoteRepo.toQuote(payload);
-        pendingQuotesCache.add(addedQuote);
-      },
-    },
-    {
-      event: 'SPARK_RECEIVE_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const quote = await wallet.repos.sparkReceiveQuoteRepo.toQuote(payload);
-
-        sparkReceiveQuoteCache.updateIfExists(quote);
-
-        const isQuoteStillPending = quote.state === 'UNPAID';
-        if (isQuoteStillPending) {
-          pendingQuotesCache.update(quote);
-        } else {
-          pendingQuotesCache.remove(quote);
-        }
-      },
-    },
-  ];
 }
 
 type CreateProps = {

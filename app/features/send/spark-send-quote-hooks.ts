@@ -1,4 +1,3 @@
-import type { AgicashDbSparkSendQuote } from '@agicash/sdk/db/database';
 import type { SparkAccount } from '@agicash/sdk/features/accounts/account';
 import type { SparkSendQuote } from '@agicash/sdk/features/send/spark-send-quote';
 import { UnresolvedSparkSendQuotesCache } from '@agicash/sdk/features/send/spark-send-quote-queries';
@@ -21,39 +20,6 @@ export function useUnresolvedSparkSendQuotesCache() {
     () => new UnresolvedSparkSendQuotesCache(queryClient),
     [queryClient],
   );
-}
-
-/**
- * Hook that returns spark send quote change handlers.
- */
-export function useSparkSendQuoteChangeHandlers() {
-  const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
-  const wallet = useWalletClient();
-
-  return [
-    {
-      event: 'SPARK_SEND_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const addedQuote =
-          await wallet.repos.sparkSendQuoteRepo.toQuote(payload);
-        unresolvedQuotesCache.add(addedQuote);
-      },
-    },
-    {
-      event: 'SPARK_SEND_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const quote = await wallet.repos.sparkSendQuoteRepo.toQuote(payload);
-
-        const isQuoteStillUnresolved =
-          quote.state === 'UNPAID' || quote.state === 'PENDING';
-        if (isQuoteStillUnresolved) {
-          unresolvedQuotesCache.update(quote);
-        } else {
-          unresolvedQuotesCache.remove(quote);
-        }
-      },
-    },
-  ];
 }
 
 type CreateSparkLightningSendQuoteParams = {

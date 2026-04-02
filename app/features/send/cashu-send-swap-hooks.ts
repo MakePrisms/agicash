@@ -2,10 +2,6 @@ import {
   cashuSendSwapQueryKey,
   unresolvedCashuSendSwapsQueryKey,
 } from '@agicash/sdk/core/query-keys';
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendSwap,
-} from '@agicash/sdk/db/database';
 import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import type { CashuSendSwap } from '@agicash/sdk/features/send/cashu-send-swap';
 import {
@@ -247,47 +243,6 @@ export function useTrackCashuSendSwap({
     status: data.state,
     swap: data,
   };
-}
-
-/**
- * Hook that returns a cashu send quote change handler.
- */
-export function useCashuSendSwapChangeHandlers() {
-  const cashuSendSwapCache = useCashuSendSwapCache();
-  const unresolvedSwapsCache = useUnresolvedCashuSendSwapsCache();
-  const wallet = useWalletClient();
-
-  return [
-    {
-      event: 'CASHU_SEND_SWAP_CREATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendSwap & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const swap = await wallet.repos.cashuSendSwapRepo.toSwap(payload);
-        unresolvedSwapsCache.add(swap);
-      },
-    },
-    {
-      event: 'CASHU_SEND_SWAP_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendSwap & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const swap = await wallet.repos.cashuSendSwapRepo.toSwap(payload);
-
-        cashuSendSwapCache.updateIfExists(swap);
-
-        if (['DRAFT', 'PENDING'].includes(swap.state)) {
-          unresolvedSwapsCache.update(swap);
-        } else {
-          unresolvedSwapsCache.remove(swap);
-        }
-      },
-    },
-  ];
 }
 
 export function useProcessCashuSendSwapTasks() {

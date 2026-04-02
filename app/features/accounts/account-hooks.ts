@@ -1,4 +1,3 @@
-import type { AgicashDbAccountWithProofs } from '@agicash/sdk/db/database';
 import {
   type Account,
   type AccountPurpose,
@@ -28,28 +27,6 @@ export { AccountsCache };
 export function useAccountsCache() {
   const wallet = useWalletClient();
   return wallet.caches.accounts;
-}
-
-export function useAccountChangeHandlers() {
-  const { accountRepo } = useWalletClient().repos;
-  const accountCache = useAccountsCache();
-
-  return [
-    {
-      event: 'ACCOUNT_CREATED',
-      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const addedAccount = await accountRepo.toAccount(payload);
-        accountCache.upsert(addedAccount);
-      },
-    },
-    {
-      event: 'ACCOUNT_UPDATED',
-      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const updatedAccount = await accountRepo.toAccount(payload);
-        accountCache.update(updatedAccount);
-      },
-    },
-  ];
 }
 
 export const accountsQueryOptions = listAccountsQuery;

@@ -1,7 +1,3 @@
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendQuote,
-} from '@agicash/sdk/db/database';
 import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import type { CashuSendQuote } from '@agicash/sdk/features/send/cashu-send-quote';
 import type { DestinationDetails } from '@agicash/sdk/features/send/cashu-send-quote';
@@ -110,44 +106,6 @@ export function useInitiateCashuSendQuote({
       return failureCount < 1;
     },
   });
-}
-
-/**
- * Hook that returns cashu send quote change handlers.
- */
-export function useCashuSendQuoteChangeHandlers() {
-  const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
-  const wallet = useWalletClient();
-
-  return [
-    {
-      event: 'CASHU_SEND_QUOTE_CREATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const quote = await wallet.repos.cashuSendQuoteRepo.toQuote(payload);
-        unresolvedSendQuotesCache.add(quote);
-      },
-    },
-    {
-      event: 'CASHU_SEND_QUOTE_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const quote = await wallet.repos.cashuSendQuoteRepo.toQuote(payload);
-
-        if (['UNPAID', 'PENDING'].includes(quote.state)) {
-          unresolvedSendQuotesCache.update(quote);
-        } else {
-          unresolvedSendQuotesCache.remove(quote);
-        }
-      },
-    },
-  ];
 }
 
 export function useProcessCashuSendQuoteTasks() {

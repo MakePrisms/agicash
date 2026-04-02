@@ -2,45 +2,11 @@ import { agicashRealtimeClient } from '~/features/agicash-db/database.client';
 import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
 import {
-  useAccountChangeHandlers,
-  useAccountsCache,
-} from '../accounts/account-hooks';
-import {
   useContactChangeHandlers,
   useContactsCache,
 } from '../contacts/contact-hooks';
-import {
-  useCashuReceiveQuoteCache,
-  useCashuReceiveQuoteChangeHandlers,
-  usePendingCashuReceiveQuotesCache,
-} from '../receive/cashu-receive-quote-hooks';
-import {
-  useCashuReceiveSwapChangeHandlers,
-  usePendingCashuReceiveSwapsCache,
-} from '../receive/cashu-receive-swap-hooks';
-import {
-  usePendingSparkReceiveQuotesCache,
-  useSparkReceiveQuoteCache,
-  useSparkReceiveQuoteChangeHandlers,
-} from '../receive/spark-receive-quote-hooks';
-import {
-  useCashuSendQuoteChangeHandlers,
-  useUnresolvedCashuSendQuotesCache,
-} from '../send/cashu-send-quote-hooks';
-import {
-  useCashuSendSwapCache,
-  useCashuSendSwapChangeHandlers,
-  useUnresolvedCashuSendSwapsCache,
-} from '../send/cashu-send-swap-hooks';
-import {
-  useSparkSendQuoteChangeHandlers,
-  useUnresolvedSparkSendQuotesCache,
-} from '../send/spark-send-quote-hooks';
-import {
-  useTransactionChangeHandlers,
-  useTransactionsCache,
-} from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
+import { useWalletClient } from '../wallet/wallet-client';
 
 type DatabaseChangeHandler = {
   event: string;
@@ -86,57 +52,28 @@ function useTrackDatabaseChanges({ handlers, onConnected }: Props) {
 }
 
 export const useTrackWalletChanges = () => {
-  const accountChangeHandlers = useAccountChangeHandlers();
-  const transactionChangeHandlers = useTransactionChangeHandlers();
-  const cashuReceiveQuoteChangeHandlers = useCashuReceiveQuoteChangeHandlers();
-  const cashuReceiveSwapChangeHandlers = useCashuReceiveSwapChangeHandlers();
-  const cashuSendQuoteChangeHandlers = useCashuSendQuoteChangeHandlers();
-  const cashuSendSwapChangeHandlers = useCashuSendSwapChangeHandlers();
+  const wallet = useWalletClient();
   const contactChangeHandlers = useContactChangeHandlers();
-  const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
-  const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
-
-  const accountsCache = useAccountsCache();
-  const transactionsCache = useTransactionsCache();
-  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const pendingCashuReceiveQuotesCache = usePendingCashuReceiveQuotesCache();
-  const pendingCashuReceiveSwapsCache = usePendingCashuReceiveSwapsCache();
-  const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
-  const cashuSendSwapCache = useCashuSendSwapCache();
-  const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const contactsCache = useContactsCache();
-  const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
-  const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
 
   useTrackDatabaseChanges({
-    handlers: [
-      ...accountChangeHandlers,
-      ...transactionChangeHandlers,
-      ...cashuReceiveQuoteChangeHandlers,
-      ...cashuReceiveSwapChangeHandlers,
-      ...cashuSendQuoteChangeHandlers,
-      ...cashuSendSwapChangeHandlers,
-      ...contactChangeHandlers,
-      ...sparkReceiveQuoteChangeHandlers,
-      ...sparkSendQuoteChangeHandlers,
-    ],
+    handlers: [...wallet.changeHandlers, ...contactChangeHandlers],
     onConnected: () => {
-      // Makes sure that data is refetched to get the latest updates from the database.
-      // This handles possibly missed updates while the realtime was not connected yet
-      // or while it was reconnecting.
-      accountsCache.invalidate();
-      transactionsCache.invalidate();
-      cashuReceiveQuoteCache.invalidate();
-      pendingCashuReceiveQuotesCache.invalidate();
-      pendingCashuReceiveSwapsCache.invalidate();
-      unresolvedCashuSendQuotesCache.invalidate();
-      cashuSendSwapCache.invalidate();
-      unresolvedCashuSendSwapsCache.invalidate();
+      // The web app does not use RealtimeHandler — it manages its own channel
+      // via useSupabaseRealtime. These invalidations are needed here because
+      // onConnected fires when the web app's channel reconnects.
+      wallet.caches.accounts.invalidate();
+      wallet.caches.transactions.invalidate();
+      wallet.caches.cashuReceiveQuote.invalidate();
+      wallet.caches.pendingCashuReceiveQuotes.invalidate();
+      wallet.caches.pendingCashuReceiveSwaps.invalidate();
+      wallet.caches.unresolvedCashuSendQuotes.invalidate();
+      wallet.caches.cashuSendSwap.invalidate();
+      wallet.caches.unresolvedCashuSendSwaps.invalidate();
+      wallet.caches.sparkReceiveQuote.invalidate();
+      wallet.caches.pendingSparkReceiveQuotes.invalidate();
+      wallet.caches.unresolvedSparkSendQuotes.invalidate();
       contactsCache.invalidate();
-      sparkReceiveQuoteCache.invalidate();
-      pendingSparkReceiveQuotesCache.invalidate();
-      unresolvedSparkSendQuotesCache.invalidate();
     },
   });
 };

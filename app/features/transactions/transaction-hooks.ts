@@ -1,4 +1,3 @@
-import type { AgicashDbTransaction } from '@agicash/sdk/db/database';
 import type { Transaction } from '@agicash/sdk/features/transactions/transaction';
 import { acknowledgeTransactionInHistoryCache } from '@agicash/sdk/features/transactions/transaction-queries';
 import {
@@ -130,44 +129,4 @@ export function useReverseTransaction({
       onErrorRef.current?.(error);
     },
   });
-}
-
-/**
- * Hook that returns a transaction change handler.
- */
-export function useTransactionChangeHandlers() {
-  const transactionRepository = useTransactionRepository();
-  const transactionsCache = useTransactionsCache();
-
-  return [
-    {
-      event: 'TRANSACTION_CREATED',
-      handleEvent: async (payload: AgicashDbTransaction) => {
-        const transaction = await transactionRepository.toTransaction(payload);
-        transactionsCache.upsert(transaction);
-
-        if (transaction.acknowledgmentStatus === 'pending') {
-          transactionsCache.invalidateUnacknowledgedCount();
-        }
-      },
-    },
-    {
-      event: 'TRANSACTION_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbTransaction & {
-          previous_acknowledgment_status: Transaction['acknowledgmentStatus'];
-        },
-      ) => {
-        const transaction = await transactionRepository.toTransaction(payload);
-        transactionsCache.upsert(transaction);
-
-        if (
-          payload.previous_acknowledgment_status !==
-          transaction.acknowledgmentStatus
-        ) {
-          transactionsCache.invalidateUnacknowledgedCount();
-        }
-      },
-    },
-  ];
 }

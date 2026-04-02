@@ -1,4 +1,3 @@
-import type { AgicashDbCashuReceiveSwap } from '@agicash/sdk/db/database';
 import { PendingCashuReceiveSwapsCache } from '@agicash/sdk/features/receive/cashu-receive-swap-queries';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -40,39 +39,6 @@ export function useCreateCashuReceiveSwap() {
       });
     },
   });
-}
-
-/**
- * Hook that returns cashu receive swap change handlers.
- */
-export function useCashuReceiveSwapChangeHandlers() {
-  const pendingSwapsCache = usePendingCashuReceiveSwapsCache();
-  const wallet = useWalletClient();
-
-  return [
-    {
-      event: 'CASHU_RECEIVE_SWAP_CREATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveSwap) => {
-        const swap =
-          await wallet.repos.cashuReceiveSwapRepo.toReceiveSwap(payload);
-        pendingSwapsCache.add(swap);
-      },
-    },
-    {
-      event: 'CASHU_RECEIVE_SWAP_UPDATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveSwap) => {
-        const swap =
-          await wallet.repos.cashuReceiveSwapRepo.toReceiveSwap(payload);
-
-        const isSwapStillPending = swap.state === 'PENDING';
-        if (isSwapStillPending) {
-          pendingSwapsCache.update(swap);
-        } else {
-          pendingSwapsCache.remove(swap);
-        }
-      },
-    },
-  ];
 }
 
 export function useProcessCashuReceiveSwapTasks() {

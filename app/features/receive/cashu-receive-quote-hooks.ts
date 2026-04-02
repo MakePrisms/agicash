@@ -1,4 +1,3 @@
-import type { AgicashDbCashuReceiveQuote } from '@agicash/sdk/db/database';
 import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import {
   CashuReceiveQuoteCache,
@@ -126,38 +125,6 @@ export function useCashuReceiveQuote({
     status: data.state,
     quote: data,
   };
-}
-
-export function useCashuReceiveQuoteChangeHandlers() {
-  const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
-  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const wallet = useWalletClient();
-
-  return [
-    {
-      event: 'CASHU_RECEIVE_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
-        const addedQuote =
-          await wallet.repos.cashuReceiveQuoteRepo.toQuote(payload);
-        pendingQuotesCache.add(addedQuote);
-      },
-    },
-    {
-      event: 'CASHU_RECEIVE_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
-        const quote = await wallet.repos.cashuReceiveQuoteRepo.toQuote(payload);
-
-        cashuReceiveQuoteCache.updateIfExists(quote);
-
-        const isQuoteStillPending = ['UNPAID', 'PAID'].includes(quote.state);
-        if (isQuoteStillPending) {
-          pendingQuotesCache.update(quote);
-        } else {
-          pendingQuotesCache.remove(quote);
-        }
-      },
-    },
-  ];
 }
 
 export function useProcessCashuReceiveQuoteTasks() {
