@@ -8,6 +8,7 @@ import type { SdkContext } from '../sdk-context';
 
 export interface SendResult {
   action: string;
+  status?: string;
   token?: {
     encoded: string;
     amount: number;
@@ -104,12 +105,11 @@ export async function handleSendCommand(
       unit: protocolUnit,
     });
 
-    await ctx.cashuSendSwapService.complete(swap);
-
     const tokenAmount = swap.proofsToSend.reduce((sum, p) => sum + p.amount, 0);
 
     return {
       action: 'created',
+      status: 'pending_completion',
       token: {
         encoded,
         amount: tokenAmount,

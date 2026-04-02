@@ -5,6 +5,7 @@ import type { SdkContext } from '../sdk-context';
 export interface PayResult {
   action: string;
   payment?: {
+    quote_id: string;
     bolt11: string;
     amount: number;
     fee_reserve: number;
@@ -68,22 +69,10 @@ export async function handlePayCommand(
         meltQuote: lightningQuote.meltQuote,
       },
     });
-    await ctx.cashuSendQuoteService.initiateSend(
-      account,
-      sendQuote,
-      lightningQuote.meltQuote,
-    );
-    const finalMeltQuote = await account.wallet.checkMeltQuoteBolt11(
-      sendQuote.quoteId,
-    );
-    const completedQuote = await ctx.cashuSendQuoteService.completeSendQuote(
-      account,
-      sendQuote,
-      finalMeltQuote,
-    );
     return {
-      action: 'paid',
+      action: 'created',
       payment: {
+        quote_id: sendQuote.id,
         bolt11,
         amount: lightningQuote.meltQuote.amount,
         fee_reserve: lightningQuote.meltQuote.fee_reserve,
@@ -91,7 +80,7 @@ export async function handlePayCommand(
         account_id: account.id,
         account_name: account.name,
         mint_url: account.mintUrl,
-        state: completedQuote.state,
+        state: 'pending',
       },
     };
   } catch (err) {

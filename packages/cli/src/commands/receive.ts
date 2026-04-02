@@ -33,12 +33,14 @@ export type ReceiveResult = {
     createdAt: string;
   }>;
   minted?: { amount: number; currency: string; account_id: string };
-  claimed?: {
+  swap?: {
+    tokenHash: string;
     amount: number;
     fee: number;
     currency: string;
     account_id: string;
     mint_url: string;
+    state: string;
   };
   checked?: {
     total: number;
@@ -53,7 +55,6 @@ export type ReceiveResult = {
 export async function handleReceiveCommand(
   args: ParsedArgs,
   ctx: SdkContext,
-  emitOutput?: (result: ReceiveResult) => void,
 ): Promise<ReceiveResult> {
   if (args.positional[0] === 'list') return handleListQuotes(ctx);
   if (args.flags['check-all']) return handleCheckAll(ctx);
@@ -82,14 +83,13 @@ export async function handleReceiveCommand(
       error: `Invalid amount: ${input}. Must be greater than zero.`,
       code: 'INVALID_AMOUNT',
     };
-  return handleReceiveLightning(amount, args, ctx, emitOutput);
+  return handleReceiveLightning(amount, args, ctx);
 }
 
 async function handleReceiveLightning(
   amount: number,
   args: ParsedArgs,
   ctx: SdkContext,
-  emitOutput?: (result: ReceiveResult) => void,
 ): Promise<ReceiveResult> {
   const account = await findCashuAccount(
     ctx,
@@ -118,7 +118,7 @@ async function handleReceiveLightning(
       lightningQuote,
       receiveType: 'LIGHTNING',
     });
-    const result: ReceiveResult = {
+    return {
       action: 'invoice',
       quote: {
         id: quote.id,
@@ -131,41 +131,6 @@ async function handleReceiveLightning(
         expiresAt: quote.expiresAt,
       },
     };
-    if (args.flags.wait) {
-      emitOutput?.(result);
-      for (let i = 0; i < 150; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const check = await account.wallet.checkMintQuoteBolt11(quote.quoteId);
-        if (check.state === MintQuoteState.PAID) {
-          const completed = await ctx.cashuReceiveQuoteService.completeReceive(
-            account,
-            quote,
-          );
-          return {
-            action: 'minted',
-            minted: {
-              amount: completed.quote.amount.toNumber(
-                account.currency === 'BTC' ? 'sat' : 'cent',
-              ),
-              currency: account.currency,
-              account_id: account.id,
-            },
-          };
-        }
-        if (check.state !== MintQuoteState.UNPAID)
-          return {
-            action: 'error',
-            error: `Unexpected quote state: ${String(check.state)}`,
-            code: 'UNEXPECTED_STATE',
-          };
-      }
-      return {
-        action: 'error',
-        error: 'Timed out waiting for payment (5 minutes).',
-        code: 'TIMEOUT',
-      };
-    }
-    return result;
   } catch (err) {
     return {
       action: 'error',
@@ -212,24 +177,13 @@ async function handleCheckQuote(
         code: 'INVALID_ACCOUNT',
       };
     const check = await account.wallet.checkMintQuoteBolt11(quote.quoteId);
-    if (check.state === MintQuoteState.PAID || quote.state === 'PAID') {
-      const completed = await ctx.cashuReceiveQuoteService.completeReceive(
-        account,
-        quote,
-      );
-      return {
-        action: 'minted',
-        minted: {
-          amount: completed.quote.amount.toNumber(
-            account.currency === 'BTC' ? 'sat' : 'cent',
-          ),
-          currency: account.currency,
-          account_id: account.id,
-        },
-      };
-    }
+    const mintState = String(check.state);
+    const resolvedState =
+      check.state === MintQuoteState.PAID || quote.state === 'PAID'
+        ? 'PAID'
+        : mintState;
     return {
-      action: 'pending',
+      action: resolvedState === 'PAID' ? 'paid' : 'pending',
       quote: {
         id: quote.id,
         bolt11: quote.paymentRequest,
@@ -239,7 +193,7 @@ async function handleCheckQuote(
         currency: quote.amount.currency,
         account_id: quote.accountId,
         mint_url: account.mintUrl,
-        state: String(check.state),
+        state: resolvedState,
         expiresAt: quote.expiresAt,
       },
     };
@@ -287,17 +241,17 @@ async function handleReceiveToken(
       token,
       account,
     });
-    const { swap: completedSwap } =
-      await ctx.cashuReceiveSwapService.completeSwap(account, swap);
     const unit = account.currency === 'BTC' ? 'sat' : 'cent';
     return {
-      action: 'claimed',
-      claimed: {
-        amount: completedSwap.amountReceived.toNumber(unit),
-        fee: completedSwap.feeAmount.toNumber(unit),
+      action: 'created',
+      swap: {
+        tokenHash: swap.tokenHash,
+        amount: swap.amountReceived.toNumber(unit),
+        fee: swap.feeAmount.toNumber(unit),
         currency: account.currency,
         account_id: account.id,
         mint_url: mintUrl,
+        state: swap.state,
       },
     };
   } catch (err) {
@@ -357,18 +311,15 @@ async function handleCheckAll(ctx: SdkContext): Promise<ReceiveResult> {
           accountCache.set(quote.accountId, account);
         }
         if (new Date(quote.expiresAt) < new Date()) {
-          await ctx.cashuReceiveQuoteService.expire(quote);
           summary.failed++;
           continue;
         }
         if (quote.state === 'PAID') {
-          await ctx.cashuReceiveQuoteService.completeReceive(account, quote);
           summary.completed++;
           continue;
         }
         const check = await account.wallet.checkMintQuoteBolt11(quote.quoteId);
         if (check.state === MintQuoteState.PAID) {
-          await ctx.cashuReceiveQuoteService.completeReceive(account, quote);
           summary.completed++;
         } else if (check.state === MintQuoteState.UNPAID) {
           summary.pending++;

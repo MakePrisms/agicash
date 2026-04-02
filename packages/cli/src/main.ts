@@ -77,7 +77,7 @@ const HELP_TEXT = {
     'pay <invoice>':
       'Pay a Lightning invoice from the selected Cashu account. Also supports --bolt11 <invoice> and --account <id>',
     'receive <amount>':
-      'Create a Lightning invoice using the selected Cashu account. Also supports --amount <amount>, --account <id>, and --wait',
+      'Create a Lightning invoice using the selected Cashu account. Also supports --amount <amount> and --account <id>',
     'receive <cashu-token>':
       'Claim a Cashu token. Also supports --account <id>',
     'receive list': 'List all pending quotes',
@@ -168,9 +168,7 @@ async function main(): Promise<void> {
       case 'receive': {
         getConfiguredDb(); // ensure OpenSecret is configured
         const result = await withSdkContext(outputOptions, (receiveCtx) =>
-          handleReceiveCommand(parsed, receiveCtx, (invoice) => {
-            printOutput(invoice, outputOptions);
-          }),
+          handleReceiveCommand(parsed, receiveCtx),
         );
         if (result.action === 'error') {
           printError(result.error ?? '', result.code ?? '', outputOptions);
