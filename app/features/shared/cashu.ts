@@ -25,7 +25,6 @@ import { getQueryClient } from '~/features/shared/query-client';
 import {
   type ExtendedCashuWallet,
   ExtendedMintInfo,
-  checkIsTestMint,
   extractCashuToken,
   getCashuProtocolUnit,
   getCashuUnit,
@@ -259,13 +258,6 @@ export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
     queryKey: mintKeysQueryKey(mintUrl, keysetId),
     queryFn: async () => new Mint(mintUrl).getKeys(keysetId),
     staleTime: 1000 * 60 * 60, // 1 hour
-  });
-
-export const isTestMintQueryOptions = (mintUrl: string) =>
-  queryOptions({
-    queryKey: ['is-test-mint', mintUrl],
-    queryFn: () => checkIsTestMint(mintUrl),
-    staleTime: Number.POSITIVE_INFINITY,
   });
 
 /**
