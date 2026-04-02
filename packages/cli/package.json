@@ -11,7 +11,7 @@
     "dev": "bun run src/main.ts",
     "build": "bun build src/main.ts --compile --outfile=agicash",
     "build:release": "bun run src/build-release.ts",
-    "publish:dry-run": "bun run build:release && bun publish ./dist/npm --dry-run",
+    "publish:dry-run": "bun run build:release && bun publish --cwd ./dist/npm --dry-run",
     "test": "bun test"
   },
   "dependencies": {

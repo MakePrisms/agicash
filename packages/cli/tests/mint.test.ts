@@ -49,6 +49,9 @@ let createdAccounts: Array<{
 function makeMockCtx(): SdkContext {
   return {
     userId: 'test-user',
+    cleanup: async () => {
+      // noop
+    },
     accountService: {
       addCashuAccount: async ({
         account,

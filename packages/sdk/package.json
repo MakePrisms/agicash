@@ -17,6 +17,7 @@
     "@stablelib/base64": "2.0.1",
     "@supabase/realtime-js": "2.95.2",
     "@supabase/supabase-js": "2.95.2",
+    "@tanstack/query-core": "5.90.20",
     "big.js": "7.0.1",
     "ky": "1.14.3",
     "light-bolt11-decoder": "3.2.0",

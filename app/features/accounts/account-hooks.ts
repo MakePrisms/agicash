@@ -8,160 +8,51 @@ import {
   type SparkAccount,
   getAccountBalance,
 } from '@agicash/sdk/features/accounts/account';
-import { AccountRepository } from '@agicash/sdk/features/accounts/account-repository';
+import {
+  AccountsCache,
+  listAccountsQuery,
+} from '@agicash/sdk/features/accounts/account-queries';
 import { AccountService } from '@agicash/sdk/features/accounts/account-service';
 import { type Currency, Money } from '@agicash/sdk/lib/money/index';
 import {
-  type QueryClient,
   type UseSuspenseQueryResult,
-  queryOptions,
   useMutation,
-  useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef } from 'react';
-import { queryClientAsCache } from '~/lib/cache-adapter';
-import { agicashDbClient } from '../agicash-db/database.client';
-import { useCashuCryptography } from '../shared/cashu';
-import { useEncryption } from '../shared/encryption';
-import { sparkMnemonicQueryOptions } from '../shared/spark';
+import { useCallback, useRef } from 'react';
 import { useUser } from '../user/user-hooks';
+import { useWalletClient } from '../wallet/wallet-client';
 
-export class AccountsCache {
-  public static Key = 'accounts';
+export { AccountsCache };
 
-  constructor(private readonly queryClient: QueryClient) {}
-
-  upsert(account: Account) {
-    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) => {
-      const existingAccountIndex = curr.findIndex((x) => x.id === account.id);
-      if (existingAccountIndex !== -1) {
-        return curr.map((x) =>
-          x.id === account.id && account.version > x.version ? account : x,
-        );
-      }
-      return [...curr, account];
-    });
-  }
-
-  update(account: Account) {
-    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
-      curr.map((x) =>
-        x.id === account.id && account.version > x.version ? account : x,
-      ),
-    );
-  }
-
-  // This is used for a Spark bug workaround in useTrackAndUpdateSparkAccountBalances hook.
-  // Once the bug is resolved we can change this function to simply update the account balance if changed.
-  // TODO: Update when Spark bug is fixed and workaround is removed.
-  updateSparkAccountIfBalanceOrWalletChanged(account: SparkAccount) {
-    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
-      curr.map((x) =>
-        x.id === account.id &&
-        x.type === 'spark' &&
-        account.version >= x.version &&
-        this.hasDifferentBalanceOrWallet(x, account)
-          ? account
-          : x,
-      ),
-    );
-  }
-
-  private hasDifferentBalanceOrWallet(
-    accountOne: SparkAccount,
-    accountTwo: SparkAccount,
-  ) {
-    const oneOwned = accountOne.ownedBalance ?? Money.zero(accountOne.currency);
-    const twoOwned = accountTwo.ownedBalance ?? Money.zero(accountTwo.currency);
-    const oneAvailable =
-      accountOne.availableBalance ?? Money.zero(accountOne.currency);
-    const twoAvailable =
-      accountTwo.availableBalance ?? Money.zero(accountTwo.currency);
-
-    return (
-      !oneOwned.equals(twoOwned) ||
-      !oneAvailable.equals(twoAvailable) ||
-      accountOne.wallet !== accountTwo.wallet
-    );
-  }
-
-  /**
-   * Gets all accounts.
-   * Each account returned is the last version for which we have a full account data.
-   * @returns The list of accounts.
-   */
-  getAll() {
-    return this.queryClient.getQueryData<Account[]>([AccountsCache.Key]);
-  }
-
-  /**
-   * Get an account by id.
-   * Returns the last version of the account for which we have a full account data.
-   * @param id - The id of the account.
-   * @returns The account or null if the account is not found.
-   */
-  get(id: string) {
-    const accounts = this.getAll();
-    return accounts?.find((x) => x.id === id) ?? null;
-  }
-
-  /**
-   * Invalidates the accounts cache.
-   */
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [AccountsCache.Key],
-    });
-  }
-}
-
-/**
- * Hook that provides the accounts cache.
- * Reference of the returned data is stable as long as the logged in user doesn't change (see App component in root.tsx).
- * @returns The accounts cache.
- */
 export function useAccountsCache() {
-  const queryClient = useQueryClient();
-  // The query client is a singleton created in the root of the app (see App component in root.tsx).
-  return useMemo(() => new AccountsCache(queryClient), [queryClient]);
+  const wallet = useWalletClient();
+  return wallet.caches.accounts;
 }
 
-/**
- * Hook that returns an account change handlers.
- */
 export function useAccountChangeHandlers() {
-  const accountRepository = useAccountRepository();
+  const { accountRepo } = useWalletClient().repos;
   const accountCache = useAccountsCache();
 
   return [
     {
       event: 'ACCOUNT_CREATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const addedAccount = await accountRepository.toAccount(payload);
+        const addedAccount = await accountRepo.toAccount(payload);
         accountCache.upsert(addedAccount);
       },
     },
     {
       event: 'ACCOUNT_UPDATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const updatedAccount = await accountRepository.toAccount(payload);
+        const updatedAccount = await accountRepo.toAccount(payload);
         accountCache.update(updatedAccount);
       },
     },
   ];
 }
 
-export const accountsQueryOptions = ({
-  userId,
-  accountRepository,
-}: { userId: string; accountRepository: AccountRepository }) => {
-  return queryOptions({
-    queryKey: [AccountsCache.Key],
-    queryFn: () => accountRepository.getAll(userId),
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-};
+export const accountsQueryOptions = listAccountsQuery;
 
 /**
  * Filter options for `useAccounts` hook.
@@ -208,12 +99,12 @@ export function useAccounts<
   select?: UseAccountsSelect<T, P>,
 ): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
-  const accountRepository = useAccountRepository();
+  const wallet = useWalletClient();
 
   const { currency, type, isOnline, purpose } = select ?? {};
 
   return useSuspenseQuery({
-    ...accountsQueryOptions({ userId: user.id, accountRepository }),
+    ...wallet.queries.listAccountsQuery(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select: useCallback(
@@ -419,21 +310,11 @@ export function useSelectItemsWithOnlineAccount() {
 }
 
 export function useAccountRepository() {
-  const encryption = useEncryption();
-  const queryClient = useQueryClient();
-  const { getSeed: getCashuWalletSeed } = useCashuCryptography();
-  const getSparkWalletMnemonic = () =>
-    queryClient.fetchQuery(sparkMnemonicQueryOptions());
-  return new AccountRepository(
-    agicashDbClient,
-    encryption,
-    queryClientAsCache(queryClient),
-    getCashuWalletSeed,
-    getSparkWalletMnemonic,
-  );
+  const { accountRepo } = useWalletClient().repos;
+  return accountRepo;
 }
 
 export function useAccountService() {
-  const accountRepository = useAccountRepository();
-  return new AccountService(accountRepository);
+  const { accountService } = useWalletClient().services;
+  return accountService;
 }

@@ -6,22 +6,37 @@ export interface ParsedArgs {
 
 export function parseArgs(argv: string[]): ParsedArgs {
   if (argv.length === 0) {
-    return { command: 'help', positional: [], flags: { pretty: false } };
+    return {
+      command: 'help',
+      positional: [],
+      flags: { pretty: false, verbose: false },
+    };
   }
 
   const first = argv[0];
 
   if (first === '--help' || first === '-h') {
-    return { command: 'help', positional: [], flags: { pretty: false } };
+    return {
+      command: 'help',
+      positional: [],
+      flags: { pretty: false, verbose: false },
+    };
   }
 
   if (first === '--version' || first === '-v') {
-    return { command: 'version', positional: [], flags: { pretty: false } };
+    return {
+      command: 'version',
+      positional: [],
+      flags: { pretty: false, verbose: false },
+    };
   }
 
   const command = first;
   const positional: string[] = [];
-  const flags: Record<string, string | boolean> = { pretty: false };
+  const flags: Record<string, string | boolean> = {
+    pretty: false,
+    verbose: false,
+  };
 
   let i = 1;
   while (i < argv.length) {
@@ -32,6 +47,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
       if (key === 'pretty') {
         flags.pretty = true;
+        i++;
+        continue;
+      }
+
+      if (key === 'verbose') {
+        flags.verbose = true;
         i++;
         continue;
       }

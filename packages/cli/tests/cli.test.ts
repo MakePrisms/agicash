@@ -29,9 +29,20 @@ describe('parseArgs', () => {
     expect(result.flags.pretty).toBe(true);
   });
 
+  test('parses --verbose flag', () => {
+    const result = parseArgs(['balance', '--verbose']);
+    expect(result.command).toBe('balance');
+    expect(result.flags.verbose).toBe(true);
+  });
+
   test('pretty defaults to false', () => {
     const result = parseArgs(['balance']);
     expect(result.flags.pretty).toBe(false);
+  });
+
+  test('verbose defaults to false', () => {
+    const result = parseArgs(['balance']);
+    expect(result.flags.verbose).toBe(false);
   });
 
   test('collects positional args after command', () => {

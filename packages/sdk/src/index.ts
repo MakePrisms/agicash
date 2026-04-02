@@ -3,6 +3,18 @@ export { configure, getConfig } from './config';
 export type { AgicashConfig } from './config';
 export { measureOperation, setMeasureOperation } from './performance';
 export type { MeasureOperationFn } from './performance';
+export { createWalletClient } from './core/wallet-client';
+export type { WalletClient, WalletClientConfig } from './core/wallet-client';
+export {
+  allTransactionsQueryKey,
+  accountsQueryKey,
+  cashuReceiveQuoteQueryKey,
+  mintQuoteQueryKey,
+  pendingCashuReceiveQuotesQueryKey,
+  pendingCashuReceiveSwapsQueryKey,
+  transactionQueryKey,
+  unacknowledgedTransactionsCountQueryKey,
+} from './core/query-keys';
 
 // Interfaces
 export type { KeyProvider } from './interfaces/key-provider';
@@ -49,8 +61,13 @@ export {
   canReceiveFromLightning,
   getAccountBalance,
 } from './features/accounts/account';
+export { getSeedPhraseDerivationPath } from './features/accounts/account-cryptography';
 export { AccountService } from './features/accounts/account-service';
 export { AccountRepository } from './features/accounts/account-repository';
+export {
+  AccountsCache,
+  listAccountsQuery,
+} from './features/accounts/account-queries';
 export type { CashuProof } from './features/accounts/cashu-account';
 export { CashuProofSchema, toProof } from './features/accounts/cashu-account';
 
@@ -94,6 +111,13 @@ export {
   TransactionPurposeSchema,
 } from './features/transactions/transaction-enums';
 export { TransactionRepository } from './features/transactions/transaction-repository';
+export {
+  acknowledgeTransactionInHistoryCache,
+  transactionQuery,
+  transactionsListQuery,
+  TransactionsCache,
+  unacknowledgedTransactionsCountQuery,
+} from './features/transactions/transaction-queries';
 export type { Cursor } from './features/transactions/transaction-repository';
 export type { TransactionDetails } from './features/transactions/transaction-details/transaction-details-types';
 export {
@@ -108,6 +132,18 @@ export { CashuReceiveQuoteSchema } from './features/receive/cashu-receive-quote'
 export type { CashuReceiveLightningQuote } from './features/receive/cashu-receive-quote-core';
 export { CashuReceiveQuoteService } from './features/receive/cashu-receive-quote-service';
 export { CashuReceiveQuoteRepository } from './features/receive/cashu-receive-quote-repository';
+export {
+  CashuReceiveQuoteCache,
+  PendingCashuReceiveQuotesCache,
+  cashuReceiveQuoteQuery,
+  pendingCashuReceiveQuotesQuery,
+} from './features/receive/cashu-receive-queries';
+export { CashuReceiveQuoteTaskProcessor } from './features/receive/cashu-receive-task-processor';
+export {
+  PendingCashuReceiveSwapsCache,
+  pendingCashuReceiveSwapsQuery,
+} from './features/receive/cashu-receive-swap-queries';
+export { CashuReceiveSwapTaskProcessor } from './features/receive/cashu-receive-swap-task-processor';
 export type { CashuReceiveSwap } from './features/receive/cashu-receive-swap';
 export { CashuReceiveSwapSchema } from './features/receive/cashu-receive-swap';
 export { CashuReceiveSwapService } from './features/receive/cashu-receive-swap-service';
@@ -193,6 +229,7 @@ export {
   getInitializedSparkWallet,
   sparkWalletCacheKey,
 } from './features/shared/spark';
+export { getSparkIdentityPublicKeyFromMnemonic } from './lib/spark/index';
 
 // Wallet
 export { TaskProcessingLockRepository } from './features/wallet/task-processing-lock-repository';

@@ -1,6 +1,7 @@
 import {
   getPrivateKey as getMnemonic,
   getPrivateKeyBytes,
+  getPublicKey,
 } from '@agicash/opensecret';
 import { getSeedPhraseDerivationPath } from '@agicash/sdk/features/accounts/account-cryptography';
 import {
@@ -46,12 +47,10 @@ export {
 /**
  * Creates a web KeyProvider from @agicash/opensecret functions.
  */
-function createWebKeyProvider(): KeyProvider {
+export function createWebKeyProvider(): KeyProvider {
   return {
     getPrivateKeyBytes: (params) => getPrivateKeyBytes(params),
-    getPublicKey: (_type, _params) => {
-      throw new Error('getPublicKey not implemented in web KeyProvider');
-    },
+    getPublicKey: (type, params) => getPublicKey(type, params),
     getMnemonic: (params) => getMnemonic(params),
   };
 }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { detectMode } from './mode';
 
 describe('detectMode', () => {
@@ -8,6 +8,12 @@ describe('detectMode', () => {
     'AGICASH_MNEMONIC',
     'AGICASH_RELEASE_OPENSECRET_CLIENT_ID',
   ] as const;
+
+  beforeEach(() => {
+    for (const key of managedKeys) {
+      delete process.env[key];
+    }
+  });
 
   afterEach(() => {
     for (const key of managedKeys) {

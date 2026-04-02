@@ -11,6 +11,9 @@ function makeArgs(
 function makeEmptyCtx(): SdkContext {
   return {
     userId: 'test-user',
+    cleanup: async () => {
+      // noop
+    },
     accountRepo: {
       getAll: async () => [],
       get: async () => {

@@ -173,6 +173,7 @@ export async function getInitializedCashuWallet(
       let mintInfo: ExtendedMintInfo;
       let allMintKeysets: GetKeysetsResponse;
       let mintActiveKeys: GetKeysResponse;
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
       try {
         [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
@@ -195,7 +196,7 @@ export async function getInitializedCashuWallet(
             }),
           ]),
           new Promise<never>((_, reject) => {
-            setTimeout(() => {
+            timeoutId = setTimeout(() => {
               cache.cancelQueries?.({
                 queryKey: mintInfoQueryKey(mintUrl),
               });
@@ -218,6 +219,10 @@ export async function getInitializedCashuWallet(
           return { wallet, isOnline: false };
         }
         throw error;
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
       }
 
       const unitKeysets = allMintKeysets.keysets.filter(

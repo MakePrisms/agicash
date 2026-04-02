@@ -31,8 +31,11 @@ function makeMockCtx(overrides: Partial<SdkContext> = {}): SdkContext {
     cashuSendSwapRepo: {} as SdkContext['cashuSendSwapRepo'],
     transactionRepo: {} as SdkContext['transactionRepo'],
     cache: { fetchQuery: async ({ queryFn }) => queryFn() },
+    cleanup: async () => {
+      // noop
+    },
     ...overrides,
-  };
+  } as SdkContext;
 }
 
 describe('receive validation', () => {

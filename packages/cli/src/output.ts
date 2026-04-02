@@ -2,6 +2,10 @@ export interface OutputOptions {
   pretty: boolean;
 }
 
+function writeLine(stream: NodeJS.WriteStream, message: string): void {
+  stream.write(`${message}\n`);
+}
+
 export function formatOutput(data: unknown, options: OutputOptions): string {
   if (options.pretty) {
     return JSON.stringify(data, null, 2);
@@ -10,7 +14,7 @@ export function formatOutput(data: unknown, options: OutputOptions): string {
 }
 
 export function printOutput(data: unknown, options: OutputOptions): void {
-  console.log(formatOutput(data, options));
+  writeLine(process.stdout, formatOutput(data, options));
 }
 
 export function printError(
@@ -19,5 +23,5 @@ export function printError(
   options: OutputOptions,
 ): void {
   const output = formatOutput({ error: message, code }, options);
-  console.error(output);
+  writeLine(process.stderr, output);
 }

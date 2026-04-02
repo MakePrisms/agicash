@@ -53,6 +53,7 @@ export type ReceiveResult = {
 export async function handleReceiveCommand(
   args: ParsedArgs,
   ctx: SdkContext,
+  emitOutput?: (result: ReceiveResult) => void,
 ): Promise<ReceiveResult> {
   if (args.positional[0] === 'list') return handleListQuotes(ctx);
   if (args.flags['check-all']) return handleCheckAll(ctx);
@@ -81,13 +82,14 @@ export async function handleReceiveCommand(
       error: `Invalid amount: ${input}. Must be greater than zero.`,
       code: 'INVALID_AMOUNT',
     };
-  return handleReceiveLightning(amount, args, ctx);
+  return handleReceiveLightning(amount, args, ctx, emitOutput);
 }
 
 async function handleReceiveLightning(
   amount: number,
   args: ParsedArgs,
   ctx: SdkContext,
+  emitOutput?: (result: ReceiveResult) => void,
 ): Promise<ReceiveResult> {
   const account = await findCashuAccount(
     ctx,
@@ -130,7 +132,7 @@ async function handleReceiveLightning(
       },
     };
     if (args.flags.wait) {
-      console.log(JSON.stringify(result));
+      emitOutput?.(result);
       for (let i = 0; i < 150; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         const check = await account.wallet.checkMintQuoteBolt11(quote.quoteId);
