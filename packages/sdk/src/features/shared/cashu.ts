@@ -1,4 +1,5 @@
 import {
+  type AuthProvider,
   type GetKeysResponse,
   type GetKeysetsResponse,
   KeyChain,
@@ -159,6 +160,7 @@ export const mintKeysQueryKey = (mintUrl: string, keysetId?: string) => [
  * @param mintUrl - The mint URL.
  * @param currency - The currency.
  * @param bip39seed - Optional BIP39 seed for wallet initialization.
+ * @param authProvider - Optional auth provider for NUT-21/22 authentication.
  * @returns The wallet and online status.
  */
 export async function getInitializedCashuWallet(
@@ -166,6 +168,7 @@ export async function getInitializedCashuWallet(
   mintUrl: string,
   currency: Currency,
   bip39seed?: Uint8Array,
+  authProvider?: AuthProvider,
 ): Promise<{ wallet: ExtendedCashuWallet; isOnline: boolean }> {
   return measureOperation(
     'getInitializedCashuWallet',
@@ -215,6 +218,7 @@ export async function getInitializedCashuWallet(
           const wallet = getCashuWallet(mintUrl, {
             unit: getCashuUnit(currency),
             bip39seed: bip39seed ?? undefined,
+            authProvider,
           });
           return { wallet, isOnline: false };
         }
@@ -247,6 +251,7 @@ export async function getInitializedCashuWallet(
       const wallet = getCashuWallet(mintUrl, {
         unit: getCashuUnit(currency),
         bip39seed: bip39seed ?? undefined,
+        authProvider,
       });
       const keyChainCache = KeyChain.mintToCacheDTO(
         wallet.unit,

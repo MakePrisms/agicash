@@ -9,6 +9,7 @@ import {
   getSeedPhraseDerivationPath,
   getSparkIdentityPublicKeyFromMnemonic,
 } from '@agicash/sdk';
+import { getMintAuthProvider } from './opensecret-auth-provider';
 import { createOpenSecretKeyProvider } from './opensecret-key-provider';
 import { CONFIG_LOCATION_HINT } from './runtime-config';
 import { getSupabaseClient } from './supabase-client';
@@ -59,6 +60,7 @@ export async function getSdkContext(): Promise<SdkContext> {
     db,
     keyProvider,
     userId,
+    getMintAuthProvider,
   });
   const cache = queryClientAsCache(wallet.queryClient);
   const cashuCrypto = getCashuCryptography(keyProvider, cache);

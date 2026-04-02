@@ -90,14 +90,13 @@
     },
     "packages/cli": {
       "name": "@agicash/cli",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "bin": {
         "agicash": "./src/main.ts",
       },
       "dependencies": {
-        "@agicash/opensecret-sdk": "github:MakePrisms/OpenSecret-SDK#feat/storage-provider",
-        "@agicash/sdk": "workspace:*",
         "@agicash/opensecret-sdk": "MakePrisms/OpenSecret-SDK#dist",
+        "@agicash/sdk": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -117,6 +116,7 @@
         "@stablelib/base64": "2.0.1",
         "@supabase/realtime-js": "2.95.2",
         "@supabase/supabase-js": "2.95.2",
+        "@tanstack/query-core": "5.90.20",
         "big.js": "7.0.1",
         "ky": "1.14.3",
         "light-bolt11-decoder": "3.2.0",
@@ -140,7 +140,7 @@
 
     "@agicash/opensecret": ["@agicash/opensecret@0.1.0", "", { "dependencies": { "@peculiar/x509": "^1.12.2", "@stablelib/base64": "^2.0.0", "@stablelib/chacha20poly1305": "^2.0.0", "@stablelib/random": "^2.0.0", "cbor2": "^1.7.0", "tweetnacl": "^1.0.3", "zod": "^3.23.8" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "sha512-5cbr7hgKlrY3aLm2RPrk9+xfserhEgG60V+zxtABcD0ZG7Gw6AgeMUuijWyp8mAqZ7G+bZr4Us0ZvGq63ISzog=="],
 
-    "@agicash/opensecret-sdk": ["@agicash/opensecret-sdk@github:MakePrisms/OpenSecret-SDK#2f0efb9", { "dependencies": { "@peculiar/x509": "^1.12.2", "@stablelib/base64": "^2.0.0", "@stablelib/chacha20poly1305": "^2.0.0", "@stablelib/random": "^2.0.0", "cbor2": "^1.7.0", "tweetnacl": "^1.0.3", "zod": "^3.23.8" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "MakePrisms-OpenSecret-SDK-2f0efb9"],
+    "@agicash/opensecret-sdk": ["@agicash/opensecret-sdk@github:MakePrisms/OpenSecret-SDK#a1657e8", { "dependencies": { "@peculiar/x509": "^1.12.2", "@stablelib/base64": "^2.0.0", "@stablelib/chacha20poly1305": "^2.0.0", "@stablelib/random": "^2.0.0", "cbor2": "^1.7.0", "tweetnacl": "^1.0.3", "zod": "^3.23.8" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "MakePrisms-OpenSecret-SDK-a1657e8"],
 
     "@agicash/qr-scanner": ["@agicash/qr-scanner@0.1.2", "", { "dependencies": { "zxing-wasm": "2.2.4" } }, "sha512-7qNJoDRqBbHSm12qZ1l0O2JDof0sXNiooebsCXGZOsJpCLBYF9bAJXuy/4Q/jFwbiH0knFZq8myRI5v6IFqpEQ=="],
 
@@ -1668,8 +1668,6 @@
 
     "@agicash/bc-ur/big.js": ["big.js@6.2.2", "", {}, "sha512-y/ie+Faknx7sZA5MfGA2xKlu0GDv8RWrXGsmlteyJQ2lvoKv9GBK/fpRMc2qlSoBAgNxrixICFCBefIq8WCQpQ=="],
 
-    "@agicash/cli/@agicash/opensecret-sdk": ["@agicash/opensecret-sdk@github:MakePrisms/OpenSecret-SDK#a1657e8", { "dependencies": { "@peculiar/x509": "^1.12.2", "@stablelib/base64": "^2.0.0", "@stablelib/chacha20poly1305": "^2.0.0", "@stablelib/random": "^2.0.0", "cbor2": "^1.7.0", "tweetnacl": "^1.0.3", "zod": "^3.23.8" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "MakePrisms-OpenSecret-SDK-a1657e8"],
-
     "@agicash/cli/@types/bun": ["@types/bun@1.3.11", "", { "dependencies": { "bun-types": "1.3.11" } }, "sha512-5vPne5QvtpjGpsGYXiFyycfpDF2ECyPcTSsFBMa0fraoxiQyMJ3SmuQIGhzPg2WJuWxVBoxWJ2kClYTcw/4fAg=="],
 
     "@agicash/opensecret/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
@@ -2011,8 +2009,6 @@
     "vite-node/pathe": ["pathe@2.0.3", "", {}, "sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w=="],
 
     "wrap-ansi/ansi-styles": ["ansi-styles@4.3.0", "", { "dependencies": { "color-convert": "^2.0.1" } }, "sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg=="],
-
-    "@agicash/cli/@agicash/opensecret-sdk/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@agicash/cli/@types/bun/bun-types": ["bun-types@1.3.11", "", { "dependencies": { "@types/node": "*" } }, "sha512-1KGPpoxQWl9f6wcZh57LvrPIInQMn2TQ7jsgxqpRzg+l0QPOFvJVH7HmvHo/AiPgwXy+/Thf6Ov3EdVn1vOabg=="],
 

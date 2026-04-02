@@ -1,4 +1,5 @@
 import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
+import type { AuthProvider } from '@cashu/cashu-ts';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod';
 import {
@@ -16,7 +17,7 @@ import { getInitializedCashuWallet } from '../shared/cashu';
 import type { Encryption } from '../shared/encryption';
 import { DomainError } from '../shared/error';
 import { getInitializedSparkWallet } from '../shared/spark';
-import type { Account, CashuAccount } from './account';
+import type { Account, AccountPurpose, CashuAccount } from './account';
 import type { CashuProof } from './cashu-account';
 
 type AccountOmit<
@@ -38,13 +39,22 @@ type Options = {
 };
 
 export class AccountRepository {
+  private readonly getMintAuthProvider: (
+    purpose: AccountPurpose | undefined,
+  ) => AuthProvider | undefined;
+
   constructor(
     private readonly db: AgicashDb,
     private readonly encryption: Encryption,
     private readonly cache: Cache,
     private readonly getCashuWalletSeed: () => Promise<Uint8Array>,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
-  ) {}
+    getMintAuthProvider?: (
+      purpose: AccountPurpose | undefined,
+    ) => AuthProvider | undefined,
+  ) {
+    this.getMintAuthProvider = getMintAuthProvider ?? (() => undefined);
+  }
 
   /**
    * Gets the account with the given id.
@@ -174,7 +184,11 @@ export class AccountRepository {
       const details = data.details;
 
       const [{ wallet, isOnline }, proofs] = await Promise.all([
-        this.getInitializedCashuWallet(details.mint_url, data.currency),
+        this.getInitializedCashuWallet(
+          details.mint_url,
+          data.currency,
+          data.purpose,
+        ),
         this.decryptCashuProofs(data),
       ]);
 
@@ -209,13 +223,19 @@ export class AccountRepository {
     throw new Error('Invalid account type');
   }
 
-  private async getInitializedCashuWallet(mintUrl: string, currency: Currency) {
+  private async getInitializedCashuWallet(
+    mintUrl: string,
+    currency: Currency,
+    purpose: AccountPurpose | undefined,
+  ) {
     const seed = await this.getCashuWalletSeed();
+    const authProvider = this.getMintAuthProvider(purpose);
     return getInitializedCashuWallet(
       this.cache,
       mintUrl,
       currency,
       seed ?? undefined,
+      authProvider,
     );
   }
 

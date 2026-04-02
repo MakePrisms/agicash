@@ -1,4 +1,6 @@
 import type { Currency } from '@agicash/sdk/lib/money/index';
+import { ExtendedMintInfo } from '@agicash/sdk/lib/cashu/protocol-extensions';
+import { getMintPurpose } from '@agicash/sdk/lib/cashu/utils';
 import { Mint } from '@cashu/cashu-ts';
 import type { ParsedArgs } from '../args';
 import type { SdkContext } from '../sdk-context';
@@ -89,12 +91,14 @@ async function handleMintAdd(
   const name = (args.flags.name as string) || `${currency} Mint`;
 
   // Validate mint is reachable and supports the requested unit
+  let mintInfo: ExtendedMintInfo;
   try {
     const mint = new Mint(normalizedUrl);
-    const [, keysetsResponse] = await Promise.all([
+    const [infoResponse, keysetsResponse] = await Promise.all([
       mint.getInfo(),
       mint.getKeySets(),
     ]);
+    mintInfo = new ExtendedMintInfo(infoResponse);
     const cashuUnit = currency === 'BTC' ? 'sat' : 'usd';
     const hasUnit = keysetsResponse.keysets.some(
       (ks: { unit: string; active: boolean }) =>
@@ -115,6 +119,9 @@ async function handleMintAdd(
     };
   }
 
+  // Detect purpose from mint info (gift-card for closed-loop mints, transactional otherwise)
+  const purpose = getMintPurpose(mintInfo);
+
   // Create account via SDK service (handles test mint check + DB insert)
   try {
     const account = await ctx.accountService.addCashuAccount({
@@ -123,7 +130,7 @@ async function handleMintAdd(
         name,
         type: 'cashu',
         currency,
-        purpose: 'transactional',
+        purpose,
         mintUrl: normalizedUrl,
       },
     });

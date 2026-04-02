@@ -9,7 +9,6 @@ import {
 } from '@tanstack/query-core';
 import {
   MeltQuoteSubscriptionManager,
-  getCashuWallet,
   sumProofs,
 } from '../../lib/cashu';
 import { clearLongTimeout, setLongTimeout } from '../../lib/timeout';
@@ -226,8 +225,7 @@ export class CashuSendQuoteTaskProcessor {
         new Date(quote.expiresAt).getTime() - Date.now();
       const quoteTimeout = setLongTimeout(async () => {
         try {
-          const wallet = getCashuWallet(account.mintUrl);
-          const meltQuote = await wallet.checkMeltQuoteBolt11(quote.quoteId);
+          const meltQuote = await account.wallet.checkMeltQuoteBolt11(quote.quoteId);
           await this.handleMeltQuoteUpdate(meltQuote, true);
         } catch (error) {
           console.error('Error checking melt quote upon expiration', {
@@ -288,8 +286,8 @@ export class CashuSendQuoteTaskProcessor {
 
       if (expectChange && !(meltQuote.change && meltQuote.change.length > 0)) {
         try {
-          const wallet = getCashuWallet(quoteData.mintUrl);
-          const meltQuoteWithChange = await wallet.checkMeltQuoteBolt11(
+          const account = await this.getCashuAccount(sendQuote.accountId);
+          const meltQuoteWithChange = await account.wallet.checkMeltQuoteBolt11(
             meltQuote.quote,
           );
           await this.completeSendQuote(sendQuote.id, meltQuoteWithChange);

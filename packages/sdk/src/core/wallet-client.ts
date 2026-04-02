@@ -1,3 +1,4 @@
+import type { AuthProvider } from '@cashu/cashu-ts';
 import { hexToBytes } from '@noble/hashes/utils';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { QueryClient } from '@tanstack/query-core';
@@ -10,6 +11,7 @@ import {
 } from '../features/accounts/account-queries';
 import { AccountRepository } from '../features/accounts/account-repository';
 import { AccountService } from '../features/accounts/account-service';
+import type { AccountPurpose } from '../features/accounts/account';
 import {
   createCashuReceiveQuoteChangeHandlers,
   createCashuReceiveSwapChangeHandlers,
@@ -94,6 +96,9 @@ export type WalletClientConfig = {
   keyProvider: KeyProvider;
   queryClient?: QueryClient;
   userId: string;
+  getMintAuthProvider?: (
+    purpose: AccountPurpose | undefined,
+  ) => AuthProvider | undefined;
 };
 
 export type WalletClient = {
@@ -297,6 +302,7 @@ export function createWalletClient(config: WalletClientConfig): WalletClient {
     cache,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
+    config.getMintAuthProvider,
   );
   const repos = {
     accountRepo,
