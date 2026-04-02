@@ -35,7 +35,6 @@ All cache classes follow the same pattern: static `Key` property, constructor ta
 | `mintInfoQueryOptions` | 1 hour | `app/features/shared/cashu.ts` |
 | `allMintKeysetsQueryOptions` | 1 hour | `app/features/shared/cashu.ts` |
 | `mintKeysQueryOptions` | 1 hour | `app/features/shared/cashu.ts` |
-| `isTestMintQueryOptions` | `Infinity` | `app/features/shared/cashu.ts` |
 | `sparkMnemonicQueryOptions` | `Infinity` | `app/features/shared/spark.ts` |
 | `sparkIdentityPublicKeyQueryOptions` | `Infinity` | `app/features/shared/spark.ts` |
 | `sparkWalletQueryOptions` | `Infinity` + `gcTime: Infinity` | `app/features/shared/spark.ts` |
