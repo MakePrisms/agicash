@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { useNavigate, useViewTransitionState } from 'react-router';
 
+import { getAccountBalance } from '@agicash/sdk/features/accounts/account';
 import {
   Page,
   PageContent,
@@ -8,7 +9,6 @@ import {
   PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { getAccountBalance } from '@agicash/sdk/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { GiftCardItem } from '~/features/gift-cards/gift-card-item';
 import { getGiftCardImageByUrl } from '~/features/gift-cards/use-discover-cards';

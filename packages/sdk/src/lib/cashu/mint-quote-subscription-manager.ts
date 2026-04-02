@@ -1,6 +1,6 @@
 import type { MintQuoteBolt11Response } from '@cashu/cashu-ts';
-import { getCashuWallet } from './utils';
 import { isSubset } from '../utils';
+import { getCashuWallet } from './utils';
 
 type SubscriptionData = {
   ids: Set<string>;

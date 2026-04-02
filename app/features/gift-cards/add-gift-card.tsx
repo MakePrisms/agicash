@@ -1,3 +1,4 @@
+import type { Currency } from '@agicash/sdk/lib/money/index';
 import { X } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -20,7 +21,6 @@ import {
 } from '~/components/wallet-card';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
 import { useToast } from '~/hooks/use-toast';
-import type { Currency } from '@agicash/sdk/lib/money/index';
 import type { GiftCardInfo } from './use-discover-cards';
 
 type AddGiftCardParams = {

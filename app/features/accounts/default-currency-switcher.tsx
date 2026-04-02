@@ -1,3 +1,4 @@
+import type { Currency } from '@agicash/sdk/lib/money/types';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -10,7 +11,6 @@ import {
 import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group';
 import { Separator } from '~/components/ui/separator';
 import { useToast } from '~/hooks/use-toast';
-import type { Currency } from '@agicash/sdk/lib/money/types';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { useSetDefaultCurrency, useUser } from '../user/user-hooks';
 import { useBalance } from './account-hooks';

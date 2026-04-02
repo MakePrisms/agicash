@@ -1,3 +1,10 @@
+import {
+  type CashuAccountWithTokenFlags,
+  type ReceiveCashuTokenAccount,
+  isClaimingToSameCashuAccount,
+} from '@agicash/sdk/features/receive/receive-cashu-token-models';
+import { getErrorMessage } from '@agicash/sdk/features/shared/error';
+import type { Currency } from '@agicash/sdk/lib/money/index';
 import { type Token, getEncodedToken } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -21,7 +28,6 @@ import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import type { Currency } from '@agicash/sdk/lib/money/index';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
@@ -30,7 +36,6 @@ import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
 import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
-import { getErrorMessage } from '@agicash/sdk/features/shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { AcceptTerms } from '../signup/accept-terms';
 import { useAuthActions } from '../user/auth';
@@ -42,11 +47,6 @@ import {
   useReceiveCashuTokenAccountPlaceholders,
   useReceiveCashuTokenAccounts,
 } from './receive-cashu-token-hooks';
-import {
-  type CashuAccountWithTokenFlags,
-  type ReceiveCashuTokenAccount,
-  isClaimingToSameCashuAccount,
-} from '@agicash/sdk/features/receive/receive-cashu-token-models';
 
 type Props = {
   token: Token;

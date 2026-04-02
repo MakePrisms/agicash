@@ -1,20 +1,19 @@
-export type CliMode = 'opensecret' | 'local';
+import { CONFIG_LOCATION_HINT, getOpenSecretConfig } from './runtime-config';
+
+export type CliMode = 'opensecret';
 
 export function detectMode(): CliMode {
-  const hasOpenSecret = Boolean(process.env.OPENSECRET_CLIENT_ID);
-  const hasMnemonic = Boolean(process.env.AGICASH_MNEMONIC);
-
-  if (hasOpenSecret && hasMnemonic) {
+  if (process.env.AGICASH_MNEMONIC) {
     throw new Error(
-      'Ambiguous config: set OPENSECRET_CLIENT_ID or AGICASH_MNEMONIC, not both',
+      'Local mnemonic mode is not supported in v0.0.1. Use agicash auth login or agicash auth guest.',
     );
   }
 
-  if (!hasOpenSecret && !hasMnemonic) {
+  if (!getOpenSecretConfig().clientId) {
     throw new Error(
-      'No wallet configured. Set OPENSECRET_CLIENT_ID (cloud) or AGICASH_MNEMONIC (local) in .env',
+      `OpenSecret is not configured. Set OPENSECRET_CLIENT_ID in ${CONFIG_LOCATION_HINT}.`,
     );
   }
 
-  return hasOpenSecret ? 'opensecret' : 'local';
+  return 'opensecret';
 }

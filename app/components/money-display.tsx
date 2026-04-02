@@ -1,6 +1,6 @@
-import { type VariantProps, cva } from 'class-variance-authority';
 import type { Currency, CurrencyUnit } from '@agicash/sdk/lib/money/index';
 import { Money } from '@agicash/sdk/lib/money/index';
+import { type VariantProps, cva } from 'class-variance-authority';
 import { cn } from '~/lib/utils';
 
 const textVariants = cva('', {

@@ -1,5 +1,6 @@
 import { configure } from '@agicash/opensecret';
 import { configure as configureSDK } from '@agicash/sdk';
+import { Money } from '@agicash/sdk/lib/money/index';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -12,7 +13,6 @@ import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
-import { Money } from '@agicash/sdk/lib/money/index';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
@@ -38,7 +38,9 @@ configure({
 configureSDK({
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
-  cashuMintBlocklist: JSON.parse(import.meta.env.VITE_CASHU_MINT_BLOCKLIST ?? '[]'),
+  cashuMintBlocklist: JSON.parse(
+    import.meta.env.VITE_CASHU_MINT_BLOCKLIST ?? '[]',
+  ),
   environment: getEnvironment(),
 });
 

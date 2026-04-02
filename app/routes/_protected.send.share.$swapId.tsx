@@ -1,3 +1,4 @@
+import { toProof } from '@agicash/sdk/features/accounts/cashu-account';
 import {
   ClosePageButton,
   Page,
@@ -6,7 +7,6 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { QRCode } from '~/components/qr-code';
-import { toProof } from '@agicash/sdk/features/accounts/cashu-account';
 import {
   useCashuSendSwap,
   useTrackCashuSendSwap,

@@ -1,3 +1,4 @@
+import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import { useNavigate, useViewTransitionState } from 'react-router';
 import {
   ClosePageButton,
@@ -6,7 +7,6 @@ import {
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
-import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import { useAccounts } from '../accounts/account-hooks';
 import {
   CARD_HEIGHT,

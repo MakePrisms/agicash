@@ -3,10 +3,10 @@
  * defined by LUD 06: https://github.com/lnurl/luds/blob/luds/06.md
  */
 
+import { Money } from '@agicash/sdk/lib/money/index';
 import { agicashDbServer } from '~/features/agicash-db/database.server';
 import { LightningAddressService } from '~/features/receive/lightning-address-service';
 import { getQueryClient } from '~/features/shared/query-client';
-import { Money } from '@agicash/sdk/lib/money/index';
 import type { Route } from './+types/api.lnurlp.callback.$userId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {

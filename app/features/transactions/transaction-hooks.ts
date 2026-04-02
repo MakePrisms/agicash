@@ -1,3 +1,6 @@
+import type { AgicashDbTransaction } from '@agicash/sdk/db/database';
+import { NotFoundError } from '@agicash/sdk/features/shared/error';
+import type { Transaction } from '@agicash/sdk/features/transactions/transaction';
 import {
   type InfiniteData,
   type QueryClient,
@@ -8,14 +11,11 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import type { AgicashDbTransaction } from '@agicash/sdk/db/database';
 import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
-import { NotFoundError } from '@agicash/sdk/features/shared/error';
 import { useUser } from '../user/user-hooks';
-import type { Transaction } from '@agicash/sdk/features/transactions/transaction';
 import {
   type Cursor,
   useTransactionRepository,

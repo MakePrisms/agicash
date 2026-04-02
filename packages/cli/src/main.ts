@@ -1,6 +1,4 @@
 #!/usr/bin/env bun
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { configure } from '@agicash/opensecret-sdk';
 import { parseArgs } from './args';
 import { executeAuthCommand, handleAuthCommand } from './commands/auth';
@@ -16,6 +14,7 @@ import { getDb } from './db';
 import { detectMode } from './mode';
 import { makeStorageProvider } from './opensecret-storage';
 import { printError, printOutput } from './output';
+import { getOpenSecretConfig, loadCliEnvFiles } from './runtime-config';
 import { type SdkContext, getSdkContext } from './sdk-context';
 
 type OutputOptions = { pretty: boolean };
@@ -27,7 +26,7 @@ async function requireSdkContext(
     return await getSdkContext();
   } catch (err) {
     printError(
-      `Auth required. Run: agicash auth guest\n${err instanceof Error ? err.message : ''}`,
+      `Wallet setup failed. Run: agicash auth guest\n${err instanceof Error ? err.message : ''}`,
       'AUTH_REQUIRED',
       outputOptions,
     );
@@ -35,11 +34,15 @@ async function requireSdkContext(
   }
 }
 
-const VERSION = '0.1.0';
+const VERSION = '0.0.1';
 
 const HELP_TEXT = {
   name: 'agicash',
   version: VERSION,
+  setup: [
+    'Cloud-only in v0.0.1. Run agicash auth guest or agicash auth login first.',
+    'Config overrides load from ~/.agicash/.env and ./.env.',
+  ],
   commands: {
     'auth login <email> <password>': 'Log in with OpenSecret',
     'auth signup <email> <password>': 'Create an account',
@@ -75,11 +78,11 @@ const MODE_BYPASS_COMMANDS = new Set(['help', 'version', 'decode']);
 
 function getConfiguredDb(): ReturnType<typeof getDb> {
   const db = getDb();
-  if (process.env.OPENSECRET_CLIENT_ID) {
+  const openSecret = getOpenSecretConfig();
+  if (openSecret.clientId) {
     configure({
-      apiUrl:
-        process.env.OPENSECRET_API_URL ?? 'https://preview.opensecret.cloud',
-      clientId: process.env.OPENSECRET_CLIENT_ID,
+      apiUrl: openSecret.apiUrl,
+      clientId: openSecret.clientId,
       storage: makeStorageProvider(db),
     });
   }
@@ -87,26 +90,7 @@ function getConfiguredDb(): ReturnType<typeof getDb> {
 }
 
 async function main(): Promise<void> {
-  // Load .env from current working directory
-  const envPath = join(process.cwd(), '.env');
-  if (existsSync(envPath)) {
-    const envContent = readFileSync(envPath, 'utf-8');
-    for (const line of envContent.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const eqIndex = trimmed.indexOf('=');
-      if (eqIndex === -1) continue;
-      const key = trimmed.slice(0, eqIndex).trim();
-      const value = trimmed
-        .slice(eqIndex + 1)
-        .trim()
-        .replace(/^"(.*)"$|^'(.*)'$/, '$1$2');
-      if (!process.env[key]) {
-        // Don't override existing env vars
-        process.env[key] = value;
-      }
-    }
-  }
+  loadCliEnvFiles();
 
   const userArgs = process.argv.slice(2);
   const parsed = parseArgs(userArgs);

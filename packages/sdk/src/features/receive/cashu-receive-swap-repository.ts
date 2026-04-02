@@ -1,15 +1,12 @@
 import type { Proof, Token } from '@cashu/cashu-ts';
 import type z from 'zod';
+import type { AgicashDb, AgicashDbCashuReceiveSwap } from '../../db/database';
+import { CashuSwapReceiveDbDataSchema } from '../../db/json-models/cashu-swap-receive-db-data';
 import { proofToY } from '../../lib/cashu';
 import type { Money } from '../../lib/money';
 import type { AllUnionFieldsRequired } from '../../lib/type-utils';
 import type { CashuAccount } from '../accounts/account';
 import type { AccountRepository } from '../accounts/account-repository';
-import type {
-  AgicashDb,
-  AgicashDbCashuReceiveSwap,
-} from '../../db/database';
-import { CashuSwapReceiveDbDataSchema } from '../../db/json-models/cashu-swap-receive-db-data';
 import { getTokenHash } from '../shared/cashu';
 import type { Encryption } from '../shared/encryption';
 import { UniqueConstraintError } from '../shared/error';

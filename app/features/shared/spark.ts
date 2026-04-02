@@ -1,4 +1,9 @@
 import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
+import { getSeedPhraseDerivationPath } from '@agicash/sdk/features/accounts/account-cryptography';
+import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
+import { type Currency, Money } from '@agicash/sdk/lib/money/index';
+import { computeSHA256 } from '@agicash/sdk/lib/sha256';
+import { getSparkIdentityPublicKeyFromMnemonic } from '@agicash/sdk/lib/spark/index';
 import {
   type NetworkType as SparkNetwork,
   SparkWallet,
@@ -11,16 +16,8 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { queryClientAsCache } from '~/lib/cache-adapter';
-import { type Currency, Money } from '@agicash/sdk/lib/money/index';
 import { measureOperation } from '~/lib/performance';
-import { computeSHA256 } from '@agicash/sdk/lib/sha256';
-import {
-  createSparkWalletStub,
-  getSparkIdentityPublicKeyFromMnemonic,
-} from '@agicash/sdk/lib/spark/index';
-import { getSeedPhraseDerivationPath } from '@agicash/sdk/features/accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
-import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
 
 // Re-export SDK items so existing consumers don't break
 export {

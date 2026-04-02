@@ -1,15 +1,12 @@
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod';
-import type {
-  AgicashDb,
-  AgicashDbUser,
-} from '../../db/database';
+import type { AgicashDb, AgicashDbUser } from '../../db/database';
 import { CashuAccountDetailsDbDataSchema } from '../../db/json-models/cashu-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../../db/json-models/spark-account-details-db-data';
 import type { Currency } from '../../lib/money';
-import { UniqueConstraintError } from '../shared/error';
-import type { AccountRepository } from '../accounts/account-repository';
 import type { Account } from '../accounts/account';
+import type { AccountRepository } from '../accounts/account-repository';
+import { UniqueConstraintError } from '../shared/error';
 import type { User } from './user';
 
 export type UpdateUser = {

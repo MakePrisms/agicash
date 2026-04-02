@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
-import { useLatest } from '../use-latest';
 import type { RealtimeChannelBuilder } from '@agicash/sdk/lib/supabase/supabase-realtime-channel-builder';
 import type {
   ChannelStatus,
   SupabaseRealtimeManager,
 } from '@agicash/sdk/lib/supabase/supabase-realtime-manager';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useLatest } from '../use-latest';
 
 /**
  * Error thrown when a Supabase Realtime channel fails to connect.

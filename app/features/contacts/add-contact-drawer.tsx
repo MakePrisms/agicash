@@ -9,10 +9,10 @@ import {
   DrawerTrigger,
 } from '~/components/ui/drawer';
 
-import { useToast } from '~/hooks/use-toast';
-import { SearchBar } from '../../components/search-bar';
 import { getErrorMessage } from '@agicash/sdk/features/shared/error';
 import type { UserProfile } from '@agicash/sdk/features/user/user';
+import { useToast } from '~/hooks/use-toast';
+import { SearchBar } from '../../components/search-bar';
 import { ContactAvatar } from './contact-avatar';
 import { useCreateContact, useFindContactCandidates } from './contact-hooks';
 

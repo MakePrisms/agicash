@@ -1,3 +1,6 @@
+import type { SparkAccount } from '@agicash/sdk/features/accounts/account';
+import type { SparkReceiveQuote } from '@agicash/sdk/features/receive/spark-receive-quote';
+import type { Money } from '@agicash/sdk/lib/money/index';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';
 import {
@@ -12,14 +15,11 @@ import { Button } from '~/components/ui/button';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import type { Money } from '@agicash/sdk/lib/money/index';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import type { SparkAccount } from '@agicash/sdk/features/accounts/account';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import type { SparkReceiveQuote } from '@agicash/sdk/features/receive/spark-receive-quote';
 import {
   useCreateSparkReceiveQuote,
   useSparkReceiveQuote,

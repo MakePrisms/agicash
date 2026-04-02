@@ -10,21 +10,21 @@ Self-custody Cashu ecash + Lightning wallet CLI. JSON output by default, `--pret
 ## Setup
 
 ```bash
-# 1. Generate a BIP39 mnemonic (one-time):
-bun -e "import{generateMnemonic}from'@scure/bip39';import{wordlist}from'@scure/bip39/wordlists/english';console.log(generateMnemonic(wordlist))"
+# 1. Configure the cloud environment (for local development):
+export OPENSECRET_CLIENT_ID="your-opensecret-client-id"
+export OPENSECRET_API_URL="https://your-opensecret-api.example.com"
+export SUPABASE_URL="https://your-project.supabase.co"
+export SUPABASE_ANON_KEY="your-supabase-anon-key"
 
-# 2. Set it in your environment (required for send/pay/receive):
-export AGICASH_MNEMONIC="your twelve word mnemonic phrase goes here ..."
-
-# 3. Run via bun (dev):
+# 2. Run via bun (dev):
 bun run --cwd packages/cli src/main.ts <command> [args] [flags]
-# Or compiled binary:
+# Or installed binary:
 agicash <command> [args] [flags]
 ```
 
-**`AGICASH_MNEMONIC`** is required for `send`, `pay`, and `receive`. Other commands (`balance`, `mint`, `config`, `decode`, `help`, `version`) work without it. Store the mnemonic securely — it derives your wallet keys. Same mnemonic = same wallet across sessions.
+**Cloud-only in `v0.0.1`.** Authenticate with `agicash auth login` or `agicash auth guest` before wallet commands like `mint`, `balance`, `receive`, `send`, and `pay`. Published releases can bake the public cloud defaults in at build time, while local overrides load from `~/.agicash/.env` and `./.env`.
 
-**First-run workflow:** `mint add <url>` → `receive <amount>` → `balance`
+**First-run workflow:** `auth guest` → `mint add <url>` → `balance`
 
 ## Commands
 
@@ -126,7 +126,7 @@ Common error codes: `MISSING_AMOUNT`, `INVALID_AMOUNT`, `NO_ACCOUNT` (includes i
 
 ## Database
 
-SQLite at `~/.agicash/agicash.db`. Reset by deleting the file. Proof states: UNSPENT → PENDING → SPENT.
+SQLite at `~/.agicash/agicash.db` stores auth tokens, CLI config, and guest credentials. Reset by deleting the file.
 
 ## Test Mint
 

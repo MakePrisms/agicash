@@ -1,12 +1,16 @@
-import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
-import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
-import { useState } from 'react';
 import {
   type Account,
   type CashuAccount,
   type ExtendedAccount,
   canSendToLightning,
 } from '@agicash/sdk/features/accounts/account';
+import type { ReceiveCashuTokenAccount } from '@agicash/sdk/features/receive/receive-cashu-token-models';
+import { DomainError } from '@agicash/sdk/features/shared/error';
+import { type Currency, Money } from '@agicash/sdk/lib/money/index';
+import { createSparkWalletStub } from '@agicash/sdk/lib/spark/index';
+import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
+import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   useAccounts,
   useAddCashuAccount,
@@ -14,15 +18,11 @@ import {
 import { tokenToMoney } from '~/features/shared/cashu';
 import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
 import { getClaimableProofs, getUnspentProofsFromToken } from '~/lib/cashu';
-import { type Currency, Money } from '@agicash/sdk/lib/money/index';
-import { createSparkWalletStub } from '@agicash/sdk/lib/spark/index';
 import {
   type AccountSelectorOption,
   toAccountSelectorOption,
 } from '../accounts/account-selector';
-import { DomainError } from '@agicash/sdk/features/shared/error';
 import { useUser } from '../user/user-hooks';
-import type { ReceiveCashuTokenAccount } from '@agicash/sdk/features/receive/receive-cashu-token-models';
 import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
 import {
   ReceiveCashuTokenService,

@@ -1,10 +1,7 @@
 import type { z } from 'zod';
-import type { AllUnionFieldsRequired } from '../../lib/type-utils';
-import type {
-  AgicashDb,
-  AgicashDbSparkReceiveQuote,
-} from '../../db/database';
+import type { AgicashDb, AgicashDbSparkReceiveQuote } from '../../db/database';
 import { SparkLightningReceiveDbDataSchema } from '../../db/json-models/spark-lightning-receive-db-data';
+import type { AllUnionFieldsRequired } from '../../lib/type-utils';
 import type { Encryption } from '../shared/encryption';
 import {
   type SparkReceiveQuote,

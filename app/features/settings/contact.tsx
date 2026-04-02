@@ -1,3 +1,4 @@
+import type { Contact } from '@agicash/sdk/features/contacts/contact';
 import { Share, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useCopyToClipboard } from 'usehooks-ts';
@@ -11,7 +12,6 @@ import { Button } from '~/components/ui/button';
 import useLocationData from '~/hooks/use-location';
 import { useToast } from '~/hooks/use-toast';
 import { canShare, shareContent } from '~/lib/share';
-import type { Contact } from '@agicash/sdk/features/contacts/contact';
 import { ContactAvatar } from '../contacts/contact-avatar';
 import { useDeleteContact } from '../contacts/contact-hooks';
 

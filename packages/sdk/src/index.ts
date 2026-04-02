@@ -60,15 +60,27 @@ export { isContact } from './features/contacts/contact';
 export { ContactRepository } from './features/contacts/contact-repository';
 
 // User
-export type { User, FullUser, GuestUser, UserProfile } from './features/user/user';
+export type {
+  User,
+  FullUser,
+  GuestUser,
+  UserProfile,
+} from './features/user/user';
 export { shouldVerifyEmail, shouldAcceptTerms } from './features/user/user';
 export { UserService } from './features/user/user-service';
-export { WriteUserRepository, ReadUserRepository, toUser } from './features/user/user-repository';
+export {
+  WriteUserRepository,
+  ReadUserRepository,
+  toUser,
+} from './features/user/user-repository';
 export type { UpdateUser } from './features/user/user-repository';
 
 // Transactions
 export type { Transaction } from './features/transactions/transaction';
-export { TransactionSchema, BaseTransactionSchema } from './features/transactions/transaction';
+export {
+  TransactionSchema,
+  BaseTransactionSchema,
+} from './features/transactions/transaction';
 export type {
   TransactionDirection,
   TransactionType,
@@ -114,8 +126,14 @@ export { SparkReceiveQuoteService } from './features/receive/spark-receive-quote
 export { SparkReceiveQuoteRepository } from './features/receive/spark-receive-quote-repository';
 
 // Send - Cashu
-export type { CashuSendQuote, DestinationDetails } from './features/send/cashu-send-quote';
-export { CashuSendQuoteSchema, DestinationDetailsSchema } from './features/send/cashu-send-quote';
+export type {
+  CashuSendQuote,
+  DestinationDetails,
+} from './features/send/cashu-send-quote';
+export {
+  CashuSendQuoteSchema,
+  DestinationDetailsSchema,
+} from './features/send/cashu-send-quote';
 export { CashuSendQuoteService } from './features/send/cashu-send-quote-service';
 export type {
   CashuLightningQuote,
@@ -123,7 +141,10 @@ export type {
   SendQuoteRequest,
 } from './features/send/cashu-send-quote-service';
 export { CashuSendQuoteRepository } from './features/send/cashu-send-quote-repository';
-export type { CashuSendSwap, PendingCashuSendSwap } from './features/send/cashu-send-swap';
+export type {
+  CashuSendSwap,
+  PendingCashuSendSwap,
+} from './features/send/cashu-send-swap';
 export { CashuSendSwapSchema } from './features/send/cashu-send-swap';
 export { CashuSendSwapService } from './features/send/cashu-send-swap-service';
 export type { CashuSwapQuote } from './features/send/cashu-send-swap-service';
@@ -168,7 +189,10 @@ export {
   DomainError,
   ConcurrencyError,
 } from './features/shared/error';
-export { getInitializedSparkWallet, sparkWalletCacheKey } from './features/shared/spark';
+export {
+  getInitializedSparkWallet,
+  sparkWalletCacheKey,
+} from './features/shared/spark';
 
 // Wallet
 export { TaskProcessingLockRepository } from './features/wallet/task-processing-lock-repository';
@@ -178,7 +202,10 @@ export type { DecodedBolt11 } from './lib/bolt11';
 export { decodeBolt11, parseBolt11Invoice } from './lib/bolt11';
 
 // Lib - Exchange rate
-export { ExchangeRateService, getExchangeRateService } from './lib/exchange-rate';
+export {
+  ExchangeRateService,
+  getExchangeRateService,
+} from './lib/exchange-rate';
 export type { ExchangeRateProvider, Ticker, Rates } from './lib/exchange-rate';
 
 // Lib - LNURL

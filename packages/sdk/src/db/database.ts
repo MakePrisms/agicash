@@ -1,6 +1,6 @@
 import type { createClient } from '@supabase/supabase-js';
-import type { Database as DatabaseGenerated } from './database-generated.types';
 import type { MergeDeep } from 'type-fest';
+import type { Database as DatabaseGenerated } from './database-generated.types';
 import {
   type CashuAccountDetailsDbData,
   CashuAccountDetailsDbDataSchema,

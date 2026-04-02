@@ -9,6 +9,7 @@ import {
   signUpGuest,
 } from '@agicash/opensecret-sdk';
 import type { ParsedArgs } from '../args';
+import { CONFIG_LOCATION_HINT } from '../runtime-config';
 
 export type AuthResult = {
   action: string;
@@ -88,8 +89,7 @@ export function handleAuthCommand(args: ParsedArgs): AuthResult {
   if (!isConfigured()) {
     return {
       action: 'error',
-      error:
-        'OpenSecret not configured. Set OPENSECRET_CLIENT_ID in your .env file.',
+      error: `OpenSecret not configured. Set OPENSECRET_CLIENT_ID in ${CONFIG_LOCATION_HINT}.`,
       code: 'NOT_CONFIGURED',
     };
   }

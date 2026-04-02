@@ -1,7 +1,7 @@
+import { getAccountBalance } from '@agicash/sdk/features/accounts/account';
 import { PageBackButton, PageContent, PageHeader } from '~/components/page';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
-import { getAccountBalance } from '@agicash/sdk/features/accounts/account';
 import { useAccount } from '~/features/accounts/account-hooks';
 import { BalanceOfflineHoverCard } from '~/features/accounts/balance-offline-hover-card';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';

@@ -1,7 +1,7 @@
+import { UniqueConstraintError } from '@agicash/sdk/features/shared/error';
 import { Check, Edit } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { UniqueConstraintError } from '@agicash/sdk/features/shared/error';
 import { useUpdateUsername, useUser } from '~/features/user/user-hooks';
 import useAnimation from '~/hooks/use-animation';
 import { useToast } from '~/hooks/use-toast';

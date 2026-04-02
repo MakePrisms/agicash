@@ -1,6 +1,6 @@
+import type { Transaction } from '@agicash/sdk/features/transactions/transaction';
 import { useOutletContext } from 'react-router';
 import { create, useStore } from 'zustand';
-import type { Transaction } from '@agicash/sdk/features/transactions/transaction';
 
 type TransactionAckStatusState = {
   statuses: Map<string, Transaction['acknowledgmentStatus']>;

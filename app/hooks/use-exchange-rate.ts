@@ -1,10 +1,13 @@
 import {
+  type Ticker,
+  getExchangeRateService,
+} from '@agicash/sdk/lib/exchange-rate/index';
+import {
   type QueryClient,
   queryOptions,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { type Ticker, getExchangeRateService } from '@agicash/sdk/lib/exchange-rate/index';
 
 /**
  * Gets the normalized set of tickers to fetch.

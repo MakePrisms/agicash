@@ -1,5 +1,5 @@
-import type { QueryClient } from '@tanstack/react-query';
 import type { Cache } from '@agicash/sdk/interfaces/cache';
+import type { QueryClient } from '@tanstack/react-query';
 
 export function queryClientAsCache(qc: QueryClient): Cache {
   return {

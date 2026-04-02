@@ -1,11 +1,8 @@
 import type { z } from 'zod';
+import type { AgicashDb, AgicashDbSparkSendQuote } from '../../db/database';
+import { SparkLightningSendDbDataSchema } from '../../db/json-models/spark-lightning-send-db-data';
 import type { Money } from '../../lib/money';
 import type { AllUnionFieldsRequired } from '../../lib/type-utils';
-import type {
-  AgicashDb,
-  AgicashDbSparkSendQuote,
-} from '../../db/database';
-import { SparkLightningSendDbDataSchema } from '../../db/json-models/spark-lightning-send-db-data';
 import type { Encryption } from '../shared/encryption';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { type SparkSendQuote, SparkSendQuoteSchema } from './spark-send-quote';

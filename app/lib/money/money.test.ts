@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { Big } from 'big.js';
 import { Money } from '@agicash/sdk/lib/money/index';
+import { Big } from 'big.js';
 
 describe('Money', () => {
   describe('USD', () => {

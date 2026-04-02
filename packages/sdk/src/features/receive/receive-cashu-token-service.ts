@@ -1,19 +1,20 @@
 import type { MintInfo, MintKeyset } from '@cashu/cashu-ts';
 import type { Token } from '@cashu/cashu-ts';
-import { areMintUrlsEqual, checkIsTestMint, getCashuProtocolUnit } from '../../lib/cashu';
+import type { Cache } from '../../interfaces/cache';
+import {
+  areMintUrlsEqual,
+  checkIsTestMint,
+  getCashuProtocolUnit,
+} from '../../lib/cashu';
 import type { CashuProtocolUnit } from '../../lib/cashu';
 import type { Currency } from '../../lib/money';
-import type { Cache } from '../../interfaces/cache';
 import {
   type ExtendedAccount,
   type ExtendedCashuAccount,
   canReceiveFromLightning,
   canSendToLightning,
 } from '../accounts/account';
-import {
-  getInitializedCashuWallet,
-  tokenToMoney,
-} from '../shared/cashu';
+import { getInitializedCashuWallet, tokenToMoney } from '../shared/cashu';
 import type {
   CashuAccountWithTokenFlags,
   ReceiveCashuTokenAccount,

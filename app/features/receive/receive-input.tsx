@@ -1,3 +1,4 @@
+import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
 import { Clipboard, Scan } from 'lucide-react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
@@ -15,7 +16,6 @@ import {
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { ConvertedMoneySwitcher } from '~/features/shared/converted-money-switcher';
-import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';

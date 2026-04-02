@@ -1,3 +1,4 @@
+import { type User, shouldAcceptTerms } from '@agicash/sdk/features/user/user';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { ZodError } from 'zod';
@@ -27,7 +28,6 @@ import {
   useAuthState,
 } from '~/features/user/auth';
 import { pendingTermsStorage } from '~/features/user/pending-terms-storage';
-import { type User, shouldAcceptTerms } from '@agicash/sdk/features/user/user';
 import {
   defaultAccounts,
   getUserFromCache,

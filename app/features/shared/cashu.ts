@@ -4,10 +4,14 @@ import {
 } from '@agicash/opensecret';
 import { getSeedPhraseDerivationPath } from '@agicash/sdk/features/accounts/account-cryptography';
 import {
-  getCashuCryptography as getCashuCryptographyCore,
   type CashuCryptography,
+  getCashuCryptography as getCashuCryptographyCore,
 } from '@agicash/sdk/features/shared/cashu';
 import type { KeyProvider } from '@agicash/sdk/interfaces/key-provider';
+import {
+  MintBlocklistSchema,
+  buildMintValidator,
+} from '@agicash/sdk/lib/cashu/mint-validation';
 import { Mint, type Token, getDecodedToken } from '@cashu/cashu-ts';
 import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
@@ -24,14 +28,8 @@ import {
   checkIsTestMint,
   extractCashuToken,
 } from '~/lib/cashu';
-import {
-  MintBlocklistSchema,
-  buildMintValidator,
-} from '@agicash/sdk/lib/cashu/mint-validation';
 
-import {
-  getInitializedCashuWallet as getInitializedCashuWalletCore,
-} from '@agicash/sdk/features/shared/cashu';
+import { getInitializedCashuWallet as getInitializedCashuWalletCore } from '@agicash/sdk/features/shared/cashu';
 import type { Currency } from '@agicash/sdk/lib/money/index';
 
 // Re-export from SDK
@@ -122,7 +120,7 @@ export const xpubQueryOptions = ({
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-const privateKeyQueryOptions = ({
+const _privateKeyQueryOptions = ({
   derivationPath,
 }: { derivationPath?: string } = {}) =>
   queryOptions({
@@ -214,8 +212,5 @@ export const isTestMintQueryOptions = (mintUrl: string) =>
 export function useCashuCryptography(): CashuCryptography {
   const queryClient = useQueryClient();
 
-  return useMemo(
-    () => getCashuCryptography(queryClient),
-    [queryClient],
-  );
+  return useMemo(() => getCashuCryptography(queryClient), [queryClient]);
 }

@@ -1,8 +1,8 @@
+import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
+import type { Currency, Money } from '@agicash/sdk/lib/money/index';
 import { MoneyDisplay } from '~/components/money-display';
 import { Skeleton } from '~/components/ui/skeleton';
 import { useExchangeRate } from '~/hooks/use-exchange-rate';
-import type { Currency, Money } from '@agicash/sdk/lib/money/index';
-import { getDefaultUnit } from '@agicash/sdk/features/shared/currencies';
 
 const defaultFiatCurrency = 'USD';
 

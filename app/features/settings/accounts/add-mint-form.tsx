@@ -1,3 +1,4 @@
+import type { Currency } from '@agicash/sdk/lib/money/index';
 import type { MintKeyset } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
@@ -25,7 +26,6 @@ import {
   getCashuProtocolUnit,
   getMintPurpose,
 } from '~/lib/cashu';
-import type { Currency } from '@agicash/sdk/lib/money/index';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 type FormValues = {

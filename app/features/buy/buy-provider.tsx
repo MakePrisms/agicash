@@ -1,3 +1,4 @@
+import type { Account } from '@agicash/sdk/features/accounts/account';
 import {
   type PropsWithChildren,
   createContext,
@@ -5,7 +6,6 @@ import {
   useState,
 } from 'react';
 import { useStore } from 'zustand';
-import type { Account } from '@agicash/sdk/features/accounts/account';
 import { useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuReceiveQuote } from '../receive/cashu-receive-quote-hooks';
 import { useCreateSparkReceiveQuote } from '../receive/spark-receive-quote-hooks';

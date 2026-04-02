@@ -1,10 +1,13 @@
 import { verifyEmail as osVerifyEmail } from '@agicash/opensecret';
+import {
+  type FullUser,
+  shouldVerifyEmail,
+} from '@agicash/sdk/features/user/user';
 import { useState } from 'react';
 import { createContext, redirect } from 'react-router';
 import { useToast } from '~/hooks/use-toast';
 import type { Route } from '../../routes/+types/_protected.verify-email.($code)';
 import { invalidateAuthQueries } from '../user/auth';
-import { type FullUser, shouldVerifyEmail } from '@agicash/sdk/features/user/user';
 import { useRequestNewEmailVerificationCode } from '../user/user-hooks';
 import { getUserFromCacheOrThrow } from '../user/user-hooks';
 

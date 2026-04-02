@@ -19,7 +19,7 @@ import {
   getCashuWallet,
   sumProofs,
 } from '../../lib/cashu';
-import { Money, type Currency, type CurrencyUnit } from '../../lib/money';
+import { type Currency, type CurrencyUnit, Money } from '../../lib/money';
 import { computeSHA256 } from '../../lib/sha256';
 import { measureOperation } from '../../performance';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';

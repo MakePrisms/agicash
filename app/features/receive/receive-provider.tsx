@@ -1,3 +1,4 @@
+import type { Account } from '@agicash/sdk/features/accounts/account';
 import {
   type PropsWithChildren,
   createContext,
@@ -5,7 +6,6 @@ import {
   useState,
 } from 'react';
 import { useStore } from 'zustand';
-import type { Account } from '@agicash/sdk/features/accounts/account';
 import type { ReceiveState, ReceiveStore } from './receive-store';
 import { createReceiveStore } from './receive-store';
 

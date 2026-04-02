@@ -6,12 +6,12 @@ import { PageBackButton, PageContent, PageHeader } from '~/components/page';
 import { Button } from '~/components/ui/button';
 
 import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
-import { useAccount } from '~/features/accounts/account-hooks';
 import type { CashuProof } from '@agicash/sdk/features/accounts/cashu-account';
-import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
-import { getCashuUnit, sumProofs } from '~/lib/cashu';
 import { Money } from '@agicash/sdk/lib/money/index';
 import type { Currency } from '@agicash/sdk/lib/money/index';
+import { useAccount } from '~/features/accounts/account-hooks';
+import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
+import { getCashuUnit, sumProofs } from '~/lib/cashu';
 
 function ProofRow({
   proof,

@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { secp256k1 } from '@noble/curves/secp256k1';
 import {
   eciesDecrypt,
   eciesDecryptBatch,
   eciesEncrypt,
   eciesEncryptBatch,
 } from '@agicash/sdk/lib/ecies/index';
+import { secp256k1 } from '@noble/curves/secp256k1';
 
 describe('ECIES Encryption/Decryption', () => {
   // Generate test key pair

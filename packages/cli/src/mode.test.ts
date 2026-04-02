@@ -3,41 +3,40 @@ import { detectMode } from './mode';
 
 describe('detectMode', () => {
   const originalEnv = { ...process.env };
+  const managedKeys = [
+    'OPENSECRET_CLIENT_ID',
+    'AGICASH_MNEMONIC',
+    'AGICASH_RELEASE_OPENSECRET_CLIENT_ID',
+  ] as const;
 
   afterEach(() => {
-    // Restore original env after each test
-    process.env.OPENSECRET_CLIENT_ID = undefined;
-    process.env.AGICASH_MNEMONIC = undefined;
+    for (const key of managedKeys) {
+      delete process.env[key];
+    }
     Object.assign(process.env, originalEnv);
   });
 
   test('returns opensecret when OPENSECRET_CLIENT_ID is set', () => {
     process.env.OPENSECRET_CLIENT_ID = 'test-client-id';
-    process.env.AGICASH_MNEMONIC = undefined;
     expect(detectMode()).toBe('opensecret');
   });
 
-  test('returns local when AGICASH_MNEMONIC is set', () => {
-    process.env.OPENSECRET_CLIENT_ID = undefined;
-    process.env.AGICASH_MNEMONIC =
-      'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-    expect(detectMode()).toBe('local');
+  test('returns opensecret when release defaults provide OPENSECRET_CLIENT_ID', () => {
+    process.env.AGICASH_RELEASE_OPENSECRET_CLIENT_ID = 'release-client-id';
+    expect(detectMode()).toBe('opensecret');
   });
 
-  test('throws when both are set', () => {
-    process.env.OPENSECRET_CLIENT_ID = 'test-client-id';
+  test('throws when AGICASH_MNEMONIC is set', () => {
     process.env.AGICASH_MNEMONIC =
       'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
     expect(() => detectMode()).toThrow(
-      'Ambiguous config: set OPENSECRET_CLIENT_ID or AGICASH_MNEMONIC, not both',
+      'Local mnemonic mode is not supported in v0.0.1. Use agicash auth login or agicash auth guest.',
     );
   });
 
-  test('throws when neither is set', () => {
-    process.env.OPENSECRET_CLIENT_ID = undefined;
-    process.env.AGICASH_MNEMONIC = undefined;
+  test('throws when OpenSecret is not configured', () => {
     expect(() => detectMode()).toThrow(
-      'No wallet configured. Set OPENSECRET_CLIENT_ID (cloud) or AGICASH_MNEMONIC (local) in .env',
+      'OpenSecret is not configured. Set OPENSECRET_CLIENT_ID in ~/.agicash/.env, ./.env, or the shell environment.',
     );
   });
 });

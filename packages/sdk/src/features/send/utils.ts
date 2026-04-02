@@ -1,7 +1,7 @@
 import { z } from 'zod';
+import type { AgicashDbCashuProof } from '../../db/database';
 import { ProofSchema } from '../../lib/cashu/types';
 import type { CashuProof } from '../accounts/cashu-account';
-import type { AgicashDbCashuProof } from '../../db/database';
 
 export function toDecryptedCashuProofs(
   proofs: AgicashDbCashuProof[],

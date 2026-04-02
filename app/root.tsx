@@ -1,3 +1,4 @@
+import { NotFoundError } from '@agicash/sdk/features/shared/error';
 import * as Sentry from '@sentry/react-router';
 import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -33,7 +34,6 @@ import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
 import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
 import { LoadingScreen } from './features/loading/LoadingScreen';
-import { NotFoundError } from '@agicash/sdk/features/shared/error';
 import { getQueryClient } from './features/shared/query-client';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
 import { sanitizeUrl } from './tracing-utils';

@@ -6,8 +6,8 @@ import type {
 } from '@buildonspark/spark-sdk/types';
 import type { Proof } from '@cashu/cashu-ts';
 import { Money } from '../../lib/money';
-import { measureOperation } from '../../performance';
 import { moneyFromSparkAmount } from '../../lib/spark/utils';
+import { measureOperation } from '../../performance';
 import type { SparkAccount } from '../accounts/account';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 

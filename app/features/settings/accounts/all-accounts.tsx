@@ -9,13 +9,13 @@ import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { Card } from '~/components/ui/card';
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
 import { getAccountBalance } from '@agicash/sdk/features/accounts/account';
+import type { Currency } from '@agicash/sdk/lib/money/index';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { BalanceOfflineHoverCard } from '~/features/accounts/balance-offline-hover-card';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useUser } from '~/features/user/user-hooks';
-import type { Currency } from '@agicash/sdk/lib/money/index';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 function CurrencyAccounts({ currency }: { currency: Currency }) {

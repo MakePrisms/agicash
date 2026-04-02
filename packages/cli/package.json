@@ -1,7 +1,8 @@
 {
   "name": "@agicash/cli",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
+  "description": "Bun-based Agicash CLI for Cashu ecash and Lightning payments",
   "type": "module",
   "bin": {
     "agicash": "./src/main.ts"
@@ -9,6 +10,8 @@
   "scripts": {
     "dev": "bun run src/main.ts",
     "build": "bun build src/main.ts --compile --outfile=agicash",
+    "build:release": "bun run src/build-release.ts",
+    "publish:dry-run": "bun run build:release && bun publish ./dist/npm --dry-run",
     "test": "bun test"
   },
   "dependencies": {

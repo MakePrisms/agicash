@@ -1,11 +1,11 @@
 import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
+import {
+  type Encryption,
+  getEncryption,
+} from '@agicash/sdk/features/shared/encryption';
 import { hexToBytes } from '@noble/hashes/utils';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import {
-  getEncryption,
-  type Encryption,
-} from '@agicash/sdk/features/shared/encryption';
 
 // Re-export all pure SDK functions and types
 export {

@@ -1,3 +1,5 @@
+import type { AgicashDbContact } from '@agicash/sdk/db/database';
+import type { Contact } from '@agicash/sdk/features/contacts/contact';
 import {
   type QueryClient,
   useMutation,
@@ -7,9 +9,7 @@ import {
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import useLocationData from '~/hooks/use-location';
-import type { AgicashDbContact } from '@agicash/sdk/db/database';
 import { useUser } from '../user/user-hooks';
-import type { Contact } from '@agicash/sdk/features/contacts/contact';
 import { ContactRepository, useContactRepository } from './contact-repository';
 export class ContactsCache {
   public static Key = 'contacts';

@@ -1,9 +1,9 @@
+import { getErrorMessage } from '@agicash/sdk/features/shared/error';
 import { useState } from 'react';
 import { SignupForm } from '~/features/signup/signup-form';
 import { SignupOptions } from '~/features/signup/signup-options';
 import { useAuthActions } from '~/features/user/auth';
 import { useToast } from '~/hooks/use-toast';
-import { getErrorMessage } from '@agicash/sdk/features/shared/error';
 
 type SignupStep = 'pick-option' | 'signup-with-email';
 

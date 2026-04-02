@@ -1,3 +1,4 @@
+import type { AgicashDbCashuReceiveSwap } from '@agicash/sdk/db/database';
 import type { Token } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -11,7 +12,6 @@ import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuReceiveSwap } from '@agicash/sdk/db/database';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import { useCashuReceiveSwapRepository } from './cashu-receive-swap-repository';

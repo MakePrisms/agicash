@@ -1,8 +1,5 @@
 import type { z } from 'zod';
-import type {
-  AgicashDb,
-  AgicashDbTransaction,
-} from '../../db/database';
+import type { AgicashDb, AgicashDbTransaction } from '../../db/database';
 import type { Encryption } from '../shared/encryption';
 import {
   type BaseTransactionSchema,

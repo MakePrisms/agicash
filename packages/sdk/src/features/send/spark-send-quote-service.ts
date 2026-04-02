@@ -1,12 +1,12 @@
 import { SparkError, type SparkWallet } from '@buildonspark/spark-sdk';
 import { parseBolt11Invoice } from '../../lib/bolt11';
 import { Money } from '../../lib/money';
-import { measureOperation } from '../../performance';
 import {
   isInsufficentBalanceError,
   isInvoiceAlreadyPaidError,
   moneyFromSparkAmount,
 } from '../../lib/spark';
+import { measureOperation } from '../../performance';
 import type { SparkAccount } from '../accounts/account';
 import { DomainError } from '../shared/error';
 import type { TransactionPurpose } from '../transactions/transaction-enums';

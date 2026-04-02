@@ -12,6 +12,7 @@ import {
   signUpGuest as osSignUpGuest,
   verifyEmail as osVerifyEmail,
 } from '@agicash/opensecret';
+import { computeSHA256 } from '@agicash/sdk/lib/sha256';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import {
@@ -25,7 +26,6 @@ import { useNavigate, useRevalidator } from 'react-router';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { generateRandomPassword } from '~/lib/password-generator';
-import { computeSHA256 } from '@agicash/sdk/lib/sha256';
 import { guestAccountStorage } from './guest-account-storage';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 

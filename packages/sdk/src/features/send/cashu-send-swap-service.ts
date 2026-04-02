@@ -6,8 +6,6 @@ import {
   type Wallet,
   splitAmount,
 } from '@cashu/cashu-ts';
-import type { CashuAccount } from '../accounts/account';
-import { type CashuProof, toProof } from '../accounts/cashu-account';
 import { CashuErrorCodes } from '../../lib/cashu/error-codes';
 import { sumProofs } from '../../lib/cashu/proof';
 import {
@@ -16,6 +14,8 @@ import {
   getCashuUnit,
 } from '../../lib/cashu/utils';
 import { Money } from '../../lib/money';
+import type { CashuAccount } from '../accounts/account';
+import { type CashuProof, toProof } from '../accounts/cashu-account';
 import { getTokenHash } from '../shared/cashu';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';

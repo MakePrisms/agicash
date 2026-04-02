@@ -20,6 +20,8 @@ node_modules
 
 /.cache
 /build
+packages/cli/agicash
+packages/cli/dist/
 .env
 .vercel
 /test-results/

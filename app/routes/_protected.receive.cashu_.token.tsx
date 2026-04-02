@@ -21,19 +21,19 @@ import {
   getCashuCryptography,
   seedQueryOptions,
 } from '~/features/shared/cashu';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
-import { queryClientAsCache } from '~/lib/cache-adapter';
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
 import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
+import { queryClientAsCache } from '~/lib/cache-adapter';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
@@ -76,7 +76,8 @@ const getClaimCashuTokenService = async () => {
   );
   const receiveCashuTokenService = new ReceiveCashuTokenService(
     queryClientAsCache(queryClient),
-    (flag: string) => getFeatureFlag(flag as Parameters<typeof getFeatureFlag>[0]),
+    (flag: string) =>
+      getFeatureFlag(flag as Parameters<typeof getFeatureFlag>[0]),
     cashuMintValidator,
   );
   const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(

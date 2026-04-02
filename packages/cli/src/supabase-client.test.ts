@@ -7,7 +7,8 @@ describe('supabase client config', () => {
     const result = validateSupabaseEnv({ SUPABASE_ANON_KEY: 'key' });
     expect(result).toEqual({
       ok: false,
-      error: 'SUPABASE_URL is required in .env for cloud sync',
+      error:
+        'SUPABASE_URL is required for cloud sync. Set it in ~/.agicash/.env, ./.env, or the shell environment.',
     });
   });
 
@@ -17,7 +18,8 @@ describe('supabase client config', () => {
     });
     expect(result).toEqual({
       ok: false,
-      error: 'SUPABASE_ANON_KEY is required in .env for cloud sync',
+      error:
+        'SUPABASE_ANON_KEY is required for cloud sync. Set it in ~/.agicash/.env, ./.env, or the shell environment.',
     });
   });
 
@@ -30,6 +32,18 @@ describe('supabase client config', () => {
       ok: true,
       url: 'https://x.supabase.co',
       anonKey: 'key123',
+    });
+  });
+
+  test('validateSupabaseEnv succeeds with bundled release defaults', () => {
+    const result = validateSupabaseEnv({
+      AGICASH_RELEASE_SUPABASE_URL: 'https://release.supabase.co',
+      AGICASH_RELEASE_SUPABASE_ANON_KEY: 'release-key',
+    });
+    expect(result).toEqual({
+      ok: true,
+      url: 'https://release.supabase.co',
+      anonKey: 'release-key',
     });
   });
 });

@@ -2,6 +2,7 @@
 import { generateThirdPartyToken } from '@agicash/opensecret-sdk';
 import type { AgicashDb, Database } from '@agicash/sdk/db/database';
 import { createClient } from '@supabase/supabase-js';
+import { CONFIG_LOCATION_HINT, getSupabaseConfig } from './runtime-config';
 
 type ValidateOk = { ok: true; url: string; anonKey: string };
 type ValidateFail = { ok: false; error: string };
@@ -13,18 +14,17 @@ export function validateSupabaseEnv(
     string | undefined
   >,
 ): ValidateResult {
-  const url = env.SUPABASE_URL;
+  const { url, anonKey } = getSupabaseConfig(env);
   if (!url) {
     return {
       ok: false,
-      error: 'SUPABASE_URL is required in .env for cloud sync',
+      error: `SUPABASE_URL is required for cloud sync. Set it in ${CONFIG_LOCATION_HINT}.`,
     };
   }
-  const anonKey = env.SUPABASE_ANON_KEY;
   if (!anonKey) {
     return {
       ok: false,
-      error: 'SUPABASE_ANON_KEY is required in .env for cloud sync',
+      error: `SUPABASE_ANON_KEY is required for cloud sync. Set it in ${CONFIG_LOCATION_HINT}.`,
     };
   }
   return { ok: true, url, anonKey };
