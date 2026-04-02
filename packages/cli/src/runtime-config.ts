@@ -77,8 +77,14 @@ function loadEnvFile(
   }
 }
 
+export function getCliEnvSuffix(): string {
+  const env = process.env.AGICASH_ENV?.trim();
+  return env && env !== 'default' ? `.${env}` : '';
+}
+
 export function getCliEnvPaths(cwd: string = process.cwd()): string[] {
-  return [join(homedir(), '.agicash', '.env'), join(cwd, '.env')];
+  const suffix = getCliEnvSuffix();
+  return [join(homedir(), '.agicash', `.env${suffix}`), join(cwd, '.env')];
 }
 
 export function loadCliEnvFiles(

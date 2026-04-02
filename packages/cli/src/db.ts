@@ -2,9 +2,11 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { getCliEnvSuffix } from './runtime-config';
 
 const DATA_DIR = join(homedir(), '.agicash');
-const DB_PATH = join(DATA_DIR, 'agicash.db');
+const suffix = getCliEnvSuffix();
+const DB_PATH = join(DATA_DIR, `agicash${suffix}.db`);
 
 let _db: Database | undefined;
 
