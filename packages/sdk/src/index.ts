@@ -12,8 +12,13 @@ export {
   mintQuoteQueryKey,
   pendingCashuReceiveQuotesQueryKey,
   pendingCashuReceiveSwapsQueryKey,
+  pendingSparkReceiveQuotesQueryKey,
+  sparkBalanceQueryKey,
+  sparkReceiveQuoteQueryKey,
   transactionQueryKey,
   unacknowledgedTransactionsCountQueryKey,
+  unresolvedCashuSendQuotesQueryKey,
+  unresolvedSparkSendQuotesQueryKey,
 } from './core/query-keys';
 
 // Interfaces
@@ -160,6 +165,13 @@ export type { SparkReceiveQuote } from './features/receive/spark-receive-quote';
 export { SparkReceiveQuoteSchema } from './features/receive/spark-receive-quote';
 export { SparkReceiveQuoteService } from './features/receive/spark-receive-quote-service';
 export { SparkReceiveQuoteRepository } from './features/receive/spark-receive-quote-repository';
+export {
+  SparkReceiveQuoteCache,
+  PendingSparkReceiveQuotesCache,
+  sparkReceiveQuoteQuery,
+  pendingSparkReceiveQuotesQuery,
+} from './features/receive/spark-receive-queries';
+export { SparkReceiveQuoteTaskProcessor } from './features/receive/spark-receive-task-processor';
 
 // Send - Cashu
 export type {
@@ -177,6 +189,11 @@ export type {
   SendQuoteRequest,
 } from './features/send/cashu-send-quote-service';
 export { CashuSendQuoteRepository } from './features/send/cashu-send-quote-repository';
+export {
+  UnresolvedCashuSendQuotesCache,
+  unresolvedCashuSendQuotesQuery,
+} from './features/send/cashu-send-quote-queries';
+export { CashuSendQuoteTaskProcessor } from './features/send/cashu-send-quote-task-processor';
 export type {
   CashuSendSwap,
   PendingCashuSendSwap,
@@ -193,6 +210,11 @@ export { SparkSendQuoteSchema } from './features/send/spark-send-quote';
 export { SparkSendQuoteService } from './features/send/spark-send-quote-service';
 export type { SparkLightningQuote } from './features/send/spark-send-quote-service';
 export { SparkSendQuoteRepository } from './features/send/spark-send-quote-repository';
+export {
+  UnresolvedSparkSendQuotesCache,
+  unresolvedSparkSendQuotesQuery,
+} from './features/send/spark-send-quote-queries';
+export { SparkSendQuoteTaskProcessor } from './features/send/spark-send-quote-task-processor';
 
 // Shared features
 export type { CashuCryptography } from './features/shared/cashu';

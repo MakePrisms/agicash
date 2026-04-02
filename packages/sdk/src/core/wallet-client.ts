@@ -25,10 +25,31 @@ import { CashuReceiveSwapRepository } from '../features/receive/cashu-receive-sw
 import { CashuReceiveSwapService } from '../features/receive/cashu-receive-swap-service';
 import { CashuReceiveSwapTaskProcessor } from '../features/receive/cashu-receive-swap-task-processor';
 import { CashuReceiveQuoteTaskProcessor } from '../features/receive/cashu-receive-task-processor';
+import {
+  PendingSparkReceiveQuotesCache,
+  SparkReceiveQuoteCache,
+  pendingSparkReceiveQuotesQuery,
+  sparkReceiveQuoteQuery,
+} from '../features/receive/spark-receive-queries';
+import { SparkReceiveQuoteRepository } from '../features/receive/spark-receive-quote-repository';
+import { SparkReceiveQuoteService } from '../features/receive/spark-receive-quote-service';
+import { SparkReceiveQuoteTaskProcessor } from '../features/receive/spark-receive-task-processor';
+import {
+  UnresolvedCashuSendQuotesCache,
+  unresolvedCashuSendQuotesQuery,
+} from '../features/send/cashu-send-quote-queries';
 import { CashuSendQuoteRepository } from '../features/send/cashu-send-quote-repository';
 import { CashuSendQuoteService } from '../features/send/cashu-send-quote-service';
+import { CashuSendQuoteTaskProcessor } from '../features/send/cashu-send-quote-task-processor';
 import { CashuSendSwapRepository } from '../features/send/cashu-send-swap-repository';
 import { CashuSendSwapService } from '../features/send/cashu-send-swap-service';
+import {
+  UnresolvedSparkSendQuotesCache,
+  unresolvedSparkSendQuotesQuery,
+} from '../features/send/spark-send-quote-queries';
+import { SparkSendQuoteRepository } from '../features/send/spark-send-quote-repository';
+import { SparkSendQuoteService } from '../features/send/spark-send-quote-service';
+import { SparkSendQuoteTaskProcessor } from '../features/send/spark-send-quote-task-processor';
 import { getCashuCryptography } from '../features/shared/cashu';
 import { type Encryption, getEncryption } from '../features/shared/encryption';
 import { TransactionsCache } from '../features/transactions/transaction-queries';
@@ -58,7 +79,11 @@ export type WalletClient = {
     cashuReceiveQuote: CashuReceiveQuoteCache;
     pendingCashuReceiveQuotes: PendingCashuReceiveQuotesCache;
     pendingCashuReceiveSwaps: PendingCashuReceiveSwapsCache;
+    pendingSparkReceiveQuotes: PendingSparkReceiveQuotesCache;
+    sparkReceiveQuote: SparkReceiveQuoteCache;
     transactions: TransactionsCache;
+    unresolvedCashuSendQuotes: UnresolvedCashuSendQuotesCache;
+    unresolvedSparkSendQuotes: UnresolvedSparkSendQuotesCache;
   };
   cleanup(): Promise<void>;
   queryClient: QueryClient;
@@ -72,6 +97,18 @@ export type WalletClient = {
     >;
     pendingCashuReceiveSwapsQuery: () => ReturnType<
       typeof pendingCashuReceiveSwapsQuery
+    >;
+    pendingSparkReceiveQuotesQuery: () => ReturnType<
+      typeof pendingSparkReceiveQuotesQuery
+    >;
+    sparkReceiveQuoteQuery: (
+      quoteId?: string,
+    ) => ReturnType<typeof sparkReceiveQuoteQuery>;
+    unresolvedCashuSendQuotesQuery: () => ReturnType<
+      typeof unresolvedCashuSendQuotesQuery
+    >;
+    unresolvedSparkSendQuotesQuery: () => ReturnType<
+      typeof unresolvedSparkSendQuotesQuery
     >;
     transactionQuery: (
       transactionId: string,
@@ -89,6 +126,8 @@ export type WalletClient = {
     cashuReceiveSwapRepo: CashuReceiveSwapRepository;
     cashuSendQuoteRepo: CashuSendQuoteRepository;
     cashuSendSwapRepo: CashuSendSwapRepository;
+    sparkReceiveQuoteRepo: SparkReceiveQuoteRepository;
+    sparkSendQuoteRepo: SparkSendQuoteRepository;
     transactionRepo: TransactionRepository;
   };
   services: {
@@ -97,10 +136,15 @@ export type WalletClient = {
     cashuReceiveSwapService: CashuReceiveSwapService;
     cashuSendQuoteService: CashuSendQuoteService;
     cashuSendSwapService: CashuSendSwapService;
+    sparkReceiveQuoteService: SparkReceiveQuoteService;
+    sparkSendQuoteService: SparkSendQuoteService;
   };
   taskProcessors: {
     cashuReceiveQuote: CashuReceiveQuoteTaskProcessor;
     cashuReceiveSwap: CashuReceiveSwapTaskProcessor;
+    cashuSendQuote: CashuSendQuoteTaskProcessor;
+    sparkReceiveQuote: SparkReceiveQuoteTaskProcessor;
+    sparkSendQuote: SparkSendQuoteTaskProcessor;
   };
   userId: string;
 };
@@ -234,11 +278,19 @@ export function createWalletClient(config: WalletClientConfig): WalletClient {
     ),
     cashuSendQuoteRepo: new CashuSendQuoteRepository(db, encryption),
     cashuSendSwapRepo: new CashuSendSwapRepository(db, encryption),
+    sparkReceiveQuoteRepo: new SparkReceiveQuoteRepository(db, encryption),
+    sparkSendQuoteRepo: new SparkSendQuoteRepository(db, encryption),
     transactionRepo: new TransactionRepository(db, encryption),
   };
 
   const cashuReceiveSwapService = new CashuReceiveSwapService(
     repos.cashuReceiveSwapRepo,
+  );
+  const sparkReceiveQuoteService = new SparkReceiveQuoteService(
+    repos.sparkReceiveQuoteRepo,
+  );
+  const sparkSendQuoteService = new SparkSendQuoteService(
+    repos.sparkSendQuoteRepo,
   );
   const services = {
     accountService: new AccountService(repos.accountRepo),
@@ -252,6 +304,8 @@ export function createWalletClient(config: WalletClientConfig): WalletClient {
       repos.cashuSendSwapRepo,
       cashuReceiveSwapService,
     ),
+    sparkReceiveQuoteService,
+    sparkSendQuoteService,
   };
 
   const caches = {
@@ -259,7 +313,11 @@ export function createWalletClient(config: WalletClientConfig): WalletClient {
     cashuReceiveQuote: new CashuReceiveQuoteCache(queryClient),
     pendingCashuReceiveQuotes: new PendingCashuReceiveQuotesCache(queryClient),
     pendingCashuReceiveSwaps: new PendingCashuReceiveSwapsCache(queryClient),
+    pendingSparkReceiveQuotes: new PendingSparkReceiveQuotesCache(queryClient),
+    sparkReceiveQuote: new SparkReceiveQuoteCache(queryClient),
     transactions: new TransactionsCache(queryClient),
+    unresolvedCashuSendQuotes: new UnresolvedCashuSendQuotesCache(queryClient),
+    unresolvedSparkSendQuotes: new UnresolvedSparkSendQuotesCache(queryClient),
   };
 
   const listAccountsQueryFactory = () =>
@@ -284,6 +342,32 @@ export function createWalletClient(config: WalletClientConfig): WalletClient {
   const pendingCashuReceiveSwapsQueryFactory = () =>
     pendingCashuReceiveSwapsQuery({
       cashuReceiveSwapRepository: repos.cashuReceiveSwapRepo,
+      getListAccountsQuery: listAccountsQueryFactory,
+      queryClient,
+      userId,
+    });
+  const sparkReceiveQuoteQueryFactory = (quoteId?: string) =>
+    sparkReceiveQuoteQuery({
+      sparkReceiveQuoteRepository: repos.sparkReceiveQuoteRepo,
+      quoteId,
+    });
+  const pendingSparkReceiveQuotesQueryFactory = () =>
+    pendingSparkReceiveQuotesQuery({
+      sparkReceiveQuoteRepository: repos.sparkReceiveQuoteRepo,
+      getListAccountsQuery: listAccountsQueryFactory,
+      queryClient,
+      userId,
+    });
+  const unresolvedCashuSendQuotesQueryFactory = () =>
+    unresolvedCashuSendQuotesQuery({
+      cashuSendQuoteRepository: repos.cashuSendQuoteRepo,
+      getListAccountsQuery: listAccountsQueryFactory,
+      queryClient,
+      userId,
+    });
+  const unresolvedSparkSendQuotesQueryFactory = () =>
+    unresolvedSparkSendQuotesQuery({
+      sparkSendQuoteRepository: repos.sparkSendQuoteRepo,
       getListAccountsQuery: listAccountsQueryFactory,
       queryClient,
       userId,
@@ -319,6 +403,24 @@ export function createWalletClient(config: WalletClientConfig): WalletClient {
       services.cashuReceiveSwapService,
       pendingCashuReceiveSwapsQueryFactory,
     ),
+    cashuSendQuote: new CashuSendQuoteTaskProcessor(
+      queryClient,
+      repos.accountRepo,
+      services.cashuSendQuoteService,
+      unresolvedCashuSendQuotesQueryFactory,
+    ),
+    sparkReceiveQuote: new SparkReceiveQuoteTaskProcessor(
+      queryClient,
+      repos.accountRepo,
+      sparkReceiveQuoteService,
+      pendingSparkReceiveQuotesQueryFactory,
+    ),
+    sparkSendQuote: new SparkSendQuoteTaskProcessor(
+      queryClient,
+      repos.accountRepo,
+      sparkSendQuoteService,
+      unresolvedSparkSendQuotesQueryFactory,
+    ),
   };
 
   return {
@@ -330,6 +432,10 @@ export function createWalletClient(config: WalletClientConfig): WalletClient {
       listAccountsQuery: listAccountsQueryFactory,
       pendingCashuReceiveQuotesQuery: pendingCashuReceiveQuotesQueryFactory,
       pendingCashuReceiveSwapsQuery: pendingCashuReceiveSwapsQueryFactory,
+      pendingSparkReceiveQuotesQuery: pendingSparkReceiveQuotesQueryFactory,
+      sparkReceiveQuoteQuery: sparkReceiveQuoteQueryFactory,
+      unresolvedCashuSendQuotesQuery: unresolvedCashuSendQuotesQueryFactory,
+      unresolvedSparkSendQuotesQuery: unresolvedSparkSendQuotesQueryFactory,
       transactionQuery: transactionQueryFactory,
       transactionsListQuery: transactionsListQueryFactory,
       unacknowledgedTransactionsCountQuery:

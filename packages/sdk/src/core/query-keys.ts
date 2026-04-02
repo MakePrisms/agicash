@@ -18,5 +18,20 @@ export const unacknowledgedTransactionsCountQueryKey = () =>
 export const pendingCashuReceiveSwapsQueryKey = () =>
   ['pending-cashu-receive-swaps'] as const;
 
+export const unresolvedCashuSendQuotesQueryKey = () =>
+  ['unresolved-cashu-send-quotes'] as const;
+
+export const sparkReceiveQuoteQueryKey = (quoteId?: string) =>
+  ['spark-receive-quote', quoteId] as const;
+
+export const pendingSparkReceiveQuotesQueryKey = () =>
+  ['pending-spark-receive-quotes'] as const;
+
+export const unresolvedSparkSendQuotesQueryKey = () =>
+  ['unresolved-spark-send-quotes'] as const;
+
+export const sparkBalanceQueryKey = (accountId: string) =>
+  ['spark-balance', accountId] as const;
+
 export const mintQuoteQueryKey = (mintQuoteId: string) =>
   ['mint-quote', mintQuoteId] as const;
