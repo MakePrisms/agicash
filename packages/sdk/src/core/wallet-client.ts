@@ -2,6 +2,7 @@ import { hexToBytes } from '@noble/hashes/utils';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { QueryClient } from '@tanstack/query-core';
 import type { AgicashDb } from '../db/database';
+import { createAccountChangeHandlers } from '../features/accounts/account-change-handlers';
 import { getSeedPhraseDerivationPath } from '../features/accounts/account-cryptography';
 import {
   AccountsCache,
@@ -9,6 +10,10 @@ import {
 } from '../features/accounts/account-queries';
 import { AccountRepository } from '../features/accounts/account-repository';
 import { AccountService } from '../features/accounts/account-service';
+import {
+  createCashuReceiveQuoteChangeHandlers,
+  createCashuReceiveSwapChangeHandlers,
+} from '../features/receive/cashu-receive-change-handlers';
 import {
   CashuReceiveQuoteCache,
   PendingCashuReceiveQuotesCache,
@@ -25,6 +30,7 @@ import { CashuReceiveSwapRepository } from '../features/receive/cashu-receive-sw
 import { CashuReceiveSwapService } from '../features/receive/cashu-receive-swap-service';
 import { CashuReceiveSwapTaskProcessor } from '../features/receive/cashu-receive-swap-task-processor';
 import { CashuReceiveQuoteTaskProcessor } from '../features/receive/cashu-receive-task-processor';
+import { createSparkReceiveQuoteChangeHandlers } from '../features/receive/spark-receive-change-handlers';
 import {
   PendingSparkReceiveQuotesCache,
   SparkReceiveQuoteCache,
@@ -34,6 +40,10 @@ import {
 import { SparkReceiveQuoteRepository } from '../features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '../features/receive/spark-receive-quote-service';
 import { SparkReceiveQuoteTaskProcessor } from '../features/receive/spark-receive-task-processor';
+import {
+  createCashuSendQuoteChangeHandlers,
+  createCashuSendSwapChangeHandlers,
+} from '../features/send/cashu-send-change-handlers';
 import {
   UnresolvedCashuSendQuotesCache,
   unresolvedCashuSendQuotesQuery,
@@ -49,6 +59,7 @@ import {
 import { CashuSendSwapRepository } from '../features/send/cashu-send-swap-repository';
 import { CashuSendSwapService } from '../features/send/cashu-send-swap-service';
 import { CashuSendSwapTaskProcessor } from '../features/send/cashu-send-swap-task-processor';
+import { createSparkSendQuoteChangeHandlers } from '../features/send/spark-send-change-handlers';
 import {
   UnresolvedSparkSendQuotesCache,
   unresolvedSparkSendQuotesQuery,
@@ -58,6 +69,7 @@ import { SparkSendQuoteService } from '../features/send/spark-send-quote-service
 import { SparkSendQuoteTaskProcessor } from '../features/send/spark-send-quote-task-processor';
 import { getCashuCryptography } from '../features/shared/cashu';
 import { type Encryption, getEncryption } from '../features/shared/encryption';
+import { createTransactionChangeHandlers } from '../features/transactions/transaction-change-handlers';
 import { TransactionsCache } from '../features/transactions/transaction-queries';
 import {
   transactionQuery,
@@ -67,8 +79,11 @@ import {
 import { TransactionRepository } from '../features/transactions/transaction-repository';
 import { userQuery } from '../features/user/user-queries';
 import { ReadUserRepository } from '../features/user/user-repository';
+import type { DatabaseChangeHandler } from '../features/wallet/database-change-handler';
+import { RealtimeHandler } from '../features/wallet/realtime-handler';
 import type { Cache } from '../interfaces/cache';
 import type { KeyProvider } from '../interfaces/key-provider';
+import type { SupabaseRealtimeManager } from '../lib/supabase/supabase-realtime-manager';
 
 type CleanupConnectionsCapable = {
   cleanupConnections(): Promise<void>;
@@ -95,7 +110,11 @@ export type WalletClient = {
     unresolvedCashuSendSwaps: UnresolvedCashuSendSwapsCache;
     unresolvedSparkSendQuotes: UnresolvedSparkSendQuotesCache;
   };
+  changeHandlers: DatabaseChangeHandler[];
   cleanup(): Promise<void>;
+  createRealtimeHandler(
+    realtimeManager: SupabaseRealtimeManager,
+  ): RealtimeHandler;
   queryClient: QueryClient;
   queries: {
     cashuReceiveQuoteQuery: (
@@ -459,9 +478,68 @@ export function createWalletClient(config: WalletClientConfig): WalletClient {
     ),
   };
 
+  const changeHandlers: DatabaseChangeHandler[] = [
+    ...createAccountChangeHandlers(repos.accountRepo, caches.accounts),
+    ...createTransactionChangeHandlers(
+      repos.transactionRepo,
+      caches.transactions,
+    ),
+    ...createCashuReceiveQuoteChangeHandlers(
+      repos.cashuReceiveQuoteRepo,
+      caches.cashuReceiveQuote,
+      caches.pendingCashuReceiveQuotes,
+    ),
+    ...createCashuReceiveSwapChangeHandlers(
+      repos.cashuReceiveSwapRepo,
+      caches.pendingCashuReceiveSwaps,
+    ),
+    ...createCashuSendQuoteChangeHandlers(
+      repos.cashuSendQuoteRepo,
+      caches.unresolvedCashuSendQuotes,
+    ),
+    ...createCashuSendSwapChangeHandlers(
+      repos.cashuSendSwapRepo,
+      caches.cashuSendSwap,
+      caches.unresolvedCashuSendSwaps,
+    ),
+    ...createSparkReceiveQuoteChangeHandlers(
+      repos.sparkReceiveQuoteRepo,
+      caches.sparkReceiveQuote,
+      caches.pendingSparkReceiveQuotes,
+    ),
+    ...createSparkSendQuoteChangeHandlers(
+      repos.sparkSendQuoteRepo,
+      caches.unresolvedSparkSendQuotes,
+    ),
+  ];
+
+  const createRealtimeHandler = (
+    realtimeManager: SupabaseRealtimeManager,
+  ): RealtimeHandler =>
+    new RealtimeHandler({
+      realtimeManager,
+      handlers: changeHandlers,
+      userId,
+      onConnected: () => {
+        caches.accounts.invalidate();
+        caches.transactions.invalidate();
+        caches.cashuReceiveQuote.invalidate();
+        caches.pendingCashuReceiveQuotes.invalidate();
+        caches.pendingCashuReceiveSwaps.invalidate();
+        caches.unresolvedCashuSendQuotes.invalidate();
+        caches.cashuSendSwap.invalidate();
+        caches.unresolvedCashuSendSwaps.invalidate();
+        caches.sparkReceiveQuote.invalidate();
+        caches.pendingSparkReceiveQuotes.invalidate();
+        caches.unresolvedSparkSendQuotes.invalidate();
+      },
+    });
+
   return {
     caches,
+    changeHandlers,
     cleanup: () => cleanupQueryClientResources(queryClient, ownsQueryClient),
+    createRealtimeHandler,
     queryClient,
     queries: {
       cashuReceiveQuoteQuery: cashuReceiveQuoteQueryFactory,
