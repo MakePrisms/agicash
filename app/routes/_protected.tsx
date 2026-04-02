@@ -136,7 +136,7 @@ const ensureUserData = async (
       },
     });
     user = upsertedUser;
-    queryClient.setQueryData([userQueryKey], user);
+    queryClient.setQueryData(userQueryKey(), user);
     queryClient.setQueryData([AccountsCache.Key], accounts);
   }
 

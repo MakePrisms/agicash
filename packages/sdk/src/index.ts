@@ -18,7 +18,17 @@ export {
   transactionQueryKey,
   unacknowledgedTransactionsCountQueryKey,
   unresolvedCashuSendQuotesQueryKey,
+  unresolvedCashuSendSwapsQueryKey,
   unresolvedSparkSendQuotesQueryKey,
+  userQueryKey,
+  cashuSeedQueryKey,
+  cashuSendSwapQueryKey,
+  cashuXpubQueryKey,
+  sparkMnemonicQueryKey,
+  sparkWalletQueryKey,
+  sparkIdentityPublicKeyQueryKey,
+  encryptionPrivateKeyQueryKey,
+  encryptionPublicKeyQueryKey,
 } from './core/query-keys';
 
 // Interfaces
@@ -96,6 +106,7 @@ export {
   toUser,
 } from './features/user/user-repository';
 export type { UpdateUser } from './features/user/user-repository';
+export { userQuery } from './features/user/user-queries';
 
 // Transactions
 export type { Transaction } from './features/transactions/transaction';
@@ -201,6 +212,12 @@ export type {
 export { CashuSendSwapSchema } from './features/send/cashu-send-swap';
 export { CashuSendSwapService } from './features/send/cashu-send-swap-service';
 export type { CashuSwapQuote } from './features/send/cashu-send-swap-service';
+export {
+  CashuSendSwapCache,
+  UnresolvedCashuSendSwapsCache,
+  unresolvedCashuSendSwapsQuery,
+} from './features/send/cashu-send-swap-queries';
+export { CashuSendSwapTaskProcessor } from './features/send/cashu-send-swap-task-processor';
 export { CashuSendSwapRepository } from './features/send/cashu-send-swap-repository';
 export { ProofStateSubscriptionManager } from './features/send/proof-state-subscription-manager';
 

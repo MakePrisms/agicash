@@ -1,6 +1,10 @@
 import { requestNewVerificationCode } from '@agicash/opensecret';
 import type { Account } from '@agicash/sdk/features/accounts/account';
 import type { User } from '@agicash/sdk/features/user/user';
+import {
+  userQuery,
+  userQueryKey,
+} from '@agicash/sdk/features/user/user-queries';
 import type { Currency } from '@agicash/sdk/lib/money/index';
 import {
   type QueryClient,
@@ -21,12 +25,12 @@ import {
 } from './user-repository';
 import { useUserService } from './user-service';
 
-export const userQueryKey = 'user';
+export { userQueryKey };
 
 export const getUserFromCache = (
   queryClient: QueryClient = getQueryClient(),
 ) => {
-  return queryClient.getQueryData<User>([userQueryKey]) ?? null;
+  return queryClient.getQueryData<User>(userQueryKey()) ?? null;
 };
 
 export const getUserFromCacheOrThrow = () => {
@@ -46,8 +50,7 @@ const userQueryOptions = <TData = User>({
   userRepository: ReadUserRepository;
   select?: (data: User) => TData;
 }) => ({
-  queryKey: [userQueryKey],
-  queryFn: () => userRepository.get(userId),
+  ...userQuery({ userId, readUserRepository: userRepository }),
   select,
 });
 
@@ -200,7 +203,7 @@ const useUpdateUser = () => {
   return useMutation({
     mutationFn: (updates: UpdateUser) => userRepository.update(userId, updates),
     onSuccess: (data) => {
-      queryClient.setQueryData([userQueryKey], data);
+      queryClient.setQueryData(userQueryKey(), data);
     },
   });
 };
@@ -223,7 +226,7 @@ export const useSetDefaultAccount = () => {
     mutationFn: (account: Account) =>
       userService.setDefaultAccount(user.current, account),
     onSuccess: (data) => {
-      queryClient.setQueryData([userQueryKey], data);
+      queryClient.setQueryData(userQueryKey(), data);
     },
   });
 
