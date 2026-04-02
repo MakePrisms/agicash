@@ -93,6 +93,60 @@ agicash decode cashuAeyJ...
 ```
 No DB access needed.
 
+### watch
+Foreground daemon — starts all background task processors and Supabase realtime handler. Watches pending quotes/swaps and auto-completes them. Outputs NDJSON events to stdout. Runs until SIGINT (Ctrl+C).
+
+```bash
+# Watch all processors:
+agicash watch
+# Receive-only:
+agicash watch --receive
+# Send-only:
+agicash watch --send
+# With SDK debug logs on stderr:
+agicash watch --verbose
+```
+
+**Events emitted:**
+```json
+{"event":"watch:started","processors":["cashuReceiveQuote",...],"filters":"all","ts":"..."}
+{"event":"receive:minted","quoteId":"...","amount":"...","accountId":"...","ts":"..."}
+{"event":"receive:swap:completed","tokenHash":"...","ts":"..."}
+{"event":"send:completed","quoteId":"...","ts":"..."}
+{"event":"send:failed","quoteId":"...","reason":"...","ts":"..."}
+{"event":"error","processor":"...","action":"...","message":"...","ts":"..."}
+{"event":"watch:stopping","ts":"..."}
+```
+
+**Agent workflow — fire and forget:**
+```bash
+# Terminal 1: start daemon
+agicash watch &
+
+# Terminal 2: fire commands
+agicash receive 100    # creates invoice, returns quote ID
+agicash send 50        # creates token, returns immediately
+
+# Watch auto-completes pending quotes in the background.
+# Tail stdout or use tmux capture-pane to read events.
+```
+
+### auth
+```bash
+agicash auth login <email> <password>
+agicash auth signup <email> <password>
+agicash auth guest        # create/re-use guest account (for testing)
+agicash auth logout
+agicash auth status       # show current auth state
+agicash auth whoami       # alias for status
+```
+
+### receive list / --check-all
+```bash
+agicash receive list          # list all pending quotes
+agicash receive --check-all   # recheck all pending quotes and mint paid ones
+```
+
 ### config
 ```bash
 agicash config list
@@ -120,7 +174,10 @@ Common error codes: `MISSING_AMOUNT`, `INVALID_AMOUNT`, `NO_ACCOUNT` (includes i
 | Flag | Effect |
 |------|--------|
 | `--pretty` | Indented JSON output |
+| `--verbose` | Write SDK debug logs to stderr |
 | `--account <id>` | Target specific account (send/pay/receive) |
+| `--receive` | Filter watch to receive processors only |
+| `--send` | Filter watch to send processors only |
 | `--help` / `-h` | Show help |
 | `--version` / `-v` | Show version |
 
@@ -134,8 +191,10 @@ SQLite at `~/.agicash/agicash.db` stores auth tokens, CLI config, and guest cred
 
 ## Agent Tips
 
+- **Tokens and invoices must be sent as a single standalone message** — no surrounding text, no code blocks, no explanation in the same message. This makes them easy to copy on mobile. Send the explanation in a separate message before or after.
 - Parse JSON output with `jq` — all success responses go to stdout
 - Check exit code before parsing: `if agicash send 50; then ...`
 - Use `--account` when multiple mints exist to avoid wrong-account selection
 - `decode` is stateless (no DB) — safe to call freely for input detection
 - `receive` auto-detects: integers = Lightning, cashuA/cashuB prefix = token claim
+- Run `watch` in a background tmux pane to get notified of payment completions without polling

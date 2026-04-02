@@ -1,4 +1,8 @@
-import { SupabaseRealtimeManager, type WalletClient } from '@agicash/sdk';
+import {
+  SupabaseRealtimeManager,
+  TaskProcessingLockRepository,
+  type WalletClient,
+} from '@agicash/sdk';
 import type { SdkContext } from '../sdk-context';
 
 type WatchFlags = {
@@ -169,20 +173,64 @@ export async function handleWatchCommand(
   await realtimeHandler.start();
   emitEvent({ event: 'watch:realtime:connected' });
 
-  // Start all selected processors
-  await Promise.all(processors.map(({ processor }) => processor.start()));
-  emitEvent({
-    event: 'watch:started',
-    processors: processors.map(({ name }) => name),
-    filters: filterReceive ? 'receive' : filterSend ? 'send' : 'all',
-  });
+  // Leader election — same pattern as the web app's useTakeTaskProcessingLead.
+  // Only the lead client runs task processors. The lock expires after 6s (DB-side),
+  // so polling every 5s keeps it alive.
+  const clientId = crypto.randomUUID();
+  const lockRepo = new TaskProcessingLockRepository(supabaseClient);
+  let isLead = false;
+  let processorsRunning = false;
+
+  const pollLead = async () => {
+    try {
+      const gotLead = await lockRepo.takeLead(ctx.userId, clientId);
+
+      if (gotLead && !isLead) {
+        isLead = true;
+        emitEvent({ event: 'watch:lead:acquired', clientId });
+        if (!processorsRunning) {
+          await Promise.all(
+            processors.map(({ processor }) => processor.start()),
+          );
+          processorsRunning = true;
+          emitEvent({
+            event: 'watch:started',
+            processors: processors.map(({ name }) => name),
+            filters: filterReceive ? 'receive' : filterSend ? 'send' : 'all',
+          });
+        }
+      } else if (!gotLead && isLead) {
+        isLead = false;
+        emitEvent({ event: 'watch:lead:lost', clientId });
+        if (processorsRunning) {
+          await Promise.all(
+            processors.map(({ processor }) => processor.stop()),
+          );
+          processorsRunning = false;
+          emitEvent({ event: 'watch:processors:stopped' });
+        }
+      }
+    } catch (err) {
+      emitEvent({
+        event: 'watch:lead:error',
+        message: String(err),
+      });
+    }
+  };
+
+  // Initial poll, then every 5s (matches web app's refetchInterval)
+  await pollLead();
+  const leadInterval = setInterval(() => void pollLead(), 5000);
 
   // Run until SIGINT
   await new Promise<void>((resolve) => {
     const shutdown = async () => {
       emitEvent({ event: 'watch:stopping' });
 
-      await Promise.all(processors.map(({ processor }) => processor.stop()));
+      clearInterval(leadInterval);
+      if (processorsRunning) {
+        await Promise.all(processors.map(({ processor }) => processor.stop()));
+      }
       await realtimeHandler.stop();
       await ctx.cleanup();
 
