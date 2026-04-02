@@ -272,6 +272,23 @@ export { getSparkIdentityPublicKeyFromMnemonic } from './lib/spark/index';
 
 // Wallet
 export { TaskProcessingLockRepository } from './features/wallet/task-processing-lock-repository';
+export type { DatabaseChangeHandler } from './features/wallet/database-change-handler';
+export { RealtimeHandler } from './features/wallet/realtime-handler';
+export type { RealtimeHandlerConfig } from './features/wallet/realtime-handler';
+
+// Change handler factories
+export { createAccountChangeHandlers } from './features/accounts/account-change-handlers';
+export {
+  createCashuReceiveQuoteChangeHandlers,
+  createCashuReceiveSwapChangeHandlers,
+} from './features/receive/cashu-receive-change-handlers';
+export {
+  createCashuSendQuoteChangeHandlers,
+  createCashuSendSwapChangeHandlers,
+} from './features/send/cashu-send-change-handlers';
+export { createSparkReceiveQuoteChangeHandlers } from './features/receive/spark-receive-change-handlers';
+export { createSparkSendQuoteChangeHandlers } from './features/send/spark-send-change-handlers';
+export { createTransactionChangeHandlers } from './features/transactions/transaction-change-handlers';
 
 // Lib - Bolt11
 export type { DecodedBolt11 } from './lib/bolt11';
