@@ -30,7 +30,7 @@
     "@agicash/bc-ur": "0.1.0",
     "@agicash/opensecret": "0.1.0",
     "@agicash/qr-scanner": "0.1.2",
-    "@buildonspark/spark-sdk": "0.7.1",
+    "@buildonspark/spark-sdk": "0.7.4",
     "@cashu/cashu-ts": "3.6.1",
     "@noble/ciphers": "1.3.0",
     "@noble/curves": "1.9.7",
@@ -119,7 +119,7 @@
   "patchedDependencies": {
     "@tanstack/query-core@5.90.20": "patches/@tanstack%2Fquery-core@5.90.20.patch",
     "@sentry/core@10.42.0": "patches/@sentry%2Fcore@10.42.0.patch",
-    "@buildonspark/spark-sdk@0.7.1": "patches/@buildonspark%2Fspark-sdk@0.7.1.patch"
+    "@buildonspark/spark-sdk@0.7.4": "patches/@buildonspark%2Fspark-sdk@0.7.4.patch"
   },
   "patchedDependencies:comments": {
     "@sentry/core@10.42.0": "This patch was added because we noticed that logs in Sentry dashboard started to show timstamps different than what our logs would record when the app would be in the background for a while and then brought back to the foreground. We suspected (not 100% sure but it seems like our patch has fixed it) that it is related to their logic which uses the Performance API to get the timestamp for greater precision (browser sometimes stops the performance api clock when the computer is asleep), so we opted out of that and are just using the Date API instead. Remove the patch once that has been solved.",
