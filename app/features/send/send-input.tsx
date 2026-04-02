@@ -246,7 +246,7 @@ export function SendInput() {
                 <Scan />
               </LinkWithViewTransition>
 
-              {sendAccount.purpose !== 'gift-card' && (
+              {sendAccount.purpose === 'transactional' && (
                 <SelectDestinationDrawer
                   open={selectDestinationDrawerOpen}
                   onOpenChange={setSelectDestinationDrawerOpen}

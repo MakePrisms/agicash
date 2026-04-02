@@ -13,6 +13,12 @@ export const CashuAccountDetailsDbDataSchema = z.object({
    * Holds counter value for each mint keyset. Key is the keyset id, value is counter value.
    */
   keyset_counters: z.record(z.string(), z.number()),
+  /**
+   * ISO 8601 timestamp when the account's ecash expires (for offer accounts).
+   * Converted from the active keyset's `final_expiry` unix epoch (NUT-02).
+   * Null for non-offer accounts or when the keyset has no expiry.
+   */
+  expires_at: z.string().nullable().optional(),
 });
 
 export type CashuAccountDetailsDbData = z.infer<

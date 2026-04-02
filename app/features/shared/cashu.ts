@@ -253,12 +253,17 @@ export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
-export const isTestMintQueryOptions = (mintUrl: string) =>
-  queryOptions({
-    queryKey: ['is-test-mint', mintUrl],
-    queryFn: async () => checkIsTestMint(mintUrl),
+export const isTestMintQueryOptions = (
+  mintUrl: string,
+  mintInfo: ExtendedMintInfo,
+) => {
+  return queryOptions({
+    queryKey: ['is-test-mint', mintUrl, mintInfo.isSupported(4).disabled],
+    queryFn: async () =>
+      checkIsTestMint(mintUrl, mintInfo.isSupported(4).disabled),
     staleTime: Number.POSITIVE_INFINITY,
   });
+};
 
 /**
  * Initializes a Cashu wallet with offline handling.

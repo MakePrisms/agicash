@@ -2,6 +2,7 @@ import {
   type MeltQuoteBolt11Response,
   MeltQuoteState,
   type Mint,
+  type MintKeyset,
   type MintQuoteBolt11Response,
   type Proof,
   Wallet,
@@ -13,6 +14,7 @@ import type { Currency, CurrencyUnit } from '../money';
 import {
   ExtendedMintInfo,
   type ExtendedMintQuoteBolt11Response,
+  type MintPurpose,
 } from './protocol-extensions';
 import type { CashuProtocolUnit } from './types';
 
@@ -76,8 +78,25 @@ export const getCashuProtocolUnit = (currency: Currency) => {
  */
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
-): 'gift-card' | 'transactional' => {
-  return mintInfo?.agicash?.closed_loop ? 'gift-card' : 'transactional';
+): MintPurpose => {
+  return mintInfo?.agicash?.purpose ?? 'transactional';
+};
+
+/**
+ * For offer mints, finds the active keyset's expiry for the given currency.
+ * Only meaningful for offers — for transactional/gift-card mints, keyset expiry
+ * triggers rotation, not account expiration.
+ * Assumes one active keyset per unit on offer mints.
+ * @returns The ISO 8601 timestamp when the offer expires, or null if the keyset has no expiry.
+ */
+export const getOfferExpiresAt = (
+  keysets: MintKeyset[],
+  currency: Currency,
+): string | null => {
+  const unit = getCashuProtocolUnit(currency);
+  const activeKeyset = keysets.find((ks) => ks.unit === unit && ks.active);
+  if (!activeKeyset?.final_expiry) return null;
+  return new Date(activeKeyset.final_expiry * 1000).toISOString();
 };
 
 export const getWalletCurrency = (wallet: Wallet) => {
@@ -127,7 +146,7 @@ export class ExtendedCashuWallet extends Wallet {
   /**
    * Gets the purpose of this mint based on its configuration.
    */
-  get purpose(): 'gift-card' | 'transactional' {
+  get purpose(): MintPurpose {
     return getMintPurpose(this.getMintInfo());
   }
 
@@ -245,20 +264,27 @@ export const getCashuWallet = (
 
 /**
  * Check if a mint is a test mint by checking the network of the mint quote
- * and also checking if the mint is in the list of known test mints
+ * and also checking if the mint is in the list of known test mints.
  *
- * Known test mints:
- * - https://testnut.cashu.space
- * - https://nofees.testnut.cashu.space
+ * If the mint has minting disabled (NUT-04), it cannot create a mint quote,
+ * so we fall back to the known-mints check only (assumes mainnet).
  *
  * @param mintUrl - The URL of the mint
+ * @param isMintingDisabled - Whether NUT-04 minting is disabled on the mint
  * @returns True if the mint is not on mainnet
  */
-export const checkIsTestMint = async (mintUrl: string): Promise<boolean> => {
+export const checkIsTestMint = async (
+  mintUrl: string,
+  isMintingDisabled: boolean,
+): Promise<boolean> => {
   // Normalize URL by removing trailing slash and converting to lowercase
   const normalizedUrl = mintUrl.toLowerCase().replace(/\/+$/, '');
   if (knownTestMints.includes(normalizedUrl)) {
     return true;
+  }
+
+  if (isMintingDisabled) {
+    return false;
   }
   const wallet = getCashuWallet(mintUrl);
   const { request: bolt11 } = await wallet.createMintQuoteBolt11(1);

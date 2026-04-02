@@ -179,15 +179,15 @@ export const accountsQueryOptions = ({
 type UseAccountsSelect<
   T extends AccountType = AccountType,
   P extends AccountPurpose = AccountPurpose,
-> = P extends 'gift-card'
+> = P extends 'gift-card' | 'offer'
   ? {
       /** Filter by currency (e.g., 'BTC', 'USD') */
       currency?: Currency;
-      /** Must be 'cashu' when purpose is 'gift-card'. */
+      /** Must be 'cashu' when purpose is 'gift-card' or 'offer'. */
       type?: 'cashu';
       /** Filter by online status */
       isOnline?: boolean;
-      /** Filter for gift-card accounts. Returns `CashuAccount[]` since gift cards are always cashu. */
+      /** Filter for gift-card or offer accounts. Returns `CashuAccount[]` since these are always cashu. */
       purpose: P;
     }
   : {
@@ -203,6 +203,9 @@ type UseAccountsSelect<
 
 export function useAccounts(
   select: UseAccountsSelect<'cashu', 'gift-card'>,
+): UseSuspenseQueryResult<ExtendedAccount<'cashu'>[]>;
+export function useAccounts(
+  select: UseAccountsSelect<'cashu', 'offer'>,
 ): UseSuspenseQueryResult<ExtendedAccount<'cashu'>[]>;
 export function useAccounts<
   T extends AccountType = AccountType,
