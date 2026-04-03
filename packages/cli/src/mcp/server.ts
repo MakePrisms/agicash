@@ -397,6 +397,7 @@ async function main(): Promise<void> {
   // 1. Spawn the daemon
   const daemon = spawnDaemon();
   const pending = new Map<string, PendingRequest>();
+  const trackedQuotes = new Set<string>();
   let exiting = false;
   let hasChannels = true;
 
@@ -444,30 +445,42 @@ async function main(): Promise<void> {
 
       // Forward terminal events as channel notifications
       const mcpEvent = DAEMON_EVENT_MAP[msg.event];
+      if (!mcpEvent) {
+        log(`event NOT in DAEMON_EVENT_MAP: ${msg.event} (dropped)`);
+      }
       if (mcpEvent) {
         const data = (msg.data ?? {}) as Record<string, unknown>;
-
-        // Always send — don't gate on hasChannels (mercury/NWC pattern)
-        const content = formatEventContent(mcpEvent, data);
-        server.notification({
-            method: 'notifications/claude/channel',
-            params: {
-              content,
-              meta: {
-                source: 'agicash',
-                event: mcpEvent,
-                chat_id: 'agicash',
-                message_id: (data.quoteId as string) ?? (data.tokenHash as string) ?? (data.swapId as string) ?? '',
-                ts: (msg.ts as string) ?? new Date().toISOString(),
-              },
-            },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any).catch((err: unknown) => {
-            log(`channel notification failed: ${err}`);
-          });
-
-        // Resolve any waiters for this event's quote
         const eventQuoteId = (data.quoteId as string) ?? (data.tokenHash as string) ?? (data.swapId as string);
+        log(`mapped event: daemon=${msg.event} → mcp=${mcpEvent} quoteId=${eventQuoteId ?? 'none'} tracked=${eventQuoteId ? trackedQuotes.has(eventQuoteId) : 'n/a'} trackedQuotes=[${[...trackedQuotes].join(',')}]`);
+
+        // Only send channel notifications for operations this session initiated
+        if (!eventQuoteId || trackedQuotes.has(eventQuoteId)) {
+          log(`sending channel notification: ${mcpEvent} quoteId=${eventQuoteId ?? 'none'}`);
+          const content = formatEventContent(mcpEvent, data);
+          server.notification({
+              method: 'notifications/claude/channel',
+              params: {
+                content,
+                meta: {
+                  source: 'agicash',
+                  event: mcpEvent,
+                  chat_id: 'agicash',
+                  message_id: eventQuoteId ?? '',
+                  ts: (msg.ts as string) ?? new Date().toISOString(),
+                },
+              },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            } as any).catch((err: unknown) => {
+              log(`channel notification failed: ${err}`);
+            });
+
+          // Clean up tracked quote on terminal event to prevent unbounded growth
+          if (eventQuoteId) {
+            trackedQuotes.delete(eventQuoteId);
+          }
+        }
+
+        // Resolve any waiters for this event's quote (always, regardless of tracking)
         if (eventQuoteId) {
           const eventData = { event: mcpEvent, ...data };
           const waiters = eventWaiters.get(eventQuoteId);
@@ -624,9 +637,12 @@ async function main(): Promise<void> {
       try {
         const result = await sendRequest('pay', daemonParams) as Record<string, unknown>;
 
-        // Extract quote ID from result
+        // Extract quote ID from result and track it for event filtering
         const payment = result.payment as Record<string, unknown> | undefined;
         const quoteId = payment?.quote_id as string | undefined;
+        if (quoteId) {
+          trackedQuotes.add(quoteId);
+        }
 
         if (quoteId && payment?.state === 'pending') {
           // Wait for terminal event (60s timeout)
@@ -652,6 +668,34 @@ async function main(): Promise<void> {
         }
 
         // Not pending (error or already settled) — return as-is
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          }],
+          isError: true,
+        };
+      }
+    }
+
+    // agicash_pay without wait: send payment and track quoteId for notifications
+    if (toolName === 'agicash_pay' && !params.wait) {
+      try {
+        const result = await sendRequest('pay', params) as Record<string, unknown>;
+        const payment = result.payment as Record<string, unknown> | undefined;
+        const quoteId = payment?.quote_id as string | undefined;
+        if (quoteId) {
+          trackedQuotes.add(quoteId);
+        }
         return {
           content: [{
             type: 'text' as const,
@@ -706,6 +750,17 @@ async function main(): Promise<void> {
       const qrMethod = TOOL_METHOD_MAP[toolName];
       try {
         const result = await sendRequest(qrMethod, params) as Record<string, unknown>;
+
+        // Track the operation's identifier for event filtering
+        if (toolName === 'agicash_send') {
+          const token = result.token as Record<string, unknown> | undefined;
+          const tokenHash = token?.tokenHash as string | undefined;
+          if (tokenHash) trackedQuotes.add(tokenHash);
+        } else {
+          const quote = result.quote as Record<string, unknown> | undefined;
+          const quoteId = quote?.id as string | undefined;
+          if (quoteId) trackedQuotes.add(quoteId);
+        }
 
         // Extract the QR-encodable data from the result
         let qrData: string | undefined;

@@ -24,6 +24,10 @@ type TaskProcessorFilter = 'receive' | 'send' | 'all';
 
 type OnEventCallback = (event: DaemonEvent) => void;
 
+function log(message: string): void {
+  process.stderr.write(`[task-processors] ${message}\n`);
+}
+
 export type TaskProcessorHandle = {
   shutdown(): Promise<void>;
 };
@@ -103,6 +107,7 @@ function wireEventListeners(
 
   if (all || filter === 'receive') {
     on(wallet.taskProcessors.cashuReceiveQuote, 'receive:minted', (event) => {
+      log(`[event] receive:minted quoteId=${event.quote.id} amount=${event.quote.amount}`);
       onEvent(
         buildEvent('receive:minted', {
           quoteId: event.quote.id,
@@ -112,9 +117,11 @@ function wireEventListeners(
       );
     });
     on(wallet.taskProcessors.cashuReceiveQuote, 'receive:expired', (event) => {
+      log(`[event] receive:expired quoteId=${event.quoteId}`);
       onEvent(buildEvent('receive:expired', { quoteId: event.quoteId }));
     });
     on(wallet.taskProcessors.cashuReceiveQuote, 'error', (event) => {
+      log(`[error] cashuReceiveQuote action=${event.action} quoteId=${event.quoteId ?? 'none'} error=${String(event.error)}`);
       onEvent(
         buildEvent('error', {
           processor: 'cashuReceiveQuote',
@@ -251,6 +258,7 @@ export async function startTaskProcessors(
   const realtimeHandler = wallet.createRealtimeHandler(realtimeManager);
 
   await realtimeHandler.start();
+  log('realtime handler started (cache invalidation)');
   onEvent(buildEvent('watch:realtime:connected', {}));
 
   // Leader election state — declared early so broadcast closures can reference it.
@@ -268,8 +276,9 @@ export async function startTaskProcessors(
 
   // Non-leader daemons forward broadcast events to their MCP server
   broadcastChannel.on('broadcast', { event: 'daemon-event' }, (msg) => {
+    const payload = msg.payload as Record<string, unknown> | undefined;
+    log(`[broadcast:recv] event=${payload?.event ?? 'unknown'} isLead=${isLead}`);
     if (!isLead) {
-      const payload = msg.payload as Record<string, unknown> | undefined;
       if (payload && typeof payload.event === 'string') {
         onEvent(payload as DaemonEvent);
       }
@@ -288,9 +297,11 @@ export async function startTaskProcessors(
   });
 
   const broadcastOnEvent: OnEventCallback = (event) => {
+    log(`[onEvent] event=${event.event} isLead=${isLead} isBroadcastable=${BROADCAST_EVENTS.has(event.event)}`);
     onEvent(event);  // existing: emit to stdout
     // Leader broadcasts terminal events for non-leader daemons
     if (isLead && BROADCAST_EVENTS.has(event.event)) {
+      log(`[broadcast:send] event=${event.event}`);
       broadcastChannel.send({
         type: 'broadcast',
         event: 'daemon-event',
@@ -310,8 +321,10 @@ export async function startTaskProcessors(
 
       if (gotLead && !isLead) {
         isLead = true;
+        log(`[leader] acquired lead clientId=${clientId}`);
         onEvent(buildEvent('watch:lead:acquired', { clientId }));
         if (!processorsRunning) {
+          log(`[leader] starting ${processors.length} task processors`);
           await Promise.all(
             processors.map(({ processor }) => processor.start()),
           );
@@ -325,6 +338,7 @@ export async function startTaskProcessors(
         }
       } else if (!gotLead && isLead) {
         isLead = false;
+        log(`[leader] lost lead clientId=${clientId}`);
         onEvent(buildEvent('watch:lead:lost', { clientId }));
         if (processorsRunning) {
           await Promise.all(
