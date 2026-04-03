@@ -17,6 +17,30 @@
     "sentry": {
       "type": "http",
       "url": "https://mcp.sentry.dev/mcp/4509706567680000/4509707316690944"
+    },
+    "agicash": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["run", "/srv/forge/projects/agicash/packages/cli/src/mcp/server.ts"],
+      "env": {
+        "OPENSECRET_CLIENT_ID": "e60ec263-5233-43a4-a34f-a2eed4ec9c75",
+        "OPENSECRET_API_URL": "https://enclave.trymaple.ai",
+        "SUPABASE_URL": "https://szuncqupizxelsxkxlpq.supabase.co",
+        "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6dW5jcXVwaXp4ZWxzeGt4bHBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ1ODI1NjYsImV4cCI6MjA3MDE1ODU2Nn0.VmdpTPz23cVif-V1OOyT-oU5z_jduMopau0KNuuhfRo"
+      }
+    },
+    "agicash-local": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["run", "/srv/forge/projects/agicash/packages/cli/src/mcp/server.ts"],
+      "env": {
+        "AGICASH_ENV": "local",
+        "OPENSECRET_CLIENT_ID": "a5e351d4-6dd9-4ee6-8e36-f5fb871e5432",
+        "OPENSECRET_API_URL": "https://enclave.trymaple.ai",
+        "SUPABASE_URL": "https://127.0.0.1:54321",
+        "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0",
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      }
     }
   }
 }
