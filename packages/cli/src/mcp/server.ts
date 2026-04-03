@@ -241,7 +241,7 @@ function log(message: string): void {
 // ---------------------------------------------------------------------------
 
 function spawnDaemon(): ReturnType<typeof spawn> {
-  const mainTs = resolve(__dirname, '../main.ts');
+  const mainTs = resolve(import.meta.dirname ?? __dirname, '../main.ts');
   log(`spawning daemon: bun run ${mainTs} daemon`);
 
   const child = spawn('bun', ['run', mainTs, 'daemon'], {
@@ -259,6 +259,7 @@ async function main(): Promise<void> {
   // 1. Spawn the daemon
   const daemon = spawnDaemon();
   const pending = new Map<string, PendingRequest>();
+  let exiting = false;
 
   if (!daemon.stdout || !daemon.stdin) {
     log('daemon stdio not available');
@@ -304,7 +305,7 @@ async function main(): Promise<void> {
     }
   });
 
-  // 3. Handle daemon exit
+  // 3. Handle unexpected daemon exit (clean shutdown handled in cleanup)
   daemon.on('exit', (code, signal) => {
     log(`daemon exited: code=${code} signal=${signal}`);
     // Reject all pending requests
@@ -313,7 +314,10 @@ async function main(): Promise<void> {
       req.reject(new Error('daemon exited'));
       pending.delete(id);
     }
-    process.exit(1);
+    // Only exit with error if this wasn't a clean shutdown
+    if (!exiting) {
+      process.exit(1);
+    }
   });
 
   daemon.on('error', (err) => {
@@ -434,9 +438,19 @@ async function main(): Promise<void> {
 
   // 8. Cleanup on shutdown
   const cleanup = () => {
+    if (exiting) return;
+    exiting = true;
     log('shutting down');
     daemon.kill('SIGTERM');
-    process.exit(0);
+    // Give daemon 5s to exit gracefully, then force kill
+    const forceTimer = setTimeout(() => {
+      log('daemon did not exit in time, force killing');
+      daemon.kill('SIGKILL');
+    }, 5000);
+    daemon.on('exit', () => {
+      clearTimeout(forceTimer);
+      process.exit(0);
+    });
   };
 
   process.on('SIGINT', cleanup);

@@ -73,18 +73,26 @@ export async function runDaemon(): Promise<void> {
     const trimmed = line.trim();
     if (!trimmed) return;
 
-    let request: DaemonRequest;
+    let parsed: Record<string, unknown>;
     try {
-      request = JSON.parse(trimmed) as DaemonRequest;
+      parsed = JSON.parse(trimmed) as Record<string, unknown>;
     } catch {
       log(`invalid JSON on stdin: ${trimmed}`);
       return;
     }
 
-    if (!request.id || !request.method) {
+    if (!parsed.id || !parsed.method) {
       log(`malformed request (missing id or method): ${trimmed}`);
+      if (parsed.id) {
+        emit({
+          id: parsed.id as string,
+          error: { code: 'MALFORMED_REQUEST', message: 'Missing required field: method' },
+        });
+      }
       return;
     }
+
+    const request = parsed as unknown as DaemonRequest;
 
     // Route request asynchronously, emit response when done
     void routeRequest(request, ctx, wallet, routerState)
@@ -100,8 +108,12 @@ export async function runDaemon(): Promise<void> {
       });
   });
 
-  // 5. Graceful shutdown
+  // 5. Graceful shutdown (guarded against double-invocation)
+  let shuttingDown = false;
   const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
     log('shutting down...');
     rl.close();
 

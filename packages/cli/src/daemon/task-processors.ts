@@ -10,7 +10,7 @@ type TaskProcessorFilter = 'receive' | 'send' | 'all';
 
 type OnEventCallback = (event: DaemonEvent) => void;
 
-type TaskProcessorHandle = {
+export type TaskProcessorHandle = {
   shutdown(): Promise<void>;
 };
 
@@ -75,11 +75,20 @@ function wireEventListeners(
   wallet: WalletClient,
   filter: TaskProcessorFilter,
   onEvent: OnEventCallback,
-): void {
+): () => void {
   const all = filter === 'all';
+  // Track all listeners so we can remove them on cleanup
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const registrations: Array<{ emitter: any; event: string; handler: (...args: any[]) => void }> = [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function on(emitter: any, event: string, handler: (...args: any[]) => void): void {
+    emitter.on(event, handler);
+    registrations.push({ emitter, event, handler });
+  }
 
   if (all || filter === 'receive') {
-    wallet.taskProcessors.cashuReceiveQuote.on('receive:minted', (event) => {
+    on(wallet.taskProcessors.cashuReceiveQuote, 'receive:minted', (event) => {
       onEvent(
         buildEvent('receive:minted', {
           quoteId: event.quote.id,
@@ -88,10 +97,10 @@ function wireEventListeners(
         }),
       );
     });
-    wallet.taskProcessors.cashuReceiveQuote.on('receive:expired', (event) => {
+    on(wallet.taskProcessors.cashuReceiveQuote, 'receive:expired', (event) => {
       onEvent(buildEvent('receive:expired', { quoteId: event.quoteId }));
     });
-    wallet.taskProcessors.cashuReceiveQuote.on('error', (event) => {
+    on(wallet.taskProcessors.cashuReceiveQuote, 'error', (event) => {
       onEvent(
         buildEvent('error', {
           processor: 'cashuReceiveQuote',
@@ -102,14 +111,14 @@ function wireEventListeners(
       );
     });
 
-    wallet.taskProcessors.cashuReceiveSwap.on('swap:completed', (event) => {
+    on(wallet.taskProcessors.cashuReceiveSwap, 'swap:completed', (event) => {
       onEvent(
         buildEvent('receive:swap:completed', {
           tokenHash: event.swap.tokenHash,
         }),
       );
     });
-    wallet.taskProcessors.cashuReceiveSwap.on('error', (event) => {
+    on(wallet.taskProcessors.cashuReceiveSwap, 'error', (event) => {
       onEvent(
         buildEvent('error', {
           processor: 'cashuReceiveSwap',
@@ -119,17 +128,17 @@ function wireEventListeners(
       );
     });
 
-    wallet.taskProcessors.sparkReceiveQuote.on('receive:completed', (event) => {
+    on(wallet.taskProcessors.sparkReceiveQuote, 'receive:completed', (event) => {
       onEvent(
         buildEvent('spark:receive:completed', { quoteId: event.quote.id }),
       );
     });
-    wallet.taskProcessors.sparkReceiveQuote.on('receive:expired', (event) => {
+    on(wallet.taskProcessors.sparkReceiveQuote, 'receive:expired', (event) => {
       onEvent(
         buildEvent('spark:receive:expired', { quoteId: event.quoteId }),
       );
     });
-    wallet.taskProcessors.sparkReceiveQuote.on('error', (event) => {
+    on(wallet.taskProcessors.sparkReceiveQuote, 'error', (event) => {
       onEvent(
         buildEvent('error', {
           processor: 'sparkReceiveQuote',
@@ -141,10 +150,10 @@ function wireEventListeners(
   }
 
   if (all || filter === 'send') {
-    wallet.taskProcessors.cashuSendQuote.on('send:completed', (event) => {
+    on(wallet.taskProcessors.cashuSendQuote, 'send:completed', (event) => {
       onEvent(buildEvent('send:completed', { quoteId: event.quoteId }));
     });
-    wallet.taskProcessors.cashuSendQuote.on('send:failed', (event) => {
+    on(wallet.taskProcessors.cashuSendQuote, 'send:failed', (event) => {
       onEvent(
         buildEvent('send:failed', {
           quoteId: event.quoteId,
@@ -152,7 +161,7 @@ function wireEventListeners(
         }),
       );
     });
-    wallet.taskProcessors.cashuSendQuote.on('error', (event) => {
+    on(wallet.taskProcessors.cashuSendQuote, 'error', (event) => {
       onEvent(
         buildEvent('error', {
           processor: 'cashuSendQuote',
@@ -162,12 +171,12 @@ function wireEventListeners(
       );
     });
 
-    wallet.taskProcessors.cashuSendSwap.on('swap:completed', (event) => {
+    on(wallet.taskProcessors.cashuSendSwap, 'swap:completed', (event) => {
       onEvent(
         buildEvent('send:swap:completed', { swapId: event.swapId }),
       );
     });
-    wallet.taskProcessors.cashuSendSwap.on('error', (event) => {
+    on(wallet.taskProcessors.cashuSendSwap, 'error', (event) => {
       onEvent(
         buildEvent('error', {
           processor: 'cashuSendSwap',
@@ -177,17 +186,17 @@ function wireEventListeners(
       );
     });
 
-    wallet.taskProcessors.sparkSendQuote.on('send:completed', (event) => {
+    on(wallet.taskProcessors.sparkSendQuote, 'send:completed', (event) => {
       onEvent(
         buildEvent('spark:send:completed', { quoteId: event.quoteId }),
       );
     });
-    wallet.taskProcessors.sparkSendQuote.on('send:failed', (event) => {
+    on(wallet.taskProcessors.sparkSendQuote, 'send:failed', (event) => {
       onEvent(
         buildEvent('spark:send:failed', { quoteId: event.quoteId }),
       );
     });
-    wallet.taskProcessors.sparkSendQuote.on('error', (event) => {
+    on(wallet.taskProcessors.sparkSendQuote, 'error', (event) => {
       onEvent(
         buildEvent('error', {
           processor: 'sparkSendQuote',
@@ -197,6 +206,14 @@ function wireEventListeners(
       );
     });
   }
+
+  // Return cleanup function that removes all registered listeners
+  return () => {
+    for (const { emitter, event, handler } of registrations) {
+      emitter.removeListener(event, handler);
+    }
+    registrations.length = 0;
+  };
 }
 
 export async function startTaskProcessors(
@@ -211,7 +228,7 @@ export async function startTaskProcessors(
   const { onEvent } = options;
 
   const processors = buildProcessorList(wallet, filter);
-  wireEventListeners(wallet, filter, onEvent);
+  const removeListeners = wireEventListeners(wallet, filter, onEvent);
 
   // Start realtime handler for cache invalidation
   const supabaseClient = (
@@ -280,6 +297,7 @@ export async function startTaskProcessors(
     async shutdown() {
       onEvent(buildEvent('watch:stopping', {}));
       clearInterval(leadInterval);
+      removeListeners();
       if (processorsRunning) {
         await Promise.all(
           processors.map(({ processor }) => processor.stop()),

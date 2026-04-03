@@ -21,16 +21,13 @@ import type {
   ReceiveParams,
   SendParams,
 } from './protocol';
-import { startTaskProcessors } from './task-processors';
-
-type TaskProcessorHandle = {
-  shutdown(): Promise<void>;
-};
+import { type TaskProcessorHandle, startTaskProcessors } from './task-processors';
 
 type OnEventCallback = Parameters<typeof startTaskProcessors>[2]['onEvent'];
 
 type RouterState = {
   taskProcessorHandle: TaskProcessorHandle | null;
+  subscribeLock: Promise<void>;
   onEvent: OnEventCallback;
 };
 
@@ -40,6 +37,7 @@ export function createRouterState(
 ): RouterState {
   return {
     taskProcessorHandle: initialHandle,
+    subscribeLock: Promise.resolve(),
     onEvent,
   };
 }
@@ -158,24 +156,31 @@ export async function routeRequest(
 
       case 'events.subscribe': {
         const params = (request.params ?? {}) as EventsSubscribeParams;
-        // Stop existing handle if any
-        if (state.taskProcessorHandle) {
-          await state.taskProcessorHandle.shutdown();
-          state.taskProcessorHandle = null;
-        }
-        const handle = await startTaskProcessors(ctx, wallet, {
-          filter: params.filter ?? 'all',
-          onEvent: state.onEvent,
+        // Serialize subscribe/unsubscribe to prevent races
+        const subscribeWork = state.subscribeLock.then(async () => {
+          if (state.taskProcessorHandle) {
+            await state.taskProcessorHandle.shutdown();
+            state.taskProcessorHandle = null;
+          }
+          state.taskProcessorHandle = await startTaskProcessors(ctx, wallet, {
+            filter: params.filter ?? 'all',
+            onEvent: state.onEvent,
+          });
         });
-        state.taskProcessorHandle = handle;
+        state.subscribeLock = subscribeWork.catch(() => {});
+        await subscribeWork;
         return { id: request.id, result: { ok: true as const } };
       }
 
       case 'events.unsubscribe': {
-        if (state.taskProcessorHandle) {
-          await state.taskProcessorHandle.shutdown();
-          state.taskProcessorHandle = null;
-        }
+        const unsubscribeWork = state.subscribeLock.then(async () => {
+          if (state.taskProcessorHandle) {
+            await state.taskProcessorHandle.shutdown();
+            state.taskProcessorHandle = null;
+          }
+        });
+        state.subscribeLock = unsubscribeWork.catch(() => {});
+        await unsubscribeWork;
         return { id: request.id, result: { ok: true as const } };
       }
 
