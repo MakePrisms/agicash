@@ -9,9 +9,7 @@ import {
   type QueryClient,
   queryOptions,
   useQueries,
-  useQueryClient,
 } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { type Currency, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
@@ -126,27 +124,6 @@ export function sparkBalanceQueryKey(accountId: string) {
 export function useTrackAndUpdateSparkAccountBalances() {
   const { data: sparkAccounts } = useAccounts({ type: 'spark' });
   const accountCache = useAccountsCache();
-  const queryClient = useQueryClient();
-
-  // Needed for workaround below.
-  // TODO: Remove when workaround is removed.
-  const verifiedZeroBalanceAccounts = useRef(new Set<string>());
-
-  useEffect(() => {
-    const clear = () => verifiedZeroBalanceAccounts.current.clear();
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') clear();
-    };
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('online', clear);
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('online', clear);
-    };
-  }, []);
-  // end workaround
 
   useEffectNoStrictMode(() => {
     const walletsWithHandlers = sparkAccounts.map((sparkAccount) => {
@@ -214,111 +191,36 @@ export function useTrackAndUpdateSparkAccountBalances() {
             account.wallet.isOptimizationInProgress(),
           ]);
 
-        sparkDebugLog('Balance fetched from Spark SDK', {
-          accountId: account.id,
-          owned: String(satsBalance.owned),
-          available: String(satsBalance.available),
-          identityPublicKey,
-          isOptimizing,
-          leaves: getLeafDenominations(leaves),
-        });
-
-        // WORKAROUND: Spark SDK sometimes returns 0 for balance incorrectly.
-        // The bug seems to be resolved after the wallet is reinitialized.
-        // Reinitialize the wallet and re-check balance.
-        // TODO: Remove when Spark fixes the bug.
-        let effectiveOwnedBalance = satsBalance.owned;
-        let effectiveAvailableBalance = satsBalance.available;
-        let effectiveWallet = account.wallet;
-        if (Number(satsBalance.owned) === 0) {
-          if (!verifiedZeroBalanceAccounts.current.has(account.id)) {
-            try {
-              const {
-                ownedBalance: freshOwnedBalance,
-                availableBalance: freshAvailableBalance,
-                wallet: newWallet,
-              } = await measureOperation(
-                'SparkWallet.balanceRecovery',
-                async () => {
-                  console.warn(
-                    '[Spark] Balance returned 0, reinitializing wallet',
-                    {
-                      accountId: account.id,
-                      network: account.network,
-                    },
-                  );
-
-                  const mnemonic = await queryClient.fetchQuery(
-                    sparkMnemonicQueryOptions(),
-                  );
-                  const newWallet = await queryClient.fetchQuery({
-                    ...sparkWalletQueryOptions({
-                      network: account.network,
-                      mnemonic,
-                    }),
-                    staleTime: 0, // Forces a refetch
-                  });
-
-                  const { satsBalance: freshSatsBalance } =
-                    await newWallet.getBalance();
-                  return {
-                    ownedBalance: freshSatsBalance.owned,
-                    availableBalance: freshSatsBalance.available,
-                    wallet: newWallet,
-                  };
-                },
-                { accountId: account.id },
-              );
-
-              effectiveOwnedBalance = freshOwnedBalance;
-              effectiveAvailableBalance = freshAvailableBalance;
-              effectiveWallet = newWallet;
-
-              if (Number(freshOwnedBalance) === 0) {
-                verifiedZeroBalanceAccounts.current.add(account.id);
-              }
-            } catch (error) {
-              console.error('Failed to reinitialize Spark wallet', {
-                cause: error,
-                accountId: account.id,
-              });
-              return satsBalance.owned;
-            }
-          }
-        } else {
-          verifiedZeroBalanceAccounts.current.delete(account.id);
-        }
-        // END WORKAROUND
-
         const newOwnedBalance = new Money({
-          amount: Number(effectiveOwnedBalance),
+          amount: Number(satsBalance.owned),
           currency: account.currency as Currency,
           unit: getDefaultUnit(account.currency),
         });
         const newAvailableBalance = new Money({
-          amount: Number(effectiveAvailableBalance),
+          amount: Number(satsBalance.available),
           currency: account.currency as Currency,
           unit: getDefaultUnit(account.currency),
         });
 
-        sparkDebugLog('Updating accounts cache', {
+        sparkDebugLog('Balance fetched from Spark SDK', {
           accountId: account.id,
+          accountVersion: String(account.version),
+          identityPublicKey,
+          isOptimizing,
+          leaves: getLeafDenominations(leaves),
           prevOwned: account.ownedBalance?.toString() ?? 'null',
           newOwned: newOwnedBalance.toString(),
           prevAvailable: account.availableBalance?.toString() ?? 'null',
           newAvailable: newAvailableBalance.toString(),
-          walletChanged: String(effectiveWallet !== account.wallet),
-          accountVersion: String(account.version),
         });
 
-        accountCache.updateSparkAccountIfBalanceOrWalletChanged({
-          ...account,
-          wallet: effectiveWallet,
+        accountCache.updateSparkAccountBalance({
+          accountId: account.id,
           ownedBalance: newOwnedBalance,
           availableBalance: newAvailableBalance,
         });
 
-        return effectiveOwnedBalance;
+        return satsBalance.owned;
       },
       staleTime: Number.POSITIVE_INFINITY,
       gcTime: Number.POSITIVE_INFINITY,
