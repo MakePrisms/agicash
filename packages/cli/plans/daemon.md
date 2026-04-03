@@ -1,7 +1,7 @@
 # CLI Daemon Plan
 
 **Date:** 2026-04-03
-**Status:** Approved
+**Status:** Approved (with review notes addressed)
 **Branch:** `plans/cli-daemon`
 **Brainstorm:** `docs/brainstorms/cli-daemon-mcp.md`
 
@@ -25,7 +25,13 @@ agicash-mcp             — thin MCP bridge, connects to daemon, exposes tools t
 
 The daemon holds a warm `WalletClient` (8 repos, 7 services, 11 caches, 6 task processors, Supabase Realtime, leader election). Every `--remote` call skips the full init tax and gets instant responses from warm cache.
 
-Existing command handlers (`handleBalanceCommand`, `handleSendCommand`, etc.) are already pure functions: they take `SdkContext` and return serializable results. The daemon routes IPC calls to these same handlers — minimal new code.
+Most command handlers (`handleBalanceCommand`, `handleSendCommand`, etc.) are pure functions: they take `SdkContext` and return serializable results. The daemon routes IPC calls to these same handlers — minimal new code.
+
+**Handler categories (not all are pure):**
+- **Wallet commands** (balance, send, pay, receive, mint, account) — pure, take `SdkContext`, return serializable results. Direct daemon routing.
+- **Context-free commands** (decode) — no `SdkContext` needed. Daemon can handle directly or client can run locally.
+- **Auth commands** (login, logout, status) — manage auth state, not wallet state. Run locally on the client, not through daemon. Daemon assumes auth is already done.
+- **Watch** — long-lived event stream, not request/response. Becomes `watch.subscribe`/`watch.unsubscribe` in the IPC protocol.
 
 ## Phase 0: IPC Protocol
 
@@ -53,9 +59,9 @@ Existing command handlers (`handleBalanceCommand`, `handleSendCommand`, etc.) ar
   - Calls `getSdkContext()` (same init path as every command)
   - Starts all 6 task processors + Supabase Realtime + leader election (extract from `watch.ts`)
   - Listens on `~/.agicash/daemon.sock`
-  - Writes PID to `~/.agicash/daemon.pid`
-  - On startup: if socket exists, check PID. Stale → clean up. Alive → fail with "daemon already running"
-  - Graceful shutdown on SIGINT/SIGTERM (same as `watch.ts`)
+  - No PID file — use socket probe for liveness detection
+  - On startup: try connecting to existing socket. If connection succeeds → daemon already running, fail. If ECONNREFUSED or ENOENT → stale socket, clean up and start.
+  - Graceful shutdown on SIGINT/SIGTERM: stop task processors, close all client connections, remove socket file (same pattern as `watch.ts`)
 - `src/daemon/router.ts` — maps IPC method names to command handlers
   - `balance` → `handleBalanceCommand(ctx)`
   - `send` → `handleSendCommand(parsed, ctx)`
@@ -65,6 +71,7 @@ Existing command handlers (`handleBalanceCommand`, `handleSendCommand`, etc.) ar
   - Routes to handler via router
   - Sends response
   - Manages event subscriptions per client
+  - On socket close: clean up all subscriptions for that client (prevents leaked event listeners)
 - Add `daemon` case to `main.ts` switch
 
 **Files changed:**
@@ -82,9 +89,16 @@ echo '{"id":"1","method":"balance","params":{}}' | nc -U ~/.agicash/daemon.sock
 # Returns JSON balance response
 ```
 
+**Prerequisite spike:** Verify Bun's `Bun.listen()` supports Unix domain sockets. Write a 10-line test: server listens on a socket path, client connects and exchanges a JSONL message. If Bun doesn't support it, fallback is `node:net` createServer with `{path: ...}`. Do this before starting Phase 1 implementation.
+
+**Context staleness:** Daemon runs indefinitely — cache data can go stale. Mitigations already in place:
+- Supabase Realtime keeps DB-backed data (accounts, quotes, transactions) fresh
+- Supabase client auto-refreshes auth tokens
+- QueryClient respects staleTime/gcTime for mint info (1h), exchange rates (polling)
+- OpenSecret session expiry: daemon catches auth errors from Supabase and returns IPC error `{code: "AUTH_EXPIRED", message: "Session expired. Run: agicash auth login"}`. Does not auto-re-auth.
+
 **Risk:**
-- Bun's Unix socket API differences from Node — verify `Bun.listen` supports Unix domain sockets
-- `watch.ts` extraction — need to keep `agicash watch` (direct mode) working while sharing code with daemon
+- `watch.ts` extraction — need to keep `agicash watch` (direct mode) working while sharing code with daemon. Extract shared setup into a helper both consume.
 
 ## Phase 2: `--remote` Mode
 
