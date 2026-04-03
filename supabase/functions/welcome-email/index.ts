@@ -101,7 +101,6 @@ async function sendWelcomeEmail(
   firstName: string | undefined,
 ): Promise<void> {
   const displayName = firstName ?? "there";
-  const unsubscribeUrl = `https://agi.cash/api/unsubscribe?email=${btoa(email)}`;
 
   const response = await fetch(`${RESEND_BASE_URL}/emails`, {
     method: "POST",
@@ -118,7 +117,6 @@ async function sendWelcomeEmail(
         variables: {
           firstName: displayName,
           email,
-          unsubscribeUrl,
         },
       },
     }),
