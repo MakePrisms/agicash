@@ -130,4 +130,16 @@ export async function runDaemon(): Promise<void> {
   rl.on('close', () => void shutdown());
   process.on('SIGINT', () => void shutdown());
   process.on('SIGTERM', () => void shutdown());
+
+  // 6. Orphan detection — exit if parent process dies
+  // When parent dies on Linux, ppid becomes 1 (init). Poll every 5s.
+  const originalPpid = process.ppid;
+  const orphanCheck = setInterval(() => {
+    if (process.ppid !== originalPpid) {
+      log(`parent process died (ppid changed from ${originalPpid} to ${process.ppid}), shutting down`);
+      clearInterval(orphanCheck);
+      void shutdown();
+    }
+  }, 5000);
+  orphanCheck.unref(); // don't keep the process alive just for this timer
 }
