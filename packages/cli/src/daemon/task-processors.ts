@@ -6,6 +6,20 @@ import {
 import type { SdkContext } from '../sdk-context';
 import type { DaemonEvent, DaemonEventName, DaemonEventMap } from './protocol';
 
+/** Events that should be broadcast to non-leader daemons */
+const BROADCAST_EVENTS = new Set<DaemonEventName>([
+  'receive:minted',
+  'receive:expired',
+  'receive:swap:completed',
+  'send:completed',
+  'send:failed',
+  'send:swap:completed',
+  'spark:receive:completed',
+  'spark:receive:expired',
+  'spark:send:completed',
+  'spark:send:failed',
+]);
+
 type TaskProcessorFilter = 'receive' | 'send' | 'all';
 
 type OnEventCallback = (event: DaemonEvent) => void;
@@ -228,7 +242,6 @@ export async function startTaskProcessors(
   const { onEvent } = options;
 
   const processors = buildProcessorList(wallet, filter);
-  const removeListeners = wireEventListeners(wallet, filter, onEvent);
 
   // Start realtime handler for cache invalidation
   const supabaseClient = (
@@ -240,14 +253,57 @@ export async function startTaskProcessors(
   await realtimeHandler.start();
   onEvent(buildEvent('watch:realtime:connected', {}));
 
-  // Leader election — same pattern as the web app's useTakeTaskProcessingLead.
-  // Only the lead client runs task processors. The lock expires after 6s (DB-side),
-  // so polling every 5s keeps it alive.
+  // Leader election state — declared early so broadcast closures can reference it.
+  // Actual leader polling happens below.
   const clientId = crypto.randomUUID();
   const lockRepo = new TaskProcessingLockRepository(supabaseClient);
   let isLead = false;
   let processorsRunning = false;
 
+  // Broadcast channel for cross-daemon event delivery.
+  // Leader broadcasts terminal events; non-leaders subscribe and forward.
+  // self:false (default) means the sender doesn't receive its own messages.
+  const broadcastTopic = `daemon-events:${ctx.userId}`;
+  const broadcastChannel = supabaseClient.channel(broadcastTopic);
+
+  // Non-leader daemons forward broadcast events to their MCP server
+  broadcastChannel.on('broadcast', { event: 'daemon-event' }, (msg) => {
+    if (!isLead) {
+      const payload = msg.payload as Record<string, unknown> | undefined;
+      if (payload && typeof payload.event === 'string') {
+        onEvent(payload as DaemonEvent);
+      }
+    }
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('broadcast channel subscribe timed out')), 10_000);
+    broadcastChannel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') { clearTimeout(timeout); resolve(); }
+      if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+        clearTimeout(timeout);
+        reject(new Error(`broadcast channel subscribe failed: ${status}`));
+      }
+    });
+  });
+
+  const broadcastOnEvent: OnEventCallback = (event) => {
+    onEvent(event);  // existing: emit to stdout
+    // Leader broadcasts terminal events for non-leader daemons
+    if (isLead && BROADCAST_EVENTS.has(event.event)) {
+      broadcastChannel.send({
+        type: 'broadcast',
+        event: 'daemon-event',
+        payload: event,
+      });
+    }
+  };
+
+  const removeListeners = wireEventListeners(wallet, filter, broadcastOnEvent);
+
+  // Leader election — same pattern as the web app's useTakeTaskProcessingLead.
+  // Only the lead client runs task processors. The lock expires after 6s (DB-side),
+  // so polling every 5s keeps it alive.
   const pollLead = async () => {
     try {
       const gotLead = await lockRepo.takeLead(ctx.userId, clientId);
@@ -303,6 +359,7 @@ export async function startTaskProcessors(
           processors.map(({ processor }) => processor.stop()),
         );
       }
+      supabaseClient.removeChannel(broadcastChannel);
       await realtimeHandler.stop();
       onEvent(buildEvent('watch:stopped', {}));
     },
