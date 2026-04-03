@@ -267,6 +267,13 @@ async function main(): Promise<void> {
         break;
       }
 
+      case 'daemon': {
+        getConfiguredDb();
+        const { runDaemon } = await import('./daemon/daemon');
+        await runDaemon();
+        break;
+      }
+
       case 'auth': {
         const db = getConfiguredDb();
         const validation = handleAuthCommand(parsed);

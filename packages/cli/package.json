@@ -12,11 +12,13 @@
     "build": "bun build src/main.ts --compile --outfile=agicash",
     "build:release": "bun run src/build-release.ts",
     "publish:dry-run": "bun run build:release && bun publish --cwd ./dist/npm --dry-run",
-    "test": "bun test"
+    "test": "bun test",
+    "mcp": "bun run src/mcp/server.ts"
   },
   "dependencies": {
     "@agicash/opensecret-sdk": "MakePrisms/OpenSecret-SDK#dist",
-    "@agicash/sdk": "workspace:*"
+    "@agicash/sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
