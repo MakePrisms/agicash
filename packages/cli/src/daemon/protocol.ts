@@ -73,6 +73,7 @@ export type DecodeParams = {
 export type TransactionsParams = {
   accountId?: string;
   limit?: number;
+  cursor?: string;
 };
 
 export type TransactionItem = {
@@ -91,6 +92,7 @@ export type TransactionItem = {
 export type TransactionsResult = {
   transactions: TransactionItem[];
   hasMore: boolean;
+  cursor?: string;
 };
 
 export type EventsSubscribeParams = {

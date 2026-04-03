@@ -44,8 +44,10 @@ export async function handlePayCommand(
     };
   }
 
-  // Check if input is a Lightning address (user@domain)
-  if (bolt11.includes('@') && bolt11.includes('.')) {
+  // Check if input is a Lightning address (user@domain.tld)
+  // Must not start with 'ln' (bolt11) and must match user@host.tld format
+  const isLightningAddress = !bolt11.startsWith('ln') && /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(bolt11);
+  if (isLightningAddress) {
     const amount = args.flags.amount as string | undefined;
     if (!amount) {
       return {

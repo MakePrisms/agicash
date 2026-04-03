@@ -117,6 +117,7 @@ export async function routeRequest(
         const result = await handleTransactionsCommand(ctx, {
           accountId: params.accountId,
           limit: params.limit,
+          cursor: params.cursor,
         });
         return { id: request.id, result };
       }

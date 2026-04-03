@@ -37,6 +37,8 @@ type EventWaiter = {
 
 // Map of quoteId -> list of waiters
 const eventWaiters = new Map<string, EventWaiter[]>();
+// Buffer for events that resolved before a waiter was registered (fixes race condition)
+const resolvedEvents = new Map<string, Record<string, unknown>>();
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -108,8 +110,7 @@ const TOOLS = [
   },
   {
     name: 'agicash_pay',
-    description:
-      'Pay a Lightning invoice (bolt11) or Lightning address (user@domain). For Lightning addresses, amount is required. Automatically selects the best account (prefers spark for lower fees). Set wait: true to block until payment settles.',
+    description: '', // set dynamically in ListTools handler based on channel support
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -261,7 +262,7 @@ const TOOLS = [
   {
     name: 'agicash_transactions',
     description:
-      'View transaction history. Returns recent transactions with amounts, types, and statuses. Optionally filter by account.',
+      'View transaction history. Returns recent transactions with amounts, types, and statuses. When hasMore is true, pass the returned cursor to fetch the next page.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -272,6 +273,10 @@ const TOOLS = [
         limit: {
           type: 'number',
           description: 'Number of transactions to return (default: 25)',
+        },
+        cursor: {
+          type: 'string',
+          description: 'Pagination cursor from previous response (JSON string)',
         },
       },
     },
@@ -289,7 +294,7 @@ const TOOLS = [
         },
         timeout: {
           type: 'number',
-          description: 'Timeout in seconds (no default — blocks indefinitely if omitted)',
+          description: 'Timeout in seconds (default: 300, max: 300)',
         },
       },
       required: ['quoteId'],
@@ -331,19 +336,30 @@ function formatEventContent(mcpEvent: string, data: Record<string, unknown>): st
 // Event waiter helper
 // ---------------------------------------------------------------------------
 
+const MAX_AWAIT_TIMEOUT_MS = 300_000; // 5 min hard cap
+
 function waitForEvent(quoteId: string, timeoutMs?: number): Promise<Record<string, unknown>> {
+  // Check buffer first — event may have arrived before waiter was registered
+  const buffered = resolvedEvents.get(quoteId);
+  if (buffered) {
+    resolvedEvents.delete(quoteId);
+    return Promise.resolve(buffered);
+  }
+
+  const effectiveTimeout = timeoutMs
+    ? Math.min(timeoutMs, MAX_AWAIT_TIMEOUT_MS)
+    : MAX_AWAIT_TIMEOUT_MS;
+
   return new Promise((resolve, reject) => {
-    const timer = timeoutMs
-      ? setTimeout(() => {
-          const waiters = eventWaiters.get(quoteId);
-          if (waiters) {
-            const idx = waiters.findIndex(w => w.timer === timer);
-            if (idx >= 0) waiters.splice(idx, 1);
-            if (waiters.length === 0) eventWaiters.delete(quoteId);
-          }
-          reject(new Error(`Timed out waiting for event on quote ${quoteId}`));
-        }, timeoutMs)
-      : (undefined as unknown as ReturnType<typeof setTimeout>);
+    const timer = setTimeout(() => {
+      const waiters = eventWaiters.get(quoteId);
+      if (waiters) {
+        const idx = waiters.findIndex(w => w.timer === timer);
+        if (idx >= 0) waiters.splice(idx, 1);
+        if (waiters.length === 0) eventWaiters.delete(quoteId);
+      }
+      reject(new Error(`Timed out waiting for event on quote ${quoteId}`));
+    }, effectiveTimeout);
 
     const waiter: EventWaiter = { resolve, reject, timer };
     const existing = eventWaiters.get(quoteId);
@@ -451,13 +467,17 @@ async function main(): Promise<void> {
         // Resolve any waiters for this event's quote
         const eventQuoteId = (data.quoteId as string) ?? (data.tokenHash as string) ?? (data.swapId as string);
         if (eventQuoteId) {
+          const eventData = { event: mcpEvent, ...data };
           const waiters = eventWaiters.get(eventQuoteId);
           if (waiters) {
             eventWaiters.delete(eventQuoteId);
             for (const waiter of waiters) {
               clearTimeout(waiter.timer);
-              waiter.resolve({ event: mcpEvent, ...data });
+              waiter.resolve(eventData);
             }
+          } else {
+            // No waiter yet — buffer so waitForEvent can pick it up
+            resolvedEvents.set(eventQuoteId, eventData);
           }
         }
       }
@@ -574,10 +594,19 @@ async function main(): Promise<void> {
     },
   );
 
-  // 8. Register tool listing
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: TOOLS,
-  }));
+  // 8. Register tool listing (adaptive descriptions based on channel support)
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const settlementHint = hasChannels
+      ? "When wait is false, you'll receive a channel notification when payment settles."
+      : 'When wait is false, use agicash_await_payment to check settlement status.';
+    const payDesc = `Pay a Lightning invoice (bolt11) or Lightning address (user@domain). For Lightning addresses, amount is required. Automatically selects the best account (prefers spark for lower fees). Set wait: true to block until payment settles. ${settlementHint}`;
+
+    return {
+      tools: TOOLS.map(t =>
+        t.name === 'agicash_pay' ? { ...t, description: payDesc } : t,
+      ),
+    };
+  });
 
   // 9. Register tool call handler
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
