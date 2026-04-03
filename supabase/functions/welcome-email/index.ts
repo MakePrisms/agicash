@@ -1,5 +1,16 @@
+import * as Sentry from "https://deno.land/x/sentry@9.6.0/index.mjs";
 import ky from "npm:ky@1.7.5";
 import { z } from "npm:zod@3.24.3";
+
+Sentry.init({
+  dsn: Deno.env.get("SENTRY_DSN") ?? "",
+  defaultIntegrations: false,
+  tracesSampleRate: 1.0,
+  environment: Deno.env.get("SENTRY_ENVIRONMENT") ?? "production",
+});
+
+Sentry.setTag("region", Deno.env.get("SB_REGION") ?? "unknown");
+Sentry.setTag("execution_id", Deno.env.get("SB_EXECUTION_ID") ?? "unknown");
 
 const RESEND_BASE_URL = "https://api.resend.com";
 const FROM_ADDRESS = "Agicash <noreply@emails.agi.cash>";
@@ -100,6 +111,8 @@ Deno.serve(async (req) => {
       },
     );
   } catch (error) {
+    Sentry.captureException(error);
+    await Sentry.flush(2000);
     console.error("Welcome email function error:", error);
     return new Response(
       JSON.stringify({
