@@ -2,7 +2,8 @@ import { describe, test, expect, beforeEach, mock, spyOn } from 'bun:test';
 
 // Mock ky before the module under test imports it
 const mockPost = mock(() => Promise.resolve(new Response(JSON.stringify({ id: 'test' }))));
-const mockCreate = mock(() => ({ post: mockPost }));
+const mockPatch = mock(() => Promise.resolve(new Response(JSON.stringify({ id: 'test' }))));
+const mockCreate = mock(() => ({ post: mockPost, patch: mockPatch }));
 
 mock.module('ky', () => ({
   default: { create: mockCreate },
@@ -18,7 +19,14 @@ type HandleNewSignup = (params: {
   signupMethod: 'email' | 'google' | 'guest';
 }) => Promise<void>;
 
-function loadFreshModule(): { handleNewSignup: HandleNewSignup } {
+type UnsubscribeContact = (email: string) => Promise<void>;
+
+type EmailServiceModule = {
+  handleNewSignup: HandleNewSignup;
+  unsubscribeContact: UnsubscribeContact;
+};
+
+function loadFreshModule(): EmailServiceModule {
   delete require.cache[MODULE_PATH];
   return require(MODULE_PATH);
 }
@@ -35,6 +43,7 @@ describe('handleNewSignup', () => {
   beforeEach(() => {
     setupEnv();
     mockPost.mockClear();
+    mockPatch.mockClear();
     mockPost.mockImplementation(() =>
       Promise.resolve(new Response(JSON.stringify({ id: 'test' }))),
     );
@@ -142,6 +151,7 @@ describe('sendWelcomeEmail payload', () => {
         variables: {
           firstName: 'Alice',
           email: 'user@example.com',
+          unsubscribeUrl: `https://agi.cash/api/unsubscribe?email=${btoa('user@example.com')}`,
         },
       },
     });
@@ -160,6 +170,7 @@ describe('sendWelcomeEmail payload', () => {
     ).toEqual({
       firstName: 'there',
       email: 'user@example.com',
+      unsubscribeUrl: `https://agi.cash/api/unsubscribe?email=${btoa('user@example.com')}`,
     });
   });
 });
@@ -222,5 +233,52 @@ describe('error resilience', () => {
     });
 
     expect(mockPost).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('unsubscribeContact', () => {
+  let unsubscribeContact: UnsubscribeContact;
+
+  beforeEach(() => {
+    setupEnv();
+    mockPatch.mockClear();
+    mockPatch.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ id: 'test' }))),
+    );
+    unsubscribeContact = loadFreshModule().unsubscribeContact;
+  });
+
+  test('calls PATCH with correct URL and body', async () => {
+    await unsubscribeContact('user@example.com');
+
+    expect(mockPatch).toHaveBeenCalledTimes(1);
+
+    const [url, options] = mockPatch.mock.calls[0] as unknown as [
+      string,
+      { json: { unsubscribed: boolean } },
+    ];
+
+    expect(url).toBe('audiences/test-audience-id/contacts/user@example.com');
+    expect(options.json).toEqual({ unsubscribed: true });
+  });
+
+  test('throws when API returns an error', async () => {
+    mockPatch.mockImplementation(() =>
+      Promise.reject(new Error('Contact not found')),
+    );
+
+    await expect(unsubscribeContact('unknown@example.com')).rejects.toThrow(
+      'Contact not found',
+    );
+  });
+
+  test('throws when API fails', async () => {
+    mockPatch.mockImplementation(() =>
+      Promise.reject(new Error('Internal server error')),
+    );
+
+    await expect(unsubscribeContact('user@example.com')).rejects.toThrow(
+      'Internal server error',
+    );
   });
 });

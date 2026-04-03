@@ -39,9 +39,12 @@ async function createContact(email: string, firstName?: string) {
   await resend.post(`audiences/${audienceId}/contacts`, { json: body });
 }
 
+const APP_URL = 'https://agi.cash';
+
 async function sendWelcomeEmail(email: string, firstName?: string) {
   const resend = getResendClient();
   const templateId = getRequiredEnv('RESEND_WELCOME_TEMPLATE_ID');
+  const unsubscribeUrl = `${APP_URL}/api/unsubscribe?email=${btoa(email)}`;
 
   await resend.post('emails', {
     json: {
@@ -53,9 +56,19 @@ async function sendWelcomeEmail(email: string, firstName?: string) {
         variables: {
           firstName: firstName ?? 'there',
           email,
+          unsubscribeUrl,
         },
       },
     },
+  });
+}
+
+export async function unsubscribeContact(email: string): Promise<void> {
+  const resend = getResendClient();
+  const audienceId = getRequiredEnv('RESEND_AUDIENCE_ID');
+
+  await resend.patch(`audiences/${audienceId}/contacts/${email}`, {
+    json: { unsubscribed: true },
   });
 }
 
