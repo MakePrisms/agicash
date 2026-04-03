@@ -174,29 +174,9 @@ export class SparkSendQuoteService {
       estimatedLightningFee,
     ) as Money;
 
-    const ownedBalance = account.ownedBalance ?? Money.zero(account.currency);
-    const availableBalance =
-      account.availableBalance ?? Money.zero(account.currency);
-
-    if (availableBalance.lessThan(estimatedTotalAmount)) {
-      const estimatedTotalFormatted = estimatedTotalAmount.toLocaleString({
-        unit: 'sat',
-      });
-      const hasSufficientOwned =
-        ownedBalance.greaterThanOrEqual(estimatedTotalAmount);
-
-      if (hasSufficientOwned) {
-        const availableFormatted = availableBalance.toLocaleString({
-          unit: 'sat',
-        });
-
-        throw new DomainError(
-          `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted} but the available balance is ${availableFormatted} because some of your funds are locked in a pending transfer.`,
-        );
-      }
-
+    if (!account.balance || account.balance.lessThan(estimatedTotalAmount)) {
       throw new DomainError(
-        `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted}.`,
+        `Insufficient balance. Estimated total including fee is ${estimatedTotalAmount.toLocaleString({ unit: 'sat' })}.`,
       );
     }
 
@@ -229,29 +209,12 @@ export class SparkSendQuoteService {
       throw new DomainError('Lightning invoice has expired');
     }
 
-    const ownedBalance = account.ownedBalance ?? Money.zero(account.currency);
-    const availableBalance =
-      account.availableBalance ?? Money.zero(account.currency);
-
-    if (availableBalance.lessThan(quote.estimatedTotalAmount)) {
-      const estimatedTotalFormatted = quote.estimatedTotalAmount.toLocaleString(
-        { unit: 'sat' },
-      );
-      const hasSufficientOwned = ownedBalance.greaterThanOrEqual(
-        quote.estimatedTotalAmount,
-      );
-
-      if (hasSufficientOwned) {
-        const availableFormatted = availableBalance.toLocaleString({
-          unit: 'sat',
-        });
-        throw new DomainError(
-          `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted} but the available balance is ${availableFormatted} because some of your funds are locked in a pending transfer.`,
-        );
-      }
-
+    if (
+      !account.balance ||
+      account.balance.lessThan(quote.estimatedTotalAmount)
+    ) {
       throw new DomainError(
-        `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted}.`,
+        `Insufficient balance. Estimated total including fee is ${quote.estimatedTotalAmount.toLocaleString({ unit: 'sat' })}.`,
       );
     }
 
@@ -400,13 +363,9 @@ export class SparkSendQuoteService {
       }
 
       if (isInsufficentBalanceError(error)) {
-        // Spark SDK error context:
-        // - value: total amount being sent in sats (number)
-        // - expected: "less than or equal to ${availableBalance}" (string)
-        const { expected, value } = error.getContext();
-        const availableSats = expected.match(/(\d+)/)?.[1] ?? '0';
+        const { expected } = error.getContext();
         throw new DomainError(
-          `Insufficient balance. Total cost of send is ${value} sats but the available balance is ${availableSats} sats.`,
+          `Insufficient balance. Total cost of send is ${expected}.`,
         );
       }
 
