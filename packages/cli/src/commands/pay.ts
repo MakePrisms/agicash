@@ -1,5 +1,9 @@
-import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
+import type {
+  CashuAccount,
+  SparkAccount,
+} from '@agicash/sdk/features/accounts/account';
 import type { ParsedArgs } from '../args';
+import { resolveAccount } from '../resolve-account';
 import type { SdkContext } from '../sdk-context';
 
 export interface PayResult {
@@ -8,11 +12,13 @@ export interface PayResult {
     quote_id: string;
     bolt11: string;
     amount: number;
-    fee_reserve: number;
+    fee_reserve?: number;
+    fee_estimate?: number;
     currency: string;
     account_id: string;
     account_name: string;
-    mint_url: string;
+    account_type: 'cashu' | 'spark';
+    mint_url?: string;
     state: string;
   };
   error?: string;
@@ -40,20 +46,74 @@ export async function handlePayCommand(
     };
   }
 
-  const account = await findCashuAccount(
-    ctx,
-    args.flags.account as string | undefined,
-  );
+  const account = await resolveAccount(ctx, {
+    accountId: args.flags.account as string | undefined,
+    preferType: 'spark',
+    requireCanSendLightning: true,
+  });
   if (!account) {
     return {
       action: 'error',
       error: args.flags.account
         ? `Account not found: ${args.flags.account}`
-        : 'No cashu accounts configured. Run: agicash mint add <url>',
+        : 'No accounts that can send Lightning payments. Run: agicash mint add <url> or agicash account list',
       code: 'NO_ACCOUNT',
     };
   }
 
+  if (account.type === 'spark') {
+    return handleSparkPay(bolt11, account, ctx);
+  }
+
+  return handleCashuPay(bolt11, account as CashuAccount, ctx);
+}
+
+async function handleSparkPay(
+  bolt11: string,
+  account: SparkAccount,
+  ctx: SdkContext,
+): Promise<PayResult> {
+  try {
+    const quote = await ctx.sparkSendQuoteService.getLightningSendQuote({
+      account,
+      paymentRequest: bolt11,
+    });
+    const sendQuote = await ctx.sparkSendQuoteService.createSendQuote({
+      userId: ctx.userId,
+      account,
+      quote,
+    });
+    // Initiate immediately -- the task processor handles completion
+    await ctx.sparkSendQuoteService.initiateSend({ account, sendQuote });
+
+    return {
+      action: 'created',
+      payment: {
+        quote_id: sendQuote.id,
+        bolt11,
+        amount: quote.amountRequestedInBtc.toNumber('sat'),
+        fee_estimate: quote.estimatedLightningFee.toNumber('sat'),
+        currency: account.currency,
+        account_id: account.id,
+        account_name: account.name,
+        account_type: 'spark',
+        state: 'pending',
+      },
+    };
+  } catch (err) {
+    return {
+      action: 'error',
+      error: `Payment failed: ${err instanceof Error ? err.message : String(err)}`,
+      code: 'PAY_FAILED',
+    };
+  }
+}
+
+async function handleCashuPay(
+  bolt11: string,
+  account: CashuAccount,
+  ctx: SdkContext,
+): Promise<PayResult> {
   try {
     const lightningQuote = await ctx.cashuSendQuoteService.getLightningQuote({
       account,
@@ -79,6 +139,7 @@ export async function handlePayCommand(
         currency: account.currency,
         account_id: account.id,
         account_name: account.name,
+        account_type: 'cashu',
         mint_url: account.mintUrl,
         state: 'pending',
       },
@@ -92,14 +153,3 @@ export async function handlePayCommand(
   }
 }
 
-async function findCashuAccount(
-  ctx: SdkContext,
-  accountId?: string,
-): Promise<CashuAccount | undefined> {
-  if (accountId) {
-    const account = await ctx.accountRepo.get(accountId);
-    return account.type === 'cashu' ? account : undefined;
-  }
-  const accounts = await ctx.accountRepo.getAll(ctx.userId);
-  return accounts.find((a): a is CashuAccount => a.type === 'cashu');
-}

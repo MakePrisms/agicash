@@ -9,6 +9,7 @@ import {
   getSeedPhraseDerivationPath,
   getSparkIdentityPublicKeyFromMnemonic,
 } from '@agicash/sdk';
+import { ReceiveCashuTokenService } from '@agicash/sdk/features/receive/receive-cashu-token-service';
 import { createOpenSecretKeyProvider } from './opensecret-key-provider';
 import { CONFIG_LOCATION_HINT } from './runtime-config';
 import { getSupabaseClient } from './supabase-client';
@@ -32,10 +33,15 @@ export type SdkContext = {
   cashuReceiveSwapService: WalletClient['services']['cashuReceiveSwapService'];
   cashuSendQuoteService: WalletClient['services']['cashuSendQuoteService'];
   cashuSendSwapService: WalletClient['services']['cashuSendSwapService'];
+  sparkSendQuoteService: WalletClient['services']['sparkSendQuoteService'];
+  sparkReceiveQuoteService: WalletClient['services']['sparkReceiveQuoteService'];
   accountRepo: WalletClient['repos']['accountRepo'];
   cashuReceiveQuoteRepo: WalletClient['repos']['cashuReceiveQuoteRepo'];
   cashuSendSwapRepo: WalletClient['repos']['cashuSendSwapRepo'];
+  sparkSendQuoteRepo: WalletClient['repos']['sparkSendQuoteRepo'];
+  sparkReceiveQuoteRepo: WalletClient['repos']['sparkReceiveQuoteRepo'];
   transactionRepo: WalletClient['repos']['transactionRepo'];
+  receiveCashuTokenService: ReceiveCashuTokenService;
   cache: Cache;
   cleanup(): Promise<void>;
 };
@@ -100,6 +106,12 @@ export async function getSdkContext(): Promise<SdkContext> {
     sparkIdentityPublicKey,
   });
 
+  const receiveCashuTokenService = new ReceiveCashuTokenService(
+    cache,
+    () => false, // no feature flags in CLI
+    () => true, // accept all mints
+  );
+
   cached = {
     userId,
     wallet,
@@ -108,10 +120,15 @@ export async function getSdkContext(): Promise<SdkContext> {
     cashuReceiveSwapService: wallet.services.cashuReceiveSwapService,
     cashuSendQuoteService: wallet.services.cashuSendQuoteService,
     cashuSendSwapService: wallet.services.cashuSendSwapService,
+    sparkSendQuoteService: wallet.services.sparkSendQuoteService,
+    sparkReceiveQuoteService: wallet.services.sparkReceiveQuoteService,
     accountRepo: wallet.repos.accountRepo,
     cashuReceiveQuoteRepo: wallet.repos.cashuReceiveQuoteRepo,
     cashuSendSwapRepo: wallet.repos.cashuSendSwapRepo,
+    sparkSendQuoteRepo: wallet.repos.sparkSendQuoteRepo,
+    sparkReceiveQuoteRepo: wallet.repos.sparkReceiveQuoteRepo,
     transactionRepo: wallet.repos.transactionRepo,
+    receiveCashuTokenService,
     cache,
     async cleanup() {
       await wallet.cleanup();

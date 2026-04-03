@@ -75,16 +75,19 @@ async function decodeCashuToken(token: string): Promise<DecodeResult> {
   try {
     const { getTokenMetadata } = await import('@cashu/cashu-ts');
     const meta = getTokenMetadata(token);
+
+    const data: Record<string, unknown> = {
+      mint: meta.mint,
+      unit: meta.unit,
+      memo: meta.memo ?? null,
+      proof_count: meta.incompleteProofs.length,
+      total_amount: meta.amount,
+    };
+
     return {
       type: 'cashu_token',
       raw: token,
-      data: {
-        mint: meta.mint,
-        unit: meta.unit,
-        memo: meta.memo ?? null,
-        proof_count: meta.incompleteProofs.length,
-        total_amount: meta.amount,
-      },
+      data,
     };
   } catch (err) {
     return {

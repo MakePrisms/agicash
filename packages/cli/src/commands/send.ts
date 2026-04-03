@@ -1,9 +1,9 @@
-import type { CashuAccount } from '@agicash/sdk/features/accounts/account';
 import { toProof } from '@agicash/sdk/features/accounts/cashu-account';
 import { getCashuProtocolUnit } from '@agicash/sdk/lib/cashu/utils';
 import { Money } from '@agicash/sdk/lib/money/money';
 import { getEncodedToken } from '@cashu/cashu-ts';
 import type { ParsedArgs } from '../args';
+import { resolveAccount } from '../resolve-account';
 import type { SdkContext } from '../sdk-context';
 
 export interface SendResult {
@@ -49,17 +49,25 @@ export async function handleSendCommand(
     };
   }
 
-  const account = await findCashuAccount(
-    ctx,
-    args.flags.account as string | undefined,
-  );
+  const account = await resolveAccount(ctx, {
+    accountId: args.flags.account as string | undefined,
+    preferType: 'cashu',
+  });
   if (!account) {
     return {
       action: 'error',
       error: args.flags.account
         ? `Account not found: ${args.flags.account}`
-        : 'No cashu accounts configured. Run: agicash mint add <url>',
+        : 'No cashu accounts configured. Run: agicash mint add <url> or agicash account list',
       code: 'NO_ACCOUNT',
+    };
+  }
+  if (account.type !== 'cashu') {
+    return {
+      action: 'error',
+      error:
+        "Send creates ecash tokens which requires a cashu account. Use 'pay' for Lightning payments.",
+      code: 'WRONG_ACCOUNT_TYPE',
     };
   }
 
@@ -127,14 +135,3 @@ export async function handleSendCommand(
   }
 }
 
-async function findCashuAccount(
-  ctx: SdkContext,
-  accountId?: string,
-): Promise<CashuAccount | undefined> {
-  if (accountId) {
-    const account = await ctx.accountRepo.get(accountId);
-    return account.type === 'cashu' ? account : undefined;
-  }
-  const accounts = await ctx.accountRepo.getAll(ctx.userId);
-  return accounts.find((a): a is CashuAccount => a.type === 'cashu');
-}

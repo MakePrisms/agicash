@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 import { configure } from '@agicash/opensecret-sdk';
 import { parseArgs } from './args';
+import { handleAccountCommand } from './commands/account';
 import { executeAuthCommand, handleAuthCommand } from './commands/auth';
 import { handleBalanceCommand } from './commands/balance';
-import { handleConfigCommand } from './commands/config';
 import { handleDecodeCommand } from './commands/decode';
 import { handleMintCommand } from './commands/mint';
 import { handlePayCommand } from './commands/pay';
@@ -71,6 +71,10 @@ const HELP_TEXT = {
     'mint add <url>':
       'Add a mint. Supports --currency BTC|USD and --name "My Mint"',
     'mint list': 'List configured Cashu mints',
+    'account list':
+      'List all accounts (cashu + spark) with balances and defaults',
+    'account default <id>': 'Set an account as the default for its currency',
+    'account info <id>': 'Show detailed account info',
     balance: 'Show balances and totals for all wallet accounts',
     'send <amount>':
       'Create a Cashu token from the selected Cashu account. Also supports --amount <amount> and --account <id>',
@@ -81,6 +85,8 @@ const HELP_TEXT = {
     'receive <cashu-token>':
       'Claim a Cashu token. Also supports --account <id>',
     'receive list': 'List all pending quotes',
+    'receive --inspect <token>':
+      'Show which accounts can receive a cashu token',
     'receive --check <quote-id>':
       'Check one pending quote and mint it if payment completed',
     'receive --check-all': 'Recheck all pending quotes and mint paid ones',
@@ -88,11 +94,6 @@ const HELP_TEXT = {
       'Decode or identify bolt11, cashu token, Lightning address, LNURL, or URL. Also supports --input <input>',
     watch:
       'Watch pending quotes/swaps and auto-complete (foreground daemon). Supports --receive or --send to filter',
-    config: 'Show all config values (same as config list)',
-    'config get <key>': 'Show one config value',
-    'config set <key> <value>':
-      'Set config (default-btc-account, default-usd-account)',
-    'config list': 'Show all config',
     help: 'Show this help',
     version: 'Show version',
   },
@@ -226,17 +227,6 @@ async function main(): Promise<void> {
         break;
       }
 
-      case 'config': {
-        const db = getConfiguredDb();
-        const result = handleConfigCommand(parsed, db);
-        if (result.action === 'error') {
-          printError(result.error ?? '', result.code ?? '', outputOptions);
-          process.exit(1);
-        }
-        printOutput(result, outputOptions);
-        break;
-      }
-
       case 'mint': {
         getConfiguredDb(); // ensure OpenSecret is configured
         const result = await withSdkContext(outputOptions, (ctx) =>
@@ -247,6 +237,23 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         printOutput(result, outputOptions);
+        break;
+      }
+
+      case 'account': {
+        getConfiguredDb();
+        const accountResult = await withSdkContext(outputOptions, (ctx) =>
+          handleAccountCommand(parsed, ctx),
+        );
+        if (accountResult.action === 'error') {
+          printError(
+            accountResult.error ?? '',
+            accountResult.code ?? '',
+            outputOptions,
+          );
+          process.exit(1);
+        }
+        printOutput(accountResult, outputOptions);
         break;
       }
 
