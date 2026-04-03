@@ -65,35 +65,6 @@ async function withRetry<T>(
   throw lastError;
 }
 
-async function createResendContact(
-  apiKey: string,
-  audienceId: string,
-  email: string,
-  firstName: string | undefined,
-): Promise<void> {
-  const response = await fetch(
-    `${RESEND_BASE_URL}/audiences/${audienceId}/contacts`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        ...(firstName ? { first_name: firstName } : {}),
-      }),
-    },
-  );
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(
-      `Resend create contact failed (${response.status}): ${body}`,
-    );
-  }
-}
-
 async function sendWelcomeEmail(
   apiKey: string,
   templateId: string,
@@ -156,13 +127,11 @@ Deno.serve(async (req) => {
     }
 
     const apiKey = Deno.env.get("RESEND_API_KEY");
-    const audienceId = Deno.env.get("RESEND_AUDIENCE_ID");
     const templateId = Deno.env.get("RESEND_WELCOME_TEMPLATE_ID");
 
-    if (!apiKey || !audienceId || !templateId) {
+    if (!apiKey || !templateId) {
       console.error("Missing required Resend env vars:", {
         hasApiKey: !!apiKey,
-        hasAudienceId: !!audienceId,
         hasTemplateId: !!templateId,
       });
       return new Response(
@@ -172,16 +141,6 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
-    }
-
-    // Best-effort: contact creation failure should not block the welcome email
-    try {
-      await withRetry(
-        () => createResendContact(apiKey, audienceId, email, firstName),
-        "Create Resend contact",
-      );
-    } catch {
-      // logged inside withRetry, continue to send email
     }
 
     await withRetry(
