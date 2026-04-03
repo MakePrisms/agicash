@@ -3,27 +3,22 @@ import ky from 'ky';
 const RESEND_API_BASE = 'https://api.resend.com';
 const FROM_ADDRESS = 'Agicash <noreply@emails.agi.cash>';
 
-const resendApiKey = process.env.RESEND_API_KEY ?? '';
-if (!resendApiKey) {
-  throw new Error('RESEND_API_KEY is not set');
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is not set`);
+  }
+  return value;
 }
 
-const resendWelcomeTemplateId = process.env.RESEND_WELCOME_TEMPLATE_ID ?? '';
-if (!resendWelcomeTemplateId) {
-  throw new Error('RESEND_WELCOME_TEMPLATE_ID is not set');
+function getResendClient() {
+  return ky.create({
+    prefixUrl: RESEND_API_BASE,
+    headers: {
+      Authorization: `Bearer ${getRequiredEnv('RESEND_API_KEY')}`,
+    },
+  });
 }
-
-const resendAudienceId = process.env.RESEND_AUDIENCE_ID ?? '';
-if (!resendAudienceId) {
-  throw new Error('RESEND_AUDIENCE_ID is not set');
-}
-
-const resend = ky.create({
-  prefixUrl: RESEND_API_BASE,
-  headers: {
-    Authorization: `Bearer ${resendApiKey}`,
-  },
-});
 
 type SignupMethod = 'email' | 'google' | 'guest';
 
@@ -34,22 +29,27 @@ type NewSignupParams = {
 };
 
 async function createContact(email: string, firstName?: string) {
+  const resend = getResendClient();
+  const audienceId = getRequiredEnv('RESEND_AUDIENCE_ID');
   const body: Record<string, string> = { email };
   if (firstName) {
     body.first_name = firstName;
   }
 
-  await resend.post(`audiences/${resendAudienceId}/contacts`, { json: body });
+  await resend.post(`audiences/${audienceId}/contacts`, { json: body });
 }
 
 async function sendWelcomeEmail(email: string, firstName?: string) {
+  const resend = getResendClient();
+  const templateId = getRequiredEnv('RESEND_WELCOME_TEMPLATE_ID');
+
   await resend.post('emails', {
     json: {
       from: FROM_ADDRESS,
       to: [email],
       subject: 'Welcome to Agicash',
       template: {
-        id: resendWelcomeTemplateId,
+        id: templateId,
         variables: {
           firstName: firstName ?? 'there',
           email,
