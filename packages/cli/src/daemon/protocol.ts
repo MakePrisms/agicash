@@ -19,6 +19,7 @@ export type DaemonMethod =
   | 'mint.add'
   | 'mint.list'
   | 'decode'
+  | 'transactions'
   | 'events.subscribe'
   | 'events.unsubscribe';
 
@@ -34,6 +35,7 @@ export type SendParams = {
 export type PayParams = {
   bolt11: string;
   accountId?: string;
+  amount?: string;
 };
 
 export type ReceiveParams = {
@@ -68,6 +70,29 @@ export type DecodeParams = {
   input: string;
 };
 
+export type TransactionsParams = {
+  accountId?: string;
+  limit?: number;
+};
+
+export type TransactionItem = {
+  id: string;
+  direction: string;
+  type: string;
+  state: string;
+  amount: number;
+  currency: string;
+  accountId: string;
+  accountName: string;
+  createdAt: string;
+  completedAt?: string;
+};
+
+export type TransactionsResult = {
+  transactions: TransactionItem[];
+  hasMore: boolean;
+};
+
 export type EventsSubscribeParams = {
   filter?: 'receive' | 'send' | 'all';
 };
@@ -90,6 +115,7 @@ export type DaemonMethodMap = {
   'mint.add': { params: MintAddParams; result: MintCommandResult };
   'mint.list': { params: MintListParams; result: MintCommandResult };
   decode: { params: DecodeParams; result: DecodeResult };
+  transactions: { params: TransactionsParams; result: TransactionsResult };
   'events.subscribe': { params: EventsSubscribeParams; result: { ok: true } };
   'events.unsubscribe': {
     params: EventsUnsubscribeParams;

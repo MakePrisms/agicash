@@ -7,6 +7,7 @@ import { handleMintCommand } from '../commands/mint';
 import { handlePayCommand } from '../commands/pay';
 import { handleReceiveCommand } from '../commands/receive';
 import { handleSendCommand } from '../commands/send';
+import { handleTransactionsCommand } from '../commands/transactions';
 import type { SdkContext } from '../sdk-context';
 import type {
   AccountDefaultParams,
@@ -20,6 +21,7 @@ import type {
   PayParams,
   ReceiveParams,
   SendParams,
+  TransactionsParams,
 } from './protocol';
 import { type TaskProcessorHandle, startTaskProcessors } from './task-processors';
 
@@ -78,6 +80,7 @@ export async function routeRequest(
         const positional = params.bolt11 ? [params.bolt11] : [];
         const flags: Record<string, string | boolean> = {};
         if (params.accountId) flags.account = params.accountId;
+        if (params.amount) flags.amount = params.amount;
         const args = buildParsedArgs('pay', positional, flags);
         const result = await handlePayCommand(args, ctx);
         return { id: request.id, result };
@@ -106,6 +109,15 @@ export async function routeRequest(
 
         const args = buildParsedArgs('receive', positional, flags);
         const result = await handleReceiveCommand(args, ctx);
+        return { id: request.id, result };
+      }
+
+      case 'transactions': {
+        const params = (request.params ?? {}) as TransactionsParams;
+        const result = await handleTransactionsCommand(ctx, {
+          accountId: params.accountId,
+          limit: params.limit,
+        });
         return { id: request.id, result };
       }
 

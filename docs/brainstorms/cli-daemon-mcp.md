@@ -133,11 +133,13 @@ Claude  <--MCP/stdio-->  pikachat-claude (TS)  <--JSONL/stdio-->  pikachat daemo
 
 Our advantage: all TypeScript/Bun, no language boundary. Daemon and MCP server can share types directly.
 
-## Open Questions
+## Open Questions (Resolved)
 
-1. **Daemon lifecycle management** — systemd service? Launched by MCP server on demand? Auto-start on first CLI call?
-2. **IPC protocol** — JSONL over Unix socket (like pikachat) or something else?
-3. **Multi-user** — one daemon per user, or shared daemon with user isolation?
-4. **Auth** — daemon holds OpenSecret session? Re-auth on restart?
-5. **Transfer service** — currently app-only. Move to SDK for daemon access?
-6. **MCP notifications** — how to push payment events to Claude (MCP doesn't have server→client push in the base spec)?
+All resolved in the follow-up brainstorm — see `mcp-server.md`.
+
+1. **Daemon lifecycle** → Child of MCP server. Dies with Claude. Wallet handles offline gracefully.
+2. **IPC protocol** → JSONL over stdio (not Unix socket). No `--remote` in v1.
+3. **Multi-instance** → Config-level isolation via `AGICASH_DIR` env var. Same or different users.
+4. **Auth** → Daemon holds OpenSecret session for its lifetime. Re-auths on restart.
+5. **Transfer service** → Deferred.
+6. **MCP notifications** → `notifications/claude/channel` (Claude Code extension, pikachat's proven pattern).

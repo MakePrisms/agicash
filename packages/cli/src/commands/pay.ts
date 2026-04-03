@@ -1,3 +1,8 @@
+import {
+  Money,
+  getInvoiceFromLud16,
+  isLNURLError,
+} from '@agicash/sdk';
 import type {
   CashuAccount,
   SparkAccount,
@@ -29,7 +34,7 @@ export async function handlePayCommand(
   args: ParsedArgs,
   ctx: SdkContext,
 ): Promise<PayResult> {
-  const bolt11 = (args.flags.bolt11 as string) || args.positional[0];
+  let bolt11 = (args.flags.bolt11 as string) || args.positional[0];
   if (!bolt11) {
     return {
       action: 'error',
@@ -38,6 +43,38 @@ export async function handlePayCommand(
       code: 'MISSING_INVOICE',
     };
   }
+
+  // Check if input is a Lightning address (user@domain)
+  if (bolt11.includes('@') && bolt11.includes('.')) {
+    const amount = args.flags.amount as string | undefined;
+    if (!amount) {
+      return {
+        action: 'error',
+        error: 'Lightning address requires --amount. Usage: agicash pay user@domain --amount 100',
+        code: 'MISSING_AMOUNT',
+      };
+    }
+    try {
+      const amountSats = parseInt(amount, 10);
+      const amountMoney = new Money<'BTC'>({ amount: amountSats, currency: 'BTC', unit: 'sat' });
+      const result = await getInvoiceFromLud16(bolt11, amountMoney);
+      if (isLNURLError(result)) {
+        return {
+          action: 'error',
+          error: `Failed to resolve Lightning address: ${result.reason}`,
+          code: 'LN_ADDRESS_RESOLVE_FAILED',
+        };
+      }
+      bolt11 = result.pr;
+    } catch (err) {
+      return {
+        action: 'error',
+        error: `Failed to resolve Lightning address: ${err instanceof Error ? err.message : String(err)}`,
+        code: 'LN_ADDRESS_RESOLVE_FAILED',
+      };
+    }
+  }
+
   if (!bolt11.startsWith('ln')) {
     return {
       action: 'error',

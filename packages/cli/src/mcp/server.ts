@@ -29,11 +29,34 @@ type DaemonJsonlResponse = {
   ts?: string;
 };
 
+type EventWaiter = {
+  resolve: (data: Record<string, unknown>) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+// Map of quoteId -> list of waiters
+const eventWaiters = new Map<string, EventWaiter[]>();
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const REQUEST_TIMEOUT_MS = 30_000;
+
+// Terminal event mapping: daemon event -> normalized MCP event
+const DAEMON_EVENT_MAP: Record<string, string> = {
+  'send:completed': 'payment_completed',
+  'send:failed': 'payment_failed',
+  'spark:send:completed': 'payment_completed',
+  'spark:send:failed': 'payment_failed',
+  'receive:minted': 'receive_completed',
+  'receive:expired': 'receive_failed',
+  'receive:swap:completed': 'receive_completed',
+  'spark:receive:completed': 'receive_completed',
+  'spark:receive:expired': 'receive_failed',
+  'send:swap:completed': 'payment_completed',
+};
 
 // Map from MCP tool name -> daemon method name
 const TOOL_METHOD_MAP: Record<string, DaemonMethod> = {
@@ -47,6 +70,7 @@ const TOOL_METHOD_MAP: Record<string, DaemonMethod> = {
   agicash_account_info: 'account.info',
   agicash_mint_add: 'mint.add',
   agicash_mint_list: 'mint.list',
+  agicash_transactions: 'transactions',
 };
 
 // ---------------------------------------------------------------------------
@@ -85,17 +109,25 @@ const TOOLS = [
   {
     name: 'agicash_pay',
     description:
-      'Pay a Lightning invoice (bolt11) from the wallet. Automatically selects the best account (prefers spark for lower fees). Optionally specify accountId to force a specific account.',
+      'Pay a Lightning invoice (bolt11) or Lightning address (user@domain). For Lightning addresses, amount is required. Automatically selects the best account (prefers spark for lower fees). Set wait: true to block until payment settles.',
     inputSchema: {
       type: 'object' as const,
       properties: {
         bolt11: {
           type: 'string',
-          description: 'Lightning invoice to pay (required)',
+          description: 'Lightning invoice or Lightning address to pay (required)',
         },
         accountId: {
           type: 'string',
           description: 'Specific account ID to pay from',
+        },
+        amount: {
+          type: 'string',
+          description: 'Amount in sats (required for Lightning address payments)',
+        },
+        wait: {
+          type: 'boolean',
+          description: 'Block until payment settles (default: false)',
         },
       },
       required: ['bolt11'],
@@ -226,6 +258,43 @@ const TOOLS = [
       properties: {},
     },
   },
+  {
+    name: 'agicash_transactions',
+    description:
+      'View transaction history. Returns recent transactions with amounts, types, and statuses. Optionally filter by account.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        accountId: {
+          type: 'string',
+          description: 'Filter by account ID',
+        },
+        limit: {
+          type: 'number',
+          description: 'Number of transactions to return (default: 25)',
+        },
+      },
+    },
+  },
+  {
+    name: 'agicash_await_payment',
+    description:
+      'Block until a payment or receive quote settles. Returns the terminal event (completed/failed/expired). Use after creating a Lightning invoice or initiating a payment when you need to wait for the result.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        quoteId: {
+          type: 'string',
+          description: 'Quote ID to wait for (required)',
+        },
+        timeout: {
+          type: 'number',
+          description: 'Timeout in seconds (no default — blocks indefinitely if omitted)',
+        },
+      },
+      required: ['quoteId'],
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -234,6 +303,56 @@ const TOOLS = [
 
 function log(message: string): void {
   process.stderr.write(`[mcp] ${message}\n`);
+}
+
+function formatEventContent(mcpEvent: string, data: Record<string, unknown>): string {
+  const quoteId = (data.quoteId as string) ?? 'unknown';
+  switch (mcpEvent) {
+    case 'payment_completed': {
+      const amount = data.amount ?? '';
+      return `Payment completed. Quote: ${quoteId}${amount ? `. Amount: ${amount}` : ''}`;
+    }
+    case 'payment_failed': {
+      const reason = (data.reason as string) ?? 'unknown';
+      return `Payment failed for quote ${quoteId}: ${reason}`;
+    }
+    case 'receive_completed': {
+      const amount = data.amount ?? '';
+      return `Receive completed. Quote: ${quoteId}${amount ? `. Amount: ${amount}` : ''}`;
+    }
+    case 'receive_failed':
+      return `Receive expired for quote ${quoteId}`;
+    default:
+      return `${mcpEvent}: ${JSON.stringify(data)}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Event waiter helper
+// ---------------------------------------------------------------------------
+
+function waitForEvent(quoteId: string, timeoutMs?: number): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          const waiters = eventWaiters.get(quoteId);
+          if (waiters) {
+            const idx = waiters.findIndex(w => w.timer === timer);
+            if (idx >= 0) waiters.splice(idx, 1);
+            if (waiters.length === 0) eventWaiters.delete(quoteId);
+          }
+          reject(new Error(`Timed out waiting for event on quote ${quoteId}`));
+        }, timeoutMs)
+      : (undefined as unknown as ReturnType<typeof setTimeout>);
+
+    const waiter: EventWaiter = { resolve, reject, timer };
+    const existing = eventWaiters.get(quoteId);
+    if (existing) {
+      existing.push(waiter);
+    } else {
+      eventWaiters.set(quoteId, [waiter]);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -260,6 +379,7 @@ async function main(): Promise<void> {
   const daemon = spawnDaemon();
   const pending = new Map<string, PendingRequest>();
   let exiting = false;
+  let hasChannels = false;
 
   if (!daemon.stdout || !daemon.stdin) {
     log('daemon stdio not available');
@@ -302,6 +422,45 @@ async function main(): Promise<void> {
     // Event (has event field, no id)
     if (msg.event) {
       log(`event: ${msg.event} ${JSON.stringify(msg.data ?? {})}`);
+
+      // Forward terminal events as channel notifications
+      const mcpEvent = DAEMON_EVENT_MAP[msg.event];
+      if (mcpEvent) {
+        const data = (msg.data ?? {}) as Record<string, unknown>;
+
+        if (hasChannels) {
+          const content = formatEventContent(mcpEvent, data);
+          server.notification({
+            method: 'notifications/claude/channel',
+            params: {
+              content,
+              meta: {
+                source: 'agicash',
+                event: mcpEvent,
+                chat_id: 'agicash',
+                message_id: (data.quoteId as string) ?? (data.tokenHash as string) ?? (data.swapId as string) ?? '',
+                ts: (msg.ts as string) ?? new Date().toISOString(),
+              },
+            },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any).catch((err: unknown) => {
+            log(`channel notification failed: ${err}`);
+          });
+        }
+
+        // Resolve any waiters for this event's quote
+        const eventQuoteId = (data.quoteId as string) ?? (data.tokenHash as string) ?? (data.swapId as string);
+        if (eventQuoteId) {
+          const waiters = eventWaiters.get(eventQuoteId);
+          if (waiters) {
+            eventWaiters.delete(eventQuoteId);
+            for (const waiter of waiters) {
+              clearTimeout(waiter.timer);
+              waiter.resolve({ event: mcpEvent, ...data });
+            }
+          }
+        }
+      }
     }
   });
 
@@ -313,6 +472,14 @@ async function main(): Promise<void> {
       clearTimeout(req.timer);
       req.reject(new Error('daemon exited'));
       pending.delete(id);
+    }
+    // Reject all event waiters
+    for (const [qid, waiters] of eventWaiters) {
+      for (const waiter of waiters) {
+        clearTimeout(waiter.timer);
+        waiter.reject(new Error('daemon exited'));
+      }
+      eventWaiters.delete(qid);
     }
     // Only exit with error if this wasn't a clean shutdown
     if (!exiting) {
@@ -370,7 +537,21 @@ async function main(): Promise<void> {
     });
   }
 
-  // 6. Create the MCP server
+  // 6. Query daemon for wallet state to build instructions
+  let accountSummary = '';
+  try {
+    const accountResult = await sendRequest('account.list', {}) as { accounts?: Array<Record<string, unknown>> };
+    if (accountResult.accounts?.length) {
+      const lines = accountResult.accounts.map((a: Record<string, unknown>) =>
+        `- ${a.name} (${a.type}, ${a.currency}): ${a.balance} ${a.unit}${a.is_default ? ' [default]' : ''}`,
+      );
+      accountSummary = `\nWallet accounts:\n${lines.join('\n')}`;
+    }
+  } catch {
+    accountSummary = '\nWallet accounts: unable to query (auth may be needed)';
+  }
+
+  // 7. Create the MCP server
   const server = new Server(
     {
       name: 'agicash',
@@ -379,18 +560,117 @@ async function main(): Promise<void> {
     {
       capabilities: {
         tools: {},
+        experimental: { 'claude/channel': {} },
       },
+      instructions: [
+        'Agicash is a Bitcoin wallet with Cashu ecash and Lightning support.',
+        'Amounts are in sats (BTC) or cents (USD) depending on the account currency.',
+        'Use agicash_balance for quick balances, agicash_accounts for detailed account info.',
+        'Payments: agicash_pay for Lightning invoices/addresses, agicash_send for ecash tokens.',
+        'Receiving: agicash_receive for Lightning invoices or claiming ecash tokens.',
+        'Use agicash_await_payment to wait for payment/receive completion.',
+        accountSummary,
+      ].filter(Boolean).join('\n'),
     },
   );
 
-  // Register tool listing
+  // 8. Register tool listing
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: TOOLS,
   }));
 
-  // Register tool call handler
+  // 9. Register tool call handler
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const toolName = request.params.name;
+    const params = (request.params.arguments ?? {}) as Record<string, unknown>;
+
+    // -- Special tool handling --
+
+    // agicash_pay with wait: block until payment settles
+    if (toolName === 'agicash_pay' && params.wait) {
+      // Remove wait from params before sending to daemon
+      const { wait, ...daemonParams } = params;
+      try {
+        const result = await sendRequest('pay', daemonParams) as Record<string, unknown>;
+
+        // Extract quote ID from result
+        const payment = result.payment as Record<string, unknown> | undefined;
+        const quoteId = payment?.quote_id as string | undefined;
+
+        if (quoteId && payment?.state === 'pending') {
+          // Wait for terminal event (60s timeout)
+          try {
+            const event = await waitForEvent(quoteId, 60_000);
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify({ ...result, settlement: event }, null, 2),
+              }],
+            };
+          } catch (err) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                  ...result,
+                  settlement: { error: err instanceof Error ? err.message : String(err) },
+                }, null, 2),
+              }],
+            };
+          }
+        }
+
+        // Not pending (error or already settled) — return as-is
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          }],
+          isError: true,
+        };
+      }
+    }
+
+    // agicash_await_payment: block until a quote settles (MCP-only, no daemon method)
+    if (toolName === 'agicash_await_payment') {
+      const quoteId = params.quoteId as string;
+      const timeoutSec = params.timeout as number | undefined;
+      const timeoutMs = timeoutSec ? timeoutSec * 1000 : undefined;
+
+      if (!quoteId) {
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Missing quoteId' }) }],
+          isError: true,
+        };
+      }
+
+      try {
+        const event = await waitForEvent(quoteId, timeoutMs);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(event, null, 2) }],
+        };
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          }],
+          isError: true,
+        };
+      }
+    }
+
+    // -- Generic tool handling --
+
     const method = TOOL_METHOD_MAP[toolName];
 
     if (!method) {
@@ -406,7 +686,6 @@ async function main(): Promise<void> {
     }
 
     try {
-      const params = (request.params.arguments ?? {}) as Record<string, unknown>;
       const result = await sendRequest(method, params);
       return {
         content: [
@@ -431,12 +710,16 @@ async function main(): Promise<void> {
     }
   });
 
-  // 7. Connect the MCP server to its own stdio transport (Claude <-> MCP server)
+  // 10. Connect the MCP server to its own stdio transport (Claude <-> MCP server)
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  const clientCaps = server.getClientCapabilities();
+  hasChannels = !!clientCaps?.experimental?.['claude/channel'];
+  log(`client channel support: ${hasChannels}`);
   log('MCP server connected');
 
-  // 8. Cleanup on shutdown
+  // 11. Cleanup on shutdown
   const cleanup = () => {
     if (exiting) return;
     exiting = true;
