@@ -98,8 +98,7 @@ export const sparkWalletQueryOptions = ({
             options: {
               network,
               optimizationOptions: {
-                auto: true,
-                multiplicity: 2,
+                auto: false,
               },
             },
           });
