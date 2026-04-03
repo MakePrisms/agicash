@@ -38,6 +38,7 @@ begin
       'Authorization', 'Bearer ' || service_role_key
     ),
     body := jsonb_build_object(
+      'id', new.id,
       'email', new.email,
       'firstName', new.username
     )

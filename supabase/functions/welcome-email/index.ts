@@ -1,104 +1,58 @@
+import ky from "npm:ky@1.7.5";
+import { z } from "npm:zod@3.24.3";
+
 const RESEND_BASE_URL = "https://api.resend.com";
 const FROM_ADDRESS = "Agicash <noreply@emails.agi.cash>";
-const MAX_RETRIES = 2;
 
-type WebhookPayload = {
-  type: "INSERT";
-  table: string;
-  schema: string;
-  record: {
-    id: string;
-    email: string | null;
-    username?: string;
-  };
-};
+const payloadSchema = z.object({
+  id: z.string().optional(),
+  email: z.string().email(),
+  firstName: z.string().optional(),
+});
 
-type ManualPayload = {
-  email: string;
-  firstName?: string;
-};
-
-type Payload = WebhookPayload | ManualPayload;
-
-function isWebhookPayload(payload: Payload): payload is WebhookPayload {
-  return "type" in payload && "record" in payload;
+function getRequiredEnv(name: string): string {
+  const value = Deno.env.get(name);
+  if (!value) {
+    throw new Error(`Missing required env var: ${name}`);
+  }
+  return value;
 }
 
-function extractEmailAndName(payload: Payload): {
-  email: string | null;
-  firstName: string | undefined;
-} {
-  if (isWebhookPayload(payload)) {
-    return {
-      email: payload.record.email,
-      firstName: payload.record.username,
-    };
-  }
-  return {
-    email: payload.email,
-    firstName: payload.firstName,
-  };
-}
-
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  label: string,
-): Promise<T> {
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-      if (attempt < MAX_RETRIES) {
-        const delayMs = 1000 * Math.pow(2, attempt);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-    }
-  }
-
-  console.error(
-    `${label} failed after ${MAX_RETRIES + 1} attempts:`,
-    lastError,
-  );
-  throw lastError;
+function getResendClient(apiKey: string) {
+  return ky.create({
+    prefixUrl: RESEND_BASE_URL,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    retry: {
+      limit: 2,
+      methods: ["post"],
+      statusCodes: [408, 429, 500, 502, 503, 504],
+      backoffLimit: 3000,
+    },
+  });
 }
 
 async function sendWelcomeEmail(
-  apiKey: string,
+  resend: typeof ky,
   templateId: string,
   email: string,
   firstName: string | undefined,
 ): Promise<void> {
-  const displayName = firstName ?? "there";
-
-  const response = await fetch(`${RESEND_BASE_URL}/emails`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  await resend.post("emails", {
+    json: {
       from: FROM_ADDRESS,
       to: [email],
       subject: "Welcome to Agicash",
       template: {
         id: templateId,
         variables: {
-          firstName: displayName,
+          firstName: firstName ?? "there",
           email,
         },
       },
-    }),
+    },
   });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(
-      `Resend send email failed (${response.status}): ${body}`,
-    );
-  }
 }
 
 const corsHeaders = {
@@ -113,43 +67,31 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const payload: Payload = await req.json();
-    const { email, firstName } = extractEmailAndName(payload);
+    const body = await req.json();
+    const result = payloadSchema.safeParse(body);
 
-    if (!email) {
+    if (!result.success) {
       return new Response(
-        JSON.stringify({ skipped: true, reason: "no email (guest user)" }),
+        JSON.stringify({ error: "Invalid payload", details: result.error.flatten() }),
         {
-          status: 200,
+          status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
     }
 
-    const apiKey = Deno.env.get("RESEND_API_KEY");
-    const templateId = Deno.env.get("RESEND_WELCOME_TEMPLATE_ID");
+    const { id, email, firstName } = result.data;
 
-    if (!apiKey || !templateId) {
-      console.error("Missing required Resend env vars:", {
-        hasApiKey: !!apiKey,
-        hasTemplateId: !!templateId,
-      });
-      return new Response(
-        JSON.stringify({ error: "Missing Resend configuration" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
+    const apiKey = getRequiredEnv("RESEND_API_KEY");
+    const templateId = getRequiredEnv("RESEND_WELCOME_TEMPLATE_ID");
+    const resend = getResendClient(apiKey);
 
-    await withRetry(
-      () => sendWelcomeEmail(apiKey, templateId, email, firstName),
-      "Send welcome email",
-    );
+    await sendWelcomeEmail(resend, templateId, email, firstName);
+
+    console.log("Welcome email sent", { id, email });
 
     return new Response(
-      JSON.stringify({ success: true, email }),
+      JSON.stringify({ success: true, id, email }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
