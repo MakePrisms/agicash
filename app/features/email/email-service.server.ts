@@ -1,7 +1,7 @@
 import ky from 'ky';
 
 const RESEND_API_BASE = 'https://api.resend.com';
-const FROM_ADDRESS = 'Agicash <noreply@email.agi.cash>';
+const FROM_ADDRESS = 'Agicash <noreply@emails.agi.cash>';
 
 const resendApiKey = process.env.RESEND_API_KEY ?? '';
 if (!resendApiKey) {
@@ -48,8 +48,13 @@ async function sendWelcomeEmail(email: string, firstName?: string) {
       from: FROM_ADDRESS,
       to: [email],
       subject: 'Welcome to Agicash',
-      template_id: resendWelcomeTemplateId,
-      data: { firstName: firstName ?? 'there' },
+      template: {
+        id: resendWelcomeTemplateId,
+        variables: {
+          firstName: firstName ?? 'there',
+          email,
+        },
+      },
     },
   });
 }

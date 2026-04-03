@@ -134,11 +134,16 @@ describe('sendWelcomeEmail payload', () => {
 
     expect(url).toBe('emails');
     expect(options.json).toEqual({
-      from: 'Agicash <noreply@email.agi.cash>',
+      from: 'Agicash <noreply@emails.agi.cash>',
       to: ['user@example.com'],
       subject: 'Welcome to Agicash',
-      template_id: 'test-template-id',
-      data: { firstName: 'Alice' },
+      template: {
+        id: 'test-template-id',
+        variables: {
+          firstName: 'Alice',
+          email: 'user@example.com',
+        },
+      },
     });
   });
 
@@ -150,8 +155,11 @@ describe('sendWelcomeEmail payload', () => {
 
     const [, options] = mockPost.mock.calls[1] as unknown as [string, { json: Record<string, unknown> }];
 
-    expect((options.json as { data: { firstName: string } }).data).toEqual({
+    expect(
+      (options.json as { template: { variables: Record<string, string> } }).template.variables,
+    ).toEqual({
       firstName: 'there',
+      email: 'user@example.com',
     });
   });
 });
