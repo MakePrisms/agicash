@@ -21,6 +21,7 @@ import type { SdkContext } from '../sdk-context';
 
 export type ReceiveResult = {
   action: string;
+  qrData?: string;
   quote?: {
     id: string;
     bolt11: string;
@@ -162,6 +163,7 @@ async function handleSparkReceiveLightning(
     });
     return {
       action: 'invoice',
+      qrData: quote.paymentRequest,
       quote: {
         id: quote.id,
         bolt11: quote.paymentRequest,
@@ -204,6 +206,7 @@ async function handleCashuReceiveLightning(
     });
     return {
       action: 'invoice',
+      qrData: quote.paymentRequest,
       quote: {
         id: quote.id,
         bolt11: quote.paymentRequest,

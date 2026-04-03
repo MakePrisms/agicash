@@ -16,6 +16,7 @@ import { installSdkConsoleBridge } from './logging';
 import { detectMode } from './mode';
 import { makeStorageProvider } from './opensecret-storage';
 import { printError, printOutput } from './output';
+import { toPngFile, toTerminal } from './qr';
 import { getOpenSecretConfig, loadCliEnvFiles } from './runtime-config';
 import {
   type SdkContext,
@@ -24,6 +25,22 @@ import {
 } from './sdk-context';
 
 type OutputOptions = { pretty: boolean };
+
+async function maybePrintQr(
+  qrData: string | undefined,
+  parsed: { flags: Record<string, string | boolean> },
+  outputOptions: OutputOptions,
+): Promise<void> {
+  if (!qrData) return;
+  if (!outputOptions.pretty) return;
+  if (parsed.flags['no-qr']) return;
+  try {
+    const qr = await toTerminal(qrData);
+    process.stdout.write(`\n${qr}`);
+  } catch {
+    // QR generation failed — silently skip, JSON output is already printed
+  }
+}
 
 async function requireSdkContext(
   outputOptions: OutputOptions,
@@ -99,6 +116,8 @@ const HELP_TEXT = {
   },
   globalFlags: {
     '--pretty': 'Format output for humans (default: JSON)',
+    '--no-qr': 'Suppress QR code output in pretty mode',
+    '--qr-file <path>': 'Write QR code as PNG to the given file path',
     '--verbose': 'Write SDK debug logs to stderr',
     '--help, -h': 'Show help when used as the first argument',
     '--version, -v': 'Show version when used as the first argument',
@@ -176,6 +195,11 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         printOutput(result, outputOptions);
+        await maybePrintQr(result.qrData, parsed, outputOptions);
+        const receiveQrFile = parsed.flags['qr-file'] as string | undefined;
+        if (receiveQrFile && result.qrData) {
+          await toPngFile(result.qrData, receiveQrFile);
+        }
         break;
       }
 
@@ -193,6 +217,11 @@ async function main(): Promise<void> {
           process.exit(1);
         }
         printOutput(sendResult, outputOptions);
+        await maybePrintQr(sendResult.qrData, parsed, outputOptions);
+        const sendQrFile = parsed.flags['qr-file'] as string | undefined;
+        if (sendQrFile && sendResult.qrData) {
+          await toPngFile(sendResult.qrData, sendQrFile);
+        }
         break;
       }
 

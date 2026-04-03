@@ -36,6 +36,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
   const flags: Record<string, string | boolean> = {
     pretty: false,
     verbose: false,
+    'no-qr': false,
   };
 
   let i = 1;
@@ -54,6 +55,24 @@ export function parseArgs(argv: string[]): ParsedArgs {
       if (key === 'verbose') {
         flags.verbose = true;
         i++;
+        continue;
+      }
+
+      if (key === 'no-qr') {
+        flags['no-qr'] = true;
+        i++;
+        continue;
+      }
+
+      if (key === 'qr-file') {
+        const filePath = argv[i + 1];
+        if (filePath !== undefined && !filePath.startsWith('--')) {
+          flags['qr-file'] = filePath;
+          i += 2;
+        } else {
+          flags['qr-file'] = true;
+          i++;
+        }
         continue;
       }
 

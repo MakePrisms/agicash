@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { resolve } from 'node:path';
+import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -9,6 +11,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { DaemonMethod } from '../daemon/protocol';
+import { toPngBase64 } from '../qr';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -692,6 +695,68 @@ async function main(): Promise<void> {
           content: [{
             type: 'text' as const,
             text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+          }],
+          isError: true,
+        };
+      }
+    }
+
+    // -- QR code handling for send / receive --
+
+    if (toolName === 'agicash_send' || toolName === 'agicash_receive') {
+      const qrMethod = TOOL_METHOD_MAP[toolName];
+      try {
+        const result = await sendRequest(qrMethod, params) as Record<string, unknown>;
+
+        // Extract the QR-encodable data from the result
+        let qrData: string | undefined;
+        if (toolName === 'agicash_send') {
+          const token = result.token as Record<string, unknown> | undefined;
+          qrData = token?.encoded as string | undefined;
+        } else {
+          // agicash_receive — invoice is in quote.bolt11, token claim has no QR
+          const quote = result.quote as Record<string, unknown> | undefined;
+          qrData = quote?.bolt11 as string | undefined;
+          // Also check for qrData directly on the result (set by handler)
+          if (!qrData && typeof result.qrData === 'string') {
+            qrData = result.qrData;
+          }
+        }
+
+        const content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [
+          { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+        ];
+
+        if (qrData) {
+          try {
+            const qrBase64 = await toPngBase64(qrData);
+
+            // Write to temp file for agents that need file paths
+            const tmpPath = join(tmpdir(), `agicash-qr-${Date.now()}.png`);
+            await writeFile(tmpPath, Buffer.from(qrBase64, 'base64'));
+
+            content[0] = {
+              type: 'text' as const,
+              text: JSON.stringify({ ...result, qrFile: tmpPath }, null, 2),
+            };
+            content.push({
+              type: 'image' as const,
+              data: qrBase64,
+              mimeType: 'image/png',
+            });
+          } catch {
+            // QR generation failed — return text-only result
+          }
+        }
+
+        return { content };
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              error: err instanceof Error ? err.message : String(err),
+            }),
           }],
           isError: true,
         };

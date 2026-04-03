@@ -8,6 +8,7 @@ import type { SdkContext } from '../sdk-context';
 
 export interface SendResult {
   action: string;
+  qrData?: string;
   status?: string;
   token?: {
     encoded: string;
@@ -117,6 +118,7 @@ export async function handleSendCommand(
 
     return {
       action: 'created',
+      qrData: encoded,
       status: 'pending_completion',
       token: {
         encoded,
