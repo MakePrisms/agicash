@@ -3,6 +3,7 @@ import {
   getPrivateKeyBytes,
 } from '@agicash/opensecret';
 import {
+  type AuthProvider,
   type GetKeysResponse,
   type GetKeysetsResponse,
   KeyChain,
@@ -24,7 +25,6 @@ import { getQueryClient } from '~/features/shared/query-client';
 import {
   type ExtendedCashuWallet,
   ExtendedMintInfo,
-  checkIsTestMint,
   extractCashuToken,
   getCashuProtocolUnit,
   getCashuUnit,
@@ -39,6 +39,7 @@ import { type Currency, type CurrencyUnit, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
+import { getAgicashMintAuthProvider } from './agicash-mint-auth-provider';
 
 // Cashu-specific derivation path with hardnened indexes to derive public keys for
 // locking mint quotes and proofs. 129372 is UTF-8 for 🥜 (see NUT-13) and the other
@@ -179,6 +180,12 @@ export const cashuMintValidator = buildMintValidator({
   blocklist: mintBlocklist,
 });
 
+type MintPurpose = 'gift-card' | 'transactional';
+
+export function getMintAuthProvider(purpose: MintPurpose | undefined) {
+  return purpose === 'gift-card' ? getAgicashMintAuthProvider() : undefined;
+}
+
 export const mintInfoQueryKey = (mintUrl: string) => ['mint-info', mintUrl];
 export const allMintKeysetsQueryKey = (mintUrl: string) => [
   'all-mint-keysets',
@@ -253,13 +260,6 @@ export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
-export const isTestMintQueryOptions = (mintUrl: string) =>
-  queryOptions({
-    queryKey: ['is-test-mint', mintUrl],
-    queryFn: async () => checkIsTestMint(mintUrl),
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-
 /**
  * Initializes a Cashu wallet with offline handling.
  * If the mint is offline or times out, returns a minimal wallet with isOnline: false.
@@ -269,12 +269,19 @@ export const isTestMintQueryOptions = (mintUrl: string) =>
  * @param bip39seed - Optional BIP39 seed for wallet initialization.
  * @returns The wallet and online status.
  */
-export async function getInitializedCashuWallet(
-  queryClient: QueryClient,
-  mintUrl: string,
-  currency: Currency,
-  bip39seed?: Uint8Array,
-): Promise<{ wallet: ExtendedCashuWallet; isOnline: boolean }> {
+export async function getInitializedCashuWallet({
+  queryClient,
+  mintUrl,
+  currency,
+  bip39seed,
+  authProvider,
+}: {
+  queryClient: QueryClient;
+  mintUrl: string;
+  currency: Currency;
+  bip39seed?: Uint8Array;
+  authProvider?: AuthProvider;
+}): Promise<{ wallet: ExtendedCashuWallet; isOnline: boolean }> {
   return measureOperation(
     'getInitializedCashuWallet',
     async () => {
@@ -309,6 +316,7 @@ export async function getInitializedCashuWallet(
           const wallet = getCashuWallet(mintUrl, {
             unit: getCashuUnit(currency),
             bip39seed: bip39seed ?? undefined,
+            authProvider,
           });
           return { wallet, isOnline: false };
         }
@@ -337,6 +345,7 @@ export async function getInitializedCashuWallet(
       const wallet = getCashuWallet(mintUrl, {
         unit: getCashuUnit(currency),
         bip39seed: bip39seed ?? undefined,
+        authProvider,
       });
       const keyChainCache = KeyChain.mintToCacheDTO(
         wallet.unit,

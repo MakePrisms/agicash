@@ -1,6 +1,10 @@
 import type { Token } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
-import { areMintUrlsEqual, getCashuProtocolUnit } from '~/lib/cashu';
+import {
+  areMintUrlsEqual,
+  checkIsTestMint,
+  getCashuProtocolUnit,
+} from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import {
   type ExtendedAccount,
@@ -11,7 +15,6 @@ import {
 import {
   cashuMintValidator,
   getInitializedCashuWallet,
-  isTestMintQueryOptions,
   tokenToMoney,
 } from '../shared/cashu';
 import { getFeatureFlag } from '../shared/feature-flags';
@@ -34,12 +37,11 @@ export class ReceiveCashuTokenService {
     mintUrl: string,
     currency: Currency,
   ): Promise<CashuAccountWithTokenFlags> {
-    const { wallet, isOnline } = await getInitializedCashuWallet(
-      this.queryClient,
+    const { wallet, isOnline } = await getInitializedCashuWallet({
+      queryClient: this.queryClient,
       mintUrl,
       currency,
-      undefined,
-    );
+    });
 
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
@@ -76,9 +78,7 @@ export class ReceiveCashuTokenService {
       wallet.keyChain.getKeysets().map((ks) => ks.toMintKeyset()),
     );
 
-    const isTestMint = await this.queryClient.fetchQuery(
-      isTestMintQueryOptions(mintUrl),
-    );
+    const isTestMint = checkIsTestMint(mintUrl);
 
     const isValid = validationResult === true;
     const isGatedGiftCard =

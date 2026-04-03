@@ -319,6 +319,27 @@ export function useGetCashuAccount() {
 }
 
 /**
+ * Hook to get the method which returns the cashu account matching a mint URL and currency, or null if not found.
+ * @returns A function that takes a mint URL and currency and returns the matching cashu account or null.
+ */
+export function useGetCashuAccountByMintUrlAndCurrency() {
+  const accountsCache = useAccountsCache();
+
+  return useCallback(
+    (mintUrl: string, currency: Currency) =>
+      accountsCache
+        .getAll()
+        ?.find(
+          (a): a is CashuAccount =>
+            a.type === 'cashu' &&
+            a.mintUrl === mintUrl &&
+            a.currency === currency,
+        ) ?? null,
+    [accountsCache],
+  );
+}
+
+/**
  * Hook to get the method which returns the spark account from the cache or throws an error if not found.
  * @returns The method which returns the spark account or throws an error if the account is not found or if the account type is not spark.
  */

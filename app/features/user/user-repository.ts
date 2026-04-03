@@ -18,7 +18,10 @@ import {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
-import { getInitializedCashuWallet } from '../shared/cashu';
+import {
+  getInitializedCashuWallet,
+  getMintAuthProvider,
+} from '../shared/cashu';
 import { UniqueConstraintError } from '../shared/error';
 import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
@@ -280,11 +283,12 @@ export class ReadUserDefaultAccountRepository {
     if (isCashuAccount(data)) {
       const details = data.details;
 
-      const { wallet, isOnline } = await getInitializedCashuWallet(
-        this.queryClient,
-        details.mint_url,
-        data.currency,
-      );
+      const { wallet, isOnline } = await getInitializedCashuWallet({
+        queryClient: this.queryClient,
+        mintUrl: details.mint_url,
+        currency: data.currency,
+        authProvider: getMintAuthProvider(data.purpose),
+      });
 
       return {
         ...commonData,

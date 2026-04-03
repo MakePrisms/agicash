@@ -15,6 +15,7 @@ import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
+  getMintAuthProvider,
   useCashuCryptography,
 } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
@@ -23,7 +24,7 @@ import {
   getInitializedSparkWallet,
   sparkMnemonicQueryOptions,
 } from '../shared/spark';
-import type { Account, CashuAccount } from './account';
+import type { Account, AccountPurpose, CashuAccount } from './account';
 import type { CashuProof } from './cashu-account';
 
 type AccountOmit<
@@ -181,7 +182,11 @@ export class AccountRepository {
       const details = data.details;
 
       const [{ wallet, isOnline }, proofs] = await Promise.all([
-        this.getInitializedCashuWallet(details.mint_url, data.currency),
+        this.getInitializedCashuWallet(
+          details.mint_url,
+          data.currency,
+          data.purpose,
+        ),
         this.decryptCashuProofs(data),
       ]);
 
@@ -216,14 +221,19 @@ export class AccountRepository {
     throw new Error('Invalid account type');
   }
 
-  private async getInitializedCashuWallet(mintUrl: string, currency: Currency) {
+  private async getInitializedCashuWallet(
+    mintUrl: string,
+    currency: Currency,
+    purpose: AccountPurpose,
+  ) {
     const seed = await this.getCashuWalletSeed();
-    return getInitializedCashuWallet(
-      this.queryClient,
+    return getInitializedCashuWallet({
+      queryClient: this.queryClient,
       mintUrl,
       currency,
-      seed ?? undefined,
-    );
+      bip39seed: seed ?? undefined,
+      authProvider: getMintAuthProvider(purpose),
+    });
   }
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
