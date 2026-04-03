@@ -21,10 +21,12 @@ function getRequiredEnv(name: string): string {
 function getResendClient(apiKey: string) {
   return ky.create({
     prefixUrl: RESEND_BASE_URL,
+    timeout: 10_000,
     headers: {
       Authorization: `Bearer ${apiKey}`,
     },
     retry: {
+      // 2 retries after initial attempt = 3 total attempts
       limit: 2,
       methods: ["post"],
       statusCodes: [408, 429, 500, 502, 503, 504],
