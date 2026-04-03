@@ -398,7 +398,7 @@ async function main(): Promise<void> {
   const daemon = spawnDaemon();
   const pending = new Map<string, PendingRequest>();
   let exiting = false;
-  let hasChannels = false;
+  let hasChannels = true;
 
   if (!daemon.stdout || !daemon.stdin) {
     log('daemon stdio not available');
@@ -447,9 +447,9 @@ async function main(): Promise<void> {
       if (mcpEvent) {
         const data = (msg.data ?? {}) as Record<string, unknown>;
 
-        if (hasChannels) {
-          const content = formatEventContent(mcpEvent, data);
-          server.notification({
+        // Always send — don't gate on hasChannels (mercury/NWC pattern)
+        const content = formatEventContent(mcpEvent, data);
+        server.notification({
             method: 'notifications/claude/channel',
             params: {
               content,
@@ -465,7 +465,6 @@ async function main(): Promise<void> {
           } as any).catch((err: unknown) => {
             log(`channel notification failed: ${err}`);
           });
-        }
 
         // Resolve any waiters for this event's quote
         const eventQuoteId = (data.quoteId as string) ?? (data.tokenHash as string) ?? (data.swapId as string);
