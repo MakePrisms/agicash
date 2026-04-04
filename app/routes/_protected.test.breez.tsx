@@ -2,7 +2,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
-import { connectBreezWallet } from '~/lib/breez-spark/init.client';
+import { connectBreezWallet } from '~/lib/breez-spark/init';
 import { getSparkIdentityPublicKeyFromMnemonic } from '~/lib/spark';
 
 type TestResult = {

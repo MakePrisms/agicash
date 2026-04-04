@@ -1,18 +1,16 @@
-import initBreezSDK, {
-  type BreezSdk,
-  type Config,
-  connect,
-  defaultConfig,
-} from '@breeztech/breez-sdk-spark/bundler';
+import type { BreezSdk } from '@breeztech/breez-sdk-spark/bundler';
 
 let wasmInitialized = false;
 
 /**
  * Idempotent WASM initialization. Must be called before any other Breez SDK usage.
- * Handles both WASM binary loading and IndexedDB storage setup for the browser.
+ * Uses dynamic import — the WASM module only works in the browser.
  */
 export async function initBreezWasm(): Promise<void> {
   if (wasmInitialized) return;
+  const { default: initBreezSDK } = await import(
+    '@breeztech/breez-sdk-spark/bundler'
+  );
   await initBreezSDK();
   wasmInitialized = true;
 }
@@ -35,14 +33,18 @@ function getBreezApiKey(): string {
 export async function connectBreezWallet(mnemonic: string): Promise<BreezSdk> {
   await initBreezWasm();
 
-  const config: Config = {
+  const { connect, defaultConfig } = await import(
+    '@breeztech/breez-sdk-spark/bundler'
+  );
+
+  const config = {
     ...defaultConfig('mainnet'),
     apiKey: getBreezApiKey(),
   };
 
   return connect({
     config,
-    seed: { type: 'mnemonic', mnemonic },
+    seed: { type: 'mnemonic' as const, mnemonic },
     storageDir: 'breez-spark-wallet',
   });
 }
