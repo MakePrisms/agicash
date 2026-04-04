@@ -197,7 +197,10 @@ export default function TestBreezKeyDerivation() {
   }, [mnemonic]);
 
   return (
-    <div className="mx-auto max-w-xl space-y-8 p-6">
+    <div
+      className="mx-auto max-w-xl space-y-8 overflow-y-auto p-6"
+      style={{ maxHeight: '100dvh' }}
+    >
       {/* Section: C1 Key Derivation */}
       <section className="space-y-4">
         <h1 className="font-bold text-2xl">C1: Key Derivation Compatibility</h1>
