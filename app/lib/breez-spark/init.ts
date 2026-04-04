@@ -1,7 +1,11 @@
 let wasmInitialized = false;
 
+// Variable indirection prevents tsx/Vite from statically analyzing the import
+// path during SSR module resolution, which breaks on the WASM package.
+const BREEZ_SDK_MODULE = '@breeztech/breez-sdk-spark/bundler';
+
 async function getBreezSdk() {
-  return import('@breeztech/breez-sdk-spark/bundler');
+  return import(/* @vite-ignore */ BREEZ_SDK_MODULE);
 }
 
 /**
