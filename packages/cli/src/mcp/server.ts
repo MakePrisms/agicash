@@ -771,10 +771,11 @@ async function main(): Promise<void> {
             trackedQuotes.add(tokenHash);
             try {
               const event = await waitForEvent(tokenHash, 60_000);
+              const settled = event.event === 'receive_completed';
               return {
                 content: [{
                   type: 'text' as const,
-                  text: JSON.stringify({ ...result, swap: { ...swap, state: 'COMPLETED' }, settlement: event }, null, 2),
+                  text: JSON.stringify({ ...result, swap: { ...swap, state: settled ? 'COMPLETED' : 'FAILED' }, settlement: event }, null, 2),
                 }],
               };
             } catch (err) {
