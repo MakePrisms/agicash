@@ -10,6 +10,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { Money } from '@agicash/sdk';
 import type { DaemonMethod } from '../daemon/protocol';
 import { toPngBase64 } from '../qr';
 
@@ -313,18 +314,25 @@ function log(message: string): void {
   process.stderr.write(`[mcp] ${message}\n`);
 }
 
+function formatAmount(raw: unknown): string {
+  if (raw == null || raw === '') return '';
+  const num = typeof raw === 'number' ? raw : Number(raw);
+  if (Number.isNaN(num)) return '';
+  const money = new Money({ amount: num, currency: 'BTC' });
+  return `${money.toLocaleString({ unit: 'sat', showCurrency: false })} sats`;
+}
+
 function formatEventContent(mcpEvent: string, data: Record<string, unknown>): string {
-  const amount = data.amount ?? '';
-  const unit = amount ? ' sats' : '';
+  const amount = formatAmount(data.amount);
   switch (mcpEvent) {
     case 'payment_completed':
-      return amount ? `Sent ${amount}${unit}` : 'Payment sent';
+      return amount ? `Sent ${amount}` : 'Payment sent';
     case 'payment_failed': {
       const reason = (data.reason as string) ?? 'unknown';
       return `Payment failed: ${reason}`;
     }
     case 'receive_completed':
-      return amount ? `Received ${amount}${unit}` : 'Payment received';
+      return amount ? `Received ${amount}` : 'Payment received';
     case 'receive_failed':
       return 'Invoice expired';
     default:
