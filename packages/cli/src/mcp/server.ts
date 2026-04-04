@@ -65,17 +65,17 @@ const DAEMON_EVENT_MAP: Record<string, string> = {
 
 // Map from MCP tool name -> daemon method name
 const TOOL_METHOD_MAP: Record<string, DaemonMethod> = {
-  agicash_balance: 'balance',
-  agicash_send: 'send',
-  agicash_pay: 'pay',
-  agicash_receive: 'receive',
-  agicash_decode: 'decode',
-  agicash_accounts: 'account.list',
-  agicash_account_default: 'account.default',
-  agicash_account_info: 'account.info',
-  agicash_mint_add: 'mint.add',
-  agicash_mint_list: 'mint.list',
-  agicash_transactions: 'transactions',
+  balance: 'balance',
+  send: 'send',
+  pay: 'pay',
+  receive: 'receive',
+  decode: 'decode',
+  accounts: 'account.list',
+  account_default: 'account.default',
+  account_info: 'account.info',
+  mint_add: 'mint.add',
+  mint_list: 'mint.list',
+  transactions: 'transactions',
 };
 
 // ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ const TOOL_METHOD_MAP: Record<string, DaemonMethod> = {
 
 const TOOLS = [
   {
-    name: 'agicash_balance',
+    name: 'balance',
     description:
       'Show wallet balances across all accounts. Returns per-account balances (cashu ecash and spark) with totals per currency. Amounts are in sats (BTC) or cents (USD).',
     inputSchema: {
@@ -93,7 +93,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_send',
+    name: 'send',
     description:
       "Create a cashu ecash token. The token can be shared with anyone to transfer value. Amount is in the account's unit (sats for BTC, cents for USD). Optionally specify accountId to use a specific cashu account.",
     inputSchema: {
@@ -112,7 +112,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_pay',
+    name: 'pay',
     description: '', // set dynamically in ListTools handler based on channel support
     inputSchema: {
       type: 'object' as const,
@@ -138,7 +138,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_receive',
+    name: 'receive',
     description:
       'Receive Bitcoin. Use amount (integer) to create a Lightning invoice, or token (cashuA.../cashuB...) to claim ecash. Use list to see pending invoices, check/checkAll to poll for payment, inspect with token to check proof states.',
     inputSchema: {
@@ -176,7 +176,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_decode',
+    name: 'decode',
     description:
       'Decode or identify a payment string. Supports bolt11 invoices, cashu tokens, Lightning addresses (user@domain), LNURLs, and mint URLs.',
     inputSchema: {
@@ -192,7 +192,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_accounts',
+    name: 'accounts',
     description:
       'List all wallet accounts with balances and details. Shows cashu and spark accounts, their mints, currencies, and default status.',
     inputSchema: {
@@ -201,7 +201,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_account_default',
+    name: 'account_default',
     description:
       "Set an account as the default for its currency. The default account is used when no specific account is specified for send/receive/pay operations.",
     inputSchema: {
@@ -216,7 +216,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_account_info',
+    name: 'account_info',
     description:
       'Show detailed info for a specific account including mint URL, currency, balance, and key sets.',
     inputSchema: {
@@ -231,7 +231,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_mint_add',
+    name: 'mint_add',
     description:
       'Add a Cashu mint and create an account for it. Provide the mint URL; optionally set a friendly name and currency (BTC or USD).',
     inputSchema: {
@@ -254,7 +254,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_mint_list',
+    name: 'mint_list',
     description:
       'List configured Cashu mints. Shows all mints with their URLs, names, and associated accounts.',
     inputSchema: {
@@ -263,7 +263,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_transactions',
+    name: 'transactions',
     description:
       'View transaction history. Returns recent transactions with amounts, types, and statuses. When hasMore is true, pass the returned cursor to fetch the next page.',
     inputSchema: {
@@ -285,7 +285,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'agicash_await_payment',
+    name: 'await_payment',
     description:
       'Block until a payment or receive quote settles. Returns the terminal event (completed/failed/expired). Use after creating a Lightning invoice or initiating a payment when you need to wait for the result.',
     inputSchema: {
@@ -600,10 +600,10 @@ async function main(): Promise<void> {
       instructions: [
         'Agicash is a Bitcoin wallet with Cashu ecash and Lightning support.',
         'Amounts are in sats (BTC) or cents (USD) depending on the account currency.',
-        'Use agicash_balance for quick balances, agicash_accounts for detailed account info.',
-        'Payments: agicash_pay for Lightning invoices/addresses, agicash_send for ecash tokens.',
-        'Receiving: agicash_receive for Lightning invoices or claiming ecash tokens.',
-        'Use agicash_await_payment to wait for payment/receive completion.',
+        'Use balance for quick balances, accounts for detailed account info.',
+        'Payments: pay for Lightning invoices/addresses, send for ecash tokens.',
+        'Receiving: receive for Lightning invoices or claiming ecash tokens.',
+        'Use await_payment to wait for payment/receive completion.',
         'Sharing invoices/tokens: In chat (Discord, etc), include both the QR code image (qrFile path) and the bolt11/token string. In a terminal, output just the string — QR images won\'t render.',
         accountSummary,
       ].filter(Boolean).join('\n'),
@@ -614,12 +614,12 @@ async function main(): Promise<void> {
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const settlementHint = hasChannels
       ? "When wait is false, you'll receive a channel notification when payment settles."
-      : 'When wait is false, use agicash_await_payment to check settlement status.';
+      : 'When wait is false, use await_payment to check settlement status.';
     const payDesc = `Pay a Lightning invoice (bolt11) or Lightning address (user@domain). For Lightning addresses, amount is required. Automatically selects the best account (prefers spark for lower fees). Set wait: true to block until payment settles. ${settlementHint}`;
 
     return {
       tools: TOOLS.map(t =>
-        t.name === 'agicash_pay' ? { ...t, description: payDesc } : t,
+        t.name === 'pay' ? { ...t, description: payDesc } : t,
       ),
     };
   });
@@ -631,8 +631,8 @@ async function main(): Promise<void> {
 
     // -- Special tool handling --
 
-    // agicash_pay with wait: block until payment settles
-    if (toolName === 'agicash_pay' && params.wait) {
+    // pay with wait: block until payment settles
+    if (toolName === 'pay' && params.wait) {
       // Remove wait from params before sending to daemon
       const { wait, ...daemonParams } = params;
       try {
@@ -688,8 +688,8 @@ async function main(): Promise<void> {
       }
     }
 
-    // agicash_pay without wait: send payment and track quoteId for notifications
-    if (toolName === 'agicash_pay' && !params.wait) {
+    // pay without wait: send payment and track quoteId for notifications
+    if (toolName === 'pay' && !params.wait) {
       try {
         const result = await sendRequest('pay', params) as Record<string, unknown>;
         const payment = result.payment as Record<string, unknown> | undefined;
@@ -716,8 +716,8 @@ async function main(): Promise<void> {
       }
     }
 
-    // agicash_await_payment: block until a quote settles (MCP-only, no daemon method)
-    if (toolName === 'agicash_await_payment') {
+    // await_payment: block until a quote settles (MCP-only, no daemon method)
+    if (toolName === 'await_payment') {
       const quoteId = params.quoteId as string;
       const timeoutSec = params.timeout as number | undefined;
       const timeoutMs = timeoutSec ? timeoutSec * 1000 : undefined;
@@ -747,13 +747,13 @@ async function main(): Promise<void> {
 
     // -- QR code handling for send / receive --
 
-    if (toolName === 'agicash_send' || toolName === 'agicash_receive') {
+    if (toolName === 'send' || toolName === 'receive') {
       const qrMethod = TOOL_METHOD_MAP[toolName];
       try {
         const result = await sendRequest(qrMethod, params) as Record<string, unknown>;
 
         // Track the operation's identifier for event filtering
-        if (toolName === 'agicash_send') {
+        if (toolName === 'send') {
           const token = result.token as Record<string, unknown> | undefined;
           const tokenHash = token?.tokenHash as string | undefined;
           if (tokenHash) trackedQuotes.add(tokenHash);
@@ -765,11 +765,11 @@ async function main(): Promise<void> {
 
         // Extract the QR-encodable data from the result
         let qrData: string | undefined;
-        if (toolName === 'agicash_send') {
+        if (toolName === 'send') {
           const token = result.token as Record<string, unknown> | undefined;
           qrData = token?.encoded as string | undefined;
         } else {
-          // agicash_receive — invoice is in quote.bolt11, token claim has no QR
+          // receive — invoice is in quote.bolt11, token claim has no QR
           const quote = result.quote as Record<string, unknown> | undefined;
           qrData = quote?.bolt11 as string | undefined;
           // Also check for qrData directly on the result (set by handler)
