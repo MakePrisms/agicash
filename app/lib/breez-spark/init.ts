@@ -1,7 +1,7 @@
-import initBreezSDK, {
-  connect,
-  defaultConfig,
-} from '@breeztech/breez-sdk-spark';
+import pkg from '@breeztech/breez-sdk-spark';
+
+const { connect, defaultConfig } = pkg;
+const initBreezSDK = pkg.default ?? pkg;
 
 let wasmInitialized = false;
 
