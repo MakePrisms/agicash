@@ -314,22 +314,19 @@ function log(message: string): void {
 }
 
 function formatEventContent(mcpEvent: string, data: Record<string, unknown>): string {
-  const quoteId = (data.quoteId as string) ?? 'unknown';
+  const amount = data.amount ?? '';
+  const unit = amount ? ' sats' : '';
   switch (mcpEvent) {
-    case 'payment_completed': {
-      const amount = data.amount ?? '';
-      return `Payment completed. Quote: ${quoteId}${amount ? `. Amount: ${amount}` : ''}`;
-    }
+    case 'payment_completed':
+      return amount ? `Sent ${amount}${unit}` : 'Payment sent';
     case 'payment_failed': {
       const reason = (data.reason as string) ?? 'unknown';
-      return `Payment failed for quote ${quoteId}: ${reason}`;
+      return `Payment failed: ${reason}`;
     }
-    case 'receive_completed': {
-      const amount = data.amount ?? '';
-      return `Receive completed. Quote: ${quoteId}${amount ? `. Amount: ${amount}` : ''}`;
-    }
+    case 'receive_completed':
+      return amount ? `Received ${amount}${unit}` : 'Payment received';
     case 'receive_failed':
-      return `Receive expired for quote ${quoteId}`;
+      return 'Invoice expired';
     default:
       return `${mcpEvent}: ${JSON.stringify(data)}`;
   }
