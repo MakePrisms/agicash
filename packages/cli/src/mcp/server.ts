@@ -319,7 +319,7 @@ function formatAmount(raw: unknown): string {
   const num = typeof raw === 'number' ? raw : Number(raw);
   if (Number.isNaN(num)) return '';
   const money = new Money({ amount: num, currency: 'BTC' });
-  return `${money.toLocaleString({ unit: 'sat', showCurrency: false })} sats`;
+  return money.toLocaleString({ unit: 'sat' });
 }
 
 function formatEventContent(mcpEvent: string, data: Record<string, unknown>): string {
