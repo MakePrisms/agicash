@@ -140,7 +140,7 @@ const TOOLS = [
   {
     name: 'receive',
     description:
-      'Receive Bitcoin. Use amount (integer) to create a Lightning invoice, or token (cashuA.../cashuB...) to claim ecash. Use list to see pending invoices, check/checkAll to poll for payment, inspect with token to check proof states.',
+      'Receive Bitcoin. Use amount (integer) to create a Lightning invoice, or token (cashuA.../cashuB...) to claim ecash. Token claims block until the swap completes and return the final result. Use list to see pending invoices, check/checkAll to poll for payment, inspect with token to check proof states.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -761,6 +761,34 @@ async function main(): Promise<void> {
           const quote = result.quote as Record<string, unknown> | undefined;
           const quoteId = quote?.id as string | undefined;
           if (quoteId) trackedQuotes.add(quoteId);
+        }
+
+        // Token receive: block until swap completes (same pattern as pay with wait)
+        if (toolName === 'receive') {
+          const swap = result.swap as Record<string, unknown> | undefined;
+          const tokenHash = swap?.tokenHash as string | undefined;
+          if (tokenHash && swap?.state === 'PENDING') {
+            trackedQuotes.add(tokenHash);
+            try {
+              const event = await waitForEvent(tokenHash, 60_000);
+              return {
+                content: [{
+                  type: 'text' as const,
+                  text: JSON.stringify({ ...result, swap: { ...swap, state: 'COMPLETED' }, settlement: event }, null, 2),
+                }],
+              };
+            } catch (err) {
+              return {
+                content: [{
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    ...result,
+                    settlement: { error: err instanceof Error ? err.message : String(err) },
+                  }, null, 2),
+                }],
+              };
+            }
+          }
         }
 
         // Extract the QR-encodable data from the result
