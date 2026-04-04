@@ -34,6 +34,9 @@ configure({
   clientId: openSecretClientId,
 });
 
+// Initialize Breez SDK WASM module (prototype validation — remove after Phase C)
+import('@breeztech/breez-sdk-spark').then((sdk) => sdk.default());
+
 // Prefetch feature flags as early as possible.
 // Before login the DB client uses the anon key (no access token),
 // so we get global flags. After login, refreshSession invalidates
