@@ -399,7 +399,7 @@ async function main(): Promise<void> {
   const pending = new Map<string, PendingRequest>();
   const trackedQuotes = new Set<string>();
   let exiting = false;
-  let hasChannels = true;
+  let hasChannels = false;
 
   if (!daemon.stdout || !daemon.stdin) {
     log('daemon stdio not available');
@@ -604,6 +604,7 @@ async function main(): Promise<void> {
         'Payments: agicash_pay for Lightning invoices/addresses, agicash_send for ecash tokens.',
         'Receiving: agicash_receive for Lightning invoices or claiming ecash tokens.',
         'Use agicash_await_payment to wait for payment/receive completion.',
+        'Sharing invoices/tokens: In chat (Discord, etc), include both the QR code image (qrFile path) and the bolt11/token string. In a terminal, output just the string — QR images won\'t render.',
         accountSummary,
       ].filter(Boolean).join('\n'),
     },
