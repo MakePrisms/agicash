@@ -44,7 +44,7 @@ export default defineConfig((config) => {
     // Trade-off: the browser makes a few extra HTTP requests in dev for this library's modules
     // instead of one pre-bundled file. Negligible for a small library. No impact on production.
     optimizeDeps: {
-      exclude: ['@agicash/qr-scanner'],
+      exclude: ['@agicash/qr-scanner', '@breeztech/breez-sdk-spark'],
     },
     build: {
       emptyOutDir: false,
