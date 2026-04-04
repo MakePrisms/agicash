@@ -1,20 +1,15 @@
+import initBreezSDK, {
+  connect,
+  defaultConfig,
+} from '@breeztech/breez-sdk-spark';
+
 let wasmInitialized = false;
-
-// Variable indirection prevents tsx/Vite from statically analyzing the import
-// path during SSR module resolution, which breaks on the WASM package.
-const BREEZ_SDK_MODULE = '@breeztech/breez-sdk-spark/bundler';
-
-async function getBreezSdk() {
-  return import(/* @vite-ignore */ BREEZ_SDK_MODULE);
-}
 
 /**
  * Idempotent WASM initialization. Must be called before any other Breez SDK usage.
- * Uses dynamic import — the WASM module only works in the browser.
  */
 export async function initBreezWasm(): Promise<void> {
   if (wasmInitialized) return;
-  const { default: initBreezSDK } = await getBreezSdk();
   await initBreezSDK();
   wasmInitialized = true;
 }
@@ -35,8 +30,6 @@ function getBreezApiKey(): string {
  */
 export async function connectBreezWallet(mnemonic: string) {
   await initBreezWasm();
-
-  const { connect, defaultConfig } = await getBreezSdk();
 
   const config = {
     ...defaultConfig('mainnet'),
