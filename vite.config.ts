@@ -43,6 +43,11 @@ export default defineConfig((config) => {
     // relative URL used to load the Web Worker.
     // Trade-off: the browser makes a few extra HTTP requests in dev for this library's modules
     // instead of one pre-bundled file. Negligible for a small library. No impact on production.
+    ssr: {
+      // Prevent Vite from processing this CJS package during SSR.
+      // Node.js loads it natively; the client uses the ESM web entry.
+      external: ['@breeztech/breez-sdk-spark'],
+    },
     optimizeDeps: {
       exclude: ['@agicash/qr-scanner', '@breeztech/breez-sdk-spark'],
     },
