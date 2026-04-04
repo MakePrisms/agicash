@@ -1,12 +1,7 @@
-import type {
-  EventListener,
-  SdkEvent,
-} from '@breeztech/breez-sdk-spark/bundler';
-
 export type EventLogEntry = {
   timestamp: Date;
-  eventType: SdkEvent['type'];
-  data: SdkEvent;
+  eventType: string;
+  data: unknown;
 };
 
 export type OnEventCallback = (entry: EventLogEntry) => void;
@@ -24,15 +19,14 @@ export type OnEventCallback = (entry: EventLogEntry) => void;
  * // later:
  * await sdk.removeEventListener(listenerId);
  */
-export function createEventListener(onEvent: OnEventCallback): EventListener {
+export function createEventListener(onEvent: OnEventCallback) {
   return {
-    onEvent(e: SdkEvent): void {
-      const entry: EventLogEntry = {
+    onEvent(e: { type: string }): void {
+      onEvent({
         timestamp: new Date(),
         eventType: e.type,
         data: e,
-      };
-      onEvent(entry);
+      });
     },
   };
 }
