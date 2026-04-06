@@ -51,47 +51,50 @@ export class AccountsCache {
     );
   }
 
-  // This is used for a Spark bug workaround in useTrackAndUpdateSparkAccountBalances hook.
-  // Once the bug is resolved we can change this function to simply update the account balance if changed.
-  // TODO: Update when Spark bug is fixed and workaround is removed.
-  updateSparkAccountIfBalanceOrWalletChanged(account: SparkAccount) {
+  updateSparkAccountBalance({
+    accountId,
+    availableBalance,
+    ownedBalance,
+  }: {
+    accountId: string;
+    availableBalance: Money;
+    ownedBalance: Money;
+  }) {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
       curr.map((x) => {
-        if (x.id !== account.id || x.type !== 'spark') return x;
+        if (x.id !== accountId || x.type !== 'spark') return x;
 
-        const versionOk = account.version >= x.version;
-        const balanceChanged = this.hasDifferentBalanceOrWallet(x, account);
-        const willUpdate = versionOk && balanceChanged;
-
-        sparkDebugLog('Cache update check', {
-          accountId: account.id,
-          cachedVersion: String(x.version),
-          incomingVersion: String(account.version),
-          versionOk: String(versionOk),
-          balanceChanged: String(balanceChanged),
-          willUpdate: String(willUpdate),
+        const balanceChanged = this.hasDifferentBalance(x, {
+          availableBalance,
+          ownedBalance,
         });
 
-        return willUpdate ? account : x;
+        sparkDebugLog('Cache update check', {
+          accountId,
+          newAvailableBalance: availableBalance.toString(),
+          newOwnedBalance: ownedBalance.toString(),
+          willUpdateCache: balanceChanged,
+        });
+
+        return balanceChanged ? { ...x, availableBalance, ownedBalance } : x;
       }),
     );
   }
 
-  private hasDifferentBalanceOrWallet(
-    accountOne: SparkAccount,
-    accountTwo: SparkAccount,
+  private hasDifferentBalance(
+    account: SparkAccount,
+    balance: {
+      availableBalance: Money;
+      ownedBalance: Money;
+    },
   ) {
-    const oneOwned = accountOne.ownedBalance ?? Money.zero(accountOne.currency);
-    const twoOwned = accountTwo.ownedBalance ?? Money.zero(accountTwo.currency);
-    const oneAvailable =
-      accountOne.availableBalance ?? Money.zero(accountOne.currency);
-    const twoAvailable =
-      accountTwo.availableBalance ?? Money.zero(accountTwo.currency);
+    const accountOwned = account.ownedBalance ?? Money.zero(account.currency);
+    const accountAvailable =
+      account.availableBalance ?? Money.zero(account.currency);
 
     return (
-      !oneOwned.equals(twoOwned) ||
-      !oneAvailable.equals(twoAvailable) ||
-      accountOne.wallet !== accountTwo.wallet
+      !accountOwned.equals(balance.ownedBalance) ||
+      !accountAvailable.equals(balance.availableBalance)
     );
   }
 
