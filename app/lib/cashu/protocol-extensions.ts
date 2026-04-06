@@ -22,6 +22,14 @@ type MintQuoteFee = {
 };
 
 /**
+ * The purpose of a mint/account.
+ * - 'transactional': Regular open-loop mints for sending/receiving payments
+ * - 'gift-card': Closed-loop mints issuing gift cards
+ * - 'offer': Closed-loop mints issuing promotional offers
+ */
+export type MintPurpose = 'transactional' | 'gift-card' | 'offer';
+
+/**
  * Agicash-specific mint info extension.
  * This is included in the mint's info response under the "agicash" key.
  */

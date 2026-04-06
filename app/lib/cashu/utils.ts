@@ -12,6 +12,7 @@ import type { Currency, CurrencyUnit } from '../money';
 import {
   ExtendedMintInfo,
   type ExtendedMintQuoteBolt11Response,
+  type MintPurpose,
 } from './protocol-extensions';
 import type { CashuProtocolUnit } from './types';
 
@@ -75,7 +76,7 @@ export const getCashuProtocolUnit = (currency: Currency) => {
  */
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
-): 'gift-card' | 'transactional' => {
+): MintPurpose => {
   return mintInfo?.agicash?.closed_loop ? 'gift-card' : 'transactional';
 };
 
