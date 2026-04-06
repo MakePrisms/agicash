@@ -22,15 +22,19 @@ type MintQuoteFee = {
 };
 
 /**
+ * The purpose of a Cashu mint as advertised in its info response.
+ * - 'transactional': Regular mint for sending/receiving payments
+ * - 'gift-card': Closed-loop mint issuing gift cards
+ * - 'offer': Closed-loop promotional ecash with keyset-based expiry
+ */
+export type MintPurpose = 'transactional' | 'gift-card' | 'offer';
+
+/**
  * Agicash-specific mint info extension.
  * This is included in the mint's info response under the "agicash" key.
  */
 export type AgicashMintExtension = {
-  /**
-   * When true, the mint operates in closed-loop mode and will only process
-   * payments to destinations within its loop.
-   */
-  closed_loop?: boolean;
+  purpose?: MintPurpose;
 };
 
 /**

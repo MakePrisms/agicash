@@ -1,5 +1,11 @@
+import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
-import { checkIsTestMint } from '~/lib/cashu';
+import { allMintKeysetsQueryOptions } from '~/features/shared/cashu';
+import {
+  checkIsTestMint,
+  findFirstActiveKeyset,
+  getKeysetExpiry,
+} from '~/lib/cashu';
 import type { User } from '../user/user';
 import type { Account, CashuAccount, ExtendedAccount } from './account';
 import {
@@ -8,7 +14,10 @@ import {
 } from './account-repository';
 
 export class AccountService {
-  constructor(private readonly accountRepository: AccountRepository) {}
+  constructor(
+    private readonly accountRepository: AccountRepository,
+    private readonly queryClient: QueryClient,
+  ) {}
 
   /**
    * Returns true if the account is the user's default account for the respective currency.
@@ -39,7 +48,7 @@ export class AccountService {
       .sort((_, b) => (b.isDefault ? 1 : -1)); // Sort the default account to the top;
   }
 
-  addCashuAccount({
+  async addCashuAccount({
     userId,
     account,
   }: {
@@ -48,6 +57,7 @@ export class AccountService {
       CashuAccount,
       | 'id'
       | 'createdAt'
+      | 'expiresAt'
       | 'isTestMint'
       | 'keysetCounters'
       | 'proofs'
@@ -58,16 +68,28 @@ export class AccountService {
   }) {
     const isTestMint = checkIsTestMint(account.mintUrl);
 
+    let expiresAt: string | null = null;
+    if (account.purpose === 'offer') {
+      const { keysets } = await this.queryClient.fetchQuery(
+        allMintKeysetsQueryOptions(account.mintUrl),
+      );
+      const activeKeyset = findFirstActiveKeyset(keysets, account.currency);
+      if (activeKeyset) {
+        expiresAt = getKeysetExpiry(activeKeyset)?.toISOString() ?? null;
+      }
+    }
+
     return this.accountRepository.create<CashuAccount>({
       ...account,
       userId,
       isTestMint,
+      expiresAt,
       keysetCounters: {},
     });
   }
 }
 
-export function useAccountService() {
+export function useAccountService(queryClient: QueryClient) {
   const accountRepository = useAccountRepository();
-  return new AccountService(accountRepository);
+  return new AccountService(accountRepository, queryClient);
 }

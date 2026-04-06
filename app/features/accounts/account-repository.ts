@@ -136,6 +136,7 @@ export class AccountRepository {
       details,
       user_id: accountInput.userId,
       purpose: accountInput.purpose,
+      expires_at: accountInput.expiresAt,
     };
 
     const query = this.db
@@ -176,6 +177,7 @@ export class AccountRepository {
       purpose: data.purpose,
       createdAt: data.created_at,
       version: data.version,
+      expiresAt: data.expires_at,
     };
 
     if (isCashuAccount(data)) {

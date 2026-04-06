@@ -14,6 +14,7 @@ export type Database = {
           created_at: string
           currency: Database["wallet"]["Enums"]["currency"]
           details: Json
+          expires_at: string | null
           id: string
           name: string
           purpose: Database["wallet"]["Enums"]["account_purpose"]
@@ -25,6 +26,7 @@ export type Database = {
           created_at?: string
           currency: Database["wallet"]["Enums"]["currency"]
           details: Json
+          expires_at?: string | null
           id?: string
           name: string
           purpose?: Database["wallet"]["Enums"]["account_purpose"]
@@ -36,6 +38,7 @@ export type Database = {
           created_at?: string
           currency?: Database["wallet"]["Enums"]["currency"]
           details?: Json
+          expires_at?: string | null
           id?: string
           name?: string
           purpose?: Database["wallet"]["Enums"]["account_purpose"]
@@ -1600,7 +1603,7 @@ export type Database = {
       }
     }
     Enums: {
-      account_purpose: "transactional" | "gift-card"
+      account_purpose: "transactional" | "gift-card" | "offer"
       account_type: "cashu" | "spark"
       acknowledgment_status: "pending" | "acknowledged"
       cashu_proof_state: "UNSPENT" | "RESERVED" | "SPENT"
@@ -1886,7 +1889,7 @@ export type CompositeTypes<
 export const Constants = {
   wallet: {
     Enums: {
-      account_purpose: ["transactional", "gift-card"],
+      account_purpose: ["transactional", "gift-card", "offer"],
       account_type: ["cashu", "spark"],
       acknowledgment_status: ["pending", "acknowledged"],
       cashu_proof_state: ["UNSPENT", "RESERVED", "SPENT"],

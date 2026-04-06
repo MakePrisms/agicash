@@ -3,7 +3,9 @@ import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import {
   areMintUrlsEqual,
   checkIsTestMint,
+  findFirstActiveKeyset,
   getCashuProtocolUnit,
+  getKeysetExpiry,
 } from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import {
@@ -43,6 +45,17 @@ export class ReceiveCashuTokenService {
       currency,
     });
 
+    let expiresAt: string | null = null;
+    if (wallet.purpose === 'offer') {
+      const activeKeyset = findFirstActiveKeyset(
+        wallet.keyChain.getKeysets(),
+        currency,
+      );
+      if (activeKeyset) {
+        expiresAt = getKeysetExpiry(activeKeyset)?.toISOString() ?? null;
+      }
+    }
+
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
@@ -53,6 +66,7 @@ export class ReceiveCashuTokenService {
       currency,
       version: 0,
       keysetCounters: {},
+      expiresAt,
       proofs: [],
       isDefault: false,
       isSource: true,
