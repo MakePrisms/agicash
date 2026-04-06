@@ -25,7 +25,6 @@ import { getQueryClient } from '~/features/shared/query-client';
 import {
   type ExtendedCashuWallet,
   ExtendedMintInfo,
-  type MintPurpose,
   extractCashuToken,
   getCashuProtocolUnit,
   getCashuUnit,
@@ -180,6 +179,8 @@ export const cashuMintValidator = buildMintValidator({
   requiredWebSocketCommands: ['bolt11_melt_quote', 'proof_state'] as const,
   blocklist: mintBlocklist,
 });
+
+type MintPurpose = 'gift-card' | 'transactional' | 'offer';
 
 export function getMintAuthProvider(purpose: MintPurpose | undefined) {
   return purpose === 'gift-card' || purpose === 'offer'
