@@ -81,16 +81,13 @@ export class AccountsCache {
     accountOne: SparkAccount,
     accountTwo: SparkAccount,
   ) {
-    const oneOwned = accountOne.ownedBalance ?? Money.zero(accountOne.currency);
-    const twoOwned = accountTwo.ownedBalance ?? Money.zero(accountTwo.currency);
-    const oneAvailable =
-      accountOne.availableBalance ?? Money.zero(accountOne.currency);
-    const twoAvailable =
-      accountTwo.availableBalance ?? Money.zero(accountTwo.currency);
+    const accountOneBalance =
+      accountOne.balance ?? Money.zero(accountOne.currency);
+    const accountTwoBalance =
+      accountTwo.balance ?? Money.zero(accountTwo.currency);
 
     return (
-      !oneOwned.equals(twoOwned) ||
-      !oneAvailable.equals(twoAvailable) ||
+      !accountOneBalance.equals(accountTwoBalance) ||
       accountOne.wallet !== accountTwo.wallet
     );
   }

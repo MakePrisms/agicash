@@ -52,8 +52,7 @@ export type Account = {
     }
   | {
       type: 'spark';
-      ownedBalance: Money | null;
-      availableBalance: Money | null;
+      balance: Money | null;
       network: SparkNetwork;
       /**
        * The Spark wallet instance for the account.
@@ -114,5 +113,5 @@ export const getAccountBalance = (account: Account) => {
       unit: getCashuUnit(account.currency),
     });
   }
-  return account.ownedBalance;
+  return account.balance;
 };
