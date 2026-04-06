@@ -1,4 +1,5 @@
 import {
+  type Keyset,
   type MeltQuoteBolt11Response,
   MeltQuoteState,
   type Mint,
@@ -82,17 +83,24 @@ export const getMintPurpose = (
 };
 
 /**
- * Returns the active keyset's expiry for the given currency.
- * Assumes one active keyset per unit (NUT-02 guarantees this).
+ * Finds the first active keyset for the given currency.
  */
-export const getKeysetExpiry = (
-  keysets: MintKeyset[],
+export const findFirstActiveKeyset = <T extends MintKeyset | Keyset>(
+  keysets: T[],
   currency: Currency,
-): Date | null => {
+): T | undefined => {
   const unit = getCashuProtocolUnit(currency);
-  const activeKeyset = keysets.find((ks) => ks.unit === unit && ks.active);
-  if (!activeKeyset?.final_expiry) return null;
-  return new Date(activeKeyset.final_expiry * 1000);
+  return keysets.find((ks) => ks.unit === unit && ks.active);
+};
+
+/**
+ * Returns the keyset's expiry as a Date, or null if it has no expiry.
+ */
+export const getKeysetExpiry = (keyset: {
+  final_expiry?: number;
+}): Date | null => {
+  if (!keyset.final_expiry) return null;
+  return new Date(keyset.final_expiry * 1000);
 };
 
 export const getWalletCurrency = (wallet: Wallet) => {

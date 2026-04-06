@@ -1,7 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import { allMintKeysetsQueryOptions } from '~/features/shared/cashu';
-import { checkIsTestMint, getKeysetExpiry } from '~/lib/cashu';
+import {
+  checkIsTestMint,
+  findFirstActiveKeyset,
+  getKeysetExpiry,
+} from '~/lib/cashu';
 import type { User } from '../user/user';
 import type { Account, CashuAccount, ExtendedAccount } from './account';
 import {
@@ -69,8 +73,10 @@ export class AccountService {
       const { keysets } = await this.queryClient.fetchQuery(
         allMintKeysetsQueryOptions(account.mintUrl),
       );
-      const expiry = getKeysetExpiry(keysets, account.currency);
-      expiresAt = expiry?.toISOString() ?? null;
+      const activeKeyset = findFirstActiveKeyset(keysets, account.currency);
+      if (activeKeyset) {
+        expiresAt = getKeysetExpiry(activeKeyset)?.toISOString() ?? null;
+      }
     }
 
     return this.accountRepository.create<CashuAccount>({

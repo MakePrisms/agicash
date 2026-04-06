@@ -29,9 +29,9 @@ export type Account = {
    */
   version: number;
   /**
-   * ISO 8601 timestamp when the account's ecash expires (for offer accounts).
-   * Converted from the active keyset's `final_expiry` unix epoch (NUT-02).
-   * Null for non-offer accounts.
+   * The account expiry time, as an ISO 8601 timestamp.
+   * For offer accounts, this is when the ecash expires (derived from keyset expiry).
+   * Null for accounts that don't expire.
    */
   expiresAt: string | null;
 } & (
