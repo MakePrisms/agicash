@@ -278,6 +278,7 @@ export class ReadUserDefaultAccountRepository {
       purpose: data.purpose,
       createdAt: data.created_at,
       version: data.version,
+      expiresAt: data.expires_at,
     };
 
     if (isCashuAccount(data)) {

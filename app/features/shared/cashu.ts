@@ -25,6 +25,7 @@ import { getQueryClient } from '~/features/shared/query-client';
 import {
   type ExtendedCashuWallet,
   ExtendedMintInfo,
+  type MintPurpose,
   extractCashuToken,
   getCashuProtocolUnit,
   getCashuUnit,
@@ -180,10 +181,10 @@ export const cashuMintValidator = buildMintValidator({
   blocklist: mintBlocklist,
 });
 
-type MintPurpose = 'gift-card' | 'transactional';
-
 export function getMintAuthProvider(purpose: MintPurpose | undefined) {
-  return purpose === 'gift-card' ? getAgicashMintAuthProvider() : undefined;
+  return purpose === 'gift-card' || purpose === 'offer'
+    ? getAgicashMintAuthProvider()
+    : undefined;
 }
 
 export const mintInfoQueryKey = (mintUrl: string) => ['mint-info', mintUrl];

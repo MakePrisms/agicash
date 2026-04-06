@@ -2,6 +2,7 @@ import {
   type MeltQuoteBolt11Response,
   MeltQuoteState,
   type Mint,
+  type MintKeyset,
   type MintQuoteBolt11Response,
   type Proof,
   Wallet,
@@ -12,6 +13,7 @@ import type { Currency, CurrencyUnit } from '../money';
 import {
   ExtendedMintInfo,
   type ExtendedMintQuoteBolt11Response,
+  type MintPurpose,
 } from './protocol-extensions';
 import type { CashuProtocolUnit } from './types';
 
@@ -75,8 +77,22 @@ export const getCashuProtocolUnit = (currency: Currency) => {
  */
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
-): 'gift-card' | 'transactional' => {
-  return mintInfo?.agicash?.closed_loop ? 'gift-card' : 'transactional';
+): MintPurpose => {
+  return mintInfo?.agicash?.purpose ?? 'transactional';
+};
+
+/**
+ * Returns the active keyset's expiry for the given currency.
+ * Assumes one active keyset per unit (NUT-02 guarantees this).
+ */
+export const getKeysetExpiry = (
+  keysets: MintKeyset[],
+  currency: Currency,
+): Date | null => {
+  const unit = getCashuProtocolUnit(currency);
+  const activeKeyset = keysets.find((ks) => ks.unit === unit && ks.active);
+  if (!activeKeyset?.final_expiry) return null;
+  return new Date(activeKeyset.final_expiry * 1000);
 };
 
 export const getWalletCurrency = (wallet: Wallet) => {
@@ -126,7 +142,7 @@ export class ExtendedCashuWallet extends Wallet {
   /**
    * Gets the purpose of this mint based on its configuration.
    */
-  get purpose(): 'gift-card' | 'transactional' {
+  get purpose(): MintPurpose {
     return getMintPurpose(this.getMintInfo());
   }
 

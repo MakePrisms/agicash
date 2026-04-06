@@ -323,6 +323,7 @@ function getSparkAccountPlaceholder(): ReceiveCashuTokenAccount & {
     ownedBalance: Money.zero('BTC'),
     availableBalance: Money.zero('BTC'),
     network: 'MAINNET',
+    expiresAt: null,
     isSource: false,
     isUnknown: false,
     canReceive: true,

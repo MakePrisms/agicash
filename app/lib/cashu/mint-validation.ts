@@ -185,13 +185,6 @@ const validateBolt11Support = (
   const nut = operation === 'minting' ? 4 : 5;
   const status = info.isSupported(nut);
 
-  if (status.disabled) {
-    return {
-      isValid: false,
-      message: `${operation} is disabled on this mint`,
-    };
-  }
-
   const hasBolt11Support = status.params.some(
     (method) => method.method === 'bolt11' && method.unit === unit,
   );

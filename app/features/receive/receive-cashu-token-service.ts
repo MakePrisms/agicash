@@ -4,6 +4,7 @@ import {
   areMintUrlsEqual,
   checkIsTestMint,
   getCashuProtocolUnit,
+  getKeysetExpiry,
 } from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import {
@@ -43,6 +44,14 @@ export class ReceiveCashuTokenService {
       currency,
     });
 
+    const mintKeysets = wallet.keyChain
+      .getKeysets()
+      .map((ks) => ks.toMintKeyset());
+    const expiresAt =
+      wallet.purpose === 'offer'
+        ? (getKeysetExpiry(mintKeysets, currency)?.toISOString() ?? null)
+        : null;
+
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
@@ -53,6 +62,7 @@ export class ReceiveCashuTokenService {
       currency,
       version: 0,
       keysetCounters: {},
+      expiresAt,
       proofs: [],
       isDefault: false,
       isSource: true,
