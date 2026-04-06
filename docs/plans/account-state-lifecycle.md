@@ -2,15 +2,22 @@
 
 ## Summary
 
-Add a `state` column to `wallet.accounts` supporting the lifecycle `active -> expired -> deleted` (soft delete). This enables automatic expiry of offer accounts when their keyset's `expires_at` passes, soft delete so expired/deleted accounts don't block creation of future accounts at the same mint, and a uniqueness constraint scoped only to active accounts.
+Add a `state` column to `wallet.accounts` supporting the lifecycle `active -> expired` (with `deleted` state under discussion). This enables automatic expiry of offer accounts when their keyset's `expires_at` passes, prevents expired accounts from blocking creation of future accounts at the same mint, and a uniqueness constraint scoped only to active accounts.
 
 ## Design Decisions
 
-### 1. Where to filter `deleted` accounts
+### 1. Where to filter `deleted` accounts — PENDING DECISION
 
-**Decision: RLS (restrictive SELECT policy).**
+> **Status:** Under discussion between gudnuf and josip. Two options are being considered:
+>
+> - **Option A: Ship expiry-only.** `expired` is a terminal state. Expired accounts are hidden immediately. No `deleted` state in this migration.
+> - **Option B: Keep both states.** Show expired accounts briefly in the UI, then a second cron job moves `expired -> deleted` after N days, hiding them permanently.
+>
+> The design below retains `deleted` for completeness, but it may be scoped out of the initial migration.
 
-A restrictive RLS policy makes `deleted` accounts invisible for SELECT. Every caller -- `getAll()`, `get()`, realtime subscriptions -- automatically excludes deleted rows without any app-layer change. The `enforce_accounts_limit` trigger must also be updated to exclude `deleted` accounts from its count.
+**Proposed: RLS (restrictive SELECT policy).**
+
+A restrictive RLS policy makes `deleted` accounts invisible for SELECT. Every caller -- `getAll()`, `get()`, realtime subscriptions -- automatically excludes deleted rows without any app-layer change.
 
 ### 2. Where to filter `expired` accounts
 
@@ -20,23 +27,27 @@ Expired accounts remain visible in `getAll()` -- the RLS policy does not hide th
 
 ### 3. Auto-expiry mechanism
 
-**Decision: Two layers — eager on user assertion, pg_cron as background cleanup.**
+**Decision: pg_cron background job only (every minute).**
 
-**Eager (on login):** `upsert_user_with_accounts` expires stale accounts before returning them. When a user opens the app, any account with `state = 'active'` and `expires_at <= now()` is transitioned to `expired` within the same transaction. The client gets correct state on first load — no stale-then-update flicker.
+A single pg_cron job runs every minute (`'* * * * *'`) and transitions any account with `state = 'active'` and `expires_at <= now()` to `expired`. The existing `broadcast_accounts_changes_trigger` fires realtime events automatically when the cron updates state, so connected clients receive updates without additional plumbing.
 
-**Background (pg_cron, hourly):** A cron job catches accounts for users who haven't opened the app. This keeps the DB consistent for realtime broadcasts and prevents stale `active` accounts from accumulating. pg_cron is already installed and used for 8 daily cleanup jobs — no new infrastructure.
+No eager expiry in `upsert_user_with_accounts` — the 1-minute cron granularity is sufficient for the UX. At most, a user sees a stale active account for up to 60 seconds before the next cron run corrects it.
 
-### 4. Soft delete
+**Graceful error handling:** If the client attempts to use an expired keyset and the mint rejects it, show the user "this offer has expired" and trigger a cache refresh to pull the updated account state.
 
-**Decision: Client-initiated app-layer mutation.**
+### 4. Delete — PENDING DECISION
 
-A new `wallet.soft_delete_account(p_account_id uuid)` DB function sets `state = 'deleted'` and bumps `version`. The `ACCOUNT_UPDATED` realtime event fires; the client removes the account from the cache.
+> **Status:** Depends on the outcome of decision #1 above. If Option A is chosen, this section is deferred. If Option B is chosen, the design below applies.
+
+**Proposed: Client-initiated app-layer mutation.**
+
+A new `wallet.delete_account(p_account_id uuid)` DB function sets `state = 'deleted'` and bumps `version`. The `ACCOUNT_UPDATED` realtime event fires; the client removes the account from the cache.
 
 ### 5. Transitions are one-way
 
-Valid: `active -> expired`, `active -> deleted`, `expired -> deleted`. No reactivation. An expired offer account's keyset has expired at the Cashu protocol level -- reactivating it would be misleading. New ecash at the same mint creates a new `active` account (the updated unique index allows this).
+Valid: `active -> expired`. If the `deleted` state is included: `active -> deleted`, `expired -> deleted`. No reactivation. An expired offer account's keyset has expired at the Cashu protocol level -- reactivating it would be misleading. New ecash at the same mint creates a new `active` account (the updated unique index allows this).
 
-Enforced by construction: each DB function's WHERE clause only matches valid source states. No trigger needed — `upsert_user_with_accounts` only transitions `active → expired`, and `soft_delete_account` only transitions `active/expired → deleted`.
+Enforced by construction: each DB function's WHERE clause only matches valid source states. No trigger needed — the pg_cron job only transitions `active → expired`, and `delete_account` (if included) only transitions `active/expired → deleted`.
 
 ### 6. Realtime handling for deleted accounts
 
@@ -72,6 +83,9 @@ create unique index "cashu_accounts_active_user_currency_mint_url_unique"
 create index "idx_accounts_active_expires_at"
   on "wallet"."accounts" using btree ((("details" ->> 'expires_at')::timestamptz))
   where ("state" = 'active' and ("details" ->> 'expires_at') is not null);
+
+-- General state index for queries filtering by state
+create index idx_accounts_state on wallet.accounts(state);
 ```
 
 ### RLS: hide deleted accounts
@@ -85,14 +99,16 @@ to authenticated
 using (state != 'deleted'::wallet.account_state);
 ```
 
-### enforce_accounts_limit (deferred)
+### enforce_accounts_limit — count only active
 
-The current trigger counts all accounts regardless of state. Deleted accounts will count toward the 200-account quota. Changing this limit is a separate discussion — the limit exists for a reason and adjusting what counts toward it has implications beyond this feature. For now, soft-deleted accounts are rare (only offer accounts) and won't meaningfully impact the quota.
+Update `enforce_accounts_limit` in this migration to count only `state = 'active'` accounts toward the 200-account quota. Expired (and deleted, if included) accounts should not block users from creating new accounts at the same mint.
 
-### Soft delete DB function
+### Delete DB function — PENDING DECISION
+
+> Included if the `deleted` state is kept (see decision #1).
 
 ```sql
-create or replace function "wallet"."soft_delete_account"(p_account_id uuid)
+create or replace function "wallet"."delete_account"(p_account_id uuid)
 returns void
 language plpgsql
 security invoker
@@ -114,27 +130,10 @@ end;
 $function$;
 ```
 
-### Eager expiry in upsert_user_with_accounts
-
-Add an UPDATE before the account fetch in `upsert_user_with_accounts` to transition stale accounts:
+### pg_cron job for auto-expiry (every minute)
 
 ```sql
--- Expire stale accounts before returning them to the client
-update wallet.accounts
-set state = 'expired', version = version + 1
-where
-  user_id = p_user_id
-  and state = 'active'
-  and (details ->> 'expires_at') is not null
-  and (details ->> 'expires_at')::timestamptz <= now();
-```
-
-This runs inside the existing transaction, before the `accounts_with_proofs` CTE that fetches accounts. The client receives already-expired accounts with `state = 'expired'` — no second round-trip needed.
-
-### pg_cron job for auto-expiry
-
-```sql
-select cron.schedule('expire-offer-accounts', '0 * * * *', $$
+select cron.schedule('expire-offer-accounts', '* * * * *', $$
   update wallet.accounts
   set
     state = 'expired',
@@ -145,6 +144,8 @@ select cron.schedule('expire-offer-accounts', '0 * * * *', $$
     and (details ->> 'expires_at')::timestamptz <= now();
 $$);
 ```
+
+The existing `broadcast_accounts_changes_trigger` fires automatically on these updates, pushing realtime events to connected clients.
 
 ## App Code Changes
 
@@ -159,7 +160,7 @@ state: AccountState;
 
 ### `account-repository.ts` -- Map state, add delete
 
-Map `state` in `toAccount()` commonData. Add `deleteAccount(id)` calling `soft_delete_account` RPC.
+Map `state` in `toAccount()` commonData. If the `deleted` state is included, add `deleteAccount(id)` calling `delete_account` RPC.
 
 ### `account-hooks.ts` -- Cache removal + realtime handling
 
@@ -169,10 +170,15 @@ Map `state` in `toAccount()` commonData. Add `deleteAccount(id)` calling `soft_d
 
 ### `gift-cards.tsx` -- Simplify filter
 
+Use the `useQuery` `select` option to filter at the query level rather than manual `.filter()`:
+
 ```typescript
 function useActiveOffers() {
-  const { data: offerAccounts } = useAccounts({ purpose: 'offer' });
-  return offerAccounts.filter((account) => account.state === 'active');
+  const { data: offerAccounts } = useAccounts({
+    purpose: 'offer',
+    select: (accounts) => accounts.filter((a) => a.state === 'active'),
+  });
+  return offerAccounts;
 }
 ```
 
@@ -186,31 +192,32 @@ function useActiveOffers() {
 
 ## Data Flow
 
-### active -> expired (on login, eager)
+### active -> expired (pg_cron, every minute)
 
 ```
-User opens app
-  -> upsert_user_with_accounts(...)
-  -> UPDATE stale accounts to state='expired', version+1 (same transaction)
-  -> accounts returned already have state='expired'
-  -> client renders correct state immediately, no flicker
-```
-
-### active -> expired (background cleanup, hourly)
-
-```
-pg_cron -> UPDATE state='expired', version+1 (for users who haven't logged in)
-  -> broadcast_accounts_changes_trigger fires
+pg_cron (every minute) -> UPDATE state='expired', version+1
+  -> broadcast_accounts_changes_trigger fires automatically
   -> realtime ACCOUNT_UPDATED to connected clients
   -> accountCache.update(account) [version higher, accepted]
-  -> useActiveOffers() re-renders, filtered by state === 'active'
+  -> useActiveOffers() re-renders, select filters by state === 'active'
 ```
 
-### active/expired -> deleted (user-initiated)
+### Expired keyset error handling
+
+```
+Client tries to use account with expired keyset
+  -> Mint rejects operation
+  -> Show "this offer has expired"
+  -> Trigger cache refresh to pull updated account state
+```
+
+### active/expired -> deleted (user-initiated) — PENDING DECISION
+
+> Included if the `deleted` state is kept (see decision #1).
 
 ```
 useDeleteAccount()(accountId)
-  -> db.rpc('soft_delete_account', { p_account_id: id })
+  -> db.rpc('delete_account', { p_account_id: id })
   -> broadcast ACCOUNT_UPDATED with state='deleted'
   -> client: accountCache.remove(id)
   -> account gone from all UI
@@ -246,8 +253,13 @@ User receives new offer token for same mint
 - [ ] Update `useActiveOffers()` to filter by `state === 'active'`
 - [ ] Run `bun run fix:all`
 
+## Prerequisites
+
+- **PR #959 (offer mints) — MERGED.** The prerequisite for this migration has landed.
+
 ## Open Questions
 
-- **Delete UI placement**: The hook is specced; UX (which screen, what confirmation) is a separate decision.
+- **Delete state**: See decision #1 above. gudnuf and josip are still deciding whether to include `deleted` in this migration or ship expiry-only.
+- **Delete UI placement**: If the `deleted` state is included, the hook is specced but UX (which screen, what confirmation) is a separate decision.
 - **Expired balance recovery**: Proofs may still be swappable depending on mint's keyset expiry enforcement. Separate feature.
 - **Offer re-use on receive**: When a user receives a new offer token for a mint that already has an `active` offer account, existing behavior routes proofs to the existing account. Unchanged by this migration.
