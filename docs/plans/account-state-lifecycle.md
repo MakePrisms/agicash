@@ -12,9 +12,13 @@ Add a `state` column to `wallet.accounts` supporting the lifecycle `active -> ex
 
 ### 2. Where to filter `expired` accounts
 
-**Decision: App layer.**
+**Decision: Repository query layer.**
 
-Expired accounts remain visible in `getAll()` -- the RLS policy does not hide them. The existing `useActiveOffers()` filter in `gift-cards.tsx` is simplified from the `expiresAt > now()` check to `account.state === 'active'`.
+Add `.eq('state', 'active')` to the Supabase query in `AccountRepository.getAll()` so expired accounts never reach the client.
+
+**Why not RLS?** All DB functions (`get_account_with_proofs`, `create_cashu_send_quote`, etc.) are `security invoker`, so they execute with the calling user's RLS context. A restrictive RLS policy hiding expired accounts would break any in-flight quote or swap operation whose account expires mid-transaction. The DB functions need to see expired accounts to complete already-started operations.
+
+**Why not a `useQuery` `select` filter?** Since `getAll()` excludes expired accounts at the query level, there is no need for a client-side `select` filter -- the data simply never arrives at the client.
 
 ### 3. Auto-expiry mechanism
 
@@ -24,7 +28,7 @@ A single pg_cron job runs every minute (`'* * * * *'`) and transitions any accou
 
 No eager expiry in `upsert_user_with_accounts` — the 1-minute cron granularity is sufficient for the UX. At most, a user sees a stale active account for up to 60 seconds before the next cron run corrects it.
 
-**Graceful error handling:** If the client attempts to use an expired keyset and the mint rejects it, show the user "this offer has expired" and trigger a cache refresh to pull the updated account state.
+**Graceful error handling:** If the client somehow triggers an operation on an expired account (race condition between cron expiring the account and user initiating an action), catch the mint rejection and show the user "this offer has expired". Trigger a cache invalidation to pull fresh account state from the server.
 
 ### 4. Transitions are one-way
 
@@ -99,9 +103,12 @@ export type AccountState = 'active' | 'expired';
 state: AccountState;
 ```
 
-### `account-repository.ts` -- Map state
+### `account-repository.ts` -- Map state and filter expired
 
 Map `state` in `toAccount()` commonData.
+
+- `getAll()` adds `.eq('state', 'active')` to the Supabase query, so expired accounts are excluded at the repository level and never reach the client.
+- `get(id)` does NOT filter by state -- individual account lookups (used by DB functions returning account data) still work for expired accounts if needed by in-flight operations.
 
 ### `account-hooks.ts` -- Realtime handling
 
@@ -109,17 +116,18 @@ Map `state` in `toAccount()` commonData.
 
 ### `gift-cards.tsx` -- Simplify filter
 
-Use the `useQuery` `select` option to filter at the query level rather than manual `.filter()`:
+`useActiveOffers()` no longer needs to filter by `state === 'active'` since `getAll()` already excludes expired accounts at the query level. It becomes a simple query for `purpose: 'offer'` accounts:
 
 ```typescript
 function useActiveOffers() {
   const { data: offerAccounts } = useAccounts({
     purpose: 'offer',
-    select: (accounts) => accounts.filter((a) => a.state === 'active'),
   });
   return offerAccounts;
 }
 ```
+
+Remove the old client-side `expires_at` Date check -- it is redundant now that the cron job sets `state = 'expired'` and `getAll()` filters by `state = 'active'`.
 
 ### Files requiring no changes
 
@@ -138,16 +146,17 @@ pg_cron (every minute) -> UPDATE state='expired', version+1
   -> broadcast_accounts_changes_trigger fires automatically
   -> realtime ACCOUNT_UPDATED to connected clients
   -> accountCache.update(account) [version higher, accepted]
-  -> useActiveOffers() re-renders, select filters by state === 'active'
+  -> useActiveOffers() re-renders, getAll() already excludes expired
 ```
 
-### Expired keyset error handling
+### Expired keyset error handling (race condition)
 
 ```
-Client tries to use account with expired keyset
-  -> Mint rejects operation
-  -> Show "this offer has expired"
-  -> Trigger cache refresh to pull updated account state
+Client triggers operation on account just before cron expires it
+  -> Mint rejects operation (keyset expired)
+  -> Catch mint rejection, show "this offer has expired"
+  -> Trigger cache invalidation to pull fresh state
+  -> getAll() returns without the now-expired account
 ```
 
 ### New offer after prior expiry
@@ -170,10 +179,12 @@ User receives new offer token for same mint
 ### Phase 2: Types and Repository
 - [ ] Add `AccountState` type and `state` field to `account.ts`
 - [ ] Map `data.state` in `AccountRepository.toAccount()`
+- [ ] Add `.eq('state', 'active')` to `getAll()` query (leave `get(id)` unfiltered)
 - [ ] Run `bun run fix:all`
 
 ### Phase 3: UI
-- [ ] Update `useActiveOffers()` to filter by `state === 'active'`
+- [ ] Remove client-side `expires_at` Date check in `gift-cards.tsx`
+- [ ] Simplify `useActiveOffers()` — no `select` filter needed, `getAll()` handles it
 - [ ] Run `bun run fix:all`
 
 ## Prerequisites
