@@ -123,7 +123,6 @@ export function AddMintForm() {
         mintUrl: data.mintUrl,
         type: 'cashu',
         purpose,
-        expiresAt: null,
       });
       toast({
         title: 'Success',

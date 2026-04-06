@@ -402,7 +402,8 @@ export function useAccountOrDefault(accountId: string | null) {
 export function useAddCashuAccount() {
   const userId = useUser((x) => x.id);
   const accountCache = useAccountsCache();
-  const accountService = useAccountService();
+  const queryClient = useQueryClient();
+  const accountService = useAccountService(queryClient);
 
   const { mutateAsync } = useMutation({
     mutationFn: async (

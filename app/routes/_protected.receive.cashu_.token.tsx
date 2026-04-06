@@ -51,7 +51,7 @@ const getClaimCashuTokenService = async () => {
     getCashuWalletSeed,
     getSparkWalletMnemonic,
   );
-  const accountService = new AccountService(accountRepository);
+  const accountService = new AccountService(accountRepository, queryClient);
   const receiveSwapRepository = new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,
