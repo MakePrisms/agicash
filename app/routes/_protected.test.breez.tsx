@@ -75,20 +75,25 @@ export default function TestBreezOnly() {
           entry.eventType === 'synced' ||
           entry.eventType === 'claimedDeposits'
         ) {
-          breezSdkRef.current?.getInfo({}).then((info) => {
-            console.log(
-              `[Breez ${entry.eventType}] balanceSats: ${info.balanceSats} @ ${new Date().toISOString()}`,
-            );
-            const now = new Date();
-            setBalanceState((prev) => ({
-              breezSats: info.balanceSats,
-              updatedAt:
-                info.balanceSats !== prevBreezSats.current
-                  ? now
-                  : prev.updatedAt,
-            }));
-            prevBreezSats.current = info.balanceSats;
-          });
+          const sdk = breezSdkRef.current;
+          if (!sdk) return;
+          sdk
+            .syncWallet({})
+            .then(() => sdk.getInfo({}))
+            .then((info) => {
+              console.log(
+                `[Breez ${entry.eventType}] balanceSats: ${info.balanceSats} @ ${new Date().toISOString()}`,
+              );
+              const now = new Date();
+              setBalanceState((prev) => ({
+                breezSats: info.balanceSats,
+                updatedAt:
+                  info.balanceSats !== prevBreezSats.current
+                    ? now
+                    : prev.updatedAt,
+              }));
+              prevBreezSats.current = info.balanceSats;
+            });
         }
       });
       const id = await sdk.addEventListener(listener);
