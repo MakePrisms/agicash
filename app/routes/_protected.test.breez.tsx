@@ -108,7 +108,18 @@ export default function TestBreezOnly() {
     setBalanceLoading(true);
     try {
       await breezSdk.syncWallet({});
-      const breezInfo = await breezSdk.getInfo({});
+
+      const [breezInfo, unclaimed] = await Promise.all([
+        breezSdk.getInfo({}),
+        breezSdk.listUnclaimedDeposits({}),
+      ]);
+
+      if (unclaimed.deposits.length > 0) {
+        console.log(
+          `[Breez] ${unclaimed.deposits.length} unclaimed deposits:`,
+          unclaimed.deposits,
+        );
+      }
 
       const now = new Date();
       setBalanceState((prev) => ({
