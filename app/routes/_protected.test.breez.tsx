@@ -63,6 +63,48 @@ export default function TestBreezKeyDerivation() {
   // Event log
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
 
+  // Breez-only mode: disconnect Spark SDK to test Breez in isolation
+  const [breezOnlyMode, setBreezOnlyMode] = useState(false);
+  const sparkDisconnectedRef = useRef(false);
+
+  const toggleBreezOnlyMode = useCallback(async () => {
+    if (!breezOnlyMode) {
+      // Disconnect Spark wallet
+      try {
+        const sparkWallet = queryClient.getQueryData(
+          sparkWalletQueryOptions({ network: 'MAINNET', mnemonic }).queryKey,
+        ) as
+          | Awaited<
+              ReturnType<
+                typeof import('@buildonspark/spark-sdk').SparkWallet.initialize
+              >
+            >
+          | undefined;
+        if (sparkWallet) {
+          await sparkWallet.cleanupConnections();
+          sparkDisconnectedRef.current = true;
+          console.log('[Test] Spark SDK disconnected — Breez-only mode ON');
+        }
+      } catch (e) {
+        console.error('Failed to disconnect Spark:', e);
+      }
+      setBreezOnlyMode(true);
+    } else {
+      // Reconnect Spark by invalidating the cached wallet (forces re-init)
+      if (sparkDisconnectedRef.current) {
+        queryClient.removeQueries({
+          queryKey: sparkWalletQueryOptions({ network: 'MAINNET', mnemonic })
+            .queryKey,
+        });
+        sparkDisconnectedRef.current = false;
+        console.log(
+          '[Test] Spark wallet cache cleared — will re-init on next fetch. Breez-only mode OFF',
+        );
+      }
+      setBreezOnlyMode(false);
+    }
+  }, [breezOnlyMode, mnemonic, queryClient]);
+
   // Invoice state
   const [invoiceAmount, setInvoiceAmount] = useState(100);
   const [invoiceResult, setInvoiceResult] = useState<{
@@ -131,40 +173,40 @@ export default function TestBreezKeyDerivation() {
     if (!breezSdk) return;
     setBalanceLoading(true);
     try {
-      const [, sparkWallet] = await Promise.all([
-        breezSdk.syncWallet({}),
-        queryClient.fetchQuery(
-          sparkWalletQueryOptions({ network: 'MAINNET', mnemonic }),
-        ),
-      ]);
+      await breezSdk.syncWallet({});
+      const breezInfo = await breezSdk.getInfo({});
 
-      const [breezInfo, { satsBalance }] = await Promise.all([
-        breezSdk.getInfo({}),
-        sparkWallet.getBalance(),
-      ]);
+      let sparkBalance: bigint | null = null;
+      if (!breezOnlyMode) {
+        const sparkWallet = await queryClient.fetchQuery(
+          sparkWalletQueryOptions({ network: 'MAINNET', mnemonic }),
+        );
+        const { satsBalance } = await sparkWallet.getBalance();
+        sparkBalance = satsBalance.available;
+      }
 
       const now = new Date();
       setBalanceState((prev) => ({
         breezSats: breezInfo.balanceSats,
-        sparkSats: satsBalance.available,
+        sparkSats: sparkBalance,
         breezUpdatedAt:
           breezInfo.balanceSats !== prevBreezSats.current
             ? now
             : prev.breezUpdatedAt,
         sparkUpdatedAt:
-          satsBalance.available !== prevSparkSats.current
+          sparkBalance !== null && sparkBalance !== prevSparkSats.current
             ? now
             : prev.sparkUpdatedAt,
         lastUpdated: now,
       }));
       prevBreezSats.current = breezInfo.balanceSats;
-      prevSparkSats.current = satsBalance.available;
+      if (sparkBalance !== null) prevSparkSats.current = sparkBalance;
     } catch (e) {
       console.error('Balance fetch failed:', e);
     } finally {
       setBalanceLoading(false);
     }
-  }, [breezSdk, mnemonic, queryClient]);
+  }, [breezSdk, breezOnlyMode, mnemonic, queryClient]);
 
   // Auto-poll balances every 3 seconds
   useEffect(() => {
@@ -351,14 +393,30 @@ export default function TestBreezKeyDerivation() {
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={fetchBalances}
-              disabled={balanceLoading}
-              className="rounded-md bg-secondary px-3 py-1.5 font-medium text-secondary-foreground text-sm hover:bg-secondary/80 disabled:opacity-50"
-            >
-              {balanceLoading ? 'Refreshing...' : 'Refresh Balances'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={fetchBalances}
+                disabled={balanceLoading}
+                className="rounded-md bg-secondary px-3 py-1.5 font-medium text-secondary-foreground text-sm hover:bg-secondary/80 disabled:opacity-50"
+              >
+                {balanceLoading ? 'Refreshing...' : 'Refresh Balances'}
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleBreezOnlyMode}
+                className={`rounded-md px-3 py-1.5 font-medium text-sm ${
+                  breezOnlyMode
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                }`}
+              >
+                {breezOnlyMode
+                  ? 'Breez-only ON (Spark disconnected)'
+                  : 'Enable Breez-only mode'}
+              </button>
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-md border p-3">
