@@ -83,7 +83,7 @@ export default function TestBreezKeyDerivation() {
         ) {
           breezSdkRef.current?.getInfo({}).then((info) => {
             console.log(
-              `[Breez ${entry.eventType}] balanceSats: ${info.balanceSats}`,
+              `[Breez ${entry.eventType}] balanceSats: ${info.balanceSats} @ ${new Date().toISOString()}`,
             );
             setBalanceState((prev) => ({
               ...prev,
