@@ -75,25 +75,20 @@ export default function TestBreezOnly() {
           entry.eventType === 'synced' ||
           entry.eventType === 'claimedDeposits'
         ) {
-          const sdk = breezSdkRef.current;
-          if (!sdk) return;
-          sdk
-            .syncWallet({})
-            .then(() => sdk.getInfo({}))
-            .then((info) => {
-              console.log(
-                `[Breez ${entry.eventType}] balanceSats: ${info.balanceSats} @ ${new Date().toISOString()}`,
-              );
-              const now = new Date();
-              setBalanceState((prev) => ({
-                breezSats: info.balanceSats,
-                updatedAt:
-                  info.balanceSats !== prevBreezSats.current
-                    ? now
-                    : prev.updatedAt,
-              }));
-              prevBreezSats.current = info.balanceSats;
-            });
+          breezSdkRef.current?.getInfo({}).then((info) => {
+            console.log(
+              `[Breez ${entry.eventType}] balanceSats: ${info.balanceSats} @ ${new Date().toISOString()}`,
+            );
+            const now = new Date();
+            setBalanceState((prev) => ({
+              breezSats: info.balanceSats,
+              updatedAt:
+                info.balanceSats !== prevBreezSats.current
+                  ? now
+                  : prev.updatedAt,
+            }));
+            prevBreezSats.current = info.balanceSats;
+          });
         }
       });
       const id = await sdk.addEventListener(listener);
@@ -112,8 +107,6 @@ export default function TestBreezOnly() {
     if (!breezSdk) return;
     setBalanceLoading(true);
     try {
-      await breezSdk.syncWallet({});
-
       const [breezInfo, unclaimed] = await Promise.all([
         breezSdk.getInfo({}),
         breezSdk.listUnclaimedDeposits({}),
