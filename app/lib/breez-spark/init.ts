@@ -41,6 +41,6 @@ export async function connectBreezWallet(mnemonic: string) {
   return connect({
     config,
     seed: { type: 'mnemonic' as const, mnemonic },
-    storageDir: 'breez-spark-wallet',
+    storageDir: 'breez-spark-wallet-fresh',
   });
 }
