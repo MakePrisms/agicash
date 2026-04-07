@@ -18,8 +18,6 @@ Add `.eq('state', 'active')` to the Supabase query in `AccountRepository.getAll(
 
 **Why not RLS?** All DB functions (`get_account_with_proofs`, `create_cashu_send_quote`, etc.) are `security invoker`, so they execute with the calling user's RLS context. A restrictive RLS policy hiding expired accounts would break any in-flight quote or swap operation whose account expires mid-transaction. The DB functions need to see expired accounts to complete already-started operations.
 
-**Why not a `useQuery` `select` filter?** Since `getAll()` excludes expired accounts at the query level, there is no need for a client-side `select` filter -- the data simply never arrives at the client.
-
 ### 3. Auto-expiry mechanism
 
 **Decision: pg_cron background job only (every minute).**
@@ -28,7 +26,14 @@ A single pg_cron job runs every minute (`'* * * * *'`) and transitions any accou
 
 No eager expiry in `upsert_user_with_accounts` — the 1-minute cron granularity is sufficient for the UX. At most, a user sees a stale active account for up to 60 seconds before the next cron run corrects it.
 
-**Graceful error handling:** If the client somehow triggers an operation on an expired account (race condition between cron expiring the account and user initiating an action), catch the mint rejection and show the user "this offer has expired". Trigger a cache invalidation to pull fresh account state from the server.
+**Graceful error handling:** There's a race window of up to 60 seconds where a keyset has expired at the mint but the cron job hasn't marked the account expired yet. If a user initiates an operation during this window, the mint rejects with `KEYSET_INACTIVE` (12002), already defined in `error-codes.ts`. The fix is a single targeted catch in the service layer: when catching `MintOperationError` with code 12002, check `account.purpose === 'offer'` and throw `DomainError("This offer has expired")`. Non-offer accounts fall through to existing generic error handling. No pre-operation checks, no `expires_at` comparisons, no new utilities.
+
+The affected code paths:
+- **Lightning send (melt):** `cashu-send-quote-service.ts` → `initiateSend()` → `wallet.meltProofsBolt11()` → mint returns 12002
+- **Cashu token send (swap):** `cashu-send-swap-service.ts` → `swapForProofsToSend()` → `mint.swap()` → mint returns 12002
+- **Receive swap:** `cashu-receive-swap-service.ts` → `completeSwap()` → `mint.swap()` → mint returns 12002
+
+There's also a client-side variant where cashu-ts throws `Error("No active keyset found")` before hitting the mint, but this is rarer and existing generic error handling covers it. The realtime `ACCOUNT_UPDATED` event from the cron job handles cache updates — no explicit invalidation needed.
 
 ### 4. Transitions are one-way
 
@@ -112,14 +117,14 @@ Map `state` in `toAccount()` commonData.
 
 ### `account-hooks.ts` -- Realtime handling
 
-- Update `ACCOUNT_UPDATED` handler: expired accounts trigger a cache update (state changes from `active` to `expired`), and `useActiveOffers()` re-renders to exclude them.
+- Update `ACCOUNT_UPDATED` handler: expired accounts trigger a cache update (state changes from `active` to `expired`), and `useOfferCards()` re-renders to exclude them.
 
 ### `gift-cards.tsx` -- Simplify filter
 
-`useActiveOffers()` no longer needs to filter by `state === 'active'` since `getAll()` already excludes expired accounts at the query level. It becomes a simple query for `purpose: 'offer'` accounts:
+`useOfferCards()` no longer needs to filter by `state === 'active'` since `getAll()` already excludes expired accounts at the query level. It becomes a simple query for `purpose: 'offer'` accounts:
 
 ```typescript
-function useActiveOffers() {
+function useOfferCards() {
   const { data: offerAccounts } = useAccounts({
     purpose: 'offer',
   });
@@ -146,17 +151,19 @@ pg_cron (every minute) -> UPDATE state='expired', version+1
   -> broadcast_accounts_changes_trigger fires automatically
   -> realtime ACCOUNT_UPDATED to connected clients
   -> accountCache.update(account) [version higher, accepted]
-  -> useActiveOffers() re-renders, getAll() already excludes expired
+  -> useOfferCards() re-renders, getAll() already excludes expired
 ```
 
 ### Expired keyset error handling (race condition)
 
 ```
-Client triggers operation on account just before cron expires it
-  -> Mint rejects operation (keyset expired)
-  -> Catch mint rejection, show "this offer has expired"
-  -> Trigger cache invalidation to pull fresh state
-  -> getAll() returns without the now-expired account
+User initiates send/receive on offer account during <=60s race window
+  -> Mint rejects with KEYSET_INACTIVE (12002)
+  -> Service layer catches MintOperationError, checks account.purpose === 'offer'
+  -> Throws DomainError("This offer has expired") -> toast shown to user
+  -> (Non-offer accounts: 12002 falls through to generic error handling)
+  -> Realtime ACCOUNT_UPDATED event from cron updates cache
+  -> useOfferCards() re-renders, expired account excluded
 ```
 
 ### New offer after prior expiry
@@ -182,9 +189,10 @@ User receives new offer token for same mint
 - [ ] Add `.eq('state', 'active')` to `getAll()` query (leave `get(id)` unfiltered)
 - [ ] Run `bun run fix:all`
 
-### Phase 3: UI
+### Phase 3: UI + Error Handling
 - [ ] Remove client-side `expires_at` Date check in `gift-cards.tsx`
-- [ ] Simplify `useActiveOffers()` — no `select` filter needed, `getAll()` handles it
+- [ ] Simplify `useOfferCards()` — no `select` filter needed, `getAll()` handles it
+- [ ] Add 12002 catch in `cashu-send-quote-service.ts`, `cashu-send-swap-service.ts`, `cashu-receive-swap-service.ts` — offer accounts get `DomainError("This offer has expired")`, non-offer fall through
 - [ ] Run `bun run fix:all`
 
 ## Prerequisites
