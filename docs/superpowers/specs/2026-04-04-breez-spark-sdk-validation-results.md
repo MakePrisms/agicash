@@ -14,11 +14,11 @@ TODO
 
 ## C4: Optimization Behavior
 
-TODO
+**Result: PASS** — Optimization runs in the background (visible in SDK logs) but balance remains stable throughout. No jumps, no drops to zero, no flickering. This is a major improvement over the current Spark SDK where balance drops to zero or jumps unpredictably during optimization swaps.
 
 ## C5: Fee Comparison
 
-TODO
+**Result: SAME** — Fees observed during manual payment testing are identical between Breez SDK and current Spark SDK. Both use the same Spark protocol and SSP infrastructure, so fee parity is expected.
 
 ## C6: Init Performance
 

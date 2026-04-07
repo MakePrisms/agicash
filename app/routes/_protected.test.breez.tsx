@@ -105,6 +105,26 @@ export default function TestBreezKeyDerivation() {
     }
   }, [breezOnlyMode, mnemonic, queryClient]);
 
+  // Init performance state
+  const [initMeasurements, setInitMeasurements] = useState<
+    { ms: number; label: string }[]
+  >([]);
+  const [initMeasuring, setInitMeasuring] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
+
+  // Error catalog state
+  const [errorCatalog, setErrorCatalog] = useState<
+    {
+      scenario: string;
+      constructorName: string;
+      message: string;
+      full: string;
+    }[]
+  >([]);
+  const [errorCatalogLoading, setErrorCatalogLoading] = useState<string | null>(
+    null,
+  );
+
   // Invoice state
   const [invoiceAmount, setInvoiceAmount] = useState(100);
   const [invoiceResult, setInvoiceResult] = useState<{
@@ -257,6 +277,135 @@ export default function TestBreezKeyDerivation() {
       setInvoiceLoading(false);
     }
   }, [breezSdk, invoiceAmount]);
+
+  // Measure init time
+  const handleMeasureInit = useCallback(async () => {
+    setInitMeasuring(true);
+    setInitError(null);
+    try {
+      // Disconnect current instance if connected
+      if (breezSdkRef.current) {
+        if (listenerIdRef.current) {
+          await breezSdkRef.current.removeEventListener(listenerIdRef.current);
+          listenerIdRef.current = null;
+        }
+        await breezSdkRef.current.disconnect();
+        setBreezSdk(null);
+      }
+
+      const start = performance.now();
+      const sdk = await connectBreezWallet(mnemonic);
+      const elapsed = performance.now() - start;
+
+      // Re-register event listener
+      const listener = createEventListener((entry) => {
+        setEventLog((prev) => [entry, ...prev].slice(0, 100));
+        if (
+          entry.eventType === 'paymentSucceeded' ||
+          entry.eventType === 'paymentPending' ||
+          entry.eventType === 'synced' ||
+          entry.eventType === 'claimedDeposits'
+        ) {
+          breezSdkRef.current?.getInfo({}).then((info) => {
+            const now = new Date();
+            setBalanceState((prev) => ({
+              ...prev,
+              breezSats: info.balanceSats,
+              breezUpdatedAt:
+                info.balanceSats !== prevBreezSats.current
+                  ? now
+                  : prev.breezUpdatedAt,
+              lastUpdated: now,
+            }));
+            prevBreezSats.current = info.balanceSats;
+          });
+        }
+      });
+      const id = await sdk.addEventListener(listener);
+      listenerIdRef.current = id;
+
+      setBreezSdk(sdk);
+
+      const label =
+        initMeasurements.length === 0
+          ? 'Cold'
+          : `Warm #${initMeasurements.length}`;
+      setInitMeasurements((prev) =>
+        [{ ms: Math.round(elapsed), label }, ...prev].slice(0, 5),
+      );
+    } catch (e) {
+      setInitError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInitMeasuring(false);
+    }
+  }, [mnemonic, setBreezSdk, initMeasurements.length]);
+
+  // Error catalog helpers
+  const addErrorEntry = useCallback((scenario: string, e: unknown) => {
+    setErrorCatalog((prev) => [
+      {
+        scenario,
+        constructorName:
+          e != null && typeof e === 'object' && 'constructor' in e
+            ? (e as { constructor: { name: string } }).constructor.name
+            : typeof e,
+        message: e instanceof Error ? e.message : String(e),
+        full: JSON.stringify(
+          e,
+          Object.getOwnPropertyNames(e instanceof Error ? e : {}),
+        ),
+      },
+      ...prev,
+    ]);
+  }, []);
+
+  const handleSendMoreThanBalance = useCallback(async () => {
+    if (!breezSdk) return;
+    setErrorCatalogLoading('send-more');
+    try {
+      await breezSdk.prepareSendPayment({
+        paymentRequest:
+          'lnbc9999999990n1pnnotfoundpp5qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqdq2f38xy6t5wvxqzjccqpjsp5qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq9q',
+        amount: BigInt(999_999_999),
+      });
+    } catch (e) {
+      addErrorEntry('Send More Than Balance', e);
+    } finally {
+      setErrorCatalogLoading(null);
+    }
+  }, [breezSdk, addErrorEntry]);
+
+  const handleSendInvalidInvoice = useCallback(async () => {
+    if (!breezSdk) return;
+    setErrorCatalogLoading('send-invalid');
+    try {
+      await breezSdk.prepareSendPayment({
+        paymentRequest: 'invalid-invoice-string',
+      });
+    } catch (e) {
+      addErrorEntry('Send to Invalid Invoice', e);
+    } finally {
+      setErrorCatalogLoading(null);
+    }
+  }, [breezSdk, addErrorEntry]);
+
+  const handleReceiveZero = useCallback(async () => {
+    if (!breezSdk) return;
+    setErrorCatalogLoading('receive-zero');
+    try {
+      await breezSdk.receivePayment({
+        paymentMethod: {
+          type: 'bolt11Invoice',
+          description: 'Zero amount test',
+          amountSats: 0,
+        },
+      });
+    } catch (e) {
+      addErrorEntry('Receive Zero Amount', e);
+    } finally {
+      setErrorCatalogLoading(null);
+    }
+  }, [breezSdk, addErrorEntry]);
 
   const runTest = useCallback(async () => {
     setLoading(true);
@@ -592,6 +741,196 @@ export default function TestBreezKeyDerivation() {
                     {invoiceResult.fee} sats
                   </p>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      <hr className="border-border" />
+
+      {/* Section: C6 Init Performance */}
+      <section className="space-y-4">
+        <h2 className="font-bold text-xl">C6: Init Performance</h2>
+        <p className="text-muted-foreground text-sm">
+          Measures Breez SDK connection time. Disconnects the current instance,
+          then reconnects and records elapsed milliseconds.
+        </p>
+
+        {!breezSdk && initMeasurements.length === 0 ? (
+          <p className="text-muted-foreground text-sm italic">
+            Connect Breez SDK above to start measuring.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handleMeasureInit}
+              disabled={initMeasuring}
+              className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
+            >
+              {initMeasuring ? 'Measuring...' : 'Measure Init Time'}
+            </button>
+
+            {initError && (
+              <div className="rounded-md border border-red-300 bg-red-50 p-4 text-red-800 text-sm dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+                <p className="font-medium">Measurement Error</p>
+                <p className="mt-1 break-all font-mono text-xs">{initError}</p>
+              </div>
+            )}
+
+            {initMeasurements.length > 0 && (
+              <div className="space-y-2">
+                <div className="rounded-md border border-green-300 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950">
+                  <p className="font-medium text-muted-foreground text-xs uppercase">
+                    Latest Measurement
+                  </p>
+                  <p className="mt-1 font-mono text-green-800 text-lg dark:text-green-200">
+                    {initMeasurements[0].ms} ms{' '}
+                    <span className="text-sm">
+                      ({initMeasurements[0].label})
+                    </span>
+                  </p>
+                </div>
+
+                {initMeasurements.length > 1 && (
+                  <div>
+                    <p className="font-medium text-muted-foreground text-xs uppercase">
+                      History (up to 5)
+                    </p>
+                    <div className="mt-1 overflow-x-auto rounded-md border">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-gray-50 dark:bg-gray-900">
+                            <th className="px-3 py-1.5 text-left font-medium text-xs">
+                              #
+                            </th>
+                            <th className="px-3 py-1.5 text-left font-medium text-xs">
+                              Label
+                            </th>
+                            <th className="px-3 py-1.5 text-right font-medium text-xs">
+                              Time (ms)
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {initMeasurements.map((m, i) => (
+                            <tr
+                              key={`${m.label}-${m.ms}-${i}`}
+                              className="border-b last:border-b-0"
+                            >
+                              <td className="px-3 py-1.5 font-mono text-xs">
+                                {initMeasurements.length - i}
+                              </td>
+                              <td className="px-3 py-1.5 text-xs">{m.label}</td>
+                              <td className="px-3 py-1.5 text-right font-mono text-xs">
+                                {m.ms}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      <hr className="border-border" />
+
+      {/* Section: C7 Error Catalog */}
+      <section className="space-y-4">
+        <h2 className="font-bold text-xl">C7: Error Catalog</h2>
+        <p className="text-muted-foreground text-sm">
+          Deliberately triggers SDK errors to catalog error types, messages, and
+          structure.
+        </p>
+
+        {!breezSdk ? (
+          <p className="text-muted-foreground text-sm italic">
+            Connect Breez SDK above to test error scenarios.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSendMoreThanBalance}
+                disabled={errorCatalogLoading !== null}
+                className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
+              >
+                {errorCatalogLoading === 'send-more'
+                  ? 'Running...'
+                  : 'Send More Than Balance'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendInvalidInvoice}
+                disabled={errorCatalogLoading !== null}
+                className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
+              >
+                {errorCatalogLoading === 'send-invalid'
+                  ? 'Running...'
+                  : 'Send to Invalid Invoice'}
+              </button>
+              <button
+                type="button"
+                onClick={handleReceiveZero}
+                disabled={errorCatalogLoading !== null}
+                className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
+              >
+                {errorCatalogLoading === 'receive-zero'
+                  ? 'Running...'
+                  : 'Receive Zero Amount'}
+              </button>
+            </div>
+
+            {errorCatalog.length > 0 && (
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-gray-50 dark:bg-gray-900">
+                      <th className="px-3 py-1.5 text-left font-medium text-xs">
+                        Scenario
+                      </th>
+                      <th className="px-3 py-1.5 text-left font-medium text-xs">
+                        Constructor
+                      </th>
+                      <th className="px-3 py-1.5 text-left font-medium text-xs">
+                        Message
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {errorCatalog.map((entry, i) => (
+                      <tr
+                        key={`${entry.scenario}-${i}`}
+                        className="border-b last:border-b-0"
+                      >
+                        <td className="px-3 py-1.5 text-xs">
+                          {entry.scenario}
+                        </td>
+                        <td className="px-3 py-1.5 font-mono text-xs">
+                          {entry.constructorName}
+                        </td>
+                        <td className="px-3 py-1.5 text-xs">
+                          <p className="max-w-xs truncate">{entry.message}</p>
+                          <details className="mt-1">
+                            <summary className="cursor-pointer text-muted-foreground text-xs">
+                              Full error
+                            </summary>
+                            <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-gray-100 p-2 font-mono text-xs dark:bg-gray-900">
+                              {entry.full}
+                            </pre>
+                          </details>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
