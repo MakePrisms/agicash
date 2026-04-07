@@ -72,9 +72,26 @@ export default function TestBreezKeyDerivation() {
     try {
       const sdk = await connectBreezWallet(mnemonic);
 
-      // Register event listener
+      // Register event listener — also fetch balance on payment/sync events
+      // to test if SDK state is current at event time
       const listener = createEventListener((entry) => {
         setEventLog((prev) => [entry, ...prev].slice(0, 100));
+        if (
+          entry.eventType === 'paymentSucceeded' ||
+          entry.eventType === 'paymentPending' ||
+          entry.eventType === 'synced'
+        ) {
+          breezSdkRef.current?.getInfo({}).then((info) => {
+            console.log(
+              `[Breez ${entry.eventType}] balanceSats: ${info.balanceSats}`,
+            );
+            setBalanceState((prev) => ({
+              ...prev,
+              breezSats: info.balanceSats,
+              lastUpdated: new Date(),
+            }));
+          });
+        }
       });
       const id = await sdk.addEventListener(listener);
       listenerIdRef.current = id;

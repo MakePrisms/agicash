@@ -1,0 +1,1 @@
+- [Breez SDK Migration](project_breez_sdk_migration.md) — replacing Spark SDK with Breez SDK, prototype validation in progress (C1 key match confirmed)
