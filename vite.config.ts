@@ -36,7 +36,7 @@ export default defineConfig((config) => {
     plugins: [
       wasm(),
       topLevelAwait(),
-      ...(!config.isSsrBuild ? [nodePolyfills()] : []),
+      nodePolyfills({ exclude: ['os'] }),
       tailwindcss(),
       reactRouter(),
       tsconfigPaths(),
