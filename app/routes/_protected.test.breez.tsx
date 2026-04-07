@@ -1,10 +1,7 @@
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import {
-  sparkMnemonicQueryOptions,
-  sparkWalletQueryOptions,
-} from '~/features/shared/spark';
+import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
 import { connectBreezWallet } from '~/lib/breez-spark/init';
 
 import {
@@ -20,7 +17,6 @@ type BalanceState = {
 };
 
 export default function TestBreezOnly() {
-  const queryClient = useQueryClient();
   const { data: mnemonic } = useSuspenseQuery(sparkMnemonicQueryOptions());
 
   // Shared Breez SDK instance — ref mirrors state so cleanup always sees latest
@@ -53,37 +49,6 @@ export default function TestBreezOnly() {
   } | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
-
-  // Disconnect Spark SDK on mount so only Breez handles payments
-  const [sparkDisconnected, setSparkDisconnected] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const sparkWallet = queryClient.getQueryData(
-          sparkWalletQueryOptions({ network: 'MAINNET', mnemonic }).queryKey,
-        ) as
-          | Awaited<
-              ReturnType<
-                typeof import('@buildonspark/spark-sdk').SparkWallet.initialize
-              >
-            >
-          | undefined;
-        if (sparkWallet) {
-          await sparkWallet.cleanupConnections();
-          console.log(
-            '[Test] Spark SDK disconnected on mount — Breez-only mode',
-          );
-        }
-      } catch (e) {
-        console.error('Failed to disconnect Spark on mount:', e);
-      }
-      if (!cancelled) setSparkDisconnected(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mnemonic, queryClient]);
 
   // Connect Breez SDK
   const handleConnect = useCallback(async () => {
@@ -213,30 +178,9 @@ export default function TestBreezOnly() {
       className="mx-auto max-w-xl space-y-8 overflow-y-auto p-6"
       style={{ maxHeight: '100dvh' }}
     >
-      <section className="space-y-4">
-        <h1 className="font-bold text-2xl">Breez SDK Only — Balance Test</h1>
-        <p className="text-muted-foreground text-sm">
-          Spark SDK is disconnected on mount. Only the Breez SDK handles
-          incoming payments so we can measure its native balance update speed.
-        </p>
-
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-block h-2 w-2 rounded-full ${sparkDisconnected ? 'bg-red-500' : 'bg-yellow-500'}`}
-          />
-          <span className="text-muted-foreground text-sm">
-            {sparkDisconnected
-              ? 'Spark SDK disconnected'
-              : 'Disconnecting Spark SDK...'}
-          </span>
-        </div>
-      </section>
-
-      <hr className="border-border" />
-
       {/* Balance */}
       <section className="space-y-4">
-        <h2 className="font-bold text-xl">Balance</h2>
+        <h1 className="font-bold text-2xl">Breez SDK — Balance Test</h1>
 
         {!breezSdk ? (
           <div className="space-y-2">
