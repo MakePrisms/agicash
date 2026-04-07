@@ -14,7 +14,7 @@ async function ensureLogging() {
   try {
     await initLogging(
       { log: (entry) => console.log(`[Breez ${entry.level}] ${entry.line}`) },
-      'info',
+      'debug',
     );
     loggingInitialized = true;
   } catch {
