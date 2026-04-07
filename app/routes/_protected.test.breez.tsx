@@ -24,6 +24,8 @@ type BreezSdkInstance = Awaited<ReturnType<typeof connectBreezWallet>>;
 type BalanceState = {
   breezSats: number | null;
   sparkSats: bigint | null;
+  breezUpdatedAt: Date | null;
+  sparkUpdatedAt: Date | null;
   lastUpdated: Date | null;
 };
 
@@ -49,8 +51,13 @@ export default function TestBreezKeyDerivation() {
   const [balanceState, setBalanceState] = useState<BalanceState>({
     breezSats: null,
     sparkSats: null,
+    breezUpdatedAt: null,
+    sparkUpdatedAt: null,
     lastUpdated: null,
   });
+  // Track previous balance to detect changes
+  const prevBreezSats = useRef<number | null>(null);
+  const prevSparkSats = useRef<bigint | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
   // Event log
@@ -72,24 +79,39 @@ export default function TestBreezKeyDerivation() {
     try {
       const sdk = await connectBreezWallet(mnemonic);
 
+      // Log the default config so we can see syncIntervalSecs
+      const { defaultConfig } = await import('@breeztech/breez-sdk-spark');
+      const config = defaultConfig('mainnet');
+      console.log('[Breez] Default config:', {
+        syncIntervalSecs: config.syncIntervalSecs,
+        realTimeSyncServerUrl: config.realTimeSyncServerUrl,
+        preferSparkOverLightning: config.preferSparkOverLightning,
+      });
+
       // Register event listener — also fetch balance on payment/sync events
-      // to test if SDK state is current at event time
       const listener = createEventListener((entry) => {
         setEventLog((prev) => [entry, ...prev].slice(0, 100));
         if (
           entry.eventType === 'paymentSucceeded' ||
           entry.eventType === 'paymentPending' ||
-          entry.eventType === 'synced'
+          entry.eventType === 'synced' ||
+          entry.eventType === 'claimedDeposits'
         ) {
           breezSdkRef.current?.getInfo({}).then((info) => {
             console.log(
               `[Breez ${entry.eventType}] balanceSats: ${info.balanceSats} @ ${new Date().toISOString()}`,
             );
+            const now = new Date();
             setBalanceState((prev) => ({
               ...prev,
               breezSats: info.balanceSats,
-              lastUpdated: new Date(),
+              breezUpdatedAt:
+                info.balanceSats !== prevBreezSats.current
+                  ? now
+                  : prev.breezUpdatedAt,
+              lastUpdated: now,
             }));
+            prevBreezSats.current = info.balanceSats;
           });
         }
       });
@@ -104,25 +126,39 @@ export default function TestBreezKeyDerivation() {
     }
   }, [mnemonic, setBreezSdk]);
 
-  // Fetch balances
+  // Fetch balances — sync Breez first so getInfo returns fresh state
   const fetchBalances = useCallback(async () => {
     if (!breezSdk) return;
     setBalanceLoading(true);
     try {
-      const [breezInfo, sparkWallet] = await Promise.all([
-        breezSdk.getInfo({}),
+      const [, sparkWallet] = await Promise.all([
+        breezSdk.syncWallet({}),
         queryClient.fetchQuery(
           sparkWalletQueryOptions({ network: 'MAINNET', mnemonic }),
         ),
       ]);
 
-      const { satsBalance } = await sparkWallet.getBalance();
+      const [breezInfo, { satsBalance }] = await Promise.all([
+        breezSdk.getInfo({}),
+        sparkWallet.getBalance(),
+      ]);
 
-      setBalanceState({
+      const now = new Date();
+      setBalanceState((prev) => ({
         breezSats: breezInfo.balanceSats,
         sparkSats: satsBalance.available,
-        lastUpdated: new Date(),
-      });
+        breezUpdatedAt:
+          breezInfo.balanceSats !== prevBreezSats.current
+            ? now
+            : prev.breezUpdatedAt,
+        sparkUpdatedAt:
+          satsBalance.available !== prevSparkSats.current
+            ? now
+            : prev.sparkUpdatedAt,
+        lastUpdated: now,
+      }));
+      prevBreezSats.current = breezInfo.balanceSats;
+      prevSparkSats.current = satsBalance.available;
     } catch (e) {
       console.error('Balance fetch failed:', e);
     } finally {
@@ -334,16 +370,26 @@ export default function TestBreezKeyDerivation() {
                     ? `${balanceState.breezSats} sats`
                     : '--'}
                 </p>
+                {balanceState.breezUpdatedAt && (
+                  <p className="mt-0.5 text-muted-foreground text-xs">
+                    changed: {balanceState.breezUpdatedAt.toLocaleTimeString()}
+                  </p>
+                )}
               </div>
               <div className="rounded-md border p-3">
                 <p className="font-medium text-muted-foreground text-xs uppercase">
-                  Current SDK Balance
+                  Spark SDK Balance
                 </p>
                 <p className="mt-1 font-mono text-lg">
                   {balanceState.sparkSats !== null
                     ? `${String(balanceState.sparkSats)} sats`
                     : '--'}
                 </p>
+                {balanceState.sparkUpdatedAt && (
+                  <p className="mt-0.5 text-muted-foreground text-xs">
+                    changed: {balanceState.sparkUpdatedAt.toLocaleTimeString()}
+                  </p>
+                )}
               </div>
             </div>
 
