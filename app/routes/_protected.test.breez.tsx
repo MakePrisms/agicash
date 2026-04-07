@@ -139,7 +139,13 @@ export default function TestBreezKeyDerivation() {
     setConnecting(true);
     setConnectError(null);
     try {
+      const start = performance.now();
       const sdk = await connectBreezWallet(mnemonic);
+      const elapsed = Math.round(performance.now() - start);
+
+      setInitMeasurements((prev) =>
+        [{ ms: elapsed, label: 'Cold' }, ...prev].slice(0, 5),
+      );
 
       // Log the default config so we can see syncIntervalSecs
       const { defaultConfig } = await import('@breeztech/breez-sdk-spark');
@@ -326,19 +332,21 @@ export default function TestBreezKeyDerivation() {
 
       setBreezSdk(sdk);
 
-      const label =
-        initMeasurements.length === 0
-          ? 'Cold'
-          : `Warm #${initMeasurements.length}`;
+      const warmIndex = initMeasurements.filter((m) =>
+        m.label.startsWith('Warm'),
+      ).length;
       setInitMeasurements((prev) =>
-        [{ ms: Math.round(elapsed), label }, ...prev].slice(0, 5),
+        [
+          { ms: Math.round(elapsed), label: `Warm #${warmIndex + 1}` },
+          ...prev,
+        ].slice(0, 5),
       );
     } catch (e) {
       setInitError(e instanceof Error ? e.message : String(e));
     } finally {
       setInitMeasuring(false);
     }
-  }, [mnemonic, setBreezSdk, initMeasurements.length]);
+  }, [mnemonic, setBreezSdk, initMeasurements]);
 
   // Error catalog helpers
   const addErrorEntry = useCallback((scenario: string, e: unknown) => {
