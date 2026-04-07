@@ -137,13 +137,13 @@ export default function TestBreezOnly() {
     }
   }, [breezSdk]);
 
-  // Auto-poll balance every 3 seconds
-  useEffect(() => {
-    if (!breezSdk) return;
-    fetchBalance();
-    const interval = setInterval(fetchBalance, 3000);
-    return () => clearInterval(interval);
-  }, [breezSdk, fetchBalance]);
+  // // Auto-poll balance every 3 seconds
+  // useEffect(() => {
+  //   if (!breezSdk) return;
+  //   fetchBalance();
+  //   const interval = setInterval(fetchBalance, 3000);
+  //   return () => clearInterval(interval);
+  // }, [breezSdk, fetchBalance]);
 
   // Cleanup on unmount
   useEffect(() => {
