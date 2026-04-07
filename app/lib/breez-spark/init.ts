@@ -18,6 +18,7 @@ export async function connectBreezWallet(mnemonic: string) {
   const config = {
     ...defaultConfig('mainnet'),
     apiKey: getBreezApiKey(),
+    syncIntervalSecs: 5,
   };
 
   return connect({
