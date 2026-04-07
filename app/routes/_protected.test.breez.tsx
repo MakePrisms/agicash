@@ -6,35 +6,22 @@ import {
   sparkWalletQueryOptions,
 } from '~/features/shared/spark';
 import { connectBreezWallet } from '~/lib/breez-spark/init';
-import { getSparkIdentityPublicKeyFromMnemonic } from '~/lib/spark';
 
 import {
   type EventLogEntry,
   createEventListener,
 } from '~/lib/breez-spark/events';
 
-type TestResult = {
-  sparkKey: string;
-  breezKey: string;
-  match: boolean;
-};
-
 type BreezSdkInstance = Awaited<ReturnType<typeof connectBreezWallet>>;
 
 type BalanceState = {
   breezSats: number | null;
-  sparkSats: bigint | null;
-  breezUpdatedAt: Date | null;
-  sparkUpdatedAt: Date | null;
-  lastUpdated: Date | null;
+  updatedAt: Date | null;
 };
 
-export default function TestBreezKeyDerivation() {
+export default function TestBreezOnly() {
   const queryClient = useQueryClient();
   const { data: mnemonic } = useSuspenseQuery(sparkMnemonicQueryOptions());
-  const [result, setResult] = useState<TestResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
   // Shared Breez SDK instance — ref mirrors state so cleanup always sees latest
   const [breezSdk, _setBreezSdk] = useState<BreezSdkInstance | null>(null);
@@ -50,26 +37,28 @@ export default function TestBreezKeyDerivation() {
   // Balance state
   const [balanceState, setBalanceState] = useState<BalanceState>({
     breezSats: null,
-    sparkSats: null,
-    breezUpdatedAt: null,
-    sparkUpdatedAt: null,
-    lastUpdated: null,
+    updatedAt: null,
   });
-  // Track previous balance to detect changes
   const prevBreezSats = useRef<number | null>(null);
-  const prevSparkSats = useRef<bigint | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
   // Event log
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
 
-  // Breez-only mode: disconnect Spark SDK to test Breez in isolation
-  const [breezOnlyMode, setBreezOnlyMode] = useState(false);
-  const sparkDisconnectedRef = useRef(false);
+  // Invoice state
+  const [invoiceAmount, setInvoiceAmount] = useState(100);
+  const [invoiceResult, setInvoiceResult] = useState<{
+    paymentRequest: string;
+    fee: string;
+  } | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
-  const toggleBreezOnlyMode = useCallback(async () => {
-    if (!breezOnlyMode) {
-      // Disconnect Spark wallet
+  // Disconnect Spark SDK on mount so only Breez handles payments
+  const [sparkDisconnected, setSparkDisconnected] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
       try {
         const sparkWallet = queryClient.getQueryData(
           sparkWalletQueryOptions({ network: 'MAINNET', mnemonic }).queryKey,
@@ -82,37 +71,19 @@ export default function TestBreezKeyDerivation() {
           | undefined;
         if (sparkWallet) {
           await sparkWallet.cleanupConnections();
-          sparkDisconnectedRef.current = true;
-          console.log('[Test] Spark SDK disconnected — Breez-only mode ON');
+          console.log(
+            '[Test] Spark SDK disconnected on mount — Breez-only mode',
+          );
         }
       } catch (e) {
-        console.error('Failed to disconnect Spark:', e);
+        console.error('Failed to disconnect Spark on mount:', e);
       }
-      setBreezOnlyMode(true);
-    } else {
-      // Reconnect Spark by invalidating the cached wallet (forces re-init)
-      if (sparkDisconnectedRef.current) {
-        queryClient.removeQueries({
-          queryKey: sparkWalletQueryOptions({ network: 'MAINNET', mnemonic })
-            .queryKey,
-        });
-        sparkDisconnectedRef.current = false;
-        console.log(
-          '[Test] Spark wallet cache cleared — will re-init on next fetch. Breez-only mode OFF',
-        );
-      }
-      setBreezOnlyMode(false);
-    }
-  }, [breezOnlyMode, mnemonic, queryClient]);
-
-  // Invoice state
-  const [invoiceAmount, setInvoiceAmount] = useState(100);
-  const [invoiceResult, setInvoiceResult] = useState<{
-    paymentRequest: string;
-    fee: string;
-  } | null>(null);
-  const [invoiceLoading, setInvoiceLoading] = useState(false);
-  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+      if (!cancelled) setSparkDisconnected(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mnemonic, queryClient]);
 
   // Connect Breez SDK
   const handleConnect = useCallback(async () => {
@@ -130,7 +101,7 @@ export default function TestBreezKeyDerivation() {
         preferSparkOverLightning: config.preferSparkOverLightning,
       });
 
-      // Register event listener — also fetch balance on payment/sync events
+      // Register event listener — fetch balance on payment/sync events
       const listener = createEventListener((entry) => {
         setEventLog((prev) => [entry, ...prev].slice(0, 100));
         if (
@@ -145,13 +116,11 @@ export default function TestBreezKeyDerivation() {
             );
             const now = new Date();
             setBalanceState((prev) => ({
-              ...prev,
               breezSats: info.balanceSats,
-              breezUpdatedAt:
+              updatedAt:
                 info.balanceSats !== prevBreezSats.current
                   ? now
-                  : prev.breezUpdatedAt,
-              lastUpdated: now,
+                  : prev.updatedAt,
             }));
             prevBreezSats.current = info.balanceSats;
           });
@@ -168,56 +137,37 @@ export default function TestBreezKeyDerivation() {
     }
   }, [mnemonic, setBreezSdk]);
 
-  // Fetch balances — sync Breez first so getInfo returns fresh state
-  const fetchBalances = useCallback(async () => {
+  // Fetch balance — sync first so getInfo returns fresh state
+  const fetchBalance = useCallback(async () => {
     if (!breezSdk) return;
     setBalanceLoading(true);
     try {
       await breezSdk.syncWallet({});
       const breezInfo = await breezSdk.getInfo({});
 
-      let sparkBalance: bigint | null = null;
-      if (!breezOnlyMode) {
-        const sparkWallet = await queryClient.fetchQuery(
-          sparkWalletQueryOptions({ network: 'MAINNET', mnemonic }),
-        );
-        const { satsBalance } = await sparkWallet.getBalance();
-        sparkBalance = satsBalance.available;
-      }
-
       const now = new Date();
       setBalanceState((prev) => ({
         breezSats: breezInfo.balanceSats,
-        sparkSats: sparkBalance,
-        breezUpdatedAt:
+        updatedAt:
           breezInfo.balanceSats !== prevBreezSats.current
             ? now
-            : prev.breezUpdatedAt,
-        sparkUpdatedAt:
-          sparkBalance !== null && sparkBalance !== prevSparkSats.current
-            ? now
-            : prev.sparkUpdatedAt,
-        lastUpdated: now,
+            : prev.updatedAt,
       }));
       prevBreezSats.current = breezInfo.balanceSats;
-      if (sparkBalance !== null) prevSparkSats.current = sparkBalance;
     } catch (e) {
       console.error('Balance fetch failed:', e);
     } finally {
       setBalanceLoading(false);
     }
-  }, [breezSdk, breezOnlyMode, mnemonic, queryClient]);
+  }, [breezSdk]);
 
-  // Auto-poll balances every 3 seconds
+  // Auto-poll balance every 3 seconds
   useEffect(() => {
     if (!breezSdk) return;
-
-    // Initial fetch
-    fetchBalances();
-
-    const interval = setInterval(fetchBalances, 3000);
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 3000);
     return () => clearInterval(interval);
-  }, [breezSdk, fetchBalances]);
+  }, [breezSdk, fetchBalance]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -258,112 +208,35 @@ export default function TestBreezKeyDerivation() {
     }
   }, [breezSdk, invoiceAmount]);
 
-  const runTest = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-
-    try {
-      // Derive identity public key using current Spark SDK
-      const sparkKey = await getSparkIdentityPublicKeyFromMnemonic(
-        mnemonic,
-        'MAINNET',
-      );
-
-      // Initialize Breez wallet and get identity public key
-      const breezSdkInstance = await connectBreezWallet(mnemonic);
-      try {
-        const info = await breezSdkInstance.getInfo({ ensureSynced: false });
-        const breezKey = info.identityPubkey;
-
-        setResult({
-          sparkKey,
-          breezKey,
-          match: sparkKey === breezKey,
-        });
-      } finally {
-        await breezSdkInstance.disconnect();
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [mnemonic]);
-
   return (
     <div
       className="mx-auto max-w-xl space-y-8 overflow-y-auto p-6"
       style={{ maxHeight: '100dvh' }}
     >
-      {/* Section: C1 Key Derivation */}
       <section className="space-y-4">
-        <h1 className="font-bold text-2xl">C1: Key Derivation Compatibility</h1>
+        <h1 className="font-bold text-2xl">Breez SDK Only — Balance Test</h1>
         <p className="text-muted-foreground text-sm">
-          Derives the identity public key from the same mnemonic using both the
-          current Spark SDK and the Breez SDK, then compares them. If they do
-          not match, the migration is a dealbreaker.
+          Spark SDK is disconnected on mount. Only the Breez SDK handles
+          incoming payments so we can measure its native balance update speed.
         </p>
 
-        <button
-          type="button"
-          onClick={runTest}
-          disabled={loading}
-          className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
-        >
-          {loading ? 'Running...' : 'Run Key Derivation Test'}
-        </button>
-
-        {error && (
-          <div className="rounded-md border border-red-300 bg-red-50 p-4 text-red-800 text-sm dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-            <p className="font-medium">Error</p>
-            <p className="mt-1 break-all font-mono text-xs">{error}</p>
-          </div>
-        )}
-
-        {result && (
-          <div className="space-y-4">
-            <div
-              className={`rounded-md border p-4 text-center font-bold text-lg ${
-                result.match
-                  ? 'border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
-                  : 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200'
-              }`}
-            >
-              {result.match ? 'MATCH' : 'MISMATCH'}
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <p className="font-medium text-muted-foreground text-xs uppercase">
-                  Spark SDK Identity Public Key
-                </p>
-                <p className="mt-1 break-all rounded bg-gray-100 p-2 font-mono text-xs dark:bg-gray-900">
-                  {result.sparkKey}
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-muted-foreground text-xs uppercase">
-                  Breez SDK Identity Public Key
-                </p>
-                <p className="mt-1 break-all rounded bg-gray-100 p-2 font-mono text-xs dark:bg-gray-900">
-                  {result.breezKey}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${sparkDisconnected ? 'bg-red-500' : 'bg-yellow-500'}`}
+          />
+          <span className="text-muted-foreground text-sm">
+            {sparkDisconnected
+              ? 'Spark SDK disconnected'
+              : 'Disconnecting Spark SDK...'}
+          </span>
+        </div>
       </section>
 
       <hr className="border-border" />
 
-      {/* Section: C2 Balance Comparison */}
+      {/* Balance */}
       <section className="space-y-4">
-        <h2 className="font-bold text-xl">C2: Balance Comparison</h2>
-        <p className="text-muted-foreground text-sm">
-          Connects the Breez SDK and polls both SDKs for balance every 3
-          seconds. Compare the reported balances side by side.
-        </p>
+        <h2 className="font-bold text-xl">Balance</h2>
 
         {!breezSdk ? (
           <div className="space-y-2">
@@ -393,97 +266,39 @@ export default function TestBreezKeyDerivation() {
               </span>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={fetchBalances}
-                disabled={balanceLoading}
-                className="rounded-md bg-secondary px-3 py-1.5 font-medium text-secondary-foreground text-sm hover:bg-secondary/80 disabled:opacity-50"
-              >
-                {balanceLoading ? 'Refreshing...' : 'Refresh Balances'}
-              </button>
+            <button
+              type="button"
+              onClick={fetchBalance}
+              disabled={balanceLoading}
+              className="rounded-md bg-secondary px-3 py-1.5 font-medium text-secondary-foreground text-sm hover:bg-secondary/80 disabled:opacity-50"
+            >
+              {balanceLoading ? 'Refreshing...' : 'Refresh Balance'}
+            </button>
 
-              <button
-                type="button"
-                onClick={toggleBreezOnlyMode}
-                className={`rounded-md px-3 py-1.5 font-medium text-sm ${
-                  breezOnlyMode
-                    ? 'bg-orange-500 text-white hover:bg-orange-600'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                }`}
-              >
-                {breezOnlyMode
-                  ? 'Breez-only ON (Spark disconnected)'
-                  : 'Enable Breez-only mode'}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-md border p-3">
-                <p className="font-medium text-muted-foreground text-xs uppercase">
-                  Breez SDK Balance
-                </p>
-                <p className="mt-1 font-mono text-lg">
-                  {balanceState.breezSats !== null
-                    ? `${balanceState.breezSats} sats`
-                    : '--'}
-                </p>
-                {balanceState.breezUpdatedAt && (
-                  <p className="mt-0.5 text-muted-foreground text-xs">
-                    changed: {balanceState.breezUpdatedAt.toLocaleTimeString()}
-                  </p>
-                )}
-              </div>
-              <div className="rounded-md border p-3">
-                <p className="font-medium text-muted-foreground text-xs uppercase">
-                  Spark SDK Balance
-                </p>
-                <p className="mt-1 font-mono text-lg">
-                  {balanceState.sparkSats !== null
-                    ? `${String(balanceState.sparkSats)} sats`
-                    : '--'}
-                </p>
-                {balanceState.sparkUpdatedAt && (
-                  <p className="mt-0.5 text-muted-foreground text-xs">
-                    changed: {balanceState.sparkUpdatedAt.toLocaleTimeString()}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {balanceState.breezSats !== null &&
-              balanceState.sparkSats !== null && (
-                <div
-                  className={`rounded-md border p-2 text-center text-sm ${
-                    balanceState.breezSats === Number(balanceState.sparkSats)
-                      ? 'border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200'
-                      : 'border-yellow-300 bg-yellow-50 text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200'
-                  }`}
-                >
-                  {balanceState.breezSats === Number(balanceState.sparkSats)
-                    ? 'Balances match'
-                    : `Mismatch: Breez=${balanceState.breezSats}, Spark=${String(balanceState.sparkSats)}`}
-                </div>
-              )}
-
-            {balanceState.lastUpdated && (
-              <p className="text-muted-foreground text-xs">
-                Last updated: {balanceState.lastUpdated.toLocaleTimeString()}
+            <div className="rounded-md border p-4">
+              <p className="font-medium text-muted-foreground text-xs uppercase">
+                Breez SDK Balance
               </p>
-            )}
+              <p className="mt-1 font-mono text-2xl">
+                {balanceState.breezSats !== null
+                  ? `${balanceState.breezSats} sats`
+                  : '--'}
+              </p>
+              {balanceState.updatedAt && (
+                <p className="mt-1 text-muted-foreground text-xs">
+                  Last changed: {balanceState.updatedAt.toLocaleTimeString()}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </section>
 
       <hr className="border-border" />
 
-      {/* Section: C3 Event Log */}
+      {/* Event Log */}
       <section className="space-y-4">
-        <h2 className="font-bold text-xl">C3: Event Log</h2>
-        <p className="text-muted-foreground text-sm">
-          Listens to Breez SDK events after connection. Events appear here in
-          real time, newest first.
-        </p>
+        <h2 className="font-bold text-xl">Event Log</h2>
 
         {!breezSdk ? (
           <p className="text-muted-foreground text-sm italic">
@@ -523,13 +338,9 @@ export default function TestBreezKeyDerivation() {
 
       <hr className="border-border" />
 
-      {/* Section: Create Invoice (Receive Test) */}
+      {/* Create Invoice */}
       <section className="space-y-4">
         <h2 className="font-bold text-xl">Create Invoice (Receive Test)</h2>
-        <p className="text-muted-foreground text-sm">
-          Creates a bolt11 invoice using the Breez SDK. Pay this from another
-          wallet to test receiving.
-        </p>
 
         {!breezSdk ? (
           <p className="text-muted-foreground text-sm italic">
