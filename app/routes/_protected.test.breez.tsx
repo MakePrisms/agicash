@@ -93,7 +93,7 @@ export default function TestBreezKeyDerivation() {
     setBalanceLoading(true);
     try {
       const [breezInfo, sparkWallet] = await Promise.all([
-        breezSdk.getInfo({ ensureSynced: true }),
+        breezSdk.getInfo({}),
         queryClient.fetchQuery(
           sparkWalletQueryOptions({ network: 'MAINNET', mnemonic }),
         ),
