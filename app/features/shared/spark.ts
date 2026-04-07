@@ -123,7 +123,10 @@ export function sparkBalanceQueryKey(accountId: string) {
 }
 
 export function useTrackAndUpdateSparkAccountBalances() {
-  const { data: sparkAccounts } = useAccounts({ type: 'spark' });
+  const { data: sparkAccounts } = useAccounts({
+    type: 'spark',
+    isOnline: true,
+  });
   const accountCache = useAccountsCache();
   const queryClient = useQueryClient();
 
@@ -331,6 +334,12 @@ export async function getInitializedSparkWallet(
   balance: Money | null;
   isOnline: boolean;
 }> {
+  return {
+    wallet: createSparkWalletStub('Spark is offline, please try again later.'),
+    balance: null,
+    isOnline: false,
+  };
+
   return measureOperation(
     'getInitializedSparkWallet',
     async () => {
