@@ -6,6 +6,7 @@ import {
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, loadEnv } from 'vite';
 import devtoolsJson from 'vite-plugin-devtools-json';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import topLevelAwait from 'vite-plugin-top-level-await';
 import wasm from 'vite-plugin-wasm';
 import tsconfigPaths from 'vite-tsconfig-paths';
@@ -35,6 +36,7 @@ export default defineConfig((config) => {
     plugins: [
       wasm(),
       topLevelAwait(),
+      nodePolyfills(),
       tailwindcss(),
       reactRouter(),
       tsconfigPaths(),
