@@ -14,15 +14,24 @@ TODO
 
 ## C4: Optimization Behavior
 
-TODO
+**Result: PASS** — Optimization runs in the background (visible in SDK logs) but balance remains stable throughout. No jumps, no drops to zero, no flickering. Major improvement over current Spark SDK.
 
 ## C5: Fee Comparison
 
-TODO
+**Result: SAME** — Fees are identical between Breez SDK and current Spark SDK. Both use the same Spark protocol.
 
 ## C6: Init Performance
 
-TODO
+**Result: PASS** — Significantly faster than current Spark SDK.
+
+| Measurement | Time |
+|---|---|
+| WASM module load (page load, non-blocking) | ~240ms |
+| Cold connect + getInfo | ~78ms |
+| Warm connect + getInfo | ~18ms |
+| getInfo alone | 2–4ms |
+
+Current Spark SDK `getInitializedSparkWallet` (init + getBalance): 200ms–few seconds. Breez equivalent (connect + getInfo): **78ms cold**. WASM loads during login screen so it doesn't block the home page.
 
 ## C7: Error Catalog
 
