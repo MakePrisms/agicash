@@ -19,8 +19,7 @@
 ### New files
 | File | Responsibility |
 |------|---------------|
-| `app/lib/spark/init.ts` | Breez SDK connect function (WASM init + logging) |
-| `app/lib/spark/events.ts` | Event listener wrapper for SdkEvent |
+| `app/lib/spark/init.ts` | Breez SDK connect function (logging setup) |
 
 ### Modified files
 | File | Change |
@@ -136,11 +135,10 @@ git commit -m "feat: add breez-sdk-spark dependency and WASM init in _protected 
 
 ---
 
-### Task 2: Add Breez init and event helpers to `app/lib/spark/`
+### Task 2: Add Breez init helper to `app/lib/spark/`
 
 **Files:**
 - Create: `app/lib/spark/init.ts`
-- Create: `app/lib/spark/events.ts`
 
 No separate `app/lib/breez-spark/` folder — keep everything in the existing `app/lib/spark/`.
 
@@ -155,14 +153,6 @@ import {
   defaultConfig,
   initLogging,
 } from '@breeztech/breez-sdk-spark';
-
-function getBreezApiKey(): string {
-  const apiKey = import.meta.env.VITE_BREEZ_API_KEY;
-  if (!apiKey || typeof apiKey !== 'string') {
-    throw new Error('VITE_BREEZ_API_KEY is not set. Add it to your .env file.');
-  }
-  return apiKey;
-}
 
 let loggingInitialized = false;
 
@@ -186,15 +176,20 @@ async function ensureLogging() {
  * Connects to the Breez SDK and returns a BreezSdk instance.
  * WASM must be initialized first (in _protected.tsx clientLoader).
  */
-export async function connectBreezWallet(
-  mnemonic: string,
-  network: Network = 'mainnet',
-): Promise<BreezSdk> {
+export async function connectBreezWallet({
+  mnemonic,
+  network = 'mainnet',
+  apiKey,
+}: {
+  mnemonic: string;
+  network?: Network;
+  apiKey: string;
+}): Promise<BreezSdk> {
   await ensureLogging();
 
   const config: Config = {
     ...defaultConfig(network),
-    apiKey: getBreezApiKey(),
+    apiKey,
   };
 
   return connect({
@@ -205,42 +200,21 @@ export async function connectBreezWallet(
 }
 ```
 
-- [ ] **Step 2: Create `app/lib/spark/events.ts`**
+The caller (`shared/spark.ts`) reads `VITE_BREEZ_API_KEY` from env and passes it in. Env var reading is app-level concern, not lib-level.
 
-```typescript
-import type { EventListener, SdkEvent } from '@breeztech/breez-sdk-spark';
-
-export type OnEventCallback = (event: SdkEvent) => void;
-
-/**
- * Creates an EventListener compatible with the Breez SDK.
- *
- * @example
- * const listenerId = await sdk.addEventListener(
- *   createEventListener((event) => console.log(event.type))
- * );
- * await sdk.removeEventListener(listenerId);
- */
-export function createEventListener(onEvent: OnEventCallback): EventListener {
-  return {
-    onEvent(e: SdkEvent): void {
-      onEvent(e);
-    },
-  };
-}
-```
-
-- [ ] **Step 3: Verify**
+- [ ] **Step 2: Verify**
 
 Run: `bun run fix:all`
-Expected: No new errors (additive files, nothing imports them yet).
+Expected: No new errors (additive file, nothing imports it yet).
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add app/lib/spark/init.ts app/lib/spark/events.ts
-git commit -m "feat: add Breez SDK init and event helpers to app/lib/spark"
+git add app/lib/spark/init.ts
+git commit -m "feat: add Breez SDK init helper to app/lib/spark"
 ```
+
+Note: no `events.ts` wrapper — `sdk.addEventListener({ onEvent(e) { ... } })` is simple enough to use inline. The Breez SDK's `EventListener` interface is just `{ onEvent: (e: SdkEvent) => void }`.
 
 ---
 
@@ -397,85 +371,63 @@ This task rewrites the core Spark module. Key changes:
 
 - [ ] **Step 1: Simplify account cache update method**
 
-In `app/features/accounts/account-hooks.ts`, replace `updateSparkAccountIfBalanceOrWalletChanged` with:
+In `app/features/accounts/account-hooks.ts`, replace `updateSparkAccountIfBalanceOrWalletChanged` with a simpler method that takes a single balance (Breez has no owned/available split):
 
 ```typescript
   updateSparkAccountBalance({
     accountId,
-    availableBalance,
-    ownedBalance,
+    balance,
   }: {
     accountId: string;
-    availableBalance: Money;
-    ownedBalance: Money;
+    balance: Money;
   }) {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
       curr.map((x) => {
         if (x.id !== accountId || x.type !== 'spark') return x;
 
-        const balanceChanged = this.hasDifferentBalance(x, {
-          availableBalance,
-          ownedBalance,
-        });
+        const currentBalance = x.ownedBalance ?? Money.zero(x.currency);
+        if (currentBalance.equals(balance)) return x;
 
-        sparkDebugLog('Cache update check', {
+        sparkDebugLog('Balance updated', {
           accountId,
-          newAvailableBalance: availableBalance.toString(),
-          newOwnedBalance: ownedBalance.toString(),
-          willUpdateCache: balanceChanged,
+          prev: currentBalance.toString(),
+          new: balance.toString(),
         });
 
-        return balanceChanged ? { ...x, availableBalance, ownedBalance } : x;
+        return { ...x, ownedBalance: balance, availableBalance: balance };
       }),
-    );
-  }
-
-  private hasDifferentBalance(
-    account: SparkAccount,
-    balance: {
-      availableBalance: Money;
-      ownedBalance: Money;
-    },
-  ) {
-    const accountOwned = account.ownedBalance ?? Money.zero(account.currency);
-    const accountAvailable =
-      account.availableBalance ?? Money.zero(account.currency);
-
-    return (
-      !accountOwned.equals(balance.ownedBalance) ||
-      !accountAvailable.equals(balance.availableBalance)
     );
   }
 ```
 
-Remove the old `updateSparkAccountIfBalanceOrWalletChanged` method and any dead code it referenced (wallet comparison logic).
+Remove the old `updateSparkAccountIfBalanceOrWalletChanged` method and any dead code it referenced (wallet comparison, `hasDifferentBalance`, etc).
 
 - [ ] **Step 2: Rewrite `app/features/shared/spark.ts`**
 
 Replace the entire file. Key points:
-- `sparkWalletQueryOptions`: calls `connectBreezWallet()`, no privacy call
+- `sparkWalletQueryOptions`: calls `connectBreezWallet({ mnemonic, network, apiKey })` where `apiKey` is read from `VITE_BREEZ_API_KEY` in this file. No privacy call (verify `privateEnabledDefault` is `true`).
 - `sparkIdentityPublicKeyQueryOptions`: no `accountNumber` param (Breez handles it)
 - `getInitializedSparkWallet`: uses `sdk.getInfo()`, sets `ownedBalance = availableBalance = moneyFromSats(balanceSats)`
-- `useTrackAndUpdateSparkAccountBalances`: registers `addEventListener` per wallet, updates balance on `paymentSucceeded`/`paymentPending`/`synced` events via `sdk.getInfo()`, calls `accountCache.updateSparkAccountBalance()`, no `useQueries`/`refetchInterval`
+- `useTrackAndUpdateSparkAccountBalances`: registers `addEventListener` per wallet, updates balance on `paymentSucceeded`/`paymentPending`/`synced` events via `sdk.getInfo()`, calls `accountCache.updateSparkAccountBalance({ accountId, balance })`, no `useQueries`/`refetchInterval`
 
-The event handler:
+The event handler (inline — Breez `EventListener` is just `{ onEvent: (e: SdkEvent) => void }`):
 
 ```typescript
-const listener = createEventListener((event) => {
-  sparkDebugLog('Breez event', { accountId: account.id, type: event.type });
+const listenerId = await sdk.addEventListener({
+  onEvent(event) {
+    sparkDebugLog('Breez event', { accountId: account.id, type: event.type });
 
-  if (event.type === 'paymentSucceeded' || event.type === 'paymentPending' || event.type === 'synced') {
-    sdk.getInfo({}).then((info) => {
-      const balance = moneyFromSats(info.balanceSats);
-      accountCache.updateSparkAccountBalance({
-        accountId: account.id,
-        ownedBalance: balance,
-        availableBalance: balance,
+    if (event.type === 'paymentSucceeded' || event.type === 'paymentPending' || event.type === 'synced') {
+      sdk.getInfo({}).then((info) => {
+        const balance = moneyFromSats(info.balanceSats);
+        accountCache.updateSparkAccountBalance({
+          accountId: account.id,
+          balance,
+        });
       });
-    });
-  }
+    }
+  },
 });
-const listenerId = await sdk.addEventListener(listener);
 ```
 
 Remove entirely:
