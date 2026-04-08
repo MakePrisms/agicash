@@ -333,41 +333,35 @@ export default function TestBreezOnly() {
     }
   }, [breezSdk, addErrorEntry]);
 
-  const handleSendInvalidInvoice = useCallback(async () => {
-    if (!breezSdk) return;
-    setErrorCatalogLoading('send-invalid');
-    try {
-      await breezSdk.prepareSendPayment({
-        paymentRequest: 'invalid-invoice-string',
-      });
-    } catch (e) {
-      addErrorEntry('Send to Invalid Invoice', e);
-    } finally {
-      setErrorCatalogLoading(null);
-    }
-  }, [breezSdk, addErrorEntry]);
+  const [alreadyPaidInvoice, setAlreadyPaidInvoice] = useState<string | null>(
+    null,
+  );
 
-  const handleSendToSelf = useCallback(async () => {
+  const handlePayAlreadyPaid = useCallback(async () => {
     if (!breezSdk) return;
-    setErrorCatalogLoading('send-self');
+    setErrorCatalogLoading('already-paid');
     try {
-      // Create an invoice from our own wallet, then try to pay it
-      const invoice = await breezSdk.receivePayment({
-        paymentMethod: {
-          type: 'bolt11Invoice',
-          description: 'Self-pay test',
-          amountSats: 10,
-        },
+      if (!alreadyPaidInvoice) {
+        addErrorEntry(
+          'Pay Already Paid Invoice',
+          new Error('Paste a bolt11 invoice that has already been paid'),
+        );
+        return;
+      }
+      const prepared = await breezSdk.prepareSendPayment({
+        paymentRequest: alreadyPaidInvoice,
       });
-      await breezSdk.prepareSendPayment({
-        paymentRequest: invoice.paymentRequest,
-      });
+      await breezSdk.sendPayment({ prepareResponse: prepared });
+      addErrorEntry(
+        'Pay Already Paid Invoice',
+        new Error('No error — send succeeded unexpectedly'),
+      );
     } catch (e) {
-      addErrorEntry('Send to Self', e);
+      addErrorEntry('Pay Already Paid Invoice', e);
     } finally {
       setErrorCatalogLoading(null);
     }
-  }, [breezSdk, addErrorEntry]);
+  }, [breezSdk, addErrorEntry, alreadyPaidInvoice]);
 
   return (
     <div
@@ -640,6 +634,13 @@ export default function TestBreezOnly() {
           </p>
         ) : (
           <div className="space-y-3">
+            <input
+              type="text"
+              placeholder="Paste already-paid bolt11 invoice"
+              value={alreadyPaidInvoice ?? ''}
+              onChange={(e) => setAlreadyPaidInvoice(e.target.value || null)}
+              className="w-full rounded-md border px-2 py-1 font-mono text-xs"
+            />
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -653,23 +654,13 @@ export default function TestBreezOnly() {
               </button>
               <button
                 type="button"
-                onClick={handleSendInvalidInvoice}
+                onClick={handlePayAlreadyPaid}
                 disabled={errorCatalogLoading !== null}
                 className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
               >
-                {errorCatalogLoading === 'send-invalid'
+                {errorCatalogLoading === 'already-paid'
                   ? 'Running...'
-                  : 'Send to Invalid Invoice'}
-              </button>
-              <button
-                type="button"
-                onClick={handleSendToSelf}
-                disabled={errorCatalogLoading !== null}
-                className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
-              >
-                {errorCatalogLoading === 'send-self'
-                  ? 'Running...'
-                  : 'Send to Self'}
+                  : 'Pay Already Paid Invoice'}
               </button>
             </div>
 
