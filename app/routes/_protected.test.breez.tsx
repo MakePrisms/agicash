@@ -141,10 +141,25 @@ export default function TestBreezKeyDerivation() {
     try {
       const start = performance.now();
       const sdk = await connectBreezWallet(mnemonic);
-      const elapsed = Math.round(performance.now() - start);
+      const connectMs = Math.round(performance.now() - start);
+
+      const balanceStart = performance.now();
+      const info = await sdk.getInfo({});
+      const balanceMs = Math.round(performance.now() - balanceStart);
+      const totalMs = Math.round(performance.now() - start);
+
+      console.log(
+        `[Breez] Init: connect=${connectMs}ms, getInfo=${balanceMs}ms, total=${totalMs}ms, balance=${info.balanceSats}`,
+      );
 
       setInitMeasurements((prev) =>
-        [{ ms: elapsed, label: 'Cold' }, ...prev].slice(0, 5),
+        [
+          {
+            ms: totalMs,
+            label: `Cold (connect=${connectMs}ms + getInfo=${balanceMs}ms)`,
+          },
+          ...prev,
+        ].slice(0, 5),
       );
 
       // Log the default config so we can see syncIntervalSecs
@@ -301,7 +316,12 @@ export default function TestBreezKeyDerivation() {
 
       const start = performance.now();
       const sdk = await connectBreezWallet(mnemonic);
-      const elapsed = performance.now() - start;
+      const connectMs = Math.round(performance.now() - start);
+
+      const balanceStart = performance.now();
+      await sdk.getInfo({});
+      const balanceMs = Math.round(performance.now() - balanceStart);
+      const totalMs = Math.round(performance.now() - start);
 
       // Re-register event listener
       const listener = createEventListener((entry) => {
@@ -337,7 +357,10 @@ export default function TestBreezKeyDerivation() {
       ).length;
       setInitMeasurements((prev) =>
         [
-          { ms: Math.round(elapsed), label: `Warm #${warmIndex + 1}` },
+          {
+            ms: totalMs,
+            label: `Warm #${warmIndex + 1} (connect=${connectMs}ms + getInfo=${balanceMs}ms)`,
+          },
           ...prev,
         ].slice(0, 5),
       );
