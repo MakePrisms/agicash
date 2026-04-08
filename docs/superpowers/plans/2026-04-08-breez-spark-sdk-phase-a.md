@@ -6,7 +6,7 @@
 
 **Architecture:** Direct SDK swap with static imports (Breez package exports handle SSR/client automatically). `Account.wallet` type → `BreezSdk`. Balance, send status, and receive status all move to event-driven via `sdk.addEventListener` (no polling). Send uses `prepareSendPayment` + `sendPayment` with `idempotencyKey`. Lightning Address spark path temporarily disabled (cashu path unaffected).
 
-**Tech Stack:** `@breeztech/breez-sdk-spark@0.12.2-dev3` (WASM), React Router v7, TanStack Query v5
+**Tech Stack:** `@breeztech/breez-sdk-spark@0.12.2` (WASM), React Router v7, TanStack Query v5
 
 **Branch:** `impl/breez-spark-sdk-migration` (based off `master`)
 
@@ -104,7 +104,7 @@
 - [ ] **Step 1: Add Breez SDK to package.json**
 
 ```bash
-bun add @breeztech/breez-sdk-spark@0.12.2-dev3
+bun add @breeztech/breez-sdk-spark@0.12.2
 ```
 
 - [ ] **Step 2: Init WASM in `_protected.tsx` clientLoader**
