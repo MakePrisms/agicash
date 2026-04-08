@@ -48,6 +48,10 @@ Current Spark SDK `getInitializedSparkWallet` (init + getBalance): 200ms–few s
 - **Insufficient balance:** Total cost is already known from `prepareSendPayment` response (amount + fees) before `sendPayment` is called. Use that instead of extracting from the error.
 - **Already paid:** Same underlying gRPC error as current SDK (`preimage request already exists`). Match with `message.includes('preimage request already exists')` — same pattern as current `isInvoiceAlreadyPaidError`.
 
+## C8: Send Payment Idempotency
+
+**Result: PASS** — `SendPaymentRequest` and `LnurlPayRequest` both have an optional `idempotencyKey` field. Pass a unique key (e.g., payment hash) and the SDK handles deduplication natively. This is an improvement over the current Spark SDK which has no idempotency support — we had to catch errors and call `findExistingLightningSendRequest` to recover the request ID for duplicate sends.
+
 ## Integration Notes
 
 - Import from `@breeztech/breez-sdk-spark` (root path, not `/bundler`) — root has conditional exports: Node.js gets CJS entry, browser gets ESM/WASM entry
