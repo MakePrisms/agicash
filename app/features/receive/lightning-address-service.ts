@@ -1,4 +1,3 @@
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
 import { hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import type { QueryClient } from '@tanstack/react-query';
@@ -12,14 +11,12 @@ import type {
   LNURLVerifyResult,
 } from '~/lib/lnurl/types';
 import { Money } from '~/lib/money';
-import { measureOperation } from '~/lib/performance';
 import {
   decryptXChaCha20Poly1305,
   encryptXChaCha20Poly1305,
 } from '~/lib/xchacha20poly1305';
 import type { AgicashDb } from '../agicash-db/database';
 import { NotFoundError } from '../shared/error';
-import { sparkWalletQueryOptions } from '../shared/spark';
 import {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,
@@ -27,17 +24,6 @@ import {
 import { getLightningQuote } from './cashu-receive-quote-core';
 import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-repository.server';
 import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
-import { SparkReceiveQuoteRepositoryServer } from './spark-receive-quote-repository.server';
-import { SparkReceiveQuoteServiceServer } from './spark-receive-quote-service.server';
-
-const sparkMnemonic = process.env.LNURL_SERVER_SPARK_MNEMONIC || '';
-if (!sparkMnemonic) {
-  throw new Error('LNURL_SERVER_SPARK_MNEMONIC is not set');
-}
-
-const getSparkWalletMnemonic = (): Promise<string> => {
-  return Promise.resolve(sparkMnemonic);
-};
 
 const encryptionKey = process.env.LNURL_SERVER_ENCRYPTION_KEY || '';
 if (!encryptionKey) {
@@ -172,7 +158,6 @@ export class LightningAddressService {
       const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
         this.db,
         this.queryClient,
-        getSparkWalletMnemonic,
       );
 
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
@@ -223,34 +208,14 @@ export class LightningAddressService {
         };
       }
 
-      const sparkReceiveQuoteService = new SparkReceiveQuoteServiceServer(
-        new SparkReceiveQuoteRepositoryServer(this.db),
+      // TODO: Spark Lightning Address requires receiverIdentityPubkey for delegated invoices.
+      // Breez SDK does not expose this param yet.
+      // To unblock: fork @breeztech/breez-sdk-spark and add receiverIdentityPubkey to bolt11Invoice receive.
+      // See: docs/superpowers/specs/2026-04-04-breez-spark-sdk-migration-design.md (A6)
+      throw new Error(
+        'Spark Lightning Address is not yet supported with the Breez SDK. ' +
+          'Breez needs to expose receiverIdentityPubkey for delegated invoices.',
       );
-
-      const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
-        wallet: account.wallet,
-        amount: amountToReceive,
-        receiverIdentityPubkey: user.sparkIdentityPublicKey,
-      });
-
-      await sparkReceiveQuoteService.createReceiveQuote({
-        userId,
-        userEncryptionPublicKey: user.encryptionPublicKey,
-        account,
-        lightningQuote,
-        receiveType: 'LIGHTNING',
-      });
-
-      const encryptedQuoteData = this.encryptLnurlVerifyQuoteData({
-        type: 'spark',
-        quoteId: lightningQuote.id,
-      });
-
-      return {
-        pr: lightningQuote.invoice.encodedInvoice,
-        verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
-        routes: [],
-      };
     } catch (error) {
       console.error('Error processing LNURL-pay callback', { cause: error });
       return {
@@ -314,33 +279,13 @@ export class LightningAddressService {
   }
 
   private async handleSparkLnurlpVerify(
-    receiveRequestId: string,
-  ): Promise<LNURLVerifyResult> {
-    const wallet = await this.queryClient.fetchQuery(
-      sparkWalletQueryOptions({ network: 'MAINNET', mnemonic: sparkMnemonic }),
-    );
-
-    const receiveRequest = await measureOperation(
-      'SparkWallet.getLightningReceiveRequest',
-      () => wallet.getLightningReceiveRequest(receiveRequestId),
-      { receiveRequestId },
-    );
-
-    if (!receiveRequest) {
-      throw new NotFoundError(
-        `Spark lightning receive request ${receiveRequestId} not found`,
-      );
-    }
-
-    const settled =
-      receiveRequest.status ===
-      LightningReceiveRequestStatus.TRANSFER_COMPLETED;
-
+    _receiveRequestId: string,
+  ): Promise<LNURLVerifyResult | LNURLError> {
+    // TODO: Implement with Breez SDK once receiverIdentityPubkey is supported.
     return {
-      status: 'OK',
-      settled,
-      preimage: receiveRequest.paymentPreimage ?? null,
-      pr: receiveRequest.invoice.encodedInvoice,
+      status: 'ERROR',
+      reason:
+        'Spark Lightning Address verification is not yet supported with the Breez SDK.',
     };
   }
 
