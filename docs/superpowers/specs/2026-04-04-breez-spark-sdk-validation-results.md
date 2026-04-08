@@ -6,11 +6,11 @@
 
 ## C2: Balance Reliability on Mobile
 
-TODO
+**Result: PASS (with caveat)** — Balance is stable during optimization (no jumps/drops). However, balance updates are delayed ~45-60s after payments — `getInfo({})` returns stale state until the next `synced` event. The current Spark SDK updates balance faster (via polling) but then jumps during optimization. Investigation pending on whether the delay is a version issue (`0.12.2` vs Glow's `0.12.2-dev3`).
 
 ## C3: Event Reliability
 
-TODO
+**Result: PASS** — Events fire reliably: `synced` every ~60s, `paymentSucceeded`/`paymentPending`/`claimedDeposits` on payments, `optimization` during background optimization. Event-driven balance updates work (no polling needed) but balance in `getInfo` is stale until `synced` fires.
 
 ## C4: Optimization Behavior
 
