@@ -1,3 +1,22 @@
+diff --git a/node_modules/@buildonspark/spark-sdk/.bun-tag-eba8464d48b35270 b/.bun-tag-eba8464d48b35270
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/index.browser.js b/dist/index.browser.js
+index 74b6df28f74cd66b6933cdd76f23a8d23876fa92..ca5e6c29b660390f0b51d0191f239cfa2d810cf9 100644
+--- a/dist/index.browser.js
++++ b/dist/index.browser.js
+@@ -1612,7 +1612,11 @@ var SparkFrostBrowser = class SparkFrostBrowser extends SparkFrostBase {
+ 		}
+ 		SparkFrostBrowser.initPromise = (async () => {
+ 			try {
++				const _wasmStart = performance.now();
+ 				const result = await __wbg_init({ module_or_path: wasm_browser_bg_default });
++				const _wasmMs = Math.round(performance.now() - _wasmStart);
++				console.log(`[Spark SDK] WASM init: ${_wasmMs}ms`);
++				if (typeof globalThis.__SPARK_WASM_INIT_MS === 'undefined') globalThis.__SPARK_WASM_INIT_MS = _wasmMs;
+ 				SparkFrostBrowser.initialized = true;
+ 				return result;
+ 			} catch (err) {
 diff --git a/dist/spark-wallet-By0Gon5S.js b/dist/spark-wallet-By0Gon5S.js
 index b8681ae051ca90da12d179f9590f60bb5f6f81ac..acc14034e23b087763eebbbbbf3c89037268a521 100644
 --- a/dist/spark-wallet-By0Gon5S.js
