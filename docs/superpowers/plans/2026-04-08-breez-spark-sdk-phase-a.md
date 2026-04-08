@@ -4,7 +4,7 @@
 
 **Goal:** Replace `@buildonspark/spark-sdk@0.7.4` with `@breeztech/breez-sdk-spark` across ALL Spark operations and fully remove the old SDK. Lightning Address spark path throws "not implemented" until we fork the Breez SDK to expose `receiverIdentityPubkey`.
 
-**Architecture:** Direct SDK swap. The `Account.wallet` type changes to `BreezSdk`. Balance updates move from 3-second polling to event-driven. Send flow adopts two-step `prepareSendPayment` + `sendPayment` with native `idempotencyKey`. Receive flow uses `receivePayment` + `listPayments` matching. Lightning Address spark path is temporarily disabled (cashu path unaffected).
+**Architecture:** Direct SDK swap with static imports (Breez package exports handle SSR/client automatically). `Account.wallet` type → `BreezSdk`. Balance, send status, and receive status all move to event-driven via `sdk.addEventListener` (no polling). Send uses `prepareSendPayment` + `sendPayment` with `idempotencyKey`. Lightning Address spark path temporarily disabled (cashu path unaffected).
 
 **Tech Stack:** `@breeztech/breez-sdk-spark@0.12.2-dev3` (WASM), React Router v7, TanStack Query v5
 
@@ -19,32 +19,31 @@
 ### New files
 | File | Responsibility |
 |------|---------------|
-| `app/lib/breez-spark/init.ts` | Breez SDK connect function (from Phase C prototype) |
-| `app/lib/breez-spark/events.ts` | Event listener wrapper (from Phase C prototype) |
-| `app/lib/breez-spark/types.ts` | Network mapping, type re-exports, `getBreezSdk()` accessor |
+| `app/lib/spark/init.ts` | Breez SDK connect function (WASM init + logging) |
+| `app/lib/spark/events.ts` | Event listener wrapper for SdkEvent |
 
 ### Modified files
 | File | Change |
 |------|--------|
-| `package.json` | Add `@breeztech/breez-sdk-spark` dependency |
-| `app/entry.client.tsx` | Production-ready WASM init (remove prototype comment) |
+| `package.json` | Add `@breeztech/breez-sdk-spark`, remove `@buildonspark/spark-sdk` |
 | `app/lib/spark/errors.ts` | Replace `SparkError` with plain `Error` message matching |
-| `app/lib/spark/utils.ts` | Replace old SDK imports with Breez equivalents |
+| `app/lib/spark/utils.ts` | Replace old SDK imports with Breez equivalents; add `moneyFromSats` |
 | `app/lib/spark/index.ts` | Update re-exports |
 | `app/features/accounts/account.ts` | `wallet: SparkWallet` → `wallet: BreezSdk`; local `SparkNetwork` type |
-| `app/features/agicash-db/json-models/spark-account-details-db-data.ts` | Export `SparkNetwork` type from Zod schema |
+| `app/features/accounts/account-hooks.ts` | Simplify `updateSparkAccountIfBalanceOrWalletChanged` → `updateSparkAccountBalance` |
+| `app/features/agicash-db/json-models/spark-account-details-db-data.ts` | Export `SparkNetwork` type + `toBreezNetwork()` |
 | `app/features/accounts/account-repository.ts` | Import `SparkNetwork` from local type |
 | `app/features/user/user-repository.ts` | Import `SparkNetwork` from local type; stub wallet for server |
-| `app/features/shared/spark.ts` | Full rewrite: Breez `connect()`, event-driven balance, remove zero-balance workaround |
-| `app/features/send/spark-send-quote-service.ts` | `prepareSendPayment` + `sendPayment` with `idempotencyKey` |
-| `app/features/send/spark-send-quote-hooks.ts` | Replace `getLightningSendRequest` polling with `getPayment` |
+| `app/features/shared/spark.ts` | Full rewrite: Breez `connect()`, event-driven balance, remove zero-balance workaround + polling |
+| `app/features/send/spark-send-quote-service.ts` | `prepareSendPayment` (cached) + `sendPayment` with `idempotencyKey` |
+| `app/features/send/spark-send-quote-hooks.ts` | Event-driven send status via `addEventListener` (no polling) |
 | `app/features/receive/spark-receive-quote-core.ts` | `receivePayment` + bolt11 parsing; simplified `SparkReceiveLightningQuote` type |
-| `app/features/receive/spark-receive-quote-hooks.ts` | Replace `getLightningReceiveRequest` polling with `listPayments` matching |
+| `app/features/receive/spark-receive-quote-hooks.ts` | Event-driven receive status via `addEventListener` (no polling) |
 | `app/features/receive/spark-receive-quote-service.ts` | Adapt to simplified quote type |
-| `app/features/receive/spark-receive-quote-service.server.ts` | Remove old SDK imports; `getLightningQuote` throws not-implemented |
-| `app/features/receive/claim-cashu-token-service.ts` | Replace receive polling with `listPayments` matching |
+| `app/features/receive/spark-receive-quote-service.server.ts` | Remove old SDK imports; delegate to core `getLightningQuote` |
+| `app/features/receive/claim-cashu-token-service.ts` | Event-driven receive status |
 | `app/features/receive/lightning-address-service.ts` | Spark path throws not-implemented; cashu path unchanged |
-| `app/routes/_protected.tsx` | Update `sparkIdentityPublicKeyQueryOptions` call (remove `accountNumber`) |
+| `app/routes/_protected.tsx` | WASM init in `clientLoader`; update `sparkIdentityPublicKeyQueryOptions` |
 
 ### Deleted files
 | File | Reason |
@@ -64,25 +63,33 @@
 |------|------|
 | `SparkWallet` (class) | `BreezSdk` (class) |
 | `SparkWallet.initialize({ mnemonicOrSeed, options })` | `connect({ config, seed, storageDir })` |
-| `wallet.getBalance()` → `{ satsBalance: { owned, available } }` | `sdk.getInfo({})` → `{ balanceSats, identityPubkey }` |
+| `wallet.getBalance()` → `{ satsBalance: { owned, available } }` | `sdk.getInfo({})` → `{ balanceSats, identityPubkey }` (single balance) |
 | `wallet.getIdentityPublicKey()` | `sdk.getInfo({})` → `identityPubkey` |
-| `wallet.getLightningSendFeeEstimate({ amountSats, encodedInvoice })` | `sdk.prepareSendPayment({ paymentRequest, amount? })` → `response.paymentMethod.lightningFeeSats` |
-| `wallet.payLightningInvoice({ invoice, maxFeeSats, preferSpark, amountSatsToSend })` | `sdk.sendPayment({ prepareResponse, idempotencyKey, options: { type: 'bolt11Invoice', preferSpark: false } })` |
-| `wallet.createLightningInvoice({ amountSats, receiverIdentityPubkey, memo })` | `sdk.receivePayment({ paymentMethod: { type: 'bolt11Invoice', description, amountSats } })` |
-| `wallet.getLightningReceiveRequest(id)` → status enum | `sdk.listPayments({ typeFilter: ['receive'] })` → match by invoice → `payment.status` |
-| `wallet.getLightningSendRequest(id)` → status enum | `sdk.getPayment({ paymentId })` → `payment.status` |
-| `wallet.on(SparkWalletEvent.BalanceUpdate, handler)` | `sdk.addEventListener(listener)` with `SdkEvent` types |
-| `wallet.setPrivacyEnabled(true)` | `sdk.updateUserSettings({ sparkPrivateModeEnabled: true })` |
-| `wallet.getLeaves(true)` | Not needed (debug logging only) |
-| `wallet.isOptimizationInProgress()` | `sdk.getLeafOptimizationProgress().isRunning` |
-| `wallet.getTransfers(pageSize, offset)` | Not needed (idempotencyKey replaces manual dedup) |
+| `wallet.getLightningSendFeeEstimate(...)` | `sdk.prepareSendPayment({ paymentRequest, amount? })` → fee in response |
+| `wallet.payLightningInvoice(...)` | `sdk.sendPayment({ prepareResponse, idempotencyKey, options })` |
+| `wallet.createLightningInvoice(...)` | `sdk.receivePayment({ paymentMethod: { type: 'bolt11Invoice', ... } })` |
+| `wallet.getLightningReceiveRequest(id)` (polling) | `sdk.addEventListener` → `paymentSucceeded` event |
+| `wallet.getLightningSendRequest(id)` (polling) | `sdk.addEventListener` → `paymentSucceeded`/`paymentFailed` events |
+| `wallet.on(SparkWalletEvent.BalanceUpdate, ...)` | `sdk.addEventListener` → `synced`/`paymentSucceeded` events |
+| `wallet.setPrivacyEnabled(true)` | `defaultConfig()` has `privateEnabledDefault` (verify it's `true`) |
+| `wallet.getLeaves(true)` | Removed (debug logging only) |
+| `wallet.isOptimizationInProgress()` | Removed (not needed) |
+| `wallet.getTransfers(pageSize, offset)` | Removed (idempotencyKey replaces manual dedup) |
 | `SparkError` with `.getContext()` | Plain `Error` — `message.includes('insufficient funds')` |
-| `LightningReceiveRequestStatus.TRANSFER_COMPLETED` | `payment.status === 'completed'` |
-| `LightningSendRequestStatus.TRANSFER_COMPLETED` | `payment.status === 'completed'` |
-| `LightningSendRequestStatus.USER_SWAP_RETURNED` | `payment.status === 'failed'` |
-| `NetworkType` (`'MAINNET'`, `'REGTEST'`) | `Network` (`'mainnet'`, `'regtest'`) |
-| `CurrencyAmount` (object with `originalUnit`, `originalValue`) | `bigint` (always sats) |
+| `LightningReceiveRequestStatus.TRANSFER_COMPLETED` | `paymentSucceeded` event |
+| `LightningSendRequestStatus.TRANSFER_COMPLETED` | `paymentSucceeded` event |
+| `LightningSendRequestStatus.USER_SWAP_RETURNED` | `paymentFailed` event |
+| `NetworkType` (`'MAINNET'`, `'REGTEST'`) | `Network` (`'mainnet'`, `'regtest'`) — DB keeps old format, map with `toBreezNetwork()` |
+| `CurrencyAmount` (with `originalUnit`, `originalValue`) | `bigint` (always sats) — use `moneyFromSats()` |
 | `DefaultSparkSigner` | `defaultExternalSigner(mnemonic, null, network)` |
+
+### Key architectural changes from old SDK
+
+1. **Single balance** — Breez returns one `balanceSats` (no owned/available split). Both `ownedBalance` and `availableBalance` on SparkAccount set to same value.
+2. **Event-driven** — All status tracking (balance, send, receive) uses `sdk.addEventListener` with `SdkEvent`. No polling intervals.
+3. **Prepare+Send** — Send uses two-step flow. Prepare response cached in service `Map<paymentHash, PrepareResponse>` from quote step; reused in initiate step. Re-prepare only on cache miss (app restart edge case).
+4. **Static imports** — Breez package exports have `"node"` and `"default"` conditions. SSR resolves to Node.js entry, client to web entry. No dynamic imports or `.client.ts` needed.
+5. **No workarounds** — Zero-balance workaround, `findExistingLightningSendRequest`, wallet reinitialization all removed.
 
 ---
 
@@ -92,7 +99,7 @@
 
 **Files:**
 - Modify: `package.json`
-- Modify: `app/entry.client.tsx`
+- Modify: `app/routes/_protected.tsx`
 
 - [ ] **Step 1: Add Breez SDK to package.json**
 
@@ -100,98 +107,54 @@
 bun add @breeztech/breez-sdk-spark@0.12.2-dev3
 ```
 
-- [ ] **Step 2: Update WASM init in entry.client.tsx**
+- [ ] **Step 2: Init WASM in `_protected.tsx` clientLoader**
 
-Replace the Phase C prototype WASM init block with a production-ready version.
+WASM must be initialized before any Breez SDK calls. Since only logged-in users need the Spark SDK, init it in the `_protected.tsx` clientLoader. The clientLoader only runs on the client and only after the middleware succeeds (no redirect), so it's the perfect place.
 
-In `app/entry.client.tsx`, find and replace this block:
-
-```typescript
-// Initialize Breez SDK WASM module (prototype validation — remove after Phase C)
-{
-  const wasmStart = performance.now();
-  import('@breeztech/breez-sdk-spark').then((sdk) =>
-    sdk.default().then(() => {
-      (globalThis as Record<string, unknown>).__BREEZ_WASM_INIT_MS__ =
-        Math.round(performance.now() - wasmStart);
-      console.log(
-        `[Breez] WASM init: ${(globalThis as Record<string, unknown>).__BREEZ_WASM_INIT_MS__}ms`,
-      );
-    }),
-  );
-}
-```
-
-With:
+In `app/routes/_protected.tsx`, add to the clientLoader (before any spark-related prefetches):
 
 ```typescript
-// Initialize Breez SDK WASM module before any SDK usage
-import('@breeztech/breez-sdk-spark').then((sdk) => sdk.default());
+import initBreezWasm from '@breeztech/breez-sdk-spark';
+
+// In clientLoader:
+await initBreezWasm();
 ```
+
+Note: this is a static import. The Breez SDK package.json has `"node": "./nodejs/index.js"` and `"default": "./web/index.js"` exports, so Vite resolves to the correct entry for SSR (Node.js) and client (web) automatically. No dynamic imports needed.
 
 - [ ] **Step 3: Verify**
 
 Run: `bun run fix:all`
-Expected: No errors related to entry.client.tsx
+Expected: No new errors.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add package.json bun.lock app/entry.client.tsx
-git commit -m "feat: add breez-sdk-spark dependency and production WASM init"
+git add package.json bun.lock app/routes/_protected.tsx
+git commit -m "feat: add breez-sdk-spark dependency and WASM init in _protected clientLoader"
 ```
 
 ---
 
-### Task 2: Create Breez adapter layer
+### Task 2: Add Breez init and event helpers to `app/lib/spark/`
 
 **Files:**
-- Create: `app/lib/breez-spark/init.ts`
-- Create: `app/lib/breez-spark/events.ts`
-- Create: `app/lib/breez-spark/types.ts`
+- Create: `app/lib/spark/init.ts`
+- Create: `app/lib/spark/events.ts`
 
-- [ ] **Step 1: Create `app/lib/breez-spark/types.ts`**
+No separate `app/lib/breez-spark/` folder — keep everything in the existing `app/lib/spark/`.
+
+- [ ] **Step 1: Create `app/lib/spark/init.ts`**
 
 ```typescript
-import type {
-  BreezSdk,
-  Config,
-  EventListener,
-  Network,
-  Payment,
-  PaymentDetails,
-  PaymentStatus,
-  SdkEvent,
+import {
+  type BreezSdk,
+  type Config,
+  type Network,
+  connect,
+  defaultConfig,
+  initLogging,
 } from '@breeztech/breez-sdk-spark';
-import type { SparkAccount } from '~/features/accounts/account';
-
-export type {
-  BreezSdk,
-  Config,
-  EventListener,
-  Network as BreezNetwork,
-  Payment,
-  PaymentDetails,
-  PaymentStatus,
-  SdkEvent,
-};
-
-/**
- * Gets the BreezSdk instance from a Spark account.
- *
- * During the migration period, Lightning Address still uses the old SparkWallet
- * on the server side. All CLIENT-SIDE code should use this accessor.
- * Remove this function after Lightning Address migrates to Breez.
- */
-export function getBreezSdk(account: SparkAccount): BreezSdk {
-  return account.wallet;
-}
-```
-
-- [ ] **Step 2: Create `app/lib/breez-spark/init.ts`**
-
-```typescript
-import type { BreezSdk, Config, Network } from '@breeztech/breez-sdk-spark';
 
 function getBreezApiKey(): string {
   const apiKey = import.meta.env.VITE_BREEZ_API_KEY;
@@ -205,7 +168,6 @@ let loggingInitialized = false;
 
 async function ensureLogging() {
   if (loggingInitialized) return;
-  const { initLogging } = await import('@breeztech/breez-sdk-spark');
   try {
     await initLogging(
       {
@@ -216,24 +178,19 @@ async function ensureLogging() {
     );
     loggingInitialized = true;
   } catch {
-    // Already initialized in this session
     loggingInitialized = true;
   }
 }
 
 /**
  * Connects to the Breez SDK and returns a BreezSdk instance.
- * WASM must be initialized first (done in entry.client.tsx).
- *
- * @param mnemonic - BIP39 mnemonic phrase for wallet derivation
- * @param network - 'mainnet' or 'regtest'
+ * WASM must be initialized first (in _protected.tsx clientLoader).
  */
 export async function connectBreezWallet(
   mnemonic: string,
   network: Network = 'mainnet',
 ): Promise<BreezSdk> {
   await ensureLogging();
-  const { connect, defaultConfig } = await import('@breeztech/breez-sdk-spark');
 
   const config: Config = {
     ...defaultConfig(network),
@@ -248,81 +205,64 @@ export async function connectBreezWallet(
 }
 ```
 
-- [ ] **Step 3: Create `app/lib/breez-spark/events.ts`**
+- [ ] **Step 2: Create `app/lib/spark/events.ts`**
 
 ```typescript
 import type { EventListener, SdkEvent } from '@breeztech/breez-sdk-spark';
 
-export type EventLogEntry = {
-  timestamp: Date;
-  eventType: SdkEvent['type'];
-  data: SdkEvent;
-};
-
-export type OnEventCallback = (entry: EventLogEntry) => void;
+export type OnEventCallback = (event: SdkEvent) => void;
 
 /**
  * Creates an EventListener compatible with the Breez SDK.
- * Pass the returned listener to `sdk.addEventListener(listener)`.
  *
  * @example
- * const listener = createEventListener((entry) => console.log(entry));
- * const listenerId = await sdk.addEventListener(listener);
- * // later:
+ * const listenerId = await sdk.addEventListener(
+ *   createEventListener((event) => console.log(event.type))
+ * );
  * await sdk.removeEventListener(listenerId);
  */
 export function createEventListener(onEvent: OnEventCallback): EventListener {
   return {
     onEvent(e: SdkEvent): void {
-      onEvent({
-        timestamp: new Date(),
-        eventType: e.type,
-        data: e,
-      });
+      onEvent(e);
     },
   };
 }
 ```
 
-- [ ] **Step 4: Verify new files compile**
+- [ ] **Step 3: Verify**
 
 Run: `bun run fix:all`
-Expected: No new errors (these files are additive — nothing imports them yet)
+Expected: No new errors (additive files, nothing imports them yet).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add app/lib/breez-spark/
-git commit -m "feat: create Breez SDK adapter layer (init, events, types)"
+git add app/lib/spark/init.ts app/lib/spark/events.ts
+git commit -m "feat: add Breez SDK init and event helpers to app/lib/spark"
 ```
 
 ---
 
-### Task 3: Replace SparkNetwork type and error matchers
+### Task 3: SparkNetwork type, error matchers, account types, and utils
 
 **Files:**
 - Modify: `app/features/agicash-db/json-models/spark-account-details-db-data.ts`
 - Modify: `app/lib/spark/errors.ts`
+- Modify: `app/lib/spark/utils.ts`
+- Modify: `app/lib/spark/index.ts`
+- Modify: `app/features/accounts/account.ts`
+- Modify: `app/features/accounts/account-repository.ts`
+- Modify: `app/features/user/user-repository.ts`
 
-- [ ] **Step 1: Export SparkNetwork type from DB schema**
+- [ ] **Step 1: Export SparkNetwork type and toBreezNetwork from DB schema**
 
-In `app/features/agicash-db/json-models/spark-account-details-db-data.ts`, add after the existing `SparkAccountDetailsDbData` type export:
+In `app/features/agicash-db/json-models/spark-account-details-db-data.ts`, add after existing exports:
 
 ```typescript
-/**
- * Spark network type derived from the DB schema.
- * This is the canonical representation used throughout the app.
- * Maps to Breez SDK's Network type via toBreezNetwork().
- */
 export type SparkNetwork = SparkAccountDetailsDbData['network'];
 
-/**
- * Maps app-level SparkNetwork to Breez SDK's Network type.
- * Only MAINNET and REGTEST are supported.
- */
-export function toBreezNetwork(
-  network: SparkNetwork,
-): 'mainnet' | 'regtest' {
+export function toBreezNetwork(network: SparkNetwork): 'mainnet' | 'regtest' {
   switch (network) {
     case 'MAINNET':
       return 'mainnet';
@@ -330,171 +270,64 @@ export function toBreezNetwork(
     case 'LOCAL':
       return 'regtest';
     default:
-      throw new Error(
-        `Unsupported Spark network for Breez SDK: ${network}`,
-      );
+      throw new Error(`Unsupported Spark network for Breez SDK: ${network}`);
   }
 }
 ```
 
 - [ ] **Step 2: Replace error matchers**
 
-Replace the entire contents of `app/lib/spark/errors.ts` with:
+Replace entire `app/lib/spark/errors.ts`:
 
 ```typescript
 /**
  * Checks if an error is an insufficient balance error from the Breez SDK.
- * Breez errors are plain Error objects — match on message content.
- *
  * Phase C validation confirmed: message contains "insufficient funds".
  */
 export const isInsufficentBalanceError = (error: unknown): error is Error => {
   if (!(error instanceof Error)) return false;
   const lower = error.message.toLowerCase();
-  return (
-    lower.includes('insufficient funds') ||
-    lower.includes('insufficient balance')
-  );
+  return lower.includes('insufficient funds') || lower.includes('insufficient balance');
 };
 
 /**
  * Checks if an error indicates the invoice was already paid.
- * Breez errors are plain Error objects — match on message content.
- *
  * Phase C validation confirmed: message contains "preimage request already exists".
  */
 export const isInvoiceAlreadyPaidError = (error: unknown): error is Error => {
   if (!(error instanceof Error)) return false;
-  return error.message
-    .toLowerCase()
-    .includes('preimage request already exists');
+  return error.message.toLowerCase().includes('preimage request already exists');
 };
 ```
 
-- [ ] **Step 3: Verify**
+- [ ] **Step 3: Replace utility functions**
 
-Run: `bun run fix:all`
-Expected: May show errors in files that still import the old SDK types — those are fixed in subsequent tasks.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add app/features/agicash-db/json-models/spark-account-details-db-data.ts app/lib/spark/errors.ts
-git commit -m "feat: local SparkNetwork type and Breez error matchers"
-```
-
----
-
-### Task 4: Update Account types and utility functions
-
-**Files:**
-- Modify: `app/features/accounts/account.ts`
-- Modify: `app/features/accounts/account-repository.ts`
-- Modify: `app/features/user/user-repository.ts`
-- Modify: `app/lib/spark/utils.ts`
-- Modify: `app/lib/spark/index.ts`
-
-- [ ] **Step 1: Update Account types**
-
-In `app/features/accounts/account.ts`:
-
-Replace:
-```typescript
-import type {
-  NetworkType as SparkNetwork,
-  SparkWallet,
-} from '@buildonspark/spark-sdk';
-```
-
-With:
-```typescript
-import type { BreezSdk } from '@breeztech/breez-sdk-spark';
-import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
-```
-
-Replace the spark variant's `wallet` type:
-```typescript
-      wallet: SparkWallet;
-```
-With:
-```typescript
-      wallet: BreezSdk;
-```
-
-- [ ] **Step 2: Update account-repository.ts**
-
-In `app/features/accounts/account-repository.ts`:
-
-Replace:
-```typescript
-import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
-```
-
-With:
-```typescript
-import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
-```
-
-- [ ] **Step 3: Update user-repository.ts**
-
-In `app/features/user/user-repository.ts`:
-
-Replace:
-```typescript
-import type { NetworkType } from '@buildonspark/spark-sdk';
-```
-
-With:
-```typescript
-import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
-```
-
-Then replace all usages of `NetworkType` with `SparkNetwork` in the file (the type is used in `getInitializedSparkWallet(network: NetworkType)` — change to `getInitializedSparkWallet(network: SparkNetwork)`).
-
-- [ ] **Step 4: Update utility functions**
-
-Replace the entire contents of `app/lib/spark/utils.ts` with:
+Replace entire `app/lib/spark/utils.ts`:
 
 ```typescript
 import type { BreezSdk } from '@breeztech/breez-sdk-spark';
 import { bytesToHex } from '@noble/hashes/utils';
 import { Money } from '../money';
 
-/**
- * Creates a Money<'BTC'> from a sats amount (bigint or number).
- * Replaces the old moneyFromSparkAmount which took CurrencyAmount objects.
- */
 export function moneyFromSats(sats: bigint | number): Money<'BTC'> {
-  return new Money({
-    amount: Number(sats),
-    currency: 'BTC',
-    unit: 'sat',
-  });
+  return new Money({ amount: Number(sats), currency: 'BTC', unit: 'sat' });
 }
 
 /**
  * Gets the Spark identity public key from a mnemonic using the Breez SDK signer.
- * Returns the same key as the old DefaultSparkSigner — confirmed by Phase C validation (C1).
- *
- * Requires WASM to be initialized (client-side only).
+ * Returns the same key as the old DefaultSparkSigner (Phase C validation C1).
+ * Requires WASM to be initialized.
  */
 export async function getSparkIdentityPublicKeyFromMnemonic(
   mnemonic: string,
   network: 'mainnet' | 'regtest',
 ): Promise<string> {
-  const { defaultExternalSigner } = await import(
-    '@breeztech/breez-sdk-spark'
-  );
+  const { defaultExternalSigner } = await import('@breeztech/breez-sdk-spark');
   const signer = defaultExternalSigner(mnemonic, null, network);
   const publicKeyBytes = signer.identityPublicKey();
-  // PublicKeyBytes from WASM is Uint8Array-like
   return bytesToHex(new Uint8Array(publicKeyBytes as unknown as ArrayBuffer));
 }
 
-/**
- * Creates a BreezSdk stub that throws when any method is called.
- * Used for offline wallets where Spark is unreachable.
- */
 export function createSparkWalletStub(reason: string): BreezSdk {
   return new Proxy({} as BreezSdk, {
     get(_target, prop) {
@@ -510,1287 +343,266 @@ export function createSparkWalletStub(reason: string): BreezSdk {
 }
 ```
 
-- [ ] **Step 5: Update `app/lib/spark/index.ts`**
+Note: `getSparkIdentityPublicKeyFromMnemonic` uses a dynamic import because it's called during account setup and we need the WASM-dependent `defaultExternalSigner`. Verify at runtime that the hex output matches the old SDK.
 
-Replace the entire contents with:
+- [ ] **Step 4: Update `app/lib/spark/index.ts`**
 
 ```typescript
 export { isInsufficentBalanceError, isInvoiceAlreadyPaidError } from './errors';
-export {
-  createSparkWalletStub,
-  getSparkIdentityPublicKeyFromMnemonic,
-  moneyFromSats,
-} from './utils';
+export { createSparkWalletStub, getSparkIdentityPublicKeyFromMnemonic, moneyFromSats } from './utils';
 ```
 
-- [ ] **Step 6: Commit** (fix:all will still fail — downstream consumers not yet updated)
+- [ ] **Step 5: Update Account types**
+
+In `app/features/accounts/account.ts`, replace old SDK imports:
+
+```typescript
+// Remove:
+import type { NetworkType as SparkNetwork, SparkWallet } from '@buildonspark/spark-sdk';
+
+// Add:
+import type { BreezSdk } from '@breeztech/breez-sdk-spark';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
+```
+
+Change the spark variant's wallet type from `wallet: SparkWallet` to `wallet: BreezSdk`.
+
+- [ ] **Step 6: Update account-repository.ts and user-repository.ts imports**
+
+In both files, replace `import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk'` with `import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data'`.
+
+In `user-repository.ts`, also replace `NetworkType` usage with `SparkNetwork`.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add app/features/accounts/account.ts app/features/accounts/account-repository.ts app/features/user/user-repository.ts app/lib/spark/utils.ts app/lib/spark/index.ts
-git commit -m "feat: update Account types and utils for Breez SDK"
+git add app/features/agicash-db/json-models/spark-account-details-db-data.ts app/lib/spark/ app/features/accounts/account.ts app/features/accounts/account-repository.ts app/features/user/user-repository.ts
+git commit -m "feat: replace old SDK types with Breez equivalents across account layer"
 ```
 
 ---
 
-### Task 5: Wallet init and event-driven balance
+### Task 4: Wallet init, event-driven balance, simplified account cache
 
 **Files:**
 - Modify: `app/features/shared/spark.ts`
-- Modify: `app/routes/_protected.tsx` (if needed)
+- Modify: `app/features/accounts/account-hooks.ts` (simplify cache update method)
 
-- [ ] **Step 1: Rewrite `app/features/shared/spark.ts`**
+This task rewrites the core Spark module. Key changes:
+- `sparkWalletQueryOptions` uses `connectBreezWallet` instead of `SparkWallet.initialize`
+- No `updateUserSettings` call for privacy (verify `defaultConfig` has `privateEnabledDefault: true`)
+- `getInitializedSparkWallet` uses `sdk.getInfo()` for single balance
+- `useTrackAndUpdateSparkAccountBalances` is fully event-driven (no polling, no zero-balance workaround)
+- Balance uses simplified `updateSparkAccountBalance` method (no wallet comparison)
 
-Replace the entire file contents with:
+- [ ] **Step 1: Simplify account cache update method**
+
+In `app/features/accounts/account-hooks.ts`, replace `updateSparkAccountIfBalanceOrWalletChanged` with:
 
 ```typescript
-import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
-import type { BreezSdk, SdkEvent } from '@breeztech/breez-sdk-spark';
-import {
-  type QueryClient,
-  queryOptions,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { useRef } from 'react';
-import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
-import { type Currency, Money } from '~/lib/money';
-import { connectBreezWallet } from '~/lib/breez-spark/init';
-import { createEventListener } from '~/lib/breez-spark/events';
-import { measureOperation } from '~/lib/performance';
-import { computeSHA256 } from '~/lib/sha256';
-import {
-  createSparkWalletStub,
-  getSparkIdentityPublicKeyFromMnemonic,
-  moneyFromSats,
-} from '~/lib/spark';
-import {
-  type SparkNetwork,
-  toBreezNetwork,
-} from '../agicash-db/json-models/spark-account-details-db-data';
-import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
-import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
-import { getDefaultUnit } from './currencies';
-import { getFeatureFlag } from './feature-flags';
+  updateSparkAccountBalance({
+    accountId,
+    availableBalance,
+    ownedBalance,
+  }: {
+    accountId: string;
+    availableBalance: Money;
+    ownedBalance: Money;
+  }) {
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
+      curr.map((x) => {
+        if (x.id !== accountId || x.type !== 'spark') return x;
 
-export function sparkDebugLog(
-  message: string,
-  data?: Record<string, unknown>,
-) {
-  if (getFeatureFlag('DEBUG_LOGGING_SPARK')) {
-    console.debug(`[Spark] ${message}`, data ?? '');
+        const balanceChanged = this.hasDifferentBalance(x, {
+          availableBalance,
+          ownedBalance,
+        });
+
+        sparkDebugLog('Cache update check', {
+          accountId,
+          newAvailableBalance: availableBalance.toString(),
+          newOwnedBalance: ownedBalance.toString(),
+          willUpdateCache: balanceChanged,
+        });
+
+        return balanceChanged ? { ...x, availableBalance, ownedBalance } : x;
+      }),
+    );
   }
-}
 
-const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
-
-export const sparkMnemonicQueryOptions = () =>
-  queryOptions({
-    queryKey: ['spark-mnemonic'],
-    queryFn: async () => {
-      const response = await getMnemonic({
-        seed_phrase_derivation_path: seedDerivationPath,
-      });
-      return response.mnemonic;
+  private hasDifferentBalance(
+    account: SparkAccount,
+    balance: {
+      availableBalance: Money;
+      ownedBalance: Money;
     },
-    staleTime: Number.POSITIVE_INFINITY,
-  });
+  ) {
+    const accountOwned = account.ownedBalance ?? Money.zero(account.currency);
+    const accountAvailable =
+      account.availableBalance ?? Money.zero(account.currency);
 
-export const sparkIdentityPublicKeyQueryOptions = ({
-  queryClient,
-  network,
-}: {
-  queryClient: QueryClient;
-  network: SparkNetwork;
-}) =>
-  queryOptions({
-    queryKey: ['spark-identity-public-key'],
-    queryFn: async () => {
-      const mnemonic = await queryClient.fetchQuery(
-        sparkMnemonicQueryOptions(),
-      );
-      return await getSparkIdentityPublicKeyFromMnemonic(
-        mnemonic,
-        toBreezNetwork(network),
-      );
-    },
-  });
-
-export const sparkWalletQueryOptions = ({
-  network,
-  mnemonic,
-}: { network: SparkNetwork; mnemonic: string }) =>
-  queryOptions({
-    queryKey: ['spark-wallet', computeSHA256(mnemonic), network],
-    queryFn: async () => {
-      const breezNetwork = toBreezNetwork(network);
-      const sdk = await measureOperation(
-        'BreezSdk.connect',
-        () => connectBreezWallet(mnemonic, breezNetwork),
-        { 'spark.network': network },
-      );
-
-      await sdk.updateUserSettings({ sparkPrivateModeEnabled: true });
-
-      return sdk;
-    },
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: Number.POSITIVE_INFINITY,
-  });
-
-export function sparkBalanceQueryKey(accountId: string) {
-  return ['spark-balance', accountId];
-}
-
-/**
- * Event-driven balance tracker for Spark accounts.
- *
- * Registers a Breez SDK event listener on each Spark account wallet.
- * On paymentSucceeded/paymentPending/synced events, fetches fresh balance
- * from getInfo() and updates the accounts cache.
- *
- * Replaces the old 3-second polling approach.
- * Phase C validation confirmed events fire reliably and balance updates
- * immediately on paymentSucceeded events.
- */
-export function useTrackAndUpdateSparkAccountBalances() {
-  const { data: sparkAccounts } = useAccounts({ type: 'spark' });
-  const accountCache = useAccountsCache();
-  const queryClient = useQueryClient();
-  const listenerIdsRef = useRef<Map<string, string>>(new Map());
-
-  useEffectNoStrictMode(() => {
-    const registrations: Array<{
-      accountId: string;
-      sdk: BreezSdk;
-      listenerId: string;
-    }> = [];
-
-    const registerListeners = async () => {
-      for (const account of sparkAccounts) {
-        if (!account.isOnline) continue;
-
-        // Skip if already registered
-        if (listenerIdsRef.current.has(account.id)) continue;
-
-        const sdk = account.wallet;
-
-        const updateBalance = async (reason: string) => {
-          try {
-            const info = await sdk.getInfo({});
-            const newBalance = new Money({
-              amount: info.balanceSats,
-              currency: account.currency as Currency,
-              unit: getDefaultUnit(account.currency),
-            });
-
-            sparkDebugLog('Event-driven balance update', {
-              accountId: account.id,
-              reason,
-              balanceSats: info.balanceSats,
-              prevOwned: account.ownedBalance?.toString() ?? 'null',
-              newBalance: newBalance.toString(),
-            });
-
-            accountCache.updateSparkAccountIfBalanceOrWalletChanged({
-              ...account,
-              ownedBalance: newBalance,
-              availableBalance: newBalance,
-            });
-          } catch (error) {
-            console.error('Failed to update balance after event', {
-              cause: error,
-              accountId: account.id,
-              reason,
-            });
-          }
-        };
-
-        const listener = createEventListener((entry) => {
-          sparkDebugLog('Breez event', {
-            accountId: account.id,
-            type: entry.eventType,
-          });
-
-          if (
-            entry.eventType === 'paymentSucceeded' ||
-            entry.eventType === 'paymentPending' ||
-            entry.eventType === 'synced'
-          ) {
-            updateBalance(entry.eventType);
-          }
-        });
-
-        try {
-          const listenerId = await sdk.addEventListener(listener);
-          listenerIdsRef.current.set(account.id, listenerId);
-          registrations.push({ accountId: account.id, sdk, listenerId });
-
-          sparkDebugLog('Registered Breez event listener', {
-            accountId: account.id,
-            listenerId,
-          });
-
-          // Fetch initial balance
-          await updateBalance('initial');
-        } catch (error) {
-          console.error('Failed to register Breez event listener', {
-            cause: error,
-            accountId: account.id,
-          });
-        }
-      }
-    };
-
-    registerListeners();
-
-    return () => {
-      for (const { accountId, sdk, listenerId } of registrations) {
-        sdk.removeEventListener(listenerId).catch((error) => {
-          console.error('Failed to remove Breez event listener', {
-            cause: error,
-            accountId,
-          });
-        });
-        listenerIdsRef.current.delete(accountId);
-      }
-    };
-  }, [sparkAccounts]);
-}
-
-/**
- * Initializes a Spark wallet with offline handling.
- * If Breez SDK is unreachable or times out, returns a stub wallet.
- */
-export async function getInitializedSparkWallet(
-  queryClient: QueryClient,
-  mnemonic: string,
-  network: SparkNetwork,
-): Promise<{
-  wallet: BreezSdk;
-  ownedBalance: Money | null;
-  availableBalance: Money | null;
-  isOnline: boolean;
-}> {
-  return measureOperation(
-    'getInitializedSparkWallet',
-    async () => {
-      try {
-        const sdk = await queryClient.fetchQuery(
-          sparkWalletQueryOptions({ network, mnemonic }),
-        );
-        const info = await measureOperation('BreezSdk.getInfo', () =>
-          sdk.getInfo({}),
-        );
-
-        const balance = moneyFromSats(info.balanceSats);
-        return {
-          wallet: sdk,
-          ownedBalance: balance as Money,
-          availableBalance: balance as Money,
-          isOnline: true,
-        };
-      } catch (error) {
-        console.error('Failed to initialize Breez wallet', { cause: error });
-        return {
-          wallet: createSparkWalletStub(
-            'Spark is offline, please try again later.',
-          ),
-          ownedBalance: null,
-          availableBalance: null,
-          isOnline: false,
-        };
-      }
-    },
-    { sparkNetwork: network },
-  );
-}
+    return (
+      !accountOwned.equals(balance.ownedBalance) ||
+      !accountAvailable.equals(balance.availableBalance)
+    );
+  }
 ```
 
-- [ ] **Step 2: Update `_protected.tsx` if needed**
+Remove the old `updateSparkAccountIfBalanceOrWalletChanged` method and any dead code it referenced (wallet comparison logic).
 
-In `app/routes/_protected.tsx`, find the `sparkIdentityPublicKeyQueryOptions` call and remove the `accountNumber` parameter if present — the Breez signer handles account number internally.
+- [ ] **Step 2: Rewrite `app/features/shared/spark.ts`**
 
-The call should look like:
+Replace the entire file. Key points:
+- `sparkWalletQueryOptions`: calls `connectBreezWallet()`, no privacy call
+- `sparkIdentityPublicKeyQueryOptions`: no `accountNumber` param (Breez handles it)
+- `getInitializedSparkWallet`: uses `sdk.getInfo()`, sets `ownedBalance = availableBalance = moneyFromSats(balanceSats)`
+- `useTrackAndUpdateSparkAccountBalances`: registers `addEventListener` per wallet, updates balance on `paymentSucceeded`/`paymentPending`/`synced` events via `sdk.getInfo()`, calls `accountCache.updateSparkAccountBalance()`, no `useQueries`/`refetchInterval`
+
+The event handler:
+
 ```typescript
-sparkIdentityPublicKeyQueryOptions({ queryClient, network: 'MAINNET' }),
+const listener = createEventListener((event) => {
+  sparkDebugLog('Breez event', { accountId: account.id, type: event.type });
+
+  if (event.type === 'paymentSucceeded' || event.type === 'paymentPending' || event.type === 'synced') {
+    sdk.getInfo({}).then((info) => {
+      const balance = moneyFromSats(info.balanceSats);
+      accountCache.updateSparkAccountBalance({
+        accountId: account.id,
+        ownedBalance: balance,
+        availableBalance: balance,
+      });
+    });
+  }
+});
+const listenerId = await sdk.addEventListener(listener);
 ```
 
-(no `accountNumber` parameter)
+Remove entirely:
+- `getLeafDenominations` function (used `SparkProto.TreeNode`)
+- `sparkBalanceQueryKey` (no more polling queries)
+- Zero-balance workaround (`verifiedZeroBalanceAccounts`)
+- All `useQueries` with `refetchInterval: 3000`
+- Import of `SparkProto` type
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add app/features/shared/spark.ts app/routes/_protected.tsx
-git commit -m "feat: Breez wallet init and event-driven balance updates"
+git add app/features/shared/spark.ts app/features/accounts/account-hooks.ts
+git commit -m "feat: event-driven balance tracking with Breez SDK, remove polling"
 ```
 
 ---
 
-### Task 6: Send flow migration
+### Task 5: Send flow migration
 
 **Files:**
 - Modify: `app/features/send/spark-send-quote-service.ts`
 - Modify: `app/features/send/spark-send-quote-hooks.ts`
 
+Key changes:
+- `getLightningSendQuote`: calls `prepareSendPayment`, caches response in `Map<string, PrepareSendPaymentResponse>`
+- `initiateSend`: uses cached prepare response, calls `sendPayment` with `idempotencyKey`. Re-prepares only on cache miss.
+- Error handling: plain `Error` message matching (no `SparkError`, no `findExistingLightningSendRequest`)
+- `useOnSparkSendStateChange`: event-driven via `addEventListener` instead of 1s polling interval
+
 - [ ] **Step 1: Rewrite spark-send-quote-service.ts**
 
-Replace the entire file contents with:
+Key structural changes from old version:
+- Remove all `@buildonspark/spark-sdk` imports
+- Add `private prepareCache = new Map<string, PrepareSendPaymentResponse>()`
+- `getLightningSendQuote`: call `sdk.prepareSendPayment(...)`, extract fee from `response.paymentMethod.lightningFeeSats` (+ `sparkTransferFeeSats`), cache response keyed by `paymentHash`
+- `initiateSend`: look up `prepareCache.get(sendQuote.paymentHash)`, fall back to fresh `prepareSendPayment` on miss. Call `sdk.sendPayment({ prepareResponse, idempotencyKey: sendQuote.id, options: { type: 'bolt11Invoice', preferSpark: false } })`. Use `payment.id` for `sparkSendRequestId` and `sparkTransferId`. Use `moneyFromSats(payment.fees)` for fee.
+- Remove `payLightningInvoice` private method entirely
+- Remove `findExistingLightningSendRequest` private method entirely
+- Error handling: `isInsufficentBalanceError` and `isInvoiceAlreadyPaidError` from `~/lib/spark` (they now match plain Error)
 
-```typescript
-import type { BreezSdk } from '@breeztech/breez-sdk-spark';
-import { parseBolt11Invoice } from '~/lib/bolt11';
-import { getBreezSdk } from '~/lib/breez-spark/types';
-import { Money } from '~/lib/money';
-import { measureOperation } from '~/lib/performance';
-import { isInsufficentBalanceError, isInvoiceAlreadyPaidError, moneyFromSats } from '~/lib/spark';
-import type { SparkAccount } from '../accounts/account';
-import { DomainError } from '../shared/error';
-import type { TransactionPurpose } from '../transactions/transaction-enums';
-import type { SparkSendQuote } from './spark-send-quote';
-import {
-  type SparkSendQuoteRepository,
-  useSparkSendQuoteRepository,
-} from './spark-send-quote-repository';
+Use `account.wallet` directly — it's typed as `BreezSdk`.
 
-export type SparkLightningQuote = {
-  /**
-   * The payment request to pay.
-   */
-  paymentRequest: string;
-  /**
-   * Payment hash of the lightning invoice.
-   */
-  paymentHash: string;
-  /**
-   * The amount requested.
-   */
-  amountRequested: Money;
-  /**
-   * The amount requested in BTC.
-   */
-  amountRequestedInBtc: Money<'BTC'>;
-  /**
-   * The amount that the receiver will receive.
-   */
-  amountToReceive: Money;
-  /**
-   * The estimated fee.
-   */
-  estimatedLightningFee: Money<'BTC'>;
-  /**
-   * The estimated total fee (lightning fee).
-   */
-  estimatedTotalFee: Money;
-  /**
-   * Estimated total amount of the send (amount to receive + estimated lightning fee).
-   */
-  estimatedTotalAmount: Money;
-  /**
-   * Whether the payment request has an amount encoded in the invoice.
-   */
-  paymentRequestIsAmountless: boolean;
-  /**
-   * The expiry date of the lightning invoice.
-   */
-  expiresAt: Date | null;
-};
+- [ ] **Step 2: Rewrite send status tracking in spark-send-quote-hooks.ts — event-driven**
 
-type GetSparkSendQuoteOptions = {
-  account: SparkAccount;
-  paymentRequest: string;
-  amount?: Money<'BTC'>;
-};
+Remove: `import { LightningSendRequestStatus } from '@buildonspark/spark-sdk/types'`
 
-type CreateSendQuoteParams = {
-  userId: string;
-  account: SparkAccount;
-  quote: SparkLightningQuote;
-  purpose?: TransactionPurpose;
-  transferId?: string;
-};
+Replace `useOnSparkSendStateChange` internals. Instead of `setInterval` polling with `getLightningSendRequest`:
 
-type InitiateSendParams = {
-  account: SparkAccount;
-  sendQuote: SparkSendQuote;
-};
+1. For each PENDING quote's account, register an event listener on `account.wallet`
+2. On `paymentSucceeded` event: check if `payment.id === quote.sparkId`. If match, extract `preimage` from `payment.details.htlcDetails.preimage`, call `onCompleted`.
+3. On `paymentFailed` event: check if `payment.id === quote.sparkId`. If match, call `onFailed`.
+4. After registering listener, do initial status check via `sdk.getPayment({ paymentId: quote.sparkId })` to catch events that fired before registration.
+5. Clean up listeners on unmount.
 
-export class SparkSendQuoteService {
-  constructor(private readonly repository: SparkSendQuoteRepository) {}
-
-  /**
-   * Estimates the fee for paying a Lightning invoice using Breez SDK's prepareSendPayment.
-   */
-  async getLightningSendQuote({
-    account,
-    amount,
-    paymentRequest,
-  }: GetSparkSendQuoteOptions): Promise<SparkLightningQuote> {
-    const bolt11ValidationResult = parseBolt11Invoice(paymentRequest);
-    if (!bolt11ValidationResult.valid) {
-      throw new DomainError('Invalid lightning invoice');
-    }
-    const invoice = bolt11ValidationResult.decoded;
-    const expiresAt = invoice.expiryUnixMs
-      ? new Date(invoice.expiryUnixMs)
-      : null;
-
-    if (expiresAt && expiresAt < new Date()) {
-      throw new DomainError('Lightning invoice has expired');
-    }
-
-    let amountRequestedInBtc = new Money({
-      amount: 0,
-      currency: 'BTC',
-    });
-
-    if (invoice.amountMsat) {
-      amountRequestedInBtc = new Money({
-        amount: invoice.amountMsat,
-        currency: 'BTC',
-        unit: 'msat',
-      });
-    } else if (amount) {
-      amountRequestedInBtc = amount;
-    } else {
-      throw new Error('Unknown send amount');
-    }
-
-    const sdk = getBreezSdk(account);
-
-    const prepareResponse = await measureOperation(
-      'BreezSdk.prepareSendPayment',
-      () =>
-        sdk.prepareSendPayment({
-          paymentRequest,
-          amount: invoice.amountMsat
-            ? undefined
-            : BigInt(amountRequestedInBtc.toNumber('sat')),
-        }),
-    );
-
-    let estimatedLightningFeeSats = 0;
-    if (prepareResponse.paymentMethod.type === 'bolt11Invoice') {
-      estimatedLightningFeeSats =
-        prepareResponse.paymentMethod.lightningFeeSats +
-        (prepareResponse.paymentMethod.sparkTransferFeeSats ?? 0);
-    }
-
-    const estimatedLightningFee = new Money({
-      amount: estimatedLightningFeeSats,
-      currency: 'BTC',
-      unit: 'sat',
-    });
-
-    const estimatedTotalAmount = amountRequestedInBtc.add(
-      estimatedLightningFee,
-    ) as Money;
-
-    const ownedBalance = account.ownedBalance ?? Money.zero(account.currency);
-    const availableBalance =
-      account.availableBalance ?? Money.zero(account.currency);
-
-    if (availableBalance.lessThan(estimatedTotalAmount)) {
-      const estimatedTotalFormatted = estimatedTotalAmount.toLocaleString({
-        unit: 'sat',
-      });
-      const hasSufficientOwned =
-        ownedBalance.greaterThanOrEqual(estimatedTotalAmount);
-
-      if (hasSufficientOwned) {
-        const availableFormatted = availableBalance.toLocaleString({
-          unit: 'sat',
-        });
-        throw new DomainError(
-          `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted} but the available balance is ${availableFormatted} because some of your funds are locked in a pending transfer.`,
-        );
-      }
-
-      throw new DomainError(
-        `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted}.`,
-      );
-    }
-
-    return {
-      paymentRequest,
-      paymentHash: invoice.paymentHash,
-      amountRequested: amountRequestedInBtc as Money,
-      amountRequestedInBtc,
-      amountToReceive: amountRequestedInBtc as Money,
-      estimatedLightningFee,
-      estimatedTotalFee: estimatedLightningFee as Money,
-      estimatedTotalAmount,
-      paymentRequestIsAmountless: invoice.amountMsat === undefined,
-      expiresAt,
-    };
-  }
-
-  /**
-   * Creates a send quote in UNPAID state.
-   */
-  async createSendQuote({
-    userId,
-    account,
-    quote,
-    purpose,
-    transferId,
-  }: CreateSendQuoteParams): Promise<SparkSendQuote> {
-    if (quote.expiresAt && quote.expiresAt < new Date()) {
-      throw new DomainError('Lightning invoice has expired');
-    }
-
-    const ownedBalance = account.ownedBalance ?? Money.zero(account.currency);
-    const availableBalance =
-      account.availableBalance ?? Money.zero(account.currency);
-
-    if (availableBalance.lessThan(quote.estimatedTotalAmount)) {
-      const estimatedTotalFormatted = quote.estimatedTotalAmount.toLocaleString(
-        { unit: 'sat' },
-      );
-      const hasSufficientOwned = ownedBalance.greaterThanOrEqual(
-        quote.estimatedTotalAmount,
-      );
-
-      if (hasSufficientOwned) {
-        const availableFormatted = availableBalance.toLocaleString({
-          unit: 'sat',
-        });
-        throw new DomainError(
-          `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted} but the available balance is ${availableFormatted} because some of your funds are locked in a pending transfer.`,
-        );
-      }
-
-      throw new DomainError(
-        `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted}.`,
-      );
-    }
-
-    return this.repository.create({
-      userId,
-      accountId: account.id,
-      amount: quote.amountRequestedInBtc as Money,
-      estimatedFee: quote.estimatedLightningFee as Money,
-      paymentRequest: quote.paymentRequest,
-      paymentHash: quote.paymentHash,
-      paymentRequestIsAmountless: quote.paymentRequestIsAmountless,
-      expiresAt: quote.expiresAt,
-      purpose,
-      transferId,
-    });
-  }
-
-  /**
-   * Initiates the lightning payment for an UNPAID quote using Breez SDK's
-   * two-step flow: prepareSendPayment → sendPayment with idempotencyKey.
-   */
-  async initiateSend({
-    account,
-    sendQuote,
-  }: InitiateSendParams): Promise<SparkSendQuote> {
-    if (sendQuote.state === 'PENDING') {
-      return sendQuote;
-    }
-
-    if (sendQuote.state !== 'UNPAID') {
-      throw new Error(
-        `Cannot initiate send for quote that is not UNPAID. Current state: ${sendQuote.state}`,
-      );
-    }
-
-    const sdk = getBreezSdk(account);
-
-    try {
-      // Fresh prepare — fees may differ slightly from the estimate shown to user
-      const prepareResponse = await measureOperation(
-        'BreezSdk.prepareSendPayment',
-        () =>
-          sdk.prepareSendPayment({
-            paymentRequest: sendQuote.paymentRequest,
-            amount: sendQuote.paymentRequestIsAmountless
-              ? BigInt(sendQuote.amount.toNumber('sat'))
-              : undefined,
-          }),
-      );
-
-      const sendResponse = await measureOperation(
-        'BreezSdk.sendPayment',
-        () =>
-          sdk.sendPayment({
-            prepareResponse,
-            idempotencyKey: sendQuote.id,
-            options: {
-              type: 'bolt11Invoice' as const,
-              preferSpark: false,
-            },
-          }),
-      );
-
-      const payment = sendResponse.payment;
-      const fee = moneyFromSats(payment.fees);
-
-      return this.repository.markAsPending({
-        quote: sendQuote,
-        sparkSendRequestId: payment.id,
-        sparkTransferId: payment.id,
-        fee,
-      });
-    } catch (error) {
-      if (isInsufficentBalanceError(error)) {
-        throw new DomainError(
-          'Insufficient balance. Your balance may have changed since the quote was created.',
-        );
-      }
-
-      if (isInvoiceAlreadyPaidError(error)) {
-        throw new DomainError('Lightning invoice has already been paid.');
-      }
-
-      throw error;
-    }
-  }
-
-  async get(quoteId: string): Promise<SparkSendQuote | null> {
-    return this.repository.get(quoteId);
-  }
-
-  async complete(
-    quote: SparkSendQuote,
-    paymentPreimage: string,
-  ): Promise<SparkSendQuote> {
-    if (quote.state === 'COMPLETED') {
-      return quote;
-    }
-
-    if (quote.state !== 'PENDING') {
-      throw new Error(
-        `Cannot complete quote that is not pending. State: ${quote.state}`,
-      );
-    }
-
-    return this.repository.complete({
-      quote,
-      paymentPreimage,
-    });
-  }
-
-  async fail(quote: SparkSendQuote, reason: string): Promise<SparkSendQuote> {
-    if (quote.state === 'FAILED') {
-      return quote;
-    }
-
-    if (quote.state !== 'PENDING' && quote.state !== 'UNPAID') {
-      throw new Error(
-        `Cannot fail quote that is not unpaid or pending. State: ${quote.state}`,
-      );
-    }
-
-    return this.repository.fail(quote.id, reason);
-  }
-}
-
-export function useSparkSendQuoteService() {
-  const repository = useSparkSendQuoteRepository();
-  return new SparkSendQuoteService(repository);
-}
-```
-
-- [ ] **Step 2: Update spark-send-quote-hooks.ts**
-
-Replace the import at the top:
-```typescript
-import { LightningSendRequestStatus } from '@buildonspark/spark-sdk/types';
-```
-With: (remove it entirely — no replacement needed)
-
-In the `checkQuoteStatus` function inside `useOnSparkSendStateChange`, replace the `getLightningSendRequest` polling block. Find this code (approximately lines 186-232):
-
-```typescript
-      const sendRequest = await measureOperation(
-        'SparkWallet.getLightningSendRequest',
-        () => account.wallet.getLightningSendRequest(quote.sparkId),
-        { sendRequestId: quote.sparkId },
-      );
-
-      if (!sendRequest) {
-        return;
-      }
-
-      if (
-        sendRequest.status === LightningSendRequestStatus.TRANSFER_COMPLETED &&
-        lastTriggeredStateRef.current.get(quoteId) !== 'COMPLETED'
-      ) {
-        if (!sendRequest.paymentPreimage) {
-          throw new Error(
-            'Payment preimage is required when send request has TRANSFER_COMPLETED status.',
-          );
-        }
-
-        lastTriggeredStateRef.current.set(quoteId, 'COMPLETED');
-
-        sparkDebugLog('Send payment detected as completed', {
-          quoteId: quote.id,
-          accountId: quote.accountId,
-        });
-        onCompletedRef.current(quote, {
-          paymentPreimage: sendRequest.paymentPreimage,
-        });
-        return;
-      }
-
-      if (
-        sendRequest.status === LightningSendRequestStatus.USER_SWAP_RETURNED &&
-        lastTriggeredStateRef.current.get(quoteId) !== 'FAILED'
-      ) {
-        lastTriggeredStateRef.current.set(quoteId, 'FAILED');
-
-        const now = new Date();
-        const message =
-          quote.expiresAt && new Date(quote.expiresAt) < now
-            ? 'Lightning invoice expired.'
-            : 'Lightning payment failed.';
-
-        onFailedRef.current(quote, message);
-      }
-```
-
-Replace with:
-
-```typescript
-      const sdk = account.wallet;
-      const { payment } = await measureOperation(
-        'BreezSdk.getPayment',
-        () => sdk.getPayment({ paymentId: quote.sparkId }),
-        { paymentId: quote.sparkId },
-      );
-
-      if (!payment) {
-        return;
-      }
-
-      if (
-        payment.status === 'completed' &&
-        lastTriggeredStateRef.current.get(quoteId) !== 'COMPLETED'
-      ) {
-        const preimage =
-          payment.details?.type === 'lightning'
-            ? payment.details.htlcDetails.preimage
-            : undefined;
-
-        if (!preimage) {
-          throw new Error(
-            'Payment preimage is required when payment status is completed.',
-          );
-        }
-
-        lastTriggeredStateRef.current.set(quoteId, 'COMPLETED');
-
-        sparkDebugLog('Send payment detected as completed', {
-          quoteId: quote.id,
-          accountId: quote.accountId,
-        });
-        onCompletedRef.current(quote, {
-          paymentPreimage: preimage,
-        });
-        return;
-      }
-
-      if (
-        payment.status === 'failed' &&
-        lastTriggeredStateRef.current.get(quoteId) !== 'FAILED'
-      ) {
-        lastTriggeredStateRef.current.set(quoteId, 'FAILED');
-
-        const now = new Date();
-        const message =
-          quote.expiresAt && new Date(quote.expiresAt) < now
-            ? 'Lightning invoice expired.'
-            : 'Lightning payment failed.';
-
-        onFailedRef.current(quote, message);
-      }
-```
-
-Also add the import for `getBreezSdk` if `account.wallet` needs it. Since `Account.wallet` is now typed as `BreezSdk`, direct access works — no cast needed.
+For UNPAID quotes: keep the existing `onUnpaid` callback logic (no change needed — it triggers `initiateSend`).
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add app/features/send/spark-send-quote-service.ts app/features/send/spark-send-quote-hooks.ts
-git commit -m "feat: migrate send flow to Breez SDK (prepareSendPayment + sendPayment)"
+git commit -m "feat: migrate send flow to Breez SDK (event-driven, cached prepare)"
 ```
 
 ---
 
-### Task 7: Receive flow migration
+### Task 6: Receive flow migration
 
 **Files:**
 - Modify: `app/features/receive/spark-receive-quote-core.ts`
-- Modify: `app/features/receive/spark-receive-quote-hooks.ts`
 - Modify: `app/features/receive/spark-receive-quote-service.ts`
+- Modify: `app/features/receive/spark-receive-quote-hooks.ts`
 - Modify: `app/features/receive/claim-cashu-token-service.ts`
+
+Key changes:
+- `getLightningQuote`: calls `sdk.receivePayment(...)`, parses bolt11 for paymentHash/expiry
+- `SparkReceiveLightningQuote` simplified: `invoice.amount` is `Money<'BTC'>` (not `CurrencyAmount`), no `network`/`status`/`typename` fields
+- Status tracking: event-driven via `addEventListener` (no `getLightningReceiveRequest` polling)
 
 - [ ] **Step 1: Rewrite spark-receive-quote-core.ts**
 
-Replace the entire file contents with:
-
-```typescript
-import type { BreezSdk } from '@breeztech/breez-sdk-spark';
-import type { Proof } from '@cashu/cashu-ts';
-import { parseBolt11Invoice } from '~/lib/bolt11';
-import { Money } from '~/lib/money';
-import { measureOperation } from '~/lib/performance';
-import type { SparkAccount } from '../accounts/account';
-import type { TransactionPurpose } from '../transactions/transaction-enums';
-
-export type SparkReceiveLightningQuote = {
-  /**
-   * Tracking ID for this receive. Stores the payment hash from the bolt11 invoice.
-   * Used to match against Breez SDK payments for status checking.
-   */
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-  invoice: {
-    encodedInvoice: string;
-    paymentHash: string;
-    amount: Money<'BTC'>;
-    createdAt: string;
-    expiresAt: string;
-    memo?: string;
-  };
-  /** Fee charged by Breez for creating the invoice (usually 0 for receives). */
-  fee: Money<'BTC'>;
-  /** Only populated when creating invoices on behalf of another user (Lightning Address). */
-  receiverIdentityPublicKey?: string;
-};
-
-export type GetLightningQuoteParams = {
-  /**
-   * The Breez SDK instance to create the invoice with.
-   */
-  wallet: BreezSdk;
-  /**
-   * The amount to receive.
-   */
-  amount: Money;
-  /**
-   * Description to include in the Lightning invoice memo.
-   */
-  description?: string;
-};
-
-export type CreateQuoteBaseParams = {
-  userId: string;
-  account: SparkAccount;
-  lightningQuote: SparkReceiveLightningQuote;
-  purpose?: TransactionPurpose;
-  transferId?: string;
-} & (
-  | {
-      receiveType: 'LIGHTNING';
-    }
-  | {
-      receiveType: 'CASHU_TOKEN';
-      tokenAmount: Money;
-      sourceMintUrl: string;
-      tokenProofs: Proof[];
-      meltQuoteId: string;
-      meltQuoteExpiresAt: string;
-      cashuReceiveFee: Money;
-      lightningFeeReserve: Money;
-    }
-);
-
-export type RepositoryCreateQuoteParams = {
-  userId: string;
-  accountId: string;
-  amount: Money;
-  paymentRequest: string;
-  paymentHash: string;
-  expiresAt: string;
-  description?: string;
-  sparkId: string;
-  receiverIdentityPubkey?: string;
-  totalFee: Money;
-  purpose?: TransactionPurpose;
-  transferId?: string;
-} & (
-  | {
-      receiveType: 'LIGHTNING';
-    }
-  | {
-      receiveType: 'CASHU_TOKEN';
-      meltData: {
-        tokenMintUrl: string;
-        meltQuoteId: string;
-        tokenAmount: Money;
-        tokenProofs: Proof[];
-        cashuReceiveFee: Money;
-        lightningFeeReserve: Money;
-      };
-    }
-);
-
-/**
- * Creates a Lightning invoice via Breez SDK and returns a quote.
- * Parses the bolt11 invoice to extract payment hash, expiry, and amount.
- */
-export async function getLightningQuote({
-  wallet,
-  amount,
-  description,
-}: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
-  const response = await measureOperation(
-    'BreezSdk.receivePayment',
-    () =>
-      wallet.receivePayment({
-        paymentMethod: {
-          type: 'bolt11Invoice' as const,
-          description: description ?? '',
-          amountSats: amount.toNumber('sat'),
-        },
-      }),
-  );
-
-  const bolt11Result = parseBolt11Invoice(response.paymentRequest);
-  if (!bolt11Result.valid) {
-    throw new Error('Breez SDK returned an invalid bolt11 invoice');
-  }
-  const decoded = bolt11Result.decoded;
-
-  const now = new Date().toISOString();
-  const invoiceAmount = new Money({
-    amount: decoded.amountMsat ?? amount.toNumber('msat'),
-    currency: 'BTC',
-    unit: 'msat',
-  });
-
-  const expiresAt = decoded.expiryUnixMs
-    ? new Date(decoded.expiryUnixMs).toISOString()
-    : new Date(Date.now() + 3600_000).toISOString(); // Default 1 hour
-
-  return {
-    id: decoded.paymentHash,
-    createdAt: now,
-    updatedAt: now,
-    invoice: {
-      encodedInvoice: response.paymentRequest,
-      paymentHash: decoded.paymentHash,
-      amount: invoiceAmount,
-      createdAt: now,
-      expiresAt,
-      memo: decoded.description ?? description,
-    },
-    fee: new Money({ amount: Number(response.fee), currency: 'BTC', unit: 'sat' }),
-    receiverIdentityPublicKey: undefined,
-  };
-}
-
-/**
- * Computes the expiry date for a quote.
- */
-export function computeQuoteExpiry(params: CreateQuoteBaseParams): string {
-  if (params.receiveType === 'LIGHTNING') {
-    return params.lightningQuote.invoice.expiresAt;
-  }
-
-  return new Date(
-    Math.min(
-      new Date(params.lightningQuote.invoice.expiresAt).getTime(),
-      new Date(params.meltQuoteExpiresAt).getTime(),
-    ),
-  ).toISOString();
-}
-
-/**
- * Gets the amount and total fee for a receive quote.
- */
-export function getAmountAndFee(params: CreateQuoteBaseParams): {
-  amount: Money;
-  totalFee: Money;
-} {
-  const amount = params.lightningQuote.invoice.amount;
-
-  if (params.receiveType === 'LIGHTNING') {
-    return { amount, totalFee: params.lightningQuote.fee as Money };
-  }
-
-  return {
-    amount,
-    totalFee: params.cashuReceiveFee.add(params.lightningFeeReserve),
-  };
-}
-```
+Remove all `@buildonspark/spark-sdk` imports. Key changes:
+- `GetLightningQuoteParams.wallet` typed as `BreezSdk` (no `receiverIdentityPubkey` param — only used by Lightning Address which is disabled)
+- `getLightningQuote`: calls `wallet.receivePayment({ paymentMethod: { type: 'bolt11Invoice', description, amountSats } })`. Parse response `paymentRequest` with `parseBolt11Invoice` to get `paymentHash`, `expiresAt`, `amountMsat`. Build `SparkReceiveLightningQuote` from parsed data.
+- `SparkReceiveLightningQuote.id` = `paymentHash` (tracking key)
+- `SparkReceiveLightningQuote.invoice.amount` = `Money<'BTC'>` (from parsed msat)
+- `SparkReceiveLightningQuote.fee` = `Money<'BTC'>` from `response.fee`
+- `getAmountAndFee`: use `params.lightningQuote.invoice.amount` directly (no `moneyFromSparkAmount`)
 
 - [ ] **Step 2: Update spark-receive-quote-service.ts**
 
-In `app/features/receive/spark-receive-quote-service.ts`, update `createReceiveQuote` to use the simplified quote type. Replace the `baseParams` construction:
+Minimal changes — adapt to simplified quote type. The `createReceiveQuote` method extracts fields from `lightningQuote` the same way. Verify types align with the new `SparkReceiveLightningQuote`.
 
-```typescript
-    const baseParams = {
-      userId,
-      accountId: account.id,
-      amount,
-      paymentRequest: lightningQuote.invoice.encodedInvoice,
-      paymentHash: lightningQuote.invoice.paymentHash,
-      description: lightningQuote.invoice.memo,
-      expiresAt,
-      sparkId: lightningQuote.id,
-      receiverIdentityPubkey: lightningQuote.receiverIdentityPublicKey,
-      totalFee,
-      purpose,
-      transferId,
-    };
-```
+- [ ] **Step 3: Rewrite receive status tracking in spark-receive-quote-hooks.ts — event-driven**
 
-This should still work since `lightningQuote.id` is now the payment hash and the field names match. Verify the types align.
+Remove: `import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types'`
 
-- [ ] **Step 3: Update receive status polling in spark-receive-quote-hooks.ts**
+Replace `useOnSparkReceiveStateChange` internals. Instead of interval-based polling with `getLightningReceiveRequest`:
 
-Replace the import:
-```typescript
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
-```
-With: (remove it entirely)
+1. For each pending quote's account, register an event listener on `account.wallet`
+2. On `paymentSucceeded` event with `payment.details?.type === 'lightning'`: match by `payment.details.htlcDetails.paymentHash === quote.paymentHash`. If match, extract `preimage`, call `onCompleted` with `sparkTransferId: payment.id`.
+3. After registering listener, do initial status check via `sdk.listPayments({ typeFilter: ['receive'], limit: 20, sortAscending: false })` and match by `details.invoice === quote.paymentRequest`.
+4. For expiry: check `quote.expiresAt` on each `synced` event or use a simple timeout.
+5. Clean up listeners on unmount.
 
-In the `checkQuoteStatus` function inside `useOnSparkReceiveStateChange`, replace the `getLightningReceiveRequest` polling block. Find this code:
+Remove `receiverIdentityPubkey` from `useCreateSparkReceiveQuote`'s `CreateProps` type and `getLightningQuote` call.
 
-```typescript
-      const receiveRequest = await measureOperation(
-        'SparkWallet.getLightningReceiveRequest',
-        () => account.wallet.getLightningReceiveRequest(quote.sparkId),
-        { receiveRequestId: quote.sparkId },
-      );
+- [ ] **Step 4: Update claim-cashu-token-service.ts — event-driven**
 
-      if (!receiveRequest) {
-        return;
-      }
+Remove: `import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types'`
 
-      if (
-        receiveRequest.status ===
-        LightningReceiveRequestStatus.TRANSFER_COMPLETED
-      ) {
-        if (!receiveRequest.paymentPreimage) {
-          throw new Error(
-            'Payment preimage is required when receive request has TRANSFER_COMPLETED status.',
-          );
-        }
-        if (!receiveRequest.transfer?.sparkId) {
-          throw new Error(
-            'Spark transfer ID is required when receive request has TRANSFER_COMPLETED status.',
-          );
-        }
-        sparkDebugLog('Receive payment detected as completed', {
-          quoteId: quote.id,
-          accountId: quote.accountId,
-          sparkTransferId: receiveRequest.transfer.sparkId,
-        });
-        onCompletedRef.current(quote.id, {
-          sparkTransferId: receiveRequest.transfer.sparkId,
-          paymentPreimage: receiveRequest.paymentPreimage,
-        });
-        return;
-      }
-
-      const expiresAt = new Date(receiveRequest.invoice.expiresAt);
-      const now = new Date();
-
-      if (now > expiresAt) {
-        onExpiredRef.current(quote.id);
-      }
-```
-
-Replace with:
-
-```typescript
-      const sdk = account.wallet;
-      const { payments } = await measureOperation(
-        'BreezSdk.listPayments',
-        () =>
-          sdk.listPayments({
-            typeFilter: ['receive'],
-            paymentDetailsFilter: [{ type: 'lightning' }],
-            limit: 20,
-            sortAscending: false,
-          }),
-        { paymentHash: quote.paymentHash },
-      );
-
-      const payment = payments.find(
-        (p) =>
-          p.details?.type === 'lightning' &&
-          p.details.invoice === quote.paymentRequest,
-      );
-
-      if (!payment) {
-        // Check if invoice has expired
-        const expiresAt = new Date(quote.expiresAt);
-        if (new Date() > expiresAt) {
-          onExpiredRef.current(quote.id);
-        }
-        return;
-      }
-
-      if (payment.status === 'completed') {
-        const preimage =
-          payment.details?.type === 'lightning'
-            ? payment.details.htlcDetails.preimage
-            : undefined;
-        if (!preimage) {
-          throw new Error(
-            'Payment preimage is required when payment status is completed.',
-          );
-        }
-
-        sparkDebugLog('Receive payment detected as completed', {
-          quoteId: quote.id,
-          accountId: quote.accountId,
-          breezPaymentId: payment.id,
-        });
-        onCompletedRef.current(quote.id, {
-          sparkTransferId: payment.id,
-          paymentPreimage: preimage,
-        });
-        return;
-      }
-
-      // Check expiry for pending payments
-      const expiresAt = new Date(quote.expiresAt);
-      if (new Date() > expiresAt) {
-        onExpiredRef.current(quote.id);
-      }
-```
-
-Also add the `receiverIdentityPubkey` parameter removal from `useCreateSparkReceiveQuote`'s `CreateProps` type and the `getLightningQuote` call — remove the `receiverIdentityPubkey` parameter since the Breez `getLightningQuote` no longer accepts it.
-
-Find:
-```typescript
-      const lightningQuote = await getLightningQuote({
-        wallet: account.wallet,
-        amount,
-        receiverIdentityPubkey,
-        description,
-      });
-```
-Replace with:
-```typescript
-      const lightningQuote = await getLightningQuote({
-        wallet: account.wallet,
-        amount,
-        description,
-      });
-```
-
-Remove the `receiverIdentityPubkey` field from the `CreateProps` type definition too.
-
-- [ ] **Step 4: Update claim-cashu-token-service.ts**
-
-Replace the import:
-```typescript
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
-```
-With: (remove it entirely)
-
-In the `waitForSparkReceiveToComplete` method, replace the `getLightningReceiveRequest` polling with `listPayments` matching. Find:
-
-```typescript
-      const checkReceiveRequest = async () => {
-        try {
-          const receiveRequest = await measureOperation(
-            'SparkWallet.getLightningReceiveRequest',
-            () => wallet.getLightningReceiveRequest(quote.sparkId),
-            { receiveRequestId: quote.sparkId },
-          );
-
-          if (
-            receiveRequest?.status ===
-            LightningReceiveRequestStatus.TRANSFER_COMPLETED
-          ) {
-            clearTimeout(timeoutId);
-            if (intervalId) clearInterval(intervalId);
-
-            if (!receiveRequest.paymentPreimage) {
-              reject(
-                new Error(
-                  'Payment preimage is required when receive request has TRANSFER_COMPLETED status.',
-                ),
-              );
-              return;
-            }
-            if (!receiveRequest.transfer?.sparkId) {
-              reject(
-                new Error(
-                  'Spark transfer ID is required when receive request has TRANSFER_COMPLETED status.',
-                ),
-              );
-              return;
-            }
-
-            resolve({
-              sparkTransferId: receiveRequest.transfer.sparkId,
-              paymentPreimage: receiveRequest.paymentPreimage,
-            });
-          }
-```
-
-Replace with:
-
-```typescript
-      const checkReceiveRequest = async () => {
-        try {
-          const { payments } = await measureOperation(
-            'BreezSdk.listPayments',
-            () =>
-              wallet.listPayments({
-                typeFilter: ['receive'],
-                paymentDetailsFilter: [{ type: 'lightning' }],
-                limit: 10,
-                sortAscending: false,
-              }),
-            { paymentRequest: quote.paymentRequest },
-          );
-
-          const payment = payments.find(
-            (p) =>
-              p.details?.type === 'lightning' &&
-              p.details.invoice === quote.paymentRequest,
-          );
-
-          if (payment?.status === 'completed') {
-            clearTimeout(timeoutId);
-            if (intervalId) clearInterval(intervalId);
-
-            const preimage =
-              payment.details?.type === 'lightning'
-                ? payment.details.htlcDetails.preimage
-                : undefined;
-
-            if (!preimage) {
-              reject(
-                new Error(
-                  'Payment preimage is required when payment status is completed.',
-                ),
-              );
-              return;
-            }
-
-            resolve({
-              sparkTransferId: payment.id,
-              paymentPreimage: preimage,
-            });
-          }
-```
-
-Note: the `wallet` variable in this method is `account.wallet` which is now typed as `BreezSdk`. The `listPayments` method is available on `BreezSdk`.
+In `waitForSparkReceiveToComplete`, replace polling with event listener. Same pattern:
+1. Register listener on wallet
+2. On `paymentSucceeded` → match by `paymentHash` or `paymentRequest` → resolve
+3. Initial check via `listPayments` matching
+4. Keep the timeout for error handling
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/features/receive/spark-receive-quote-core.ts app/features/receive/spark-receive-quote-hooks.ts app/features/receive/spark-receive-quote-service.ts app/features/receive/claim-cashu-token-service.ts
-git commit -m "feat: migrate receive flow to Breez SDK (receivePayment + listPayments)"
+git add app/features/receive/spark-receive-quote-core.ts app/features/receive/spark-receive-quote-service.ts app/features/receive/spark-receive-quote-hooks.ts app/features/receive/claim-cashu-token-service.ts
+git commit -m "feat: migrate receive flow to Breez SDK (event-driven)"
 ```
 
 ---
 
-### Task 8: Disable Lightning Address spark path and remove old SDK
+### Task 7: Disable Lightning Address spark path and remove old SDK
 
 **Files:**
 - Modify: `app/features/receive/spark-receive-quote-service.server.ts`
@@ -1799,116 +611,22 @@ git commit -m "feat: migrate receive flow to Breez SDK (receivePayment + listPay
 - Modify: `package.json`
 - Delete: `patches/@buildonspark%2Fspark-sdk@0.7.4.patch`
 
-Breez SDK does not yet expose `receiverIdentityPubkey` for delegated invoices. Rather than keeping the old SDK around, we throw a "not implemented" error in the Lightning Address spark path and remove `@buildonspark/spark-sdk` entirely. The cashu path in Lightning Address is unaffected.
-
 - [ ] **Step 1: Update spark-receive-quote-service.server.ts**
 
-Remove all old SDK imports. Replace the entire file with:
+Remove all `@buildonspark/spark-sdk` imports. The server service delegates to core `getLightningQuote` (which uses Breez). Since `getLightningQuote` no longer accepts `receiverIdentityPubkey`, Lightning Address spark path must not call it.
 
-```typescript
-import { Money } from '~/lib/money';
-import {
-  type CreateQuoteBaseParams,
-  type GetLightningQuoteParams,
-  type SparkReceiveLightningQuote,
-  computeQuoteExpiry,
-  getLightningQuote,
-} from './spark-receive-quote-core';
-import type {
-  SparkReceiveQuoteCreated,
-  SparkReceiveQuoteRepositoryServer,
-} from './spark-receive-quote-repository.server';
-
-// Re-export shared types for convenience
-export type { SparkReceiveLightningQuote, GetLightningQuoteParams };
-
-type CreateQuoteParams = CreateQuoteBaseParams & {
-  userEncryptionPublicKey: string;
-};
-
-/**
- * Server-side service for creating spark receive quotes.
- */
-export class SparkReceiveQuoteServiceServer {
-  constructor(private readonly repository: SparkReceiveQuoteRepositoryServer) {}
-
-  /**
-   * Gets a Spark lightning receive quote for the given amount.
-   *
-   * NOTE: This uses the Breez SDK which does NOT support receiverIdentityPubkey.
-   * Lightning Address spark path must not call this until Breez adds that param.
-   */
-  async getLightningQuote(
-    params: GetLightningQuoteParams,
-  ): Promise<SparkReceiveLightningQuote> {
-    return getLightningQuote(params);
-  }
-
-  async createReceiveQuote(
-    params: CreateQuoteParams,
-  ): Promise<SparkReceiveQuoteCreated> {
-    const { userEncryptionPublicKey, userId, account, lightningQuote } = params;
-    const expiresAt = computeQuoteExpiry(params);
-    const amount = lightningQuote.invoice.amount;
-    const totalFee = lightningQuote.fee as Money;
-
-    const baseParams = {
-      userId,
-      accountId: account.id,
-      amount,
-      paymentRequest: lightningQuote.invoice.encodedInvoice,
-      paymentHash: lightningQuote.invoice.paymentHash,
-      description: lightningQuote.invoice.memo,
-      expiresAt,
-      sparkId: lightningQuote.id,
-      receiverIdentityPubkey: lightningQuote.receiverIdentityPublicKey,
-      totalFee,
-    };
-
-    if (params.receiveType === 'CASHU_TOKEN') {
-      return this.repository.create({
-        ...baseParams,
-        userEncryptionPublicKey,
-        receiveType: 'CASHU_TOKEN',
-        meltData: {
-          tokenMintUrl: params.sourceMintUrl,
-          tokenAmount: params.tokenAmount,
-          tokenProofs: params.tokenProofs,
-          meltQuoteId: params.meltQuoteId,
-          cashuReceiveFee: params.cashuReceiveFee,
-          lightningFeeReserve: params.lightningFeeReserve,
-        },
-      });
-    }
-
-    return this.repository.create({
-      ...baseParams,
-      userEncryptionPublicKey,
-      receiveType: 'LIGHTNING',
-    });
-  }
-}
-```
+Keep the `createReceiveQuote` method working (it only uses the quote type, not the SDK directly). Update types to match simplified `SparkReceiveLightningQuote`.
 
 - [ ] **Step 2: Update lightning-address-service.ts — spark path throws not-implemented**
 
-Remove ALL imports from `@buildonspark/spark-sdk`:
-```typescript
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
-```
+Remove ALL `@buildonspark/spark-sdk` imports. Remove `sparkWalletQueryOptions` import.
 
-Remove the import of `sparkWalletQueryOptions` from `../shared/spark`:
-```typescript
-import { sparkWalletQueryOptions } from '../shared/spark';
-```
-
-In `handleLnurlpCallback`, replace the entire spark account branch (the `else` after the cashu `if` block). Find the section starting after `if (account.type === 'cashu') { ... }` — the spark path that creates a `SparkReceiveQuoteServiceServer` and calls `getLightningQuote` with `receiverIdentityPubkey`. Replace it with:
+In `handleLnurlpCallback`, replace the spark account branch with:
 
 ```typescript
-      // TODO: Spark Lightning Address requires creating invoices with receiverIdentityPubkey,
-      // which the Breez SDK does not yet expose in its JS API.
-      // To unblock: fork @breeztech/breez-sdk-spark and expose the receiverIdentityPubkey
-      // parameter on the bolt11Invoice receive payment method.
+      // TODO: Spark Lightning Address requires receiverIdentityPubkey for delegated invoices.
+      // Breez SDK does not expose this param yet.
+      // To unblock: fork @breeztech/breez-sdk-spark and add receiverIdentityPubkey to bolt11Invoice receive.
       // See: docs/superpowers/specs/2026-04-04-breez-spark-sdk-migration-design.md (A6)
       throw new Error(
         'Spark Lightning Address is not yet supported with the Breez SDK. ' +
@@ -1916,50 +634,24 @@ In `handleLnurlpCallback`, replace the entire spark account branch (the `else` a
       );
 ```
 
-In `handleSparkLnurlpVerify`, replace the entire `handleSparkLnurlpVerify` private method with:
+Replace `handleSparkLnurlpVerify` with:
 
 ```typescript
   private async handleSparkLnurlpVerify(
     _receiveRequestId: string,
   ): Promise<LNURLVerifyResult> {
     // TODO: Implement with Breez SDK once receiverIdentityPubkey is supported.
-    // Until then, no spark Lightning Address invoices can be created, so this
-    // path should never be reached for new invoices. Existing invoices created
-    // before this migration will return an error.
     return {
       status: 'ERROR',
-      reason:
-        'Spark Lightning Address verification is not yet supported with the Breez SDK.',
+      reason: 'Spark Lightning Address verification is not yet supported with the Breez SDK.',
     };
   }
 ```
 
-Remove the `LNURLVerifyResult` import's dependency on `LightningReceiveRequestStatus` — it's no longer needed. Make sure `LNURLVerifyResult` is still imported from `~/lib/lnurl/types`.
+- [ ] **Step 3: Update ReadUserDefaultAccountRepository — stub wallet for server**
 
-- [ ] **Step 3: Update ReadUserDefaultAccountRepository**
+In `app/features/user/user-repository.ts`, replace the spark branch in `toAccount`:
 
-In `app/features/user/user-repository.ts`, the `ReadUserDefaultAccountRepository.toAccount()` is only used by Lightning Address. Since the spark path now throws before touching `account.wallet`, return a stub:
-
-Find the spark account branch in `toAccount`:
-```typescript
-    if (isSparkAccount(data)) {
-      const { network } = data.details;
-      const { wallet, ownedBalance, availableBalance, isOnline } =
-        await this.getInitializedSparkWallet(network);
-
-      return {
-        ...commonData,
-        type: 'spark',
-        ownedBalance,
-        availableBalance,
-        network,
-        isOnline,
-        wallet,
-      };
-    }
-```
-
-Replace with:
 ```typescript
     if (isSparkAccount(data)) {
       const { network } = data.details;
@@ -1978,7 +670,7 @@ Replace with:
     }
 ```
 
-Remove the now-unused `getInitializedSparkWallet` private method and clean up unused imports from `../shared/spark`.
+Remove the unused `getInitializedSparkWallet` private method and clean up unused imports.
 
 - [ ] **Step 4: Remove old SDK entirely**
 
@@ -1987,12 +679,7 @@ rm "patches/@buildonspark%2Fspark-sdk@0.7.4.patch"
 bun remove @buildonspark/spark-sdk
 ```
 
-In `package.json`, also remove the `patchedDependencies` section if it exists:
-```json
-  "patchedDependencies": {
-    "@buildonspark/spark-sdk@0.7.4": "patches/@buildonspark%2Fspark-sdk@0.7.4.patch"
-  }
-```
+Remove `patchedDependencies` section from `package.json` if present.
 
 - [ ] **Step 5: Commit**
 
@@ -2003,7 +690,7 @@ git commit -m "feat: disable Lightning Address spark path, remove @buildonspark/
 
 ---
 
-### Task 9: Final verification
+### Task 8: Final verification and dead code cleanup
 
 - [ ] **Step 1: Run full type/lint check**
 
@@ -2011,29 +698,40 @@ git commit -m "feat: disable Lightning Address spark path, remove @buildonspark/
 bun run fix:all
 ```
 
-Expected: All checks pass.
-
-Fix any remaining type errors. Common issues:
-- Files importing `moneyFromSparkAmount` → change to `moneyFromSats` or remove
+Fix any remaining errors. Common issues:
+- Files importing `moneyFromSparkAmount` → change to `moneyFromSats`
 - Files importing any type from `@buildonspark/spark-sdk` → find Breez equivalent or remove
 - Files referencing `SparkWalletEvent` → remove
+- Unused imports from removed workarounds
 
-- [ ] **Step 2: Verify zero old SDK imports remain**
+- [ ] **Step 2: Verify zero old SDK imports**
 
 ```bash
 rg "@buildonspark/spark-sdk" app/ --files-with-matches
 ```
 
-Expected: **No results.** The old SDK is fully removed.
+Expected: **No results.**
 
-- [ ] **Step 3: Commit any fixups**
+- [ ] **Step 3: Clean up dead code**
+
+Search for and remove:
+- `sparkBalanceQueryKey` if still exported (polling is gone)
+- `getLeafDenominations` function
+- `verifiedZeroBalanceAccounts` ref
+- `findExistingLightningSendRequest` method
+- Any `SparkProto` imports
+- Any `SparkWalletEvent` references
+- Old `updateSparkAccountIfBalanceOrWalletChanged` if not yet removed
+- Unused `moneyFromSparkAmount` references
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add -A
-git commit -m "chore: fix remaining type errors after old SDK removal"
+git commit -m "chore: remove dead code and fix remaining type errors"
 ```
 
-- [ ] **Step 4: Smoke test**
+- [ ] **Step 5: Smoke test**
 
 ```bash
 bun run dev
@@ -2043,7 +741,7 @@ Check:
 - App loads without errors
 - Wallet initializes (check console for `[Breez]` logs)
 - Balance shows correctly
-- WASM init completes
+- WASM init completes in `_protected` clientLoader
 
 ---
 
@@ -2054,11 +752,20 @@ Lightning Address spark path is disabled. To re-enable:
 1. **Fork `@breeztech/breez-sdk-spark`** and expose `receiverIdentityPubkey` parameter on the `bolt11Invoice` receive payment method
 2. Update `spark-receive-quote-core.ts` `getLightningQuote` to accept optional `receiverIdentityPubkey`
 3. Update `lightning-address-service.ts` spark path to call `getLightningQuote` with the pubkey
-4. Implement `handleSparkLnurlpVerify` using Breez's `listPayments` matching
+4. Implement `handleSparkLnurlpVerify` using event-driven or `listPayments` matching
 5. Run `/lnurl-test` to validate
+
+## Follow-up: Prepare response persistence
+
+Currently the `PrepareSendPaymentResponse` is cached in-memory in the service. If the app restarts with a dangling UNPAID quote, the prepare response is lost and we re-prepare. To eliminate this:
+
+1. Store the fields needed to reconstruct `PrepareSendPaymentResponse` in the DB alongside the send quote
+2. Reconstruct the response from stored fields in `initiateSend` instead of re-preparing
+3. This avoids any extra API call and makes the flow fully deterministic
 
 ## Risk Notes
 
-- **`defaultExternalSigner().identityPublicKey()` return type** — The `PublicKeyBytes` type is opaque from WASM. The `bytesToHex(new Uint8Array(...))` conversion in `utils.ts` should work based on Phase C validation, but verify the output matches the old SDK's result at runtime. If the conversion fails, try `bytesToHex(publicKeyBytes)` directly or `Array.from(publicKeyBytes)`.
-- **`listPayments` for receive matching** — If matching by `details.invoice === paymentRequest` doesn't work (e.g., Breez normalizes the invoice), fall back to matching by `details.htlcDetails.paymentHash === quote.paymentHash`.
-- **Balance: owned vs available** — Breez SDK returns a single `balanceSats`. We set `ownedBalance = availableBalance`. This means the "funds locked in pending transfer" UI warning will never trigger. If this is important, we may need to track pending sends ourselves.
+- **`defaultExternalSigner().identityPublicKey()` return type** — `PublicKeyBytes` is opaque from WASM. The `bytesToHex(new Uint8Array(...))` conversion should work (Phase C validation), but verify at runtime. Fallback: `bytesToHex(publicKeyBytes)` directly.
+- **Event ordering** — Events might fire before listener registration. Mitigated by initial status check after registering each listener.
+- **Single balance** — Breez SDK returns one `balanceSats`. The "funds locked in pending transfer" UI warning will never trigger. Acceptable since Breez handles optimization internally.
+- **`privateEnabledDefault`** — Verify `defaultConfig('mainnet').privateEnabledDefault === true` at runtime. If false, add `sdk.updateUserSettings({ sparkPrivateModeEnabled: true })` after connect.
