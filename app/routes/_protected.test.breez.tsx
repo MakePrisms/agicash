@@ -316,10 +316,22 @@ export default function TestBreezOnly() {
     if (!breezSdk) return;
     setErrorCatalogLoading('send-more');
     try {
-      await breezSdk.prepareSendPayment({
-        paymentRequest:
-          'lnbc1631400n1p5avsj6pp5gkhgj5v9us07dhgdc2lhgqqca6gpy3sjxathr36ear2t2m9ujk8qdqqcqzzsxqrrs0fppqstcjsap8rl6qya4y087rqezf7xelkw2ssp53kar26yu4n4tu0chqguhjdtzv4rllvv6y8ydt8gzg8ecgug23aes9qxpqysgqjhyltg7c2jsutkkdrep2kgvm2czhdk0j4tedphv70n68ee93vu69vxnrhv06t6qs4swvam55p9nrrqke2ruspvgz7d5659lhsfkq8zsqkv8xcy',
+      // Create an invoice for 1M sats — guaranteed to exceed balance
+      const invoice = await breezSdk.receivePayment({
+        paymentMethod: {
+          type: 'bolt11Invoice',
+          description: 'Insufficient balance test',
+          amountSats: 1_000_000,
+        },
       });
+      const result = await breezSdk.prepareSendPayment({
+        paymentRequest: invoice.paymentRequest,
+      });
+      // If we get here, prepare succeeded — log it
+      addErrorEntry(
+        'Send More Than Balance',
+        new Error(`No error — prepare succeeded: fee=${result.fee}`),
+      );
     } catch (e) {
       addErrorEntry('Send More Than Balance', e);
     } finally {
