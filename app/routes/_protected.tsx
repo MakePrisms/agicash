@@ -1,3 +1,4 @@
+import initBreezWasm from '@breeztech/breez-sdk-spark';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { ZodError } from 'zod';
@@ -215,6 +216,7 @@ export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
 
 export async function clientLoader() {
   // We are keeping this clientLoader to force client rendering for all protected routes.
+  await initBreezWasm();
 }
 
 clientLoader.hydrate = true as const;
