@@ -83,7 +83,7 @@ None — all changes are to existing files. Breez SDK is used directly via `conn
 
 ### Key architectural changes from old SDK
 
-1. **Single balance** — Breez returns one `balanceSats` (no owned/available split). Both `ownedBalance` and `availableBalance` on SparkAccount set to same value.
+1. **Single balance** — Breez returns one `balanceSats` (no owned/available split). SparkAccount changes from `ownedBalance`/`availableBalance` to single `balance: Money | null`.
 2. **Event-driven** — All status tracking (balance, send, receive) uses `sdk.addEventListener` with `SdkEvent`. No polling intervals.
 3. **Prepare+Send** — Send uses two-step flow. Prepare response cached in service `Map<paymentHash, PrepareResponse>` from quote step; reused in initiate step. Re-prepare only on cache miss (app restart edge case).
 4. **Static imports** — Breez package exports have `"node"` and `"default"` conditions. SSR resolves to Node.js entry, client to web entry. No dynamic imports or `.client.ts` needed.
@@ -195,7 +195,7 @@ export const isInvoiceAlreadyPaidError = (error: unknown): error is Error => {
 Replace entire `app/lib/spark/utils.ts`:
 
 ```typescript
-import type { BreezSdk } from '@breeztech/breez-sdk-spark';
+import { type BreezSdk, defaultExternalSigner } from '@breeztech/breez-sdk-spark';
 import { bytesToHex } from '@noble/hashes/utils';
 import { Money } from '../money';
 
@@ -212,7 +212,6 @@ export async function getSparkIdentityPublicKeyFromMnemonic(
   mnemonic: string,
   network: 'mainnet' | 'regtest',
 ): Promise<string> {
-  const { defaultExternalSigner } = await import('@breeztech/breez-sdk-spark');
   const signer = defaultExternalSigner(mnemonic, null, network);
   const publicKeyBytes = signer.identityPublicKey();
   return bytesToHex(new Uint8Array(publicKeyBytes as unknown as ArrayBuffer));
@@ -233,7 +232,7 @@ export function createSparkWalletStub(reason: string): BreezSdk {
 }
 ```
 
-Note: `getSparkIdentityPublicKeyFromMnemonic` uses a dynamic import because it's called during account setup and we need the WASM-dependent `defaultExternalSigner`. Verify at runtime that the hex output matches the old SDK.
+Verify at runtime that the hex output from `getSparkIdentityPublicKeyFromMnemonic` matches the old SDK's result.
 
 - [ ] **Step 4: Update `app/lib/spark/index.ts`**
 
@@ -255,7 +254,11 @@ import type { BreezSdk } from '@breeztech/breez-sdk-spark';
 import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 ```
 
-Change the spark variant's wallet type from `wallet: SparkWallet` to `wallet: BreezSdk`.
+Change the spark variant:
+- `wallet: SparkWallet` → `wallet: BreezSdk`
+- Replace `ownedBalance: Money | null` and `availableBalance: Money | null` with single `balance: Money | null`
+
+Update all code that reads `ownedBalance`/`availableBalance` on spark accounts to use `balance` instead. This includes `getAccountBalance`, send flow balance checks, and any UI references. Grep for `ownedBalance` and `availableBalance` across the codebase and update all spark-related usages.
 
 - [ ] **Step 6: Update account-repository.ts and user-repository.ts imports**
 
@@ -287,7 +290,7 @@ This task rewrites the core Spark module. Key changes:
 
 - [ ] **Step 1: Simplify account cache update method**
 
-In `app/features/accounts/account-hooks.ts`, replace `updateSparkAccountIfBalanceOrWalletChanged` with a simpler method that takes a single balance (Breez has no owned/available split):
+In `app/features/accounts/account-hooks.ts`, replace `updateSparkAccountIfBalanceOrWalletChanged` with a simpler method that takes a single balance (Breez has no owned/available split — SparkAccount now has `balance: Money | null`):
 
 ```typescript
   updateSparkAccountBalance({
@@ -301,7 +304,7 @@ In `app/features/accounts/account-hooks.ts`, replace `updateSparkAccountIfBalanc
       curr.map((x) => {
         if (x.id !== accountId || x.type !== 'spark') return x;
 
-        const currentBalance = x.ownedBalance ?? Money.zero(x.currency);
+        const currentBalance = x.balance ?? Money.zero(x.currency);
         if (currentBalance.equals(balance)) return x;
 
         sparkDebugLog('Balance updated', {
@@ -310,7 +313,7 @@ In `app/features/accounts/account-hooks.ts`, replace `updateSparkAccountIfBalanc
           new: balance.toString(),
         });
 
-        return { ...x, ownedBalance: balance, availableBalance: balance };
+        return { ...x, balance };
       }),
     );
   }
@@ -323,7 +326,7 @@ Remove the old `updateSparkAccountIfBalanceOrWalletChanged` method and any dead 
 Replace the entire file. Key points:
 - `sparkWalletQueryOptions`: calls `connect()` from `@breeztech/breez-sdk-spark` directly with `{ config: { ...defaultConfig(breezNetwork), apiKey }, seed: { type: 'mnemonic', mnemonic }, storageDir }`. The `apiKey` is read from `VITE_BREEZ_API_KEY` in this file. No privacy call (verify `privateEnabledDefault` is `true`). Also init logging via `initLogging()` (idempotent — safe to call multiple times).
 - `sparkIdentityPublicKeyQueryOptions`: no `accountNumber` param (Breez handles it)
-- `getInitializedSparkWallet`: uses `sdk.getInfo()`, sets `ownedBalance = availableBalance = moneyFromSats(balanceSats)`
+- `getInitializedSparkWallet`: uses `sdk.getInfo()`, sets `balance: moneyFromSats(balanceSats)`
 - `useTrackAndUpdateSparkAccountBalances`: registers `addEventListener` per wallet, updates balance on `paymentSucceeded`/`paymentPending`/`synced` events via `sdk.getInfo()`, calls `accountCache.updateSparkAccountBalance({ accountId, balance })`, no `useQueries`/`refetchInterval`
 
 The event handler (inline — Breez `EventListener` is just `{ onEvent: (e: SdkEvent) => void }`):
@@ -393,10 +396,10 @@ Remove: `import { LightningSendRequestStatus } from '@buildonspark/spark-sdk/typ
 
 Replace `useOnSparkSendStateChange` internals. Instead of `setInterval` polling with `getLightningSendRequest`:
 
-1. For each PENDING quote's account, register an event listener on `account.wallet`
-2. On `paymentSucceeded` event: check if `payment.id === quote.sparkId`. If match, extract `preimage` from `payment.details.htlcDetails.preimage`, call `onCompleted`.
-3. On `paymentFailed` event: check if `payment.id === quote.sparkId`. If match, call `onFailed`.
-4. After registering listener, do initial status check via `sdk.getPayment({ paymentId: quote.sparkId })` to catch events that fired before registration.
+1. Register ONE event listener per spark account (not per quote). The listener receives all payment events for that wallet and matches against all pending send quotes.
+2. On `paymentSucceeded` event: check if `payment.id` matches any pending quote's `sparkId`. If match, extract `preimage` from `payment.details.htlcDetails.preimage`, call `onCompleted`.
+3. On `paymentFailed` event: same matching. If match, call `onFailed`.
+4. After registering listener, do initial status check for each pending quote via `sdk.getPayment({ paymentId: quote.sparkId })`. This catches payments that completed before the listener was registered — `addEventListener` does NOT replay past events.
 5. Clean up listeners on unmount.
 
 For UNPAID quotes: keep the existing `onUnpaid` callback logic (no change needed — it triggers `initiateSend`).
@@ -443,9 +446,9 @@ Remove: `import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/
 
 Replace `useOnSparkReceiveStateChange` internals. Instead of interval-based polling with `getLightningReceiveRequest`:
 
-1. For each pending quote's account, register an event listener on `account.wallet`
-2. On `paymentSucceeded` event with `payment.details?.type === 'lightning'`: match by `payment.details.htlcDetails.paymentHash === quote.paymentHash`. If match, extract `preimage`, call `onCompleted` with `sparkTransferId: payment.id`.
-3. After registering listener, do initial status check via `sdk.listPayments({ typeFilter: ['receive'], limit: 20, sortAscending: false })` and match by `details.invoice === quote.paymentRequest`.
+1. Register ONE event listener per spark account (not per quote). The listener receives all payment events for that wallet and matches against all pending receive quotes.
+2. On `paymentSucceeded` event with `payment.details?.type === 'lightning'`: match by `payment.details.htlcDetails.paymentHash` against all pending quotes' `paymentHash`. If match, extract `preimage`, call `onCompleted` with `sparkTransferId: payment.id`.
+3. After registering listener, do initial status check for each pending quote via `sdk.listPayments({ typeFilter: ['receive'], limit: 20, sortAscending: false })` and match by `details.invoice === quote.paymentRequest`. This catches payments that arrived before the listener was registered — `addEventListener` does NOT replay past events.
 4. For expiry: check `quote.expiresAt` on each `synced` event or use a simple timeout.
 5. Clean up listeners on unmount.
 
@@ -527,8 +530,7 @@ In `app/features/user/user-repository.ts`, replace the spark branch in `toAccoun
       return {
         ...commonData,
         type: 'spark',
-        ownedBalance: null,
-        availableBalance: null,
+        balance: null,
         network,
         isOnline: true,
         wallet: createSparkWalletStub(
@@ -635,5 +637,5 @@ Currently the `PrepareSendPaymentResponse` is cached in-memory in the service. I
 
 - **`defaultExternalSigner().identityPublicKey()` return type** — `PublicKeyBytes` is opaque from WASM. The `bytesToHex(new Uint8Array(...))` conversion should work (Phase C validation), but verify at runtime. Fallback: `bytesToHex(publicKeyBytes)` directly.
 - **Event ordering** — Events might fire before listener registration. Mitigated by initial status check after registering each listener.
-- **Single balance** — Breez SDK returns one `balanceSats`. The "funds locked in pending transfer" UI warning will never trigger. Acceptable since Breez handles optimization internally.
+- **Single balance** — SparkAccount now has `balance: Money | null` instead of owned/available split. Update all UI and logic that referenced `ownedBalance`/`availableBalance`. The "funds locked in pending transfer" warning is removed — Breez handles optimization internally.
 - **`privateEnabledDefault`** — Verify `defaultConfig('mainnet').privateEnabledDefault === true` at runtime. If false, add `sdk.updateUserSettings({ sparkPrivateModeEnabled: true })` after connect.
