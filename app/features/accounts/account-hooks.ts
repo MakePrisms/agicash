@@ -51,41 +51,28 @@ export class AccountsCache {
     );
   }
 
-  // This is used for a Spark bug workaround in useTrackAndUpdateSparkAccountBalances hook.
-  // Once the bug is resolved we can change this function to simply update the account balance if changed.
-  // TODO: Update when Spark bug is fixed and workaround is removed.
-  updateSparkAccountIfBalanceOrWalletChanged(account: SparkAccount) {
+  updateSparkAccountBalance({
+    accountId,
+    balance,
+  }: {
+    accountId: string;
+    balance: Money;
+  }) {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
       curr.map((x) => {
-        if (x.id !== account.id || x.type !== 'spark') return x;
+        if (x.id !== accountId || x.type !== 'spark') return x;
 
-        const versionOk = account.version >= x.version;
-        const balanceChanged = this.hasDifferentBalanceOrWallet(x, account);
-        const willUpdate = versionOk && balanceChanged;
+        const currentBalance = x.balance ?? Money.zero(x.currency);
+        if (currentBalance.equals(balance)) return x;
 
-        sparkDebugLog('Cache update check', {
-          accountId: account.id,
-          cachedVersion: String(x.version),
-          incomingVersion: String(account.version),
-          versionOk: String(versionOk),
-          balanceChanged: String(balanceChanged),
-          willUpdate: String(willUpdate),
+        sparkDebugLog('Balance updated', {
+          accountId,
+          prev: currentBalance.toString(),
+          new: balance.toString(),
         });
 
-        return willUpdate ? account : x;
+        return { ...x, balance };
       }),
-    );
-  }
-
-  private hasDifferentBalanceOrWallet(
-    accountOne: SparkAccount,
-    accountTwo: SparkAccount,
-  ) {
-    const oneBalance = accountOne.balance ?? Money.zero(accountOne.currency);
-    const twoBalance = accountTwo.balance ?? Money.zero(accountTwo.currency);
-
-    return (
-      !oneBalance.equals(twoBalance) || accountOne.wallet !== accountTwo.wallet
     );
   }
 

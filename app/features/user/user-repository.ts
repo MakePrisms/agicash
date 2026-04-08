@@ -303,17 +303,17 @@ export class ReadUserDefaultAccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { wallet, ownedBalance, isOnline } =
+      const { wallet, balance, isOnline } =
         await this.getInitializedSparkWallet(network);
 
       return {
         ...commonData,
         type: 'spark',
-        balance: ownedBalance,
+        balance,
         network,
         isOnline,
         wallet,
-      } as unknown as RedactedAccount;
+      };
     }
 
     throw new Error('Invalid account type');
