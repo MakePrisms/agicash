@@ -318,8 +318,7 @@ export default function TestBreezOnly() {
     try {
       await breezSdk.prepareSendPayment({
         paymentRequest:
-          'lnbc9999999990n1pnnotfoundpp5qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqdq2f38xy6t5wvxqzjccqpjsp5qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq9q',
-        amount: BigInt(999_999_999),
+          'lnbc1631400n1p5avsj6pp5gkhgj5v9us07dhgdc2lhgqqca6gpy3sjxathr36ear2t2m9ujk8qdqqcqzzsxqrrs0fppqstcjsap8rl6qya4y087rqezf7xelkw2ssp53kar26yu4n4tu0chqguhjdtzv4rllvv6y8ydt8gzg8ecgug23aes9qxpqysgqjhyltg7c2jsutkkdrep2kgvm2czhdk0j4tedphv70n68ee93vu69vxnrhv06t6qs4swvam55p9nrrqke2ruspvgz7d5659lhsfkq8zsqkv8xcy',
       });
     } catch (e) {
       addErrorEntry('Send More Than Balance', e);
@@ -342,19 +341,23 @@ export default function TestBreezOnly() {
     }
   }, [breezSdk, addErrorEntry]);
 
-  const handleReceiveZero = useCallback(async () => {
+  const handleSendToSelf = useCallback(async () => {
     if (!breezSdk) return;
-    setErrorCatalogLoading('receive-zero');
+    setErrorCatalogLoading('send-self');
     try {
-      await breezSdk.receivePayment({
+      // Create an invoice from our own wallet, then try to pay it
+      const invoice = await breezSdk.receivePayment({
         paymentMethod: {
           type: 'bolt11Invoice',
-          description: 'Zero amount test',
-          amountSats: 0,
+          description: 'Self-pay test',
+          amountSats: 10,
         },
       });
+      await breezSdk.prepareSendPayment({
+        paymentRequest: invoice.paymentRequest,
+      });
     } catch (e) {
-      addErrorEntry('Receive Zero Amount', e);
+      addErrorEntry('Send to Self', e);
     } finally {
       setErrorCatalogLoading(null);
     }
@@ -654,13 +657,13 @@ export default function TestBreezOnly() {
               </button>
               <button
                 type="button"
-                onClick={handleReceiveZero}
+                onClick={handleSendToSelf}
                 disabled={errorCatalogLoading !== null}
                 className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50"
               >
-                {errorCatalogLoading === 'receive-zero'
+                {errorCatalogLoading === 'send-self'
                   ? 'Running...'
-                  : 'Receive Zero Amount'}
+                  : 'Send to Self'}
               </button>
             </div>
 
