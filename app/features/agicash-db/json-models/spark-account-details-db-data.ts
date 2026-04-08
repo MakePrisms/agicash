@@ -11,3 +11,17 @@ export const SparkAccountDetailsDbDataSchema = z.object({
 export type SparkAccountDetailsDbData = z.infer<
   typeof SparkAccountDetailsDbDataSchema
 >;
+
+export type SparkNetwork = SparkAccountDetailsDbData['network'];
+
+export function toBreezNetwork(network: SparkNetwork): 'mainnet' | 'regtest' {
+  switch (network) {
+    case 'MAINNET':
+      return 'mainnet';
+    case 'REGTEST':
+    case 'LOCAL':
+      return 'regtest';
+    default:
+      throw new Error(`Unsupported Spark network for Breez SDK: ${network}`);
+  }
+}
