@@ -6,11 +6,11 @@
 
 ## C2: Balance Reliability on Mobile
 
-**Result: PASS (with caveat)** — Balance is stable during optimization (no jumps/drops). However, balance updates are delayed ~45-60s after payments — `getInfo({})` returns stale state until the next `synced` event. The current Spark SDK updates balance faster (via polling) but then jumps during optimization. Investigation pending on whether the delay is a version issue (`0.12.2` vs Glow's `0.12.2-dev3`).
+**Result: PASS** — Balance updates immediately on `paymentSucceeded` events when running Breez SDK alone. Earlier testing showed ~45-60s delays, but that was caused by running both Spark and Breez SDKs in parallel on the same wallet — the two SDKs interfered with each other. With a fresh wallet on Breez-only, balance is reliable and stable during optimization (no jumps/drops).
 
 ## C3: Event Reliability
 
-**Result: PASS** — Events fire reliably: `synced` every ~60s, `paymentSucceeded`/`paymentPending`/`claimedDeposits` on payments, `optimization` during background optimization. Event-driven balance updates work (no polling needed) but balance in `getInfo` is stale until `synced` fires.
+**Result: PASS** — Events fire reliably: `synced` every ~60s, `paymentSucceeded`/`paymentPending`/`claimedDeposits` on payments, `optimization` during background optimization. Event-driven balance updates work — `getInfo({})` returns current balance immediately on `paymentSucceeded`. No polling needed.
 
 ## C4: Optimization Behavior
 
