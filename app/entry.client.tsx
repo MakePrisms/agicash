@@ -35,7 +35,18 @@ configure({
 });
 
 // Initialize Breez SDK WASM module (prototype validation — remove after Phase C)
-import('@breeztech/breez-sdk-spark').then((sdk) => sdk.default());
+{
+  const wasmStart = performance.now();
+  import('@breeztech/breez-sdk-spark').then((sdk) =>
+    sdk.default().then(() => {
+      (globalThis as Record<string, unknown>).__BREEZ_WASM_INIT_MS__ =
+        Math.round(performance.now() - wasmStart);
+      console.log(
+        `[Breez] WASM init: ${(globalThis as Record<string, unknown>).__BREEZ_WASM_INIT_MS__}ms`,
+      );
+    }),
+  );
+}
 
 // Prefetch feature flags as early as possible.
 // Before login the DB client uses the anon key (no access token),
