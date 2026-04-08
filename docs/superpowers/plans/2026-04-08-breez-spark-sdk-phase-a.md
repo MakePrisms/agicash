@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace `@buildonspark/spark-sdk@0.7.4` with `@breeztech/breez-sdk-spark` across all client-side Spark operations (wallet init, balance, send, receive). Lightning Address stays on old SDK until Breez exposes `receiverIdentityPubkey`.
+**Goal:** Replace `@buildonspark/spark-sdk@0.7.4` with `@breeztech/breez-sdk-spark` across ALL Spark operations and fully remove the old SDK. Lightning Address spark path throws "not implemented" until we fork the Breez SDK to expose `receiverIdentityPubkey`.
 
-**Architecture:** Direct SDK swap using a `getBreezSdk()` accessor pattern. The `Account.wallet` type changes to `BreezSdk`. Balance updates move from 3-second polling to event-driven. Send flow adopts two-step `prepareSendPayment` + `sendPayment` with native `idempotencyKey`. Receive flow uses `receivePayment` + `listPayments` matching. Lightning Address is isolated with its own old-SDK wallet instance.
+**Architecture:** Direct SDK swap. The `Account.wallet` type changes to `BreezSdk`. Balance updates move from 3-second polling to event-driven. Send flow adopts two-step `prepareSendPayment` + `sendPayment` with native `idempotencyKey`. Receive flow uses `receivePayment` + `listPayments` matching. Lightning Address spark path is temporarily disabled (cashu path unaffected).
 
 **Tech Stack:** `@breeztech/breez-sdk-spark@0.12.2-dev3` (WASM), React Router v7, TanStack Query v5
 
@@ -34,27 +34,27 @@
 | `app/features/accounts/account.ts` | `wallet: SparkWallet` → `wallet: BreezSdk`; local `SparkNetwork` type |
 | `app/features/agicash-db/json-models/spark-account-details-db-data.ts` | Export `SparkNetwork` type from Zod schema |
 | `app/features/accounts/account-repository.ts` | Import `SparkNetwork` from local type |
-| `app/features/user/user-repository.ts` | Import `SparkNetwork` from local type; legacy wallet init for server |
+| `app/features/user/user-repository.ts` | Import `SparkNetwork` from local type; stub wallet for server |
 | `app/features/shared/spark.ts` | Full rewrite: Breez `connect()`, event-driven balance, remove zero-balance workaround |
 | `app/features/send/spark-send-quote-service.ts` | `prepareSendPayment` + `sendPayment` with `idempotencyKey` |
 | `app/features/send/spark-send-quote-hooks.ts` | Replace `getLightningSendRequest` polling with `getPayment` |
 | `app/features/receive/spark-receive-quote-core.ts` | `receivePayment` + bolt11 parsing; simplified `SparkReceiveLightningQuote` type |
 | `app/features/receive/spark-receive-quote-hooks.ts` | Replace `getLightningReceiveRequest` polling with `listPayments` matching |
 | `app/features/receive/spark-receive-quote-service.ts` | Adapt to simplified quote type |
-| `app/features/receive/spark-receive-quote-service.server.ts` | Inline old-SDK `createLightningInvoice` for Lightning Address |
+| `app/features/receive/spark-receive-quote-service.server.ts` | Remove old SDK imports; `getLightningQuote` throws not-implemented |
 | `app/features/receive/claim-cashu-token-service.ts` | Replace receive polling with `listPayments` matching |
-| `app/features/receive/lightning-address-service.ts` | Self-contained old-SDK wallet; import from server service |
+| `app/features/receive/lightning-address-service.ts` | Spark path throws not-implemented; cashu path unchanged |
 | `app/routes/_protected.tsx` | Update `sparkIdentityPublicKeyQueryOptions` call (remove `accountNumber`) |
 
 ### Deleted files
 | File | Reason |
 |------|--------|
-| `patches/@buildonspark%2Fspark-sdk@0.7.4.patch` | Only added debug logging; not needed by Lightning Address |
+| `patches/@buildonspark%2Fspark-sdk@0.7.4.patch` | Old SDK removed entirely |
 
-### Kept as-is (old SDK)
-| File | Reason |
-|------|--------|
-| `@buildonspark/spark-sdk` in `package.json` | Lightning Address needs it until Breez adds `receiverIdentityPubkey` |
+### Removed dependencies
+| Package | Reason |
+|---------|--------|
+| `@buildonspark/spark-sdk` | Fully replaced by `@breeztech/breez-sdk-spark` |
 
 ---
 
@@ -1790,55 +1790,37 @@ git commit -m "feat: migrate receive flow to Breez SDK (receivePayment + listPay
 
 ---
 
-### Task 8: Isolate Lightning Address on old SDK
+### Task 8: Disable Lightning Address spark path and remove old SDK
 
 **Files:**
 - Modify: `app/features/receive/spark-receive-quote-service.server.ts`
 - Modify: `app/features/receive/lightning-address-service.ts`
 - Modify: `app/features/user/user-repository.ts`
+- Modify: `package.json`
+- Delete: `patches/@buildonspark%2Fspark-sdk@0.7.4.patch`
 
-The Lightning Address service needs to keep using the old `@buildonspark/spark-sdk` because Breez SDK does not yet expose `receiverIdentityPubkey` for delegated invoices.
+Breez SDK does not yet expose `receiverIdentityPubkey` for delegated invoices. Rather than keeping the old SDK around, we throw a "not implemented" error in the Lightning Address spark path and remove `@buildonspark/spark-sdk` entirely. The cashu path in Lightning Address is unaffected.
 
-- [ ] **Step 1: Update spark-receive-quote-service.server.ts to use old SDK directly**
+- [ ] **Step 1: Update spark-receive-quote-service.server.ts**
 
-Replace the entire file contents. The server service now inlines the old SDK's `createLightningInvoice` call instead of delegating to the core `getLightningQuote` (which now uses Breez):
+Remove all old SDK imports. Replace the entire file with:
 
 ```typescript
-import {
-  type SparkWallet,
-  SparkWallet as SparkWalletClass,
-} from '@buildonspark/spark-sdk';
-import type { CurrencyAmount } from '@buildonspark/spark-sdk/types';
 import { Money } from '~/lib/money';
-import { measureOperation } from '~/lib/performance';
 import {
   type CreateQuoteBaseParams,
+  type GetLightningQuoteParams,
   type SparkReceiveLightningQuote,
   computeQuoteExpiry,
+  getLightningQuote,
 } from './spark-receive-quote-core';
 import type {
   SparkReceiveQuoteCreated,
   SparkReceiveQuoteRepositoryServer,
 } from './spark-receive-quote-repository.server';
 
-/**
- * Parameters for creating a Lightning invoice using the legacy Spark SDK.
- * Used only by Lightning Address service.
- */
-export type LegacyGetLightningQuoteParams = {
-  wallet: SparkWallet;
-  amount: Money;
-  receiverIdentityPubkey?: string;
-  description?: string;
-};
-
-function moneyFromLegacyCurrencyAmount(amount: CurrencyAmount): Money<'BTC'> {
-  return new Money({
-    amount: amount.originalValue,
-    currency: 'BTC',
-    unit: 'sat',
-  });
-}
+// Re-export shared types for convenience
+export type { SparkReceiveLightningQuote, GetLightningQuoteParams };
 
 type CreateQuoteParams = CreateQuoteBaseParams & {
   userEncryptionPublicKey: string;
@@ -1846,54 +1828,20 @@ type CreateQuoteParams = CreateQuoteBaseParams & {
 
 /**
  * Server-side service for creating spark receive quotes.
- * Uses the LEGACY @buildonspark/spark-sdk for Lightning Address support
- * (delegated invoices with receiverIdentityPubkey).
- *
- * TODO: Migrate to Breez SDK when they expose receiverIdentityPubkey.
  */
 export class SparkReceiveQuoteServiceServer {
   constructor(private readonly repository: SparkReceiveQuoteRepositoryServer) {}
 
   /**
-   * Creates a Lightning invoice using the legacy Spark SDK.
-   * This is the only method that still uses the old SDK.
+   * Gets a Spark lightning receive quote for the given amount.
+   *
+   * NOTE: This uses the Breez SDK which does NOT support receiverIdentityPubkey.
+   * Lightning Address spark path must not call this until Breez adds that param.
    */
   async getLightningQuote(
-    params: LegacyGetLightningQuoteParams,
+    params: GetLightningQuoteParams,
   ): Promise<SparkReceiveLightningQuote> {
-    const { wallet, amount, receiverIdentityPubkey, description } = params;
-
-    const response = await measureOperation(
-      'LegacySparkWallet.createLightningInvoice',
-      () =>
-        wallet.createLightningInvoice({
-          amountSats: amount.toNumber('sat'),
-          includeSparkAddress: false,
-          receiverIdentityPubkey,
-          memo: description,
-        }),
-    );
-
-    const invoiceAmount = moneyFromLegacyCurrencyAmount(
-      response.invoice.amount,
-    );
-
-    return {
-      id: response.id,
-      createdAt: response.createdAt,
-      updatedAt: response.updatedAt,
-      invoice: {
-        encodedInvoice: response.invoice.encodedInvoice,
-        paymentHash: response.invoice.paymentHash,
-        amount: invoiceAmount,
-        createdAt: response.invoice.createdAt,
-        expiresAt: response.invoice.expiresAt,
-        memo: response.invoice.memo ?? undefined,
-      },
-      fee: Money.zero('BTC') as Money<'BTC'>,
-      receiverIdentityPublicKey:
-        response.receiverIdentityPublicKey ?? undefined,
-    };
+    return getLightningQuote(params);
   }
 
   async createReceiveQuote(
@@ -1942,18 +1890,10 @@ export class SparkReceiveQuoteServiceServer {
 }
 ```
 
-- [ ] **Step 2: Update lightning-address-service.ts for self-contained old SDK wallet**
+- [ ] **Step 2: Update lightning-address-service.ts — spark path throws not-implemented**
 
-Replace the imports at the top. Change:
+Remove ALL imports from `@buildonspark/spark-sdk`:
 ```typescript
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
-```
-To:
-```typescript
-import {
-  type SparkWallet,
-  SparkWallet as SparkWalletClass,
-} from '@buildonspark/spark-sdk';
 import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
 ```
 
@@ -1962,59 +1902,45 @@ Remove the import of `sparkWalletQueryOptions` from `../shared/spark`:
 import { sparkWalletQueryOptions } from '../shared/spark';
 ```
 
-Add a private method to the `LightningAddressService` class for creating a legacy wallet:
+In `handleLnurlpCallback`, replace the entire spark account branch (the `else` after the cashu `if` block). Find the section starting after `if (account.type === 'cashu') { ... }` — the spark path that creates a `SparkReceiveQuoteServiceServer` and calls `getLightningQuote` with `receiverIdentityPubkey`. Replace it with:
 
 ```typescript
-  /**
-   * Creates a legacy SparkWallet using the old SDK.
-   * Used for Lightning Address operations that need receiverIdentityPubkey.
-   * TODO: Replace with Breez SDK when they expose receiverIdentityPubkey.
-   */
-  private async getLegacySparkWallet(): Promise<SparkWallet> {
-    const { wallet } = await SparkWalletClass.initialize({
-      mnemonicOrSeed: sparkMnemonic,
-      options: { network: 'MAINNET' },
-    });
-    return wallet;
+      // TODO: Spark Lightning Address requires creating invoices with receiverIdentityPubkey,
+      // which the Breez SDK does not yet expose in its JS API.
+      // To unblock: fork @breeztech/breez-sdk-spark and expose the receiverIdentityPubkey
+      // parameter on the bolt11Invoice receive payment method.
+      // See: docs/superpowers/specs/2026-04-04-breez-spark-sdk-migration-design.md (A6)
+      throw new Error(
+        'Spark Lightning Address is not yet supported with the Breez SDK. ' +
+          'Breez needs to expose receiverIdentityPubkey for delegated invoices.',
+      );
+```
+
+In `handleSparkLnurlpVerify`, replace the entire `handleSparkLnurlpVerify` private method with:
+
+```typescript
+  private async handleSparkLnurlpVerify(
+    _receiveRequestId: string,
+  ): Promise<LNURLVerifyResult> {
+    // TODO: Implement with Breez SDK once receiverIdentityPubkey is supported.
+    // Until then, no spark Lightning Address invoices can be created, so this
+    // path should never be reached for new invoices. Existing invoices created
+    // before this migration will return an error.
+    return {
+      status: 'ERROR',
+      reason:
+        'Spark Lightning Address verification is not yet supported with the Breez SDK.',
+    };
   }
 ```
 
-Note: `sparkMnemonic` is already defined at the module level in the file.
+Remove the `LNURLVerifyResult` import's dependency on `LightningReceiveRequestStatus` — it's no longer needed. Make sure `LNURLVerifyResult` is still imported from `~/lib/lnurl/types`.
 
-In `handleSparkLnurlpVerify`, replace:
-```typescript
-    const wallet = await this.queryClient.fetchQuery(
-      sparkWalletQueryOptions({ network: 'MAINNET', mnemonic: sparkMnemonic }),
-    );
-```
-With:
-```typescript
-    const wallet = await this.getLegacySparkWallet();
-```
+- [ ] **Step 3: Update ReadUserDefaultAccountRepository**
 
-In `handleLnurlpCallback` for the spark path, pass the legacy wallet to the server service. Replace:
-```typescript
-      const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
-        wallet: account.wallet,
-        amount: amountToReceive,
-        receiverIdentityPubkey: user.sparkIdentityPublicKey,
-      });
-```
-With:
-```typescript
-      const legacyWallet = await this.getLegacySparkWallet();
-      const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
-        wallet: legacyWallet,
-        amount: amountToReceive,
-        receiverIdentityPubkey: user.sparkIdentityPublicKey,
-      });
-```
+In `app/features/user/user-repository.ts`, the `ReadUserDefaultAccountRepository.toAccount()` is only used by Lightning Address. Since the spark path now throws before touching `account.wallet`, return a stub:
 
-- [ ] **Step 3: Update ReadUserDefaultAccountRepository for server-side spark accounts**
-
-In `app/features/user/user-repository.ts`, the `ReadUserDefaultAccountRepository.toAccount()` method currently calls `getInitializedSparkWallet()` which now uses Breez. Since Lightning Address no longer uses `account.wallet` for spark operations (it uses `getLegacySparkWallet()` instead), we can return a stub wallet.
-
-In the `toAccount` method, find the spark account branch:
+Find the spark account branch in `toAccount`:
 ```typescript
     if (isSparkAccount(data)) {
       const { network } = data.details;
@@ -2037,8 +1963,6 @@ Replace with:
 ```typescript
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      // Lightning Address uses its own legacy wallet — account.wallet is unused.
-      // Return a stub to avoid initializing Breez SDK on the server.
       const { createSparkWalletStub } = await import('~/lib/spark/utils');
       return {
         ...commonData,
@@ -2048,84 +1972,69 @@ Replace with:
         network,
         isOnline: true,
         wallet: createSparkWalletStub(
-          'Server-side stub — use getLegacySparkWallet() for Lightning Address operations',
+          'Server-side stub — Spark Lightning Address not yet supported with Breez SDK',
         ),
       };
     }
 ```
 
-Also remove the now-unused `getInitializedSparkWallet` private method and its imports from `../shared/spark` if they're no longer needed in this file.
+Remove the now-unused `getInitializedSparkWallet` private method and clean up unused imports from `../shared/spark`.
 
-- [ ] **Step 4: Commit**
-
-```bash
-git add app/features/receive/spark-receive-quote-service.server.ts app/features/receive/lightning-address-service.ts app/features/user/user-repository.ts
-git commit -m "feat: isolate Lightning Address on legacy Spark SDK"
-```
-
----
-
-### Task 9: Cleanup and verification
-
-**Files:**
-- Delete: `patches/@buildonspark%2Fspark-sdk@0.7.4.patch`
-- Modify: `package.json` (remove patchedDependencies entry)
-
-- [ ] **Step 1: Remove the old SDK patch**
-
-The patch only added debug logging to the old SDK's `LeafManager`. Lightning Address doesn't need it.
+- [ ] **Step 4: Remove old SDK entirely**
 
 ```bash
 rm "patches/@buildonspark%2Fspark-sdk@0.7.4.patch"
+bun remove @buildonspark/spark-sdk
 ```
 
-In `package.json`, remove the `patchedDependencies` entry:
+In `package.json`, also remove the `patchedDependencies` section if it exists:
 ```json
   "patchedDependencies": {
     "@buildonspark/spark-sdk@0.7.4": "patches/@buildonspark%2Fspark-sdk@0.7.4.patch"
   }
 ```
 
-Run `bun install` to apply the unpatched dependency.
+- [ ] **Step 5: Commit**
 
-- [ ] **Step 2: Run full verification**
+```bash
+git add -A
+git commit -m "feat: disable Lightning Address spark path, remove @buildonspark/spark-sdk"
+```
+
+---
+
+### Task 9: Final verification
+
+- [ ] **Step 1: Run full type/lint check**
 
 ```bash
 bun run fix:all
 ```
 
-Expected: All lint, format, and type checks pass.
+Expected: All checks pass.
 
-Fix any remaining type errors. Common issues to check:
+Fix any remaining type errors. Common issues:
 - Files importing `moneyFromSparkAmount` → change to `moneyFromSats` or remove
-- Files importing `SparkWallet` type from old SDK → change to `BreezSdk`
-- Files importing `SparkError` from old SDK → remove (error matchers no longer need it)
-- Files referencing `SparkWalletEvent` → remove (events are handled via Breez `addEventListener`)
+- Files importing any type from `@buildonspark/spark-sdk` → find Breez equivalent or remove
+- Files referencing `SparkWalletEvent` → remove
 
-- [ ] **Step 3: Verify no stale old SDK imports remain (except Lightning Address)**
-
-Run this grep and verify only Lightning Address files and the server service import from the old SDK:
+- [ ] **Step 2: Verify zero old SDK imports remain**
 
 ```bash
 rg "@buildonspark/spark-sdk" app/ --files-with-matches
 ```
 
-Expected output (only these files should remain):
-- `app/features/receive/lightning-address-service.ts`
-- `app/features/receive/spark-receive-quote-service.server.ts`
+Expected: **No results.** The old SDK is fully removed.
 
-Any other file still importing from `@buildonspark/spark-sdk` is a bug — fix it.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit any fixups**
 
 ```bash
 git add -A
-git commit -m "chore: remove old SDK patch, fix remaining type errors"
+git commit -m "chore: fix remaining type errors after old SDK removal"
 ```
 
-- [ ] **Step 5: Final smoke test**
+- [ ] **Step 4: Smoke test**
 
-Run the dev server and verify basic functionality:
 ```bash
 bun run dev
 ```
@@ -2138,15 +2047,15 @@ Check:
 
 ---
 
-## Deferred: Lightning Address Migration
+## Follow-up: Lightning Address Spark Support
 
-The Lightning Address service (`lightning-address-service.ts`) stays on `@buildonspark/spark-sdk` until the Breez team exposes `receiverIdentityPubkey` in the JS SDK. Track this with Breez.
+Lightning Address spark path is disabled. To re-enable:
 
-When available:
-1. Update `spark-receive-quote-service.server.ts` to use Breez SDK's equivalent API
-2. Remove `getLegacySparkWallet()` from `lightning-address-service.ts`
-3. Remove `@buildonspark/spark-sdk` from `package.json`
-4. Delete the legacy code
+1. **Fork `@breeztech/breez-sdk-spark`** and expose `receiverIdentityPubkey` parameter on the `bolt11Invoice` receive payment method
+2. Update `spark-receive-quote-core.ts` `getLightningQuote` to accept optional `receiverIdentityPubkey`
+3. Update `lightning-address-service.ts` spark path to call `getLightningQuote` with the pubkey
+4. Implement `handleSparkLnurlpVerify` using Breez's `listPayments` matching
+5. Run `/lnurl-test` to validate
 
 ## Risk Notes
 
