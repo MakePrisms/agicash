@@ -17,16 +17,15 @@
 ## File Structure
 
 ### New files
-| File | Responsibility |
-|------|---------------|
-| `app/lib/spark/init.ts` | Breez SDK connect function (logging setup) |
+
+None — all changes are to existing files. Breez SDK is used directly via `connect()` and `defaultConfig()` from `@breeztech/breez-sdk-spark`.
 
 ### Modified files
 | File | Change |
 |------|--------|
 | `package.json` | Add `@breeztech/breez-sdk-spark`, remove `@buildonspark/spark-sdk` |
 | `app/lib/spark/errors.ts` | Replace `SparkError` with plain `Error` message matching |
-| `app/lib/spark/utils.ts` | Replace old SDK imports with Breez equivalents; add `moneyFromSats` |
+| `app/lib/spark/utils.ts` | Replace old SDK imports with Breez equivalents; `moneyFromSats`, `createSparkWalletStub` |
 | `app/lib/spark/index.ts` | Update re-exports |
 | `app/features/accounts/account.ts` | `wallet: SparkWallet` → `wallet: BreezSdk`; local `SparkNetwork` type |
 | `app/features/accounts/account-hooks.ts` | Simplify `updateSparkAccountIfBalanceOrWalletChanged` → `updateSparkAccountBalance` |
@@ -34,7 +33,7 @@
 | `app/features/accounts/account-repository.ts` | Import `SparkNetwork` from local type |
 | `app/features/user/user-repository.ts` | Import `SparkNetwork` from local type; stub wallet for server |
 | `app/features/shared/spark.ts` | Full rewrite: Breez `connect()`, event-driven balance, remove zero-balance workaround + polling |
-| `app/features/send/spark-send-quote-service.ts` | `prepareSendPayment` (cached) + `sendPayment` with `idempotencyKey` |
+| `app/features/send/spark-send-quote-service.ts` | `prepareSendPayment` (cached) + `sendPayment` with `idempotencyKey`; use `account.wallet` directly |
 | `app/features/send/spark-send-quote-hooks.ts` | Event-driven send status via `addEventListener` (no polling) |
 | `app/features/receive/spark-receive-quote-core.ts` | `receivePayment` + bolt11 parsing; simplified `SparkReceiveLightningQuote` type |
 | `app/features/receive/spark-receive-quote-hooks.ts` | Event-driven receive status via `addEventListener` (no polling) |
@@ -135,90 +134,7 @@ git commit -m "feat: add breez-sdk-spark dependency and WASM init in _protected 
 
 ---
 
-### Task 2: Add Breez init helper to `app/lib/spark/`
-
-**Files:**
-- Create: `app/lib/spark/init.ts`
-
-No separate `app/lib/breez-spark/` folder — keep everything in the existing `app/lib/spark/`.
-
-- [ ] **Step 1: Create `app/lib/spark/init.ts`**
-
-```typescript
-import {
-  type BreezSdk,
-  type Config,
-  type Network,
-  connect,
-  defaultConfig,
-  initLogging,
-} from '@breeztech/breez-sdk-spark';
-
-let loggingInitialized = false;
-
-async function ensureLogging() {
-  if (loggingInitialized) return;
-  try {
-    await initLogging(
-      {
-        log: (entry) =>
-          console.log(`[Breez ${entry.level}] ${entry.line}`),
-      },
-      'debug',
-    );
-    loggingInitialized = true;
-  } catch {
-    loggingInitialized = true;
-  }
-}
-
-/**
- * Connects to the Breez SDK and returns a BreezSdk instance.
- * WASM must be initialized first (in _protected.tsx clientLoader).
- */
-export async function connectBreezWallet({
-  mnemonic,
-  network = 'mainnet',
-  apiKey,
-}: {
-  mnemonic: string;
-  network?: Network;
-  apiKey: string;
-}): Promise<BreezSdk> {
-  await ensureLogging();
-
-  const config: Config = {
-    ...defaultConfig(network),
-    apiKey,
-  };
-
-  return connect({
-    config,
-    seed: { type: 'mnemonic' as const, mnemonic },
-    storageDir: `breez-spark-wallet-${network}`,
-  });
-}
-```
-
-The caller (`shared/spark.ts`) reads `VITE_BREEZ_API_KEY` from env and passes it in. Env var reading is app-level concern, not lib-level.
-
-- [ ] **Step 2: Verify**
-
-Run: `bun run fix:all`
-Expected: No new errors (additive file, nothing imports it yet).
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add app/lib/spark/init.ts
-git commit -m "feat: add Breez SDK init helper to app/lib/spark"
-```
-
-Note: no `events.ts` wrapper — `sdk.addEventListener({ onEvent(e) { ... } })` is simple enough to use inline. The Breez SDK's `EventListener` interface is just `{ onEvent: (e: SdkEvent) => void }`.
-
----
-
-### Task 3: SparkNetwork type, error matchers, account types, and utils
+### Task 2: SparkNetwork type, error matchers, account types, and utils
 
 **Files:**
 - Modify: `app/features/agicash-db/json-models/spark-account-details-db-data.ts`
@@ -356,7 +272,7 @@ git commit -m "feat: replace old SDK types with Breez equivalents across account
 
 ---
 
-### Task 4: Wallet init, event-driven balance, simplified account cache
+### Task 3: Wallet init, event-driven balance, simplified account cache
 
 **Files:**
 - Modify: `app/features/shared/spark.ts`
@@ -405,7 +321,7 @@ Remove the old `updateSparkAccountIfBalanceOrWalletChanged` method and any dead 
 - [ ] **Step 2: Rewrite `app/features/shared/spark.ts`**
 
 Replace the entire file. Key points:
-- `sparkWalletQueryOptions`: calls `connectBreezWallet({ mnemonic, network, apiKey })` where `apiKey` is read from `VITE_BREEZ_API_KEY` in this file. No privacy call (verify `privateEnabledDefault` is `true`).
+- `sparkWalletQueryOptions`: calls `connect()` from `@breeztech/breez-sdk-spark` directly with `{ config: { ...defaultConfig(breezNetwork), apiKey }, seed: { type: 'mnemonic', mnemonic }, storageDir }`. The `apiKey` is read from `VITE_BREEZ_API_KEY` in this file. No privacy call (verify `privateEnabledDefault` is `true`). Also init logging via `initLogging()` (idempotent — safe to call multiple times).
 - `sparkIdentityPublicKeyQueryOptions`: no `accountNumber` param (Breez handles it)
 - `getInitializedSparkWallet`: uses `sdk.getInfo()`, sets `ownedBalance = availableBalance = moneyFromSats(balanceSats)`
 - `useTrackAndUpdateSparkAccountBalances`: registers `addEventListener` per wallet, updates balance on `paymentSucceeded`/`paymentPending`/`synced` events via `sdk.getInfo()`, calls `accountCache.updateSparkAccountBalance({ accountId, balance })`, no `useQueries`/`refetchInterval`
@@ -446,7 +362,7 @@ git commit -m "feat: event-driven balance tracking with Breez SDK, remove pollin
 
 ---
 
-### Task 5: Send flow migration
+### Task 4: Send flow migration
 
 **Files:**
 - Modify: `app/features/send/spark-send-quote-service.ts`
@@ -494,7 +410,7 @@ git commit -m "feat: migrate send flow to Breez SDK (event-driven, cached prepar
 
 ---
 
-### Task 6: Receive flow migration
+### Task 5: Receive flow migration
 
 **Files:**
 - Modify: `app/features/receive/spark-receive-quote-core.ts`
@@ -554,7 +470,7 @@ git commit -m "feat: migrate receive flow to Breez SDK (event-driven)"
 
 ---
 
-### Task 7: Disable Lightning Address spark path and remove old SDK
+### Task 6: Disable Lightning Address spark path and remove old SDK
 
 **Files:**
 - Modify: `app/features/receive/spark-receive-quote-service.server.ts`
@@ -642,7 +558,7 @@ git commit -m "feat: disable Lightning Address spark path, remove @buildonspark/
 
 ---
 
-### Task 8: Final verification and dead code cleanup
+### Task 7: Final verification and dead code cleanup
 
 - [ ] **Step 1: Run full type/lint check**
 
