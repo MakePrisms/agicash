@@ -37,15 +37,16 @@ Current Spark SDK `getInitializedSparkWallet` (init + getBalance): 200ms–few s
 
 **Result: WORKABLE** — All errors are plain `Error` (no typed subclasses). Must match on message strings.
 
-| Scenario | Constructor | Message |
+| Scenario | Constructor | Message match |
 |---|---|---|
-| Invalid invoice | `Error` | `Invalid input: invalid input` |
-| Insufficient balance | `Error` | `SparkSdkError: Tree service error: insufficient funds` |
-| Send to self | TODO | |
+| Insufficient balance | `Error` | `insufficient funds` |
+| Already paid invoice | `Error` | `preimage request already exists` |
 
-**Key difference from current Spark SDK:** Spark SDK's `SparkError` has `getContext()` returning structured data (e.g., `{ expected, value, field }` for insufficient balance). Breez SDK errors are flat strings with no structured context.
+**Key difference from current Spark SDK:** Spark SDK's `SparkError` has `getContext()` returning structured data (e.g., `{ expected, value, field }` for insufficient balance). Breez SDK errors are plain `Error` with flat message strings — no typed subclasses, no structured context.
 
-**Mitigation:** For insufficient balance, the total cost is already known from `prepareSendPayment` response (amount + fees) before `sendPayment` is called. Use that instead of extracting from the error. Not a blocker — just a different pattern.
+**Mitigations:**
+- **Insufficient balance:** Total cost is already known from `prepareSendPayment` response (amount + fees) before `sendPayment` is called. Use that instead of extracting from the error.
+- **Already paid:** Same underlying gRPC error as current SDK (`preimage request already exists`). Match with `message.includes('preimage request already exists')` — same pattern as current `isInvoiceAlreadyPaidError`.
 
 ## Integration Notes
 
