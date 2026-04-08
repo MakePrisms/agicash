@@ -1,11 +1,11 @@
-import { SparkError, type SparkWallet } from '@buildonspark/spark-sdk';
+import type { PrepareSendPaymentResponse } from '@breeztech/breez-sdk-spark';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import {
   isInsufficentBalanceError,
   isInvoiceAlreadyPaidError,
-  moneyFromSparkAmount,
+  moneyFromSats,
 } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
 import { DomainError } from '../shared/error';
@@ -15,11 +15,6 @@ import {
   type SparkSendQuoteRepository,
   useSparkSendQuoteRepository,
 } from './spark-send-quote-repository';
-
-type LightningSendRequest = Extract<
-  Awaited<ReturnType<SparkWallet['payLightningInvoice']>>,
-  { encodedInvoice: string }
->;
 
 export type SparkLightningQuote = {
   /**
@@ -115,6 +110,8 @@ type InitiateSendParams = {
 };
 
 export class SparkSendQuoteService {
+  private prepareCache = new Map<string, PrepareSendPaymentResponse>();
+
   constructor(private readonly repository: SparkSendQuoteRepository) {}
 
   /**
@@ -155,17 +152,33 @@ export class SparkSendQuoteService {
       throw new Error('Unknown send amount');
     }
 
-    const estimatedLightningFeeSats = await measureOperation(
-      'SparkWallet.getLightningSendFeeEstimate',
+    const sdk = account.wallet;
+    const prepareResponse = await measureOperation(
+      'BreezSdk.prepareSendPayment',
       () =>
-        account.wallet.getLightningSendFeeEstimate({
-          amountSats: amountRequestedInBtc.toNumber('sat'),
-          encodedInvoice: paymentRequest,
+        sdk.prepareSendPayment({
+          paymentRequest,
+          amount:
+            amountRequestedInBtc.toNumber('sat') > 0
+              ? BigInt(amountRequestedInBtc.toNumber('sat'))
+              : undefined,
         }),
     );
 
+    // Cache prepare response for use in initiateSend
+    this.prepareCache.set(invoice.paymentHash, prepareResponse);
+
+    // Extract fee from prepare response
+    const paymentMethod = prepareResponse.paymentMethod;
+    let feeSats = 0;
+    if (paymentMethod.type === 'bolt11Invoice') {
+      feeSats =
+        paymentMethod.lightningFeeSats +
+        (paymentMethod.sparkTransferFeeSats ?? 0);
+    }
+
     const estimatedLightningFee = new Money({
-      amount: estimatedLightningFeeSats,
+      amount: feeSats,
       currency: 'BTC',
       unit: 'sat',
     });
@@ -174,27 +187,12 @@ export class SparkSendQuoteService {
       estimatedLightningFee,
     ) as Money;
 
-    const ownedBalance = account.ownedBalance ?? Money.zero(account.currency);
-    const availableBalance =
-      account.availableBalance ?? Money.zero(account.currency);
+    const balance = account.balance ?? Money.zero(account.currency);
 
-    if (availableBalance.lessThan(estimatedTotalAmount)) {
+    if (balance.lessThan(estimatedTotalAmount)) {
       const estimatedTotalFormatted = estimatedTotalAmount.toLocaleString({
         unit: 'sat',
       });
-      const hasSufficientOwned =
-        ownedBalance.greaterThanOrEqual(estimatedTotalAmount);
-
-      if (hasSufficientOwned) {
-        const availableFormatted = availableBalance.toLocaleString({
-          unit: 'sat',
-        });
-
-        throw new DomainError(
-          `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted} but the available balance is ${availableFormatted} because some of your funds are locked in a pending transfer.`,
-        );
-      }
-
       throw new DomainError(
         `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted}.`,
       );
@@ -229,27 +227,12 @@ export class SparkSendQuoteService {
       throw new DomainError('Lightning invoice has expired');
     }
 
-    const ownedBalance = account.ownedBalance ?? Money.zero(account.currency);
-    const availableBalance =
-      account.availableBalance ?? Money.zero(account.currency);
+    const balance = account.balance ?? Money.zero(account.currency);
 
-    if (availableBalance.lessThan(quote.estimatedTotalAmount)) {
+    if (balance.lessThan(quote.estimatedTotalAmount)) {
       const estimatedTotalFormatted = quote.estimatedTotalAmount.toLocaleString(
         { unit: 'sat' },
       );
-      const hasSufficientOwned = ownedBalance.greaterThanOrEqual(
-        quote.estimatedTotalAmount,
-      );
-
-      if (hasSufficientOwned) {
-        const availableFormatted = availableBalance.toLocaleString({
-          unit: 'sat',
-        });
-        throw new DomainError(
-          `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted} but the available balance is ${availableFormatted} because some of your funds are locked in a pending transfer.`,
-        );
-      }
-
       throw new DomainError(
         `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted}.`,
       );
@@ -279,27 +262,53 @@ export class SparkSendQuoteService {
     account,
     sendQuote,
   }: InitiateSendParams): Promise<SparkSendQuote> {
-    if (sendQuote.state === 'PENDING') {
-      return sendQuote;
-    }
-
+    if (sendQuote.state === 'PENDING') return sendQuote;
     if (sendQuote.state !== 'UNPAID') {
       throw new Error(
         `Cannot initiate send for quote that is not UNPAID. Current state: ${sendQuote.state}`,
       );
     }
 
-    const sendRequest = await this.payLightningInvoice(
-      account.wallet,
-      sendQuote,
-    );
+    const sdk = account.wallet;
 
-    return this.repository.markAsPending({
-      quote: sendQuote,
-      sparkSendRequestId: sendRequest.id,
-      sparkTransferId: sendRequest.transfer?.sparkId ?? '',
-      fee: moneyFromSparkAmount(sendRequest.fee),
-    });
+    // Look up cached prepare response, re-prepare on miss (app restart edge case)
+    let prepareResponse = this.prepareCache.get(sendQuote.paymentHash);
+    if (!prepareResponse) {
+      prepareResponse = await sdk.prepareSendPayment({
+        paymentRequest: sendQuote.paymentRequest,
+        amount: sendQuote.paymentRequestIsAmountless
+          ? BigInt(sendQuote.amount.toNumber('sat'))
+          : undefined,
+      });
+    }
+
+    try {
+      const { payment } = await measureOperation('BreezSdk.sendPayment', () =>
+        sdk.sendPayment({
+          prepareResponse,
+          idempotencyKey: sendQuote.id,
+          options: { type: 'bolt11Invoice', preferSpark: false },
+        }),
+      );
+
+      // Clean up cache
+      this.prepareCache.delete(sendQuote.paymentHash);
+
+      return this.repository.markAsPending({
+        quote: sendQuote,
+        sparkSendRequestId: payment.id,
+        sparkTransferId: payment.id,
+        fee: moneyFromSats(payment.fees),
+      });
+    } catch (error) {
+      if (isInsufficentBalanceError(error)) {
+        throw new DomainError(`Insufficient balance. ${error.message}`);
+      }
+      if (isInvoiceAlreadyPaidError(error)) {
+        throw new DomainError('Lightning invoice has already been paid.');
+      }
+      throw error;
+    }
   }
 
   /**
@@ -358,121 +367,6 @@ export class SparkSendQuoteService {
     }
 
     return this.repository.fail(quote.id, reason);
-  }
-
-  private async payLightningInvoice(
-    wallet: SparkWallet,
-    sendQuote: SparkSendQuote,
-  ): Promise<LightningSendRequest> {
-    try {
-      const request = await measureOperation(
-        'SparkWallet.payLightningInvoice',
-        () =>
-          wallet.payLightningInvoice({
-            invoice: sendQuote.paymentRequest,
-            maxFeeSats: sendQuote.estimatedFee.toNumber('sat'),
-            preferSpark: false,
-            amountSatsToSend: sendQuote.paymentRequestIsAmountless
-              ? sendQuote.amount.toNumber('sat')
-              : undefined,
-          }),
-      );
-
-      // Type guard to ensure we have a LightningSendRequest not a WalletTransfer
-      if (!('encodedInvoice' in request)) {
-        throw new Error(
-          'Expected a LightningSendRequest, but got a different type',
-        );
-      }
-
-      return request;
-    } catch (error) {
-      if (error instanceof SparkError) {
-        const existingRequestId = await this.findExistingLightningSendRequest(
-          wallet,
-          sendQuote.paymentRequest,
-          new Date(sendQuote.createdAt),
-        );
-
-        if (existingRequestId) {
-          return existingRequestId;
-        }
-      }
-
-      if (isInsufficentBalanceError(error)) {
-        // Spark SDK error context:
-        // - value: total amount being sent in sats (number)
-        // - expected: "less than or equal to ${availableBalance}" (string)
-        const { expected, value } = error.getContext();
-        const availableSats = expected.match(/(\d+)/)?.[1] ?? '0';
-        throw new DomainError(
-          `Insufficient balance. Total cost of send is ${value} sats but the available balance is ${availableSats} sats.`,
-        );
-      }
-
-      if (isInvoiceAlreadyPaidError(error)) {
-        throw new DomainError('Lightning invoice has already been paid.');
-      }
-
-      throw error;
-    }
-  }
-
-  /**
-   * Searches through wallet transfers to find an existing LightningSendRequest
-   * that matches the given invoice. Only searches transfers created after the
-   * specified time since the payment is initiated after the quote is created.
-   *
-   * @param wallet - The Spark wallet to search transfers in.
-   * @param paymentRequest - The encoded invoice to search for.
-   * @param createdAfter - Only search transfers created after this time.
-   * @returns The LightningSendRequest ID if found, null otherwise.
-   */
-  private async findExistingLightningSendRequest(
-    wallet: SparkWallet,
-    paymentRequest: string,
-    createdAfter: Date,
-  ): Promise<LightningSendRequest | null> {
-    const PAGE_SIZE = 100;
-    let offset = 0;
-
-    while (true) {
-      const { transfers } = await measureOperation(
-        'SparkWallet.getTransfers',
-        () => wallet.getTransfers(PAGE_SIZE, offset),
-        { pageSize: PAGE_SIZE, offset: offset },
-      );
-
-      if (transfers.length === 0) {
-        return null;
-      }
-
-      for (const transfer of transfers) {
-        if (
-          transfer.createdTime &&
-          new Date(transfer.createdTime) < createdAfter
-        ) {
-          return null;
-        }
-
-        if (
-          transfer.userRequest &&
-          'encodedInvoice' in transfer.userRequest &&
-          transfer.userRequest.encodedInvoice === paymentRequest
-        ) {
-          console.debug('Found existing LightningSendRequest', {
-            transferId: transfer.id,
-          });
-          return transfer.userRequest as LightningSendRequest;
-        }
-      }
-
-      if (transfers.length < PAGE_SIZE) {
-        return null;
-      }
-
-      offset += PAGE_SIZE;
-    }
   }
 }
 
