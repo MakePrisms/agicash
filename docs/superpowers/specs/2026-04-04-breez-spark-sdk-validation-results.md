@@ -35,7 +35,17 @@ Current Spark SDK `getInitializedSparkWallet` (init + getBalance): 200ms–few s
 
 ## C7: Error Catalog
 
-TODO
+**Result: WORKABLE** — All errors are plain `Error` (no typed subclasses). Must match on message strings.
+
+| Scenario | Constructor | Message |
+|---|---|---|
+| Invalid invoice | `Error` | `Invalid input: invalid input` |
+| Insufficient balance | `Error` | `SparkSdkError: Tree service error: insufficient funds` |
+| Send to self | TODO | |
+
+**Key difference from current Spark SDK:** Spark SDK's `SparkError` has `getContext()` returning structured data (e.g., `{ expected, value, field }` for insufficient balance). Breez SDK errors are flat strings with no structured context.
+
+**Mitigation:** For insufficient balance, the total cost is already known from `prepareSendPayment` response (amount + fees) before `sendPayment` is called. Use that instead of extracting from the error. Not a blocker — just a different pattern.
 
 ## Integration Notes
 
