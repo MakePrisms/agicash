@@ -5,6 +5,7 @@ import {
   SparkWalletEvent,
 } from '@buildonspark/spark-sdk';
 import type { SparkProto } from '@buildonspark/spark-sdk/types';
+import * as Sentry from '@sentry/react-router';
 import {
   type QueryClient,
   queryOptions,
@@ -369,6 +370,13 @@ export async function getInitializedSparkWallet(
           currency: 'BTC',
           unit: 'sat',
         }) as Money;
+        // Report WASM init time stored by the patched SDK
+        const wasmMs = (globalThis as Record<string, unknown>)
+          .__SPARK_WASM_INIT_MS;
+        if (typeof wasmMs === 'number') {
+          Sentry.setMeasurement('spark.wasm_init', wasmMs, 'millisecond');
+        }
+
         return { wallet, ownedBalance, availableBalance, isOnline: true };
       } catch (error) {
         console.error('Failed to initialize spark wallet', { cause: error });
