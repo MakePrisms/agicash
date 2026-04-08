@@ -106,6 +106,8 @@ export default function TestBreezKeyDerivation() {
   }, [breezOnlyMode, mnemonic, queryClient]);
 
   // Init performance state
+  const wasmInitMs = (globalThis as Record<string, unknown>)
+    .__BREEZ_WASM_INIT_MS__ as number | undefined;
   const [initMeasurements, setInitMeasurements] = useState<
     { ms: number; label: string }[]
   >([]);
@@ -784,9 +786,19 @@ export default function TestBreezKeyDerivation() {
       <section className="space-y-4">
         <h2 className="font-bold text-xl">C6: Init Performance</h2>
         <p className="text-muted-foreground text-sm">
-          Measures Breez SDK connection time. Disconnects the current instance,
-          then reconnects and records elapsed milliseconds.
+          Measures Breez SDK initialization. WASM init runs on page load
+          (entry.client.tsx). Connect + getInfo is the equivalent of
+          getInitializedSparkWallet.
         </p>
+
+        <div className="rounded-md border p-3">
+          <p className="font-medium text-muted-foreground text-xs uppercase">
+            WASM Module Init (page load)
+          </p>
+          <p className="mt-1 font-mono text-lg">
+            {wasmInitMs !== undefined ? `${wasmInitMs} ms` : 'pending...'}
+          </p>
+        </div>
 
         {!breezSdk && initMeasurements.length === 0 ? (
           <p className="text-muted-foreground text-sm italic">
