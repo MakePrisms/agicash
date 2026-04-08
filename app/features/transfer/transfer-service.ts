@@ -56,7 +56,7 @@ function extractPaymentRequest(receive: TransferReceiveSide): string {
       .request;
   }
   return (receive.lightningQuote as SparkReceiveLightningQuote).invoice
-    .encodedInvoice;
+    .paymentRequest;
 }
 
 export class TransferService {

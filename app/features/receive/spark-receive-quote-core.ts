@@ -1,62 +1,36 @@
-import type { SparkWallet } from '@buildonspark/spark-sdk';
-import type {
-  BitcoinNetwork,
-  CurrencyAmount,
-  LightningReceiveRequestStatus,
-} from '@buildonspark/spark-sdk/types';
+import type { BreezSdk } from '@breeztech/breez-sdk-spark';
 import type { Proof } from '@cashu/cashu-ts';
+import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
-import { moneyFromSparkAmount } from '~/lib/spark';
+import { moneyFromSats } from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 
 export type SparkReceiveLightningQuote = {
   /**
-   * The unique identifier of this entity across all Lightspark systems. Should be treated as an opaque
-   * string.
-   **/
+   * Unique identifier for tracking — equals the payment hash.
+   */
   id: string;
-  /** The date and time when the entity was first created. **/
-  createdAt: string;
-  /** The date and time when the entity was last updated. **/
-  updatedAt: string;
-  /** The network the lightning send request is on. **/
-  network: BitcoinNetwork;
-  /** The lightning invoice generated to receive lightning payment. **/
   invoice: {
-    encodedInvoice: string;
+    paymentRequest: string;
     paymentHash: string;
-    amount: CurrencyAmount;
-    createdAt: string;
+    amount: Money<'BTC'>;
     expiresAt: string;
-    memo?: string | undefined;
+    memo?: string;
   };
-  /** The status of the request. **/
-  status: LightningReceiveRequestStatus;
-  /** The typename of the object **/
-  typename: string;
-  /** The payment preimage of the invoice if retrieved from SE. **/
-  paymentPreimage?: string | undefined;
-  /** The receiver's identity public key if different from owner of the request. **/
-  receiverIdentityPublicKey?: string | undefined;
+  fee: Money<'BTC'>;
 };
 
 export type GetLightningQuoteParams = {
   /**
-   * The Spark wallet to use to get a quote.
+   * The Breez SDK instance to use to get a quote.
    */
-  wallet: SparkWallet;
+  wallet: BreezSdk;
   /**
    * The amount to receive.
    */
   amount: Money;
-  /**
-   * The Spark public key of the receiver used to create invoices on behalf of another user.
-   * If provided, the incoming payment can only be claimed by the Spark wallet that controls the specified public key.
-   * If not provided, the invoice will be created for the user that owns the Spark wallet.
-   */
-  receiverIdentityPubkey?: string;
   /**
    * The description of the receive request.
    */
@@ -164,10 +138,6 @@ export type RepositoryCreateQuoteParams = {
    */
   sparkId: string;
   /**
-   * Optional public key of the wallet receiving the lightning invoice.
-   */
-  receiverIdentityPubkey?: string;
-  /**
    * Total fee for the receive.
    */
   totalFee: Money;
@@ -227,45 +197,49 @@ export type RepositoryCreateQuoteParams = {
 );
 
 /**
- * Gets a Spark lightning receive quote for the given amount.
- * This is a pure function that calls Spark SDK and can be used by both client and server.
+ * Gets a Breez SDK lightning receive quote for the given amount.
+ * This is a pure function that calls Breez SDK and can be used by both client and server.
  * @returns The Spark lightning receive quote.
  */
 export async function getLightningQuote({
   wallet,
   amount,
-  receiverIdentityPubkey,
   description,
 }: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
-  const response = await measureOperation(
-    'SparkWallet.createLightningInvoice',
-    () =>
-      wallet.createLightningInvoice({
-        amountSats: amount.toNumber('sat'),
-        includeSparkAddress: false,
-        receiverIdentityPubkey,
-        memo: description,
-      }),
+  const amountSats = amount.toNumber('sat');
+
+  const response = await measureOperation('BreezSdk.receivePayment', () =>
+    wallet.receivePayment({
+      paymentMethod: {
+        type: 'bolt11Invoice',
+        description: description ?? '',
+        amountSats,
+      },
+    }),
   );
+
+  const bolt11 = parseBolt11Invoice(response.paymentRequest);
+  if (!bolt11.valid) {
+    throw new Error('Breez SDK returned an invalid bolt11 invoice');
+  }
+
+  const invoice = bolt11.decoded;
+  const invoiceAmount = invoice.amountMsat
+    ? new Money({ amount: invoice.amountMsat, currency: 'BTC', unit: 'msat' })
+    : new Money({ amount: amountSats, currency: 'BTC', unit: 'sat' });
+
   return {
-    id: response.id,
-    createdAt: response.createdAt,
-    updatedAt: response.updatedAt,
-    network: response.network,
+    id: invoice.paymentHash,
     invoice: {
-      encodedInvoice: response.invoice.encodedInvoice,
-      paymentHash: response.invoice.paymentHash,
-      amount: response.invoice.amount,
-      createdAt: response.invoice.createdAt,
-      expiresAt: response.invoice.expiresAt,
-      // We are using `?? undefined` for this and some properties below because, even though Spark types for those are defined as T | undefined,
-      // in practice we have seen null values, and we want to make sure that SparkReceiveLightningQuote is strictly correct.
-      memo: response.invoice.memo ?? undefined,
+      paymentRequest: response.paymentRequest,
+      paymentHash: invoice.paymentHash,
+      amount: invoiceAmount,
+      expiresAt: invoice.expiryUnixMs
+        ? new Date(invoice.expiryUnixMs).toISOString()
+        : new Date(Date.now() + 3600_000).toISOString(),
+      memo: description,
     },
-    status: response.status,
-    typename: response.typename,
-    paymentPreimage: response.paymentPreimage ?? undefined,
-    receiverIdentityPublicKey: response.receiverIdentityPublicKey ?? undefined,
+    fee: moneyFromSats(0),
   };
 }
 
@@ -296,7 +270,7 @@ export function getAmountAndFee(params: CreateQuoteBaseParams): {
   amount: Money;
   totalFee: Money;
 } {
-  const amount = moneyFromSparkAmount(params.lightningQuote.invoice.amount);
+  const amount = params.lightningQuote.invoice.amount as Money;
 
   if (params.receiveType === 'LIGHTNING') {
     return { amount, totalFee: Money.zero(amount.currency) };

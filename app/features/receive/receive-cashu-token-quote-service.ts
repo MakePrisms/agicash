@@ -292,7 +292,7 @@ export class ReceiveCashuTokenQuoteService {
 
       return {
         lightningQuote,
-        paymentRequest: lightningQuote.invoice.encodedInvoice,
+        paymentRequest: lightningQuote.invoice.paymentRequest,
       };
     }
 

@@ -58,7 +58,6 @@ export class SparkReceiveQuoteRepositoryServer {
       paymentHash,
       expiresAt,
       sparkId,
-      receiverIdentityPubkey,
       receiveType,
       description,
       totalFee,
@@ -85,7 +84,7 @@ export class SparkReceiveQuoteRepositoryServer {
       p_payment_hash: paymentHash,
       p_expires_at: expiresAt,
       p_spark_id: sparkId,
-      p_receiver_identity_pubkey: receiverIdentityPubkey ?? null,
+      p_receiver_identity_pubkey: null,
       p_receive_type: receiveType,
       p_encrypted_data: encryptedData,
     });
