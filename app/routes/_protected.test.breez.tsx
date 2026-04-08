@@ -321,7 +321,7 @@ export default function TestBreezOnly() {
           'lnbc1631400n1p5avsj6pp5gkhgj5v9us07dhgdc2lhgqqca6gpy3sjxathr36ear2t2m9ujk8qdqqcqzzsxqrrs0fppqstcjsap8rl6qya4y087rqezf7xelkw2ssp53kar26yu4n4tu0chqguhjdtzv4rllvv6y8ydt8gzg8ecgug23aes9qxpqysgqjhyltg7c2jsutkkdrep2kgvm2czhdk0j4tedphv70n68ee93vu69vxnrhv06t6qs4swvam55p9nrrqke2ruspvgz7d5659lhsfkq8zsqkv8xcy',
       });
       // If prepare succeeds, try to actually send — this should fail on balance
-      await breezSdk.sendPayment({ preparedPayment: prepared });
+      await breezSdk.sendPayment({ prepareResponse: prepared });
       addErrorEntry(
         'Send More Than Balance',
         new Error('No error — send succeeded unexpectedly'),
