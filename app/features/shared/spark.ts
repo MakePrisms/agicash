@@ -8,7 +8,7 @@ import {
 import type { SdkEvent } from '@breeztech/breez-sdk-spark';
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Money } from '~/lib/money';
+import type { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
 import {
@@ -197,7 +197,9 @@ export function useTrackAndUpdateSparkAccountBalances() {
         })
         .then((listenerId) => {
           if (cancelled) {
-            sdk.removeEventListener(listenerId).catch(() => {});
+            sdk.removeEventListener(listenerId).catch(() => {
+              // intentional no-op
+            });
             return;
           }
           listenerIds.push({ sdk, id: listenerId });
@@ -211,7 +213,9 @@ export function useTrackAndUpdateSparkAccountBalances() {
     return () => {
       cancelled = true;
       for (const { sdk, id } of listenerIds) {
-        sdk.removeEventListener(id).catch(() => {});
+        sdk.removeEventListener(id).catch(() => {
+          // intentional no-op
+        });
       }
     };
   }, [sparkAccounts, accountCache]);

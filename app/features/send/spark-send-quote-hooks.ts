@@ -188,12 +188,14 @@ export function useOnSparkSendStateChange({
     }
 
     // Group PENDING quotes by account for efficient listener registration
-    const pendingQuotesByAccount = new Map<string, SparkSendQuote[]>();
+    type PendingQuote = Extract<SparkSendQuote, { state: 'PENDING' }>;
+    const pendingQuotesByAccount = new Map<string, PendingQuote[]>();
     for (const quote of sendQuotes) {
       if (quote.state !== 'PENDING') continue;
-      const existing = pendingQuotesByAccount.get(quote.accountId) ?? [];
-      existing.push(quote);
-      pendingQuotesByAccount.set(quote.accountId, existing);
+      const pending = quote as PendingQuote;
+      const existing = pendingQuotesByAccount.get(pending.accountId) ?? [];
+      existing.push(pending);
+      pendingQuotesByAccount.set(pending.accountId, existing);
     }
 
     // Register one listener per account

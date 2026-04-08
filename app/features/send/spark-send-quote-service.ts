@@ -298,7 +298,7 @@ export class SparkSendQuoteService {
         quote: sendQuote,
         sparkSendRequestId: payment.id,
         sparkTransferId: payment.id,
-        fee: moneyFromSats(payment.fees),
+        fee: moneyFromSats(payment.fees) as Money,
       });
     } catch (error) {
       if (isInsufficentBalanceError(error)) {
