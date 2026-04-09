@@ -190,6 +190,8 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     pendingTermsStorage.remove();
   }
 
+  // ensureUserData derives the Spark identity public key via defaultExternalSigner(),
+  // which requires WASM to be initialized. Idempotent — returns immediately after first init.
   await initBreezWasm();
   const user = await ensureUserData(
     queryClient,
