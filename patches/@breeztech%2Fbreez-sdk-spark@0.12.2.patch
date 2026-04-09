@@ -1,0 +1,14 @@
+diff --git a/web/index.js b/web/index.js
+index d2cffb186027c2cf990284c2462d90a1cca65229..775ef52b4292059f953d7ab9645d36524c728e1e 100644
+--- a/web/index.js
++++ b/web/index.js
+@@ -29,5 +29,9 @@ const initBreezSDK = async () => {
+ };
+ 
+ // Export the initialization function and all WASM functions
++// Default export includes all named exports so that
++// `import pkg from '..'; const { connect } = pkg;` works (CJS compat)
++Object.assign(initBreezSDK, wasmModule);
+ export default initBreezSDK;
++export { initBreezSDK };
+ export * from './breez_sdk_spark_wasm.js';
