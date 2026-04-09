@@ -1,4 +1,4 @@
-import type { PrepareSendPaymentResponse } from '@breeztech/breez-sdk-spark';
+import type { PrepareSendPaymentResponse } from '@agicash/breez-sdk-spark';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';

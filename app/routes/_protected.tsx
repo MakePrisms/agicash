@@ -1,4 +1,4 @@
-import initBreezWasm from '@breeztech/breez-sdk-spark';
+import initBreezWasm from '@agicash/breez-sdk-spark';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { ZodError } from 'zod';

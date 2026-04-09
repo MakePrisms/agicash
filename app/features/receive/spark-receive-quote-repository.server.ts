@@ -31,6 +31,11 @@ type CreateQuoteParams = RepositoryCreateQuoteParams & {
    * Public key used to encrypt data for the user.
    */
   userEncryptionPublicKey: string;
+  /**
+   * Hex-encoded identity public key of the receiver.
+   * Used for delegated invoices (Lightning Address).
+   */
+  receiverIdentityPubkey?: string;
 };
 
 /**
@@ -84,7 +89,7 @@ export class SparkReceiveQuoteRepositoryServer {
       p_payment_hash: paymentHash,
       p_expires_at: expiresAt,
       p_spark_id: sparkId,
-      p_receiver_identity_pubkey: null,
+      p_receiver_identity_pubkey: params.receiverIdentityPubkey ?? null,
       p_receive_type: receiveType,
       p_encrypted_data: encryptedData,
     });

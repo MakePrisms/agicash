@@ -1,11 +1,11 @@
-import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import {
   type BreezSdk,
   type SdkEvent,
   connect,
   defaultConfig,
   initLogging,
-} from '@breeztech/breez-sdk-spark';
+} from '@agicash/breez-sdk-spark';
+import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import type { Money } from '~/lib/money';

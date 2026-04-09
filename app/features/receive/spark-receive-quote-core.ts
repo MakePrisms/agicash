@@ -1,4 +1,4 @@
-import type { BreezSdk } from '@breeztech/breez-sdk-spark';
+import type { BreezSdk } from '@agicash/breez-sdk-spark';
 import type { Proof } from '@cashu/cashu-ts';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
@@ -35,6 +35,13 @@ export type GetLightningQuoteParams = {
    * The description of the receive request.
    */
   description?: string;
+  /**
+   * Hex-encoded compressed public key of the receiver.
+   * When set, creates a delegated invoice — the SSP routes the payment to this
+   * identity instead of the caller's wallet. Used for Lightning Address flows
+   * where a server creates invoices on behalf of users.
+   */
+  receiverIdentityPubkey?: string;
 };
 
 export type CreateQuoteBaseParams = {
@@ -205,6 +212,7 @@ export async function getLightningQuote({
   wallet,
   amount,
   description,
+  receiverIdentityPubkey,
 }: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
   const amountSats = amount.toNumber('sat');
 
@@ -214,6 +222,7 @@ export async function getLightningQuote({
         type: 'bolt11Invoice',
         description: description ?? '',
         amountSats,
+        receiverIdentityPubkey,
       },
     }),
   );

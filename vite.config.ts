@@ -42,10 +42,10 @@ export default defineConfig((config) => {
     // Pre-bundling inlines a library into a single file under .vite/deps/, breaking
     // `new URL('./file', import.meta.url)` patterns used to load Web Workers and WASM.
     // - @agicash/qr-scanner: loads a Web Worker via relative URL
-    // - @breeztech/breez-sdk-spark: loads breez_sdk_spark_wasm_bg.wasm via relative URL
+    // - @agicash/breez-sdk-spark: loads breez_sdk_spark_wasm_bg.wasm via relative URL
     // Trade-off: the browser makes a few extra HTTP requests in dev. No impact on production.
     optimizeDeps: {
-      exclude: ['@agicash/qr-scanner', '@breeztech/breez-sdk-spark'],
+      exclude: ['@agicash/qr-scanner', '@agicash/breez-sdk-spark'],
     },
     build: {
       emptyOutDir: false,

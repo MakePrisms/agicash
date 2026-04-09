@@ -1,4 +1,4 @@
-import type { BreezSdk } from '@breeztech/breez-sdk-spark';
+import type { BreezSdk } from '@agicash/breez-sdk-spark';
 import type { DistributedOmit } from 'type-fest';
 import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
 import type { MintPurpose } from '~/lib/cashu/protocol-extensions';

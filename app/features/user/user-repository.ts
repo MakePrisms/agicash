@@ -17,12 +17,14 @@ import {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
   getMintAuthProvider,
 } from '../shared/cashu';
 import { UniqueConstraintError } from '../shared/error';
+import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
 
 export type UpdateUser = {
@@ -224,6 +226,7 @@ export class ReadUserDefaultAccountRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly queryClient: QueryClient,
+    private readonly getSparkWalletMnemonic?: () => Promise<string>,
   ) {}
 
   /**
@@ -301,19 +304,33 @@ export class ReadUserDefaultAccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
+      const { wallet, balance, isOnline } =
+        await this.getInitializedSparkWalletForNetwork(network);
       return {
         ...commonData,
         type: 'spark',
-        balance: null,
+        balance,
         network,
-        isOnline: true,
-        wallet: createSparkWalletStub(
-          'Server-side stub — Spark Lightning Address not yet supported with Breez SDK',
-        ),
+        isOnline,
+        wallet,
       };
     }
 
     throw new Error('Invalid account type');
+  }
+
+  private async getInitializedSparkWalletForNetwork(network: SparkNetwork) {
+    if (!this.getSparkWalletMnemonic) {
+      return {
+        wallet: createSparkWalletStub(
+          'No Spark mnemonic available — Spark wallet not initialized',
+        ),
+        balance: null,
+        isOnline: false,
+      };
+    }
+    const mnemonic = await this.getSparkWalletMnemonic();
+    return getInitializedSparkWallet(this.queryClient, mnemonic, network);
   }
 }
 
