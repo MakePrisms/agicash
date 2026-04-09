@@ -148,6 +148,7 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   { request },
   next,
 ) => {
+  await initBreezWasm();
   const location = new URL(request.url);
   // We have to use window.location.hash because location that comes from the request does not have the hash
   const hash = window.location.hash;
@@ -216,7 +217,6 @@ export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
 
 export async function clientLoader() {
   // We are keeping this clientLoader to force client rendering for all protected routes.
-  await initBreezWasm();
 }
 
 clientLoader.hydrate = true as const;
