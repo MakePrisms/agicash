@@ -1,14 +1,50 @@
-diff --git a/web/index.js b/web/index.js
-index d2cffb186027c2cf990284c2462d90a1cca65229..775ef52b4292059f953d7ab9645d36524c728e1e 100644
---- a/web/index.js
-+++ b/web/index.js
-@@ -29,5 +29,9 @@ const initBreezSDK = async () => {
- };
- 
- // Export the initialization function and all WASM functions
-+// Default export includes all named exports so that
-+// `import pkg from '..'; const { connect } = pkg;` works (CJS compat)
-+Object.assign(initBreezSDK, wasmModule);
- export default initBreezSDK;
-+export { initBreezSDK };
- export * from './breez_sdk_spark_wasm.js';
+diff --git a/node_modules/@breeztech/breez-sdk-spark/.bun-tag-e44a27dd71167690 b/.bun-tag-e44a27dd71167690
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/@breeztech/breez-sdk-spark/nodejs/index.mjs b/nodejs/index.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..12a9914ba98f412a04fe27181a03aab54757212c
+--- /dev/null
++++ b/nodejs/index.mjs
+@@ -0,0 +1,25 @@
++// ESM wrapper for the CJS Node.js entry — re-exports named bindings
++// so that `import { connect } from '@breeztech/breez-sdk-spark'` works
++// in ESM contexts (Vite SSR).
++import pkg from './index.js';
++
++export const {
++  BreezSdk,
++  DefaultSigner,
++  IntoUnderlyingByteSource,
++  IntoUnderlyingSink,
++  IntoUnderlyingSource,
++  Passkey,
++  SdkBuilder,
++  TokenIssuer,
++  connect,
++  connectWithSigner,
++  defaultConfig,
++  defaultExternalSigner,
++  defaultPostgresStorageConfig,
++  getSparkStatus,
++  initLogging,
++  task_worker_entry_point,
++} = pkg;
++
++export default pkg;
+diff --git a/package.json b/package.json
+index 01ef3e9acf9652558988ff73c9ec1491a3ba17d8..9eab07eab61d64c0c3d0a26d6c6f8d811f9ad3dd 100644
+--- a/package.json
++++ b/package.json
+@@ -22,7 +22,10 @@
+         "./nodejs": "./nodejs/index.js",
+         "./web": "./web/index.js",
+         ".": {
+-            "node": "./nodejs/index.js",
++            "node": {
++                "import": "./nodejs/index.mjs",
++                "require": "./nodejs/index.js"
++            },
+             "deno": "./deno/breez_sdk_spark_wasm.js",
+             "default": "./web/index.js"
+         }
