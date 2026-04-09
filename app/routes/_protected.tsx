@@ -148,7 +148,6 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   { request },
   next,
 ) => {
-  await initBreezWasm();
   const location = new URL(request.url);
   // We have to use window.location.hash because location that comes from the request does not have the hash
   const hash = window.location.hash;
@@ -191,6 +190,7 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     pendingTermsStorage.remove();
   }
 
+  await initBreezWasm();
   const user = await ensureUserData(
     queryClient,
     authUser,
