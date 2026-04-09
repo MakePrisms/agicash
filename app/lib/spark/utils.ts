@@ -1,7 +1,7 @@
-import {
-  type BreezSdk,
-  defaultExternalSigner,
-} from '@breeztech/breez-sdk-spark';
+import pkg from '@breeztech/breez-sdk-spark';
+import type { BreezSdk } from '@breeztech/breez-sdk-spark';
+
+const { defaultExternalSigner } = pkg;
 import { bytesToHex } from '@noble/hashes/utils';
 import { Money } from '../money';
 
