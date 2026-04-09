@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod';
 import type { Currency } from '~/lib/money';
+import { createSparkWalletStub } from '~/lib/spark';
 import type { Account, RedactedAccount } from '../accounts/account';
 import {
   type AccountRepository,
@@ -300,7 +301,6 @@ export class ReadUserDefaultAccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { createSparkWalletStub } = await import('~/lib/spark/utils');
       return {
         ...commonData,
         type: 'spark',
