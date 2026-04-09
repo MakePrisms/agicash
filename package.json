@@ -123,6 +123,7 @@
   },
   "patchedDependencies:comments": {
     "@sentry/core@10.42.0": "This patch was added because we noticed that logs in Sentry dashboard started to show timstamps different than what our logs would record when the app would be in the background for a while and then brought back to the foreground. We suspected (not 100% sure but it seems like our patch has fixed it) that it is related to their logic which uses the Performance API to get the timestamp for greater precision (browser sometimes stops the performance api clock when the computer is asleep), so we opted out of that and are just using the Date API instead. Remove the patch once that has been solved.",
-    "@tanstack/query-core@5.90.20": "This patch is needed to add support for dynamic mutation scope. See https://github.com/TanStack/query/discussions/7126#discussioncomment-8815577 for more details. Remove the patch if tanstack query ever adds support for this natively."
+    "@tanstack/query-core@5.90.20": "This patch is needed to add support for dynamic mutation scope. See https://github.com/TanStack/query/discussions/7126#discussioncomment-8815577 for more details. Remove the patch if tanstack query ever adds support for this natively.",
+    "@breeztech/breez-sdk-spark@0.12.2": "The package's Node entry (nodejs/index.js) is CJS, so ESM named imports like `import { connect } from '@breeztech/breez-sdk-spark'` fail in Vite SSR. This patch adds an ESM wrapper (nodejs/index.mjs) that re-exports the CJS module as named bindings, and updates the package exports map to use it for Node ESM imports. Remove the patch if Breez ships a native ESM Node entry."
   }
 }
