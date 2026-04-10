@@ -85,24 +85,22 @@ export const sparkWalletQueryOptions = ({
         // Already initialized — ignore
       }
 
-      const config = defaultConfig(breezNetwork);
-      // Disable Breez's built-in lightning address recovery — we use our own system
-      config.lnurlDomain = undefined;
-      // Verify privacy is enabled by default
-      if (!config.privateEnabledDefault) {
-        config.privateEnabledDefault = true;
-      }
-      if (apiKey) {
-        config.apiKey = apiKey;
-      }
-
       const sdk = await measureOperation(
         'BreezSdk.connect',
         () =>
           connect({
-            config,
+            config: {
+              ...defaultConfig(breezNetwork),
+              apiKey,
+              lnurlDomain: undefined, // Disables Breez's built-in lightning address recovery — we use our own ln address system
+              privateEnabledDefault: true,
+              optimizationConfig: {
+                autoEnabled: true,
+                multiplicity: 2,
+              },
+            },
             seed: { type: 'mnemonic', mnemonic },
-            storageDir: `spark-${breezNetwork}`,
+            storageDir: './.spark-data',
           }),
         { 'spark.network': network },
       );
