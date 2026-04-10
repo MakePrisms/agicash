@@ -16,7 +16,7 @@ const RESEND_BASE_URL = "https://api.resend.com";
 const FROM_ADDRESS = "Agicash <noreply@emails.agi.cash>";
 
 const payloadSchema = z.object({
-  id: z.string().optional(),
+  id: z.string(),
   email: z.string().email(),
   firstName: z.string().optional(),
 });
@@ -49,10 +49,14 @@ function getResendClient(apiKey: string) {
 async function sendWelcomeEmail(
   resend: typeof ky,
   templateId: string,
+  id: string,
   email: string,
   firstName: string | undefined,
 ): Promise<void> {
   await resend.post("emails", {
+    headers: {
+      "Idempotency-Key": `welcome-email/${id}`,
+    },
     json: {
       from: FROM_ADDRESS,
       to: [email],
@@ -99,7 +103,7 @@ Deno.serve(async (req) => {
     const templateId = getRequiredEnv("RESEND_WELCOME_TEMPLATE_ID");
     const resend = getResendClient(apiKey);
 
-    await sendWelcomeEmail(resend, templateId, email, firstName);
+    await sendWelcomeEmail(resend, templateId, id, email, firstName);
 
     console.log("Welcome email sent", { id, email });
 
