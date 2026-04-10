@@ -32,6 +32,7 @@ export type UpdateUser = {
   defaultCurrency?: Currency;
   username?: string;
   termsAcceptedAt?: string;
+  mintTermsAcceptedAt?: string;
 };
 
 type Options = {
@@ -72,6 +73,7 @@ function toUser(dbUser: AgicashDbUser): User {
     defaultUsdAccountId: dbUser.default_usd_account_id,
     defaultCurrency: dbUser.default_currency,
     termsAcceptedAt: dbUser.terms_accepted_at,
+    mintTermsAcceptedAt: dbUser.mint_terms_accepted_at,
   };
 
   if (dbUser.email) {
@@ -106,6 +108,7 @@ export class WriteUserRepository {
         default_currency: data.defaultCurrency,
         username: data.username,
         terms_accepted_at: data.termsAcceptedAt,
+        mint_terms_accepted_at: data.mintTermsAcceptedAt,
       })
       .eq('id', userId)
       .select();

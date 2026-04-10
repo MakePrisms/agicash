@@ -19,6 +19,9 @@ import {
   WalletCardBackgroundImage,
 } from '~/components/wallet-card';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
+import { AcceptMintTerms } from '~/features/signup/accept-mint-terms';
+import { shouldAcceptMintTerms } from '~/features/user/user';
+import { useAcceptMintTerms, useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
 import type { GiftCardInfo } from './use-discover-cards';
@@ -52,10 +55,13 @@ type AddGiftCardProps = {
  */
 export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   const [isAdding, setIsAdding] = useState(false);
+  const [step, setStep] = useState<'default' | 'accept-mint-terms'>('default');
   const addGiftCard = useAddGiftCard();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const user = useUser();
+  const acceptMintTerms = useAcceptMintTerms();
   const isTransitioning = useViewTransitionState('/gift-cards');
 
   const handleBack = () => {
@@ -66,6 +72,10 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   };
 
   const handleAddCard = async () => {
+    if (shouldAcceptMintTerms(user)) {
+      setStep('accept-mint-terms');
+      return;
+    }
     setIsAdding(true);
     try {
       await addGiftCard({
@@ -91,6 +101,50 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
       setIsAdding(false);
     }
   };
+
+  const handleAcceptMintTerms = async () => {
+    setIsAdding(true);
+    try {
+      await acceptMintTerms();
+      // Proceed directly to add card (skip terms check since we just accepted)
+      await addGiftCard({
+        name: giftCard.name,
+        currency: giftCard.currency,
+        url: giftCard.url,
+      });
+      toast({
+        title: 'Success',
+        description: 'Card added successfully',
+        duration: 1500,
+      });
+      navigate('/gift-cards');
+    } catch (e) {
+      console.error('Failed to accept mint terms or add card', { cause: e });
+      const message =
+        e instanceof Error ? e.message : 'Unknown error. Please try again.';
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: message,
+      });
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  if (step === 'accept-mint-terms') {
+    return (
+      <Page>
+        <PageContent className="justify-center">
+          <AcceptMintTerms
+            onAccept={handleAcceptMintTerms}
+            onBack={() => setStep('default')}
+            loading={isAdding}
+          />
+        </PageContent>
+      </Page>
+    );
+  }
 
   return (
     <Page className="relative">

@@ -250,3 +250,12 @@ export const useAcceptTerms = () => {
     [updateUser],
   );
 };
+
+export const useAcceptMintTerms = () => {
+  const { mutateAsync: updateUser } = useUpdateUser();
+
+  return useCallback(
+    () => updateUser({ mintTermsAcceptedAt: new Date().toISOString() }),
+    [updateUser],
+  );
+};

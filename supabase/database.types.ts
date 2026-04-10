@@ -826,6 +826,7 @@ export type Database = {
           email_verified: boolean
           encryption_public_key: string
           id: string
+          mint_terms_accepted_at: string | null
           spark_identity_public_key: string
           terms_accepted_at: string | null
           updated_at: string
@@ -841,6 +842,7 @@ export type Database = {
           email_verified: boolean
           encryption_public_key: string
           id?: string
+          mint_terms_accepted_at?: string | null
           spark_identity_public_key: string
           terms_accepted_at?: string | null
           updated_at?: string
@@ -856,6 +858,7 @@ export type Database = {
           email_verified?: boolean
           encryption_public_key?: string
           id?: string
+          mint_terms_accepted_at?: string | null
           spark_identity_public_key?: string
           terms_accepted_at?: string | null
           updated_at?: string
