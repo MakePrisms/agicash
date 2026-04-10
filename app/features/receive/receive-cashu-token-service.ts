@@ -60,6 +60,7 @@ export class ReceiveCashuTokenService {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
       purpose: wallet.purpose,
+      state: 'active' as const,
       name: mintUrl.replace('https://', '').replace('http://', ''),
       mintUrl,
       createdAt: new Date().toISOString(),

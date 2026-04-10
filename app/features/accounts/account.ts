@@ -10,6 +10,8 @@ import type { CashuProof } from './cashu-account';
 
 export type AccountType = 'cashu' | 'spark';
 
+export type AccountState = 'active' | 'expired';
+
 /**
  * Account purpose. Maps to MintPurpose for cashu accounts.
  */
@@ -20,6 +22,7 @@ export type Account = {
   name: string;
   type: AccountType;
   purpose: AccountPurpose;
+  state: AccountState;
   isOnline: boolean;
   currency: Currency;
   createdAt: string;
