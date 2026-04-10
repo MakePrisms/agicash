@@ -1,14 +1,11 @@
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
 import type { Token } from '@cashu/cashu-ts';
 import type { QueryClient } from '@tanstack/react-query';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
-import { measureOperation } from '~/lib/performance';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
-import { sparkBalanceQueryKey } from '../shared/spark';
 import type { User } from '../user/user';
 import { userQueryKey } from '../user/user-hooks';
 import type { UserService } from '../user/user-service';
@@ -280,10 +277,7 @@ export class ClaimCashuTokenService {
           paymentPreimage,
           sparkTransferId,
         );
-        // To make sure the new balance is immidiatelly reflected in the UI, we invalidate the spark balance query.
-        await this.queryClient.invalidateQueries({
-          queryKey: sparkBalanceQueryKey(quotes.destinationAccount.id),
-        });
+        // Balance is updated event-driven via useTrackAndUpdateSparkAccountBalances
         return { success: true };
       }
     } catch (error) {
@@ -302,27 +296,30 @@ export class ClaimCashuTokenService {
   }
 
   /**
-   * Polls for the spark receive request to complete.
-   * Polls every 1 second with a hard timeout of 10 seconds total.
-   * @throws Error if it doesn't complete in that time or if getting receive request throws.
+   * Waits for a Spark lightning receive to complete using event-driven detection.
+   * Registers a Breez SDK event listener and does an initial payment list check to
+   * catch payments that arrived before the listener was registered.
+   * @throws Error if the payment does not complete within the timeout.
    */
   private waitForSparkReceiveToComplete(
     account: SparkAccount,
     quote: SparkReceiveQuote,
   ): Promise<{ sparkTransferId: string; paymentPreimage: string }> {
-    if (!account.wallet) {
-      throw new Error(`Spark account ${account.id} wallet not initialized`);
-    }
-
+    const sdk = account.wallet;
     const timeoutMs = 10_000;
-    const pollIntervalMs = 1000;
-    const wallet = account.wallet;
 
     return new Promise((resolve, reject) => {
-      let intervalId: ReturnType<typeof setInterval> | null = null;
+      let listenerId: string | undefined;
+      let settled = false;
+
+      const cleanup = () => {
+        // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional fire-and-forget cleanup
+        if (listenerId) sdk.removeEventListener(listenerId).catch(() => {});
+      };
 
       const timeoutId = setTimeout(() => {
-        if (intervalId) clearInterval(intervalId);
+        settled = true;
+        cleanup();
         reject(
           new Error(
             `Spark receive request ${quote.sparkId} timed out after ${timeoutMs / 1000} seconds`,
@@ -330,52 +327,69 @@ export class ClaimCashuTokenService {
         );
       }, timeoutMs);
 
-      const checkReceiveRequest = async () => {
-        try {
-          const receiveRequest = await measureOperation(
-            'SparkWallet.getLightningReceiveRequest',
-            () => wallet.getLightningReceiveRequest(quote.sparkId),
-            { receiveRequestId: quote.sparkId },
-          );
+      const handlePayment = (payment: {
+        id: string;
+        details?: {
+          type: string;
+          htlcDetails?: { paymentHash: string; preimage?: string };
+        };
+      }) => {
+        if (settled) return;
+        const details = payment.details;
+        if (details?.type !== 'lightning') return;
+        if (details.htlcDetails?.paymentHash !== quote.paymentHash) return;
 
-          if (
-            receiveRequest?.status ===
-            LightningReceiveRequestStatus.TRANSFER_COMPLETED
-          ) {
-            clearTimeout(timeoutId);
-            if (intervalId) clearInterval(intervalId);
+        settled = true;
+        clearTimeout(timeoutId);
+        cleanup();
 
-            if (!receiveRequest.paymentPreimage) {
-              reject(
-                new Error(
-                  'Payment preimage is required when receive request has TRANSFER_COMPLETED status.',
-                ),
-              );
-              return;
-            }
-            if (!receiveRequest.transfer?.sparkId) {
-              reject(
-                new Error(
-                  'Spark transfer ID is required when receive request has TRANSFER_COMPLETED status.',
-                ),
-              );
-              return;
-            }
-
-            resolve({
-              sparkTransferId: receiveRequest.transfer.sparkId,
-              paymentPreimage: receiveRequest.paymentPreimage,
-            });
-          }
-        } catch (error) {
-          clearTimeout(timeoutId);
-          if (intervalId) clearInterval(intervalId);
-          reject(error);
+        const preimage = details.htlcDetails.preimage;
+        if (!preimage) {
+          reject(new Error('Payment preimage missing'));
+          return;
         }
+
+        resolve({
+          sparkTransferId: payment.id,
+          paymentPreimage: preimage,
+        });
       };
 
-      checkReceiveRequest();
-      intervalId = setInterval(checkReceiveRequest, pollIntervalMs);
+      // Register event listener
+      sdk
+        .addEventListener({
+          onEvent(event) {
+            if (event.type === 'paymentSucceeded') {
+              handlePayment(event.payment);
+            }
+          },
+        })
+        .then((id) => {
+          listenerId = id;
+          // If already settled before listener registered, clean up immediately
+          // biome-ignore lint/suspicious/noEmptyBlockStatements: intentional fire-and-forget cleanup
+          if (settled) sdk.removeEventListener(id).catch(() => {});
+        });
+
+      // Initial check — catches payments that arrived before listener registered
+      sdk
+        .listPayments({
+          typeFilter: ['receive'],
+          limit: 20,
+          sortAscending: false,
+        })
+        .then((response) => {
+          for (const payment of response.payments) {
+            if (payment.status === 'completed') {
+              handlePayment(payment);
+            }
+          }
+        })
+        .catch((error) => {
+          console.error('Error checking initial receive payments', {
+            cause: error,
+          });
+        });
     });
   }
 }

@@ -1,54 +1,23 @@
-import { SparkError } from '@buildonspark/spark-sdk';
-import { z } from 'zod';
-
-const InsufficentBalanceErrorContextSchema = z.object({
-  expected: z.string(),
-  field: z.string(),
-  value: z.number(),
-});
-
-const InsufficentBalanceErrorSchema = z.object({
-  getContext: z.function({
-    input: [],
-    output: InsufficentBalanceErrorContextSchema,
-  }),
-  message: z.string().refine(
-    (message) => {
-      const lower = message.toLowerCase();
-      return (
-        lower.includes('insufficient balance') ||
-        lower.includes('exceeds available balance')
-      );
-    },
-    { error: 'Not an insufficent balance error message' },
-  ),
-});
-
-export const isInsufficentBalanceError = (
-  error: unknown,
-): error is z.infer<typeof InsufficentBalanceErrorSchema> & SparkError => {
-  if (!(error instanceof SparkError)) {
-    return false;
-  }
-
-  if (!InsufficentBalanceErrorSchema.safeParse(error).success) {
-    return false;
-  }
-
-  const context = error.getContext();
-
-  // We want to throw if they change the context shape that we expect.
-  InsufficentBalanceErrorContextSchema.parse(context);
-
-  return true;
+/**
+ * Checks if an error is an insufficient balance error from the Breez SDK.
+ * Phase C validation confirmed: message contains "insufficient funds".
+ */
+export const isInsufficentBalanceError = (error: unknown): error is Error => {
+  if (!(error instanceof Error)) return false;
+  const lower = error.message.toLowerCase();
+  return (
+    lower.includes('insufficient funds') ||
+    lower.includes('insufficient balance')
+  );
 };
 
-export const isInvoiceAlreadyPaidError = (
-  error: unknown,
-): error is SparkError => {
-  return (
-    error instanceof SparkError &&
-    error.message.toLowerCase().includes('failed to initiate preimage swap') &&
-    error.message.toLowerCase().includes('preimage request already exists')
-  );
+/**
+ * Checks if an error indicates the invoice was already paid.
+ * Phase C validation confirmed: message contains "preimage request already exists".
+ */
+export const isInvoiceAlreadyPaidError = (error: unknown): error is Error => {
+  if (!(error instanceof Error)) return false;
+  return error.message
+    .toLowerCase()
+    .includes('preimage request already exists');
 };

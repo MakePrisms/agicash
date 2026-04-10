@@ -55,12 +55,11 @@ export class SparkReceiveQuoteServiceServer {
       userId,
       accountId: account.id,
       amount,
-      paymentRequest: lightningQuote.invoice.encodedInvoice,
+      paymentRequest: lightningQuote.invoice.paymentRequest,
       paymentHash: lightningQuote.invoice.paymentHash,
       description: lightningQuote.invoice.memo,
       expiresAt,
       sparkId: lightningQuote.id,
-      receiverIdentityPubkey: lightningQuote.receiverIdentityPublicKey,
       totalFee,
     };
 

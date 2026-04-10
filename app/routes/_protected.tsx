@@ -1,3 +1,4 @@
+import initBreezWasm from '@agicash/breez-sdk-spark';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { ZodError } from 'zod';
@@ -189,6 +190,9 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     pendingTermsStorage.remove();
   }
 
+  // ensureUserData derives the Spark identity public key via defaultExternalSigner(),
+  // which requires WASM to be initialized. Idempotent — returns immediately after first init.
+  await initBreezWasm();
   const user = await ensureUserData(
     queryClient,
     authUser,

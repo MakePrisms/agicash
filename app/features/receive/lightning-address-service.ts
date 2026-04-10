@@ -1,4 +1,3 @@
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
 import { hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import type { QueryClient } from '@tanstack/react-query';
@@ -223,6 +222,8 @@ export class LightningAddressService {
         };
       }
 
+      // Spark Lightning Address: create a delegated invoice using the server's
+      // wallet with the user's identity public key.
       const sparkReceiveQuoteService = new SparkReceiveQuoteServiceServer(
         new SparkReceiveQuoteRepositoryServer(this.db),
       );
@@ -247,7 +248,7 @@ export class LightningAddressService {
       });
 
       return {
-        pr: lightningQuote.invoice.encodedInvoice,
+        pr: lightningQuote.invoice.paymentRequest,
         verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
         routes: [],
       };
@@ -314,33 +315,39 @@ export class LightningAddressService {
   }
 
   private async handleSparkLnurlpVerify(
-    receiveRequestId: string,
+    paymentHash: string,
   ): Promise<LNURLVerifyResult> {
     const wallet = await this.queryClient.fetchQuery(
       sparkWalletQueryOptions({ network: 'MAINNET', mnemonic: sparkMnemonic }),
     );
 
-    const receiveRequest = await measureOperation(
-      'SparkWallet.getLightningReceiveRequest',
-      () => wallet.getLightningReceiveRequest(receiveRequestId),
-      { receiveRequestId },
+    const { payment } = await measureOperation(
+      'BreezSdk.getPayment',
+      () => wallet.getPayment({ paymentId: paymentHash }),
+      { paymentHash },
     );
 
-    if (!receiveRequest) {
+    if (!payment) {
       throw new NotFoundError(
-        `Spark lightning receive request ${receiveRequestId} not found`,
+        `Spark payment with hash ${paymentHash} not found`,
       );
     }
 
-    const settled =
-      receiveRequest.status ===
-      LightningReceiveRequestStatus.TRANSFER_COMPLETED;
+    const settled = payment.status === 'completed';
+    const details = payment.details;
+    const preimage =
+      (details?.type === 'lightning'
+        ? details.htlcDetails?.preimage
+        : details?.type === 'spark'
+          ? details.htlcDetails?.preimage
+          : undefined) ?? null;
+    const pr = details?.type === 'lightning' ? details.invoice : '';
 
     return {
       status: 'OK',
       settled,
-      preimage: receiveRequest.paymentPreimage ?? null,
-      pr: receiveRequest.invoice.encodedInvoice,
+      preimage,
+      pr,
     };
   }
 

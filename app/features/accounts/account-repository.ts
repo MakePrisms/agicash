@@ -1,4 +1,3 @@
-import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod';
@@ -12,6 +11,7 @@ import {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
@@ -206,14 +206,13 @@ export class AccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { wallet, ownedBalance, availableBalance, isOnline } =
+      const { wallet, balance, isOnline } =
         await this.getInitializedSparkWallet(network);
 
       return {
         ...commonData,
         type: 'spark',
-        ownedBalance,
-        availableBalance,
+        balance,
         network,
         isOnline,
         wallet,

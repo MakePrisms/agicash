@@ -1,8 +1,8 @@
-import type { NetworkType } from '@buildonspark/spark-sdk';
 import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod';
 import type { Currency } from '~/lib/money';
+import { createSparkWalletStub } from '~/lib/spark';
 import type { Account, RedactedAccount } from '../accounts/account';
 import {
   type AccountRepository,
@@ -17,6 +17,7 @@ import {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
@@ -49,8 +50,7 @@ type AccountInput = {
   | 'keysetCounters'
   | 'wallet'
   | 'isOnline'
-  | 'ownedBalance'
-  | 'availableBalance'
+  | 'balance'
 >;
 
 /**
@@ -226,7 +226,7 @@ export class ReadUserDefaultAccountRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly queryClient: QueryClient,
-    private readonly getSparkWalletMnemonic: () => Promise<string>,
+    private readonly getSparkWalletMnemonic?: () => Promise<string>,
   ) {}
 
   /**
@@ -304,14 +304,12 @@ export class ReadUserDefaultAccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { wallet, ownedBalance, availableBalance, isOnline } =
-        await this.getInitializedSparkWallet(network);
-
+      const { wallet, balance, isOnline } =
+        await this.getInitializedSparkWalletForNetwork(network);
       return {
         ...commonData,
         type: 'spark',
-        ownedBalance,
-        availableBalance,
+        balance,
         network,
         isOnline,
         wallet,
@@ -321,7 +319,16 @@ export class ReadUserDefaultAccountRepository {
     throw new Error('Invalid account type');
   }
 
-  private async getInitializedSparkWallet(network: NetworkType) {
+  private async getInitializedSparkWalletForNetwork(network: SparkNetwork) {
+    if (!this.getSparkWalletMnemonic) {
+      return {
+        wallet: createSparkWalletStub(
+          'No Spark mnemonic available — Spark wallet not initialized',
+        ),
+        balance: null,
+        isOnline: false,
+      };
+    }
     const mnemonic = await this.getSparkWalletMnemonic();
     return getInitializedSparkWallet(this.queryClient, mnemonic, network);
   }
