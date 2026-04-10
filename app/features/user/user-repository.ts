@@ -49,6 +49,7 @@ type AccountInput = {
   | 'keysetCounters'
   | 'wallet'
   | 'isOnline'
+  | 'state'
   | 'ownedBalance'
   | 'availableBalance'
 >;
@@ -276,6 +277,7 @@ export class ReadUserDefaultAccountRepository {
       name: data.name,
       currency: data.currency,
       purpose: data.purpose,
+      state: data.state,
       createdAt: data.created_at,
       version: data.version,
       expiresAt: data.expires_at,

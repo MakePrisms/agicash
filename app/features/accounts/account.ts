@@ -10,6 +10,8 @@ import type { CashuProof } from './cashu-account';
 
 export type AccountType = 'cashu' | 'spark';
 
+export type AccountState = 'active' | 'expired';
+
 /**
  * Account purpose. Maps to MintPurpose for cashu accounts.
  */
@@ -20,6 +22,7 @@ export type Account = {
   name: string;
   type: AccountType;
   purpose: AccountPurpose;
+  state: AccountState;
   isOnline: boolean;
   currency: Currency;
   createdAt: string;
@@ -103,6 +106,20 @@ export const canReceiveFromLightning = (account: Account): boolean => {
   if (account.type === 'spark') return true;
   if (account.isTestMint) return false;
   return !account.wallet.getMintInfo().isSupported(4).disabled;
+};
+
+/**
+ * Returns the home path for an account based on its purpose.
+ */
+export const getAccountHomePath = (account: Account): string => {
+  switch (account.purpose) {
+    case 'gift-card':
+      return `/gift-cards/${account.id}`;
+    case 'offer':
+      return `/gift-cards/offers/${account.id}`;
+    default:
+      return '/';
+  }
 };
 
 export const getAccountBalance = (account: Account) => {

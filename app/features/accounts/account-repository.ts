@@ -32,7 +32,7 @@ type AccountOmit<
   AdditionalOmit extends keyof T = never,
 > = DistributedOmit<
   T,
-  'id' | 'createdAt' | 'version' | 'isOnline' | AdditionalOmit
+  'id' | 'createdAt' | 'version' | 'isOnline' | 'state' | AdditionalOmit
 >;
 
 type AccountInput<T extends Account> = {
@@ -93,6 +93,7 @@ export class AccountRepository {
       .from('accounts')
       .select('*, cashu_proofs(*)')
       .eq('user_id', userId)
+      .eq('state', 'active')
       .eq('cashu_proofs.state', 'UNSPENT');
 
     if (options?.abortSignal) {
@@ -175,6 +176,7 @@ export class AccountRepository {
       name: data.name,
       currency: data.currency,
       purpose: data.purpose,
+      state: data.state,
       createdAt: data.created_at,
       version: data.version,
       expiresAt: data.expires_at,
