@@ -86,6 +86,8 @@ export const sparkWalletQueryOptions = ({
       }
 
       const config = defaultConfig(breezNetwork);
+      // Disable Breez's built-in lightning address recovery — we use our own system
+      config.lnurlDomain = undefined;
       // Verify privacy is enabled by default
       if (!config.privateEnabledDefault) {
         config.privateEnabledDefault = true;
