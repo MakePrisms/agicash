@@ -108,6 +108,20 @@ export const canReceiveFromLightning = (account: Account): boolean => {
   return !account.wallet.getMintInfo().isSupported(4).disabled;
 };
 
+/**
+ * Returns the home path for an account based on its purpose.
+ */
+export const getAccountHomePath = (account: Account): string => {
+  switch (account.purpose) {
+    case 'gift-card':
+      return `/gift-cards/${account.id}`;
+    case 'offer':
+      return `/gift-cards/offers/${account.id}`;
+    default:
+      return '/';
+  }
+};
+
 export const getAccountBalance = (account: Account) => {
   if (account.type === 'cashu') {
     const value = sumProofs(account.proofs);

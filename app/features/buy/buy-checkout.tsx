@@ -15,7 +15,11 @@ import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import useUserAgent from '~/hooks/use-user-agent';
 import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
-import type { CashuAccount, SparkAccount } from '../accounts/account';
+import {
+  type CashuAccount,
+  type SparkAccount,
+  getAccountHomePath,
+} from '../accounts/account';
 import { useCashuReceiveQuote } from '../receive/cashu-receive-quote-hooks';
 import { useSparkReceiveQuote } from '../receive/spark-receive-quote-hooks';
 import { getDefaultUnit } from '../shared/currencies';
@@ -218,9 +222,7 @@ export function BuyCheckoutCashu({
   amount: Money;
   account: CashuAccount;
 }) {
-  const { redirectTo } = useRedirectTo(
-    account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/',
-  );
+  const { redirectTo } = useRedirectTo(getAccountHomePath(account));
   const navigateToTransaction = useNavigateToTransaction(redirectTo);
 
   const { status: quotePaymentStatus } = useCashuReceiveQuote({
@@ -250,9 +252,7 @@ export function BuyCheckoutSpark({
   amount: Money;
   account: SparkAccount;
 }) {
-  const { redirectTo } = useRedirectTo(
-    account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/',
-  );
+  const { redirectTo } = useRedirectTo(getAccountHomePath(account));
   const navigateToTransaction = useNavigateToTransaction(redirectTo);
 
   const { status: quotePaymentStatus } = useSparkReceiveQuote({
