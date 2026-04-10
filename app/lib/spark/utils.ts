@@ -16,8 +16,8 @@ export async function getSparkIdentityPublicKeyFromMnemonic(
   network: 'mainnet' | 'regtest',
 ): Promise<string> {
   const signer = defaultExternalSigner(mnemonic, null, network);
-  const publicKeyBytes = signer.identityPublicKey();
-  return bytesToHex(new Uint8Array(publicKeyBytes as unknown as ArrayBuffer));
+  const publicKey = signer.identityPublicKey();
+  return bytesToHex(new Uint8Array(publicKey.bytes));
 }
 
 export function createSparkWalletStub(reason: string): BreezSdk {
