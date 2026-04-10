@@ -1,4 +1,4 @@
-import * as Sentry from "https://deno.land/x/sentry@9.6.0/index.mjs";
+import * as Sentry from "npm:@sentry/deno@9.6.0";
 import ky from "npm:ky@1.7.5";
 import { z } from "npm:zod@3.24.3";
 
