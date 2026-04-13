@@ -7,7 +7,11 @@ import { Page } from '~/components/page';
 import { PageContent } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
-import type { CashuAccount, SparkAccount } from '~/features/accounts/account';
+import {
+  type CashuAccount,
+  type SparkAccount,
+  getAccountHomePath,
+} from '~/features/accounts/account';
 import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
@@ -116,9 +120,7 @@ const usePayBolt11 = ({
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
-  const { redirectTo } = useRedirectTo(
-    account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/',
-  );
+  const { redirectTo } = useRedirectTo(getAccountHomePath(account));
 
   const { mutate: initiateCashuSend, status: initiateCashuSendQuoteStatus } =
     useInitiateCashuSendQuote({
@@ -296,9 +298,7 @@ export const CreateCashuTokenConfirmation = ({
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
-  const { redirectTo } = useRedirectTo(
-    account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/',
-  );
+  const { redirectTo } = useRedirectTo(getAccountHomePath(account));
 
   const { mutate: createCashuSendSwap, status: createSwapStatus } =
     useCreateCashuSendSwap({
