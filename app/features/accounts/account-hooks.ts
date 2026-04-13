@@ -51,6 +51,12 @@ export class AccountsCache {
     );
   }
 
+  remove(accountId: string) {
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
+      curr.filter((x) => x.id !== accountId),
+    );
+  }
+
   // This is used for a Spark bug workaround in useTrackAndUpdateSparkAccountBalances hook.
   // Once the bug is resolved we can change this function to simply update the account balance if changed.
   // TODO: Update when Spark bug is fixed and workaround is removed.
@@ -155,7 +161,11 @@ export function useAccountChangeHandlers() {
       event: 'ACCOUNT_UPDATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
         const updatedAccount = await accountRepository.toAccount(payload);
-        accountCache.update(updatedAccount);
+        if (updatedAccount.state === 'expired') {
+          accountCache.remove(updatedAccount.id);
+        } else {
+          accountCache.update(updatedAccount);
+        }
       },
     },
   ];

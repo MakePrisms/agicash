@@ -64,6 +64,7 @@ export class AccountService {
       | 'version'
       | 'wallet'
       | 'isOnline'
+      | 'state'
     >;
   }) {
     const isTestMint = checkIsTestMint(account.mintUrl);
