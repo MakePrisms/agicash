@@ -56,11 +56,13 @@ export class ReceiveCashuTokenService {
       }
     }
 
+    const isExpired = expiresAt !== null && new Date(expiresAt) <= new Date();
+
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
       purpose: wallet.purpose,
-      state: 'active' as const,
+      state: isExpired ? ('expired' as const) : ('active' as const),
       name: mintUrl.replace('https://', '').replace('http://', ''),
       mintUrl,
       createdAt: new Date().toISOString(),
@@ -75,11 +77,12 @@ export class ReceiveCashuTokenService {
       wallet,
     };
 
-    if (!isOnline) {
+    if (!isOnline || isExpired) {
       return {
         ...baseAccount,
         canReceive: false,
-        isOnline: false,
+        cannotReceiveReason: isExpired ? 'This offer has expired' : undefined,
+        isOnline,
         isTestMint: false,
       };
     }
