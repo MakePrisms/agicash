@@ -8,8 +8,10 @@ import {
   PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { getAccountBalance } from '~/features/accounts/account';
-import { useAccounts } from '~/features/accounts/account-hooks';
+import {
+  type CashuAccount,
+  getAccountBalance,
+} from '~/features/accounts/account';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { LinkWithViewTransition } from '~/lib/transitions';
@@ -27,28 +29,17 @@ function formatExpiryDate(expiresAt: string): string {
 }
 
 type OfferDetailsProps = {
-  accountId: string;
+  offer: CashuAccount;
 };
 
-export default function OfferDetails({ accountId }: OfferDetailsProps) {
+export default function OfferDetails({ offer }: OfferDetailsProps) {
   const navigate = useNavigate();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const isTransitioning = useViewTransitionState('/gift-cards');
 
-  const { data: offerAccounts } = useAccounts({ purpose: 'offer' });
-  const offer = offerAccounts.find((a) => a.id === accountId);
-
   const handleBack = () => {
     navigate('/gift-cards', { viewTransition: true });
   };
-
-  if (!offer) {
-    return (
-      <Page className="flex items-center justify-center">
-        <p className="text-muted-foreground">Offer not found</p>
-      </Page>
-    );
-  }
 
   const balance = getAccountBalance(offer);
 
