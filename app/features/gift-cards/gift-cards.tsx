@@ -16,6 +16,7 @@ import {
 import { DiscoverGiftCards } from './discover-gift-cards';
 import { EmptyState } from './empty-state';
 import { GiftCardItem } from './gift-card-item';
+import { getOfferCardImageByUrl } from './offer-card-images';
 import { OfferItem } from './offer-item';
 import {
   getGiftCardImageByUrl,
@@ -86,7 +87,10 @@ export function GiftCards() {
                         : undefined,
                     }}
                   >
-                    <OfferItem account={account} />
+                    <OfferItem
+                      account={account}
+                      image={getOfferCardImageByUrl(account.mintUrl)}
+                    />
                   </button>
                 ))}
               </div>

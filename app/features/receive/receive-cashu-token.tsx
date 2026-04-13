@@ -29,6 +29,7 @@ import {
 import { getAccountHomePath } from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
+import { getOfferCardImageByUrl } from '../gift-cards/offer-card-images';
 import { OfferItem } from '../gift-cards/offer-item';
 import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
@@ -213,17 +214,20 @@ export default function ReceiveToken({
                 <div className="flex flex-col items-center gap-3">
                   <GiftCardItem
                     account={sourceAccount}
-                    image={giftCard?.image}
+                    image={giftCard.image}
                     hideOverlayContent
                   />
-                  {giftCard?.addCardDisclaimer && (
+                  {giftCard.addCardDisclaimer && (
                     <p className="text-center text-muted-foreground text-sm">
                       {giftCard.addCardDisclaimer}
                     </p>
                   )}
                 </div>
               ) : sourceAccount.purpose === 'offer' ? (
-                <OfferItem account={sourceAccount} />
+                <OfferItem
+                  account={sourceAccount}
+                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
+                />
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
@@ -380,17 +384,20 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
                 <div className="flex flex-col items-center gap-3">
                   <GiftCardItem
                     account={sourceAccount}
-                    image={giftCard?.image}
+                    image={giftCard.image}
                     hideOverlayContent
                   />
-                  {giftCard?.addCardDisclaimer && (
+                  {giftCard.addCardDisclaimer && (
                     <p className="text-center text-muted-foreground text-sm">
                       {giftCard.addCardDisclaimer}
                     </p>
                   )}
                 </div>
               ) : sourceAccount.purpose === 'offer' ? (
-                <OfferItem account={sourceAccount} />
+                <OfferItem
+                  account={sourceAccount}
+                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
+                />
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
