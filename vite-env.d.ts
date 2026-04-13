@@ -30,7 +30,6 @@ interface ImportMetaEnv {
   readonly VITE_LOCAL_DEV: string | undefined;
   readonly VITE_CASHU_MINT_BLOCKLIST: string | undefined;
   readonly VITE_GIFT_CARDS: string | undefined;
-  readonly VITE_OFFER_CARDS: string | undefined;
 }
 
 // biome-ignore lint/correctness/noUnusedVariables: this is needed to augment the ImportMeta type

@@ -30,7 +30,6 @@ function loadGiftCardsFromEnv(): GiftCardInfo[] {
   const raw = import.meta.env.VITE_GIFT_CARDS;
   if (!raw) return [];
 
-  // Validated at build time by vite.config.ts — safe to throw here.
   return JsonGiftCardConfigSchema.parse(raw).map((card) => ({
     ...card,
     image: GIFT_CARD_IMAGES[card.url] ?? '',

@@ -8,15 +8,13 @@ import {
   PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import {
-  canReceiveFromLightning,
-  getAccountBalance,
-} from '~/features/accounts/account';
+import { getAccountBalance } from '~/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { CARD_WIDTH } from './card-stack-constants';
+import { getOfferCardImageByUrl } from './offer-card-images';
 import { OfferItem } from './offer-item';
 
 function formatExpiryDate(expiresAt: string): string {
@@ -53,8 +51,6 @@ export default function OfferDetails({ accountId }: OfferDetailsProps) {
   }
 
   const balance = getAccountBalance(offer);
-  // This will be true when minting is enabled on the mint so that Agicash admins can create ecash for offers.
-  const canFund = canReceiveFromLightning(offer);
 
   return (
     <Page className="px-0 pb-0">
@@ -83,7 +79,10 @@ export default function OfferDetails({ accountId }: OfferDetailsProps) {
               className="w-full"
               aria-label={`Close ${offer.name} offer`}
             >
-              <OfferItem account={offer} />
+              <OfferItem
+                account={offer}
+                image={getOfferCardImageByUrl(offer.mintUrl)}
+              />
             </button>
           </div>
 
@@ -97,21 +96,7 @@ export default function OfferDetails({ accountId }: OfferDetailsProps) {
         <div className="mx-auto flex flex-col items-center px-4 pt-3 pb-8">
           {balance && <MoneyWithConvertedAmount money={balance} size="md" />}
 
-          <div
-            className={`mt-6 ${canFund ? 'grid w-72 grid-cols-2 gap-10' : ''}`}
-          >
-            {canFund && (
-              <LinkWithViewTransition
-                to={buildLinkWithSearchParams('/receive', {
-                  accountId: offer.id,
-                  redirectTo: `/gift-cards/offers/${offer.id}`,
-                })}
-                transition="slideUp"
-                applyTo="newView"
-              >
-                <Button className="w-full px-7 py-6 text-lg">Fund</Button>
-              </LinkWithViewTransition>
-            )}
+          <div className="mt-6">
             <LinkWithViewTransition
               to={buildLinkWithSearchParams('/send', {
                 accountId: offer.id,
@@ -120,11 +105,7 @@ export default function OfferDetails({ accountId }: OfferDetailsProps) {
               transition="slideUp"
               applyTo="newView"
             >
-              <Button
-                className={`w-full py-6 text-lg ${canFund ? 'px-7' : 'px-14'}`}
-              >
-                Pay
-              </Button>
+              <Button className="w-full px-14 py-6 text-lg">Pay</Button>
             </LinkWithViewTransition>
           </div>
         </div>
