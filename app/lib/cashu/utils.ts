@@ -1,18 +1,20 @@
 import {
+  type Keyset,
   type MeltQuoteBolt11Response,
   MeltQuoteState,
   type Mint,
+  type MintKeyset,
   type MintQuoteBolt11Response,
   type Proof,
   Wallet,
   splitAmount,
 } from '@cashu/cashu-ts';
 import type { DistributedOmit } from 'type-fest';
-import { decodeBolt11 } from '~/lib/bolt11';
 import type { Currency, CurrencyUnit } from '../money';
 import {
   ExtendedMintInfo,
   type ExtendedMintQuoteBolt11Response,
+  type MintPurpose,
 } from './protocol-extensions';
 import type { CashuProtocolUnit } from './types';
 
@@ -76,8 +78,29 @@ export const getCashuProtocolUnit = (currency: Currency) => {
  */
 export const getMintPurpose = (
   mintInfo: ExtendedMintInfo | null | undefined,
-): 'gift-card' | 'transactional' => {
-  return mintInfo?.agicash?.closed_loop ? 'gift-card' : 'transactional';
+): MintPurpose => {
+  return mintInfo?.agicash?.purpose ?? 'transactional';
+};
+
+/**
+ * Finds the first active keyset for the given currency.
+ */
+export const findFirstActiveKeyset = <T extends MintKeyset | Keyset>(
+  keysets: T[],
+  currency: Currency,
+): T | undefined => {
+  const unit = getCashuProtocolUnit(currency);
+  return keysets.find((ks) => ks.unit === unit && ks.active);
+};
+
+/**
+ * Returns the keyset's expiry as a Date, or null if it has no expiry.
+ */
+export const getKeysetExpiry = (keyset: {
+  final_expiry?: number;
+}): Date | null => {
+  if (!keyset.final_expiry) return null;
+  return new Date(keyset.final_expiry * 1000);
 };
 
 export const getWalletCurrency = (wallet: Wallet) => {
@@ -127,7 +150,7 @@ export class ExtendedCashuWallet extends Wallet {
   /**
    * Gets the purpose of this mint based on its configuration.
    */
-  get purpose(): 'gift-card' | 'transactional' {
+  get purpose(): MintPurpose {
     return getMintPurpose(this.getMintInfo());
   }
 
@@ -244,26 +267,20 @@ export const getCashuWallet = (
 };
 
 /**
- * Check if a mint is a test mint by checking the network of the mint quote
- * and also checking if the mint is in the list of known test mints
+ * Check if a mint is a test mint by checking if the mint is in the list of
+ * known test mints.
  *
  * Known test mints:
  * - https://testnut.cashu.space
  * - https://nofees.testnut.cashu.space
  *
  * @param mintUrl - The URL of the mint
- * @returns True if the mint is not on mainnet
+ * @returns True if the mint is a known test mint
  */
-export const checkIsTestMint = async (mintUrl: string): Promise<boolean> => {
+export const checkIsTestMint = (mintUrl: string): boolean => {
   // Normalize URL by removing trailing slash and converting to lowercase
   const normalizedUrl = mintUrl.toLowerCase().replace(/\/+$/, '');
-  if (knownTestMints.includes(normalizedUrl)) {
-    return true;
-  }
-  const wallet = getCashuWallet(mintUrl);
-  const { request: bolt11 } = await wallet.createMintQuoteBolt11(1);
-  const { network } = decodeBolt11(bolt11);
-  return network !== 'bitcoin';
+  return knownTestMints.includes(normalizedUrl);
 };
 
 /**

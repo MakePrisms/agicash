@@ -15,6 +15,7 @@ import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
+  getMintAuthProvider,
   useCashuCryptography,
 } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
@@ -23,7 +24,7 @@ import {
   getInitializedSparkWallet,
   sparkMnemonicQueryOptions,
 } from '../shared/spark';
-import type { Account, CashuAccount } from './account';
+import type { Account, AccountPurpose, CashuAccount } from './account';
 import type { CashuProof } from './cashu-account';
 
 type AccountOmit<
@@ -31,7 +32,7 @@ type AccountOmit<
   AdditionalOmit extends keyof T = never,
 > = DistributedOmit<
   T,
-  'id' | 'createdAt' | 'version' | 'isOnline' | AdditionalOmit
+  'id' | 'createdAt' | 'version' | 'isOnline' | 'state' | AdditionalOmit
 >;
 
 type AccountInput<T extends Account> = {
@@ -92,6 +93,7 @@ export class AccountRepository {
       .from('accounts')
       .select('*, cashu_proofs(*)')
       .eq('user_id', userId)
+      .eq('state', 'active')
       .eq('cashu_proofs.state', 'UNSPENT');
 
     if (options?.abortSignal) {
@@ -135,6 +137,7 @@ export class AccountRepository {
       details,
       user_id: accountInput.userId,
       purpose: accountInput.purpose,
+      expires_at: accountInput.expiresAt,
     };
 
     const query = this.db
@@ -173,15 +176,21 @@ export class AccountRepository {
       name: data.name,
       currency: data.currency,
       purpose: data.purpose,
+      state: data.state,
       createdAt: data.created_at,
       version: data.version,
+      expiresAt: data.expires_at,
     };
 
     if (isCashuAccount(data)) {
       const details = data.details;
 
       const [{ wallet, isOnline }, proofs] = await Promise.all([
-        this.getInitializedCashuWallet(details.mint_url, data.currency),
+        this.getInitializedCashuWallet(
+          details.mint_url,
+          data.currency,
+          data.purpose,
+        ),
         this.decryptCashuProofs(data),
       ]);
 
@@ -199,13 +208,14 @@ export class AccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { wallet, balance, isOnline } =
+      const { wallet, ownedBalance, availableBalance, isOnline } =
         await this.getInitializedSparkWallet(network);
 
       return {
         ...commonData,
         type: 'spark',
-        balance,
+        ownedBalance,
+        availableBalance,
         network,
         isOnline,
         wallet,
@@ -215,14 +225,19 @@ export class AccountRepository {
     throw new Error('Invalid account type');
   }
 
-  private async getInitializedCashuWallet(mintUrl: string, currency: Currency) {
+  private async getInitializedCashuWallet(
+    mintUrl: string,
+    currency: Currency,
+    purpose: AccountPurpose,
+  ) {
     const seed = await this.getCashuWalletSeed();
-    return getInitializedCashuWallet(
-      this.queryClient,
+    return getInitializedCashuWallet({
+      queryClient: this.queryClient,
       mintUrl,
       currency,
-      seed ?? undefined,
-    );
+      bip39seed: seed ?? undefined,
+      authProvider: getMintAuthProvider(purpose),
+    });
   }
 
   private async getInitializedSparkWallet(network: SparkNetwork) {

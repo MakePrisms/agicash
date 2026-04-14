@@ -9,6 +9,7 @@ import {
 import { useCallback, useMemo, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
 import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
+import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
@@ -50,19 +51,35 @@ export class AccountsCache {
     );
   }
 
+  remove(accountId: string) {
+    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
+      curr.filter((x) => x.id !== accountId),
+    );
+  }
+
   // This is used for a Spark bug workaround in useTrackAndUpdateSparkAccountBalances hook.
   // Once the bug is resolved we can change this function to simply update the account balance if changed.
   // TODO: Update when Spark bug is fixed and workaround is removed.
   updateSparkAccountIfBalanceOrWalletChanged(account: SparkAccount) {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
-      curr.map((x) =>
-        x.id === account.id &&
-        x.type === 'spark' &&
-        account.version >= x.version &&
-        this.hasDifferentBalanceOrWallet(x, account)
-          ? account
-          : x,
-      ),
+      curr.map((x) => {
+        if (x.id !== account.id || x.type !== 'spark') return x;
+
+        const versionOk = account.version >= x.version;
+        const balanceChanged = this.hasDifferentBalanceOrWallet(x, account);
+        const willUpdate = versionOk && balanceChanged;
+
+        sparkDebugLog('Cache update check', {
+          accountId: account.id,
+          cachedVersion: String(x.version),
+          incomingVersion: String(account.version),
+          versionOk: String(versionOk),
+          balanceChanged: String(balanceChanged),
+          willUpdate: String(willUpdate),
+        });
+
+        return willUpdate ? account : x;
+      }),
     );
   }
 
@@ -70,13 +87,16 @@ export class AccountsCache {
     accountOne: SparkAccount,
     accountTwo: SparkAccount,
   ) {
-    const accountOneBalance =
-      accountOne.balance ?? Money.zero(accountOne.currency);
-    const accountTwoBalance =
-      accountTwo.balance ?? Money.zero(accountTwo.currency);
+    const oneOwned = accountOne.ownedBalance ?? Money.zero(accountOne.currency);
+    const twoOwned = accountTwo.ownedBalance ?? Money.zero(accountTwo.currency);
+    const oneAvailable =
+      accountOne.availableBalance ?? Money.zero(accountOne.currency);
+    const twoAvailable =
+      accountTwo.availableBalance ?? Money.zero(accountTwo.currency);
 
     return (
-      !accountOneBalance.equals(accountTwoBalance) ||
+      !oneOwned.equals(twoOwned) ||
+      !oneAvailable.equals(twoAvailable) ||
       accountOne.wallet !== accountTwo.wallet
     );
   }
@@ -141,7 +161,11 @@ export function useAccountChangeHandlers() {
       event: 'ACCOUNT_UPDATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
         const updatedAccount = await accountRepository.toAccount(payload);
-        accountCache.update(updatedAccount);
+        if (updatedAccount.state === 'expired') {
+          accountCache.remove(updatedAccount.id);
+        } else {
+          accountCache.update(updatedAccount);
+        }
       },
     },
   ];
@@ -165,15 +189,15 @@ export const accountsQueryOptions = ({
 type UseAccountsSelect<
   T extends AccountType = AccountType,
   P extends AccountPurpose = AccountPurpose,
-> = P extends 'gift-card'
+> = P extends 'gift-card' | 'offer'
   ? {
       /** Filter by currency (e.g., 'BTC', 'USD') */
       currency?: Currency;
-      /** Must be 'cashu' when purpose is 'gift-card'. */
+      /** Must be 'cashu' when purpose is 'gift-card' or 'offer'. */
       type?: 'cashu';
       /** Filter by online status */
       isOnline?: boolean;
-      /** Filter for gift-card accounts. Returns `CashuAccount[]` since gift cards are always cashu. */
+      /** Filter for gift-card or offer accounts. Returns `CashuAccount[]` since these are always cashu. */
       purpose: P;
     }
   : {
@@ -189,6 +213,9 @@ type UseAccountsSelect<
 
 export function useAccounts(
   select: UseAccountsSelect<'cashu', 'gift-card'>,
+): UseSuspenseQueryResult<ExtendedAccount<'cashu'>[]>;
+export function useAccounts(
+  select: UseAccountsSelect<'cashu', 'offer'>,
 ): UseSuspenseQueryResult<ExtendedAccount<'cashu'>[]>;
 export function useAccounts<
   T extends AccountType = AccountType,
@@ -305,6 +332,27 @@ export function useGetCashuAccount() {
 }
 
 /**
+ * Hook to get the method which returns the cashu account matching a mint URL and currency, or null if not found.
+ * @returns A function that takes a mint URL and currency and returns the matching cashu account or null.
+ */
+export function useGetCashuAccountByMintUrlAndCurrency() {
+  const accountsCache = useAccountsCache();
+
+  return useCallback(
+    (mintUrl: string, currency: Currency) =>
+      accountsCache
+        .getAll()
+        ?.find(
+          (a): a is CashuAccount =>
+            a.type === 'cashu' &&
+            a.mintUrl === mintUrl &&
+            a.currency === currency,
+        ) ?? null,
+    [accountsCache],
+  );
+}
+
+/**
  * Hook to get the method which returns the spark account from the cache or throws an error if not found.
  * @returns The method which returns the spark account or throws an error if the account is not found or if the account type is not spark.
  */
@@ -364,7 +412,8 @@ export function useAccountOrDefault(accountId: string | null) {
 export function useAddCashuAccount() {
   const userId = useUser((x) => x.id);
   const accountCache = useAccountsCache();
-  const accountService = useAccountService();
+  const queryClient = useQueryClient();
+  const accountService = useAccountService(queryClient);
 
   const { mutateAsync } = useMutation({
     mutationFn: async (

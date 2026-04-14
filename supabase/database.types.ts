@@ -14,9 +14,11 @@ export type Database = {
           created_at: string
           currency: Database["wallet"]["Enums"]["currency"]
           details: Json
+          expires_at: string | null
           id: string
           name: string
           purpose: Database["wallet"]["Enums"]["account_purpose"]
+          state: Database["wallet"]["Enums"]["account_state"]
           type: Database["wallet"]["Enums"]["account_type"]
           user_id: string
           version: number
@@ -25,9 +27,11 @@ export type Database = {
           created_at?: string
           currency: Database["wallet"]["Enums"]["currency"]
           details: Json
+          expires_at?: string | null
           id?: string
           name: string
           purpose?: Database["wallet"]["Enums"]["account_purpose"]
+          state?: Database["wallet"]["Enums"]["account_state"]
           type: Database["wallet"]["Enums"]["account_type"]
           user_id: string
           version?: number
@@ -36,9 +40,11 @@ export type Database = {
           created_at?: string
           currency?: Database["wallet"]["Enums"]["currency"]
           details?: Json
+          expires_at?: string | null
           id?: string
           name?: string
           purpose?: Database["wallet"]["Enums"]["account_purpose"]
+          state?: Database["wallet"]["Enums"]["account_state"]
           type?: Database["wallet"]["Enums"]["account_type"]
           user_id?: string
           version?: number
@@ -1600,7 +1606,8 @@ export type Database = {
       }
     }
     Enums: {
-      account_purpose: "transactional" | "gift-card"
+      account_purpose: "transactional" | "gift-card" | "offer"
+      account_state: "active" | "expired"
       account_type: "cashu" | "spark"
       acknowledgment_status: "pending" | "acknowledged"
       cashu_proof_state: "UNSPENT" | "RESERVED" | "SPENT"
@@ -1886,7 +1893,8 @@ export type CompositeTypes<
 export const Constants = {
   wallet: {
     Enums: {
-      account_purpose: ["transactional", "gift-card"],
+      account_purpose: ["transactional", "gift-card", "offer"],
+      account_state: ["active", "expired"],
       account_type: ["cashu", "spark"],
       acknowledgment_status: ["pending", "acknowledged"],
       cashu_proof_state: ["UNSPENT", "RESERVED", "SPENT"],

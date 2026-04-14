@@ -4,23 +4,25 @@ import type {
 } from '@buildonspark/spark-sdk';
 import type { DistributedOmit } from 'type-fest';
 import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
+import type { MintPurpose } from '~/lib/cashu/protocol-extensions';
 import { type Currency, Money } from '~/lib/money';
 import type { CashuProof } from './cashu-account';
 
 export type AccountType = 'cashu' | 'spark';
 
+export type AccountState = 'active' | 'expired';
+
 /**
- * The purpose of this account.
- * - 'transactional': Regular accounts for sending/receiving payments
- * - 'gift-card': Closed-loop accounts for mints that are issuing gift cards
+ * Account purpose. Maps to MintPurpose for cashu accounts.
  */
-export type AccountPurpose = 'transactional' | 'gift-card';
+export type AccountPurpose = MintPurpose;
 
 export type Account = {
   id: string;
   name: string;
   type: AccountType;
   purpose: AccountPurpose;
+  state: AccountState;
   isOnline: boolean;
   currency: Currency;
   createdAt: string;
@@ -29,6 +31,12 @@ export type Account = {
    * Used for optimistic locking.
    */
   version: number;
+  /**
+   * The account expiry time, as an ISO 8601 timestamp.
+   * For offer accounts, this is when the ecash expires (derived from keyset expiry).
+   * Null for accounts that don't expire.
+   */
+  expiresAt: string | null;
 } & (
   | {
       type: 'cashu';
@@ -47,7 +55,8 @@ export type Account = {
     }
   | {
       type: 'spark';
-      balance: Money | null;
+      ownedBalance: Money | null;
+      availableBalance: Money | null;
       network: SparkNetwork;
       /**
        * The Spark wallet instance for the account.
@@ -77,21 +86,40 @@ export type RedactedCashuAccount = Extract<RedactedAccount, { type: 'cashu' }>;
 
 /**
  * Returns true if the account can send payments through the Lightning network.
- * Returns false for test mints and gift-card accounts.
+ * Returns false for test mints, non-transactional accounts, and mints with
+ * melting disabled (NUT-05).
  */
 export const canSendToLightning = (account: Account): boolean => {
   if (account.type === 'spark') {
     return true;
   }
-  return !account.isTestMint && account.purpose === 'transactional';
+  if (account.isTestMint) return false;
+  if (account.purpose !== 'transactional') return false;
+  return !account.wallet.getMintInfo().isSupported(5).disabled;
 };
 
 /**
  * Returns true if the account can receive payments via the Lightning network.
- * Returns false for test mints only.
+ * Returns false for test mints and mints with minting disabled (NUT-04).
  */
 export const canReceiveFromLightning = (account: Account): boolean => {
-  return account.type === 'spark' || !account.isTestMint;
+  if (account.type === 'spark') return true;
+  if (account.isTestMint) return false;
+  return !account.wallet.getMintInfo().isSupported(4).disabled;
+};
+
+/**
+ * Returns the home path for an account based on its purpose.
+ */
+export const getAccountHomePath = (account: Account): string => {
+  switch (account.purpose) {
+    case 'gift-card':
+      return `/gift-cards/${account.id}`;
+    case 'offer':
+      return `/gift-cards/offers/${account.id}`;
+    default:
+      return '/';
+  }
 };
 
 export const getAccountBalance = (account: Account) => {
@@ -103,5 +131,5 @@ export const getAccountBalance = (account: Account) => {
       unit: getCashuUnit(account.currency),
     });
   }
-  return account.balance;
+  return account.ownedBalance;
 };

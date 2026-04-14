@@ -1,6 +1,12 @@
 import type { Token } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
-import { areMintUrlsEqual, getCashuProtocolUnit } from '~/lib/cashu';
+import {
+  areMintUrlsEqual,
+  checkIsTestMint,
+  findFirstActiveKeyset,
+  getCashuProtocolUnit,
+  getKeysetExpiry,
+} from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import {
   type ExtendedAccount,
@@ -11,7 +17,6 @@ import {
 import {
   cashuMintValidator,
   getInitializedCashuWallet,
-  isTestMintQueryOptions,
   tokenToMoney,
 } from '../shared/cashu';
 import { getFeatureFlag } from '../shared/feature-flags';
@@ -34,23 +39,37 @@ export class ReceiveCashuTokenService {
     mintUrl: string,
     currency: Currency,
   ): Promise<CashuAccountWithTokenFlags> {
-    const { wallet, isOnline } = await getInitializedCashuWallet(
-      this.queryClient,
+    const { wallet, isOnline } = await getInitializedCashuWallet({
+      queryClient: this.queryClient,
       mintUrl,
       currency,
-      undefined,
-    );
+    });
+
+    let expiresAt: string | null = null;
+    if (wallet.purpose === 'offer') {
+      const activeKeyset = findFirstActiveKeyset(
+        wallet.keyChain.getKeysets(),
+        currency,
+      );
+      if (activeKeyset) {
+        expiresAt = getKeysetExpiry(activeKeyset)?.toISOString() ?? null;
+      }
+    }
+
+    const isExpired = expiresAt !== null && new Date(expiresAt) <= new Date();
 
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
       purpose: wallet.purpose,
+      state: isExpired ? ('expired' as const) : ('active' as const),
       name: mintUrl.replace('https://', '').replace('http://', ''),
       mintUrl,
       createdAt: new Date().toISOString(),
       currency,
       version: 0,
       keysetCounters: {},
+      expiresAt,
       proofs: [],
       isDefault: false,
       isSource: true,
@@ -58,11 +77,12 @@ export class ReceiveCashuTokenService {
       wallet,
     };
 
-    if (!isOnline) {
+    if (!isOnline || isExpired) {
       return {
         ...baseAccount,
         canReceive: false,
-        isOnline: false,
+        cannotReceiveReason: isExpired ? 'This offer has expired' : undefined,
+        isOnline,
         isTestMint: false,
       };
     }
@@ -76,9 +96,7 @@ export class ReceiveCashuTokenService {
       wallet.keyChain.getKeysets().map((ks) => ks.toMintKeyset()),
     );
 
-    const isTestMint = await this.queryClient.fetchQuery(
-      isTestMintQueryOptions(mintUrl),
-    );
+    const isTestMint = checkIsTestMint(mintUrl);
 
     const isValid = validationResult === true;
     const isGatedGiftCard =

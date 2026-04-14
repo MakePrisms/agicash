@@ -1,11 +1,10 @@
+import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import {
   type NetworkType as SparkNetwork,
   SparkWallet,
+  SparkWalletEvent,
 } from '@buildonspark/spark-sdk';
 import type { SparkProto } from '@buildonspark/spark-sdk/types';
-
-type TreeNode = SparkProto.TreeNode;
-import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import {
   type QueryClient,
   queryOptions,
@@ -13,6 +12,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
+import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { type Currency, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
@@ -25,12 +25,7 @@ import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getDefaultUnit } from './currencies';
 import { getFeatureFlag } from './feature-flags';
 
-function sparkDebugLog(message: string, data?: unknown) {
-  if (!getFeatureFlag('DEBUG_LOGGING_SPARK')) return;
-  console.debug(`[Spark] ${message}`, data);
-}
-
-function getLeafDenominations(leaves: TreeNode[]) {
+function getLeafDenominations(leaves: SparkProto.TreeNode[]) {
   return Object.entries(
     leaves.reduce(
       (acc, leaf) => {
@@ -43,6 +38,12 @@ function getLeafDenominations(leaves: TreeNode[]) {
     .map(([value, count]) => ({ value: Number(value), count }))
     .sort((a, b) => b.value - a.value)
     .map((d) => `${d.count}x ${d.value} sats`);
+}
+
+export function sparkDebugLog(message: string, data?: Record<string, unknown>) {
+  if (getFeatureFlag('DEBUG_LOGGING_SPARK')) {
+    console.debug(`[Spark] ${message}`, data ?? '');
+  }
 }
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
@@ -147,6 +148,41 @@ export function useTrackAndUpdateSparkAccountBalances() {
   }, []);
   // end workaround
 
+  useEffectNoStrictMode(() => {
+    const walletsWithHandlers = sparkAccounts.map((sparkAccount) => {
+      const balanceUpdateHandler = (balance: {
+        available: bigint;
+        owned: bigint;
+        incoming: bigint;
+      }) => {
+        sparkDebugLog('On balance update handler triggered', {
+          accountId: sparkAccount.id,
+          balance,
+        });
+      };
+
+      return {
+        accountId: sparkAccount.id,
+        wallet: sparkAccount.wallet,
+        balanceUpdateHandler,
+      };
+    });
+
+    walletsWithHandlers.forEach((x) => {
+      x.wallet.on(SparkWalletEvent.BalanceUpdate, x.balanceUpdateHandler);
+
+      sparkDebugLog('Registered BalanceUpdate event handler', {
+        accountId: x.accountId,
+      });
+    });
+
+    return () => {
+      walletsWithHandlers.forEach((x) => {
+        x.wallet.off(SparkWalletEvent.BalanceUpdate, x.balanceUpdateHandler);
+      });
+    };
+  }, [sparkAccounts]);
+
   useQueries({
     queries: sparkAccounts.map((account) => ({
       queryKey: sparkBalanceQueryKey(account.id),
@@ -158,10 +194,15 @@ export function useTrackAndUpdateSparkAccountBalances() {
         }
 
         if (!account.isOnline) {
+          sparkDebugLog('Skipping balance poll — account offline', {
+            accountId: account.id,
+          });
           return null;
         }
 
-        const [{ balance }, leaves, identityPublicKey, isOptimizing] =
+        sparkDebugLog('Polling balance', { accountId: account.id });
+
+        const [{ satsBalance }, leaves, identityPublicKey, isOptimizing] =
           await Promise.all([
             measureOperation(
               'SparkWallet.getBalance',
@@ -172,10 +213,11 @@ export function useTrackAndUpdateSparkAccountBalances() {
             account.wallet.getIdentityPublicKey(),
             account.wallet.isOptimizationInProgress(),
           ]);
-        sparkDebugLog('Fetched balance', {
+
+        sparkDebugLog('Balance fetched from Spark SDK', {
           accountId: account.id,
-          balance: balance.toString(),
-          network: account.network,
+          owned: String(satsBalance.owned),
+          available: String(satsBalance.available),
           identityPublicKey,
           isOptimizing,
           leaves: getLeafDenominations(leaves),
@@ -185,45 +227,54 @@ export function useTrackAndUpdateSparkAccountBalances() {
         // The bug seems to be resolved after the wallet is reinitialized.
         // Reinitialize the wallet and re-check balance.
         // TODO: Remove when Spark fixes the bug.
-        let effectiveBalance = balance;
+        let effectiveOwnedBalance = satsBalance.owned;
+        let effectiveAvailableBalance = satsBalance.available;
         let effectiveWallet = account.wallet;
-        if (Number(balance) === 0) {
+        if (Number(satsBalance.owned) === 0) {
           if (!verifiedZeroBalanceAccounts.current.has(account.id)) {
             try {
-              const { balance: freshBalance, wallet: newWallet } =
-                await measureOperation(
-                  'SparkWallet.balanceRecovery',
-                  async () => {
-                    console.warn(
-                      '[Spark] Balance returned 0, reinitializing wallet',
-                      {
-                        accountId: account.id,
-                        network: account.network,
-                      },
-                    );
+              const {
+                ownedBalance: freshOwnedBalance,
+                availableBalance: freshAvailableBalance,
+                wallet: newWallet,
+              } = await measureOperation(
+                'SparkWallet.balanceRecovery',
+                async () => {
+                  console.warn(
+                    '[Spark] Balance returned 0, reinitializing wallet',
+                    {
+                      accountId: account.id,
+                      network: account.network,
+                    },
+                  );
 
-                    const mnemonic = await queryClient.fetchQuery(
-                      sparkMnemonicQueryOptions(),
-                    );
-                    const newWallet = await queryClient.fetchQuery({
-                      ...sparkWalletQueryOptions({
-                        network: account.network,
-                        mnemonic,
-                      }),
-                      staleTime: 0, // Forces a refetch
-                    });
+                  const mnemonic = await queryClient.fetchQuery(
+                    sparkMnemonicQueryOptions(),
+                  );
+                  const newWallet = await queryClient.fetchQuery({
+                    ...sparkWalletQueryOptions({
+                      network: account.network,
+                      mnemonic,
+                    }),
+                    staleTime: 0, // Forces a refetch
+                  });
 
-                    const { balance: freshBalance } =
-                      await newWallet.getBalance();
-                    return { balance: freshBalance, wallet: newWallet };
-                  },
-                  { accountId: account.id },
-                );
+                  const { satsBalance: freshSatsBalance } =
+                    await newWallet.getBalance();
+                  return {
+                    ownedBalance: freshSatsBalance.owned,
+                    availableBalance: freshSatsBalance.available,
+                    wallet: newWallet,
+                  };
+                },
+                { accountId: account.id },
+              );
 
-              effectiveBalance = freshBalance;
+              effectiveOwnedBalance = freshOwnedBalance;
+              effectiveAvailableBalance = freshAvailableBalance;
               effectiveWallet = newWallet;
 
-              if (Number(freshBalance) === 0) {
+              if (Number(freshOwnedBalance) === 0) {
                 verifiedZeroBalanceAccounts.current.add(account.id);
               }
             } catch (error) {
@@ -231,7 +282,7 @@ export function useTrackAndUpdateSparkAccountBalances() {
                 cause: error,
                 accountId: account.id,
               });
-              return balance;
+              return satsBalance.owned;
             }
           }
         } else {
@@ -239,23 +290,41 @@ export function useTrackAndUpdateSparkAccountBalances() {
         }
         // END WORKAROUND
 
+        const newOwnedBalance = new Money({
+          amount: Number(effectiveOwnedBalance),
+          currency: account.currency as Currency,
+          unit: getDefaultUnit(account.currency),
+        });
+        const newAvailableBalance = new Money({
+          amount: Number(effectiveAvailableBalance),
+          currency: account.currency as Currency,
+          unit: getDefaultUnit(account.currency),
+        });
+
+        sparkDebugLog('Updating accounts cache', {
+          accountId: account.id,
+          prevOwned: account.ownedBalance?.toString() ?? 'null',
+          newOwned: newOwnedBalance.toString(),
+          prevAvailable: account.availableBalance?.toString() ?? 'null',
+          newAvailable: newAvailableBalance.toString(),
+          walletChanged: String(effectiveWallet !== account.wallet),
+          accountVersion: String(account.version),
+        });
+
         accountCache.updateSparkAccountIfBalanceOrWalletChanged({
           ...account,
           wallet: effectiveWallet,
-          balance: new Money({
-            amount: Number(effectiveBalance),
-            currency: account.currency as Currency,
-            unit: getDefaultUnit(account.currency),
-          }),
+          ownedBalance: newOwnedBalance,
+          availableBalance: newAvailableBalance,
         });
 
-        return effectiveBalance;
+        return effectiveOwnedBalance;
       },
       staleTime: Number.POSITIVE_INFINITY,
       gcTime: Number.POSITIVE_INFINITY,
       refetchInterval: 3000,
-      refetchOnWindowFocus: 'always' as const,
-      refetchOnReconnect: 'always' as const,
+      refetchOnWindowFocus: 'always',
+      refetchOnReconnect: 'always',
     })),
   });
 }
@@ -272,7 +341,12 @@ export async function getInitializedSparkWallet(
   queryClient: QueryClient,
   mnemonic: string,
   network: SparkNetwork,
-): Promise<{ wallet: SparkWallet; balance: Money | null; isOnline: boolean }> {
+): Promise<{
+  wallet: SparkWallet;
+  ownedBalance: Money | null;
+  availableBalance: Money | null;
+  isOnline: boolean;
+}> {
   return measureOperation(
     'getInitializedSparkWallet',
     async () => {
@@ -280,37 +354,30 @@ export async function getInitializedSparkWallet(
         const wallet = await queryClient.fetchQuery(
           sparkWalletQueryOptions({ network, mnemonic }),
         );
-        const [
-          { balance: balanceSats },
-          leaves,
-          identityPublicKey,
-          isOptimizing,
-        ] = await Promise.all([
-          measureOperation('SparkWallet.getBalance', () => wallet.getBalance()),
-          wallet.getLeaves(true),
-          wallet.getIdentityPublicKey(),
-          wallet.isOptimizationInProgress(),
-        ]);
-        sparkDebugLog('Fetched balance to initialize wallet', {
-          balance: balanceSats.toString(),
-          network,
-          identityPublicKey,
-          isOptimizing,
-          leaves: getLeafDenominations(leaves),
-        });
-        const balance = new Money({
-          amount: Number(balanceSats),
+        const { satsBalance } = await measureOperation(
+          'SparkWallet.getBalance',
+          () => wallet.getBalance(),
+        );
+
+        const ownedBalance = new Money({
+          amount: Number(satsBalance.owned),
           currency: 'BTC',
           unit: 'sat',
         }) as Money;
-        return { wallet, balance, isOnline: true };
+        const availableBalance = new Money({
+          amount: Number(satsBalance.available),
+          currency: 'BTC',
+          unit: 'sat',
+        }) as Money;
+        return { wallet, ownedBalance, availableBalance, isOnline: true };
       } catch (error) {
         console.error('Failed to initialize spark wallet', { cause: error });
         return {
           wallet: createSparkWalletStub(
             'Spark is offline, please try again later.',
           ),
-          balance: null,
+          ownedBalance: null,
+          availableBalance: null,
           isOnline: false,
         };
       }

@@ -18,7 +18,10 @@ import {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
-import { getInitializedCashuWallet } from '../shared/cashu';
+import {
+  getInitializedCashuWallet,
+  getMintAuthProvider,
+} from '../shared/cashu';
 import { UniqueConstraintError } from '../shared/error';
 import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
@@ -46,7 +49,9 @@ type AccountInput = {
   | 'keysetCounters'
   | 'wallet'
   | 'isOnline'
-  | 'balance'
+  | 'state'
+  | 'ownedBalance'
+  | 'availableBalance'
 >;
 
 /**
@@ -272,18 +277,21 @@ export class ReadUserDefaultAccountRepository {
       name: data.name,
       currency: data.currency,
       purpose: data.purpose,
+      state: data.state,
       createdAt: data.created_at,
       version: data.version,
+      expiresAt: data.expires_at,
     };
 
     if (isCashuAccount(data)) {
       const details = data.details;
 
-      const { wallet, isOnline } = await getInitializedCashuWallet(
-        this.queryClient,
-        details.mint_url,
-        data.currency,
-      );
+      const { wallet, isOnline } = await getInitializedCashuWallet({
+        queryClient: this.queryClient,
+        mintUrl: details.mint_url,
+        currency: data.currency,
+        authProvider: getMintAuthProvider(data.purpose),
+      });
 
       return {
         ...commonData,
@@ -298,13 +306,14 @@ export class ReadUserDefaultAccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { wallet, balance, isOnline } =
+      const { wallet, ownedBalance, availableBalance, isOnline } =
         await this.getInitializedSparkWallet(network);
 
       return {
         ...commonData,
         type: 'spark',
-        balance,
+        ownedBalance,
+        availableBalance,
         network,
         isOnline,
         wallet,

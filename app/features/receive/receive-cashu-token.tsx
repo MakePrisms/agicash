@@ -1,4 +1,4 @@
-import { type Token, getEncodedToken } from '@cashu/cashu-ts';
+import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -21,13 +21,17 @@ import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
+import { encodeToken } from '~/lib/cashu/token';
 import type { Currency } from '~/lib/money';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
+import { getAccountHomePath } from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
+import { getOfferCardImageByUrl } from '../gift-cards/offer-card-images';
+import { OfferItem } from '../gift-cards/offer-item';
 import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
@@ -74,7 +78,7 @@ function TokenAmountDisplay({
       type="button"
       className="z-10 transition-transform active:scale-95"
       onClick={() => {
-        copyToClipboard(getEncodedToken(claimableToken ?? token));
+        copyToClipboard(encodeToken(claimableToken ?? token));
         toast({
           title: 'Token copied to clipboard',
           duration: 1000,
@@ -165,8 +169,7 @@ export default function ReceiveToken({
       };
     },
     onSuccess: ({ transactionId, account }) => {
-      const redirectTo =
-        account.purpose === 'gift-card' ? `/gift-cards/${account.id}` : '/';
+      const redirectTo = getAccountHomePath(account);
       navigate(
         buildLinkWithSearchParams(`/transactions/${transactionId}`, {
           showOkButton: 'true',
@@ -212,15 +215,20 @@ export default function ReceiveToken({
                 <div className="flex flex-col items-center gap-3">
                   <GiftCardItem
                     account={sourceAccount}
-                    image={giftCard?.image}
+                    image={giftCard.image}
                     hideOverlayContent
                   />
-                  {giftCard?.addCardDisclaimer && (
+                  {giftCard.addCardDisclaimer && (
                     <p className="text-center text-muted-foreground text-sm">
                       {giftCard.addCardDisclaimer}
                     </p>
                   )}
                 </div>
+              ) : sourceAccount.purpose === 'offer' ? (
+                <OfferItem
+                  account={sourceAccount}
+                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
+                />
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
@@ -309,7 +317,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
 
-  const encodedToken = getEncodedToken(claimableToken ?? token);
+  const encodedToken = encodeToken(claimableToken ?? token);
 
   const handleClaimAsGuest = async () => {
     if (!claimableToken) {
@@ -377,15 +385,20 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
                 <div className="flex flex-col items-center gap-3">
                   <GiftCardItem
                     account={sourceAccount}
-                    image={giftCard?.image}
+                    image={giftCard.image}
                     hideOverlayContent
                   />
-                  {giftCard?.addCardDisclaimer && (
+                  {giftCard.addCardDisclaimer && (
                     <p className="text-center text-muted-foreground text-sm">
                       {giftCard.addCardDisclaimer}
                     </p>
                   )}
                 </div>
+              ) : sourceAccount.purpose === 'offer' ? (
+                <OfferItem
+                  account={sourceAccount}
+                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
+                />
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}

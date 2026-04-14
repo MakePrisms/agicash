@@ -1,19 +1,22 @@
 import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
+import type { Currency } from '../money';
 import { type LongTimeout, clearLongTimeout, setLongTimeout } from '../timeout';
 import { useLatest } from '../use-latest';
 import { MeltQuoteSubscriptionManager } from './melt-quote-subscription-manager';
-import { getCashuWallet } from './utils';
+import type { ExtendedCashuWallet } from './utils';
 
 type OnMeltQuoteStateChangeProps = {
   subscriptionManager?: MeltQuoteSubscriptionManager;
   quotes: {
     id: string;
     mintUrl: string;
+    currency: Currency;
     expiryInMs: number;
     inputAmount: number;
   }[];
+  getWallet: (mintUrl: string, currency: Currency) => ExtendedCashuWallet;
   onUnpaid?: (meltQuote: MeltQuoteBolt11Response) => void;
   onPending?: (meltQuote: MeltQuoteBolt11Response) => void;
   onPaid?: (meltQuote: MeltQuoteBolt11Response) => void;
@@ -23,6 +26,7 @@ type OnMeltQuoteStateChangeProps = {
 export function useOnMeltQuoteStateChange({
   subscriptionManager: manager,
   quotes,
+  getWallet,
   onUnpaid,
   onPending,
   onPaid,
@@ -32,6 +36,7 @@ export function useOnMeltQuoteStateChange({
     () => manager ?? new MeltQuoteSubscriptionManager(),
   );
 
+  const getWalletRef = useLatest(getWallet);
   const onUnpaidRef = useLatest(onUnpaid);
   const onPendingRef = useLatest(onPending);
   const onPaidRef = useLatest(onPaid);
@@ -68,7 +73,10 @@ export function useOnMeltQuoteStateChange({
           expectChange &&
           !(meltQuote.change && meltQuote.change.length > 0)
         ) {
-          const wallet = getCashuWallet(quoteData.mintUrl);
+          const wallet = getWalletRef.current(
+            quoteData.mintUrl,
+            quoteData.currency,
+          );
           const meltQuoteWithChange = await wallet.checkMeltQuoteBolt11(
             quoteData.id,
           );
@@ -121,7 +129,7 @@ export function useOnMeltQuoteStateChange({
       const msUntilExpiration = quote.expiryInMs - Date.now();
       const quoteTimeout = setLongTimeout(async () => {
         try {
-          const wallet = getCashuWallet(quote.mintUrl);
+          const wallet = getWalletRef.current(quote.mintUrl, quote.currency);
           const meltQuote = await wallet.checkMeltQuoteBolt11(quote.id);
           return handleMeltQuoteUpdate(meltQuote, true);
         } catch (error) {

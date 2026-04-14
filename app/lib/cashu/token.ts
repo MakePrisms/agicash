@@ -2,8 +2,10 @@ import {
   CheckStateEnum,
   type Proof,
   type Token,
+  type TokenMetadata,
   Wallet,
-  getDecodedToken,
+  getEncodedToken,
+  getTokenMetadata,
 } from '@cashu/cashu-ts';
 import { proofToY } from './proof';
 
@@ -31,43 +33,41 @@ export const getUnspentProofsFromToken = async (
   });
 };
 
-const getDecodedTokenSafe = (
-  encodedToken: string,
-):
-  | {
-      success: true;
-      token: Token;
-    }
-  | {
-      success: false;
-      error: string;
-    } => {
-  try {
-    return { success: true, token: getDecodedToken(encodedToken) };
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to decode token';
-    return { success: false, error: errorMessage };
-  }
-};
+/**
+ * Encode a token without mutating the input.
+ *
+ * cashu-ts's getEncodedToken() mutates proof.id in place, truncating v2 keyset
+ * IDs to their short form. This wrapper deep-clones proofs before encoding.
+ *
+ * TODO: remove after upgrading to cashu-ts v4 (fixed in cashu-ts#536)
+ */
+export function encodeToken(
+  ...[token, opts]: Parameters<typeof getEncodedToken>
+): ReturnType<typeof getEncodedToken> {
+  return getEncodedToken(
+    { ...token, proofs: token.proofs.map((p) => ({ ...p })) },
+    opts,
+  );
+}
+
+const CASHU_TOKEN_REGEX = /cashu[AB][A-Za-z0-9_-]+={0,2}/;
 
 /**
- * Extract a cashu token from a string if there is one and then validate it
- * @param content - The content to extract the encoded cashu token from (a string like a URL or a direct token)
- * @returns The extracted token if found and valid, otherwise null
+ * Find and validate a cashu token in arbitrary content without fully decoding it.
+ * Uses regex to find the token, then getTokenMetadata() to validate structure.
+ * @param content - The content to search for a cashu token (URL, clipboard text, etc.)
+ * @returns The encoded token string and metadata, or null if not found/invalid.
  */
-export const extractCashuToken = (content: string): Token | null => {
-  // Look for V3 (cashuA) or V4 (cashuB) tokens anywhere in the content
-  // Tokens are base64_urlsafe encoded, so they can contain: A-Z, a-z, 0-9, -, _, and optional = padding
-  // See https://github.com/cashubtc/nuts/blob/main/00.md#serialization-of-tokens for more details
-  const tokenMatch = content.match(/cashu[AB][A-Za-z0-9_-]+={0,2}/);
-  if (tokenMatch) {
-    const extractedToken = tokenMatch[0];
-    const result = getDecodedTokenSafe(extractedToken);
-    if (result.success) {
-      return result.token;
-    }
-  }
+export function extractCashuToken(
+  content: string,
+): { encoded: string; metadata: TokenMetadata } | null {
+  const tokenMatch = content.match(CASHU_TOKEN_REGEX);
+  if (!tokenMatch) return null;
 
-  return null;
-};
+  try {
+    const metadata = getTokenMetadata(tokenMatch[0]);
+    return { encoded: tokenMatch[0], metadata };
+  } catch {
+    return null;
+  }
+}

@@ -10,13 +10,18 @@ import {
 } from '@tanstack/react-query';
 import type Big from 'big.js';
 import { useMemo, useState } from 'react';
-import { sumProofs, useOnMeltQuoteStateChange } from '~/lib/cashu';
-import { MeltQuoteSubscriptionManager } from '~/lib/cashu';
+import {
+  MeltQuoteSubscriptionManager,
+  getCashuWallet,
+  sumProofs,
+  useOnMeltQuoteStateChange,
+} from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import {
   useAccountsCache,
   useGetCashuAccount,
+  useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type {
@@ -203,6 +208,7 @@ function usePendingMeltQuotes() {
       return {
         id: q.quoteId,
         mintUrl: account.mintUrl,
+        currency: account.currency,
         expiryInMs: new Date(q.expiresAt).getTime(),
         inputAmount: sumProofs(q.proofs),
       };
@@ -251,6 +257,8 @@ export function useProcessCashuSendQuoteTasks() {
   const cashuSendService = useCashuSendQuoteService();
   const pendingMeltQuotes = usePendingMeltQuotes();
   const getCashuAccount = useGetCashuAccount();
+  const getCashuAccountByMintUrlAndCurrency =
+    useGetCashuAccountByMintUrlAndCurrency();
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const [subscriptionManager] = useState(
     () => new MeltQuoteSubscriptionManager(),
@@ -425,6 +433,13 @@ export function useProcessCashuSendQuoteTasks() {
   useOnMeltQuoteStateChange({
     subscriptionManager,
     quotes: pendingMeltQuotes,
+    getWallet: (mintUrl, currency) => {
+      const sourceAccount = getCashuAccountByMintUrlAndCurrency(
+        mintUrl,
+        currency,
+      );
+      return sourceAccount ? sourceAccount.wallet : getCashuWallet(mintUrl);
+    },
     onUnpaid: (meltQuote) => {
       const sendQuote = unresolvedSendQuotesCache.getByMeltQuoteId(
         meltQuote.quote,

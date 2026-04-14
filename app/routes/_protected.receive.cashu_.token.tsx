@@ -16,6 +16,7 @@ import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import {
+  decodeCashuToken,
   getCashuCryptography,
   seedQueryOptions,
 } from '~/features/shared/cashu';
@@ -30,7 +31,6 @@ import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
-import { extractCashuToken } from '~/lib/cashu';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
@@ -51,7 +51,7 @@ const getClaimCashuTokenService = async () => {
     getCashuWalletSeed,
     getSparkWalletMnemonic,
   );
-  const accountService = new AccountService(accountRepository);
+  const accountService = new AccountService(accountRepository, queryClient);
   const receiveSwapRepository = new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,
@@ -107,7 +107,7 @@ const getClaimTo = (
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // Request url doesn't include hash so we need to read it from the window location instead
-  const token = extractCashuToken(window.location.hash);
+  const token = await decodeCashuToken(window.location.hash);
 
   if (!token) {
     throw redirect('/receive');
