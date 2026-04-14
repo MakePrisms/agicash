@@ -1,4 +1,4 @@
-import { type Token, getEncodedToken } from '@cashu/cashu-ts';
+import type { Token } from '@cashu/cashu-ts';
 import { Banknote, Link, Share } from 'lucide-react';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';
@@ -22,6 +22,7 @@ import {
 import useLocationData from '~/hooks/use-location';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
+import { encodeToken } from '~/lib/cashu/token';
 import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { tokenToMoney } from '../shared/cashu';
@@ -39,7 +40,7 @@ export function ShareCashuToken({ token }: Props) {
   const amount = tokenToMoney(token);
   const [showOk, setShowOk] = useState(false);
 
-  const encodedToken = getEncodedToken(token);
+  const encodedToken = encodeToken(token);
   const shareableLink = `${origin}/receive-cashu-token#${encodedToken}`;
   const shortToken = `${encodedToken.slice(0, 6)}...${encodedToken.slice(-5)}`;
   const shortShareableLink = `${origin}/receive-cashu-token#${shortToken}`;

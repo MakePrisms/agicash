@@ -1,4 +1,4 @@
-import { type Token, getEncodedToken } from '@cashu/cashu-ts';
+import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -21,6 +21,7 @@ import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
+import { encodeToken } from '~/lib/cashu/token';
 import type { Currency } from '~/lib/money';
 import {
   LinkWithViewTransition,
@@ -77,7 +78,7 @@ function TokenAmountDisplay({
       type="button"
       className="z-10 transition-transform active:scale-95"
       onClick={() => {
-        copyToClipboard(getEncodedToken(claimableToken ?? token));
+        copyToClipboard(encodeToken(claimableToken ?? token));
         toast({
           title: 'Token copied to clipboard',
           duration: 1000,
@@ -316,7 +317,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
 
-  const encodedToken = getEncodedToken(claimableToken ?? token);
+  const encodedToken = encodeToken(claimableToken ?? token);
 
   const handleClaimAsGuest = async () => {
     if (!claimableToken) {

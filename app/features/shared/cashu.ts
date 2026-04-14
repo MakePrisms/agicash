@@ -11,7 +11,6 @@ import {
   NetworkError,
   type Token,
   getDecodedToken,
-  getEncodedToken,
 } from '@cashu/cashu-ts';
 import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
@@ -36,6 +35,7 @@ import {
   MintBlocklistSchema,
   buildMintValidator,
 } from '~/lib/cashu/mint-validation';
+import { encodeToken } from '~/lib/cashu/token';
 import { type Currency, type CurrencyUnit, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
@@ -161,14 +161,7 @@ export function getTokenHash(token: Token | string): Promise<string> {
   if (typeof token === 'string') {
     return computeSHA256(token);
   }
-  // Deep-clone proofs before encoding to prevent getEncodedToken from
-  // mutating proof.id (it truncates v2 keyset IDs to their short form).
-  // TODO: remove this workaround after upgrading to cashu-ts v4+ (fix merged in cashu-ts#536, unreleased as of v3.6.1)
-  const cloned: Token = {
-    ...token,
-    proofs: token.proofs.map((p) => ({ ...p })),
-  };
-  return computeSHA256(getEncodedToken(cloned));
+  return computeSHA256(encodeToken(token));
 }
 
 const mintBlocklist = MintBlocklistSchema.parse(

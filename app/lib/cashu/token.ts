@@ -4,6 +4,7 @@ import {
   type Token,
   type TokenMetadata,
   Wallet,
+  getEncodedToken,
   getTokenMetadata,
 } from '@cashu/cashu-ts';
 import { proofToY } from './proof';
@@ -31,6 +32,23 @@ export const getUnspentProofsFromToken = async (
     return state?.state === CheckStateEnum.UNSPENT;
   });
 };
+
+/**
+ * Encode a token without mutating the input.
+ *
+ * cashu-ts's getEncodedToken() mutates proof.id in place, truncating v2 keyset
+ * IDs to their short form. This wrapper deep-clones proofs before encoding.
+ *
+ * TODO: remove after upgrading to cashu-ts v4 (fixed in cashu-ts#536)
+ */
+export function encodeToken(
+  ...[token, opts]: Parameters<typeof getEncodedToken>
+): ReturnType<typeof getEncodedToken> {
+  return getEncodedToken(
+    { ...token, proofs: token.proofs.map((p) => ({ ...p })) },
+    opts,
+  );
+}
 
 const CASHU_TOKEN_REGEX = /cashu[AB][A-Za-z0-9_-]+={0,2}/;
 
