@@ -2,6 +2,7 @@ import {
   HttpResponseError,
   MintOperationError,
   type MintQuoteBolt11Response,
+  NetworkError,
   type WebSocketSupport,
 } from '@cashu/cashu-ts';
 import {
@@ -14,6 +15,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  type ExtendedCashuWallet,
   MintQuoteSubscriptionManager,
   getCashuUnit,
   getCashuWallet,
@@ -35,6 +37,7 @@ import {
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
+import { getInitializedCashuWallet } from '../shared/cashu';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
@@ -581,6 +584,7 @@ export function useProcessCashuReceiveQuoteTasks() {
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
   const transactionsCache = useTransactionsCache();
+  const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
     mutationFn: async (quoteId: string) => {
@@ -673,9 +677,18 @@ export function useProcessCashuReceiveQuoteTasks() {
         quote.tokenReceiveData.tokenAmount.currency,
       );
 
-      const sourceWallet = sourceAccount
-        ? sourceAccount.wallet
-        : getCashuWallet(sourceMintUrl, { unit: cashuUnit });
+      let sourceWallet: ExtendedCashuWallet;
+      if (sourceAccount) {
+        sourceWallet = sourceAccount.wallet;
+      } else {
+        const { wallet, isOnline } = await getInitializedCashuWallet({
+          queryClient,
+          mintUrl: sourceMintUrl,
+          currency: quote.tokenReceiveData.tokenAmount.currency,
+        });
+        if (!isOnline) throw new NetworkError('Source mint is offline');
+        sourceWallet = wallet;
+      }
 
       await sourceWallet.meltProofsIdempotent(
         {
