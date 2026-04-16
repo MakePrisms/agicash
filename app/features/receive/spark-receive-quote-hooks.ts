@@ -1,5 +1,5 @@
 import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
-import { MintOperationError } from '@cashu/cashu-ts';
+import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
   type QueryClient,
   useMutation,
@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import {
+  type ExtendedCashuWallet,
   getCashuUnit,
   getCashuWallet,
   sumProofs,
@@ -23,6 +24,7 @@ import {
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
+import { getInitializedCashuWallet } from '../shared/cashu';
 import { sparkBalanceQueryKey, sparkDebugLog } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
@@ -603,9 +605,18 @@ export function useProcessSparkReceiveQuoteTasks() {
         quote.tokenReceiveData.tokenAmount.currency,
       );
 
-      const sourceWallet = sourceAccount
-        ? sourceAccount.wallet
-        : getCashuWallet(sourceMintUrl, { unit: cashuUnit });
+      let sourceWallet: ExtendedCashuWallet;
+      if (sourceAccount) {
+        sourceWallet = sourceAccount.wallet;
+      } else {
+        const { wallet, isOnline } = await getInitializedCashuWallet({
+          queryClient,
+          mintUrl: sourceMintUrl,
+          currency: quote.tokenReceiveData.tokenAmount.currency,
+        });
+        if (!isOnline) throw new NetworkError('Source mint is offline');
+        sourceWallet = wallet;
+      }
 
       await sourceWallet.meltProofsIdempotent(
         {
