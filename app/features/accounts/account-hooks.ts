@@ -291,6 +291,28 @@ export function useAccount<T extends AccountType = AccountType>(id: string) {
   return account;
 }
 
+/**
+ * Hook to lazily load an account by ID.
+ * Checks the active accounts cache first, then falls back to fetching
+ * directly from the database (which includes expired accounts).
+ */
+export function useAccountLazy(id: string) {
+  const accountRepository = useAccountRepository();
+  const accountsCache = useAccountsCache();
+
+  const { data } = useSuspenseQuery({
+    queryKey: ['account-lazy', id],
+    queryFn: async () => {
+      const cached = accountsCache.get(id);
+      if (cached) return cached;
+      return accountRepository.get(id);
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  return data;
+}
+
 type AccountTypeMap = {
   cashu: CashuAccount;
   spark: SparkAccount;
