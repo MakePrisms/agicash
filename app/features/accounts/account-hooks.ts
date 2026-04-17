@@ -292,25 +292,27 @@ export function useAccount<T extends AccountType = AccountType>(id: string) {
 }
 
 /**
- * Hook to lazily load an account by ID.
- * Checks the active accounts cache first, then falls back to fetching
- * directly from the database (which includes expired accounts).
+ * Hook to load an account by ID, including inactive/expired accounts.
+ * Prefers the reactive accounts cache (kept fresh by realtime events) and
+ * falls back to a direct DB fetch for accounts not in the cache.
+ *
+ * The fallback cache is only populated for accounts the realtime pipeline
+ * has dropped — which today means expired accounts. Expired is a terminal
+ * state, so the fallback value doesn't need to be refreshed.
  */
 export function useAccountLazy(id: string) {
-  const accountRepository = useAccountRepository();
-  const accountsCache = useAccountsCache();
+  const { data: accounts } = useAccounts();
+  const activeAccount = accounts.find((a) => a.id === id);
 
-  const { data } = useSuspenseQuery({
-    queryKey: ['account-lazy', id],
-    queryFn: async () => {
-      const cached = accountsCache.get(id);
-      if (cached) return cached;
-      return accountRepository.get(id);
-    },
+  const accountRepository = useAccountRepository();
+  const { data: fallbackAccount } = useSuspenseQuery({
+    queryKey: [AccountsCache.Key, 'by-id', id],
+    queryFn: () => accountRepository.get(id),
     staleTime: Number.POSITIVE_INFINITY,
+    initialData: activeAccount,
   });
 
-  return data;
+  return activeAccount ?? fallbackAccount;
 }
 
 type AccountTypeMap = {
