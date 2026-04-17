@@ -23,17 +23,10 @@ export async function sendWelcomeEmail(data: {
   const resendWelcomeTemplateId = process.env.RESEND_WELCOME_TEMPLATE_ID;
 
   if (!resendApiKey || !resendWelcomeTemplateId) {
-    const err = new Error(
-      'Missing RESEND_API_KEY or RESEND_WELCOME_TEMPLATE_ID',
+    Sentry.captureException(
+      new Error('Missing RESEND_API_KEY or RESEND_WELCOME_TEMPLATE_ID'),
+      { extra: { code: 'server_misconfigured', userId } },
     );
-    console.error('events webhook failed welcome email', {
-      code: 'server_misconfigured',
-      message: err.message,
-      userId,
-    });
-    Sentry.captureException(err, {
-      extra: { code: 'server_misconfigured', userId },
-    });
     return;
   }
 
@@ -67,12 +60,6 @@ export async function sendWelcomeEmail(data: {
       userId,
     });
   } catch (error) {
-    console.error('events webhook failed welcome email', {
-      code: 'email_send_failed',
-      userId,
-      message: error instanceof Error ? error.message : String(error),
-      error,
-    });
     Sentry.captureException(error, {
       extra: { code: 'email_send_failed', userId },
     });
