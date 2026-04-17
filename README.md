@@ -182,7 +182,7 @@ The app uses a generic DB-driven event system: any table can emit events by atta
 `/api/events` route, which verifies the signature and dispatches to handlers (e.g. sending a welcome email via Resend).
 
 The trigger function reads two values at runtime:
-- `app.webhook_base_url` — a Postgres setting (GUC) holding the base URL of the app
+- `wallet.app_config.webhook_base_url` — a row in the `wallet.app_config` table holding the base URL of the app
 - `webhook_secret` — a vault secret holding the shared HMAC secret (must match the `WEBHOOK_SECRET` env var on the app side)
 
 If either value is missing the function logs a warning and no-ops, so triggers won't block inserts/updates
@@ -197,7 +197,7 @@ and a fresh secret:
 
 ```sql
 -- 1. set the base URL for webhook delivery
-alter database postgres set app.webhook_base_url = 'https://agi.cash';
+insert into "wallet"."app_config" ("key", "value") values ('webhook_base_url', 'https://agi.cash');
 
 -- 2. create the HMAC secret
 select vault.create_secret(

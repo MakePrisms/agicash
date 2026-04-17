@@ -9,11 +9,21 @@
 -- signed message: <timestamp>.<json_payload>
 --
 -- reads two values at runtime:
---   app.webhook_base_url  — Postgres setting (GUC) holding the base URL of the app
---   webhook_secret        — vault secret holding the shared HMAC secret
+--   wallet.app_config.webhook_base_url  — row holding the base URL of the app
+--   vault secret "webhook_secret"       — shared HMAC secret
 --
 -- local dev is seeded automatically by supabase/seed.sql.
 -- see README "Event system" section for per-environment setup.
+
+-- Table: app_config
+-- key-value store for non-secret runtime configuration. secrets go in vault.
+create table if not exists "wallet"."app_config" (
+  "key" "text" primary key,
+  "value" "text" not null
+);
+
+-- RLS: no client-role access. triggers (security definer) bypass RLS.
+alter table "wallet"."app_config" enable row level security;
 
 create or replace function "wallet"."emit_event"()
 returns "trigger"
@@ -31,7 +41,10 @@ declare
   v_body_text  text;
   v_signature  text;
 begin
-  v_base_url := current_setting('app.webhook_base_url', true);
+  select value into v_base_url
+    from wallet.app_config
+   where key = 'webhook_base_url'
+   limit 1;
 
   select decrypted_secret into v_secret
     from vault.decrypted_secrets
@@ -39,7 +52,7 @@ begin
    limit 1;
 
   if v_base_url is null or v_secret is null then
-    raise warning 'emit_event: configuration missing (app.webhook_base_url setting or webhook_secret vault entry)';
+    raise warning 'emit_event: configuration missing (wallet.app_config.webhook_base_url or webhook_secret vault entry)';
     return coalesce(new, old);
   end if;
 
