@@ -59,6 +59,21 @@ export type Database = {
           },
         ]
       }
+      app_config: {
+        Row: {
+          key: string
+          value: string
+        }
+        Insert: {
+          key: string
+          value: string
+        }
+        Update: {
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
       cashu_proofs: {
         Row: {
           account_id: string
