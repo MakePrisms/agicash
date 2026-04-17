@@ -78,7 +78,9 @@ function TokenAmountDisplay({
       type="button"
       className="z-10 transition-transform active:scale-95"
       onClick={() => {
-        copyToClipboard(encodeToken(claimableToken ?? token));
+        copyToClipboard(
+          encodeToken(claimableToken ?? token, { removeDleq: true }),
+        );
         toast({
           title: 'Token copied to clipboard',
           duration: 1000,
@@ -317,7 +319,9 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
 
-  const encodedToken = encodeToken(claimableToken ?? token);
+  const encodedToken = encodeToken(claimableToken ?? token, {
+    removeDleq: true,
+  });
 
   const handleClaimAsGuest = async () => {
     if (!claimableToken) {
