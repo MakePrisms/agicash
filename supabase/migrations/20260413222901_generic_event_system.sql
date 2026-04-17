@@ -93,7 +93,10 @@ begin
   return coalesce(new, old);
 
 exception when others then
-  raise warning 'emit_event(%): failed to send webhook: %', v_event_type, sqlerrm;
+  -- catches errors from config reads, hmac signing, or net.http_post
+  -- argument validation. actual delivery failures (timeout, HTTP errors,
+  -- DNS) are async and recorded in net._http_response, not here.
+  raise warning 'emit_event(%): failed to queue webhook: %', v_event_type, sqlerrm;
   return coalesce(new, old);
 end;
 $function$;
