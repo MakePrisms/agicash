@@ -2,20 +2,13 @@ import { timingSafeEqual } from 'node:crypto';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex } from '@noble/hashes/utils';
-import ky from 'ky';
 import { z } from 'zod';
 import type { AgicashDbUser } from '~/features/agicash-db/database';
+import { sendWelcomeEmail } from '~/features/email/welcome-email-service';
 import { safeJsonParse } from '~/lib/json';
 import type { Route } from './+types/api.events';
 
-const RESEND_API_URL = 'https://api.resend.com/emails';
-const EMAIL_FROM = 'Agicash <noreply@emails.agi.cash>';
-const EMAIL_SUBJECT = 'Welcome to Agicash';
 const MAX_SIGNATURE_AGE_SECONDS = 300;
-const KNOWN_EVENT_TYPES: Set<string> = new Set([
-  'user.created',
-  'user.upgraded',
-]);
 
 // -- Schemas --
 
@@ -24,25 +17,25 @@ const userDataSchema = z.object({
   email: z.string().nullable(),
 }) satisfies z.ZodType<Pick<AgicashDbUser, 'id' | 'email'>>;
 
-type UserData = Pick<AgicashDbUser, 'id' | 'email'>;
-
-const eventBase = {
-  id: z.string().uuid(),
-  time: z.iso.datetime(),
-};
-
-const eventSchema = z.discriminatedUnion('type', [
+const eventSchema = z.intersection(
   z.object({
-    ...eventBase,
-    type: z.literal('user.created'),
-    data: userDataSchema,
+    id: z.uuid(),
+    time: z.iso.datetime(),
   }),
-  z.object({
-    ...eventBase,
-    type: z.literal('user.upgraded'),
-    data: userDataSchema,
-  }),
-]);
+  z.union([
+    z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal('user.created'),
+        data: userDataSchema,
+      }),
+      z.object({
+        type: z.literal('user.upgraded'),
+        data: userDataSchema,
+      }),
+    ]),
+    z.object({ type: z.string(), data: z.unknown() }),
+  ]),
+);
 
 type AppEvent = z.infer<typeof eventSchema>;
 
@@ -53,14 +46,6 @@ function json(body: Record<string, unknown>, status: number) {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
-}
-
-function extractEventType(body: unknown): string | null {
-  if (!body || typeof body !== 'object' || !('type' in body)) {
-    return null;
-  }
-
-  return typeof body.type === 'string' ? body.type : null;
 }
 
 function verifySignature(
@@ -109,74 +94,18 @@ type EventHandler = {
   run: () => Promise<void>;
 };
 
-async function handleWelcomeEmail(data: UserData): Promise<void> {
-  if (!data.email) {
-    console.info('events webhook skipped welcome email', {
-      code: 'no_email',
-      message: 'User has no email address',
-    });
-    return;
-  }
+type KnownEvent = Extract<AppEvent, { type: 'user.created' | 'user.upgraded' }>;
 
-  const { id: userId, email } = data;
-
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const resendWelcomeTemplateId = process.env.RESEND_WELCOME_TEMPLATE_ID;
-
-  if (!resendApiKey || !resendWelcomeTemplateId) {
-    console.error('events webhook failed welcome email', {
-      code: 'server_misconfigured',
-      message: 'Missing RESEND_API_KEY or RESEND_WELCOME_TEMPLATE_ID',
-      userId,
-    });
-    return;
-  }
-
-  try {
-    await ky
-      .post(RESEND_API_URL, {
-        headers: {
-          Authorization: `Bearer ${resendApiKey}`,
-          'Idempotency-Key': `welcome-email/${userId}`,
-        },
-        json: {
-          from: EMAIL_FROM,
-          to: [email],
-          subject: EMAIL_SUBJECT,
-          template: {
-            id: resendWelcomeTemplateId,
-            variables: { email },
-          },
-        },
-        retry: {
-          limit: 2,
-          statusCodes: [408, 429, 500, 502, 503, 504],
-          backoffLimit: 3000,
-        },
-        timeout: 10_000,
-      })
-      .json();
-
-    console.info('events webhook sent welcome email', {
-      code: 'email_sent',
-      userId,
-    });
-  } catch (error) {
-    console.error('events webhook failed welcome email', {
-      code: 'email_send_failed',
-      userId,
-      message: error instanceof Error ? error.message : String(error),
-      error,
-    });
-  }
+function isKnownEvent(event: AppEvent): event is KnownEvent {
+  return event.type === 'user.created' || event.type === 'user.upgraded';
 }
 
-function getHandlers(event: AppEvent): EventHandler[] {
+function getHandlers(event: KnownEvent): EventHandler[] {
   switch (event.type) {
     case 'user.created':
     case 'user.upgraded':
       return [
-        { name: 'welcome-email', run: () => handleWelcomeEmail(event.data) },
+        { name: 'welcome-email', run: () => sendWelcomeEmail(event.data) },
       ];
   }
 }
@@ -213,22 +142,23 @@ export async function action({ request }: Route.ActionArgs) {
 
   const parsed = eventSchema.safeParse(jsonResult.data);
   if (!parsed.success) {
-    const type = extractEventType(jsonResult.data);
-
-    // Unknown event types return 200 for forward compatibility —
-    // the DB may emit new types before handlers are added
-    if (type && !KNOWN_EVENT_TYPES.has(type)) {
-      console.info('events webhook ignored unknown event type', { type });
-      return json({ ok: true, ignored: true, type }, 200);
-    }
-
-    console.error('events webhook invalid event payload', {
+    console.warn('events webhook invalid event payload', {
       error: z.flattenError(parsed.error),
     });
     return json({ error: 'Invalid event' }, 400);
   }
 
   const event = parsed.data;
+
+  // Unknown event types return 200 for forward compatibility —
+  // the DB may emit new types before handlers are added
+  if (!isKnownEvent(event)) {
+    console.info('events webhook ignored unknown event type', {
+      type: event.type,
+    });
+    return json({ ok: true, ignored: true, type: event.type }, 200);
+  }
+
   const handlers = getHandlers(event);
 
   const settled = await Promise.allSettled(

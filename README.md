@@ -175,6 +175,41 @@ resolve the issue and push migrations from your machine by doing:
 
 Steps 2 and 3 can be skipped if you have already logged in and linked the project before.
 
+### Event system
+
+The app uses a generic DB-driven event system: any table can emit events by attaching a trigger that calls
+`wallet.emit_event('event.type')`. The trigger signs the payload with HMAC-SHA256 and posts it to the app's
+`/api/events` route, which verifies the signature and dispatches to handlers (e.g. sending a welcome email via Resend).
+
+The trigger function reads two values at runtime:
+- `app.webhook_base_url` — a Postgres setting (GUC) holding the base URL of the app
+- `webhook_secret` — a vault secret holding the shared HMAC secret (must match the `WEBHOOK_SECRET` env var on the app side)
+
+If either value is missing the function logs a warning and no-ops, so triggers won't block inserts/updates
+but events will not be delivered.
+
+**Local dev:** both values are seeded automatically by `supabase/seed.sql` when you run `bun run supabase start`
+or `bun supabase db reset`. No manual setup needed.
+
+**Hosted envs (next, prod, preview branches):** both values must be set ONCE per environment. Run the
+following in the Supabase SQL editor against the target environment's database, substituting the correct URL
+and a fresh secret:
+
+```sql
+-- 1. set the base URL for webhook delivery
+alter database postgres set app.webhook_base_url = 'https://agi.cash';
+
+-- 2. create the HMAC secret
+select vault.create_secret(
+  '<paste-32-byte-random-hex-here>',
+  'webhook_secret',
+  'HMAC shared secret for webhook signatures'
+);
+```
+
+The same secret value must also be set as the `WEBHOOK_SECRET` env var on the app side (in Vercel for hosted
+envs, in `.env` for local dev).
+
 
 ## Code style & formatting
 

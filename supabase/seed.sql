@@ -8,7 +8,7 @@ update "wallet"."feature_flags" set "enabled" = true where "key" in (
   'DEBUG_LOGGING_SPARK'
 );
 
--- Dev-default vault secrets for the event system (webhook triggers)
+-- Dev-default config for the event system (webhook triggers)
 -- These are fake values for local development only — never use in production.
-select vault.create_secret('http://127.0.0.1:3000', 'webhook_base_url', 'Base URL for webhook event delivery');
+alter database postgres set app.webhook_base_url = 'http://127.0.0.1:3000';
 select vault.create_secret('dev-webhook-secret', 'webhook_secret', 'HMAC shared secret for webhook signatures');

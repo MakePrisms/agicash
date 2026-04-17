@@ -8,58 +8,58 @@
 -- format: t=<unix_epoch>,v1=<hex_hmac>
 -- signed message: <timestamp>.<json_payload>
 --
--- vault secrets required:
---   webhook_base_url  — base URL of the app (e.g. https://agi.cash)
---   webhook_secret    — shared HMAC secret
+-- reads two values at runtime:
+--   app.webhook_base_url  — Postgres setting (GUC) holding the base URL of the app
+--   webhook_secret        — vault secret holding the shared HMAC secret
+--
+-- local dev is seeded automatically by supabase/seed.sql.
+-- see README "Event system" section for per-environment setup.
 
-create or replace function wallet.emit_event()
-returns trigger
+create or replace function "wallet"."emit_event"()
+returns "trigger"
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $function$
 declare
-  _event_type text := TG_ARGV[0];
-  _id         text;
-  _base_url   text;
-  _secret     text;
-  _timestamp  text;
-  _payload    jsonb;
-  _body_text  text;
-  _signature  text;
+  v_event_type text := TG_ARGV[0];
+  v_id         text;
+  v_base_url   text;
+  v_secret     text;
+  v_timestamp  text;
+  v_payload    jsonb;
+  v_body_text  text;
+  v_signature  text;
 begin
-  select decrypted_secret into _base_url
-    from vault.decrypted_secrets
-   where name = 'webhook_base_url'
-   limit 1;
+  v_base_url := current_setting('app.webhook_base_url', true);
 
-  select decrypted_secret into _secret
+  select decrypted_secret into v_secret
     from vault.decrypted_secrets
    where name = 'webhook_secret'
    limit 1;
 
-  if _base_url is null or _secret is null then
-    raise warning 'emit_event: vault secrets missing (webhook_base_url or webhook_secret)';
+  if v_base_url is null or v_secret is null then
+    raise warning 'emit_event: configuration missing (app.webhook_base_url setting or webhook_secret vault entry)';
     return coalesce(new, old);
   end if;
 
-  _id := gen_random_uuid()::text;
-  _timestamp := extract(epoch from now())::bigint::text;
+  v_id := gen_random_uuid()::text;
+  v_timestamp := extract(epoch from now())::bigint::text;
 
-  _payload := jsonb_build_object(
-    'id',   _id,
-    'type', _event_type,
+  v_payload := jsonb_build_object(
+    'id',   v_id,
+    'type', v_event_type,
     'time', to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
     'data', row_to_json(coalesce(new, old))
   );
 
   -- convert to text once so the same bytes are signed and sent
-  _body_text := _payload::text;
+  v_body_text := v_payload::text;
 
-  _signature := encode(
+  v_signature := encode(
     extensions.hmac(
-      _timestamp || '.' || _body_text,
-      _secret,
+      v_timestamp || '.' || v_body_text,
+      v_secret,
       'sha256'
     ),
     'hex'
@@ -68,11 +68,11 @@ begin
   -- use the text overload so the exact bytes we signed are the exact bytes sent
   -- (the jsonb overload would round-trip through jsonb serialization)
   perform net.http_post(
-    url                  := _base_url || '/api/events',
-    body                 := _body_text,
+    url                  := v_base_url || '/api/events',
+    body                 := v_body_text,
     content_type         := 'application/json',
     headers              := jsonb_build_object(
-      'X-Webhook-Signature', 't=' || _timestamp || ',v1=' || _signature
+      'X-Webhook-Signature', 't=' || v_timestamp || ',v1=' || v_signature
     ),
     timeout_milliseconds := 10000
   );
@@ -80,18 +80,18 @@ begin
   return coalesce(new, old);
 
 exception when others then
-  raise warning 'emit_event(%): failed to send webhook: %', _event_type, sqlerrm;
+  raise warning 'emit_event(%): failed to send webhook: %', v_event_type, sqlerrm;
   return coalesce(new, old);
 end;
-$$;
+$function$;
 
 create trigger on_user_created
-  after insert on wallet.users
+  after insert on "wallet"."users"
   for each row
-  execute function wallet.emit_event('user.created');
+  execute function "wallet"."emit_event"('user.created');
 
 create trigger on_user_upgraded
-  after update of email on wallet.users
+  after update of email on "wallet"."users"
   for each row
   when (old.email is null and new.email is not null)
-  execute function wallet.emit_event('user.upgraded');
+  execute function "wallet"."emit_event"('user.upgraded');
