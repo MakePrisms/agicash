@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react-router';
 import ky from 'ky';
 
 const RESEND_API_URL = 'https://api.resend.com/emails';
@@ -22,10 +23,16 @@ export async function sendWelcomeEmail(data: {
   const resendWelcomeTemplateId = process.env.RESEND_WELCOME_TEMPLATE_ID;
 
   if (!resendApiKey || !resendWelcomeTemplateId) {
+    const err = new Error(
+      'Missing RESEND_API_KEY or RESEND_WELCOME_TEMPLATE_ID',
+    );
     console.error('events webhook failed welcome email', {
       code: 'server_misconfigured',
-      message: 'Missing RESEND_API_KEY or RESEND_WELCOME_TEMPLATE_ID',
+      message: err.message,
       userId,
+    });
+    Sentry.captureException(err, {
+      extra: { code: 'server_misconfigured', userId },
     });
     return;
   }
@@ -65,6 +72,9 @@ export async function sendWelcomeEmail(data: {
       userId,
       message: error instanceof Error ? error.message : String(error),
       error,
+    });
+    Sentry.captureException(error, {
+      extra: { code: 'email_send_failed', userId },
     });
   }
 }
