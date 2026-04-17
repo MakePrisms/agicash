@@ -33,7 +33,14 @@ const eventSchema = z.intersection(
         data: userDataSchema,
       }),
     ]),
-    z.object({ type: z.string(), data: z.unknown() }),
+    // Fallback for forward compatibility with unknown event types.
+    // Refine rejects known types so a known type with malformed data fails
+    // the whole parse rather than falling through here as `data: unknown`.
+    z
+      .object({ type: z.string(), data: z.unknown() })
+      .refine((v) => v.type !== 'user.created' && v.type !== 'user.upgraded', {
+        message: 'known event type with invalid data',
+      }),
   ]),
 );
 
