@@ -81,3 +81,27 @@ exception when others then
   return coalesce(new, old);
 end;
 $function$;
+
+-- collapse user.created + user.upgraded into a single user.email_verified event.
+-- the welcome email should fire when the user's email becomes verified — that
+-- moment covers both new signups (email_verified = true at insert) and guest
+-- upgrades (email_verified transitions false → true) with one event.
+
+drop trigger if exists "on_user_created" on "wallet"."users";
+drop trigger if exists "on_user_upgraded" on "wallet"."users";
+
+create trigger on_user_email_verified_insert
+  after insert on "wallet"."users"
+  for each row
+  when (new.email_verified = true and new.email is not null)
+  execute function "wallet"."emit_event"('user.email_verified');
+
+create trigger on_user_email_verified_update
+  after update of email_verified on "wallet"."users"
+  for each row
+  when (
+    old.email_verified is distinct from new.email_verified
+    and new.email_verified = true
+    and new.email is not null
+  )
+  execute function "wallet"."emit_event"('user.email_verified');

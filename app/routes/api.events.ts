@@ -25,11 +25,7 @@ const eventSchema = z.intersection(
   z.union([
     z.discriminatedUnion('type', [
       z.object({
-        type: z.literal('user.created'),
-        data: userDataSchema,
-      }),
-      z.object({
-        type: z.literal('user.upgraded'),
+        type: z.literal('user.email_verified'),
         data: userDataSchema,
       }),
     ]),
@@ -38,7 +34,7 @@ const eventSchema = z.intersection(
     // the whole parse rather than falling through here as `data: unknown`.
     z
       .object({ type: z.string(), data: z.unknown() })
-      .refine((v) => v.type !== 'user.created' && v.type !== 'user.upgraded', {
+      .refine((v) => v.type !== 'user.email_verified', {
         message: 'known event type with invalid data',
       }),
   ]),
@@ -101,16 +97,15 @@ type EventHandler = {
   run: () => Promise<void>;
 };
 
-type KnownEvent = Extract<AppEvent, { type: 'user.created' | 'user.upgraded' }>;
+type KnownEvent = Extract<AppEvent, { type: 'user.email_verified' }>;
 
 function isKnownEvent(event: AppEvent): event is KnownEvent {
-  return event.type === 'user.created' || event.type === 'user.upgraded';
+  return event.type === 'user.email_verified';
 }
 
 function getHandlers(event: KnownEvent): EventHandler[] {
   switch (event.type) {
-    case 'user.created':
-    case 'user.upgraded':
+    case 'user.email_verified':
       return [
         { name: 'welcome-email', run: () => sendWelcomeEmail(event.data) },
       ];
