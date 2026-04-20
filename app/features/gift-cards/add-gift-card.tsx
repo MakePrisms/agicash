@@ -19,6 +19,8 @@ import {
   WalletCardBackgroundImage,
 } from '~/components/wallet-card';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
+import { shouldAcceptGiftCardMintTerms } from '~/features/user/user';
+import { useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
 import type { GiftCardInfo } from './use-discover-cards';
@@ -56,6 +58,7 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const user = useUser();
   const isTransitioning = useViewTransitionState('/gift-cards');
 
   const handleBack = () => {
@@ -66,6 +69,15 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   };
 
   const handleAddCard = async () => {
+    if (shouldAcceptGiftCardMintTerms(user)) {
+      const searchParams = new URLSearchParams({
+        redirectTo: window.location.pathname,
+        requireGiftCardMintTerms: 'true',
+      });
+      navigate(`/accept-terms?${searchParams.toString()}`);
+      return;
+    }
+
     setIsAdding(true);
     try {
       await addGiftCard({

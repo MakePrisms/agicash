@@ -45,6 +45,8 @@ import {
   pendingGiftCardMintTermsStorage,
   pendingWalletTermsStorage,
 } from '../user/pending-terms-storage';
+import { shouldAcceptGiftCardMintTerms } from '../user/user';
+import { useUser } from '../user/user-hooks';
 import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
   useCashuTokenWithClaimableProofs,
@@ -130,8 +132,36 @@ export default function ReceiveToken({
     addAndSetReceiveAccount,
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
+  const user = useUser();
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
+
+  const handleClaim = () => {
+    if (!claimableToken || !receiveAccount) {
+      return;
+    }
+
+    if (
+      accountRequiresGiftCardTermsAcceptance(sourceAccount) &&
+      shouldAcceptGiftCardMintTerms(user)
+    ) {
+      const linkTo = buildLinkWithSearchParams('/accept-terms', {
+        requireGiftCardMintTerms: 'true',
+        redirectTo: window.location.pathname,
+      });
+      navigate(
+        { ...linkTo, hash: window.location.hash },
+        { transition: 'slideUp', applyTo: 'newView' },
+      );
+      return;
+    }
+
+    claimTokenMutation({
+      token: claimableToken,
+      sourceAccount,
+      receiveAccount,
+    });
+  };
 
   const { mutateAsync: createCashuReceiveSwap } = useCreateCashuReceiveSwap();
   const { mutateAsync: createCrossAccountReceiveQuotes } =
@@ -199,6 +229,9 @@ export default function ReceiveToken({
     },
   });
 
+  const isClaimLoading =
+    claimTokenStatus === 'pending' || claimTokenStatus === 'success';
+
   return (
     <>
       <PageHeader className="z-10">
@@ -263,18 +296,10 @@ export default function ReceiveToken({
         <PageFooter className="pb-14">
           <Button
             disabled={receiveAccount.isSelectable === false}
-            onClick={() => {
-              claimTokenMutation({
-                token: claimableToken,
-                sourceAccount,
-                receiveAccount,
-              });
-            }}
+            onClick={handleClaim}
             className="w-[200px]"
             // loading while the mutation is running or while waiting for navigation after mutation success
-            loading={
-              claimTokenStatus === 'pending' || claimTokenStatus === 'success'
-            }
+            loading={isClaimLoading}
           >
             {isReceiveAccountKnown ? 'Claim' : 'Add Mint and Claim'}
           </Button>
