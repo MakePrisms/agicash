@@ -843,6 +843,7 @@ export type Database = {
           email: string | null
           email_verified: boolean
           encryption_public_key: string
+          gift_card_mint_terms_accepted_at: string | null
           id: string
           spark_identity_public_key: string
           terms_accepted_at: string | null
@@ -858,6 +859,7 @@ export type Database = {
           email?: string | null
           email_verified: boolean
           encryption_public_key: string
+          gift_card_mint_terms_accepted_at?: string | null
           id?: string
           spark_identity_public_key: string
           terms_accepted_at?: string | null
@@ -873,6 +875,7 @@ export type Database = {
           email?: string | null
           email_verified?: boolean
           encryption_public_key?: string
+          gift_card_mint_terms_accepted_at?: string | null
           id?: string
           spark_identity_public_key?: string
           terms_accepted_at?: string | null
@@ -1607,6 +1610,7 @@ export type Database = {
           p_email: string
           p_email_verified: boolean
           p_encryption_public_key: string
+          p_gift_card_mint_terms_accepted_at?: string
           p_spark_identity_public_key: string
           p_terms_accepted_at?: string
           p_user_id: string

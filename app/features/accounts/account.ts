@@ -85,6 +85,16 @@ export type RedactedAccount = DistributedOmit<Account, 'proofs'>;
 export type RedactedCashuAccount = Extract<RedactedAccount, { type: 'cashu' }>;
 
 /**
+ * Returns true if adding this account requires the user to accept gift-card
+ * mint terms. Mirrors the DB trigger `enforce_gift_card_mint_terms_on_account_create`.
+ */
+export const accountRequiresGiftCardTermsAcceptance = (account: {
+  purpose: AccountPurpose;
+}): boolean => {
+  return account.purpose === 'gift-card' || account.purpose === 'offer';
+};
+
+/**
  * Returns true if the account can send payments through the Lightning network.
  * Returns false for test mints, non-transactional accounts, and mints with
  * melting disabled (NUT-05).

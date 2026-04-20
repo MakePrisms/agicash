@@ -195,7 +195,7 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
   return mutateAsync;
 };
 
-const useUpdateUser = () => {
+export const useUpdateUser = () => {
   const queryClient = useQueryClient();
   const userId = useUser((user) => user.id);
   const userRepository = useWriteUserRepository();
@@ -238,15 +238,6 @@ export const useUpdateUsername = () => {
 
   return useCallback(
     (username: string) => updateUser({ username }),
-    [updateUser],
-  );
-};
-
-export const useAcceptTerms = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
-
-  return useCallback(
-    () => updateUser({ termsAcceptedAt: new Date().toISOString() }),
     [updateUser],
   );
 };

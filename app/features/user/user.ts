@@ -13,6 +13,7 @@ type CommonUserData = {
   encryptionPublicKey: string;
   sparkIdentityPublicKey: string;
   termsAcceptedAt: string | null;
+  giftCardMintTermsAcceptedAt: string | null;
 };
 
 export type FullUser = CommonUserData & {
@@ -34,4 +35,8 @@ export function shouldVerifyEmail(user: User): user is FullUser {
 
 export function shouldAcceptTerms(user: User): boolean {
   return user.termsAcceptedAt === null;
+}
+
+export function shouldAcceptGiftCardMintTerms(user: User): boolean {
+  return user.giftCardMintTermsAcceptedAt === null;
 }
