@@ -96,9 +96,7 @@ export const findFirstActiveKeyset = <T extends MintKeyset | Keyset>(
 /**
  * Returns the keyset's expiry as a Date, or null if it has no expiry.
  */
-export const getKeysetExpiry = (keyset: {
-  final_expiry?: number;
-}): Date | null => {
+export const getKeysetExpiry = (keyset: MintKeyset | Keyset): Date | null => {
   if (!keyset.final_expiry) return null;
   return new Date(keyset.final_expiry * 1000);
 };
