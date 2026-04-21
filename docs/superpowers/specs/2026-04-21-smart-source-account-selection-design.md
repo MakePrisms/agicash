@@ -79,6 +79,9 @@ Keys are exact BOLT11 description strings. Values are mint URLs (must be valid U
 **New file:** `app/features/send/smart-source-selection.ts`
 
 ```ts
+// Imports: `DecodedBolt11` from `~/lib/bolt11`,
+// `Account` and `ExtendedAccount` from `~/features/accounts/account`.
+
 type SmartSelectionInput = {
   decoded: DecodedBolt11;
   accounts: ExtendedAccount<'cashu'>[]; // caller passes BTC cashu accounts
@@ -109,19 +112,22 @@ All three sites pass the pre-filtered BTC cashu account list and the user's defa
 
 After `classifyInput`, for `type === 'bolt11'`, read the accounts cache directly (loader has no hooks). Call the selector. Return `{ initialDestination, initialAccountId }` from the loader. `SendLayout` passes `initialAccountId` to the send provider — overrides the `accountId` query param for this flow.
 
-**b) `/scan` navigate handler** (`app/routes/_protected.scan.tsx`)
-
-For `type === 'bolt11'` after `validateBolt11`, read the accounts cache, call the selector, append `?accountId=<selected>` to the `/send` URL before navigating. The `/send` loader then sees the explicit id and uses it.
-
-Alternative: skip this wiring on the scan side and let the loader handle it uniformly. Pick whichever keeps the diff smallest — functionally equivalent because the loader already does lookup on the hash.
+**b) `/scan` navigate handler** — *no changes required.* The scan route already navigates to `/send#<invoice>`, and the `/send` loader runs the selector for every BOLT11 it parses. One entry point for scan + deep-link coverage.
 
 **c) `selectDestination` in `send-store`** (`app/features/send/send-store.ts`)
 
-In the BOLT11 branch, after validation, call the selector with `deps.getAccounts()` + `deps.getDefaultAccount()`. If the selected account differs from current `state.accountId`, update it.
+In the BOLT11 branch, after validation, call the selector with `deps.getAccounts()` + `deps.getDefaultAccount()`. Update `state.accountId` to the selected account. This only runs when the user selects a new destination — a user who manually switches accounts *and then* stays on the same destination will not be stomped, because `selectDestination` is not re-invoked without a new input. If the user pastes a new BOLT11 after changing the account, smart selection re-applies for the new destination (desirable: new input, new best-source decision).
 
 ### 4. Tests
 
-**New:** `app/features/send/smart-source-selection.test.ts` — covers the 6 decision branches with fabricated inputs. Pure function, no mocks.
+**New:** `app/features/send/smart-source-selection.test.ts` — pure function, no mocks. One test per decision branch:
+
+1. Description is missing → default
+2. Description is set but unmapped → default
+3. Description maps to a mint the user has no BTC account at → default
+4. Matched mint + account, but invoice amount is null (zero-amount) → default
+5. Matched mint + account, but balance < invoice amount → default
+6. Matched mint + account + balance ≥ invoice amount → matched account
 
 ## File changes summary
 
@@ -132,7 +138,7 @@ In the BOLT11 branch, after validation, call the selector with `deps.getAccounts
 | `app/features/send/smart-source-selection.test.ts` | **new** — unit tests |
 | `vite.config.ts` | `validateEnv()` also validates `VITE_MINT_DESCRIPTION_MAP` |
 | `app/routes/_protected.send.tsx` | loader calls selector for `bolt11`, returns `initialAccountId` |
-| `app/routes/_protected.scan.tsx` | (optional — may be handled entirely by the loader) |
+| `app/routes/_protected.scan.tsx` | *no changes* — selection runs in the `/send` loader |
 | `app/features/send/send-store.ts` | `selectDestination` BOLT11 branch calls selector + updates `accountId` |
 | `app/features/send/send-provider.tsx` | threads `initialAccountId` into `createSendStore` |
 | `.env.example` | document `VITE_MINT_DESCRIPTION_MAP` |
