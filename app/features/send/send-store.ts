@@ -4,7 +4,7 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '~/features/accounts/account';
-import type { ClassifiedInput } from '~/features/scan';
+import type { SendInput } from '~/features/scan';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
 import { isValidLightningAddress } from '~/lib/lnurl';
@@ -142,7 +142,7 @@ export type SendState = State & Actions;
 
 type CreateSendStoreProps = {
   initialAccount: Account;
-  initialDestination?: ClassifiedInput | null;
+  initialDestination?: SendInput | null;
   getAccount: (accountId: string) => Account;
   getInvoiceFromLud16: (params: {
     lud16: string;
@@ -191,31 +191,21 @@ type InitialDestinationState =
       destinationDetails: { lnAddress: string };
     };
 
-/**
- * Turn a pre-validated `ClassifiedInput` from the loader into the initial
- * destination fields of `SendState`. Returns `null` if the classified input
- * is not a valid send destination (cashu-token, unknown).
- */
-const classifiedToInitialState = (
-  classified: ClassifiedInput,
-): InitialDestinationState | null => {
-  switch (classified.type) {
+const sendInputToInitialState = (input: SendInput): InitialDestinationState => {
+  switch (input.type) {
     case 'bolt11':
       return {
         sendType: 'BOLT11_INVOICE',
-        destination: classified.invoice,
-        destinationDisplay: `${classified.invoice.slice(0, 6)}...${classified.invoice.slice(-4)}`,
+        destination: input.invoice,
+        destinationDisplay: `${input.invoice.slice(0, 6)}...${input.invoice.slice(-4)}`,
       };
     case 'ln-address':
       return {
         sendType: 'LN_ADDRESS',
         destination: null,
-        destinationDisplay: classified.address,
-        destinationDetails: { lnAddress: classified.address },
+        destinationDisplay: input.address,
+        destinationDetails: { lnAddress: input.address },
       };
-    case 'cashu-token':
-    case 'unknown':
-      return null;
   }
 };
 
@@ -229,7 +219,7 @@ export const createSendStore = ({
   getSparkLightningQuote,
 }: CreateSendStoreProps) => {
   const resolvedInitialDestination = initialDestination
-    ? classifiedToInitialState(initialDestination)
+    ? sendInputToInitialState(initialDestination)
     : null;
 
   return create<SendState>()((set, get) => {

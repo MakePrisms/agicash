@@ -5,9 +5,9 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { QRScanner } from '~/components/qr-scanner';
+import { classifyInput, isReceiveInput } from '~/features/scan';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { extractCashuToken } from '~/lib/cashu';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { useReceiveStore } from './receive-provider';
 
@@ -30,8 +30,8 @@ export default function ReceiveScanner() {
       <PageContent className="relative flex items-center justify-center">
         <QRScanner
           onDecode={(scannedContent) => {
-            const encodedToken = extractCashuToken(scannedContent)?.encoded;
-            if (!encodedToken) {
+            const classified = classifyInput(scannedContent);
+            if (!isReceiveInput(classified)) {
               toast({
                 title: 'Invalid input',
                 description: 'Please scan a valid cashu token',
@@ -40,7 +40,7 @@ export default function ReceiveScanner() {
               return;
             }
 
-            const hash = `#${encodedToken}`;
+            const hash = `#${classified.encoded}`;
 
             // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
             // See https://github.com/remix-run/remix/discussions/10721
