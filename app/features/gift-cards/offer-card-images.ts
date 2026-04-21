@@ -1,7 +1,9 @@
 import freeCoffeeTestCard from '~/assets/gift-cards/freecoffeetest.agi.cash.webp';
+import squarealphaCard from '~/assets/gift-cards/squarealpha0421.agi.cash.webp';
 
 const OFFER_CARD_IMAGES: Record<string, string> = {
   'https://freecoffeetest.agi.cash': freeCoffeeTestCard,
+  'https://squarealpha0421.agi.cash': squarealphaCard,
 };
 
 /**

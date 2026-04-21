@@ -40,7 +40,7 @@ export function ShareCashuToken({ token }: Props) {
   const amount = tokenToMoney(token);
   const [showOk, setShowOk] = useState(false);
 
-  const encodedToken = encodeToken(token);
+  const encodedToken = encodeToken(token, { removeDleq: true });
   const shareableLink = `${origin}/receive-cashu-token#${encodedToken}`;
   const shortToken = `${encodedToken.slice(0, 6)}...${encodedToken.slice(-5)}`;
   const shortShareableLink = `${origin}/receive-cashu-token#${shortToken}`;

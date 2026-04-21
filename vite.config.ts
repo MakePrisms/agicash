@@ -29,6 +29,8 @@ function validateEnv(mode: string) {
 export default defineConfig((config) => {
   validateEnv(config.mode);
 
+  const isDev = config.command === 'serve';
+
   return {
     plugins: [
       tailwindcss(),
@@ -38,6 +40,14 @@ export default defineConfig((config) => {
       // We don't want to upload source maps to Sentry when building locally.
       process.env.VERCEL ? sentryReactRouter(sentryConfig, config) : null,
     ].filter((plugin) => Boolean(plugin)),
+    server: isDev
+      ? {
+          // allow webhook deliveries from pg_net inside the supabase_db
+          // container, which reaches the host dev server via
+          // host.docker.internal
+          allowedHosts: ['host.docker.internal'],
+        }
+      : undefined,
     // Exclude from pre-bundling so the library's internal `new URL('./worker.js', import.meta.url)`
     // resolves correctly. Pre-bundling inlines the library into a single file, breaking the
     // relative URL used to load the Web Worker.
