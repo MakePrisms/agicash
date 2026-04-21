@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation, useSearchParams } from 'react-router';
 import { Button } from '~/components/ui/button';
 import {
   Card,
@@ -9,8 +9,8 @@ import {
   CardTitle,
 } from '~/components/ui/card';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
+import { AcceptTerms } from '~/features/user/accept-terms';
 import { pendingTermsStorage } from '~/features/user/pending-terms-storage';
-import { AcceptTerms } from './accept-terms';
 
 type Option = 'email' | 'google' | 'guest';
 type Props = { onSelect: (option: Option) => Promise<void> };
@@ -22,6 +22,9 @@ type Step =
 export function SignupOptions({ onSelect }: Props) {
   const [step, setStep] = useState<Step>({ name: 'pick-signup-option' });
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const requireGiftCardMintTerms =
+    searchParams.get('requireGiftCardMintTerms') === 'true';
   const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
 
   const selectOption = (option: Option) =>
@@ -36,6 +39,9 @@ export function SignupOptions({ onSelect }: Props) {
       if (step.submitting) return;
 
       pendingTermsStorage.set(new Date().toISOString());
+      if (requireGiftCardMintTerms) {
+        pendingTermsStorage.setGiftCardMintTerms(new Date().toISOString());
+      }
 
       setStep({ ...step, submitting: true });
       await onSelect(step.selectedOption);
@@ -46,6 +52,8 @@ export function SignupOptions({ onSelect }: Props) {
 
     return (
       <AcceptTerms
+        requireWalletTerms
+        requireGiftCardMintTerms={requireGiftCardMintTerms}
         onAccept={handleAcceptTerms}
         onBack={() => setStep({ name: 'pick-signup-option' })}
         loading={step.submitting}

@@ -32,6 +32,7 @@ export type UpdateUser = {
   defaultCurrency?: Currency;
   username?: string;
   termsAcceptedAt?: string;
+  giftCardMintTermsAcceptedAt?: string;
 };
 
 type Options = {
@@ -73,6 +74,7 @@ function toUser(dbUser: AgicashDbUser): User {
     defaultUsdAccountId: dbUser.default_usd_account_id,
     defaultCurrency: dbUser.default_currency,
     termsAcceptedAt: dbUser.terms_accepted_at,
+    giftCardMintTermsAcceptedAt: dbUser.gift_card_mint_terms_accepted_at,
   };
 
   if (dbUser.email) {
@@ -107,6 +109,7 @@ export class WriteUserRepository {
         default_currency: data.defaultCurrency,
         username: data.username,
         terms_accepted_at: data.termsAcceptedAt,
+        gift_card_mint_terms_accepted_at: data.giftCardMintTermsAcceptedAt,
       })
       .eq('id', userId)
       .select();
@@ -168,6 +171,11 @@ export class WriteUserRepository {
        * Optional because new OAuth users using the login flow are created before accepting TOS.
        */
       termsAcceptedAt?: string;
+      /**
+       * Timestamp when user accepted gift-card-mint terms of service in ISO 8601 format.
+       * Optional because it's only required when adding a mint that requires terms acceptance.
+       */
+      giftCardMintTermsAcceptedAt?: string;
     },
     options?: Options,
   ): Promise<{ user: User; accounts: Account[] }> {
@@ -201,6 +209,7 @@ export class WriteUserRepository {
       p_encryption_public_key: user.encryptionPublicKey,
       p_spark_identity_public_key: user.sparkIdentityPublicKey,
       p_terms_accepted_at: user.termsAcceptedAt,
+      p_gift_card_mint_terms_accepted_at: user.giftCardMintTermsAcceptedAt,
     });
 
     if (options?.abortSignal) {

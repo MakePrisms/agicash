@@ -52,8 +52,7 @@ const buildRedirectWithReturnUrl = (
   if (location.pathname !== '/') {
     searchParams.set('redirectTo', location.pathname);
   }
-  const search = `?${searchParams.toString()}`;
-  return redirect(`${destinationRoute}${search}${hash}`);
+  return redirect(`${destinationRoute}?${searchParams.toString()}${hash}`);
 };
 
 const hasUserChanged = (user: User, authUser: AuthUser) => {
@@ -70,6 +69,7 @@ const ensureUserData = async (
   queryClient: QueryClient,
   authUser: AuthUser,
   termsAcceptedAt?: string,
+  giftCardMintTermsAcceptedAt?: string,
 ): Promise<User> => {
   let user = getUserFromCache(queryClient);
 
@@ -127,6 +127,7 @@ const ensureUserData = async (
           encryptionPublicKey,
           sparkIdentityPublicKey,
           termsAcceptedAt,
+          giftCardMintTermsAcceptedAt,
         }),
       retry: (attemptIndex, error) => {
         if (error instanceof ZodError) {
@@ -189,10 +190,17 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     pendingTermsStorage.remove();
   }
 
+  const pendingGiftCardMintTermsAcceptedAt =
+    pendingTermsStorage.getGiftCardMintTerms();
+  if (pendingGiftCardMintTermsAcceptedAt) {
+    pendingTermsStorage.removeGiftCardMintTerms();
+  }
+
   const user = await ensureUserData(
     queryClient,
     authUser,
     pendingTermsAcceptedAt,
+    pendingGiftCardMintTermsAcceptedAt,
   );
 
   const shouldRedirectToAcceptTerms =

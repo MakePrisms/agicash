@@ -27,7 +27,10 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { getAccountHomePath } from '../accounts/account';
+import {
+  accountRequiresGiftCardTermsAcceptance,
+  getAccountHomePath,
+} from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
 import { getOfferCardImageByUrl } from '../gift-cards/offer-card-images';
@@ -36,7 +39,7 @@ import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import { AcceptTerms } from '../signup/accept-terms';
+import { AcceptTerms } from '../user/accept-terms';
 import { useAuthActions } from '../user/auth';
 import { pendingTermsStorage } from '../user/pending-terms-storage';
 import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
@@ -303,6 +306,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
   const [signingUpGuest, setSigningUpGuest] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { signUpGuest } = useAuthActions();
   const { toast } = useToast();
   const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
@@ -318,6 +322,8 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
     });
 
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
+  const mintRequiresTerms =
+    accountRequiresGiftCardTermsAcceptance(sourceAccount);
 
   const encodedToken = encodeToken(claimableToken ?? token, {
     removeDleq: true,
@@ -330,8 +336,11 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
     setSigningUpGuest(true);
     try {
-      // Store terms acceptance timestamp so it's available when user record is created
+      // Store terms acceptance timestamps so they're available when user record is created
       pendingTermsStorage.set(new Date().toISOString());
+      if (mintRequiresTerms) {
+        pendingTermsStorage.setGiftCardMintTerms(new Date().toISOString());
+      }
 
       // Modify the URL before signing up because as soon as the user is logged in,
       // they will be redirected to the protected receive cashu token page
@@ -360,6 +369,8 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
       <>
         <PageContent className="justify-center">
           <AcceptTerms
+            requireWalletTerms
+            requireGiftCardMintTerms={mintRequiresTerms}
             onAccept={handleClaimAsGuest}
             onBack={() => setStep('show-token')}
             loading={signingUpGuest}
@@ -440,8 +451,12 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
             <LinkWithViewTransition
               to={{
-                pathname: '/login',
-                search: 'redirectTo=/receive/cashu/token',
+                ...buildLinkWithSearchParams('/login', {
+                  redirectTo: '/receive/cashu/token',
+                  ...(mintRequiresTerms && {
+                    requireGiftCardMintTerms: 'true',
+                  }),
+                }),
                 hash: encodedToken,
               }}
               transition="slideUp"
