@@ -3,11 +3,13 @@ import {
   Page,
   PageBackButton,
   PageContent,
+  PageFooter,
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
 import { QRScanner } from '~/components/qr-scanner';
-import { classifyInput } from '~/features/scan';
+import { Button } from '~/components/ui/button';
+import { classifyInput, isReceiveInput, isSendInput } from '~/features/scan';
 import { validateBolt11 } from '~/features/send/destination-validators';
 import { useToast } from '~/hooks/use-toast';
 import { readClipboard } from '~/lib/read-clipboard';
@@ -20,20 +22,20 @@ export default function ScanPage() {
   const handleInput = (raw: string) => {
     const result = classifyInput(raw);
 
-    switch (result.type) {
-      case 'cashu-token': {
-        const hash = `#${result.encoded}`;
-        // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
-        // See https://github.com/remix-run/remix/discussions/10721
-        window.history.replaceState(null, '', hash);
-        navigate(
-          { pathname: '/receive/cashu/token', hash },
-          { transition: 'slideLeft', applyTo: 'newView' },
-        );
-        break;
-      }
+    if (isReceiveInput(result)) {
+      const hash = `#${result.encoded}`;
+      // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
+      // See https://github.com/remix-run/remix/discussions/10721
+      window.history.replaceState(null, '', hash);
+      navigate(
+        { pathname: '/receive/cashu/token', hash },
+        { transition: 'slideLeft', applyTo: 'newView' },
+      );
+      return;
+    }
 
-      case 'bolt11': {
+    if (isSendInput(result)) {
+      if (result.type === 'bolt11') {
         const validation = validateBolt11(result.decoded, {
           allowZeroAmount: true,
         });
@@ -45,38 +47,25 @@ export default function ScanPage() {
           });
           return;
         }
-        const hash = `#${result.invoice}`;
-        // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
-        // See https://github.com/remix-run/remix/discussions/10721
-        window.history.replaceState(null, '', hash);
-        navigate(
-          { pathname: '/send', hash },
-          { transition: 'slideLeft', applyTo: 'newView' },
-        );
-        break;
       }
 
-      case 'ln-address': {
-        const hash = `#${result.address}`;
-        // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
-        // See https://github.com/remix-run/remix/discussions/10721
-        window.history.replaceState(null, '', hash);
-        navigate(
-          { pathname: '/send', hash },
-          { transition: 'slideLeft', applyTo: 'newView' },
-        );
-        break;
-      }
-
-      case 'unknown':
-        toast({
-          title: 'Invalid QR code',
-          description:
-            'Please scan a cashu token, lightning invoice, or lightning address',
-          variant: 'destructive',
-        });
-        break;
+      const hash = `#${result.type === 'bolt11' ? result.invoice : result.address}`;
+      // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
+      // See https://github.com/remix-run/remix/discussions/10721
+      window.history.replaceState(null, '', hash);
+      navigate(
+        { pathname: '/send', hash },
+        { transition: 'slideLeft', applyTo: 'newView' },
+      );
+      return;
     }
+
+    toast({
+      title: 'Invalid QR code',
+      description:
+        'Please scan a cashu token, lightning invoice, or lightning address',
+      variant: 'destructive',
+    });
   };
 
   const handlePaste = async () => {
@@ -90,16 +79,14 @@ export default function ScanPage() {
         <PageBackButton to="/" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Scan</PageHeaderTitle>
       </PageHeader>
-      <PageContent className="relative flex flex-col items-center justify-center gap-4">
+      <PageContent className="relative flex items-center justify-center">
         <QRScanner onDecode={handleInput} />
-        <button
-          type="button"
-          onClick={handlePaste}
-          className="flex items-center gap-2 text-muted-foreground"
-        >
-          <Clipboard className="h-5 w-5" /> Paste
-        </button>
       </PageContent>
+      <PageFooter className="pb-14">
+        <Button type="button" onClick={handlePaste}>
+          <Clipboard className="h-5 w-5" /> Paste
+        </Button>
+      </PageFooter>
     </Page>
   );
 }

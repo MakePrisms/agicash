@@ -1,15 +1,19 @@
 import { Outlet, useSearchParams } from 'react-router';
 import { useAccountOrDefault } from '~/features/accounts/account-hooks';
-import { classifyInput } from '~/features/scan';
+import { type SendInput, classifyInput, isSendInput } from '~/features/scan';
 import { SendProvider } from '~/features/send';
 import { validateBolt11 } from '~/features/send/destination-validators';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.send';
 
-export async function clientLoader() {
+export async function clientLoader(): Promise<{
+  initialDestination: SendInput | null;
+}> {
   const hash = window.location.hash.slice(1);
   if (!hash) return { initialDestination: null };
 
+  // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
+  // See https://github.com/remix-run/remix/discussions/10721
   window.history.replaceState(
     null,
     '',
@@ -18,9 +22,9 @@ export async function clientLoader() {
 
   const classified = classifyInput(hash);
 
-  if (classified.type === 'unknown') return { initialDestination: null };
-  // A cashu token shouldn't land here, but be defensive if it does.
-  if (classified.type === 'cashu-token') return { initialDestination: null };
+  if (!isSendInput(classified)) {
+    return { initialDestination: null };
+  }
 
   if (classified.type === 'bolt11') {
     const result = validateBolt11(classified.decoded, {
@@ -37,7 +41,9 @@ export async function clientLoader() {
     }
   }
 
-  return { initialDestination: classified };
+  return {
+    initialDestination: classified,
+  };
 }
 
 clientLoader.hydrate = true as const;
