@@ -4,17 +4,19 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '~/features/accounts/account';
-import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
+import type { ClassifiedInput } from '~/features/scan';
+import { parseBolt11Invoice } from '~/lib/bolt11';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
-import {
-  buildLightningAddressFormatValidator,
-  isValidLightningAddress,
-} from '~/lib/lnurl';
-import { type Currency, Money } from '~/lib/money';
+import { isValidLightningAddress } from '~/lib/lnurl';
+import type { Currency, Money } from '~/lib/money';
 import { type Contact, isContact } from '../contacts/contact';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
+import {
+  validateBolt11,
+  validateLightningAddressFormat,
+} from './destination-validators';
 import type { SparkLightningQuote } from './spark-send-quote-service';
 
 /**
@@ -26,66 +28,6 @@ const getDefaultSendType = (
   accountType: Account['type'],
 ): 'CASHU_TOKEN' | 'BOLT11_INVOICE' => {
   return accountType === 'cashu' ? 'CASHU_TOKEN' : 'BOLT11_INVOICE';
-};
-
-const validateLightningAddressFormat = buildLightningAddressFormatValidator({
-  message: 'Invalid lightning address',
-  allowLocalhost: import.meta.env.MODE === 'development',
-});
-
-type ValidateResult =
-  | {
-      valid: false;
-      error: string;
-    }
-  | {
-      valid: true;
-      amount: Money<Currency> | null;
-      currency: Currency;
-      unit: 'sat' | 'cent';
-    };
-
-const validateBolt11 = (
-  { network, amountSat, expiryUnixMs }: DecodedBolt11,
-  { allowZeroAmount = false } = {},
-): ValidateResult => {
-  if (network !== 'bitcoin') {
-    return {
-      valid: false,
-      error: `Unsupported network: ${network}. Only Bitcoin mainnet is supported`,
-    };
-  }
-
-  if (expiryUnixMs) {
-    const expiresAt = new Date(expiryUnixMs);
-    const now = new Date();
-    if (expiresAt < now) {
-      return {
-        valid: false,
-        error: 'Invoice expired',
-      };
-    }
-  }
-
-  if (!amountSat && !allowZeroAmount) {
-    return {
-      valid: false,
-      error: 'Amount is required for Lightning invoices',
-    };
-  }
-
-  return {
-    valid: true,
-    amount: amountSat
-      ? new Money({
-          amount: amountSat,
-          currency: 'BTC' as Currency,
-          unit: 'sat',
-        })
-      : null,
-    unit: 'sat',
-    currency: 'BTC',
-  };
 };
 
 const pickAmountByCurrency = <T extends Currency>(
@@ -200,6 +142,7 @@ export type SendState = State & Actions;
 
 type CreateSendStoreProps = {
   initialAccount: Account;
+  initialDestination?: ClassifiedInput | null;
   getAccount: (accountId: string) => Account;
   getInvoiceFromLud16: (params: {
     lud16: string;
@@ -234,14 +177,61 @@ const isSendTypeSupportedForAccount = (
   return supportedSendTypes[account.type].includes(sendType);
 };
 
+type InitialDestinationState =
+  | {
+      sendType: 'BOLT11_INVOICE';
+      destination: string;
+      destinationDisplay: string;
+      destinationDetails?: null;
+    }
+  | {
+      sendType: 'LN_ADDRESS';
+      destination: null;
+      destinationDisplay: string;
+      destinationDetails: { lnAddress: string };
+    };
+
+/**
+ * Turn a pre-validated `ClassifiedInput` from the loader into the initial
+ * destination fields of `SendState`. Returns `null` if the classified input
+ * is not a valid send destination (cashu-token, unknown).
+ */
+const classifiedToInitialState = (
+  classified: ClassifiedInput,
+): InitialDestinationState | null => {
+  switch (classified.type) {
+    case 'bolt11':
+      return {
+        sendType: 'BOLT11_INVOICE',
+        destination: classified.invoice,
+        destinationDisplay: `${classified.invoice.slice(0, 6)}...${classified.invoice.slice(-4)}`,
+      };
+    case 'ln-address':
+      return {
+        sendType: 'LN_ADDRESS',
+        destination: null,
+        destinationDisplay: classified.address,
+        destinationDetails: { lnAddress: classified.address },
+      };
+    case 'cashu-token':
+    case 'unknown':
+      return null;
+  }
+};
+
 export const createSendStore = ({
   initialAccount,
+  initialDestination,
   getAccount,
   getInvoiceFromLud16,
   getCashuLightningQuote,
   getCashuSwapQuote,
   getSparkLightningQuote,
 }: CreateSendStoreProps) => {
+  const resolvedInitialDestination = initialDestination
+    ? classifiedToInitialState(initialDestination)
+    : null;
+
   return create<SendState>()((set, get) => {
     const getOrThrow = <T extends keyof SendState>(
       key: T,
@@ -254,13 +244,17 @@ export const createSendStore = ({
       return value;
     };
 
-    return {
-      status: 'idle',
-      amount: null,
-      accountId: initialAccount.id,
+    const initialDestinationFields = resolvedInitialDestination ?? {
       sendType: getDefaultSendType(initialAccount.type),
       destination: null,
       destinationDisplay: null,
+    };
+
+    return {
+      status: 'idle' as const,
+      amount: null,
+      accountId: initialAccount.id,
+      ...initialDestinationFields,
       quote: null,
       cashuToken: null,
 
@@ -343,19 +337,19 @@ export const createSendStore = ({
 
         const bolt11ParseResult = parseBolt11Invoice(destination);
         if (bolt11ParseResult.valid) {
-          const invoice = bolt11ParseResult.decoded;
           const account = get().getSourceAccount();
           const allowZeroAmount = account.type === 'spark';
-          const result = validateBolt11(invoice, { allowZeroAmount });
+          const result = validateBolt11(bolt11ParseResult.decoded, {
+            allowZeroAmount,
+          });
           if (!result.valid) {
             return { success: false, error: result.error };
           }
 
-          const cleanedDestination = destination.replace(/^lightning:/i, '');
           set({
             sendType: 'BOLT11_INVOICE',
-            destination: cleanedDestination,
-            destinationDisplay: `${cleanedDestination.slice(0, 6)}...${cleanedDestination.slice(-4)}`,
+            destination: bolt11ParseResult.invoice,
+            destinationDisplay: `${bolt11ParseResult.invoice.slice(0, 6)}...${bolt11ParseResult.invoice.slice(-4)}`,
           });
 
           return {

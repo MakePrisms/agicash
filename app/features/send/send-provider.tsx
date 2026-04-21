@@ -6,6 +6,7 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
+import type { ClassifiedInput } from '~/features/scan';
 import { useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
@@ -18,9 +19,19 @@ const SendContext = createContext<SendStore | null>(null);
 type Props = PropsWithChildren<{
   /** Usually the user's default account. This sets the initial account to send from. */
   initialAccount: Account;
+  /**
+   * Pre-validated destination from the route loader (e.g. from a QR scan
+   * or shared link). Seeds the initial store state so the component renders
+   * with the destination already selected — no post-mount side effect needed.
+   */
+  initialDestination?: ClassifiedInput | null;
 }>;
 
-export const SendProvider = ({ initialAccount, children }: Props) => {
+export const SendProvider = ({
+  initialAccount,
+  initialDestination,
+  children,
+}: Props) => {
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
   const { mutateAsync: getCashuLightningQuote } =
     useCreateCashuLightningSendQuote();
@@ -32,6 +43,7 @@ export const SendProvider = ({ initialAccount, children }: Props) => {
   const [store] = useState(() =>
     createSendStore({
       initialAccount,
+      initialDestination,
       getAccount,
       getInvoiceFromLud16,
       getCashuLightningQuote,
