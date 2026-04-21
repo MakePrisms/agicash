@@ -26,7 +26,10 @@ import {
   authQueryOptions,
   useAuthState,
 } from '~/features/user/auth';
-import { pendingTermsStorage } from '~/features/user/pending-terms-storage';
+import {
+  pendingGiftCardMintTermsStorage,
+  pendingWalletTermsStorage,
+} from '~/features/user/pending-terms-storage';
 import { type User, shouldAcceptTerms } from '~/features/user/user';
 import {
   defaultAccounts,
@@ -71,6 +74,7 @@ const ensureUserData = async (
   queryClient: QueryClient,
   authUser: AuthUser,
   termsAcceptedAt?: string,
+  giftCardMintTermsAcceptedAt?: string,
 ): Promise<User> => {
   let user = getUserFromCache(queryClient);
 
@@ -129,6 +133,7 @@ const ensureUserData = async (
           encryptionPublicKey,
           sparkIdentityPublicKey,
           termsAcceptedAt,
+          giftCardMintTermsAcceptedAt,
         }),
       retry: (attemptIndex, error) => {
         if (error instanceof ZodError) {
@@ -186,9 +191,15 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     throw redirect(`/home${search}${hash}`);
   }
 
-  const pendingTermsAcceptedAt = pendingTermsStorage.get();
+  const pendingTermsAcceptedAt = pendingWalletTermsStorage.get();
   if (pendingTermsAcceptedAt) {
-    pendingTermsStorage.remove();
+    pendingWalletTermsStorage.remove();
+  }
+
+  const pendingGiftCardMintTermsAcceptedAt =
+    pendingGiftCardMintTermsStorage.get();
+  if (pendingGiftCardMintTermsAcceptedAt) {
+    pendingGiftCardMintTermsStorage.remove();
   }
 
   // ensureUserData derives the Spark identity public key via defaultExternalSigner(),
@@ -199,6 +210,7 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     queryClient,
     authUser,
     pendingTermsAcceptedAt,
+    pendingGiftCardMintTermsAcceptedAt,
   );
 
   const shouldRedirectToAcceptTerms =
