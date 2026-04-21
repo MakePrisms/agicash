@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { redirect, useNavigate } from 'react-router';
 import { Page, PageContent } from '~/components/page';
-import { AcceptTerms } from '~/features/signup/accept-terms';
+import { AcceptTerms } from '~/features/user/accept-terms';
 import { useSignOut } from '~/features/user/auth';
 import { shouldAcceptTerms } from '~/features/user/user';
 import {
   getUserFromCacheOrThrow,
-  useAcceptTerms,
+  useUpdateUser,
 } from '~/features/user/user-hooks';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.accept-terms';
 
@@ -32,20 +33,17 @@ export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
 
 export default function AcceptTermsRoute() {
   const { toast } = useToast();
-  const acceptTerms = useAcceptTerms();
+  const { mutateAsync: updateUser } = useUpdateUser();
   const { signOut, isSigningOut } = useSignOut();
   const navigate = useNavigate();
+  const { redirectTo } = useRedirectTo('/');
   const [isAccepting, setIsAccepting] = useState(false);
 
   const handleAccept = async () => {
     setIsAccepting(true);
     try {
-      await acceptTerms();
-      // Navigate to the originally intended destination, preserving hash
-      const searchParams = new URLSearchParams(window.location.search);
-      const redirectTo = searchParams.get('redirectTo') || '/';
-      const hash = window.location.hash;
-      navigate(`${redirectTo}${hash}`);
+      await updateUser({ termsAcceptedAt: new Date().toISOString() });
+      navigate(`${redirectTo}${window.location.hash}`);
     } catch (e) {
       console.error('Failed to accept terms', { cause: e });
       toast({
@@ -62,6 +60,8 @@ export default function AcceptTermsRoute() {
     <Page>
       <PageContent className="justify-center">
         <AcceptTerms
+          requireWalletTerms
+          requireGiftCardMintTerms={false}
           onAccept={handleAccept}
           onBack={signOut}
           loading={isAccepting || isSigningOut}
