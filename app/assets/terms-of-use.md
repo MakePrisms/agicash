@@ -1,4 +1,4 @@
-Last Updated: January 16, 2026
+Last Updated: April 22, 2026
 
 # Agicash Terms of Service
 
@@ -23,7 +23,7 @@ YOU HEREBY ACKNOWLEDGE AND AGREE TO THE FOLLOWING:
 
 ## 1. Our Services
 
-The App provides you with an interface for a self-custodial digital wallet ("<strong>Wallet</strong>") that allows you to store, track, and transfer "<strong>Ecash</strong>." Ecash is a bearer-style digital unit of account that is issued and recorded by participating "<strong>Mints</strong>," which are Third-Party Service Providers (defined below) that operate in accordance with the "<strong>Cashu Protocol</strong>" and that issue Ecash in exchange for bitcoin or other value. The Cashu Protocol is a set of standards governing transaction messaging and cryptography that, when operating in combination, allow users to mint, redeem, and transfer Ecash.
+The App provides you with an interface for a non-custodial digital wallet ("<strong>Wallet</strong>") that allows you to store, track, and transfer "<strong>Ecash</strong>." Ecash is a bearer-style digital unit of account that is issued and recorded by participating "<strong>Mints</strong>," which are Third-Party Service Providers (defined below) that operate in accordance with the "<strong>Cashu Protocol</strong>" and that issue Ecash in exchange for bitcoin or other value. The Cashu Protocol is a set of standards governing transaction messaging and cryptography that, when operating in combination, allow users to mint, redeem, and transfer Ecash.
 
 Ecash is intended to provide its users with the functionality of a form of digital cash, but it holds no intrinsic monetary value and cannot be redeemed for cash. Ecash is a private cryptographic record, maintained in your Wallet, and is redeemable only as specified by an issuing Mint, for assets held by the issuing Mint, which may include cryptocurrency or blockchain-based digital assets such as bitcoin (collectively, "<strong>Digital Assets</strong>"). Agicash does not currently operate a Mint, but may do so in the future. Participating Mints may include merchants who issue merchant-specific Ecash, and such Ecash may be exclusively redeemable for the issuing Merchant's goods or services.
 
