@@ -187,6 +187,13 @@ export class ClaimCashuTokenService {
       await sourceAccount.wallet.meltProofsIdempotent(
         quotes.cashuMeltQuote,
         token.proofs,
+        undefined,
+        // Use random outputs for change to avoid counter collisions with the
+        // source account's persisted keyset counter. The change is currently
+        // discarded (see CashuTokenMeltData), so deterministic recovery is
+        // unused. If we ever start keeping change here, switch to a reserved
+        // deterministic counter persisted on the receive quote.
+        { type: 'random' },
       );
 
       // We don't want to fail the entire claim flow if completing the receive fails because the background processing
