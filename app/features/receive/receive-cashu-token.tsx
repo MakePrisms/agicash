@@ -45,6 +45,8 @@ import {
   pendingGiftCardMintTermsStorage,
   pendingWalletTermsStorage,
 } from '../user/pending-terms-storage';
+import { shouldAcceptGiftCardMintTerms } from '../user/user';
+import { useUpdateUser, useUser } from '../user/user-hooks';
 import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
   useCashuTokenWithClaimableProofs,
@@ -130,6 +132,10 @@ export default function ReceiveToken({
     addAndSetReceiveAccount,
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
+  const user = useUser();
+  const { mutateAsync: updateUser } = useUpdateUser();
+  const [showTerms, setShowTerms] = useState(false);
+  const [isAcceptingTerms, setIsAcceptingTerms] = useState(false);
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
 
@@ -199,6 +205,66 @@ export default function ReceiveToken({
     },
   });
 
+  const isClaimLoading =
+    claimTokenStatus === 'pending' || claimTokenStatus === 'success';
+
+  const runClaim = () => {
+    if (!claimableToken || !receiveAccount) return;
+    claimTokenMutation({
+      token: claimableToken,
+      sourceAccount,
+      receiveAccount,
+    });
+  };
+
+  const handleClaim = () => {
+    if (!claimableToken || !receiveAccount) {
+      return;
+    }
+
+    if (
+      accountRequiresGiftCardTermsAcceptance(sourceAccount) &&
+      shouldAcceptGiftCardMintTerms(user)
+    ) {
+      setShowTerms(true);
+      return;
+    }
+
+    runClaim();
+  };
+
+  if (showTerms) {
+    return (
+      <PageContent className="justify-center">
+        <AcceptTerms
+          requireWalletTerms={false}
+          requireGiftCardMintTerms
+          onAccept={async () => {
+            setIsAcceptingTerms(true);
+            try {
+              await updateUser({
+                giftCardMintTermsAcceptedAt: new Date().toISOString(),
+              });
+            } catch {
+              setIsAcceptingTerms(false);
+              toast({
+                title: 'Failed to accept terms',
+                description: 'Please try again',
+                variant: 'destructive',
+              });
+              return;
+            }
+            setShowTerms(false);
+            setIsAcceptingTerms(false);
+            runClaim();
+          }}
+          onBack={() => setShowTerms(false)}
+          loading={isClaimLoading || isAcceptingTerms}
+        />
+      </PageContent>
+    );
+  }
+
   return (
     <>
       <PageHeader className="z-10">
@@ -263,18 +329,10 @@ export default function ReceiveToken({
         <PageFooter className="pb-14">
           <Button
             disabled={receiveAccount.isSelectable === false}
-            onClick={() => {
-              claimTokenMutation({
-                token: claimableToken,
-                sourceAccount,
-                receiveAccount,
-              });
-            }}
+            onClick={handleClaim}
             className="w-[200px]"
             // loading while the mutation is running or while waiting for navigation after mutation success
-            loading={
-              claimTokenStatus === 'pending' || claimTokenStatus === 'success'
-            }
+            loading={isClaimLoading}
           >
             {isReceiveAccountKnown ? 'Claim' : 'Add Mint and Claim'}
           </Button>
