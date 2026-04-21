@@ -19,7 +19,7 @@ export type DecodedBolt11 = {
  * @param invoice invoice to decode
  */
 export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
-  const { sections } = bolt11Decoder.decode(invoice.replace(/^lightning:/, ''));
+  const { sections } = bolt11Decoder.decode(invoice);
 
   const amountSection = findSection(sections, 'amount');
   const amountMsat = amountSection?.value
@@ -62,15 +62,19 @@ export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
 };
 
 /**
- * Checks if a string is a valid BOLT11 invoice
- * @param invoice invoice to check
+ * Checks if a string is a valid BOLT11 invoice.
+ * Returns the cleaned invoice (without lightning: prefix) and decoded data on success.
+ * @param invoice invoice to check (accepts optional lightning: prefix, case-insensitive)
  */
 export const parseBolt11Invoice = (
   invoice: string,
-): { valid: true; decoded: DecodedBolt11 } | { valid: false } => {
+):
+  | { valid: true; invoice: string; decoded: DecodedBolt11 }
+  | { valid: false } => {
   try {
-    const decoded = decodeBolt11(invoice);
-    return { valid: true, decoded };
+    const cleaned = invoice.replace(/^lightning:/i, '');
+    const decoded = decodeBolt11(cleaned);
+    return { valid: true, invoice: cleaned, decoded };
   } catch {
     return { valid: false };
   }
