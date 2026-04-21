@@ -19,6 +19,9 @@ import {
   WalletCardBackgroundImage,
 } from '~/components/wallet-card';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
+import { AcceptTerms } from '~/features/user/accept-terms';
+import { shouldAcceptGiftCardMintTerms } from '~/features/user/user';
+import { useUpdateUser, useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
 import type { GiftCardInfo } from './use-discover-cards';
@@ -52,10 +55,13 @@ type AddGiftCardProps = {
  */
 export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   const [isAdding, setIsAdding] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const addGiftCard = useAddGiftCard();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const user = useUser();
+  const { mutateAsync: updateUser } = useUpdateUser();
   const isTransitioning = useViewTransitionState('/gift-cards');
 
   const handleBack = () => {
@@ -65,7 +71,7 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
     });
   };
 
-  const handleAddCard = async () => {
+  const runAdd = async () => {
     setIsAdding(true);
     try {
       await addGiftCard({
@@ -91,6 +97,47 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
       setIsAdding(false);
     }
   };
+
+  const handleAddCard = async () => {
+    if (shouldAcceptGiftCardMintTerms(user)) {
+      setShowTerms(true);
+      return;
+    }
+    await runAdd();
+  };
+
+  if (showTerms) {
+    return (
+      <Page>
+        <PageContent className="justify-center">
+          <AcceptTerms
+            requireWalletTerms={false}
+            requireGiftCardMintTerms
+            onAccept={async () => {
+              setIsAdding(true);
+              try {
+                await updateUser({
+                  giftCardMintTermsAcceptedAt: new Date().toISOString(),
+                });
+              } catch {
+                setIsAdding(false);
+                toast({
+                  title: 'Error',
+                  description: 'Failed to accept terms. Please try again.',
+                  variant: 'destructive',
+                });
+                return;
+              }
+              setShowTerms(false);
+              await runAdd();
+            }}
+            onBack={() => setShowTerms(false)}
+            loading={isAdding}
+          />
+        </PageContent>
+      </Page>
+    );
+  }
 
   return (
     <Page className="relative">
