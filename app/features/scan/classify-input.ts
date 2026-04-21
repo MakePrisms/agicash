@@ -13,6 +13,23 @@ export type ClassifiedInput =
   | { type: 'ln-address'; address: string }
   | { type: 'unknown' };
 
+export type SendInput = Extract<
+  ClassifiedInput,
+  { type: 'bolt11' } | { type: 'ln-address' }
+>;
+
+export type ReceiveInput = Extract<ClassifiedInput, { type: 'cashu-token' }>;
+
+export const isSendInput = (input: ClassifiedInput): input is SendInput => {
+  return input.type === 'bolt11' || input.type === 'ln-address';
+};
+
+export const isReceiveInput = (
+  input: ClassifiedInput,
+): input is ReceiveInput => {
+  return input.type === 'cashu-token';
+};
+
 export function classifyInput(raw: string): ClassifiedInput {
   const trimmed = raw.trim();
 

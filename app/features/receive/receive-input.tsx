@@ -14,6 +14,7 @@ import {
   toAccountSelectorOption,
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
+import { classifyInput, isReceiveInput } from '~/features/scan';
 import { ConvertedMoneySwitcher } from '~/features/shared/converted-money-switcher';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
@@ -21,7 +22,6 @@ import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { extractCashuToken } from '~/lib/cashu';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,
@@ -90,8 +90,8 @@ export default function ReceiveInput() {
       return;
     }
 
-    const encodedToken = extractCashuToken(clipboardContent)?.encoded;
-    if (!encodedToken) {
+    const classified = classifyInput(clipboardContent);
+    if (!isReceiveInput(classified)) {
       toast({
         title: 'Invalid input',
         description: 'Please paste a valid cashu token',
@@ -100,7 +100,7 @@ export default function ReceiveInput() {
       return;
     }
 
-    const hash = `#${encodedToken}`;
+    const hash = `#${classified.encoded}`;
 
     // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
     // See https://github.com/remix-run/remix/discussions/10721
