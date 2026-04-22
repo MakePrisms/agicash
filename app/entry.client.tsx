@@ -12,6 +12,7 @@ import { getEnvironment, isServedLocally } from './environment';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
 import { Money } from './lib/money';
+import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
@@ -33,6 +34,11 @@ configure({
   apiUrl: openSecretApiUrl,
   clientId: openSecretClientId,
 });
+
+// Start Breez WASM fetch/compile as early as possible so it overlaps with
+// hydration, Sentry init, and the auth query — by the time the _protected
+// middleware awaits it, init is often already done.
+ensureBreezWasm();
 
 // Prefetch feature flags as early as possible.
 // Before login the DB client uses the anon key (no access token),

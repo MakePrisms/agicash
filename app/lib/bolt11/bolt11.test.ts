@@ -13,6 +13,7 @@ describe('decodeBolt11', () => {
     expect(result).toEqual({
       amountMsat: 250000000,
       amountSat: 250000,
+      createdAtUnixMs: 1496314658000,
       expiryUnixMs: 1496314718000,
       network: 'bitcoin',
       description: '1 cup coffee',
@@ -26,7 +27,8 @@ describe('decodeBolt11', () => {
     expect(result).toEqual({
       amountMsat: 2000000000,
       amountSat: 2000000,
-      expiryUnixMs: undefined,
+      createdAtUnixMs: 1496314658000,
+      expiryUnixMs: 1496318258000,
       network: 'testnet',
       description: undefined,
       paymentHash:
@@ -39,6 +41,7 @@ describe('decodeBolt11', () => {
     expect(result).toEqual({
       amountMsat: 250000000,
       amountSat: 250000,
+      createdAtUnixMs: 1496314658000,
       expiryUnixMs: 1496314718000,
       network: 'bitcoin',
       description: '1 cup coffee',
