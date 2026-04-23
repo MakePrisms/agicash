@@ -10,7 +10,7 @@ import {
 } from '~/components/page';
 import { proofToY } from '~/lib/cashu';
 import type { CashuAccount } from '../accounts/account';
-import { useAccount } from '../accounts/account-hooks';
+import { useAccountOrNull } from '../accounts/account-hooks';
 import { type CashuProof, toProof } from '../accounts/cashu-account';
 import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
 import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
@@ -206,7 +206,27 @@ export function TransactionAdditionalDetails({
   transactionId,
 }: { transactionId: string }) {
   const { data: transaction } = useTransaction(transactionId);
-  const account = useAccount(transaction.accountId);
+  const account = useAccountOrNull(transaction.accountId);
+
+  if (!account) {
+    return (
+      <Page>
+        <PageHeader className="z-10">
+          <PageBackButton
+            to={`/transactions/${transactionId}`}
+            transition="slideRight"
+            applyTo="oldView"
+          />
+          <PageHeaderTitle>Txn Details</PageHeaderTitle>
+        </PageHeader>
+        <PageContent>
+          <div className="text-muted-foreground text-sm">
+            Additional details are unavailable because the account has expired.
+          </div>
+        </PageContent>
+      </Page>
+    );
+  }
 
   if (account.type !== 'cashu') {
     return <div>Account is not a cashu account</div>;

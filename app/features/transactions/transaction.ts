@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Money } from '~/lib/money';
+import { AccountPurposeSchema, AccountTypeSchema } from '../accounts/account';
 import { CashuLightningReceiveTransactionDetailsSchema } from './transaction-details/cashu-lightning-receive-transaction-details';
 import {
   CompletedCashuLightningSendTransactionDetailsSchema,
@@ -57,8 +58,23 @@ export const BaseTransactionSchema = z.object({
    * UUID of the account that the transaction was sent from or received to.
    * For SEND transactions, it is the account that the transaction was sent from.
    * For RECEIVE transactions, it is the account that the transaction was received to.
+   * Null when the account has since been deleted; the denormalized
+   * accountName/Type/Purpose fields still describe the account at the time
+   * of the transaction.
    */
-  accountId: z.string(),
+  accountId: z.string().nullable(),
+  /**
+   * Name of the account at the time this transaction was created.
+   */
+  accountName: z.string(),
+  /**
+   * Type of the account at the time this transaction was created.
+   */
+  accountType: AccountTypeSchema,
+  /**
+   * Purpose of the account at the time this transaction was created.
+   */
+  accountPurpose: AccountPurposeSchema,
   /**
    * Amount of the transaction.
    */

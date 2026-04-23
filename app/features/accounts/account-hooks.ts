@@ -291,6 +291,18 @@ export function useAccount<T extends AccountType = AccountType>(id: string) {
   return account;
 }
 
+/**
+ * Hook to get an account by ID, or null if not found.
+ * @param id - The ID of the account to retrieve.
+ */
+export function useAccountOrNull<T extends AccountType = AccountType>(
+  id: string | null,
+) {
+  const { data: accounts } = useAccounts<T>();
+  if (!id) return null;
+  return accounts.find((x) => x.id === id) ?? null;
+}
+
 type AccountTypeMap = {
   cashu: CashuAccount;
   spark: SparkAccount;

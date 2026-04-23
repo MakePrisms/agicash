@@ -114,7 +114,10 @@ export default function Settings() {
         </SettingsNavButton>
 
         <SettingsNavButton to="/settings/accounts">
-          <AccountIcon account={defaultAccount} />
+          <AccountIcon
+            type={defaultAccount.type}
+            purpose={defaultAccount.purpose}
+          />
           <span>{defaultAccount.name}</span>
         </SettingsNavButton>
 

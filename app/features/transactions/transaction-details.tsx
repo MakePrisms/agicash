@@ -16,7 +16,7 @@ import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { isThisWeek, isToday, isYesterday } from '~/lib/date';
 import { LinkWithViewTransition } from '~/lib/transitions';
-import { useAccount } from '../accounts/account-hooks';
+import { useAccountOrNull } from '../accounts/account-hooks';
 import { AccountIcon } from '../accounts/account-icons';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
@@ -96,7 +96,7 @@ export function TransactionDetails({
   const [searchParams] = useSearchParams();
   const showOkButton = searchParams.get('showOkButton') === 'true';
   const { redirectTo } = useRedirectTo('/');
-  const account = useAccount(transaction.accountId);
+  const account = useAccountOrNull(transaction.accountId);
   const { toast } = useToast();
   const { mutate: acknowledgeTransaction } = useAcknowledgeTransaction();
 
@@ -153,8 +153,11 @@ export function TransactionDetails({
                 </span>
               </div>
               <div className="flex items-center gap-3">
-                <AccountIcon account={account} />
-                <span>{account?.name}</span>
+                <AccountIcon
+                  type={transaction.accountType}
+                  purpose={transaction.accountPurpose}
+                />
+                <span>{transaction.accountName}</span>
               </div>
 
               {transaction.reversedTransactionId && (
@@ -187,7 +190,7 @@ export function TransactionDetails({
           <Button
             className="w-[100px]"
             onClick={() => {
-              if (!account.isOnline) {
+              if (!account?.isOnline) {
                 toast(accountOfflineToast);
                 return;
               }
