@@ -6,7 +6,7 @@ import { useSignOut } from '~/features/user/auth';
 import { shouldAcceptTerms } from '~/features/user/user';
 import {
   getUserFromCacheOrThrow,
-  useUpdateUser,
+  useAcceptTerms,
 } from '~/features/user/user-hooks';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
@@ -33,7 +33,7 @@ export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
 
 export default function AcceptTermsRoute() {
   const { toast } = useToast();
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const acceptTerms = useAcceptTerms();
   const { signOut, isSigningOut } = useSignOut();
   const navigate = useNavigate();
   const { redirectTo } = useRedirectTo('/');
@@ -42,7 +42,7 @@ export default function AcceptTermsRoute() {
   const handleAccept = async () => {
     setIsAccepting(true);
     try {
-      await updateUser({ termsAcceptedAt: new Date().toISOString() });
+      await acceptTerms({ walletTerms: true });
       navigate(`${redirectTo}${window.location.hash}`);
     } catch (e) {
       console.error('Failed to accept terms', { cause: e });

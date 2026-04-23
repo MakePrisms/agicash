@@ -46,7 +46,7 @@ import {
   pendingWalletTermsStorage,
 } from '../user/pending-terms-storage';
 import { shouldAcceptGiftCardMintTerms } from '../user/user';
-import { useUpdateUser, useUser } from '../user/user-hooks';
+import { useAcceptTerms, useUser } from '../user/user-hooks';
 import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
   useCashuTokenWithClaimableProofs,
@@ -135,7 +135,7 @@ export default function ReceiveToken({
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
   const user = useUser();
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const acceptTerms = useAcceptTerms();
   const [step, setStep] = useState<ReceiveStep>('show-claim');
   const [isAcceptingTerms, setIsAcceptingTerms] = useState(false);
 
@@ -245,9 +245,7 @@ export default function ReceiveToken({
           onAccept={async () => {
             setIsAcceptingTerms(true);
             try {
-              await updateUser({
-                giftCardMintTermsAcceptedAt: new Date().toISOString(),
-              });
+              await acceptTerms({ giftCardTerms: true });
             } catch {
               setIsAcceptingTerms(false);
               toast({

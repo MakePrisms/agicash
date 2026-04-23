@@ -21,7 +21,7 @@ import {
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
 import { AcceptTerms } from '~/features/user/accept-terms';
 import { shouldAcceptGiftCardMintTerms } from '~/features/user/user';
-import { useUpdateUser, useUser } from '~/features/user/user-hooks';
+import { useAcceptTerms, useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
 import type { GiftCardInfo } from './use-discover-cards';
@@ -61,7 +61,7 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   const location = useLocation();
   const { toast } = useToast();
   const user = useUser();
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const acceptTerms = useAcceptTerms();
   const isTransitioning = useViewTransitionState('/gift-cards');
 
   const handleBack = () => {
@@ -116,9 +116,7 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
             onAccept={async () => {
               setIsAdding(true);
               try {
-                await updateUser({
-                  giftCardMintTermsAcceptedAt: new Date().toISOString(),
-                });
+                await acceptTerms({ giftCardTerms: true });
               } catch {
                 setIsAdding(false);
                 toast({
