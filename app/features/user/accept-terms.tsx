@@ -67,7 +67,7 @@ export function AcceptTerms({
                 htmlFor="terms-checkbox"
                 className="text-muted-foreground text-xs leading-5"
               >
-                By clicking the checkbox, (i) I hereby accept the{' '}
+                By clicking the checkbox, (i) I hereby accept the wallet{' '}
                 <LinkWithViewTransition
                   to={{
                     pathname: '/terms',
@@ -80,7 +80,7 @@ export function AcceptTerms({
                   TERMS OF SERVICE
                 </LinkWithViewTransition>{' '}
                 and agree to be bound by them; and (ii) I acknowledge receipt of
-                the{' '}
+                the wallet{' '}
                 <LinkWithViewTransition
                   to={{
                     pathname: '/privacy',
@@ -113,19 +113,32 @@ export function AcceptTerms({
                 htmlFor="gift-card-mint-terms-checkbox"
                 className="text-muted-foreground text-xs leading-5"
               >
-                By clicking the checkbox, I hereby accept the{' '}
+                By clicking the checkbox, (i) I hereby accept the mint{' '}
                 <LinkWithViewTransition
                   to={{
-                    pathname: '/terms',
+                    pathname: '/mint-terms',
                     search: `redirectTo=${location.pathname}`,
                   }}
                   transition="slideUp"
                   applyTo="newView"
                   className="text-foreground underline"
                 >
-                  MINT TERMS OF SERVICE
+                  TERMS OF SERVICE
                 </LinkWithViewTransition>{' '}
-                and agree to be bound by them.
+                and agree to be bound by them; and (ii) I acknowledge receipt of
+                the mint{' '}
+                <LinkWithViewTransition
+                  to={{
+                    pathname: '/mint-privacy',
+                    search: `redirectTo=${location.pathname}`,
+                  }}
+                  transition="slideUp"
+                  applyTo="newView"
+                  className="text-foreground underline"
+                >
+                  Privacy Notice
+                </LinkWithViewTransition>
+                .
               </Label>
             </div>
           )}
