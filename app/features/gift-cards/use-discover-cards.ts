@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import blockAndBeanCard from '~/assets/gift-cards/blockandbean.agi.cash.webp';
 import compassCoffeeCard from '~/assets/gift-cards/compass.agi.cash.webp';
+import houseMoneyCard from '~/assets/gift-cards/housemoney.agi.cash.webp';
 import mapleCard from '~/assets/gift-cards/maple.agi.cash.webp';
 import mariposaCard from '~/assets/gift-cards/mariposa.agi.cash.webp';
 import pinkOwlCoffeeCard from '~/assets/gift-cards/pinkowl.agi.cash.webp';
@@ -26,6 +27,8 @@ const GIFT_CARD_IMAGES: Record<string, string> = {
   'https://pinkowl.agi.cash': pinkOwlCoffeeCard,
   'https://shack.agi.cash': theShackCard,
   'https://theepicureantrader.agi.cash': theEpicurianTraderCard,
+  // TODO(housemoney): confirm final display name + addCardDisclaimer copy with gudnuf; runtime entry in VITE_GIFT_CARDS uses "House Money — TBD" until then.
+  'https://housemoney.agi.cash': houseMoneyCard,
 };
 
 function loadGiftCardsFromEnv(): GiftCardInfo[] {
