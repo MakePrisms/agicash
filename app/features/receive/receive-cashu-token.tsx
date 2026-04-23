@@ -66,6 +66,8 @@ type Props = {
   preferredReceiveAccountId?: string;
 };
 
+type ReceiveStep = 'show-claim' | 'accept-terms';
+
 /**
  * Shared component for displaying the token amount with copy functionality
  */
@@ -134,7 +136,7 @@ export default function ReceiveToken({
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
   const user = useUser();
   const { mutateAsync: updateUser } = useUpdateUser();
-  const [showTerms, setShowTerms] = useState(false);
+  const [step, setStep] = useState<ReceiveStep>('show-claim');
   const [isAcceptingTerms, setIsAcceptingTerms] = useState(false);
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
@@ -205,6 +207,7 @@ export default function ReceiveToken({
     },
   });
 
+  // loading while the mutation is running or while waiting for navigation after mutation success
   const isClaimLoading =
     claimTokenStatus === 'pending' || claimTokenStatus === 'success';
 
@@ -226,14 +229,14 @@ export default function ReceiveToken({
       accountRequiresGiftCardTermsAcceptance(sourceAccount) &&
       shouldAcceptGiftCardMintTerms(user)
     ) {
-      setShowTerms(true);
+      setStep('accept-terms');
       return;
     }
 
     runClaim();
   };
 
-  if (showTerms) {
+  if (step === 'accept-terms') {
     return (
       <PageContent className="justify-center">
         <AcceptTerms
@@ -254,11 +257,11 @@ export default function ReceiveToken({
               });
               return;
             }
-            setShowTerms(false);
+            setStep('show-claim');
             setIsAcceptingTerms(false);
             runClaim();
           }}
-          onBack={() => setShowTerms(false)}
+          onBack={() => setStep('show-claim')}
           loading={isClaimLoading || isAcceptingTerms}
         />
       </PageContent>
@@ -331,7 +334,6 @@ export default function ReceiveToken({
             disabled={receiveAccount.isSelectable === false}
             onClick={handleClaim}
             className="w-[200px]"
-            // loading while the mutation is running or while waiting for navigation after mutation success
             loading={isClaimLoading}
           >
             {isReceiveAccountKnown ? 'Claim' : 'Add Mint and Claim'}
