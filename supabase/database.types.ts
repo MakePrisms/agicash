@@ -741,7 +741,10 @@ export type Database = {
       }
       transactions: {
         Row: {
-          account_id: string
+          account_id: string | null
+          account_name: string
+          account_purpose: Database["wallet"]["Enums"]["account_purpose"]
+          account_type: Database["wallet"]["Enums"]["account_type"]
           acknowledgment_status:
             | Database["wallet"]["Enums"]["acknowledgment_status"]
             | null
@@ -764,7 +767,10 @@ export type Database = {
           version: number
         }
         Insert: {
-          account_id: string
+          account_id?: string | null
+          account_name: string
+          account_purpose: Database["wallet"]["Enums"]["account_purpose"]
+          account_type: Database["wallet"]["Enums"]["account_type"]
           acknowledgment_status?:
             | Database["wallet"]["Enums"]["acknowledgment_status"]
             | null
@@ -787,7 +793,10 @@ export type Database = {
           version?: number
         }
         Update: {
-          account_id?: string
+          account_id?: string | null
+          account_name?: string
+          account_purpose?: Database["wallet"]["Enums"]["account_purpose"]
+          account_type?: Database["wallet"]["Enums"]["account_type"]
           acknowledgment_status?:
             | Database["wallet"]["Enums"]["acknowledgment_status"]
             | null
@@ -1453,7 +1462,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: {
-          account_id: string
+          account_id: string | null
+          account_name: string
+          account_purpose: Database["wallet"]["Enums"]["account_purpose"]
+          account_type: Database["wallet"]["Enums"]["account_type"]
           acknowledgment_status:
             | Database["wallet"]["Enums"]["acknowledgment_status"]
             | null

@@ -3,19 +3,22 @@ import type {
   SparkWallet,
 } from '@buildonspark/spark-sdk';
 import type { DistributedOmit } from 'type-fest';
+import { z } from 'zod';
 import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
-import type { MintPurpose } from '~/lib/cashu/protocol-extensions';
 import { type Currency, Money } from '~/lib/money';
 import type { CashuProof } from './cashu-account';
 
-export type AccountType = 'cashu' | 'spark';
+export const AccountTypeSchema = z.enum(['cashu', 'spark']);
+export type AccountType = z.infer<typeof AccountTypeSchema>;
 
 export type AccountState = 'active' | 'expired';
 
-/**
- * Account purpose. Maps to MintPurpose for cashu accounts.
- */
-export type AccountPurpose = MintPurpose;
+export const AccountPurposeSchema = z.enum([
+  'transactional',
+  'gift-card',
+  'offer',
+]);
+export type AccountPurpose = z.infer<typeof AccountPurposeSchema>;
 
 export type Account = {
   id: string;

@@ -46,7 +46,7 @@ function AccountItem({ account }: { account: AccountSelectorOption }) {
 
   return (
     <div className="flex w-full items-center gap-4 px-3 py-4">
-      <AccountIcon account={account} />
+      <AccountIcon type={account.type} purpose={account.purpose} />
       <div className="flex w-full flex-col justify-between gap-2 text-start">
         <span className="font-medium">{account.name}</span>
         <div className="flex items-center justify-between text-xs">
