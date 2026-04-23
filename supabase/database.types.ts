@@ -741,7 +741,10 @@ export type Database = {
       }
       transactions: {
         Row: {
-          account_id: string
+          account_id: string | null
+          account_name: string
+          account_purpose: Database["wallet"]["Enums"]["account_purpose"]
+          account_type: Database["wallet"]["Enums"]["account_type"]
           acknowledgment_status:
             | Database["wallet"]["Enums"]["acknowledgment_status"]
             | null
@@ -764,7 +767,10 @@ export type Database = {
           version: number
         }
         Insert: {
-          account_id: string
+          account_id?: string | null
+          account_name: string
+          account_purpose: Database["wallet"]["Enums"]["account_purpose"]
+          account_type: Database["wallet"]["Enums"]["account_type"]
           acknowledgment_status?:
             | Database["wallet"]["Enums"]["acknowledgment_status"]
             | null
@@ -787,7 +793,10 @@ export type Database = {
           version?: number
         }
         Update: {
-          account_id?: string
+          account_id?: string | null
+          account_name?: string
+          account_purpose?: Database["wallet"]["Enums"]["account_purpose"]
+          account_type?: Database["wallet"]["Enums"]["account_type"]
           acknowledgment_status?:
             | Database["wallet"]["Enums"]["acknowledgment_status"]
             | null
@@ -843,6 +852,7 @@ export type Database = {
           email: string | null
           email_verified: boolean
           encryption_public_key: string
+          gift_card_mint_terms_accepted_at: string | null
           id: string
           spark_identity_public_key: string
           terms_accepted_at: string | null
@@ -858,6 +868,7 @@ export type Database = {
           email?: string | null
           email_verified: boolean
           encryption_public_key: string
+          gift_card_mint_terms_accepted_at?: string | null
           id?: string
           spark_identity_public_key: string
           terms_accepted_at?: string | null
@@ -873,6 +884,7 @@ export type Database = {
           email?: string | null
           email_verified?: boolean
           encryption_public_key?: string
+          gift_card_mint_terms_accepted_at?: string | null
           id?: string
           spark_identity_public_key?: string
           terms_accepted_at?: string | null
@@ -1453,7 +1465,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: {
-          account_id: string
+          account_id: string | null
+          account_name: string
+          account_purpose: Database["wallet"]["Enums"]["account_purpose"]
+          account_type: Database["wallet"]["Enums"]["account_type"]
           acknowledgment_status:
             | Database["wallet"]["Enums"]["acknowledgment_status"]
             | null
@@ -1607,6 +1622,7 @@ export type Database = {
           p_email: string
           p_email_verified: boolean
           p_encryption_public_key: string
+          p_gift_card_mint_terms_accepted_at?: string
           p_spark_identity_public_key: string
           p_terms_accepted_at?: string
           p_user_id: string

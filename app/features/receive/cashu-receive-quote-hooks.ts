@@ -696,6 +696,9 @@ export function useProcessCashuReceiveQuoteTasks() {
           amount: quote.amount.toNumber(cashuUnit),
         },
         quote.tokenReceiveData.tokenProofs,
+        undefined,
+        // See claim-cashu-token-service.ts for rationale on random outputs.
+        { type: 'random' },
       );
     },
     retry: (failureCount, error) => {

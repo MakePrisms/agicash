@@ -26,7 +26,10 @@ import {
   authQueryOptions,
   useAuthState,
 } from '~/features/user/auth';
-import { pendingTermsStorage } from '~/features/user/pending-terms-storage';
+import {
+  pendingGiftCardMintTermsStorage,
+  pendingWalletTermsStorage,
+} from '~/features/user/pending-terms-storage';
 import { type User, shouldAcceptTerms } from '~/features/user/user';
 import {
   defaultAccounts,
@@ -35,6 +38,7 @@ import {
 } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
+import { ensureBreezWasm } from '~/lib/spark';
 import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
 
@@ -70,6 +74,7 @@ const ensureUserData = async (
   queryClient: QueryClient,
   authUser: AuthUser,
   termsAcceptedAt?: string,
+  giftCardMintTermsAcceptedAt?: string,
 ): Promise<User> => {
   let user = getUserFromCache(queryClient);
 
@@ -110,6 +115,7 @@ const ensureUserData = async (
       queryClient,
       getCashuWalletSeed,
       getSparkWalletMnemonic,
+      './.spark-data',
     );
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,
@@ -127,6 +133,7 @@ const ensureUserData = async (
           encryptionPublicKey,
           sparkIdentityPublicKey,
           termsAcceptedAt,
+          giftCardMintTermsAcceptedAt,
         }),
       retry: (attemptIndex, error) => {
         if (error instanceof ZodError) {
@@ -184,15 +191,26 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     throw redirect(`/home${search}${hash}`);
   }
 
-  const pendingTermsAcceptedAt = pendingTermsStorage.get();
+  const pendingTermsAcceptedAt = pendingWalletTermsStorage.get();
   if (pendingTermsAcceptedAt) {
-    pendingTermsStorage.remove();
+    pendingWalletTermsStorage.remove();
   }
 
+  const pendingGiftCardMintTermsAcceptedAt =
+    pendingGiftCardMintTermsStorage.get();
+  if (pendingGiftCardMintTermsAcceptedAt) {
+    pendingGiftCardMintTermsStorage.remove();
+  }
+
+  // ensureUserData derives the Spark identity public key via defaultExternalSigner(),
+  // which requires WASM to be initialized. Shared with entry.client.tsx so the init
+  // is typically already in-flight (or complete) by the time we await here.
+  await ensureBreezWasm();
   const user = await ensureUserData(
     queryClient,
     authUser,
     pendingTermsAcceptedAt,
+    pendingGiftCardMintTermsAcceptedAt,
   );
 
   const shouldRedirectToAcceptTerms =

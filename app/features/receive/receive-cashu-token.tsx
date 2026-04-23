@@ -27,7 +27,10 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { getAccountHomePath } from '../accounts/account';
+import {
+  accountRequiresGiftCardTermsAcceptance,
+  getAccountHomePath,
+} from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
 import { getOfferCardImageByUrl } from '../gift-cards/offer-card-images';
@@ -36,9 +39,14 @@ import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import { AcceptTerms } from '../signup/accept-terms';
+import { AcceptTerms } from '../user/accept-terms';
 import { useAuthActions } from '../user/auth';
-import { pendingTermsStorage } from '../user/pending-terms-storage';
+import {
+  pendingGiftCardMintTermsStorage,
+  pendingWalletTermsStorage,
+} from '../user/pending-terms-storage';
+import { shouldAcceptGiftCardMintTerms } from '../user/user';
+import { useAcceptTerms, useUser } from '../user/user-hooks';
 import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
   useCashuTokenWithClaimableProofs,
@@ -57,6 +65,8 @@ type Props = {
   /** The initially selected receive account will be set to this account if it exists.*/
   preferredReceiveAccountId?: string;
 };
+
+type ReceiveStep = 'show-claim' | 'accept-terms';
 
 /**
  * Shared component for displaying the token amount with copy functionality
@@ -124,6 +134,10 @@ export default function ReceiveToken({
     addAndSetReceiveAccount,
   } = useReceiveCashuTokenAccounts(token, preferredReceiveAccountId);
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
+  const user = useUser();
+  const acceptTerms = useAcceptTerms();
+  const [step, setStep] = useState<ReceiveStep>('show-claim');
+  const [isAcceptingTerms, setIsAcceptingTerms] = useState(false);
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
 
@@ -193,6 +207,65 @@ export default function ReceiveToken({
     },
   });
 
+  // loading while the mutation is running or while waiting for navigation after mutation success
+  const isClaimLoading =
+    claimTokenStatus === 'pending' || claimTokenStatus === 'success';
+
+  const runClaim = () => {
+    if (!claimableToken || !receiveAccount) return;
+    claimTokenMutation({
+      token: claimableToken,
+      sourceAccount,
+      receiveAccount,
+    });
+  };
+
+  const handleClaim = () => {
+    if (!claimableToken || !receiveAccount) {
+      return;
+    }
+
+    if (
+      accountRequiresGiftCardTermsAcceptance(sourceAccount) &&
+      shouldAcceptGiftCardMintTerms(user)
+    ) {
+      setStep('accept-terms');
+      return;
+    }
+
+    runClaim();
+  };
+
+  if (step === 'accept-terms') {
+    return (
+      <PageContent className="justify-center">
+        <AcceptTerms
+          requireWalletTerms={false}
+          requireGiftCardMintTerms
+          onAccept={async () => {
+            setIsAcceptingTerms(true);
+            try {
+              await acceptTerms({ giftCardTerms: true });
+            } catch {
+              setIsAcceptingTerms(false);
+              toast({
+                title: 'Failed to accept terms',
+                description: 'Please try again',
+                variant: 'destructive',
+              });
+              return;
+            }
+            setStep('show-claim');
+            setIsAcceptingTerms(false);
+            runClaim();
+          }}
+          onBack={() => setStep('show-claim')}
+          loading={isClaimLoading || isAcceptingTerms}
+        />
+      </PageContent>
+    );
+  }
+
   return (
     <>
       <PageHeader className="z-10">
@@ -257,18 +330,9 @@ export default function ReceiveToken({
         <PageFooter className="pb-14">
           <Button
             disabled={receiveAccount.isSelectable === false}
-            onClick={() => {
-              claimTokenMutation({
-                token: claimableToken,
-                sourceAccount,
-                receiveAccount,
-              });
-            }}
+            onClick={handleClaim}
             className="w-[200px]"
-            // loading while the mutation is running or while waiting for navigation after mutation success
-            loading={
-              claimTokenStatus === 'pending' || claimTokenStatus === 'success'
-            }
+            loading={isClaimLoading}
           >
             {isReceiveAccountKnown ? 'Claim' : 'Add Mint and Claim'}
           </Button>
@@ -303,6 +367,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
   const [signingUpGuest, setSigningUpGuest] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { signUpGuest } = useAuthActions();
   const { toast } = useToast();
   const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
@@ -318,6 +383,8 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
     });
 
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
+  const mintRequiresTerms =
+    accountRequiresGiftCardTermsAcceptance(sourceAccount);
 
   const encodedToken = encodeToken(claimableToken ?? token, {
     removeDleq: true,
@@ -330,8 +397,11 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
     setSigningUpGuest(true);
     try {
-      // Store terms acceptance timestamp so it's available when user record is created
-      pendingTermsStorage.set(new Date().toISOString());
+      // Store terms acceptance timestamps so they're available when user record is created
+      pendingWalletTermsStorage.set(new Date().toISOString());
+      if (mintRequiresTerms) {
+        pendingGiftCardMintTermsStorage.set(new Date().toISOString());
+      }
 
       // Modify the URL before signing up because as soon as the user is logged in,
       // they will be redirected to the protected receive cashu token page
@@ -360,6 +430,8 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
       <>
         <PageContent className="justify-center">
           <AcceptTerms
+            requireWalletTerms
+            requireGiftCardMintTerms={mintRequiresTerms}
             onAccept={handleClaimAsGuest}
             onBack={() => setStep('show-token')}
             loading={signingUpGuest}
@@ -440,8 +512,12 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
             <LinkWithViewTransition
               to={{
-                pathname: '/login',
-                search: 'redirectTo=/receive/cashu/token',
+                ...buildLinkWithSearchParams('/login', {
+                  redirectTo: '/receive/cashu/token',
+                  ...(mintRequiresTerms && {
+                    requireGiftCardMintTerms: 'true',
+                  }),
+                }),
                 hash: encodedToken,
               }}
               transition="slideUp"

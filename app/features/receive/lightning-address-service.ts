@@ -1,4 +1,3 @@
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
 import { hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import type { QueryClient } from '@tanstack/react-query';
@@ -173,6 +172,7 @@ export class LightningAddressService {
         this.db,
         this.queryClient,
         getSparkWalletMnemonic,
+        '/tmp/.spark-data',
       );
 
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
@@ -247,7 +247,7 @@ export class LightningAddressService {
       });
 
       return {
-        pr: lightningQuote.invoice.encodedInvoice,
+        pr: lightningQuote.invoice.paymentRequest,
         verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
         routes: [],
       };
@@ -317,12 +317,16 @@ export class LightningAddressService {
     receiveRequestId: string,
   ): Promise<LNURLVerifyResult> {
     const wallet = await this.queryClient.fetchQuery(
-      sparkWalletQueryOptions({ network: 'MAINNET', mnemonic: sparkMnemonic }),
+      sparkWalletQueryOptions({
+        network: 'MAINNET',
+        mnemonic: sparkMnemonic,
+        storageDir: '/tmp/.spark-data',
+      }),
     );
 
     const receiveRequest = await measureOperation(
-      'SparkWallet.getLightningReceiveRequest',
-      () => wallet.getLightningReceiveRequest(receiveRequestId),
+      'BreezSdk.getLightningReceiveRequest',
+      () => wallet.getLightningReceiveRequest({ requestId: receiveRequestId }),
       { receiveRequestId },
     );
 
@@ -332,15 +336,13 @@ export class LightningAddressService {
       );
     }
 
-    const settled =
-      receiveRequest.status ===
-      LightningReceiveRequestStatus.TRANSFER_COMPLETED;
+    const settled = receiveRequest.status === 'transferCompleted';
 
     return {
       status: 'OK',
       settled,
       preimage: receiveRequest.paymentPreimage ?? null,
-      pr: receiveRequest.invoice.encodedInvoice,
+      pr: receiveRequest.invoice,
     };
   }
 

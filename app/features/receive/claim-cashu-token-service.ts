@@ -1,14 +1,12 @@
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
+import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
 import type { QueryClient } from '@tanstack/react-query';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
-import { measureOperation } from '~/lib/performance';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
-import { sparkBalanceQueryKey } from '../shared/spark';
 import type { User } from '../user/user';
 import { userQueryKey } from '../user/user-hooks';
 import type { UserService } from '../user/user-service';
@@ -187,6 +185,13 @@ export class ClaimCashuTokenService {
       await sourceAccount.wallet.meltProofsIdempotent(
         quotes.cashuMeltQuote,
         token.proofs,
+        undefined,
+        // Use random outputs for change to avoid counter collisions with the
+        // source account's persisted keyset counter. The change is currently
+        // discarded (see CashuTokenMeltData), so deterministic recovery is
+        // unused. If we ever start keeping change here, switch to a reserved
+        // deterministic counter persisted on the receive quote.
+        { type: 'random' },
       );
 
       // We don't want to fail the entire claim flow if completing the receive fails because the background processing
@@ -280,10 +285,6 @@ export class ClaimCashuTokenService {
           paymentPreimage,
           sparkTransferId,
         );
-        // To make sure the new balance is immidiatelly reflected in the UI, we invalidate the spark balance query.
-        await this.queryClient.invalidateQueries({
-          queryKey: sparkBalanceQueryKey(quotes.destinationAccount.id),
-        });
         return { success: true };
       }
     } catch (error) {
@@ -302,27 +303,33 @@ export class ClaimCashuTokenService {
   }
 
   /**
-   * Polls for the spark receive request to complete.
-   * Polls every 1 second with a hard timeout of 10 seconds total.
-   * @throws Error if it doesn't complete in that time or if getting receive request throws.
+   * Waits for a Spark lightning receive to complete using event-driven detection.
+   * Registers a Breez SDK event listener and does an initial status check to
+   * catch payments that arrived before the listener was registered.
+   * @throws Error if the payment does not complete within the timeout.
    */
   private waitForSparkReceiveToComplete(
     account: SparkAccount,
     quote: SparkReceiveQuote,
   ): Promise<{ sparkTransferId: string; paymentPreimage: string }> {
-    if (!account.wallet) {
-      throw new Error(`Spark account ${account.id} wallet not initialized`);
-    }
-
     const timeoutMs = 10_000;
-    const pollIntervalMs = 1000;
-    const wallet = account.wallet;
 
     return new Promise((resolve, reject) => {
-      let intervalId: ReturnType<typeof setInterval> | null = null;
+      let listenerId: string | undefined;
+      let resolved = false;
+
+      const cleanup = () => {
+        if (listenerId)
+          account.wallet.removeEventListener(listenerId).catch(() => {
+            console.warn('Failed to remove Spark event listener', {
+              listenerId,
+            });
+          });
+      };
 
       const timeoutId = setTimeout(() => {
-        if (intervalId) clearInterval(intervalId);
+        resolved = true;
+        cleanup();
         reject(
           new Error(
             `Spark receive request ${quote.sparkId} timed out after ${timeoutMs / 1000} seconds`,
@@ -330,52 +337,61 @@ export class ClaimCashuTokenService {
         );
       }, timeoutMs);
 
-      const checkReceiveRequest = async () => {
-        try {
-          const receiveRequest = await measureOperation(
-            'SparkWallet.getLightningReceiveRequest',
-            () => wallet.getLightningReceiveRequest(quote.sparkId),
-            { receiveRequestId: quote.sparkId },
-          );
+      const handlePayment = (payment: Payment) => {
+        if (resolved) return;
+        const details = payment.details;
+        if (details?.type !== 'lightning') return;
+        if (details.htlcDetails.paymentHash !== quote.paymentHash) return;
 
-          if (
-            receiveRequest?.status ===
-            LightningReceiveRequestStatus.TRANSFER_COMPLETED
-          ) {
-            clearTimeout(timeoutId);
-            if (intervalId) clearInterval(intervalId);
+        resolved = true;
+        clearTimeout(timeoutId);
+        cleanup();
 
-            if (!receiveRequest.paymentPreimage) {
-              reject(
-                new Error(
-                  'Payment preimage is required when receive request has TRANSFER_COMPLETED status.',
-                ),
-              );
-              return;
-            }
-            if (!receiveRequest.transfer?.sparkId) {
-              reject(
-                new Error(
-                  'Spark transfer ID is required when receive request has TRANSFER_COMPLETED status.',
-                ),
-              );
-              return;
-            }
-
-            resolve({
-              sparkTransferId: receiveRequest.transfer.sparkId,
-              paymentPreimage: receiveRequest.paymentPreimage,
-            });
-          }
-        } catch (error) {
-          clearTimeout(timeoutId);
-          if (intervalId) clearInterval(intervalId);
-          reject(error);
+        const preimage = details.htlcDetails.preimage;
+        if (!preimage) {
+          reject(new Error('Payment preimage missing'));
+          return;
         }
+
+        resolve({
+          sparkTransferId: payment.id,
+          paymentPreimage: preimage,
+        });
       };
 
-      checkReceiveRequest();
-      intervalId = setInterval(checkReceiveRequest, pollIntervalMs);
+      // Register event listener before initial check to avoid race conditions
+      account.wallet
+        .addEventListener({
+          onEvent(event) {
+            if (event.type === 'paymentSucceeded') {
+              handlePayment(event.payment);
+            }
+          },
+        })
+        .then((id) => {
+          listenerId = id;
+          if (resolved) {
+            account.wallet.removeEventListener(id).catch(() => {
+              console.warn('Failed to remove Spark event listener', {
+                listenerId,
+              });
+            });
+          }
+        });
+
+      // Initial status check — local lookup, no network call
+      account.wallet
+        .getPaymentByInvoice({ invoice: quote.paymentRequest })
+        .then((response) => {
+          if (response.payment && response.payment.status === 'completed') {
+            handlePayment(response.payment);
+          }
+        })
+        .catch((error) => {
+          console.error('Error checking initial receive payment', {
+            cause: error,
+          });
+        });
     });
   }
 }

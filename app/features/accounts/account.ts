@@ -1,21 +1,22 @@
-import type {
-  NetworkType as SparkNetwork,
-  SparkWallet,
-} from '@buildonspark/spark-sdk';
+import type { BreezSdk } from '@agicash/breez-sdk-spark';
 import type { DistributedOmit } from 'type-fest';
+import { z } from 'zod';
 import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
-import type { MintPurpose } from '~/lib/cashu/protocol-extensions';
 import { type Currency, Money } from '~/lib/money';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import type { CashuProof } from './cashu-account';
 
-export type AccountType = 'cashu' | 'spark';
+export const AccountTypeSchema = z.enum(['cashu', 'spark']);
+export type AccountType = z.infer<typeof AccountTypeSchema>;
 
 export type AccountState = 'active' | 'expired';
 
-/**
- * Account purpose. Maps to MintPurpose for cashu accounts.
- */
-export type AccountPurpose = MintPurpose;
+export const AccountPurposeSchema = z.enum([
+  'transactional',
+  'gift-card',
+  'offer',
+]);
+export type AccountPurpose = z.infer<typeof AccountPurposeSchema>;
 
 export type Account = {
   id: string;
@@ -55,14 +56,13 @@ export type Account = {
     }
   | {
       type: 'spark';
-      ownedBalance: Money | null;
-      availableBalance: Money | null;
+      balance: Money | null;
       network: SparkNetwork;
       /**
        * The Spark wallet instance for the account.
        * If the wallet is not online, this will be a stub that throws on any method call.
        */
-      wallet: SparkWallet;
+      wallet: BreezSdk;
     }
 );
 
@@ -83,6 +83,16 @@ export type ExtendedSparkAccount = ExtendedAccount<'spark'>;
  */
 export type RedactedAccount = DistributedOmit<Account, 'proofs'>;
 export type RedactedCashuAccount = Extract<RedactedAccount, { type: 'cashu' }>;
+
+/**
+ * Returns true if adding this account requires the user to accept gift-card
+ * mint terms. Mirrors the DB trigger `enforce_gift_card_mint_terms_on_account_create`.
+ */
+export const accountRequiresGiftCardTermsAcceptance = (account: {
+  purpose: AccountPurpose;
+}): boolean => {
+  return account.purpose === 'gift-card' || account.purpose === 'offer';
+};
 
 /**
  * Returns true if the account can send payments through the Lightning network.
@@ -131,5 +141,5 @@ export const getAccountBalance = (account: Account) => {
       unit: getCashuUnit(account.currency),
     });
   }
-  return account.ownedBalance;
+  return account.balance;
 };

@@ -1,4 +1,3 @@
-import type { NetworkType } from '@buildonspark/spark-sdk';
 import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod';
@@ -17,6 +16,7 @@ import {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
@@ -32,6 +32,7 @@ export type UpdateUser = {
   defaultCurrency?: Currency;
   username?: string;
   termsAcceptedAt?: string;
+  giftCardMintTermsAcceptedAt?: string;
 };
 
 type Options = {
@@ -49,9 +50,8 @@ type AccountInput = {
   | 'keysetCounters'
   | 'wallet'
   | 'isOnline'
+  | 'balance'
   | 'state'
-  | 'ownedBalance'
-  | 'availableBalance'
 >;
 
 /**
@@ -73,6 +73,7 @@ function toUser(dbUser: AgicashDbUser): User {
     defaultUsdAccountId: dbUser.default_usd_account_id,
     defaultCurrency: dbUser.default_currency,
     termsAcceptedAt: dbUser.terms_accepted_at,
+    giftCardMintTermsAcceptedAt: dbUser.gift_card_mint_terms_accepted_at,
   };
 
   if (dbUser.email) {
@@ -107,6 +108,7 @@ export class WriteUserRepository {
         default_currency: data.defaultCurrency,
         username: data.username,
         terms_accepted_at: data.termsAcceptedAt,
+        gift_card_mint_terms_accepted_at: data.giftCardMintTermsAcceptedAt,
       })
       .eq('id', userId)
       .select();
@@ -168,6 +170,11 @@ export class WriteUserRepository {
        * Optional because new OAuth users using the login flow are created before accepting TOS.
        */
       termsAcceptedAt?: string;
+      /**
+       * Timestamp when user accepted gift-card-mint terms of service in ISO 8601 format.
+       * Optional because it's only required when adding a mint that requires terms acceptance.
+       */
+      giftCardMintTermsAcceptedAt?: string;
     },
     options?: Options,
   ): Promise<{ user: User; accounts: Account[] }> {
@@ -201,6 +208,7 @@ export class WriteUserRepository {
       p_encryption_public_key: user.encryptionPublicKey,
       p_spark_identity_public_key: user.sparkIdentityPublicKey,
       p_terms_accepted_at: user.termsAcceptedAt,
+      p_gift_card_mint_terms_accepted_at: user.giftCardMintTermsAcceptedAt,
     });
 
     if (options?.abortSignal) {
@@ -228,6 +236,7 @@ export class ReadUserDefaultAccountRepository {
     private readonly db: AgicashDb,
     private readonly queryClient: QueryClient,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
+    private readonly sparkStorageDir: string,
   ) {}
 
   /**
@@ -306,14 +315,12 @@ export class ReadUserDefaultAccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { wallet, ownedBalance, availableBalance, isOnline } =
+      const { wallet, balance, isOnline } =
         await this.getInitializedSparkWallet(network);
-
       return {
         ...commonData,
         type: 'spark',
-        ownedBalance,
-        availableBalance,
+        balance,
         network,
         isOnline,
         wallet,
@@ -323,9 +330,14 @@ export class ReadUserDefaultAccountRepository {
     throw new Error('Invalid account type');
   }
 
-  private async getInitializedSparkWallet(network: NetworkType) {
+  private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(this.queryClient, mnemonic, network);
+    return getInitializedSparkWallet(
+      this.queryClient,
+      mnemonic,
+      network,
+      this.sparkStorageDir,
+    );
   }
 }
 

@@ -1,4 +1,4 @@
-import { LightningSendRequestStatus } from '@buildonspark/spark-sdk/types';
+import type { Payment } from '@agicash/breez-sdk-spark';
 import {
   type QueryClient,
   useMutation,
@@ -7,7 +7,6 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 import type { Money } from '~/lib/money';
-import { measureOperation } from '~/lib/performance';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
@@ -16,7 +15,7 @@ import {
 } from '../accounts/account-hooks';
 import type { AgicashDbSparkSendQuote } from '../agicash-db/database';
 import { DomainError } from '../shared/error';
-import { sparkBalanceQueryKey, sparkDebugLog } from '../shared/spark';
+import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import type { SparkSendQuote } from './spark-send-quote';
 import { useSparkSendQuoteRepository } from './spark-send-quote-repository';
@@ -139,10 +138,12 @@ type OnSparkSendStateChangeCallbacks = {
 };
 
 /**
- * Hook that fires callbacks on initial load and when the state of a quote changes.
+ * Hook that fires callbacks when the state of a send quote changes.
  *
- * The quote state is tracked with polling. Callbacks are only triggered when the
- * state changes from the previous invocation.
+ * Uses event-driven approach via Breez SDK event listeners.
+ * One listener per Spark account is registered. An initial status check
+ * is performed for each pending quote to catch events that fired before
+ * the listener was registered.
  */
 export function useOnSparkSendStateChange({
   sendQuotes,
@@ -150,7 +151,6 @@ export function useOnSparkSendStateChange({
   onCompleted,
   onFailed,
 }: OnSparkSendStateChangeCallbacks) {
-  const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
   const getSparkAccount = useGetSparkAccount();
 
   const onUnpaidRef = useLatest(onUnpaid);
@@ -162,85 +162,9 @@ export function useOnSparkSendStateChange({
     new Map(),
   );
 
-  const checkQuoteStatus = async (quoteId: string) => {
-    try {
-      const quote = unresolvedQuotesCache.get(quoteId);
-      if (!quote) {
-        return;
-      }
-
-      if (
-        quote.state === 'UNPAID' &&
-        lastTriggeredStateRef.current.get(quoteId) !== 'UNPAID'
-      ) {
-        lastTriggeredStateRef.current.set(quoteId, 'UNPAID');
-        onUnpaidRef.current(quote);
-        return;
-      }
-
-      if (quote.state !== 'PENDING') {
-        return;
-      }
-
-      const account = getSparkAccount(quote.accountId);
-
-      const sendRequest = await measureOperation(
-        'SparkWallet.getLightningSendRequest',
-        () => account.wallet.getLightningSendRequest(quote.sparkId),
-        { sendRequestId: quote.sparkId },
-      );
-
-      if (!sendRequest) {
-        return;
-      }
-
-      if (
-        sendRequest.status === LightningSendRequestStatus.TRANSFER_COMPLETED &&
-        lastTriggeredStateRef.current.get(quoteId) !== 'COMPLETED'
-      ) {
-        if (!sendRequest.paymentPreimage) {
-          throw new Error(
-            'Payment preimage is required when send request has TRANSFER_COMPLETED status.',
-          );
-        }
-
-        lastTriggeredStateRef.current.set(quoteId, 'COMPLETED');
-
-        sparkDebugLog('Send payment detected as completed', {
-          quoteId: quote.id,
-          accountId: quote.accountId,
-        });
-        onCompletedRef.current(quote, {
-          paymentPreimage: sendRequest.paymentPreimage,
-        });
-        return;
-      }
-
-      if (
-        sendRequest.status === LightningSendRequestStatus.USER_SWAP_RETURNED &&
-        lastTriggeredStateRef.current.get(quoteId) !== 'FAILED'
-      ) {
-        lastTriggeredStateRef.current.set(quoteId, 'FAILED');
-
-        const now = new Date();
-        const message =
-          quote.expiresAt && new Date(quote.expiresAt) < now
-            ? 'Lightning invoice expired.'
-            : 'Lightning payment failed.';
-
-        onFailedRef.current(quote, message);
-      }
-    } catch (error) {
-      console.error('Error checking spark send quote status', {
-        cause: error,
-        quoteId,
-      });
-    }
-  };
-
-  const checkQuoteStatusRef = useLatest(checkQuoteStatus);
-
   useEffect(() => {
+    const listenerCleanups: (() => void)[] = [];
+
     const quoteIds = sendQuotes.map((q) => q.id);
     const quoteIdSet = new Set(quoteIds);
 
@@ -253,19 +177,113 @@ export function useOnSparkSendStateChange({
 
     if (quoteIds.length === 0) return;
 
-    const checkStatuses = () => {
-      for (const quoteId of quoteIds) {
-        checkQuoteStatusRef.current(quoteId);
-      }
-    };
+    type PendingQuote = Extract<SparkSendQuote, { state: 'PENDING' }>;
+    const pendingQuotesByAccount = new Map<string, PendingQuote[]>();
 
-    checkStatuses();
-    const interval = setInterval(checkStatuses, 1000);
+    for (const quote of sendQuotes) {
+      if (quote.state === 'UNPAID') {
+        if (lastTriggeredStateRef.current.get(quote.id) !== 'UNPAID') {
+          lastTriggeredStateRef.current.set(quote.id, 'UNPAID');
+          onUnpaidRef.current(quote);
+        }
+      } else if (quote.state === 'PENDING') {
+        const existing = pendingQuotesByAccount.get(quote.accountId);
+        if (existing) {
+          existing.push(quote);
+        } else {
+          pendingQuotesByAccount.set(quote.accountId, [quote]);
+        }
+      }
+    }
+
+    for (const [accountId, quotes] of pendingQuotesByAccount) {
+      const account = getSparkAccount(accountId);
+      const quoteByTransferId = new Map(
+        quotes.map((q) => [q.sparkTransferId, q]),
+      );
+
+      const handlePaymentEvent = (payment: Payment, eventType: string) => {
+        const quote = quoteByTransferId.get(payment.id);
+        if (!quote) return;
+
+        if (
+          eventType === 'paymentSucceeded' &&
+          lastTriggeredStateRef.current.get(quote.id) !== 'COMPLETED'
+        ) {
+          const preimage =
+            payment.details?.type === 'lightning'
+              ? payment.details.htlcDetails.preimage
+              : undefined;
+          if (!preimage) {
+            console.error('Payment succeeded but no preimage', {
+              paymentId: payment.id,
+            });
+            return;
+          }
+          lastTriggeredStateRef.current.set(quote.id, 'COMPLETED');
+          sparkDebugLog('Send payment detected as completed', {
+            quoteId: quote.id,
+            accountId,
+          });
+          onCompletedRef.current(quote, { paymentPreimage: preimage });
+        } else if (
+          eventType === 'paymentFailed' &&
+          lastTriggeredStateRef.current.get(quote.id) !== 'FAILED'
+        ) {
+          lastTriggeredStateRef.current.set(quote.id, 'FAILED');
+          const message =
+            quote.expiresAt && new Date(quote.expiresAt) < new Date()
+              ? 'Lightning invoice expired.'
+              : 'Lightning payment failed.';
+          onFailedRef.current(quote, message);
+        }
+      };
+
+      account.wallet
+        .addEventListener({
+          onEvent(event) {
+            if (
+              event.type === 'paymentSucceeded' ||
+              event.type === 'paymentFailed'
+            ) {
+              handlePaymentEvent(event.payment, event.type);
+            }
+          },
+        })
+        .then((listenerId) => {
+          listenerCleanups.push(() => {
+            account.wallet.removeEventListener(listenerId).catch(() => {
+              console.warn('Failed to remove Spark event listener', {
+                listenerId,
+              });
+            });
+          });
+        });
+
+      // Initial status check for each pending quote (catches events that fired before listener)
+      for (const quote of quotes) {
+        account.wallet
+          .getPayment({ paymentId: quote.sparkTransferId })
+          .then(({ payment }) => {
+            if (payment.status === 'completed') {
+              handlePaymentEvent(payment, 'paymentSucceeded');
+            } else if (payment.status === 'failed') {
+              handlePaymentEvent(payment, 'paymentFailed');
+            }
+          })
+          .catch((error) => {
+            console.error('Error checking initial send payment status', {
+              cause: error,
+              sparkTransferId: quote.sparkTransferId,
+            });
+          });
+      }
+    }
 
     return () => {
-      clearInterval(interval);
+      for (const cleanup of listenerCleanups) cleanup();
     };
-  }, [sendQuotes]);
+  }, [sendQuotes, getSparkAccount]);
 }
 
 type CreateSparkLightningSendQuoteParams = {
@@ -363,14 +381,13 @@ export function useInitiateSparkSendQuote({
 /**
  * Hook that processes unresolved spark send quotes.
  * - For UNPAID quotes: Initiates the lightning payment
- * - For PENDING quotes: Polls the Spark API to check for payment status and updates quotes accordingly.
+ * - For PENDING quotes: Listens for Breez SDK payment events to update quote state.
  */
 export function useProcessSparkSendQuoteTasks() {
   const sparkSendQuoteService = useSparkSendQuoteService();
   const unresolvedSendQuotes = useUnresolvedSparkSendQuotes();
   const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
   const getSparkAccount = useGetSparkAccount();
-  const queryClient = useQueryClient();
 
   const { mutate: failSendQuote, isPending: isFailingSendQuote } = useMutation({
     mutationFn: async ({
@@ -467,21 +484,11 @@ export function useProcessSparkSendQuoteTasks() {
       throwOnError: true,
       onSuccess: (updatedQuote) => {
         if (updatedQuote) {
-          sparkDebugLog('Send quote completed — invalidating balance', {
+          sparkDebugLog('Send quote completed', {
             quoteId: updatedQuote.id,
             accountId: updatedQuote.accountId,
           });
           unresolvedQuotesCache.remove(updatedQuote);
-          // Invalidate spark balance since we sent funds
-          queryClient.invalidateQueries({
-            queryKey: sparkBalanceQueryKey(updatedQuote.accountId),
-          });
-          sparkDebugLog('Balance query invalidated', {
-            accountId: updatedQuote.accountId,
-            queryKey: JSON.stringify(
-              sparkBalanceQueryKey(updatedQuote.accountId),
-            ),
-          });
         }
       },
       onError: (error, { quote }) => {

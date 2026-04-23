@@ -1,4 +1,4 @@
-import { LightningReceiveRequestStatus } from '@buildonspark/spark-sdk/types';
+import type { Payment } from '@agicash/breez-sdk-spark';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -15,7 +15,6 @@ import {
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
-import { measureOperation } from '~/lib/performance';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
@@ -25,7 +24,7 @@ import {
 } from '../accounts/account-hooks';
 import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
-import { sparkBalanceQueryKey, sparkDebugLog } from '../shared/spark';
+import { sparkDebugLog } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
@@ -270,11 +269,6 @@ type CreateProps = {
    */
   amount: Money;
   /**
-   * The Spark public key of the receiver used to create invoices on behalf of another user.
-   * If not provided, the invoice will be created for the user that owns the Spark wallet.
-   */
-  receiverIdentityPubkey?: string;
-  /**
    * Description to include in the Lightning invoice memo.
    */
   description?: string;
@@ -304,7 +298,6 @@ export function useCreateSparkReceiveQuote() {
     mutationFn: async ({
       account,
       amount,
-      receiverIdentityPubkey,
       description,
       purpose,
       transferId,
@@ -312,7 +305,6 @@ export function useCreateSparkReceiveQuote() {
       const lightningQuote = await getLightningQuote({
         wallet: account.wallet,
         amount,
-        receiverIdentityPubkey,
         description,
       });
 
@@ -349,44 +341,6 @@ type OnSparkReceiveStateChangeCallbacks = {
   onExpired: (quoteId: string) => void;
 };
 
-const ONE_SECOND = 1000;
-const FIVE_SECONDS = 5 * ONE_SECOND;
-const THIRTY_SECONDS = 30 * ONE_SECOND;
-const ONE_MINUTE = 60 * ONE_SECOND;
-const FIVE_MINUTES = 5 * ONE_MINUTE;
-const TEN_MINUTES = 10 * ONE_MINUTE;
-const ONE_HOUR = 60 * ONE_MINUTE;
-
-/**
- * Returns the polling interval in milliseconds based on the quote's age.
- * - 1 second if created within last 5 minutes
- * - 5 seconds if created within last 10 minutes
- * - 30 seconds if created within last hour
- * - 1 minute if created more than 1 hour ago
- */
-function getPollingInterval(createdAt: string): number {
-  const ageMs = Date.now() - new Date(createdAt).getTime();
-
-  if (ageMs < FIVE_MINUTES) {
-    return ONE_SECOND;
-  }
-  if (ageMs < TEN_MINUTES) {
-    return FIVE_SECONDS;
-  }
-  if (ageMs < ONE_HOUR) {
-    return THIRTY_SECONDS;
-  }
-  return ONE_MINUTE;
-}
-
-/**
- * Hook that polls pending spark receive quotes and fires callbacks on state changes.
- * Polling interval is based on the quote's age:
- * - 1 second if created within last 5 minutes
- * - 5 seconds if created within last 10 minutes
- * - 30 seconds if created within last hour
- * - 1 minute if created more than 1 hour ago
- */
 export function useOnSparkReceiveStateChange({
   onCompleted,
   onExpired,
@@ -397,81 +351,103 @@ export function useOnSparkReceiveStateChange({
   const onCompletedRef = useLatest(onCompleted);
   const onExpiredRef = useLatest(onExpired);
 
-  const checkQuoteStatus = async (quote: SparkReceiveQuote) => {
-    try {
-      const account = getSparkAccount(quote.accountId);
-      const receiveRequest = await measureOperation(
-        'SparkWallet.getLightningReceiveRequest',
-        () => account.wallet.getLightningReceiveRequest(quote.sparkId),
-        { receiveRequestId: quote.sparkId },
-      );
-
-      if (!receiveRequest) {
-        return;
-      }
-
-      if (
-        receiveRequest.status ===
-        LightningReceiveRequestStatus.TRANSFER_COMPLETED
-      ) {
-        if (!receiveRequest.paymentPreimage) {
-          throw new Error(
-            'Payment preimage is required when receive request has TRANSFER_COMPLETED status.',
-          );
-        }
-        if (!receiveRequest.transfer?.sparkId) {
-          throw new Error(
-            'Spark transfer ID is required when receive request has TRANSFER_COMPLETED status.',
-          );
-        }
-        sparkDebugLog('Receive payment detected as completed', {
-          quoteId: quote.id,
-          accountId: quote.accountId,
-          sparkTransferId: receiveRequest.transfer.sparkId,
-        });
-        onCompletedRef.current(quote.id, {
-          sparkTransferId: receiveRequest.transfer.sparkId,
-          paymentPreimage: receiveRequest.paymentPreimage,
-        });
-        return;
-      }
-
-      const expiresAt = new Date(receiveRequest.invoice.expiresAt);
-      const now = new Date();
-
-      if (now > expiresAt) {
-        onExpiredRef.current(quote.id);
-      }
-    } catch (error) {
-      console.error('Error checking spark receive quote status', {
-        cause: error,
-        quoteId: quote.id,
-      });
-    }
-  };
-
-  const checkQuoteStatusRef = useLatest(checkQuoteStatus);
-
   useEffect(() => {
     if (pendingQuotes.length === 0) return;
 
-    const timeouts: NodeJS.Timeout[] = [];
-
-    const poll = (quote: SparkReceiveQuote) => {
-      checkQuoteStatusRef.current(quote);
-      const interval = getPollingInterval(quote.createdAt);
-      const timeout = setTimeout(() => poll(quote), interval);
-      timeouts.push(timeout);
-    };
-
+    // Group pending quotes by account for one listener per SDK instance
+    const quotesByAccount = new Map<string, SparkReceiveQuote[]>();
     for (const quote of pendingQuotes) {
-      poll(quote);
+      const existing = quotesByAccount.get(quote.accountId);
+      if (existing) {
+        existing.push(quote);
+      } else {
+        quotesByAccount.set(quote.accountId, [quote]);
+      }
+    }
+
+    const registrations: {
+      wallet: SparkAccount['wallet'];
+      listenerPromise: Promise<string>;
+    }[] = [];
+
+    for (const [accountId, quotes] of quotesByAccount) {
+      const account = getSparkAccount(accountId);
+
+      const quoteByPaymentHash = new Map(quotes.map((q) => [q.paymentHash, q]));
+
+      const handlePayment = (payment: Payment) => {
+        const details = payment.details;
+        if (details?.type !== 'lightning') return;
+        const quote = quoteByPaymentHash.get(details.htlcDetails.paymentHash);
+        if (!quote) return;
+
+        const preimage = details.htlcDetails.preimage;
+        if (!preimage) {
+          console.error('Receive payment succeeded but no preimage', {
+            paymentId: payment.id,
+            quoteId: quote.id,
+          });
+          return;
+        }
+
+        sparkDebugLog('Receive payment detected as completed', {
+          quoteId: quote.id,
+          accountId,
+          sparkTransferId: payment.id,
+        });
+        onCompletedRef.current(quote.id, {
+          sparkTransferId: payment.id,
+          paymentPreimage: preimage,
+        });
+      };
+
+      // Register event listener before initial check to avoid race conditions
+      const listenerPromise = account.wallet.addEventListener({
+        onEvent(event) {
+          if (event.type === 'paymentSucceeded') {
+            handlePayment(event.payment);
+          } else if (event.type === 'synced') {
+            for (const quote of quotes) {
+              if (new Date(quote.expiresAt) < new Date()) {
+                onExpiredRef.current(quote.id);
+              }
+            }
+          }
+        },
+      });
+      registrations.push({ wallet: account.wallet, listenerPromise });
+
+      // Initial status check per quote using local lookup (no network call)
+      for (const quote of quotes) {
+        account.wallet
+          .getPaymentByInvoice({ invoice: quote.paymentRequest })
+          .then((response) => {
+            if (response.payment && response.payment.status === 'completed') {
+              handlePayment(response.payment);
+            }
+          })
+          .catch((error) => {
+            console.error('Error checking initial receive payment', {
+              cause: error,
+              accountId,
+              quoteId: quote.id,
+            });
+          });
+      }
     }
 
     return () => {
-      timeouts.forEach((timeout) => clearTimeout(timeout));
+      for (const { wallet, listenerPromise } of registrations) {
+        listenerPromise
+          .then((id) => wallet.removeEventListener(id))
+          .catch(() => {
+            () => {
+              console.warn('Failed to remove Spark event listener');
+            };
+          });
+      }
     };
-  }, [pendingQuotes]);
+  }, [pendingQuotes, getSparkAccount]);
 }
 
 /**
@@ -513,14 +489,14 @@ export function useProcessSparkReceiveQuoteTasks() {
     throwOnError: true,
     onSuccess: (updatedQuote) => {
       if (updatedQuote) {
-        sparkDebugLog('Receive quote completed — invalidating balance', {
+        sparkDebugLog('Receive quote completed', {
           quoteId: updatedQuote.id,
           accountId: updatedQuote.accountId,
           transactionId: updatedQuote.transactionId,
         });
         // Updating the quote cache triggers navigation to the transaction details page.
         // Completing the quote also completes the transaction and if navigation to transaction
-        // page happens before transaction udpated realtime notification is processed, the
+        // page happens before transaction updated realtime notification is processed, the
         // transaction would be stale in the cache with the DRAFT state. We are invalidating the
         // transaction cache here so that it starts refetching the transaction as soon as possible
         // without relying on realtime notification which might be delayed when reconnecting due to
@@ -528,16 +504,6 @@ export function useProcessSparkReceiveQuoteTasks() {
         transactionsCache.invalidateTransaction(updatedQuote.transactionId);
         sparkReceiveQuoteCache.updateIfExists(updatedQuote);
         pendingQuotesCache.remove(updatedQuote);
-        // Invalidate spark balance since we received funds
-        queryClient.invalidateQueries({
-          queryKey: sparkBalanceQueryKey(updatedQuote.accountId),
-        });
-        sparkDebugLog('Balance query invalidated', {
-          accountId: updatedQuote.accountId,
-          queryKey: JSON.stringify(
-            sparkBalanceQueryKey(updatedQuote.accountId),
-          ),
-        });
       }
     },
     onError: (error, { quoteId }) => {
@@ -624,6 +590,9 @@ export function useProcessSparkReceiveQuoteTasks() {
           amount: quote.amount.toNumber(cashuUnit),
         },
         quote.tokenReceiveData.tokenProofs,
+        undefined,
+        // See claim-cashu-token-service.ts for rationale on random outputs.
+        { type: 'random' },
       );
     },
     retry: (failureCount, error) => {

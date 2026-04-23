@@ -1,9 +1,14 @@
 import bolt11Decoder, { type Section } from 'light-bolt11-decoder';
 
+// Per BOLT11 spec, the default expiry is 3600 seconds (1 hour) when the `x` tag is absent.
+// See https://github.com/lightning/bolts/blob/master/11-payment-encoding.md
+const DEFAULT_EXPIRY_SECONDS = 3600;
+
 export type DecodedBolt11 = {
   amountMsat: number | undefined;
   amountSat: number | undefined;
-  expiryUnixMs: number | undefined;
+  createdAtUnixMs: number;
+  expiryUnixMs: number;
   network: string | undefined;
   description: string | undefined;
   paymentHash: string;
@@ -22,15 +27,15 @@ export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
     : undefined;
   const amountSat = amountMsat ? amountMsat / 1000 : undefined;
 
-  const expirySection = findSection(sections, 'expiry');
   const timestampSection = findSection(sections, 'timestamp');
-
-  let expiryUnixSec: number | undefined = undefined;
-  if (expirySection && timestampSection) {
-    expiryUnixSec = timestampSection.value + expirySection.value;
+  if (!timestampSection) {
+    throw new Error('Invalid lightning invoice: missing timestamp');
   }
+  const createdAtUnixMs = timestampSection.value * 1000;
 
-  const expiryUnixMs = expiryUnixSec ? expiryUnixSec * 1000 : undefined;
+  const expirySection = findSection(sections, 'expiry');
+  const expirySeconds = expirySection?.value ?? DEFAULT_EXPIRY_SECONDS;
+  const expiryUnixMs = (timestampSection.value + expirySeconds) * 1000;
 
   const networkSection = findSection(sections, 'coin_network')?.value;
   const networkPrefix = networkSection?.bech32;
@@ -48,6 +53,7 @@ export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
   return {
     amountMsat,
     amountSat,
+    createdAtUnixMs,
     expiryUnixMs,
     network,
     description,

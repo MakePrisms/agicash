@@ -39,7 +39,7 @@ The page shows up to two buttons:
 **1. "Claim as Guest"** (behind `GUEST_SIGNUP` feature flag):
 ```
 User clicks → AcceptTerms screen → handleClaimAsGuest():
-  a) pendingTermsStorage.set(timestamp) — persists acceptance for user record creation
+  a) pendingWalletTermsStorage.set(timestamp) — persists acceptance for user record creation
   b) addClaimToSearchParam(navigate, location, receiveAccount.type)
      → Modifies URL to add ?claimTo=spark|cashu (based on selected placeholder)
   c) signUpGuest() — creates Open Secret guest account + Supabase session
