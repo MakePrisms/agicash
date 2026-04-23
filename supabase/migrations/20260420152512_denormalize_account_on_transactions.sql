@@ -22,6 +22,9 @@ alter table wallet.transactions
   add column account_purpose wallet.account_purpose;
 
 -- 2. Backfill from the accounts table via FK join
+alter table wallet.transactions
+  disable trigger broadcast_transactions_changes_trigger;
+
 update wallet.transactions t
 set
   account_name = a.name,
@@ -29,6 +32,9 @@ set
   account_purpose = a.purpose
 from wallet.accounts a
 where t.account_id = a.id;
+
+alter table wallet.transactions
+  enable trigger broadcast_transactions_changes_trigger;
 
 -- 3. Enforce NOT NULL now that every row is populated
 alter table wallet.transactions
