@@ -6,6 +6,7 @@ import {
 import type { Big } from 'big.js';
 import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
 import { getCashuUnit, sumProofs } from '~/lib/cashu';
+import { matchBlindSignaturesToOutputData } from '~/lib/cashu/blind-signature-matching';
 import { type Currency, Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import { type CashuProof, toProof } from '../accounts/cashu-account';
@@ -418,10 +419,11 @@ export class CashuSendQuoteService {
     const cashuUnit = getCashuUnit(account.currency);
     const wallet = account.wallet;
 
-    // We are creating output data here in the same way that cashu-ts does in the meltProofs function.
-    // This is needed because we need the deterministic output data to be able to convert the change signatures to proofs.
-    // See https://github.com/cashubtc/cashu-ts/issues/287 for more details. If cashu-ts eventually exposes the way to create
-    // blank outputs we will be able to simplify this.
+    // Re-derive the deterministic output data used for NUT-08 change blanks.
+    // The change BlindSignatures from the mint may be in non-deterministic order
+    // (both CDK and Nutshell return them from a SQL query without ORDER BY),
+    // so we match them to OutputData via DLEQ verification rather than positional pairing.
+    // See https://github.com/cashubtc/cashu-ts/issues/287 for why we re-derive OutputData here.
     await wallet.keyChain.ensureKeysetKeys(sendQuote.keysetId);
     const keyset = wallet.getKeyset(sendQuote.keysetId);
     const amounts = sendQuote.numberOfChangeOutputs
@@ -434,8 +436,9 @@ export class CashuSendQuoteService {
       keyset,
       amounts,
     );
-    const changeProofs =
-      meltQuote.change?.map((s, i) => outputData[i].toProof(s, keyset)) ?? [];
+    const changeProofs = meltQuote.change?.length
+      ? matchBlindSignaturesToOutputData(meltQuote.change, outputData, keyset)
+      : [];
 
     const amountSpent = new Money({
       amount: sumProofs(sendQuote.proofs) - sumProofs(changeProofs),
