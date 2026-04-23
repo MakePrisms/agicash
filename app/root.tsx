@@ -1,3 +1,4 @@
+import breezWasmUrl from '@agicash/breez-sdk-spark/web/wasm?url';
 import * as Sentry from '@sentry/react-router';
 import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -59,6 +60,18 @@ export const links: LinksFunction = () => [
     rel: 'preload',
     href: agicashLoadingLogo,
     as: 'image',
+  },
+  // Preload the Breez SDK WASM so the fetch starts from the HTML head (via the
+  // browser's preload scanner) instead of waiting for entry.client.tsx to run.
+  // Logged-out users pay this cost too; accepted trade-off for logged-in wins.
+  // crossOrigin='anonymous' matches the SDK's default fetch() mode (cors +
+  // credentials: same-origin) so the preload is actually reused.
+  {
+    rel: 'preload',
+    href: breezWasmUrl,
+    as: 'fetch',
+    crossOrigin: 'anonymous',
+    fetchPriority: 'high',
   },
   {
     rel: 'icon',

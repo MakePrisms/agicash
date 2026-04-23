@@ -1,4 +1,3 @@
-import type { NetworkType } from '@buildonspark/spark-sdk';
 import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod';
@@ -17,6 +16,7 @@ import {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
@@ -49,9 +49,8 @@ type AccountInput = {
   | 'keysetCounters'
   | 'wallet'
   | 'isOnline'
+  | 'balance'
   | 'state'
-  | 'ownedBalance'
-  | 'availableBalance'
 >;
 
 /**
@@ -228,6 +227,7 @@ export class ReadUserDefaultAccountRepository {
     private readonly db: AgicashDb,
     private readonly queryClient: QueryClient,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
+    private readonly sparkStorageDir: string,
   ) {}
 
   /**
@@ -306,14 +306,12 @@ export class ReadUserDefaultAccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { wallet, ownedBalance, availableBalance, isOnline } =
+      const { wallet, balance, isOnline } =
         await this.getInitializedSparkWallet(network);
-
       return {
         ...commonData,
         type: 'spark',
-        ownedBalance,
-        availableBalance,
+        balance,
         network,
         isOnline,
         wallet,
@@ -323,9 +321,14 @@ export class ReadUserDefaultAccountRepository {
     throw new Error('Invalid account type');
   }
 
-  private async getInitializedSparkWallet(network: NetworkType) {
+  private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(this.queryClient, mnemonic, network);
+    return getInitializedSparkWallet(
+      this.queryClient,
+      mnemonic,
+      network,
+      this.sparkStorageDir,
+    );
   }
 }
 

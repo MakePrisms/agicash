@@ -35,6 +35,7 @@ import {
 } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
+import { ensureBreezWasm } from '~/lib/spark';
 import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
 
@@ -110,6 +111,7 @@ const ensureUserData = async (
       queryClient,
       getCashuWalletSeed,
       getSparkWalletMnemonic,
+      './.spark-data',
     );
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,
@@ -189,6 +191,10 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     pendingTermsStorage.remove();
   }
 
+  // ensureUserData derives the Spark identity public key via defaultExternalSigner(),
+  // which requires WASM to be initialized. Shared with entry.client.tsx so the init
+  // is typically already in-flight (or complete) by the time we await here.
+  await ensureBreezWasm();
   const user = await ensureUserData(
     queryClient,
     authUser,

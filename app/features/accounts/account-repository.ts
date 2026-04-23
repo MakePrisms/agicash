@@ -1,4 +1,3 @@
-import type { NetworkType as SparkNetwork } from '@buildonspark/spark-sdk';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod';
@@ -12,6 +11,7 @@ import {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
@@ -52,6 +52,7 @@ export class AccountRepository {
     private readonly queryClient: QueryClient,
     private readonly getCashuWalletSeed: () => Promise<Uint8Array>,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
+    private readonly sparkStorageDir: string,
   ) {}
 
   /**
@@ -208,14 +209,13 @@ export class AccountRepository {
 
     if (isSparkAccount(data)) {
       const { network } = data.details;
-      const { wallet, ownedBalance, availableBalance, isOnline } =
+      const { wallet, balance, isOnline } =
         await this.getInitializedSparkWallet(network);
 
       return {
         ...commonData,
         type: 'spark',
-        ownedBalance,
-        availableBalance,
+        balance,
         network,
         isOnline,
         wallet,
@@ -242,7 +242,12 @@ export class AccountRepository {
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(this.queryClient, mnemonic, network);
+    return getInitializedSparkWallet(
+      this.queryClient,
+      mnemonic,
+      network,
+      this.sparkStorageDir,
+    );
   }
 
   private async decryptCashuProofs(
@@ -294,5 +299,6 @@ export function useAccountRepository() {
     queryClient,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
+    './.spark-data',
   );
 }

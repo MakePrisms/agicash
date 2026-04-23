@@ -1,11 +1,9 @@
-import type {
-  NetworkType as SparkNetwork,
-  SparkWallet,
-} from '@buildonspark/spark-sdk';
+import type { BreezSdk } from '@agicash/breez-sdk-spark';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod';
 import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import type { CashuProof } from './cashu-account';
 
 export const AccountTypeSchema = z.enum(['cashu', 'spark']);
@@ -58,14 +56,13 @@ export type Account = {
     }
   | {
       type: 'spark';
-      ownedBalance: Money | null;
-      availableBalance: Money | null;
+      balance: Money | null;
       network: SparkNetwork;
       /**
        * The Spark wallet instance for the account.
        * If the wallet is not online, this will be a stub that throws on any method call.
        */
-      wallet: SparkWallet;
+      wallet: BreezSdk;
     }
 );
 
@@ -134,5 +131,5 @@ export const getAccountBalance = (account: Account) => {
       unit: getCashuUnit(account.currency),
     });
   }
-  return account.ownedBalance;
+  return account.balance;
 };
