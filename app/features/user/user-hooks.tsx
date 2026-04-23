@@ -246,7 +246,16 @@ export const useAcceptTerms = () => {
   const { mutateAsync: updateUser } = useUpdateUser();
 
   return useCallback(
-    () => updateUser({ termsAcceptedAt: new Date().toISOString() }),
+    ({
+      walletTerms,
+      giftCardTerms,
+    }: { walletTerms?: boolean; giftCardTerms?: boolean }) => {
+      const now = new Date().toISOString();
+      const updates: UpdateUser = {};
+      if (walletTerms) updates.termsAcceptedAt = now;
+      if (giftCardTerms) updates.giftCardMintTermsAcceptedAt = now;
+      return updateUser(updates);
+    },
     [updateUser],
   );
 };
