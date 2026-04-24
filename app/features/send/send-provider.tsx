@@ -2,12 +2,14 @@ import {
   type PropsWithChildren,
   createContext,
   useContext,
+  useRef,
   useState,
 } from 'react';
 import { useStore } from 'zustand';
-import type { Account } from '~/features/accounts/account';
+import type { Account, CashuAccount } from '~/features/accounts/account';
 import type { SendInput } from '~/features/scan';
-import { useGetAccount } from '../accounts/account-hooks';
+import { useExchangeRate } from '~/hooks/use-exchange-rate';
+import { useAccountsCache, useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
 import { type SendState, type SendStore, createSendStore } from './send-store';
@@ -39,12 +41,23 @@ export const SendProvider = ({
   const { mutateAsync: getSparkLightningQuote } =
     useCreateSparkLightningSendQuote();
   const getAccount = useGetAccount();
+  const accountsCache = useAccountsCache();
+  const { data: btcToUsdRate } = useExchangeRate('BTC-USD');
+  const btcToUsdRateRef = useRef(btcToUsdRate);
+  btcToUsdRateRef.current = btcToUsdRate;
+  const getCashuAccounts = (): CashuAccount[] =>
+    (accountsCache.getAll() ?? []).filter(
+      (a): a is CashuAccount => a.type === 'cashu',
+    );
+  const getBtcToUsdRate = () => btcToUsdRateRef.current;
 
   const [store] = useState(() =>
     createSendStore({
       initialAccount,
       initialDestination,
       getAccount,
+      getCashuAccounts,
+      getBtcToUsdRate,
       getInvoiceFromLud16,
       getCashuLightningQuote,
       getCashuSwapQuote,

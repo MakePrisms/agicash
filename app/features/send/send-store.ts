@@ -17,6 +17,7 @@ import {
   validateBolt11,
   validateLightningAddressFormat,
 } from './destination-validators';
+import { selectSourceAccountForBolt11 } from './smart-source-selection';
 import type { SparkLightningQuote } from './spark-send-quote-service';
 
 /**
@@ -144,6 +145,8 @@ type CreateSendStoreProps = {
   initialAccount: Account;
   initialDestination?: SendInput | null;
   getAccount: (accountId: string) => Account;
+  getCashuAccounts: () => CashuAccount[];
+  getBtcToUsdRate: () => string | number | undefined;
   getInvoiceFromLud16: (params: {
     lud16: string;
     amount: Money<'BTC'>;
@@ -213,6 +216,8 @@ export const createSendStore = ({
   initialAccount,
   initialDestination,
   getAccount,
+  getCashuAccounts,
+  getBtcToUsdRate,
   getInvoiceFromLud16,
   getCashuLightningQuote,
   getCashuSwapQuote,
@@ -336,7 +341,19 @@ export const createSendStore = ({
             return { success: false, error: result.error };
           }
 
+          // Smart-select source account if invoice description matches a
+          // configured mint and user has a cashu account there with sufficient
+          // balance. Falls back to current account otherwise (no downgrade —
+          // user keeps what they had).
+          const smartSelected = selectSourceAccountForBolt11({
+            decoded: bolt11ParseResult.decoded,
+            accounts: getCashuAccounts(),
+            defaultAccount: account,
+            btcToUsdRate: getBtcToUsdRate(),
+          });
+
           set({
+            accountId: smartSelected.id,
             sendType: 'BOLT11_INVOICE',
             destination: bolt11ParseResult.invoice,
             destinationDisplay: `${bolt11ParseResult.invoice.slice(0, 6)}...${bolt11ParseResult.invoice.slice(-4)}`,

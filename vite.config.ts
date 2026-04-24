@@ -8,6 +8,7 @@ import { defineConfig, loadEnv } from 'vite';
 import devtoolsJson from 'vite-plugin-devtools-json';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { JsonGiftCardConfigSchema } from './app/features/gift-cards/gift-card-config';
+import { JsonMintDescriptionMapSchema } from './app/features/send/mint-description-config';
 
 const sentryConfig: SentryReactRouterBuildOptions = {
   org: 'make-prisms',
@@ -23,6 +24,9 @@ function validateEnv(mode: string) {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   if (env.VITE_GIFT_CARDS) {
     JsonGiftCardConfigSchema.parse(env.VITE_GIFT_CARDS);
+  }
+  if (env.VITE_MINT_DESCRIPTION_MAP) {
+    JsonMintDescriptionMapSchema.parse(env.VITE_MINT_DESCRIPTION_MAP);
   }
 }
 
