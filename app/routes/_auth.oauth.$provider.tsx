@@ -76,7 +76,8 @@ export async function clientLoader({
   const searchParams = new URLSearchParams(oauthLoginSession.search);
   const redirectTo = searchParams.get('redirectTo') ?? '/';
   searchParams.delete('redirectTo');
-  const url = `${redirectTo}${searchParams.toString()}${oauthLoginSession.hash}`;
+  const passthroughSearch = searchParams.size > 0 ? `?${searchParams}` : '';
+  const url = `${redirectTo}${passthroughSearch}${oauthLoginSession.hash}`;
 
   oauthLoginSessionStorage.remove(oauthLoginSession.sessionId);
 
