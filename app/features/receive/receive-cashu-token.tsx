@@ -512,7 +512,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
             <LinkWithViewTransition
               to={{
-                ...buildLinkWithSearchParams('/login', {
+                ...buildLinkWithSearchParams('/signup', {
                   redirectTo: '/receive/cashu/token',
                   ...(mintRequiresTerms && {
                     requireGiftCardMintTerms: 'true',
@@ -523,7 +523,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
               transition="slideUp"
               applyTo="newView"
             >
-              <Button className="w-[200px]">Log In and Claim</Button>
+              <Button className="w-[200px]">Claim</Button>
             </LinkWithViewTransition>
           </div>
         </PageFooter>
