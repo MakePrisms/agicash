@@ -290,10 +290,11 @@ export const createSendStore = ({
             return { success: false, error: result.error };
           }
 
+          const { encoded } = bolt11ParseResult;
           set({
             sendType: 'BOLT11_INVOICE',
-            destination: bolt11ParseResult.encoded,
-            destinationDisplay: `${bolt11ParseResult.encoded.slice(0, 6)}...${bolt11ParseResult.encoded.slice(-4)}`,
+            destination: encoded,
+            destinationDisplay: `${encoded.slice(0, 6)}...${encoded.slice(-4)}`,
           });
 
           return {
