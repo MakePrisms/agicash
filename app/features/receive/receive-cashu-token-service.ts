@@ -45,8 +45,11 @@ export class ReceiveCashuTokenService {
       currency,
     });
 
+    // wallet.purpose throws when offline (mint info wasn't loaded).
+    const purpose = isOnline ? wallet.purpose : 'transactional';
+
     let expiresAt: string | null = null;
-    if (wallet.purpose === 'offer') {
+    if (purpose === 'offer') {
       const activeKeyset = findFirstActiveKeyset(
         wallet.keyChain.getKeysets(),
         currency,
@@ -61,7 +64,7 @@ export class ReceiveCashuTokenService {
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
-      purpose: wallet.purpose,
+      purpose,
       state: isExpired ? ('expired' as const) : ('active' as const),
       name: mintUrl.replace('https://', '').replace('http://', ''),
       mintUrl,
@@ -100,7 +103,7 @@ export class ReceiveCashuTokenService {
 
     const isValid = validationResult === true;
     const isGatedGiftCard =
-      wallet.purpose === 'gift-card' && !getFeatureFlag('GIFT_CARDS');
+      purpose === 'gift-card' && !getFeatureFlag('GIFT_CARDS');
 
     return {
       ...baseAccount,
