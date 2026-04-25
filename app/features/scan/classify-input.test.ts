@@ -30,72 +30,78 @@ describe('classifyInput', () => {
   describe('cashu tokens', () => {
     test('cashuA token string', () => {
       const result = classifyInput(CASHU_A_TOKEN);
-      expect(result.type).toBe('cashu-token');
-      if (result.type === 'cashu-token') {
-        expect(result.encoded).toBe(CASHU_A_TOKEN);
-      }
+      expect(result).toEqual({
+        direction: 'receive',
+        type: 'cashu-token',
+        encoded: CASHU_A_TOKEN,
+      });
     });
 
     test('cashuB token string', () => {
       const result = classifyInput(CASHU_B_TOKEN);
-      expect(result.type).toBe('cashu-token');
-      if (result.type === 'cashu-token') {
-        expect(result.encoded).toBe(CASHU_B_TOKEN);
-      }
+      expect(result).toEqual({
+        direction: 'receive',
+        type: 'cashu-token',
+        encoded: CASHU_B_TOKEN,
+      });
     });
 
     test('URL containing cashu token', () => {
       const result = classifyInput(`https://example.com/#${CASHU_A_TOKEN}`);
-      expect(result.type).toBe('cashu-token');
-      if (result.type === 'cashu-token') {
-        expect(result.encoded).toBe(CASHU_A_TOKEN);
-      }
+      expect(result).toEqual({
+        direction: 'receive',
+        type: 'cashu-token',
+        encoded: CASHU_A_TOKEN,
+      });
     });
 
     test('token with leading/trailing whitespace', () => {
       const result = classifyInput(`  ${CASHU_A_TOKEN}  `);
-      expect(result.type).toBe('cashu-token');
+      expect(result?.type).toBe('cashu-token');
     });
 
     test('cashu: URI prefix', () => {
       const result = classifyInput(`cashu:${CASHU_A_TOKEN}`);
-      expect(result.type).toBe('cashu-token');
-      if (result.type === 'cashu-token') {
-        expect(result.encoded).toBe(CASHU_A_TOKEN);
-      }
+      expect(result).toEqual({
+        direction: 'receive',
+        type: 'cashu-token',
+        encoded: CASHU_A_TOKEN,
+      });
     });
   });
 
   describe('bolt11 invoices', () => {
     test('raw bolt11 invoice with full decoded data', () => {
       const result = classifyInput(BOLT11_INVOICE);
-      expect(result.type).toBe('bolt11');
-      if (result.type === 'bolt11') {
-        expect(result.invoice).toBe(BOLT11_INVOICE);
-        expect(result.decoded).toEqual({
+      expect(result).toEqual({
+        direction: 'send',
+        type: 'bolt11',
+        invoice: BOLT11_INVOICE,
+        decoded: {
           amountMsat: 250000000,
           amountSat: 250000,
+          createdAtUnixMs: 1496314658000,
           expiryUnixMs: 1496314718000,
           network: 'bitcoin',
           description: '1 cup coffee',
           paymentHash:
             '0001020304050607080900010203040506070809000102030405060708090102',
-        });
-      }
+        },
+      });
     });
 
     test('lightning: prefixed invoice', () => {
       const result = classifyInput(`lightning:${BOLT11_INVOICE}`);
-      expect(result.type).toBe('bolt11');
-      if (result.type === 'bolt11') {
+      expect(result?.type).toBe('bolt11');
+      if (result?.type === 'bolt11') {
         expect(result.invoice).toBe(BOLT11_INVOICE);
       }
     });
 
     test('LIGHTNING: uppercase prefix', () => {
       const result = classifyInput(`LIGHTNING:${BOLT11_INVOICE}`);
-      expect(result.type).toBe('bolt11');
-      if (result.type === 'bolt11') {
+      expect(result?.type).toBe('bolt11');
+      if (result?.type === 'bolt11') {
         expect(result.invoice).toBe(BOLT11_INVOICE);
       }
     });
@@ -104,52 +110,51 @@ describe('classifyInput', () => {
   describe('lightning addresses', () => {
     test('valid lightning address', () => {
       const result = classifyInput('user@domain.com');
-      expect(result.type).toBe('ln-address');
-      if (result.type === 'ln-address') {
-        expect(result.address).toBe('user@domain.com');
-      }
+      expect(result).toEqual({
+        direction: 'send',
+        type: 'ln-address',
+        address: 'user@domain.com',
+      });
     });
 
     test('uppercase address is lowercased', () => {
       const result = classifyInput('USER@Domain.Com');
-      expect(result.type).toBe('ln-address');
-      if (result.type === 'ln-address') {
-        expect(result.address).toBe('user@domain.com');
-      }
+      expect(result).toEqual({
+        direction: 'send',
+        type: 'ln-address',
+        address: 'user@domain.com',
+      });
     });
 
     test('address with subdomain', () => {
       const result = classifyInput('alice@pay.example.org');
-      expect(result.type).toBe('ln-address');
-      if (result.type === 'ln-address') {
-        expect(result.address).toBe('alice@pay.example.org');
-      }
+      expect(result).toEqual({
+        direction: 'send',
+        type: 'ln-address',
+        address: 'alice@pay.example.org',
+      });
     });
   });
 
   describe('unknown inputs', () => {
     test('empty string', () => {
-      expect(classifyInput('')).toEqual({ type: 'unknown' });
+      expect(classifyInput('')).toBeNull();
     });
 
     test('whitespace only', () => {
-      expect(classifyInput('   ')).toEqual({ type: 'unknown' });
+      expect(classifyInput('   ')).toBeNull();
     });
 
     test('random gibberish', () => {
-      expect(classifyInput('not a valid anything')).toEqual({
-        type: 'unknown',
-      });
+      expect(classifyInput('not a valid anything')).toBeNull();
     });
 
     test('email-like but invalid TLD', () => {
-      expect(classifyInput('user@x')).toEqual({ type: 'unknown' });
+      expect(classifyInput('user@x')).toBeNull();
     });
 
     test('bare URL without token', () => {
-      expect(classifyInput('https://example.com')).toEqual({
-        type: 'unknown',
-      });
+      expect(classifyInput('https://example.com')).toBeNull();
     });
   });
 
@@ -157,7 +162,7 @@ describe('classifyInput', () => {
     test('cashu token takes priority over everything', () => {
       // A string that contains both a cashu token and an @ — cashu wins
       const result = classifyInput(`user@domain.com ${CASHU_A_TOKEN}`);
-      expect(result.type).toBe('cashu-token');
+      expect(result?.type).toBe('cashu-token');
     });
   });
 });

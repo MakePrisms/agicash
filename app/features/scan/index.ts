@@ -1,7 +1,5 @@
 export {
   classifyInput,
-  isReceiveInput,
-  isSendInput,
   type ClassifiedInput,
   type ReceiveInput,
   type SendInput,

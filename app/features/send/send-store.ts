@@ -4,7 +4,6 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '~/features/accounts/account';
-import type { SendInput } from '~/features/scan';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
 import { isValidLightningAddress } from '~/lib/lnurl';
@@ -13,11 +12,8 @@ import { type Contact, isContact } from '../contacts/contact';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
-import {
-  validateBolt11,
-  validateLightningAddressFormat,
-} from './destination-validators';
 import type { SparkLightningQuote } from './spark-send-quote-service';
+import { validateBolt11, validateLightningAddressFormat } from './validation';
 
 /**
  * Returns the default send type based on account type.
@@ -142,7 +138,6 @@ export type SendState = State & Actions;
 
 type CreateSendStoreProps = {
   initialAccount: Account;
-  initialDestination?: SendInput | null;
   getAccount: (accountId: string) => Account;
   getInvoiceFromLud16: (params: {
     lud16: string;
@@ -177,51 +172,14 @@ const isSendTypeSupportedForAccount = (
   return supportedSendTypes[account.type].includes(sendType);
 };
 
-type InitialDestinationState =
-  | {
-      sendType: 'BOLT11_INVOICE';
-      destination: string;
-      destinationDisplay: string;
-      destinationDetails?: null;
-    }
-  | {
-      sendType: 'LN_ADDRESS';
-      destination: null;
-      destinationDisplay: string;
-      destinationDetails: { lnAddress: string };
-    };
-
-const sendInputToInitialState = (input: SendInput): InitialDestinationState => {
-  switch (input.type) {
-    case 'bolt11':
-      return {
-        sendType: 'BOLT11_INVOICE',
-        destination: input.invoice,
-        destinationDisplay: `${input.invoice.slice(0, 6)}...${input.invoice.slice(-4)}`,
-      };
-    case 'ln-address':
-      return {
-        sendType: 'LN_ADDRESS',
-        destination: null,
-        destinationDisplay: input.address,
-        destinationDetails: { lnAddress: input.address },
-      };
-  }
-};
-
 export const createSendStore = ({
   initialAccount,
-  initialDestination,
   getAccount,
   getInvoiceFromLud16,
   getCashuLightningQuote,
   getCashuSwapQuote,
   getSparkLightningQuote,
 }: CreateSendStoreProps) => {
-  const resolvedInitialDestination = initialDestination
-    ? sendInputToInitialState(initialDestination)
-    : null;
-
   return create<SendState>()((set, get) => {
     const getOrThrow = <T extends keyof SendState>(
       key: T,
@@ -234,17 +192,13 @@ export const createSendStore = ({
       return value;
     };
 
-    const initialDestinationFields = resolvedInitialDestination ?? {
-      sendType: getDefaultSendType(initialAccount.type),
-      destination: null,
-      destinationDisplay: null,
-    };
-
     return {
       status: 'idle' as const,
       amount: null,
       accountId: initialAccount.id,
-      ...initialDestinationFields,
+      sendType: getDefaultSendType(initialAccount.type),
+      destination: null,
+      destinationDisplay: null,
       quote: null,
       cashuToken: null,
 
