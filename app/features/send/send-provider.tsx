@@ -19,11 +19,7 @@ const SendContext = createContext<SendStore | null>(null);
 type Props = PropsWithChildren<{
   /** Usually the user's default account. This sets the initial account to send from. */
   initialAccount: Account;
-  /**
-   * Raw destination string from the route loader (e.g. QR scan or shared link
-   * passed via URL hash). Routed through `selectDestination` so it follows the
-   * same parsing/validation/smart-selection path as manual entry.
-   */
+  /** Raw destination string used to initialize the store; parsed via `selectDestination`. */
   initialDestination?: string | null;
 }>;
 
