@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod';
+import { normalizeMintUrl } from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import type { Account, RedactedAccount } from '../accounts/account';
 import {
@@ -187,7 +188,7 @@ export class WriteUserRepository {
       details: (() => {
         if (account.type === 'cashu') {
           return CashuAccountDetailsDbDataSchema.parse({
-            mint_url: account.mintUrl,
+            mint_url: normalizeMintUrl(account.mintUrl),
             is_test_mint: account.isTestMint,
             keyset_counters: {},
           } satisfies z.input<typeof CashuAccountDetailsDbDataSchema>);
