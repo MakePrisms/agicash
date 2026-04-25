@@ -20,11 +20,36 @@ const expectedDecoded = {
 // NOTE: You can confirm these values using https://lightningdecoder.com
 describe('decodeBolt11', () => {
   it('should decode the invoice', () => {
-    expect(decodeBolt11(invoice)).toEqual(expectedDecoded);
+    expect(decodeBolt11(invoice)).toEqual({
+      encoded: invoice,
+      ...expectedDecoded,
+    });
+  });
+
+  it('should strip lightning: prefix', () => {
+    expect(decodeBolt11(`lightning:${invoice}`)).toEqual({
+      encoded: invoice,
+      ...expectedDecoded,
+    });
+  });
+
+  it('should strip LIGHTNING: prefix case-insensitively', () => {
+    expect(decodeBolt11(`LIGHTNING:${invoice}`)).toEqual({
+      encoded: invoice,
+      ...expectedDecoded,
+    });
+  });
+
+  it('should lowercase an uppercase invoice', () => {
+    expect(decodeBolt11(invoice.toUpperCase())).toEqual({
+      encoded: invoice,
+      ...expectedDecoded,
+    });
   });
 
   it('should decode a testnet invoice', () => {
     expect(decodeBolt11(testnetInvoice)).toEqual({
+      encoded: testnetInvoice,
       amountMsat: 2000000000,
       amountSat: 2000000,
       createdAtUnixMs: 1496314658000,
@@ -38,7 +63,7 @@ describe('decodeBolt11', () => {
 });
 
 describe('parseBolt11Invoice', () => {
-  it('should parse a raw invoice and return cleaned invoice string', () => {
+  it('should parse a raw invoice', () => {
     const result = parseBolt11Invoice(invoice);
     expect(result).toEqual({
       valid: true,
@@ -47,17 +72,8 @@ describe('parseBolt11Invoice', () => {
     });
   });
 
-  it('should strip lightning: prefix and return cleaned invoice', () => {
-    const result = parseBolt11Invoice(`lightning:${invoice}`);
-    expect(result).toEqual({
-      valid: true,
-      encoded: invoice,
-      decoded: expectedDecoded,
-    });
-  });
-
-  it('should strip LIGHTNING: uppercase prefix', () => {
-    const result = parseBolt11Invoice(`LIGHTNING:${invoice}`);
+  it('should strip lightning: prefix and lowercase', () => {
+    const result = parseBolt11Invoice(`LIGHTNING:${invoice.toUpperCase()}`);
     expect(result).toEqual({
       valid: true,
       encoded: invoice,

@@ -44,12 +44,14 @@ export function classifyInput(raw: string): ClassifiedInput | null {
     };
   }
 
-  // 3. Lightning address
-  if (validateLnAddressFormat(trimmed) === true) {
+  // 3. Lightning address — lowercase before validation since the format
+  // validator's local-part regex only accepts lowercase characters.
+  const lowered = trimmed.toLowerCase();
+  if (validateLnAddressFormat(lowered) === true) {
     return {
       direction: 'send',
       type: 'ln-address',
-      address: trimmed.toLowerCase(),
+      address: lowered,
     };
   }
 

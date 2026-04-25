@@ -15,11 +15,17 @@ export type DecodedBolt11 = {
 };
 
 /**
- * Decodes a BOLT11 invoice
- * @param invoice invoice to decode
+ * Decodes a BOLT11 invoice. Strips an optional `lightning:` prefix
+ * (case-insensitive per BIP21) and lowercases the result — bech32 requires
+ * uniform case, and lowercase is the canonical form. The cleaned bech32
+ * string is returned alongside the decoded fields.
+ * @param invoice invoice to decode (accepts optional lightning: prefix, case-insensitive)
  */
-export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
-  const { sections } = bolt11Decoder.decode(invoice);
+export const decodeBolt11 = (
+  invoice: string,
+): DecodedBolt11 & { encoded: string } => {
+  const encoded = invoice.replace(/^lightning:/i, '').toLowerCase();
+  const { sections } = bolt11Decoder.decode(encoded);
 
   const amountSection = findSection(sections, 'amount');
   const amountMsat = amountSection?.value
@@ -51,6 +57,7 @@ export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
   }
 
   return {
+    encoded,
     amountMsat,
     amountSat,
     createdAtUnixMs,
@@ -62,8 +69,8 @@ export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
 };
 
 /**
- * Checks if a string is a valid BOLT11 invoice.
- * Returns the cleaned invoice (without lightning: prefix) and decoded data on success.
+ * Checks if a string is a valid BOLT11 invoice. Returns the cleaned bech32
+ * form and the decoded fields on success.
  * @param invoice invoice to check (accepts optional lightning: prefix, case-insensitive)
  */
 export const parseBolt11Invoice = (
@@ -72,9 +79,8 @@ export const parseBolt11Invoice = (
   | { valid: true; encoded: string; decoded: DecodedBolt11 }
   | { valid: false } => {
   try {
-    const cleaned = invoice.replace(/^lightning:/i, '');
-    const decoded = decodeBolt11(cleaned);
-    return { valid: true, encoded: cleaned, decoded };
+    const { encoded, ...decoded } = decodeBolt11(invoice);
+    return { valid: true, encoded, decoded };
   } catch {
     return { valid: false };
   }
