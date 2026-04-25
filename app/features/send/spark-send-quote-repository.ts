@@ -8,6 +8,7 @@ import type {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { SparkLightningSendDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
+import { DomainError } from '../shared/error';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { type SparkSendQuote, SparkSendQuoteSchema } from './spark-send-quote';
 
@@ -110,6 +111,9 @@ export class SparkSendQuoteRepository {
     const { data, error } = await query;
 
     if (error) {
+      if (error.code === '23505') {
+        throw new DomainError('This invoice has already been paid');
+      }
       throw new Error('Failed to create spark send quote', { cause: error });
     }
 
