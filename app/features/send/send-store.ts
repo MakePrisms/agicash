@@ -292,8 +292,8 @@ export const createSendStore = ({
 
           set({
             sendType: 'BOLT11_INVOICE',
-            destination: bolt11ParseResult.invoice,
-            destinationDisplay: `${bolt11ParseResult.invoice.slice(0, 6)}...${bolt11ParseResult.invoice.slice(-4)}`,
+            destination: bolt11ParseResult.encoded,
+            destinationDisplay: `${bolt11ParseResult.encoded.slice(0, 6)}...${bolt11ParseResult.encoded.slice(-4)}`,
           });
 
           return {

@@ -39,7 +39,7 @@ export function classifyInput(raw: string): ClassifiedInput | null {
     return {
       direction: 'send',
       type: 'bolt11',
-      invoice: bolt11Result.invoice,
+      invoice: bolt11Result.encoded,
       decoded: bolt11Result.decoded,
     };
   }

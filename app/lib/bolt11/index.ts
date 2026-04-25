@@ -69,12 +69,12 @@ export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
 export const parseBolt11Invoice = (
   invoice: string,
 ):
-  | { valid: true; invoice: string; decoded: DecodedBolt11 }
+  | { valid: true; encoded: string; decoded: DecodedBolt11 }
   | { valid: false } => {
   try {
     const cleaned = invoice.replace(/^lightning:/i, '');
     const decoded = decodeBolt11(cleaned);
-    return { valid: true, invoice: cleaned, decoded };
+    return { valid: true, encoded: cleaned, decoded };
   } catch {
     return { valid: false };
   }
