@@ -265,6 +265,14 @@ export const getCashuWallet = (
 };
 
 /**
+ * Normalize a mint URL by trimming whitespace, lowercasing, and stripping
+ * trailing slashes. Use this whenever a mint URL is stored or compared so
+ * variants like `https://Mint.io/` and `https://mint.io` match.
+ */
+export const normalizeMintUrl = (mintUrl: string): string =>
+  mintUrl.trim().toLowerCase().replace(/\/+$/, '');
+
+/**
  * Check if a mint is a test mint by checking if the mint is in the list of
  * known test mints.
  *
@@ -276,9 +284,7 @@ export const getCashuWallet = (
  * @returns True if the mint is a known test mint
  */
 export const checkIsTestMint = (mintUrl: string): boolean => {
-  // Normalize URL by removing trailing slash and converting to lowercase
-  const normalizedUrl = mintUrl.toLowerCase().replace(/\/+$/, '');
-  return knownTestMints.includes(normalizedUrl);
+  return knownTestMints.includes(normalizeMintUrl(mintUrl));
 };
 
 /**
@@ -288,8 +294,5 @@ export const checkIsTestMint = (mintUrl: string): boolean => {
  * @returns True if the mint URLs are equal
  */
 export const areMintUrlsEqual = (a: string, b: string) => {
-  return (
-    a.toLowerCase().replace(/\/+$/, '').trim() ===
-    b.toLowerCase().replace(/\/+$/, '').trim()
-  );
+  return normalizeMintUrl(a) === normalizeMintUrl(b);
 };
