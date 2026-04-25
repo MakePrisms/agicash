@@ -42,7 +42,7 @@ describe('parseBolt11Invoice', () => {
     const result = parseBolt11Invoice(invoice);
     expect(result).toEqual({
       valid: true,
-      invoice,
+      encoded: invoice,
       decoded: expectedDecoded,
     });
   });
@@ -51,7 +51,7 @@ describe('parseBolt11Invoice', () => {
     const result = parseBolt11Invoice(`lightning:${invoice}`);
     expect(result).toEqual({
       valid: true,
-      invoice,
+      encoded: invoice,
       decoded: expectedDecoded,
     });
   });
@@ -60,7 +60,7 @@ describe('parseBolt11Invoice', () => {
     const result = parseBolt11Invoice(`LIGHTNING:${invoice}`);
     expect(result).toEqual({
       valid: true,
-      invoice,
+      encoded: invoice,
       decoded: expectedDecoded,
     });
   });
