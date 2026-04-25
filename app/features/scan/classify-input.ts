@@ -8,41 +8,36 @@ const validateLnAddressFormat = buildLightningAddressFormatValidator({
 });
 
 export type ClassifiedInput =
-  | { type: 'cashu-token'; encoded: string }
-  | { type: 'bolt11'; invoice: string; decoded: DecodedBolt11 }
-  | { type: 'ln-address'; address: string }
-  | { type: 'unknown' };
+  | { direction: 'receive'; type: 'cashu-token'; encoded: string }
+  | {
+      direction: 'send';
+      type: 'bolt11';
+      invoice: string;
+      decoded: DecodedBolt11;
+    }
+  | { direction: 'send'; type: 'ln-address'; address: string };
 
-export type SendInput = Extract<
-  ClassifiedInput,
-  { type: 'bolt11' } | { type: 'ln-address' }
->;
+export type SendInput = Extract<ClassifiedInput, { direction: 'send' }>;
+export type ReceiveInput = Extract<ClassifiedInput, { direction: 'receive' }>;
 
-export type ReceiveInput = Extract<ClassifiedInput, { type: 'cashu-token' }>;
-
-export const isSendInput = (input: ClassifiedInput): input is SendInput => {
-  return input.type === 'bolt11' || input.type === 'ln-address';
-};
-
-export const isReceiveInput = (
-  input: ClassifiedInput,
-): input is ReceiveInput => {
-  return input.type === 'cashu-token';
-};
-
-export function classifyInput(raw: string): ClassifiedInput {
+export function classifyInput(raw: string): ClassifiedInput | null {
   const trimmed = raw.trim();
 
   // 1. Cashu token (works on URLs, raw tokens, etc.)
   const cashuResult = extractCashuToken(trimmed);
   if (cashuResult) {
-    return { type: 'cashu-token', encoded: cashuResult.encoded };
+    return {
+      direction: 'receive',
+      type: 'cashu-token',
+      encoded: cashuResult.encoded,
+    };
   }
 
   // 2. BOLT11 invoice
   const bolt11Result = parseBolt11Invoice(trimmed);
   if (bolt11Result.valid) {
     return {
+      direction: 'send',
       type: 'bolt11',
       invoice: bolt11Result.invoice,
       decoded: bolt11Result.decoded,
@@ -51,8 +46,12 @@ export function classifyInput(raw: string): ClassifiedInput {
 
   // 3. Lightning address
   if (validateLnAddressFormat(trimmed) === true) {
-    return { type: 'ln-address', address: trimmed.toLowerCase() };
+    return {
+      direction: 'send',
+      type: 'ln-address',
+      address: trimmed.toLowerCase(),
+    };
   }
 
-  return { type: 'unknown' };
+  return null;
 }

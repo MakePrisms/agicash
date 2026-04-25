@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
-import type { SendInput } from '~/features/scan';
+import { useToast } from '~/hooks/use-toast';
 import { useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
@@ -20,11 +20,11 @@ type Props = PropsWithChildren<{
   /** Usually the user's default account. This sets the initial account to send from. */
   initialAccount: Account;
   /**
-   * Pre-validated destination from the route loader (e.g. QR scan or shared link).
-   * Used to initialize the store so send starts with destination preselected,
-   * instead of setting it later in an effect.
+   * Raw destination string from the route loader (e.g. QR scan or shared link
+   * passed via URL hash). Routed through `selectDestination` so it follows the
+   * same parsing/validation/smart-selection path as manual entry.
    */
-  initialDestination?: SendInput | null;
+  initialDestination?: string | null;
 }>;
 
 export const SendProvider = ({
@@ -32,6 +32,7 @@ export const SendProvider = ({
   initialDestination,
   children,
 }: Props) => {
+  const { toast } = useToast();
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
   const { mutateAsync: getCashuLightningQuote } =
     useCreateCashuLightningSendQuote();
@@ -40,17 +41,34 @@ export const SendProvider = ({
     useCreateSparkLightningSendQuote();
   const getAccount = useGetAccount();
 
-  const [store] = useState(() =>
-    createSendStore({
+  const [store] = useState(() => {
+    const sendStore = createSendStore({
       initialAccount,
-      initialDestination,
       getAccount,
       getInvoiceFromLud16,
       getCashuLightningQuote,
       getCashuSwapQuote,
       getSparkLightningQuote,
-    }),
-  );
+    });
+
+    if (initialDestination) {
+      sendStore
+        .getState()
+        .selectDestination(initialDestination)
+        .then((result) => {
+          if (!result.success) {
+            toast({
+              title: 'Invalid destination',
+              description: result.error,
+              variant: 'destructive',
+              duration: 8000,
+            });
+          }
+        });
+    }
+
+    return sendStore;
+  });
 
   return <SendContext.Provider value={store}>{children}</SendContext.Provider>;
 };
