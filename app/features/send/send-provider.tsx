@@ -6,6 +6,7 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
+import { useToast } from '~/hooks/use-toast';
 import { useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
@@ -18,9 +19,16 @@ const SendContext = createContext<SendStore | null>(null);
 type Props = PropsWithChildren<{
   /** Usually the user's default account. This sets the initial account to send from. */
   initialAccount: Account;
+  /** Raw destination string used to initialize the store; parsed via `selectDestination`. */
+  initialDestination?: string | null;
 }>;
 
-export const SendProvider = ({ initialAccount, children }: Props) => {
+export const SendProvider = ({
+  initialAccount,
+  initialDestination,
+  children,
+}: Props) => {
+  const { toast } = useToast();
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
   const { mutateAsync: getCashuLightningQuote } =
     useCreateCashuLightningSendQuote();
@@ -29,16 +37,34 @@ export const SendProvider = ({ initialAccount, children }: Props) => {
     useCreateSparkLightningSendQuote();
   const getAccount = useGetAccount();
 
-  const [store] = useState(() =>
-    createSendStore({
+  const [store] = useState(() => {
+    const sendStore = createSendStore({
       initialAccount,
       getAccount,
       getInvoiceFromLud16,
       getCashuLightningQuote,
       getCashuSwapQuote,
       getSparkLightningQuote,
-    }),
-  );
+    });
+
+    if (initialDestination) {
+      sendStore
+        .getState()
+        .selectDestination(initialDestination)
+        .then((result) => {
+          if (!result.success) {
+            toast({
+              title: 'Invalid destination',
+              description: result.error,
+              variant: 'destructive',
+              duration: 8000,
+            });
+          }
+        });
+    }
+
+    return sendStore;
+  });
 
   return <SendContext.Provider value={store}>{children}</SendContext.Provider>;
 };

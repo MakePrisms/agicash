@@ -4,18 +4,16 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '~/features/accounts/account';
-import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
+import { parseBolt11Invoice } from '~/lib/bolt11';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
-import {
-  buildLightningAddressFormatValidator,
-  isValidLightningAddress,
-} from '~/lib/lnurl';
-import { type Currency, Money } from '~/lib/money';
+import { isValidLightningAddress } from '~/lib/lnurl';
+import type { Currency, Money } from '~/lib/money';
 import { type Contact, isContact } from '../contacts/contact';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
 import type { SparkLightningQuote } from './spark-send-quote-service';
+import { validateBolt11, validateLightningAddressFormat } from './validation';
 
 /**
  * Returns the default send type based on account type.
@@ -26,66 +24,6 @@ const getDefaultSendType = (
   accountType: Account['type'],
 ): 'CASHU_TOKEN' | 'BOLT11_INVOICE' => {
   return accountType === 'cashu' ? 'CASHU_TOKEN' : 'BOLT11_INVOICE';
-};
-
-const validateLightningAddressFormat = buildLightningAddressFormatValidator({
-  message: 'Invalid lightning address',
-  allowLocalhost: import.meta.env.MODE === 'development',
-});
-
-type ValidateResult =
-  | {
-      valid: false;
-      error: string;
-    }
-  | {
-      valid: true;
-      amount: Money<Currency> | null;
-      currency: Currency;
-      unit: 'sat' | 'cent';
-    };
-
-const validateBolt11 = (
-  { network, amountSat, expiryUnixMs }: DecodedBolt11,
-  { allowZeroAmount = false } = {},
-): ValidateResult => {
-  if (network !== 'bitcoin') {
-    return {
-      valid: false,
-      error: `Unsupported network: ${network}. Only Bitcoin mainnet is supported`,
-    };
-  }
-
-  if (expiryUnixMs) {
-    const expiresAt = new Date(expiryUnixMs);
-    const now = new Date();
-    if (expiresAt < now) {
-      return {
-        valid: false,
-        error: 'Invoice expired',
-      };
-    }
-  }
-
-  if (!amountSat && !allowZeroAmount) {
-    return {
-      valid: false,
-      error: 'Amount is required for Lightning invoices',
-    };
-  }
-
-  return {
-    valid: true,
-    amount: amountSat
-      ? new Money({
-          amount: amountSat,
-          currency: 'BTC' as Currency,
-          unit: 'sat',
-        })
-      : null,
-    unit: 'sat',
-    currency: 'BTC',
-  };
 };
 
 const pickAmountByCurrency = <T extends Currency>(
@@ -255,7 +193,7 @@ export const createSendStore = ({
     };
 
     return {
-      status: 'idle',
+      status: 'idle' as const,
       amount: null,
       accountId: initialAccount.id,
       sendType: getDefaultSendType(initialAccount.type),
@@ -343,19 +281,23 @@ export const createSendStore = ({
 
         const bolt11ParseResult = parseBolt11Invoice(destination);
         if (bolt11ParseResult.valid) {
-          const invoice = bolt11ParseResult.decoded;
           const account = get().getSourceAccount();
           const allowZeroAmount = account.type === 'spark';
-          const result = validateBolt11(invoice, { allowZeroAmount });
+          const result = validateBolt11(bolt11ParseResult.decoded, {
+            allowZeroAmount,
+          });
           if (!result.valid) {
             return { success: false, error: result.error };
           }
 
-          const cleanedDestination = destination.replace(/^lightning:/i, '');
+          const { encoded } = bolt11ParseResult;
           set({
             sendType: 'BOLT11_INVOICE',
-            destination: cleanedDestination,
-            destinationDisplay: `${cleanedDestination.slice(0, 6)}...${cleanedDestination.slice(-4)}`,
+            destination: encoded,
+            destinationDisplay: `${encoded.slice(0, 6)}...${encoded.slice(-4)}`,
+            // Only set when the invoice carries an amount; for zero-amount
+            // invoices, preserve whatever the user had typed.
+            ...(result.amount && { amount: result.amount }),
           });
 
           return {
