@@ -74,7 +74,7 @@ export default function Index() {
         </PageHeaderItem>
       </PageHeader>
 
-      <PageContent className="mx-auto flex flex-grow flex-col items-center pt-20 pb-4 sm:absolute sm:inset-0 sm:justify-center sm:gap-32 sm:pt-2 sm:pb-2">
+      <PageContent className="mx-auto flex flex-grow flex-col items-center pt-20 pb-14 sm:absolute sm:inset-0 sm:justify-center sm:gap-32 sm:pt-2">
         <MoneyWithConvertedAmount
           money={defaultCurrency === 'BTC' ? balanceBTC : balanceUSD}
         />
