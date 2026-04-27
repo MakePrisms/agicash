@@ -295,7 +295,6 @@ export const createSendStore = ({
             sendType: 'BOLT11_INVOICE',
             destination: encoded,
             destinationDisplay: `${encoded.slice(0, 6)}...${encoded.slice(-4)}`,
-            ...(get().amount === null && { amount: result.amount }),
           });
 
           return {

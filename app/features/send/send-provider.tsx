@@ -59,6 +59,10 @@ export const SendProvider = ({
               variant: 'destructive',
               duration: 8000,
             });
+            return;
+          }
+          if (result.data.type === 'BOLT11_INVOICE' && result.data.amount) {
+            sendStore.setState({ amount: result.data.amount });
           }
         });
     }
