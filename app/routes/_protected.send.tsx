@@ -9,8 +9,8 @@ export async function clientLoader(): Promise<{
   const hash = window.location.hash.slice(1);
   if (!hash) return { initialDestination: null };
 
-  // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
-  // See https://github.com/remix-run/remix/discussions/10721
+  // Strip the hash from the URL after reading it so refreshes / back-navigation
+  // don't re-apply the destination.
   window.history.replaceState(
     null,
     '',
