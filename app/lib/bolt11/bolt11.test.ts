@@ -22,42 +22,44 @@ describe('decodeBolt11', () => {
   it('should decode the invoice', () => {
     expect(decodeBolt11(invoice)).toEqual({
       encoded: invoice,
-      ...expectedDecoded,
+      decoded: expectedDecoded,
     });
   });
 
   it('should strip lightning: prefix', () => {
     expect(decodeBolt11(`lightning:${invoice}`)).toEqual({
       encoded: invoice,
-      ...expectedDecoded,
+      decoded: expectedDecoded,
     });
   });
 
   it('should strip LIGHTNING: prefix case-insensitively', () => {
     expect(decodeBolt11(`LIGHTNING:${invoice}`)).toEqual({
       encoded: invoice,
-      ...expectedDecoded,
+      decoded: expectedDecoded,
     });
   });
 
   it('should lowercase an uppercase invoice', () => {
     expect(decodeBolt11(invoice.toUpperCase())).toEqual({
       encoded: invoice,
-      ...expectedDecoded,
+      decoded: expectedDecoded,
     });
   });
 
   it('should decode a testnet invoice', () => {
     expect(decodeBolt11(testnetInvoice)).toEqual({
       encoded: testnetInvoice,
-      amountMsat: 2000000000,
-      amountSat: 2000000,
-      createdAtUnixMs: 1496314658000,
-      expiryUnixMs: 1496318258000,
-      network: 'testnet',
-      description: undefined,
-      paymentHash:
-        '0001020304050607080900010203040506070809000102030405060708090102',
+      decoded: {
+        amountMsat: 2000000000,
+        amountSat: 2000000,
+        createdAtUnixMs: 1496314658000,
+        expiryUnixMs: 1496318258000,
+        network: 'testnet',
+        description: undefined,
+        paymentHash:
+          '0001020304050607080900010203040506070809000102030405060708090102',
+      },
     });
   });
 });

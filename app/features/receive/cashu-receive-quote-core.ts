@@ -281,7 +281,9 @@ export async function getLightningQuote(
       })
     : undefined;
 
-  const { paymentHash } = decodeBolt11(mintQuoteResponse.request);
+  const {
+    decoded: { paymentHash },
+  } = decodeBolt11(mintQuoteResponse.request);
 
   return {
     mintQuote: mintQuoteResponse,

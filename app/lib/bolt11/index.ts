@@ -23,7 +23,7 @@ export type DecodedBolt11 = {
  */
 export const decodeBolt11 = (
   invoice: string,
-): DecodedBolt11 & { encoded: string } => {
+): { encoded: string; decoded: DecodedBolt11 } => {
   const encoded = invoice.replace(/^lightning:/i, '').toLowerCase();
   const { sections } = bolt11Decoder.decode(encoded);
 
@@ -58,13 +58,15 @@ export const decodeBolt11 = (
 
   return {
     encoded,
-    amountMsat,
-    amountSat,
-    createdAtUnixMs,
-    expiryUnixMs,
-    network,
-    description,
-    paymentHash,
+    decoded: {
+      amountMsat,
+      amountSat,
+      createdAtUnixMs,
+      expiryUnixMs,
+      network,
+      description,
+      paymentHash,
+    },
   };
 };
 
@@ -79,7 +81,7 @@ export const parseBolt11Invoice = (
   | { valid: true; encoded: string; decoded: DecodedBolt11 }
   | { valid: false } => {
   try {
-    const { encoded, ...decoded } = decodeBolt11(invoice);
+    const { encoded, decoded } = decodeBolt11(invoice);
     return { valid: true, encoded, decoded };
   } catch {
     return { valid: false };
