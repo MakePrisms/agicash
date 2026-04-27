@@ -334,7 +334,10 @@ export default function ReceiveToken({
             className="w-[200px]"
             loading={isClaimLoading}
           >
-            {isReceiveAccountKnown ? 'Claim' : 'Add Mint and Claim'}
+            {!isReceiveAccountKnown &&
+            receiveAccount.purpose === 'transactional'
+              ? 'Add Mint and Claim'
+              : 'Claim'}
           </Button>
         </PageFooter>
       )}
