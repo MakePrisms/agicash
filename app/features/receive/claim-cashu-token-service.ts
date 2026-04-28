@@ -118,9 +118,16 @@ export class ClaimCashuTokenService {
     }
 
     if (receiveAccount.isUnknown && receiveAccount.type === 'cashu') {
+      if (!receiveAccount.isOnline || receiveAccount.purpose === 'unknown') {
+        return {
+          success: false,
+          message: 'The mint that issued this ecash is offline',
+        };
+      }
+      const { purpose } = receiveAccount;
       const addedAccount = await this.accountService.addCashuAccount({
         userId: user.id,
-        account: receiveAccount,
+        account: { ...receiveAccount, purpose },
       });
       this.accountsCache.upsert(addedAccount);
       receiveAccount = { ...receiveAccount, ...addedAccount };

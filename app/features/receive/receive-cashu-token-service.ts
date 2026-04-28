@@ -9,6 +9,7 @@ import {
 } from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
 import {
+  type AccountPurpose,
   type ExtendedAccount,
   type ExtendedCashuAccount,
   canReceiveFromLightning,
@@ -45,8 +46,11 @@ export class ReceiveCashuTokenService {
       currency,
     });
 
+    // wallet.purpose throws when offline
+    const purpose: AccountPurpose = isOnline ? wallet.purpose : 'unknown';
+
     let expiresAt: string | null = null;
-    if (wallet.purpose === 'offer') {
+    if (purpose === 'offer') {
       const activeKeyset = findFirstActiveKeyset(
         wallet.keyChain.getKeysets(),
         currency,
@@ -61,7 +65,7 @@ export class ReceiveCashuTokenService {
     const baseAccount = {
       id: 'cashu-account-placeholder-id',
       type: 'cashu' as const,
-      purpose: wallet.purpose,
+      purpose,
       state: isExpired ? ('expired' as const) : ('active' as const),
       name: mintUrl.replace('https://', '').replace('http://', ''),
       mintUrl,
@@ -100,7 +104,7 @@ export class ReceiveCashuTokenService {
 
     const isValid = validationResult === true;
     const isGatedGiftCard =
-      wallet.purpose === 'gift-card' && !getFeatureFlag('GIFT_CARDS');
+      purpose === 'gift-card' && !getFeatureFlag('GIFT_CARDS');
 
     return {
       ...baseAccount,

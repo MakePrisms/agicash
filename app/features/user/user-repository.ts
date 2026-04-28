@@ -3,7 +3,11 @@ import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod';
 import { normalizeMintUrl } from '~/lib/cashu';
 import type { Currency } from '~/lib/money';
-import type { Account, RedactedAccount } from '../accounts/account';
+import type {
+  Account,
+  RedactedAccount,
+  StoredAccountPurpose,
+} from '../accounts/account';
 import {
   type AccountRepository,
   useAccountRepository,
@@ -42,6 +46,7 @@ type Options = {
 
 type AccountInput = {
   isDefault?: boolean;
+  purpose: StoredAccountPurpose;
 } & DistributedOmit<
   Account,
   | 'id'
@@ -53,6 +58,7 @@ type AccountInput = {
   | 'isOnline'
   | 'balance'
   | 'state'
+  | 'purpose'
 >;
 
 /**

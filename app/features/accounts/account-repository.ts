@@ -25,7 +25,7 @@ import {
   getInitializedSparkWallet,
   sparkMnemonicQueryOptions,
 } from '../shared/spark';
-import type { Account, AccountPurpose, CashuAccount } from './account';
+import type { Account, CashuAccount, StoredAccountPurpose } from './account';
 import type { CashuProof } from './cashu-account';
 
 type AccountOmit<
@@ -38,9 +38,10 @@ type AccountOmit<
 
 type AccountInput<T extends Account> = {
   userId: string;
+  purpose: StoredAccountPurpose;
 } & (T extends CashuAccount
-  ? AccountOmit<CashuAccount, 'wallet' | 'proofs'>
-  : AccountOmit<T>);
+  ? AccountOmit<CashuAccount, 'wallet' | 'proofs' | 'purpose'>
+  : AccountOmit<T, 'purpose'>);
 
 type Options = {
   abortSignal?: AbortSignal;
@@ -229,7 +230,7 @@ export class AccountRepository {
   private async getInitializedCashuWallet(
     mintUrl: string,
     currency: Currency,
-    purpose: AccountPurpose,
+    purpose: StoredAccountPurpose,
   ) {
     const seed = await this.getCashuWalletSeed();
     return getInitializedCashuWallet({

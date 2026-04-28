@@ -218,7 +218,11 @@ export function useReceiveCashuTokenAccounts(
   ): Promise<Account> => {
     let newAccount: Account;
     if (accountToAdd.type === 'cashu') {
-      newAccount = await addCashuAccount(accountToAdd);
+      if (!accountToAdd.isOnline || accountToAdd.purpose === 'unknown') {
+        throw new Error('Cannot add a mint that is offline');
+      }
+      const { purpose } = accountToAdd;
+      newAccount = await addCashuAccount({ ...accountToAdd, purpose });
     } else {
       // Only cashu accounts can be unknown, this should never happen
       throw new Error('Invalid account type');
