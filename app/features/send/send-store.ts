@@ -12,6 +12,7 @@ import { type Contact, isContact } from '../contacts/contact';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
+import { pickAccountForDestination } from './pick-account-for-destination';
 import type { SparkLightningQuote } from './spark-send-quote-service';
 import { validateBolt11, validateLightningAddressFormat } from './validation';
 
@@ -139,6 +140,7 @@ export type SendState = State & Actions;
 type CreateSendStoreProps = {
   initialAccount: Account;
   getAccount: (accountId: string) => Account;
+  getAccounts: () => Account[];
   getInvoiceFromLud16: (params: {
     lud16: string;
     amount: Money<'BTC'>;
@@ -175,6 +177,7 @@ const isSendTypeSupportedForAccount = (
 export const createSendStore = ({
   initialAccount,
   getAccount,
+  getAccounts,
   getInvoiceFromLud16,
   getCashuLightningQuote,
   getCashuSwapQuote,
@@ -290,8 +293,15 @@ export const createSendStore = ({
             return { success: false, error: result.error };
           }
 
+          const pickedAccount = pickAccountForDestination({
+            decodedDestination: bolt11ParseResult.decoded,
+            accounts: getAccounts(),
+            defaultAccount: account,
+          });
+
           const { encoded } = bolt11ParseResult;
           set({
+            accountId: pickedAccount.id,
             sendType: 'BOLT11_INVOICE',
             destination: encoded,
             destinationDisplay: `${encoded.slice(0, 6)}...${encoded.slice(-4)}`,

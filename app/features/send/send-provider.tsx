@@ -7,7 +7,7 @@ import {
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
 import { useToast } from '~/hooks/use-toast';
-import { useGetAccount } from '../accounts/account-hooks';
+import { useAccountsCache, useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
 import { type SendState, type SendStore, createSendStore } from './send-store';
@@ -36,11 +36,14 @@ export const SendProvider = ({
   const { mutateAsync: getSparkLightningQuote } =
     useCreateSparkLightningSendQuote();
   const getAccount = useGetAccount();
+  const accountsCache = useAccountsCache();
+  const getAccounts = () => accountsCache.getAll() ?? [];
 
   const [store] = useState(() => {
     const sendStore = createSendStore({
       initialAccount,
       getAccount,
+      getAccounts,
       getInvoiceFromLud16,
       getCashuLightningQuote,
       getCashuSwapQuote,
