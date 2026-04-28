@@ -6,7 +6,7 @@
       "name": "agicash",
       "dependencies": {
         "@agicash/bc-ur": "0.1.0",
-        "@agicash/breez-sdk-spark": "0.13.2-dev5-rc-4",
+        "@agicash/breez-sdk-spark": "0.13.5-1",
         "@agicash/opensecret": "0.1.0",
         "@agicash/qr-scanner": "0.1.2",
         "@cashu/cashu-ts": "3.6.1",
@@ -95,7 +95,7 @@
   "packages": {
     "@agicash/bc-ur": ["@agicash/bc-ur@0.1.0", "", { "dependencies": { "@apocentre/alias-sampling": "^0.5.3", "@noble/hashes": "^1.3.3", "big.js": "^6.2.2", "buffer": "^6.0.3", "cbor-sync": "^1.0.4", "cborg": "^4.0.9", "jsbi": "3.1.5" } }, "sha512-B2Hh7dSqdeVZuMCwdNR0MXUr4fUU5n+gTWd0b0m9HpV6/mAXRMnAfuJbeax/krvHf8A3qMxFLAkTBKcSxUSPuw=="],
 
-    "@agicash/breez-sdk-spark": ["@agicash/breez-sdk-spark@0.13.2-dev5-rc-4", "", { "optionalDependencies": { "better-sqlite3": "^12.2.0", "pg": "^8.18.0" } }, "sha512-9uCXDxdYWRlV3blmJDP6c8xSoMvCGnPLFLpMDx+LwGwvsJ7p89J4kiJsGVnb+/TGUqOArUQrXZwAzGzw0EuTSw=="],
+    "@agicash/breez-sdk-spark": ["@agicash/breez-sdk-spark@0.13.5-1", "", { "optionalDependencies": { "better-sqlite3": "^12.2.0", "pg": "^8.18.0" } }, "sha512-Sa8Re7nnT3U2sxxJ77FB1aYcsGSi1yJpBB9mOtE4/F5/WX9+De4eXr6zH/LgMphwrq/Gany3OEmJrvoAaIMqLA=="],
 
     "@agicash/opensecret": ["@agicash/opensecret@0.1.0", "", { "dependencies": { "@peculiar/x509": "^1.12.2", "@stablelib/base64": "^2.0.0", "@stablelib/chacha20poly1305": "^2.0.0", "@stablelib/random": "^2.0.0", "cbor2": "^1.7.0", "tweetnacl": "^1.0.3", "zod": "^3.23.8" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "sha512-5cbr7hgKlrY3aLm2RPrk9+xfserhEgG60V+zxtABcD0ZG7Gw6AgeMUuijWyp8mAqZ7G+bZr4Us0ZvGq63ISzog=="],
 
