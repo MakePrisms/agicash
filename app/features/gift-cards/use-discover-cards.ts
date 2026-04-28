@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import blockAndBeanCard from '~/assets/gift-cards/blockandbean.agi.cash.webp';
 import compassCoffeeCard from '~/assets/gift-cards/compass.agi.cash.webp';
+import kissOfMatchaCard from '~/assets/gift-cards/kissofmatcha.agi.cash.webp';
 import mapleCard from '~/assets/gift-cards/maple.agi.cash.webp';
 import mariposaCard from '~/assets/gift-cards/mariposa.agi.cash.webp';
 import pinkOwlCoffeeCard from '~/assets/gift-cards/pinkowl.agi.cash.webp';
@@ -23,6 +24,7 @@ const GIFT_CARD_IMAGES: Record<string, string> = {
   'https://maple.agi.cash': mapleCard,
   'https://mariposa.agi.cash': mariposaCard,
   'https://compass.agi.cash': compassCoffeeCard,
+  'https://kissofmatcha.agi.cash': kissOfMatchaCard,
   'https://pinkowl.agi.cash': pinkOwlCoffeeCard,
   'https://shack.agi.cash': theShackCard,
   'https://theepicureantrader.agi.cash': theEpicurianTraderCard,
