@@ -105,6 +105,27 @@ Sentry.init({
       (ex) => !ex.stacktrace?.frames?.length,
     );
     if (hasNoStackTrace) return null;
+
+    // Sanitize sensitive URL parts (fragment, path params, query values) on the
+    // error event itself and on breadcrumbs that capture page/fetch URLs.
+    if (event.request?.url) {
+      event.request.url = sanitizeUrl(event.request.url);
+    }
+    for (const breadcrumb of event.breadcrumbs ?? []) {
+      if (!breadcrumb.data) {
+        continue;
+      }
+      if (typeof breadcrumb.data.to === 'string') {
+        breadcrumb.data.to = sanitizeUrl(breadcrumb.data.to);
+      }
+      if (typeof breadcrumb.data.from === 'string') {
+        breadcrumb.data.from = sanitizeUrl(breadcrumb.data.from);
+      }
+      if (typeof breadcrumb.data.url === 'string') {
+        breadcrumb.data.url = sanitizeUrl(breadcrumb.data.url);
+      }
+    }
+
     return event;
   },
 
@@ -118,6 +139,16 @@ Sentry.init({
         span.data.url = sanitizedUrl;
       }
     }
+
+    // HTTP and navigation/pageload spans put URL-bearing text in description
+    // (e.g. "GET /mint/quote/bolt11/QID" or "/receive/cashu/token#TOKEN").
+    // Match shapes that look like a URL/path or "METHOD URL" so non-URL
+    // descriptions stay untouched.
+    const description = span.description;
+    if (description && /^([A-Z]+ )?(\/|https?:\/\/)/.test(description)) {
+      span.description = sanitizeUrl(description);
+    }
+
     return span;
   },
 });

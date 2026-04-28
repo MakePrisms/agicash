@@ -136,6 +136,15 @@ Sentry.init({
         span.data.url = sanitizedUrl;
       }
     }
+
+    // HTTP server spans set description to "<METHOD> <pathname>" (e.g.
+    // "POST /api/lnurlp/verify/<data>"). Sanitize URL-shaped descriptions
+    // so path-pattern data doesn't leak via the rendered span name.
+    const description = span.description;
+    if (description && /^([A-Z]+ )?(\/|https?:\/\/)/.test(description)) {
+      span.description = sanitizeUrl(description);
+    }
+
     return span;
   },
 
@@ -148,6 +157,26 @@ Sentry.init({
 
     if (status !== undefined && status >= 400 && status < 500) {
       return null;
+    }
+
+    // Sanitize sensitive URL parts on the error event itself and on
+    // breadcrumbs that capture outgoing HTTP / navigation URLs.
+    if (event.request?.url) {
+      event.request.url = sanitizeUrl(event.request.url);
+    }
+    for (const breadcrumb of event.breadcrumbs ?? []) {
+      if (!breadcrumb.data) {
+        continue;
+      }
+      if (typeof breadcrumb.data.to === 'string') {
+        breadcrumb.data.to = sanitizeUrl(breadcrumb.data.to);
+      }
+      if (typeof breadcrumb.data.from === 'string') {
+        breadcrumb.data.from = sanitizeUrl(breadcrumb.data.from);
+      }
+      if (typeof breadcrumb.data.url === 'string') {
+        breadcrumb.data.url = sanitizeUrl(breadcrumb.data.url);
+      }
     }
 
     return event;
