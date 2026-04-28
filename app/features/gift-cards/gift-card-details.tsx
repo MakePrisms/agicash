@@ -54,7 +54,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
 
   return (
     <Page className="px-0 pb-0">
-      <PageHeader className="absolute inset-x-0 top-0 z-[60] flex w-full items-center justify-between px-4 pt-4 pb-4">
+      <PageHeader className="absolute inset-x-0 top-0 z-[60] mb-0 px-4 pt-4 pb-4">
         <PageHeaderItem position="left">
           <button type="button" onClick={handleBack} aria-label="Close">
             <X />
