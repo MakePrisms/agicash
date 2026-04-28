@@ -15,9 +15,10 @@ import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
-import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
+import { UnclaimableCashuTokenPage } from '~/features/receive/unclaimable-cashu-token-page';
 import {
   decodeCashuToken,
+  fetchMintDataWithTimeout,
   getCashuCryptography,
   seedQueryOptions,
 } from '~/features/shared/cashu';
@@ -33,6 +34,7 @@ import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
 import { validateCashuToken } from '~/lib/cashu';
+import { extractCashuToken } from '~/lib/cashu/token';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
@@ -110,7 +112,28 @@ const getClaimTo = (
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // Request url doesn't include hash so we need to read it from the window location instead
-  const token = await decodeCashuToken(window.location.hash);
+  const hash = window.location.hash;
+
+  const extracted = extractCashuToken(hash);
+  if (!extracted) {
+    throw redirect('/receive');
+  }
+
+  const queryClient = getQueryClient();
+
+  // Probe mint reachability before mounting the receive flow. Side effect: primes
+  // the query cache so the component's wallet init resolves without a round-trip.
+  try {
+    await fetchMintDataWithTimeout(extracted.metadata.mint, queryClient);
+  } catch (error) {
+    console.error('Failed to probe mint', error);
+    return {
+      isClaimable: false as const,
+      message: 'The mint that issued this ecash is currently offline',
+    };
+  }
+
+  const token = await decodeCashuToken(hash);
 
   if (!token) {
     throw redirect('/receive');
@@ -120,7 +143,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   if (!validation.isTokenSupported) {
     return {
-      isTokenSupported: false as const,
+      isClaimable: false as const,
       message: validation.message,
     };
   }
@@ -162,7 +185,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(redirectTo);
   }
 
-  return { isTokenSupported: true as const, token, selectedAccountId };
+  return { isClaimable: true as const, token, selectedAccountId };
 }
 
 clientLoader.hydrate = true as const;
@@ -174,8 +197,8 @@ export function HydrateFallback() {
 export default function ProtectedReceiveCashuToken({
   loaderData,
 }: Route.ComponentProps) {
-  if (!loaderData.isTokenSupported) {
-    return <UnsupportedCashuTokenPage message={loaderData.message} />;
+  if (!loaderData.isClaimable) {
+    return <UnclaimableCashuTokenPage message={loaderData.message} />;
   }
 
   return (

@@ -10,7 +10,7 @@ type Props = {
   message: string;
 };
 
-export function UnsupportedCashuTokenPage({ message }: Props) {
+export function UnclaimableCashuTokenPage({ message }: Props) {
   return (
     <Page>
       <PageHeader>
