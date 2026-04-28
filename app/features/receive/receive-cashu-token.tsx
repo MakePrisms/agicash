@@ -1,6 +1,5 @@
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
-import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import {
   type Location,
@@ -59,6 +58,7 @@ import {
   type ReceiveCashuTokenAccount,
   isClaimingToSameCashuAccount,
 } from './receive-cashu-token-models';
+import { TokenErrorDisplay } from './token-error-display';
 
 type Props = {
   token: Token;
@@ -102,18 +102,6 @@ function TokenAmountDisplay({
         otherCurrency={receiveAccountCurrency}
       />
     </button>
-  );
-}
-
-/**
- * Shared component for displaying error when token cannot be claimed
- */
-function TokenErrorDisplay({ message }: { message: string }) {
-  return (
-    <div className="mx-4 flex w-full flex-col items-center justify-center gap-2 rounded-lg border bg-card p-4">
-      <AlertCircle className="h-8 w-8 text-foreground" />
-      <p className="text-center text-muted-foreground text-sm">{message}</p>
-    </div>
   );
 }
 
