@@ -112,7 +112,12 @@ export class SparkSendQuoteRepository {
 
     if (error) {
       if (error.code === '23505') {
-        throw new DomainError('This invoice has already been paid');
+        // Hits the spark_send_quotes_payment_hash_active_unique partial index,
+        // which covers UNPAID, PENDING, and COMPLETED — so the existing quote
+        // could be in any of those states.
+        throw new DomainError(
+          'A payment for this invoice is already being processed or was completed',
+        );
       }
       throw new Error('Failed to create spark send quote', { cause: error });
     }
