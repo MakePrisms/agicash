@@ -8,6 +8,7 @@ import type {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { SparkLightningSendDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
+import { DomainError } from '../shared/error';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { type SparkSendQuote, SparkSendQuoteSchema } from './spark-send-quote';
 
@@ -110,6 +111,14 @@ export class SparkSendQuoteRepository {
     const { data, error } = await query;
 
     if (error) {
+      if (error.code === '23505') {
+        // Hits the spark_send_quotes_payment_hash_active_unique partial index,
+        // which covers UNPAID, PENDING, and COMPLETED — so the existing quote
+        // could be in any of those states.
+        throw new DomainError(
+          'A payment for this invoice is already being processed or was completed',
+        );
+      }
       throw new Error('Failed to create spark send quote', { cause: error });
     }
 
