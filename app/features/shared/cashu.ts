@@ -220,11 +220,18 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
 
 /**
  * Extract and decode a cashu token from arbitrary content.
- * Fetches keyset IDs from the token's mint for v2 keyset resolution.
+ * Tokens with v1 keyset IDs decode without contacting the mint. v2 tokens use
+ * truncated keyset IDs that have to be resolved against the mint's keyset list.
  */
 export async function decodeCashuToken(content: string): Promise<Token | null> {
   const result = extractCashuToken(content);
   if (!result) return null;
+
+  try {
+    return getDecodedToken(result.encoded);
+  } catch {
+    // v2 keyset IDs are truncated and need resolution from the mint
+  }
 
   try {
     const queryClient = getQueryClient();
