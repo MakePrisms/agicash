@@ -109,7 +109,10 @@ export function PageHeaderTitle({
   return (
     <PageHeaderItem position={position}>
       <h1
-        className={cn('flex items-center justify-start text-xl', className)}
+        className={cn(
+          'flex items-center justify-center text-center text-xl',
+          className,
+        )}
         {...props}
       >
         {children}
@@ -162,14 +165,17 @@ export function PageHeader({ children, className, ...props }: PageHeaderProps) {
 
   return (
     <header
-      className={cn('mb-4 flex w-full items-center justify-between', className)}
+      className={cn(
+        'mb-4 grid w-full grid-cols-[1fr_auto_1fr] items-center',
+        className,
+      )}
       {...props}
     >
-      <div className="flex items-center">{leftItems}</div>
-      <div className="-translate-x-1/2 absolute left-1/2 transform">
-        {centerItems}
+      <div className="flex items-center justify-self-start">{leftItems}</div>
+      <div className="flex items-center justify-self-center">{centerItems}</div>
+      <div className="flex items-center gap-2 justify-self-end">
+        {rightItems}
       </div>
-      <div className="flex items-center justify-end gap-2">{rightItems}</div>
     </header>
   );
 }
