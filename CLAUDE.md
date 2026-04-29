@@ -124,7 +124,17 @@ Always use `Money` class (`~/lib/money`) — never raw arithmetic. Floating poin
 - Excessive code duplication - extract common fields into shared objects. Some duplication is OK if it reduces complexity, but large repeated blocks should be refactored
 - Over-abstracting simple code into separate files (e.g., inline simple middleware in route files)
 - Adding boilerplate that parent components already handle (e.g., child routes don't need `clientLoader.hydrate` if parent layout has it)
-- Writing comments that guess at reasons - verify the actual reason first
+
+## Comments and JSDoc
+
+Default to no comments. The bar for adding one: a future reader couldn't recover the information from the code itself — a protocol quirk, a library bug being worked around, a perf tradeoff with bounds, a named external constraint (e.g. a specific DB unique constraint). Link the spec/issue/PR when relevant. Verify the reason before writing it; never guess.
+
+Don't write comments that explain things the code or its surroundings already show:
+- **Where** something is used or called from ("used by X", "comes from Y") — IDE references handle this
+- **Why** a refactor happened or what task it was for ("we changed this to…", "added for X") — that belongs in the commit message, not the code
+- **What** the code does step by step — let well-named identifiers carry the meaning
+
+JSDoc goes on public surfaces: exported `lib/` utilities, methods on services and repositories, exported types and their option fields. Skip it on React components, routes, trivial getters, and private helpers. Use `@param` / `@returns` / `@throws` only when they document a real contract.
 
 ## Commands
 
