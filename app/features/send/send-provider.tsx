@@ -6,10 +6,10 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
-import { useToast } from '~/hooks/use-toast';
 import { useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
+import type { ResolvedDestination } from './resolve-destination';
 import { type SendState, type SendStore, createSendStore } from './send-store';
 import { useCreateSparkLightningSendQuote } from './spark-send-quote-hooks';
 import { useGetInvoiceFromLud16 } from './use-get-invoice-from-lud16';
@@ -19,8 +19,9 @@ const SendContext = createContext<SendStore | null>(null);
 type Props = PropsWithChildren<{
   /** Usually the user's default account. This sets the initial account to send from. */
   initialAccount: Account;
-  /** Raw destination string used to initialize the store; parsed via `selectDestination`. */
-  initialDestination?: string | null;
+  /** Pre-validated destination from the route loader. Used to seed the store so
+   *  the page renders with destination already in place. */
+  initialDestination?: ResolvedDestination | null;
 }>;
 
 export const SendProvider = ({
@@ -28,7 +29,6 @@ export const SendProvider = ({
   initialDestination,
   children,
 }: Props) => {
-  const { toast } = useToast();
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
   const { mutateAsync: getCashuLightningQuote } =
     useCreateCashuLightningSendQuote();
@@ -37,38 +37,17 @@ export const SendProvider = ({
     useCreateSparkLightningSendQuote();
   const getAccount = useGetAccount();
 
-  const [store] = useState(() => {
-    const sendStore = createSendStore({
+  const [store] = useState(() =>
+    createSendStore({
       initialAccount,
+      initialDestination,
       getAccount,
       getInvoiceFromLud16,
       getCashuLightningQuote,
       getCashuSwapQuote,
       getSparkLightningQuote,
-    });
-
-    if (initialDestination) {
-      sendStore
-        .getState()
-        .selectDestination(initialDestination)
-        .then((result) => {
-          if (!result.success) {
-            toast({
-              title: 'Invalid destination',
-              description: result.error,
-              variant: 'destructive',
-              duration: 8000,
-            });
-            return;
-          }
-          if (result.data.type === 'BOLT11_INVOICE' && result.data.amount) {
-            sendStore.setState({ amount: result.data.amount });
-          }
-        });
-    }
-
-    return sendStore;
-  });
+    }),
+  );
 
   return <SendContext.Provider value={store}>{children}</SendContext.Provider>;
 };

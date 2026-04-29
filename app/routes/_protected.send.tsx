@@ -1,13 +1,20 @@
 import { Outlet, useSearchParams } from 'react-router';
 import { useAccountOrDefault } from '~/features/accounts/account-hooks';
 import { SendProvider } from '~/features/send';
+import {
+  type ResolvedDestination,
+  resolveDestination,
+} from '~/features/send/resolve-destination';
+import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.send';
 
 export async function clientLoader(): Promise<{
-  initialDestination: string | null;
+  initialDestination: ResolvedDestination | null;
 }> {
   const hash = window.location.hash.slice(1);
-  if (!hash) return { initialDestination: null };
+  if (!hash) {
+    return { initialDestination: null };
+  }
 
   // Strip the hash from the URL after reading it so refreshes / back-navigation
   // don't re-apply the destination.
@@ -17,7 +24,24 @@ export async function clientLoader(): Promise<{
     window.location.pathname + window.location.search,
   );
 
-  return { initialDestination: hash };
+  // We don't know which account the user will end up sending from, so we accept
+  // amountless invoices here. The cashu-only "amount required" check is enforced
+  // later in `proceedWithSend` once an account is locked in.
+  const result = await resolveDestination(hash, {
+    allowZeroAmountBolt11: true,
+  });
+
+  if (!result.success) {
+    toast({
+      title: 'Invalid destination',
+      description: result.error,
+      variant: 'destructive',
+      duration: 8000,
+    });
+    return { initialDestination: null };
+  }
+
+  return { initialDestination: result.data };
 }
 
 clientLoader.hydrate = true as const;

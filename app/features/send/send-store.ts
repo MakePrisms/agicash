@@ -5,15 +5,16 @@ import type {
   SparkAccount,
 } from '~/features/accounts/account';
 import { parseBolt11Invoice } from '~/lib/bolt11';
-import { parseCashuPaymentRequest } from '~/lib/cashu';
-import { isValidLightningAddress } from '~/lib/lnurl';
 import type { Currency, Money } from '~/lib/money';
-import { type Contact, isContact } from '../contacts/contact';
+import type { Contact } from '../contacts/contact';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
+import {
+  type ResolvedDestination,
+  resolveDestination,
+} from './resolve-destination';
 import type { SparkLightningQuote } from './spark-send-quote-service';
-import { validateBolt11, validateLightningAddressFormat } from './validation';
 
 /**
  * Returns the default send type based on account type.
@@ -138,6 +139,12 @@ export type SendState = State & Actions;
 
 type CreateSendStoreProps = {
   initialAccount: Account;
+  /**
+   * Pre-validated destination produced by the route loader. When present, the
+   * store starts with destination/sendType/etc. already populated so that
+   * consumers (like `useMoneyInput`) see a complete state on first render.
+   */
+  initialDestination?: ResolvedDestination | null;
   getAccount: (accountId: string) => Account;
   getInvoiceFromLud16: (params: {
     lud16: string;
@@ -174,6 +181,7 @@ const isSendTypeSupportedForAccount = (
 
 export const createSendStore = ({
   initialAccount,
+  initialDestination,
   getAccount,
   getInvoiceFromLud16,
   getCashuLightningQuote,
@@ -192,15 +200,39 @@ export const createSendStore = ({
       return value;
     };
 
+    const initialDestinationFields = (
+      initialDestination
+        ? {
+            sendType: initialDestination.sendType,
+            destination: initialDestination.destination,
+            destinationDisplay: initialDestination.destinationDisplay,
+            destinationDetails: initialDestination.destinationDetails ?? null,
+            amount:
+              initialDestination.sendType === 'BOLT11_INVOICE'
+                ? (initialDestination.amount ?? null)
+                : null,
+          }
+        : {
+            sendType: getDefaultSendType(initialAccount.type),
+            destination: null,
+            destinationDisplay: null,
+            destinationDetails: null,
+            amount: null,
+          }
+    ) as Pick<
+      SendState,
+      | 'sendType'
+      | 'destination'
+      | 'destinationDisplay'
+      | 'destinationDetails'
+      | 'amount'
+    >;
+
     return {
       status: 'idle' as const,
-      amount: null,
       accountId: initialAccount.id,
-      sendType: getDefaultSendType(initialAccount.type),
-      destination: null,
-      destinationDisplay: null,
+      ...initialDestinationFields,
       quote: null,
-      cashuToken: null,
 
       selectSourceAccount: (account) => {
         const {
@@ -243,78 +275,37 @@ export const createSendStore = ({
         } as Partial<SendState>);
       },
 
-      selectDestination: async (destination) => {
-        if (isContact(destination)) {
-          set({
-            sendType: 'AGICASH_CONTACT',
-            destinationDisplay: destination.username,
-            destinationDetails: destination,
-          });
-
-          return {
-            success: true,
-            data: { type: 'AGICASH_CONTACT' },
-          };
+      selectDestination: async (input) => {
+        const account = get().getSourceAccount();
+        const result = await resolveDestination(input, {
+          allowZeroAmountBolt11: account.type === 'spark',
+        });
+        if (!result.success) {
+          return result;
         }
 
-        const isLnAddressFormat = validateLightningAddressFormat(destination);
-        if (isLnAddressFormat === true) {
-          const isValidLnAddress = await isValidLightningAddress(destination);
-          if (!isValidLnAddress) {
-            return {
-              success: false,
-              error: 'Invalid lightning address',
-            };
-          }
-
-          set({
-            sendType: 'LN_ADDRESS',
-            destinationDisplay: destination,
-            destinationDetails: { lnAddress: destination },
-          });
-
-          return {
-            success: true,
-            data: { type: 'LN_ADDRESS' },
-          };
-        }
-
-        const bolt11ParseResult = parseBolt11Invoice(destination);
-        if (bolt11ParseResult.valid) {
-          const account = get().getSourceAccount();
-          const allowZeroAmount = account.type === 'spark';
-          const result = validateBolt11(bolt11ParseResult.decoded, {
-            allowZeroAmount,
-          });
-          if (!result.valid) {
-            return { success: false, error: result.error };
-          }
-
-          const { encoded } = bolt11ParseResult;
-          set({
-            sendType: 'BOLT11_INVOICE',
-            destination: encoded,
-            destinationDisplay: `${encoded.slice(0, 6)}...${encoded.slice(-4)}`,
-          });
-
-          return {
-            success: true,
-            data: { type: 'BOLT11_INVOICE', amount: result.amount },
-          };
-        }
-
-        const cashuRequestParseResult = parseCashuPaymentRequest(destination);
-        if (cashuRequestParseResult.valid) {
-          return {
-            success: false,
-            error: 'Cashu payment requests are not supported',
-          };
-        }
+        const {
+          sendType,
+          destination,
+          destinationDisplay,
+          destinationDetails,
+        } = result.data;
+        set({
+          sendType,
+          destination,
+          destinationDisplay,
+          destinationDetails,
+        } as Partial<SendState>);
 
         return {
-          success: false,
-          error:
-            'Invalid destination. Must be lightning address, bolt11 invoice or cashu payment request',
+          success: true,
+          data: {
+            type: result.data.sendType,
+            amount:
+              result.data.sendType === 'BOLT11_INVOICE'
+                ? result.data.amount
+                : null,
+          },
         };
       },
 
@@ -336,6 +327,7 @@ export const createSendStore = ({
         const amounts = [amount, convertedAmount].filter((x) => !!x);
         const {
           sendType,
+          destination,
           destinationDetails,
           getSourceAccount,
           hasRequiredDestination,
@@ -346,6 +338,27 @@ export const createSendStore = ({
         if (!hasRequiredDestination()) {
           set({ amount: amountToSend });
           return { success: true, next: 'selectDestination' };
+        }
+
+        // Cashu lightning quotes need an amount embedded in the bolt11. The
+        // runtime `selectDestination` enforces this via `allowZeroAmountBolt11`,
+        // but the loader-driven path seeds destinations before an account is
+        // locked in, so an amountless invoice can reach this point with a cashu
+        // account active. Reject early with a clean DomainError.
+        if (
+          sendType === 'BOLT11_INVOICE' &&
+          account.type === 'cashu' &&
+          destination
+        ) {
+          const parsed = parseBolt11Invoice(destination);
+          if (parsed.valid && !parsed.decoded.amountSat) {
+            return {
+              success: false,
+              error: new DomainError(
+                'Amount is required for Lightning invoices',
+              ),
+            };
+          }
         }
 
         set({ status: 'quoting', amount: amountToSend });
@@ -423,7 +436,7 @@ export const createSendStore = ({
         set({ status: 'idle' });
         return { success: true, next: 'confirmQuote' };
       },
-    };
+    } as SendState;
   });
 };
 
