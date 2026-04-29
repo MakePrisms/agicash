@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@agicash/bc-ur": "0.1.0",
-    "@agicash/breez-sdk-spark": "0.13.2-dev5-rc-4",
+    "@agicash/breez-sdk-spark": "0.13.5-1",
     "@agicash/opensecret": "0.1.0",
     "@agicash/qr-scanner": "0.1.2",
     "@cashu/cashu-ts": "3.6.1",

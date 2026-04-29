@@ -1,7 +1,10 @@
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
-import { isInsufficentBalanceError } from '~/lib/spark';
+import {
+  isInsufficentBalanceError,
+  isInvoiceAlreadyPaidError,
+} from '~/lib/spark';
 import type { SparkAccount } from '../accounts/account';
 import { DomainError } from '../shared/error';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
@@ -307,6 +310,10 @@ export class SparkSendQuoteService {
         }) as Money,
       });
     } catch (error) {
+      if (isInvoiceAlreadyPaidError(error)) {
+        throw new DomainError('Lightning invoice has already been paid.');
+      }
+
       if (isInsufficentBalanceError(error)) {
         const totalSats = sendQuote.amount
           .add(sendQuote.estimatedFee)

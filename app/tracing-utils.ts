@@ -15,13 +15,22 @@ export function getTracesSampleRate(): number {
 }
 
 /**
- * Sanitizes URLs to remove sensitive path parameters and query param values before sending
- * to tracing/analytics platforms. This prevents quote IDs, verification codes, and other
- * sensitive data from being logged.
+ * Sanitizes URLs to remove sensitive path parameters, query param values, and URL
+ * fragments (hashes) before sending to tracing/analytics platforms. This prevents
+ * quote IDs, verification codes, cashu tokens, and other sensitive data from being
+ * logged.
  */
 export function sanitizeUrl(url: string): string {
+  // Redact URL fragment (hash) since it can contain sensitive data such as
+  // cashu tokens, but keep the "#<redacted>" marker so it stays visible that
+  // a fragment was present.
+  const hashIndex = url.indexOf('#');
+  const beforeFragment = hashIndex === -1 ? url : url.slice(0, hashIndex);
+  const fragmentSuffix =
+    hashIndex !== -1 && hashIndex < url.length - 1 ? '#<redacted>' : '';
+
   // Separate path from query string
-  const [path, queryString] = url.split('?');
+  const [path, queryString] = beforeFragment.split('?');
 
   // Sanitize path segments
   const sanitizedPath = path
@@ -36,7 +45,7 @@ export function sanitizeUrl(url: string): string {
 
   // Redact query param values while preserving param names
   if (!queryString) {
-    return sanitizedPath;
+    return `${sanitizedPath}${fragmentSuffix}`;
   }
 
   const sanitizedQuery = queryString
@@ -51,5 +60,5 @@ export function sanitizeUrl(url: string): string {
     })
     .join('&');
 
-  return `${sanitizedPath}?${sanitizedQuery}`;
+  return `${sanitizedPath}?${sanitizedQuery}${fragmentSuffix}`;
 }
