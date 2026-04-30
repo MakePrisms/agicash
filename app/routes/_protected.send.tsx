@@ -2,14 +2,14 @@ import { Outlet, useSearchParams } from 'react-router';
 import { useAccountOrDefault } from '~/features/accounts/account-hooks';
 import { SendProvider } from '~/features/send';
 import {
-  type ResolvedDestination,
-  resolveDestination,
+  type SendDestination,
+  resolveSendDestination,
 } from '~/features/send/resolve-destination';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.send';
 
 export async function clientLoader(): Promise<{
-  initialDestination: ResolvedDestination | null;
+  initialDestination: SendDestination | null;
 }> {
   const hash = window.location.hash.slice(1);
   if (!hash) {
@@ -27,7 +27,7 @@ export async function clientLoader(): Promise<{
   // We don't know which account the user will end up sending from, so we accept
   // amountless invoices here. The cashu-only "amount required" check is enforced
   // later in `proceedWithSend` once an account is locked in.
-  const result = await resolveDestination(hash, {
+  const result = await resolveSendDestination(hash, {
     allowZeroAmountBolt11: true,
   });
 

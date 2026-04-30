@@ -4,15 +4,14 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '~/features/accounts/account';
-import { parseBolt11Invoice } from '~/lib/bolt11';
 import type { Currency, Money } from '~/lib/money';
 import type { Contact } from '../contacts/contact';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
 import {
-  type ResolvedDestination,
-  resolveDestination,
+  type SendDestination,
+  resolveSendDestination,
 } from './resolve-destination';
 import type { SparkLightningQuote } from './spark-send-quote-service';
 
@@ -139,12 +138,8 @@ export type SendState = State & Actions;
 
 type CreateSendStoreProps = {
   initialAccount: Account;
-  /**
-   * Pre-validated destination produced by the route loader. When present, the
-   * store starts with destination/sendType/etc. already populated so that
-   * consumers (like `useMoneyInput`) see a complete state on first render.
-   */
-  initialDestination?: ResolvedDestination | null;
+  /** Initial destination to send to, if any. */
+  initialDestination: SendDestination | null;
   getAccount: (accountId: string) => Account;
   getInvoiceFromLud16: (params: {
     lud16: string;
@@ -200,38 +195,18 @@ export const createSendStore = ({
       return value;
     };
 
-    const initialDestinationFields = (
-      initialDestination
-        ? {
-            sendType: initialDestination.sendType,
-            destination: initialDestination.destination,
-            destinationDisplay: initialDestination.destinationDisplay,
-            destinationDetails: initialDestination.destinationDetails ?? null,
-            amount:
-              initialDestination.sendType === 'BOLT11_INVOICE'
-                ? (initialDestination.amount ?? null)
-                : null,
-          }
-        : {
-            sendType: getDefaultSendType(initialAccount.type),
-            destination: null,
-            destinationDisplay: null,
-            destinationDetails: null,
-            amount: null,
-          }
-    ) as Pick<
-      SendState,
-      | 'sendType'
-      | 'destination'
-      | 'destinationDisplay'
-      | 'destinationDetails'
-      | 'amount'
-    >;
-
     return {
       status: 'idle' as const,
       accountId: initialAccount.id,
-      ...initialDestinationFields,
+      sendType:
+        initialDestination?.sendType ?? getDefaultSendType(initialAccount.type),
+      destination: initialDestination?.destination ?? null,
+      destinationDisplay: initialDestination?.destinationDisplay ?? null,
+      destinationDetails: initialDestination?.destinationDetails ?? null,
+      amount:
+        initialDestination?.sendType === 'BOLT11_INVOICE'
+          ? initialDestination.amount
+          : null,
       quote: null,
 
       selectSourceAccount: (account) => {
@@ -277,7 +252,7 @@ export const createSendStore = ({
 
       selectDestination: async (input) => {
         const account = get().getSourceAccount();
-        const result = await resolveDestination(input, {
+        const result = await resolveSendDestination(input, {
           allowZeroAmountBolt11: account.type === 'spark',
         });
         if (!result.success) {
@@ -327,7 +302,6 @@ export const createSendStore = ({
         const amounts = [amount, convertedAmount].filter((x) => !!x);
         const {
           sendType,
-          destination,
           destinationDetails,
           getSourceAccount,
           hasRequiredDestination,
@@ -338,27 +312,6 @@ export const createSendStore = ({
         if (!hasRequiredDestination()) {
           set({ amount: amountToSend });
           return { success: true, next: 'selectDestination' };
-        }
-
-        // Cashu lightning quotes need an amount embedded in the bolt11. The
-        // runtime `selectDestination` enforces this via `allowZeroAmountBolt11`,
-        // but the loader-driven path seeds destinations before an account is
-        // locked in, so an amountless invoice can reach this point with a cashu
-        // account active. Reject early with a clean DomainError.
-        if (
-          sendType === 'BOLT11_INVOICE' &&
-          account.type === 'cashu' &&
-          destination
-        ) {
-          const parsed = parseBolt11Invoice(destination);
-          if (parsed.valid && !parsed.decoded.amountSat) {
-            return {
-              success: false,
-              error: new DomainError(
-                'Amount is required for Lightning invoices',
-              ),
-            };
-          }
         }
 
         set({ status: 'quoting', amount: amountToSend });

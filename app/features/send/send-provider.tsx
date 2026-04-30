@@ -9,7 +9,7 @@ import type { Account } from '~/features/accounts/account';
 import { useGetAccount } from '../accounts/account-hooks';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
-import type { ResolvedDestination } from './resolve-destination';
+import type { SendDestination } from './resolve-destination';
 import { type SendState, type SendStore, createSendStore } from './send-store';
 import { useCreateSparkLightningSendQuote } from './spark-send-quote-hooks';
 import { useGetInvoiceFromLud16 } from './use-get-invoice-from-lud16';
@@ -19,9 +19,8 @@ const SendContext = createContext<SendStore | null>(null);
 type Props = PropsWithChildren<{
   /** Usually the user's default account. This sets the initial account to send from. */
   initialAccount: Account;
-  /** Pre-validated destination from the route loader. Used to seed the store so
-   *  the page renders with destination already in place. */
-  initialDestination?: ResolvedDestination | null;
+  /** Initial destination to send to, if any. */
+  initialDestination: SendDestination | null;
 }>;
 
 export const SendProvider = ({
