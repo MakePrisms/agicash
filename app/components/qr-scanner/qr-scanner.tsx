@@ -144,7 +144,7 @@ export const QRScanner = ({ onDecode }: QRScannerProps) => {
   }, [throttledDecode]);
 
   return (
-    <section className="fixed inset-0 h-screen w-screen sm:relative sm:aspect-square sm:h-[400px] sm:w-[400px]">
+    <section className="fixed inset-0 h-screen w-screen sm:relative sm:aspect-square sm:h-[400px] sm:w-[400px] sm:overflow-hidden">
       <div className="relative h-full w-full">
         {cameraError ? (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black p-6 text-center">
