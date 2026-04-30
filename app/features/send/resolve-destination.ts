@@ -28,7 +28,7 @@ export type SendDestination =
       amount?: null;
     };
 
-export type ResolveResult =
+type ResolveResult =
   | { success: true; data: SendDestination }
   | { success: false; error: string };
 

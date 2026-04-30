@@ -24,9 +24,6 @@ export async function clientLoader(): Promise<{
     window.location.pathname + window.location.search,
   );
 
-  // We don't know which account the user will end up sending from, so we accept
-  // amountless invoices here. The cashu-only "amount required" check is enforced
-  // later in `proceedWithSend` once an account is locked in.
   const result = await resolveSendDestination(hash, {
     allowZeroAmountBolt11: true,
   });
