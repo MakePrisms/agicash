@@ -296,7 +296,9 @@ export class CashuSendQuoteService {
       unit: cashuUnit,
     });
 
-    const { paymentHash } = decodeBolt11(sendQuote.paymentRequest);
+    const {
+      decoded: { paymentHash },
+    } = decodeBolt11(sendQuote.paymentRequest);
 
     return this.cashuSendRepository.create({
       userId: userId,

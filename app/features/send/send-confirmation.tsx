@@ -234,7 +234,9 @@ export const PayBolt11Confirmation = ({
     destinationDetails,
   });
 
-  const { description } = decodeBolt11(destination);
+  const {
+    decoded: { description },
+  } = decodeBolt11(destination);
 
   return (
     <BaseConfirmation

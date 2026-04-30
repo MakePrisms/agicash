@@ -15,11 +15,17 @@ export type DecodedBolt11 = {
 };
 
 /**
- * Decodes a BOLT11 invoice
- * @param invoice invoice to decode
+ * Decodes a BOLT11 invoice. Strips an optional `lightning:` prefix
+ * (case-insensitive per BIP21) and lowercases the result — bech32 requires
+ * uniform case, and lowercase is the canonical form. The cleaned bech32
+ * string is returned alongside the decoded fields.
+ * @param invoice invoice to decode (accepts optional lightning: prefix, case-insensitive)
  */
-export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
-  const { sections } = bolt11Decoder.decode(invoice.replace(/^lightning:/, ''));
+export const decodeBolt11 = (
+  invoice: string,
+): { encoded: string; decoded: DecodedBolt11 } => {
+  const encoded = invoice.replace(/^lightning:/i, '').toLowerCase();
+  const { sections } = bolt11Decoder.decode(encoded);
 
   const amountSection = findSection(sections, 'amount');
   const amountMsat = amountSection?.value
@@ -51,26 +57,32 @@ export const decodeBolt11 = (invoice: string): DecodedBolt11 => {
   }
 
   return {
-    amountMsat,
-    amountSat,
-    createdAtUnixMs,
-    expiryUnixMs,
-    network,
-    description,
-    paymentHash,
+    encoded,
+    decoded: {
+      amountMsat,
+      amountSat,
+      createdAtUnixMs,
+      expiryUnixMs,
+      network,
+      description,
+      paymentHash,
+    },
   };
 };
 
 /**
- * Checks if a string is a valid BOLT11 invoice
- * @param invoice invoice to check
+ * Checks if a string is a valid BOLT11 invoice. Returns the cleaned bech32
+ * form and the decoded fields on success.
+ * @param invoice invoice to check (accepts optional lightning: prefix, case-insensitive)
  */
 export const parseBolt11Invoice = (
   invoice: string,
-): { valid: true; decoded: DecodedBolt11 } | { valid: false } => {
+):
+  | { valid: true; encoded: string; decoded: DecodedBolt11 }
+  | { valid: false } => {
   try {
-    const decoded = decodeBolt11(invoice);
-    return { valid: true, decoded };
+    const { encoded, decoded } = decodeBolt11(invoice);
+    return { valid: true, encoded, decoded };
   } catch {
     return { valid: false };
   }

@@ -1,4 +1,4 @@
-import { Clock, GiftIcon, UserCircle2 } from 'lucide-react';
+import { Clock, GiftIcon, Scan, UserCircle2 } from 'lucide-react';
 import type { LinksFunction } from 'react-router';
 import agicashIcon192 from '~/assets/icon-192x192.png';
 import {
@@ -40,7 +40,7 @@ export default function Index() {
   return (
     <Page>
       <PageHeader className="z-10 px-4">
-        <PageHeaderItem position="left">
+        <PageHeaderItem position="left" className="flex gap-6">
           {giftCardsEnabled && (
             <LinkWithViewTransition
               to="/gift-cards"
@@ -50,6 +50,13 @@ export default function Index() {
               <GiftIcon className="text-muted-foreground" />
             </LinkWithViewTransition>
           )}
+          <LinkWithViewTransition
+            to="/scan"
+            transition="slideUp"
+            applyTo="newView"
+          >
+            <Scan className="text-muted-foreground" />
+          </LinkWithViewTransition>
         </PageHeaderItem>
 
         <PageHeaderItem position="right" className="flex gap-6">
