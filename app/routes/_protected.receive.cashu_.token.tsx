@@ -13,6 +13,7 @@ import { CashuReceiveSwapService } from '~/features/receive/cashu-receive-swap-s
 import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
 import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
+import { UnsupportedTokenUnitPage } from '~/features/receive/receive-cashu-token-unsupported-page';
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import {
@@ -114,6 +115,16 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/receive');
   }
 
+  const isSupported = token.unit === 'sat' || token.unit === 'usd';
+
+  if (!isSupported) {
+    return {
+      token,
+      isSupported: false as const,
+      selectedAccountId: undefined,
+    };
+  }
+
   const location = new URL(request.url);
   const selectedAccountId =
     location.searchParams.get('selectedAccountId') ?? undefined;
@@ -151,7 +162,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(redirectTo);
   }
 
-  return { token, selectedAccountId };
+  return { token, isSupported: true as const, selectedAccountId };
 }
 
 clientLoader.hydrate = true as const;
@@ -163,7 +174,11 @@ export function HydrateFallback() {
 export default function ProtectedReceiveCashuToken({
   loaderData,
 }: Route.ComponentProps) {
-  const { token, selectedAccountId } = loaderData;
+  const { token, isSupported, selectedAccountId } = loaderData;
+
+  if (!isSupported) {
+    return <UnsupportedTokenUnitPage unit={token.unit} />;
+  }
 
   return (
     <Page>

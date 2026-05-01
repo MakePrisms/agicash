@@ -2,6 +2,7 @@ import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token';
+import { UnsupportedTokenUnitPage } from '~/features/receive/receive-cashu-token-unsupported-page';
 import { decodeCashuToken } from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
@@ -26,7 +27,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/home');
   }
 
-  return { token };
+  const isSupported = token.unit === 'sat' || token.unit === 'usd';
+
+  return { token, isSupported };
 }
 
 clientLoader.hydrate = true as const;
@@ -38,7 +41,11 @@ export function HydrateFallback() {
 export default function ReceiveCashuTokenPage({
   loaderData,
 }: Route.ComponentProps) {
-  const { token } = loaderData;
+  const { token, isSupported } = loaderData;
+
+  if (!isSupported) {
+    return <UnsupportedTokenUnitPage unit={token.unit} />;
+  }
 
   return (
     <Page>
