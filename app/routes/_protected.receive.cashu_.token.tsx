@@ -32,7 +32,7 @@ import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
-import { cashuProtocolUnitToCurrency, sumProofs } from '~/lib/cashu';
+import { cashuProtocolUnitToCurrency } from '~/lib/cashu';
 import { CASHU_PROTOCOL_UNITS } from '~/lib/cashu/types';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
@@ -124,10 +124,6 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     return {
       valid: false as const,
       message: `This token's unit isn't supported. Supported units: ${CASHU_PROTOCOL_UNITS.join(', ')}.`,
-      display: {
-        amount: sumProofs(token.proofs),
-        unit: token.unit ?? 'unknown',
-      },
     };
   }
 
@@ -181,12 +177,7 @@ export default function ProtectedReceiveCashuToken({
   loaderData,
 }: Route.ComponentProps) {
   if (!loaderData.valid) {
-    return (
-      <InvalidCashuTokenPage
-        message={loaderData.message}
-        display={loaderData.display}
-      />
-    );
+    return <InvalidCashuTokenPage message={loaderData.message} />;
   }
 
   return (
