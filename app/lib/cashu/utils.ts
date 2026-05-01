@@ -16,7 +16,7 @@ import {
   type ExtendedMintQuoteBolt11Response,
   type MintPurpose,
 } from './protocol-extensions';
-import type { CashuProtocolUnit } from './types';
+import { CASHU_PROTOCOL_UNITS, type CashuProtocolUnit } from './types';
 
 const knownTestMints = [
   'https://testnut.cashu.space',
@@ -71,6 +71,20 @@ export const getCashuUnit = (currency: Currency) => {
  */
 export const getCashuProtocolUnit = (currency: Currency) => {
   return currencyToCashuProtocolUnit[currency];
+};
+
+/**
+ * Type guard that narrows a string to {@link CashuProtocolUnit} when it is a
+ * unit Agicash supports. Use to gate untrusted inputs (e.g. decoded tokens)
+ * before passing them to code that assumes a supported unit.
+ */
+export const isSupportedCashuUnit = (
+  unit: string | undefined,
+): unit is CashuProtocolUnit => {
+  return (
+    unit !== undefined &&
+    (CASHU_PROTOCOL_UNITS as readonly string[]).includes(unit)
+  );
 };
 
 /**

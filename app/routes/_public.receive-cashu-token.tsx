@@ -6,6 +6,7 @@ import { UnsupportedTokenUnitPage } from '~/features/receive/receive-cashu-token
 import { decodeCashuToken } from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
+import { isSupportedCashuUnit } from '~/lib/cashu';
 import type { Route } from './+types/_public.receive-cashu-token';
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
@@ -27,9 +28,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/home');
   }
 
-  const isSupported = token.unit === 'sat' || token.unit === 'usd';
-
-  return { token, isSupported };
+  return { token, isSupported: isSupportedCashuUnit(token.unit) };
 }
 
 clientLoader.hydrate = true as const;
@@ -44,7 +43,7 @@ export default function ReceiveCashuTokenPage({
   const { token, isSupported } = loaderData;
 
   if (!isSupported) {
-    return <UnsupportedTokenUnitPage unit={token.unit} />;
+    return <UnsupportedTokenUnitPage token={token} />;
   }
 
   return (
