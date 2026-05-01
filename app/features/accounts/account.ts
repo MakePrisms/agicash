@@ -11,10 +11,16 @@ export type AccountType = z.infer<typeof AccountTypeSchema>;
 
 export type AccountState = 'active' | 'expired';
 
-export const AccountPurposeSchema = z.enum([
+export const StoredAccountPurposeSchema = z.enum([
   'transactional',
   'gift-card',
   'offer',
+]);
+export type StoredAccountPurpose = z.infer<typeof StoredAccountPurposeSchema>;
+
+export const AccountPurposeSchema = z.enum([
+  ...StoredAccountPurposeSchema.options,
+  'unknown',
 ]);
 export type AccountPurpose = z.infer<typeof AccountPurposeSchema>;
 

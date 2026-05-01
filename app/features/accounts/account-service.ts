@@ -7,7 +7,12 @@ import {
   getKeysetExpiry,
 } from '~/lib/cashu';
 import type { User } from '../user/user';
-import type { Account, CashuAccount, ExtendedAccount } from './account';
+import type {
+  Account,
+  CashuAccount,
+  ExtendedAccount,
+  StoredAccountPurpose,
+} from './account';
 import {
   type AccountRepository,
   useAccountRepository,
@@ -53,7 +58,9 @@ export class AccountService {
     account,
   }: {
     userId: string;
-    account: DistributedOmit<
+    account: {
+      purpose: StoredAccountPurpose;
+    } & DistributedOmit<
       CashuAccount,
       | 'id'
       | 'createdAt'
@@ -65,6 +72,7 @@ export class AccountService {
       | 'wallet'
       | 'isOnline'
       | 'state'
+      | 'purpose'
     >;
   }) {
     const isTestMint = checkIsTestMint(account.mintUrl);
