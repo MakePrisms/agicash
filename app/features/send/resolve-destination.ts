@@ -1,4 +1,4 @@
-import { parseBolt11Invoice } from '~/lib/bolt11';
+import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
 import { isValidLightningAddress } from '~/lib/lnurl';
 import type { Money } from '~/lib/money';
@@ -12,6 +12,7 @@ export type SendDestination =
       destinationDisplay: string;
       destinationDetails?: null;
       amount: Money | null;
+      decoded: DecodedBolt11;
     }
   | {
       sendType: 'LN_ADDRESS';
@@ -80,6 +81,7 @@ export async function resolveSendDestination(
         destination: encoded,
         destinationDisplay: `${encoded.slice(0, 6)}...${encoded.slice(-4)}`,
         amount: validated.amount,
+        decoded: bolt11.decoded,
       },
     };
   }
