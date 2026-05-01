@@ -6,7 +6,7 @@ import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token'
 import { decodeCashuToken } from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
-import { isSupportedCashuUnit, sumProofs } from '~/lib/cashu';
+import { cashuProtocolUnitToCurrency, sumProofs } from '~/lib/cashu';
 import { CASHU_PROTOCOL_UNITS } from '~/lib/cashu/types';
 import type { Route } from './+types/_public.receive-cashu-token';
 
@@ -29,7 +29,10 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/home');
   }
 
-  return { token, isSupported: isSupportedCashuUnit(token.unit) };
+  const isSupported =
+    token.unit !== undefined && token.unit in cashuProtocolUnitToCurrency;
+
+  return { token, isSupported };
 }
 
 clientLoader.hydrate = true as const;

@@ -32,7 +32,7 @@ import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
-import { isSupportedCashuUnit, sumProofs } from '~/lib/cashu';
+import { cashuProtocolUnitToCurrency, sumProofs } from '~/lib/cashu';
 import { CASHU_PROTOCOL_UNITS } from '~/lib/cashu/types';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
@@ -117,7 +117,10 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/receive');
   }
 
-  if (!isSupportedCashuUnit(token.unit)) {
+  const isSupported =
+    token.unit !== undefined && token.unit in cashuProtocolUnitToCurrency;
+
+  if (!isSupported) {
     return {
       token,
       isSupported: false as const,
