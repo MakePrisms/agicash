@@ -6,9 +6,11 @@ import type {
 } from '~/features/accounts/account';
 import type { Currency, Money } from '~/lib/money';
 import type { Contact } from '../contacts/contact';
+import type { GiftCardInfo } from '../gift-cards/use-discover-cards';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
+import { pickSendAccount } from './pick-send-account';
 import {
   type SendDestination,
   resolveSendDestination,
@@ -141,6 +143,8 @@ type CreateSendStoreProps = {
   /** Initial destination to send to, if any. */
   initialDestination: SendDestination | null;
   getAccount: (accountId: string) => Account;
+  getAccounts: () => Account[];
+  giftCards: GiftCardInfo[];
   getInvoiceFromLud16: (params: {
     lud16: string;
     amount: Money<'BTC'>;
@@ -178,6 +182,8 @@ export const createSendStore = ({
   initialAccount,
   initialDestination,
   getAccount,
+  getAccounts,
+  giftCards,
   getInvoiceFromLud16,
   getCashuLightningQuote,
   getCashuSwapQuote,
@@ -265,7 +271,19 @@ export const createSendStore = ({
           destinationDisplay,
           destinationDetails,
         } = result.data;
+
+        const matched =
+          result.data.sendType === 'BOLT11_INVOICE'
+            ? pickSendAccount({
+                decodedBolt11: result.data.decoded,
+                accounts: getAccounts(),
+                giftCards,
+              })
+            : null;
+        const accountId = matched?.id ?? account.id;
+
         set({
+          accountId,
           sendType,
           destination,
           destinationDisplay,

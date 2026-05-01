@@ -7,6 +7,12 @@ export const GiftCardConfigSchema = z.array(
     currency: z.enum(['USD', 'BTC']),
     isDiscoverable: z.boolean(),
     addCardDisclaimer: z.string().optional(),
+    validPaymentDestinations: z
+      .object({
+        descriptions: z.array(z.string()),
+        nodePubkeys: z.array(z.string()),
+      })
+      .optional(),
   }),
 );
 
