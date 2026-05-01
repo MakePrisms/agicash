@@ -69,7 +69,9 @@ export function useDiscoverGiftCards(): GiftCardInfo[] {
     );
 
     return GIFT_CARDS.filter(
-      (mint) => !existingGiftCardAccounts.has(`${mint.url}:${mint.currency}`),
+      (mint) =>
+        mint.isDiscoverable &&
+        !existingGiftCardAccounts.has(`${mint.url}:${mint.currency}`),
     );
   }, [cashuAccounts]);
 }
