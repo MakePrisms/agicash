@@ -81,12 +81,10 @@ export default function Index() {
         </PageHeaderItem>
       </PageHeader>
 
-      <PageContent className="absolute inset-0 mx-auto flex flex-col items-center justify-center gap-32">
-        <div className="flex flex-col items-center gap-4">
-          <MoneyWithConvertedAmount
-            money={defaultCurrency === 'BTC' ? balanceBTC : balanceUSD}
-          />
-        </div>
+      <PageContent className="mx-auto items-center justify-between pt-20 pb-14 sm:justify-center sm:gap-32 sm:py-0">
+        <MoneyWithConvertedAmount
+          money={defaultCurrency === 'BTC' ? balanceBTC : balanceUSD}
+        />
 
         {defaultBtcAccountId && defaultUsdAccountId ? (
           <DefaultCurrencySwitcher />
