@@ -1,12 +1,13 @@
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
+import { InvalidCashuTokenPage } from '~/features/receive/invalid-cashu-token-page';
 import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token';
-import { UnsupportedTokenUnitPage } from '~/features/receive/receive-cashu-token-unsupported-page';
 import { decodeCashuToken } from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
-import { isSupportedCashuUnit } from '~/lib/cashu';
+import { isSupportedCashuUnit, sumProofs } from '~/lib/cashu';
+import { CASHU_PROTOCOL_UNITS } from '~/lib/cashu/types';
 import type { Route } from './+types/_public.receive-cashu-token';
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
@@ -43,7 +44,13 @@ export default function ReceiveCashuTokenPage({
   const { token, isSupported } = loaderData;
 
   if (!isSupported) {
-    return <UnsupportedTokenUnitPage token={token} />;
+    const unit = token.unit ?? 'unknown';
+    return (
+      <InvalidCashuTokenPage
+        message={`This token's unit isn't supported. Supported units: ${CASHU_PROTOCOL_UNITS.join(', ')}.`}
+        display={{ amount: sumProofs(token.proofs), unit }}
+      />
+    );
   }
 
   return (

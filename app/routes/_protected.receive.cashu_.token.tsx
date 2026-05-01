@@ -11,9 +11,9 @@ import { CashuReceiveQuoteService } from '~/features/receive/cashu-receive-quote
 import { CashuReceiveSwapRepository } from '~/features/receive/cashu-receive-swap-repository';
 import { CashuReceiveSwapService } from '~/features/receive/cashu-receive-swap-service';
 import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
+import { InvalidCashuTokenPage } from '~/features/receive/invalid-cashu-token-page';
 import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
-import { UnsupportedTokenUnitPage } from '~/features/receive/receive-cashu-token-unsupported-page';
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import {
@@ -32,7 +32,8 @@ import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
-import { isSupportedCashuUnit } from '~/lib/cashu';
+import { isSupportedCashuUnit, sumProofs } from '~/lib/cashu';
+import { CASHU_PROTOCOL_UNITS } from '~/lib/cashu/types';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
@@ -176,7 +177,13 @@ export default function ProtectedReceiveCashuToken({
   const { token, isSupported, selectedAccountId } = loaderData;
 
   if (!isSupported) {
-    return <UnsupportedTokenUnitPage token={token} />;
+    const unit = token.unit ?? 'unknown';
+    return (
+      <InvalidCashuTokenPage
+        message={`This token's unit isn't supported. Supported units: ${CASHU_PROTOCOL_UNITS.join(', ')}.`}
+        display={{ amount: sumProofs(token.proofs), unit }}
+      />
+    );
   }
 
   return (
