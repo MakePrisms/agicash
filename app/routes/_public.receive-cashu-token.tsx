@@ -29,10 +29,21 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/home');
   }
 
-  const isSupported =
-    token.unit !== undefined && token.unit in cashuProtocolUnitToCurrency;
+  if (
+    token.unit === undefined ||
+    !(token.unit in cashuProtocolUnitToCurrency)
+  ) {
+    return {
+      valid: false as const,
+      message: `This token's unit isn't supported. Supported units: ${CASHU_PROTOCOL_UNITS.join(', ')}.`,
+      display: {
+        amount: sumProofs(token.proofs),
+        unit: token.unit ?? 'unknown',
+      },
+    };
+  }
 
-  return { token, isSupported };
+  return { valid: true as const, token };
 }
 
 clientLoader.hydrate = true as const;
@@ -44,21 +55,18 @@ export function HydrateFallback() {
 export default function ReceiveCashuTokenPage({
   loaderData,
 }: Route.ComponentProps) {
-  const { token, isSupported } = loaderData;
-
-  if (!isSupported) {
-    const unit = token.unit ?? 'unknown';
+  if (!loaderData.valid) {
     return (
       <InvalidCashuTokenPage
-        message={`This token's unit isn't supported. Supported units: ${CASHU_PROTOCOL_UNITS.join(', ')}.`}
-        display={{ amount: sumProofs(token.proofs), unit }}
+        message={loaderData.message}
+        display={loaderData.display}
       />
     );
   }
 
   return (
     <Page>
-      <PublicReceiveCashuToken token={token} />
+      <PublicReceiveCashuToken token={loaderData.token} />
     </Page>
   );
 }

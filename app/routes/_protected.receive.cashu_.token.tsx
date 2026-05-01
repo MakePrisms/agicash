@@ -117,14 +117,17 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/receive');
   }
 
-  const isSupported =
-    token.unit !== undefined && token.unit in cashuProtocolUnitToCurrency;
-
-  if (!isSupported) {
+  if (
+    token.unit === undefined ||
+    !(token.unit in cashuProtocolUnitToCurrency)
+  ) {
     return {
-      token,
-      isSupported: false as const,
-      selectedAccountId: undefined,
+      valid: false as const,
+      message: `This token's unit isn't supported. Supported units: ${CASHU_PROTOCOL_UNITS.join(', ')}.`,
+      display: {
+        amount: sumProofs(token.proofs),
+        unit: token.unit ?? 'unknown',
+      },
     };
   }
 
@@ -165,7 +168,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(redirectTo);
   }
 
-  return { token, isSupported: true as const, selectedAccountId };
+  return { valid: true as const, token, selectedAccountId };
 }
 
 clientLoader.hydrate = true as const;
@@ -177,14 +180,11 @@ export function HydrateFallback() {
 export default function ProtectedReceiveCashuToken({
   loaderData,
 }: Route.ComponentProps) {
-  const { token, isSupported, selectedAccountId } = loaderData;
-
-  if (!isSupported) {
-    const unit = token.unit ?? 'unknown';
+  if (!loaderData.valid) {
     return (
       <InvalidCashuTokenPage
-        message={`This token's unit isn't supported. Supported units: ${CASHU_PROTOCOL_UNITS.join(', ')}.`}
-        display={{ amount: sumProofs(token.proofs), unit }}
+        message={loaderData.message}
+        display={loaderData.display}
       />
     );
   }
@@ -193,8 +193,8 @@ export default function ProtectedReceiveCashuToken({
     <Page>
       <Suspense fallback={<ReceiveCashuTokenSkeleton />}>
         <ReceiveCashuToken
-          token={token}
-          preferredReceiveAccountId={selectedAccountId}
+          token={loaderData.token}
+          preferredReceiveAccountId={loaderData.selectedAccountId}
         />
       </Suspense>
     </Page>
