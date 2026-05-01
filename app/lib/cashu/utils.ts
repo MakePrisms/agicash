@@ -37,7 +37,7 @@ const currencyToCashuProtocolUnit: {
   USD: 'usd',
 };
 
-const cashuProtocolUnitToCurrency: {
+export const cashuProtocolUnitToCurrency: {
   [key in CashuProtocolUnit]: Currency;
 } = {
   sat: 'BTC',

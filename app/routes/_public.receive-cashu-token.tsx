@@ -1,10 +1,13 @@
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
+import { InvalidCashuTokenPage } from '~/features/receive/invalid-cashu-token-page';
 import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token';
 import { decodeCashuToken } from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
+import { cashuProtocolUnitToCurrency } from '~/lib/cashu';
+import { CASHU_PROTOCOL_UNITS } from '~/lib/cashu/types';
 import type { Route } from './+types/_public.receive-cashu-token';
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
@@ -26,7 +29,17 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/home');
   }
 
-  return { token };
+  if (
+    token.unit === undefined ||
+    !(token.unit in cashuProtocolUnitToCurrency)
+  ) {
+    return {
+      valid: false as const,
+      message: `This token's unit isn't supported. Supported units: ${CASHU_PROTOCOL_UNITS.join(', ')}.`,
+    };
+  }
+
+  return { valid: true as const, token };
 }
 
 clientLoader.hydrate = true as const;
@@ -38,11 +51,13 @@ export function HydrateFallback() {
 export default function ReceiveCashuTokenPage({
   loaderData,
 }: Route.ComponentProps) {
-  const { token } = loaderData;
+  if (!loaderData.valid) {
+    return <InvalidCashuTokenPage message={loaderData.message} />;
+  }
 
   return (
     <Page>
-      <PublicReceiveCashuToken token={token} />
+      <PublicReceiveCashuToken token={loaderData.token} />
     </Page>
   );
 }

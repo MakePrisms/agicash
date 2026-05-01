@@ -11,6 +11,7 @@ import { CashuReceiveQuoteService } from '~/features/receive/cashu-receive-quote
 import { CashuReceiveSwapRepository } from '~/features/receive/cashu-receive-swap-repository';
 import { CashuReceiveSwapService } from '~/features/receive/cashu-receive-swap-service';
 import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
+import { InvalidCashuTokenPage } from '~/features/receive/invalid-cashu-token-page';
 import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
@@ -31,6 +32,8 @@ import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
+import { cashuProtocolUnitToCurrency } from '~/lib/cashu';
+import { CASHU_PROTOCOL_UNITS } from '~/lib/cashu/types';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
@@ -114,6 +117,16 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/receive');
   }
 
+  if (
+    token.unit === undefined ||
+    !(token.unit in cashuProtocolUnitToCurrency)
+  ) {
+    return {
+      valid: false as const,
+      message: `This token's unit isn't supported. Supported units: ${CASHU_PROTOCOL_UNITS.join(', ')}.`,
+    };
+  }
+
   const location = new URL(request.url);
   const selectedAccountId =
     location.searchParams.get('selectedAccountId') ?? undefined;
@@ -151,7 +164,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(redirectTo);
   }
 
-  return { token, selectedAccountId };
+  return { valid: true as const, token, selectedAccountId };
 }
 
 clientLoader.hydrate = true as const;
@@ -163,14 +176,16 @@ export function HydrateFallback() {
 export default function ProtectedReceiveCashuToken({
   loaderData,
 }: Route.ComponentProps) {
-  const { token, selectedAccountId } = loaderData;
+  if (!loaderData.valid) {
+    return <InvalidCashuTokenPage message={loaderData.message} />;
+  }
 
   return (
     <Page>
       <Suspense fallback={<ReceiveCashuTokenSkeleton />}>
         <ReceiveCashuToken
-          token={token}
-          preferredReceiveAccountId={selectedAccountId}
+          token={loaderData.token}
+          preferredReceiveAccountId={loaderData.selectedAccountId}
         />
       </Suspense>
     </Page>
