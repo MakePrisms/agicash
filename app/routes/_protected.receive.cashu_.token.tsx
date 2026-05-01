@@ -1,6 +1,13 @@
+import { NetworkError } from '@cashu/cashu-ts';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
-import { Page } from '~/components/page';
+import {
+  Page,
+  PageBackButton,
+  PageContent,
+  PageHeader,
+  PageHeaderTitle,
+} from '~/components/page';
 import { AccountRepository } from '~/features/accounts/account-repository';
 import { AccountService } from '~/features/accounts/account-service';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
@@ -15,9 +22,16 @@ import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
+import { TokenErrorDisplay } from '~/features/receive/token-error-display';
 import {
+  allMintKeysetsQueryKey,
+  allMintKeysetsQueryOptions,
   decodeCashuToken,
   getCashuCryptography,
+  mintInfoQueryKey,
+  mintInfoQueryOptions,
+  mintKeysQueryKey,
+  mintKeysQueryOptions,
   seedQueryOptions,
 } from '~/features/shared/cashu';
 import {
@@ -31,6 +45,7 @@ import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
+import { extractCashuToken } from '~/lib/cashu/token';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
@@ -108,8 +123,47 @@ const getClaimTo = (
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // Request url doesn't include hash so we need to read it from the window location instead
-  const token = await decodeCashuToken(window.location.hash);
+  const hash = window.location.hash;
 
+  // Local parse — no network. Lets us pull the mint URL out before probing.
+  const extracted = extractCashuToken(hash);
+  if (!extracted) {
+    throw redirect('/receive');
+  }
+
+  const queryClient = getQueryClient();
+  const mintUrl = extracted.metadata.mint;
+
+  // Probe mint reachability. Primes the cache so the component's wallet init
+  // resolves from cache without any further network round-trips. 10s timeout
+  // matches getInitializedCashuWallet so the loader can't hang forever.
+  try {
+    await Promise.race([
+      Promise.all([
+        queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
+        queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
+        queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
+      ]),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          queryClient.cancelQueries({ queryKey: mintInfoQueryKey(mintUrl) });
+          queryClient.cancelQueries({
+            queryKey: allMintKeysetsQueryKey(mintUrl),
+          });
+          queryClient.cancelQueries({ queryKey: mintKeysQueryKey(mintUrl) });
+          reject(new NetworkError('Mint probe timed out'));
+        }, 10_000);
+      }),
+    ]);
+  } catch (error) {
+    if (error instanceof NetworkError) {
+      return { kind: 'mint-offline' as const, mintUrl };
+    }
+    throw error;
+  }
+
+  // Keysets are warm in cache from the probe, so this resolves fast.
+  const token = await decodeCashuToken(hash);
   if (!token) {
     throw redirect('/receive');
   }
@@ -151,7 +205,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(redirectTo);
   }
 
-  return { token, selectedAccountId };
+  return { kind: 'ready' as const, token, selectedAccountId };
 }
 
 clientLoader.hydrate = true as const;
@@ -163,6 +217,24 @@ export function HydrateFallback() {
 export default function ProtectedReceiveCashuToken({
   loaderData,
 }: Route.ComponentProps) {
+  if (loaderData.kind === 'mint-offline') {
+    return (
+      <Page>
+        <PageHeader>
+          <PageBackButton
+            to="/receive"
+            transition="slideRight"
+            applyTo="oldView"
+          />
+          <PageHeaderTitle>Receive</PageHeaderTitle>
+        </PageHeader>
+        <PageContent className="flex flex-col items-center justify-center">
+          <TokenErrorDisplay message="The mint that issued this ecash is currently offline" />
+        </PageContent>
+      </Page>
+    );
+  }
+
   const { token, selectedAccountId } = loaderData;
 
   return (
