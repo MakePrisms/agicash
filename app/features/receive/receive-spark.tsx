@@ -10,6 +10,7 @@ import {
 import { QRCode } from '~/components/qr-code';
 import { Button } from '~/components/ui/button';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
+import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import type { Money } from '~/lib/money';
@@ -17,7 +18,7 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import type { SparkAccount } from '../accounts/account';
+import { type SparkAccount, getAccountHomePath } from '../accounts/account';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import {
@@ -74,6 +75,7 @@ export default function ReceiveSpark({ amount, account }: Props) {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
+  const { redirectTo } = useRedirectTo(getAccountHomePath(account));
 
   const { quote, errorMessage, isLoading } = useCreateQuote({
     account,
@@ -102,8 +104,8 @@ export default function ReceiveSpark({ amount, account }: Props) {
     <>
       <PageHeader>
         <ClosePageButton
-          to={buildLinkWithSearchParams('/receive')}
-          transition="slideRight"
+          to={{ pathname: redirectTo, search: '' }}
+          transition="slideDown"
           applyTo="oldView"
         />
         <PageHeaderTitle>Receive</PageHeaderTitle>
@@ -122,7 +124,7 @@ export default function ReceiveSpark({ amount, account }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to={buildLinkWithSearchParams('/receive')}
+              to={{ pathname: redirectTo, search: '' }}
               transition="slideDown"
               applyTo="oldView"
             >

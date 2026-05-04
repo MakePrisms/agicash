@@ -151,8 +151,8 @@ export default function ReceiveCashu({ amount, account }: Props) {
     <>
       <PageHeader>
         <ClosePageButton
-          to={buildLinkWithSearchParams('/receive')}
-          transition="slideRight"
+          to={{ pathname: redirectTo, search: '' }}
+          transition="slideDown"
           applyTo="oldView"
         />
         <PageHeaderTitle>Receive Ecash</PageHeaderTitle>
@@ -182,8 +182,8 @@ export default function ReceiveCashu({ amount, account }: Props) {
         <PageFooter className="pb-14">
           <Button asChild className="w-[80px]">
             <LinkWithViewTransition
-              to={buildLinkWithSearchParams('/receive')}
-              transition="slideRight"
+              to={{ pathname: redirectTo, search: '' }}
+              transition="slideDown"
               applyTo="oldView"
             >
               OK
