@@ -69,6 +69,21 @@ describe('decodeBolt11', () => {
       },
     });
   });
+
+  it('should recover payee pubkey without Buffer global', () => {
+    const originalBuffer = globalThis.Buffer;
+    try {
+      // Simulate browser runtime where Node Buffer is unavailable.
+      // @ts-expect-error test mutates global for runtime simulation
+      globalThis.Buffer = undefined;
+      expect(decodeBolt11(invoice)).toEqual({
+        encoded: invoice,
+        decoded: expectedDecoded,
+      });
+    } finally {
+      globalThis.Buffer = originalBuffer;
+    }
+  });
 });
 
 describe('parseBolt11Invoice', () => {

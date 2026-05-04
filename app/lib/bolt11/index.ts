@@ -1,5 +1,6 @@
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
+import { bytesToHex } from '@noble/hashes/utils';
 import { bech32 } from '@scure/base';
 import bolt11Decoder, { type Section } from 'light-bolt11-decoder';
 
@@ -160,7 +161,7 @@ const recoverPayeeNodeKey = (invoice: string): string => {
   recovered[0] = sigBytes[64];
   recovered.set(sigBytes.subarray(0, 64), 1);
   const sig = secp256k1.Signature.fromBytes(recovered, 'recovered');
-  return Buffer.from(sig.recoverPublicKey(hash).toBytes(true)).toString('hex');
+  return bytesToHex(sig.recoverPublicKey(hash).toBytes(true));
 };
 
 /**
