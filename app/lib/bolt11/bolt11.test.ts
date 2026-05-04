@@ -6,6 +6,11 @@ const invoice =
 const testnetInvoice =
   'lntb20m1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygshp58yjmdan79s6qqdhdzgynm4zwqd5d7xmw5fk98klysy043l2ahrqspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqfpp3x9et2e20v6pu37c5d9vax37wxq72un989qrsgqdj545axuxtnfemtpwkc45hx9d2ft7x04mt8q7y6t0k2dge9e7h8kpy9p34ytyslj3yu569aalz2xdk8xkd7ltxqld94u8h2esmsmacgpghe9k8';
 
+// All BOLT11 spec test vectors are signed with the same demo private key,
+// recovering to this public key.
+const SPEC_PUBKEY =
+  '03e7156ae33b0a208d0744199163177e909e80176e55d97a2f221ede0f934dd9ad';
+
 const expectedDecoded = {
   amountMsat: 250000000,
   amountSat: 250000,
@@ -13,6 +18,7 @@ const expectedDecoded = {
   expiryUnixMs: 1496314718000,
   network: 'bitcoin',
   description: '1 cup coffee',
+  payeeNodeKey: SPEC_PUBKEY,
   paymentHash:
     '0001020304050607080900010203040506070809000102030405060708090102',
 };
@@ -57,6 +63,7 @@ describe('decodeBolt11', () => {
         expiryUnixMs: 1496318258000,
         network: 'testnet',
         description: undefined,
+        payeeNodeKey: SPEC_PUBKEY,
         paymentHash:
           '0001020304050607080900010203040506070809000102030405060708090102',
       },
