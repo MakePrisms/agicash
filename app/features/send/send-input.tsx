@@ -49,6 +49,7 @@ import type { Contact } from '../contacts/contact';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
+import { canAccountPayAmountlessBolt11 } from './send-store';
 
 export function SendInput() {
   const { toast } = useToast();
@@ -71,7 +72,7 @@ export function SendInput() {
   const continueSend = useSendStore((s) => s.proceedWithSend);
   const status = useSendStore((s) => s.status);
 
-  const isAmountlessBolt11Allowed = sendAccount.type === 'spark';
+  const isAmountlessBolt11Allowed = canAccountPayAmountlessBolt11(sendAccount);
 
   const sendAmountCurrencyUnit = sendAmount
     ? getDefaultUnit(sendAmount.currency)

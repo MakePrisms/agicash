@@ -137,17 +137,15 @@ export class CashuSendQuoteService {
       throw new Error('Unknown send amount');
     }
 
-    // TODO: remove this once cashu-ts supports amountless lightning invoices
-    if (!invoice.amountMsat) {
-      throw new Error(
-        'Cashu accounts do not support amountless lightning invoices',
-      );
-    }
-
     const cashuUnit = getCashuUnit(account.currency);
     const wallet = account.wallet;
 
-    const meltQuote = await wallet.createMeltQuoteBolt11(paymentRequest);
+    const meltQuote = invoice.amountMsat
+      ? await wallet.createMeltQuoteBolt11(paymentRequest)
+      : await wallet.createMeltQuoteBolt11(
+          paymentRequest,
+          amountRequestedInBtc.toNumber('msat'),
+        );
 
     const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
 
