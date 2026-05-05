@@ -9,11 +9,34 @@ import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
+import { isPublicPath } from './features/auth/public-paths';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
+import { hasStoredAuthTokens } from './features/user/auth-storage';
 import { Money } from './lib/money';
 import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
+
+// Skip the protected-route HydrateFallback splash for logged-out users.
+// `_protected.tsx` declares `clientLoader.hydrate = true` so RR renders
+// `LoadingScreen` while waiting for `routeGuardMiddleware` to resolve, then
+// redirects to `/home`. We short-circuit that flash by redirecting here
+// before hydration runs. The middleware redirect at `_protected.tsx` is
+// preserved as a safety net for users who clear storage mid-session and for
+// the no-JS / blocked-storage path.
+{
+  const path = window.location.pathname;
+  if (!isPublicPath(path) && !hasStoredAuthTokens()) {
+    let search = window.location.search;
+    if (path !== '/') {
+      const searchParams = new URLSearchParams(window.location.search);
+      searchParams.set('redirectTo', path);
+      search = `?${searchParams.toString()}`;
+    }
+    window.location.replace(`/home${search}${window.location.hash}`);
+    throw new Error('Redirecting logged-out user to /home');
+  }
+}
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
 if (process.env.NODE_ENV === 'development') {
