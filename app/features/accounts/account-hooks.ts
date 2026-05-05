@@ -14,6 +14,7 @@ import { useUser } from '../user/user-hooks';
 import {
   type Account,
   type AccountPurpose,
+  type AccountState,
   type AccountType,
   type CashuAccount,
   type ExtendedAccount,
@@ -41,20 +42,6 @@ export class AccountsCache {
       }
       return [...curr, account];
     });
-  }
-
-  update(account: Account) {
-    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
-      curr.map((x) =>
-        x.id === account.id && account.version > x.version ? account : x,
-      ),
-    );
-  }
-
-  remove(accountId: string) {
-    this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) =>
-      curr.filter((x) => x.id !== accountId),
-    );
   }
 
   updateSparkAccountBalance({
@@ -142,11 +129,7 @@ export function useAccountChangeHandlers() {
       event: 'ACCOUNT_UPDATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
         const updatedAccount = await accountRepository.toAccount(payload);
-        if (updatedAccount.state === 'expired') {
-          accountCache.remove(updatedAccount.id);
-        } else {
-          accountCache.update(updatedAccount);
-        }
+        accountCache.upsert(updatedAccount);
       },
     },
   ];
@@ -158,8 +141,19 @@ export const accountsQueryOptions = ({
 }: { userId: string; accountRepository: AccountRepository }) => {
   return queryOptions({
     queryKey: [AccountsCache.Key],
-    queryFn: () => accountRepository.getAll(userId),
+    queryFn: () => accountRepository.getAllActive(userId),
     staleTime: Number.POSITIVE_INFINITY,
+    // Refetches use `getAllActive`, so any expired account previously in the
+    // cache (lazy-fetched via useAccountOrNull, or just expired before the
+    // realtime ACCOUNT_UPDATED has arrived) would otherwise be wiped. Preserve
+    // anything in oldData that the new fetch didn't return.
+    structuralSharing: (oldData, newData) => {
+      const oldAccounts = oldData as Account[] | undefined;
+      const newAccounts = newData as Account[];
+      if (!oldAccounts) return newAccounts;
+      const newIds = new Set(newAccounts.map((a) => a.id));
+      return [...newAccounts, ...oldAccounts.filter((a) => !newIds.has(a.id))];
+    },
   });
 };
 
@@ -180,6 +174,17 @@ type UseAccountsSelect<
       isOnline?: boolean;
       /** Filter for gift-card or offer accounts. Returns `CashuAccount[]` since these are always cashu. */
       purpose: P;
+      /**
+       * Filter by account state. Defaults to 'active'. Pass an array to allow
+       * multiple states.
+       *
+       * Note: this only filters what's already in the in-memory cache. Passing
+       * 'expired' returns expired accounts already in the cache (from realtime
+       * state transitions during the session, or from `useAccountOrNull` lazy
+       * fetches) — it does not fetch the user's full expired history from the
+       * database.
+       */
+      state?: AccountState | AccountState[];
     }
   : {
       /** Filter by currency (e.g., 'BTC', 'USD') */
@@ -190,8 +195,42 @@ type UseAccountsSelect<
       isOnline?: boolean;
       /** Filter by purpose. When omitted or 'transactional', any account type is allowed. */
       purpose?: P;
+      /**
+       * Filter by account state. Defaults to 'active'. Pass an array to allow
+       * multiple states.
+       *
+       * Note: this only filters what's already in the in-memory cache. Passing
+       * 'expired' returns expired accounts already in the cache (from realtime
+       * state transitions during the session, or from `useAccountOrNull` lazy
+       * fetches) — it does not fetch the user's full expired history from the
+       * database.
+       *
+       * When passing an array, the accounts will be filtered on every render
+       * if you don't preserve the array reference.
+       */
+      state?: AccountState | AccountState[];
     };
 
+/**
+ * Hook to get the user's accounts, sorted by creation date (oldest first).
+ *
+ * Note: this hook does not fetch expired accounts from the database — the
+ * cache is initially populated by `getAllActive`. Expired accounts only enter
+ * the cache when (a) realtime ACCOUNT_UPDATED transitions an account from
+ * active to expired during the session, or (b) {@link useAccountOrNull} lazy-fetches
+ * a specific one. Passing `state: 'expired'` (or `['active', 'expired']`)
+ * returns only those cached expired accounts, not the user's full expired
+ * history.
+ *
+ * Refetches on window focus and reconnect to stay in sync with the server.
+ * Expired accounts already in the cache are preserved across refetches via
+ * {@link accountsQueryOptions}'s `structuralSharing`.
+ *
+ * @param select - Optional filters. See {@link UseAccountsSelect}.
+ *   Including `purpose: 'gift-card' | 'offer'` narrows the return type to
+ *   `ExtendedAccount<'cashu'>[]`.
+ * @returns A `useSuspenseQuery` result whose data is the filtered accounts.
+ */
 export function useAccounts(
   select: UseAccountsSelect<'cashu', 'gift-card'>,
 ): UseSuspenseQueryResult<ExtendedAccount<'cashu'>[]>;
@@ -213,7 +252,7 @@ export function useAccounts<
   const user = useUser();
   const accountRepository = useAccountRepository();
 
-  const { currency, type, isOnline, purpose } = select ?? {};
+  const { currency, type, isOnline, purpose, state = 'active' } = select ?? {};
 
   return useSuspenseQuery({
     ...accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -221,20 +260,13 @@ export function useAccounts<
     refetchOnReconnect: 'always',
     select: useCallback(
       (data: Account[]) => {
+        const allowedStates = Array.isArray(state) ? state : [state];
         const extendedData = AccountService.getExtendedAccounts(user, data);
 
-        const sortedData = extendedData
-          .slice()
-          .sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-          ) as ExtendedAccount<T>[];
-
-        if (!currency && !type && isOnline === undefined && !purpose) {
-          return sortedData;
-        }
-
-        return sortedData.filter((account) => {
+        const filteredData = extendedData.filter((account) => {
+          if (!allowedStates.includes(account.state)) {
+            return false;
+          }
           if (currency && account.currency !== currency) {
             return false;
           }
@@ -249,8 +281,13 @@ export function useAccounts<
           }
           return true;
         });
+
+        return filteredData.sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        ) as ExtendedAccount<T>[];
       },
-      [currency, type, isOnline, purpose, user],
+      [currency, type, isOnline, purpose, state, user],
     ),
   });
 }
@@ -272,16 +309,41 @@ export function useAccount<T extends AccountType = AccountType>(id: string) {
   return account;
 }
 
+const ALL_ACCOUNT_STATES: AccountState[] = ['active', 'expired'];
+
 /**
- * Hook to get an account by ID, or null if not found.
+ * Hook to get an account by ID, or null if not found. Falls back to a DB lookup
+ * when the account is not in the accounts cache, so it returns expired accounts
+ * too — needed for routes that may be loaded directly (e.g. tab reload,
+ * post-payment redirect) for an offer the cron job has since flipped to
+ * `state='expired'`.
+ *
+ * The accounts cache is the single source of truth: on cache miss the queryFn
+ * fetches from the DB and upserts the result back into it. The `useSuspenseQuery`
+ * here is only used for deduplication and suspension — its stored value is
+ * always null, so there's no second copy of the account that could drift from
+ * the cache.
  * @param id - The ID of the account to retrieve.
  */
-export function useAccountOrNull<T extends AccountType = AccountType>(
-  id: string | null,
-) {
-  const { data: accounts } = useAccounts<T>();
-  if (!id) return null;
-  return accounts.find((x) => x.id === id) ?? null;
+export function useAccountOrNull(id: string | null): Account | null {
+  const accountsCache = useAccountsCache();
+  const accountRepository = useAccountRepository();
+  const { data: accounts } = useAccounts({ state: ALL_ACCOUNT_STATES });
+
+  useSuspenseQuery({
+    queryKey: ['fetch-account-by-id', id],
+    queryFn: async () => {
+      if (!id || accountsCache.get(id)) return null;
+      const fetched = await accountRepository.get(id);
+      if (fetched) accountsCache.upsert(fetched);
+      return null;
+    },
+    // The query stores no useful data (always null); it's just a fetch + dedup
+    // primitive. Don't keep the marker around once the route unmounts.
+    gcTime: 0,
+  });
+
+  return id ? (accounts.find((x) => x.id === id) ?? null) : null;
 }
 
 type AccountTypeMap = {

@@ -41,7 +41,8 @@ export default function OfferDetails({ offer }: OfferDetailsProps) {
     navigate('/gift-cards', { viewTransition: true });
   };
 
-  const balance = getAccountBalance(offer);
+  const isExpired = offer.state === 'expired';
+  const balance = isExpired ? null : getAccountBalance(offer);
 
   return (
     <Page className="px-0 pb-0">
@@ -79,7 +80,8 @@ export default function OfferDetails({ offer }: OfferDetailsProps) {
 
           {offer.expiresAt && (
             <p className="mt-2 text-center text-muted-foreground text-sm">
-              Expires {formatExpiryDate(offer.expiresAt)}
+              {isExpired ? 'Expired on ' : 'Expires '}
+              {formatExpiryDate(offer.expiresAt)}
             </p>
           )}
         </div>
@@ -87,18 +89,20 @@ export default function OfferDetails({ offer }: OfferDetailsProps) {
         <div className="mx-auto flex flex-col items-center px-4 pt-3 pb-8">
           {balance && <MoneyWithConvertedAmount money={balance} size="md" />}
 
-          <div className="mt-6">
-            <LinkWithViewTransition
-              to={buildLinkWithSearchParams('/send', {
-                accountId: offer.id,
-                redirectTo: `/gift-cards/offers/${offer.id}`,
-              })}
-              transition="slideUp"
-              applyTo="newView"
-            >
-              <Button className="w-full px-14 py-6 text-lg">Pay</Button>
-            </LinkWithViewTransition>
-          </div>
+          {!isExpired && (
+            <div className="mt-6">
+              <LinkWithViewTransition
+                to={buildLinkWithSearchParams('/send', {
+                  accountId: offer.id,
+                  redirectTo: `/gift-cards/offers/${offer.id}`,
+                })}
+                transition="slideUp"
+                applyTo="newView"
+              >
+                <Button className="w-full px-14 py-6 text-lg">Pay</Button>
+              </LinkWithViewTransition>
+            </div>
+          )}
         </div>
       </PageContent>
     </Page>
