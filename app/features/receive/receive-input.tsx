@@ -177,7 +177,10 @@ export default function ReceiveInput() {
               </LinkWithViewTransition>
             </div>
             <div /> {/* spacer */}
-            <Button onClick={handleContinue} disabled={inputValue.isZero()}>
+            <Button
+              onClick={handleContinue}
+              disabled={inputValue.isZero() && receiveAccount.type !== 'spark'}
+            >
               Continue
             </Button>
           </div>
