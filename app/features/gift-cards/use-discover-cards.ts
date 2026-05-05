@@ -16,6 +16,15 @@ import {
 
 export type GiftCardInfo = GiftCardConfig & {
   image: string;
+  ogImage: string | undefined;
+};
+
+const GIFT_CARD_OG_IMAGES: Record<string, string> = {
+  'https://kissofmatcha.agi.cash': '/og/kissofmatcha.webp',
+  'https://mariposa.agi.cash': '/og/mariposa.webp',
+  'https://pinkowl.agi.cash': '/og/pinkowl.webp',
+  'https://pubkey.agi.cash': '/og/pubkey.webp',
+  'https://theepicureantrader.agi.cash': '/og/theepicureantrader.webp',
 };
 
 const GIFT_CARD_IMAGES: Record<string, string> = {
@@ -38,6 +47,7 @@ function loadGiftCardsFromEnv(): GiftCardInfo[] {
   return JsonGiftCardConfigSchema.parse(raw).map((card) => ({
     ...card,
     image: GIFT_CARD_IMAGES[card.url] ?? '',
+    ogImage: GIFT_CARD_OG_IMAGES[card.url],
   }));
 }
 

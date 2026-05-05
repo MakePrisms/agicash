@@ -138,7 +138,7 @@ export const meta = ({ loaderData }: Route.MetaArgs) => {
     { property: 'og:site_name', content: ogSiteName },
 
     // Twitter Card meta tags
-    { name: 'twitter:card=', content: 'summary_large_image' },
+    { name: 'twitter:card', content: 'summary_large_image' },
     { name: 'twitter:title', content: title },
     { name: 'twitter:description', content: description },
     { name: 'twitter:image', content: image },

@@ -40,6 +40,15 @@
     fi
     convert-to-webp "''${pngs[@]}"
   '';
+  scripts.convert-og-images.exec = ''
+    shopt -s nullglob
+    pngs=("$DEVENV_ROOT/public/og/"*.png)
+    if [ ''${#pngs[@]} -eq 0 ]; then
+      echo "No PNG files found in public/og/"
+      exit 0
+    fi
+    convert-to-webp "''${pngs[@]}"
+  '';
 
   enterShell = ''
     hello

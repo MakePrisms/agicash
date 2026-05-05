@@ -23,6 +23,7 @@ import useLocationData from '~/hooks/use-location';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { encodeToken } from '~/lib/cashu/token';
+import { normalizeMintUrl } from '~/lib/cashu/utils';
 import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { tokenToMoney } from '../shared/cashu';
@@ -41,7 +42,10 @@ export function ShareCashuToken({ token }: Props) {
   const [showOk, setShowOk] = useState(false);
 
   const encodedToken = encodeToken(token, { removeDleq: true });
-  const shareableLink = `${origin}/receive-cashu-token#${encodedToken}`;
+  const normalizedMint = normalizeMintUrl(token.mint);
+  const mintWithoutScheme = normalizedMint.replace(/^https?:\/\//, '');
+  const mintParam = encodeURIComponent(mintWithoutScheme);
+  const shareableLink = `${origin}/receive-cashu-token?mint=${mintParam}#${encodedToken}`;
   const shortToken = `${encodedToken.slice(0, 6)}...${encodedToken.slice(-5)}`;
   const shortShareableLink = `${origin}/receive-cashu-token#${shortToken}`;
 

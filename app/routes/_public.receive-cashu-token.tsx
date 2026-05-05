@@ -1,11 +1,77 @@
-import { redirect } from 'react-router';
+import { type MetaDescriptor, redirect } from 'react-router';
 import { Page } from '~/components/page';
+import { getOfferOgImageByUrl } from '~/features/gift-cards/offer-card-images';
+import { getGiftCardByUrl } from '~/features/gift-cards/use-discover-cards';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token';
 import { decodeCashuToken } from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
+import { normalizeMintUrl } from '~/lib/cashu/utils';
 import type { Route } from './+types/_public.receive-cashu-token';
+
+type SharePreview = {
+  ogImage: string;
+  title: string;
+  description: string;
+};
+
+function resolveSharePreview(mintUrl: string): SharePreview | undefined {
+  const card = getGiftCardByUrl(mintUrl);
+  if (card?.ogImage) {
+    return {
+      ogImage: card.ogImage,
+      title: `${card.name} Bitcoin gift card`,
+      description: 'Claim on Agicash.',
+    };
+  }
+
+  const offerImage = getOfferOgImageByUrl(mintUrl);
+  if (offerImage) {
+    return {
+      ogImage: offerImage,
+      title: 'Your Bitcoin offer!',
+      description: 'Claim on Agicash.',
+    };
+  }
+
+  return undefined;
+}
+
+export function meta({ location, matches }: Route.MetaArgs): MetaDescriptor[] {
+  const rawMintParam = new URLSearchParams(location.search).get('mint');
+  const mintUrl = rawMintParam
+    ? normalizeMintUrl(`https://${rawMintParam}`)
+    : undefined;
+  const rootMatch = matches.find((m) => m?.id === 'root');
+
+  const preview = mintUrl ? resolveSharePreview(mintUrl) : undefined;
+  if (!preview) return rootMatch?.meta ?? [];
+
+  const origin =
+    (rootMatch?.data as { origin?: string } | undefined)?.origin ?? '';
+  const imageUrl = `${origin}${preview.ogImage}`;
+  const { title, description } = preview;
+
+  return [
+    { title },
+    { name: 'description', content: description },
+    { property: 'og:title', content: title },
+    { property: 'og:description', content: description },
+    { property: 'og:image', content: imageUrl },
+    { property: 'og:image:alt', content: title },
+    { property: 'og:image:width', content: '900' },
+    { property: 'og:image:height', content: '473' },
+    { property: 'og:image:type', content: 'image/webp' },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:site_name', content: 'Agicash' },
+    { name: 'twitter:card', content: 'summary_large_image' },
+    { name: 'twitter:title', content: title },
+    { name: 'twitter:description', content: description },
+    { name: 'twitter:image', content: imageUrl },
+    { name: 'twitter:image:alt', content: title },
+  ];
+}
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const location = new URL(request.url);
