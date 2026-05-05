@@ -71,6 +71,8 @@ export function SendInput() {
   const continueSend = useSendStore((s) => s.proceedWithSend);
   const status = useSendStore((s) => s.status);
 
+  const isAmountlessBolt11Allowed = sendAccount.type === 'spark';
+
   const sendAmountCurrencyUnit = sendAmount
     ? getDefaultUnit(sendAmount.currency)
     : undefined;
@@ -258,7 +260,7 @@ export function SendInput() {
             <div className="flex items-center justify-end">
               <Button
                 onClick={() => handleContinue(inputValue, convertedValue)}
-                disabled={inputValue.isZero()}
+                disabled={inputValue.isZero() && !isAmountlessBolt11Allowed}
                 loading={status === 'quoting' || isContinuing}
               >
                 Continue
