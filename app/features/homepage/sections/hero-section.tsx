@@ -20,7 +20,6 @@ function pad3(n: number) {
 
 const PIXEL_COLS = 28;
 const PIXEL_ROWS = 18;
-const PIXEL_CELLS = PIXEL_COLS * PIXEL_ROWS;
 const PIXEL_MAX_DELAY = 240;
 const PIXEL_CELL_DURATION = 360;
 const TRANSITION_END = PIXEL_MAX_DELAY + PIXEL_CELL_DURATION + 40; // ~640ms
