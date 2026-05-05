@@ -1,0 +1,1545 @@
+@import url("https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,600,700,800&display=swap");
+
+.marketing {
+  --mk-bg: #04080f;
+  --mk-bg-card: rgba(12, 20, 36, 0.5);
+  --mk-text: #e8edf8;
+  --mk-text-dim: #8094b8;
+  --mk-text-muted: #455575;
+  --mk-brand: #00d4ff;
+  --mk-border: rgba(255, 255, 255, 0.06);
+  --mk-border-bright: rgba(255, 255, 255, 0.12);
+  --mk-font-display: "Cabinet Grotesk", -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  --mk-font-mono: "Kode Mono", ui-monospace, monospace;
+  --mk-font-numeric: "Teko", sans-serif;
+
+  background: var(--mk-bg);
+  color: var(--mk-text);
+  font-family: var(--mk-font-display);
+  font-feature-settings: "ss01", "ss02";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.marketing::-webkit-scrollbar {
+  display: none;
+}
+
+.marketing .font-mono {
+  font-family: var(--mk-font-mono);
+  font-feature-settings: "tnum";
+}
+
+.marketing a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .marketing .stagger > * {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: mk-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .marketing .stagger > *:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .marketing .stagger > *:nth-child(2) {
+    animation-delay: 80ms;
+  }
+  .marketing .stagger > *:nth-child(3) {
+    animation-delay: 160ms;
+  }
+  .marketing .stagger > *:nth-child(4) {
+    animation-delay: 240ms;
+  }
+  .marketing .stagger > *:nth-child(5) {
+    animation-delay: 320ms;
+  }
+  .marketing .stagger > *:nth-child(6) {
+    animation-delay: 400ms;
+  }
+
+  @keyframes mk-fade-up {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+.marketing .mk-cta {
+  background: var(--mk-brand);
+  color: #04080f;
+  border: 1px solid var(--mk-brand);
+  transition: background-color 200ms ease, color 200ms ease;
+}
+.marketing .mk-cta:hover {
+  background: transparent;
+  color: var(--mk-brand);
+}
+
+.marketing .mk-link {
+  color: var(--mk-text-muted);
+  transition: color 200ms ease;
+}
+.marketing .mk-link:hover {
+  color: var(--mk-text-dim);
+}
+
+.marketing .mk-mailto {
+  color: var(--mk-text);
+  transition: color 200ms ease;
+}
+.marketing .mk-mailto:hover {
+  color: var(--mk-brand);
+}
+
+/* ────────────────────────────────────────── */
+/* STICKY NAV                                  */
+/* ────────────────────────────────────────── */
+
+.marketing .marketing-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+  background: rgba(4, 8, 15, 0.78);
+  backdrop-filter: saturate(140%) blur(14px);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  border-bottom: 1px solid var(--mk-border);
+}
+
+.marketing .marketing-nav-inner {
+  width: 100%;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .marketing .marketing-nav-inner {
+    padding: 16px 32px;
+  }
+}
+
+.marketing .marketing-nav-logo-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.marketing .marketing-nav-logo {
+  height: 22px;
+  width: auto;
+  display: block;
+  opacity: 0.92;
+}
+
+@media (min-width: 768px) {
+  .marketing .marketing-nav-logo {
+    height: 26px;
+  }
+}
+
+.marketing .marketing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.marketing .marketing-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  font-family: var(--mk-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms
+    ease;
+  border: 1px solid transparent;
+}
+
+@media (min-width: 768px) {
+  .marketing .marketing-nav-btn {
+    height: 38px;
+    padding: 0 20px;
+    font-size: 13px;
+  }
+}
+
+.marketing .marketing-nav-btn.login {
+  border-color: var(--mk-brand);
+  color: var(--mk-brand);
+  background: transparent;
+}
+.marketing .marketing-nav-btn.login:hover {
+  background: rgba(0, 212, 255, 0.08);
+}
+
+.marketing .marketing-nav-btn.signup {
+  background: var(--mk-brand);
+  color: #04080f;
+  border-color: var(--mk-brand);
+}
+.marketing .marketing-nav-btn.signup:hover {
+  background: transparent;
+  color: var(--mk-brand);
+}
+
+/* ────────────────────────────────────────── */
+/* FOOTER                                      */
+/* ────────────────────────────────────────── */
+
+.marketing .marketing-footer {
+  margin-top: 24px;
+  padding-top: 48px;
+  border-top: 1px solid var(--mk-border);
+  width: 100%;
+  overflow: hidden;
+}
+
+.marketing .marketing-footer-top {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 20px;
+  text-align: center;
+  margin-bottom: 60px;
+}
+
+@media (min-width: 768px) {
+  .marketing .marketing-footer-top {
+    padding: 0 32px;
+    margin-bottom: 80px;
+  }
+}
+
+.marketing .footer-socials {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.marketing .footer-socials a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--mk-border);
+  color: var(--mk-text-muted);
+  transition: color 200ms ease, border-color 200ms ease, background-color 200ms
+    ease;
+}
+
+.marketing .footer-socials a:hover {
+  color: var(--mk-text);
+  border-color: var(--mk-border-bright);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.marketing .footer-socials img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  /* Off-white silhouettes on dark bg */
+  filter: invert(56%) sepia(8%) saturate(750%) hue-rotate(190deg)
+    brightness(95%) contrast(85%);
+  opacity: 0.9;
+  transition: filter 200ms ease, opacity 200ms ease;
+}
+
+.marketing .footer-socials a:hover img {
+  filter: invert(94%) sepia(5%) saturate(380%) hue-rotate(190deg)
+    brightness(102%) contrast(94%);
+  opacity: 1;
+}
+
+.marketing .footer-meta {
+  font-family: var(--mk-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--mk-text-muted);
+  text-transform: uppercase;
+  line-height: 1.7;
+}
+
+.marketing .footer-meta-link {
+  color: var(--mk-text-muted);
+  transition: color 200ms ease;
+}
+.marketing .footer-meta-link:hover {
+  color: var(--mk-text-dim);
+}
+
+.marketing .footer-mark {
+  font-family: var(--mk-font-mono);
+  font-weight: 700;
+  font-size: 24vw;
+  line-height: 0.86;
+  letter-spacing: -0.04em;
+  color: var(--mk-brand);
+  text-align: center;
+  white-space: nowrap;
+  display: block;
+  user-select: none;
+  text-transform: uppercase;
+  margin: 0;
+  padding: 0;
+}
+
+/* ────────────────────────────────────────── */
+/* SUPPORTED SYSTEMS (merchants)               */
+/* ────────────────────────────────────────── */
+
+.marketing .supported-systems {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--mk-border);
+  text-align: center;
+}
+.marketing .supported-heading {
+  font-family: var(--mk-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--mk-text-muted);
+  margin-bottom: 16px;
+}
+.marketing .supported-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  flex-wrap: wrap;
+  color: var(--mk-text-dim);
+  margin-bottom: 14px;
+}
+.marketing .supported-row .brand-logo {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+.marketing .supported-row .brand-logo-img {
+  height: 30px;
+  width: auto;
+  display: block;
+  opacity: 0.9;
+}
+.marketing .supported-row .brand-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mk-font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--mk-text-dim);
+}
+.marketing .supported-row .brand-wordmark .brand-icon {
+  width: 18px;
+  height: 18px;
+}
+.marketing .supported-more {
+  font-family: var(--mk-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mk-text-muted);
+  opacity: 0.7;
+}
+
+/* ────────────────────────────────────────── */
+/* SPECIMEN PLATE (hero)                       */
+/* ────────────────────────────────────────── */
+
+.marketing .specimen-plate {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  aspect-ratio: 4 / 3;
+  margin: 0 auto;
+}
+
+.marketing .specimen-corner {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--mk-text-muted);
+  pointer-events: none;
+}
+.marketing .specimen-corner.tl {
+  top: 0;
+  left: 0;
+  border-right: none;
+  border-bottom: none;
+}
+.marketing .specimen-corner.tr {
+  top: 0;
+  right: 0;
+  border-left: none;
+  border-bottom: none;
+}
+.marketing .specimen-corner.bl {
+  bottom: 0;
+  left: 0;
+  border-right: none;
+  border-top: none;
+}
+.marketing .specimen-corner.br {
+  bottom: 0;
+  right: 0;
+  border-left: none;
+  border-top: none;
+}
+
+.marketing .specimen-meta {
+  position: absolute;
+  font-family: var(--mk-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--mk-text-muted);
+  text-transform: uppercase;
+}
+.marketing .specimen-meta.tl {
+  top: -22px;
+  left: 0;
+}
+.marketing .specimen-meta.tr {
+  top: -22px;
+  right: 0;
+}
+.marketing .specimen-meta.br {
+  bottom: -22px;
+  right: 0;
+}
+.marketing .specimen-meta.bl {
+  bottom: -22px;
+  left: 0;
+}
+
+.marketing .specimen-card-wrap {
+  position: absolute;
+  inset: 12%;
+  perspective: 1200px;
+  display: grid;
+  place-items: center;
+}
+
+.marketing .specimen-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.6 / 1;
+  border-radius: 12px;
+  transition: transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-style: preserve-3d;
+  will-change: transform;
+  animation: spec-enter 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.35),
+    0 10px 20px -6px rgba(0, 0, 0, 0.55),
+    0 24px 48px -14px rgba(0, 0, 0, 0.7),
+    0 50px 90px -22px rgba(0, 0, 0, 0.85);
+}
+
+.marketing .specimen-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0
+    rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: opacity 220ms ease;
+}
+
+/* Pixelated wipe — SVG-based to avoid sub-pixel grid gaps */
+.marketing .pixel-wipe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.marketing .pixel-wipe rect {
+  opacity: 0;
+  animation: pixel-cell 360ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@keyframes pixel-cell {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing .pixel-wipe rect {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+.marketing .specimen-ruler {
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  right: -20px;
+  width: 8px;
+  border-right: 1px solid var(--mk-border);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--mk-border) 0,
+    var(--mk-border) 1px,
+    transparent 1px,
+    transparent 24px
+  );
+  background-position: right;
+  background-size: 6px 24px;
+  background-repeat: repeat-y;
+}
+
+.marketing .specimen-index {
+  position: absolute;
+  bottom: -50px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.marketing .specimen-index button {
+  width: 24px;
+  height: 2px;
+  background: var(--mk-border);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 220ms ease, width 220ms ease;
+}
+.marketing .specimen-index button.active {
+  background: var(--mk-brand);
+  width: 36px;
+}
+.marketing .specimen-index button:hover {
+  background: var(--mk-border-bright);
+}
+.marketing .specimen-index button.active:hover {
+  background: var(--mk-brand);
+}
+
+@keyframes spec-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Smaller on mobile */
+@media (max-width: 767px) {
+  .marketing .specimen-plate {
+    max-width: 320px;
+    aspect-ratio: 1 / 1;
+  }
+  .marketing .specimen-card-wrap {
+    inset: 14%;
+  }
+  .marketing .specimen-meta {
+    font-size: 9px;
+  }
+  .marketing .specimen-ruler {
+    display: none;
+  }
+}
+
+/* ────────────────────────────────────────── */
+/* TRANSIT RAIL (send)                         */
+/* ────────────────────────────────────────── */
+
+.marketing .transit-rail {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 12px;
+}
+
+.marketing .transit-track {
+  position: relative;
+  height: 80px;
+  margin: 0 12px;
+}
+
+.marketing .transit-track::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-image: linear-gradient(
+    to right,
+    var(--mk-border) 50%,
+    transparent 50%
+  );
+  background-size: 8px 1px;
+  transform: translateY(-50%);
+}
+
+.marketing .transit-tick {
+  position: absolute;
+  top: 50%;
+  width: 1px;
+  height: 8px;
+  background: var(--mk-text-muted);
+  transform: translate(-50%, -50%);
+}
+.marketing .transit-tick.start {
+  left: 0;
+}
+.marketing .transit-tick.end {
+  left: 100%;
+}
+
+.marketing .transit-card {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 44px;
+  height: 28px;
+  border-radius: 4px;
+  background: var(--mk-bg-card);
+  border: 1px solid var(--mk-border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+}
+
+.marketing .transit-card::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 212, 255, 0.18),
+    rgba(0, 212, 255, 0.05)
+  );
+}
+
+.marketing .transit-rail.played .transit-card {
+  animation: transit-fly 1500ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@keyframes transit-fly {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 1;
+  }
+}
+
+.marketing .transit-replay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mk-font-mono);
+  font-size: 11px;
+  color: var(--mk-text-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 200ms ease;
+}
+.marketing .transit-replay:hover {
+  color: var(--mk-text-dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing .transit-rail.played .transit-card {
+    animation: none;
+    left: 100%;
+    opacity: 1;
+  }
+}
+
+/* ────────────────────────────────────────── */
+/* PAY STAGE (spend — QR scan)                 */
+/* ────────────────────────────────────────── */
+
+.marketing .pay-stage {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  padding: 24px 22px 22px;
+  border-radius: 18px;
+  border: 1px solid var(--mk-border);
+  background: linear-gradient(180deg, #070d18 0%, #050a13 100%);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8), inset 0 1px 0
+    rgba(255, 255, 255, 0.04);
+  font-family: var(--mk-font-display);
+}
+
+.marketing .pay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mk-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--mk-text-muted);
+  text-transform: uppercase;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--mk-border);
+  margin-bottom: 18px;
+}
+.marketing .pay-head .merchant {
+  color: var(--mk-text);
+}
+
+.marketing .pay-qr-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 200px;
+  margin: 0 auto;
+  border-radius: 8px;
+  background: #f4f7ff;
+  padding: 10px;
+  overflow: hidden;
+  transition: opacity 360ms ease;
+}
+
+.marketing .pay-qr {
+  width: 100%;
+  height: 100%;
+  display: block;
+  color: #04080f;
+}
+.marketing .pay-qr rect {
+  fill: currentColor;
+  shape-rendering: crispEdges;
+}
+
+.marketing .pay-scanline {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  height: 2px;
+  background: var(--mk-brand);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.6);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.marketing .pay-paid {
+  position: absolute;
+  inset: 10px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #04080f;
+  opacity: 0;
+  pointer-events: none;
+}
+.marketing .pay-paid .check-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--mk-brand);
+  display: grid;
+  place-items: center;
+  color: var(--mk-brand);
+  font-size: 32px;
+}
+
+.marketing .pay-amount {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.marketing .pay-amount .sats {
+  font-family: var(--mk-font-numeric);
+  font-feature-settings: "tnum";
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--mk-text);
+}
+.marketing .pay-amount .sats .btc-symbol {
+  font-family: var(--mk-font-mono);
+  font-weight: 700;
+  font-size: 0.86em;
+  margin-right: 0.06em;
+  display: inline-block;
+  vertical-align: 0.02em;
+}
+.marketing .pay-amount .usd {
+  font-family: var(--mk-font-numeric);
+  font-feature-settings: "tnum";
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--mk-text-muted);
+}
+
+.marketing .pay-status {
+  position: relative;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--mk-border);
+  height: 28px;
+  font-family: var(--mk-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.marketing .pay-status .text {
+  position: absolute;
+  inset: 14px 0 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+}
+.marketing .pay-status .text.scan {
+  color: var(--mk-text-muted);
+  opacity: 1;
+}
+.marketing .pay-status .text.paid {
+  color: var(--mk-brand);
+}
+
+.marketing .pay-stage.playing .pay-qr-wrap {
+  animation: pay-qr-cycle 6s linear infinite;
+}
+.marketing .pay-stage.playing .pay-scanline {
+  animation: pay-scan-cycle 6s ease-in-out infinite;
+}
+.marketing .pay-stage.playing .pay-paid {
+  animation: pay-paid-cycle 6s ease-in-out infinite;
+}
+.marketing .pay-stage.playing .pay-status .text.scan {
+  animation: pay-status-scan 6s linear infinite;
+}
+.marketing .pay-stage.playing .pay-status .text.paid {
+  animation: pay-status-paid 6s linear infinite;
+}
+
+@keyframes pay-qr-cycle {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  62%,
+  92% {
+    opacity: 0.18;
+  }
+  98%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes pay-scan-cycle {
+  0%,
+  35% {
+    opacity: 0;
+    top: 10px;
+  }
+  38% {
+    opacity: 1;
+    top: 10px;
+  }
+  55% {
+    opacity: 1;
+    top: calc(100% - 12px);
+  }
+  58% {
+    opacity: 0;
+    top: calc(100% - 12px);
+  }
+  100% {
+    opacity: 0;
+    top: 10px;
+  }
+}
+@keyframes pay-paid-cycle {
+  0%,
+  60% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  64% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  92% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes pay-status-scan {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  60%,
+  95% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes pay-status-paid {
+  0%,
+  60% {
+    opacity: 0;
+  }
+  64%,
+  92% {
+    opacity: 1;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing .pay-stage.playing .pay-qr-wrap,
+  .marketing .pay-stage.playing .pay-scanline,
+  .marketing .pay-stage.playing .pay-paid,
+  .marketing .pay-stage.playing .pay-status .text {
+    animation: none;
+  }
+  .marketing .pay-stage.playing .pay-paid {
+    opacity: 1;
+  }
+  .marketing .pay-stage.playing .pay-qr-wrap {
+    opacity: 0.18;
+  }
+  .marketing .pay-stage.playing .pay-status .text.scan {
+    opacity: 0;
+  }
+  .marketing .pay-stage.playing .pay-status .text.paid {
+    opacity: 1;
+  }
+}
+
+/* ────────────────────────────────────────── */
+/* BUY PANEL (buy section — multi-state flow)  */
+/* ────────────────────────────────────────── */
+
+.marketing .buy-stage {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  min-height: 380px;
+  padding: 22px 22px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--mk-border);
+  background: linear-gradient(180deg, #070d18 0%, #050a13 100%);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8), inset 0 1px 0
+    rgba(255, 255, 255, 0.04);
+  font-family: var(--mk-font-display);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header bar (Agicash side) */
+.marketing .buy-stage .buy-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--mk-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--mk-text-muted);
+  text-transform: uppercase;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--mk-border);
+  margin-bottom: 18px;
+}
+.marketing .buy-stage .buy-head .merchant {
+  color: var(--mk-text);
+}
+
+/* State-content wrapper — keyed by state, animates on mount */
+.marketing .buy-stage {
+  overflow: hidden;
+}
+
+.marketing .buy-stage .state-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Slide between Agicash ↔ Cash App (brand changes) */
+.marketing .buy-stage .state-content.transition-slide {
+  animation: state-slide 2000ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes state-slide {
+  0% {
+    opacity: 0;
+    transform: translateX(80px);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Fade within Cash App's own steps (loading → review → paid) */
+.marketing .buy-stage .state-content.transition-fade {
+  animation: state-fade 1700ms ease-out;
+}
+
+@keyframes state-fade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing .buy-stage .state-content.transition-slide,
+  .marketing .buy-stage .state-content.transition-fade {
+    animation: none;
+  }
+}
+
+/* Pay panel (idle state — Agicash buy screen) */
+.marketing .buy-stage .buy-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.marketing .buy-stage .buy-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  margin-top: 6px;
+  margin-bottom: 18px;
+}
+.marketing .buy-stage .buy-amount .sats {
+  font-family: var(--mk-font-numeric);
+  font-feature-settings: "tnum";
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--mk-text);
+}
+.marketing .buy-stage .buy-amount .sats .btc-symbol {
+  font-family: var(--mk-font-mono);
+  font-weight: 700;
+  font-size: 0.86em;
+  margin-right: 0.06em;
+  display: inline-block;
+  vertical-align: 0.02em;
+}
+.marketing .buy-stage .buy-amount .usd {
+  font-family: var(--mk-font-numeric);
+  font-feature-settings: "tnum";
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--mk-text-muted);
+}
+
+.marketing .buy-stage .buy-rows {
+  margin-top: auto;
+  border: 1px solid var(--mk-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: var(--mk-font-mono);
+}
+.marketing .buy-stage .buy-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+.marketing .buy-stage .buy-row .label {
+  color: var(--mk-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.marketing .buy-stage .buy-row .value {
+  color: var(--mk-text);
+}
+
+.marketing .buy-stage .buy-cta {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+.marketing .buy-stage .buy-pay-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px 28px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--mk-border);
+  color: var(--mk-text);
+  font-family: var(--mk-font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 200ms ease, border-color 200ms ease;
+}
+.marketing .buy-stage .buy-pay-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--mk-border-bright);
+}
+.marketing .buy-stage .buy-pay-button-primary:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+.marketing .buy-stage .buy-pay-button-primary {
+  background: #fff;
+  color: #000;
+  border-color: #fff;
+  border-radius: 9999px;
+  font-family: var(--mk-font-display);
+}
+.marketing .buy-stage .buy-pay-button-disabled {
+  background: transparent;
+  border-color: var(--mk-border);
+  color: var(--mk-text-muted);
+}
+
+.marketing .buy-stage .buy-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marketing .buy-stage .buy-cashapp-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.marketing .buy-stage .buy-cashapp-content.buy-center {
+  align-items: center;
+  justify-content: center;
+}
+
+/* Received panel (back to Agicash side after Cash App) */
+.marketing .buy-stage .buy-head-centered {
+  justify-content: space-between;
+}
+.marketing .buy-stage .received-close,
+.marketing .buy-stage .received-spacer {
+  width: 16px;
+  display: inline-block;
+  font-size: 14px;
+  color: var(--mk-text);
+}
+.marketing .buy-stage .received-title {
+  font-family: var(--mk-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--mk-text);
+  text-transform: lowercase;
+}
+
+.marketing .received-details {
+  margin-top: auto;
+  border: 1px solid var(--mk-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: var(--mk-font-mono);
+}
+.marketing .received-details-head {
+  font-size: 13px;
+  color: var(--mk-text);
+  margin-bottom: 2px;
+}
+.marketing .received-details-time {
+  font-size: 11px;
+  color: var(--mk-text-muted);
+  margin-bottom: 4px;
+}
+.marketing .received-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--mk-text);
+}
+.marketing .received-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.marketing .received-icon.check {
+  color: #34c759;
+}
+.marketing .received-icon.gift {
+  color: var(--mk-text-muted);
+}
+
+/* Cash App content elements (rendered inside the standard buy-stage panel) */
+
+/* Loading spinner */
+.marketing .cashapp-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px dashed rgba(255, 255, 255, 0.85);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  animation: cashapp-spin 1s linear infinite;
+}
+@keyframes cashapp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Cash App $ icon */
+.marketing .cashapp-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #00d54f;
+  display: grid;
+  place-items: center;
+  color: #000;
+  font-family: var(--mk-font-display);
+  font-weight: 800;
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+
+.marketing .cashapp-headline {
+  font-family: var(--mk-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--mk-text);
+  margin-bottom: 14px;
+}
+
+.marketing .cashapp-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--mk-font-mono);
+  font-size: 11px;
+  width: 100%;
+  margin-top: 2px;
+}
+.marketing .cashapp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.marketing .cashapp-row .label {
+  color: var(--mk-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.marketing .cashapp-row .value {
+  color: var(--mk-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 58%;
+}
+
+/* Confirmation check */
+.marketing .cashapp-check {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #00d54f;
+  display: grid;
+  place-items: center;
+  color: #000;
+  margin-bottom: 16px;
+  animation: confirm-pop 380ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.marketing .cashapp-check svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+/* Pop-in animation for paid state */
+.marketing .buy-stage.paid .cashapp-check,
+.marketing .buy-stage.paid .cashapp-headline,
+.marketing .buy-stage.paid .cashapp-done {
+  animation: confirm-pop 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.marketing .buy-stage.paid .cashapp-headline {
+  animation-delay: 80ms;
+}
+.marketing .buy-stage.paid .cashapp-done {
+  animation-delay: 160ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marketing .cashapp-spinner,
+  .marketing .buy-stage.paid .cashapp-check,
+  .marketing .buy-stage.paid .cashapp-headline,
+  .marketing .buy-stage.paid .cashapp-done {
+    animation: none;
+  }
+}
+
+/* ────────────────────────────────────────── */
+/* SPEC ROWS (wallet)                          */
+/* ────────────────────────────────────────── */
+
+.marketing .spec-table {
+  width: 100%;
+}
+.marketing .spec-head {
+  font-family: var(--mk-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--mk-text-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--mk-border);
+}
+.marketing .spec-row {
+  display: grid;
+  grid-template-columns: 88px 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--mk-border);
+}
+.marketing .spec-row:last-child {
+  border-bottom: none;
+}
+.marketing .spec-label {
+  font-family: var(--mk-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--mk-text-muted);
+  text-transform: uppercase;
+}
+.marketing .spec-leader {
+  height: 1px;
+  background-image: radial-gradient(
+    circle,
+    var(--mk-text-muted) 0.6px,
+    transparent 0.6px
+  );
+  background-size: 6px 1px;
+  background-repeat: repeat-x;
+  background-position: 0 50%;
+  align-self: center;
+  opacity: 0.6;
+}
+.marketing .spec-value {
+  text-align: right;
+  font-family: var(--mk-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mk-text);
+  font-feature-settings: "tnum";
+}
+
+@media (max-width: 767px) {
+  .marketing .spec-row {
+    grid-template-columns: 80px 1fr;
+  }
+  .marketing .spec-leader {
+    display: none;
+  }
+  .marketing .spec-value {
+    text-align: right;
+  }
+}
+
+/* ────────────────────────────────────────── */
+/* WALLET CARD (used in wallet section)        */
+/* ────────────────────────────────────────── */
+
+.marketing .wallet-card {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  border-radius: 18px;
+  border: 1px solid var(--mk-border);
+  background: linear-gradient(180deg, #070d18 0%, #050a13 100%);
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.7);
+  padding: 22px 22px 20px;
+  font-family: var(--mk-font-display);
+}
+.marketing .wallet-card .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.marketing .wallet-card .head .label {
+  font-family: var(--mk-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--mk-text-muted);
+  text-transform: uppercase;
+}
+.marketing .wallet-card .head .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mk-brand);
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+}
+.marketing .wallet-card .handle {
+  font-family: var(--mk-font-mono);
+  font-size: 12px;
+  color: var(--mk-text-dim);
+  margin-bottom: 18px;
+}
+.marketing .wallet-card .balance {
+  font-family: var(--mk-font-numeric);
+  font-size: 52px;
+  letter-spacing: 0.01em;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--mk-text);
+  font-feature-settings: "tnum";
+  text-align: center;
+}
+.marketing .wallet-card .balance .btc-symbol {
+  font-family: var(--mk-font-mono);
+  font-weight: 700;
+  font-size: 0.86em;
+  margin-right: 0.06em;
+  display: inline-block;
+  vertical-align: 0.02em;
+}
+.marketing .wallet-card .usd {
+  font-family: var(--mk-font-numeric);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: var(--mk-text-muted);
+  font-feature-settings: "tnum";
+  margin-top: 6px;
+  margin-bottom: 22px;
+  text-align: center;
+}
+.marketing .wallet-card .actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.marketing .wallet-card .actions .actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.marketing .wallet-card .actions .btn {
+  font-family: var(--mk-font-mono);
+  font-size: 13px;
+  padding: 12px 0;
+  border-radius: 10px;
+  text-align: center;
+  background: transparent;
+  border: 1px solid var(--mk-border);
+  color: var(--mk-text);
+}
+.marketing .wallet-card .actions .send {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--mk-border);
+}
+.marketing .wallet-card .footer {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mk-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--mk-text-muted);
+  text-transform: uppercase;
+}
+.marketing .wallet-card .footer .syncdot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mk-brand);
+  opacity: 0.7;
+}
