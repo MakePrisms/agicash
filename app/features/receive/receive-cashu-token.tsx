@@ -286,7 +286,12 @@ export default function ReceiveToken({
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken && receiveAccount ? (
             <div className="w-full max-w-sm px-4">
-              {giftCard ? (
+              {sourceAccount.purpose === 'offer' ? (
+                <OfferItem
+                  account={sourceAccount}
+                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
+                />
+              ) : giftCard ? (
                 <div className="flex flex-col items-center gap-3">
                   <GiftCardItem
                     account={sourceAccount}
@@ -299,11 +304,6 @@ export default function ReceiveToken({
                     </p>
                   )}
                 </div>
-              ) : sourceAccount.purpose === 'offer' ? (
-                <OfferItem
-                  account={sourceAccount}
-                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
-                />
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
@@ -460,7 +460,12 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
           {claimableToken && sourceAccount.canReceive ? (
             <div className="w-full max-w-sm px-4">
-              {giftCard ? (
+              {sourceAccount.purpose === 'offer' ? (
+                <OfferItem
+                  account={sourceAccount}
+                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
+                />
+              ) : giftCard ? (
                 <div className="flex flex-col items-center gap-3">
                   <GiftCardItem
                     account={sourceAccount}
@@ -473,11 +478,6 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
                     </p>
                   )}
                 </div>
-              ) : sourceAccount.purpose === 'offer' ? (
-                <OfferItem
-                  account={sourceAccount}
-                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
-                />
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
