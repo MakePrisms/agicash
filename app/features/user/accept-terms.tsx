@@ -70,7 +70,7 @@ export function AcceptTerms({
                 By clicking the checkbox, (i) I hereby accept the wallet{' '}
                 <LinkWithViewTransition
                   to={{
-                    pathname: '/terms',
+                    pathname: '/terms/wallet',
                     search: `redirectTo=${location.pathname}`,
                   }}
                   transition="slideUp"
@@ -83,7 +83,7 @@ export function AcceptTerms({
                 the wallet{' '}
                 <LinkWithViewTransition
                   to={{
-                    pathname: '/privacy',
+                    pathname: '/privacy/wallet',
                     search: `redirectTo=${location.pathname}`,
                   }}
                   transition="slideUp"
@@ -116,7 +116,7 @@ export function AcceptTerms({
                 By clicking the checkbox, (i) I hereby accept the mint{' '}
                 <LinkWithViewTransition
                   to={{
-                    pathname: '/mint-terms',
+                    pathname: '/terms/mint',
                     search: `redirectTo=${location.pathname}`,
                   }}
                   transition="slideUp"
@@ -129,7 +129,7 @@ export function AcceptTerms({
                 the mint{' '}
                 <LinkWithViewTransition
                   to={{
-                    pathname: '/mint-privacy',
+                    pathname: '/privacy/mint',
                     search: `redirectTo=${location.pathname}`,
                   }}
                   transition="slideUp"
