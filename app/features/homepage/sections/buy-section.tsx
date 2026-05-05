@@ -180,7 +180,7 @@ function PaidBody() {
   return (
     <div className="buy-cashapp-content buy-center">
       <div className="cashapp-check" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="28" height="28">
+        <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
           <path
             d="M5 12.5l4.5 4.5L19 8"
             fill="none"
@@ -210,7 +210,7 @@ function ReceivedBody() {
         <div className="received-details-time">Today at 4:48 PM</div>
         <div className="received-detail-row">
           <span className="received-icon check" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="14" height="14">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
               <path
                 d="M5 12.5l4.5 4.5L19 8"
                 fill="none"
@@ -234,6 +234,7 @@ function ReceivedBody() {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
               <rect x="3" y="8" width="18" height="4" rx="0.5" />
               <path d="M12 8v13" />
