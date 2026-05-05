@@ -22,7 +22,11 @@ const PIXEL_COLS = 28;
 const PIXEL_ROWS = 18;
 const PIXEL_MAX_DELAY = 240;
 const PIXEL_CELL_DURATION = 360;
-const TRANSITION_END = PIXEL_MAX_DELAY + PIXEL_CELL_DURATION + 40; // ~640ms
+// Wipe is fully opaque once the latest-delayed cell finishes (delay + duration).
+// Swap the underlying img while the wipe still covers it, then unmount the wipe
+// a few frames later so the browser has time to paint the new img bitmap.
+const WIPE_FULLY_OPAQUE = PIXEL_MAX_DELAY + PIXEL_CELL_DURATION; // 600ms
+const WIPE_UNMOUNT_DELAY = 80; // ~5 frames @60fps — paints new img beneath wipe
 
 type Cell = { col: number; row: number; delay: number };
 
@@ -120,16 +124,20 @@ export function HeroSection() {
       src: cards[nextIdx]?.src ?? '',
     });
 
-    // Once all cells are fully opaque (showing next image), atomically swap
-    // the underlying img src AND unmount the wipe in the same render batch
-    // — no flash because cells are already showing the new image.
-    const t = window.setTimeout(() => {
+    // Once all cells are fully opaque (showing next image), swap the underlying
+    // img src while the wipe still covers it. Then unmount the wipe a few
+    // frames later — by then the browser has uploaded the new img bitmap, so
+    // the unmount reveals the new card with no flash of the previous one.
+    const swapTimer = window.setTimeout(() => {
       setImgIdx(nextIdx);
+    }, WIPE_FULLY_OPAQUE);
+
+    const unmountTimer = window.setTimeout(() => {
       setWipe((w) => (w?.id === id ? null : w));
       transitioningRef.current = false;
-    }, TRANSITION_END);
+    }, WIPE_FULLY_OPAQUE + WIPE_UNMOUNT_DELAY);
 
-    timersRef.current = [t];
+    timersRef.current = [swapTimer, unmountTimer];
   }, []);
 
   // Track tab visibility — when tab becomes visible, the auto-advance effect
