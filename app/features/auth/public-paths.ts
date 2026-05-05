@@ -9,7 +9,6 @@
  */
 export const PUBLIC_PATH_PREFIXES = [
   '/home',
-  '/home-v1',
   '/login',
   '/signup',
   '/forgot-password',
