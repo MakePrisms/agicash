@@ -15,7 +15,6 @@ import {
 import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-switcher';
 import { CASH_APP_LOGO_URL } from '~/features/buy/cash-app';
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
-import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
 import { useUser } from '~/features/user/user-hooks';
@@ -35,21 +34,18 @@ export default function Index() {
   const defaultUsdAccountId = useUser((user) => user.defaultUsdAccountId);
   const defaultCurrency = useDefaultAccount().currency;
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
-  const giftCardsEnabled = useFeatureFlag('GIFT_CARDS');
 
   return (
     <Page>
       <PageHeader className="z-10 px-4">
         <PageHeaderItem position="left" className="flex gap-6">
-          {giftCardsEnabled && (
-            <LinkWithViewTransition
-              to="/gift-cards"
-              transition="slideRight"
-              applyTo="newView"
-            >
-              <GiftIcon className="text-muted-foreground" />
-            </LinkWithViewTransition>
-          )}
+          <LinkWithViewTransition
+            to="/gift-cards"
+            transition="slideRight"
+            applyTo="newView"
+          >
+            <GiftIcon className="text-muted-foreground" />
+          </LinkWithViewTransition>
           <LinkWithViewTransition
             to="/scan"
             transition="slideUp"
