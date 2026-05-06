@@ -57,7 +57,7 @@ const useCreateQuote = ({
     if (!quote && createQuoteStatus === 'idle') {
       createQuote({
         account,
-        amount: amount.isZero() ? undefined : amount,
+        amount,
       });
     }
   }, [quote, createQuoteStatus, createQuote, amount, account]);

@@ -40,10 +40,10 @@ export type GetLightningQuoteParams = {
    */
   wallet: BreezSdk;
   /**
-   * The amount to receive. If omitted, the SDK will create an amountless
+   * The amount to receive. Pass a zero-valued Money to create an amountless
    * (zero-amount) BOLT11 invoice that the payer specifies the amount on.
    */
-  amount?: Money;
+  amount: Money;
   /**
    * The Spark public key of the receiver used to create invoices on behalf of another user.
    * If provided, the incoming payment can only be claimed by the Spark wallet that controls the specified public key.
@@ -222,7 +222,7 @@ export type RepositoryCreateQuoteParams = {
 /**
  * Gets a Breez SDK lightning receive quote for the given amount.
  * This is a pure function that calls Breez SDK and can be used by both client and server.
- * When `amount` is omitted, the SDK creates an amountless BOLT11 invoice and
+ * When `amount` is zero, the SDK creates an amountless BOLT11 invoice and
  * the returned quote's invoice amount falls back to zero sats.
  * @returns The Spark lightning receive quote.
  */
@@ -237,7 +237,7 @@ export async function getLightningQuote({
       paymentMethod: {
         type: 'bolt11Invoice',
         description: description ?? '',
-        ...(amount !== undefined && { amountSats: amount.toNumber('sat') }),
+        amountSats: amount.isZero() ? undefined : amount.toNumber('sat'),
         receiverIdentityPubkey,
       },
     }),
@@ -256,8 +256,7 @@ export async function getLightningQuote({
   const invoice = bolt11.decoded;
   const invoiceAmount = invoice.amountMsat
     ? new Money({ amount: invoice.amountMsat, currency: 'BTC', unit: 'msat' })
-    : ((amount as Money<'BTC'> | undefined) ??
-      new Money({ amount: 0, currency: 'BTC', unit: 'sat' }));
+    : (amount as Money<'BTC'>);
   const { receiveRequestId, status, createdAt, updatedAt } =
     response.lightningReceiveDetails;
 

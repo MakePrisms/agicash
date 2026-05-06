@@ -265,10 +265,10 @@ type CreateProps = {
    */
   account: SparkAccount;
   /**
-   * The amount to receive. If omitted, an amountless (zero-amount) BOLT11
-   * invoice is created and the payer specifies the amount on send.
+   * The amount to receive. Pass a zero-valued Money to create an amountless
+   * (zero-amount) BOLT11 invoice that the payer specifies the amount on.
    */
-  amount?: Money;
+  amount: Money;
   /**
    * Description to include in the Lightning invoice memo.
    */
