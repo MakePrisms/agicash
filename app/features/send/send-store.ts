@@ -4,17 +4,17 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '~/features/accounts/account';
-import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
-import { parseCashuPaymentRequest } from '~/lib/cashu';
-import {
-  buildLightningAddressFormatValidator,
-  isValidLightningAddress,
-} from '~/lib/lnurl';
-import { type Currency, Money } from '~/lib/money';
-import { type Contact, isContact } from '../contacts/contact';
+import type { Currency, Money } from '~/lib/money';
+import type { Contact } from '../contacts/contact';
+import type { GiftCardInfo } from '../gift-cards/gift-card-config';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
+import { findMatchingOfferOrGiftCardAccount } from './find-matching-offer-or-gift-card-account';
+import {
+  type SendDestination,
+  resolveSendDestination,
+} from './resolve-destination';
 import type { SparkLightningQuote } from './spark-send-quote-service';
 
 /**
@@ -26,66 +26,6 @@ const getDefaultSendType = (
   accountType: Account['type'],
 ): 'CASHU_TOKEN' | 'BOLT11_INVOICE' => {
   return accountType === 'cashu' ? 'CASHU_TOKEN' : 'BOLT11_INVOICE';
-};
-
-const validateLightningAddressFormat = buildLightningAddressFormatValidator({
-  message: 'Invalid lightning address',
-  allowLocalhost: import.meta.env.MODE === 'development',
-});
-
-type ValidateResult =
-  | {
-      valid: false;
-      error: string;
-    }
-  | {
-      valid: true;
-      amount: Money<Currency> | null;
-      currency: Currency;
-      unit: 'sat' | 'cent';
-    };
-
-const validateBolt11 = (
-  { network, amountSat, expiryUnixMs }: DecodedBolt11,
-  { allowZeroAmount = false } = {},
-): ValidateResult => {
-  if (network !== 'bitcoin') {
-    return {
-      valid: false,
-      error: `Unsupported network: ${network}. Only Bitcoin mainnet is supported`,
-    };
-  }
-
-  if (expiryUnixMs) {
-    const expiresAt = new Date(expiryUnixMs);
-    const now = new Date();
-    if (expiresAt < now) {
-      return {
-        valid: false,
-        error: 'Invoice expired',
-      };
-    }
-  }
-
-  if (!amountSat && !allowZeroAmount) {
-    return {
-      valid: false,
-      error: 'Amount is required for Lightning invoices',
-    };
-  }
-
-  return {
-    valid: true,
-    amount: amountSat
-      ? new Money({
-          amount: amountSat,
-          currency: 'BTC' as Currency,
-          unit: 'sat',
-        })
-      : null,
-    unit: 'sat',
-    currency: 'BTC',
-  };
 };
 
 const pickAmountByCurrency = <T extends Currency>(
@@ -200,7 +140,11 @@ export type SendState = State & Actions;
 
 type CreateSendStoreProps = {
   initialAccount: Account;
+  /** Initial destination to send to, if any. */
+  initialDestination: SendDestination | null;
   getAccount: (accountId: string) => Account;
+  getAccounts: () => Account[];
+  giftCards: GiftCardInfo[];
   getInvoiceFromLud16: (params: {
     lud16: string;
     amount: Money<'BTC'>;
@@ -236,7 +180,10 @@ const isSendTypeSupportedForAccount = (
 
 export const createSendStore = ({
   initialAccount,
+  initialDestination,
   getAccount,
+  getAccounts,
+  giftCards,
   getInvoiceFromLud16,
   getCashuLightningQuote,
   getCashuSwapQuote,
@@ -255,14 +202,18 @@ export const createSendStore = ({
     };
 
     return {
-      status: 'idle',
-      amount: null,
+      status: 'idle' as const,
       accountId: initialAccount.id,
-      sendType: getDefaultSendType(initialAccount.type),
-      destination: null,
-      destinationDisplay: null,
+      sendType:
+        initialDestination?.sendType ?? getDefaultSendType(initialAccount.type),
+      destination: initialDestination?.destination ?? null,
+      destinationDisplay: initialDestination?.destinationDisplay ?? null,
+      destinationDetails: initialDestination?.destinationDetails ?? null,
+      amount:
+        initialDestination?.sendType === 'BOLT11_INVOICE'
+          ? initialDestination.amount
+          : null,
       quote: null,
-      cashuToken: null,
 
       selectSourceAccount: (account) => {
         const {
@@ -305,77 +256,49 @@ export const createSendStore = ({
         } as Partial<SendState>);
       },
 
-      selectDestination: async (destination) => {
-        if (isContact(destination)) {
-          set({
-            sendType: 'AGICASH_CONTACT',
-            destinationDisplay: destination.username,
-            destinationDetails: destination,
-          });
-
-          return {
-            success: true,
-            data: { type: 'AGICASH_CONTACT' },
-          };
+      selectDestination: async (input) => {
+        const account = get().getSourceAccount();
+        const result = await resolveSendDestination(input, {
+          allowZeroAmountBolt11: account.type === 'spark',
+        });
+        if (!result.success) {
+          return result;
         }
 
-        const isLnAddressFormat = validateLightningAddressFormat(destination);
-        if (isLnAddressFormat === true) {
-          const isValidLnAddress = await isValidLightningAddress(destination);
-          if (!isValidLnAddress) {
-            return {
-              success: false,
-              error: 'Invalid lightning address',
-            };
-          }
+        const {
+          sendType,
+          destination,
+          destinationDisplay,
+          destinationDetails,
+        } = result.data;
 
-          set({
-            sendType: 'LN_ADDRESS',
-            destinationDisplay: destination,
-            destinationDetails: { lnAddress: destination },
-          });
+        const matched =
+          result.data.sendType === 'BOLT11_INVOICE'
+            ? findMatchingOfferOrGiftCardAccount({
+                decodedBolt11: result.data.decoded,
+                accounts: getAccounts(),
+                giftCards,
+              })
+            : null;
+        const accountId = matched?.id ?? account.id;
 
-          return {
-            success: true,
-            data: { type: 'LN_ADDRESS' },
-          };
-        }
-
-        const bolt11ParseResult = parseBolt11Invoice(destination);
-        if (bolt11ParseResult.valid) {
-          const invoice = bolt11ParseResult.decoded;
-          const account = get().getSourceAccount();
-          const allowZeroAmount = account.type === 'spark';
-          const result = validateBolt11(invoice, { allowZeroAmount });
-          if (!result.valid) {
-            return { success: false, error: result.error };
-          }
-
-          const cleanedDestination = destination.replace(/^lightning:/i, '');
-          set({
-            sendType: 'BOLT11_INVOICE',
-            destination: cleanedDestination,
-            destinationDisplay: `${cleanedDestination.slice(0, 6)}...${cleanedDestination.slice(-4)}`,
-          });
-
-          return {
-            success: true,
-            data: { type: 'BOLT11_INVOICE', amount: result.amount },
-          };
-        }
-
-        const cashuRequestParseResult = parseCashuPaymentRequest(destination);
-        if (cashuRequestParseResult.valid) {
-          return {
-            success: false,
-            error: 'Cashu payment requests are not supported',
-          };
-        }
+        set({
+          accountId,
+          sendType,
+          destination,
+          destinationDisplay,
+          destinationDetails,
+        } as Partial<SendState>);
 
         return {
-          success: false,
-          error:
-            'Invalid destination. Must be lightning address, bolt11 invoice or cashu payment request',
+          success: true,
+          data: {
+            type: result.data.sendType,
+            amount:
+              result.data.sendType === 'BOLT11_INVOICE'
+                ? result.data.amount
+                : null,
+          },
         };
       },
 
@@ -484,7 +407,7 @@ export const createSendStore = ({
         set({ status: 'idle' });
         return { success: true, next: 'confirmQuote' };
       },
-    };
+    } as SendState;
   });
 };
 

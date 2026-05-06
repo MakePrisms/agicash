@@ -19,7 +19,6 @@ import {
   getInitializedCashuWallet,
   tokenToMoney,
 } from '../shared/cashu';
-import { getFeatureFlag } from '../shared/feature-flags';
 import type {
   CashuAccountWithTokenFlags,
   ReceiveCashuTokenAccount,
@@ -99,17 +98,12 @@ export class ReceiveCashuTokenService {
     const isTestMint = checkIsTestMint(mintUrl);
 
     const isValid = validationResult === true;
-    const isGatedGiftCard =
-      wallet.purpose === 'gift-card' && !getFeatureFlag('GIFT_CARDS');
 
     return {
       ...baseAccount,
       name: mintInfo.name || baseAccount.name,
       isTestMint,
-      canReceive: isValid && !isGatedGiftCard,
-      cannotReceiveReason: isGatedGiftCard
-        ? 'Secret feature, not available yet.'
-        : undefined,
+      canReceive: isValid,
       isOnline,
     };
   }
@@ -136,17 +130,11 @@ export class ReceiveCashuTokenService {
     );
 
     if (existingCashuAccount) {
-      const isGatedGiftCard =
-        existingCashuAccount.purpose === 'gift-card' &&
-        !getFeatureFlag('GIFT_CARDS');
       const sourceAccount = {
         ...existingCashuAccount,
         isSource: true,
         isUnknown: false,
-        canReceive: !isGatedGiftCard,
-        cannotReceiveReason: isGatedGiftCard
-          ? 'Secret feature, not available yet.'
-          : undefined,
+        canReceive: true,
       };
       return {
         sourceAccount,

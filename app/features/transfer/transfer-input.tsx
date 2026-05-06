@@ -121,6 +121,8 @@ export default function TransferInput() {
 
     const hash = `#${encodedToken}`;
 
+    // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
+    // See https://github.com/remix-run/remix/discussions/10721
     window.history.replaceState(null, '', hash);
     navigate(
       {

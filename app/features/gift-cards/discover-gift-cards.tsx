@@ -12,7 +12,7 @@ import {
 } from '~/components/wallet-card';
 import useUserAgent from '~/hooks/use-user-agent';
 import { cn } from '~/lib/utils';
-import type { GiftCardInfo } from './use-discover-cards';
+import type { GiftCardInfo } from './gift-card-config';
 
 const DiscoverCardsLocationStateSchema = z.object({
   discoverScrollPosition: z.number(),

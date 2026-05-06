@@ -6,9 +6,11 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
-import { useGetAccount } from '../accounts/account-hooks';
+import { useAccountsCache, useGetAccount } from '../accounts/account-hooks';
+import { GIFT_CARDS } from '../gift-cards/use-discover-cards';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
+import type { SendDestination } from './resolve-destination';
 import { type SendState, type SendStore, createSendStore } from './send-store';
 import { useCreateSparkLightningSendQuote } from './spark-send-quote-hooks';
 import { useGetInvoiceFromLud16 } from './use-get-invoice-from-lud16';
@@ -18,9 +20,15 @@ const SendContext = createContext<SendStore | null>(null);
 type Props = PropsWithChildren<{
   /** Usually the user's default account. This sets the initial account to send from. */
   initialAccount: Account;
+  /** Initial destination to send to, if any. */
+  initialDestination: SendDestination | null;
 }>;
 
-export const SendProvider = ({ initialAccount, children }: Props) => {
+export const SendProvider = ({
+  initialAccount,
+  initialDestination,
+  children,
+}: Props) => {
   const { mutateAsync: getInvoiceFromLud16 } = useGetInvoiceFromLud16();
   const { mutateAsync: getCashuLightningQuote } =
     useCreateCashuLightningSendQuote();
@@ -28,11 +36,16 @@ export const SendProvider = ({ initialAccount, children }: Props) => {
   const { mutateAsync: getSparkLightningQuote } =
     useCreateSparkLightningSendQuote();
   const getAccount = useGetAccount();
+  const accountsCache = useAccountsCache();
+  const getAccounts = () => accountsCache.getAll() ?? [];
 
   const [store] = useState(() =>
     createSendStore({
       initialAccount,
+      initialDestination,
       getAccount,
+      getAccounts,
+      giftCards: GIFT_CARDS,
       getInvoiceFromLud16,
       getCashuLightningQuote,
       getCashuSwapQuote,

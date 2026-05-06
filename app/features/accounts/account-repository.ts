@@ -59,9 +59,9 @@ export class AccountRepository {
   /**
    * Gets the account with the given id.
    * @param id - The id of the account to get.
-   * @returns The account.
+   * @returns The account, or null if not found.
    */
-  async get(id: string, options?: Options): Promise<Account> {
+  async get(id: string, options?: Options): Promise<Account | null> {
     // Currently we limit the number of proofs returned to 6000
     // We will need to handle that somehow later (e.g. require user to swap when the limit is reaching)
     const query = this.db
@@ -74,21 +74,21 @@ export class AccountRepository {
       query.abortSignal(options.abortSignal);
     }
 
-    const { data, error } = await query.single();
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       throw new Error('Failed to get account', { cause: error });
     }
 
-    return this.toAccount(data);
+    return data ? this.toAccount(data) : null;
   }
 
   /**
-   * Gets all the accounts for the given user.
+   * Gets all active accounts for the given user.
    * @param userId - The id of the user to get the accounts for.
-   * @returns The accounts with unspent proofs.
+   * @returns The active accounts with unspent proofs.
    */
-  async getAll(userId: string, options?: Options): Promise<Account[]> {
+  async getAllActive(userId: string, options?: Options): Promise<Account[]> {
     // Currently we limit the number of proofs returned to 6000
     // We will need to handle that somehow later (e.g. require user to swap when the limit is reaching)
     const query = this.db
