@@ -14,7 +14,7 @@ import { accountOfflineToast } from '~/features/accounts/utils';
 import type { Transaction } from '~/features/transactions/transaction';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
-import { isThisWeek, isToday, isYesterday } from '~/lib/date';
+import { getStartOfDayNDaysAgo, isToday, isYesterday } from '~/lib/date';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccountOrNull } from '../accounts/account-hooks';
 import { AccountIcon } from '../accounts/account-icons';
@@ -28,12 +28,13 @@ import {
 
 /**
  * Formats a timestamp into a human-readable relative time string with specific time of day.
- * Uses calendar day boundaries in the user's local timezone.
+ * Uses rolling day boundaries in the user's local timezone so labels reflect actual elapsed time
+ * rather than calendar week boundaries.
  * Examples:
  * - "Today at 2:30 PM"
  * - "Yesterday at 9:15 AM"
- * - "Monday at 11:45 PM"
- * - "Jan 15 at 3:20 PM"
+ * - "Saturday at 11:45 PM"  (2-6 days ago)
+ * - "Jan 15 at 3:20 PM"     (7+ days ago)
  */
 function formatRelativeTimestampWithTime(timestamp: string): string {
   const date = new Date(timestamp);
@@ -49,7 +50,8 @@ function formatRelativeTimestampWithTime(timestamp: string): string {
   if (isYesterday(date)) {
     return `Yesterday at ${timeString}`;
   }
-  if (isThisWeek(date)) {
+  // Cap at 6 days ago so the weekday name never collides with today's weekday.
+  if (date >= getStartOfDayNDaysAgo(6)) {
     return `${date.toLocaleDateString(undefined, { weekday: 'long' })} at ${timeString}`;
   }
   return `${date.toLocaleDateString(undefined, {
