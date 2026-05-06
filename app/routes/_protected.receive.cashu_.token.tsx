@@ -15,6 +15,7 @@ import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
+import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
 import {
   decodeCashuToken,
   getCashuCryptography,
@@ -31,6 +32,7 @@ import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
+import { validateCashuToken } from '~/lib/cashu';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
@@ -114,6 +116,15 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/receive');
   }
 
+  const validation = validateCashuToken(token);
+
+  if (!validation.isTokenSupported) {
+    return {
+      isTokenSupported: false as const,
+      message: validation.message,
+    };
+  }
+
   const location = new URL(request.url);
   const selectedAccountId =
     location.searchParams.get('selectedAccountId') ?? undefined;
@@ -151,7 +162,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(redirectTo);
   }
 
-  return { token, selectedAccountId };
+  return { isTokenSupported: true as const, token, selectedAccountId };
 }
 
 clientLoader.hydrate = true as const;
@@ -163,14 +174,16 @@ export function HydrateFallback() {
 export default function ProtectedReceiveCashuToken({
   loaderData,
 }: Route.ComponentProps) {
-  const { token, selectedAccountId } = loaderData;
+  if (!loaderData.isTokenSupported) {
+    return <UnsupportedCashuTokenPage message={loaderData.message} />;
+  }
 
   return (
     <Page>
       <Suspense fallback={<ReceiveCashuTokenSkeleton />}>
         <ReceiveCashuToken
-          token={token}
-          preferredReceiveAccountId={selectedAccountId}
+          token={loaderData.token}
+          preferredReceiveAccountId={loaderData.selectedAccountId}
         />
       </Suspense>
     </Page>
