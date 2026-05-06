@@ -2,6 +2,7 @@ import {
   WalletCard,
   WalletCardBackgroundImage,
   WalletCardBlank,
+  WalletCardOverlay,
 } from '~/components/wallet-card';
 import type { CashuAccount } from '~/features/accounts/account';
 
@@ -16,7 +17,14 @@ export function OfferItem({ account, image }: OfferItemProps) {
       {image ? (
         <WalletCardBackgroundImage src={image} alt={account.name} />
       ) : (
-        <WalletCardBlank />
+        <>
+          <WalletCardBlank />
+          <WalletCardOverlay className="flex items-center justify-center px-4">
+            <span className="truncate text-card-foreground text-lg">
+              {account.name}
+            </span>
+          </WalletCardOverlay>
+        </>
       )}
     </WalletCard>
   );
