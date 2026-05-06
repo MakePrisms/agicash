@@ -1,6 +1,19 @@
 // Bun test preload. Polyfills browser globals that some module-level code
-// depends on (most notably `app/features/agicash-db/database.client.ts`),
-// so unit tests can load services that transitively pull in those modules.
+// depends on, so that unit tests can load services which transitively
+// pull in those modules.
+//
+// Specifically, `app/features/agicash-db/database.client.ts` evaluates at
+// module load:
+//   - `(window as any).agicashRealtime = ...` (top-level assignment)
+//   - `createClient(...)` which kicks off a Supabase auth fetch that calls
+//     `isLoggedIn()` -> `window.localStorage.getItem(...)` (no typeof guard)
+// Both throw `ReferenceError: window is not defined` under bun test.
+//
+// `mock.module()` cannot replace those exports from inside a test file,
+// because static imports are hoisted above any `mock.module()` call in the
+// same file, so the real module evaluates before the mock is registered.
+// A preload polyfill is the simplest fix and stays a no-op in environments
+// that already have these globals (browser, jsdom, etc.).
 //
 // Wire this up via bunfig.toml: [test] preload = ["./app/test-setup.ts"]
 
