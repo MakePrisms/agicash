@@ -1,3 +1,4 @@
+import bitcoinPizzaCard from '~/assets/gift-cards/bitcoinpizza.agi.cash.webp';
 import blockAndBeanCard from '~/assets/gift-cards/blockandbean.agi.cash.webp';
 import compassCoffeeCard from '~/assets/gift-cards/compass.agi.cash.webp';
 import kissOfMatchaCard from '~/assets/gift-cards/kissofmatcha.agi.cash.webp';
@@ -11,6 +12,7 @@ import squaresantacruzCard from '~/assets/gift-cards/squaresantacruz.agi.cash.we
 import theEpicurianTraderCard from '~/assets/gift-cards/theepicureantrader.agi.cash.webp';
 
 const GIFT_CARD_IMAGES: Record<string, string> = {
+  'https://bitcoinpizza.agi.cash': bitcoinPizzaCard,
   'https://blockandbean.agi.cash': blockAndBeanCard,
   'https://compass.agi.cash': compassCoffeeCard,
   'https://kissofmatcha.agi.cash': kissOfMatchaCard,
@@ -25,6 +27,7 @@ const GIFT_CARD_IMAGES: Record<string, string> = {
 };
 
 const GIFT_CARD_OG_IMAGES: Record<string, string> = {
+  'https://bitcoinpizza.agi.cash': '/og/pizza-offer.webp',
   'https://kissofmatcha.agi.cash': '/og/kissofmatcha.webp',
   'https://mariposa.agi.cash': '/og/mariposa.webp',
   'https://pinkowl.agi.cash': '/og/pinkowl.webp',
