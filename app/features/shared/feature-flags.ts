@@ -3,13 +3,12 @@ import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { getQueryClient } from '~/features/shared/query-client';
 
-export type FeatureFlag = 'GUEST_SIGNUP' | 'GIFT_CARDS' | 'DEBUG_LOGGING_SPARK';
+export type FeatureFlag = 'GUEST_SIGNUP' | 'DEBUG_LOGGING_SPARK';
 
 type FeatureFlags = Record<FeatureFlag, boolean>;
 
 const FEATURE_FLAG_DEFAULTS: FeatureFlags = {
   GUEST_SIGNUP: false,
-  GIFT_CARDS: false,
   DEBUG_LOGGING_SPARK: false,
 };
 
