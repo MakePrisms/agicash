@@ -54,16 +54,6 @@ export class ExtendedMintInfo extends MintInfo {
   get agicash(): AgicashMintExtension | undefined {
     return (this.cache as ExtendedGetInfoResponse).agicash;
   }
-
-  /**
-   * Returns true if the mint supports paying amountless BOLT11 invoices
-   * via NUT-05 melt for the given method and unit. NUT-05 must be enabled
-   * and at least one method entry must advertise `options.amountless = true`.
-   */
-  canMeltAmountless(method = 'bolt11', unit = 'sat'): boolean {
-    if (this.nuts['5']?.disabled) return false;
-    return this.supportsAmountless(method, unit);
-  }
 }
 
 export type ExtendedMintQuoteBolt11Response = MintQuoteBolt11Response &

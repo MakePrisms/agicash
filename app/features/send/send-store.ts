@@ -23,9 +23,14 @@ import type { SparkLightningQuote } from './spark-send-quote-service';
  */
 export const canAccountPayAmountlessBolt11 = (account: Account): boolean => {
   if (account.type === 'spark') return true;
-  return account.wallet
-    .getMintInfo()
-    .canMeltAmountless('bolt11', getCashuProtocolUnit(account.currency));
+  const mintInfo = account.wallet.getMintInfo();
+  // cashu-ts MintInfo.supportsAmountless does not check the NUT-05 disabled
+  // flag, so guard it here.
+  if (mintInfo.nuts['5']?.disabled) return false;
+  return mintInfo.supportsAmountless(
+    'bolt11',
+    getCashuProtocolUnit(account.currency),
+  );
 };
 
 /**
