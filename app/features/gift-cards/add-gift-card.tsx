@@ -24,7 +24,7 @@ import { shouldAcceptGiftCardMintTerms } from '~/features/user/user';
 import { useAcceptTerms, useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import type { Currency } from '~/lib/money';
-import type { GiftCardInfo } from './use-discover-cards';
+import type { GiftCardInfo } from './gift-card-config';
 
 type AddGiftCardParams = {
   name: string;

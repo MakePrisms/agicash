@@ -33,7 +33,6 @@ import {
 } from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
-import { getOfferCardImageByUrl } from '../gift-cards/offer-card-images';
 import { OfferItem } from '../gift-cards/offer-item';
 import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
@@ -287,23 +286,22 @@ export default function ReceiveToken({
           {claimableToken && receiveAccount ? (
             <div className="w-full max-w-sm px-4">
               {giftCard ? (
-                <div className="flex flex-col items-center gap-3">
-                  <GiftCardItem
-                    account={sourceAccount}
-                    image={giftCard.image}
-                    hideOverlayContent
-                  />
-                  {giftCard.addCardDisclaimer && (
-                    <p className="text-center text-muted-foreground text-sm">
-                      {giftCard.addCardDisclaimer}
-                    </p>
-                  )}
-                </div>
-              ) : sourceAccount.purpose === 'offer' ? (
-                <OfferItem
-                  account={sourceAccount}
-                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
-                />
+                giftCard.purpose === 'gift-card' ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <GiftCardItem
+                      account={sourceAccount}
+                      image={giftCard.image}
+                      hideOverlayContent
+                    />
+                    {giftCard.addCardDisclaimer && (
+                      <p className="text-center text-muted-foreground text-sm">
+                        {giftCard.addCardDisclaimer}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <OfferItem account={sourceAccount} image={giftCard.image} />
+                )
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
@@ -461,23 +459,22 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
           {claimableToken && sourceAccount.canReceive ? (
             <div className="w-full max-w-sm px-4">
               {giftCard ? (
-                <div className="flex flex-col items-center gap-3">
-                  <GiftCardItem
-                    account={sourceAccount}
-                    image={giftCard.image}
-                    hideOverlayContent
-                  />
-                  {giftCard.addCardDisclaimer && (
-                    <p className="text-center text-muted-foreground text-sm">
-                      {giftCard.addCardDisclaimer}
-                    </p>
-                  )}
-                </div>
-              ) : sourceAccount.purpose === 'offer' ? (
-                <OfferItem
-                  account={sourceAccount}
-                  image={getOfferCardImageByUrl(sourceAccount.mintUrl)}
-                />
+                giftCard.purpose === 'gift-card' ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <GiftCardItem
+                      account={sourceAccount}
+                      image={giftCard.image}
+                      hideOverlayContent
+                    />
+                    {giftCard.addCardDisclaimer && (
+                      <p className="text-center text-muted-foreground text-sm">
+                        {giftCard.addCardDisclaimer}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <OfferItem account={sourceAccount} image={giftCard.image} />
+                )
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}

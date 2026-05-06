@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { CashuAccount } from '~/features/accounts/account';
-import type { GiftCardInfo } from '~/features/gift-cards/use-discover-cards';
+import type { GiftCardInfo } from '~/features/gift-cards/gift-card-config';
 import { type DecodedBolt11, decodeBolt11 } from '~/lib/bolt11';
 import { findMatchingOfferOrGiftCardAccount } from './find-matching-offer-or-gift-card-account';
 
@@ -27,16 +27,18 @@ const buildBolt11 = (
 const buildGiftCard = (opts: {
   url: string;
   name?: string;
+  purpose?: 'gift-card' | 'offer';
   validPaymentDestinations?: { descriptions: string[]; nodePubkeys: string[] };
-}): GiftCardInfo =>
-  ({
-    url: opts.url,
-    name: opts.name ?? opts.url,
-    currency: 'BTC',
-    isDiscoverable: true,
-    image: '',
-    validPaymentDestinations: opts.validPaymentDestinations,
-  }) as GiftCardInfo;
+}): GiftCardInfo => ({
+  url: opts.url,
+  name: opts.name ?? opts.url,
+  currency: 'BTC',
+  purpose: opts.purpose ?? 'gift-card',
+  isDiscoverable: true,
+  image: '',
+  ogImage: undefined,
+  validPaymentDestinations: opts.validPaymentDestinations,
+});
 
 const buildCashuAccount = (opts: {
   mintUrl: string;

@@ -16,7 +16,7 @@ import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { CARD_WIDTH } from './card-stack-constants';
-import { getOfferCardImageByUrl } from './offer-card-images';
+import { getGiftCardImageByUrl } from './gift-card-images';
 import { OfferItem } from './offer-item';
 
 function formatExpiryDate(expiresAt: string): string {
@@ -73,7 +73,7 @@ export default function OfferDetails({ offer }: OfferDetailsProps) {
             >
               <OfferItem
                 account={offer}
-                image={getOfferCardImageByUrl(offer.mintUrl)}
+                image={getGiftCardImageByUrl(offer.mintUrl)}
               />
             </button>
           </div>

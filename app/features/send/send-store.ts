@@ -6,7 +6,7 @@ import type {
 } from '~/features/accounts/account';
 import type { Currency, Money } from '~/lib/money';
 import type { Contact } from '../contacts/contact';
-import type { GiftCardInfo } from '../gift-cards/use-discover-cards';
+import type { GiftCardInfo } from '../gift-cards/gift-card-config';
 import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';

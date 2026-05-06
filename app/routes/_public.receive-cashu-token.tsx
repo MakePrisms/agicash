@@ -1,6 +1,5 @@
 import { type MetaDescriptor, redirect } from 'react-router';
 import { Page } from '~/components/page';
-import { getOfferOgImageByUrl } from '~/features/gift-cards/offer-card-images';
 import { getGiftCardByUrl } from '~/features/gift-cards/use-discover-cards';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token';
@@ -18,24 +17,21 @@ type SharePreview = {
 
 function resolveSharePreview(mintUrl: string): SharePreview | undefined {
   const card = getGiftCardByUrl(mintUrl);
-  if (card?.ogImage) {
+  if (!card?.ogImage) return undefined;
+
+  if (card.purpose === 'offer') {
     return {
       ogImage: card.ogImage,
-      title: `${card.name} Bitcoin gift card`,
-      description: 'Claim on Agicash.',
-    };
-  }
-
-  const offerImage = getOfferOgImageByUrl(mintUrl);
-  if (offerImage) {
-    return {
-      ogImage: offerImage,
       title: 'Your Bitcoin offer!',
       description: 'Claim on Agicash.',
     };
   }
 
-  return undefined;
+  return {
+    ogImage: card.ogImage,
+    title: `${card.name} Bitcoin gift card`,
+    description: 'Claim on Agicash.',
+  };
 }
 
 export function meta({ location, matches }: Route.MetaArgs): MetaDescriptor[] {

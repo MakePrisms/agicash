@@ -15,13 +15,10 @@ import {
 } from './card-stack-constants';
 import { DiscoverGiftCards } from './discover-gift-cards';
 import { EmptyState } from './empty-state';
+import { getGiftCardImageByUrl } from './gift-card-images';
 import { GiftCardItem } from './gift-card-item';
-import { getOfferCardImageByUrl } from './offer-card-images';
 import { OfferItem } from './offer-item';
-import {
-  getGiftCardImageByUrl,
-  useDiscoverGiftCards,
-} from './use-discover-cards';
+import { useDiscoverGiftCards } from './use-discover-cards';
 
 /**
  * Gift cards view with discover section, card stack, and offers.
@@ -89,7 +86,7 @@ export function GiftCards() {
                   >
                     <OfferItem
                       account={account}
-                      image={getOfferCardImageByUrl(account.mintUrl)}
+                      image={getGiftCardImageByUrl(account.mintUrl)}
                     />
                   </button>
                 ))}
