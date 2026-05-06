@@ -14,7 +14,7 @@ import {
   sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
@@ -334,6 +334,7 @@ type OnSparkReceiveStateChangeCallbacks = {
     paymentData: {
       paymentPreimage: string;
       sparkTransferId: string;
+      paidAmount: Money<'BTC'>;
     },
   ) => void;
   /**
@@ -399,6 +400,11 @@ export function useOnSparkReceiveStateChange({
         onCompletedRef.current(quote.id, {
           sparkTransferId: payment.id,
           paymentPreimage: preimage,
+          paidAmount: new Money({
+            amount: Number(payment.amount),
+            currency: 'BTC',
+            unit: 'sat',
+          }),
         });
       };
 
@@ -470,10 +476,12 @@ export function useProcessSparkReceiveQuoteTasks() {
       quoteId,
       paymentPreimage,
       sparkTransferId,
+      paidAmount,
     }: {
       quoteId: string;
       paymentPreimage: string;
       sparkTransferId: string;
+      paidAmount: Money<'BTC'>;
     }) => {
       const quote = pendingQuotesCache.get(quoteId);
       if (!quote) {
@@ -484,6 +492,7 @@ export function useProcessSparkReceiveQuoteTasks() {
         quote,
         paymentPreimage,
         sparkTransferId,
+        paidAmount,
       );
     },
     retry: 3,
@@ -651,6 +660,7 @@ export function useProcessSparkReceiveQuoteTasks() {
           quoteId,
           paymentPreimage: paymentData.paymentPreimage,
           sparkTransferId: paymentData.sparkTransferId,
+          paidAmount: paymentData.paidAmount,
         },
         { scope: { id: `spark-receive-quote-${quoteId}` } },
       );
