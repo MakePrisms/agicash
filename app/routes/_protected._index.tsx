@@ -16,9 +16,11 @@ import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-sw
 import { CASH_APP_LOGO_URL } from '~/features/buy/cash-app';
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
+import useIsPwa from '~/hooks/use-is-pwa';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
 import { useUser } from '~/features/user/user-hooks';
 import { LinkWithViewTransition } from '~/lib/transitions';
+import { cn } from '~/lib/utils';
 
 export const links: LinksFunction = () => [
   // This icon is used in the PWA dialog and prefetched here to avoid a flash while loading
@@ -34,6 +36,7 @@ export default function Index() {
   const defaultUsdAccountId = useUser((user) => user.defaultUsdAccountId);
   const defaultCurrency = useDefaultAccount().currency;
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
+  const isPwa = useIsPwa();
 
   return (
     <Page>
@@ -77,8 +80,8 @@ export default function Index() {
         </PageHeaderItem>
       </PageHeader>
 
-      <PageContent className="absolute inset-0 mx-auto flex flex-col items-center justify-center gap-32">
-        <div className="flex flex-col items-center gap-4">
+      <PageContent className="mx-auto items-center justify-between pt-20 sm:justify-center sm:gap-32 sm:py-0">
+        <div className={cn(isPwa && 'pt-[30px]')}>
           <MoneyWithConvertedAmount
             money={defaultCurrency === 'BTC' ? balanceBTC : balanceUSD}
           />
@@ -90,7 +93,7 @@ export default function Index() {
           <div />
         )}
 
-        <div className="flex w-72 flex-col gap-4">
+        <div className={cn('flex w-72 flex-col gap-4', isPwa && 'pb-20')}>
           <div className="grid grid-cols-2 gap-4">
             <LinkWithViewTransition
               to="/receive"
