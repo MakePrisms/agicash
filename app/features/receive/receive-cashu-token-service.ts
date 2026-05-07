@@ -44,34 +44,6 @@ export class ReceiveCashuTokenService {
       currency,
     });
 
-    const commonAccount = {
-      id: 'cashu-account-placeholder-id',
-      type: 'cashu' as const,
-      name: mintUrl.replace('https://', '').replace('http://', ''),
-      mintUrl,
-      createdAt: new Date().toISOString(),
-      currency,
-      version: 0,
-      keysetCounters: {},
-      proofs: [],
-      isDefault: false,
-      isSource: true,
-      isUnknown: true,
-      wallet,
-    };
-
-    if (!isOnline) {
-      return {
-        ...commonAccount,
-        purpose: 'transactional' as const,
-        state: 'active' as const,
-        expiresAt: null,
-        canReceive: false,
-        isOnline: false,
-        isTestMint: false,
-      };
-    }
-
     let expiresAt: string | null = null;
     if (wallet.purpose === 'offer') {
       const activeKeyset = findFirstActiveKeyset(
@@ -86,17 +58,29 @@ export class ReceiveCashuTokenService {
     const isExpired = expiresAt !== null && new Date(expiresAt) <= new Date();
 
     const baseAccount = {
-      ...commonAccount,
+      id: 'cashu-account-placeholder-id',
+      type: 'cashu' as const,
       purpose: wallet.purpose,
       state: isExpired ? ('expired' as const) : ('active' as const),
+      name: mintUrl.replace('https://', '').replace('http://', ''),
+      mintUrl,
+      createdAt: new Date().toISOString(),
+      currency,
+      version: 0,
+      keysetCounters: {},
       expiresAt,
+      proofs: [],
+      isDefault: false,
+      isSource: true,
+      isUnknown: true,
+      wallet,
     };
 
-    if (isExpired) {
+    if (!isOnline || isExpired) {
       return {
         ...baseAccount,
         canReceive: false,
-        cannotReceiveReason: 'This offer has expired',
+        cannotReceiveReason: isExpired ? 'This offer has expired' : undefined,
         isOnline,
         isTestMint: false,
       };
