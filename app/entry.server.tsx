@@ -31,6 +31,9 @@ function handleRequest(
     let shellRendered = false;
     const userAgent = request.headers.get('user-agent');
 
+    // react-router's prerender constructs requests with no user-agent header.
+    const isPrerender = !userAgent;
+
     // Ensure requests from bots and SPA Mode renders wait for all content to load before responding
     // https://react.dev/reference/react-dom/server/renderToPipeableStream#waiting-for-all-content-to-load-for-crawlers-and-static-generation
     const readyOption: keyof RenderToPipeableStreamOptions =
@@ -41,6 +44,28 @@ function handleRequest(
     const { pipe, abort } = renderToPipeableStream(
       <ServerRouter context={routerContext} url={request.url} />,
       {
+        // React's streaming SSR uses progressiveChunkSize (default 12.8 KB) to
+        // optimize first paint: when the rendered HTML exceeds this threshold,
+        // React "outlines" the next Suspense boundary — it writes the fallback
+        // into the initial shell and emits the actual content later as a
+        // hidden <template> that an inline <script> swaps in. The server
+        // flushes the shell immediately and streams the rest, so the browser
+        // starts painting (with the fallback) before the full response is
+        // ready.
+        //
+        // This trades a fallback flash for faster first paint. It's a real
+        // win for streaming SSR with slow data — a skeleton beats a blank
+        // page. But for prerendered routes it's pure cost: the HTML is built
+        // at compile time and served as a static file, so there's no
+        // opportunity for early flushing. The fallback-then-swap dance still
+        // happens (the static file contains both the fallback shell and the
+        // swap script), so the user sees a fallback flash on first paint with
+        // nothing gained. Setting an effectively-infinite threshold disables
+        // outlining for these requests, so the content renders inline in the
+        // shell.
+        progressiveChunkSize: isPrerender
+          ? Number.POSITIVE_INFINITY
+          : undefined,
         [readyOption]() {
           shellRendered = true;
           const body = new PassThrough();
