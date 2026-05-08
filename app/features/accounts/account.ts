@@ -105,6 +105,7 @@ export const canSendToLightning = (account: Account): boolean => {
   }
   if (account.isTestMint) return false;
   if (account.purpose !== 'transactional') return false;
+  if (!account.isOnline) return false;
   return !account.wallet.getMintInfo().isSupported(5).disabled;
 };
 
@@ -115,6 +116,7 @@ export const canSendToLightning = (account: Account): boolean => {
 export const canReceiveFromLightning = (account: Account): boolean => {
   if (account.type === 'spark') return true;
   if (account.isTestMint) return false;
+  if (!account.isOnline) return false;
   return !account.wallet.getMintInfo().isSupported(4).disabled;
 };
 
