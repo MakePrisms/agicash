@@ -13,6 +13,7 @@ import type { RenderToPipeableStreamOptions } from 'react-dom/server';
 import { renderToPipeableStream } from 'react-dom/server';
 import type { EntryContext, RouterContextProvider } from 'react-router';
 import { ServerRouter } from 'react-router';
+import { PRERENDERED_PATHS } from './prerender-paths';
 
 export const streamTimeout = 5_000;
 
@@ -32,7 +33,18 @@ function handleRequest(
     const userAgent = request.headers.get('user-agent');
 
     // react-router's prerender constructs requests with no user-agent header.
-    const isPrerender = !userAgent;
+    const isBuildTimePrerender = !userAgent;
+
+    // Vercel currently doesn't serve prerendered HTML as static files when
+    // ssr:true (remix-run/react-router#14281) — requests for these paths
+    // fall through to the SSR function. Match them here so the outlining
+    // override below applies at runtime SSR too. Once the upstream adapter
+    // bug is fixed, this path-list check can be dropped; the no-UA check
+    // alone will cover real prerender invocations.
+    const pathname = new URL(request.url).pathname.replace(/\/+$/, '') || '/';
+    const isPrerenderRoute = PRERENDERED_PATHS.includes(pathname);
+
+    const shouldDisableOutlining = isBuildTimePrerender || isPrerenderRoute;
 
     // Ensure requests from bots and SPA Mode renders wait for all content to load before responding
     // https://react.dev/reference/react-dom/server/renderToPipeableStream#waiting-for-all-content-to-load-for-crawlers-and-static-generation
@@ -55,15 +67,16 @@ function handleRequest(
         //
         // This trades a fallback flash for faster first paint. It's a real
         // win for streaming SSR with slow data — a skeleton beats a blank
-        // page. But for prerendered routes it's pure cost: the HTML is built
-        // at compile time and served as a static file, so there's no
-        // opportunity for early flushing. The fallback-then-swap dance still
-        // happens (the static file contains both the fallback shell and the
-        // swap script), so the user sees a fallback flash on first paint with
-        // nothing gained. Setting an effectively-infinite threshold disables
-        // outlining for these requests, so the content renders inline in the
-        // shell.
-        progressiveChunkSize: isPrerender
+        // page. But for prerender-eligible routes it's pure cost: when
+        // served as static (the intent), the file is buffered and there's
+        // no opportunity for early flushing — the fallback-then-swap dance
+        // still happens in the file, so the user sees a fallback flash on
+        // first paint with nothing gained. When falling through to runtime
+        // SSR (current Vercel behavior, see above), the same flash returns
+        // for a different reason but the same fix applies. Setting an
+        // effectively-infinite threshold disables outlining for these
+        // requests, so the content renders inline in the shell.
+        progressiveChunkSize: shouldDisableOutlining
           ? Number.POSITIVE_INFINITY
           : undefined,
         [readyOption]() {
