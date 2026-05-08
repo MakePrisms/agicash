@@ -12,7 +12,7 @@ import { SparkIcon } from '~/components/spark-icon';
 import { Card } from '~/components/ui/card';
 import { useTransactionAckStatusStore } from '~/features/transactions/transaction-ack-status-store';
 import { useIsVisible } from '~/hooks/use-is-visible';
-import { getStartOfWeek, isToday } from '~/lib/date';
+import { getStartOfDayNDaysAgo, isToday, isYesterday } from '~/lib/date';
 import {
   LinkWithViewTransition,
   VIEW_TRANSITION_DURATION_MS,
@@ -247,13 +247,16 @@ function TransactionSection({
   );
 }
 
-/** Filter transactions by status and time range using calendar day boundaries */
+/** Partition transactions into pending, today, yesterday, last 7 days, last 30 days, and older buckets using rolling time windows. */
 function usePartitionTransactions(transactions: Transaction[]) {
-  const startOfWeek = getStartOfWeek(new Date());
+  const last7DaysStart = getStartOfDayNDaysAgo(7);
+  const last30DaysStart = getStartOfDayNDaysAgo(30);
 
   const pendingTransactions: Transaction[] = [];
   const todayTransactions: Transaction[] = [];
-  const thisWeekTransactions: Transaction[] = [];
+  const yesterdayTransactions: Transaction[] = [];
+  const last7DaysTransactions: Transaction[] = [];
+  const last30DaysTransactions: Transaction[] = [];
   const olderTransactions: Transaction[] = [];
 
   // Transactions are already sorted correctly from the database
@@ -265,8 +268,12 @@ function usePartitionTransactions(transactions: Transaction[]) {
       const createdDate = new Date(transaction.createdAt);
       if (isToday(createdDate)) {
         todayTransactions.push(transaction);
-      } else if (createdDate >= startOfWeek) {
-        thisWeekTransactions.push(transaction);
+      } else if (isYesterday(createdDate)) {
+        yesterdayTransactions.push(transaction);
+      } else if (createdDate >= last7DaysStart) {
+        last7DaysTransactions.push(transaction);
+      } else if (createdDate >= last30DaysStart) {
+        last30DaysTransactions.push(transaction);
       } else {
         olderTransactions.push(transaction);
       }
@@ -276,7 +283,9 @@ function usePartitionTransactions(transactions: Transaction[]) {
   return {
     pendingTransactions,
     todayTransactions,
-    thisWeekTransactions,
+    yesterdayTransactions,
+    last7DaysTransactions,
+    last30DaysTransactions,
     olderTransactions,
   };
 }
@@ -310,7 +319,9 @@ export function TransactionList({
   const {
     pendingTransactions,
     todayTransactions,
-    thisWeekTransactions,
+    yesterdayTransactions,
+    last7DaysTransactions,
+    last30DaysTransactions,
     olderTransactions,
   } = usePartitionTransactions(allTransactions);
 
@@ -354,8 +365,16 @@ export function TransactionList({
         />
         <TransactionSection title="Today" transactions={todayTransactions} />
         <TransactionSection
-          title="This Week"
-          transactions={thisWeekTransactions}
+          title="Yesterday"
+          transactions={yesterdayTransactions}
+        />
+        <TransactionSection
+          title="Last Week"
+          transactions={last7DaysTransactions}
+        />
+        <TransactionSection
+          title="Last Month"
+          transactions={last30DaysTransactions}
         />
         <TransactionSection title="Older" transactions={olderTransactions} />
       </div>
