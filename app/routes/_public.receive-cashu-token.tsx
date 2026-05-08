@@ -3,9 +3,11 @@ import { Page } from '~/components/page';
 import { getGiftCardByUrl } from '~/features/gift-cards/use-discover-cards';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token';
+import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
 import { decodeCashuToken } from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
+import { validateCashuToken } from '~/lib/cashu';
 import { normalizeMintUrl } from '~/lib/cashu/utils';
 import type { Route } from './+types/_public.receive-cashu-token';
 
@@ -88,7 +90,16 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect('/home');
   }
 
-  return { token };
+  const validation = validateCashuToken(token);
+
+  if (!validation.isTokenSupported) {
+    return {
+      isTokenSupported: false as const,
+      message: validation.message,
+    };
+  }
+
+  return { isTokenSupported: true as const, token };
 }
 
 clientLoader.hydrate = true as const;
@@ -100,11 +111,13 @@ export function HydrateFallback() {
 export default function ReceiveCashuTokenPage({
   loaderData,
 }: Route.ComponentProps) {
-  const { token } = loaderData;
+  if (!loaderData.isTokenSupported) {
+    return <UnsupportedCashuTokenPage message={loaderData.message} />;
+  }
 
   return (
     <Page>
-      <PublicReceiveCashuToken token={token} />
+      <PublicReceiveCashuToken token={loaderData.token} />
     </Page>
   );
 }
