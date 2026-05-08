@@ -265,12 +265,24 @@ export const getCashuWallet = (
 };
 
 /**
- * Normalize a mint URL by trimming whitespace, lowercasing, and stripping
- * trailing slashes. Use this whenever a mint URL is stored or compared so
- * variants like `https://Mint.io/` and `https://mint.io` match.
+ * Normalize a mint URL by trimming whitespace and stripping
+ * trailing slashes. Use this whenever a mint URL is stored or compared.
+ * This lowercases only the scheme and hostname, while preserving the
+ * original casing of the path/query/hash because path segments can be
+ * case-sensitive on some mints (for example `/Bitcoin` vs `/bitcoin`).
  */
-export const normalizeMintUrl = (mintUrl: string): string =>
-  mintUrl.trim().toLowerCase().replace(/\/+$/, '');
+export const normalizeMintUrl = (mintUrl: string): string => {
+  const trimmed = mintUrl.trim().replace(/\/+$/, '');
+
+  try {
+    const url = new URL(trimmed);
+    url.protocol = url.protocol.toLowerCase();
+    url.hostname = url.hostname.toLowerCase();
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return trimmed;
+  }
+};
 
 /**
  * Check if a mint is a test mint by checking if the mint is in the list of
