@@ -118,6 +118,7 @@ export default function ReceiveSpark({ amount, account }: Props) {
           error={errorMessage}
           isLoading={isLoading}
           onClick={quote ? () => handleCopy(quote.paymentRequest) : undefined}
+          className="pt-2"
         />
       </PageContent>
       {showOk && (

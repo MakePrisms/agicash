@@ -1,43 +1,31 @@
 import type { MintKeyset } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useLocation, useNavigate } from 'react-router';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '~/components/ui/select';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
 import {
   allMintKeysetsQueryOptions,
   cashuMintValidator,
   mintInfoQueryOptions,
 } from '~/features/shared/cashu';
-import { useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import {
   type ExtendedMintInfo,
   getCashuProtocolUnit,
   getMintPurpose,
 } from '~/lib/cashu';
-import type { Currency } from '~/lib/money';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 type FormValues = {
   name: string;
-  currency: Currency;
   mintUrl: string;
 };
 
-const currencies = [
-  { value: 'BTC', label: 'BTC' },
-  { value: 'USD', label: 'USD' },
-];
+const ACCOUNT_CURRENCY = 'BTC' as const;
+const ACCOUNT_UNIT = getCashuProtocolUnit(ACCOUNT_CURRENCY);
 
 type GetMintInfoAndKeysetsResult =
   | {
@@ -74,10 +62,8 @@ const getMintInfoAndKeysets = async (
 
 const validateMint = async (
   value: string,
-  formValues: FormValues,
   queryClient: QueryClient,
 ): Promise<string | true> => {
-  const unit = getCashuProtocolUnit(formValues.currency);
   const result = await getMintInfoAndKeysets(value, queryClient);
   if (!result.success) {
     return result.error;
@@ -85,7 +71,7 @@ const validateMint = async (
 
   return cashuMintValidator(
     value,
-    unit,
+    ACCOUNT_UNIT,
     result.data.mintInfo,
     result.data.keysets,
   );
@@ -95,21 +81,14 @@ export function AddMintForm() {
   const addAccount = useAddCashuAccount();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const defaultCurrency = useUser((u) => u.defaultCurrency);
   const location = useLocation();
   const queryClient = useQueryClient();
 
   const {
     register,
     handleSubmit,
-    control,
-    getValues,
     formState: { isSubmitting, errors },
-  } = useForm<FormValues>({
-    defaultValues: {
-      currency: defaultCurrency,
-    },
-  });
+  } = useForm<FormValues>();
 
   const onSubmit = async (data: FormValues) => {
     try {
@@ -119,7 +98,7 @@ export function AddMintForm() {
       const purpose = getMintPurpose(mintInfo);
       await addAccount({
         name: data.name,
-        currency: data.currency,
+        currency: ACCOUNT_CURRENCY,
         mintUrl: data.mintUrl,
         type: 'cashu',
         purpose,
@@ -141,9 +120,6 @@ export function AddMintForm() {
       });
     }
   };
-
-  const currency = getValues('currency');
-  const unit = getCashuProtocolUnit(currency);
 
   return (
     <form
@@ -174,46 +150,6 @@ export function AddMintForm() {
       </div>
 
       <div className="grid gap-2">
-        <Label htmlFor="currency">Currency</Label>
-        <Controller
-          control={control}
-          name="currency"
-          rules={{ required: 'Currency is required' }}
-          render={({ field }) => (
-            <Select
-              onValueChange={field.onChange}
-              value={field.value}
-              name={field.name}
-            >
-              <SelectTrigger
-                id="currency"
-                aria-invalid={errors.currency ? 'true' : 'false'}
-              >
-                <SelectValue placeholder="Select a currency" />
-              </SelectTrigger>
-              <SelectContent>
-                {currencies.map((currency) => (
-                  <SelectItem key={currency.value} value={currency.value}>
-                    {currency.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        />
-        {errors.currency && (
-          <span
-            id="currencyError"
-            role="alert"
-            aria-labelledby="currencyError"
-            className="text-red-500 text-sm"
-          >
-            {errors.currency.message}
-          </span>
-        )}
-      </div>
-
-      <div className="grid gap-2">
         <Label htmlFor="mintUrl">Mint URL</Label>
         <Input
           id="mintUrl"
@@ -221,7 +157,7 @@ export function AddMintForm() {
           placeholder="Mint URL (https://...)"
           {...register('mintUrl', {
             required: 'Mint URL is required',
-            validate: (value) => validateMint(value, getValues(), queryClient),
+            validate: (value) => validateMint(value, queryClient),
           })}
         />
         {errors.mintUrl && (
@@ -238,7 +174,7 @@ export function AddMintForm() {
           Search at{' '}
           <a
             className="underline"
-            href={`https://bitcoinmints.com?show=cashu&units=${unit}`}
+            href={`https://bitcoinmints.com?show=cashu&units=${ACCOUNT_UNIT}`}
             target="_blank"
             rel="noopener noreferrer"
           >

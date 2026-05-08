@@ -13,26 +13,12 @@ export function getStartOfDay(date: Date): Date {
 }
 
 /**
- * Returns the start of the week for a given date in local timezone.
- * Uses the browser's locale to determine the first day of the week.
- * Falls back to Sunday if locale info is unavailable.
+ * Returns midnight (start of day) for the day `n` days before today, in local timezone.
+ * `n = 0` is the start of today, `n = 1` is the start of yesterday, etc.
  */
-export function getStartOfWeek(date: Date): Date {
-  const locale = new Intl.Locale(navigator.language);
-  // getWeekInfo().firstDay: 1 = Monday, 7 = Sunday
-  const firstDayOfWeek = locale.getWeekInfo?.()?.firstDay ?? 7;
-
-  const result = getStartOfDay(date);
-
-  // getDay(): 0 = Sunday, 6 = Saturday
-  // Convert firstDayOfWeek from ISO (1-7) to JS (0-6)
-  const localeFirstDay = firstDayOfWeek === 7 ? 0 : firstDayOfWeek;
-  const currentDay = result.getDay();
-
-  // Calculate days to subtract to reach the start of week
-  const daysToSubtract = (currentDay - localeFirstDay + 7) % 7;
-  result.setDate(result.getDate() - daysToSubtract);
-
+export function getStartOfDayNDaysAgo(n: number): Date {
+  const result = getStartOfDay(new Date());
+  result.setDate(result.getDate() - n);
   return result;
 }
 
@@ -61,14 +47,4 @@ export function isYesterday(date: Date): boolean {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   return isSameDay(date, yesterday);
-}
-
-/**
- * Checks if a date falls within the current calendar week (Sunday to Saturday) in local timezone.
- * Returns true for dates from the start of this week up to now.
- */
-export function isThisWeek(date: Date): boolean {
-  const now = new Date();
-  const startOfWeek = getStartOfWeek(now);
-  return date >= startOfWeek && date <= now;
 }

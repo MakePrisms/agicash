@@ -1,4 +1,5 @@
-import { useLocalStorage, useMediaQuery } from 'usehooks-ts';
+import { useLocalStorage } from 'usehooks-ts';
+import useIsPwa from '~/hooks/use-is-pwa';
 import useUserAgent from '~/hooks/use-user-agent';
 
 type DismissedValue =
@@ -65,10 +66,9 @@ export default function useShouldShowPwaPrompt(): Return {
   const { shouldShow, handleDontShowAgain, handleDismissTemporarily } =
     useShouldShowPrompt(key);
   const { isMobile } = useUserAgent();
-  // true if the app is already installed
-  const isStandalone = useMediaQuery('(display-mode: standalone)');
+  const isPwa = useIsPwa();
 
-  const shouldShowPwaPrompt = shouldShow && isMobile && !isStandalone;
+  const shouldShowPwaPrompt = shouldShow && isMobile && !isPwa;
 
   return {
     shouldShowPwaPrompt,

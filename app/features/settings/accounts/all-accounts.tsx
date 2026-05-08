@@ -8,70 +8,17 @@ import {
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { Card } from '~/components/ui/card';
-
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
 import { getAccountBalance } from '~/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { BalanceOfflineHoverCard } from '~/features/accounts/balance-offline-hover-card';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
-import { useUser } from '~/features/user/user-hooks';
-import type { Currency } from '~/lib/money';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
-function CurrencyAccounts({ currency }: { currency: Currency }) {
+export default function AllAccounts() {
   const { data: accounts } = useAccounts({
-    currency,
+    currency: 'BTC',
     purpose: 'transactional',
   });
-
-  return (
-    <div className="space-y-3">
-      {accounts.map((account) => {
-        const balance = getAccountBalance(account);
-
-        return (
-          <LinkWithViewTransition
-            key={account.id}
-            to={`/settings/accounts/${account.id}`}
-            transition="slideLeft"
-            applyTo="newView"
-            className="block"
-          >
-            <Card className="flex flex-col p-2 px-4 transition-colors hover:bg-muted/50">
-              <div className="flex items-center justify-between">
-                <h3>{account.name}</h3>
-                {balance !== null ? (
-                  <MoneyWithConvertedAmount money={balance} variant="inline" />
-                ) : (
-                  <BalanceOfflineHoverCard accountType={account.type} />
-                )}
-              </div>
-              {(account.isDefault || !account.isOnline) && (
-                <div className="mt-1 flex gap-2">
-                  {account.isDefault && <Badge>Default</Badge>}
-                  {!account.isOnline && <Badge>Offline</Badge>}
-                </div>
-              )}
-            </Card>
-          </LinkWithViewTransition>
-        );
-      })}
-    </div>
-  );
-}
-
-const tabs = [
-  { title: 'Bitcoin', value: 'BTC' },
-  { title: 'USD', value: 'USD' },
-] as const;
-
-const getTab = (currency: Currency) => {
-  return tabs.find((x) => x.value === currency) ?? tabs[0];
-};
-
-export default function AllAccounts() {
-  const defaultCurrency = useUser((x) => x.defaultCurrency);
-  const defaultTab = getTab(defaultCurrency);
 
   return (
     <>
@@ -84,22 +31,41 @@ export default function AllAccounts() {
         <PageHeaderTitle>Accounts</PageHeaderTitle>
       </PageHeader>
       <PageContent>
-        <Tabs defaultValue={defaultTab.value}>
-          <TabsList className="grid w-full grid-cols-2 bg-primary">
-            {tabs.map((tab) => (
-              <TabsTrigger value={tab.value} key={tab.value}>
-                {tab.title}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {tabs.map((tab) => (
-            <TabsContent value={tab.value} key={tab.value} className="mt-8">
-              <div className="scrollbar-none h-[calc(100vh-280px)] overflow-y-auto">
-                <CurrencyAccounts currency={tab.value} />
-              </div>
-            </TabsContent>
-          ))}
-        </Tabs>
+        <div className="scrollbar-none h-[calc(100vh-200px)] space-y-3 overflow-y-auto">
+          {accounts.map((account) => {
+            const balance = getAccountBalance(account);
+
+            return (
+              <LinkWithViewTransition
+                key={account.id}
+                to={`/settings/accounts/${account.id}`}
+                transition="slideLeft"
+                applyTo="newView"
+                className="block"
+              >
+                <Card className="flex flex-col p-2 px-4 transition-colors hover:bg-muted/50">
+                  <div className="flex items-center justify-between">
+                    <h3>{account.name}</h3>
+                    {balance !== null ? (
+                      <MoneyWithConvertedAmount
+                        money={balance}
+                        variant="inline"
+                      />
+                    ) : (
+                      <BalanceOfflineHoverCard accountType={account.type} />
+                    )}
+                  </div>
+                  {(account.isDefault || !account.isOnline) && (
+                    <div className="mt-1 flex gap-2">
+                      {account.isDefault && <Badge>Default</Badge>}
+                      {!account.isOnline && <Badge>Offline</Badge>}
+                    </div>
+                  )}
+                </Card>
+              </LinkWithViewTransition>
+            );
+          })}
+        </div>
       </PageContent>
 
       <div className="fixed inset-x-0 bottom-16 flex justify-center">

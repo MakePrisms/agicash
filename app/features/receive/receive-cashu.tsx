@@ -167,7 +167,7 @@ export default function ReceiveCashu({ amount, account }: Props) {
           onClick={
             paymentRequest ? () => handleCopy(paymentRequest) : undefined
           }
-          className="gap-4"
+          className="gap-4 pt-2"
           size={256}
         />
         {mintingFee && (
