@@ -3,6 +3,19 @@
   "installCommand": "bun install",
   "buildCommand": "bun run build",
   "outputDirectory": "build",
+  "rewrites": [
+    { "source": "/home", "destination": "/home/index.html" },
+    { "source": "/terms", "destination": "/terms/index.html" },
+    { "source": "/terms/wallet", "destination": "/terms/wallet/index.html" },
+    { "source": "/terms/mint", "destination": "/terms/mint/index.html" },
+    { "source": "/privacy", "destination": "/privacy/index.html" },
+    {
+      "source": "/privacy/wallet",
+      "destination": "/privacy/wallet/index.html"
+    },
+    { "source": "/privacy/mint", "destination": "/privacy/mint/index.html" },
+    { "source": "/mint-risks", "destination": "/mint-risks/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
