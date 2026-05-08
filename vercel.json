@@ -3,6 +3,7 @@
   "installCommand": "bun install",
   "buildCommand": "bun run build",
   "outputDirectory": "build",
+  "cleanUrls": true,
   "rewrites": [
     { "source": "/home", "destination": "/home/index.html" },
     { "source": "/terms", "destination": "/terms/index.html" },
