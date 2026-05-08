@@ -27,7 +27,7 @@ export default {
     return ['/terms', '/privacy', '/mint-risks', '/home'];
   },
   future: {
-    v8_middleware: true,
-    v8_splitRouteModules: 'enforce',
+    // v8_middleware: true,
+    // v8_splitRouteModules: 'enforce',
   },
 } satisfies Config;
