@@ -1,6 +1,7 @@
 import bitcoinPizzaCard from '~/assets/gift-cards/bitcoinpizza.agi.cash.webp';
 import blockAndBeanCard from '~/assets/gift-cards/blockandbean.agi.cash.webp';
 import compassCoffeeCard from '~/assets/gift-cards/compass.agi.cash.webp';
+import forkAndCoinCard from '~/assets/gift-cards/forkandcoin.agi.cash.webp';
 import hackForFreedomCard from '~/assets/gift-cards/hackforfreedom.agi.cash.webp';
 import kissOfMatchaCard from '~/assets/gift-cards/kissofmatcha.agi.cash.webp';
 import mapleCard from '~/assets/gift-cards/maple.agi.cash.webp';
@@ -16,6 +17,7 @@ const GIFT_CARD_IMAGES: Record<string, string> = {
   'https://bitcoinpizza.agi.cash': bitcoinPizzaCard,
   'https://blockandbean.agi.cash': blockAndBeanCard,
   'https://compass.agi.cash': compassCoffeeCard,
+  'https://forkandcoin.agi.cash': forkAndCoinCard,
   'https://hackforfreedom.agi.cash': hackForFreedomCard,
   'https://kissofmatcha.agi.cash': kissOfMatchaCard,
   'https://maple.agi.cash': mapleCard,
@@ -30,6 +32,7 @@ const GIFT_CARD_IMAGES: Record<string, string> = {
 
 const GIFT_CARD_OG_IMAGES: Record<string, string> = {
   'https://bitcoinpizza.agi.cash': '/og/pizza-offer.webp',
+  'https://forkandcoin.agi.cash': '/og/forkandcoin.webp',
   'https://hackforfreedom.agi.cash': '/og/hackforfreedom.webp',
   'https://kissofmatcha.agi.cash': '/og/kissofmatcha.webp',
   'https://mariposa.agi.cash': '/og/mariposa.webp',
