@@ -4,6 +4,13 @@
   "buildCommand": "bun run build",
   "outputDirectory": "build",
   "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/home",
+      "destination": "/home/index.html",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     { "source": "/home", "destination": "/home/index.html" },
     { "source": "/terms", "destination": "/terms/index.html" },
