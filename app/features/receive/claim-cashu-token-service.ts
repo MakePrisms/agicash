@@ -2,6 +2,7 @@ import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
 import type { QueryClient } from '@tanstack/react-query';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
+import { Money } from '~/lib/money';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
@@ -275,7 +276,7 @@ export class ClaimCashuTokenService {
       }
 
       if (quotes.destinationType === 'spark') {
-        const { sparkTransferId, paymentPreimage } =
+        const { sparkTransferId, paymentPreimage, paidAmount } =
           await this.waitForSparkReceiveToComplete(
             quotes.destinationAccount,
             quotes.sparkReceiveQuote,
@@ -284,6 +285,7 @@ export class ClaimCashuTokenService {
           quotes.sparkReceiveQuote,
           paymentPreimage,
           sparkTransferId,
+          paidAmount,
         );
         return { success: true };
       }
@@ -311,7 +313,11 @@ export class ClaimCashuTokenService {
   private waitForSparkReceiveToComplete(
     account: SparkAccount,
     quote: SparkReceiveQuote,
-  ): Promise<{ sparkTransferId: string; paymentPreimage: string }> {
+  ): Promise<{
+    sparkTransferId: string;
+    paymentPreimage: string;
+    paidAmount: Money<'BTC'>;
+  }> {
     const timeoutMs = 10_000;
 
     return new Promise((resolve, reject) => {
@@ -356,6 +362,11 @@ export class ClaimCashuTokenService {
         resolve({
           sparkTransferId: payment.id,
           paymentPreimage: preimage,
+          paidAmount: new Money({
+            amount: Number(payment.amount),
+            currency: 'BTC',
+            unit: 'sat',
+          }),
         });
       };
 

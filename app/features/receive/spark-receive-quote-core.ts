@@ -40,7 +40,8 @@ export type GetLightningQuoteParams = {
    */
   wallet: BreezSdk;
   /**
-   * The amount to receive.
+   * The amount to receive. Pass a zero-valued Money to create an amountless
+   * (zero-amount) BOLT11 invoice that the payer specifies the amount on.
    */
   amount: Money;
   /**
@@ -221,6 +222,8 @@ export type RepositoryCreateQuoteParams = {
 /**
  * Gets a Breez SDK lightning receive quote for the given amount.
  * This is a pure function that calls Breez SDK and can be used by both client and server.
+ * When `amount` is zero, the SDK creates an amountless BOLT11 invoice and
+ * the returned quote's invoice amount falls back to zero sats.
  * @returns The Spark lightning receive quote.
  */
 export async function getLightningQuote({
@@ -234,7 +237,7 @@ export async function getLightningQuote({
       paymentMethod: {
         type: 'bolt11Invoice',
         description: description ?? '',
-        amountSats: amount.toNumber('sat'),
+        amountSats: amount.isZero() ? undefined : amount.toNumber('sat'),
         receiverIdentityPubkey,
       },
     }),
