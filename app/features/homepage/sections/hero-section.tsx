@@ -48,7 +48,7 @@ function PixelWipe({ cells, src }: { cells: Cell[]; src: string }) {
   const patternId = useId();
   return (
     <svg
-      className="pixel-wipe"
+      className="pixel-wipe pointer-events-none absolute inset-0 z-[3] h-full w-full overflow-hidden rounded-xl"
       viewBox={`0 0 ${PIXEL_COLS} ${PIXEL_ROWS}`}
       preserveAspectRatio="none"
       aria-hidden="true"
@@ -87,6 +87,11 @@ function PixelWipe({ cells, src }: { cells: Cell[]; src: string }) {
     </svg>
   );
 }
+
+const specimenCornerBase =
+  'pointer-events-none absolute h-[14px] w-[14px] border border-[color:var(--mk-text-muted)]';
+const specimenMetaBase =
+  'absolute font-[family:var(--mk-font-mono)] text-[9px] md:text-[10px] tracking-[0.1em] uppercase text-[color:var(--mk-text-muted)]';
 
 export function HeroSection() {
   // imgIdx — drives the underlying <img src> (lags during transition; swaps at end)
@@ -246,31 +251,52 @@ export function HeroSection() {
 
         <div className="flex justify-center md:justify-end">
           <div
-            className="specimen-plate"
+            className="relative mx-auto aspect-square w-full max-w-[320px] md:aspect-[4/3] md:max-w-[460px]"
             onMouseEnter={() => setPaused(true)}
             onMouseLeave={() => setPaused(false)}
           >
-            <span className="specimen-corner tl" />
-            <span className="specimen-corner tr" />
-            <span className="specimen-corner bl" />
-            <span className="specimen-corner br" />
+            <span
+              className={`${specimenCornerBase} top-0 left-0 border-r-0 border-b-0`}
+            />
+            <span
+              className={`${specimenCornerBase} top-0 right-0 border-b-0 border-l-0`}
+            />
+            <span
+              className={`${specimenCornerBase} bottom-0 left-0 border-t-0 border-r-0`}
+            />
+            <span
+              className={`${specimenCornerBase} right-0 bottom-0 border-t-0 border-l-0`}
+            />
 
-            <span className="specimen-meta tl">
+            <span className={`${specimenMetaBase} top-[-22px] left-0`}>
               {pad3(activeIdx)} / {String(cards.length).padStart(3, '0')}
             </span>
-            <span className="specimen-meta tr">btc gift card</span>
-            <span className="specimen-meta bl">{meta?.label}</span>
-            <span className="specimen-meta br">{meta?.location}</span>
+            <span className={`${specimenMetaBase} top-[-22px] right-0`}>
+              btc gift card
+            </span>
+            <span className={`${specimenMetaBase} bottom-[-22px] left-0`}>
+              {meta?.label}
+            </span>
+            <span className={`${specimenMetaBase} right-0 bottom-[-22px]`}>
+              {meta?.location}
+            </span>
 
-            <span className="specimen-ruler" aria-hidden="true" />
+            <span
+              aria-hidden="true"
+              className="specimen-ruler-line absolute top-[12%] right-[-20px] bottom-[12%] w-2 border-[color:var(--mk-border)] border-r"
+            />
 
-            <div className="specimen-card-wrap">
-              <div ref={cardRef} className="specimen-card">
+            <div className="absolute inset-[14%] grid place-items-center [perspective:1200px] md:inset-[12%]">
+              <div
+                ref={cardRef}
+                className="relative aspect-[1.6/1] w-full rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.35),0_10px_20px_-6px_rgba(0,0,0,0.55),0_24px_48px_-14px_rgba(0,0,0,0.7),0_50px_90px_-22px_rgba(0,0,0,0.85)] transition-transform duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] [transform-style:preserve-3d] [will-change:transform] motion-safe:animate-spec-enter"
+              >
                 <img
                   src={imgCard?.src}
                   alt={`${imgCard?.label} gift card`}
                   width={400}
                   height={250}
+                  className="block h-full w-full rounded-xl object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-opacity duration-[220ms]"
                 />
                 {wipe && (
                   <PixelWipe key={wipe.id} cells={wipe.cells} src={wipe.src} />
@@ -278,14 +304,18 @@ export function HeroSection() {
               </div>
             </div>
 
-            <div className="specimen-index">
+            <div className="absolute inset-x-0 bottom-[-50px] flex items-center justify-center gap-2">
               {cards.map((c, i) => (
                 <button
                   key={c.label}
                   type="button"
                   aria-label={`Specimen ${pad3(i)}`}
-                  className={i === activeIdx ? 'active' : ''}
                   onClick={() => advanceTo(i)}
+                  className={`h-0.5 cursor-pointer border-none p-0 transition-[background-color,width] duration-[220ms] ${
+                    i === activeIdx
+                      ? 'w-9 bg-[color:var(--mk-brand)] hover:bg-[color:var(--mk-brand)]'
+                      : 'w-6 bg-[color:var(--mk-border)] hover:bg-[color:var(--mk-border-bright)]'
+                  }`}
                 />
               ))}
             </div>

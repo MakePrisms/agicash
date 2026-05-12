@@ -11,7 +11,7 @@ import './styles.css';
 
 export function MarketingPage() {
   return (
-    <div className="marketing">
+    <div className="marketing scrollbar-none h-dvh overflow-y-auto overflow-x-hidden bg-[color:var(--mk-bg)] font-[family:var(--mk-font-display)] text-[color:var(--mk-text)]">
       <MarketingNav />
       <main>
         <HeroSection />

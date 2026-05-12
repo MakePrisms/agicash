@@ -8,7 +8,7 @@ import { SectionLabel } from '../components/section-label';
 function SquareLogo() {
   return (
     <img
-      className="brand-logo-img"
+      className="block h-[30px] w-auto opacity-90"
       src={squareLogoUrl}
       alt="Square"
       height={20}
@@ -19,7 +19,7 @@ function SquareLogo() {
 function BTCPayServerLogo() {
   return (
     <img
-      className="brand-logo-img"
+      className="block h-[30px] w-auto opacity-90"
       src={btcpayLogoUrl}
       alt="BTCPay Server"
       height={28}
@@ -30,7 +30,7 @@ function BTCPayServerLogo() {
 function ShopifyLogo() {
   return (
     <img
-      className="brand-logo-img"
+      className="block h-[30px] w-auto opacity-90"
       src={shopifyLogoUrl}
       alt="Shopify"
       height={28}
@@ -59,7 +59,7 @@ export function MerchantsSection() {
           <div className="mt-7 flex justify-center">
             <a
               href="mailto:merchants@agi.cash"
-              className="mk-mailto inline-flex items-center font-mono text-sm tracking-wide"
+              className="inline-flex items-center font-mono text-[color:var(--mk-text)] text-sm tracking-wide transition-colors duration-200 hover:text-[color:var(--mk-brand)]"
             >
               <span
                 aria-hidden="true"
@@ -71,14 +71,18 @@ export function MerchantsSection() {
             </a>
           </div>
 
-          <div className="supported-systems">
-            <div className="supported-heading">supported systems</div>
-            <div className="supported-row">
+          <div className="mt-7 border-[color:var(--mk-border)] border-t pt-[22px] text-center">
+            <div className="mb-4 font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em]">
+              supported systems
+            </div>
+            <div className="mb-[14px] flex flex-wrap items-center justify-center gap-7 text-[color:var(--mk-text-dim)]">
               <SquareLogo />
               <BTCPayServerLogo />
               <ShopifyLogo />
             </div>
-            <div className="supported-more">more coming soon</div>
+            <div className="font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] opacity-70">
+              more coming soon
+            </div>
           </div>
         </MarketingCard>
       </div>

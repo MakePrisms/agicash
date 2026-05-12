@@ -125,6 +125,22 @@
   --animate-shake: shake 0.2s ease-in-out;
   --animate-slam: slam 0.4s ease-out both;
   --animate-slide-out-up: slide-out-up 300ms ease-out forwards;
+
+  /* Marketing homepage animations */
+  --animate-mk-fade-up: mk-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-pixel-cell: pixel-cell 360ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  --animate-spec-enter: spec-enter 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-transit-fly: transit-fly 1500ms cubic-bezier(0.65, 0, 0.35, 1)
+    forwards;
+  --animate-pay-qr-cycle: pay-qr-cycle 6s linear infinite;
+  --animate-pay-scan-cycle: pay-scan-cycle 6s ease-in-out infinite;
+  --animate-pay-paid-cycle: pay-paid-cycle 6s ease-in-out infinite;
+  --animate-pay-status-scan: pay-status-scan 6s linear infinite;
+  --animate-pay-status-paid: pay-status-paid 6s linear infinite;
+  --animate-state-slide: state-slide 2000ms cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-state-fade: state-fade 1700ms ease-out;
+  --animate-cashapp-spin: cashapp-spin 1s linear infinite;
+  --animate-confirm-pop: confirm-pop 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Custom keyframes */
@@ -180,6 +196,166 @@
   100% {
     transform: translateY(-150%);
     opacity: 0;
+  }
+}
+
+/* Marketing homepage keyframes */
+@keyframes mk-fade-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pixel-cell {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spec-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes transit-fly {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 1;
+  }
+}
+
+@keyframes pay-qr-cycle {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  62%,
+  92% {
+    opacity: 0.18;
+  }
+  98%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes pay-scan-cycle {
+  0%,
+  35% {
+    opacity: 0;
+    top: 10px;
+  }
+  38% {
+    opacity: 1;
+    top: 10px;
+  }
+  55% {
+    opacity: 1;
+    top: calc(100% - 12px);
+  }
+  58% {
+    opacity: 0;
+    top: calc(100% - 12px);
+  }
+  100% {
+    opacity: 0;
+    top: 10px;
+  }
+}
+
+@keyframes pay-paid-cycle {
+  0%,
+  60% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  64% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  92% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes pay-status-scan {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  60%,
+  95% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes pay-status-paid {
+  0%,
+  60% {
+    opacity: 0;
+  }
+  64%,
+  92% {
+    opacity: 1;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes state-slide {
+  0% {
+    opacity: 0;
+    transform: translateX(80px);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes state-fade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes cashapp-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
