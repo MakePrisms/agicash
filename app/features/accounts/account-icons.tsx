@@ -16,7 +16,7 @@ export function AccountIcon({
   type,
   purpose,
 }: { type: AccountType; purpose: AccountPurpose }) {
-  if (purpose === 'gift-card') {
+  if (purpose === 'gift-card' || purpose === 'offer') {
     return <GiftCardIcon />;
   }
   return iconsByAccountType[type];
