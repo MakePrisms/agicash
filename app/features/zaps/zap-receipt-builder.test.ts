@@ -7,7 +7,7 @@ const baseRequest: ValidatedZapRequest = {
   content: 'thanks',
   pTag: 'b'.repeat(64),
   relays: ['wss://relay.example.com'],
-  rawJson: '{"kind":9734,"tags":[["p","' + 'b'.repeat(64) + '"]]}',
+  rawJson: `{"kind":9734,"tags":[["p","${'b'.repeat(64)}"]]}`,
 };
 
 describe('buildZapReceiptTemplate', () => {

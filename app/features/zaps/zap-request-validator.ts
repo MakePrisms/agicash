@@ -117,7 +117,9 @@ export function validateDecodedZapRequest(
 
   const relaysTag = event.tags.find((t) => t[0] === 'relays');
   if (!relaysTag || relaysTag.length < 2) {
-    return { error: 'Zap request must have a relays tag with at least one url' };
+    return {
+      error: 'Zap request must have a relays tag with at least one url',
+    };
   }
   const relays = relaysTag.slice(1).filter((r) => r.length > 0);
   if (relays.length === 0) {

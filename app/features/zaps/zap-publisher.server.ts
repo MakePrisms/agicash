@@ -38,14 +38,20 @@ export async function publishZapReceipt(
           p,
           new Promise<string>((_, reject) =>
             setTimeout(
-              () => reject(new Error(`relay publish timed out after ${timeoutMs}ms`)),
+              () =>
+                reject(
+                  new Error(`relay publish timed out after ${timeoutMs}ms`),
+                ),
               timeoutMs,
             ),
           ),
         ])
           .then((value) => ({ relay, value }))
           .catch((err: unknown) => {
-            throw { relay, reason: err instanceof Error ? err.message : String(err) };
+            throw {
+              relay,
+              reason: err instanceof Error ? err.message : String(err),
+            };
           });
       }),
     );

@@ -17,6 +17,13 @@ import {
   decryptXChaCha20Poly1305,
   encryptXChaCha20Poly1305,
 } from '~/lib/xchacha20poly1305';
+import type { AgicashDb } from '../agicash-db/database';
+import { NotFoundError } from '../shared/error';
+import { sparkWalletQueryOptions } from '../shared/spark';
+import {
+  ReadUserDefaultAccountRepository,
+  ReadUserRepository,
+} from '../user/user-repository';
 import {
   getServerNostrPubkey,
   getServerNostrSecret,
@@ -29,17 +36,10 @@ import {
   type ZapQuoteType,
 } from '../zaps/zap-request-repository.server';
 import {
-  parseAndValidateZapRequest,
   type ValidatedZapRequest,
+  parseAndValidateZapRequest,
   validateDecodedZapRequest,
 } from '../zaps/zap-request-validator';
-import type { AgicashDb } from '../agicash-db/database';
-import { NotFoundError } from '../shared/error';
-import { sparkWalletQueryOptions } from '../shared/spark';
-import {
-  ReadUserDefaultAccountRepository,
-  ReadUserRepository,
-} from '../user/user-repository';
 import { getLightningQuote } from './cashu-receive-quote-core';
 import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-repository.server';
 import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
@@ -397,9 +397,7 @@ export class LightningAddressService {
             quoteType,
             prefetched: status,
           }),
-          new Promise<void>((resolve) =>
-            setTimeout(resolve, publishBudgetMs),
-          ),
+          new Promise<void>((resolve) => setTimeout(resolve, publishBudgetMs)),
         ]).catch((err) => {
           console.error('Zap receipt publish (verify piggyback) failed', {
             cause: err,
