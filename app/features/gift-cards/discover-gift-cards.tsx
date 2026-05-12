@@ -1,11 +1,4 @@
-import { useEffect, useRef } from 'react';
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useViewTransitionState,
-} from 'react-router';
-import { z } from 'zod';
+import { Link, useNavigate, useViewTransitionState } from 'react-router';
 import {
   WalletCard,
   WalletCardBackgroundImage,
@@ -13,40 +6,11 @@ import {
 import useUserAgent from '~/hooks/use-user-agent';
 import { cn } from '~/lib/utils';
 import type { GiftCardInfo } from './gift-card-config';
-
-const DiscoverCardsLocationStateSchema = z.object({
-  discoverScrollPosition: z.number(),
-});
-
-/**
- * Restores scroll position from navigation state when returning from add-gift-card page.
- * Returns the current scroll position for passing to child Link components.
- */
-function useRestoreScrollPosition() {
-  const location = useLocation();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollPositionRef = useRef(0);
-
-  // Restore scroll position from navigation state
-  useEffect(() => {
-    const result = DiscoverCardsLocationStateSchema.safeParse(location.state);
-    if (result.success && scrollRef.current) {
-      scrollRef.current.scrollLeft = result.data.discoverScrollPosition;
-    }
-  }, [location.state]);
-
-  const handleScroll = () => {
-    if (scrollRef.current) {
-      scrollPositionRef.current = scrollRef.current.scrollLeft;
-    }
-  };
-
-  return { scrollRef, scrollPositionRef, handleScroll };
-}
+import { useRestoreScrollPosition } from './use-restore-scroll-position';
 
 type DiscoverCardLinkProps = {
   card: GiftCardInfo;
-  scrollPositionRef: React.RefObject<number>;
+  getScrollState: () => object;
   children: React.ReactNode;
 };
 
@@ -56,7 +20,7 @@ type DiscoverCardLinkProps = {
  */
 function DiscoverCardLink({
   card,
-  scrollPositionRef,
+  getScrollState,
   children,
 }: DiscoverCardLinkProps) {
   const navigate = useNavigate();
@@ -67,12 +31,7 @@ function DiscoverCardLink({
   // Use onClick to capture scroll position at click time, not render time
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    navigate(to, {
-      viewTransition: true,
-      state: {
-        discoverScrollPosition: scrollPositionRef.current,
-      } satisfies z.input<typeof DiscoverCardsLocationStateSchema>,
-    });
+    navigate(to, { viewTransition: true, state: getScrollState() });
   };
 
   return (
@@ -101,8 +60,9 @@ type DiscoverSectionProps = {
 export function DiscoverGiftCards({ giftCards }: DiscoverSectionProps) {
   const { isMobile } = useUserAgent();
   const isTransitioning = useViewTransitionState('/gift-cards/:accountId');
-  const { scrollRef, scrollPositionRef, handleScroll } =
-    useRestoreScrollPosition();
+  const { scrollRef, handleScroll, getScrollState } = useRestoreScrollPosition(
+    'discoverScrollPosition',
+  );
 
   return (
     <div
@@ -128,7 +88,7 @@ export function DiscoverGiftCards({ giftCards }: DiscoverSectionProps) {
               <DiscoverCardLink
                 key={`${card.url}:${card.currency}`}
                 card={card}
-                scrollPositionRef={scrollPositionRef}
+                getScrollState={getScrollState}
               >
                 <WalletCard
                   size="sm"

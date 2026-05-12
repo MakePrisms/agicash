@@ -17,7 +17,7 @@ import { DiscoverGiftCards } from './discover-gift-cards';
 import { EmptyState } from './empty-state';
 import { getGiftCardImageByUrl } from './gift-card-images';
 import { GiftCardItem } from './gift-card-item';
-import { OfferItem } from './offer-item';
+import { OffersSection } from './offers-section';
 import { useDiscoverGiftCards } from './use-discover-cards';
 
 /**
@@ -34,9 +34,6 @@ export function GiftCards() {
   const isGiftCardTransitioning = useViewTransitionState(
     '/gift-cards/:accountId',
   );
-  const isOfferCardTransitioning = useViewTransitionState(
-    '/gift-cards/offers/:accountId',
-  );
 
   const hasCards = accounts.length > 0;
   const stackedHeight =
@@ -45,10 +42,6 @@ export function GiftCards() {
 
   const handleCardClick = (account: CashuAccount) => {
     navigate(`/gift-cards/${account.id}`, { viewTransition: true });
-  };
-
-  const handleOfferClick = (account: CashuAccount) => {
-    navigate(`/gift-cards/offers/${account.id}`, { viewTransition: true });
   };
 
   return (
@@ -64,35 +57,7 @@ export function GiftCards() {
             <DiscoverGiftCards giftCards={giftCardsToDiscover} />
           )}
 
-          {offerCards.length > 0 && (
-            <div className="flex w-full shrink-0 flex-col items-center px-4 pb-8">
-              <h2 className="mb-3 w-full text-white">Offers</h2>
-              <div
-                className="flex w-full flex-col gap-3"
-                style={{ maxWidth: CARD_WIDTH }}
-              >
-                {offerCards.map((account) => (
-                  <button
-                    key={account.id}
-                    type="button"
-                    onClick={() => handleOfferClick(account)}
-                    aria-label={`View ${account.name} offer`}
-                    className="w-full"
-                    style={{
-                      viewTransitionName: isOfferCardTransitioning
-                        ? `offer-${account.id}`
-                        : undefined,
-                    }}
-                  >
-                    <OfferItem
-                      account={account}
-                      image={getGiftCardImageByUrl(account.mintUrl)}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <OffersSection offers={offerCards} />
 
           {hasCards ? (
             <div className="flex w-full shrink-0 flex-col items-center pb-8">
