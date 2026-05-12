@@ -1,5 +1,5 @@
 import {
-  PageBackButton,
+  ClosePageButton,
   PageContent,
   PageHeader,
   PageHeaderTitle,
@@ -100,7 +100,7 @@ export default function SendScanner() {
   return (
     <>
       <PageHeader className="z-10">
-        <PageBackButton
+        <ClosePageButton
           to={buildLinkWithSearchParams('/send')}
           transition="slideDown"
           applyTo="oldView"

@@ -1,5 +1,5 @@
 import {
-  PageBackButton,
+  ClosePageButton,
   PageContent,
   PageHeader,
   PageHeaderTitle,
@@ -20,7 +20,7 @@ export default function TransferScanner() {
   return (
     <>
       <PageHeader className="z-10">
-        <PageBackButton
+        <ClosePageButton
           to={buildLinkWithSearchParams(`/transfer/${destinationAccountId}`)}
           transition="slideDown"
           applyTo="oldView"

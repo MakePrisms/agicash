@@ -1,7 +1,7 @@
 import { Clipboard } from 'lucide-react';
 import {
+  ClosePageButton,
   Page,
-  PageBackButton,
   PageContent,
   PageFooter,
   PageHeader,
@@ -76,7 +76,7 @@ export default function ScanPage() {
   return (
     <Page>
       <PageHeader className="z-10">
-        <PageBackButton to="/" transition="slideDown" applyTo="oldView" />
+        <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Scan</PageHeaderTitle>
       </PageHeader>
       <PageContent className="relative flex items-center justify-center">
