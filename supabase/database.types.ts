@@ -561,6 +561,48 @@ export type Database = {
         }
         Relationships: []
       }
+      nostr_zap_requests: {
+        Row: {
+          created_at: string
+          id: string
+          last_attempt_at: string | null
+          paid_at_unix_sec: number | null
+          payment_hash: string
+          publish_error: string | null
+          published_at: string | null
+          quote_id: string
+          quote_type: string
+          relays: string[]
+          zap_request_json: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          paid_at_unix_sec?: number | null
+          payment_hash: string
+          publish_error?: string | null
+          published_at?: string | null
+          quote_id: string
+          quote_type: string
+          relays: string[]
+          zap_request_json: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_attempt_at?: string | null
+          paid_at_unix_sec?: number | null
+          payment_hash?: string
+          publish_error?: string | null
+          published_at?: string | null
+          quote_id?: string
+          quote_type?: string
+          relays?: string[]
+          zap_request_json?: string
+        }
+        Relationships: []
+      }
       spark_receive_quotes: {
         Row: {
           account_id: string
