@@ -23,16 +23,34 @@ const NEXT: Record<State, State> = {
   received: 'idle',
 };
 
+const buyStageBase =
+  'buy-stage relative mx-auto flex w-full max-w-[320px] min-h-[380px] flex-col overflow-hidden rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-[22px] pb-[18px] font-[family:var(--mk-font-display)] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.04)]';
+
+const buyHead =
+  'mb-[18px] flex items-center justify-between border-[color:var(--mk-border)] border-b pb-[14px] font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]';
+
+const buyRows =
+  'mt-auto flex flex-col gap-2.5 rounded-xl border border-[color:var(--mk-border)] px-4 py-[14px] font-[family:var(--mk-font-mono)]';
+const buyRow = 'flex items-center justify-between text-[11px]';
+const buyRowLabel =
+  'text-[color:var(--mk-text-muted)] uppercase tracking-[0.06em]';
+const buyRowValue = 'text-[color:var(--mk-text)]';
+
+const buyPayButtonBase =
+  'inline-flex w-full cursor-pointer items-center justify-center rounded-[10px] border border-[color:var(--mk-border)] bg-[rgba(255,255,255,0.04)] px-7 py-3 font-[family:var(--mk-font-mono)] font-medium text-[13px] text-[color:var(--mk-text)] transition-[background-color,border-color] duration-200 hover:border-[color:var(--mk-border-bright)] hover:bg-[rgba(255,255,255,0.08)]';
+const buyPayButtonPrimary =
+  'inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-white bg-white px-7 py-3 font-[family:var(--mk-font-display)] font-medium text-[13px] text-black transition-[background-color] duration-200 hover:bg-[rgba(255,255,255,0.92)]';
+
 export function BuySection() {
   const prevStateRef = useRef<State>('idle');
   const [state, setState] = useState<State>('idle');
 
   // Determine transition kind based on whether we're crossing brands.
   // Slide between Agicash ↔ Cash App; fade within Cash App's own steps.
-  const transitionClass =
-    isCashApp(prevStateRef.current) === isCashApp(state)
-      ? 'transition-fade'
-      : 'transition-slide';
+  const isSlide = isCashApp(prevStateRef.current) !== isCashApp(state);
+  const transitionClass = isSlide
+    ? 'motion-safe:animate-state-slide'
+    : 'motion-safe:animate-state-fade';
 
   useEffect(() => {
     prevStateRef.current = state;
@@ -72,13 +90,18 @@ export function BuySection() {
         </div>
 
         <div className="flex justify-center">
-          <div className={`buy-stage ${state}`}>
-            <div className="buy-head">
+          <div className={`${buyStageBase} ${state}`}>
+            <div className={buyHead}>
               <span>{header.brand}</span>
-              <span className="merchant">{header.right}</span>
+              <span className="text-[color:var(--mk-text)]">
+                {header.right}
+              </span>
             </div>
-            <div className={`state-content ${transitionClass}`} key={state}>
-              <div className="buy-body">
+            <div
+              className={`flex flex-1 flex-col ${transitionClass}`}
+              key={state}
+            >
+              <div className="flex flex-1 flex-col">
                 {state === 'idle' && <PayBody />}
                 {state === 'loading' && <LoadingBody />}
                 {state === 'review' && <ReviewBody />}
@@ -86,7 +109,9 @@ export function BuySection() {
                 {state === 'received' && <ReceivedBody />}
               </div>
               {state !== 'loading' && (
-                <div className="buy-cta">{renderCta(state, handleAdvance)}</div>
+                <div className="mt-4 flex justify-center">
+                  {renderCta(state, handleAdvance)}
+                </div>
               )}
             </div>
           </div>
@@ -100,7 +125,7 @@ function renderCta(state: State, onClick: () => void) {
   const button = (label: string, primary = false) => (
     <button
       type="button"
-      className={`buy-pay-button${primary ? ' buy-pay-button-primary' : ''}`}
+      className={primary ? buyPayButtonPrimary : buyPayButtonBase}
       onClick={onClick}
     >
       {label}
@@ -123,20 +148,25 @@ function renderCta(state: State, onClick: () => void) {
 function PayBody() {
   return (
     <>
-      <div className="buy-amount">
-        <span className="sats">
-          <span className="btc-symbol">₿</span>10,000
+      <div className="mt-1.5 mb-[18px] flex flex-col items-center gap-1 text-center">
+        <span className="font-[family:var(--mk-font-numeric)] font-bold text-[38px] text-[color:var(--mk-text)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
+          <span className="mr-[0.06em] inline-block align-[0.02em] font-[family:var(--mk-font-mono)] font-bold text-[0.86em]">
+            ₿
+          </span>
+          10,000
         </span>
-        <span className="usd">$7.98</span>
+        <span className="font-[family:var(--mk-font-numeric)] font-semibold text-[18px] text-[color:var(--mk-text-muted)] leading-none [font-feature-settings:'tnum']">
+          $7.98
+        </span>
       </div>
-      <div className="buy-rows">
-        <div className="buy-row">
-          <span className="label">From</span>
-          <span className="value">Cash App</span>
+      <div className={buyRows}>
+        <div className={buyRow}>
+          <span className={buyRowLabel}>From</span>
+          <span className={buyRowValue}>Cash App</span>
         </div>
-        <div className="buy-row">
-          <span className="label">To</span>
-          <span className="value">Pink Owl Coffee</span>
+        <div className={buyRow}>
+          <span className={buyRowLabel}>To</span>
+          <span className={buyRowValue}>Pink Owl Coffee</span>
         </div>
       </div>
     </>
@@ -145,31 +175,51 @@ function PayBody() {
 
 function LoadingBody() {
   return (
-    <div className="buy-center">
-      <span className="cashapp-spinner" aria-hidden="true" />
+    <div className="flex flex-1 items-center justify-center">
+      <span
+        aria-hidden="true"
+        className="cashapp-spinner h-9 w-9 rounded-full border-[3px] border-[rgba(255,255,255,0.85)] border-r-transparent border-b-transparent border-dashed motion-safe:animate-cashapp-spin"
+      />
     </div>
   );
 }
 
 function ReviewBody() {
   return (
-    <div className="buy-cashapp-content">
-      <div className="cashapp-icon" aria-hidden="true">
+    <div className="flex flex-col items-start">
+      <div
+        aria-hidden="true"
+        className="mb-2.5 grid h-[38px] w-[38px] place-items-center rounded-full bg-[#00d54f] font-[family:var(--mk-font-display)] font-extrabold text-[22px] text-black"
+      >
         $
       </div>
-      <div className="cashapp-headline">Pay $7.98</div>
-      <div className="cashapp-rows">
-        <div className="cashapp-row">
-          <span className="label">Funding source</span>
-          <span className="value">Debit 9687</span>
+      <div className="cashapp-headline mb-[14px] font-[family:var(--mk-font-display)] font-bold text-[22px] text-[color:var(--mk-text)] leading-[1.1] tracking-[-0.02em]">
+        Pay $7.98
+      </div>
+      <div className="mt-0.5 flex w-full flex-col gap-2 font-[family:var(--mk-font-mono)] text-[11px]">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[color:var(--mk-text-muted)] uppercase tracking-[0.06em]">
+            Funding source
+          </span>
+          <span className="max-w-[58%] truncate text-right text-[color:var(--mk-text)] tabular-nums">
+            Debit 9687
+          </span>
         </div>
-        <div className="cashapp-row">
-          <span className="label">To</span>
-          <span className="value">lnbc100u…q97c</span>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[color:var(--mk-text-muted)] uppercase tracking-[0.06em]">
+            To
+          </span>
+          <span className="max-w-[58%] truncate text-right text-[color:var(--mk-text)] tabular-nums">
+            lnbc100u…q97c
+          </span>
         </div>
-        <div className="cashapp-row">
-          <span className="label">Fees</span>
-          <span className="value">Free</span>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[color:var(--mk-text-muted)] uppercase tracking-[0.06em]">
+            Fees
+          </span>
+          <span className="max-w-[58%] truncate text-right text-[color:var(--mk-text)] tabular-nums">
+            Free
+          </span>
         </div>
       </div>
     </div>
@@ -178,9 +228,18 @@ function ReviewBody() {
 
 function PaidBody() {
   return (
-    <div className="buy-cashapp-content buy-center">
-      <div className="cashapp-check" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+    <div className="flex flex-1 flex-col items-center justify-center">
+      <div
+        aria-hidden="true"
+        className="cashapp-check mb-4 grid h-12 w-12 place-items-center rounded-full bg-[#00d54f] text-black"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          width="28"
+          height="28"
+          aria-hidden="true"
+          className="block h-6 w-6"
+        >
           <path
             d="M5 12.5l4.5 4.5L19 8"
             fill="none"
@@ -191,7 +250,9 @@ function PaidBody() {
           />
         </svg>
       </div>
-      <div className="cashapp-headline">You paid $7.98</div>
+      <div className="cashapp-headline mb-[14px] font-[family:var(--mk-font-display)] font-bold text-[22px] text-[color:var(--mk-text)] leading-[1.1] tracking-[-0.02em]">
+        You paid $7.98
+      </div>
     </div>
   );
 }
@@ -199,17 +260,29 @@ function PaidBody() {
 function ReceivedBody() {
   return (
     <>
-      <div className="buy-amount">
-        <span className="sats">
-          <span className="btc-symbol">₿</span>10,000
+      <div className="mt-1.5 mb-[18px] flex flex-col items-center gap-1 text-center">
+        <span className="font-[family:var(--mk-font-numeric)] font-bold text-[38px] text-[color:var(--mk-text)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
+          <span className="mr-[0.06em] inline-block align-[0.02em] font-[family:var(--mk-font-mono)] font-bold text-[0.86em]">
+            ₿
+          </span>
+          10,000
         </span>
-        <span className="usd">$7.98</span>
+        <span className="font-[family:var(--mk-font-numeric)] font-semibold text-[18px] text-[color:var(--mk-text-muted)] leading-none [font-feature-settings:'tnum']">
+          $7.98
+        </span>
       </div>
-      <div className="received-details">
-        <div className="received-details-head">Details</div>
-        <div className="received-details-time">Today at 4:48 PM</div>
-        <div className="received-detail-row">
-          <span className="received-icon check" aria-hidden="true">
+      <div className="mt-auto flex flex-col gap-2.5 rounded-xl border border-[color:var(--mk-border)] px-4 py-[14px] font-[family:var(--mk-font-mono)]">
+        <div className="mb-0.5 text-[13px] text-[color:var(--mk-text)]">
+          Details
+        </div>
+        <div className="mb-1 text-[11px] text-[color:var(--mk-text-muted)]">
+          Today at 4:48 PM
+        </div>
+        <div className="flex items-center gap-2.5 text-[12px] text-[color:var(--mk-text)]">
+          <span
+            aria-hidden="true"
+            className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center text-[#34c759]"
+          >
             <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
               <path
                 d="M5 12.5l4.5 4.5L19 8"
@@ -223,8 +296,11 @@ function ReceivedBody() {
           </span>
           <span>Bought</span>
         </div>
-        <div className="received-detail-row">
-          <span className="received-icon gift" aria-hidden="true">
+        <div className="flex items-center gap-2.5 text-[12px] text-[color:var(--mk-text)]">
+          <span
+            aria-hidden="true"
+            className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center text-[color:var(--mk-text-muted)]"
+          >
             <svg
               viewBox="0 0 24 24"
               width="14"

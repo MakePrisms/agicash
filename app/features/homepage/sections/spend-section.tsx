@@ -66,7 +66,7 @@ function QrPattern() {
   const grid = useMemo(() => buildQrPattern(QR_SIZE, 4242), []);
   return (
     <svg
-      className="pay-qr"
+      className="pay-qr block h-full w-full text-[#04080f]"
       viewBox={`0 0 ${QR_SIZE} ${QR_SIZE}`}
       preserveAspectRatio="xMidYMid meet"
       aria-hidden="true"
@@ -126,33 +126,48 @@ export function SpendSection() {
         <div className="flex justify-center">
           <div
             ref={stageRef}
-            className={`pay-stage ${playing ? 'playing' : ''}`}
+            className={`pay-stage relative mx-auto w-full max-w-[320px] rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-6 pb-[22px] font-[family:var(--mk-font-display)] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.04)] ${playing ? 'playing' : ''}`}
           >
-            <div className="pay-head">
+            <div className="mb-[18px] flex items-center justify-between border-[color:var(--mk-border)] border-b pb-[14px] font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]">
               <span>pay with bitcoin</span>
-              <span className="merchant">pubkey dc</span>
+              <span className="text-[color:var(--mk-text)]">pubkey dc</span>
             </div>
 
-            <div className="pay-qr-wrap">
+            <div className="pay-qr-wrap relative mx-auto aspect-square w-full max-w-[200px] overflow-hidden rounded-lg bg-[#f4f7ff] p-2.5 transition-opacity duration-[360ms]">
               <QrPattern />
-              <span className="pay-scanline" aria-hidden="true" />
-              <div className="pay-paid">
-                <div className="check-circle" aria-hidden="true">
+              <span
+                aria-hidden="true"
+                className="pay-scanline pointer-events-none absolute right-[6%] left-[6%] h-0.5 bg-[color:var(--mk-brand)] opacity-0 shadow-[0_0_12px_rgba(0,212,255,0.6)]"
+              />
+              <div className="pay-paid pointer-events-none absolute inset-2.5 grid place-items-center rounded-md bg-[#04080f] opacity-0">
+                <div
+                  aria-hidden="true"
+                  className="grid h-16 w-16 place-items-center rounded-full border-2 border-[color:var(--mk-brand)] text-[32px] text-[color:var(--mk-brand)]"
+                >
                   ✓
                 </div>
               </div>
             </div>
 
-            <div className="pay-amount">
-              <span className="sats">
-                <span className="btc-symbol">₿</span>5,634
+            <div className="mt-[18px] flex flex-col items-center gap-1 text-center">
+              <span className="font-[family:var(--mk-font-numeric)] font-semibold text-[36px] text-[color:var(--mk-text)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
+                <span className="mr-[0.06em] inline-block align-[0.02em] font-[family:var(--mk-font-mono)] font-bold text-[0.86em]">
+                  ₿
+                </span>
+                5,634
               </span>
-              <span className="usd">$4.50</span>
+              <span className="font-[family:var(--mk-font-numeric)] font-medium text-[16px] text-[color:var(--mk-text-muted)] leading-none tracking-[0.02em] [font-feature-settings:'tnum']">
+                $4.50
+              </span>
             </div>
 
-            <div className="pay-status">
-              <span className="text scan">scan to pay</span>
-              <span className="text paid">paid</span>
+            <div className="relative mt-4 h-7 border-[color:var(--mk-border)] border-t pt-[14px] font-[family:var(--mk-font-mono)] text-[11px] uppercase tracking-[0.12em]">
+              <span className="pay-status-scan absolute inset-x-0 top-[14px] bottom-0 grid place-items-center text-[color:var(--mk-text-muted)] opacity-100">
+                scan to pay
+              </span>
+              <span className="pay-status-paid absolute inset-x-0 top-[14px] bottom-0 grid place-items-center text-[color:var(--mk-brand)] opacity-0">
+                paid
+              </span>
             </div>
           </div>
         </div>

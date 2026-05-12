@@ -81,7 +81,7 @@ export function SendSection() {
         <div className="flex flex-col items-center">
           <div
             ref={railRef}
-            className={`transit-rail ${played ? 'played' : ''}`}
+            className={`transit-rail relative mx-auto w-full max-w-[560px] px-3 ${played ? 'played' : ''}`}
           >
             <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
               <div className="rounded-md border border-[color:var(--mk-border)] bg-[color:var(--mk-bg-card)] px-3 py-2 text-left">
@@ -93,10 +93,19 @@ export function SendSection() {
                 </div>
               </div>
 
-              <div className="transit-track">
-                <span className="transit-tick start" aria-hidden="true" />
-                <span className="transit-tick end" aria-hidden="true" />
-                <div className="transit-card" aria-hidden="true" />
+              <div className="transit-track relative mx-3 h-20">
+                <span
+                  aria-hidden="true"
+                  className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-2 w-px bg-[color:var(--mk-text-muted)]"
+                />
+                <span
+                  aria-hidden="true"
+                  className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-full h-2 w-px bg-[color:var(--mk-text-muted)]"
+                />
+                <div
+                  aria-hidden="true"
+                  className="transit-card -translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-7 w-11 rounded border border-[color:var(--mk-border)] bg-[color:var(--mk-bg-card)] opacity-0 shadow-[0_4px_14px_rgba(0,0,0,0.6)]"
+                />
               </div>
 
               <div className="rounded-md border border-[color:var(--mk-border)] bg-[color:var(--mk-bg-card)] px-3 py-2 text-left">
@@ -113,8 +122,8 @@ export function SendSection() {
               <span>transit · {formattedTime}s</span>
               <button
                 type="button"
-                className="transit-replay"
                 onClick={handleReplay}
+                className="inline-flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 font-[family:var(--mk-font-mono)] text-[11px] text-[color:var(--mk-text-muted)] transition-colors duration-200 hover:text-[color:var(--mk-text-dim)]"
               >
                 <span aria-hidden="true">{'> '}</span>replay
               </button>

@@ -30,24 +30,42 @@ export function WalletSection() {
           </p>
 
           <div className="mt-10 md:mt-8">
-            <div className="wallet-card">
-              <div className="head">
-                <span className="label">bitcoin</span>
+            <div className="mx-auto w-full max-w-[320px] rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-[22px] pb-5 font-[family:var(--mk-font-display)] shadow-[0_30px_60px_-30px_rgba(0,0,0,0.7)]">
+              <div className="mb-[18px] flex items-center justify-between">
+                <span className="font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]">
+                  bitcoin
+                </span>
               </div>
-              <div className="handle">bob@agi.cash</div>
-              <div className="balance">
-                <span className="btc-symbol">₿</span>142,800
+              <div className="mb-[18px] font-[family:var(--mk-font-mono)] text-[12px] text-[color:var(--mk-text-dim)]">
+                bob@agi.cash
               </div>
-              <div className="usd">$145.62</div>
-              <div className="actions">
-                <div className="actions-row">
-                  <span className="btn">Receive</span>
-                  <span className="btn">Buy</span>
+              <div className="text-center font-[family:var(--mk-font-numeric)] font-semibold text-[52px] text-[color:var(--mk-text)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
+                <span className="mr-[0.06em] inline-block align-[0.02em] font-[family:var(--mk-font-mono)] font-bold text-[0.86em]">
+                  ₿
+                </span>
+                142,800
+              </div>
+              <div className="mt-1.5 mb-[22px] text-center font-[family:var(--mk-font-numeric)] font-medium text-[18px] text-[color:var(--mk-text-muted)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
+                $145.62
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <span className="rounded-[10px] border border-[color:var(--mk-border)] bg-transparent py-3 text-center font-[family:var(--mk-font-mono)] text-[13px] text-[color:var(--mk-text)]">
+                    Receive
+                  </span>
+                  <span className="rounded-[10px] border border-[color:var(--mk-border)] bg-transparent py-3 text-center font-[family:var(--mk-font-mono)] text-[13px] text-[color:var(--mk-text)]">
+                    Buy
+                  </span>
                 </div>
-                <span className="btn send">Send</span>
+                <span className="rounded-[10px] border border-[color:var(--mk-border)] bg-[rgba(255,255,255,0.04)] py-3 text-center font-[family:var(--mk-font-mono)] text-[13px] text-[color:var(--mk-text)]">
+                  Send
+                </span>
               </div>
-              <div className="footer">
-                <span className="syncdot" aria-hidden="true" />
+              <div className="mt-[18px] flex items-center gap-2 font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.1em]">
+                <span
+                  aria-hidden="true"
+                  className="h-[5px] w-[5px] rounded-full bg-[color:var(--mk-brand)] opacity-70"
+                />
                 synced
               </div>
             </div>
@@ -64,13 +82,23 @@ export function WalletSection() {
             bitcoin payment protocols.
           </p>
 
-          <div className="spec-table mt-10 md:mt-12">
-            <div className="spec-head">specification</div>
+          <div className="mt-10 w-full md:mt-12">
+            <div className="mb-1.5 border-[color:var(--mk-border)] border-b pb-2 font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em]">
+              specification
+            </div>
             {specs.map((s) => (
-              <div className="spec-row" key={s.label}>
-                <span className="spec-label">{s.label}</span>
-                <span className="spec-leader" aria-hidden="true" />
-                <span className={`spec-value ${s.mono ? 'mono' : ''}`}>
+              <div
+                key={s.label}
+                className="grid grid-cols-[80px_1fr] items-baseline gap-3 border-[color:var(--mk-border)] border-b py-[14px] last:border-b-0 md:grid-cols-[88px_1fr_auto]"
+              >
+                <span className="font-[family:var(--mk-font-mono)] text-[11px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.12em]">
+                  {s.label}
+                </span>
+                <span
+                  className="spec-leader-line hidden md:block"
+                  aria-hidden="true"
+                />
+                <span className="text-right font-[family:var(--mk-font-mono)] text-[11px] text-[color:var(--mk-text)] uppercase tracking-[0.12em] [font-feature-settings:'tnum']">
                   {s.value}
                 </span>
               </div>

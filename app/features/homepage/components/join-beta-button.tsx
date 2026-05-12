@@ -23,7 +23,7 @@ export function JoinBetaButton({
     <Link
       to={isLoggedIn ? '/' : { ...location, pathname: '/signup' }}
       className={cn(
-        'mk-cta inline-flex items-center justify-center rounded-md font-medium font-mono tracking-wide focus-visible:outline-2 focus-visible:outline-[color:var(--mk-brand)] focus-visible:outline-offset-2',
+        'inline-flex items-center justify-center rounded-md border border-[color:var(--mk-brand)] bg-[color:var(--mk-brand)] font-medium font-mono text-[#04080f] tracking-wide transition-[background-color,color] duration-200 hover:bg-transparent hover:text-[color:var(--mk-brand)] focus-visible:outline-2 focus-visible:outline-[color:var(--mk-brand)] focus-visible:outline-offset-2',
         sizeClasses,
         className,
       )}

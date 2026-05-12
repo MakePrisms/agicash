@@ -23,11 +23,14 @@ const SOCIALS = [
   },
 ];
 
+const footerMetaLink =
+  'text-[color:var(--mk-text-muted)] transition-colors duration-200 hover:text-[color:var(--mk-text-dim)]';
+
 export function FooterSection() {
   return (
-    <footer className="marketing-footer">
-      <div className="marketing-footer-top">
-        <div className="footer-socials">
+    <footer className="mt-6 w-full overflow-hidden border-[color:var(--mk-border)] border-t pt-12">
+      <div className="mx-auto mb-[60px] max-w-[1100px] px-5 text-center md:mb-20 md:px-8">
+        <div className="mb-7 flex items-center justify-center gap-[14px]">
           {SOCIALS.map((s) => (
             <a
               key={s.label}
@@ -35,18 +38,23 @@ export function FooterSection() {
               aria-label={s.label}
               target="_blank"
               rel="noopener noreferrer"
+              className="footer-social-link inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--mk-border)] text-[color:var(--mk-text-muted)] transition-[color,border-color,background-color] duration-200 hover:border-[color:var(--mk-border-bright)] hover:bg-[rgba(255,255,255,0.03)] hover:text-[color:var(--mk-text)]"
             >
-              <img src={s.src} alt="" />
+              <img
+                src={s.src}
+                alt=""
+                className="footer-social-img block h-4 w-4"
+              />
             </a>
           ))}
         </div>
 
-        <div className="footer-meta">
-          <Link to="/terms" className="footer-meta-link">
+        <div className="font-[family:var(--mk-font-mono)] text-[11px] text-[color:var(--mk-text-muted)] uppercase leading-[1.7] tracking-[0.08em]">
+          <Link to="/terms" className={footerMetaLink}>
             Terms of Service
           </Link>
           <span aria-hidden="true"> · </span>
-          <Link to="/privacy" className="footer-meta-link">
+          <Link to="/privacy" className={footerMetaLink}>
             Privacy Notice
           </Link>
           <span aria-hidden="true"> · </span>
@@ -54,7 +62,10 @@ export function FooterSection() {
         </div>
       </div>
 
-      <div className="footer-mark" aria-label="Agicash">
+      <div
+        aria-label="Agicash"
+        className="m-0 block select-none whitespace-nowrap p-0 text-center font-[family:var(--mk-font-mono)] font-bold text-[24vw] text-[color:var(--mk-brand)] uppercase leading-[0.86] tracking-[-0.04em]"
+      >
         AGICASH
       </div>
     </footer>
