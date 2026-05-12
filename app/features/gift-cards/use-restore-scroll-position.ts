@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router';
 import { z } from 'zod';
 
@@ -13,18 +13,15 @@ export function useRestoreScrollPosition<K extends string>(stateKey: K) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef(0);
 
-  const schema = useMemo(
-    () => z.object({ [stateKey]: z.number() }),
-    [stateKey],
-  );
-
   useEffect(() => {
-    const result = schema.safeParse(location.state);
+    const result = z
+      .object({ [stateKey]: z.number() })
+      .safeParse(location.state);
+
     if (result.success && scrollRef.current) {
-      const value = (result.data as Record<K, number>)[stateKey];
-      scrollRef.current.scrollLeft = value;
+      scrollRef.current.scrollLeft = result.data[stateKey];
     }
-  }, [location.state, schema, stateKey]);
+  }, [location.state, stateKey]);
 
   const handleScroll = () => {
     if (scrollRef.current) {
@@ -32,8 +29,12 @@ export function useRestoreScrollPosition<K extends string>(stateKey: K) {
     }
   };
 
-  const getScrollState = () =>
-    ({ [stateKey]: scrollPositionRef.current }) as Record<K, number>;
+  const getScrollState = () => ({
+    ...(typeof location.state === 'object' && location.state !== null
+      ? location.state
+      : {}),
+    [stateKey]: scrollPositionRef.current,
+  });
 
   return { scrollRef, handleScroll, getScrollState };
 }

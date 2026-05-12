@@ -75,13 +75,10 @@ export function OffersSection({ offers }: OffersSectionProps) {
     'offersScrollPosition',
   );
 
-  const navigateToOffer = (
-    account: CashuAccount,
-    includeScrollState: boolean,
-  ) => {
+  const navigateToOffer = (account: CashuAccount) => {
     navigate(`/gift-cards/offers/${account.id}`, {
       viewTransition: true,
-      state: includeScrollState ? getScrollState() : undefined,
+      state: getScrollState(),
     });
   };
 
@@ -96,7 +93,7 @@ export function OffersSection({ offers }: OffersSectionProps) {
           <OfferCardButton
             account={offer}
             isTransitioning={isTransitioning}
-            onClick={() => navigateToOffer(offer, false)}
+            onClick={() => navigateToOffer(offer)}
             className="w-full"
           />
         </div>
@@ -114,7 +111,7 @@ export function OffersSection({ offers }: OffersSectionProps) {
               key={offer.id}
               account={offer}
               isTransitioning={isTransitioning}
-              onClick={() => navigateToOffer(offer, false)}
+              onClick={() => navigateToOffer(offer)}
               className="min-w-0 flex-1"
             />
           ))}
@@ -144,7 +141,7 @@ export function OffersSection({ offers }: OffersSectionProps) {
                 account={offer}
                 size="sm"
                 isTransitioning={isTransitioning}
-                onClick={() => navigateToOffer(offer, true)}
+                onClick={() => navigateToOffer(offer)}
                 cardClassName={cn(
                   index === 0 && 'ml-4 sm:ml-0',
                   index === offers.length - 1 && 'mr-4 sm:mr-0',
