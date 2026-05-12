@@ -563,9 +563,11 @@ export type Database = {
       }
       nostr_zap_requests: {
         Row: {
+          backend_id: string
           created_at: string
           id: string
           last_attempt_at: string | null
+          mint_url: string | null
           paid_at_unix_sec: number | null
           payment_hash: string
           publish_error: string | null
@@ -576,9 +578,11 @@ export type Database = {
           zap_request_json: string
         }
         Insert: {
+          backend_id: string
           created_at?: string
           id?: string
           last_attempt_at?: string | null
+          mint_url?: string | null
           paid_at_unix_sec?: number | null
           payment_hash: string
           publish_error?: string | null
@@ -589,9 +593,11 @@ export type Database = {
           zap_request_json: string
         }
         Update: {
+          backend_id?: string
           created_at?: string
           id?: string
           last_attempt_at?: string | null
+          mint_url?: string | null
           paid_at_unix_sec?: number | null
           payment_hash?: string
           publish_error?: string | null

@@ -35,6 +35,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const bypassAmountValidation =
     url.searchParams.get('bypassAmountValidation') === 'true';
+  const nostrParam = url.searchParams.get('nostr') ?? undefined;
 
   const queryClient = getQueryClient();
   const lightningAddressService = new LightningAddressService(
@@ -47,6 +48,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const response = await lightningAddressService.handleLnurlpCallback(
     userId,
     amount,
+    nostrParam,
   );
 
   return new Response(JSON.stringify(response), {

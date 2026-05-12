@@ -42,6 +42,7 @@ const ZapRequestEventSchema = z.object({
 export function parseAndValidateZapRequest(
   nostrParam: string,
   amountMsat: number,
+  options?: { skipAmountCheck?: boolean },
 ): ValidatedZapRequest | ZapRequestValidationError {
   let decoded: string;
   try {
@@ -49,7 +50,18 @@ export function parseAndValidateZapRequest(
   } catch {
     return { error: 'Invalid URL-encoded zap request' };
   }
+  return validateDecodedZapRequest(decoded, amountMsat, options);
+}
 
+/**
+ * Validates a zap request JSON string already decoded (e.g. read back from
+ * persistent storage). Same checks as `parseAndValidateZapRequest`.
+ */
+export function validateDecodedZapRequest(
+  decoded: string,
+  amountMsat: number,
+  options?: { skipAmountCheck?: boolean },
+): ValidatedZapRequest | ZapRequestValidationError {
   const jsonResult = safeJsonParse(decoded);
   if (!jsonResult.success) {
     return { error: 'Invalid JSON in zap request' };
@@ -95,7 +107,11 @@ export function parseAndValidateZapRequest(
     return { error: 'Zap request must have at most one amount tag' };
   }
   const amountTagValue = amountTags[0]?.[1];
-  if (amountTagValue !== undefined && amountTagValue !== String(amountMsat)) {
+  if (
+    !options?.skipAmountCheck &&
+    amountTagValue !== undefined &&
+    amountTagValue !== String(amountMsat)
+  ) {
     return { error: 'Zap request amount does not match callback amount' };
   }
 

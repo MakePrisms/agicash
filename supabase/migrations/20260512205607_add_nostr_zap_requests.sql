@@ -18,13 +18,22 @@ create table if not exists "wallet"."nostr_zap_requests" (
   "quote_id" "uuid" not null,
   "quote_type" "text" not null check ("quote_type" in ('cashu', 'spark')),
   "payment_hash" "text" not null,
+  -- back-channel id used to query payment status: mint quote id (cashu) or
+  -- spark receive request id (spark). server can't decrypt the receive_quote
+  -- row to recover these, so we copy them at insert time.
+  "backend_id" "text" not null,
+  -- mint url, only set for cashu rows. needed to construct the cashu wallet
+  -- when querying status from the mint.
+  "mint_url" "text",
   "zap_request_json" "text" not null,
   "relays" "text"[] not null,
   "paid_at_unix_sec" bigint,
   "created_at" timestamp with time zone default "now"() not null,
   "last_attempt_at" timestamp with time zone,
   "published_at" timestamp with time zone,
-  "publish_error" "text"
+  "publish_error" "text",
+  constraint "nostr_zap_requests_cashu_has_mint_url"
+    check (("quote_type" = 'spark') or ("mint_url" is not null))
 );
 
 create unique index "nostr_zap_requests_quote_unique"

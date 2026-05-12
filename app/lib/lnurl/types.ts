@@ -31,6 +31,14 @@ export type LNURLPayParams = {
    * @example `[['text/plain', 'Pay to ${address}']]`
    */
   metadata: string;
+  /**
+   * Optional NIP-57 zap support flag.
+   */
+  allowsNostr?: boolean;
+  /**
+   * Optional NIP-57 Nostr pubkey used to sign zap receipts.
+   */
+  nostrPubkey?: string;
 };
 
 /** Response from the lnurlp callback */

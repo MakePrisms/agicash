@@ -7,6 +7,8 @@ export type NostrZapRequestRow = {
   quoteId: string;
   quoteType: ZapQuoteType;
   paymentHash: string;
+  backendId: string;
+  mintUrl: string | null;
   zapRequestJson: string;
   relays: string[];
   paidAtUnixSec: number | null;
@@ -20,6 +22,8 @@ export type CreateNostrZapRequestParams = {
   quoteId: string;
   quoteType: ZapQuoteType;
   paymentHash: string;
+  backendId: string;
+  mintUrl?: string;
   zapRequestJson: string;
   relays: string[];
 };
@@ -29,6 +33,8 @@ type DbRow = {
   quote_id: string;
   quote_type: string;
   payment_hash: string;
+  backend_id: string;
+  mint_url: string | null;
   zap_request_json: string;
   relays: string[];
   paid_at_unix_sec: number | null;
@@ -44,6 +50,8 @@ function toRow(row: DbRow): NostrZapRequestRow {
     quoteId: row.quote_id,
     quoteType: row.quote_type as ZapQuoteType,
     paymentHash: row.payment_hash,
+    backendId: row.backend_id,
+    mintUrl: row.mint_url,
     zapRequestJson: row.zap_request_json,
     relays: row.relays,
     paidAtUnixSec: row.paid_at_unix_sec,
@@ -70,6 +78,8 @@ export class NostrZapRequestRepositoryServer {
         quote_id: params.quoteId,
         quote_type: params.quoteType,
         payment_hash: params.paymentHash,
+        backend_id: params.backendId,
+        mint_url: params.mintUrl ?? null,
         zap_request_json: params.zapRequestJson,
         relays: params.relays,
       })
