@@ -49,7 +49,7 @@ export function FooterSection() {
           ))}
         </div>
 
-        <div className="font-[family:var(--mk-font-mono)] text-[11px] text-[color:var(--mk-text-muted)] uppercase leading-[1.7] tracking-[0.08em]">
+        <div className="text-[11px] text-[color:var(--mk-text-muted)] uppercase leading-[1.7] tracking-[0.08em] [font-family:var(--mk-font-mono)]">
           <Link to="/terms" className={footerMetaLink}>
             Terms of Service
           </Link>
@@ -64,7 +64,7 @@ export function FooterSection() {
 
       <div
         aria-label="Agicash"
-        className="m-0 block select-none whitespace-nowrap p-0 text-center font-[family:var(--mk-font-mono)] font-bold text-[24vw] text-[color:var(--mk-brand)] uppercase leading-[0.86] tracking-[-0.04em]"
+        className="m-0 block select-none whitespace-nowrap p-0 text-center font-bold text-[24vw] text-[color:var(--mk-brand)] uppercase leading-[0.86] tracking-[-0.04em] [font-family:var(--mk-font-mono)]"
       >
         AGICASH
       </div>

@@ -24,22 +24,22 @@ const NEXT: Record<State, State> = {
 };
 
 const buyStageBase =
-  'buy-stage relative mx-auto flex w-full max-w-[320px] min-h-[380px] flex-col overflow-hidden rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-[22px] pb-[18px] font-[family:var(--mk-font-display)] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.04)]';
+  'buy-stage relative mx-auto flex w-full max-w-[320px] min-h-[380px] flex-col overflow-hidden rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-[22px] pb-[18px] [font-family:var(--mk-font-display)] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.04)]';
 
 const buyHead =
-  'mb-[18px] flex items-center justify-between border-[color:var(--mk-border)] border-b pb-[14px] font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]';
+  'mb-[18px] flex items-center justify-between border-[color:var(--mk-border)] border-b pb-[14px] [font-family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]';
 
 const buyRows =
-  'mt-auto flex flex-col gap-2.5 rounded-xl border border-[color:var(--mk-border)] px-4 py-[14px] font-[family:var(--mk-font-mono)]';
+  'mt-auto flex flex-col gap-2.5 rounded-xl border border-[color:var(--mk-border)] px-4 py-[14px] [font-family:var(--mk-font-mono)]';
 const buyRow = 'flex items-center justify-between text-[11px]';
 const buyRowLabel =
   'text-[color:var(--mk-text-muted)] uppercase tracking-[0.06em]';
 const buyRowValue = 'text-[color:var(--mk-text)]';
 
 const buyPayButtonBase =
-  'inline-flex w-full cursor-pointer items-center justify-center rounded-[10px] border border-[color:var(--mk-border)] bg-[rgba(255,255,255,0.04)] px-7 py-3 font-[family:var(--mk-font-mono)] font-medium text-[13px] text-[color:var(--mk-text)] transition-[background-color,border-color] duration-200 hover:border-[color:var(--mk-border-bright)] hover:bg-[rgba(255,255,255,0.08)]';
+  'inline-flex w-full cursor-pointer items-center justify-center rounded-[10px] border border-[color:var(--mk-border)] bg-[rgba(255,255,255,0.04)] px-7 py-3 [font-family:var(--mk-font-mono)] font-medium text-[13px] text-[color:var(--mk-text)] transition-[background-color,border-color] duration-200 hover:border-[color:var(--mk-border-bright)] hover:bg-[rgba(255,255,255,0.08)]';
 const buyPayButtonPrimary =
-  'inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-white bg-white px-7 py-3 font-[family:var(--mk-font-display)] font-medium text-[13px] text-black transition-[background-color] duration-200 hover:bg-[rgba(255,255,255,0.92)]';
+  'inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-white bg-white px-7 py-3 [font-family:var(--mk-font-display)] font-medium text-[13px] text-black transition-[background-color] duration-200 hover:bg-[rgba(255,255,255,0.92)]';
 
 export function BuySection() {
   const prevStateRef = useRef<State>('idle');
@@ -149,13 +149,13 @@ function PayBody() {
   return (
     <>
       <div className="mt-1.5 mb-[18px] flex flex-col items-center gap-1 text-center">
-        <span className="font-[family:var(--mk-font-numeric)] font-bold text-[38px] text-[color:var(--mk-text)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
-          <span className="mr-[0.06em] inline-block align-[0.02em] font-[family:var(--mk-font-mono)] font-bold text-[0.86em]">
+        <span className="font-bold text-[38px] text-[color:var(--mk-text)] tabular-nums leading-none tracking-[0.01em] [font-family:var(--mk-font-numeric)]">
+          <span className="mr-[0.06em] inline-block align-[0.02em] font-bold text-[0.86em] [font-family:var(--mk-font-mono)]">
             ₿
           </span>
           10,000
         </span>
-        <span className="font-[family:var(--mk-font-numeric)] font-semibold text-[18px] text-[color:var(--mk-text-muted)] leading-none [font-feature-settings:'tnum']">
+        <span className="font-semibold text-[18px] text-[color:var(--mk-text-muted)] tabular-nums leading-none [font-family:var(--mk-font-numeric)]">
           $7.98
         </span>
       </div>
@@ -189,14 +189,14 @@ function ReviewBody() {
     <div className="flex flex-col items-start">
       <div
         aria-hidden="true"
-        className="mb-2.5 grid h-[38px] w-[38px] place-items-center rounded-full bg-[#00d54f] font-[family:var(--mk-font-display)] font-extrabold text-[22px] text-black"
+        className="mb-2.5 grid h-[38px] w-[38px] place-items-center rounded-full bg-[#00d54f] font-extrabold text-[22px] text-black [font-family:var(--mk-font-display)]"
       >
         $
       </div>
-      <div className="cashapp-headline mb-[14px] font-[family:var(--mk-font-display)] font-bold text-[22px] text-[color:var(--mk-text)] leading-[1.1] tracking-[-0.02em]">
+      <div className="cashapp-headline mb-[14px] font-bold text-[22px] text-[color:var(--mk-text)] leading-[1.1] tracking-[-0.02em] [font-family:var(--mk-font-display)]">
         Pay $7.98
       </div>
-      <div className="mt-0.5 flex w-full flex-col gap-2 font-[family:var(--mk-font-mono)] text-[11px]">
+      <div className="mt-0.5 flex w-full flex-col gap-2 text-[11px] [font-family:var(--mk-font-mono)]">
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-[color:var(--mk-text-muted)] uppercase tracking-[0.06em]">
             Funding source
@@ -250,7 +250,7 @@ function PaidBody() {
           />
         </svg>
       </div>
-      <div className="cashapp-headline mb-[14px] font-[family:var(--mk-font-display)] font-bold text-[22px] text-[color:var(--mk-text)] leading-[1.1] tracking-[-0.02em]">
+      <div className="cashapp-headline mb-[14px] font-bold text-[22px] text-[color:var(--mk-text)] leading-[1.1] tracking-[-0.02em] [font-family:var(--mk-font-display)]">
         You paid $7.98
       </div>
     </div>
@@ -261,17 +261,17 @@ function ReceivedBody() {
   return (
     <>
       <div className="mt-1.5 mb-[18px] flex flex-col items-center gap-1 text-center">
-        <span className="font-[family:var(--mk-font-numeric)] font-bold text-[38px] text-[color:var(--mk-text)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
-          <span className="mr-[0.06em] inline-block align-[0.02em] font-[family:var(--mk-font-mono)] font-bold text-[0.86em]">
+        <span className="font-bold text-[38px] text-[color:var(--mk-text)] tabular-nums leading-none tracking-[0.01em] [font-family:var(--mk-font-numeric)]">
+          <span className="mr-[0.06em] inline-block align-[0.02em] font-bold text-[0.86em] [font-family:var(--mk-font-mono)]">
             ₿
           </span>
           10,000
         </span>
-        <span className="font-[family:var(--mk-font-numeric)] font-semibold text-[18px] text-[color:var(--mk-text-muted)] leading-none [font-feature-settings:'tnum']">
+        <span className="font-semibold text-[18px] text-[color:var(--mk-text-muted)] tabular-nums leading-none [font-family:var(--mk-font-numeric)]">
           $7.98
         </span>
       </div>
-      <div className="mt-auto flex flex-col gap-2.5 rounded-xl border border-[color:var(--mk-border)] px-4 py-[14px] font-[family:var(--mk-font-mono)]">
+      <div className="mt-auto flex flex-col gap-2.5 rounded-xl border border-[color:var(--mk-border)] px-4 py-[14px] [font-family:var(--mk-font-mono)]">
         <div className="mb-0.5 text-[13px] text-[color:var(--mk-text)]">
           Details
         </div>

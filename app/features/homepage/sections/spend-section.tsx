@@ -126,9 +126,9 @@ export function SpendSection() {
         <div className="flex justify-center">
           <div
             ref={stageRef}
-            className={`pay-stage relative mx-auto w-full max-w-[320px] rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-6 pb-[22px] font-[family:var(--mk-font-display)] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.04)] ${playing ? 'playing' : ''}`}
+            className={`pay-stage relative mx-auto w-full max-w-[320px] rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-6 pb-[22px] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.04)] [font-family:var(--mk-font-display)] ${playing ? 'playing' : ''}`}
           >
-            <div className="mb-[18px] flex items-center justify-between border-[color:var(--mk-border)] border-b pb-[14px] font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]">
+            <div className="mb-[18px] flex items-center justify-between border-[color:var(--mk-border)] border-b pb-[14px] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] [font-family:var(--mk-font-mono)]">
               <span>pay with bitcoin</span>
               <span className="text-[color:var(--mk-text)]">pubkey dc</span>
             </div>
@@ -150,18 +150,18 @@ export function SpendSection() {
             </div>
 
             <div className="mt-[18px] flex flex-col items-center gap-1 text-center">
-              <span className="font-[family:var(--mk-font-numeric)] font-semibold text-[36px] text-[color:var(--mk-text)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
-                <span className="mr-[0.06em] inline-block align-[0.02em] font-[family:var(--mk-font-mono)] font-bold text-[0.86em]">
+              <span className="font-semibold text-[36px] text-[color:var(--mk-text)] tabular-nums leading-none tracking-[0.01em] [font-family:var(--mk-font-numeric)]">
+                <span className="mr-[0.06em] inline-block align-[0.02em] font-bold text-[0.86em] [font-family:var(--mk-font-mono)]">
                   ₿
                 </span>
                 5,634
               </span>
-              <span className="font-[family:var(--mk-font-numeric)] font-medium text-[16px] text-[color:var(--mk-text-muted)] leading-none tracking-[0.02em] [font-feature-settings:'tnum']">
+              <span className="font-medium text-[16px] text-[color:var(--mk-text-muted)] tabular-nums leading-none tracking-[0.02em] [font-family:var(--mk-font-numeric)]">
                 $4.50
               </span>
             </div>
 
-            <div className="relative mt-4 h-7 border-[color:var(--mk-border)] border-t pt-[14px] font-[family:var(--mk-font-mono)] text-[11px] uppercase tracking-[0.12em]">
+            <div className="relative mt-4 h-7 border-[color:var(--mk-border)] border-t pt-[14px] text-[11px] uppercase tracking-[0.12em] [font-family:var(--mk-font-mono)]">
               <span className="pay-status-scan absolute inset-x-0 top-[14px] bottom-0 grid place-items-center text-[color:var(--mk-text-muted)] opacity-100">
                 scan to pay
               </span>

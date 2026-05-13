@@ -91,7 +91,7 @@ function PixelWipe({ cells, src }: { cells: Cell[]; src: string }) {
 const specimenCornerBase =
   'pointer-events-none absolute h-[14px] w-[14px] border border-[color:var(--mk-text-muted)]';
 const specimenMetaBase =
-  'absolute font-[family:var(--mk-font-mono)] text-[9px] md:text-[10px] tracking-[0.1em] uppercase text-[color:var(--mk-text-muted)]';
+  'absolute [font-family:var(--mk-font-mono)] text-[9px] md:text-[10px] tracking-[0.1em] uppercase text-[color:var(--mk-text-muted)]';
 
 export function HeroSection() {
   // imgIdx — drives the underlying <img src> (lags during transition; swaps at end)

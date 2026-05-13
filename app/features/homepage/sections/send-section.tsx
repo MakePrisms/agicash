@@ -123,7 +123,7 @@ export function SendSection() {
               <button
                 type="button"
                 onClick={handleReplay}
-                className="inline-flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 font-[family:var(--mk-font-mono)] text-[11px] text-[color:var(--mk-text-muted)] transition-colors duration-200 hover:text-[color:var(--mk-text-dim)]"
+                className="inline-flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[11px] text-[color:var(--mk-text-muted)] transition-colors duration-200 [font-family:var(--mk-font-mono)] hover:text-[color:var(--mk-text-dim)]"
               >
                 <span aria-hidden="true">{'> '}</span>replay
               </button>

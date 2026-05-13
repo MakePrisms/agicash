@@ -30,38 +30,38 @@ export function WalletSection() {
           </p>
 
           <div className="mt-10 md:mt-8">
-            <div className="mx-auto w-full max-w-[320px] rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-[22px] pb-5 font-[family:var(--mk-font-display)] shadow-[0_30px_60px_-30px_rgba(0,0,0,0.7)]">
+            <div className="mx-auto w-full max-w-[320px] rounded-[18px] border border-[color:var(--mk-border)] bg-[linear-gradient(180deg,#070d18_0%,#050a13_100%)] px-[22px] pt-[22px] pb-5 shadow-[0_30px_60px_-30px_rgba(0,0,0,0.7)] [font-family:var(--mk-font-display)]">
               <div className="mb-[18px] flex items-center justify-between">
-                <span className="font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]">
+                <span className="text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] [font-family:var(--mk-font-mono)]">
                   bitcoin
                 </span>
               </div>
-              <div className="mb-[18px] font-[family:var(--mk-font-mono)] text-[12px] text-[color:var(--mk-text-dim)]">
+              <div className="mb-[18px] text-[12px] text-[color:var(--mk-text-dim)] [font-family:var(--mk-font-mono)]">
                 bob@agi.cash
               </div>
-              <div className="text-center font-[family:var(--mk-font-numeric)] font-semibold text-[52px] text-[color:var(--mk-text)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
-                <span className="mr-[0.06em] inline-block align-[0.02em] font-[family:var(--mk-font-mono)] font-bold text-[0.86em]">
+              <div className="text-center font-semibold text-[52px] text-[color:var(--mk-text)] tabular-nums leading-none tracking-[0.01em] [font-family:var(--mk-font-numeric)]">
+                <span className="mr-[0.06em] inline-block align-[0.02em] font-bold text-[0.86em] [font-family:var(--mk-font-mono)]">
                   ₿
                 </span>
                 142,800
               </div>
-              <div className="mt-1.5 mb-[22px] text-center font-[family:var(--mk-font-numeric)] font-medium text-[18px] text-[color:var(--mk-text-muted)] leading-none tracking-[0.01em] [font-feature-settings:'tnum']">
+              <div className="mt-1.5 mb-[22px] text-center font-medium text-[18px] text-[color:var(--mk-text-muted)] tabular-nums leading-none tracking-[0.01em] [font-family:var(--mk-font-numeric)]">
                 $145.62
               </div>
               <div className="flex flex-col gap-2">
                 <div className="grid grid-cols-2 gap-2">
-                  <span className="rounded-[10px] border border-[color:var(--mk-border)] bg-transparent py-3 text-center font-[family:var(--mk-font-mono)] text-[13px] text-[color:var(--mk-text)]">
+                  <span className="rounded-[10px] border border-[color:var(--mk-border)] bg-transparent py-3 text-center text-[13px] text-[color:var(--mk-text)] [font-family:var(--mk-font-mono)]">
                     Receive
                   </span>
-                  <span className="rounded-[10px] border border-[color:var(--mk-border)] bg-transparent py-3 text-center font-[family:var(--mk-font-mono)] text-[13px] text-[color:var(--mk-text)]">
+                  <span className="rounded-[10px] border border-[color:var(--mk-border)] bg-transparent py-3 text-center text-[13px] text-[color:var(--mk-text)] [font-family:var(--mk-font-mono)]">
                     Buy
                   </span>
                 </div>
-                <span className="rounded-[10px] border border-[color:var(--mk-border)] bg-[rgba(255,255,255,0.04)] py-3 text-center font-[family:var(--mk-font-mono)] text-[13px] text-[color:var(--mk-text)]">
+                <span className="rounded-[10px] border border-[color:var(--mk-border)] bg-[rgba(255,255,255,0.04)] py-3 text-center text-[13px] text-[color:var(--mk-text)] [font-family:var(--mk-font-mono)]">
                   Send
                 </span>
               </div>
-              <div className="mt-[18px] flex items-center gap-2 font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.1em]">
+              <div className="mt-[18px] flex items-center gap-2 text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.1em] [font-family:var(--mk-font-mono)]">
                 <span
                   aria-hidden="true"
                   className="h-[5px] w-[5px] rounded-full bg-[color:var(--mk-brand)] opacity-70"
@@ -83,7 +83,7 @@ export function WalletSection() {
           </p>
 
           <div className="mt-10 w-full md:mt-12">
-            <div className="mb-1.5 border-[color:var(--mk-border)] border-b pb-2 font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em]">
+            <div className="mb-1.5 border-[color:var(--mk-border)] border-b pb-2 text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em] [font-family:var(--mk-font-mono)]">
               specification
             </div>
             {specs.map((s) => (
@@ -91,14 +91,14 @@ export function WalletSection() {
                 key={s.label}
                 className="grid grid-cols-[80px_1fr] items-baseline gap-3 border-[color:var(--mk-border)] border-b py-[14px] last:border-b-0 md:grid-cols-[88px_1fr_auto]"
               >
-                <span className="font-[family:var(--mk-font-mono)] text-[11px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.12em]">
+                <span className="text-[11px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.12em] [font-family:var(--mk-font-mono)]">
                   {s.label}
                 </span>
                 <span
                   className="spec-leader-line hidden md:block"
                   aria-hidden="true"
                 />
-                <span className="text-right font-[family:var(--mk-font-mono)] text-[11px] text-[color:var(--mk-text)] uppercase tracking-[0.12em] [font-feature-settings:'tnum']">
+                <span className="text-right text-[11px] text-[color:var(--mk-text)] uppercase tabular-nums tracking-[0.12em] [font-family:var(--mk-font-mono)]">
                   {s.value}
                 </span>
               </div>

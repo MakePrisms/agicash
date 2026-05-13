@@ -72,7 +72,7 @@ export function MerchantsSection() {
           </div>
 
           <div className="mt-7 border-[color:var(--mk-border)] border-t pt-[22px] text-center">
-            <div className="mb-4 font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em]">
+            <div className="mb-4 text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em] [font-family:var(--mk-font-mono)]">
               supported systems
             </div>
             <div className="mb-[14px] flex flex-wrap items-center justify-center gap-7 text-[color:var(--mk-text-dim)]">
@@ -80,7 +80,7 @@ export function MerchantsSection() {
               <BTCPayServerLogo />
               <ShopifyLogo />
             </div>
-            <div className="font-[family:var(--mk-font-mono)] text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] opacity-70">
+            <div className="text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] opacity-70 [font-family:var(--mk-font-mono)]">
               more coming soon
             </div>
           </div>
