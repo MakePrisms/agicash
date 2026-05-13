@@ -49,8 +49,8 @@ export function BuySection() {
   // Slide between Agicash ↔ Cash App; fade within Cash App's own steps.
   const isSlide = isCashApp(prevStateRef.current) !== isCashApp(state);
   const transitionClass = isSlide
-    ? 'motion-safe:animate-state-slide'
-    : 'motion-safe:animate-state-fade';
+    ? 'animate-state-slide'
+    : 'animate-state-fade';
 
   useEffect(() => {
     prevStateRef.current = state;
@@ -178,7 +178,7 @@ function LoadingBody() {
     <div className="flex flex-1 items-center justify-center">
       <span
         aria-hidden="true"
-        className="cashapp-spinner h-9 w-9 rounded-full border-[3px] border-[rgba(255,255,255,0.85)] border-r-transparent border-b-transparent border-dashed motion-safe:animate-cashapp-spin"
+        className="cashapp-spinner h-9 w-9 animate-cashapp-spin rounded-full border-[3px] border-[rgba(255,255,255,0.85)] border-r-transparent border-b-transparent border-dashed"
       />
     </div>
   );

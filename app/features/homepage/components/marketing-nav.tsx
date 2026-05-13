@@ -4,7 +4,7 @@ import logoUrl from '~/assets/full_logo.png';
 import { authQueryOptions } from '~/features/user/auth';
 
 const navBtnBase =
-  'inline-flex h-9 items-center justify-center whitespace-nowrap rounded-full border border-transparent px-4 [font-family:var(--mk-font-mono)] text-xs tracking-[0.04em] transition-[background-color,color,border-color] duration-200 md:h-[38px] md:px-5 md:text-[13px]';
+  'inline-flex h-9 items-center justify-center whitespace-nowrap rounded-full border px-4 [font-family:var(--mk-font-mono)] text-xs tracking-[0.04em] transition-[background-color,color,border-color] duration-200 md:h-[38px] md:px-5 md:text-[13px]';
 
 const loginBtn =
   'border-[color:var(--mk-brand)] bg-transparent text-[color:var(--mk-brand)] hover:bg-[rgba(0,212,255,0.08)]';
