@@ -37,13 +37,6 @@
   font-family: var(--mk-font-mono);
 }
 
-/* All anchors in the marketing tree default to inheriting color (so brand
-   tokens win) and no underline. Each link styles itself via Tailwind on top. */
-.marketing a {
-  color: inherit;
-  text-decoration: none;
-}
-
 /* Stagger children with sequenced delays — hard to express in pure Tailwind
    (would require setting style={{ animationDelay }} on each child). Cheaper
    to keep these descendant selectors. */
