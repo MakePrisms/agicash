@@ -4,9 +4,9 @@ import { z } from 'zod';
 
 /**
  * Persists and restores the horizontal scroll position of a container across
- * navigations, keyed by `stateKey` in `location.state`. Pass `getScrollState()`
- * as the `state` argument to `navigate(...)` when leaving the page so the
- * position gets restored on back navigation.
+ * navigations. Positions are stored in `location.state` under `state.scrollPositions[stateKey]`.
+ * Pass `getScrollState()` as the `state` argument to `navigate(...)` when
+ * leaving the page so the position gets restored on back navigation.
  */
 export function useRestoreScrollPosition<K extends string>(stateKey: K) {
   const location = useLocation();
@@ -15,11 +15,11 @@ export function useRestoreScrollPosition<K extends string>(stateKey: K) {
 
   useEffect(() => {
     const result = z
-      .object({ [stateKey]: z.number() })
+      .object({ scrollPositions: z.object({ [stateKey]: z.number() }) })
       .safeParse(location.state);
 
     if (result.success && scrollRef.current) {
-      scrollRef.current.scrollLeft = result.data[stateKey];
+      scrollRef.current.scrollLeft = result.data.scrollPositions[stateKey];
     }
   }, [location.state, stateKey]);
 
@@ -29,12 +29,17 @@ export function useRestoreScrollPosition<K extends string>(stateKey: K) {
     }
   };
 
-  const getScrollState = () => ({
-    ...(typeof location.state === 'object' && location.state !== null
-      ? location.state
-      : {}),
-    [stateKey]: scrollPositionRef.current,
-  });
+  const getScrollState = () => {
+    const existing = z
+      .object({ scrollPositions: z.record(z.string(), z.number()) })
+      .safeParse(location.state);
+    return {
+      scrollPositions: {
+        ...(existing.success ? existing.data.scrollPositions : {}),
+        [stateKey]: scrollPositionRef.current,
+      },
+    };
+  };
 
   return { scrollRef, handleScroll, getScrollState };
 }
