@@ -109,13 +109,44 @@ export function HeroSection() {
   const activeIdxRef = useRef(activeIdx);
   const transitioningRef = useRef(false);
   const timersRef = useRef<number[]>([]);
+  // Holds decoded HTMLImageElements so the browser keeps the bitmaps in
+  // cache for the lifetime of the component. Without this, mobile WebKit
+  // can re-decode on transition, leaving a one-frame flash of the previous
+  // (or blank) image when the wipe overlay unmounts.
+  const decodedImagesRef = useRef<HTMLImageElement[]>([]);
 
   activeIdxRef.current = activeIdx;
 
-  const advanceTo = useCallback((nextIdx: number) => {
+  // Pre-decode all card bitmaps once on mount so transitions never hit a
+  // decode boundary.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    decodedImagesRef.current = cards.map(({ src }) => {
+      const img = new Image();
+      img.src = src;
+      img.decoding = 'async';
+      img.decode().catch(() => {
+        // Decode rejects on missing/corrupt images — fall back to the normal
+        // load path silently. The transition will still work; it just loses
+        // the flash-free guarantee for this one card.
+      });
+      return img;
+    });
+  }, []);
+
+  const advanceTo = useCallback(async (nextIdx: number) => {
     if (transitioningRef.current) return;
     if (nextIdx === activeIdxRef.current) return;
     transitioningRef.current = true;
+
+    // Make absolutely sure the next bitmap is decoded before we start the
+    // wipe — even if mount-time precache failed for this card.
+    const nextSrc = cards[nextIdx]?.src ?? '';
+    try {
+      await decodedImagesRef.current[nextIdx]?.decode();
+    } catch {
+      // ignore; we'll let the wipe run anyway
+    }
 
     // Update meta + active dot IMMEDIATELY at start of transition.
     setActiveIdx(nextIdx);
@@ -126,7 +157,7 @@ export function HeroSection() {
     setWipe({
       id,
       cells: makePixelCells(),
-      src: cards[nextIdx]?.src ?? '',
+      src: nextSrc,
     });
 
     // Once all cells are fully opaque (showing next image), swap the underlying
@@ -296,6 +327,7 @@ export function HeroSection() {
                   alt={`${imgCard?.label} gift card`}
                   width={400}
                   height={250}
+                  decoding="async"
                   className="block h-full w-full rounded-xl object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-opacity duration-[220ms]"
                 />
                 {wipe && (
