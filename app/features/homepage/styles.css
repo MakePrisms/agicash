@@ -30,6 +30,13 @@
   display: none;
 }
 
+/* Map Tailwind's font-mono utility to Kode Mono inside the marketing tree.
+   Without this, font-mono falls back to the default ui-monospace stack and
+   loses the brand monospace face. */
+.marketing .font-mono {
+  font-family: var(--mk-font-mono);
+}
+
 /* All anchors in the marketing tree default to inheriting color (so brand
    tokens win) and no underline. Each link styles itself via Tailwind on top. */
 .marketing a {
