@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import blockAndBean from '~/assets/gift-cards/blockandbean.agi.cash.webp';
 import pinkOwl from '~/assets/gift-cards/pinkowl.agi.cash.webp';
 import pubkey from '~/assets/gift-cards/pubkey.agi.cash.webp';
@@ -18,75 +18,7 @@ function pad3(n: number) {
   return String(n + 1).padStart(3, '0');
 }
 
-const PIXEL_COLS = 28;
-const PIXEL_ROWS = 18;
-const PIXEL_MAX_DELAY = 240;
-const PIXEL_CELL_DURATION = 360;
-// Wipe is fully opaque once the latest-delayed cell finishes (delay + duration).
-// Swap the underlying img while the wipe still covers it, then unmount the wipe
-// a few frames later so the browser has time to paint the new img bitmap.
-const WIPE_FULLY_OPAQUE = PIXEL_MAX_DELAY + PIXEL_CELL_DURATION; // 600ms
-const WIPE_UNMOUNT_DELAY = 80; // ~5 frames @60fps — paints new img beneath wipe
-
-type Cell = { col: number; row: number; delay: number };
-
-function makePixelCells(): Cell[] {
-  const cells: Cell[] = [];
-  for (let row = 0; row < PIXEL_ROWS; row++) {
-    for (let col = 0; col < PIXEL_COLS; col++) {
-      cells.push({
-        col,
-        row,
-        delay: Math.floor(Math.random() * PIXEL_MAX_DELAY),
-      });
-    }
-  }
-  return cells;
-}
-
-function PixelWipe({ cells, src }: { cells: Cell[]; src: string }) {
-  const patternId = useId();
-  return (
-    <svg
-      className="pixel-wipe pointer-events-none absolute inset-0 z-[3] h-full w-full overflow-hidden rounded-xl"
-      viewBox={`0 0 ${PIXEL_COLS} ${PIXEL_ROWS}`}
-      preserveAspectRatio="none"
-      aria-hidden="true"
-    >
-      <defs>
-        <pattern
-          id={patternId}
-          patternUnits="userSpaceOnUse"
-          x="0"
-          y="0"
-          width={PIXEL_COLS}
-          height={PIXEL_ROWS}
-        >
-          <image
-            href={src}
-            x="0"
-            y="0"
-            width={PIXEL_COLS}
-            height={PIXEL_ROWS}
-            preserveAspectRatio="none"
-          />
-        </pattern>
-      </defs>
-      {cells.map((c, i) => (
-        <rect
-          // biome-ignore lint/suspicious/noArrayIndexKey: static grid
-          key={i}
-          x={c.col}
-          y={c.row}
-          width={1.05}
-          height={1.05}
-          fill={`url(#${patternId})`}
-          style={{ animationDelay: `${c.delay}ms` }}
-        />
-      ))}
-    </svg>
-  );
-}
+const FADE_DURATION = 600;
 
 const specimenCornerBase =
   'pointer-events-none absolute h-[14px] w-[14px] border border-[color:var(--mk-text-muted)]';
@@ -94,31 +26,28 @@ const specimenMetaBase =
   'absolute [font-family:var(--mk-font-mono)] text-[9px] md:text-[10px] tracking-[0.1em] uppercase text-[color:var(--mk-text-muted)]';
 
 export function HeroSection() {
-  // imgIdx — drives the underlying <img src> (lags during transition; swaps at end)
+  // imgIdx — the current card (top layer); animates in on key change
   // activeIdx — drives meta labels + active dot (updates immediately at start)
+  // prevIdx — outgoing card kept visible underneath while imgIdx fades in
   const [imgIdx, setImgIdx] = useState(0);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [prevIdx, setPrevIdx] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(true);
-  const [wipe, setWipe] = useState<{
-    id: number;
-    cells: Cell[];
-    src: string;
-  } | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const activeIdxRef = useRef(activeIdx);
+  const imgIdxRef = useRef(imgIdx);
   const transitioningRef = useRef(false);
   const timersRef = useRef<number[]>([]);
   // Holds decoded HTMLImageElements so the browser keeps the bitmaps in
-  // cache for the lifetime of the component. Without this, mobile WebKit
-  // can re-decode on transition, leaving a one-frame flash of the previous
-  // (or blank) image when the wipe overlay unmounts.
+  // cache for the lifetime of the component — guarantees the top layer of
+  // the crossfade renders its bitmap on the first frame instead of briefly
+  // showing transparent or a partial decode on slower devices.
   const decodedImagesRef = useRef<HTMLImageElement[]>([]);
 
   activeIdxRef.current = activeIdx;
+  imgIdxRef.current = imgIdx;
 
-  // Pre-decode all card bitmaps once on mount so transitions never hit a
-  // decode boundary.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     decodedImagesRef.current = cards.map(({ src }) => {
@@ -126,9 +55,7 @@ export function HeroSection() {
       img.src = src;
       img.decoding = 'async';
       img.decode().catch(() => {
-        // Decode rejects on missing/corrupt images — fall back to the normal
-        // load path silently. The transition will still work; it just loses
-        // the flash-free guarantee for this one card.
+        // ignore decode failure; the crossfade will still run via normal load
       });
       return img;
     });
@@ -139,45 +66,24 @@ export function HeroSection() {
     if (nextIdx === activeIdxRef.current) return;
     transitioningRef.current = true;
 
-    // Make absolutely sure the next bitmap is decoded before we start the
-    // wipe — even if mount-time precache failed for this card.
-    const nextSrc = cards[nextIdx]?.src ?? '';
     try {
       await decodedImagesRef.current[nextIdx]?.decode();
     } catch {
-      // ignore; we'll let the wipe run anyway
+      // ignore; crossfade still runs
     }
 
-    // Update meta + active dot IMMEDIATELY at start of transition.
+    setPrevIdx(imgIdxRef.current);
     setActiveIdx(nextIdx);
+    setImgIdx(nextIdx);
 
-    // Mount wipe overlay rendering slices of the NEXT card.
-    // Cells fade in over ~600ms revealing the next image piece by piece.
-    const id = Date.now();
-    setWipe({
-      id,
-      cells: makePixelCells(),
-      src: nextSrc,
-    });
-
-    // Once all cells are fully opaque (showing next image), swap the underlying
-    // img src while the wipe still covers it. Then unmount the wipe a few
-    // frames later — by then the browser has uploaded the new img bitmap, so
-    // the unmount reveals the new card with no flash of the previous one.
-    const swapTimer = window.setTimeout(() => {
-      setImgIdx(nextIdx);
-    }, WIPE_FULLY_OPAQUE);
-
-    const unmountTimer = window.setTimeout(() => {
-      setWipe((w) => (w?.id === id ? null : w));
+    const cleanupTimer = window.setTimeout(() => {
+      setPrevIdx(null);
       transitioningRef.current = false;
-    }, WIPE_FULLY_OPAQUE + WIPE_UNMOUNT_DELAY);
+    }, FADE_DURATION);
 
-    timersRef.current = [swapTimer, unmountTimer];
+    timersRef.current = [cleanupTimer];
   }, []);
 
-  // Track tab visibility — when tab becomes visible, the auto-advance effect
-  // re-runs and the 5s timer resets fresh (no "catch-up" speed bursts).
   useEffect(() => {
     if (typeof document === 'undefined') return;
     setVisible(!document.hidden);
@@ -187,9 +93,6 @@ export function HeroSection() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
-  // Auto-advance carousel — paused when hovered or tab hidden.
-  // First switch fires at 3.5s so the initial card doesn't feel stuck during
-  // hydration; subsequent switches every 5s.
   useEffect(() => {
     if (paused || !visible) return;
     let intervalId: number | undefined;
@@ -205,7 +108,6 @@ export function HeroSection() {
     };
   }, [paused, visible, advanceTo]);
 
-  // Cleanup any pending timers on unmount
   useEffect(
     () => () => {
       for (const t of timersRef.current) {
@@ -247,10 +149,9 @@ export function HeroSection() {
     };
   }, []);
 
-  // Meta uses the active (target) card so the labels update at transition START.
-  // The img element below uses imgIdx so it lags until the wipe completes.
   const meta = cards[activeIdx];
-  const imgCard = cards[imgIdx];
+  const incoming = cards[imgIdx];
+  const outgoing = prevIdx !== null ? cards[prevIdx] : null;
 
   return (
     <section className="relative w-full px-5 pt-12 pb-24 md:px-8 md:pt-20 md:pb-32">
@@ -320,19 +221,29 @@ export function HeroSection() {
             <div className="absolute inset-[14%] grid place-items-center [perspective:1200px] md:inset-[12%]">
               <div
                 ref={cardRef}
-                className="relative aspect-[1.6/1] w-full animate-spec-enter rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.35),0_10px_20px_-6px_rgba(0,0,0,0.55),0_24px_48px_-14px_rgba(0,0,0,0.7),0_50px_90px_-22px_rgba(0,0,0,0.85)] transition-transform duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] [transform-style:preserve-3d] [will-change:transform]"
+                className="relative aspect-[1.6/1] w-full rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.35),0_10px_20px_-6px_rgba(0,0,0,0.55),0_24px_48px_-14px_rgba(0,0,0,0.7),0_50px_90px_-22px_rgba(0,0,0,0.85)] transition-transform duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] [transform-style:preserve-3d] [will-change:transform]"
               >
+                {outgoing && (
+                  <img
+                    key={`prev-${prevIdx}`}
+                    src={outgoing.src}
+                    alt=""
+                    aria-hidden="true"
+                    width={400}
+                    height={250}
+                    decoding="async"
+                    className="absolute inset-0 block h-full w-full rounded-xl object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                  />
+                )}
                 <img
-                  src={imgCard?.src}
-                  alt={`${imgCard?.label} gift card`}
+                  key={`current-${imgIdx}`}
+                  src={incoming?.src}
+                  alt={`${incoming?.label} gift card`}
                   width={400}
                   height={250}
                   decoding="async"
-                  className="block h-full w-full rounded-xl object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-opacity duration-[220ms]"
+                  className="relative block h-full w-full animate-hero-fade-in rounded-xl object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
                 />
-                {wipe && (
-                  <PixelWipe key={wipe.id} cells={wipe.cells} src={wipe.src} />
-                )}
               </div>
             </div>
 
