@@ -202,13 +202,6 @@ export function SendInput() {
               money={convertedValue}
             />
           )}
-
-          {destinationDisplay && (
-            <div className="-mt-2 flex items-center gap-2 text-sm">
-              <p>{destinationDisplay}</p>
-              <X onClick={clearDestination} className="h-4 w-4" />
-            </div>
-          )}
         </div>
 
         <div className="w-full max-w-sm sm:max-w-none">
@@ -229,28 +222,44 @@ export function SendInput() {
 
         <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
           <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
-            <div className="flex items-center justify-start gap-4">
-              <button type="button" onClick={handlePaste}>
-                <Clipboard />
-              </button>
+            {destinationDisplay ? (
+              <div className="col-span-2 flex h-10 items-center justify-between gap-2 rounded-md border border-input px-3 text-sm">
+                <span className="truncate">{destinationDisplay}</span>
+                <button
+                  type="button"
+                  onClick={clearDestination}
+                  aria-label="Clear destination"
+                  className="shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-start gap-4">
+                  <button type="button" onClick={handlePaste}>
+                    <Clipboard />
+                  </button>
 
-              <LinkWithViewTransition
-                to={buildLinkWithSearchParams('/send/scan')}
-                transition="slideUp"
-                applyTo="newView"
-              >
-                <Scan />
-              </LinkWithViewTransition>
+                  <LinkWithViewTransition
+                    to={buildLinkWithSearchParams('/send/scan')}
+                    transition="slideUp"
+                    applyTo="newView"
+                  >
+                    <Scan />
+                  </LinkWithViewTransition>
 
-              {sendAccount.purpose === 'transactional' && (
-                <SelectDestinationDrawer
-                  open={selectDestinationDrawerOpen}
-                  onOpenChange={setSelectDestinationDrawerOpen}
-                  onSelect={handleSelectDestination}
-                />
-              )}
-            </div>
-            <div /> {/* spacer */}
+                  {sendAccount.purpose === 'transactional' && (
+                    <SelectDestinationDrawer
+                      open={selectDestinationDrawerOpen}
+                      onOpenChange={setSelectDestinationDrawerOpen}
+                      onSelect={handleSelectDestination}
+                    />
+                  )}
+                </div>
+                <div /> {/* spacer */}
+              </>
+            )}
             <div className="flex items-center justify-end">
               <Button
                 onClick={() => handleContinue(inputValue, convertedValue)}
@@ -263,7 +272,7 @@ export function SendInput() {
           </div>
         </div>
       </PageContent>
-      <PageFooter className="pb-0 sm:pb-14">
+      <PageFooter className="sm:pb-14">
         <Numpad
           showDecimal={maxInputDecimals > 0}
           onButtonClick={(value) => {
