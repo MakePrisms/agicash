@@ -87,19 +87,16 @@ const specimenMetaBase =
   'absolute [font-family:var(--mk-font-mono)] text-[9px] md:text-[10px] tracking-[0.1em] uppercase text-[color:var(--mk-text-muted)]';
 
 export function HeroSection() {
-  // imgIdx — the incoming card; rendered as a steady <img> bottom layer
-  //   throughout the transition (no re-mount at the end → no iOS snap)
-  // activeIdx — drives meta labels + active dot (updates immediately at start)
+  // activeIdx — the visible card; rendered as a steady <img> bottom layer
+  //   AND drives meta labels + active dot
   // prevIdx — outgoing card layered on top via SVG <pattern>, carved away
-  //   cell-by-cell over FADE_DURATION ms to expose imgIdx beneath
-  const [imgIdx, setImgIdx] = useState(0);
+  //   cell-by-cell over FADE_DURATION ms to expose activeIdx beneath
   const [activeIdx, setActiveIdx] = useState(0);
   const [prevIdx, setPrevIdx] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [visible, setVisible] = useState(true);
   const cardRef = useRef<HTMLDivElement>(null);
   const activeIdxRef = useRef(activeIdx);
-  const imgIdxRef = useRef(imgIdx);
   const transitioningRef = useRef(false);
   const timersRef = useRef<number[]>([]);
   // Holds decoded HTMLImageElements so the browser keeps the bitmaps in
@@ -109,7 +106,6 @@ export function HeroSection() {
   const decodedImagesRef = useRef<HTMLImageElement[]>([]);
 
   activeIdxRef.current = activeIdx;
-  imgIdxRef.current = imgIdx;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -135,9 +131,8 @@ export function HeroSection() {
       // ignore; transition still runs
     }
 
-    setPrevIdx(imgIdxRef.current);
+    setPrevIdx(activeIdxRef.current);
     setActiveIdx(nextIdx);
-    setImgIdx(nextIdx);
 
     const cleanupTimer = window.setTimeout(() => {
       setPrevIdx(null);
@@ -212,11 +207,10 @@ export function HeroSection() {
     };
   }, []);
 
-  const meta = cards[activeIdx];
-  const incoming = cards[imgIdx];
+  const incoming = cards[activeIdx];
   const outgoing = prevIdx !== null ? cards[prevIdx] : null;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: imgIdx triggers a fresh shuffle per transition; the value itself is unused inside makePixelDelays
-  const pixelDelays = useMemo(() => makePixelDelays(), [imgIdx]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activeIdx triggers a fresh shuffle per transition; the value itself is unused inside makePixelDelays
+  const pixelDelays = useMemo(() => makePixelDelays(), [activeIdx]);
 
   return (
     <section className="relative w-full px-5 pt-12 pb-24 md:px-8 md:pt-20 md:pb-32">
@@ -272,15 +266,15 @@ export function HeroSection() {
               btc gift card
             </span>
             <a
-              href={meta?.url}
+              href={incoming?.url}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className={`${specimenMetaBase} bottom-[-22px] left-0 transition-colors duration-200 hover:text-[color:var(--mk-text)]`}
             >
-              {meta?.label}
+              {incoming?.label}
             </a>
             <span className={`${specimenMetaBase} right-0 bottom-[-22px]`}>
-              {meta?.location}
+              {incoming?.location}
             </span>
 
             <span
@@ -295,7 +289,7 @@ export function HeroSection() {
               >
                 <div className="absolute inset-0 overflow-hidden rounded-xl">
                   <img
-                    key={`current-${imgIdx}`}
+                    key={`current-${activeIdx}`}
                     src={incoming?.src}
                     alt={`${incoming?.label} gift card`}
                     width={400}

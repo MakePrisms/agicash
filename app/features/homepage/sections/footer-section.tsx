@@ -62,10 +62,7 @@ export function FooterSection() {
         </div>
       </div>
 
-      <div
-        aria-label="Agicash"
-        className="m-0 block select-none whitespace-nowrap p-0 text-center font-bold text-[24vw] text-[color:var(--mk-brand)] uppercase leading-[0.86] tracking-[-0.04em] [font-family:var(--mk-font-mono)]"
-      >
+      <div className="m-0 block select-none whitespace-nowrap p-0 text-center font-bold text-[24vw] text-[color:var(--mk-brand)] uppercase leading-[0.86] tracking-[-0.04em] [font-family:var(--mk-font-mono)]">
         AGICASH
       </div>
     </footer>
