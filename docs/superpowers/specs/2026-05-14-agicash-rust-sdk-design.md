@@ -293,6 +293,37 @@ pub trait SparkProvider {
 (`getInitializedCashuWallet`). Each wallet internally spans all keysets the
 mint exposes for its currency; the right keyset is selected per operation.
 
+**CDK usage philosophy: protocol primitives, not sagas.** CDK ships
+higher-level wallet operations (`Wallet::send`, `Wallet::receive`,
+`Wallet::melt`) that internally orchestrate `mint_quote → mint`,
+`swap → store proofs`, etc., and persist state via CDK's
+`WalletDatabase` trait. We do NOT use those. We use CDK's lower-level
+mint-protocol operations only: `mint_quote_bolt11`, `mint_bolt11`,
+`melt_quote_bolt11`, `melt_bolt11`, `swap`, `check_proof_states`, plus
+keyset/key fetches and blind-signature math. This matches how the
+existing TS app uses cashu-ts (`mintProofs`, `meltProofs`, `swap` —
+not higher abstractions).
+
+Reasons:
+- The DB is the source of truth for proof state (`UNSPENT`/`RESERVED`/`SPENT`),
+  keyset counters, and quote state. CDK's `WalletDatabase` would duplicate
+  this and create two state machines we'd have to keep in sync.
+- Our state machines (Section 4) are the only orchestrators. Adding CDK's
+  saga layer on top would be triple state management (CDK sagas + our
+  state machines + DB triggers).
+- Keyset counter management uses the existing `keyset_id` /
+  `number_of_outputs` fields on the DB RPCs as the canonical counter
+  source; CDK is told the exact output indices to use per call, bypassing
+  its counter system (mirroring the cashu-ts v3 `OutputType.custom`
+  bypass that agicash already uses).
+
+`CashuMintWallet` is therefore a thin async facade exposing only the
+mint-protocol primitives. Services compose them; state machines drive
+the order. If CDK requires a `WalletDatabase` for any primitive we want
+to use, we provide a minimal in-memory impl that holds nothing
+persistent (or wrap the primitive directly using lower-level CDK APIs
+that don't require the database).
+
 **Spark client keying:** one shared `BreezClient` per user, identified by
 `(mnemonic_hash, network)`. All Spark accounts of a single user share one
 Breez session. This matches both the existing master code (TanStack query key
