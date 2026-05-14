@@ -75,8 +75,11 @@ mod tests {
         let _ = c.inner();
     }
 
+    // tokio::OnceCell does not cache errors; failed handshakes retry on the next call.
+    // This is intentional — transient network issues should not permanently block auth.
+    // If the URL eventually resolves, the first successful call latches.
     #[tokio::test]
-    async fn handshake_runs_at_most_once() {
+    async fn handshake_retries_after_failure() {
         let c = OpenSecretClient::new(fake_cfg()).unwrap();
         let r1 = c.ensure_handshake().await;
         let r2 = c.ensure_handshake().await;
