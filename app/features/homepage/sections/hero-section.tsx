@@ -20,7 +20,7 @@ function pad3(n: number) {
   return String(n + 1).padStart(3, '0');
 }
 
-const FADE_DURATION = 600;
+const FADE_DURATION = 720;
 
 // Pixel-dissolve grid: 24 SVG rects in a 6x4 layout sit on top of the
 // outgoing card and progressively cover it with the incoming card. Each rect
@@ -31,7 +31,7 @@ const FADE_DURATION = 600;
 const PIXEL_COLS = 6;
 const PIXEL_ROWS = 4;
 const PIXEL_CELLS = PIXEL_COLS * PIXEL_ROWS;
-const PIXEL_STAGGER_WINDOW = 420;
+const PIXEL_STAGGER_WINDOW = 720;
 
 // Deterministic shuffled order so every transition shows the same dissolve
 // pattern (no Math.random in render). Generated once at module load via a
