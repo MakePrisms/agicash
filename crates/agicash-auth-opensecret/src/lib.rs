@@ -4,8 +4,10 @@ pub mod client;
 pub mod config;
 pub mod error;
 pub mod session;
+pub mod storage;
 
 pub use client::*;
 pub use config::*;
 pub use error::*;
 pub use session::*;
+pub use storage::*;
