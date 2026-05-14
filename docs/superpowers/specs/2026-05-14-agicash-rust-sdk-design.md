@@ -132,7 +132,7 @@ let wallet = WalletClient::builder()
     .key_provider(OpenSecretKeyProvider::new(os_client.clone()))
     .token_provider(OpenSecretTokenProvider::new(os_client))   // same OpenSecretClient instance
     .spark_provider(SparkProvider::connect(spark_config).await?)  // owns the per-user Breez session internally
-    .cashu_provider(CashuProvider::new(cdk_config))
+xx    .cashu_provider(CashuProvider::new(cdk_config))
     .clock(SystemClock)
     .build()
     .await?;
@@ -295,34 +295,55 @@ mint exposes for its currency; the right keyset is selected per operation.
 
 **CDK usage philosophy: protocol primitives, not sagas.** CDK ships
 higher-level wallet operations (`Wallet::send`, `Wallet::receive`,
-`Wallet::melt`) that internally orchestrate `mint_quote → mint`,
-`swap → store proofs`, etc., and persist state via CDK's
-`WalletDatabase` trait. We do NOT use those. We use CDK's lower-level
-mint-protocol operations only: `mint_quote_bolt11`, `mint_bolt11`,
-`melt_quote_bolt11`, `melt_bolt11`, `swap`, `check_proof_states`, plus
-keyset/key fetches and blind-signature math. This matches how the
-existing TS app uses cashu-ts (`mintProofs`, `meltProofs`, `swap` —
-not higher abstractions).
+`Wallet::melt`) backed by a saga subsystem (`SendSaga`, `ReceiveSaga`,
+`MeltSaga`, `IssueSaga`, `SwapSaga`) that persists state via CDK's
+~50-method `WalletDatabase` trait. We do NOT use that layer. Concretely
+incompatible with our model:
 
-Reasons:
-- The DB is the source of truth for proof state (`UNSPENT`/`RESERVED`/`SPENT`),
-  keyset counters, and quote state. CDK's `WalletDatabase` would duplicate
-  this and create two state machines we'd have to keep in sync.
-- Our state machines (Section 4) are the only orchestrators. Adding CDK's
-  saga layer on top would be triple state management (CDK sagas + our
-  state machines + DB triggers).
-- Keyset counter management uses the existing `keyset_id` /
-  `number_of_outputs` fields on the DB RPCs as the canonical counter
-  source; CDK is told the exact output indices to use per call, bypassing
-  its counter system (mirroring the cashu-ts v3 `OutputType.custom`
-  bypass that agicash already uses).
+- CDK's saga state machines duplicate our quote tables → drift risk.
+- `WalletDatabase` assumes plaintext `ProofInfo`; our schema stores
+  encrypted blobs.
+- CDK proof state enum has 5 values (`Spent`/`Unspent`/`Pending`/`Reserved`/`PendingSpent`),
+  ours has 3 (`UNSPENT`/`RESERVED`/`SPENT`).
+- CDK reservations use UUIDs (`operation_id`); our RPCs use natural keys
+  (`quote_id`, `token_hash`) which give us stronger idempotency.
+- CDK saga retries are not idempotent at the caller level
+  (`Wallet::prepare_send` twice → two reservations).
 
-`CashuMintWallet` is therefore a thin async facade exposing only the
-mint-protocol primitives. Services compose them; state machines drive
-the order. If CDK requires a `WalletDatabase` for any primitive we want
-to use, we provide a minimal in-memory impl that holds nothing
-persistent (or wrap the primitive directly using lower-level CDK APIs
-that don't require the database).
+We use only CDK's **`MintConnector` trait** (HTTP wrappers over the
+mint protocol, zero `WalletDatabase` touches) and the cashu-crate
+crypto primitives:
+
+- `MintConnector::post_mint_quote`, `post_mint`, `post_melt_quote`,
+  `post_melt`, `post_swap`, `post_check_state`, `post_restore`,
+  `get_mint_quote_status`, `get_melt_quote_status`, `get_mint_keys`,
+  `get_mint_keysets`, `get_mint_info` (and batch variants when needed).
+- `cashu::nuts::PreMintSecrets` for blinded message generation
+  (`from_seed`, `with_conditions`, `restore_batch`) and
+  `construct_proofs` for final proof assembly.
+- `cashu::nuts::Token` for token codec (`from_str`, `new`, `proofs`).
+- DLEQ verification primitives from the `cashu` crate directly, not
+  the `Wallet::verify_token_dleq` wrapper (which reads from
+  `WalletDatabase`).
+
+Keyset counter management uses the existing `keyset_id` /
+`number_of_outputs` fields on the DB RPCs as the canonical counter
+source. CDK is told the exact output indices to use per call,
+bypassing its counter system entirely (mirroring the cashu-ts v3
+`OutputType.custom` bypass agicash already uses).
+
+**One exception — `Wallet::restore`.** NUT-13 restore-from-mnemonic is
+self-contained: it loops over keysets, calls `PreMintSecrets::restore_batch`
++ `post_restore`, then writes via `update_proofs` and
+`increment_keyset_counter`. It does not touch the saga subsystem. We
+use `Wallet::restore` directly with a minimal `WalletDatabase` impl
+(~6 methods: `get_mint`, `get_mint_keysets`, `add_mint_keysets`,
+`update_proofs`, `increment_keyset_counter`, plus check helpers) that
+encrypts on the way in and reads via our Supabase RPCs.
+
+`CashuMintWallet` is therefore a thin async facade exposing the
+`MintConnector` primitives (plus the isolated restore entrypoint).
+Services compose them; state machines drive the order.
 
 **Spark client keying:** one shared `BreezClient` per user, identified by
 `(mnemonic_hash, network)`. All Spark accounts of a single user share one
@@ -625,6 +646,32 @@ For each feature we ship:
 
 End-to-end CLI tests (`agicash-cli/tests/` using `assert_cmd`) against a real
 Supabase test project run as `#[ignore]` locally, on CI nightly.
+
+### Open Secret test economy
+
+Open Secret runs in a Nitro enclave; creating users and burning attestation
+cycles is not free. Tests that need a real Open Secret session follow these
+rules:
+
+- **One guest user per test run.** A shared fixture
+  (`agicash-testing::open_secret_fixture`) creates a single guest user
+  at the start of a test binary's run, caches the
+  `(access_token, refresh_token, client_id)` in a temp file, and
+  reuses it across all tests in that run. Local dev gets a longer-lived
+  cache (e.g., `~/.cache/agicash-tests/`) that survives between
+  `cargo test` invocations.
+- **Reuse the same user across operations.** Tests don't sign in/out
+  per case; they share the session and isolate via per-test entities
+  (unique account ids, mint URLs, transaction memos, token hashes).
+- **Tests requiring distinct identities** (multi-device concurrency
+  tests) explicitly opt in via a `dual_user_fixture` that creates a
+  second guest. Used sparingly.
+- **Unit + service tests use the `FakeKeyProvider`** in
+  `agicash-testing` — never touch Open Secret at all. The vast majority
+  of tests should be in this tier.
+- **CI cleanup**: guest users are anonymous and self-expire; no
+  explicit teardown needed. If a test leaks state into shared accounts
+  on Supabase, the test is responsible for cleaning up its own rows.
 
 `cargo clippy -- -D warnings`, `cargo fmt --check`, and
 `cargo build --target wasm32-unknown-unknown -p agicash-wasm` run on every PR.
