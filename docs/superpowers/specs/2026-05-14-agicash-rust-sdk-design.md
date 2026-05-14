@@ -142,6 +142,29 @@ let wallet = WalletClient::builder()
 Dropping the last `Arc<WalletClient>` cascades a `CancellationToken` to all
 spawned task processors for clean shutdown.
 
+### Distributed task processing lock
+
+Multiple devices logged in as the same user (CLI on a laptop + web app in a
+browser + future mobile) MUST NOT both run task processors simultaneously.
+Quote expiry checks, mint quote claim attempts, and especially Spark
+auto-leaf-optimization assume a single active driver per user; concurrent
+drivers would race on DB state and (in Spark's case) corrupt channel state.
+
+We use the existing `take_lead(user_id, client_id)` Supabase RPC as a
+distributed lock with a 6-second TTL. Each `WalletClient` instance
+generates a stable `ClientId` UUID on first run, persisted alongside
+session tokens. Task processors call `take_lead` every few seconds;
+the RPC grants the lease (or refreshes the existing one if `client_id`
+matches). Processors only execute work while they hold the lease;
+otherwise they sit idle on the realtime event stream waiting for the
+active device to publish state changes.
+
+The lock gates *background drivers*, not user-initiated actions. Sending
+a payment, claiming a token, paying an invoice — all run on the active
+client regardless of who holds the lease, because the DB-level state
+machines (the `mark_pending`, `complete`, `expire`, `fail` RPCs with
+CHECK constraints) make these mutations safe to race at the DB tier.
+
 ## 5. Storage & Supabase Boundary
 
 Mirror the 32 existing Supabase RPC functions as Rust trait methods. We do not
@@ -321,6 +344,45 @@ impl WalletClient {
 
 Each method dispatches to the right service based on `account.account_type`.
 
+### Multi-device realities
+
+**Spark / Breez.** The Breez SDK uses an in-memory `leaves: TreeNode[]`
+array as source of truth, with per-instance mutexes. Two devices each
+have their own Breez SDK instance and can fall out of sync. The most
+destructive cross-device operation is auto leaf optimization
+(`optimizationConfig.autoEnabled = true`), which mutates global channel
+state. Mitigations:
+
+- The distributed task-lock (Section 4) gates auto leaf optimization to
+  one active device at a time.
+- `BreezClient::sync()` is called on cold start and periodically while
+  active, to refresh in-memory leaves from the Spark operators.
+- We prefer `breez.get_balance()` (queries the coordinator, eventually
+  consistent) over `breez.get_internal_balance()` (purely in-memory) for
+  user-facing balance displays.
+- For receive flows on inactive devices, we let the active device claim;
+  inactive devices learn about the new balance via the realtime event
+  stream (or polling in v1).
+
+**Cashu proofs.** Proof state (`UNSPENT`, `RESERVED`, `SPENT`) lives in
+the DB with strict transitions enforced by RPC functions. The
+`commit_proofs_to_send` and `complete_cashu_send_quote` RPCs atomically
+update proof state — two devices cannot both spend the same proof. Stale
+in-memory state on one device surfaces as `ConcurrencyError` from the
+RPC, which the service retries after re-fetching authoritative state
+(see Section 11).
+
+**Cashu token claim races.** The DB enforces uniqueness on `token_hash`
+for receive swaps. Two devices attempting to claim the same token both
+call `create_cashu_receive_swap`; the second receives a unique-constraint
+violation, surfaces as `DomainError::TokenAlreadyClaimed`, no retry.
+
+**Quote completion vs. expiry races.** A device pays a quote while
+another device's task processor expires it. The DB's `complete_*` RPCs
+require the quote to be in `PENDING` state; if expiry won first,
+completion fails with `ConcurrencyError` and the service rolls forward
+to `Failed`, surfacing a typed error the UI can interpret.
+
 ## 8. Cache & Event Bus
 
 `WalletCache` is the canonical source of truth for the wallet's in-memory
@@ -364,6 +426,26 @@ SSR hydration: cache exposes `snapshot()` and `hydrate(snapshot)` methods.
 RR7 loaders call WASM methods, snapshot the cache, send as JSON to client.
 Client init calls `hydrate` once. Proofs and sensitive data excluded from
 snapshots — operations needing them fetch client-side after hydration.
+
+### Cache reconciliation across devices
+
+Realtime events from other devices arrive as `WalletEvent`s with the same
+shape as local mutations. The cache treats them identically — apply the
+mutation, emit the event, subscribers re-render. Critically:
+
+- Inserts and Updates from realtime are *idempotent* in the cache (a
+  `Transaction` with the same `id` overwrites the existing slot value).
+- Local mutations and realtime events use the same `CacheMutation` enum
+  — there is no "remote vs local" distinction at the cache layer.
+- When a service starts a mutation locally (e.g., creating a send quote),
+  the cache tracks an in-flight marker on the entity; concurrent realtime
+  events for that entity are still applied to the slot, but the in-flight
+  flag tells subscribers a local operation is still in progress so they
+  can render pending UI.
+
+We do NOT implement vector clocks or CRDTs. The DB is the source of truth;
+realtime is how the cache stays current across devices; conflicts are
+detected at the RPC level via `ConcurrencyError` and retried.
 
 ## 9. WASM Boundary
 
@@ -455,14 +537,44 @@ all possible failure modes upfront.
 Retry policy is encoded via `WalletError::retry_policy()`:
 
 - `Domain`, `NotFound`, `Unauthenticated`, `Invariant` → never retry
-- `Concurrency` → always retry (with backoff)
+- `Concurrency` → always retry (with backoff, capped — see below)
 - `Network` → retry with exponential backoff, max 3
 
-WASM mapping: each error becomes a `JsError` object with `kind`, `code`,
+### Concurrency retry strategy
+
+`ConcurrencyError` originates from RPCs that detect state has moved
+between read and write (e.g., trying to `complete_cashu_send_quote` on a
+quote that is already `EXPIRED`). The retry strategy is:
+
+1. Re-fetch authoritative state for the entity (single RPC call).
+2. Drive the state machine forward from the current state.
+3. If the new state allows the original intent, retry the mutation. If
+   not (e.g., quote is now `EXPIRED`), surface a typed `DomainError`.
+
+Max 3 retries with exponential backoff (100ms / 400ms / 1.6s + jitter).
+Beyond that, surface as `Network` for "try again later." Concurrency
+errors that hit the cap are logged with the entity id so we can audit
+real contention vs. transient races.
+
+### Idempotency
+
+State-transition RPCs are designed idempotent by the DB layer: calling
+`complete_cashu_send_quote` twice on the same `(quote_id, change_proofs)`
+returns the same result; the second call is a no-op. This is critical
+for unreliable networks — a client that issues an RPC, never sees the
+response, and retries will not double-process.
+
+`create_*` RPCs use natural keys (`quote_id`, `token_hash`) so retries
+do not create duplicate rows. We do not generate separate idempotency
+tokens; the DB schema is the idempotency boundary.
+
+### WASM and CLI mapping
+
+WASM: each error becomes a `JsError` object with `kind`, `code`,
 `message` fields. React side pattern-matches on `error.kind` for retry
 decisions.
 
-CLI mapping: `Display` to stderr; appropriate exit code.
+CLI: `Display` to stderr; appropriate exit code (see Section 10).
 
 ## 12. Testing Approach
 
@@ -520,3 +632,96 @@ Supabase test project run as `#[ignore]` locally, on CI nightly.
 None blocking. The Realtime build choice (A: build now, B: defer to v2) was
 resolved as B during brainstorming, with v1 CLI using polling. Trait surface
 is built day-one to match the eventual WebSocket impl.
+
+## 16. Implementation Slicing (TDD-Friendly Order)
+
+Each slice ships a testable, user-visible (or developer-visible) thing.
+Subsequent slices build on prior ones; tests written during one slice
+become regression tests for the next. Each slice gets its own
+implementation plan via `superpowers:writing-plans`.
+
+1. **Scaffold.** Cargo workspace, all crates created with empty stubs,
+   `agicash-domain` types, `agicash-money`, basic CI. **Test bar:**
+   `cargo build`, `cargo test`, `cargo clippy -- -D warnings`,
+   `cargo build --target wasm32-unknown-unknown -p agicash-wasm` all
+   pass; `agicash --help` prints usage.
+
+2. **Auth.** `agicash-auth-opensecret` (with shared `OpenSecretClient`),
+   `KeyProvider` + `TokenProvider` traits in `agicash-traits`, CLI
+   commands `agicash auth login | guest | logout | status | whoami`,
+   keyring-backed session persistence. **Test bar:** integration test
+   signs in with test credentials against the real Open Secret dev env,
+   asserts `whoami` returns the right user; tokens survive process
+   restart.
+
+3. **User + Accounts read path.** `agicash-storage-supabase` skeleton,
+   `UserStorage` trait wired to its 4 RPCs, `agicash account list` works.
+   **Test bar:** integration test signs in, lists accounts, shows
+   non-empty output for a seeded user.
+
+4. **Cashu provider scaffolding.** `agicash-cashu` crate, `CashuProvider`
+   trait + CDK wrapper, mint info fetch, `agicash mint add <url>`,
+   `agicash balance`. **Test bar:** add a regtest mint, see zero balance,
+   account row persisted via `upsert_user_with_accounts`.
+
+5. **Cashu receive — Lightning quote.** Receive quote state machine
+   (`agicash-cashu/src/receive_quote/`), the 6 receive-quote RPCs in
+   storage, service in `agicash-services`, `agicash receive 100
+   --currency=BTC --account=<id>`. **Test bar:** e2e test against a
+   regtest mint: produce a bolt11 invoice, pay it externally, see
+   balance reflect; failure-path tests for expiry and fail.
+
+6. **Cashu send — Lightning quote.** Send quote state machine, 5
+   send-quote RPCs, `agicash pay <invoice>`. **Test bar:** e2e test pays
+   a regtest invoice; balance reflects; change proofs persisted; tests
+   for insufficient-balance, invalid-invoice, expired-quote.
+
+7. **Cashu send — Token swap.** Send swap state machine, 4 send-swap
+   RPCs, `agicash send 50` produces a cashu token. **Test bar:** token
+   round-trips via `agicash decode`; tests for insufficient balance,
+   bad keysets.
+
+8. **Cashu receive — Token swap.** Receive swap state machine, 3
+   receive-swap RPCs, `agicash receive <token>`. **Test bar:** tokens
+   from slice 7 are claimable; e2e test moves balance between two
+   accounts; tests for already-claimed, invalid-token, expired-mint-keyset.
+
+9. **Spark provider.** `agicash-spark` crate using our Breez fork,
+   `SparkProvider` trait, single `BreezClient` per user, account
+   creation. **Test bar:** regtest Spark integration, balance read.
+
+10. **Spark send/receive.** Spark Lightning send/receive via Breez.
+    Send/receive quote state machines, the 4 + 5 spark-quote RPCs.
+    **Test bar:** pay an invoice from a Spark account; receive an invoice
+    to a Spark account.
+
+11. **Cache + event bus + task processors.** `agicash-cache` crate,
+    `WalletCache` with typed slots, `async-broadcast` event bus,
+    polling `RealtimeStorage` impl, distributed lock via `take_lead`,
+    task processors for quote expiry/claim. **Test bar:** `agicash
+    watch` running on two CLI instances against the same user — only
+    one holds the lease at a time; state changes on one are visible on
+    the other within one polling interval.
+
+12. **`agicash-wallet` facade + multi-service integration.** All previous
+    services composed through `WalletClient::builder()`. **Test bar:**
+    `crates/agicash-wallet/tests/` exercises multi-service flows against
+    fakes (e.g., "send from cashu A → receive to cashu B → check
+    balances + transaction history").
+
+After step 12 the Rust CLI is at feature parity with v1 scope.
+
+13. **WASM (v2).** `agicash-wasm` crate, wasm-bindgen surface, Comlink
+    worker setup, basic web app integration behind a feature flag.
+    **Test bar:** web app with feature flag ON uses Rust core for one
+    feature (e.g., balance display); with flag OFF uses existing TS
+    code; A/B parity test.
+
+14. **Supabase Realtime WebSocket client (v2).** Replace polling with
+    Phoenix-channels WebSocket impl. **Test bar:** subscribed clients
+    receive events within 500ms of a DB mutation; failover to polling
+    on disconnect; reconnection with no event loss.
+
+Steps 1-12 deliver v1. Steps 13-14 deliver v2 (WASM web app integration).
+Beyond that, native shells (iOS/Android/Tauri) and OAuth are post-v2
+workstreams that reuse the same core unchanged.
