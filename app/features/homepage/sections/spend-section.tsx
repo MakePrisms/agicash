@@ -66,7 +66,9 @@ function QrPattern() {
   const grid = useMemo(() => buildQrPattern(QR_SIZE, 4242), []);
   return (
     <svg
-      className="pay-qr block h-full w-full text-[#04080f]"
+      className="pay-qr block text-[#04080f]"
+      width="100%"
+      height="100%"
       viewBox={`0 0 ${QR_SIZE} ${QR_SIZE}`}
       preserveAspectRatio="xMidYMid meet"
       overflow="hidden"
@@ -134,7 +136,7 @@ export function SpendSection() {
               <span className="text-[color:var(--mk-text)]">pubkey dc</span>
             </div>
 
-            <div className="pay-qr-wrap relative mx-auto aspect-square w-[55%] max-w-[200px] transform-gpu overflow-hidden rounded-lg bg-[#f4f7ff] p-2.5 transition-opacity duration-[360ms]">
+            <div className="pay-qr-wrap relative mx-auto flex aspect-square w-[55%] max-w-[200px] transform-gpu items-center justify-center overflow-hidden rounded-lg bg-[#f4f7ff] p-2.5 transition-opacity duration-[360ms]">
               <QrPattern />
               <span
                 aria-hidden="true"
