@@ -69,13 +69,14 @@ function QrPattern() {
       className="pay-qr block h-full w-full text-[#04080f]"
       viewBox={`0 0 ${QR_SIZE} ${QR_SIZE}`}
       preserveAspectRatio="xMidYMid meet"
+      overflow="hidden"
       aria-hidden="true"
     >
       {grid.flatMap((row, r) =>
         row.map((cell, c) =>
           cell ? (
             // biome-ignore lint/suspicious/noArrayIndexKey: static QR grid never reorders
-            <rect key={`${r}-${c}`} x={c} y={r} width={1.04} height={1.04} />
+            <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} />
           ) : null,
         ),
       )}
@@ -133,7 +134,7 @@ export function SpendSection() {
               <span className="text-[color:var(--mk-text)]">pubkey dc</span>
             </div>
 
-            <div className="pay-qr-wrap relative mx-auto aspect-square w-full max-w-[200px] overflow-hidden rounded-lg bg-[#f4f7ff] p-2.5 transition-opacity duration-[360ms]">
+            <div className="pay-qr-wrap relative mx-auto aspect-square w-[55%] max-w-[200px] transform-gpu overflow-hidden rounded-lg bg-[#f4f7ff] p-2.5 transition-opacity duration-[360ms]">
               <QrPattern />
               <span
                 aria-hidden="true"
