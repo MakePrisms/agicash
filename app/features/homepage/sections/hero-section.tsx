@@ -264,55 +264,56 @@ export function HeroSection() {
                 ref={cardRef}
                 className="relative aspect-[1.6/1] w-full rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.35),0_10px_20px_-6px_rgba(0,0,0,0.55),0_24px_48px_-14px_rgba(0,0,0,0.7),0_50px_90px_-22px_rgba(0,0,0,0.85)] transition-transform duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] [transform-style:preserve-3d] [will-change:transform]"
               >
-                <img
-                  key={`current-${imgIdx}`}
-                  src={incoming?.src}
-                  alt={`${incoming?.label} gift card`}
-                  width={400}
-                  height={250}
-                  decoding="async"
-                  className="absolute inset-0 block h-full w-full rounded-xl object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                />
-                {outgoing && (
-                  <div
-                    key={`prev-${prevIdx}`}
-                    aria-hidden="true"
-                    className="absolute inset-0 overflow-hidden rounded-xl [isolation:isolate]"
-                  >
-                    <img
-                      src={outgoing.src}
-                      alt=""
-                      width={400}
-                      height={250}
-                      decoding="async"
-                      className="absolute inset-0 block h-full w-full object-fill"
-                    />
-                    <svg
-                      viewBox={`0 0 ${PIXEL_COLS} ${PIXEL_ROWS}`}
-                      preserveAspectRatio="none"
-                      className="absolute inset-0 block h-full w-full [mix-blend-mode:destination-out]"
-                    >
-                      <title>pixel reveal</title>
-                      {PIXEL_DELAYS.map((delay, idx) => {
-                        const col = idx % PIXEL_COLS;
-                        const row = Math.floor(idx / PIXEL_COLS);
-                        return (
-                          <rect
-                            // biome-ignore lint/suspicious/noArrayIndexKey: cell positions are stable for the life of the transition
-                            key={idx}
-                            x={col}
-                            y={row}
-                            width={1}
-                            height={1}
-                            fill="white"
-                            className="animate-hero-pixel-cell opacity-0"
-                            style={{ animationDelay: `${delay}ms` }}
-                          />
-                        );
-                      })}
-                    </svg>
-                  </div>
-                )}
+                <div className="absolute inset-0 overflow-hidden rounded-xl [isolation:isolate]">
+                  <img
+                    key={`current-${imgIdx}`}
+                    src={incoming?.src}
+                    alt={`${incoming?.label} gift card`}
+                    width={400}
+                    height={250}
+                    decoding="async"
+                    className="absolute inset-0 block h-full w-full object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                  />
+                  {outgoing && (
+                    <>
+                      <img
+                        key={`prev-${prevIdx}`}
+                        src={outgoing.src}
+                        alt=""
+                        aria-hidden="true"
+                        width={400}
+                        height={250}
+                        decoding="async"
+                        className="absolute inset-0 block h-full w-full object-fill"
+                      />
+                      <svg
+                        aria-hidden="true"
+                        viewBox={`0 0 ${PIXEL_COLS} ${PIXEL_ROWS}`}
+                        preserveAspectRatio="none"
+                        className="absolute inset-0 block h-full w-full [mix-blend-mode:destination-out]"
+                      >
+                        <title>pixel reveal</title>
+                        {PIXEL_DELAYS.map((delay, idx) => {
+                          const col = idx % PIXEL_COLS;
+                          const row = Math.floor(idx / PIXEL_COLS);
+                          return (
+                            <rect
+                              // biome-ignore lint/suspicious/noArrayIndexKey: cell positions are stable for the life of the transition
+                              key={idx}
+                              x={col}
+                              y={row}
+                              width={1}
+                              height={1}
+                              fill="white"
+                              className="animate-hero-pixel-cell opacity-0"
+                              style={{ animationDelay: `${delay}ms` }}
+                            />
+                          );
+                        })}
+                      </svg>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
