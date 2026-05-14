@@ -10,16 +10,29 @@ repository.workspace = true
 name = "agicash"
 path = "src/main.rs"
 
+[features]
+default = []
+# Enable integration tests that hit the real Open Secret dev environment.
+real-opensecret-tests = []
+
 [dependencies]
 agicash-domain = { path = "../agicash-domain" }
 agicash-money = { path = "../agicash-money" }
+agicash-traits = { path = "../agicash-traits" }
+agicash-auth-opensecret = { path = "../agicash-auth-opensecret" }
 agicash-wallet = { path = "../agicash-wallet" }
 clap = { workspace = true }
 tokio = { workspace = true }
+rpassword = { workspace = true }
+uuid = { workspace = true }
+hex = { workspace = true }
+dotenvy = { workspace = true }
+getrandom = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
+dotenvy = { workspace = true }
 
 [lints]
 workspace = true
