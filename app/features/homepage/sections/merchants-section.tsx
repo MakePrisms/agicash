@@ -40,17 +40,16 @@ function ShopifyLogo() {
 
 export function MerchantsSection() {
   return (
-    <section
-      id="merchants"
-      className="relative w-full border-[color:var(--mk-border)] border-t px-5 py-20 md:px-8 md:py-28"
-    >
+    <section className="relative w-full border-[color:var(--mk-border)] border-t px-5 py-20 md:px-8 md:py-28">
       <div className="mx-auto max-w-xl">
         <MarketingCard className="text-center">
           <div className="flex justify-center">
             <SectionLabel>for_merchants</SectionLabel>
           </div>
           <h2 className="mt-7 font-medium font-mono text-2xl leading-[1.2] tracking-[-0.02em] md:text-3xl">
-            Run a store? Issue bitcoin gift cards today.
+            <a id="merchants" href="#merchants">
+              Run a store? Issue bitcoin gift cards today.
+            </a>
           </h2>
           <p className="mt-4 text-[color:var(--mk-text-dim)] text-base leading-relaxed">
             Closed-loop bitcoin gift cards for your shop. No fees, instant
