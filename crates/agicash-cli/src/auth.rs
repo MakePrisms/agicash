@@ -51,3 +51,15 @@ pub async fn cmd_logout(deps: &AuthDeps) -> Result<(), AuthError> {
     println!("signed out");
     Ok(())
 }
+
+pub async fn cmd_status(deps: &AuthDeps) -> Result<(), AuthError> {
+    match deps.storage.load().await? {
+        None => {
+            println!("not logged in");
+        }
+        Some(session) => {
+            println!("logged in as {}", session.user_id);
+        }
+    }
+    Ok(())
+}

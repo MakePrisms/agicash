@@ -44,7 +44,9 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 Ok(())
             }
             AuthCommand::Status => {
-                unimplemented!("wired in Task 22");
+                let deps = build_auth_deps()?;
+                auth::cmd_status(&deps).await?;
+                Ok(())
             }
         },
         None => Ok(()),
