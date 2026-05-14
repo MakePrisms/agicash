@@ -23,10 +23,10 @@ function pad3(n: number) {
 const FADE_DURATION = 600;
 
 // Pixel-dissolve grid: 24 SVG rects in a 6x4 layout sit on top of the
-// outgoing card and erase it cell-by-cell via mix-blend-mode:destination-out.
-// As each rect appears (hard binary opacity flip via steps(1)), it carves a
-// chunk out of the outgoing card and reveals the incoming card beneath.
-// The cell count stays well under the ~30 DOM-node budget — the original
+// outgoing card and progressively cover it with the incoming card. Each rect
+// is filled via an SVG <pattern> that renders the incoming card image, so a
+// fade-in (opacity 0 → 1) reveals that cell's slice of the next card. The
+// cell count stays well under the ~30 DOM-node budget — the original
 // PixelWipe used 504 simultaneous CSS animations and choked on iOS Safari.
 const PIXEL_COLS = 6;
 const PIXEL_ROWS = 4;
@@ -264,54 +264,75 @@ export function HeroSection() {
                 ref={cardRef}
                 className="relative aspect-[1.6/1] w-full rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.35),0_10px_20px_-6px_rgba(0,0,0,0.55),0_24px_48px_-14px_rgba(0,0,0,0.7),0_50px_90px_-22px_rgba(0,0,0,0.85)] transition-transform duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] [transform-style:preserve-3d] [will-change:transform]"
               >
-                <div className="absolute inset-0 overflow-hidden rounded-xl [isolation:isolate]">
-                  <img
-                    key={`current-${imgIdx}`}
-                    src={incoming?.src}
-                    alt={`${incoming?.label} gift card`}
-                    width={400}
-                    height={250}
-                    decoding="async"
-                    className="absolute inset-0 block h-full w-full object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                  />
-                  {outgoing && (
-                    <>
-                      <img
-                        key={`prev-${prevIdx}`}
-                        src={outgoing.src}
-                        alt=""
-                        aria-hidden="true"
-                        width={400}
-                        height={250}
-                        decoding="async"
-                        className="absolute inset-0 block h-full w-full object-fill"
-                      />
-                      <svg
-                        aria-hidden="true"
-                        viewBox={`0 0 ${PIXEL_COLS} ${PIXEL_ROWS}`}
-                        preserveAspectRatio="none"
-                        className="absolute inset-0 block h-full w-full [mix-blend-mode:destination-out]"
-                      >
-                        <title>pixel reveal</title>
-                        {PIXEL_DELAYS.map((delay, idx) => {
-                          const col = idx % PIXEL_COLS;
-                          const row = Math.floor(idx / PIXEL_COLS);
-                          return (
-                            <rect
-                              // biome-ignore lint/suspicious/noArrayIndexKey: cell positions are stable for the life of the transition
-                              key={idx}
-                              x={col}
-                              y={row}
-                              width={1}
-                              height={1}
-                              fill="white"
-                              className="animate-hero-pixel-cell opacity-0"
-                              style={{ animationDelay: `${delay}ms` }}
-                            />
-                          );
-                        })}
-                      </svg>
-                    </>
+                <div className="absolute inset-0 overflow-hidden rounded-xl">
+                  {outgoing ? (
+                    <img
+                      key={`outgoing-${prevIdx}`}
+                      src={outgoing.src}
+                      alt=""
+                      aria-hidden="true"
+                      width={400}
+                      height={250}
+                      decoding="async"
+                      className="absolute inset-0 block h-full w-full object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                    />
+                  ) : (
+                    <img
+                      key={`current-${imgIdx}`}
+                      src={incoming?.src}
+                      alt={`${incoming?.label} gift card`}
+                      width={400}
+                      height={250}
+                      decoding="async"
+                      className="absolute inset-0 block h-full w-full object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                    />
+                  )}
+                  {outgoing && incoming && (
+                    <svg
+                      key={`reveal-${imgIdx}`}
+                      aria-hidden="true"
+                      viewBox={`0 0 ${PIXEL_COLS} ${PIXEL_ROWS}`}
+                      preserveAspectRatio="none"
+                      className="absolute inset-0 block h-full w-full"
+                    >
+                      <title>pixel reveal</title>
+                      <defs>
+                        <pattern
+                          id={`pixel-pattern-${imgIdx}`}
+                          patternUnits="userSpaceOnUse"
+                          x="0"
+                          y="0"
+                          width={PIXEL_COLS}
+                          height={PIXEL_ROWS}
+                        >
+                          <image
+                            href={incoming.src}
+                            x="0"
+                            y="0"
+                            width={PIXEL_COLS}
+                            height={PIXEL_ROWS}
+                            preserveAspectRatio="none"
+                          />
+                        </pattern>
+                      </defs>
+                      {PIXEL_DELAYS.map((delay, idx) => {
+                        const col = idx % PIXEL_COLS;
+                        const row = Math.floor(idx / PIXEL_COLS);
+                        return (
+                          <rect
+                            // biome-ignore lint/suspicious/noArrayIndexKey: cell positions are stable for the life of the transition
+                            key={idx}
+                            x={col}
+                            y={row}
+                            width={1.02}
+                            height={1.02}
+                            fill={`url(#pixel-pattern-${imgIdx})`}
+                            className="animate-hero-pixel-cell opacity-0"
+                            style={{ animationDelay: `${delay}ms` }}
+                          />
+                        );
+                      })}
+                    </svg>
                   )}
                 </div>
               </div>
