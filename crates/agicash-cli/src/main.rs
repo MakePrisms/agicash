@@ -1,24 +1,42 @@
+mod auth;
 mod cli;
 mod composition;
 
 use clap::Parser;
-use cli::{Cli, Command};
+use cli::{AuthCommand, Cli, Command};
+use composition::build_auth_deps;
 
 #[tokio::main]
 async fn main() {
-    // Load .env from the current working directory (and walk upward).
-    // Silent on failure: env vars set in the shell still win, and the
-    // composition root reports a clear error if the values are missing
-    // when an auth command is invoked.
     let _ = dotenvy::dotenv();
 
     let args = Cli::parse();
-    match args.cmd {
-        Some(Command::Version) => println!("{}", env!("CARGO_PKG_VERSION")),
-        Some(Command::Auth(_)) => {
-            // Real dispatch lands in Tasks 19-22.
-            unimplemented!("auth dispatch wired in subsequent tasks");
+    let exit_code = match run(args).await {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("error: {e}");
+            1
         }
-        None => {}
+    };
+    std::process::exit(exit_code);
+}
+
+async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
+    match args.cmd {
+        Some(Command::Version) => {
+            println!("{}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        Some(Command::Auth(a)) => match a.cmd {
+            AuthCommand::Guest => {
+                let deps = build_auth_deps()?;
+                auth::cmd_guest(&deps).await?;
+                Ok(())
+            }
+            AuthCommand::Login { .. } | AuthCommand::Logout | AuthCommand::Status => {
+                unimplemented!("wired in later tasks");
+            }
+        },
+        None => Ok(()),
     }
 }

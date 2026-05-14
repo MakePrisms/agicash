@@ -30,3 +30,13 @@ fn unknown_subcommand_exits_nonzero() {
         .assert()
         .failure();
 }
+
+#[test]
+fn auth_guest_help_lists_command() {
+    Command::cargo_bin("agicash")
+        .unwrap()
+        .args(["auth", "guest", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("guest"));
+}
