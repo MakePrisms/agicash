@@ -1,0 +1,73 @@
+[workspace]
+resolver = "2"
+members = [
+    "agicash-domain",
+    "agicash-money",
+    "agicash-crypto",
+    "agicash-traits",
+    "agicash-cashu",
+    "agicash-spark",
+    "agicash-storage-supabase",
+    "agicash-auth-opensecret",
+    "agicash-cache",
+    "agicash-services",
+    "agicash-wallet",
+    "agicash-testing",
+    "agicash-cli",
+    "agicash-wasm",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.83"
+license = "MIT"
+repository = "https://github.com/MakePrisms/agicash"
+
+[workspace.dependencies]
+# Async + runtime
+tokio = { version = "1.42", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+futures = "0.3"
+async-trait = "0.1"
+async-broadcast = "0.7"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Errors + misc
+thiserror = "2.0"
+uuid = { version = "1.11", features = ["v4", "serde"] }
+rust_decimal = { version = "1.36", features = ["serde-with-str"] }
+rust_decimal_macros = "1.36"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# WASM
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+
+# Dev / tests
+assert_cmd = "2.0"
+predicates = "3.1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
