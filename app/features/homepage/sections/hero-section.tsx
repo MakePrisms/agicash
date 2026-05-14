@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import forkAndCoin from '~/assets/gift-cards/forkandcoin.agi.cash.webp';
 import kissOfMatcha from '~/assets/gift-cards/kissofmatcha.agi.cash.webp';
 import mariposa from '~/assets/gift-cards/mariposa.agi.cash.webp';
@@ -33,22 +33,10 @@ const PIXEL_ROWS = 4;
 const PIXEL_CELLS = PIXEL_COLS * PIXEL_ROWS;
 const PIXEL_STAGGER_WINDOW = 720;
 
-// Deterministic shuffled order so every transition shows the same dissolve
-// pattern (no Math.random in render). Generated once at module load via a
-// Mulberry32-seeded sequence.
-const PIXEL_DELAYS: number[] = (() => {
-  const seed = 1734821;
-  let state = seed >>> 0;
-  const next = () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+function makePixelDelays(): number[] {
   const indices = Array.from({ length: PIXEL_CELLS }, (_, i) => i);
   for (let i = indices.length - 1; i > 0; i--) {
-    const j = Math.floor(next() * (i + 1));
+    const j = Math.floor(Math.random() * (i + 1));
     [indices[i], indices[j]] = [indices[j], indices[i]];
   }
   const delays = new Array<number>(PIXEL_CELLS);
@@ -58,7 +46,7 @@ const PIXEL_DELAYS: number[] = (() => {
     );
   });
   return delays;
-})();
+}
 
 const specimenCornerBase =
   'pointer-events-none absolute h-[14px] w-[14px] border border-[color:var(--mk-text-muted)]';
@@ -193,6 +181,8 @@ export function HeroSection() {
   const meta = cards[activeIdx];
   const incoming = cards[imgIdx];
   const outgoing = prevIdx !== null ? cards[prevIdx] : null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: imgIdx triggers a fresh shuffle per transition; the value itself is unused inside makePixelDelays
+  const pixelDelays = useMemo(() => makePixelDelays(), [imgIdx]);
 
   return (
     <section className="relative w-full px-5 pt-12 pb-24 md:px-8 md:pt-20 md:pb-32">
@@ -315,7 +305,7 @@ export function HeroSection() {
                           />
                         </pattern>
                       </defs>
-                      {PIXEL_DELAYS.map((delay, idx) => {
+                      {pixelDelays.map((delay, idx) => {
                         const col = idx % PIXEL_COLS;
                         const row = Math.floor(idx / PIXEL_COLS);
                         return (
