@@ -53,10 +53,13 @@ function pad3(n: number) {
 const FADE_DURATION = 720;
 
 // Pixel-dissolve grid: 24 SVG rects in a 6x4 layout sit on top of the
-// outgoing card and progressively cover it with the incoming card. Each rect
-// is filled via an SVG <pattern> that renders the incoming card image, so a
-// fade-in (opacity 0 → 1) reveals that cell's slice of the next card. The
-// cell count stays well under the ~30 DOM-node budget — the original
+// incoming card and start fully covering it with the outgoing card image.
+// Each rect is filled via an SVG <pattern> that renders the outgoing card
+// image, so a fade-out (opacity 1 → 0) carves away that cell to expose the
+// incoming card beneath. The incoming <img> is rendered as the steady bottom
+// layer the entire time — never re-mounted at end-of-transition — which
+// avoids an iOS-only subpixel snap from swapping SVG-rendered card to <img>.
+// The cell count stays well under the ~30 DOM-node budget — the original
 // PixelWipe used 504 simultaneous CSS animations and choked on iOS Safari.
 const PIXEL_COLS = 6;
 const PIXEL_ROWS = 4;
@@ -84,10 +87,11 @@ const specimenMetaBase =
   'absolute [font-family:var(--mk-font-mono)] text-[9px] md:text-[10px] tracking-[0.1em] uppercase text-[color:var(--mk-text-muted)]';
 
 export function HeroSection() {
-  // imgIdx — the incoming card (sits underneath, revealed by the dissolve)
+  // imgIdx — the incoming card; rendered as a steady <img> bottom layer
+  //   throughout the transition (no re-mount at the end → no iOS snap)
   // activeIdx — drives meta labels + active dot (updates immediately at start)
-  // prevIdx — outgoing card layered on top with a pixel-mask that carves
-  //   it away over FADE_DURATION ms, exposing imgIdx beneath
+  // prevIdx — outgoing card layered on top via SVG <pattern>, carved away
+  //   cell-by-cell over FADE_DURATION ms to expose imgIdx beneath
   const [imgIdx, setImgIdx] = useState(0);
   const [activeIdx, setActiveIdx] = useState(0);
   const [prevIdx, setPrevIdx] = useState<number | null>(null);
@@ -290,31 +294,18 @@ export function HeroSection() {
                 className="relative aspect-[1.6/1] w-full rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.35),0_10px_20px_-6px_rgba(0,0,0,0.55),0_24px_48px_-14px_rgba(0,0,0,0.7),0_50px_90px_-22px_rgba(0,0,0,0.85)] transition-transform duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] [transform-style:preserve-3d] [will-change:transform]"
               >
                 <div className="absolute inset-0 overflow-hidden rounded-xl">
-                  {outgoing ? (
-                    <img
-                      key={`outgoing-${prevIdx}`}
-                      src={outgoing.src}
-                      alt=""
-                      aria-hidden="true"
-                      width={400}
-                      height={250}
-                      decoding="async"
-                      className="absolute inset-0 block h-full w-full object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                    />
-                  ) : (
-                    <img
-                      key={`current-${imgIdx}`}
-                      src={incoming?.src}
-                      alt={`${incoming?.label} gift card`}
-                      width={400}
-                      height={250}
-                      decoding="async"
-                      className="absolute inset-0 block h-full w-full object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                    />
-                  )}
-                  {outgoing && incoming && (
+                  <img
+                    key={`current-${imgIdx}`}
+                    src={incoming?.src}
+                    alt={`${incoming?.label} gift card`}
+                    width={400}
+                    height={250}
+                    decoding="async"
+                    className="absolute inset-0 block h-full w-full object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                  />
+                  {outgoing && (
                     <svg
-                      key={`reveal-${imgIdx}`}
+                      key={`reveal-${prevIdx}`}
                       aria-hidden="true"
                       viewBox={`0 0 ${PIXEL_COLS} ${PIXEL_ROWS}`}
                       preserveAspectRatio="none"
@@ -323,7 +314,7 @@ export function HeroSection() {
                       <title>pixel reveal</title>
                       <defs>
                         <pattern
-                          id={`pixel-pattern-${imgIdx}`}
+                          id={`pixel-pattern-${prevIdx}`}
                           patternUnits="userSpaceOnUse"
                           x="0"
                           y="0"
@@ -331,7 +322,7 @@ export function HeroSection() {
                           height={PIXEL_ROWS}
                         >
                           <image
-                            href={incoming.src}
+                            href={outgoing.src}
                             x="0"
                             y="0"
                             width={PIXEL_COLS}
@@ -351,8 +342,8 @@ export function HeroSection() {
                             y={row}
                             width={1.02}
                             height={1.02}
-                            fill={`url(#pixel-pattern-${imgIdx})`}
-                            className="animate-hero-pixel-cell opacity-0"
+                            fill={`url(#pixel-pattern-${prevIdx})`}
+                            className="animate-hero-pixel-cell-out"
                             style={{ animationDelay: `${delay}ms` }}
                           />
                         );
