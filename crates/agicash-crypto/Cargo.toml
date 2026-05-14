@@ -6,5 +6,15 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+zeroize = { workspace = true }
+hex = { workspace = true }
+bip39 = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
 [lints]
 workspace = true
