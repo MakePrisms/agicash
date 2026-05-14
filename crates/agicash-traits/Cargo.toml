@@ -8,7 +8,10 @@ repository.workspace = true
 
 [dependencies]
 agicash-domain = { path = "../agicash-domain" }
+agicash-crypto = { path = "../agicash-crypto" }
 async-trait = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
 
 [lints]
 workspace = true
