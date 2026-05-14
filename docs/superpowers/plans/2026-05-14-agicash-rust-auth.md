@@ -86,6 +86,7 @@ hex = "0.4"
 bip39 = "2"
 parking_lot = "0.12"
 dotenvy = "0.15"
+getrandom = "0.2"
 ```
 
 Place these near the existing `# Errors + misc` block. Do not change any other workspace section.
@@ -106,7 +107,7 @@ git commit -m "$(cat <<'EOF'
 chore(rust): add workspace deps for slice 2 auth
 
 opensecret 0.2.9, keyring 3, zeroize 1.8, rpassword 7, bip39 2, hex 0.4,
-parking_lot 0.12, dotenvy 0.15.
+parking_lot 0.12, dotenvy 0.15, getrandom 0.2.
 EOF
 )"
 ```
@@ -3085,6 +3086,7 @@ rpassword = { workspace = true }
 uuid = { workspace = true }
 hex = { workspace = true }
 dotenvy = { workspace = true }
+getrandom = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
@@ -3187,22 +3189,11 @@ use agicash_auth_opensecret::register_guest;
 use agicash_traits::{AuthError, PersistedSession, SessionStorage};
 
 fn random_password() -> String {
-    // 16 random bytes => 32 hex chars of entropy from /dev/urandom.
-    use std::io::Read;
+    // 16 cryptographically-random bytes => 32 hex chars of entropy.
+    // getrandom is the standard cross-platform CSPRNG wrapper (macOS
+    // SecRandomCopyBytes, Linux getrandom syscall, Windows BCryptGenRandom).
     let mut buf = [0u8; 16];
-    if let Ok(mut f) = std::fs::File::open("/dev/urandom") {
-        let _ = f.read_exact(&mut buf);
-    } else {
-        // Fallback for exotic platforms without urandom — very rare on
-        // the platforms agicash CLI runs on (macOS/Linux).
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        for (i, b) in buf.iter_mut().enumerate() {
-            *b = ((nanos >> (i % 16)) as u8) ^ (i as u8);
-        }
-    }
+    getrandom::getrandom(&mut buf).expect("OS RNG must be available");
     hex::encode(buf)
 }
 
