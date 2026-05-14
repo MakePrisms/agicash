@@ -22,15 +22,54 @@ function pad3(n: number) {
 
 const FADE_DURATION = 600;
 
+// Pixel-dissolve grid: 24 SVG rects in a 6x4 layout sit on top of the
+// outgoing card and erase it cell-by-cell via mix-blend-mode:destination-out.
+// As each rect appears (hard binary opacity flip via steps(1)), it carves a
+// chunk out of the outgoing card and reveals the incoming card beneath.
+// The cell count stays well under the ~30 DOM-node budget — the original
+// PixelWipe used 504 simultaneous CSS animations and choked on iOS Safari.
+const PIXEL_COLS = 6;
+const PIXEL_ROWS = 4;
+const PIXEL_CELLS = PIXEL_COLS * PIXEL_ROWS;
+const PIXEL_STAGGER_WINDOW = 420;
+
+// Deterministic shuffled order so every transition shows the same dissolve
+// pattern (no Math.random in render). Generated once at module load via a
+// Mulberry32-seeded sequence.
+const PIXEL_DELAYS: number[] = (() => {
+  const seed = 1734821;
+  let state = seed >>> 0;
+  const next = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const indices = Array.from({ length: PIXEL_CELLS }, (_, i) => i);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  const delays = new Array<number>(PIXEL_CELLS);
+  indices.forEach((cellIdx, order) => {
+    delays[cellIdx] = Math.round(
+      (order / Math.max(1, PIXEL_CELLS - 1)) * PIXEL_STAGGER_WINDOW,
+    );
+  });
+  return delays;
+})();
+
 const specimenCornerBase =
   'pointer-events-none absolute h-[14px] w-[14px] border border-[color:var(--mk-text-muted)]';
 const specimenMetaBase =
   'absolute [font-family:var(--mk-font-mono)] text-[9px] md:text-[10px] tracking-[0.1em] uppercase text-[color:var(--mk-text-muted)]';
 
 export function HeroSection() {
-  // imgIdx — the current card (top layer); animates in on key change
+  // imgIdx — the incoming card (sits underneath, revealed by the dissolve)
   // activeIdx — drives meta labels + active dot (updates immediately at start)
-  // prevIdx — outgoing card kept visible underneath while imgIdx fades in
+  // prevIdx — outgoing card layered on top with a pixel-mask that carves
+  //   it away over FADE_DURATION ms, exposing imgIdx beneath
   const [imgIdx, setImgIdx] = useState(0);
   const [activeIdx, setActiveIdx] = useState(0);
   const [prevIdx, setPrevIdx] = useState<number | null>(null);
@@ -42,9 +81,9 @@ export function HeroSection() {
   const transitioningRef = useRef(false);
   const timersRef = useRef<number[]>([]);
   // Holds decoded HTMLImageElements so the browser keeps the bitmaps in
-  // cache for the lifetime of the component — guarantees the top layer of
-  // the crossfade renders its bitmap on the first frame instead of briefly
-  // showing transparent or a partial decode on slower devices.
+  // cache for the lifetime of the component — guarantees the incoming card
+  // is painted on frame 1 of the pixel-dissolve, instead of briefly showing
+  // transparent or a partial decode on slower devices.
   const decodedImagesRef = useRef<HTMLImageElement[]>([]);
 
   activeIdxRef.current = activeIdx;
@@ -57,7 +96,7 @@ export function HeroSection() {
       img.src = src;
       img.decoding = 'async';
       img.decode().catch(() => {
-        // ignore decode failure; the crossfade will still run via normal load
+        // ignore decode failure; transition still runs via normal img load
       });
       return img;
     });
@@ -71,7 +110,7 @@ export function HeroSection() {
     try {
       await decodedImagesRef.current[nextIdx]?.decode();
     } catch {
-      // ignore; crossfade still runs
+      // ignore; transition still runs
     }
 
     setPrevIdx(imgIdxRef.current);
@@ -225,18 +264,6 @@ export function HeroSection() {
                 ref={cardRef}
                 className="relative aspect-[1.6/1] w-full rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.35),0_10px_20px_-6px_rgba(0,0,0,0.55),0_24px_48px_-14px_rgba(0,0,0,0.7),0_50px_90px_-22px_rgba(0,0,0,0.85)] transition-transform duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] [transform-style:preserve-3d] [will-change:transform]"
               >
-                {outgoing && (
-                  <img
-                    key={`prev-${prevIdx}`}
-                    src={outgoing.src}
-                    alt=""
-                    aria-hidden="true"
-                    width={400}
-                    height={250}
-                    decoding="async"
-                    className="absolute inset-0 block h-full w-full rounded-xl object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                  />
-                )}
                 <img
                   key={`current-${imgIdx}`}
                   src={incoming?.src}
@@ -244,8 +271,48 @@ export function HeroSection() {
                   width={400}
                   height={250}
                   decoding="async"
-                  className="relative block h-full w-full animate-hero-fade-in rounded-xl object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                  className="absolute inset-0 block h-full w-full rounded-xl object-fill shadow-[inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
                 />
+                {outgoing && (
+                  <div
+                    key={`prev-${prevIdx}`}
+                    aria-hidden="true"
+                    className="absolute inset-0 overflow-hidden rounded-xl [isolation:isolate]"
+                  >
+                    <img
+                      src={outgoing.src}
+                      alt=""
+                      width={400}
+                      height={250}
+                      decoding="async"
+                      className="absolute inset-0 block h-full w-full object-fill"
+                    />
+                    <svg
+                      viewBox={`0 0 ${PIXEL_COLS} ${PIXEL_ROWS}`}
+                      preserveAspectRatio="none"
+                      className="absolute inset-0 block h-full w-full [mix-blend-mode:destination-out]"
+                    >
+                      <title>pixel reveal</title>
+                      {PIXEL_DELAYS.map((delay, idx) => {
+                        const col = idx % PIXEL_COLS;
+                        const row = Math.floor(idx / PIXEL_COLS);
+                        return (
+                          <rect
+                            // biome-ignore lint/suspicious/noArrayIndexKey: cell positions are stable for the life of the transition
+                            key={idx}
+                            x={col}
+                            y={row}
+                            width={1}
+                            height={1}
+                            fill="white"
+                            className="animate-hero-pixel-cell opacity-0"
+                            style={{ animationDelay: `${delay}ms` }}
+                          />
+                        );
+                      })}
+                    </svg>
+                  </div>
+                )}
               </div>
             </div>
 
