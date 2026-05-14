@@ -42,7 +42,7 @@ rust_decimal = { version = "1.36", features = ["serde-with-str"] }
 rust_decimal_macros = "1.36"
 
 # Auth / secrets / keyring / env
-opensecret = "0.2.9"
+opensecret = "3.1.1"
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 rpassword = "7"
