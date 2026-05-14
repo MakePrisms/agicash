@@ -21,7 +21,7 @@ export function WalletSection() {
         <div className="text-center md:text-left">
           <SectionLabel>04_wallet</SectionLabel>
           <h2 className="mt-8 font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:hidden">
-            The most advanced bitcoin wallet.
+            <a href="#wallet">The most advanced bitcoin wallet.</a>
           </h2>
           <p className="mt-6 text-[color:var(--mk-text-dim)] text-base leading-relaxed md:hidden">
             Agicash is a non-custodial bitcoin wallet built on secure enclaves
@@ -74,7 +74,7 @@ export function WalletSection() {
 
         <div>
           <h2 className="hidden font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:block md:text-5xl">
-            The most advanced bitcoin wallet.
+            <a href="#wallet">The most advanced bitcoin wallet.</a>
           </h2>
           <p className="mt-6 hidden text-[color:var(--mk-text-dim)] leading-relaxed md:block md:text-lg">
             Agicash is a non-custodial bitcoin wallet built on secure enclaves
