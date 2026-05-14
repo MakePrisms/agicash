@@ -1,4 +1,5 @@
 import type { LinksFunction } from 'react-router';
+import pubkeyCard from '~/assets/gift-cards/pubkey.agi.cash.webp';
 import { MarketingPage } from '~/features/homepage/marketing-page';
 
 const fontPreloads = [
@@ -10,14 +11,19 @@ const fontPreloads = [
   'https://fonts.gstatic.com/s/teko/v23/LYjNdG7kmE0gfaN9pQ.woff2',
 ];
 
-export const links: LinksFunction = () =>
-  fontPreloads.map((href) => ({
+export const links: LinksFunction = () => [
+  ...fontPreloads.map((href) => ({
     rel: 'preload',
     href,
     as: 'font',
     type: 'font/woff2',
-    crossOrigin: 'anonymous',
-  }));
+    crossOrigin: 'anonymous' as const,
+  })),
+  // PubKey is the first hero card — preload so LCP isn't blocked on the
+  // bundled JS finishing before the image request even starts. The other
+  // 5 cards are pre-decoded post-mount by HeroSection's decodedImagesRef.
+  { rel: 'preload', href: pubkeyCard, as: 'image', type: 'image/webp' },
+];
 
 export default function HomePage() {
   return <MarketingPage />;
