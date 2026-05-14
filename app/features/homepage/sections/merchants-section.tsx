@@ -4,39 +4,11 @@ import squareLogoUrl from '~/assets/square-logo.svg';
 import { MarketingCard } from '../components/marketing-card';
 import { SectionLabel } from '../components/section-label';
 
-// Brand wordmarks rendered as inline SVG so they sit on the dark card cleanly
-function SquareLogo() {
-  return (
-    <img
-      className="block h-[30px] w-auto opacity-90"
-      src={squareLogoUrl}
-      alt="Square"
-      height={20}
-    />
-  );
-}
-
-function BTCPayServerLogo() {
-  return (
-    <img
-      className="block h-[30px] w-auto opacity-90"
-      src={btcpayLogoUrl}
-      alt="BTCPay Server"
-      height={28}
-    />
-  );
-}
-
-function ShopifyLogo() {
-  return (
-    <img
-      className="block h-[30px] w-auto opacity-90"
-      src={shopifyLogoUrl}
-      alt="Shopify"
-      height={28}
-    />
-  );
-}
+const supportedSystems = [
+  { name: 'Square', src: squareLogoUrl },
+  { name: 'BTCPay Server', src: btcpayLogoUrl },
+  { name: 'Shopify', src: shopifyLogoUrl },
+];
 
 export function MerchantsSection() {
   return (
@@ -77,9 +49,14 @@ export function MerchantsSection() {
               supported systems
             </div>
             <div className="mb-[14px] flex flex-wrap items-center justify-center gap-7 text-[color:var(--mk-text-dim)]">
-              <SquareLogo />
-              <BTCPayServerLogo />
-              <ShopifyLogo />
+              {supportedSystems.map((s) => (
+                <img
+                  key={s.name}
+                  src={s.src}
+                  alt={s.name}
+                  className="block h-[30px] w-auto opacity-90"
+                />
+              ))}
             </div>
             <div className="text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] opacity-70 [font-family:var(--mk-font-mono)]">
               more coming soon
