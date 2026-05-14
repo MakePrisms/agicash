@@ -73,7 +73,7 @@ export function BuySection() {
   const header = HEADERS[state];
 
   return (
-    <Section>
+    <Section id="buy">
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-20">
         <div className="text-center md:text-left">
           <SectionLabel href="#buy">01_buy</SectionLabel>
