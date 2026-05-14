@@ -47,6 +47,7 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "linux-
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 rpassword = "7"
 hex = "0.4"
+base64 = "0.22"
 bip39 = "2"
 parking_lot = "0.12"
 dotenvy = "0.15"
