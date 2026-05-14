@@ -37,14 +37,11 @@
   font-family: var(--mk-font-mono);
 }
 
-/* Section heading anchors — clicking a heading updates the URL hash, and
-   navigating to #buy / #send / etc. lands on the heading text. The
-   scroll-margin-top offset clears the sticky marketing nav so the heading
-   isn't hidden underneath it. The section[id] selector covers wallet, which
-   keeps its id on the outer section wrapper because it has two responsive
-   h2s (mobile + desktop) and can't put the id on either one alone. */
-.marketing h2 a[id],
-.marketing section[id] {
+/* Section-label anchors — each section's small label (e.g. "03_spend") is a
+   real anchor with the matching id. The scroll-margin-top offset clears the
+   sticky marketing nav so the label isn't hidden underneath it after a
+   hash navigation. */
+.marketing a[id] {
   scroll-margin-top: 80px;
 }
 

@@ -112,11 +112,9 @@ export function SpendSection() {
     <Section>
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-20">
         <div className="text-center md:text-left">
-          <SectionLabel>03_spend</SectionLabel>
+          <SectionLabel href="#spend">03_spend</SectionLabel>
           <h2 className="mt-8 font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:mt-10 md:text-5xl">
-            <a id="spend" href="#spend">
-              Spend. Scan. Done.
-            </a>
+            <a href="#spend">Spend. Scan. Done.</a>
           </h2>
           <p className="mt-6 text-[color:var(--mk-text-dim)] text-base leading-relaxed md:text-lg">
             Pay with bitcoin at checkout. Scan the QR code with your Agicash

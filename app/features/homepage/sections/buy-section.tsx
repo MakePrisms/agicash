@@ -76,11 +76,9 @@ export function BuySection() {
     <Section>
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-20">
         <div className="text-center md:text-left">
-          <SectionLabel>01_buy</SectionLabel>
+          <SectionLabel href="#buy">01_buy</SectionLabel>
           <h2 className="mt-8 font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:mt-10 md:text-5xl">
-            <a id="buy" href="#buy">
-              Buy a card in seconds.
-            </a>
+            <a href="#buy">Buy a card in seconds.</a>
           </h2>
           <p className="mt-6 text-[color:var(--mk-text-dim)] text-base leading-relaxed md:text-lg">
             Buy a gift card with bitcoin, or use the Cash App to buy directly
