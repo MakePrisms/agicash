@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import blockAndBean from '~/assets/gift-cards/blockandbean.agi.cash.webp';
+import forkAndCoin from '~/assets/gift-cards/forkandcoin.agi.cash.webp';
+import kissOfMatcha from '~/assets/gift-cards/kissofmatcha.agi.cash.webp';
+import mariposa from '~/assets/gift-cards/mariposa.agi.cash.webp';
 import pinkOwl from '~/assets/gift-cards/pinkowl.agi.cash.webp';
 import pubkey from '~/assets/gift-cards/pubkey.agi.cash.webp';
-import shack from '~/assets/gift-cards/shack.agi.cash.webp';
 import epicurean from '~/assets/gift-cards/theepicureantrader.agi.cash.webp';
 import { JoinBetaButton } from '../components/join-beta-button';
 
 const cards = [
   { src: pubkey, label: 'PUBKEY DC', location: 'WASHINGTON, D.C.' },
-  { src: pinkOwl, label: 'PINK OWL COFFEE', location: 'CALIFORNIA' },
-  { src: shack, label: 'THE SHACK', location: 'CALIFORNIA' },
-  { src: blockAndBean, label: 'BLOCK & BEAN', location: 'CALIFORNIA' },
   { src: epicurean, label: 'EPICUREAN TRADER', location: 'CALIFORNIA' },
+  { src: pinkOwl, label: 'PINK OWL COFFEE', location: 'CALIFORNIA' },
+  { src: mariposa, label: 'MARIPOSA', location: 'CALIFORNIA' },
+  { src: kissOfMatcha, label: 'KISS OF MATCHA', location: 'CALIFORNIA' },
+  { src: forkAndCoin, label: 'FORK & COIN', location: 'ILLINOIS' },
 ];
 
 function pad3(n: number) {
