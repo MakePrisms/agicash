@@ -41,6 +41,17 @@ uuid = { version = "1.11", features = ["v4", "serde"] }
 rust_decimal = { version = "1.36", features = ["serde-with-str"] }
 rust_decimal_macros = "1.36"
 
+# Auth / secrets / keyring / env
+opensecret = "0.2.9"
+keyring = "3"
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
+rpassword = "7"
+hex = "0.4"
+bip39 = "2"
+parking_lot = "0.12"
+dotenvy = "0.15"
+getrandom = "0.2"
+
 # CLI
 clap = { version = "4.5", features = ["derive"] }
 
