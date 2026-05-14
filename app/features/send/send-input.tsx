@@ -204,7 +204,7 @@ export function SendInput() {
           )}
 
           {destinationDisplay && (
-            <div className="flex items-center gap-2 text-sm">
+            <div className="-mt-2 flex items-center gap-2 text-sm">
               <p>{destinationDisplay}</p>
               <X onClick={clearDestination} className="h-4 w-4" />
             </div>
@@ -263,7 +263,7 @@ export function SendInput() {
           </div>
         </div>
       </PageContent>
-      <PageFooter className="sm:pb-14">
+      <PageFooter className="pb-0 sm:pb-14">
         <Numpad
           showDecimal={maxInputDecimals > 0}
           onButtonClick={(value) => {
