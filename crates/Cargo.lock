@@ -31,6 +31,7 @@ dependencies = [
  "agicash-domain",
  "agicash-traits",
  "async-trait",
+ "base64",
  "hex",
  "keyring",
  "opensecret",
