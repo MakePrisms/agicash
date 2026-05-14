@@ -131,8 +131,7 @@ let wallet = WalletClient::builder()
     .storage(SupabaseStorage::new(supabase_client))
     .key_provider(OpenSecretKeyProvider::new(os_client.clone()))
     .token_provider(OpenSecretTokenProvider::new(os_client))   // same OpenSecretClient instance
-    .breez(BreezClient::connect(breez_config).await?)          // one per user
-    .spark_provider(SparkProvider::new(breez_handle, storage_dir, network))
+    .spark_provider(SparkProvider::connect(spark_config).await?)  // owns the per-user Breez session internally
     .cashu_provider(CashuProvider::new(cdk_config))
     .clock(SystemClock)
     .build()
@@ -282,8 +281,10 @@ pub trait CashuProvider {
 
 #[async_trait]
 pub trait SparkProvider {
-    async fn breez(&self) -> Result<Arc<BreezClient>>;
-    fn account_handle(&self, account_id: AccountId) -> SparkAccountHandle;
+    /// Get or initialize the wallet handle for a Spark account.
+    /// All Spark accounts for a user share the underlying Breez session,
+    /// which the provider owns internally.
+    async fn wallet_for_account(&self, account: &SparkAccount) -> Result<Arc<SparkWallet>>;
 }
 ```
 
