@@ -136,13 +136,15 @@ export function SpendSection() {
               <span className="text-[color:var(--mk-text)]">pubkey dc</span>
             </div>
 
-            <div className="pay-qr-wrap relative mx-auto flex aspect-square w-[55%] max-w-[200px] transform-gpu items-center justify-center overflow-hidden rounded-lg bg-[#f4f7ff] p-2.5 transition-opacity duration-[360ms]">
-              <QrPattern />
+            <div className="pay-qr-wrap relative mx-auto aspect-square w-[55%] max-w-[200px] transform-gpu overflow-hidden rounded-lg bg-[#f4f7ff] transition-opacity duration-[360ms]">
+              <div className="absolute inset-2.5">
+                <QrPattern />
+              </div>
               <span
                 aria-hidden="true"
                 className="pay-scanline pointer-events-none absolute right-[6%] left-[6%] h-0.5 bg-[color:var(--mk-brand)] opacity-0 shadow-[0_0_12px_rgba(0,212,255,0.6)]"
               />
-              <div className="pay-paid pointer-events-none absolute inset-0 grid place-items-center rounded-lg bg-[#04080f] opacity-0">
+              <div className="pay-paid pointer-events-none absolute inset-2.5 grid place-items-center rounded-md bg-[#04080f] opacity-0">
                 <div
                   aria-hidden="true"
                   className="grid h-16 w-16 place-items-center rounded-full border-2 border-[color:var(--mk-brand)] text-[32px] text-[color:var(--mk-brand)]"
