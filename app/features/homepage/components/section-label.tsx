@@ -19,9 +19,8 @@ export function SectionLabel({ children, className, href }: SectionLabelProps) {
   );
 
   if (href) {
-    const id = href.startsWith('#') ? href.slice(1) : href;
     return (
-      <a id={id} href={href} className={cn('block w-fit', labelClasses)}>
+      <a href={href} className={cn('block w-fit', labelClasses)}>
         {content}
       </a>
     );

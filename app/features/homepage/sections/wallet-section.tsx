@@ -16,7 +16,7 @@ const specs: Spec[] = [
 
 export function WalletSection() {
   return (
-    <Section>
+    <Section id="wallet">
       <div className="grid grid-cols-1 items-start gap-12 md:grid-cols-[42%_1fr] md:items-center md:gap-20">
         <div className="text-center md:text-left">
           <SectionLabel href="#wallet">04_wallet</SectionLabel>

@@ -52,14 +52,15 @@ function pad3(n: number) {
 
 const FADE_DURATION = 720;
 
-// Pixel-dissolve via CSS mask: outgoing card is a regular <img> stacked on
-// top of the incoming <img>, sharing the same paint pipeline at the same
-// position. A 24-cell SVG <mask> (6×4 white rects) progressively erases the
-// outgoing image cell-by-cell — each rect's opacity steps from 1 → 0 with a
-// randomized delay across PIXEL_STAGGER_WINDOW. Two <img>s with identical
-// className paint anti-aliasing identically; SVG <image> inside <pattern>
-// did not (sub-pixel AA differs at fractional sizes / DPR=1), which is what
-// caused the desktop 1-pixel ghost shift after the iOS render-snap fix.
+// Pixel-dissolve via SVG-native masking: both incoming and outgoing cards
+// render as <image> inside a single <svg> so they share an identical paint
+// pipeline (eliminates the desktop DPR=1 sub-pixel AA shift HTML <img>+SVG
+// had). The outgoing <image> carries mask="url(#…)" referencing an inline
+// SVG <mask> of 24 white rects whose opacity steps 1 → 0 with a randomized
+// delay across PIXEL_STAGGER_WINDOW. Done as a real SVG mask (not CSS
+// mask-image) because iOS Safari has long-standing bugs with `mask-image:
+// url(#fragment)` referencing inline SVG masks, especially with animated
+// content — SVG-native mask= has worked reliably in WebKit for years.
 // The cell count stays well under the ~30 DOM-node budget — the original
 // PixelWipe used 504 simultaneous CSS animations and choked on iOS Safari.
 const PIXEL_COLS = 6;
@@ -88,11 +89,12 @@ const specimenMetaBase =
   'absolute [font-family:var(--mk-font-mono)] text-[9px] md:text-[10px] tracking-[0.1em] uppercase text-[color:var(--mk-text-muted)]';
 
 export function HeroSection() {
-  // activeIdx — the visible card; rendered as a steady <img> bottom layer
-  //   AND drives meta labels + active dot
-  // prevIdx — outgoing card as a sibling <img> on top, masked by an SVG
-  //   <mask> whose 24 cells erase opacity 1 → 0 over FADE_DURATION ms,
-  //   exposing activeIdx beneath. Both <img>s share the same paint pipeline.
+  // activeIdx — the visible card; rendered as a steady SVG <image> bottom
+  //   layer AND drives meta labels + active dot
+  // prevIdx — outgoing card as a sibling SVG <image> stacked on top, with
+  //   mask="url(#…)" so its 24 cell rects erase opacity 1 → 0 over
+  //   FADE_DURATION ms, exposing activeIdx beneath. Both <image>s share
+  //   the same SVG paint pipeline.
   const [activeIdx, setActiveIdx] = useState(0);
   const [prevIdx, setPrevIdx] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
@@ -290,66 +292,71 @@ export function HeroSection() {
                 className="relative aspect-[1.6/1] w-full rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.35),0_10px_20px_-6px_rgba(0,0,0,0.55),0_24px_48px_-14px_rgba(0,0,0,0.7),0_50px_90px_-22px_rgba(0,0,0,0.85)] transition-transform duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] [transform-style:preserve-3d] [will-change:transform]"
               >
                 <div className="absolute inset-0 overflow-hidden rounded-xl">
-                  <img
-                    key={`current-${activeIdx}`}
-                    src={incoming?.src}
-                    alt={`${incoming?.label} gift card`}
-                    decoding="async"
-                    className="absolute inset-0 block h-full w-full object-fill shadow-[inset_0_0_0_1px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                  />
-                  {outgoing && (
-                    <>
-                      <img
+                  <svg
+                    role="img"
+                    aria-label={`${incoming?.label} gift card`}
+                    viewBox={`0 0 ${PIXEL_COLS} ${PIXEL_ROWS}`}
+                    preserveAspectRatio="none"
+                    className="absolute inset-0 block h-full w-full"
+                  >
+                    <title>{`${incoming?.label} gift card`}</title>
+                    {outgoing && (
+                      <defs>
+                        <mask
+                          id={`hero-pixel-mask-${prevIdx}`}
+                          maskUnits="userSpaceOnUse"
+                          maskContentUnits="userSpaceOnUse"
+                          x="0"
+                          y="0"
+                          width={PIXEL_COLS}
+                          height={PIXEL_ROWS}
+                        >
+                          {pixelDelays.map((delay, idx) => {
+                            const col = idx % PIXEL_COLS;
+                            const row = Math.floor(idx / PIXEL_COLS);
+                            return (
+                              <rect
+                                // biome-ignore lint/suspicious/noArrayIndexKey: cell positions are stable for the life of the transition
+                                key={idx}
+                                x={col}
+                                y={row}
+                                width={1.02}
+                                height={1.02}
+                                fill="white"
+                                className="animate-hero-pixel-cell-out"
+                                style={{ animationDelay: `${delay}ms` }}
+                              />
+                            );
+                          })}
+                        </mask>
+                      </defs>
+                    )}
+                    <image
+                      key={`current-${activeIdx}`}
+                      href={incoming?.src}
+                      x="0"
+                      y="0"
+                      width={PIXEL_COLS}
+                      height={PIXEL_ROWS}
+                      preserveAspectRatio="none"
+                    />
+                    {outgoing && (
+                      <image
                         key={`outgoing-${prevIdx}`}
-                        src={outgoing.src}
-                        alt=""
-                        aria-hidden="true"
-                        decoding="async"
-                        className="absolute inset-0 block h-full w-full object-fill shadow-[inset_0_0_0_1px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                        style={{
-                          maskImage: `url(#hero-pixel-mask-${prevIdx})`,
-                          WebkitMaskImage: `url(#hero-pixel-mask-${prevIdx})`,
-                        }}
+                        href={outgoing.src}
+                        x="0"
+                        y="0"
+                        width={PIXEL_COLS}
+                        height={PIXEL_ROWS}
+                        preserveAspectRatio="none"
+                        mask={`url(#hero-pixel-mask-${prevIdx})`}
                       />
-                      <svg
-                        key={`mask-${prevIdx}`}
-                        aria-hidden="true"
-                        width="0"
-                        height="0"
-                        className="pointer-events-none absolute h-0 w-0"
-                      >
-                        <defs>
-                          <mask
-                            id={`hero-pixel-mask-${prevIdx}`}
-                            maskUnits="objectBoundingBox"
-                            maskContentUnits="objectBoundingBox"
-                            x="0"
-                            y="0"
-                            width="1"
-                            height="1"
-                          >
-                            {pixelDelays.map((delay, idx) => {
-                              const col = idx % PIXEL_COLS;
-                              const row = Math.floor(idx / PIXEL_COLS);
-                              return (
-                                <rect
-                                  // biome-ignore lint/suspicious/noArrayIndexKey: cell positions are stable for the life of the transition
-                                  key={idx}
-                                  x={col / PIXEL_COLS}
-                                  y={row / PIXEL_ROWS}
-                                  width={1.02 / PIXEL_COLS}
-                                  height={1.02 / PIXEL_ROWS}
-                                  fill="white"
-                                  className="animate-hero-pixel-cell-out"
-                                  style={{ animationDelay: `${delay}ms` }}
-                                />
-                              );
-                            })}
-                          </mask>
-                        </defs>
-                      </svg>
-                    </>
-                  )}
+                    )}
+                  </svg>
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 rounded-xl shadow-[inset_0_0_0_1px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.18),inset_0_-1px_0_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                  />
                 </div>
               </div>
             </div>

@@ -4,7 +4,10 @@ import { SectionLabel } from '../components/section-label';
 
 export function CtaSection() {
   return (
-    <section className="relative w-full border-[color:var(--mk-border)] border-t px-5 py-20 md:px-8 md:py-28">
+    <section
+      id="join"
+      className="relative w-full border-[color:var(--mk-border)] border-t px-5 py-20 md:px-8 md:py-28"
+    >
       <div className="mx-auto max-w-xl">
         <MarketingCard className="text-center">
           <div className="flex justify-center">

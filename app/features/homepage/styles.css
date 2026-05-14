@@ -37,11 +37,11 @@
   font-family: var(--mk-font-mono);
 }
 
-/* Section-label anchors — each section's small label (e.g. "03_spend") is a
-   real anchor with the matching id. The scroll-margin-top offset clears the
-   sticky marketing nav so the label isn't hidden underneath it after a
-   hash navigation. */
-.marketing a[id] {
+/* Section scroll target — the outer <section> carries the id (e.g. #buy,
+   #send), so a hash navigation lands at the top of the section itself
+   rather than mid-content where the section's label sits. The
+   scroll-margin-top offset clears the sticky marketing nav. */
+.marketing section[id] {
   scroll-margin-top: 80px;
 }
 
