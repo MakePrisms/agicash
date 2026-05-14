@@ -16,10 +16,10 @@ const specs: Spec[] = [
 
 export function WalletSection() {
   return (
-    <Section id="wallet">
+    <Section>
       <div className="grid grid-cols-1 items-start gap-12 md:grid-cols-[42%_1fr] md:items-center md:gap-20">
         <div className="text-center md:text-left">
-          <SectionLabel>04_wallet</SectionLabel>
+          <SectionLabel href="#wallet">04_wallet</SectionLabel>
           <h2 className="mt-8 font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:hidden">
             <a href="#wallet">The most advanced bitcoin wallet.</a>
           </h2>

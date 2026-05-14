@@ -64,11 +64,9 @@ export function SendSection() {
     <Section>
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-20">
         <div className="text-center md:text-left">
-          <SectionLabel>02_send</SectionLabel>
+          <SectionLabel href="#send">02_send</SectionLabel>
           <h2 className="mt-8 font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:mt-10 md:text-5xl">
-            <a id="send" href="#send">
-              Send over text or email.
-            </a>
+            <a href="#send">Send over text or email.</a>
           </h2>
           <p className="mt-6 text-[color:var(--mk-text-dim)] text-base leading-relaxed md:text-lg">
             Share gift cards over text, email or on any social media platform.

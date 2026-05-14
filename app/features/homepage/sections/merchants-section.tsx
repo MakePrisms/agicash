@@ -16,10 +16,10 @@ export function MerchantsSection() {
       <div className="mx-auto max-w-xl">
         <MarketingCard className="text-center">
           <div className="flex justify-center">
-            <SectionLabel>for_merchants</SectionLabel>
+            <SectionLabel href="#merchants">for_merchants</SectionLabel>
           </div>
           <h2 className="mt-7 font-medium font-mono text-2xl leading-[1.2] tracking-[-0.02em] md:text-3xl">
-            <a id="merchants" href="#merchants">
+            <a href="#merchants">
               Run a store? Issue bitcoin gift cards today.
             </a>
           </h2>
