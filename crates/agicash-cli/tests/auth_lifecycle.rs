@@ -8,8 +8,8 @@
 //! ```
 //!
 //! Env vars are loaded from .env (the same way the CLI binary loads them):
-//! - OPENSECRET_BASE_URL
-//! - OPENSECRET_CLIENT_ID
+//! - `OPENSECRET_BASE_URL`
+//! - `OPENSECRET_CLIENT_ID`
 
 #[cfg(feature = "real-opensecret-tests")]
 use assert_cmd::Command;
@@ -19,8 +19,7 @@ use predicates::prelude::*;
 #[cfg(feature = "real-opensecret-tests")]
 fn env_ready() -> bool {
     let _ = dotenvy::dotenv();
-    std::env::var("OPENSECRET_BASE_URL").is_ok()
-        && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
+    std::env::var("OPENSECRET_BASE_URL").is_ok() && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
 }
 
 #[cfg(not(feature = "real-opensecret-tests"))]
@@ -83,10 +82,7 @@ fn session_survives_process_restart() {
         .stdout(predicate::str::contains(&guest_uuid));
 
     // Step 3: logout (fresh process).
-    make_cmd()
-        .args(["auth", "logout"])
-        .assert()
-        .success();
+    make_cmd().args(["auth", "logout"]).assert().success();
 
     // Step 4: fresh process, status must report logged out.
     make_cmd()

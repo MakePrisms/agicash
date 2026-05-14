@@ -30,10 +30,7 @@ mod tests {
 
     #[async_trait]
     impl KeyProvider for DummyProvider {
-        async fn derive_private_key(
-            &self,
-            _options: KeyOptions,
-        ) -> Result<SecretKey, AuthError> {
+        async fn derive_private_key(&self, _options: KeyOptions) -> Result<SecretKey, AuthError> {
             Ok(SecretKey::new([0u8; 32]))
         }
 

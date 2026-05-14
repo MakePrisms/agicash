@@ -12,7 +12,9 @@ pub struct KeyringSessionStorage {
 impl KeyringSessionStorage {
     #[must_use]
     pub fn new(service: impl Into<String>) -> Self {
-        Self { service: service.into() }
+        Self {
+            service: service.into(),
+        }
     }
 
     fn entry(&self) -> Result<keyring::Entry, AuthError> {

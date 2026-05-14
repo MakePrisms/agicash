@@ -117,7 +117,10 @@ mod tests {
             seed_phrase_derivation_path: Some("m/44'/0'/0'".into()),
         };
         let theirs = key_options_to_opensecret(ours);
-        assert_eq!(theirs.private_key_derivation_path.as_deref(), Some("m/0'/0"));
+        assert_eq!(
+            theirs.private_key_derivation_path.as_deref(),
+            Some("m/0'/0")
+        );
         assert_eq!(
             theirs.seed_phrase_derivation_path.as_deref(),
             Some("m/44'/0'/0'")
@@ -133,8 +136,7 @@ mod tests {
     #[allow(dead_code)]
     async fn _provider_satisfies_trait(client: OpenSecretClient) {
         let p = OpenSecretKeyProvider::new(client);
-        let _: Result<SecretKey, AuthError> =
-            p.derive_private_key(KeyOptions::default()).await;
+        let _: Result<SecretKey, AuthError> = p.derive_private_key(KeyOptions::default()).await;
         let _: Result<PublicKey, AuthError> = p
             .derive_public_key(SigningAlgorithm::Schnorr, KeyOptions::default())
             .await;

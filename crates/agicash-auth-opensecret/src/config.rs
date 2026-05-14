@@ -22,7 +22,10 @@ impl OpenSecretConfig {
             .map_err(|_| AuthError::Internal(format!("missing env var: {id_var}")))?;
         let client_id = Uuid::parse_str(&client_id_raw)
             .map_err(|e| AuthError::Internal(format!("invalid {id_var}: {e}")))?;
-        Ok(Self { base_url, client_id })
+        Ok(Self {
+            base_url,
+            client_id,
+        })
     }
 }
 

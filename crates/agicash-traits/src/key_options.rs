@@ -23,9 +23,6 @@ mod tests {
             private_key_derivation_path: Some("m/0'/0".into()),
             seed_phrase_derivation_path: None,
         };
-        assert_eq!(
-            opts.private_key_derivation_path.as_deref(),
-            Some("m/0'/0")
-        );
+        assert_eq!(opts.private_key_derivation_path.as_deref(), Some("m/0'/0"));
     }
 }

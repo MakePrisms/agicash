@@ -4,7 +4,9 @@ use agicash_traits::AuthError;
 ///
 /// The orphan rule prevents us from writing `impl From<opensecret::Error> for AuthError`
 /// here (both types are foreign to this crate), so impls call this helper instead.
+/// Takes the error by value so it can be passed directly to `.map_err(...)`.
 #[must_use]
+#[allow(clippy::needless_pass_by_value)]
 pub fn auth_error_from_opensecret(err: opensecret::Error) -> AuthError {
     AuthError::Backend(format!("{err}"))
 }

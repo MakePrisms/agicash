@@ -14,17 +14,19 @@ pub struct OpenSecretClient {
 
 impl std::fmt::Debug for OpenSecretClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The opensecret client (`inner`) doesn't implement Debug, so we
+        // intentionally omit it and mark the struct as non-exhaustive.
         f.debug_struct("OpenSecretClient")
             .field("config", &self.config)
             .field("handshake_completed", &self.handshake.initialized())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
 impl OpenSecretClient {
     pub fn new(config: OpenSecretConfig) -> Result<Self, AuthError> {
-        let inner = OpensecretInner::new(config.base_url.clone())
-            .map_err(auth_error_from_opensecret)?;
+        let inner =
+            OpensecretInner::new(config.base_url.clone()).map_err(auth_error_from_opensecret)?;
         Ok(Self {
             inner: Arc::new(inner),
             handshake: Arc::new(OnceCell::new()),
@@ -40,8 +42,8 @@ impl OpenSecretClient {
                     .await
                     .map_err(auth_error_from_opensecret)
             })
-            .await
-            .map(|_| ())
+            .await?;
+        Ok(())
     }
 
     #[must_use]
