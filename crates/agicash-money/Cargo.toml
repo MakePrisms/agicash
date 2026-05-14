@@ -11,9 +11,9 @@ agicash-domain = { path = "../agicash-domain" }
 serde = { workspace = true }
 thiserror = { workspace = true }
 rust_decimal = { workspace = true }
-rust_decimal_macros = { workspace = true }
 
 [dev-dependencies]
+rust_decimal_macros = { workspace = true }
 serde_json = { workspace = true }
 
 [lints]
