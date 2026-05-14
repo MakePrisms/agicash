@@ -33,7 +33,12 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 auth::cmd_guest(&deps).await?;
                 Ok(())
             }
-            AuthCommand::Login { .. } | AuthCommand::Logout | AuthCommand::Status => {
+            AuthCommand::Login { email } => {
+                let deps = build_auth_deps()?;
+                auth::cmd_login(&deps, email).await?;
+                Ok(())
+            }
+            AuthCommand::Logout | AuthCommand::Status => {
                 unimplemented!("wired in later tasks");
             }
         },

@@ -40,3 +40,13 @@ fn auth_guest_help_lists_command() {
         .success()
         .stdout(predicate::str::contains("guest"));
 }
+
+#[test]
+fn auth_login_help_requires_email_arg() {
+    Command::cargo_bin("agicash")
+        .unwrap()
+        .args(["auth", "login", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("email"));
+}
