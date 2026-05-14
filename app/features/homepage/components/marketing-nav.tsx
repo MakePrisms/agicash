@@ -23,7 +23,11 @@ export function MarketingNav() {
           to="/home"
           className="inline-flex items-center"
           aria-label="Agicash"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          onClick={() =>
+            document
+              .querySelector('.marketing')
+              ?.scrollTo({ top: 0, behavior: 'smooth' })
+          }
         >
           <img
             src={logoUrl}
