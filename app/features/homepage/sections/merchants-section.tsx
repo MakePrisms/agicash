@@ -58,7 +58,9 @@ export function MerchantsSection() {
           </p>
           <div className="mt-7 flex justify-center">
             <a
-              href="mailto:merchants@agi.cash"
+              href="https://waitlist.agi.cash/merchants"
+              target="_blank"
+              rel="noreferrer"
               className="inline-flex items-center font-mono text-[color:var(--mk-text)] text-sm tracking-wide transition-colors duration-200 hover:text-[color:var(--mk-brand)]"
             >
               <span
@@ -67,7 +69,7 @@ export function MerchantsSection() {
               >
                 {'>'}
               </span>
-              contact · merchants@agi.cash
+              join us now
             </a>
           </div>
 
