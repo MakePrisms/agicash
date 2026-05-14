@@ -69,7 +69,7 @@ export function MerchantsSection() {
               >
                 {'>'}
               </span>
-              join us now
+              join the waitlist
             </a>
           </div>
 
