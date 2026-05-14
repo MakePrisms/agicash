@@ -8,12 +8,42 @@ import epicurean from '~/assets/gift-cards/theepicureantrader.agi.cash.webp';
 import { JoinBetaButton } from '../components/join-beta-button';
 
 const cards = [
-  { src: pubkey, label: 'PUBKEY DC', location: 'WASHINGTON, D.C.' },
-  { src: epicurean, label: 'EPICUREAN TRADER', location: 'CALIFORNIA' },
-  { src: pinkOwl, label: 'PINK OWL COFFEE', location: 'CALIFORNIA' },
-  { src: mariposa, label: 'MARIPOSA', location: 'CALIFORNIA' },
-  { src: kissOfMatcha, label: 'KISS OF MATCHA', location: 'CALIFORNIA' },
-  { src: forkAndCoin, label: 'FORK & COIN', location: 'ILLINOIS' },
+  {
+    src: pubkey,
+    label: 'PUBKEY DC',
+    location: 'WASHINGTON, D.C.',
+    url: 'https://www.pubkey.bar/dc/home',
+  },
+  {
+    src: epicurean,
+    label: 'EPICUREAN TRADER',
+    location: 'CALIFORNIA',
+    url: 'https://theepicureantrader.com',
+  },
+  {
+    src: pinkOwl,
+    label: 'PINK OWL COFFEE',
+    location: 'CALIFORNIA',
+    url: 'https://pinkowlcoffee.com/',
+  },
+  {
+    src: mariposa,
+    label: 'MARIPOSA BAKING CO.',
+    location: 'CALIFORNIA',
+    url: 'https://www.mariposabaking.com/',
+  },
+  {
+    src: kissOfMatcha,
+    label: 'KISS OF MATCHA',
+    location: 'CALIFORNIA',
+    url: 'https://www.kissofmatcha.com/',
+  },
+  {
+    src: forkAndCoin,
+    label: 'FORK & COIN',
+    location: 'ILLINOIS',
+    url: 'https://www.forkandcoin.com/',
+  },
 ];
 
 function pad3(n: number) {
@@ -237,9 +267,14 @@ export function HeroSection() {
             <span className={`${specimenMetaBase} top-[-22px] right-0`}>
               btc gift card
             </span>
-            <span className={`${specimenMetaBase} bottom-[-22px] left-0`}>
+            <a
+              href={meta?.url}
+              target="_blank"
+              rel="noreferrer"
+              className={`${specimenMetaBase} bottom-[-22px] left-0 transition-colors duration-200 hover:text-[color:var(--mk-text)]`}
+            >
               {meta?.label}
-            </span>
+            </a>
             <span className={`${specimenMetaBase} right-0 bottom-[-22px]`}>
               {meta?.location}
             </span>
