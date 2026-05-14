@@ -38,8 +38,13 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 auth::cmd_login(&deps, email).await?;
                 Ok(())
             }
-            AuthCommand::Logout | AuthCommand::Status => {
-                unimplemented!("wired in later tasks");
+            AuthCommand::Logout => {
+                let deps = build_auth_deps()?;
+                auth::cmd_logout(&deps).await?;
+                Ok(())
+            }
+            AuthCommand::Status => {
+                unimplemented!("wired in Task 22");
             }
         },
         None => Ok(()),

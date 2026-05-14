@@ -1,5 +1,5 @@
 use crate::composition::AuthDeps;
-use agicash_auth_opensecret::{login_email, register_guest};
+use agicash_auth_opensecret::{login_email, logout, register_guest};
 use agicash_traits::{AuthError, PersistedSession, SessionStorage};
 
 fn random_password() -> String {
@@ -33,5 +33,21 @@ pub async fn cmd_login(deps: &AuthDeps, email: String) -> Result<(), AuthError> 
     };
     deps.storage.store(&session).await?;
     println!("signed in as {}", resp.id);
+    Ok(())
+}
+
+pub async fn cmd_logout(deps: &AuthDeps) -> Result<(), AuthError> {
+    if deps.storage.load().await?.is_none() {
+        println!("not logged in");
+        return Ok(());
+    }
+    // Best-effort server logout. Even if the server call fails (e.g.,
+    // network error or expired session), we clear local state so the
+    // command is idempotent.
+    if let Err(e) = logout(&deps.client).await {
+        eprintln!("warning: server logout failed: {e}");
+    }
+    deps.storage.clear().await?;
+    println!("signed out");
     Ok(())
 }
