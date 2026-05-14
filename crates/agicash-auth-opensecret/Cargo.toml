@@ -1,0 +1,14 @@
+[package]
+name = "agicash-auth-opensecret"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+agicash-domain = { path = "../agicash-domain" }
+agicash-traits = { path = "../agicash-traits" }
+
+[lints]
+workspace = true
