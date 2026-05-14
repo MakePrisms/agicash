@@ -1,0 +1,25 @@
+[package]
+name = "agicash-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "agicash"
+path = "src/main.rs"
+
+[dependencies]
+agicash-domain = { path = "../agicash-domain" }
+agicash-money = { path = "../agicash-money" }
+agicash-wallet = { path = "../agicash-wallet" }
+clap = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+predicates = { workspace = true }
+
+[lints]
+workspace = true
