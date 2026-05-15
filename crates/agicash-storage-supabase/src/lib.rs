@@ -1,1 +1,5 @@
-//! Storage trait impls over postgrest. Filled starting in slice 3.
+//! Storage trait impls over postgrest. Mirrors the Supabase REST surface.
+
+pub mod config;
+
+pub use config::*;
