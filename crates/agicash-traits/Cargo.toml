@@ -10,6 +10,7 @@ repository.workspace = true
 agicash-domain = { path = "../agicash-domain" }
 agicash-crypto = { path = "../agicash-crypto" }
 async-trait = { workspace = true }
+cdk = { workspace = true }
 chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

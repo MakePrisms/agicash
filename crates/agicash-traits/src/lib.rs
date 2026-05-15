@@ -1,5 +1,6 @@
 //! Trait boundaries between abstract and concrete impls.
 
+pub mod cashu_provider;
 pub mod error;
 pub mod key_options;
 pub mod key_provider;
@@ -8,6 +9,7 @@ pub mod storage_error;
 pub mod token_provider;
 pub mod user_storage;
 
+pub use cashu_provider::*;
 pub use error::*;
 pub use key_options::*;
 pub use key_provider::*;
