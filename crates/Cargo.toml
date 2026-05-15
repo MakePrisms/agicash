@@ -6,6 +6,7 @@ members = [
     "agicash-crypto",
     "agicash-traits",
     "agicash-cashu",
+    "agicash-exchange-rate",
     "agicash-spark",
     "agicash-storage-supabase",
     "agicash-auth-opensecret",
@@ -44,6 +45,11 @@ rust_decimal_macros = "1.36"
 
 # Cashu Development Kit
 cdk = { version = "0.15", default-features = false, features = ["wallet"] }
+
+# HTTP client used by agicash-exchange-rate (and indirectly via opensecret/postgrest).
+# `default-features = false` keeps wasm-unfriendly transitive deps out;
+# crates that need TLS enable `rustls-tls` themselves.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # Auth / secrets / keyring / env
 opensecret = "3.1.1"
