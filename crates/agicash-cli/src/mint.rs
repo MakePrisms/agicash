@@ -91,8 +91,8 @@ pub async fn cmd_mint_add(
         spark_identity_public_key,
         terms_accepted_at,
         gift_card_mint_terms_accepted_at,
-    ) = match existing.as_ref() {
-        Some(u) => (
+    ) = if let Some(u) = existing.as_ref() {
+        (
             u.email.clone(),
             u.email_verified,
             u.cashu_locking_xpub.clone(),
@@ -100,16 +100,23 @@ pub async fn cmd_mint_add(
             u.spark_identity_public_key.clone(),
             u.terms_accepted_at,
             u.gift_card_mint_terms_accepted_at,
-        ),
-        None => (
+        )
+    } else {
+        // First-ever upsert for this user. `wallet.users` has UNIQUE indexes
+        // on cashu_locking_xpub / encryption_public_key /
+        // spark_identity_public_key, so empty strings collide between
+        // guests. Derive a unique placeholder from the user id; real key
+        // initialization lands in slice 5+.
+        let placeholder_prefix = format!("uninitialized-{user_id}-");
+        (
             None,
             false,
-            String::new(),
-            String::new(),
-            String::new(),
+            format!("{placeholder_prefix}cashu"),
+            format!("{placeholder_prefix}encryption"),
+            format!("{placeholder_prefix}spark"),
             None,
             None,
-        ),
+        )
     };
 
     // For brand-new users, the DB function validates that at least one BTC
