@@ -5,9 +5,10 @@ mod composition;
 
 use account::AccountCmdError;
 use agicash_traits::{AuthError, StorageError};
+use auth::rehydrate_session;
 use clap::Parser;
 use cli::{AccountCommand, AuthCommand, Cli, Command};
-use composition::{build_auth_deps, build_storage_deps, rehydrate_session};
+use composition::{build_auth_deps, build_storage_deps};
 use serde::Serialize;
 
 #[derive(Serialize)]
