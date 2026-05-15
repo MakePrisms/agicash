@@ -47,3 +47,11 @@ node_modules
 /target
 /crates/target
 /crates/**/pkg
+
+# iOS / Swift bindings
+/bindings/swift/rust/target
+/bindings/swift/build
+/bindings/swift/Sources
+/ios/**/build
+/ios/**/*.xcodeproj
+/ios/**/DerivedData

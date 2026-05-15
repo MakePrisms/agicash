@@ -1,0 +1,9 @@
+[package]
+name = "agicash_ffi"
+namespace = "agicash_ffi"
+
+[bindings.swift]
+cdylib_name = "agicash_ffi_swift"
+module_name = "AgicashSDK"
+ffi_module_name = "agicashFFI"
+generate_codable_conformance = true
