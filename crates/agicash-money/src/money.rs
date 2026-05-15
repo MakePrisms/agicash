@@ -147,7 +147,10 @@ impl Money {
             .expect("convert: source unit incompatible with currency");
         let raw = in_major.amount * rate;
         let scale = unit_scale(target, Unit::Major);
-        let rounded = raw.round_dp_with_strategy(scale, RoundingStrategy::MidpointNearestEven);
+        // TS source rounds with `Big.roundHalfUp` (ties go away from zero, not
+        // banker's). Match that — divergence here would mis-quote user-facing
+        // converted amounts at exact half-units.
+        let rounded = raw.round_dp_with_strategy(scale, RoundingStrategy::MidpointAwayFromZero);
         Money::new(rounded, target, Unit::Major)
     }
 
@@ -349,6 +352,17 @@ mod tests {
         assert_eq!(usd.currency(), Currency::Usd);
         assert_eq!(usd.amount(), dec!(50000));
         assert_eq!(usd.unit(), Unit::Major);
+    }
+
+    #[test]
+    fn money_convert_rounds_half_away_from_zero_at_target_precision() {
+        // 0.0001 BTC * 50 USD/BTC = 0.005 USD, exactly the midpoint at USD
+        // major-unit precision (2 dp). TS uses Big.roundHalfUp so this must
+        // round to 0.01, not 0.00 (which banker's rounding would produce
+        // because 0 is even).
+        let btc = Money::new(dec!(0.0001), Currency::Btc, Unit::Major);
+        let usd = btc.convert(Currency::Usd, dec!(50));
+        assert_eq!(usd.amount(), dec!(0.01));
     }
 
     #[test]
