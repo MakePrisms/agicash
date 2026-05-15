@@ -76,6 +76,15 @@ version = "0.1.0"
 dependencies = [
  "agicash-domain",
  "agicash-money",
+ "agicash-traits",
+ "async-trait",
+ "cdk",
+ "chrono",
+ "dotenvy",
+ "parking_lot",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
