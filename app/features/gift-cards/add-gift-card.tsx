@@ -130,8 +130,8 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   }
 
   return (
-    <Page className="px-0 pb-0">
-      <PageHeader className="px-4">
+    <Page>
+      <PageHeader>
         <ClosePageButton to="/gift-cards" state={location.state} />
       </PageHeader>
 
