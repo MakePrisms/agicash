@@ -14,12 +14,15 @@ path = "src/main.rs"
 default = []
 # Enable integration tests that hit the real Open Secret dev environment.
 real-opensecret-tests = []
+# Enable integration tests that hit the real local Supabase instance.
+real-supabase-tests = []
 
 [dependencies]
 agicash-domain = { path = "../agicash-domain" }
 agicash-money = { path = "../agicash-money" }
 agicash-traits = { path = "../agicash-traits" }
 agicash-auth-opensecret = { path = "../agicash-auth-opensecret" }
+agicash-storage-supabase = { path = "../agicash-storage-supabase" }
 agicash-wallet = { path = "../agicash-wallet" }
 clap = { workspace = true }
 tokio = { workspace = true }
