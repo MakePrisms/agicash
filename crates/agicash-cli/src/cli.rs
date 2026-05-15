@@ -19,6 +19,14 @@ pub enum Command {
     Auth(AuthArgs),
     /// Accounts (cashu and spark) for the current user.
     Account(AccountArgs),
+    /// Manage Cashu mints.
+    Mint(MintArgs),
+    /// Show balance for all accounts (or a specific account).
+    Balance {
+        /// Show balance for a specific account ID only.
+        #[arg(long)]
+        account: Option<String>,
+    },
 }
 
 #[derive(clap::Args, Debug)]
@@ -52,6 +60,24 @@ pub struct AccountArgs {
 pub enum AccountCommand {
     /// List active accounts for the current user.
     List,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct MintArgs {
+    #[command(subcommand)]
+    pub cmd: MintCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum MintCommand {
+    /// Add a Cashu mint and create an account for it.
+    Add {
+        /// Mint URL, e.g. <https://testnut.cashu.space>
+        url: String,
+        /// Currency code (BTC or USD; default BTC).
+        #[arg(long, default_value = "BTC")]
+        currency: String,
+    },
 }
 
 #[cfg(test)]
@@ -115,8 +141,57 @@ mod tests {
 
     #[test]
     fn account_default_subcommand_is_not_recognized_yet() {
-        // Deferred to slice 4+; explicitly NOT in this slice.
+        // Deferred to slice 5+; explicitly NOT in this slice.
         let res = Cli::try_parse_from(["agicash", "account", "default", "<id>"]);
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn parses_mint_add_with_url() {
+        let cli =
+            Cli::try_parse_from(["agicash", "mint", "add", "https://testnut.cashu.space"]).unwrap();
+        match cli.cmd {
+            Some(Command::Mint(m)) => match m.cmd {
+                MintCommand::Add { url, currency } => {
+                    assert_eq!(url, "https://testnut.cashu.space");
+                    assert_eq!(currency, "BTC");
+                }
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_mint_add_with_currency_flag() {
+        let cli = Cli::try_parse_from([
+            "agicash",
+            "mint",
+            "add",
+            "https://example.com",
+            "--currency",
+            "USD",
+        ])
+        .unwrap();
+        match cli.cmd {
+            Some(Command::Mint(m)) => match m.cmd {
+                MintCommand::Add { currency, .. } => assert_eq!(currency, "USD"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_balance_without_args() {
+        let cli = Cli::try_parse_from(["agicash", "balance"]).unwrap();
+        assert!(matches!(cli.cmd, Some(Command::Balance { account: None })));
+    }
+
+    #[test]
+    fn parses_balance_with_account_filter() {
+        let cli = Cli::try_parse_from(["agicash", "balance", "--account", "abc-123"]).unwrap();
+        match cli.cmd {
+            Some(Command::Balance { account: Some(id) }) => assert_eq!(id, "abc-123"),
+            other => panic!("unexpected: {other:?}"),
+        }
     }
 }

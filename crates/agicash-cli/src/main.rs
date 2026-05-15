@@ -2,13 +2,17 @@ mod account;
 mod auth;
 mod cli;
 mod composition;
+mod mint;
 
 use account::AccountCmdError;
 use agicash_traits::{AuthError, StorageError};
 use auth::rehydrate_session;
 use clap::Parser;
-use cli::{AccountCommand, AuthCommand, Cli, Command};
-use composition::{build_auth_deps, build_storage_deps};
+use cli::{AccountCommand, AuthCommand, Cli, Command, MintCommand};
+use composition::{
+    build_auth_deps, build_cashu_deps, build_exchange_rate_deps, build_storage_deps,
+};
+use mint::MintCmdError;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -38,6 +42,17 @@ fn classify_error(e: &(dyn std::error::Error + 'static)) -> (&'static str, i32) 
             AccountCmdError::NotLoggedIn => ("not-logged-in", 3),
             AccountCmdError::Auth(inner) => classify_auth(inner),
             AccountCmdError::Storage(inner) => (classify_storage(inner), 1),
+        };
+    }
+    if let Some(mint_err) = e.downcast_ref::<MintCmdError>() {
+        return match mint_err {
+            MintCmdError::NotLoggedIn => ("not-logged-in", 3),
+            MintCmdError::InvalidUrl(_) => ("invalid-mint-url", 1),
+            MintCmdError::MintUnreachable(_) => ("mint-unreachable", 1),
+            MintCmdError::UnsupportedCurrency(_) => ("unsupported-currency", 1),
+            MintCmdError::UserNotFound => ("user-not-found", 1),
+            MintCmdError::Auth(inner) => classify_auth(inner),
+            MintCmdError::Storage(inner) => (classify_storage(inner), 1),
         };
     }
     if let Some(auth) = e.downcast_ref::<AuthError>() {
@@ -127,6 +142,18 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 account::cmd_list(&auth_deps, &storage_deps).await?;
             }
         },
+        Some(Command::Mint(m)) => match m.cmd {
+            MintCommand::Add { url, currency } => {
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                let cashu_deps = build_cashu_deps();
+                mint::cmd_mint_add(&auth_deps, &storage_deps, &cashu_deps, &url, &currency).await?;
+            }
+        },
+        Some(Command::Balance { account: _ }) => {
+            let storage_deps = build_storage_deps(&auth_deps)?;
+            let rate_deps = build_exchange_rate_deps();
+            mint::cmd_balance(&auth_deps, &storage_deps, &rate_deps).await?;
+        }
         None => {}
     }
     Ok(())

@@ -92,12 +92,15 @@ name = "agicash-cli"
 version = "0.1.0"
 dependencies = [
  "agicash-auth-opensecret",
+ "agicash-cashu",
  "agicash-domain",
+ "agicash-exchange-rate",
  "agicash-money",
  "agicash-storage-supabase",
  "agicash-traits",
  "agicash-wallet",
  "assert_cmd",
+ "cdk",
  "clap",
  "dotenvy",
  "getrandom 0.2.17",

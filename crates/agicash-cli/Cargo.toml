@@ -16,14 +16,19 @@ default = []
 real-opensecret-tests = []
 # Enable integration tests that hit the real local Supabase instance.
 real-supabase-tests = []
+# Enable integration tests that hit a real public Cashu mint.
+real-mint-tests = ["agicash-cashu/real-mint-tests"]
 
 [dependencies]
 agicash-domain = { path = "../agicash-domain" }
 agicash-money = { path = "../agicash-money" }
 agicash-traits = { path = "../agicash-traits" }
 agicash-auth-opensecret = { path = "../agicash-auth-opensecret" }
+agicash-cashu = { path = "../agicash-cashu" }
+agicash-exchange-rate = { path = "../agicash-exchange-rate" }
 agicash-storage-supabase = { path = "../agicash-storage-supabase" }
 agicash-wallet = { path = "../agicash-wallet" }
+cdk = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 rpassword = { workspace = true }
