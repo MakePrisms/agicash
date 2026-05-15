@@ -20,8 +20,9 @@ pub async fn cmd_list(auth: &AuthDeps, storage: &StorageDeps) -> Result<(), Acco
         .ok_or(AccountCmdError::NotLoggedIn)?;
     let user_id = UserId::from(session.user_id);
     let accounts = storage.storage.list_accounts(user_id).await?;
-    for a in accounts {
-        println!("{}  {}  {}  {}", a.id, a.account_type, a.currency, a.name);
-    }
+    println!(
+        "{}",
+        serde_json::to_string(&accounts).expect("serialize accounts")
+    );
     Ok(())
 }

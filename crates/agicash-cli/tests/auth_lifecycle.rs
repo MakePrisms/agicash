@@ -13,8 +13,6 @@
 
 #[cfg(feature = "real-opensecret-tests")]
 use assert_cmd::Command;
-#[cfg(feature = "real-opensecret-tests")]
-use predicates::prelude::*;
 
 #[cfg(feature = "real-opensecret-tests")]
 fn env_ready() -> bool {
@@ -62,32 +60,89 @@ fn session_survives_process_restart() {
         .stdout
         .clone();
     let guest_stdout = String::from_utf8(guest_out).unwrap();
-    // cmd_guest output: "signed in as guest <uuid>"
-    let guest_uuid = guest_stdout
-        .split_whitespace()
-        .last()
-        .expect("guest stdout has uuid")
+    let guest_json: serde_json::Value = serde_json::from_str(guest_stdout.trim())
+        .unwrap_or_else(|e| panic!("auth guest stdout not JSON ({e}): {guest_stdout}"));
+    assert_eq!(
+        guest_json.get("status").and_then(|v| v.as_str()),
+        Some("signed-in"),
+        "unexpected auth guest body: {guest_json}",
+    );
+    assert_eq!(
+        guest_json.get("guest").and_then(serde_json::Value::as_bool),
+        Some(true),
+        "expected guest=true: {guest_json}",
+    );
+    let guest_uuid = guest_json
+        .get("user_id")
+        .and_then(|v| v.as_str())
+        .expect("user_id in auth guest output")
         .to_string();
     assert!(
         uuid::Uuid::parse_str(&guest_uuid).is_ok(),
-        "expected guest uuid, got: {guest_stdout}"
+        "expected guest uuid, got: {guest_uuid}"
     );
 
     // Step 2: fresh process, status must show the same uuid.
-    make_cmd()
+    let status_out = make_cmd()
         .args(["auth", "status"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("logged in"))
-        .stdout(predicate::str::contains(&guest_uuid));
+        .get_output()
+        .stdout
+        .clone();
+    let status_stdout = String::from_utf8(status_out).unwrap();
+    let status_json: serde_json::Value = serde_json::from_str(status_stdout.trim())
+        .unwrap_or_else(|e| panic!("auth status stdout not JSON ({e}): {status_stdout}"));
+    assert_eq!(
+        status_json
+            .get("logged_in")
+            .and_then(serde_json::Value::as_bool),
+        Some(true),
+        "expected logged_in=true: {status_json}",
+    );
+    assert_eq!(
+        status_json.get("user_id").and_then(|v| v.as_str()),
+        Some(guest_uuid.as_str()),
+        "unexpected user_id in status: {status_json}",
+    );
 
     // Step 3: logout (fresh process).
-    make_cmd().args(["auth", "logout"]).assert().success();
+    let logout_out = make_cmd()
+        .args(["auth", "logout"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let logout_stdout = String::from_utf8(logout_out).unwrap();
+    let logout_json: serde_json::Value = serde_json::from_str(logout_stdout.trim())
+        .unwrap_or_else(|e| panic!("auth logout stdout not JSON ({e}): {logout_stdout}"));
+    assert_eq!(
+        logout_json.get("status").and_then(|v| v.as_str()),
+        Some("signed-out"),
+        "unexpected logout body: {logout_json}",
+    );
 
     // Step 4: fresh process, status must report logged out.
-    make_cmd()
+    let status_out2 = make_cmd()
         .args(["auth", "status"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("not logged in"));
+        .get_output()
+        .stdout
+        .clone();
+    let status_stdout2 = String::from_utf8(status_out2).unwrap();
+    let status_json2: serde_json::Value = serde_json::from_str(status_stdout2.trim())
+        .unwrap_or_else(|e| panic!("auth status stdout not JSON ({e}): {status_stdout2}"));
+    assert_eq!(
+        status_json2
+            .get("logged_in")
+            .and_then(serde_json::Value::as_bool),
+        Some(false),
+        "expected logged_in=false after logout: {status_json2}",
+    );
+    assert!(
+        status_json2.get("user_id").is_none(),
+        "expected no user_id when logged out: {status_json2}",
+    );
 }

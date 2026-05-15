@@ -66,10 +66,13 @@ mod gated {
             String::from_utf8_lossy(&guest.stdout),
             String::from_utf8_lossy(&guest.stderr),
         );
-        assert!(
-            String::from_utf8_lossy(&guest.stdout).contains("signed in as guest"),
-            "stdout: {}",
-            String::from_utf8_lossy(&guest.stdout),
+        let guest_stdout = String::from_utf8_lossy(&guest.stdout).into_owned();
+        let guest_json: serde_json::Value = serde_json::from_str(guest_stdout.trim())
+            .unwrap_or_else(|e| panic!("auth guest stdout not JSON ({e}): {guest_stdout}"));
+        assert_eq!(
+            guest_json.get("status").and_then(|v| v.as_str()),
+            Some("signed-in"),
+            "unexpected auth guest body: {guest_json}",
         );
 
         let list = Command::cargo_bin("agicash")
@@ -93,10 +96,18 @@ mod gated {
             String::from_utf8_lossy(&list.stdout),
             String::from_utf8_lossy(&list.stderr),
         );
-        // A freshly-minted guest user has no accounts yet, so an empty
-        // stdout is the expected success outcome. The point of this test
-        // is that we reached postgrest with a valid JWT (HTTP 200,
-        // exit code 0), not that any specific row was returned.
+        // A freshly-minted guest user has no accounts yet, so the expected
+        // stdout is a JSON array (typically empty). The point of this test
+        // is that we reached postgrest with a valid JWT (HTTP 200, exit 0)
+        // and that stdout parses as JSON — not that any specific row was
+        // returned.
+        let list_stdout = String::from_utf8_lossy(&list.stdout).into_owned();
+        let list_json: serde_json::Value = serde_json::from_str(list_stdout.trim())
+            .unwrap_or_else(|e| panic!("account list stdout not JSON ({e}): {list_stdout}"));
+        assert!(
+            list_json.is_array(),
+            "expected account list stdout to be a JSON array, got: {list_json}",
+        );
     }
 }
 

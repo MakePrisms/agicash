@@ -66,8 +66,13 @@ pub async fn rehydrate_session(deps: &AuthDeps) -> Result<bool, AuthError> {
 
     if let Err(e) = deps.client.inner().refresh_token().await {
         // The stored refresh token is no good — wipe it so future runs
-        // don't keep retrying the same dead session.
-        let _ = deps.storage.clear().await;
+        // don't keep retrying the same dead session. If the wipe itself
+        // fails (e.g. macOS keychain locked, permission revoked), surface
+        // it as a stderr diagnostic so the user has a signal — without it
+        // they'd be stuck in a loop with a stale session.
+        if let Err(clear_err) = deps.storage.clear().await {
+            eprintln!("warning: could not clear stale session: {clear_err}");
+        }
         return Err(auth_error_from_opensecret(e));
     }
 

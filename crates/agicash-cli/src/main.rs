@@ -3,9 +3,68 @@ mod auth;
 mod cli;
 mod composition;
 
+use account::AccountCmdError;
+use agicash_traits::{AuthError, StorageError};
 use clap::Parser;
 use cli::{AccountCommand, AuthCommand, Cli, Command};
 use composition::{build_auth_deps, build_storage_deps, rehydrate_session};
+use serde::Serialize;
+
+#[derive(Serialize)]
+struct VersionOutput<'a> {
+    version: &'a str,
+}
+
+#[derive(Serialize)]
+struct ErrorBody<'a> {
+    code: &'a str,
+    message: String,
+}
+
+#[derive(Serialize)]
+struct ErrorOutput<'a> {
+    error: ErrorBody<'a>,
+}
+
+/// Map a boxed CLI error to (error code, exit code).
+///
+/// Exit codes:
+///   - `3` for "auth required" conditions (no session, unauthenticated)
+///   - `1` for everything else
+fn classify_error(e: &(dyn std::error::Error + 'static)) -> (&'static str, i32) {
+    if let Some(acc) = e.downcast_ref::<AccountCmdError>() {
+        return match acc {
+            AccountCmdError::NotLoggedIn => ("not-logged-in", 3),
+            AccountCmdError::Auth(inner) => classify_auth(inner),
+            AccountCmdError::Storage(inner) => (classify_storage(inner), 1),
+        };
+    }
+    if let Some(auth) = e.downcast_ref::<AuthError>() {
+        return classify_auth(auth);
+    }
+    if let Some(st) = e.downcast_ref::<StorageError>() {
+        return (classify_storage(st), 1);
+    }
+    ("unknown", 1)
+}
+
+fn classify_auth(e: &AuthError) -> (&'static str, i32) {
+    match e {
+        AuthError::Network(_) => ("network-error", 1),
+        AuthError::Unauthenticated => ("unauthenticated", 3),
+        AuthError::Backend(_) => ("auth-backend-error", 1),
+        AuthError::Internal(_) => ("internal-error", 1),
+    }
+}
+
+fn classify_storage(e: &StorageError) -> &'static str {
+    match e {
+        StorageError::Network(_) => "network-error",
+        StorageError::NotFound => "not-found",
+        StorageError::Backend(_) => "storage-backend-error",
+        StorageError::Internal(_) => "internal-error",
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -15,13 +74,18 @@ async fn main() {
     let exit_code = match run(args).await {
         Ok(()) => 0,
         Err(e) => {
-            eprintln!("error: {e}");
-            // "not logged in" -> exit 3 (auth required). All other errors -> 1.
-            if e.to_string() == "not logged in" {
-                3
-            } else {
-                1
-            }
+            let (code, exit) = classify_error(e.as_ref());
+            let body = ErrorOutput {
+                error: ErrorBody {
+                    code,
+                    message: e.to_string(),
+                },
+            };
+            eprintln!(
+                "{}",
+                serde_json::to_string(&body).expect("serialize error JSON")
+            );
+            exit
         }
     };
     std::process::exit(exit_code);
@@ -30,7 +94,13 @@ async fn main() {
 async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
     // Version doesn't need auth or env vars — handle it before building deps.
     if let Some(Command::Version) = args.cmd {
-        println!("{}", env!("CARGO_PKG_VERSION"));
+        println!(
+            "{}",
+            serde_json::to_string(&VersionOutput {
+                version: env!("CARGO_PKG_VERSION"),
+            })
+            .expect("serialize version JSON")
+        );
         return Ok(());
     }
 

@@ -4,13 +4,9 @@ use clap::{Parser, Subcommand};
 #[command(
     name = "agicash",
     version,
-    about = "Agicash CLI — self-custody Bitcoin wallet"
+    about = "Agicash CLI — self-custody Bitcoin wallet (JSON output)"
 )]
 pub struct Cli {
-    /// Output as JSON instead of human-readable text.
-    #[arg(long, global = true)]
-    pub json: bool,
-
     #[command(subcommand)]
     pub cmd: Option<Command>,
 }
