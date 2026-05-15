@@ -6,7 +6,8 @@ pub mod receive_swap;
 
 pub use provider::CdkCashuProvider;
 pub use receive_swap::{
-    Action, CashuReceiveSwap, CashuReceiveSwapState, CashuReceiveSwapStorage,
-    CompleteReceiveSwapResult, CreateReceiveSwap, CreateReceiveSwapResult, Event, MachineState,
-    ReceiveSwapError, ReceiveSwapMachine, ReceiveSwapStorageError, TokenProof,
+    Action, CashuReceiveSwap, CashuReceiveSwapService, CashuReceiveSwapState,
+    CashuReceiveSwapStorage, CompleteOutcome, CompleteReceiveSwapResult, CreateReceiveSwap,
+    CreateReceiveSwapResult, Event, MachineState, ParsedToken, ReceiveSwapError,
+    ReceiveSwapMachine, ReceiveSwapStorageError, TokenProof,
 };
