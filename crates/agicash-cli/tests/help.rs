@@ -50,3 +50,23 @@ fn auth_login_help_requires_email_arg() {
         .success()
         .stdout(predicate::str::contains("email"));
 }
+
+#[test]
+fn account_help_lists_list_subcommand() {
+    Command::cargo_bin("agicash")
+        .unwrap()
+        .args(["account", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("list"));
+}
+
+#[test]
+fn account_list_help_works() {
+    Command::cargo_bin("agicash")
+        .unwrap()
+        .args(["account", "list", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("List"));
+}

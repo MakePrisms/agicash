@@ -3,7 +3,7 @@ mod cli;
 mod composition;
 
 use clap::Parser;
-use cli::{AuthCommand, Cli, Command};
+use cli::{AccountCommand, AuthCommand, Cli, Command};
 use composition::build_auth_deps;
 
 #[tokio::main]
@@ -47,6 +47,12 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 let deps = build_auth_deps()?;
                 auth::cmd_status(&deps).await?;
                 Ok(())
+            }
+        },
+        Some(Command::Account(a)) => match a.cmd {
+            AccountCommand::List => {
+                // Wired in slice 3 Task 17.
+                Err("account list: not yet implemented in this build".into())
             }
         },
         None => Ok(()),

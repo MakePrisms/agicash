@@ -21,6 +21,8 @@ pub enum Command {
     Version,
     /// Authentication and session management.
     Auth(AuthArgs),
+    /// Accounts (cashu and spark) for the current user.
+    Account(AccountArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -42,6 +44,18 @@ pub enum AuthCommand {
     Logout,
     /// Report whether a session is active, and if so, the user id.
     Status,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct AccountArgs {
+    #[command(subcommand)]
+    pub cmd: AccountCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AccountCommand {
+    /// List active accounts for the current user.
+    List,
 }
 
 #[cfg(test)]
@@ -92,5 +106,21 @@ mod tests {
     fn does_not_recognize_whoami() {
         let res = Cli::try_parse_from(["agicash", "whoami"]);
         assert!(res.is_err(), "whoami should NOT be a recognized subcommand");
+    }
+
+    #[test]
+    fn parses_account_list() {
+        let cli = Cli::try_parse_from(["agicash", "account", "list"]).unwrap();
+        match cli.cmd {
+            Some(Command::Account(a)) => assert!(matches!(a.cmd, AccountCommand::List)),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn account_default_subcommand_is_not_recognized_yet() {
+        // Deferred to slice 4+; explicitly NOT in this slice.
+        let res = Cli::try_parse_from(["agicash", "account", "default", "<id>"]);
+        assert!(res.is_err());
     }
 }
