@@ -28,42 +28,35 @@ async fn main() {
 }
 
 async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
+    // Version doesn't need auth or env vars — handle it before building deps.
+    if let Some(Command::Version) = args.cmd {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    let auth_deps = build_auth_deps()?;
+    // Hydrate the in-memory SDK from the keyring once at startup so every
+    // subcommand inherits a live session when one exists on disk. A failed
+    // refresh clears the keyring inside the helper; we swallow the error
+    // so commands like `auth status` and `auth logout` still run and
+    // report the resulting logged-out state.
+    let _ = rehydrate_session(&auth_deps).await;
+
     match args.cmd {
-        Some(Command::Version) => {
-            println!("{}", env!("CARGO_PKG_VERSION"));
-            Ok(())
-        }
+        Some(Command::Version) => unreachable!("handled above"),
         Some(Command::Auth(a)) => match a.cmd {
-            AuthCommand::Guest => {
-                let deps = build_auth_deps()?;
-                auth::cmd_guest(&deps).await?;
-                Ok(())
-            }
-            AuthCommand::Login { email } => {
-                let deps = build_auth_deps()?;
-                auth::cmd_login(&deps, email).await?;
-                Ok(())
-            }
-            AuthCommand::Logout => {
-                let deps = build_auth_deps()?;
-                auth::cmd_logout(&deps).await?;
-                Ok(())
-            }
-            AuthCommand::Status => {
-                let deps = build_auth_deps()?;
-                auth::cmd_status(&deps).await?;
-                Ok(())
-            }
+            AuthCommand::Guest => auth::cmd_guest(&auth_deps).await?,
+            AuthCommand::Login { email } => auth::cmd_login(&auth_deps, email).await?,
+            AuthCommand::Logout => auth::cmd_logout(&auth_deps).await?,
+            AuthCommand::Status => auth::cmd_status(&auth_deps).await?,
         },
         Some(Command::Account(a)) => match a.cmd {
             AccountCommand::List => {
-                let auth_deps = build_auth_deps()?;
-                rehydrate_session(&auth_deps).await?;
                 let storage_deps = build_storage_deps(&auth_deps)?;
                 account::cmd_list(&auth_deps, &storage_deps).await?;
-                Ok(())
             }
         },
-        None => Ok(()),
+        None => {}
     }
+    Ok(())
 }
