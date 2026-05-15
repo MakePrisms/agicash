@@ -3,6 +3,7 @@
 pub mod client;
 pub mod config;
 pub mod error;
+pub mod user_storage;
 
 pub use client::*;
 pub use config::*;
