@@ -56,6 +56,7 @@ struct MintAddOutput<'a> {
     mint_url: String,
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn cmd_mint_add(
     auth: &AuthDeps,
     storage: &StorageDeps,
