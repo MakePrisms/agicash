@@ -26,7 +26,8 @@ impl std::fmt::Debug for OpenSecretClient {
 impl OpenSecretClient {
     pub fn new(config: OpenSecretConfig) -> Result<Self, AuthError> {
         let inner =
-            OpensecretInner::new(config.base_url.clone()).map_err(auth_error_from_opensecret)?;
+            OpensecretInner::new_with_user_agent(config.base_url.clone(), "agicash-cli/0.1")
+                .map_err(auth_error_from_opensecret)?;
         Ok(Self {
             inner: Arc::new(inner),
             handshake: Arc::new(OnceCell::new()),
