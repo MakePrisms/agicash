@@ -749,10 +749,10 @@ implementation plan via `superpowers:writing-plans`.
 
 2. **Auth.** `agicash-auth-opensecret` (with shared `OpenSecretClient`),
    `KeyProvider` + `TokenProvider` traits in `agicash-traits`, CLI
-   commands `agicash auth login | guest | logout | status | whoami`,
+   commands `agicash auth login | guest | logout | status`,
    keyring-backed session persistence. **Test bar:** integration test
    signs in with test credentials against the real Open Secret dev env,
-   asserts `whoami` returns the right user; tokens survive process
+   asserts `auth status` reports the right user id; tokens survive process
    restart.
 
 3. **User + Accounts read path.** `agicash-storage-supabase` skeleton,
