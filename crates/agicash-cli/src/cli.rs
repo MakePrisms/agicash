@@ -27,6 +27,11 @@ pub enum Command {
         #[arg(long)]
         account: Option<String>,
     },
+    /// Receive a Cashu token into the matching mint's account.
+    Receive {
+        /// Encoded Cashu token (`cashuA...` V3 or `cashuB...` V4).
+        token: String,
+    },
 }
 
 #[derive(clap::Args, Debug)]
@@ -191,6 +196,24 @@ mod tests {
         let cli = Cli::try_parse_from(["agicash", "balance", "--account", "abc-123"]).unwrap();
         match cli.cmd {
             Some(Command::Balance { account: Some(id) }) => assert_eq!(id, "abc-123"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_receive_with_token() {
+        let cli = Cli::try_parse_from(["agicash", "receive", "cashuAabc"]).unwrap();
+        match cli.cmd {
+            Some(Command::Receive { token }) => assert_eq!(token, "cashuAabc"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_receive_with_v4_token() {
+        let cli = Cli::try_parse_from(["agicash", "receive", "cashuBxyz"]).unwrap();
+        match cli.cmd {
+            Some(Command::Receive { token }) => assert_eq!(token, "cashuBxyz"),
             other => panic!("unexpected: {other:?}"),
         }
     }

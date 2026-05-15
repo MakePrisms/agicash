@@ -12,8 +12,8 @@ use crate::composition::{AuthDeps, CashuDeps, ExchangeRateDeps, StorageDeps};
 use agicash_domain::{AccountPurpose, AccountType, Currency, UserId};
 use agicash_exchange_rate::ExchangeRateProvider;
 use agicash_traits::{
-    AccountInput, AuthError, CashuProvider, CashuProviderError, SessionStorage, StorageError,
-    UpsertUserInput, UserStorage,
+    AccountInput, AuthError, CashuProviderError, SessionStorage, StorageError, UpsertUserInput,
+    UserStorage,
 };
 use cdk::mint_url::MintUrl;
 use serde::Serialize;
