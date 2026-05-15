@@ -286,22 +286,22 @@ export default function ReceiveToken({
           {claimableToken && receiveAccount ? (
             <div className="w-full max-w-sm px-4">
               {giftCard ? (
-                giftCard.purpose === 'gift-card' ? (
-                  <div className="flex flex-col items-center gap-3">
+                <div className="flex flex-col items-center gap-3">
+                  {giftCard.purpose === 'gift-card' ? (
                     <GiftCardItem
                       account={sourceAccount}
                       image={giftCard.image}
                       hideOverlayContent
                     />
-                    {giftCard.addCardDisclaimer && (
-                      <p className="text-center text-muted-foreground text-sm">
-                        {giftCard.addCardDisclaimer}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <OfferItem account={sourceAccount} image={giftCard.image} />
-                )
+                  ) : (
+                    <OfferItem account={sourceAccount} image={giftCard.image} />
+                  )}
+                  {giftCard.addCardDisclaimer && (
+                    <p className="text-center text-muted-foreground text-sm">
+                      {giftCard.addCardDisclaimer}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
@@ -459,22 +459,22 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
           {claimableToken && sourceAccount.canReceive ? (
             <div className="w-full max-w-sm px-4">
               {giftCard ? (
-                giftCard.purpose === 'gift-card' ? (
-                  <div className="flex flex-col items-center gap-3">
+                <div className="flex flex-col items-center gap-3">
+                  {giftCard.purpose === 'gift-card' ? (
                     <GiftCardItem
                       account={sourceAccount}
                       image={giftCard.image}
                       hideOverlayContent
                     />
-                    {giftCard.addCardDisclaimer && (
-                      <p className="text-center text-muted-foreground text-sm">
-                        {giftCard.addCardDisclaimer}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <OfferItem account={sourceAccount} image={giftCard.image} />
-                )
+                  ) : (
+                    <OfferItem account={sourceAccount} image={giftCard.image} />
+                  )}
+                  {giftCard.addCardDisclaimer && (
+                    <p className="text-center text-muted-foreground text-sm">
+                      {giftCard.addCardDisclaimer}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <AccountSelector
                   accounts={selectableAccounts}
