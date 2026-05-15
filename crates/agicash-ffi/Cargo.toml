@@ -1,0 +1,30 @@
+[package]
+name = "agicash-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "FFI bindings for the Agicash wallet SDK"
+
+[lib]
+crate-type = ["lib", "cdylib", "staticlib"]
+name = "agicash_ffi"
+
+[dependencies]
+agicash-domain = { path = "../agicash-domain" }
+agicash-traits = { path = "../agicash-traits" }
+agicash-auth-opensecret = { path = "../agicash-auth-opensecret" }
+agicash-storage-supabase = { path = "../agicash-storage-supabase" }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync", "rt", "rt-multi-thread"] }
+uniffi = { workspace = true, features = ["tokio"] }
+uuid = { workspace = true }
+getrandom = { workspace = true }
+hex = { workspace = true }
+
+[lints]
+workspace = true

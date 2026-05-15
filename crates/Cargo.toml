@@ -16,6 +16,7 @@ members = [
     "agicash-testing",
     "agicash-cli",
     "agicash-wasm",
+    "agicash-ffi",
 ]
 
 [workspace.package]
@@ -78,6 +79,9 @@ js-sys = "0.3"
 # Dev / tests
 assert_cmd = "2.0"
 predicates = "3.1"
+
+# FFI
+uniffi = "0.30"
 
 [patch.crates-io]
 opensecret = { path = "/Users/claude/opensecret-sdk-fork/rust" }
