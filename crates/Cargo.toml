@@ -38,9 +38,12 @@ chrono = { version = "0.4", default-features = false, features = ["serde", "std"
 
 # Errors + misc
 thiserror = "2.0"
-uuid = { version = "1.11", features = ["v4", "serde"] }
+uuid = { version = "1.11", features = ["v4", "serde", "js"] }
 rust_decimal = { version = "1.36", features = ["serde-with-str"] }
 rust_decimal_macros = "1.36"
+
+# Cashu Development Kit
+cdk = { version = "0.15", default-features = false, features = ["wallet"] }
 
 # Auth / secrets / keyring / env
 opensecret = "3.1.1"
