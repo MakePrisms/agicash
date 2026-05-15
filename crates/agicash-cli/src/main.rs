@@ -5,7 +5,7 @@ mod composition;
 
 use clap::Parser;
 use cli::{AccountCommand, AuthCommand, Cli, Command};
-use composition::{build_auth_deps, build_storage_deps};
+use composition::{build_auth_deps, build_storage_deps, rehydrate_session};
 
 #[tokio::main]
 async fn main() {
@@ -58,6 +58,7 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Some(Command::Account(a)) => match a.cmd {
             AccountCommand::List => {
                 let auth_deps = build_auth_deps()?;
+                rehydrate_session(&auth_deps).await?;
                 let storage_deps = build_storage_deps(&auth_deps)?;
                 account::cmd_list(&auth_deps, &storage_deps).await?;
                 Ok(())
