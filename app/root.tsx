@@ -99,10 +99,10 @@ export const meta = ({ loaderData }: Route.MetaArgs) => {
 
   const title = 'Agicash';
   const description = 'The easiest way to send and receive cash.';
-  const image = '/icon-192x192.png';
-  const imageWidth = '192';
-  const imageHeight = '192';
-  const imageType = 'image/png';
+  const image = origin ? `${origin}/og/agicash-card.webp` : '/og/agicash-card.webp';
+  const imageWidth = '900';
+  const imageHeight = '473';
+  const imageType = 'image/webp';
   const imageAlt = 'Agicash logo';
   const ogSiteName = 'Agicash';
 
