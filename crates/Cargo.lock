@@ -82,9 +82,12 @@ dependencies = [
  "chrono",
  "dotenvy",
  "parking_lot",
+ "rust_decimal",
+ "serde",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

@@ -12,13 +12,19 @@ agicash-money = { path = "../agicash-money" }
 agicash-traits = { path = "../agicash-traits" }
 async-trait = { workspace = true }
 cdk = { workspace = true }
+chrono = { workspace = true }
 parking_lot = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
+agicash-domain = { path = "../agicash-domain" }
+agicash-money = { path = "../agicash-money" }
 chrono = { workspace = true }
 dotenvy = { workspace = true }
+rust_decimal = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt", "macros"] }
 
