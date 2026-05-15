@@ -15,7 +15,7 @@ pub fn map_network_error(err: impl std::fmt::Display) -> StorageError {
 }
 
 /// Map a `serde_json::Error` to a `StorageError`.
-pub fn map_json_error(err: serde_json::Error) -> StorageError {
+pub fn map_json_error(err: &serde_json::Error) -> StorageError {
     StorageError::Backend(format!("json decode: {err}"))
 }
 
@@ -40,7 +40,7 @@ mod tests {
     #[test]
     fn map_json_error_is_backend() {
         let err: serde_json::Error = serde_json::from_str::<i32>("not-an-int").unwrap_err();
-        let mapped = map_json_error(err);
+        let mapped = map_json_error(&err);
         assert!(matches!(mapped, StorageError::Backend(_)));
     }
 }

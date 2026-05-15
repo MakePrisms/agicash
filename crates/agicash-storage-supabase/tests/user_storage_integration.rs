@@ -6,12 +6,12 @@
 //! These tests exercise the storage layer's request/response shape — URL
 //! paths, headers, query params, JSON serialization, error mapping — against
 //! the real local Supabase REST API. To avoid coupling to the local
-//! OpenSecret -> Supabase JWT bridge (which requires extra gotrue config),
+//! `OpenSecret` -> Supabase JWT bridge (which requires extra gotrue config),
 //! they authenticate using the service role JWT, which bypasses RLS. The
-//! storage layer itself is auth-agnostic: it asks its TokenProvider for
+//! storage layer itself is auth-agnostic: it asks its `TokenProvider` for
 //! whatever bearer token to use.
 //!
-//! End-to-end coverage that DOES exercise the OpenSecret -> Supabase auth
+//! End-to-end coverage that DOES exercise the `OpenSecret` -> Supabase auth
 //! chain lives in the slice-3 CLI integration test
 //! (`agicash-cli/tests/account_list.rs`).
 //!
@@ -26,9 +26,7 @@
 
 use agicash_domain::{AccountPurpose, AccountType, Currency, UserId};
 use agicash_storage_supabase::{SupabaseStorage, SupabaseStorageConfig};
-use agicash_traits::{
-    AccountInput, AuthError, TokenProvider, UpsertUserInput, UserStorage,
-};
+use agicash_traits::{AccountInput, AuthError, TokenProvider, UpsertUserInput, UserStorage};
 use async_trait::async_trait;
 use serde_json::json;
 use std::sync::Arc;
@@ -61,8 +59,8 @@ struct TestFixture {
 }
 
 async fn make_fixture() -> TestFixture {
-    let service_role = std::env::var("SUPABASE_SERVICE_ROLE_KEY")
-        .expect("SUPABASE_SERVICE_ROLE_KEY set");
+    let service_role =
+        std::env::var("SUPABASE_SERVICE_ROLE_KEY").expect("SUPABASE_SERVICE_ROLE_KEY set");
     let tokens: Arc<dyn TokenProvider + Send + Sync> = Arc::new(StaticToken(service_role));
     let cfg = SupabaseStorageConfig::from_env().expect("Supabase env");
     let storage = SupabaseStorage::new(cfg, tokens).expect("SupabaseStorage");

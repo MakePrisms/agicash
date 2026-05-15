@@ -10,7 +10,7 @@ impl UserStorage for SupabaseStorage {
         input: UpsertUserInput,
     ) -> Result<UpsertUserResult, StorageError> {
         let client = self.authenticated_client().await?;
-        let body = serde_json::to_string(&input).map_err(map_json_error)?;
+        let body = serde_json::to_string(&input).map_err(|e| map_json_error(&e))?;
         let response = client
             .rpc("upsert_user_with_accounts", body)
             .execute()
@@ -24,7 +24,7 @@ impl UserStorage for SupabaseStorage {
             )));
         }
         let text = response.text().await.map_err(map_network_error)?;
-        serde_json::from_str::<UpsertUserResult>(&text).map_err(map_json_error)
+        serde_json::from_str::<UpsertUserResult>(&text).map_err(|e| map_json_error(&e))
     }
 
     async fn get_user(&self, user_id: UserId) -> Result<Option<User>, StorageError> {
@@ -43,7 +43,7 @@ impl UserStorage for SupabaseStorage {
             )));
         }
         let body = response.text().await.map_err(map_network_error)?;
-        let rows: Vec<User> = serde_json::from_str(&body).map_err(map_json_error)?;
+        let rows: Vec<User> = serde_json::from_str(&body).map_err(|e| map_json_error(&e))?;
         Ok(rows.into_iter().next())
     }
 
@@ -64,13 +64,10 @@ impl UserStorage for SupabaseStorage {
             )));
         }
         let body = response.text().await.map_err(map_network_error)?;
-        serde_json::from_str::<Vec<Account>>(&body).map_err(map_json_error)
+        serde_json::from_str::<Vec<Account>>(&body).map_err(|e| map_json_error(&e))
     }
 
-    async fn get_account(
-        &self,
-        account_id: AccountId,
-    ) -> Result<Option<Account>, StorageError> {
+    async fn get_account(&self, account_id: AccountId) -> Result<Option<Account>, StorageError> {
         let client = self.authenticated_client().await?;
         let response = client
             .from("accounts")
@@ -86,7 +83,7 @@ impl UserStorage for SupabaseStorage {
             )));
         }
         let body = response.text().await.map_err(map_network_error)?;
-        let rows: Vec<Account> = serde_json::from_str(&body).map_err(map_json_error)?;
+        let rows: Vec<Account> = serde_json::from_str(&body).map_err(|e| map_json_error(&e))?;
         Ok(rows.into_iter().next())
     }
 }

@@ -3,7 +3,7 @@
 //! Slice 3 cannot currently exercise the full end-to-end chain because of
 //! two slice-2 / deployment gaps:
 //!
-//! 1. **OpenSecret session state is process-local.** Slice 2 persists only
+//! 1. **`OpenSecret` session state is process-local.** Slice 2 persists only
 //!    the refresh token in the keyring; the in-memory `OpenSecretClient`
 //!    does not re-hydrate the access token from disk. After
 //!    `agicash auth guest` returns and the process exits, a fresh process
@@ -14,11 +14,11 @@
 //!    the access token from `PersistedSession.refresh_token` before
 //!    issuing third-party tokens.
 //!
-//! 2. **Local Supabase isn't wired to verify OpenSecret JWTs.** Even if
+//! 2. **Local Supabase isn't wired to verify `OpenSecret` JWTs.** Even if
 //!    the access token were available, the local Supabase's gotrue is not
-//!    configured with the OpenSecret enclave's signing key (no
+//!    configured with the `OpenSecret` enclave's signing key (no
 //!    `signing_keys_url` / `JWT_KEYS` in `supabase/config.toml`).
-//!    Authenticated postgrest requests with OpenSecret-issued tokens get
+//!    Authenticated postgrest requests with `OpenSecret`-issued tokens get
 //!    HTTP 401 PGRST301 "JWT cryptographic operation failed".
 //!
 //! Slice-3 storage-layer correctness IS exercised via real local Supabase
@@ -36,8 +36,7 @@ mod gated {
         let _ = dotenvy::dotenv();
         std::env::var("OPENSECRET_BASE_URL").is_ok()
             && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
-            && (std::env::var("SUPABASE_URL").is_ok()
-                || std::env::var("VITE_SUPABASE_URL").is_ok())
+            && (std::env::var("SUPABASE_URL").is_ok() || std::env::var("VITE_SUPABASE_URL").is_ok())
             && (std::env::var("SUPABASE_ANON_KEY").is_ok()
                 || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
     }

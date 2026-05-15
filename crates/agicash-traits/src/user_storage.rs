@@ -80,10 +80,7 @@ pub trait UserStorage: Send + Sync {
     /// Direct postgrest select on `wallet.accounts` by id. Returns `Ok(None)`
     /// if no row matches. Does NOT filter by state — expired accounts are
     /// still readable via this method.
-    async fn get_account(
-        &self,
-        account_id: AccountId,
-    ) -> Result<Option<Account>, StorageError>;
+    async fn get_account(&self, account_id: AccountId) -> Result<Option<Account>, StorageError>;
 }
 
 #[cfg(test)]
@@ -104,10 +101,16 @@ mod types_tests {
         };
         let v = serde_json::to_value(&input).unwrap();
         assert_eq!(v.get("type").and_then(|v| v.as_str()), Some("spark"));
-        assert_eq!(v.get("purpose").and_then(|v| v.as_str()), Some("transactional"));
+        assert_eq!(
+            v.get("purpose").and_then(|v| v.as_str()),
+            Some("transactional")
+        );
         assert_eq!(v.get("currency").and_then(|v| v.as_str()), Some("BTC"));
         assert_eq!(v.get("name").and_then(|v| v.as_str()), Some("Lightning"));
-        assert_eq!(v.get("is_default").and_then(|v| v.as_bool()), Some(true));
+        assert_eq!(
+            v.get("is_default").and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
         assert!(v.get("details").unwrap().is_object());
     }
 
@@ -238,8 +241,20 @@ mod trait_tests {
             .await,
             Err(StorageError::Internal(_))
         ));
-        assert!(s.get_user(UserId::from(Uuid::nil())).await.unwrap().is_none());
-        assert!(s.list_accounts(UserId::from(Uuid::nil())).await.unwrap().is_empty());
-        assert!(s.get_account(AccountId::from(Uuid::nil())).await.unwrap().is_none());
+        assert!(s
+            .get_user(UserId::from(Uuid::nil()))
+            .await
+            .unwrap()
+            .is_none());
+        assert!(s
+            .list_accounts(UserId::from(Uuid::nil()))
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(s
+            .get_account(AccountId::from(Uuid::nil()))
+            .await
+            .unwrap()
+            .is_none());
     }
 }

@@ -79,6 +79,7 @@ dependencies = [
  "agicash-auth-opensecret",
  "agicash-domain",
  "agicash-money",
+ "agicash-storage-supabase",
  "agicash-traits",
  "agicash-wallet",
  "assert_cmd",
@@ -88,6 +89,7 @@ dependencies = [
  "hex",
  "predicates",
  "rpassword",
+ "thiserror 2.0.18",
  "tokio",
  "uuid",
 ]

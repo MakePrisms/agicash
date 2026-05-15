@@ -20,15 +20,15 @@ impl SupabaseStorageConfig {
         F: Fn(&str) -> Result<String, ()>,
     {
         let url = get("SUPABASE_URL")
-            .or_else(|_| get("VITE_SUPABASE_URL"))
-            .map_err(|_| {
+            .or_else(|()| get("VITE_SUPABASE_URL"))
+            .map_err(|()| {
                 StorageError::Internal(
                     "missing env var: SUPABASE_URL (or VITE_SUPABASE_URL)".into(),
                 )
             })?;
         let anon_key = get("SUPABASE_ANON_KEY")
-            .or_else(|_| get("VITE_SUPABASE_ANON_KEY"))
-            .map_err(|_| {
+            .or_else(|()| get("VITE_SUPABASE_ANON_KEY"))
+            .map_err(|()| {
                 StorageError::Internal(
                     "missing env var: SUPABASE_ANON_KEY (or VITE_SUPABASE_ANON_KEY)".into(),
                 )

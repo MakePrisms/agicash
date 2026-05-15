@@ -87,7 +87,10 @@ fn account_list_without_session_exits_nonzero_and_prints_message() {
         .env("SUPABASE_URL", "https://test.invalid")
         .env("SUPABASE_ANON_KEY", "test-anon-key")
         .env("OPENSECRET_BASE_URL", "https://does-not-resolve.invalid")
-        .env("OPENSECRET_CLIENT_ID", "00000000-0000-0000-0000-000000000000")
+        .env(
+            "OPENSECRET_CLIENT_ID",
+            "00000000-0000-0000-0000-000000000000",
+        )
         .args(["account", "list"])
         .assert()
         .failure()

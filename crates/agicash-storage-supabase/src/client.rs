@@ -18,7 +18,7 @@ impl std::fmt::Debug for SupabaseStorage {
         f.debug_struct("SupabaseStorage")
             .field("rest_url", &self.rest_url)
             .field("anon_key", &"<redacted>")
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -39,9 +39,7 @@ impl SupabaseStorage {
 
     /// Build a `postgrest::Postgrest` instance scoped to the `wallet` schema
     /// with per-request auth headers. Called once per RPC/select.
-    pub(crate) async fn authenticated_client(
-        &self,
-    ) -> Result<postgrest::Postgrest, StorageError> {
+    pub(crate) async fn authenticated_client(&self) -> Result<postgrest::Postgrest, StorageError> {
         let jwt = self
             .tokens
             .get_jwt()
