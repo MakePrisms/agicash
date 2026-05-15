@@ -50,7 +50,6 @@ fn classify_error(e: &(dyn std::error::Error + 'static)) -> (&'static str, i32) 
             MintCmdError::InvalidUrl(_) => ("invalid-mint-url", 1),
             MintCmdError::MintUnreachable(_) => ("mint-unreachable", 1),
             MintCmdError::UnsupportedCurrency(_) => ("unsupported-currency", 1),
-            MintCmdError::UserNotFound => ("user-not-found", 1),
             MintCmdError::Auth(inner) => classify_auth(inner),
             MintCmdError::Storage(inner) => (classify_storage(inner), 1),
         };

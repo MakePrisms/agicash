@@ -30,8 +30,6 @@ pub enum MintCmdError {
     MintUnreachable(String),
     #[error("unsupported currency: {0}")]
     UnsupportedCurrency(String),
-    #[error("user record missing — initialize user before adding a mint")]
-    UserNotFound,
     #[error(transparent)]
     Storage(#[from] StorageError),
     #[error(transparent)]
@@ -79,32 +77,77 @@ pub async fn cmd_mint_add(
     let mint_url_string = mint_url.to_string();
     let mint_name = info.name.clone().unwrap_or_else(|| mint_url_string.clone());
 
-    let user = storage
-        .storage
-        .get_user(user_id)
-        .await?
-        .ok_or(MintCmdError::UserNotFound)?;
+    // The `wallet.upsert_user_with_accounts` Postgres function is the only
+    // way to create a row in `wallet.users`. For brand-new guests, no row
+    // exists yet; that's expected. We re-use the existing user fields when
+    // present (so a second `mint add` doesn't clobber them), otherwise fall
+    // back to empty strings. Slice 5+ owns proper key initialization.
+    let existing = storage.storage.get_user(user_id).await?;
+    let (
+        email,
+        email_verified,
+        cashu_locking_xpub,
+        encryption_public_key,
+        spark_identity_public_key,
+        terms_accepted_at,
+        gift_card_mint_terms_accepted_at,
+    ) = match existing.as_ref() {
+        Some(u) => (
+            u.email.clone(),
+            u.email_verified,
+            u.cashu_locking_xpub.clone(),
+            u.encryption_public_key.clone(),
+            u.spark_identity_public_key.clone(),
+            u.terms_accepted_at,
+            u.gift_card_mint_terms_accepted_at,
+        ),
+        None => (
+            None,
+            false,
+            String::new(),
+            String::new(),
+            String::new(),
+            None,
+            None,
+        ),
+    };
+
+    // For brand-new users, the DB function validates that at least one BTC
+    // Spark account is provided in `p_accounts`. For returning users it
+    // returns early after the first account row exists. So we only seed a
+    // default Spark account when no user row exists yet.
+    let mut accounts = vec![AccountInput {
+        account_type: AccountType::Cashu,
+        purpose: AccountPurpose::Transactional,
+        currency,
+        name: mint_name.clone(),
+        details: json!({
+            "mint_url": mint_url_string,
+            "keyset_counters": {},
+        }),
+        is_default: false,
+    }];
+    if existing.is_none() {
+        accounts.push(AccountInput {
+            account_type: AccountType::Spark,
+            purpose: AccountPurpose::Transactional,
+            currency: Currency::Btc,
+            name: "Lightning".into(),
+            details: json!({ "network": "MAINNET" }),
+            is_default: true,
+        });
+    }
 
     let input = UpsertUserInput {
         user_id,
-        email: user.email.clone(),
-        email_verified: user.email_verified,
-        accounts: vec![AccountInput {
-            account_type: AccountType::Cashu,
-            purpose: AccountPurpose::Transactional,
-            currency,
-            name: mint_name.clone(),
-            details: json!({
-                "mint_url": mint_url_string,
-                "keyset_counters": {},
-            }),
-            is_default: false,
-        }],
-        cashu_locking_xpub: user.cashu_locking_xpub.clone(),
-        encryption_public_key: user.encryption_public_key.clone(),
-        spark_identity_public_key: user.spark_identity_public_key.clone(),
-        terms_accepted_at: user.terms_accepted_at,
-        gift_card_mint_terms_accepted_at: user.gift_card_mint_terms_accepted_at,
+        email,
+        email_verified,
+        accounts,
+        cashu_locking_xpub,
+        encryption_public_key,
+        spark_identity_public_key,
+        terms_accepted_at,
+        gift_card_mint_terms_accepted_at,
     };
 
     let result = storage.storage.upsert_user_with_accounts(input).await?;
