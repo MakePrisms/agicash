@@ -5,8 +5,12 @@
 //! - `state` — sans-IO state machine (Task 4).
 //! - `service` — orchestrator with CDK + storage I/O (Task 5).
 
+pub mod error;
+pub mod state;
 pub mod storage;
 pub mod types;
 
+pub use error::*;
+pub use state::*;
 pub use storage::*;
 pub use types::*;
