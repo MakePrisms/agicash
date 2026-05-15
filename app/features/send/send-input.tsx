@@ -224,7 +224,7 @@ export function SendInput() {
           <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
             {destinationDisplay ? (
               <div className="col-span-2 flex h-10 items-center justify-between gap-2 rounded-lg border border-primary bg-background px-3 text-sm">
-                <span className="truncate">{destinationDisplay}</span>
+                <span className="min-w-0 truncate">{destinationDisplay}</span>
                 <button
                   type="button"
                   onClick={clearDestination}
