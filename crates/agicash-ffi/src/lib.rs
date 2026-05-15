@@ -1,6 +1,6 @@
 //! Agicash FFI bindings.
 //!
-//! UniFFI surface for the Agicash wallet SDK. Phase 1 exposes auth (guest +
+//! `UniFFI` surface for the Agicash wallet SDK. Phase 1 exposes auth (guest +
 //! email login + logout + status) and a thin account listing endpoint. Cashu
 //! mint operations and balance display arrive in Phase 2+.
 //!
@@ -10,5 +10,15 @@
 
 #![allow(missing_docs)]
 #![allow(missing_debug_implementations)]
+
+pub mod account;
+pub mod error;
+pub mod session;
+pub mod wallet;
+
+pub use account::*;
+pub use error::*;
+pub use session::*;
+pub use wallet::*;
 
 uniffi::setup_scaffolding!();
