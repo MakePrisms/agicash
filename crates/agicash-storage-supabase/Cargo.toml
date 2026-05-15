@@ -12,10 +12,15 @@ default = []
 real-supabase-tests = []
 
 [dependencies]
+agicash-cashu = { path = "../agicash-cashu" }
 agicash-domain = { path = "../agicash-domain" }
+agicash-money = { path = "../agicash-money" }
 agicash-traits = { path = "../agicash-traits" }
 async-trait = { workspace = true }
+base64 = { workspace = true }
+cdk = { workspace = true }
 postgrest = { workspace = true }
+rust_decimal = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
