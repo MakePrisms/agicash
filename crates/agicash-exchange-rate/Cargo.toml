@@ -10,7 +10,7 @@ repository.workspace = true
 agicash-domain = { path = "../agicash-domain" }
 async-trait = { workspace = true }
 reqwest = { workspace = true }
-rust_decimal = { workspace = true }
+rust_decimal = { workspace = true, features = ["serde-float"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

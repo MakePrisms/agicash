@@ -55,8 +55,12 @@ impl Default for MempoolSpaceProvider {
 
 #[derive(Debug, Deserialize)]
 struct MempoolPricesResponse {
-    #[serde(rename = "USD")]
-    usd: Option<f64>,
+    // Deserialize directly as Decimal. The workspace's default rust_decimal
+    // serde uses string-only deserialization; the `serde-float` feature plus
+    // `float_option` here accepts JSON numbers (integer or fractional) without
+    // routing through f64::try_from, which is lossy for non-integer values.
+    #[serde(rename = "USD", with = "rust_decimal::serde::float_option")]
+    usd: Option<Decimal>,
     // Add more currencies as needed in future slices (EUR, GBP, etc.).
 }
 
@@ -85,17 +89,9 @@ impl ExchangeRateProvider for MempoolSpaceProvider {
             .await
             .map_err(|e| ExchangeRateError::InvalidResponse(e.to_string()))?;
 
-        let usd = parsed
+        let usd_decimal = parsed
             .usd
-            .ok_or_else(|| ExchangeRateError::InvalidResponse("missing USD field".into()))?;
-
-        // f64 -> Decimal can lose precision, but mempool returns integer-ish
-        // USD values (no fractional cents at this scale). Round to 2 dp to
-        // model "dollars and cents".
-        let usd_decimal = Decimal::try_from(usd)
-            .map_err(|_| {
-                ExchangeRateError::InvalidResponse(format!("non-finite USD value: {usd}"))
-            })?
+            .ok_or_else(|| ExchangeRateError::InvalidResponse("missing USD field".into()))?
             .round_dp(2);
 
         match (from, to) {
@@ -146,6 +142,14 @@ mod real_rate_tests {
         assert!(
             rate < Decimal::from(1_000_000),
             "BTC/USD looks too high: {rate}"
+        );
+        // Direct JSON-number -> Decimal deserialization should produce a clean
+        // 2-dp (or smaller-scale) value, not the f64-roundtrip artifacts that
+        // Decimal::try_from(f64) used to introduce.
+        assert!(
+            rate.scale() <= 2,
+            "expected USD rate to have <= 2 dp, got scale={} value={rate}",
+            rate.scale()
         );
         println!("BTC/USD = {rate}");
     }
