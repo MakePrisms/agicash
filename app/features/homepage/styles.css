@@ -39,10 +39,16 @@
 
 /* Section scroll target — the outer <section> carries the id (e.g. #buy,
    #send), so a hash navigation lands at the top of the section itself
-   rather than mid-content where the section's label sits. The
-   scroll-margin-top offset clears the sticky marketing nav. */
+   rather than mid-content where the section's label sits. Offset matches
+   the sticky nav's height per breakpoint (-1px so the section's border-t
+   overlays the nav's border-b as a single 1px line). */
 .marketing section[id] {
-  scroll-margin-top: 80px;
+  scroll-margin-top: 64px;
+}
+@media (min-width: 768px) {
+  .marketing section[id] {
+    scroll-margin-top: 70px;
+  }
 }
 
 /* Stagger children with sequenced delays — hard to express in pure Tailwind
