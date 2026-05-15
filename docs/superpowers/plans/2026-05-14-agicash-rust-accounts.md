@@ -17,6 +17,39 @@
 
 Defer (3) should be folded back into the spec when later slices add the remaining account subcommands.
 
+**Scope change after planning (2026-05-15): drop wiremock; let it rip on local.**
+gudnuf stood up a local OpenSecret enclave at `http://127.0.0.1:3999` and
+local Supabase at `https://127.0.0.1:54321`. With both services running on
+loopback there is no value in mocking Supabase's REST API for hermetic
+tests — real-local is fast, deterministic enough, and gives end-to-end
+confidence. Executor instructions:
+
+- **Remove `wiremock` from the workspace deps** in Task 1 and from
+  `agicash-storage-supabase`'s dev-deps in Task 9.
+- **Replace each per-task wiremock test in Tasks 11-14 with a real-local
+  Supabase integration test** that:
+  - Reads `SUPABASE_URL` (falling back to `VITE_SUPABASE_URL`) and the
+    anon key from `.env` (via `dotenvy::dotenv()` in test setup).
+  - Skips with `eprintln!` when the env vars are missing (don't panic).
+  - Gates behind a Cargo feature flag `real-supabase-tests` on the
+    `agicash-storage-supabase` crate (mirror slice 2's `real-opensecret-tests`
+    pattern in `agicash-cli`).
+  - Performs the real operation (`list_accounts`, `get_user`, etc.) and
+    asserts on the response shape. For seed/teardown isolation, use a
+    randomly-generated `UserId` per test so rows don't collide; clean up
+    any inserted rows in a `Drop` guard or test-end step.
+- **Keep the structure of each task** (Files, Steps, commit) — only the
+  test body and Cargo features change.
+- **`real-supabase-tests` runs separately**: default `cargo test` should
+  skip with eprintln, just like slice 2's auth_lifecycle test. The
+  executor runs `cargo test -p agicash-storage-supabase --features real-supabase-tests`
+  during slice 3 development.
+- **Task 18's integration test** stays as-is — it already uses real
+  local services end-to-end.
+
+The original wiremock-based plan is preserved verbatim in the task bodies
+below for reference; the executor adapts the test bodies per this directive.
+
 **Branch:** Execute from `feat/rust-accounts` in the worktree at `/Users/claude/agicash/.claude/worktrees/rust-accounts`. Branched from `feat/rust-auth` (slice 2), which is itself off `feat/rust-scaffold` (slice 1), which is off master.
 
 ---
