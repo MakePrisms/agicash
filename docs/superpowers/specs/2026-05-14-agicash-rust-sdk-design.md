@@ -173,7 +173,9 @@ as the action vocabulary.
 
 Storage trait is **segregated by domain** rather than one mega-trait:
 
-- `UserStorage` — `upsert_user_with_accounts`, `get_user`, `list_accounts`, `get_account`
+- `UserStorage` — `upsert_user_with_accounts` (the only true Supabase RPC),
+  plus `get_user`, `list_accounts`, `get_account` which are direct postgrest
+  table selects with filters (the existing TS app uses the same pattern)
 - `TransactionStorage` — `list_transactions`
 - `CashuSendQuoteStorage` — `create`, `mark_pending`, `complete`, `expire`, `fail`
 - `CashuSendSwapStorage` — `create`, `commit_proofs_to_send`, `complete`, `fail`
@@ -227,8 +229,17 @@ Two traits separate concerns:
 #[async_trait]
 pub trait KeyProvider {
     async fn derive_private_key(&self, options: KeyOptions) -> Result<SecretKey>;
-    async fn derive_public_key(&self, options: KeyOptions) -> Result<PublicKey>;
-    async fn sign_message(&self, message: &[u8], options: KeyOptions) -> Result<Signature>;
+    async fn derive_public_key(
+        &self,
+        algorithm: SigningAlgorithm,
+        options: KeyOptions,
+    ) -> Result<PublicKey>;
+    async fn sign_message(
+        &self,
+        message: &[u8],
+        algorithm: SigningAlgorithm,
+        options: KeyOptions,
+    ) -> Result<Signature>;
     async fn get_mnemonic(&self) -> Result<Mnemonic>;
 }
 
@@ -586,6 +597,17 @@ subsystem-specific errors (`StorageError`, `CashuError`, `SparkError`,
 `NotFound`, `Unauthenticated`, `Network`, `Invariant`) plus wrapped subsystem
 errors. **Add variants when concrete need arises** rather than enumerating
 all possible failure modes upfront.
+
+**Orphan-rule constraint.** Rust's orphan rule operates at the **crate**
+level, not the workspace level. `impl From<Foreign> for Foreign` is illegal
+no matter how many of our crates are between the two. This bites whenever a
+provider crate wants to map a third-party error or convert a type defined in
+`agicash-traits` to a type defined in a third-party crate. In those cases use
+free helper functions (`fn convert_x_to_y(x: X) -> Y`) instead of `From`
+impls — uglier at call sites but the only legal option. Slice 2 hit this
+with `agicash-auth-opensecret` mapping `opensecret::Error → AuthError` and
+`KeyOptions → opensecret::KeyOptions`. Plan-writers for future slices should
+account for this when sketching cross-crate trait surfaces.
 
 Retry policy is encoded via `WalletError::retry_policy()`:
 
