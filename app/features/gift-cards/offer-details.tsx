@@ -1,11 +1,10 @@
-import { X } from 'lucide-react';
 import { useNavigate, useViewTransitionState } from 'react-router';
 
 import {
+  ClosePageButton,
   Page,
   PageContent,
   PageHeader,
-  PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import {
@@ -46,15 +45,11 @@ export default function OfferDetails({ offer }: OfferDetailsProps) {
 
   return (
     <Page className="px-0 pb-0">
-      <PageHeader className="absolute inset-x-0 top-0 z-[60] mb-0 px-4 pt-4 pb-4">
-        <PageHeaderItem position="left">
-          <button type="button" onClick={handleBack} aria-label="Close">
-            <X />
-          </button>
-        </PageHeaderItem>
+      <PageHeader className="px-4">
+        <ClosePageButton to="/gift-cards" />
       </PageHeader>
 
-      <PageContent className="scrollbar-none relative min-h-0 gap-0 overflow-y-auto pt-16 pb-0">
+      <PageContent className="scrollbar-none relative min-h-0 gap-0 overflow-y-auto pb-0">
         <div className="w-full px-4">
           <div
             className="relative mx-auto w-full"
