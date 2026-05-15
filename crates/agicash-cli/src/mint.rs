@@ -135,12 +135,21 @@ pub async fn cmd_mint_add(
         is_default: false,
     }];
     if existing.is_none() {
+        // CLI-side workaround: `wallet.upsert_user_with_accounts` requires at
+        // least one BTC Spark account when the user row doesn't exist yet, but
+        // slice 4 has no real Spark wallet wiring. The `cli_placeholder` marker
+        // lets slice 9 (Spark integration) detect these uninitialized rows and
+        // either skip them, surface a typed error, or replace them with
+        // real-key-backed accounts before any Spark operation runs.
         accounts.push(AccountInput {
             account_type: AccountType::Spark,
             purpose: AccountPurpose::Transactional,
             currency: Currency::Btc,
             name: "Lightning".into(),
-            details: json!({ "network": "MAINNET" }),
+            details: json!({
+                "network": "MAINNET",
+                "cli_placeholder": true,
+            }),
             is_default: true,
         });
     }
