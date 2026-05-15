@@ -70,3 +70,26 @@ fn account_list_help_works() {
         .success()
         .stdout(predicate::str::contains("List"));
 }
+
+#[test]
+fn account_list_without_session_exits_nonzero_and_prints_message() {
+    // No session in keyring; use a unique keyring service so we never collide
+    // with a real session. Even if SUPABASE_URL is missing, the "not logged in"
+    // check is supposed to fire BEFORE build_storage_deps runs — but the auth
+    // deps + storage deps are built up front. Provide dummy env values so
+    // build_storage_deps succeeds; the actual HTTP call is never made because
+    // load() returns None first.
+    let pid = std::process::id();
+    let service = format!("com.agicash.cli.test.{pid}.account-list");
+    Command::cargo_bin("agicash")
+        .unwrap()
+        .env("AGICASH_KEYRING_SERVICE", &service)
+        .env("SUPABASE_URL", "https://test.invalid")
+        .env("SUPABASE_ANON_KEY", "test-anon-key")
+        .env("OPENSECRET_BASE_URL", "https://does-not-resolve.invalid")
+        .env("OPENSECRET_CLIENT_ID", "00000000-0000-0000-0000-000000000000")
+        .args(["account", "list"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not logged in"));
+}

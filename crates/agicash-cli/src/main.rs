@@ -1,10 +1,11 @@
+mod account;
 mod auth;
 mod cli;
 mod composition;
 
 use clap::Parser;
 use cli::{AccountCommand, AuthCommand, Cli, Command};
-use composition::build_auth_deps;
+use composition::{build_auth_deps, build_storage_deps};
 
 #[tokio::main]
 async fn main() {
@@ -15,7 +16,12 @@ async fn main() {
         Ok(()) => 0,
         Err(e) => {
             eprintln!("error: {e}");
-            1
+            // "not logged in" -> exit 3 (auth required). All other errors -> 1.
+            if e.to_string() == "not logged in" {
+                3
+            } else {
+                1
+            }
         }
     };
     std::process::exit(exit_code);
@@ -51,8 +57,10 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
         },
         Some(Command::Account(a)) => match a.cmd {
             AccountCommand::List => {
-                // Wired in slice 3 Task 17.
-                Err("account list: not yet implemented in this build".into())
+                let auth_deps = build_auth_deps()?;
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                account::cmd_list(&auth_deps, &storage_deps).await?;
+                Ok(())
             }
         },
         None => Ok(()),
