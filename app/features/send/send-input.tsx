@@ -223,7 +223,7 @@ export function SendInput() {
         <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
           <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
             {destinationDisplay ? (
-              <div className="col-span-2 flex h-10 items-center justify-between gap-2 rounded-md border border-input px-3 text-sm">
+              <div className="col-span-2 flex h-10 items-center justify-between gap-2 rounded-lg border border-primary bg-background px-3 text-sm">
                 <span className="truncate">{destinationDisplay}</span>
                 <button
                   type="button"
