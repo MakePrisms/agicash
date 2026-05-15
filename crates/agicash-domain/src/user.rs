@@ -15,7 +15,7 @@ pub struct User {
     pub cashu_locking_xpub: String,
     pub encryption_public_key: String,
     pub spark_identity_public_key: String,
-    pub terms_accepted_at: DateTime<Utc>,
+    pub terms_accepted_at: Option<DateTime<Utc>>,
     pub gift_card_mint_terms_accepted_at: Option<DateTime<Utc>>,
 }
 
@@ -76,5 +76,28 @@ mod tests {
         let parsed: User = serde_json::from_value(raw).unwrap();
         assert!(parsed.email.is_none());
         assert!(!parsed.email_verified);
+    }
+
+    #[test]
+    fn user_with_null_terms_accepted_at_deserializes() {
+        // Users created via login (not signup) have terms_accepted_at = NULL
+        // until they accept on the TOS page.
+        let raw = json!({
+            "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "created_at": "2026-03-01T12:00:00Z",
+            "email": null,
+            "email_verified": false,
+            "username": "user-eeeeeeeeeeee",
+            "default_btc_account_id": "11111111-2222-3333-4444-555555555555",
+            "default_usd_account_id": null,
+            "default_currency": "BTC",
+            "cashu_locking_xpub": "xpub",
+            "encryption_public_key": "enc",
+            "spark_identity_public_key": "spark",
+            "terms_accepted_at": null,
+            "gift_card_mint_terms_accepted_at": null
+        });
+        let parsed: User = serde_json::from_value(raw).unwrap();
+        assert!(parsed.terms_accepted_at.is_none());
     }
 }
