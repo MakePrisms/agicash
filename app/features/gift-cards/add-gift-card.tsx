@@ -1,4 +1,3 @@
-import { X } from 'lucide-react';
 import { useState } from 'react';
 import {
   Link,
@@ -7,11 +6,11 @@ import {
   useViewTransitionState,
 } from 'react-router';
 import {
+  ClosePageButton,
   Page,
   PageContent,
   PageFooter,
   PageHeader,
-  PageHeaderItem,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import {
@@ -63,13 +62,6 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   const user = useUser();
   const acceptTerms = useAcceptTerms();
   const isTransitioning = useViewTransitionState('/gift-cards');
-
-  const handleBack = () => {
-    navigate('/gift-cards', {
-      viewTransition: true,
-      state: location.state,
-    });
-  };
 
   const runAdd = async () => {
     setIsAdding(true);
@@ -138,13 +130,9 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   }
 
   return (
-    <Page className="relative">
-      <PageHeader className="z-10">
-        <PageHeaderItem position="left">
-          <button type="button" onClick={handleBack} aria-label="Close">
-            <X />
-          </button>
-        </PageHeaderItem>
+    <Page className="px-0 pb-0">
+      <PageHeader className="px-4">
+        <ClosePageButton to="/gift-cards" state={location.state} />
       </PageHeader>
 
       <PageContent className="flex flex-col items-center justify-center gap-4">

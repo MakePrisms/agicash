@@ -166,7 +166,7 @@ export function PageHeader({ children, className, ...props }: PageHeaderProps) {
   return (
     <header
       className={cn(
-        'mb-4 grid w-full grid-cols-[1fr_auto_1fr] items-center',
+        'mb-4 grid h-7 w-full grid-cols-[1fr_auto_1fr] items-center',
         className,
       )}
       {...props}
