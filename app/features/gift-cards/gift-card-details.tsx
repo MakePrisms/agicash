@@ -52,8 +52,8 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
   const balance = getAccountBalance(card);
 
   return (
-    <Page className="px-0 pb-0">
-      <PageHeader className="px-4">
+    <Page>
+      <PageHeader>
         <ClosePageButton to="/gift-cards" />
       </PageHeader>
 

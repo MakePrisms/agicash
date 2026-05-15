@@ -45,8 +45,8 @@ export function GiftCards() {
   };
 
   return (
-    <Page className="px-0 pb-0">
-      <PageHeader className="px-4">
+    <Page>
+      <PageHeader>
         <ClosePageButton to="/" transition="slideLeft" applyTo="oldView" />
         <PageHeaderTitle>Gift Cards</PageHeaderTitle>
       </PageHeader>

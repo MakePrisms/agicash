@@ -44,8 +44,8 @@ export default function OfferDetails({ offer }: OfferDetailsProps) {
   const balance = isExpired ? null : getAccountBalance(offer);
 
   return (
-    <Page className="px-0 pb-0">
-      <PageHeader className="px-4">
+    <Page>
+      <PageHeader>
         <ClosePageButton to="/gift-cards" />
       </PageHeader>
 
