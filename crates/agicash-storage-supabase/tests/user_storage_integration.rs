@@ -33,7 +33,7 @@ use std::sync::Arc;
 
 /// Static token provider used by the integration tests. The service role JWT
 /// is the simplest way to authenticate the postgrest client against a local
-/// Supabase without wiring the OpenSecret -> Supabase JWT bridge.
+/// Supabase without wiring the `OpenSecret` -> Supabase JWT bridge.
 #[derive(Clone)]
 struct StaticToken(String);
 

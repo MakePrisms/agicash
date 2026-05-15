@@ -1,32 +1,31 @@
-//! End-to-end `account list` test.
+//! End-to-end `account list` test against the real `OpenSecret` → Supabase
+//! auth chain.
 //!
-//! Slice 3 cannot currently exercise the full end-to-end chain because of
-//! two slice-2 / deployment gaps:
+//! Auth flow exercised:
+//!     1. `agicash auth guest` registers a guest user against the local
+//!        `OpenSecret` enclave (`OPENSECRET_BASE_URL`) and stores the refresh
+//!        token in the keyring.
+//!     2. A fresh process runs `agicash account list`. `composition::
+//!        rehydrate_session()` reads the refresh token from the keyring,
+//!        runs `refresh_token()` on the in-memory SDK, then
+//!        `OpenSecretTokenProvider::get_jwt()` mints a third-party JWT.
+//!     3. `SupabaseStorage` attaches that JWT as the `Authorization`
+//!        bearer; local Supabase verifies it with HS256 against the JWT
+//!        secret seeded into the `THIRD_PARTY_JWT_SECRET` row in
+//!        `org_project_secrets` (matches Supabase's `GOTRUE_JWT_SECRET`).
 //!
-//! 1. **`OpenSecret` session state is process-local.** Slice 2 persists only
-//!    the refresh token in the keyring; the in-memory `OpenSecretClient`
-//!    does not re-hydrate the access token from disk. After
-//!    `agicash auth guest` returns and the process exits, a fresh process
-//!    running `agicash account list` builds a new `OpenSecretClient` with
-//!    no session state, and `generate_third_party_token` fails with
-//!    "No refresh token available". This is a real gap in slice 2's
-//!    session-storage seam — `OpenSecretTokenProvider` needs to hydrate
-//!    the access token from `PersistedSession.refresh_token` before
-//!    issuing third-party tokens.
+//! Local-dev wiring (one-time per machine):
+//!     - opensecret enclave: `nix develop -c cargo run --bin opensecret`
+//!       (binds `127.0.0.1:3999` via the local CHANGES.md patch).
+//!     - seed the per-project JWT secret to match Supabase's:
+//!         `cd ~/opensecret && PROJECT_ID=<maple-id> \
+//!            SECRET='<value of supabase JWT_SECRET>' \
+//!            nix develop -c cargo run --bin seed-project-secret`
+//!     - local Supabase: `bunx supabase start` (from agicash root).
 //!
-//! 2. **Local Supabase isn't wired to verify `OpenSecret` JWTs.** Even if
-//!    the access token were available, the local Supabase's gotrue is not
-//!    configured with the `OpenSecret` enclave's signing key (no
-//!    `signing_keys_url` / `JWT_KEYS` in `supabase/config.toml`).
-//!    Authenticated postgrest requests with `OpenSecret`-issued tokens get
-//!    HTTP 401 PGRST301 "JWT cryptographic operation failed".
-//!
-//! Slice-3 storage-layer correctness IS exercised via real local Supabase
-//! in `agicash-storage-supabase/tests/user_storage_integration.rs` (gated
-//! behind `real-supabase-tests`), authenticating with the service role
-//! key. End-to-end coverage waits on whichever later slice closes (1).
-//!
-//! Run: `cargo test -p agicash-cli --features real-supabase-tests,real-opensecret-tests --test account_list`
+//! Run: `cargo test -p agicash-cli \
+//!         --features real-supabase-tests,real-opensecret-tests \
+//!         --test account_list -- --nocapture`
 
 #[cfg(all(feature = "real-supabase-tests", feature = "real-opensecret-tests"))]
 mod gated {
@@ -41,38 +40,63 @@ mod gated {
                 || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
     }
 
-    /// Smoke-test: `auth guest` succeeds against the local OpenSecret enclave.
-    /// We can't go further (see module docs).
+    /// `auth guest` → `account list` end-to-end, no service-role shortcut.
+    /// A fresh process for `account list` exercises the keyring-rehydration
+    /// path (see `composition::rehydrate_session`).
     #[test]
-    fn auth_guest_succeeds_against_local_enclave() {
+    fn account_list_e2e_against_real_auth_chain() {
         if !env_ready() {
             eprintln!("skipping: env vars not set");
             return;
         }
+        // Per-test keyring service so concurrent runs (and any leftover
+        // session from a previous run) don't collide.
         let pid = std::process::id();
         let service = format!("com.agicash.cli.test.{pid}.account-list-e2e");
 
-        let output = Command::cargo_bin("agicash")
+        let guest = Command::cargo_bin("agicash")
             .unwrap()
             .env("AGICASH_KEYRING_SERVICE", &service)
             .args(["auth", "guest"])
             .output()
             .expect("spawn agicash auth guest");
         assert!(
-            output.status.success(),
+            guest.status.success(),
             "auth guest failed: stdout={}, stderr={}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&guest.stdout),
+            String::from_utf8_lossy(&guest.stderr),
         );
-        let stdout = String::from_utf8(output.stdout).unwrap();
-        assert!(stdout.contains("signed in as guest"), "stdout: {stdout}");
+        assert!(
+            String::from_utf8_lossy(&guest.stdout).contains("signed in as guest"),
+            "stdout: {}",
+            String::from_utf8_lossy(&guest.stdout),
+        );
 
-        // Cleanup the keyring entry.
+        let list = Command::cargo_bin("agicash")
+            .unwrap()
+            .env("AGICASH_KEYRING_SERVICE", &service)
+            .args(["account", "list"])
+            .output()
+            .expect("spawn agicash account list");
+
+        // Cleanup the keyring before any assertion so a panic doesn't leak
+        // entries across runs.
         let _ = Command::cargo_bin("agicash")
             .unwrap()
             .env("AGICASH_KEYRING_SERVICE", &service)
             .args(["auth", "logout"])
             .output();
+
+        assert!(
+            list.status.success(),
+            "account list failed: stdout={}, stderr={}",
+            String::from_utf8_lossy(&list.stdout),
+            String::from_utf8_lossy(&list.stderr),
+        );
+        // A freshly-minted guest user has no accounts yet, so an empty
+        // stdout is the expected success outcome. The point of this test
+        // is that we reached postgrest with a valid JWT (HTTP 200,
+        // exit code 0), not that any specific row was returned.
     }
 }
 
