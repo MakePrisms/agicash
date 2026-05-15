@@ -28,6 +28,8 @@ pub enum MintCmdError {
     InvalidUrl(String),
     #[error("mint unreachable: {0}")]
     MintUnreachable(String),
+    #[error("mint protocol error: {0}")]
+    MintError(String),
     #[error("unsupported currency: {0}")]
     UnsupportedCurrency(String),
     #[error(transparent)]
@@ -40,9 +42,8 @@ impl From<CashuProviderError> for MintCmdError {
     fn from(value: CashuProviderError) -> Self {
         match value {
             CashuProviderError::InvalidUrl(msg) => Self::InvalidUrl(msg),
-            CashuProviderError::Network(msg) | CashuProviderError::Protocol(msg) => {
-                Self::MintUnreachable(msg)
-            }
+            CashuProviderError::Network(msg) => Self::MintUnreachable(msg),
+            CashuProviderError::Protocol(msg) => Self::MintError(msg),
         }
     }
 }
