@@ -1,58 +1,30 @@
-import { useQuery } from '@tanstack/react-query';
-import { Link, useLocation } from 'react-router';
-import DiscordLogo from '~/assets/discord_logo.svg';
-import { Page, PageContent } from '~/components/page';
-import { Button } from '~/components/ui/button';
-import { authQueryOptions } from '~/features/user/auth';
+import type { LinksFunction } from 'react-router';
+import pubkeyCard from '~/assets/gift-cards/pubkey.agi.cash.webp';
+import { MarketingPage } from '~/features/homepage/marketing-page';
+
+const fontPreloads = [
+  'https://cdn.fontshare.com/wf/J6PPRPKWXDUIYA47IXLEQB4R4OPVYDQH/N2ZXAXWEHVMLISD2TIXJC7EF4GOY43L4/NXM4Z4TDCMYWBZ7AVI2N6DQ5VMWNENMU.woff2',
+  'https://cdn.fontshare.com/wf/CKQBK2QBTCDREE7L3MXZ3PPW7LDNJCWU/OTOY7FQFSFOJVZKJWKO2EHUJLOGBDN4Q/4CO2ETY7NITKLUDKMYJ75RHJSPHOJ7XT.woff2',
+  'https://cdn.fontshare.com/wf/XMXWOHABYLQDJ42L65EFRYNVRY37HQCB/B2O4O6V3JMFM2WDCYQI3A47L5U4THDUL/WN5274VQ3AUBDFP74GB4EC4XYJ3EKVNE.woff2',
+  'https://cdn.fontshare.com/wf/ZX6AQLSFYVDPN2URWO2MQFGTYYOHIS64/TPYPKOYWFQVNJHLLRXD4KFYX4LUOUW4Z/6QH2ALVTTK7IRVO5MYOQQ3OZNXW5SSS3.woff2',
+  'https://fonts.gstatic.com/s/kodemono/v4/A2BYn5pb0QgtVEPFnlYOnYLw.woff2',
+  'https://fonts.gstatic.com/s/teko/v23/LYjNdG7kmE0gfaN9pQ.woff2',
+];
+
+export const links: LinksFunction = () => [
+  ...fontPreloads.map((href) => ({
+    rel: 'preload',
+    href,
+    as: 'font',
+    type: 'font/woff2',
+    crossOrigin: 'anonymous' as const,
+  })),
+  // PubKey is the first hero card — preload so LCP isn't blocked on the
+  // bundled JS finishing before the image request even starts. The other
+  // 5 cards are pre-decoded post-mount by HeroSection's decodedImagesRef.
+  { rel: 'preload', href: pubkeyCard, as: 'image', type: 'image/webp' },
+];
 
 export default function HomePage() {
-  const location = useLocation();
-  const { data: authState } = useQuery(authQueryOptions());
-
-  const isLoggedIn = authState?.isLoggedIn ?? false;
-
-  return (
-    <Page>
-      <PageContent className="flex flex-col items-center">
-        <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
-          <div className="relative text-center">
-            <h1 className="mb-8 font-bold text-[clamp(3rem,10vw,4rem)] leading-none tracking-tight drop-shadow-lg">
-              Coming Soon
-            </h1>
-
-            <a
-              href="https://discord.gg/e2TSCfXxhd"
-              className="inline-flex"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <img
-                src={DiscordLogo}
-                alt="Discord"
-                className="size-8"
-                style={{
-                  filter:
-                    'invert(38%) sepia(95%) saturate(1817%) hue-rotate(218deg) brightness(100%) contrast(93%)',
-                }}
-              />
-            </a>
-
-            <div className="-translate-x-1/2 absolute top-full left-1/2 mt-8">
-              {isLoggedIn ? (
-                <Button asChild size="sm">
-                  <Link to="/">Go to Wallet</Link>
-                </Button>
-              ) : (
-                <Button asChild size="sm">
-                  <Link to={{ ...location, pathname: '/signup' }}>
-                    Join Beta
-                  </Link>
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </PageContent>
-    </Page>
-  );
+  return <MarketingPage />;
 }
