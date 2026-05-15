@@ -3,7 +3,7 @@
 //!
 //! Same wiring as `user_storage_integration.rs` — uses the service role
 //! JWT to bypass RLS, so the auth chain isn't exercised here. End-to-end
-//! coverage with the real OpenSecret -> Supabase bridge lives in the CLI
+//! coverage with the real `OpenSecret` -> Supabase bridge lives in the CLI
 //! integration test.
 //!
 //! Run: `cargo test -p agicash-storage-supabase --features real-supabase-tests`
