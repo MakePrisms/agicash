@@ -445,6 +445,18 @@ impl CashuMintQuoteService {
             }
         };
 
+        // NUT-12: verify every returned blind signature's DLEQ against the
+        // outgoing blinded message + the mint's per-amount pubkey BEFORE
+        // unblinding. CDK's `construct_proofs` records the DLEQ but
+        // never verifies it; without this a malicious mint could sign
+        // with a key it doesn't commit to and we'd accept the proofs.
+        crate::dleq::verify_blind_signatures(
+            &response.signatures,
+            &pre_mint.blinded_messages(),
+            keyset_keys,
+        )
+        .map_err(|e| MintAttemptOutcome::Other(MintQuoteError::DleqVerificationFailed(e)))?;
+
         let proofs = construct_proofs(
             response.signatures,
             pre_mint.rs(),

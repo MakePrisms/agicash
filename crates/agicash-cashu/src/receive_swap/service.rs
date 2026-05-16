@@ -325,6 +325,21 @@ impl CashuReceiveSwapService {
             .map(token_proof_to_cdk_proof)
             .collect::<Result<Vec<_>, _>>()
             .map_err(SwapAttemptOutcome::Other)?;
+
+        // NUT-12: verify the inline DLEQ on every incoming peer-token
+        // proof BEFORE we hand the inputs to the mint. Proofs without a
+        // DLEQ are tolerated (opportunistic on the sender side); proofs
+        // that *claim* a DLEQ but whose DLEQ doesn't cryptographically
+        // verify against `keyset_keys` are rejected. Without this, a
+        // malicious sender could ship proofs that the mint will refuse
+        // mid-swap — turning a clean trust failure into a
+        // mid-state-machine error.
+        for input in &inputs {
+            crate::dleq::verify_proof_dleq(input, keyset_keys).map_err(|e| {
+                SwapAttemptOutcome::Other(ReceiveSwapError::DleqVerificationFailed(e))
+            })?;
+        }
+
         let blinded_messages = pre_mint.blinded_messages();
         let swap_request = SwapRequest::new(inputs, blinded_messages);
 
@@ -339,6 +354,19 @@ impl CashuReceiveSwapService {
                 )));
             }
         };
+
+        // NUT-12: verify every blind signature's DLEQ against the
+        // outgoing blinded message and the mint's per-amount pubkey
+        // BEFORE we unblind and store. CDK's `construct_proofs` only
+        // records the DLEQ — it never verifies. Without this, a
+        // malicious mint could sign with a key it doesn't commit to
+        // and we'd happily store proofs the mint can later refuse.
+        crate::dleq::verify_blind_signatures(
+            &response.signatures,
+            &pre_mint.blinded_messages(),
+            keyset_keys,
+        )
+        .map_err(|e| SwapAttemptOutcome::Other(ReceiveSwapError::DleqVerificationFailed(e)))?;
 
         let proofs = construct_proofs(
             response.signatures,
@@ -608,13 +636,25 @@ fn token_proof_to_cdk_proof(proof: &TokenProof) -> Result<Proof, ReceiveSwapErro
         .map_err(|e| ReceiveSwapError::TokenParse(format!("proof secret: {e}")))?;
     let c = PublicKey::from_hex(&proof.c)
         .map_err(|e| ReceiveSwapError::TokenParse(format!("proof C: {e}")))?;
+    // Round-trip the optional inline DLEQ through JSON. The
+    // wire-canonical TokenProof shape stores `dleq` as opaque JSON so
+    // CLI/web can pass tokens through without understanding NUT-12; we
+    // only deserialize it back into the typed `ProofDleq` when we need
+    // to verify (which is here, on the way into a swap input).
+    let dleq = match &proof.dleq {
+        None => None,
+        Some(v) => Some(
+            serde_json::from_value::<cdk::nuts::nut12::ProofDleq>(v.clone())
+                .map_err(|e| ReceiveSwapError::TokenParse(format!("proof dleq: {e}")))?,
+        ),
+    };
     Ok(Proof {
         amount: Amount::from(proof.amount),
         keyset_id,
         secret,
         c,
         witness: None,
-        dleq: None,
+        dleq,
     })
 }
 
@@ -624,7 +664,7 @@ fn proof_to_token_proof(proof: &Proof, _keyset_id: &KeysetId) -> TokenProof {
         amount: u64::from(proof.amount),
         secret: proof.secret.to_string(),
         c: proof.c.to_hex(),
-        dleq: None,
+        dleq: dleq_to_json(proof.dleq.as_ref()),
         witness: None,
     }
 }
@@ -635,9 +675,22 @@ fn cdk_proof_to_token_proof(proof: &Proof) -> TokenProof {
         amount: u64::from(proof.amount),
         secret: proof.secret.to_string(),
         c: proof.c.to_hex(),
-        dleq: None,
+        // Preserve incoming inline DLEQ (NUT-12) for downstream
+        // verification. Previously dropped to `None`, which silently
+        // discarded the trustless-receive guarantee NUT-12 is built
+        // to provide.
+        dleq: dleq_to_json(proof.dleq.as_ref()),
         witness: None,
     }
+}
+
+/// Serialize a [`cdk::nuts::nut12::ProofDleq`] to the opaque
+/// `Option<serde_json::Value>` shape used in the on-the-wire
+/// `TokenProof`. Returns `None` when the input is `None`; `unwrap` on
+/// `to_value` is safe because `ProofDleq` is a fixed struct of three
+/// 32-byte `SecretKey` values.
+fn dleq_to_json(dleq: Option<&cdk::nuts::nut12::ProofDleq>) -> Option<serde_json::Value> {
+    dleq.and_then(|d| serde_json::to_value(d).ok())
 }
 
 fn is_already_claimed_error(err: &cdk::error::Error) -> bool {

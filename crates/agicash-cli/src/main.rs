@@ -164,6 +164,7 @@ fn classify_send(e: &SendSwapError) -> &'static str {
         SendSwapError::AmountTooSmall => "amount-too-small",
         SendSwapError::CurrencyMismatch { .. } => "currency-mismatch",
         SendSwapError::TokenEncode(_) => "token-encode-error",
+        SendSwapError::DleqVerificationFailed(_) => "dleq-verification-failed",
     }
 }
 
@@ -191,6 +192,7 @@ fn classify_melt_quote(e: &MeltQuoteError) -> &'static str {
         MeltQuoteError::QuoteNotPending => "quote-not-pending",
         MeltQuoteError::MeltFailed(_) => "melt-failed",
         MeltQuoteError::Unrecoverable(_) => "mint-unrecoverable",
+        MeltQuoteError::DleqVerificationFailed(_) => "dleq-verification-failed",
     }
 }
 
@@ -213,6 +215,7 @@ fn classify_mint_quote(e: &MintQuoteError) -> &'static str {
         MintQuoteError::QuoteNotPaid => "quote-not-paid",
         MintQuoteError::QuoteExpired => "quote-expired",
         MintQuoteError::Unrecoverable(_) => "mint-unrecoverable",
+        MintQuoteError::DleqVerificationFailed(_) => "dleq-verification-failed",
     }
 }
 
@@ -235,6 +238,7 @@ fn classify_receive(e: &ReceiveSwapError) -> &'static str {
         ReceiveSwapError::AmountTooSmall => "amount-too-small",
         ReceiveSwapError::MintMismatch { .. } => "mint-mismatch",
         ReceiveSwapError::CurrencyMismatch { .. } => "currency-mismatch",
+        ReceiveSwapError::DleqVerificationFailed(_) => "dleq-verification-failed",
     }
 }
 

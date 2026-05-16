@@ -748,6 +748,25 @@ fn build_change_pre_mint(
     Ok(pre_mint)
 }
 
+/// Reconstruct change proofs from the mint's NUT-08 change response.
+///
+/// Pairs `sigs` with `pre_mint` blanks via DLEQ trial-matching
+/// ([`crate::dleq::match_blind_signatures_to_pre_mints`]) rather than
+/// positional order. This mirrors the TS reference's
+/// `matchBlindSignaturesToOutputData`
+/// (`app/lib/cashu/blind-signature-matching.ts:23-89`), which exists
+/// because both CDK and Nutshell read change rows from SQL without
+/// `ORDER BY` (see <https://github.com/cashubtc/cashu-ts/issues/287>). A
+/// positional pair would silently fail every DLEQ check when the wire
+/// order doesn't match send order; matching by DLEQ tolerates the
+/// reorder.
+///
+/// Fewer-sigs-than-blanks is handled naturally: unmatched blanks are
+/// dropped (those counter slots are burned since the row already bumped
+/// `keyset_counter` by N at `create_quote` time). Fails closed
+/// ([`DleqVerificationError::ChangeSigMissingDleq`]) if any change sig
+/// lacks a DLEQ — NUT-12 is the pairing mechanism, without it we
+/// cannot safely match.
 fn construct_change_proofs(
     sigs: &[BlindSignature],
     pre_mint: &PreMintSecrets,
@@ -756,17 +775,24 @@ fn construct_change_proofs(
     if sigs.is_empty() {
         return Ok(Vec::new());
     }
-    let proofs = construct_proofs(
-        sigs.to_vec(),
-        pre_mint.rs(),
-        pre_mint.secrets(),
-        &mint_keys.keys,
-    )
-    .map_err(|e| {
-        MeltQuoteError::Mint(CashuProviderError::Protocol(format!(
-            "construct_proofs (change): {e}"
-        )))
-    })?;
+
+    let matched = crate::dleq::match_blind_signatures_to_pre_mints(sigs, pre_mint, mint_keys)
+        .map_err(MeltQuoteError::DleqVerificationFailed)?;
+
+    // Partial-return case: mint returned fewer sigs than we sent blanks.
+    // Mirrors TS — unmatched blanks are silently dropped (those counter
+    // slots were already reserved at `create_quote` time and are
+    // effectively burned). No log surface in this crate; the matcher
+    // itself is the only place that can fail loudly.
+    let rs = matched.rs();
+    let secrets = matched.secrets();
+
+    let proofs =
+        construct_proofs(matched.signatures, rs, secrets, &mint_keys.keys).map_err(|e| {
+            MeltQuoteError::Mint(CashuProviderError::Protocol(format!(
+                "construct_proofs (change): {e}"
+            )))
+        })?;
     Ok(proofs)
 }
 
@@ -776,7 +802,13 @@ fn proof_to_token_proof(proof: &Proof) -> TokenProof {
         amount: u64::from(proof.amount),
         secret: proof.secret.to_string(),
         c: proof.c.to_hex(),
-        dleq: None,
+        // Preserve the change-proof's inline DLEQ for downstream
+        // verification, mirroring the receive path's
+        // `cdk_proof_to_token_proof`. `construct_proofs` attaches the
+        // DLEQ during unblinding (`cashu-0.15.1/src/dhke.rs:143`); we
+        // used to drop it here, silently severing the trustless
+        // guarantee NUT-12 provides for change rounds.
+        dleq: crate::dleq::dleq_to_json(proof.dleq.as_ref()),
         witness: None,
     }
 }

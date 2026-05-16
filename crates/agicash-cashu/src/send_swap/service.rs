@@ -434,7 +434,7 @@ impl CashuSendSwapService {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     async fn perform_mint_swap(
         &self,
         wallet: &Arc<CashuMintWallet>,
@@ -521,6 +521,23 @@ impl CashuSendSwapService {
 
         let send_count = send_pre_mint.secrets.len();
         let (send_sigs, change_sigs) = response.signatures.split_at(send_count);
+
+        // NUT-12: verify each batch of blind signatures against the
+        // outgoing blinded messages BEFORE unblinding. `construct_proofs`
+        // records but never checks the DLEQ; without this a malicious
+        // mint could sign with a key it doesn't commit to.
+        crate::dleq::verify_blind_signatures(
+            send_sigs,
+            &send_pre_mint.blinded_messages(),
+            keyset_keys,
+        )
+        .map_err(|e| SwapAttemptOutcome::Other(SendSwapError::DleqVerificationFailed(e)))?;
+        crate::dleq::verify_blind_signatures(
+            change_sigs,
+            &change_pre_mint.blinded_messages(),
+            keyset_keys,
+        )
+        .map_err(|e| SwapAttemptOutcome::Other(SendSwapError::DleqVerificationFailed(e)))?;
 
         let send_proofs = construct_proofs(
             send_sigs.to_vec(),

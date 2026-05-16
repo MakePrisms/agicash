@@ -5,6 +5,7 @@
 //! account before it begins.
 
 use super::storage::MintQuoteStorageError;
+use crate::dleq::DleqVerificationError;
 use agicash_traits::CashuProviderError;
 
 #[derive(Debug, thiserror::Error)]
@@ -42,6 +43,11 @@ pub enum MintQuoteError {
     /// Mint reported `ISSUED` but no proofs are recoverable via restore.
     #[error("mint quote unrecoverable: {0}")]
     Unrecoverable(String),
+
+    /// NUT-12 DLEQ verification failed on a mint-returned blind
+    /// signature. Mint is malicious or compromised.
+    #[error("DLEQ verification failed: {0}")]
+    DleqVerificationFailed(#[from] DleqVerificationError),
 }
 
 #[cfg(test)]

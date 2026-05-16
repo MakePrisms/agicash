@@ -5,6 +5,7 @@
 //! token + account before it begins.
 
 use super::storage::ReceiveSwapStorageError;
+use crate::dleq::DleqVerificationError;
 use agicash_traits::CashuProviderError;
 
 #[derive(Debug, thiserror::Error)]
@@ -37,6 +38,14 @@ pub enum ReceiveSwapError {
     /// Token unit doesn't map to the account's currency.
     #[error("currency mismatch: token currency {token} differs from account currency {account}")]
     CurrencyMismatch { token: String, account: String },
+
+    /// NUT-12 DLEQ verification failed on either a mint-returned blind
+    /// signature or an incoming peer-token proof. Surfacing this as a
+    /// distinct variant (rather than folding into `Mint`) makes it easy
+    /// for callers / CLI error classification to react: a mint that
+    /// fails DLEQ is malicious or compromised, not merely unreachable.
+    #[error("DLEQ verification failed: {0}")]
+    DleqVerificationFailed(#[from] DleqVerificationError),
 }
 
 #[cfg(test)]

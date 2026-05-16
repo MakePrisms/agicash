@@ -5,6 +5,7 @@
 //! account proofs before it begins.
 
 use super::storage::SendSwapStorageError;
+use crate::dleq::DleqVerificationError;
 use agicash_traits::CashuProviderError;
 
 #[derive(Debug, thiserror::Error)]
@@ -37,6 +38,11 @@ pub enum SendSwapError {
     /// CDK token encode failed.
     #[error("token encode error: {0}")]
     TokenEncode(String),
+
+    /// NUT-12 DLEQ verification failed on a mint-returned blind
+    /// signature. Mint is malicious or compromised.
+    #[error("DLEQ verification failed: {0}")]
+    DleqVerificationFailed(#[from] DleqVerificationError),
 }
 
 #[cfg(test)]

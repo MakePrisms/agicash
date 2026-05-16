@@ -5,6 +5,7 @@
 //! account before it begins.
 
 use super::storage::MeltQuoteStorageError;
+use crate::dleq::DleqVerificationError;
 use agicash_traits::CashuProviderError;
 
 #[derive(Debug, thiserror::Error)]
@@ -57,6 +58,12 @@ pub enum MeltQuoteError {
     /// Operational state we can't recover from automatically.
     #[error("melt unrecoverable: {0}")]
     Unrecoverable(String),
+
+    /// NUT-12 DLEQ verification failed on a mint-returned blind
+    /// signature (change blanks for NUT-08). Mint is malicious or
+    /// compromised.
+    #[error("DLEQ verification failed: {0}")]
+    DleqVerificationFailed(#[from] DleqVerificationError),
 }
 
 #[cfg(test)]
