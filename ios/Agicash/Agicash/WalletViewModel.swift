@@ -103,6 +103,34 @@ final class WalletViewModel {
         }
     }
 
+    /// Register a new email + password account against OpenSecret. Mirrors
+    /// the web `/signup` flow: on success the user is auto-signed-in and
+    /// routed into the wallet (the FFI returns the same `Session` shape as
+    /// `authLogin`). The web form requires confirm-password and an
+    /// 8-character minimum; we enforce both here so the FFI never sees a
+    /// mismatched pair. `name` is intentionally not collected — the web
+    /// doesn't either, and the FFI accepts `nil`.
+    func signUpWithEmail(email: String, password: String, confirmPassword: String) async {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedEmail.isEmpty, !password.isEmpty else {
+            loginErrorMessage = "Email and password are required."
+            return
+        }
+        guard password.count >= 8 else {
+            loginErrorMessage = "Password must have at least 8 characters."
+            return
+        }
+        guard password == confirmPassword else {
+            loginErrorMessage = "Passwords do not match."
+            return
+        }
+        await runSignIn {
+            try await self.wallet.authSignup(
+                email: trimmedEmail, password: password, name: nil
+            )
+        }
+    }
+
     private func runSignIn(_ call: @escaping () async throws -> Session) async {
         isWorking = true
         loginErrorMessage = nil
