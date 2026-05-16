@@ -110,10 +110,12 @@ name = "agicash-ffi"
 version = "0.1.0"
 dependencies = [
  "agicash-auth-opensecret",
+ "agicash-cashu",
  "agicash-domain",
  "agicash-storage-supabase",
  "agicash-traits",
  "async-trait",
+ "cdk",
  "getrandom 0.2.17",
  "hex",
  "serde",

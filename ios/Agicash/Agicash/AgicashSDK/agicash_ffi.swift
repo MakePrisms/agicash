@@ -554,6 +554,27 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
     func listAccounts() async throws  -> [AccountFfi]
     
     /**
+     * Redeem a Cashu token (V3 `cashuA…` or V4 `cashuB…`).
+     *
+     * Mirrors the `agicash receive token <token>` CLI subcommand
+     * (`crates/agicash-cli/src/receive.rs`): parse the token, pick the
+     * matching account by `(mint_url, currency)`, run
+     * `CashuReceiveSwapService::create` followed by `complete_swap`, and
+     * return a flattened receipt. Idempotent on repeat redeems of the
+     * same token (returns [`ReceiveStatus::AlreadyClaimed`]).
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for token-parse failures, missing matching
+     * account, currency/unit mismatches, or amount-too-small after fees
+     * (the underlying `ReceiveSwapError` doesn't fit Auth/Storage cleanly
+     * so it is funneled through Internal — the message string carries
+     * the discriminator the iOS UI surfaces inline).
+     * - `FfiError::Storage` for raw Supabase failures (network, etc.).
+     */
+    func receiveToken(token: String) async throws  -> ReceiveResult
+    
+    /**
      * Rehydrate an existing session into the wallet. Called by the Swift
      * consumer on app launch after reading the refresh token from Keychain.
      * Performs an OpenSecret token refresh so the internal client has a
@@ -782,6 +803,42 @@ open func listAccounts()async throws  -> [AccountFfi]  {
             completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeAccountFfi.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Redeem a Cashu token (V3 `cashuA…` or V4 `cashuB…`).
+     *
+     * Mirrors the `agicash receive token <token>` CLI subcommand
+     * (`crates/agicash-cli/src/receive.rs`): parse the token, pick the
+     * matching account by `(mint_url, currency)`, run
+     * `CashuReceiveSwapService::create` followed by `complete_swap`, and
+     * return a flattened receipt. Idempotent on repeat redeems of the
+     * same token (returns [`ReceiveStatus::AlreadyClaimed`]).
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for token-parse failures, missing matching
+     * account, currency/unit mismatches, or amount-too-small after fees
+     * (the underlying `ReceiveSwapError` doesn't fit Auth/Storage cleanly
+     * so it is funneled through Internal — the message string carries
+     * the discriminator the iOS UI surfaces inline).
+     * - `FfiError::Storage` for raw Supabase failures (network, etc.).
+     */
+open func receiveToken(token: String)async throws  -> ReceiveResult  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_receive_token(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(token)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeReceiveResult_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -1029,6 +1086,138 @@ public func FfiConverterTypeAuthStatus_lower(_ value: AuthStatus) -> RustBuffer 
 }
 
 
+/**
+ * Outcome of [`crate::wallet::AgicashWallet::receive_token`].
+ *
+ * All amounts are decimal-stringified (matching the CLI JSON shape) so
+ * Swift consumers don't need to thread Rust's `Decimal` through the FFI
+ * boundary. `unit` is the cashu sub-unit (`sat` / `usd` / etc.) and
+ * `currency` is the wallet's account currency (`BTC` / `USD` / `USDB`).
+ */
+public struct ReceiveResult: Equatable, Hashable {
+    public var status: ReceiveStatus
+    /**
+     * Amount credited after mint fees. Decimal-stringified.
+     */
+    public var amount: String
+    /**
+     * Mint fee deducted from the input proofs. Decimal-stringified.
+     */
+    public var fee: String
+    /**
+     * Cashu sub-unit (`sat`, `cent`, etc.).
+     */
+    public var unit: String
+    /**
+     * Wallet account currency (`BTC`, `USD`, `USDB`).
+     */
+    public var currency: String
+    /**
+     * Stringified UUID of the account that received the proofs.
+     */
+    public var accountId: String
+    /**
+     * Mint URL the token was redeemed against (canonical, no trailing
+     * slash normalization is applied at the FFI seam — the iOS app
+     * renders whatever the swap row carries).
+     */
+    public var mintUrl: String
+    /**
+     * SHA-256 hex of the encoded token. Useful for receipts and
+     * dedupe-by-hash UI.
+     */
+    public var tokenHash: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(status: ReceiveStatus, 
+        /**
+         * Amount credited after mint fees. Decimal-stringified.
+         */amount: String, 
+        /**
+         * Mint fee deducted from the input proofs. Decimal-stringified.
+         */fee: String, 
+        /**
+         * Cashu sub-unit (`sat`, `cent`, etc.).
+         */unit: String, 
+        /**
+         * Wallet account currency (`BTC`, `USD`, `USDB`).
+         */currency: String, 
+        /**
+         * Stringified UUID of the account that received the proofs.
+         */accountId: String, 
+        /**
+         * Mint URL the token was redeemed against (canonical, no trailing
+         * slash normalization is applied at the FFI seam — the iOS app
+         * renders whatever the swap row carries).
+         */mintUrl: String, 
+        /**
+         * SHA-256 hex of the encoded token. Useful for receipts and
+         * dedupe-by-hash UI.
+         */tokenHash: String) {
+        self.status = status
+        self.amount = amount
+        self.fee = fee
+        self.unit = unit
+        self.currency = currency
+        self.accountId = accountId
+        self.mintUrl = mintUrl
+        self.tokenHash = tokenHash
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension ReceiveResult: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReceiveResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReceiveResult {
+        return
+            try ReceiveResult(
+                status: FfiConverterTypeReceiveStatus.read(from: &buf), 
+                amount: FfiConverterString.read(from: &buf), 
+                fee: FfiConverterString.read(from: &buf), 
+                unit: FfiConverterString.read(from: &buf), 
+                currency: FfiConverterString.read(from: &buf), 
+                accountId: FfiConverterString.read(from: &buf), 
+                mintUrl: FfiConverterString.read(from: &buf), 
+                tokenHash: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ReceiveResult, into buf: inout [UInt8]) {
+        FfiConverterTypeReceiveStatus.write(value.status, into: &buf)
+        FfiConverterString.write(value.amount, into: &buf)
+        FfiConverterString.write(value.fee, into: &buf)
+        FfiConverterString.write(value.unit, into: &buf)
+        FfiConverterString.write(value.currency, into: &buf)
+        FfiConverterString.write(value.accountId, into: &buf)
+        FfiConverterString.write(value.mintUrl, into: &buf)
+        FfiConverterString.write(value.tokenHash, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveResult_lift(_ buf: RustBuffer) throws -> ReceiveResult {
+    return try FfiConverterTypeReceiveResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveResult_lower(_ value: ReceiveResult) -> RustBuffer {
+    return FfiConverterTypeReceiveResult.lower(value)
+}
+
+
 public struct Session: Equatable, Hashable {
     /**
      * Stringified UUID for the authenticated user.
@@ -1201,6 +1390,106 @@ public func FfiConverterTypeFfiError_lower(_ value: FfiError) -> RustBuffer {
     return FfiConverterTypeFfiError.lower(value)
 }
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Status discriminator for [`ReceiveResult`]. Mirrors the JSON `status`
+ * field the CLI emits — three terminal cases the Swift side switches on.
+ */
+
+public enum ReceiveStatus: Equatable, Hashable {
+    
+    /**
+     * Token was claimed for the first time and proofs are now in the
+     * wallet. `amount` is the credited value (after mint fees).
+     */
+    case received
+    /**
+     * The same token was claimed by this user before — the swap row was
+     * already in `Completed` state. Idempotent return; nothing was minted
+     * twice.
+     */
+    case alreadyClaimed
+    /**
+     * Token was already spent/claimed elsewhere (different wallet, or
+     * previously failed). Surfaces as an error in the UI.
+     */
+    case alreadyFailed
+    /**
+     * Swap is still in flight (rare; the receive flow normally drives to
+     * terminal in one round-trip). Treated as a soft state by the UI.
+     */
+    case pending
+
+
+
+}
+
+#if compiler(>=6)
+extension ReceiveStatus: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReceiveStatus: FfiConverterRustBuffer {
+    typealias SwiftType = ReceiveStatus
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReceiveStatus {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .received
+        
+        case 2: return .alreadyClaimed
+        
+        case 3: return .alreadyFailed
+        
+        case 4: return .pending
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ReceiveStatus, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .received:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .alreadyClaimed:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .alreadyFailed:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .pending:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveStatus_lift(_ buf: RustBuffer) throws -> ReceiveStatus {
+    return try FfiConverterTypeReceiveStatus.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveStatus_lower(_ value: ReceiveStatus) -> RustBuffer {
+    return FfiConverterTypeReceiveStatus.lower(value)
+}
+
+
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
@@ -1356,6 +1645,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_list_accounts() != 8926) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_receive_token() != 38168) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_set_session() != 35776) {
