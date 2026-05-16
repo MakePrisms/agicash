@@ -56,8 +56,18 @@ fn http_client() -> Result<reqwest::Client, StorageError> {
     let tls_config = rustls::ClientConfig::with_platform_verifier()
         .map_err(|e| StorageError::Backend(format!("rustls platform verifier: {e}")))?;
 
+    // Fail fast on unreachable endpoints rather than spinning forever.
+    // The iOS sim debug session of 2026-05-16 burned hours on a stale
+    // Keychain session pointing at `http://127.0.0.1:3999`, which was
+    // listening but unresponsive on `/health`. Without these timeouts
+    // the app hung silently with no UI signal. Connect timeout covers
+    // the TCP handshake; the overall request timeout bounds any single
+    // HTTP exchange. Values chosen to be generous for slow mobile
+    // networks while still surfacing real outages in < 30s.
     reqwest::Client::builder()
         .use_preconfigured_tls(tls_config)
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| StorageError::Backend(format!("reqwest client build: {e}")))
 }
@@ -156,5 +166,29 @@ mod tests {
         };
         let s = SupabaseStorage::new(cfg, Arc::new(StubTokens)).unwrap();
         let _client = s.authenticated_client().await.unwrap();
+    }
+
+    /// Regression guard for the iOS sim hang of 2026-05-16: a stale
+    /// Keychain session pointed `wallet.setSession()` at a local
+    /// endpoint that accepted the TCP handshake but never answered.
+    /// Without `connect_timeout`/`timeout` the call hangs forever.
+    /// We use TEST-NET-1 (`192.0.2.1`), an IANA-reserved
+    /// documentation/non-routable block, so the request *cannot*
+    /// complete a connection in any environment — the connect timeout
+    /// is the only thing that can return us.
+    ///
+    /// The 5s connect-timeout target leaves a 2s slack budget to
+    /// absorb scheduler/runtime jitter on a loaded CI box.
+    #[tokio::test]
+    async fn connect_timeout_fires_within_budget() {
+        let client = http_client().expect("client builds");
+        let start = std::time::Instant::now();
+        let result = client.get("http://192.0.2.1:80").send().await;
+        let elapsed = start.elapsed();
+        assert!(result.is_err(), "expected connect error, got: {result:?}");
+        assert!(
+            elapsed < std::time::Duration::from_secs(7),
+            "connect_timeout did not fire within budget: elapsed={elapsed:?}"
+        );
     }
 }

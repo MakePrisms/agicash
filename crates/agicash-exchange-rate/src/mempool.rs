@@ -14,6 +14,23 @@ use std::sync::Arc;
 
 const MEMPOOL_PRICES_URL: &str = "https://mempool.space/api/v1/prices";
 
+/// TCP-handshake timeout. Fails fast when the endpoint is unreachable
+/// (DNS hole, NAT route, dev-host down) rather than hanging the
+/// caller's UI thread. See the supabase client for the parent rationale.
+const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+/// Overall per-request timeout. Bounds a single HTTP exchange so a
+/// stalled mempool.space response can't wedge the wallet's rate-refresh
+/// loop indefinitely.
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+fn build_http_client() -> Client {
+    Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
+        .build()
+        .expect("reqwest client constructible")
+}
+
 #[derive(Debug, Clone)]
 pub struct MempoolSpaceProvider {
     client: Arc<Client>,
@@ -23,11 +40,7 @@ pub struct MempoolSpaceProvider {
 impl MempoolSpaceProvider {
     pub fn new() -> Self {
         Self {
-            client: Arc::new(
-                Client::builder()
-                    .build()
-                    .expect("reqwest client constructible"),
-            ),
+            client: Arc::new(build_http_client()),
             url: MEMPOOL_PRICES_URL.to_string(),
         }
     }
@@ -37,11 +50,7 @@ impl MempoolSpaceProvider {
     /// equivalent TS test helper.
     pub fn with_url(url: impl Into<String>) -> Self {
         Self {
-            client: Arc::new(
-                Client::builder()
-                    .build()
-                    .expect("reqwest client constructible"),
-            ),
+            client: Arc::new(build_http_client()),
             url: url.into(),
         }
     }
