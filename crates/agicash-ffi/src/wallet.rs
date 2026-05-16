@@ -371,6 +371,9 @@ impl AgicashWallet {
     ///   Auth/Storage cleanly — same shape as `receive_token` funnels
     ///   `ReceiveSwapError` through Internal).
     /// - `FfiError::Storage` for raw Supabase failures (network, etc.).
+    // Single canonical mint-add path; mirrors `cmd_mint_add` which also
+    // carries this allow for the same reason (one conceptual unit).
+    #[allow(clippy::too_many_lines)]
     pub async fn mint_add(&self, url: String) -> Result<MintAddResult, FfiError> {
         let session = self.session.read().await.clone().ok_or(FfiError::Auth {
             code: crate::error::auth_code::UNAUTHENTICATED,
@@ -1094,8 +1097,9 @@ fn receive_result_from_mint_quote_outcome(
         CompleteMintQuoteOutcome::AlreadyTerminal(quote) => {
             let status = match &quote.state {
                 CashuMintQuoteState::Completed { .. } => ReceiveStatus::Received,
-                CashuMintQuoteState::Failed { .. } => ReceiveStatus::AlreadyFailed,
-                CashuMintQuoteState::Expired => ReceiveStatus::AlreadyFailed,
+                CashuMintQuoteState::Failed { .. } | CashuMintQuoteState::Expired => {
+                    ReceiveStatus::AlreadyFailed
+                }
                 // PAID without a follow-up complete is "still pending" from the
                 // UI's perspective; treat as `Pending` so the user can retry.
                 CashuMintQuoteState::Paid { .. } | CashuMintQuoteState::Unpaid => {

@@ -1654,7 +1654,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2706,7 +2706,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2818,6 +2818,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "opensecret"
 version = "3.1.1"
+source = "git+https://github.com/gudnuf/OpenSecret-SDK?branch=feat%2Fwasm-compat#1c0b9494ea0e643272b87655afb1a0d5b4a6440b"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -2829,9 +2830,12 @@ dependencies = [
  "ciborium",
  "eventsource-stream",
  "futures",
+ "getrandom 0.2.17",
  "hex",
  "hkdf",
+ "js-sys",
  "p256",
+ "p384",
  "percent-encoding",
  "pin-project",
  "reqwest",
@@ -2843,6 +2847,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+ "wasm-bindgen",
  "x25519-dalek",
  "x509-parser",
  "yasna",
@@ -2869,6 +2874,18 @@ name = "p256"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
+dependencies = [
+ "ecdsa",
+ "elliptic-curve",
+ "primeorder",
+ "sha2",
+]
+
+[[package]]
+name = "p384"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe42f1670a52a47d448f14b6a5c61dd78fce51856e68edaa38f7ae3a46b8d6b6"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
@@ -3044,6 +3061,7 @@ dependencies = [
 [[package]]
 name = "postgrest"
 version = "1.6.0"
+source = "git+https://github.com/gudnuf/postgrest-rs?branch=feat%2Freqwest-0.12-tls-injection#528d82d7a203237c3bdd5a3f5b0ed1f2d8975e12"
 dependencies = [
  "reqwest",
 ]
@@ -3211,7 +3229,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3547,7 +3565,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3604,7 +3622,7 @@ dependencies = [
  "security-framework 3.7.0",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4179,7 +4197,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5033,7 +5051,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
