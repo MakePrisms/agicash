@@ -47,8 +47,17 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         ENABLE_PREVIEWS: YES
         TARGETED_DEVICE_FAMILY: "1"
+        # Xcode 26.2 (ld-prime) workaround: xcodebuild from CLI invokes
+        # `ld` directly with `-Xlinker` wrappers it no longer tolerates,
+        # producing `-objc_abi_version '-Xlinker' not supported`. Forcing
+        # clang as the linker driver fixes it. ENABLE_DEBUG_DYLIB=NO
+        # avoids the preview-mode `Agicash.debug.dylib` link path which
+        # hits the same bug. Xcode IDE Cmd-B isn't affected.
+        ENABLE_DEBUG_DYLIB: NO
+        LD: $(TOOLCHAIN_DIR)/usr/bin/clang
     dependencies:
       # Static-library XCFramework (sapling pattern). Linked at build
       # time; nothing to embed at runtime.
       - framework: ../../bindings/swift/build/xcframework/agicash_ffiFFI.xcframework
         embed: false
+    scheme: {}
