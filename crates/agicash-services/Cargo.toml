@@ -1,0 +1,18 @@
+[package]
+name = "agicash-services"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+agicash-domain = { path = "../agicash-domain" }
+agicash-money = { path = "../agicash-money" }
+agicash-traits = { path = "../agicash-traits" }
+agicash-cache = { path = "../agicash-cache" }
+agicash-cashu = { path = "../agicash-cashu" }
+agicash-spark = { path = "../agicash-spark" }
+
+[lints]
+workspace = true

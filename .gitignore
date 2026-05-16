@@ -42,3 +42,8 @@ node_modules
 
 # Breez Spark SDK cache data 
 .spark-data/
+
+# Rust
+/target
+/crates/target
+/crates/**/pkg

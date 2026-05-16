@@ -1,0 +1,106 @@
+[workspace]
+resolver = "2"
+members = [
+    "agicash-domain",
+    "agicash-money",
+    "agicash-crypto",
+    "agicash-traits",
+    "agicash-cashu",
+    "agicash-exchange-rate",
+    "agicash-spark",
+    "agicash-storage-supabase",
+    "agicash-auth-opensecret",
+    "agicash-cache",
+    "agicash-services",
+    "agicash-wallet",
+    "agicash-testing",
+    "agicash-cli",
+    "agicash-wasm",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/MakePrisms/agicash"
+
+[workspace.dependencies]
+# Async + runtime
+tokio = { version = "1.42", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+futures = "0.3"
+async-trait = "0.1"
+async-broadcast = "0.7"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", default-features = false, features = ["serde", "std", "clock"] }
+
+# Errors + misc
+thiserror = "2.0"
+uuid = { version = "1.11", features = ["v4", "serde", "js"] }
+rust_decimal = { version = "1.36", features = ["serde-with-str"] }
+rust_decimal_macros = "1.36"
+
+# Cashu Development Kit
+cdk = { version = "0.15", default-features = false, features = ["wallet"] }
+
+# HTTP client used by agicash-exchange-rate (and indirectly via opensecret/postgrest).
+# `default-features = false` keeps wasm-unfriendly transitive deps out;
+# crates that need TLS enable `rustls-tls` themselves.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Auth / secrets / keyring / env
+opensecret = "3.1.1"
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
+rpassword = "7"
+hex = "0.4"
+base64 = "0.22"
+bip39 = "2"
+parking_lot = "0.12"
+dotenvy = "0.15"
+getrandom = "0.2"
+
+# Storage
+postgrest = "1.6"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# WASM
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+
+# Dev / tests
+assert_cmd = "2.0"
+predicates = "3.1"
+
+[patch.crates-io]
+opensecret = { path = "/Users/claude/opensecret-sdk-fork/rust" }
+# Local fork: switches rustls TLS roots from webpki-roots to native-roots, so
+# the system trust store (including mkcert's local CA) is honored. Slice 3
+# integration tests hit local Supabase over HTTPS with an mkcert cert; webpki
+# roots reject it. Drop this patch once a real CA is in use.
+postgrest = { path = "/Users/claude/postgrest-rs-fork" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
