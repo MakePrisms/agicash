@@ -9,8 +9,9 @@ import SwiftUI
 ///
 /// Web also renders a `ColorModeToggle` and a row of social icons (X, Nostr,
 /// GitHub, Discord) in the footer; both are out of scope for the iOS pass
-/// today. The previous iOS pass added an inline `AccountListSection` here —
-/// removed for parity (web puts that under `/settings/accounts`).
+/// today. The Accounts row navigates to `AccountsView` (the iOS analogue of
+/// the web's `/settings/accounts` route) where the user manages mints and
+/// triggers the Add Mint flow.
 struct SettingsView: View {
     @Bindable var model: WalletViewModel
 
@@ -24,8 +25,11 @@ struct SettingsView: View {
                         .padding(.horizontal, Spacing.l)
                         .padding(.top, Spacing.l)
 
-                    SettingsNavStack(defaultAccountLabel: defaultAccountLabel)
-                        .padding(.horizontal, Spacing.l)
+                    SettingsNavStack(
+                        model: model,
+                        defaultAccountLabel: defaultAccountLabel
+                    )
+                    .padding(.horizontal, Spacing.l)
 
                     Spacer(minLength: Spacing.xxl)
 
@@ -100,13 +104,24 @@ private struct LnAddressDisplay: View {
 /// Mirrors `SettingsNavButton` (`features/settings/ui/settings-nav-button.tsx`):
 /// 40pt row, leading icon + label, trailing chevron. Borderless — the row
 /// is its own affordance, no card chrome.
+///
+/// The Accounts row is the only one wired to a destination today
+/// (matches the web flow: Settings → /settings/accounts is the gateway
+/// to the Accounts list + Add Mint sheet). Edit Profile and Contacts
+/// remain static rows pending their own lanes.
 private struct SettingsNavStack: View {
+    @Bindable var model: WalletViewModel
     let defaultAccountLabel: String
 
     var body: some View {
         VStack(spacing: 0) {
             SettingsNavRow(icon: "square.and.pencil", label: "Edit profile")
-            SettingsNavRow(icon: "creditcard", label: defaultAccountLabel)
+            NavigationLink {
+                AccountsView(model: model)
+            } label: {
+                SettingsNavRow(icon: "creditcard", label: defaultAccountLabel)
+            }
+            .buttonStyle(.plain)
             SettingsNavRow(icon: "person.2", label: "Contacts")
         }
     }

@@ -214,6 +214,43 @@ final class WalletViewModel {
         }
     }
 
+    /// Outcome shape returned to `AddMintView`. Mirrors `ReceiveOutcome`:
+    /// success carries the FFI `MintAddResult` so the sheet can show the
+    /// new mint's name/URL inline; failure carries a presentation-ready
+    /// string already mapped through `ffiErrorMessage`.
+    enum AddMintOutcome {
+        case success(MintAddResult)
+        case failure(String)
+    }
+
+    /// Provision a new Cashu mint and refresh the accounts list. Mirrors
+    /// the web `AddMintForm` (`app/features/settings/accounts/add-mint-form.tsx`):
+    /// the form trims and submits the URL, the wallet talks NUT-06 to the
+    /// mint, the new `wallet.accounts` row gets inserted, and the local
+    /// cache refreshes so the Accounts screen reflects the new row without
+    /// a pull-to-refresh.
+    ///
+    /// Empty / whitespace-only URLs short-circuit with a friendly inline
+    /// error so the FFI never sees a blank string. All other errors funnel
+    /// through `FfiError` and surface as a single user-readable message.
+    func addMint(url: String) async -> AddMintOutcome {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .failure("Enter a mint URL first.")
+        }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let result = try await wallet.mintAdd(url: trimmed)
+            await refreshAccounts()
+            return .success(result)
+        } catch let err as FfiError {
+            return .failure(ffiErrorMessage(err))
+        } catch {
+            return .failure("unexpected: \(error)")
+        }
+    }
+
     func refreshAccounts() async {
         if isDemoMode { return }
         do {
