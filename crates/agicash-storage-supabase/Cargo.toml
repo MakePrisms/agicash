@@ -21,6 +21,10 @@ base64 = { workspace = true }
 cdk = { workspace = true }
 hex = { workspace = true }
 postgrest = { workspace = true }
+# Needed by the generated `TypedBuilder::execute` wrapper — its return type
+# names `reqwest::Response`/`reqwest::Error` (the same types `postgrest::Builder::execute`
+# returns). Already transitively pulled in by postgrest.
+reqwest = { workspace = true }
 sha2 = "0.10"
 rust_decimal = { workspace = true }
 serde = { workspace = true }

@@ -20,6 +20,7 @@
     "test:e2e": "playwright test",
     "supabase": "supabase",
     "db:generate-types": "supabase gen types typescript --local --schema wallet > supabase/database.types.ts",
+    "db:generate-types-rust": "bash scripts/gen-rust-types.sh",
     "wasm:build": "wasm-pack build crates/agicash-wasm --target bundler --out-dir pkg --release",
     "wasm:build:dev": "wasm-pack build crates/agicash-wasm --target bundler --out-dir pkg --dev",
     "wasm:watch": "cargo watch -w crates -s 'bun run wasm:build:dev'"

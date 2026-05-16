@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - "crates/**"
+      - "supabase/migrations/**"
       - ".github/workflows/rust.yml"
   push:
     branches: [master]
     paths:
       - "crates/**"
+      - "supabase/migrations/**"
       - ".github/workflows/rust.yml"
 
 env:
@@ -74,3 +76,106 @@ jobs:
         with:
           workspaces: crates -> target
       - run: cargo build --target wasm32-unknown-unknown -p agicash-wasm
+
+  schema-drift:
+    name: schema drift (Rust)
+    runs-on: ubuntu-latest
+    # The Supabase-flavored Postgres image carries pg_cron / pg_net /
+    # supabase_vault / realtime — all of which our migrations depend on.
+    # Vanilla `postgres:17` would force us to either patch the migrations
+    # or install half of Supabase manually. Cheaper to pay the ~10 s image
+    # pull and reuse what the local dev container uses.
+    services:
+      postgres:
+        image: public.ecr.aws/supabase/postgres:17.6.1.080
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: supabase_admin
+          POSTGRES_DB: postgres
+          JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+          JWT_EXP: "3600"
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U supabase_admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://supabase_admin:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - uses: dtolnay/rust-toolchain@1.86.0
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates -> target
+
+      # Same bootstrap the codegen tool applies locally — auth.uid() / realtime
+      # stubs. The supabase image carries the extensions but not these
+      # managed-runtime symbols.
+      - name: Bootstrap managed-runtime stubs
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q <<'SQL'
+          create schema if not exists auth;
+          create or replace function auth.uid() returns uuid language sql stable as $$
+            select null::uuid
+          $$;
+          create schema if not exists realtime;
+          create table if not exists realtime.messages (
+              id uuid primary key default gen_random_uuid(),
+              topic text not null,
+              extension text not null,
+              payload jsonb,
+              event text,
+              private boolean default false,
+              inserted_at timestamp with time zone default now()
+          );
+          alter table realtime.messages enable row level security;
+          create or replace function realtime.topic() returns text language sql stable as $$
+            select ''::text
+          $$;
+          create or replace function realtime.send(
+              payload jsonb,
+              event text,
+              topic text,
+              private boolean default false
+          ) returns void language sql as $$
+            select pg_catalog.void(null::void)
+          $$;
+          SQL
+
+      - name: Build codegen tool
+        working-directory: crates
+        run: cargo build --release -p agicash-storage-supabase-codegen
+
+      - name: Regenerate bindings via codegen tool
+        env:
+          PGPASSWORD: postgres
+        run: |
+          ./crates/target/release/agicash-storage-supabase-codegen \
+            --migrations-dir supabase/migrations \
+            --schema wallet \
+            --out crates/agicash-storage-supabase/src/generated.rs \
+            --database-url "$DATABASE_URL"
+
+      - name: Assert generated.rs is up to date
+        run: |
+          if ! git diff --exit-code crates/agicash-storage-supabase/src/generated.rs; then
+            echo
+            echo "::error::Schema drift detected. Regenerate via 'bun db:generate-types-rust' (or 'cargo run -p agicash-storage-supabase-codegen') and commit the result."
+            exit 1
+          fi
+
+      - name: Build storage-supabase with all targets (schema-vs-code drift check)
+        working-directory: crates
+        run: cargo build --all-targets -p agicash-storage-supabase

@@ -1,0 +1,23 @@
+[package]
+name = "agicash-storage-supabase-codegen"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = "Codegen tool: introspects supabase/migrations against an ephemeral postgres:17 container and emits crates/agicash-storage-supabase/src/generated.rs"
+
+[[bin]]
+name = "agicash-storage-supabase-codegen"
+path = "src/main.rs"
+
+[dependencies]
+postgres = { version = "0.19", features = ["with-chrono-0_4", "with-uuid-1", "with-serde_json-1"] }
+clap = { workspace = true }
+anyhow = "1"
+heck = "0.5"
+indoc = "2"
+
+[lints]
+workspace = true
