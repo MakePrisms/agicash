@@ -7,6 +7,7 @@ members = [
     "agicash-traits",
     "agicash-cashu",
     "agicash-exchange-rate",
+    "agicash-lightning-address",
     "agicash-spark",
     "agicash-storage-supabase",
     "agicash-auth-opensecret",

@@ -191,6 +191,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "agicash-lightning-address"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "agicash-money"
 version = "0.1.0"
 dependencies = [
