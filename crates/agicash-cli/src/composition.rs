@@ -3,13 +3,14 @@ use agicash_auth_opensecret::{
     DEFAULT_SERVICE,
 };
 use agicash_cashu::{
-    CashuMintQuoteService, CashuMintQuoteStorage, CashuReceiveSwapService, CashuReceiveSwapStorage,
-    CashuSendSwapService, CashuSendSwapStorage, CdkCashuProvider,
+    CashuMeltQuoteService, CashuMeltQuoteStorage, CashuMintQuoteService, CashuMintQuoteStorage,
+    CashuReceiveSwapService, CashuReceiveSwapStorage, CashuSendSwapService, CashuSendSwapStorage,
+    CdkCashuProvider,
 };
 use agicash_exchange_rate::MempoolSpaceProvider;
 use agicash_storage_supabase::{
-    SupabaseCashuMintQuoteStorage, SupabaseCashuReceiveSwapStorage, SupabaseCashuSendSwapStorage,
-    SupabaseStorage, SupabaseStorageConfig,
+    SupabaseCashuMeltQuoteStorage, SupabaseCashuMintQuoteStorage, SupabaseCashuReceiveSwapStorage,
+    SupabaseCashuSendSwapStorage, SupabaseStorage, SupabaseStorageConfig,
 };
 use agicash_traits::{
     AuthError, CashuProvider, PassthroughProofEncryption, ProofEncryption, StorageError,
@@ -172,6 +173,44 @@ pub fn build_mint_quote_deps(storage_deps: &StorageDeps, cashu_deps: &CashuDeps)
         Arc::clone(&cashu_deps.provider),
     ));
     MintQuoteDeps {
+        service,
+        storage: quote_storage,
+    }
+}
+
+/// CLI-side dep bundle for the Cashu Lightning send (NUT-05 melt quote)
+/// flow. Wires the slice-5 passthrough encryption stub onto a real
+/// Supabase storage and the existing `CashuProvider`.
+pub struct MeltQuoteDeps {
+    pub service: Arc<CashuMeltQuoteService>,
+    pub storage: Arc<dyn CashuMeltQuoteStorage>,
+}
+
+impl Clone for MeltQuoteDeps {
+    fn clone(&self) -> Self {
+        Self {
+            service: Arc::clone(&self.service),
+            storage: Arc::clone(&self.storage),
+        }
+    }
+}
+
+impl std::fmt::Debug for MeltQuoteDeps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MeltQuoteDeps").finish_non_exhaustive()
+    }
+}
+
+pub fn build_melt_quote_deps(storage_deps: &StorageDeps, cashu_deps: &CashuDeps) -> MeltQuoteDeps {
+    let encryption: Arc<dyn ProofEncryption> = Arc::new(PassthroughProofEncryption);
+    let quote_storage: Arc<dyn CashuMeltQuoteStorage> = Arc::new(
+        SupabaseCashuMeltQuoteStorage::new(Arc::clone(&storage_deps.storage), encryption),
+    );
+    let service = Arc::new(CashuMeltQuoteService::new(
+        Arc::clone(&quote_storage),
+        Arc::clone(&cashu_deps.provider),
+    ));
+    MeltQuoteDeps {
         service,
         storage: quote_storage,
     }

@@ -31,13 +31,26 @@ pub enum Command {
     /// token (NUT-03 swap) or by issuing a Lightning invoice (NUT-04
     /// mint quote).
     Receive(ReceiveArgs),
-    /// Send a Cashu token by selecting proofs from the chosen account.
-    Send {
+    /// Send funds out of a Cashu account — either by producing a Cashu
+    /// token (NUT-03 swap) or by paying a BOLT-11 invoice (NUT-05 melt).
+    Send(SendArgs),
+}
+
+#[derive(clap::Args, Debug)]
+pub struct SendArgs {
+    #[command(subcommand)]
+    pub cmd: SendCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SendCommand {
+    /// Produce a Cashu token from the account (NUT-03 send-swap).
+    Token {
         /// Amount to send in the account's unit (sats for BTC accounts,
         /// cents for USD).
         amount: u64,
-        /// Account ID to send from. If omitted, the only Cashu account is
-        /// used; if multiple Cashu accounts exist, this is required.
+        /// Account ID to send from. If omitted, the only Cashu account
+        /// is used; if multiple Cashu accounts exist, this is required.
         #[arg(long)]
         account: Option<String>,
         /// Token format version: 4 (CBOR, default) or 3 (legacy JSON).
@@ -46,6 +59,37 @@ pub enum Command {
         /// Show preview without persisting or producing a token.
         #[arg(long)]
         dry_run: bool,
+    },
+    /// Pay a BOLT-11 invoice via NUT-05 melt.
+    Lightning {
+        /// BOLT-11 invoice to pay (must include amount).
+        invoice: String,
+        /// Account ID to send from. If omitted, the only Cashu account
+        /// is used; if multiple Cashu accounts exist, this is required.
+        #[arg(long)]
+        account: Option<String>,
+        /// Show preview without persisting or paying.
+        #[arg(long)]
+        dry_run: bool,
+        /// If set, request the melt quote and exit; call
+        /// `agicash send lightning-complete <quote_id>` later to finish.
+        #[arg(long)]
+        no_wait: bool,
+        /// Polling interval in milliseconds.
+        #[arg(long, default_value_t = 1000)]
+        poll_ms: u64,
+        /// Overall timeout in seconds.
+        #[arg(long, default_value_t = 300)]
+        timeout_s: u64,
+    },
+    /// Finish a previously-initiated Lightning send (used with `--no-wait`).
+    LightningComplete {
+        /// The DB quote id (UUID) returned by `send lightning --no-wait`.
+        quote_id: String,
+        #[arg(long, default_value_t = 1000)]
+        poll_ms: u64,
+        #[arg(long, default_value_t = 30)]
+        timeout_s: u64,
     },
 }
 
@@ -367,49 +411,122 @@ mod tests {
     }
 
     #[test]
-    fn parses_send_with_amount() {
-        let cli = Cli::try_parse_from(["agicash", "send", "100"]).unwrap();
+    fn parses_send_token_with_amount() {
+        let cli = Cli::try_parse_from(["agicash", "send", "token", "100"]).unwrap();
         match cli.cmd {
-            Some(Command::Send {
-                amount,
-                account,
-                token_version,
-                dry_run,
-            }) => {
-                assert_eq!(amount, 100);
-                assert!(account.is_none());
-                assert_eq!(token_version, 4);
-                assert!(!dry_run);
-            }
+            Some(Command::Send(s)) => match s.cmd {
+                SendCommand::Token {
+                    amount,
+                    account,
+                    token_version,
+                    dry_run,
+                } => {
+                    assert_eq!(amount, 100);
+                    assert!(account.is_none());
+                    assert_eq!(token_version, 4);
+                    assert!(!dry_run);
+                }
+                other => panic!("unexpected send subcommand: {other:?}"),
+            },
             other => panic!("unexpected: {other:?}"),
         }
     }
 
     #[test]
-    fn parses_send_with_account_and_dry_run() {
+    fn parses_send_token_with_account_and_dry_run() {
+        let cli = Cli::try_parse_from([
+            "agicash",
+            "send",
+            "token",
+            "50",
+            "--account",
+            "abc-123",
+            "--dry-run",
+        ])
+        .unwrap();
+        match cli.cmd {
+            Some(Command::Send(s)) => match s.cmd {
+                SendCommand::Token {
+                    amount,
+                    account,
+                    dry_run,
+                    ..
+                } => {
+                    assert_eq!(amount, 50);
+                    assert_eq!(account.as_deref(), Some("abc-123"));
+                    assert!(dry_run);
+                }
+                other => panic!("unexpected send subcommand: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_send_token_with_token_version_3() {
+        let cli = Cli::try_parse_from(["agicash", "send", "token", "100", "--token-version", "3"])
+            .unwrap();
+        match cli.cmd {
+            Some(Command::Send(s)) => match s.cmd {
+                SendCommand::Token { token_version, .. } => assert_eq!(token_version, 3),
+                other => panic!("unexpected send subcommand: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_send_lightning_with_invoice() {
+        let cli = Cli::try_parse_from(["agicash", "send", "lightning", "lnbc100n1..."]).unwrap();
+        match cli.cmd {
+            Some(Command::Send(s)) => match s.cmd {
+                SendCommand::Lightning {
+                    invoice,
+                    account,
+                    dry_run,
+                    no_wait,
+                    ..
+                } => {
+                    assert_eq!(invoice, "lnbc100n1...");
+                    assert!(account.is_none());
+                    assert!(!dry_run);
+                    assert!(!no_wait);
+                }
+                other => panic!("unexpected send subcommand: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_send_lightning_with_no_wait() {
         let cli =
-            Cli::try_parse_from(["agicash", "send", "50", "--account", "abc-123", "--dry-run"])
-                .unwrap();
+            Cli::try_parse_from(["agicash", "send", "lightning", "lnbc...", "--no-wait"]).unwrap();
         match cli.cmd {
-            Some(Command::Send {
-                amount,
-                account,
-                dry_run,
-                ..
-            }) => {
-                assert_eq!(amount, 50);
-                assert_eq!(account.as_deref(), Some("abc-123"));
-                assert!(dry_run);
-            }
+            Some(Command::Send(s)) => match s.cmd {
+                SendCommand::Lightning { no_wait, .. } => assert!(no_wait),
+                other => panic!("unexpected send subcommand: {other:?}"),
+            },
             other => panic!("unexpected: {other:?}"),
         }
     }
 
     #[test]
-    fn parses_send_with_token_version_3() {
-        let cli = Cli::try_parse_from(["agicash", "send", "100", "--token-version", "3"]).unwrap();
+    fn parses_send_lightning_complete() {
+        let cli = Cli::try_parse_from([
+            "agicash",
+            "send",
+            "lightning-complete",
+            "11111111-2222-3333-4444-555555555555",
+        ])
+        .unwrap();
         match cli.cmd {
-            Some(Command::Send { token_version, .. }) => assert_eq!(token_version, 3),
+            Some(Command::Send(s)) => match s.cmd {
+                SendCommand::LightningComplete { quote_id, .. } => {
+                    assert_eq!(quote_id, "11111111-2222-3333-4444-555555555555");
+                }
+                other => panic!("unexpected send subcommand: {other:?}"),
+            },
             other => panic!("unexpected: {other:?}"),
         }
     }
