@@ -44,7 +44,7 @@ pub struct AgicashWallet {
     /// share across receive/send swaps.
     cashu_provider: Arc<dyn CashuProvider>,
     /// Receive-swap orchestrator. Wired against the same `SupabaseStorage`
-    /// + `cashu_provider` the wallet already owns, with the slice-5
+    /// and `cashu_provider` the wallet already owns, with the slice-5
     /// `PassthroughProofEncryption` stub matching the CLI composition root.
     /// Once the encryption seam ships, this slot swaps to a real impl
     /// without the FFI surface changing.
