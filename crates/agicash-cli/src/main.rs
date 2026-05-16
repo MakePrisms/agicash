@@ -6,24 +6,26 @@ mod mint;
 mod receive;
 mod receive_lightning;
 mod send;
+mod send_lightning;
 
 use account::AccountCmdError;
 use agicash_cashu::{
-    MintQuoteError, MintQuoteStorageError, ReceiveSwapError, ReceiveSwapStorageError,
-    SendSwapError, SendSwapStorageError,
+    MeltQuoteError, MeltQuoteStorageError, MintQuoteError, MintQuoteStorageError, ReceiveSwapError,
+    ReceiveSwapStorageError, SendSwapError, SendSwapStorageError,
 };
 use agicash_traits::{AuthError, CashuProviderError, StorageError};
 use auth::rehydrate_session;
 use clap::Parser;
-use cli::{AccountCommand, AuthCommand, Cli, Command, MintCommand, ReceiveCommand};
+use cli::{AccountCommand, AuthCommand, Cli, Command, MintCommand, ReceiveCommand, SendCommand};
 use composition::{
-    build_auth_deps, build_cashu_deps, build_exchange_rate_deps, build_mint_quote_deps,
-    build_receive_swap_deps, build_send_swap_deps, build_storage_deps,
+    build_auth_deps, build_cashu_deps, build_exchange_rate_deps, build_melt_quote_deps,
+    build_mint_quote_deps, build_receive_swap_deps, build_send_swap_deps, build_storage_deps,
 };
 use mint::MintCmdError;
 use receive::ReceiveCmdError;
 use receive_lightning::ReceiveLightningCmdError;
 use send::SendCmdError;
+use send_lightning::SendLightningCmdError;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -91,6 +93,18 @@ fn classify_error(e: &(dyn std::error::Error + 'static)) -> (&'static str, i32) 
             ReceiveLightningCmdError::Auth(inner) => classify_auth(inner),
         };
     }
+    if let Some(sl_err) = e.downcast_ref::<SendLightningCmdError>() {
+        return match sl_err {
+            SendLightningCmdError::NotLoggedIn => ("not-logged-in", 3),
+            SendLightningCmdError::NoMatchingAccount => ("no-matching-account", 1),
+            SendLightningCmdError::AccountAmbiguous => ("account-ambiguous", 1),
+            SendLightningCmdError::InvalidAccountId(_) => ("invalid-account-id", 1),
+            SendLightningCmdError::InvalidQuoteId(_) => ("invalid-quote-id", 1),
+            SendLightningCmdError::Quote(inner) => (classify_melt_quote(inner), 1),
+            SendLightningCmdError::Storage(inner) => (classify_storage(inner), 1),
+            SendLightningCmdError::Auth(inner) => classify_auth(inner),
+        };
+    }
     if let Some(snd_err) = e.downcast_ref::<SendCmdError>() {
         return match snd_err {
             SendCmdError::NotLoggedIn => ("not-logged-in", 3),
@@ -150,6 +164,33 @@ fn classify_send(e: &SendSwapError) -> &'static str {
         SendSwapError::AmountTooSmall => "amount-too-small",
         SendSwapError::CurrencyMismatch { .. } => "currency-mismatch",
         SendSwapError::TokenEncode(_) => "token-encode-error",
+    }
+}
+
+fn classify_melt_quote(e: &MeltQuoteError) -> &'static str {
+    match e {
+        MeltQuoteError::InvalidTransition { .. } => "invalid-state",
+        MeltQuoteError::Storage(inner) => match inner {
+            MeltQuoteStorageError::Concurrency(_) => "concurrency-error",
+            MeltQuoteStorageError::NotFound => "not-found",
+            MeltQuoteStorageError::InvalidState(_) => "invalid-state",
+            MeltQuoteStorageError::Backend(_) => "storage-backend-error",
+            MeltQuoteStorageError::Encryption(_) => "encryption-error",
+        },
+        MeltQuoteError::Mint(inner) => match inner {
+            CashuProviderError::InvalidUrl(_) => "invalid-mint-url",
+            CashuProviderError::Network(_) => "mint-unreachable",
+            CashuProviderError::Protocol(_) => "mint-error",
+        },
+        MeltQuoteError::InvalidInvoice(_) => "invalid-invoice",
+        MeltQuoteError::AmountlessInvoice => "amountless-invoice-unsupported",
+        MeltQuoteError::AmountTooSmall => "amount-too-small",
+        MeltQuoteError::CurrencyMismatch { .. } => "currency-mismatch",
+        MeltQuoteError::InsufficientBalance { .. } => "insufficient-balance",
+        MeltQuoteError::QuoteExpired => "quote-expired",
+        MeltQuoteError::QuoteNotPending => "quote-not-pending",
+        MeltQuoteError::MeltFailed(_) => "melt-failed",
+        MeltQuoteError::Unrecoverable(_) => "mint-unrecoverable",
     }
 }
 
@@ -330,27 +371,73 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
             }
         },
-        Some(Command::Send {
-            amount,
-            account,
-            token_version,
-            dry_run,
-        }) => {
-            let storage_deps = build_storage_deps(&auth_deps)?;
-            let cashu_deps = build_cashu_deps();
-            let send_deps = build_send_swap_deps(&storage_deps, &cashu_deps);
-            send::cmd_send(
-                &auth_deps,
-                &storage_deps,
-                &cashu_deps,
-                &send_deps,
+        Some(Command::Send(s)) => match s.cmd {
+            SendCommand::Token {
                 amount,
                 account,
                 token_version,
                 dry_run,
-            )
-            .await?;
-        }
+            } => {
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                let cashu_deps = build_cashu_deps();
+                let send_deps = build_send_swap_deps(&storage_deps, &cashu_deps);
+                send::cmd_send(
+                    &auth_deps,
+                    &storage_deps,
+                    &cashu_deps,
+                    &send_deps,
+                    amount,
+                    account,
+                    token_version,
+                    dry_run,
+                )
+                .await?;
+            }
+            SendCommand::Lightning {
+                invoice,
+                account,
+                dry_run,
+                no_wait,
+                poll_ms,
+                timeout_s,
+            } => {
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                let cashu_deps = build_cashu_deps();
+                let send_deps = build_send_swap_deps(&storage_deps, &cashu_deps);
+                let melt_deps = build_melt_quote_deps(&storage_deps, &cashu_deps);
+                send_lightning::cmd_send_lightning(
+                    &auth_deps,
+                    &storage_deps,
+                    &send_deps,
+                    &melt_deps,
+                    invoice,
+                    account,
+                    dry_run,
+                    no_wait,
+                    poll_ms,
+                    timeout_s,
+                )
+                .await?;
+            }
+            SendCommand::LightningComplete {
+                quote_id,
+                poll_ms,
+                timeout_s,
+            } => {
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                let cashu_deps = build_cashu_deps();
+                let melt_deps = build_melt_quote_deps(&storage_deps, &cashu_deps);
+                send_lightning::cmd_send_lightning_complete(
+                    &auth_deps,
+                    &storage_deps,
+                    &melt_deps,
+                    quote_id,
+                    poll_ms,
+                    timeout_s,
+                )
+                .await?;
+            }
+        },
         None => {}
     }
     Ok(())
