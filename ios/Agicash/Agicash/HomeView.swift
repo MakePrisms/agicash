@@ -3,21 +3,26 @@ import SwiftUI
 
 /// Home / accounts overview. Mirrors `app/routes/_protected._index.tsx`:
 /// a centered balance at the top (no label, no "Total Balance" header on
-/// web) and the receive/buy/send action grid the web ships.
+/// web) and the receive/send action stack.
 ///
 /// Web does NOT render an accounts list on home — accounts live under
-/// `/settings/accounts`. The previous iOS pass added an `AccountListSection`
-/// here; it has been removed for parity. Payment flows are out of scope for
-/// v0 so the Receive / Buy / Send CTAs render with the web's exact visual
-/// treatment but tap to nothing.
+/// `/settings/accounts`. Payment flows mostly live in dedicated lanes;
+/// Receive opens `ReceiveCarouselView` (cashu paste / Lightning / Buy
+/// tabs), Send is still stubbed.
+///
+/// Buy used to be a standalone secondary button next to Receive; the
+/// 2026-05-15 receive-UX redesign folded it into the Receive carousel
+/// as a third tab so the Home grid simplifies to Receive + Send.
+/// See `docs/superpowers/specs/2026-05-15-ios-receive-ux-redesign.md`.
 struct HomeView: View {
     @Bindable var model: WalletViewModel
 
-    /// Drives presentation of `ReceiveView` as a sheet. The web routes
-    /// to `/receive` which is a separate page; on iOS a `.sheet` is the
-    /// closer-to-native equivalent and avoids rebuilding the nav stack.
-    /// Stays at this level (not on the action grid) so the sheet's
-    /// dismissal cleanly returns control to the home scroll view.
+    /// Drives presentation of `ReceiveCarouselView` as a sheet. The web
+    /// routes to `/receive` which is a separate page; on iOS a `.sheet`
+    /// is the closer-to-native equivalent and avoids rebuilding the
+    /// nav stack. Stays at this level (not on the action grid) so the
+    /// sheet's dismissal cleanly returns control to the home scroll
+    /// view.
     @State private var showReceive: Bool = false
 
     var body: some View {
@@ -41,7 +46,10 @@ struct HomeView: View {
             .refreshable { await model.refreshAccounts() }
             .task { await model.refreshAccounts() }
             .sheet(isPresented: $showReceive) {
-                ReceiveView(model: model, onDismiss: { showReceive = false })
+                ReceiveCarouselView(
+                    model: model,
+                    onDismiss: { showReceive = false }
+                )
             }
         }
     }
@@ -170,31 +178,26 @@ private struct BalanceHero: View {
     }
 }
 
-/// The Receive / Buy / Send button trio from the web home
-/// (`_protected._index.tsx`): two secondary buttons side by side on top, a
-/// full-width primary Send button below, all in a 288pt (`w-72`) column.
+/// Receive / Send button stack. Buy used to live next to Receive as a
+/// peer secondary button; the 2026-05-15 receive-UX redesign folded
+/// it into the Receive carousel as a third tab so the Home surface
+/// stays focused on the two primary intents (someone-pay-me /
+/// I-pay-someone). See
+/// `docs/superpowers/specs/2026-05-15-ios-receive-ux-redesign.md`.
 ///
-/// Receive is wired in this lane (paste a Cashu token and claim it).
-/// Buy / Send / Lightning remain stubs — see the slice-8 worker for
-/// Lightning send and a follow-up lane for Buy.
+/// Receive opens `ReceiveCarouselView`. Send remains a stub — separate
+/// lane (slice 8 / Lightning send).
 private struct HomeActionGrid: View {
     let onReceive: () -> Void
 
     var body: some View {
         VStack(spacing: Spacing.l) {
-            HStack(spacing: Spacing.l) {
-                BrandButton(
-                    "Receive",
-                    variant: .secondary,
-                    size: .large,
-                    action: onReceive
-                )
-                BrandButton(
-                    "Buy",
-                    variant: .secondary,
-                    size: .large
-                ) { /* payment flows out of scope in v0 */ }
-            }
+            BrandButton(
+                "Receive",
+                variant: .secondary,
+                size: .large,
+                action: onReceive
+            )
             BrandButton(
                 "Send",
                 variant: .primary,

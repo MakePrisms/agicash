@@ -15,6 +15,7 @@
 pub mod account;
 pub mod error;
 pub mod mint;
+pub mod mint_quote;
 pub mod receive;
 pub mod receive_flow;
 pub mod session;
@@ -23,6 +24,7 @@ pub mod wallet;
 pub use account::*;
 pub use error::*;
 pub use mint::*;
+pub use mint_quote::*;
 pub use receive::*;
 pub use receive_flow::*;
 pub use session::*;

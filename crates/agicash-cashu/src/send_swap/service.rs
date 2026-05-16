@@ -32,9 +32,9 @@ use cdk::nuts::{
 // returned by `wallet.connector()`. The compiler reports it unused because
 // the dyn-Arc auto-derefs to its trait methods, but removing it breaks
 // compilation under stricter trait-resolution settings.
-use cdk::Amount;
 #[allow(unused_imports)]
 use cdk::wallet::MintConnector;
+use cdk::Amount;
 // Re-export needed for tests; otherwise unused
 #[cfg(test)]
 use crate::send_swap::storage::SendSwapStorageError;
