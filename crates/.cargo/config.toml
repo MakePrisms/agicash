@@ -1,0 +1,20 @@
+# Shared cross-worktree build cache.
+#
+# Why:
+#   Every agicash worktree (~/agicash/.claude/worktrees/*) used to keep its
+#   own `crates/target/` directory. Cross-compiling agicash-ffi for iOS
+#   (aarch64-apple-ios-sim + aarch64-apple-ios) or Android (3 ABIs) from
+#   a "cold" worktree took 5-15 minutes even when only a handful of files
+#   had actually changed since the last build elsewhere.
+#
+#   Pointing every workspace at the same target dir lets cargo's incremental
+#   compilation cache + fingerprints survive worktree boundaries. sccache
+#   layers a content-addressed object cache on top, so even a `cargo clean`
+#   in one worktree (or a `target/` blown away) doesn't re-bottom the next
+#   build.
+#
+# See: crates/.cargo/CACHE_README.md for the full operator guide.
+
+[build]
+target-dir       = "/Users/claude/.cache/agicash-cargo-target"
+rustc-wrapper    = "/opt/homebrew/bin/sccache"
