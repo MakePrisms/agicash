@@ -263,15 +263,14 @@ impl OpenSecretSeedProvider {
 #[async_trait::async_trait]
 impl CashuSeedProvider for OpenSecretSeedProvider {
     async fn get_cashu_seed(&self) -> Result<[u8; 64], ReceiveFlowError> {
-        self.client.get_cashu_seed().await.map_err(|e| {
-            // The seed call returns an AuthError; we don't have a clean
-            // variant on ReceiveFlowError for auth failures, so surface as
-            // a Storage-style internal error. The orchestrator transitions
-            // to Failed with code=swap-failed; UI shows the message.
-            ReceiveFlowError::Storage(agicash_traits::StorageError::Internal(format!(
-                "fetch cashu seed: {e}"
-            )))
-        })
+        // The seed call returns an AuthError. Map to the dedicated
+        // `ReceiveFlowError::Auth` variant so the orchestrator surfaces
+        // `code::AUTH` (not `code::UNKNOWN`) on the Failed state — the UI
+        // can then prompt for re-authentication instead of a generic error.
+        self.client
+            .get_cashu_seed()
+            .await
+            .map_err(|e| ReceiveFlowError::Auth(format!("fetch cashu seed: {e}")))
     }
 }
 
@@ -285,6 +284,10 @@ fn receive_flow_error_to_ffi(e: ReceiveFlowError) -> FfiError {
             FfiError::internal(format!("invalid event {event} in state {state}"))
         }
         ReceiveFlowError::Storage(s) => FfiError::from(s),
+        ReceiveFlowError::Auth(message) => FfiError::Auth {
+            code: auth_code::UNAUTHENTICATED,
+            message,
+        },
         other => {
             // Belt and suspenders — the orchestrator translates these to a
             // Failed state, but if one slips through (e.g. async cancel
@@ -407,4 +410,16 @@ mod tests {
         assert!(matches!(ffi, FfiError::Internal { .. }));
     }
 
+    #[test]
+    fn auth_error_maps_to_ffi_auth_unauthenticated() {
+        let e = ReceiveFlowError::Auth("session expired".into());
+        let ffi = receive_flow_error_to_ffi(e);
+        match ffi {
+            FfiError::Auth { code, message } => {
+                assert_eq!(code, auth_code::UNAUTHENTICATED);
+                assert!(message.contains("session expired"));
+            }
+            other => panic!("expected Auth, got {other:?}"),
+        }
+    }
 }

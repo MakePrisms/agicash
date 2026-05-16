@@ -18,6 +18,11 @@ pub mod code {
     pub const SWAP_FAILED: &str = "swap-failed";
     pub const ALREADY_CLAIMED: &str = "already-claimed";
     pub const CANCELLED: &str = "cancelled";
+    /// Authentication / session failure (e.g. the seed-provider's
+    /// `OpenSecret` call returns `Unauthenticated` or `Backend`). Distinct
+    /// from `UNKNOWN` so the UI can prompt the user to re-authenticate
+    /// instead of showing a generic error.
+    pub const AUTH: &str = "auth";
     pub const UNKNOWN: &str = "unknown";
 }
 
@@ -46,6 +51,13 @@ pub enum ReceiveFlowError {
     /// Generic storage failure (e.g. `list_accounts`).
     #[error("storage error: {0}")]
     Storage(#[from] StorageError),
+
+    /// Auth / session failure (e.g. seed-provider couldn't reach
+    /// `OpenSecret`, session expired, backend rejected the token). The
+    /// message is suitable for display to a developer; the UI should
+    /// surface a friendly "please sign in again" prompt.
+    #[error("auth error: {0}")]
+    Auth(String),
 }
 
 impl ReceiveFlowError {
@@ -60,6 +72,7 @@ impl ReceiveFlowError {
                 crate::receive_swap::ReceiveSwapStorageError::AlreadyClaimed,
             )) => code::ALREADY_CLAIMED,
             Self::Swap(_) => code::SWAP_FAILED,
+            Self::Auth(_) => code::AUTH,
             Self::InvalidEvent { .. } | Self::Storage(_) => code::UNKNOWN,
         }
     }
@@ -90,6 +103,12 @@ mod tests {
             crate::receive_swap::ReceiveSwapStorageError::AlreadyClaimed,
         ));
         assert_eq!(e.code(), code::ALREADY_CLAIMED);
+    }
+
+    #[test]
+    fn auth_error_code_is_auth() {
+        let e = ReceiveFlowError::Auth("session expired".into());
+        assert_eq!(e.code(), code::AUTH);
     }
 
     #[test]
