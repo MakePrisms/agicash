@@ -29,6 +29,13 @@ mod gated {
 
     /// `auth guest` -> `mint add testnut` -> mint a test token -> `receive`
     /// -> assert success and balance > 0.
+    ///
+    /// Verifies the receive moves the wallet's persisted balance — the
+    /// receive command's own JSON return value would otherwise hide a
+    /// downstream surface (FFI / CLI `balance` / iOS Home) that ignores
+    /// the freshly-minted proofs. Asserting `agicash balance` for the
+    /// receiving account closes that gap: before the fix in this lane it
+    /// returned `"0"` regardless of UNSPENT proof count.
     #[test]
     #[allow(clippy::too_many_lines)]
     fn receive_token_increments_balance() {
@@ -40,6 +47,11 @@ mod gated {
         let (token, expected_amount) = mint_test_token_blocking(64);
 
         session.spawn_guest_with_test_mint();
+
+        // Capture the receiving account's starting balance so the final
+        // assertion can tolerate any pre-existing UNSPENT proofs (none for
+        // a fresh guest today, but the helper is shared with other tests).
+        let pre_balance = read_balance_for_currency(&session, "BTC");
 
         let receive = session
             .cmd()
@@ -62,10 +74,15 @@ mod gated {
             .get("amount")
             .and_then(|v| v.as_str())
             .expect("amount field");
-        assert_eq!(
-            amount_str,
-            &expected_amount.to_string(),
-            "expected amount {expected_amount}, got {amount_str}"
+        // testnut's keysets charge a per-input fee_ppk on receive (commonly
+        // 1 sat for a 64-sat token), so the credited amount is
+        // `expected_amount - fee`. Assert the lower bound rather than
+        // strict equality so the test tolerates the live mint's fee
+        // schedule.
+        let received_amount: u64 = amount_str.parse().expect("amount parses as u64");
+        assert!(
+            received_amount > 0 && received_amount <= expected_amount,
+            "expected credited amount in (0, {expected_amount}], got {received_amount}"
         );
         let token_hash = receive_json
             .get("token_hash")
@@ -73,6 +90,20 @@ mod gated {
             .expect("token_hash field")
             .to_string();
         assert!(!token_hash.is_empty());
+
+        // `agicash balance` must reflect the freshly-received proofs.
+        // The receive's own `amount` field is the authoritative delta —
+        // it already accounts for any mint receive-side fee — so the
+        // balance change must equal it exactly. Pre-fix, this assertion
+        // would hit the Phase 1 stub that returned `"0"` regardless of
+        // UNSPENT proof count and fail loudly.
+        let post_balance = read_balance_for_currency(&session, "BTC");
+        let delta = post_balance - pre_balance;
+        assert_eq!(
+            delta, received_amount,
+            "balance delta {delta} != receive amount {received_amount} \
+             (pre={pre_balance}, post={post_balance})",
+        );
 
         // Second receive should be already-claimed (DB unique constraint).
         let second = session
@@ -96,6 +127,68 @@ mod gated {
             Some(token_hash.as_str()),
             "token_hash should match between the two receives"
         );
+
+        // Replay must not double-credit — the second receive should
+        // leave the balance untouched.
+        let final_balance = read_balance_for_currency(&session, "BTC");
+        assert_eq!(
+            final_balance, post_balance,
+            "already-claimed receive must not change the balance \
+             (post={post_balance}, final={final_balance})",
+        );
+    }
+
+    /// Run `agicash balance`, sum every entry whose `currency` matches
+    /// the supplied code, and return the total in smallest units
+    /// (sat/cent). Summing rather than picking the first row lets the
+    /// helper cope with the post-`mint add` shape that ships TWO BTC
+    /// accounts for a fresh guest (a Cashu BTC and the placeholder Spark
+    /// BTC `Lightning` row). Spark always reports 0 today, so the sum is
+    /// effectively the Cashu account's balance until slice 9 wires real
+    /// Spark proofs.
+    ///
+    /// Panics with a descriptive message when the JSON shape is wrong or
+    /// the requested currency isn't present, so a regression in the
+    /// `balance` output contract surfaces at the assertion site.
+    fn read_balance_for_currency(session: &TestSession, currency: &str) -> u64 {
+        let out = session
+            .cmd()
+            .arg("balance")
+            .output()
+            .expect("spawn agicash balance");
+        assert!(
+            out.status.success(),
+            "balance failed: stdout={}, stderr={}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr),
+        );
+        let body = parse_json("balance", &out);
+        let entries = body
+            .as_array()
+            .expect("balance: expected JSON array of entries");
+        let mut total: u64 = 0;
+        let mut matched = false;
+        for entry in entries {
+            if entry.get("currency").and_then(|v| v.as_str()) != Some(currency) {
+                continue;
+            }
+            matched = true;
+            let bal = entry
+                .get("balance")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or_else(|| {
+                    panic!("balance: entry missing numeric `balance` field; entry={entry}");
+                });
+            total = total
+                .checked_add(bal)
+                .expect("balance: sum overflow (should be impossible at MVP scale)");
+        }
+        assert!(
+            matched,
+            "balance: no entry for currency {currency}; body={body}",
+        );
+        total
     }
 
     /// Attempt to receive a token whose mint we haven't added; expect a

@@ -22,12 +22,13 @@ use agicash_auth_opensecret::{
 };
 use agicash_cashu::{
     CashuReceiveSwapService, CashuReceiveSwapState, CashuReceiveSwapStorage, CashuSeedProvider,
-    CdkCashuProvider, CompleteOutcome, ParsedToken, ReceiveFlowService, ReceiveSwapError,
-    ReceiveSwapStorageError,
+    CashuSendSwapStorage, CdkCashuProvider, CompleteOutcome, ParsedToken, ReceiveFlowService,
+    ReceiveSwapError, ReceiveSwapStorageError,
 };
 use agicash_domain::{Account, AccountPurpose, AccountType, Currency, UserId};
 use agicash_storage_supabase::{
-    SupabaseCashuReceiveSwapStorage, SupabaseStorage, SupabaseStorageConfig,
+    SupabaseCashuReceiveSwapStorage, SupabaseCashuSendSwapStorage, SupabaseStorage,
+    SupabaseStorageConfig,
 };
 use agicash_traits::{
     AccountInput, CashuProvider, CashuProviderError, PassthroughProofEncryption, PersistedSession,
@@ -53,6 +54,13 @@ pub struct AgicashWallet {
     /// Once the encryption seam ships, this slot swaps to a real impl
     /// without the FFI surface changing.
     receive_swap_service: Arc<CashuReceiveSwapService>,
+    /// Send-swap storage handle, reused here purely to call
+    /// `list_unspent_proofs` from `list_accounts` so the per-account
+    /// balance can be computed. Naming is awkward (the trait shape was
+    /// designed around the send flow); a follow-up refactor lane should
+    /// lift `list_unspent_proofs` to a balance-focused trait. Until then
+    /// this is the only call-site here.
+    send_swap_storage: Arc<dyn CashuSendSwapStorage>,
     /// In-memory session. Phase 1 leaves persistence to the Swift consumer:
     /// the iOS app stores the `refresh_token` in Keychain and rehydrates this
     /// slot via `set_session` on app launch.
@@ -130,18 +138,26 @@ impl AgicashWallet {
         let cashu_provider: Arc<dyn CashuProvider> = Arc::new(CdkCashuProvider::new());
         let encryption: Arc<dyn ProofEncryption> = Arc::new(PassthroughProofEncryption);
         let receive_storage: Arc<dyn CashuReceiveSwapStorage> = Arc::new(
-            SupabaseCashuReceiveSwapStorage::new(Arc::clone(&storage), encryption),
+            SupabaseCashuReceiveSwapStorage::new(Arc::clone(&storage), Arc::clone(&encryption)),
         );
         let receive_swap_service = Arc::new(CashuReceiveSwapService::new(
             receive_storage,
             Arc::clone(&cashu_provider),
         ));
+        // Reuse the same passthrough encryption seam so per-account
+        // balance reads can decrypt the proofs the receive-swap service
+        // wrote. Slice 5+ swaps the encryption arc without touching this
+        // wiring.
+        let send_swap_storage: Arc<dyn CashuSendSwapStorage> = Arc::new(
+            SupabaseCashuSendSwapStorage::new(Arc::clone(&storage), encryption),
+        );
 
         Ok(Arc::new(Self {
             client,
             storage,
             cashu_provider,
             receive_swap_service,
+            send_swap_storage,
             session: Arc::new(RwLock::new(None)),
         }))
     }
@@ -273,9 +289,15 @@ impl AgicashWallet {
     // ---- account surface ----
 
     /// List Supabase `wallet.accounts` rows for the currently-logged-in
-    /// user. Phase 1 maps each row through `AccountFfi::from(Account)` which
-    /// hard-codes `balance: "0"` and `unit: ""` — actual balance wiring
-    /// arrives in Phase 2 once the proofs layer is exposed.
+    /// user. For each Cashu account, sums the account's UNSPENT proofs
+    /// (decrypted via the storage layer's `list_unspent_proofs`) and
+    /// returns the total as `balance` in the account's smallest unit
+    /// (`sat` for BTC, `cent` for USD/USDB). Spark accounts always return
+    /// balance `"0"` until slice 9 wires their proof storage.
+    ///
+    /// Per-account decryption walks the rows one-by-one; this is fine at
+    /// MVP scale but could grow to N+1 latency once users hold many
+    /// proofs. A grouped query is the natural follow-up.
     pub async fn list_accounts(&self) -> Result<Vec<AccountFfi>, FfiError> {
         let session = self.session.read().await.clone().ok_or(FfiError::Auth {
             code: crate::error::auth_code::UNAUTHENTICATED,
@@ -283,7 +305,13 @@ impl AgicashWallet {
         })?;
         let user_id = UserId::from(session.user_id);
         let accounts = self.storage.list_accounts(user_id).await?;
-        Ok(accounts.into_iter().map(AccountFfi::from).collect())
+
+        let mut out = Vec::with_capacity(accounts.len());
+        for account in accounts {
+            let balance = compute_cashu_balance(self.send_swap_storage.as_ref(), &account).await?;
+            out.push(AccountFfi::from_account_with_balance(account, balance));
+        }
+        Ok(out)
     }
 
     // ---- mint surface ----
@@ -429,11 +457,9 @@ impl AgicashWallet {
                         .and_then(|v| v.as_str())
                         .is_some_and(|s| mint_urls_equal(s, &mint_url_string))
             })
-            .ok_or_else(|| {
-                FfiError::Storage {
-                    code: crate::error::storage_code::INTERNAL,
-                    message: "upsert returned no account matching the new mint URL".into(),
-                }
+            .ok_or_else(|| FfiError::Storage {
+                code: crate::error::storage_code::INTERNAL,
+                message: "upsert returned no account matching the new mint URL".into(),
             })?;
 
         Ok(MintAddResult {
@@ -586,6 +612,31 @@ fn unit_matches_currency(unit: &cdk::nuts::CurrencyUnit, currency: Currency) -> 
     )
 }
 
+/// Sum the UNSPENT proofs for a single account.
+///
+/// Cashu accounts route through `CashuSendSwapStorage::list_unspent_proofs`
+/// which internally decrypts each proof's encrypted amount. Spark accounts
+/// always return 0 — slice 9 will wire their proof storage and replace this
+/// branch. Storage failures are funneled through `FfiError::Internal`
+/// (matching the `receive_swap_error_to_ffi` shape) since
+/// `SendSwapStorageError` doesn't fit the structured Auth/Storage variants
+/// cleanly.
+async fn compute_cashu_balance(
+    storage: &dyn CashuSendSwapStorage,
+    account: &Account,
+) -> Result<u64, FfiError> {
+    match account.account_type {
+        AccountType::Cashu => {
+            let proofs = storage
+                .list_unspent_proofs(account.id)
+                .await
+                .map_err(|e| FfiError::internal(format!("list unspent proofs: {e}")))?;
+            Ok(proofs.iter().map(|p| p.proof.amount).sum())
+        }
+        AccountType::Spark => Ok(0),
+    }
+}
+
 /// Map the rich `ReceiveSwapError` family down to `FfiError`. The trait
 /// crate already has `From<AuthError>` / `From<StorageError>` impls for
 /// FFI; the cashu-specific cases (token parse, mint-mismatch,
@@ -623,10 +674,10 @@ fn receive_swap_error_to_ffi(e: ReceiveSwapError) -> FfiError {
 /// render an inline form-level error.
 fn cashu_provider_error_to_ffi(e: CashuProviderError) -> FfiError {
     match e {
-        CashuProviderError::InvalidUrl(msg) => FfiError::internal(format!("invalid mint URL: {msg}")),
-        CashuProviderError::Network(msg) => {
-            FfiError::internal(format!("mint unreachable: {msg}"))
+        CashuProviderError::InvalidUrl(msg) => {
+            FfiError::internal(format!("invalid mint URL: {msg}"))
         }
+        CashuProviderError::Network(msg) => FfiError::internal(format!("mint unreachable: {msg}")),
         CashuProviderError::Protocol(msg) => FfiError::internal(format!("mint error: {msg}")),
     }
 }

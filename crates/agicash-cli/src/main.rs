@@ -309,8 +309,10 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
         },
         Some(Command::Balance { account: _ }) => {
             let storage_deps = build_storage_deps(&auth_deps)?;
+            let cashu_deps = build_cashu_deps();
+            let send_deps = build_send_swap_deps(&storage_deps, &cashu_deps);
             let rate_deps = build_exchange_rate_deps();
-            mint::cmd_balance(&auth_deps, &storage_deps, &rate_deps).await?;
+            mint::cmd_balance(&auth_deps, &storage_deps, &send_deps, &rate_deps).await?;
         }
         Some(Command::Receive(r)) => match r.cmd {
             ReceiveCommand::Token { token } => {

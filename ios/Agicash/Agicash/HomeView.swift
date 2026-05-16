@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Home / accounts overview. Mirrors `app/routes/_protected._index.tsx`:
@@ -49,6 +50,16 @@ struct HomeView: View {
 /// Centered balance display modeled on `MoneyWithConvertedAmount` on the
 /// web home: large numeric on top, smaller converted amount below in muted
 /// gray. Numeric uses `Font.brandNumericHero` (Teko Bold).
+///
+/// Web aggregates by currency via `useBalance('BTC') / useBalance('USD')`
+/// in `app/routes/_protected._index.tsx` and renders the user's default
+/// currency. Phase 1 iOS has no user-prefs surface yet, so the primary
+/// currency is inferred from the accounts list (USD wins when both are
+/// present, mirroring the historical default) and only that currency's
+/// per-account balances are summed. The secondary line shows the other
+/// currency's per-unit total without FX conversion (Phase 1 has no rates
+/// wired client-side), which matches the web's "≈" placeholder when rate
+/// data is unavailable.
 private struct BalanceHero: View {
     let accounts: [AccountFfi]
 
@@ -60,7 +71,7 @@ private struct BalanceHero: View {
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.brandForeground)
                     .baselineOffset(8)
-                Text("0")
+                Text(primaryAmountText)
                     .font(.brandNumericHero)
                     .foregroundStyle(Color.brandForeground)
                     .monospacedDigit()
@@ -81,11 +92,81 @@ private struct BalanceHero: View {
         return "$"
     }
 
-    /// Mimics the web's converted-amount line (e.g. "≈ 0 sats").
+    /// The currency we're summing for the primary line. Matches
+    /// `primarySymbol` so the prefix and numeric agree.
+    private var primaryCurrency: String {
+        let currencies = Set(accounts.map(\.currency))
+        if currencies.contains("USD") { return "USD" }
+        if currencies.contains("BTC") { return "BTC" }
+        return "USD"
+    }
+
+    /// Sum of `balance` (in smallest units) for accounts matching
+    /// `primaryCurrency`. The FFI emits balances as decimal strings of the
+    /// minor unit (`sat` for BTC, `cent` for USD/USDB); we display the raw
+    /// minor-unit total so we never lose precision in the parse round-trip.
+    /// Major-unit formatting (BTC, dollars) lands when the iOS app grows a
+    /// currency formatter pass.
+    private var primaryAmountText: String {
+        let total = totalForCurrency(primaryCurrency)
+        return formatDecimal(total)
+    }
+
+    /// Mimics the web's converted-amount line. When the user holds BOTH
+    /// BTC and USD accounts, this line surfaces the other currency's
+    /// per-unit total (e.g. "≈ 64 sats" while primary is USD). With only
+    /// one currency present, it falls back to a sats placeholder — Phase 2
+    /// will replace this with a real FX-converted figure once rates are
+    /// wired client-side.
     private var secondaryLine: String {
         let currencies = Set(accounts.map(\.currency))
-        if currencies.contains("BTC") { return "≈ 0 sats" }
+        let secondaryCurrency: String? = {
+            if primaryCurrency == "USD" && currencies.contains("BTC") { return "BTC" }
+            if primaryCurrency == "BTC" && currencies.contains("USD") { return "USD" }
+            return nil
+        }()
+        if let secondary = secondaryCurrency {
+            let total = totalForCurrency(secondary)
+            let unit = unitLabel(for: secondary, total: total)
+            return "≈ \(formatDecimal(total)) \(unit)"
+        }
+        // Single-currency wallet — show the symmetrical placeholder so the
+        // hero doesn't collapse to a single line.
         return "≈ 0 sats"
+    }
+
+    /// Walk the accounts list, summing balances for the matching currency.
+    /// Decimal parsing tolerates the FFI's string shape (`"0"`, `"64"`)
+    /// and silently skips non-numeric entries so a malformed row from a
+    /// future FFI surface can't crash the hero.
+    private func totalForCurrency(_ currency: String) -> Decimal {
+        accounts
+            .filter { $0.currency == currency }
+            .reduce(Decimal.zero) { acc, account in
+                acc + (Decimal(string: account.balance) ?? .zero)
+            }
+    }
+
+    /// `sat` / `cent` / etc. label, pluralised the same way the web treats
+    /// the converted-amount string. `cent`/`cents` and `sat`/`sats` match
+    /// the FFI's `AccountFfi.unit` for these currencies.
+    private func unitLabel(for currency: String, total: Decimal) -> String {
+        switch currency {
+        case "BTC": return total == 1 ? "sat" : "sats"
+        case "USD", "USDB": return total == 1 ? "cent" : "cents"
+        default: return ""
+        }
+    }
+
+    private func formatDecimal(_ value: Decimal) -> String {
+        // Default decimal description renders integer values without a
+        // trailing decimal point; minor units are always integers so this
+        // is fine. Localisation pass lands with the rest of the
+        // currency-formatter work.
+        var copy = value
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &copy, 0, .plain)
+        return NSDecimalNumber(decimal: rounded).stringValue
     }
 }
 
