@@ -84,7 +84,10 @@ export default function ScanPage() {
       <PageContent className="relative z-10 mx-auto items-center pt-20 sm:justify-center sm:gap-32 sm:py-0">
         <QRScanner onDecode={handleInput} />
         <div
-          className={cn('mt-auto flex w-72 flex-col gap-4', isPwa && 'pb-20')}
+          className={cn(
+            'mt-auto flex w-72 flex-col items-center gap-4',
+            isPwa && 'pb-20',
+          )}
         >
           <Button type="button" onClick={handlePaste}>
             <Clipboard className="h-5 w-5" /> Paste
