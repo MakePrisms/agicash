@@ -1,5 +1,7 @@
 use crate::composition::AuthDeps;
-use agicash_auth_opensecret::{auth_error_from_opensecret, login_email, logout, register_guest};
+use agicash_auth_opensecret::{
+    auth_error_from_opensecret, login_email, logout, register_email, register_guest,
+};
 use agicash_traits::{AuthError, PersistedSession, SessionStorage};
 use serde::Serialize;
 
@@ -56,6 +58,43 @@ pub async fn cmd_login(deps: &AuthDeps, email: String) -> Result<(), AuthError> 
     let password = rpassword::prompt_password("Password: ")
         .map_err(|e| AuthError::Internal(format!("read password: {e}")))?;
     let resp = login_email(&deps.client, email, password, deps.client.client_id()).await?;
+    let session = PersistedSession {
+        user_id: resp.id,
+        refresh_token: resp.refresh_token.clone(),
+    };
+    deps.storage.store(&session).await?;
+    print_json(&SignedIn {
+        status: "signed-in",
+        user_id: resp.id.to_string(),
+        guest: false,
+    });
+    Ok(())
+}
+
+pub async fn cmd_signup(deps: &AuthDeps, email: String) -> Result<(), AuthError> {
+    // Prompt twice to match the web `confirm-password` field. We keep the
+    // confirmation enforcement here so a typo doesn't silently create an
+    // account whose password the operator can't reproduce.
+    let password = rpassword::prompt_password("Password: ")
+        .map_err(|e| AuthError::Internal(format!("read password: {e}")))?;
+    let confirm = rpassword::prompt_password("Confirm password: ")
+        .map_err(|e| AuthError::Internal(format!("read password: {e}")))?;
+    if password != confirm {
+        return Err(AuthError::Internal("passwords do not match".into()));
+    }
+    if password.len() < 8 {
+        return Err(AuthError::Internal(
+            "password must have at least 8 characters".into(),
+        ));
+    }
+    let resp = register_email(
+        &deps.client,
+        email,
+        password,
+        deps.client.client_id(),
+        None,
+    )
+    .await?;
     let session = PersistedSession {
         user_id: resp.id,
         refresh_token: resp.refresh_token.clone(),

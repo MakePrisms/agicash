@@ -16,6 +16,7 @@ members = [
     "agicash-testing",
     "agicash-cli",
     "agicash-wasm",
+    "agicash-ffi",
 ]
 
 [workspace.package]
@@ -51,6 +52,14 @@ cdk = { version = "0.15", default-features = false, features = ["wallet"] }
 # crates that need TLS enable `rustls-tls` themselves.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
+# Rustls + platform verifier — used by agicash-storage-supabase to construct a
+# reqwest client whose TLS chain validation goes through the platform-native
+# trust store (macOS / iOS Security.framework, Windows SChannel, Linux native
+# certs). This is the only way the iOS simulator picks up the mkcert root that
+# `xcrun simctl keychain booted add-root-cert` installs.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12"] }
+rustls-platform-verifier = "0.7"
+
 # Auth / secrets / keyring / env
 opensecret = "3.1.1"
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
@@ -78,6 +87,9 @@ js-sys = "0.3"
 # Dev / tests
 assert_cmd = "2.0"
 predicates = "3.1"
+
+# FFI
+uniffi = "0.30"
 
 [patch.crates-io]
 opensecret = { path = "/Users/claude/opensecret-sdk-fork/rust" }

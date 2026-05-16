@@ -22,6 +22,9 @@ cdk = { workspace = true }
 hex = { workspace = true }
 postgrest = { workspace = true }
 sha2 = "0.10"
+reqwest = { workspace = true }
+rustls = { workspace = true }
+rustls-platform-verifier = { workspace = true }
 rust_decimal = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
