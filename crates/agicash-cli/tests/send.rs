@@ -1,11 +1,11 @@
-//! End-to-end test for `agicash send <amount>` against the real testnut
+//! End-to-end test for `agicash send token <amount>` against the real testnut
 //! mint + the real Open Secret -> Supabase auth chain.
 //!
 //! The helper `mint_test_token_via_testnut` (in `common`) runs the NUT-04
 //! mint flow against testnut.cashu.space and produces a token string. The
-//! token is handed to `agicash receive` to fund the guest account; then
-//! `agicash send` produces a token a fresh guest can claim back via
-//! `agicash receive`.
+//! token is handed to `agicash receive token` to fund the guest account; then
+//! `agicash send token` produces a token a fresh guest can claim back via
+//! `agicash receive token`.
 //!
 //! Run:
 //!     cargo test -p agicash-cli \
@@ -56,7 +56,7 @@ mod gated {
 
         let send = sender
             .cmd()
-            .args(["send", "100"])
+            .args(["send", "token", "100"])
             .output()
             .expect("spawn agicash send");
         assert!(
@@ -125,7 +125,7 @@ mod gated {
 
         let send = session
             .cmd()
-            .args(["send", "100"])
+            .args(["send", "token", "100"])
             .output()
             .expect("spawn agicash send");
         assert!(
@@ -168,7 +168,7 @@ mod gated {
 
         let dry = session
             .cmd()
-            .args(["send", "100", "--dry-run"])
+            .args(["send", "token", "100", "--dry-run"])
             .output()
             .expect("spawn agicash send --dry-run");
         assert!(
@@ -188,7 +188,7 @@ mod gated {
         // Real send still works.
         let send = session
             .cmd()
-            .args(["send", "100"])
+            .args(["send", "token", "100"])
             .output()
             .expect("spawn agicash send");
         assert!(
