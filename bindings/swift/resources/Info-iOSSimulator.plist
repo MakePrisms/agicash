@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>AgicashSDKFFI</string>
+    <string>agicash_ffiFFI</string>
     <key>CFBundleExecutable</key>
-    <string>AgicashSDKFFI</string>
+    <string>agicash_ffiFFI</string>
     <key>CFBundleIdentifier</key>
     <string>com.makeprisms.agicash.ffi</string>
     <key>CFBundleVersion</key>
