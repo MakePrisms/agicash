@@ -1,29 +1,27 @@
 import SwiftUI
 
-/// Receive sheet — the iOS analogue of the web's
-/// `app/features/receive/receive-input.tsx` + `receive-cashu-token.tsx`
-/// pair, collapsed into a single screen because the iOS slice's only
-/// supported flow is "paste a raw cashu token, claim it." Lightning
-/// receive, on-chain, scan-QR, and account selection are out of scope
-/// for this lane (the home grid's Receive button is the only entry
-/// point).
+/// One page of the Receive carousel — paste a Cashu token and claim it.
 ///
-/// State machine:
-///   - `entry`     — paste field + Receive button + Cancel.
+/// Refactor of the original `ReceiveView`'s `ReceiveFormCard` +
+/// `ReceiveSuccessCard` extracted as a standalone view that lives
+/// inside `ReceiveCarouselView`. The NavigationStack + toolbar + sheet
+/// chrome are owned by the carousel host now.
+///
+/// State machine (unchanged from the original `ReceiveView`):
+///   - `entry`     — paste field + Receive button.
 ///   - `working`   — Receive button shows a spinner; field is locked.
 ///   - `success`   — replaces the form with a success card; auto-dismisses
-///                   after 2s OR the user can tap Done.
-///   - `error`     — inline destructive message under the field; user can
-///                   edit + retry without dismissing.
+///                   the WHOLE carousel after 2s OR the user can tap Done.
+///   - `error`     — inline destructive message under the field; user
+///                   can edit + retry without dismissing.
 ///
-/// Presented as a `.sheet` from `HomeView`. Uses the brand card chrome
-/// so it reads as a focused step rather than a full-page route — the web
-/// puts receive on its own route (`/receive`) but on iOS a modal sheet
-/// is the closer-to-native equivalent and avoids the nav-stack rebuild
-/// the existing `HomeView` would otherwise need.
-struct ReceiveView: View {
+/// The carousel-level dismiss callback is invoked when the user taps
+/// "Done" in the success card or when the auto-dismiss timer fires.
+/// The user can also swipe to another tab; we keep the local phase so
+/// the tab remembers its state on swipe-back.
+struct CashuTokenPasteView: View {
     @Bindable var model: WalletViewModel
-    let onDismiss: () -> Void
+    let onDismissCarousel: () -> Void
 
     enum Phase: Equatable {
         case entry
@@ -35,66 +33,48 @@ struct ReceiveView: View {
     @State private var token: String = ""
     @State private var phase: Phase = .entry
     @FocusState private var tokenFocused: Bool
-    /// Auto-dismiss timer task. Held so we can cancel it if the user taps
-    /// Done (or the view disappears) before the 2-second timeout fires.
+    /// Auto-dismiss timer task. Held so we can cancel it if the user
+    /// taps Done (or the view disappears) before the 2-second timeout
+    /// fires.
     @State private var autoDismissTask: Task<Void, Never>?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: Spacing.xxl) {
-                    Spacer(minLength: Spacing.l)
+        ScrollView {
+            VStack(spacing: Spacing.xxl) {
+                Spacer(minLength: Spacing.l)
 
-                    Image("AgicashLogo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(height: 40)
-                        .accessibilityHidden(true)
-
-                    Group {
-                        switch phase {
-                        case .entry, .working, .error:
-                            ReceiveFormCard(
-                                token: $token,
-                                tokenFocused: $tokenFocused,
-                                isWorking: phase == .working,
-                                errorMessage: errorMessageForCurrentPhase,
-                                onPaste: pasteFromClipboard,
-                                onReceive: { Task { await submit() } },
-                                onCancel: dismiss
-                            )
-                        case .success(let result):
-                            ReceiveSuccessCard(
-                                result: result,
-                                onDone: dismiss
-                            )
-                        }
+                Group {
+                    switch phase {
+                    case .entry, .working, .error:
+                        FormCard(
+                            token: $token,
+                            tokenFocused: $tokenFocused,
+                            isWorking: phase == .working,
+                            errorMessage: errorMessageForCurrentPhase,
+                            onPaste: pasteFromClipboard,
+                            onReceive: { Task { await submit() } }
+                        )
+                    case .success(let result):
+                        SuccessCard(
+                            result: result,
+                            onDone: dismissNow
+                        )
                     }
-                    .padding(.horizontal, Spacing.l)
+                }
+                .padding(.horizontal, Spacing.l)
 
-                    Spacer(minLength: Spacing.xxl)
-                }
-                .frame(maxWidth: .infinity)
+                Spacer(minLength: Spacing.xxl)
             }
-            .background(Color.brandBackground.ignoresSafeArea())
-            .navigationTitle("Receive")
-            .navigationBarTitleDisplayMode(.inline)
-            .scrollDismissesKeyboard(.interactively)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close", action: dismiss)
-                        .font(.brandLabel)
-                        .foregroundStyle(Color.brandForeground)
-                        .disabled(phase == .working)
-                }
-            }
+            .frame(maxWidth: .infinity)
         }
+        .scrollDismissesKeyboard(.interactively)
         .onDisappear { autoDismissTask?.cancel() }
     }
 
-    /// Surfaces the inline error string when (and only when) the current
-    /// phase is `.error`. Working/entry states render a clean form so the
-    /// previous failure doesn't bleed through after the user starts editing.
+    /// Surfaces the inline error string when (and only when) the
+    /// current phase is `.error`. Working/entry states render a clean
+    /// form so the previous failure doesn't bleed through after the
+    /// user starts editing.
     private var errorMessageForCurrentPhase: String? {
         if case .error(let message) = phase {
             return message
@@ -109,9 +89,6 @@ struct ReceiveView: View {
         if case .error = phase { phase = .entry }
     }
 
-    /// Run the receive call. Trims whitespace (cashu tokens routinely
-    /// arrive surrounded by newlines from messaging apps) and short-
-    /// circuits on empty input so the FFI never sees a blank string.
     private func submit() async {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -130,44 +107,36 @@ struct ReceiveView: View {
         }
     }
 
-    /// Auto-dismiss the sheet 2 seconds after a successful receive so the
-    /// user lands back on Home and sees the refreshed balance. Cancellable
-    /// — if the user taps Done first we don't want a delayed dismiss to
-    /// fire on top of whatever screen they navigated to next.
     private func scheduleAutoDismiss() {
         autoDismissTask?.cancel()
         autoDismissTask = Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             if !Task.isCancelled {
-                await MainActor.run { dismiss() }
+                await MainActor.run { dismissNow() }
             }
         }
     }
 
-    private func dismiss() {
+    private func dismissNow() {
         autoDismissTask?.cancel()
         tokenFocused = false
-        onDismiss()
+        onDismissCarousel()
     }
 }
 
-/// The paste + Receive form. Mirrors the visual structure of the web's
-/// `receive-input.tsx`: token displayed prominently, paste affordance
-/// inline, primary CTA at the bottom — but with a multi-line `TextEditor`
-/// in place of the numeric input since real cashu tokens are 200-1000+
-/// characters and don't fit a single-line field.
-private struct ReceiveFormCard: View {
+/// Paste-token form card. Mirrors the original `ReceiveFormCard` but
+/// without the surrounding `NavigationStack`/toolbar — the carousel
+/// supplies the close affordance via its own toolbar.
+private struct FormCard: View {
     @Binding var token: String
     var tokenFocused: FocusState<Bool>.Binding
     let isWorking: Bool
     let errorMessage: String?
     let onPaste: () -> Void
     let onReceive: () -> Void
-    let onCancel: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.l) {
-            // Card header — `space-y-1.5` on web.
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("Receive Cashu")
                     .font(.brandTitle)
@@ -178,7 +147,6 @@ private struct ReceiveFormCard: View {
             }
 
             VStack(spacing: Spacing.l) {
-                // Token field group.
                 VStack(alignment: .leading, spacing: Spacing.s) {
                     HStack {
                         Text("Token")
@@ -195,12 +163,6 @@ private struct ReceiveFormCard: View {
                         .disabled(isWorking)
                     }
 
-                    // Multi-line entry — cashu tokens are long base64-ish
-                    // strings (a typical V4 token is 400-1000 chars) so a
-                    // 4-line editor is a reasonable default. iOS 17+
-                    // `TextEditor` honors monospace via `.font` plus
-                    // `.scrollContentBackground(.hidden)` lets the brand
-                    // card-background show through.
                     TextEditor(text: $token)
                         .font(.brandBody)
                         .foregroundStyle(Color.brandForeground)
@@ -239,14 +201,6 @@ private struct ReceiveFormCard: View {
                     isDisabled: token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                     action: onReceive
                 )
-
-                BrandButton(
-                    "Cancel",
-                    variant: .ghost,
-                    isLoading: false,
-                    isDisabled: isWorking,
-                    action: onCancel
-                )
             }
         }
         .padding(Spacing.xxl)
@@ -255,12 +209,9 @@ private struct ReceiveFormCard: View {
     }
 }
 
-/// Success state shown after a token claims successfully. Mirrors the
-/// web's post-claim transaction page (`/transactions/:id`) but in-place:
-/// title + amount + mint URL + Done button. Distinct from
-/// "AlreadyClaimed" which we surface as a friendly note rather than a
-/// celebration (no proofs were minted twice — the wallet is unchanged).
-private struct ReceiveSuccessCard: View {
+/// Success state shown after a token claims successfully. Same shape as
+/// the original `ReceiveSuccessCard`.
+private struct SuccessCard: View {
     let result: ReceiveResult
     let onDone: () -> Void
 
@@ -304,10 +255,6 @@ private struct ReceiveSuccessCard: View {
         .frame(maxWidth: 384)
     }
 
-    /// Discriminate between the three success-ish statuses. AlreadyFailed
-    /// gets routed through the form's error path so it's not handled here;
-    /// Pending is treated like a soft success for UX purposes (the swap
-    /// lives in storage and will reconcile on the next launch).
     private var headline: String {
         switch result.status {
         case .received:       return "Token received"
