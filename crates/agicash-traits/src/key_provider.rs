@@ -2,8 +2,22 @@ use crate::{AuthError, KeyOptions};
 use agicash_crypto::{Mnemonic, PublicKey, SecretKey, Signature, SigningAlgorithm};
 use async_trait::async_trait;
 
-#[async_trait]
-pub trait KeyProvider: Send + Sync {
+/// Marker bound alias — `Send + Sync` on native, empty on wasm. Lets
+/// `KeyProvider` carry the right bound for each target without duplicating
+/// every trait method behind `cfg`.
+#[cfg(not(target_arch = "wasm32"))]
+pub trait KeyProviderBounds: Send + Sync {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send + Sync> KeyProviderBounds for T {}
+
+#[cfg(target_arch = "wasm32")]
+pub trait KeyProviderBounds {}
+#[cfg(target_arch = "wasm32")]
+impl<T> KeyProviderBounds for T {}
+
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+pub trait KeyProvider: KeyProviderBounds {
     async fn derive_private_key(&self, options: KeyOptions) -> Result<SecretKey, AuthError>;
 
     async fn derive_public_key(
