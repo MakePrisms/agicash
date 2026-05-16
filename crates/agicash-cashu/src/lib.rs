@@ -7,10 +7,10 @@ pub mod receive_swap;
 pub mod send_swap;
 
 pub use mint_quote::{
-    Action as MintQuoteAction, CashuMintQuote, CashuMintQuoteState, CashuMintQuoteStorage,
-    CompleteMintQuote, CompleteMintQuoteResult, CreateMintQuote, Event as MintQuoteEvent,
-    MintQuoteError, MintQuoteMachine, MintQuoteStorageError, ProcessMintQuotePayment,
-    ProcessMintQuotePaymentResult,
+    Action as MintQuoteAction, CashuMintQuote, CashuMintQuoteService, CashuMintQuoteState,
+    CashuMintQuoteStorage, CompleteMintQuote, CompleteMintQuoteOutcome, CompleteMintQuoteResult,
+    CreateMintQuote, Event as MintQuoteEvent, MintQuoteError, MintQuoteMachine,
+    MintQuoteStorageError, ProcessMintQuotePayment, ProcessMintQuotePaymentResult,
 };
 pub use provider::CdkCashuProvider;
 pub use receive_swap::{
