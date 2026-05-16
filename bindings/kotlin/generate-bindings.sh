@@ -124,6 +124,19 @@ fi
         --no-format
 )
 
+# ----- Workaround for UniFFI 0.30 Kotlin error generator -----
+# UniFFI emits `class Auth(val message: String) : FfiException()` for each
+# error variant, where `message` collides with `Throwable.message`. Kotlin
+# requires `override` on the parameter and rejects the auxiliary getter that
+# UniFFI also emits. Patch the generated file in-place:
+#  1) Add `override` to constructor-parameter `message`.
+#  2) Strip the duplicate `override val message ... get() = ...` body.
+GENERATED_KT="$(find "$SOURCES_DIR" -name "*.kt" -print -quit)"
+if [ -n "$GENERATED_KT" ]; then
+    /usr/bin/sed -i '' 's/        val `message`: kotlin.String/        override val `message`: kotlin.String/g' "$GENERATED_KT"
+    /usr/bin/perl -i -pe 'BEGIN{undef $/;} s/(\) : FfiException\(\) \{)\n        override val message\n            get\(\) = .+?\n    \}/$1\n    \}/gs' "$GENERATED_KT"
+fi
+
 echo
 echo "Generated Kotlin sources:"
 find "$SOURCES_DIR" -name "*.kt" | sort
