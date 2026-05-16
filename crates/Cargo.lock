@@ -2818,6 +2818,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "opensecret"
 version = "3.1.1"
+source = "git+https://github.com/gudnuf/OpenSecret-SDK?branch=add-user-agent-override#d5b3ccd865396aea88cde1e806eaddc565cae61b"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3044,6 +3045,7 @@ dependencies = [
 [[package]]
 name = "postgrest"
 version = "1.6.0"
+source = "git+https://github.com/gudnuf/postgrest-rs?branch=feat%2Freqwest-0.12-tls-injection#528d82d7a203237c3bdd5a3f5b0ed1f2d8975e12"
 dependencies = [
  "reqwest",
 ]
