@@ -17,6 +17,7 @@ members = [
     "agicash-cli",
     "agicash-wasm",
     "agicash-ffi",
+    "agicash-storage-supabase-codegen",
 ]
 
 [workspace.package]
