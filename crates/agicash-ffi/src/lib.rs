@@ -14,12 +14,14 @@
 pub mod account;
 pub mod error;
 pub mod receive;
+pub mod receive_flow;
 pub mod session;
 pub mod wallet;
 
 pub use account::*;
 pub use error::*;
 pub use receive::*;
+pub use receive_flow::*;
 pub use session::*;
 pub use wallet::*;
 

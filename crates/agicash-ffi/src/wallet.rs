@@ -13,14 +13,16 @@
 use crate::account::AccountFfi;
 use crate::error::FfiError;
 use crate::receive::{ReceiveResult, ReceiveStatus};
+use crate::receive_flow::{OpenSecretSeedProvider, ReceiveFlow};
 use crate::session::{AuthStatus, Session};
 use agicash_auth_opensecret::{
     auth_error_from_opensecret, login_email, logout, register_email, register_guest,
     OpenSecretClient, OpenSecretConfig, OpenSecretTokenProvider,
 };
 use agicash_cashu::{
-    CashuReceiveSwapService, CashuReceiveSwapState, CashuReceiveSwapStorage, CdkCashuProvider,
-    CompleteOutcome, ParsedToken, ReceiveSwapError, ReceiveSwapStorageError,
+    CashuReceiveSwapService, CashuReceiveSwapState, CashuReceiveSwapStorage, CashuSeedProvider,
+    CdkCashuProvider, CompleteOutcome, ParsedToken, ReceiveFlowService, ReceiveSwapError,
+    ReceiveSwapStorageError,
 };
 use agicash_domain::{Account, AccountType, Currency, UserId};
 use agicash_storage_supabase::{
@@ -366,6 +368,34 @@ impl AgicashWallet {
             &create_result.account,
             &parsed,
         ))
+    }
+
+    /// Construct a fresh [`ReceiveFlow`] handle for an interactive
+    /// receive-token flow. Each call returns a new orchestrator —
+    /// flows are not persisted across constructions.
+    ///
+    /// The returned handle exposes:
+    /// - `current_state()` to snapshot the current state
+    /// - `dispatch(event)` to feed UI events in and run the resulting I/O
+    ///
+    /// Requires an active session; returns `FfiError::Auth { UNAUTHENTICATED }`
+    /// otherwise.
+    pub async fn receive_flow(&self) -> Result<Arc<ReceiveFlow>, FfiError> {
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+        let seed_provider: Arc<dyn CashuSeedProvider> =
+            Arc::new(OpenSecretSeedProvider::new(self.client.clone()));
+        let service = ReceiveFlowService::new(
+            user_id,
+            Arc::clone(&self.storage) as Arc<dyn UserStorage>,
+            Arc::clone(&self.cashu_provider),
+            Arc::clone(&self.receive_swap_service),
+            seed_provider,
+        );
+        Ok(Arc::new(ReceiveFlow::new(service)))
     }
 }
 
