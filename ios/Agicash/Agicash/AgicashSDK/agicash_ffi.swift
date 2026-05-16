@@ -554,6 +554,39 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
     func listAccounts() async throws  -> [AccountFfi]
     
     /**
+     * Provision a new Cashu mint and create a BTC account row for it.
+     *
+     * Mirrors the `agicash mint add <url>` CLI subcommand
+     * (`crates/agicash-cli/src/mint.rs`): parse the URL, fetch NUT-06 mint
+     * info, then call `wallet.upsert_user_with_accounts` to insert the new
+     * `wallet.accounts` row. Returns the new account id + name + canonical
+     * URL so the Add Mint sheet on iOS can show a confirmation and the
+     * Accounts screen can refresh without a follow-up `list_accounts`
+     * round-trip (though it will refresh anyway).
+     *
+     * Hard-codes `currency = BTC` to match the web app's `add-mint-form.tsx`
+     * (which also hard-codes BTC). The iOS UI does not collect a currency
+     * today; if/when the web exposes USD mint creation we can add a
+     * parameter here.
+     *
+     * First-mint-add for a brand-new guest user creates a placeholder
+     * `Spark` account too — same workaround the CLI uses to satisfy the
+     * `wallet.upsert_user_with_accounts` "at least one BTC Spark"
+     * constraint. Slice 9 (Spark wiring) replaces it with a real-key-backed
+     * row.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for invalid URLs, mint unreachable, mint
+     * protocol errors, and the post-upsert "no account matching the new
+     * mint URL" sanity check (the underlying `MintCmdError` doesn't fit
+     * Auth/Storage cleanly — same shape as `receive_token` funnels
+     * `ReceiveSwapError` through Internal).
+     * - `FfiError::Storage` for raw Supabase failures (network, etc.).
+     */
+    func mintAdd(url: String) async throws  -> MintAddResult
+    
+    /**
      * Redeem a Cashu token (V3 `cashuA…` or V4 `cashuB…`).
      *
      * Mirrors the `agicash receive token <token>` CLI subcommand
@@ -803,6 +836,54 @@ open func listAccounts()async throws  -> [AccountFfi]  {
             completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeAccountFfi.lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Provision a new Cashu mint and create a BTC account row for it.
+     *
+     * Mirrors the `agicash mint add <url>` CLI subcommand
+     * (`crates/agicash-cli/src/mint.rs`): parse the URL, fetch NUT-06 mint
+     * info, then call `wallet.upsert_user_with_accounts` to insert the new
+     * `wallet.accounts` row. Returns the new account id + name + canonical
+     * URL so the Add Mint sheet on iOS can show a confirmation and the
+     * Accounts screen can refresh without a follow-up `list_accounts`
+     * round-trip (though it will refresh anyway).
+     *
+     * Hard-codes `currency = BTC` to match the web app's `add-mint-form.tsx`
+     * (which also hard-codes BTC). The iOS UI does not collect a currency
+     * today; if/when the web exposes USD mint creation we can add a
+     * parameter here.
+     *
+     * First-mint-add for a brand-new guest user creates a placeholder
+     * `Spark` account too — same workaround the CLI uses to satisfy the
+     * `wallet.upsert_user_with_accounts` "at least one BTC Spark"
+     * constraint. Slice 9 (Spark wiring) replaces it with a real-key-backed
+     * row.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for invalid URLs, mint unreachable, mint
+     * protocol errors, and the post-upsert "no account matching the new
+     * mint URL" sanity check (the underlying `MintCmdError` doesn't fit
+     * Auth/Storage cleanly — same shape as `receive_token` funnels
+     * `ReceiveSwapError` through Internal).
+     * - `FfiError::Storage` for raw Supabase failures (network, etc.).
+     */
+open func mintAdd(url: String)async throws  -> MintAddResult  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_mint_add(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(url)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMintAddResult_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -1083,6 +1164,107 @@ public func FfiConverterTypeAuthStatus_lift(_ buf: RustBuffer) throws -> AuthSta
 #endif
 public func FfiConverterTypeAuthStatus_lower(_ value: AuthStatus) -> RustBuffer {
     return FfiConverterTypeAuthStatus.lower(value)
+}
+
+
+/**
+ * Outcome of [`crate::wallet::AgicashWallet::mint_add`].
+ *
+ * Mirrors the CLI's `MintAddOutput` (`crates/agicash-cli/src/mint.rs`):
+ * the new account row's id + name, plus the canonical mint URL the row
+ * was created against. Useful for an "Added <name>" toast and to navigate
+ * the Accounts screen back to the newly-created row without an extra
+ * `list_accounts` round-trip.
+ */
+public struct MintAddResult: Equatable, Hashable {
+    /**
+     * Stringified UUID of the new `wallet.accounts` row.
+     */
+    public var accountId: String
+    /**
+     * Human-readable mint name (NUT-06 `name`, falling back to the URL
+     * itself when the mint doesn't supply one).
+     */
+    public var mintName: String
+    /**
+     * Canonical mint URL (parsed through `MintUrl`, so trailing-slash
+     * normalized).
+     */
+    public var mintUrl: String
+    /**
+     * Currency code the account was created with — always `"BTC"` for
+     * now, but exposed so the iOS UI can render it in the success state
+     * without a separate lookup.
+     */
+    public var currency: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Stringified UUID of the new `wallet.accounts` row.
+         */accountId: String, 
+        /**
+         * Human-readable mint name (NUT-06 `name`, falling back to the URL
+         * itself when the mint doesn't supply one).
+         */mintName: String, 
+        /**
+         * Canonical mint URL (parsed through `MintUrl`, so trailing-slash
+         * normalized).
+         */mintUrl: String, 
+        /**
+         * Currency code the account was created with — always `"BTC"` for
+         * now, but exposed so the iOS UI can render it in the success state
+         * without a separate lookup.
+         */currency: String) {
+        self.accountId = accountId
+        self.mintName = mintName
+        self.mintUrl = mintUrl
+        self.currency = currency
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension MintAddResult: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMintAddResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MintAddResult {
+        return
+            try MintAddResult(
+                accountId: FfiConverterString.read(from: &buf), 
+                mintName: FfiConverterString.read(from: &buf), 
+                mintUrl: FfiConverterString.read(from: &buf), 
+                currency: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MintAddResult, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.accountId, into: &buf)
+        FfiConverterString.write(value.mintName, into: &buf)
+        FfiConverterString.write(value.mintUrl, into: &buf)
+        FfiConverterString.write(value.currency, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintAddResult_lift(_ buf: RustBuffer) throws -> MintAddResult {
+    return try FfiConverterTypeMintAddResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintAddResult_lower(_ value: MintAddResult) -> RustBuffer {
+    return FfiConverterTypeMintAddResult.lower(value)
 }
 
 
@@ -1645,6 +1827,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_list_accounts() != 8926) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_mint_add() != 35097) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_receive_token() != 38168) {
