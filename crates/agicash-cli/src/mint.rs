@@ -15,8 +15,7 @@ use agicash_cashu::CashuSendSwapStorage;
 use agicash_domain::{Account, AccountPurpose, AccountType, Currency, UserId};
 use agicash_exchange_rate::ExchangeRateProvider;
 use agicash_traits::{
-    AccountInput, AuthError, CashuProviderError, SessionStorage, StorageError, UpsertUserInput,
-    UserStorage,
+    AccountInput, AuthError, CashuProviderError, StorageError, UpsertUserInput, UserStorage,
 };
 use cdk::mint_url::MintUrl;
 use serde::Serialize;

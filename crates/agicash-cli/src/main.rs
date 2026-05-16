@@ -277,7 +277,7 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let auth_deps = build_auth_deps()?;
+    let auth_deps = build_auth_deps().await?;
     // Hydrate the in-memory SDK from the keyring once at startup so every
     // subcommand inherits a live session when one exists on disk. A failed
     // refresh clears the keyring inside the helper; we swallow the error

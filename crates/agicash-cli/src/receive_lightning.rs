@@ -14,7 +14,7 @@ use agicash_cashu::{
 };
 use agicash_domain::{Account, AccountId, AccountType, Currency, UserId};
 use agicash_money::{Money, Unit};
-use agicash_traits::{AuthError, SessionStorage, StorageError, UserStorage};
+use agicash_traits::{AuthError, StorageError, UserStorage};
 use rust_decimal::Decimal;
 use serde::Serialize;
 use std::str::FromStr;

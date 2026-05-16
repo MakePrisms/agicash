@@ -1,5 +1,7 @@
+#[cfg(feature = "keyring-storage")]
+use agicash_auth_opensecret::KeyringSessionStorage;
 use agicash_auth_opensecret::{
-    KeyringSessionStorage, OpenSecretClient, OpenSecretConfig, OpenSecretTokenProvider,
+    InMemorySessionStorage, OpenSecretClient, OpenSecretConfig, OpenSecretTokenProvider,
     DEFAULT_SERVICE,
 };
 use agicash_cashu::{
@@ -13,24 +15,107 @@ use agicash_storage_supabase::{
     SupabaseCashuSendSwapStorage, SupabaseStorage, SupabaseStorageConfig,
 };
 use agicash_traits::{
-    AuthError, CashuProvider, PassthroughProofEncryption, ProofEncryption, StorageError,
-    TokenProvider,
+    AuthError, CashuProvider, PassthroughProofEncryption, ProofEncryption, SessionStorage,
+    StorageError, TokenProvider,
 };
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AuthDeps {
     pub client: OpenSecretClient,
-    pub storage: KeyringSessionStorage,
+    pub storage: Arc<dyn SessionStorage>,
 }
 
-pub fn build_auth_deps() -> Result<AuthDeps, AuthError> {
+impl std::fmt::Debug for AuthDeps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuthDeps")
+            .field("client", &self.client)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Build the auth dep bundle, selecting a session-storage backend via a
+/// fallback chain so the CLI works on every supported target/use-case.
+///
+/// Selection order (highest priority first):
+/// 1. `AGICASH_SESSION_FILE` env var or `--session-file` flag —
+///    encrypted-file backend (stubbed; returns a clear error today; will
+///    ship in the file-backed storage follow-up slice).
+/// 2. OS keyring via [`KeyringSessionStorage`] when the
+///    `keyring-storage` cargo feature is on AND the backend is reachable
+///    at runtime. On `BackendUnavailable` we drop down to (3) with a
+///    stderr warning.
+/// 3. [`InMemorySessionStorage`] — always available. Sessions don't
+///    survive process exit; the user is warned on stderr.
+///
+/// Pseudo-code:
+/// ```text
+/// if has_session_file():
+///     return file_backend()  // currently stubbed
+/// if cfg!(keyring-storage):
+///     match try_probe_keyring():
+///         Ok(_)                  => return keyring_backend()
+///         Err(BackendUnavailable) => warn(stderr); fall through
+///         Err(other)             => warn(stderr); fall through
+/// return in_memory_backend()  // always available
+/// ```
+pub async fn build_auth_deps() -> Result<AuthDeps, AuthError> {
     let config = OpenSecretConfig::from_env()?;
     let client = OpenSecretClient::new(config)?;
-    let service =
-        std::env::var("AGICASH_KEYRING_SERVICE").unwrap_or_else(|_| DEFAULT_SERVICE.to_string());
-    let storage = KeyringSessionStorage::new(service);
+    let storage = build_session_storage().await;
     Ok(AuthDeps { client, storage })
+}
+
+/// Resolve a [`SessionStorage`] backend via the fallback chain documented
+/// on [`build_auth_deps`].
+async fn build_session_storage() -> Arc<dyn SessionStorage> {
+    // (1) Explicit user override → encrypted file backend.
+    if let Ok(path) = std::env::var("AGICASH_SESSION_FILE") {
+        eprintln!(
+            "note: --session-file/AGICASH_SESSION_FILE set ({path}); \
+             the encrypted-file backend is not yet implemented in this build. \
+             Falling back to in-memory storage; sessions will not persist."
+        );
+        return Arc::new(InMemorySessionStorage::new());
+    }
+
+    // (2) OS keyring when feature-compiled AND runtime-reachable.
+    #[cfg(feature = "keyring-storage")]
+    {
+        let service = std::env::var("AGICASH_KEYRING_SERVICE")
+            .unwrap_or_else(|_| DEFAULT_SERVICE.to_string());
+        let keyring = KeyringSessionStorage::new(service);
+        match probe_keyring(&keyring).await {
+            Ok(()) => return Arc::new(keyring),
+            Err(reason) => {
+                eprintln!(
+                    "note: secure keyring unavailable ({reason}); \
+                     session will not persist across runs"
+                );
+            }
+        }
+    }
+    #[cfg(not(feature = "keyring-storage"))]
+    {
+        // Reference the const so the import isn't flagged as unused when
+        // the keyring feature is off.
+        let _ = DEFAULT_SERVICE;
+    }
+
+    // (3) Always-available fallback.
+    Arc::new(InMemorySessionStorage::new())
+}
+
+/// Probe the keyring backend by attempting a `load`. Returns `Err` when
+/// the backend is unreachable; treats "no entry" / `Ok(None)` as success
+/// (the backend works, the user just isn't signed in yet).
+#[cfg(feature = "keyring-storage")]
+async fn probe_keyring(storage: &KeyringSessionStorage) -> Result<(), String> {
+    match storage.load().await {
+        Ok(_) => Ok(()),
+        Err(AuthError::Backend(msg)) if msg.contains("session backend unavailable") => Err(msg),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 #[derive(Clone)]

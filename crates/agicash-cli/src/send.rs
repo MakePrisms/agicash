@@ -10,7 +10,7 @@ use crate::composition::{AuthDeps, CashuDeps, SendSwapDeps, StorageDeps};
 use agicash_cashu::{CashuSendSwapState, SendSwapError, TokenProof};
 use agicash_domain::{Account, AccountId, AccountType, Currency, UserId};
 use agicash_money::{Money, Unit};
-use agicash_traits::{AuthError, SessionStorage, StorageError, UserStorage};
+use agicash_traits::{AuthError, StorageError, UserStorage};
 use cdk::mint_url::MintUrl;
 use cdk::nuts::nut02::Id as KeysetId;
 use cdk::nuts::{CurrencyUnit, Proof, Token};

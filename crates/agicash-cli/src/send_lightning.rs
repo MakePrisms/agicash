@@ -10,7 +10,7 @@ use agicash_cashu::{
     CashuMeltQuote, CashuMeltQuoteState, MeltOutcome, MeltQuoteError, MeltQuotePreview,
 };
 use agicash_domain::{Account, AccountId, AccountType, UserId};
-use agicash_traits::{AuthError, SessionStorage, StorageError, UserStorage};
+use agicash_traits::{AuthError, StorageError, UserStorage};
 use serde::Serialize;
 use std::str::FromStr;
 use std::time::Duration;

@@ -93,12 +93,21 @@ fn account_list_help_works() {
 
 #[test]
 fn account_list_without_session_exits_three_and_emits_json_error() {
-    // No session in keyring; use a unique keyring service so we never collide
-    // with a real session. Even if SUPABASE_URL is missing, the "not logged in"
-    // check is supposed to fire BEFORE build_storage_deps runs — but the auth
-    // deps + storage deps are built up front. Provide dummy env values so
-    // build_storage_deps succeeds; the actual HTTP call is never made because
-    // load() returns None first.
+    // "No session present" exit-code contract. Two paths exercise this test:
+    //
+    //   - On macOS dev machines the OS keyring is reachable, so the CLI picks
+    //     `KeyringSessionStorage`; we pass a unique service id so it can't
+    //     collide with a real session.
+    //   - On Linux CI (no `dbus-daemon` + secret-service running), the
+    //     keyring probe reports `BackendUnavailable` and the CLI falls
+    //     through to `InMemorySessionStorage` (always available). The
+    //     in-memory store starts empty, so `load()` returns `Ok(None)`.
+    //
+    // Either way the CLI must exit 3 with a `not-logged-in` JSON error.
+    //
+    // SUPABASE_URL etc. are stubbed so build_storage_deps succeeds; the
+    // actual HTTP call is never made because the "not logged in" check fires
+    // first on `load() -> None`.
     let pid = std::process::id();
     let service = format!("com.agicash.cli.test.{pid}.account-list");
     let out = Command::cargo_bin("agicash")
