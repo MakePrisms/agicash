@@ -1,0 +1,24 @@
+[package]
+name = "agicash-lightning-address"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+reqwest = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }
+
+[features]
+# Network-hitting integration tests. Run with:
+#   `cargo test -p agicash-lightning-address --features real-network-tests`
+real-network-tests = []
+
+[lints]
+workspace = true

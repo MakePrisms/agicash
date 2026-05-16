@@ -7,12 +7,14 @@ mod receive;
 mod receive_lightning;
 mod send;
 mod send_lightning;
+mod send_lightning_address;
 
 use account::AccountCmdError;
 use agicash_cashu::{
     MeltQuoteError, MeltQuoteStorageError, MintQuoteError, MintQuoteStorageError, ReceiveSwapError,
     ReceiveSwapStorageError, SendSwapError, SendSwapStorageError,
 };
+use agicash_lightning_address::LightningAddressError;
 use agicash_traits::{AuthError, CashuProviderError, StorageError};
 use auth::rehydrate_session;
 use clap::Parser;
@@ -26,6 +28,7 @@ use receive::ReceiveCmdError;
 use receive_lightning::ReceiveLightningCmdError;
 use send::SendCmdError;
 use send_lightning::SendLightningCmdError;
+use send_lightning_address::SendLightningAddressCmdError;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -94,15 +97,12 @@ fn classify_error(e: &(dyn std::error::Error + 'static)) -> (&'static str, i32) 
         };
     }
     if let Some(sl_err) = e.downcast_ref::<SendLightningCmdError>() {
-        return match sl_err {
-            SendLightningCmdError::NotLoggedIn => ("not-logged-in", 3),
-            SendLightningCmdError::NoMatchingAccount => ("no-matching-account", 1),
-            SendLightningCmdError::AccountAmbiguous => ("account-ambiguous", 1),
-            SendLightningCmdError::InvalidAccountId(_) => ("invalid-account-id", 1),
-            SendLightningCmdError::InvalidQuoteId(_) => ("invalid-quote-id", 1),
-            SendLightningCmdError::Quote(inner) => (classify_melt_quote(inner), 1),
-            SendLightningCmdError::Storage(inner) => (classify_storage(inner), 1),
-            SendLightningCmdError::Auth(inner) => classify_auth(inner),
+        return classify_send_lightning(sl_err);
+    }
+    if let Some(la_err) = e.downcast_ref::<SendLightningAddressCmdError>() {
+        return match la_err {
+            SendLightningAddressCmdError::Resolve(inner) => (classify_lnurl(inner), 1),
+            SendLightningAddressCmdError::Send(inner) => classify_send_lightning(inner),
         };
     }
     if let Some(snd_err) = e.downcast_ref::<SendCmdError>() {
@@ -125,6 +125,29 @@ fn classify_error(e: &(dyn std::error::Error + 'static)) -> (&'static str, i32) 
         return (classify_storage(st), 1);
     }
     ("unknown", 1)
+}
+
+fn classify_send_lightning(sl_err: &SendLightningCmdError) -> (&'static str, i32) {
+    match sl_err {
+        SendLightningCmdError::NotLoggedIn => ("not-logged-in", 3),
+        SendLightningCmdError::NoMatchingAccount => ("no-matching-account", 1),
+        SendLightningCmdError::AccountAmbiguous => ("account-ambiguous", 1),
+        SendLightningCmdError::InvalidAccountId(_) => ("invalid-account-id", 1),
+        SendLightningCmdError::InvalidQuoteId(_) => ("invalid-quote-id", 1),
+        SendLightningCmdError::Quote(inner) => (classify_melt_quote(inner), 1),
+        SendLightningCmdError::Storage(inner) => (classify_storage(inner), 1),
+        SendLightningCmdError::Auth(inner) => classify_auth(inner),
+    }
+}
+
+fn classify_lnurl(e: &LightningAddressError) -> &'static str {
+    match e {
+        LightningAddressError::InvalidAddress(_) => "invalid-lightning-address",
+        LightningAddressError::Network(_) => "network-error",
+        LightningAddressError::InvalidResponse(_) => "invalid-lnurl-response",
+        LightningAddressError::AmountOutOfRange { .. } => "amount-out-of-range",
+        LightningAddressError::ServerError(_) => "lnurl-server-error",
+    }
 }
 
 fn classify_auth(e: &AuthError) -> (&'static str, i32) {
@@ -438,6 +461,36 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
                     &storage_deps,
                     &melt_deps,
                     quote_id,
+                    poll_ms,
+                    timeout_s,
+                )
+                .await?;
+            }
+            SendCommand::LightningAddress {
+                address,
+                amount,
+                account,
+                comment,
+                dry_run,
+                no_wait,
+                poll_ms,
+                timeout_s,
+            } => {
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                let cashu_deps = build_cashu_deps();
+                let send_deps = build_send_swap_deps(&storage_deps, &cashu_deps);
+                let melt_deps = build_melt_quote_deps(&storage_deps, &cashu_deps);
+                send_lightning_address::cmd_send_lightning_address(
+                    &auth_deps,
+                    &storage_deps,
+                    &send_deps,
+                    &melt_deps,
+                    address,
+                    amount,
+                    account,
+                    comment,
+                    dry_run,
+                    no_wait,
                     poll_ms,
                     timeout_s,
                 )
