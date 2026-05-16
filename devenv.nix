@@ -73,21 +73,27 @@
   '';
 
   # https://devenv.sh/pre-commit-hooks/
+  # Hooks are scoped to relevant file types so that commits touching only
+  # non-JS/TS files (e.g. Rust crates, docs) skip the JS/TS pipeline.
  git-hooks.hooks.generate-db-types = {
     enable = true;
     name = "Generate database types from local db";
     entry = "bun run db:generate-types";
+    files = "^supabase/migrations/.*\\.sql$";
+    pass_filenames = false;
   };
-  
+
  git-hooks.hooks.typecheck = {
     enable = true;
     entry = "bun run typecheck";
     pass_filenames = false;
+    files = "\\.(ts|tsx|js|jsx|mjs|cjs)$";
   };
-  
+
  git-hooks.hooks.biome = {
     enable = true;
     entry = "bun run fix:staged";
+    # biome's built-in types_or already scopes to js/jsx/ts/tsx/json.
   };
 
   # See full reference at https://devenv.sh/reference/options/
