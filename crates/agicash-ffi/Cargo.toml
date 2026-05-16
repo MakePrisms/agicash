@@ -16,7 +16,9 @@ agicash-domain = { path = "../agicash-domain" }
 agicash-traits = { path = "../agicash-traits" }
 agicash-auth-opensecret = { path = "../agicash-auth-opensecret" }
 agicash-storage-supabase = { path = "../agicash-storage-supabase" }
+agicash-cashu = { path = "../agicash-cashu" }
 async-trait = { workspace = true }
+cdk = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

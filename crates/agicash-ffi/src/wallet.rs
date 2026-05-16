@@ -12,14 +12,24 @@
 
 use crate::account::AccountFfi;
 use crate::error::FfiError;
+use crate::receive::{ReceiveResult, ReceiveStatus};
 use crate::session::{AuthStatus, Session};
 use agicash_auth_opensecret::{
     auth_error_from_opensecret, login_email, logout, register_email, register_guest,
     OpenSecretClient, OpenSecretConfig, OpenSecretTokenProvider,
 };
-use agicash_domain::UserId;
-use agicash_storage_supabase::{SupabaseStorage, SupabaseStorageConfig};
-use agicash_traits::{PersistedSession, TokenProvider, UserStorage};
+use agicash_cashu::{
+    CashuReceiveSwapService, CashuReceiveSwapState, CashuReceiveSwapStorage, CdkCashuProvider,
+    CompleteOutcome, ParsedToken, ReceiveSwapError, ReceiveSwapStorageError,
+};
+use agicash_domain::{Account, AccountType, Currency, UserId};
+use agicash_storage_supabase::{
+    SupabaseCashuReceiveSwapStorage, SupabaseStorage, SupabaseStorageConfig,
+};
+use agicash_traits::{
+    CashuProvider, PassthroughProofEncryption, PersistedSession, ProofEncryption, TokenProvider,
+    UserStorage,
+};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -28,6 +38,15 @@ use uuid::Uuid;
 pub struct AgicashWallet {
     client: OpenSecretClient,
     storage: Arc<SupabaseStorage>,
+    /// Cashu provider (CDK-backed). Created once at construction; cheap to
+    /// share across receive/send swaps.
+    cashu_provider: Arc<dyn CashuProvider>,
+    /// Receive-swap orchestrator. Wired against the same `SupabaseStorage`
+    /// + `cashu_provider` the wallet already owns, with the slice-5
+    /// `PassthroughProofEncryption` stub matching the CLI composition root.
+    /// Once the encryption seam ships, this slot swaps to a real impl
+    /// without the FFI surface changing.
+    receive_swap_service: Arc<CashuReceiveSwapService>,
     /// In-memory session. Phase 1 leaves persistence to the Swift consumer:
     /// the iOS app stores the `refresh_token` in Keychain and rehydrates this
     /// slot via `set_session` on app launch.
@@ -95,9 +114,28 @@ impl AgicashWallet {
             Arc::new(OpenSecretTokenProvider::new(client.clone()));
         let storage = Arc::new(SupabaseStorage::new(storage_cfg, token_provider)?);
 
+        // Cashu wiring mirrors `crates/agicash-cli/src/composition.rs`
+        // (`build_cashu_deps` + `build_receive_swap_deps`): one shared
+        // CDK provider, plus a receive-swap service backed by the same
+        // Supabase storage handle the wallet already owns. The
+        // `PassthroughProofEncryption` stub matches what slice 5 ships;
+        // when the real encryption layer lands the wallet just swaps
+        // this constructor without the FFI shape moving.
+        let cashu_provider: Arc<dyn CashuProvider> = Arc::new(CdkCashuProvider::new());
+        let encryption: Arc<dyn ProofEncryption> = Arc::new(PassthroughProofEncryption);
+        let receive_storage: Arc<dyn CashuReceiveSwapStorage> = Arc::new(
+            SupabaseCashuReceiveSwapStorage::new(Arc::clone(&storage), encryption),
+        );
+        let receive_swap_service = Arc::new(CashuReceiveSwapService::new(
+            receive_storage,
+            Arc::clone(&cashu_provider),
+        ));
+
         Ok(Arc::new(Self {
             client,
             storage,
+            cashu_provider,
+            receive_swap_service,
             session: Arc::new(RwLock::new(None)),
         }))
     }
@@ -246,6 +284,199 @@ impl AgicashWallet {
         let user_id = UserId::from(session.user_id);
         let accounts = self.storage.list_accounts(user_id).await?;
         Ok(accounts.into_iter().map(AccountFfi::from).collect())
+    }
+
+    // ---- receive surface ----
+
+    /// Redeem a Cashu token (V3 `cashuA…` or V4 `cashuB…`).
+    ///
+    /// Mirrors the `agicash receive token <token>` CLI subcommand
+    /// (`crates/agicash-cli/src/receive.rs`): parse the token, pick the
+    /// matching account by `(mint_url, currency)`, run
+    /// `CashuReceiveSwapService::create` followed by `complete_swap`, and
+    /// return a flattened receipt. Idempotent on repeat redeems of the
+    /// same token (returns [`ReceiveStatus::AlreadyClaimed`]).
+    ///
+    /// Errors:
+    /// - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+    /// - `FfiError::Internal` for token-parse failures, missing matching
+    ///   account, currency/unit mismatches, or amount-too-small after fees
+    ///   (the underlying `ReceiveSwapError` doesn't fit Auth/Storage cleanly
+    ///   so it is funneled through Internal — the message string carries
+    ///   the discriminator the iOS UI surfaces inline).
+    /// - `FfiError::Storage` for raw Supabase failures (network, etc.).
+    pub async fn receive_token(&self, token: String) -> Result<ReceiveResult, FfiError> {
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+
+        // Parse first so a malformed token surfaces as a clean error
+        // before we touch storage / the mint.
+        let parsed = ParsedToken::parse(&token, &self.cashu_provider)
+            .await
+            .map_err(receive_swap_error_to_ffi)?;
+
+        let accounts = self.storage.list_accounts(user_id).await?;
+        let account = pick_cashu_account_for_token(&accounts, &parsed.mint_url, &parsed.unit)
+            .ok_or_else(|| {
+                FfiError::internal(format!(
+                    "no matching account for mint {} — add the mint first",
+                    parsed.mint_url
+                ))
+            })?;
+
+        // Create the PENDING swap row. AlreadyClaimed is idempotent —
+        // surface the existing terminal state instead of erroring.
+        let create_result = match self
+            .receive_swap_service
+            .create(user_id, &parsed, account, None)
+            .await
+        {
+            Ok(r) => r,
+            Err(ReceiveSwapError::Storage(ReceiveSwapStorageError::AlreadyClaimed)) => {
+                return Ok(ReceiveResult {
+                    status: ReceiveStatus::AlreadyClaimed,
+                    amount: "0".into(),
+                    fee: "0".into(),
+                    unit: parsed.unit.to_string(),
+                    currency: account.currency.to_string(),
+                    account_id: account.id.to_string(),
+                    mint_url: parsed.mint_url.clone(),
+                    token_hash: parsed.hash.clone(),
+                });
+            }
+            Err(e) => return Err(receive_swap_error_to_ffi(e)),
+        };
+
+        // Pull the BIP-39 cashu seed from OpenSecret so the service can
+        // blind the outputs. Requires an active session (the read-lock
+        // above proves we have one).
+        let seed = self.client.get_cashu_seed().await?;
+
+        let outcome = self
+            .receive_swap_service
+            .complete_swap(&create_result.account, create_result.swap, &seed)
+            .await
+            .map_err(receive_swap_error_to_ffi)?;
+
+        Ok(receive_result_from_outcome(
+            outcome,
+            &create_result.account,
+            &parsed,
+        ))
+    }
+}
+
+/// Find a `Cashu` account whose `(mint_url, currency)` pair matches the
+/// supplied parsed token. Mirrors the CLI's private `pick_account`
+/// (`crates/agicash-cli/src/receive.rs`) — duplicated here so the FFI
+/// stays decoupled from the CLI binary.
+fn pick_cashu_account_for_token<'a>(
+    accounts: &'a [Account],
+    mint_url: &str,
+    unit: &cdk::nuts::CurrencyUnit,
+) -> Option<&'a Account> {
+    accounts.iter().find(|a| {
+        a.account_type == AccountType::Cashu
+            && a.details
+                .get("mint_url")
+                .and_then(|v| v.as_str())
+                .is_some_and(|u| mint_urls_equal(u, mint_url))
+            && unit_matches_currency(unit, a.currency)
+    })
+}
+
+fn mint_urls_equal(a: &str, b: &str) -> bool {
+    a.trim_end_matches('/') == b.trim_end_matches('/')
+}
+
+fn unit_matches_currency(unit: &cdk::nuts::CurrencyUnit, currency: Currency) -> bool {
+    use cdk::nuts::CurrencyUnit;
+    matches!(
+        (unit, currency),
+        (CurrencyUnit::Sat, Currency::Btc) | (CurrencyUnit::Usd, Currency::Usd)
+    )
+}
+
+/// Map the rich `ReceiveSwapError` family down to `FfiError`. The trait
+/// crate already has `From<AuthError>` / `From<StorageError>` impls for
+/// FFI; the cashu-specific cases (token parse, mint-mismatch,
+/// amount-too-small) don't fit either family cleanly so they funnel
+/// through `Internal` with a discriminator-bearing message.
+fn receive_swap_error_to_ffi(e: ReceiveSwapError) -> FfiError {
+    match e {
+        ReceiveSwapError::TokenParse(msg) => FfiError::internal(format!("invalid token: {msg}")),
+        ReceiveSwapError::MintMismatch { token, account } => FfiError::internal(format!(
+            "mint mismatch: token mint {token} differs from account mint {account}",
+        )),
+        ReceiveSwapError::CurrencyMismatch { token, account } => FfiError::internal(format!(
+            "currency mismatch: token currency {token} differs from account currency {account}",
+        )),
+        ReceiveSwapError::AmountTooSmall => {
+            FfiError::internal("amount too small after mint fees")
+        }
+        ReceiveSwapError::InvalidTransition { from, event } => {
+            FfiError::internal(format!("invalid state transition from {from} on {event}"))
+        }
+        // Mint-protocol failures (network, NUT errors) — surface the
+        // `CashuProviderError`'s display so the UI gets something
+        // meaningful without a new FFI variant.
+        ReceiveSwapError::Mint(inner) => FfiError::internal(format!("mint error: {inner}")),
+        // Storage is the one branch where we DO have a structured FFI
+        // shape. Map the inner storage failure through the existing
+        // `From<StorageError>` impl when possible; otherwise fall back
+        // to Internal so the caller still sees the failure reason.
+        ReceiveSwapError::Storage(s) => FfiError::internal(format!("storage error: {s}")),
+    }
+}
+
+fn receive_result_from_outcome(
+    outcome: CompleteOutcome,
+    fallback_account: &Account,
+    parsed: &ParsedToken,
+) -> ReceiveResult {
+    match outcome {
+        CompleteOutcome::Completed {
+            swap, account, ..
+        } => ReceiveResult {
+            status: ReceiveStatus::Received,
+            amount: swap.amount_received.amount().to_string(),
+            fee: swap.fee_amount.amount().to_string(),
+            unit: swap.amount_received.unit().to_string(),
+            currency: swap.amount_received.currency().to_string(),
+            account_id: account.id.to_string(),
+            mint_url: parsed.mint_url.clone(),
+            token_hash: parsed.hash.clone(),
+        },
+        CompleteOutcome::AlreadyTerminal(swap) => {
+            let status = match &swap.state {
+                CashuReceiveSwapState::Completed => ReceiveStatus::Received,
+                CashuReceiveSwapState::Failed { .. } => ReceiveStatus::AlreadyFailed,
+                CashuReceiveSwapState::Pending => ReceiveStatus::Pending,
+            };
+            ReceiveResult {
+                status,
+                amount: swap.amount_received.amount().to_string(),
+                fee: swap.fee_amount.amount().to_string(),
+                unit: swap.amount_received.unit().to_string(),
+                currency: swap.amount_received.currency().to_string(),
+                account_id: fallback_account.id.to_string(),
+                mint_url: parsed.mint_url.clone(),
+                token_hash: parsed.hash.clone(),
+            }
+        }
+        CompleteOutcome::Failed(swap) => ReceiveResult {
+            status: ReceiveStatus::AlreadyFailed,
+            amount: swap.amount_received.amount().to_string(),
+            fee: swap.fee_amount.amount().to_string(),
+            unit: swap.amount_received.unit().to_string(),
+            currency: swap.amount_received.currency().to_string(),
+            account_id: fallback_account.id.to_string(),
+            mint_url: parsed.mint_url.clone(),
+            token_hash: parsed.hash.clone(),
+        },
     }
 }
 
