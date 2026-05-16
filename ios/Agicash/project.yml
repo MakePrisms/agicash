@@ -34,6 +34,12 @@ targets:
           # past it; harden once the wallet talks to real production
           # endpoints.
           NSAllowsArbitraryLoads: true
+        UIAppFonts:
+          # Bundled OFL Google Fonts — Kode Mono (font-primary) + Teko
+          # (font-numeric). Variable fonts; weights addressed via
+          # `Font.custom("Kode Mono", size:).weight(...)`.
+          - KodeMono-VariableFont_wght.ttf
+          - Teko-VariableFont_wght.ttf
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.makeprisms.agicash
