@@ -21,9 +21,9 @@ import SwiftUI
 /// Default / Offline badges only render when applicable; we don't have
 /// either signal in `AccountFfi` yet so the badge row stays empty.
 ///
-/// Phase 1 always renders balance "0" because the Rust FFI hard-codes it
-/// (see `AccountFfi`). The `unit` field is also empty, so we render the
-/// account currency next to the balance for now.
+/// `displayBalance` renders the FFI's smallest-unit balance suffixed with
+/// `account.unit` (`sat` / `cent`). If the FFI ever emits an empty unit
+/// (legacy / Phase 1 stub fallback), we fall back to the currency code.
 ///
 /// Currently unreferenced — kept as the canonical row component for the
 /// future Settings → Accounts subview.
@@ -55,6 +55,6 @@ struct AccountRow: View {
         if account.unit.isEmpty {
             return "\(account.balance) \(account.currency)"
         }
-        return account.balance
+        return "\(account.balance) \(account.unit)"
     }
 }
