@@ -27,11 +27,10 @@ pub enum Command {
         #[arg(long)]
         account: Option<String>,
     },
-    /// Receive a Cashu token into the matching mint's account.
-    Receive {
-        /// Encoded Cashu token (`cashuA...` V3 or `cashuB...` V4).
-        token: String,
-    },
+    /// Receive funds into a Cashu account — either by claiming a Cashu
+    /// token (NUT-03 swap) or by issuing a Lightning invoice (NUT-04
+    /// mint quote).
+    Receive(ReceiveArgs),
     /// Send a Cashu token by selecting proofs from the chosen account.
     Send {
         /// Amount to send in the account's unit (sats for BTC accounts,
@@ -47,6 +46,60 @@ pub enum Command {
         /// Show preview without persisting or producing a token.
         #[arg(long)]
         dry_run: bool,
+    },
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ReceiveArgs {
+    #[command(subcommand)]
+    pub cmd: ReceiveCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ReceiveCommand {
+    /// Claim a Cashu token (NUT-03 swap).
+    Token {
+        /// Encoded Cashu token (`cashuA...` V3 or `cashuB...` V4).
+        token: String,
+    },
+    /// Receive sats via Lightning: request a NUT-04 mint quote from the
+    /// chosen account's mint, then mint proofs once the invoice is paid.
+    Lightning {
+        /// Amount to receive in the account's unit (sats for BTC,
+        /// cents for USD).
+        amount: u64,
+        /// Account ID to receive into. If omitted, the only Cashu account
+        /// for the user matching `--currency` is used; if multiple, this
+        /// is required.
+        #[arg(long)]
+        account: Option<String>,
+        /// Currency code (BTC default; USD for usd-unit mints).
+        #[arg(long, default_value = "BTC")]
+        currency: String,
+        /// Optional memo to attach to the mint quote.
+        #[arg(long)]
+        description: Option<String>,
+        /// If set, print the invoice + quote id and exit without polling.
+        /// Call `agicash receive lightning-complete <quote_id>` later.
+        #[arg(long)]
+        no_wait: bool,
+        /// Polling interval in milliseconds.
+        #[arg(long, default_value_t = 1000)]
+        poll_ms: u64,
+        /// Overall timeout in seconds.
+        #[arg(long, default_value_t = 300)]
+        timeout_s: u64,
+    },
+    /// Finish a previously-created Lightning receive (used with `--no-wait`).
+    LightningComplete {
+        /// The DB quote id (UUID) returned by `receive lightning --no-wait`.
+        quote_id: String,
+        /// Polling interval in milliseconds (when the quote is still UNPAID).
+        #[arg(long, default_value_t = 1000)]
+        poll_ms: u64,
+        /// Overall timeout in seconds (when the quote is still UNPAID).
+        #[arg(long, default_value_t = 30)]
+        timeout_s: u64,
     },
 }
 
@@ -217,19 +270,98 @@ mod tests {
     }
 
     #[test]
-    fn parses_receive_with_token() {
-        let cli = Cli::try_parse_from(["agicash", "receive", "cashuAabc"]).unwrap();
+    fn parses_receive_token_with_v3() {
+        let cli = Cli::try_parse_from(["agicash", "receive", "token", "cashuAabc"]).unwrap();
         match cli.cmd {
-            Some(Command::Receive { token }) => assert_eq!(token, "cashuAabc"),
+            Some(Command::Receive(r)) => match r.cmd {
+                ReceiveCommand::Token { token } => assert_eq!(token, "cashuAabc"),
+                other => panic!("unexpected receive subcommand: {other:?}"),
+            },
             other => panic!("unexpected: {other:?}"),
         }
     }
 
     #[test]
-    fn parses_receive_with_v4_token() {
-        let cli = Cli::try_parse_from(["agicash", "receive", "cashuBxyz"]).unwrap();
+    fn parses_receive_token_with_v4() {
+        let cli = Cli::try_parse_from(["agicash", "receive", "token", "cashuBxyz"]).unwrap();
         match cli.cmd {
-            Some(Command::Receive { token }) => assert_eq!(token, "cashuBxyz"),
+            Some(Command::Receive(r)) => match r.cmd {
+                ReceiveCommand::Token { token } => assert_eq!(token, "cashuBxyz"),
+                other => panic!("unexpected receive subcommand: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_receive_lightning_with_amount() {
+        let cli = Cli::try_parse_from(["agicash", "receive", "lightning", "100"]).unwrap();
+        match cli.cmd {
+            Some(Command::Receive(r)) => match r.cmd {
+                ReceiveCommand::Lightning {
+                    amount,
+                    account,
+                    currency,
+                    no_wait,
+                    ..
+                } => {
+                    assert_eq!(amount, 100);
+                    assert!(account.is_none());
+                    assert_eq!(currency, "BTC");
+                    assert!(!no_wait);
+                }
+                other => panic!("unexpected receive subcommand: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_receive_lightning_with_no_wait() {
+        let cli = Cli::try_parse_from([
+            "agicash",
+            "receive",
+            "lightning",
+            "100",
+            "--no-wait",
+            "--currency",
+            "USD",
+        ])
+        .unwrap();
+        match cli.cmd {
+            Some(Command::Receive(r)) => match r.cmd {
+                ReceiveCommand::Lightning {
+                    amount,
+                    no_wait,
+                    currency,
+                    ..
+                } => {
+                    assert_eq!(amount, 100);
+                    assert!(no_wait);
+                    assert_eq!(currency, "USD");
+                }
+                other => panic!("unexpected receive subcommand: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_receive_lightning_complete() {
+        let cli = Cli::try_parse_from([
+            "agicash",
+            "receive",
+            "lightning-complete",
+            "11111111-2222-3333-4444-555555555555",
+        ])
+        .unwrap();
+        match cli.cmd {
+            Some(Command::Receive(r)) => match r.cmd {
+                ReceiveCommand::LightningComplete { quote_id, .. } => {
+                    assert_eq!(quote_id, "11111111-2222-3333-4444-555555555555");
+                }
+                other => panic!("unexpected receive subcommand: {other:?}"),
+            },
             other => panic!("unexpected: {other:?}"),
         }
     }

@@ -4,22 +4,25 @@ mod cli;
 mod composition;
 mod mint;
 mod receive;
+mod receive_lightning;
 mod send;
 
 use account::AccountCmdError;
 use agicash_cashu::{
-    ReceiveSwapError, ReceiveSwapStorageError, SendSwapError, SendSwapStorageError,
+    MintQuoteError, MintQuoteStorageError, ReceiveSwapError, ReceiveSwapStorageError,
+    SendSwapError, SendSwapStorageError,
 };
 use agicash_traits::{AuthError, CashuProviderError, StorageError};
 use auth::rehydrate_session;
 use clap::Parser;
-use cli::{AccountCommand, AuthCommand, Cli, Command, MintCommand};
+use cli::{AccountCommand, AuthCommand, Cli, Command, MintCommand, ReceiveCommand};
 use composition::{
-    build_auth_deps, build_cashu_deps, build_exchange_rate_deps, build_receive_swap_deps,
-    build_send_swap_deps, build_storage_deps,
+    build_auth_deps, build_cashu_deps, build_exchange_rate_deps, build_mint_quote_deps,
+    build_receive_swap_deps, build_send_swap_deps, build_storage_deps,
 };
 use mint::MintCmdError;
 use receive::ReceiveCmdError;
+use receive_lightning::ReceiveLightningCmdError;
 use send::SendCmdError;
 use serde::Serialize;
 
@@ -71,6 +74,21 @@ fn classify_error(e: &(dyn std::error::Error + 'static)) -> (&'static str, i32) 
             ReceiveCmdError::Receive(inner) => (classify_receive(inner), 1),
             ReceiveCmdError::Storage(inner) => (classify_storage(inner), 1),
             ReceiveCmdError::Auth(inner) => classify_auth(inner),
+        };
+    }
+    if let Some(rl_err) = e.downcast_ref::<ReceiveLightningCmdError>() {
+        return match rl_err {
+            ReceiveLightningCmdError::NotLoggedIn => ("not-logged-in", 3),
+            ReceiveLightningCmdError::NoMatchingAccount => ("no-matching-account", 1),
+            ReceiveLightningCmdError::AccountAmbiguous => ("account-ambiguous", 1),
+            ReceiveLightningCmdError::InvalidAccountId(_) => ("invalid-account-id", 1),
+            ReceiveLightningCmdError::InvalidQuoteId(_) => ("invalid-quote-id", 1),
+            ReceiveLightningCmdError::UnsupportedCurrency(_) => ("unsupported-currency", 1),
+            ReceiveLightningCmdError::AmountTooSmall => ("amount-too-small", 1),
+            ReceiveLightningCmdError::QuoteNotPaid => ("quote-not-paid", 1),
+            ReceiveLightningCmdError::Quote(inner) => (classify_mint_quote(inner), 1),
+            ReceiveLightningCmdError::Storage(inner) => (classify_storage(inner), 1),
+            ReceiveLightningCmdError::Auth(inner) => classify_auth(inner),
         };
     }
     if let Some(snd_err) = e.downcast_ref::<SendCmdError>() {
@@ -135,6 +153,28 @@ fn classify_send(e: &SendSwapError) -> &'static str {
     }
 }
 
+fn classify_mint_quote(e: &MintQuoteError) -> &'static str {
+    match e {
+        MintQuoteError::InvalidTransition { .. } => "invalid-state",
+        MintQuoteError::Storage(inner) => match inner {
+            MintQuoteStorageError::NotFound => "not-found",
+            MintQuoteStorageError::InvalidState(_) => "invalid-state",
+            MintQuoteStorageError::Backend(_) => "storage-backend-error",
+            MintQuoteStorageError::Encryption(_) => "encryption-error",
+        },
+        MintQuoteError::Mint(inner) => match inner {
+            CashuProviderError::InvalidUrl(_) => "invalid-mint-url",
+            CashuProviderError::Network(_) => "mint-unreachable",
+            CashuProviderError::Protocol(_) => "mint-error",
+        },
+        MintQuoteError::AmountTooSmall => "amount-too-small",
+        MintQuoteError::CurrencyMismatch { .. } => "currency-mismatch",
+        MintQuoteError::QuoteNotPaid => "quote-not-paid",
+        MintQuoteError::QuoteExpired => "quote-expired",
+        MintQuoteError::Unrecoverable(_) => "mint-unrecoverable",
+    }
+}
+
 fn classify_receive(e: &ReceiveSwapError) -> &'static str {
     match e {
         ReceiveSwapError::InvalidTransition { .. } => "invalid-state",
@@ -182,6 +222,7 @@ async fn main() {
     std::process::exit(exit_code);
 }
 
+#[allow(clippy::too_many_lines)]
 async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
     // Version doesn't need auth or env vars — handle it before building deps.
     if let Some(Command::Version) = args.cmd {
@@ -229,19 +270,65 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
             let rate_deps = build_exchange_rate_deps();
             mint::cmd_balance(&auth_deps, &storage_deps, &rate_deps).await?;
         }
-        Some(Command::Receive { token }) => {
-            let storage_deps = build_storage_deps(&auth_deps)?;
-            let cashu_deps = build_cashu_deps();
-            let receive_deps = build_receive_swap_deps(&storage_deps, &cashu_deps);
-            receive::cmd_receive(
-                &auth_deps,
-                &storage_deps,
-                &cashu_deps,
-                &receive_deps,
-                &token,
-            )
-            .await?;
-        }
+        Some(Command::Receive(r)) => match r.cmd {
+            ReceiveCommand::Token { token } => {
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                let cashu_deps = build_cashu_deps();
+                let receive_deps = build_receive_swap_deps(&storage_deps, &cashu_deps);
+                receive::cmd_receive(
+                    &auth_deps,
+                    &storage_deps,
+                    &cashu_deps,
+                    &receive_deps,
+                    &token,
+                )
+                .await?;
+            }
+            ReceiveCommand::Lightning {
+                amount,
+                account,
+                currency,
+                description,
+                no_wait,
+                poll_ms,
+                timeout_s,
+            } => {
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                let cashu_deps = build_cashu_deps();
+                let quote_deps = build_mint_quote_deps(&storage_deps, &cashu_deps);
+                receive_lightning::cmd_receive_lightning(
+                    &auth_deps,
+                    &storage_deps,
+                    &quote_deps,
+                    amount,
+                    account,
+                    currency,
+                    description,
+                    no_wait,
+                    poll_ms,
+                    timeout_s,
+                )
+                .await?;
+            }
+            ReceiveCommand::LightningComplete {
+                quote_id,
+                poll_ms,
+                timeout_s,
+            } => {
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                let cashu_deps = build_cashu_deps();
+                let quote_deps = build_mint_quote_deps(&storage_deps, &cashu_deps);
+                receive_lightning::cmd_receive_lightning_complete(
+                    &auth_deps,
+                    &storage_deps,
+                    &quote_deps,
+                    quote_id,
+                    poll_ms,
+                    timeout_s,
+                )
+                .await?;
+            }
+        },
         Some(Command::Send {
             amount,
             account,
