@@ -40,27 +40,15 @@
     feature = "real-supabase-tests",
     feature = "real-opensecret-tests"
 ))]
+mod common;
+
+#[cfg(all(
+    feature = "real-mint-tests",
+    feature = "real-supabase-tests",
+    feature = "real-opensecret-tests"
+))]
 mod gated {
-    use assert_cmd::Command;
-
-    fn env_ready() -> bool {
-        let _ = dotenvy::dotenv();
-        std::env::var("OPENSECRET_BASE_URL").is_ok()
-            && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
-            && (std::env::var("SUPABASE_URL").is_ok() || std::env::var("VITE_SUPABASE_URL").is_ok())
-            && (std::env::var("SUPABASE_ANON_KEY").is_ok()
-                || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
-    }
-
-    fn cmd(service: &str) -> Command {
-        let mut c = Command::cargo_bin("agicash").unwrap();
-        c.env("AGICASH_KEYRING_SERVICE", service);
-        c
-    }
-
-    fn cleanup(service: &str) {
-        let _ = cmd(service).args(["auth", "logout"]).output();
-    }
+    use super::common::*;
 
     /// All three malformed-token inputs in one test fn — they share a
     /// guest user and the env-readiness check. Per the strategy doc §5,
@@ -73,23 +61,11 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.receive-malformed");
+        let session = TestSession::new("receive-malformed");
 
         // Need a signed-in user so we hit the parse path (rather than
         // the not-logged-in early return). A guest is the cheapest way.
-        let guest = cmd(&service)
-            .args(["auth", "guest"])
-            .output()
-            .expect("spawn agicash auth guest");
-        if !guest.status.success() {
-            cleanup(&service);
-            panic!(
-                "auth guest failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&guest.stdout),
-                String::from_utf8_lossy(&guest.stderr),
-            );
-        }
+        session.spawn_guest();
 
         // Inputs that should all fail parsing in different parser branches.
         // Pure ASCII so there's no stdout/stderr encoding ambiguity.
@@ -105,7 +81,8 @@ mod gated {
         let mut failures: Vec<String> = Vec::new();
 
         for (label, token) in cases {
-            let out = cmd(&service)
+            let out = session
+                .cmd()
                 .args(["receive", "token", token])
                 .output()
                 .unwrap_or_else(|e| panic!("spawn agicash receive token ({label}): {e}"));
@@ -126,9 +103,6 @@ mod gated {
                 ));
             }
         }
-
-        // Cleanup before any assertion that could panic.
-        cleanup(&service);
 
         assert!(
             failures.is_empty(),

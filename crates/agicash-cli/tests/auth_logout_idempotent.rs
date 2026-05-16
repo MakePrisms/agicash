@@ -32,39 +32,15 @@
     feature = "real-supabase-tests",
     feature = "real-opensecret-tests"
 ))]
+mod common;
+
+#[cfg(all(
+    feature = "real-mint-tests",
+    feature = "real-supabase-tests",
+    feature = "real-opensecret-tests"
+))]
 mod gated {
-    use assert_cmd::Command;
-
-    fn env_ready() -> bool {
-        let _ = dotenvy::dotenv();
-        std::env::var("OPENSECRET_BASE_URL").is_ok()
-            && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
-            && (std::env::var("SUPABASE_URL").is_ok() || std::env::var("VITE_SUPABASE_URL").is_ok())
-            && (std::env::var("SUPABASE_ANON_KEY").is_ok()
-                || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
-    }
-
-    fn cmd(service: &str) -> Command {
-        let mut c = Command::cargo_bin("agicash").unwrap();
-        c.env("AGICASH_KEYRING_SERVICE", service);
-        c
-    }
-
-    fn parse_json(label: &str, out: &std::process::Output) -> serde_json::Value {
-        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
-        serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
-            panic!(
-                "{label} stdout was not JSON ({e}). stdout={stdout}, stderr={}",
-                String::from_utf8_lossy(&out.stderr),
-            )
-        })
-    }
-
-    /// Always-safe teardown: best-effort `auth logout`. Idempotent — the
-    /// behaviour under test, used here as a teardown primitive.
-    fn cleanup(service: &str) {
-        let _ = cmd(service).args(["auth", "logout"]).output();
-    }
+    use super::common::*;
 
     /// `auth logout` against an empty keyring exits 0 and emits
     /// `{"status":"not-logged-in"}`. A second call returns the same.
@@ -79,15 +55,14 @@ mod gated {
             return;
         }
 
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.auth-logout-idempotent");
-
-        // Defensive: ensure the keyring slot is empty before we start. This
-        // test must observe the no-session branch.
-        cleanup(&service);
+        // TestSession::new performs a defensive `auth logout` before
+        // handing us the service id, so we're guaranteed to observe the
+        // no-session branch in phase 1.
+        let session = TestSession::new("auth-logout-idempotent");
 
         // ---- Phase 1: logout from a guaranteed-empty keyring. ----
-        let first = cmd(&service)
+        let first = session
+            .cmd()
             .args(["auth", "logout"])
             .output()
             .expect("spawn agicash auth logout (no session)");
@@ -104,7 +79,8 @@ mod gated {
         );
 
         // ---- Phase 2: a second logout call must observe the same. ----
-        let second = cmd(&service)
+        let second = session
+            .cmd()
             .args(["auth", "logout"])
             .output()
             .expect("spawn agicash auth logout (no session, repeat)");
@@ -117,20 +93,10 @@ mod gated {
         );
 
         // ---- Phase 3: real guest → logout reports `signed-out`. ----
-        let guest = cmd(&service)
-            .args(["auth", "guest"])
-            .output()
-            .expect("spawn agicash auth guest");
-        if !guest.status.success() {
-            cleanup(&service);
-            panic!(
-                "auth guest failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&guest.stdout),
-                String::from_utf8_lossy(&guest.stderr),
-            );
-        }
+        session.spawn_guest();
 
-        let signed_out = cmd(&service)
+        let signed_out = session
+            .cmd()
             .args(["auth", "logout"])
             .output()
             .expect("spawn agicash auth logout (signed-in)");
@@ -147,15 +113,11 @@ mod gated {
         );
 
         // ---- Phase 4: third logout reverts to not-logged-in. ----
-        let final_logout = cmd(&service)
+        let final_logout = session
+            .cmd()
             .args(["auth", "logout"])
             .output()
             .expect("spawn agicash auth logout (post-clear)");
-
-        // Stage cleanup before any final assertion — we have no more
-        // state to preserve, but the pattern stays consistent.
-        cleanup(&service);
-
         assert!(
             final_logout.status.success(),
             "post-clear logout must exit 0"
@@ -166,6 +128,7 @@ mod gated {
             Some("not-logged-in"),
             "after a successful sign-out, the next logout should report not-logged-in; got {final_json}",
         );
+        // session drops → cleanup_keyring runs.
     }
 }
 

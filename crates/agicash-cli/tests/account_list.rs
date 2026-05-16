@@ -28,17 +28,11 @@
 //!         --test account_list -- --nocapture`
 
 #[cfg(all(feature = "real-supabase-tests", feature = "real-opensecret-tests"))]
-mod gated {
-    use assert_cmd::Command;
+mod common;
 
-    fn env_ready() -> bool {
-        let _ = dotenvy::dotenv();
-        std::env::var("OPENSECRET_BASE_URL").is_ok()
-            && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
-            && (std::env::var("SUPABASE_URL").is_ok() || std::env::var("VITE_SUPABASE_URL").is_ok())
-            && (std::env::var("SUPABASE_ANON_KEY").is_ok()
-                || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
-    }
+#[cfg(all(feature = "real-supabase-tests", feature = "real-opensecret-tests"))]
+mod gated {
+    use super::common::*;
 
     /// `auth guest` → `account list` end-to-end, no service-role shortcut.
     /// A fresh process for `account list` exercises the keyring-rehydration
@@ -51,12 +45,10 @@ mod gated {
         }
         // Per-test keyring service so concurrent runs (and any leftover
         // session from a previous run) don't collide.
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.account-list-e2e");
+        let session = TestSession::new("account-list-e2e");
 
-        let guest = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let guest = session
+            .cmd()
             .args(["auth", "guest"])
             .output()
             .expect("spawn agicash auth guest");
@@ -66,30 +58,21 @@ mod gated {
             String::from_utf8_lossy(&guest.stdout),
             String::from_utf8_lossy(&guest.stderr),
         );
-        let guest_stdout = String::from_utf8_lossy(&guest.stdout).into_owned();
-        let guest_json: serde_json::Value = serde_json::from_str(guest_stdout.trim())
-            .unwrap_or_else(|e| panic!("auth guest stdout not JSON ({e}): {guest_stdout}"));
+        let guest_json = parse_json("auth guest", &guest);
         assert_eq!(
             guest_json.get("status").and_then(|v| v.as_str()),
             Some("signed-in"),
             "unexpected auth guest body: {guest_json}",
         );
 
-        let list = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let list = session
+            .cmd()
             .args(["account", "list"])
             .output()
             .expect("spawn agicash account list");
 
-        // Cleanup the keyring before any assertion so a panic doesn't leak
-        // entries across runs.
-        let _ = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "logout"])
-            .output();
-
+        // TestSession::Drop cleans up the keyring on panic, so no
+        // manual stage-before-assert dance is needed.
         assert!(
             list.status.success(),
             "account list failed: stdout={}, stderr={}",
@@ -101,9 +84,7 @@ mod gated {
         // is that we reached postgrest with a valid JWT (HTTP 200, exit 0)
         // and that stdout parses as JSON — not that any specific row was
         // returned.
-        let list_stdout = String::from_utf8_lossy(&list.stdout).into_owned();
-        let list_json: serde_json::Value = serde_json::from_str(list_stdout.trim())
-            .unwrap_or_else(|e| panic!("account list stdout not JSON ({e}): {list_stdout}"));
+        let list_json = parse_json("account list", &list);
         assert!(
             list_json.is_array(),
             "expected account list stdout to be a JSON array, got: {list_json}",
