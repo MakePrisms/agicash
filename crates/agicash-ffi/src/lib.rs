@@ -14,6 +14,7 @@
 
 pub mod account;
 pub mod error;
+pub mod lightning_address;
 pub mod mint;
 pub mod mint_quote;
 pub mod observability;
@@ -24,6 +25,7 @@ pub mod wallet;
 
 pub use account::*;
 pub use error::*;
+pub use lightning_address::*;
 pub use mint::*;
 pub use mint_quote::*;
 pub use observability::{init as init_observability, jwt_sub};
