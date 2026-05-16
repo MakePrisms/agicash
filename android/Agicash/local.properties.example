@@ -1,0 +1,20 @@
+# Copy to local.properties before opening the project in Android Studio.
+# Android Gradle Plugin requires sdk.dir to know where the Android SDK lives.
+#
+# Three common install paths:
+#
+#   1. brew cask `android-commandlinetools` (headless; what the
+#      android-scaffold lane verified) — /opt/homebrew/share/android-commandlinetools
+#   2. Android Studio first-run wizard — ~/Library/Android/sdk
+#   3. brew cask `android-sdk` — /opt/homebrew/share/android-sdk (deprecated)
+#
+# Pick whichever you have. The headless path:
+#
+#   brew install --cask android-commandlinetools
+#   sdkmanager --licenses  # accept all
+#   sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.1"
+
+sdk.dir=/opt/homebrew/share/android-commandlinetools
+
+# Optionally override the NDK location if cargo-ndk's auto-detection misses it.
+# ndk.dir=/opt/homebrew/share/android-ndk

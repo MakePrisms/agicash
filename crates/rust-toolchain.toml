@@ -1,5 +1,13 @@
 [toolchain]
 channel = "1.88.0"
 components = ["rustfmt", "clippy"]
-targets = ["wasm32-unknown-unknown"]
+# Cross-compile targets. Android slices are required by the Kotlin FFI bindings
+# under bindings/kotlin/; cargo-ndk + ANDROID_NDK_HOME must be set up before
+# the cross builds work (see bindings/kotlin/generate-bindings.sh).
+targets = [
+    "wasm32-unknown-unknown",
+    "aarch64-linux-android",
+    "armv7-linux-androideabi",
+    "x86_64-linux-android",
+]
 profile = "minimal"
