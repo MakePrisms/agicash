@@ -14,5 +14,5 @@ pub use receive_swap::{
 };
 pub use send_swap::{
     CashuSendSwap, CashuSendSwapState, CashuSendSwapStorage, CommitProofsToSend, CreateSendSwap,
-    CreateSendSwapResult, OutputAmounts, SendSwapStorageError,
+    CreateSendSwapResult, OutputAmounts, SendSwapError, SendSwapMachine, SendSwapStorageError,
 };
