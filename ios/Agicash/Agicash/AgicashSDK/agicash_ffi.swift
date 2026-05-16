@@ -1243,6 +1243,74 @@ public func FfiConverterTypeAccountFfi_lower(_ value: AccountFfi) -> RustBuffer 
 }
 
 
+/**
+ * FFI mirror of [`agicash_cashu::AlreadyClaimedInfo`]. Deliberately
+ * omits any amount field — see the inner type's doc for the rationale.
+ */
+public struct AlreadyClaimedInfoFfi: Equatable, Hashable {
+    public var unit: String
+    public var currency: String
+    public var accountId: String
+    public var mintUrl: String
+    public var tokenHash: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(unit: String, currency: String, accountId: String, mintUrl: String, tokenHash: String) {
+        self.unit = unit
+        self.currency = currency
+        self.accountId = accountId
+        self.mintUrl = mintUrl
+        self.tokenHash = tokenHash
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension AlreadyClaimedInfoFfi: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAlreadyClaimedInfoFfi: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AlreadyClaimedInfoFfi {
+        return
+            try AlreadyClaimedInfoFfi(
+                unit: FfiConverterString.read(from: &buf), 
+                currency: FfiConverterString.read(from: &buf), 
+                accountId: FfiConverterString.read(from: &buf), 
+                mintUrl: FfiConverterString.read(from: &buf), 
+                tokenHash: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AlreadyClaimedInfoFfi, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.unit, into: &buf)
+        FfiConverterString.write(value.currency, into: &buf)
+        FfiConverterString.write(value.accountId, into: &buf)
+        FfiConverterString.write(value.mintUrl, into: &buf)
+        FfiConverterString.write(value.tokenHash, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAlreadyClaimedInfoFfi_lift(_ buf: RustBuffer) throws -> AlreadyClaimedInfoFfi {
+    return try FfiConverterTypeAlreadyClaimedInfoFfi.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAlreadyClaimedInfoFfi_lower(_ value: AlreadyClaimedInfoFfi) -> RustBuffer {
+    return FfiConverterTypeAlreadyClaimedInfoFfi.lower(value)
+}
+
+
 public struct AuthStatus: Equatable, Hashable {
     public var loggedIn: Bool
     /**
@@ -1867,6 +1935,13 @@ public enum ReceiveFlowStateFfi: Equatable, Hashable {
     )
     case done(result: ReceiveFlowResultFfi
     )
+    /**
+     * Idempotent re-paste of a token this user already claimed. UI shows
+     * an informational message; **never** render `amount` here (there is
+     * no amount field — see `AlreadyClaimedInfoFfi`).
+     */
+    case alreadyClaimed(info: AlreadyClaimedInfoFfi
+    )
     case failed(reason: String, code: String
     )
 
@@ -1904,7 +1979,10 @@ public struct FfiConverterTypeReceiveFlowStateFfi: FfiConverterRustBuffer {
         case 6: return .done(result: try FfiConverterTypeReceiveFlowResultFfi.read(from: &buf)
         )
         
-        case 7: return .failed(reason: try FfiConverterString.read(from: &buf), code: try FfiConverterString.read(from: &buf)
+        case 7: return .alreadyClaimed(info: try FfiConverterTypeAlreadyClaimedInfoFfi.read(from: &buf)
+        )
+        
+        case 8: return .failed(reason: try FfiConverterString.read(from: &buf), code: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -1944,8 +2022,13 @@ public struct FfiConverterTypeReceiveFlowStateFfi: FfiConverterRustBuffer {
             FfiConverterTypeReceiveFlowResultFfi.write(result, into: &buf)
             
         
-        case let .failed(reason,code):
+        case let .alreadyClaimed(info):
             writeInt(&buf, Int32(7))
+            FfiConverterTypeAlreadyClaimedInfoFfi.write(info, into: &buf)
+            
+        
+        case let .failed(reason,code):
+            writeInt(&buf, Int32(8))
             FfiConverterString.write(reason, into: &buf)
             FfiConverterString.write(code, into: &buf)
             
@@ -2073,12 +2156,16 @@ public func FfiConverterTypeReceiveStatus_lower(_ value: ReceiveStatus) -> RustB
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
  * FFI mirror of [`agicash_cashu::ReceiveFlowStatus`].
+ *
+ * Note: the `AlreadyClaimed` idempotent case is no longer represented
+ * here — it is surfaced as a dedicated [`ReceiveFlowStateFfi::AlreadyClaimed`]
+ * state variant so UI can switch on the variant tag and never accidentally
+ * render an empty/zero `amount` field.
  */
 
 public enum ReceiveStatusFfi: Equatable, Hashable {
     
     case received
-    case alreadyClaimed
     case alreadyFailed
     case pending
 
@@ -2102,11 +2189,9 @@ public struct FfiConverterTypeReceiveStatusFfi: FfiConverterRustBuffer {
         
         case 1: return .received
         
-        case 2: return .alreadyClaimed
+        case 2: return .alreadyFailed
         
-        case 3: return .alreadyFailed
-        
-        case 4: return .pending
+        case 3: return .pending
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2120,16 +2205,12 @@ public struct FfiConverterTypeReceiveStatusFfi: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         
         
-        case .alreadyClaimed:
+        case .alreadyFailed:
             writeInt(&buf, Int32(2))
         
         
-        case .alreadyFailed:
-            writeInt(&buf, Int32(3))
-        
-        
         case .pending:
-            writeInt(&buf, Int32(4))
+            writeInt(&buf, Int32(3))
         
         }
     }
