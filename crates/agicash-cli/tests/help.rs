@@ -133,9 +133,17 @@ fn account_list_without_session_exits_three_and_emits_json_error() {
         out.status.code(),
         String::from_utf8_lossy(&out.stderr),
     );
+    // stderr is line-oriented: zero or more `note: …` warnings (e.g. the
+    // keyring-unavailable diagnostic emitted by the fallback chain on Linux
+    // CI) followed by the structured JSON error body. Scan for the JSON
+    // line rather than parsing the whole blob.
     let stderr = String::from_utf8(out.stderr).unwrap();
-    let parsed: serde_json::Value = serde_json::from_str(stderr.trim())
-        .unwrap_or_else(|e| panic!("stderr was not valid JSON ({e}): {stderr}"));
+    let json_line = stderr
+        .lines()
+        .find(|l| l.trim_start().starts_with('{'))
+        .unwrap_or_else(|| panic!("no JSON error line in stderr: {stderr}"));
+    let parsed: serde_json::Value = serde_json::from_str(json_line.trim())
+        .unwrap_or_else(|e| panic!("error line was not valid JSON ({e}): {json_line}"));
     assert_eq!(
         parsed.pointer("/error/code").and_then(|v| v.as_str()),
         Some("not-logged-in"),
