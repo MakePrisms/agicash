@@ -25,6 +25,8 @@
 //! `cargo test … --features real-mint,real-supabase,real-opensecret`
 //! run picks it up alongside the rest.
 
+#![allow(clippy::doc_markdown)]
+
 #[cfg(all(
     feature = "real-mint-tests",
     feature = "real-supabase-tests",
@@ -154,7 +156,10 @@ mod gated {
         // state to preserve, but the pattern stays consistent.
         cleanup(&service);
 
-        assert!(final_logout.status.success(), "post-clear logout must exit 0");
+        assert!(
+            final_logout.status.success(),
+            "post-clear logout must exit 0"
+        );
         let final_json = parse_json("auth logout (post-clear)", &final_logout);
         assert_eq!(
             final_json.get("status").and_then(|v| v.as_str()),
