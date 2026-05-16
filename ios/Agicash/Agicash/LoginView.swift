@@ -8,9 +8,13 @@ import SwiftUI
 /// Visual treatment is one-to-one with `app/features/login/login-options.tsx`
 /// + `app/features/login/login-form.tsx`. The web has no brand mark on this
 /// screen — just the card. We render the AgicashLogo above the card per the
-/// project spec ("do not change AgicashLogo placement or asset"); everything
-/// else (wordmark, tagline, "or" divider, guest button) is iOS surplus and
-/// has been removed.
+/// project spec ("do not change AgicashLogo placement or asset"); the
+/// wordmark, tagline, and "or" divider are iOS surplus and have been removed.
+///
+/// Guest auth: web doesn't expose this, but operator requires guest on all
+/// clients (CLI, iOS, Android). Restored as a third (ghost-variant) button
+/// on the pick-option step, matching Android's `LoginScreen` placement
+/// convention. Wired to `wallet.authGuest()` via `signInAsGuest`.
 struct LoginView: View {
     @Bindable var model: WalletViewModel
 
@@ -19,10 +23,22 @@ struct LoginView: View {
     @State private var step: Step = .pickOption
     @State private var email: String = ""
     @State private var password: String = ""
+    /// Drives presentation of `SignUpView` as a full-screen cover. The web
+    /// uses a separate `/signup` route; on iOS we mirror that as a modal
+    /// take-over so the existing nav stack stays untouched.
+    @State private var showSignUp: Bool = false
     @FocusState private var focusedField: Field?
 
     enum Field: Hashable {
         case email, password
+    }
+
+    /// Open the Sign Up screen. Clears any leftover login error so it
+    /// doesn't bleed across screens, then triggers the cover.
+    private func openSignUp() {
+        focusedField = nil
+        model.loginErrorMessage = nil
+        showSignUp = true
     }
 
     var body: some View {
@@ -48,7 +64,11 @@ struct LoginView: View {
                             onPickGoogle: {
                                 // Google OAuth is out of scope for v0;
                                 // button still rendered to match web.
-                            }
+                            },
+                            onPickGuest: {
+                                Task { await model.signInAsGuest() }
+                            },
+                            onPickSignUp: openSignUp
                         )
                     case .email:
                         LoginFormCard(
@@ -68,7 +88,8 @@ struct LoginView: View {
                             onBack: {
                                 focusedField = nil
                                 step = .pickOption
-                            }
+                            },
+                            onPickSignUp: openSignUp
                         )
                     }
                 }
@@ -80,6 +101,9 @@ struct LoginView: View {
         }
         .background(Color.brandBackground.ignoresSafeArea())
         .scrollDismissesKeyboard(.interactively)
+        .fullScreenCover(isPresented: $showSignUp) {
+            SignUpView(model: model, onDismiss: { showSignUp = false })
+        }
     }
 }
 
@@ -100,6 +124,8 @@ private struct LoginOptionsCard: View {
     let isWorking: Bool
     let onPickEmail: () -> Void
     let onPickGoogle: () -> Void
+    let onPickGuest: () -> Void
+    let onPickSignUp: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.l) {
@@ -130,16 +156,34 @@ private struct LoginOptionsCard: View {
                     action: onPickGoogle
                 )
 
-                // `mt-4 text-center text-sm`
-                HStack(spacing: 4) {
-                    Text("Don't have an account?")
-                        .foregroundStyle(Color.brandCardForeground)
-                    Text("Sign up")
-                        .underline()
-                        .foregroundStyle(Color.brandCardForeground)
+                // Guest auth is required on all clients per operator intent
+                // (web omits it intentionally, but iOS/Android/CLI must
+                // expose it). Ghost variant keeps it visually subordinate
+                // to the two primary login methods.
+                BrandButton(
+                    "Continue as guest",
+                    variant: .ghost,
+                    isLoading: isWorking,
+                    isDisabled: isWorking,
+                    action: onPickGuest
+                )
+
+                // `mt-4 text-center text-sm` — wrapped in a Button so the
+                // "Sign up" target is tappable (web uses `<Link to="/signup">`).
+                Button(action: onPickSignUp) {
+                    HStack(spacing: 4) {
+                        Text("Don't have an account?")
+                            .foregroundStyle(Color.brandCardForeground)
+                        Text("Sign up")
+                            .underline()
+                            .foregroundStyle(Color.brandCardForeground)
+                    }
+                    .font(.brandLabel)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                 }
-                .font(.brandLabel)
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
+                .disabled(isWorking)
             }
         }
         .padding(Spacing.xxl)
@@ -174,6 +218,7 @@ private struct LoginFormCard: View {
     let errorMessage: String?
     let onSignIn: () -> Void
     let onBack: () -> Void
+    let onPickSignUp: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.l) {
@@ -252,16 +297,22 @@ private struct LoginFormCard: View {
                     action: onBack
                 )
 
-                // `mt-4 text-center text-sm`
-                HStack(spacing: 4) {
-                    Text("Don't have a wallet?")
-                        .foregroundStyle(Color.brandCardForeground)
-                    Text("Sign up")
-                        .underline()
-                        .foregroundStyle(Color.brandCardForeground)
+                // `mt-4 text-center text-sm` — Button wrap so "Sign up" is
+                // tappable (mirrors web's `<Link to="/signup">`).
+                Button(action: onPickSignUp) {
+                    HStack(spacing: 4) {
+                        Text("Don't have a wallet?")
+                            .foregroundStyle(Color.brandCardForeground)
+                        Text("Sign up")
+                            .underline()
+                            .foregroundStyle(Color.brandCardForeground)
+                    }
+                    .font(.brandLabel)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                 }
-                .font(.brandLabel)
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
+                .disabled(isWorking)
             }
         }
         .padding(Spacing.xxl)
