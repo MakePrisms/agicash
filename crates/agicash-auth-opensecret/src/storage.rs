@@ -83,17 +83,21 @@ impl SessionStorage for InMemorySessionStorage {
 // Keyring backend — feature-gated.
 // ---------------------------------------------------------------------------
 
-#[cfg(feature = "keyring-storage")]
+// The keyring crate doesn't compile on wasm32, so we additionally gate the
+// backend module on the target. Crates building for wasm with default
+// features still get a `DEFAULT_SERVICE` constant via the fallback below
+// even though no `KeyringSessionStorage` is exported.
+#[cfg(all(feature = "keyring-storage", not(target_arch = "wasm32")))]
 pub use self::keyring_backend::{KeyringSessionStorage, DEFAULT_SERVICE};
 
 // Re-export the constant unconditionally so existing call sites that build
-// only with `--no-default-features` still resolve the default service name
-// (used by the CLI to derive a fallback service id even when the keyring
-// backend itself isn't compiled in).
-#[cfg(not(feature = "keyring-storage"))]
+// only with `--no-default-features` (or on wasm) still resolve the default
+// service name (used by the CLI to derive a fallback service id even when
+// the keyring backend itself isn't compiled in).
+#[cfg(any(not(feature = "keyring-storage"), target_arch = "wasm32"))]
 pub const DEFAULT_SERVICE: &str = "com.agicash.cli";
 
-#[cfg(feature = "keyring-storage")]
+#[cfg(all(feature = "keyring-storage", not(target_arch = "wasm32")))]
 mod keyring_backend {
     use super::{async_trait, AuthError, PersistedSession, SessionStorage, SessionStorageError};
 
