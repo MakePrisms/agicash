@@ -32,9 +32,9 @@ use cdk::nuts::{
 // returned by `wallet.connector()`. The compiler reports it unused because
 // the dyn-Arc auto-derefs to its trait methods, but removing it breaks
 // compilation under stricter trait-resolution settings.
+use cdk::Amount;
 #[allow(unused_imports)]
 use cdk::wallet::MintConnector;
-use cdk::Amount;
 // Re-export needed for tests; otherwise unused
 #[cfg(test)]
 use crate::send_swap::storage::SendSwapStorageError;
@@ -362,6 +362,18 @@ impl CashuSendSwapService {
         proofs: &[ProofWithId],
         requested_amount: u64,
     ) -> Result<PreparedSelection, SendSwapError> {
+        // Reject zero-amount sends pre-quote. Cashu mints publish a
+        // `min_amount` in their NUT-05/NUT-04 settings; nothing useful
+        // can be sent at zero. Without this guard, `select_send_proofs`
+        // short-circuits to `Ok(empty)` and `create()` walks the
+        // exact-proofs path producing a valid-looking but empty token —
+        // silently shipping a worthless string to the user. The TS web
+        // app (`app/features/send/send-input.tsx`) already disables the
+        // Continue button when `inputValue.isZero()`; this matches that
+        // contract at the service layer for non-UI callers (CLI, FFI).
+        if requested_amount == 0 {
+            return Err(SendSwapError::AmountTooSmall);
+        }
         let total_available = sum_proofs(proofs);
         if total_available < requested_amount {
             return Err(SendSwapError::InsufficientBalance {
