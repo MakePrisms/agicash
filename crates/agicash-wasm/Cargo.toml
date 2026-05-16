@@ -12,5 +12,13 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 wasm-bindgen = { workspace = true }
 
+# Pull agicash-auth-opensecret into the wasm crate graph so cargo
+# `cargo check --target wasm32-unknown-unknown -p agicash-wasm` exercises the
+# opensecret-fork wasm path end-to-end. We only re-export the version function
+# for now; the real Wallet binding lands when the `Send + Sync` trait gap on
+# `KeyProvider`/`TokenProvider` is resolved (see slice 13 followup).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+agicash-auth-opensecret = { path = "../agicash-auth-opensecret" }
+
 [lints]
 workspace = true

@@ -26,6 +26,21 @@ crates/
 └── agicash-testing/            # in-memory fakes, fixtures, builders
 ```
 
+## Rust build cache
+
+`devenv.nix` wires up `sccache` as `RUSTC_WRAPPER` with a per-workspace cache
+at `.sccache/` (gitignored) and `CARGO_INCREMENTAL=0`. Run cargo from inside
+the devshell to get 10–30× warm rebuilds:
+
+```bash
+devenv shell -c 'cd crates && cargo check --workspace'
+# or, if direnv is active (`direnv allow` once), plain cargo works:
+cd crates && cargo check --workspace
+```
+
+Without the devshell, cargo runs with no wrapper and pays full cold compile
+cost. Check `sccache --show-stats` to confirm hits.
+
 ## Common commands
 
 From the repo root:

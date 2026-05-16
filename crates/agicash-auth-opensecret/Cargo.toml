@@ -17,8 +17,6 @@ agicash-domain = { path = "../agicash-domain" }
 agicash-crypto = { path = "../agicash-crypto" }
 agicash-traits = { path = "../agicash-traits" }
 opensecret = { workspace = true }
-keyring = { workspace = true }
-tokio = { workspace = true }
 async-trait = { workspace = true }
 uuid = { workspace = true }
 hex = { workspace = true }
@@ -27,6 +25,17 @@ bip39 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+
+# keyring + multi-threaded tokio (spawn_blocking) are native-only.
+# The wasm build skips storage.rs entirely (see lib.rs cfg gates).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+keyring = { workspace = true }
+tokio = { workspace = true }
+
+# On wasm, agicash-auth-opensecret still needs tokio macros / sync / time for
+# its async surface; the multi-threaded runtime is what we drop.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1.42", default-features = false, features = ["macros", "sync", "time"] }
 
 [lints]
 workspace = true

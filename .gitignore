@@ -52,6 +52,9 @@ node_modules
 # inside break CI on Linux runners. See feedback_dev_loop_cache memory note.
 /crates/.cargo/
 
+# sccache local cache directory (devenv.nix RUSTC_WRAPPER).
+/.sccache
+
 # iOS / Swift bindings
 /bindings/swift/rust/target
 /bindings/swift/build

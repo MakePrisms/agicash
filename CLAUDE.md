@@ -146,6 +146,15 @@ bun test             # Unit tests (ask first)
 bun run test:e2e     # E2E tests (ask first)
 ```
 
+## Rust build cache
+
+The devshell wires `sccache` as `RUSTC_WRAPPER` (with `CARGO_INCREMENTAL=0`,
+required for sccache to see rustc invocations). Cache lives at `.sccache/`
+in the workspace, gitignored. Wrap cargo commands in `devenv shell -c '...'`
+or rely on `direnv` auto-activation to get the 10–30× warm rebuild speedup.
+Without the devshell, cargo runs without `RUSTC_WRAPPER` and pays full cold
+compile cost. See `crates/README.md` for details.
+
 **Database**: `bun run db:generate-types` after schema changes — but this only works if the migration has been applied first. If you created a new migration file, ask the user to apply it (via Supabase dashboard or `bun supabase migration up`) before running type generation. Do NOT run `db:generate-types` against unapplied migrations — it will silently produce stale types and cause confusing errors downstream.
 
 ## Naming Conventions

@@ -4,6 +4,45 @@
   # https://devenv.sh/basics/
   env.GREET = "devenv";
 
+  # WASM cross-compile prereqs.
+  #
+  # `secp256k1-sys` and `ring` (transitive deps of cdk + opensecret) compile
+  # C sources for the wasm32-unknown-unknown target. Apple's system clang
+  # does NOT support wasm32, so without a wasm-capable clang on the
+  # appropriate CC env var, `cargo check --target wasm32-unknown-unknown`
+  # fails with "unknown target triple: wasm32-unknown-unknown".
+  #
+  # We point cc-rs at nix's clang_21 + llvm-ar via the well-known per-target
+  # env vars. The rust target itself is declared in `crates/rust-toolchain.toml`
+  # (rustup auto-installs `wasm32-unknown-unknown` when first invoked).
+  #
+  # IMPORTANT: use `clang_21.cc` (unwrapped) rather than `clang_21` (wrapped).
+  # The nix cc-wrapper auto-injects darwin-specific flags like
+  # `-fzero-call-used-regs=used-gpr` that wasm32 rejects, and emits a runtime
+  # warning ("cc-wrapper is currently not designed with multi-target compilers
+  # in mind. You may want to use an un-wrapped compiler instead.").
+  #
+  # See: /Users/claude/opensecret-sdk-fork wasm-compat work + the CDK wasm
+  # audit doc (2026-05-15) for the full backstory.
+  env.CC_wasm32_unknown_unknown = "${pkgs.clang_21.cc}/bin/clang";
+  env.AR_wasm32_unknown_unknown = "${pkgs.llvm_21}/bin/llvm-ar";
+
+  # Rust compile cache. `sccache` wraps `rustc` and reuses object files across
+  # builds, giving a 10–30× speedup on warm rebuilds. The cache lives under
+  # the workspace (gitignored) so it survives `cargo clean` and doesn't
+  # collide across worktrees.
+  #
+  # `CARGO_INCREMENTAL=0` is REQUIRED: cargo's incremental compilation and
+  # sccache are mutually exclusive — with incremental on, cargo skips rustc
+  # invocations and sccache sees nothing to cache. Disabling incremental
+  # gives sccache the full rustc invocations it needs to memoize, and
+  # cross-worktree reuse more than compensates for the loss of in-workspace
+  # incremental rebuilds.
+  env.RUSTC_WRAPPER = "sccache";
+  env.SCCACHE_DIR = "${config.devenv.root}/.sccache";
+  env.SCCACHE_CACHE_SIZE = "20G";
+  env.CARGO_INCREMENTAL = "0";
+
   # https://devenv.sh/packages/
   packages = [
     pkgs.git
@@ -13,6 +52,11 @@
     pkgs.mkcert
     pkgs.nss.tools
     pkgs.gh
+    # wasm cross-compile toolchain (see CC_wasm32_unknown_unknown above).
+    pkgs.clang_21
+    pkgs.llvm_21
+    # rust compile cache (see RUSTC_WRAPPER above).
+    pkgs.sccache
     (pkgs.callPackage ./tools/convert-to-webp {})
   ];
 

@@ -15,6 +15,8 @@ impl OpenSecretTokenProvider {
     }
 }
 
+// See key_provider.rs for the wasm `Send + Sync` story. Same gate applies.
+#[cfg(not(target_arch = "wasm32"))]
 #[async_trait]
 impl TokenProvider for OpenSecretTokenProvider {
     async fn get_jwt(&self) -> Result<String, AuthError> {
