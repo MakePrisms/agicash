@@ -185,9 +185,13 @@ pub async fn cmd_send(
     let body = SendOutput {
         status: "sent",
         token: token_str,
-        amount: swap.amount_to_send.amount().to_string(),
+        // `amount` is the user-facing send amount — what the receiver
+        // gets after claiming. `amount_to_send` (encoded into the token)
+        // includes the receive-side fee they pay back to the mint, so we
+        // surface `amount_received` to keep the CLI contract readable.
+        amount: swap.amount_received.amount().to_string(),
         fee: swap.total_fee.amount().to_string(),
-        unit: swap.amount_to_send.unit().to_string(),
+        unit: swap.amount_received.unit().to_string(),
         currency: account_obj.currency.to_string(),
         account_id: account_obj.id.to_string(),
         mint_url: mint_url_str,
