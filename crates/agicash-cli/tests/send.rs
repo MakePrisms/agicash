@@ -1,11 +1,11 @@
-//! End-to-end test for `agicash send <amount>` against the real testnut
+//! End-to-end test for `agicash send token <amount>` against the real testnut
 //! mint + the real Open Secret -> Supabase auth chain.
 //!
 //! The helper `mint_test_token_via_testnut` runs the NUT-04 mint flow
 //! against testnut.cashu.space and produces a V4 token string. The token
-//! is handed to `agicash receive` to fund the guest account; then
-//! `agicash send` produces a token a fresh guest can claim back via
-//! `agicash receive`.
+//! is handed to `agicash receive token` to fund the guest account; then
+//! `agicash send token` produces a token a fresh guest can claim back via
+//! `agicash receive token`.
 //!
 //! Run:
 //!     cargo test -p agicash-cli \
@@ -184,7 +184,7 @@ mod gated {
         let receive = Command::cargo_bin("agicash")
             .unwrap()
             .env("AGICASH_KEYRING_SERVICE", &sender_service)
-            .args(["receive", &deposit_token])
+            .args(["receive", "token", &deposit_token])
             .output()
             .expect("spawn agicash receive (deposit)");
         if !receive.status.success() {
@@ -199,7 +199,7 @@ mod gated {
         let send = Command::cargo_bin("agicash")
             .unwrap()
             .env("AGICASH_KEYRING_SERVICE", &sender_service)
-            .args(["send", "100"])
+            .args(["send", "token", "100"])
             .output()
             .expect("spawn agicash send");
         if !send.status.success() {
@@ -237,7 +237,7 @@ mod gated {
         let receive2 = Command::cargo_bin("agicash")
             .unwrap()
             .env("AGICASH_KEYRING_SERVICE", &receiver_service)
-            .args(["receive", &token])
+            .args(["receive", "token", &token])
             .output()
             .expect("spawn agicash receive (redeem)");
         cleanup(&receiver_service);
@@ -280,7 +280,7 @@ mod gated {
         let send = Command::cargo_bin("agicash")
             .unwrap()
             .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["send", "100"])
+            .args(["send", "token", "100"])
             .output()
             .expect("spawn agicash send");
         cleanup(&service);
@@ -319,7 +319,7 @@ mod gated {
         let receive = Command::cargo_bin("agicash")
             .unwrap()
             .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["receive", &deposit_token])
+            .args(["receive", "token", &deposit_token])
             .output()
             .expect("spawn agicash receive");
         if !receive.status.success() {
@@ -334,7 +334,7 @@ mod gated {
         let dry = Command::cargo_bin("agicash")
             .unwrap()
             .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["send", "100", "--dry-run"])
+            .args(["send", "token", "100", "--dry-run"])
             .output()
             .expect("spawn agicash send --dry-run");
         if !dry.status.success() {
@@ -359,7 +359,7 @@ mod gated {
         let send = Command::cargo_bin("agicash")
             .unwrap()
             .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["send", "100"])
+            .args(["send", "token", "100"])
             .output()
             .expect("spawn agicash send");
         cleanup(&service);
