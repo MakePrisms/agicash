@@ -77,7 +77,7 @@ export default function ScanPage() {
 
   return (
     <Page>
-      <PageHeader className="z-10">
+      <PageHeader className="z-20">
         <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Scan</PageHeaderTitle>
       </PageHeader>
