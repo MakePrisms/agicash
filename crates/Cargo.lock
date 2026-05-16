@@ -102,6 +102,7 @@ dependencies = [
  "agicash-cashu",
  "agicash-domain",
  "agicash-exchange-rate",
+ "agicash-lightning-address",
  "agicash-money",
  "agicash-storage-supabase",
  "agicash-traits",

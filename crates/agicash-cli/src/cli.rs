@@ -91,6 +91,36 @@ pub enum SendCommand {
         #[arg(long, default_value_t = 30)]
         timeout_s: u64,
     },
+    /// Pay a LUD-16 Lightning Address (`user@domain`) by resolving the
+    /// well-known endpoint client-side, fetching a BOLT-11 invoice, then
+    /// running the regular NUT-05 melt flow.
+    LightningAddress {
+        /// LUD-16 address, e.g. `alice@walletofsatoshi.com`.
+        address: String,
+        /// Amount to send in sats. Converted to msats for the LUD-06 callback.
+        amount: u64,
+        /// Account ID to send from. If omitted, the only Cashu account
+        /// is used; if multiple Cashu accounts exist, this is required.
+        #[arg(long)]
+        account: Option<String>,
+        /// Optional comment to send with the LUD-12 callback (if the
+        /// remote advertises `commentAllowed`).
+        #[arg(long)]
+        comment: Option<String>,
+        /// Show preview without persisting or paying.
+        #[arg(long)]
+        dry_run: bool,
+        /// If set, request the melt quote and exit; call
+        /// `agicash send lightning-complete <quote_id>` later to finish.
+        #[arg(long)]
+        no_wait: bool,
+        /// Polling interval in milliseconds.
+        #[arg(long, default_value_t = 1000)]
+        poll_ms: u64,
+        /// Overall timeout in seconds.
+        #[arg(long, default_value_t = 300)]
+        timeout_s: u64,
+    },
 }
 
 #[derive(clap::Args, Debug)]
@@ -511,6 +541,73 @@ mod tests {
         match cli.cmd {
             Some(Command::Send(s)) => match s.cmd {
                 SendCommand::Lightning { no_wait, .. } => assert!(no_wait),
+                other => panic!("unexpected send subcommand: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_send_lightning_address() {
+        let cli = Cli::try_parse_from([
+            "agicash",
+            "send",
+            "lightning-address",
+            "alice@walletofsatoshi.com",
+            "100",
+        ])
+        .unwrap();
+        match cli.cmd {
+            Some(Command::Send(s)) => match s.cmd {
+                SendCommand::LightningAddress {
+                    address,
+                    amount,
+                    account,
+                    comment,
+                    dry_run,
+                    no_wait,
+                    ..
+                } => {
+                    assert_eq!(address, "alice@walletofsatoshi.com");
+                    assert_eq!(amount, 100);
+                    assert!(account.is_none());
+                    assert!(comment.is_none());
+                    assert!(!dry_run);
+                    assert!(!no_wait);
+                }
+                other => panic!("unexpected send subcommand: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_send_lightning_address_with_comment_and_flags() {
+        let cli = Cli::try_parse_from([
+            "agicash",
+            "send",
+            "lightning-address",
+            "alice@example.com",
+            "250",
+            "--comment",
+            "thanks!",
+            "--dry-run",
+        ])
+        .unwrap();
+        match cli.cmd {
+            Some(Command::Send(s)) => match s.cmd {
+                SendCommand::LightningAddress {
+                    address,
+                    amount,
+                    comment,
+                    dry_run,
+                    ..
+                } => {
+                    assert_eq!(address, "alice@example.com");
+                    assert_eq!(amount, 250);
+                    assert_eq!(comment.as_deref(), Some("thanks!"));
+                    assert!(dry_run);
+                }
                 other => panic!("unexpected send subcommand: {other:?}"),
             },
             other => panic!("unexpected: {other:?}"),

@@ -26,6 +26,7 @@ agicash-traits = { path = "../agicash-traits" }
 agicash-auth-opensecret = { path = "../agicash-auth-opensecret" }
 agicash-cashu = { path = "../agicash-cashu" }
 agicash-exchange-rate = { path = "../agicash-exchange-rate" }
+agicash-lightning-address = { path = "../agicash-lightning-address" }
 agicash-storage-supabase = { path = "../agicash-storage-supabase" }
 agicash-wallet = { path = "../agicash-wallet" }
 cdk = { workspace = true }
