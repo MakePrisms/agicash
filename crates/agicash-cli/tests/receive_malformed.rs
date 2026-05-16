@@ -33,6 +33,8 @@
 //!         --features real-mint-tests,real-supabase-tests,real-opensecret-tests \
 //!         --test receive_malformed -- --nocapture
 
+#![allow(clippy::doc_markdown)]
+
 #[cfg(all(
     feature = "real-mint-tests",
     feature = "real-supabase-tests",
@@ -94,7 +96,10 @@ mod gated {
         let cases: &[(&str, &str)] = &[
             ("plain-text", "not-a-token"),
             ("wrong-prefix", "cashuZsomethinginvalid"),
-            ("good-prefix-bad-body", "cashuBnot-actually-base64-or-cbor!!"),
+            (
+                "good-prefix-bad-body",
+                "cashuBnot-actually-base64-or-cbor!!",
+            ),
         ];
 
         let mut failures: Vec<String> = Vec::new();
