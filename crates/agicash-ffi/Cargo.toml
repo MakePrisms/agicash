@@ -13,12 +13,15 @@ name = "agicash_ffi"
 
 [dependencies]
 agicash-domain = { path = "../agicash-domain" }
+agicash-money = { path = "../agicash-money" }
 agicash-traits = { path = "../agicash-traits" }
 agicash-auth-opensecret = { path = "../agicash-auth-opensecret" }
 agicash-storage-supabase = { path = "../agicash-storage-supabase" }
 agicash-cashu = { path = "../agicash-cashu" }
 async-trait = { workspace = true }
 cdk = { workspace = true }
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -29,7 +32,6 @@ getrandom = { workspace = true }
 hex = { workspace = true }
 
 [dev-dependencies]
-chrono = { workspace = true }
 
 [lints]
 workspace = true
