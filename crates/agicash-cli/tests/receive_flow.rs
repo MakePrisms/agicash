@@ -67,11 +67,10 @@ mod gated {
     #[async_trait::async_trait]
     impl CashuSeedProvider for CliSeedProvider {
         async fn get_cashu_seed(&self) -> Result<[u8; 64], ReceiveFlowError> {
-            self.client.get_cashu_seed().await.map_err(|e| {
-                ReceiveFlowError::Storage(agicash_traits::StorageError::Internal(format!(
-                    "fetch cashu seed: {e}"
-                )))
-            })
+            self.client
+                .get_cashu_seed()
+                .await
+                .map_err(|e| ReceiveFlowError::Auth(format!("fetch cashu seed: {e}")))
         }
     }
 

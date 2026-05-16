@@ -16,7 +16,8 @@
 use super::error::{code, ReceiveFlowError};
 use super::state::ReceiveFlowMachine;
 use super::types::{
-    MintConfirmation, ReceiveFlowEvent, ReceiveFlowResult, ReceiveFlowState, ReceiveStatus,
+    AlreadyClaimedInfo, MintConfirmation, ReceiveFlowEvent, ReceiveFlowResult, ReceiveFlowState,
+    ReceiveStatus,
 };
 use crate::receive_swap::{
     CashuReceiveSwapService, CashuReceiveSwapState, CompleteOutcome, ParsedToken, ReceiveSwapError,
@@ -347,10 +348,10 @@ impl ReceiveFlowService {
         {
             Ok(r) => r,
             Err(ReceiveSwapError::Storage(ReceiveSwapStorageError::AlreadyClaimed)) => {
-                let receipt = ReceiveFlowResult {
-                    status: ReceiveStatus::AlreadyClaimed,
-                    amount: "0".into(),
-                    fee: "0".into(),
+                // Idempotent re-paste. The orchestrator does not credit
+                // anything this time and deliberately surfaces NO amount —
+                // see `AlreadyClaimedInfo` doc-comment for the rationale.
+                let info = AlreadyClaimedInfo {
                     unit: parsed.unit.to_string(),
                     currency: account.currency.to_string(),
                     account_id: account.id.to_string(),
@@ -358,8 +359,8 @@ impl ReceiveFlowService {
                     token_hash: parsed.hash.clone(),
                 };
                 self.machine
-                    .transition(ReceiveFlowState::Done(receipt.clone()));
-                return Ok(ReceiveFlowState::Done(receipt));
+                    .transition(ReceiveFlowState::AlreadyClaimed(info.clone()));
+                return Ok(ReceiveFlowState::AlreadyClaimed(info));
             }
             Err(e) => return Ok(self.go_failed_from_swap(e)),
         };

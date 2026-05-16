@@ -12,28 +12,53 @@ use serde::{Deserialize, Serialize};
 /// Re-declared (rather than re-exported from `crate::receive_swap`) so the
 /// receive-flow public surface is self-contained and FFI bindings don't
 /// need to traverse multiple modules to find it.
+///
+/// Note: `AlreadyClaimed` is not represented here — it is now a dedicated
+/// top-level [`ReceiveFlowState::AlreadyClaimed`] variant so the UI cannot
+/// accidentally render its (meaningless) amount field. See issue #2 in
+/// `docs/superpowers/specs/2026-05-15-cashu-receive-orchestrator-ui-spec.md`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReceiveStatus {
     /// Fresh successful claim — proofs were just credited.
     Received,
-    /// Same user previously claimed this token; idempotent return.
-    AlreadyClaimed,
-    /// Token was already spent / claimed elsewhere.
+    /// Token was already spent / claimed elsewhere (not by this user).
     AlreadyFailed,
     /// Swap is still pending (rare; surfaces only when the receive flow
     /// returns early before the mint round-trip completes).
     Pending,
 }
 
-/// Receipt for a completed receive flow.
+/// Receipt for a completed receive flow with a real (non-idempotent)
+/// outcome — `Received`, `AlreadyFailed`, or `Pending`. All amounts are
+/// decimal-stringified to match the existing [`crate::receive_swap`] FFI
+/// receipt shape.
 ///
-/// All amounts are decimal-stringified to match the existing
-/// [`crate::receive_swap`] FFI receipt shape.
+/// Idempotent re-paste of an already-claimed token does NOT come through
+/// this struct — it surfaces as [`ReceiveFlowState::AlreadyClaimed`] with
+/// no amount field, so UI code can't accidentally render "Received 0 sats".
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReceiveFlowResult {
     pub status: ReceiveStatus,
     pub amount: String,
     pub fee: String,
+    pub unit: String,
+    pub currency: String,
+    pub account_id: String,
+    pub mint_url: String,
+    pub token_hash: String,
+}
+
+/// Snapshot of an idempotent re-paste of a token the same user already
+/// claimed. The wallet did not credit anything this time around — the
+/// proofs were swept the first time the token was pasted.
+///
+/// Deliberately carries NO `amount` field: the orchestrator does not (and
+/// should not, without an extra DB lookup) know the original credited
+/// amount, and surfacing `"0"` here was a footgun that made UI render
+/// "Received 0 sats". UI should treat this variant as informational
+/// ("you already received this") and the user dismisses.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AlreadyClaimedInfo {
     pub unit: String,
     pub currency: String,
     pub account_id: String,
@@ -79,8 +104,18 @@ pub enum ReceiveFlowState {
         account_id: String,
         mint_url: String,
     },
-    /// Terminal success. UI shows the receipt.
+    /// Terminal success. UI shows the receipt — the `amount` field is
+    /// meaningful (a fresh credit, a discovered-failed swap, or a pending
+    /// swap reflecting the inner swap's recorded amount).
+    ///
+    /// **Does not** carry the `AlreadyClaimed` idempotent case — that lives
+    /// as its own [`Self::AlreadyClaimed`] variant.
     Done(ReceiveFlowResult),
+    /// Terminal: the same user previously claimed this token. No new
+    /// proofs were credited; the wallet returned the idempotent receipt.
+    /// UI should display an informational "you already received this token"
+    /// message (not "Received 0 sats").
+    AlreadyClaimed(AlreadyClaimedInfo),
     /// Terminal failure. UI shows the reason + Dismiss/Retry.
     Failed { reason: String, code: String },
 }
@@ -88,7 +123,10 @@ pub enum ReceiveFlowState {
 impl ReceiveFlowState {
     #[must_use]
     pub fn is_terminal(&self) -> bool {
-        matches!(self, Self::Done(_) | Self::Failed { .. })
+        matches!(
+            self,
+            Self::Done(_) | Self::AlreadyClaimed(_) | Self::Failed { .. }
+        )
     }
 }
 
@@ -129,6 +167,18 @@ mod tests {
             token_hash: "h".into(),
         };
         assert!(ReceiveFlowState::Done(r).is_terminal());
+    }
+
+    #[test]
+    fn already_claimed_is_terminal() {
+        let info = AlreadyClaimedInfo {
+            unit: "sat".into(),
+            currency: "BTC".into(),
+            account_id: "a".into(),
+            mint_url: "https://m.example".into(),
+            token_hash: "h".into(),
+        };
+        assert!(ReceiveFlowState::AlreadyClaimed(info).is_terminal());
     }
 
     #[test]

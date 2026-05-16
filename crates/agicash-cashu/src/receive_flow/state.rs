@@ -61,7 +61,10 @@ impl ReceiveFlowMachine {
                     S::NeedsMintConfirmation(_),
                     E::ConfirmAddMint | E::CancelAddMint
                 )
-                | (S::Done(_) | S::Failed { .. }, E::Retry | E::Dismiss)
+                | (
+                    S::Done(_) | S::AlreadyClaimed(_) | S::Failed { .. },
+                    E::Retry | E::Dismiss
+                )
         )
     }
 }
@@ -75,7 +78,9 @@ impl Default for ReceiveFlowMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::receive_flow::types::{MintConfirmation, ReceiveFlowResult, ReceiveStatus};
+    use crate::receive_flow::types::{
+        AlreadyClaimedInfo, MintConfirmation, ReceiveFlowResult, ReceiveStatus,
+    };
 
     fn done_state() -> ReceiveFlowState {
         ReceiveFlowState::Done(ReceiveFlowResult {
@@ -131,6 +136,23 @@ mod tests {
     fn done_accepts_retry_and_dismiss_only() {
         let mut m = ReceiveFlowMachine::new();
         m.transition(done_state());
+        assert!(m.is_terminal());
+        assert!(m.accepts(&ReceiveFlowEvent::Retry));
+        assert!(m.accepts(&ReceiveFlowEvent::Dismiss));
+        assert!(!m.accepts(&ReceiveFlowEvent::Start { token: "x".into() }));
+        assert!(!m.accepts(&ReceiveFlowEvent::ConfirmAddMint));
+    }
+
+    #[test]
+    fn already_claimed_accepts_retry_and_dismiss_only() {
+        let mut m = ReceiveFlowMachine::new();
+        m.transition(ReceiveFlowState::AlreadyClaimed(AlreadyClaimedInfo {
+            unit: "sat".into(),
+            currency: "BTC".into(),
+            account_id: "a".into(),
+            mint_url: "https://m".into(),
+            token_hash: "h".into(),
+        }));
         assert!(m.is_terminal());
         assert!(m.accepts(&ReceiveFlowEvent::Retry));
         assert!(m.accepts(&ReceiveFlowEvent::Dismiss));
