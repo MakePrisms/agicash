@@ -121,9 +121,7 @@ pub async fn cmd_send_lightning(
         .await
         .map_err(|e| {
             SendLightningCmdError::Quote(MeltQuoteError::Storage(
-                agicash_cashu::MeltQuoteStorageError::Backend(format!(
-                    "list_unspent_proofs: {e}"
-                )),
+                agicash_cashu::MeltQuoteStorageError::Backend(format!("list_unspent_proofs: {e}")),
             ))
         })?;
 

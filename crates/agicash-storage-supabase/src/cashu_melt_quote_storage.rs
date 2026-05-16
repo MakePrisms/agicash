@@ -145,10 +145,12 @@ impl CashuMeltQuoteStorage for SupabaseCashuMeltQuoteStorage {
             amount_spent: None,
             total_fee: None,
         };
-        let encrypted_data =
-            self.encrypt_to_base64(&serde_json::to_value(&data).map_err(|e| {
-                MeltQuoteStorageError::Backend(format!("encode send data: {e}"))
-            })?)
+        let encrypted_data = self
+            .encrypt_to_base64(
+                &serde_json::to_value(&data).map_err(|e| {
+                    MeltQuoteStorageError::Backend(format!("encode send data: {e}"))
+                })?,
+            )
             .await?;
         let quote_id_hash = sha256_hex(&input.quote_id);
 
@@ -238,6 +240,7 @@ impl CashuMeltQuoteStorage for SupabaseCashuMeltQuoteStorage {
         self.row_to_quote(quote_value).await
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn complete(
         &self,
         input: CompleteMeltQuote,
@@ -263,10 +266,12 @@ impl CashuMeltQuoteStorage for SupabaseCashuMeltQuoteStorage {
             amount_spent: Some(amount_spent),
             total_fee: Some(total_fee),
         };
-        let encrypted_data =
-            self.encrypt_to_base64(&serde_json::to_value(&data).map_err(|e| {
-                MeltQuoteStorageError::Backend(format!("encode send data: {e}"))
-            })?)
+        let encrypted_data = self
+            .encrypt_to_base64(
+                &serde_json::to_value(&data).map_err(|e| {
+                    MeltQuoteStorageError::Backend(format!("encode send data: {e}"))
+                })?,
+            )
             .await?;
 
         let mut encrypted_change: Vec<EncryptedProofInput> =

@@ -5,9 +5,9 @@
 //!   1. `auth guest` + `mint add testnut`
 //!   2. `receive lightning 256` to fund the account (testnut fakewallet auto-pays).
 //!   3. `receive lightning 64 --no-wait` to mint an outgoing invoice we
-//!      can pay against ourselves; capture invoice + receive_quote_id.
+//!      can pay against ourselves; capture invoice + `receive_quote_id`.
 //!   4. `send lightning <invoice>` pays it (NUT-05 melt round-trip).
-//!   5. `receive lightning-complete <receive_quote_id>` lands the proofs on
+//!   5. `receive lightning-complete <quote_id>` lands the proofs on
 //!      the receive side so balance reflects the round-trip.
 //!
 //! Run:
@@ -76,6 +76,7 @@ mod gated {
     /// receive lightning 64 --no-wait (capture invoice) ->
     /// send lightning <invoice> -> expect status == paid.
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn send_lightning_pays_invoice_end_to_end() {
         if !env_ready() {
             eprintln!("skipping: env vars not set");
@@ -305,13 +306,12 @@ mod gated {
             ],
         );
         cleanup(&service);
-        if !complete.status.success() {
-            panic!(
-                "send lightning-complete failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&complete.stdout),
-                String::from_utf8_lossy(&complete.stderr),
-            );
-        }
+        assert!(
+            complete.status.success(),
+            "send lightning-complete failed: stdout={}, stderr={}",
+            String::from_utf8_lossy(&complete.stdout),
+            String::from_utf8_lossy(&complete.stderr),
+        );
         let final_body = last_json_line(&complete.stdout);
         assert_eq!(
             final_body.get("status").and_then(|v| v.as_str()),

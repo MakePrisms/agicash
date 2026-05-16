@@ -295,7 +295,8 @@ impl CashuMeltQuoteService {
             .collect::<Result<Vec<_>, _>>()?;
 
         // 4. Call post_melt.
-        let melt_request = MeltRequest::new(quote.quote_id.clone(), cdk_proofs, Some(blinded_messages));
+        let melt_request =
+            MeltRequest::new(quote.quote_id.clone(), cdk_proofs, Some(blinded_messages));
         let response = match wallet
             .connector()
             .post_melt(&PaymentMethod::BOLT11, melt_request)
@@ -732,9 +733,7 @@ fn build_change_pre_mint(
         })?;
         let (blinded, r) =
             blind_message(&secret.to_bytes(), Some(blinding_factor)).map_err(|e| {
-                MeltQuoteError::Mint(CashuProviderError::Protocol(format!(
-                    "blind_message: {e}"
-                )))
+                MeltQuoteError::Mint(CashuProviderError::Protocol(format!("blind_message: {e}")))
             })?;
         let amount = Amount::ZERO;
         let blinded_message = BlindedMessage::new(amount, keyset_id, blinded);
@@ -794,9 +793,8 @@ fn token_proof_to_cdk_proof(proof: &TokenProof) -> Result<Proof, MeltQuoteError>
     let secret = Secret::from_str(&proof.secret).map_err(|e| {
         MeltQuoteError::Mint(CashuProviderError::Protocol(format!("proof secret: {e}")))
     })?;
-    let c = PublicKey::from_hex(&proof.c).map_err(|e| {
-        MeltQuoteError::Mint(CashuProviderError::Protocol(format!("proof C: {e}")))
-    })?;
+    let c = PublicKey::from_hex(&proof.c)
+        .map_err(|e| MeltQuoteError::Mint(CashuProviderError::Protocol(format!("proof C: {e}"))))?;
     Ok(Proof {
         amount: Amount::from(proof.amount),
         keyset_id,
@@ -810,9 +808,9 @@ fn token_proof_to_cdk_proof(proof: &TokenProof) -> Result<Proof, MeltQuoteError>
 #[allow(dead_code)]
 fn money_to_minor_units(amount: &Money) -> Result<u64, MeltQuoteError> {
     let minor = unit_for_currency(amount.currency());
-    let normalized = amount.to_unit(minor).map_err(|e| {
-        MeltQuoteError::Mint(CashuProviderError::Protocol(format!("to_unit: {e}")))
-    })?;
+    let normalized = amount
+        .to_unit(minor)
+        .map_err(|e| MeltQuoteError::Mint(CashuProviderError::Protocol(format!("to_unit: {e}"))))?;
     normalized
         .amount()
         .to_u64()
