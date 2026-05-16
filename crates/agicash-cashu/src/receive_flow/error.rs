@@ -12,7 +12,6 @@ use agicash_traits::{CashuProviderError, StorageError};
 pub mod code {
     pub const TOKEN_PARSE: &str = "token-parse";
     pub const TOKEN_SPENT: &str = "token-spent";
-    pub const TOKEN_LOCKED: &str = "token-locked";
     pub const MINT_OFFLINE: &str = "mint-offline";
     pub const MINT_ADD_FAILED: &str = "mint-add-failed";
     pub const SWAP_FAILED: &str = "swap-failed";
