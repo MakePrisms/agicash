@@ -57,7 +57,10 @@ impl ReceiveFlowMachine {
         matches!(
             (&self.state, event),
             (S::Idle, E::Start { .. })
-                | (S::NeedsMintConfirmation(_), E::ConfirmAddMint | E::CancelAddMint)
+                | (
+                    S::NeedsMintConfirmation(_),
+                    E::ConfirmAddMint | E::CancelAddMint
+                )
                 | (S::Done(_) | S::Failed { .. }, E::Retry | E::Dismiss)
         )
     }
