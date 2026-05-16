@@ -82,7 +82,9 @@ struct RootTabView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
                 .tag(Tab.settings)
         }
-        .tint(.orange)
+        // Web app uses near-black `--primary` as the active tint, not iOS
+        // default blue/orange. `Color.brandForeground` matches.
+        .tint(Color.brandForeground)
     }
 }
 

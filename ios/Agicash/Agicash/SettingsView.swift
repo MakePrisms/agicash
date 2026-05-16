@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Settings screen. Mirrors `app/features/settings/settings.tsx` and the
-/// "Accounts" sub-page (`app/features/settings/accounts/all-accounts.tsx`):
-/// user identity at top, navigation rows, an accounts list, and a sign-out
-/// CTA at the bottom.
+/// Settings screen. Mirrors `app/features/settings/settings.tsx`:
 ///
-/// In v0 we collapse the "Settings → Accounts" sub-route into the same
-/// scroll. Sub-navigation can grow back when we have more settings to show.
+///   - User identity at the top (lightning address-style row, large text,
+///     copy affordance).
+///   - SettingsNavButton stack: Edit profile, Accounts, Contacts.
+///   - Accounts list (we collapse "Settings → Accounts" into the same
+///     scroll for v0 since the `AccountFfi` set is the only signed-in
+///     content we currently have).
+///   - Footer with the Sign Out CTA, terms/privacy links.
 struct SettingsView: View {
     @Bindable var model: WalletViewModel
 
@@ -15,28 +17,33 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    UserCard(model: model)
-                        .padding(.horizontal, AppTheme.horizontalPadding)
+                VStack(alignment: .leading, spacing: Spacing.xxl) {
+                    IdentityRow(model: model)
+                        .padding(.horizontal, Spacing.l)
+                        .padding(.top, Spacing.l)
+
+                    SettingsNavStack()
+                        .padding(.horizontal, Spacing.l)
 
                     AccountListSection(
                         accounts: model.accounts,
                         title: "Accounts"
                     )
-                    .padding(.horizontal, AppTheme.horizontalPadding)
+                    .padding(.horizontal, Spacing.l)
 
-                    SignOutSection(
+                    Spacer(minLength: Spacing.xxl)
+
+                    SettingsFooter(
                         isWorking: model.isWorking,
                         onSignOut: { confirmingSignOut = true }
                     )
-                    .padding(.horizontal, AppTheme.horizontalPadding)
-                    .padding(.top, 8)
+                    .padding(.horizontal, Spacing.l)
+                    .padding(.bottom, Spacing.xxl)
                 }
-                .padding(.vertical, 24)
                 .frame(maxWidth: .infinity)
             }
-            .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("Settings")
+            .background(Color.brandBackground.ignoresSafeArea())
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .refreshable { await model.refreshAccounts() }
             .confirmationDialog(
@@ -55,55 +62,100 @@ struct SettingsView: View {
     }
 }
 
-private struct UserCard: View {
+/// Visual analogue of `LnAddressDisplay` from web settings: a row with the
+/// user identity on the left (large monospace text) and a copy icon on the
+/// right. We don't have a lightning address yet so we render the truncated
+/// user UUID — same layout, same affordance.
+private struct IdentityRow: View {
     let model: WalletViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Signed in")
-                .font(.caption)
-                .foregroundStyle(AppTheme.mutedForeground)
+        HStack {
             Text(displayUserId)
-                .font(.callout.monospaced())
-                .foregroundStyle(AppTheme.foreground)
+                .font(.system(.title2, design: .monospaced).weight(.semibold))
+                .foregroundStyle(Color.brandForeground)
                 .lineLimit(1)
                 .truncationMode(.middle)
+            Spacer()
+            Image(systemName: "doc.on.doc")
+                .font(.brandLabel)
+                .foregroundStyle(Color.brandMutedForeground)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardBackground()
     }
 
     private var displayUserId: String {
         if case .signedIn(let id) = model.phase {
-            return id
+            // Show prefix-domain style so it visually rhymes with
+            // "satoshi@nakamoto.com"
+            let short = String(id.prefix(8))
+            return "\(short)@agicash"
         }
         return "—"
     }
 }
 
-private struct SignOutSection: View {
+/// Mirrors `SettingsNavButton` (`features/settings/ui/settings-nav-button.tsx`):
+/// 40pt row, leading icon + label, trailing chevron. Borderless — the row
+/// is its own affordance, no card chrome.
+private struct SettingsNavStack: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            SettingsNavRow(icon: "square.and.pencil", label: "Edit profile")
+            SettingsNavRow(icon: "creditcard", label: "Accounts")
+            SettingsNavRow(icon: "person.2", label: "Contacts")
+        }
+    }
+}
+
+private struct SettingsNavRow: View {
+    let icon: String
+    let label: String
+
+    var body: some View {
+        HStack(spacing: Spacing.s) {
+            Image(systemName: icon)
+                .font(.brandLabel)
+                .foregroundStyle(Color.brandForeground)
+                .frame(width: 16)
+            Text(label)
+                .font(.brandBody)
+                .foregroundStyle(Color.brandForeground)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.brandCaption)
+                .foregroundStyle(Color.brandMutedForeground)
+        }
+        .frame(height: 40)
+    }
+}
+
+/// Web `PageFooter` with a sign-out button at the top, then a row of
+/// terms/privacy links underneath. Web wraps the button in a centered
+/// 144pt (`w-36`) column; we mirror that.
+private struct SettingsFooter: View {
     let isWorking: Bool
     let onSignOut: () -> Void
 
     var body: some View {
-        Button(role: .destructive, action: onSignOut) {
-            HStack {
-                if isWorking {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(AppTheme.destructive)
-                } else {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                }
-                Text("Sign out")
-                    .fontWeight(.semibold)
+        VStack(spacing: Spacing.xxl) {
+            BrandButton(
+                "Sign Out",
+                variant: .primary,
+                isLoading: isWorking,
+                action: onSignOut
+            )
+            .frame(maxWidth: 220)
+
+            HStack(spacing: Spacing.s) {
+                Text("Terms")
+                    .underline()
+                Text("&")
+                Text("Privacy")
+                    .underline()
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .font(.brandCaption)
+            .foregroundStyle(Color.brandMutedForeground)
         }
-        .buttonStyle(.bordered)
-        .tint(AppTheme.destructive)
-        .disabled(isWorking)
+        .frame(maxWidth: .infinity)
     }
 }

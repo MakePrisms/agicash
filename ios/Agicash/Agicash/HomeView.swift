@@ -1,30 +1,38 @@
 import SwiftUI
 
 /// Home / accounts overview. Mirrors `app/routes/_protected._index.tsx` —
-/// a centered total, then a list of accounts and their balances. Send /
-/// receive / buy buttons from the web home are intentionally omitted in
-/// v0; payment flows are out of scope.
+/// a centered total at the top, then the receive/buy/send action grid the
+/// web ships, then the accounts list (v0 keeps accounts on the home so
+/// users can see them without navigating; the web app puts them under
+/// Settings → Accounts).
+///
+/// Payment flows are out of scope for v0 so the Receive / Buy / Send CTAs
+/// are rendered with the web's exact visual treatment but tap to nothing.
+/// They establish brand presence while keeping behaviour honest.
 struct HomeView: View {
     @Bindable var model: WalletViewModel
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
-                    BalanceHeader(accounts: model.accounts)
-                        .padding(.top, 24)
+                VStack(spacing: Spacing.xxxl) {
+                    BalanceHero(accounts: model.accounts)
+                        .padding(.top, Spacing.hero)
+
+                    HomeActionGrid()
+                        .padding(.horizontal, Spacing.l)
 
                     AccountListSection(
                         accounts: model.accounts,
                         title: "Accounts"
                     )
-                    .padding(.horizontal, AppTheme.horizontalPadding)
+                    .padding(.horizontal, Spacing.l)
                 }
-                .padding(.bottom, 24)
+                .padding(.bottom, Spacing.xxl)
                 .frame(maxWidth: .infinity)
             }
-            .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("Home")
+            .background(Color.brandBackground.ignoresSafeArea())
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .refreshable { await model.refreshAccounts() }
             .task { await model.refreshAccounts() }
@@ -32,32 +40,77 @@ struct HomeView: View {
     }
 }
 
-private struct BalanceHeader: View {
+/// Centered balance display modeled on `MoneyWithConvertedAmount` on the
+/// web home: large numeric on top, smaller converted amount below in muted
+/// gray. Numeric uses `Font.brandNumericHero` — rounded fallback for Teko.
+private struct BalanceHero: View {
     let accounts: [AccountFfi]
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text("Total balance")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.mutedForeground)
-            // Phase 1 always-zero balances mean a cross-currency total
-            // would be misleading; show a stable placeholder instead.
-            Text("0")
-                .font(.system(size: 48, weight: .bold, design: .rounded))
-                .foregroundStyle(AppTheme.foreground)
-                .monospacedDigit()
-            Text(currencyHint)
-                .font(.caption)
-                .foregroundStyle(AppTheme.mutedForeground)
+        VStack(spacing: Spacing.s) {
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                // Currency symbol — small, like Teko's prefix on web.
+                Text(primarySymbol)
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.brandForeground)
+                    .baselineOffset(8)
+                // Phase 1 balances are always "0"; render that as the
+                // hero. Once `AccountFfi.balance` is real, sum here.
+                Text("0")
+                    .font(.brandNumericHero)
+                    .foregroundStyle(Color.brandForeground)
+                    .monospacedDigit()
+            }
+            Text(secondaryLine)
+                .font(.brandLabel)
+                .foregroundStyle(Color.brandMutedForeground)
         }
         .frame(maxWidth: .infinity)
     }
 
-    private var currencyHint: String {
+    /// Pick the most prominent currency symbol from the accounts we know
+    /// about. Defaults to "$" since most users land in USD.
+    private var primarySymbol: String {
         let currencies = Set(accounts.map(\.currency))
-        if currencies.isEmpty { return "—" }
-        if currencies.count == 1 { return currencies.first ?? "—" }
-        return currencies.sorted().joined(separator: " · ")
+        if currencies.contains("USD") { return "$" }
+        if currencies.contains("BTC") { return "₿" }
+        return "$"
+    }
+
+    /// Mimics the web's converted-amount line (e.g. "≈ 0 sats").
+    private var secondaryLine: String {
+        let currencies = Set(accounts.map(\.currency))
+        if currencies.contains("BTC") { return "≈ 0 sats" }
+        return "≈ 0 sats"
+    }
+}
+
+/// The Receive / Buy / Send button trio from the web home
+/// (`_protected._index.tsx`): two secondary buttons side by side on top, a
+/// full-width primary Send button below, all in a 288pt (`w-72`) column.
+private struct HomeActionGrid: View {
+    var body: some View {
+        VStack(spacing: Spacing.l) {
+            HStack(spacing: Spacing.l) {
+                BrandButton(
+                    "Receive",
+                    variant: .secondary,
+                    size: .large
+                ) { /* payment flows out of scope in v0 */ }
+                BrandButton(
+                    "Buy",
+                    variant: .secondary,
+                    size: .large
+                ) { /* payment flows out of scope in v0 */ }
+            }
+            BrandButton(
+                "Send",
+                variant: .primary,
+                size: .large
+            ) { /* payment flows out of scope in v0 */ }
+        }
+        .frame(maxWidth: 288)
+        .frame(maxWidth: .infinity) // center the 288pt column.
     }
 }
 
@@ -68,15 +121,15 @@ struct AccountListSection: View {
     let title: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Spacing.m) {
             Text(title)
-                .font(.headline)
-                .foregroundStyle(AppTheme.foreground)
+                .font(.brandTitleSmall)
+                .foregroundStyle(Color.brandForeground)
 
             if accounts.isEmpty {
                 EmptyAccountsCard()
             } else {
-                LazyVStack(spacing: 10) {
+                LazyVStack(spacing: Spacing.m) {
                     ForEach(accounts, id: \.id) { account in
                         AccountRow(account: account)
                     }
@@ -88,20 +141,20 @@ struct AccountListSection: View {
 
 private struct EmptyAccountsCard: View {
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Spacing.s) {
             Image(systemName: "tray")
                 .font(.title2)
-                .foregroundStyle(AppTheme.mutedForeground)
+                .foregroundStyle(Color.brandMutedForeground)
             Text("No accounts yet")
-                .font(.headline)
-                .foregroundStyle(AppTheme.foreground)
+                .font(.brandTitleSmall)
+                .foregroundStyle(Color.brandForeground)
             Text("Phase 1 fetched zero accounts from Supabase. Account creation lands in Phase 2.")
-                .font(.footnote)
+                .font(.brandCaption)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(AppTheme.mutedForeground)
+                .foregroundStyle(Color.brandMutedForeground)
         }
-        .padding(20)
+        .padding(Spacing.xl)
         .frame(maxWidth: .infinity)
-        .cardBackground()
+        .brandCard()
     }
 }
