@@ -50,16 +50,16 @@ impl ReceiveFlowMachine {
     pub fn accepts(&self, event: &ReceiveFlowEvent) -> bool {
         use ReceiveFlowEvent as E;
         use ReceiveFlowState as S;
-        match (&self.state, event) {
-            // Start is only valid from Idle.
-            (S::Idle, E::Start { .. }) => true,
-            // Confirm / Cancel only apply when we're asking the user to
-            // approve a mint add.
-            (S::NeedsMintConfirmation(_), E::ConfirmAddMint | E::CancelAddMint) => true,
-            // Retry / Dismiss only matter from terminal states.
-            (S::Done(_) | S::Failed { .. }, E::Retry | E::Dismiss) => true,
-            _ => false,
-        }
+        // Three permitted state-event pairs; everything else (including
+        // events while in an intermediate state like Parsing/AddingMint/
+        // Swapping) is rejected. Bundled into one arm so clippy's
+        // match-same-arms lint stays happy.
+        matches!(
+            (&self.state, event),
+            (S::Idle, E::Start { .. })
+                | (S::NeedsMintConfirmation(_), E::ConfirmAddMint | E::CancelAddMint)
+                | (S::Done(_) | S::Failed { .. }, E::Retry | E::Dismiss)
+        )
     }
 }
 
@@ -108,9 +108,7 @@ mod tests {
     #[test]
     fn idle_accepts_start_only() {
         let m = ReceiveFlowMachine::new();
-        assert!(m.accepts(&ReceiveFlowEvent::Start {
-            token: "x".into()
-        }));
+        assert!(m.accepts(&ReceiveFlowEvent::Start { token: "x".into() }));
         assert!(!m.accepts(&ReceiveFlowEvent::ConfirmAddMint));
         assert!(!m.accepts(&ReceiveFlowEvent::Retry));
         assert!(!m.accepts(&ReceiveFlowEvent::Dismiss));
@@ -122,9 +120,7 @@ mod tests {
         m.transition(needs_mint());
         assert!(m.accepts(&ReceiveFlowEvent::ConfirmAddMint));
         assert!(m.accepts(&ReceiveFlowEvent::CancelAddMint));
-        assert!(!m.accepts(&ReceiveFlowEvent::Start {
-            token: "x".into()
-        }));
+        assert!(!m.accepts(&ReceiveFlowEvent::Start { token: "x".into() }));
         assert!(!m.accepts(&ReceiveFlowEvent::Retry));
     }
 
@@ -135,9 +131,7 @@ mod tests {
         assert!(m.is_terminal());
         assert!(m.accepts(&ReceiveFlowEvent::Retry));
         assert!(m.accepts(&ReceiveFlowEvent::Dismiss));
-        assert!(!m.accepts(&ReceiveFlowEvent::Start {
-            token: "x".into()
-        }));
+        assert!(!m.accepts(&ReceiveFlowEvent::Start { token: "x".into() }));
         assert!(!m.accepts(&ReceiveFlowEvent::ConfirmAddMint));
     }
 
@@ -151,9 +145,7 @@ mod tests {
         assert!(m.is_terminal());
         assert!(m.accepts(&ReceiveFlowEvent::Retry));
         assert!(m.accepts(&ReceiveFlowEvent::Dismiss));
-        assert!(!m.accepts(&ReceiveFlowEvent::Start {
-            token: "x".into()
-        }));
+        assert!(!m.accepts(&ReceiveFlowEvent::Start { token: "x".into() }));
     }
 
     #[test]
@@ -172,9 +164,7 @@ mod tests {
         ] {
             let mut m = ReceiveFlowMachine::new();
             m.transition(s);
-            assert!(!m.accepts(&ReceiveFlowEvent::Start {
-                token: "x".into()
-            }));
+            assert!(!m.accepts(&ReceiveFlowEvent::Start { token: "x".into() }));
             assert!(!m.accepts(&ReceiveFlowEvent::ConfirmAddMint));
             assert!(!m.accepts(&ReceiveFlowEvent::CancelAddMint));
             assert!(!m.accepts(&ReceiveFlowEvent::Retry));

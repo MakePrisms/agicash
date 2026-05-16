@@ -69,8 +69,8 @@ pub enum ReceiveFlowState {
     /// Token is being parsed and source mint resolved.
     Parsing,
     /// Token parsed; source mint is unknown to the user. UI shows
-    /// "Add this mint?" prompt. UI dispatches ConfirmAddMint or
-    /// CancelAddMint.
+    /// "Add this mint?" prompt. UI dispatches `ConfirmAddMint` or
+    /// `CancelAddMint`.
     NeedsMintConfirmation(MintConfirmation),
     /// Adding the mint to the user's accounts.
     AddingMint { mint_url: String },
@@ -82,10 +82,7 @@ pub enum ReceiveFlowState {
     /// Terminal success. UI shows the receipt.
     Done(ReceiveFlowResult),
     /// Terminal failure. UI shows the reason + Dismiss/Retry.
-    Failed {
-        reason: String,
-        code: String,
-    },
+    Failed { reason: String, code: String },
 }
 
 impl ReceiveFlowState {

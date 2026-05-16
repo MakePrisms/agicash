@@ -43,7 +43,7 @@ pub enum ReceiveFlowError {
     #[error("swap failed: {0}")]
     Swap(#[from] ReceiveSwapError),
 
-    /// Generic storage failure (e.g. list_accounts).
+    /// Generic storage failure (e.g. `list_accounts`).
     #[error("storage error: {0}")]
     Storage(#[from] StorageError),
 }
@@ -53,21 +53,14 @@ impl ReceiveFlowError {
     #[must_use]
     pub fn code(&self) -> &'static str {
         match self {
-            Self::TokenParse(_) => code::TOKEN_PARSE,
-            Self::InvalidEvent { .. } => code::UNKNOWN,
+            Self::TokenParse(_) | Self::Swap(ReceiveSwapError::TokenParse(_)) => code::TOKEN_PARSE,
             Self::MintDiscovery(_) => code::MINT_OFFLINE,
             Self::MintAdd(_) => code::MINT_ADD_FAILED,
-            Self::Swap(inner) => match inner {
-                ReceiveSwapError::Storage(s) => match s {
-                    crate::receive_swap::ReceiveSwapStorageError::AlreadyClaimed => {
-                        code::ALREADY_CLAIMED
-                    }
-                    _ => code::SWAP_FAILED,
-                },
-                ReceiveSwapError::TokenParse(_) => code::TOKEN_PARSE,
-                _ => code::SWAP_FAILED,
-            },
-            Self::Storage(_) => code::UNKNOWN,
+            Self::Swap(ReceiveSwapError::Storage(
+                crate::receive_swap::ReceiveSwapStorageError::AlreadyClaimed,
+            )) => code::ALREADY_CLAIMED,
+            Self::Swap(_) => code::SWAP_FAILED,
+            Self::InvalidEvent { .. } | Self::Storage(_) => code::UNKNOWN,
         }
     }
 }

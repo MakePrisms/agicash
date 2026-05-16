@@ -336,9 +336,7 @@ mod tests {
     #[test]
     fn event_ffi_into_inner_event() {
         assert!(matches!(
-            ReceiveFlowEvent::from(ReceiveFlowEventFfi::Start {
-                token: "x".into()
-            }),
+            ReceiveFlowEvent::from(ReceiveFlowEventFfi::Start { token: "x".into() }),
             ReceiveFlowEvent::Start { .. }
         ));
         assert!(matches!(

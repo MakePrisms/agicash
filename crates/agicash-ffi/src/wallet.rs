@@ -224,14 +224,8 @@ impl AgicashWallet {
         password: String,
         name: Option<String>,
     ) -> Result<Session, FfiError> {
-        let resp = register_email(
-            &self.client,
-            email,
-            password,
-            self.client.client_id(),
-            name,
-        )
-        .await?;
+        let resp =
+            register_email(&self.client, email, password, self.client.client_id(), name).await?;
         let persisted = PersistedSession {
             user_id: resp.id,
             refresh_token: resp.refresh_token.clone(),
@@ -444,9 +438,7 @@ fn receive_swap_error_to_ffi(e: ReceiveSwapError) -> FfiError {
         ReceiveSwapError::CurrencyMismatch { token, account } => FfiError::internal(format!(
             "currency mismatch: token currency {token} differs from account currency {account}",
         )),
-        ReceiveSwapError::AmountTooSmall => {
-            FfiError::internal("amount too small after mint fees")
-        }
+        ReceiveSwapError::AmountTooSmall => FfiError::internal("amount too small after mint fees"),
         ReceiveSwapError::InvalidTransition { from, event } => {
             FfiError::internal(format!("invalid state transition from {from} on {event}"))
         }
@@ -468,9 +460,7 @@ fn receive_result_from_outcome(
     parsed: &ParsedToken,
 ) -> ReceiveResult {
     match outcome {
-        CompleteOutcome::Completed {
-            swap, account, ..
-        } => ReceiveResult {
+        CompleteOutcome::Completed { swap, account, .. } => ReceiveResult {
             status: ReceiveStatus::Received,
             amount: swap.amount_received.amount().to_string(),
             fee: swap.fee_amount.amount().to_string(),

@@ -19,13 +19,11 @@ use super::types::{
     MintConfirmation, ReceiveFlowEvent, ReceiveFlowResult, ReceiveFlowState, ReceiveStatus,
 };
 use crate::receive_swap::{
-    CashuReceiveSwapService, CashuReceiveSwapState, CompleteOutcome, ParsedToken,
-    ReceiveSwapError, ReceiveSwapStorageError,
+    CashuReceiveSwapService, CashuReceiveSwapState, CompleteOutcome, ParsedToken, ReceiveSwapError,
+    ReceiveSwapStorageError,
 };
 use agicash_domain::{Account, AccountPurpose, AccountType, Currency, UserId};
-use agicash_traits::{
-    AccountInput, CashuProvider, UpsertUserInput, UserStorage,
-};
+use agicash_traits::{AccountInput, CashuProvider, UpsertUserInput, UserStorage};
 use cdk::mint_url::MintUrl;
 use cdk::nuts::CurrencyUnit;
 use serde_json::json;
@@ -109,7 +107,7 @@ impl ReceiveFlowService {
     ///
     /// "Stable" means: the next state at which the orchestrator is either
     /// terminal or waiting for the next UI event. Intermediate states
-    /// (Parsing, AddingMint, Swapping) are observable via
+    /// (`Parsing`, `AddingMint`, `Swapping`) are observable via
     /// [`Self::current_state`] mid-flight only if the caller polls from
     /// another thread; sequential callers will see only the stable
     /// terminal of each dispatch.
@@ -126,10 +124,9 @@ impl ReceiveFlowService {
         match event {
             ReceiveFlowEvent::Start { token } => self.handle_start(token).await,
             ReceiveFlowEvent::ConfirmAddMint => self.handle_confirm_add_mint().await,
-            ReceiveFlowEvent::CancelAddMint => Ok(self.go_failed_str(
-                "user cancelled the add-mint prompt",
-                code::CANCELLED,
-            )),
+            ReceiveFlowEvent::CancelAddMint => {
+                Ok(self.go_failed_str("user cancelled the add-mint prompt", code::CANCELLED))
+            }
             ReceiveFlowEvent::Retry | ReceiveFlowEvent::Dismiss => {
                 self.machine.transition(ReceiveFlowState::Idle);
                 self.pending = None;
@@ -150,10 +147,7 @@ impl ReceiveFlowService {
         self.dispatch(ReceiveFlowEvent::Start { token }).await
     }
 
-    async fn handle_start(
-        &mut self,
-        token: String,
-    ) -> Result<ReceiveFlowState, ReceiveFlowError> {
+    async fn handle_start(&mut self, token: String) -> Result<ReceiveFlowState, ReceiveFlowError> {
         self.machine.transition(ReceiveFlowState::Parsing);
 
         let parsed = match ParsedToken::parse(&token, &self.cashu_provider).await {
@@ -165,10 +159,7 @@ impl ReceiveFlowService {
         };
 
         if parsed.proofs.is_empty() {
-            return Ok(self.go_failed_str(
-                "token contains no proofs",
-                code::TOKEN_SPENT,
-            ));
+            return Ok(self.go_failed_str("token contains no proofs", code::TOKEN_SPENT));
         }
 
         // Look up the user's accounts and try to match by (mint_url, unit).
@@ -188,10 +179,7 @@ impl ReceiveFlowService {
             .mint_info(&mint_url)
             .await
             .map_err(ReceiveFlowError::MintDiscovery)?;
-        let mint_name = info
-            .name
-            .clone()
-            .unwrap_or_else(|| parsed.mint_url.clone());
+        let mint_name = info.name.clone().unwrap_or_else(|| parsed.mint_url.clone());
 
         let amount = parsed.proofs.iter().map(|p| p.amount).sum::<u64>();
         // We don't compute mint fee here (would require fetching keysets);
@@ -226,22 +214,16 @@ impl ReceiveFlowService {
             mint_url: parsed.mint_url.clone(),
         });
 
-        let currency = match currency_for_unit(&parsed.unit) {
-            Some(c) => c,
-            None => {
-                return Ok(self.go_failed_str(
-                    &format!("unsupported cashu unit {}", parsed.unit),
-                    code::TOKEN_PARSE,
-                ))
-            }
+        let Some(currency) = currency_for_unit(&parsed.unit) else {
+            return Ok(self.go_failed_str(
+                &format!("unsupported cashu unit {}", parsed.unit),
+                code::TOKEN_PARSE,
+            ));
         };
 
-        let added = match self
-            .add_mint(&parsed.mint_url, &mint_name, currency)
-            .await
-        {
+        let added = match self.add_mint(&parsed.mint_url, &mint_name, currency).await {
             Ok(account) => account,
-            Err(e) => return Ok(self.go_failed_from(e)),
+            Err(e) => return Ok(self.go_failed_from(&e)),
         };
 
         self.run_swap(parsed, added).await
@@ -375,7 +357,8 @@ impl ReceiveFlowService {
                     mint_url: parsed.mint_url.clone(),
                     token_hash: parsed.hash.clone(),
                 };
-                self.machine.transition(ReceiveFlowState::Done(receipt.clone()));
+                self.machine
+                    .transition(ReceiveFlowState::Done(receipt.clone()));
                 return Ok(ReceiveFlowState::Done(receipt));
             }
             Err(e) => return Ok(self.go_failed_from_swap(e)),
@@ -406,7 +389,7 @@ impl ReceiveFlowService {
         s
     }
 
-    fn go_failed_from(&mut self, err: ReceiveFlowError) -> ReceiveFlowState {
+    fn go_failed_from(&mut self, err: &ReceiveFlowError) -> ReceiveFlowState {
         let s = ReceiveFlowState::Failed {
             reason: err.to_string(),
             code: err.code().to_string(),
@@ -416,7 +399,7 @@ impl ReceiveFlowService {
     }
 
     fn go_failed_from_swap(&mut self, err: ReceiveSwapError) -> ReceiveFlowState {
-        self.go_failed_from(ReceiveFlowError::Swap(err))
+        self.go_failed_from(&ReceiveFlowError::Swap(err))
     }
 }
 
@@ -505,11 +488,9 @@ mod tests {
     use super::*;
     use crate::receive_swap::{CashuReceiveSwapStorage, TokenProof};
     use agicash_domain::{AccountId, AccountState, User};
-    use agicash_traits::{
-        CashuMintWallet, CashuProviderError, UpsertUserResult,
-    };
-    use chrono::Utc;
+    use agicash_traits::{CashuMintWallet, CashuProviderError, UpsertUserResult};
     use cdk::mint_url::MintUrl;
+    use chrono::Utc;
     use serde_json::Value;
     use uuid::Uuid;
 
@@ -570,7 +551,10 @@ mod tests {
             _mint_url: &MintUrl,
         ) -> Result<cdk::nuts::MintInfo, CashuProviderError> {
             let mut guard = self.info_response.lock().unwrap();
-            std::mem::replace(&mut *guard, Err(CashuProviderError::Network("consumed".into())))
+            std::mem::replace(
+                &mut *guard,
+                Err(CashuProviderError::Network("consumed".into())),
+            )
         }
     }
 
@@ -644,21 +628,13 @@ mod tests {
 
     #[tokio::test]
     async fn starts_in_idle_and_accepts_start() {
-        let svc = make_service(
-            vec![],
-            None,
-            Err(CashuProviderError::Network("n/a".into())),
-        );
+        let svc = make_service(vec![], None, Err(CashuProviderError::Network("n/a".into())));
         assert_eq!(svc.current_state(), ReceiveFlowState::Idle);
     }
 
     #[tokio::test]
     async fn rejects_invalid_event_in_idle() {
-        let mut svc = make_service(
-            vec![],
-            None,
-            Err(CashuProviderError::Network("n/a".into())),
-        );
+        let mut svc = make_service(vec![], None, Err(CashuProviderError::Network("n/a".into())));
         let err = svc
             .dispatch(ReceiveFlowEvent::ConfirmAddMint)
             .await
@@ -668,11 +644,7 @@ mod tests {
 
     #[tokio::test]
     async fn malformed_token_lands_in_failed_token_parse() {
-        let mut svc = make_service(
-            vec![],
-            None,
-            Err(CashuProviderError::Network("n/a".into())),
-        );
+        let mut svc = make_service(vec![], None, Err(CashuProviderError::Network("n/a".into())));
         let state = svc
             .dispatch(ReceiveFlowEvent::Start {
                 token: "not-a-token".into(),
@@ -687,11 +659,7 @@ mod tests {
 
     #[tokio::test]
     async fn retry_from_failed_resets_to_idle() {
-        let mut svc = make_service(
-            vec![],
-            None,
-            Err(CashuProviderError::Network("n/a".into())),
-        );
+        let mut svc = make_service(vec![], None, Err(CashuProviderError::Network("n/a".into())));
         let _ = svc
             .dispatch(ReceiveFlowEvent::Start {
                 token: "bad".into(),
@@ -704,11 +672,7 @@ mod tests {
 
     #[tokio::test]
     async fn dismiss_from_failed_resets_to_idle() {
-        let mut svc = make_service(
-            vec![],
-            None,
-            Err(CashuProviderError::Network("n/a".into())),
-        );
+        let mut svc = make_service(vec![], None, Err(CashuProviderError::Network("n/a".into())));
         let _ = svc
             .dispatch(ReceiveFlowEvent::Start {
                 token: "bad".into(),
