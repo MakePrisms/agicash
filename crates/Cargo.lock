@@ -47,17 +47,20 @@ dependencies = [
 name = "agicash-auth-opensecret"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm",
  "agicash-crypto",
  "agicash-domain",
  "agicash-traits",
  "async-trait",
  "base64 0.22.1",
  "bip39",
+ "getrandom 0.2.17",
  "hex",
  "keyring",
  "opensecret",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "uuid",
