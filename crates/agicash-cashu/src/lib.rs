@@ -7,7 +7,10 @@ pub mod provider;
 pub mod receive_swap;
 pub mod send_swap;
 
-pub use melt_quote::{CashuMeltQuote, CashuMeltQuoteState};
+pub use melt_quote::{
+    CashuMeltQuote, CashuMeltQuoteState, CashuMeltQuoteStorage, CompleteMeltQuote,
+    CompleteMeltQuoteResult, CreateMeltQuote, CreateMeltQuoteResult, MeltQuoteStorageError,
+};
 pub use mint_quote::{
     Action as MintQuoteAction, CashuMintQuote, CashuMintQuoteService, CashuMintQuoteState,
     CashuMintQuoteStorage, CompleteMintQuote, CompleteMintQuoteOutcome, CompleteMintQuoteResult,
