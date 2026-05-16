@@ -214,6 +214,25 @@ final class WalletViewModel {
         }
     }
 
+    /// Outcome shape for `startLightningQuote`. Success carries the FFI
+    /// handle (BOLT-11, quote_id, amount, fee, expires_at) so the
+    /// LightningReceiveView can render the QR + breakdown directly;
+    /// failure carries a presentation-ready string already mapped
+    /// through `ffiErrorMessage` so the view doesn't need to know FFI
+    /// shapes.
+    enum LightningQuoteOutcome {
+        case success(MintQuoteHandle)
+        case failure(String)
+    }
+
+    /// Outcome shape for `pollLightningQuote`. Mirrors `MintQuoteSnapshot`
+    /// plus the failure branch. The view loops on this until the state
+    /// transitions out of `.unpaid`.
+    enum LightningPollOutcome {
+        case state(MintQuoteFfiState, failureReason: String?)
+        case failure(String)
+    }
+
     /// Outcome shape returned to `AddMintView`. Mirrors `ReceiveOutcome`:
     /// success carries the FFI `MintAddResult` so the sheet can show the
     /// new mint's name/URL inline; failure carries a presentation-ready
@@ -242,6 +261,76 @@ final class WalletViewModel {
         defer { isWorking = false }
         do {
             let result = try await wallet.mintAdd(url: trimmed)
+            await refreshAccounts()
+            return .success(result)
+        } catch let err as FfiError {
+            return .failure(ffiErrorMessage(err))
+        } catch {
+            return .failure("unexpected: \(error)")
+        }
+    }
+
+    // MARK: - Lightning receive (NUT-04 mint quote)
+
+    /// Request a BOLT-11 invoice from the user's default Cashu BTC mint.
+    /// Wraps `wallet.startMintQuote` — the FFI returns a handle carrying
+    /// the invoice + wallet-side quote_id the view uses to drive the
+    /// poll/complete cycle.
+    ///
+    /// `amount` is in the account's minor unit (sats for BTC). The view
+    /// passes the parsed numpad value here; validation (>0, not too
+    /// large) happens client-side before this is called, but the FFI
+    /// also rejects 0 with a friendly error.
+    ///
+    /// Returns the handle on success or a presentation-ready error
+    /// string on failure. Does NOT flip `isWorking` — the
+    /// LightningReceiveView owns its own loading state because it has
+    /// a richer state machine (entry → generating → invoice → done) and
+    /// doesn't want to fight a global spinner.
+    func startLightningQuote(
+        amount: UInt64,
+        accountId: String? = nil,
+        currency: String? = nil
+    ) async -> LightningQuoteOutcome {
+        do {
+            let handle = try await wallet.startMintQuote(
+                amount: amount,
+                accountId: accountId,
+                currency: currency
+            )
+            return .success(handle)
+        } catch let err as FfiError {
+            return .failure(ffiErrorMessage(err))
+        } catch {
+            return .failure("unexpected: \(error)")
+        }
+    }
+
+    /// Poll the mint for the current state of a quote. Called from a
+    /// long-running `Task` in the LightningReceiveView every ~2s while
+    /// the quote is still UNPAID. Single-shot — no internal loop — so
+    /// the view owns cadence and can cancel without holding a service
+    /// reference.
+    func pollLightningQuote(quoteId: String) async -> LightningPollOutcome {
+        do {
+            let snapshot = try await wallet.pollMintQuote(quoteId: quoteId)
+            return .state(snapshot.state, failureReason: snapshot.failureReason)
+        } catch let err as FfiError {
+            return .failure(ffiErrorMessage(err))
+        } catch {
+            return .failure("unexpected: \(error)")
+        }
+    }
+
+    /// Drive a PAID quote to COMPLETED — mints proofs and credits the
+    /// account. Refreshes the accounts list on success so Home's
+    /// balance updates without an extra round-trip. Returns the same
+    /// `ReceiveOutcome` shape as the Cashu-token receive so the
+    /// LightningReceiveView's success card can be rendered with the
+    /// shared `ReceiveResult` primitives.
+    func completeLightningQuote(quoteId: String) async -> ReceiveOutcome {
+        do {
+            let result = try await wallet.completeMintQuote(quoteId: quoteId)
             await refreshAccounts()
             return .success(result)
         } catch let err as FfiError {
