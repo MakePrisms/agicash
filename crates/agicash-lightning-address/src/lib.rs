@@ -211,15 +211,16 @@ fn parse_pay_params(body: &str) -> Result<LightningAddressInfo, LightningAddress
     Ok(info)
 }
 
+#[derive(Deserialize)]
+struct CallbackOk {
+    pr: String,
+}
+
 /// Parse the callback body — `{"pr": "lnbc..."}` on success, or
 /// `{"status": "ERROR", "reason": "..."}` on failure.
 fn parse_callback(body: &str) -> Result<String, LightningAddressError> {
     if let Some(reason) = extract_error_reason(body) {
         return Err(LightningAddressError::ServerError(reason));
-    }
-    #[derive(Deserialize)]
-    struct CallbackOk {
-        pr: String,
     }
     let parsed: CallbackOk = serde_json::from_str(body)
         .map_err(|e| LightningAddressError::InvalidResponse(format!("{e}; body: {body}")))?;
@@ -231,15 +232,16 @@ fn parse_callback(body: &str) -> Result<String, LightningAddressError> {
     Ok(parsed.pr)
 }
 
+#[derive(Deserialize)]
+struct ErrBody {
+    status: String,
+    #[serde(default)]
+    reason: Option<String>,
+}
+
 /// If `body` looks like `{"status": "ERROR", "reason": "..."}`, extract
 /// the reason. Returns `None` otherwise (caller proceeds to parse success).
 fn extract_error_reason(body: &str) -> Option<String> {
-    #[derive(Deserialize)]
-    struct ErrBody {
-        status: String,
-        #[serde(default)]
-        reason: Option<String>,
-    }
     let parsed: ErrBody = serde_json::from_str(body).ok()?;
     if parsed.status == "ERROR" {
         Some(parsed.reason.unwrap_or_else(|| "(no reason given)".into()))
