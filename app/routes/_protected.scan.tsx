@@ -3,7 +3,6 @@ import {
   ClosePageButton,
   Page,
   PageContent,
-  PageFooter,
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
@@ -82,11 +81,13 @@ export default function ScanPage() {
       <PageContent className="relative flex items-center justify-center">
         <QRScanner onDecode={handleInput} />
       </PageContent>
-      <PageFooter className="pb-14">
-        <Button type="button" onClick={handlePaste}>
-          <Clipboard className="h-5 w-5" /> Paste
-        </Button>
-      </PageFooter>
+      <Button
+        type="button"
+        onClick={handlePaste}
+        className="-translate-x-1/2 fixed bottom-4 left-1/2 z-20"
+      >
+        <Clipboard className="h-5 w-5" /> Paste
+      </Button>
     </Page>
   );
 }
