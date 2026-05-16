@@ -41,14 +41,11 @@ async fn main() {
     // its own `.with_state` call). The final `.with_state(leptos_options)`
     // collapses the Leptos branch's state too, so the two halves can sit
     // side by side under `axum::serve`.
-    let leptos_layer: Router<LeptosOptions> = Router::new().leptos_routes(
-        &leptos_options,
-        routes,
-        {
+    let leptos_layer: Router<LeptosOptions> =
+        Router::new().leptos_routes(&leptos_options, routes, {
             let opts = leptos_options.clone();
             move || shell(opts.clone())
-        },
-    );
+        });
 
     let app: Router = Router::new()
         .merge(auth.router())

@@ -300,13 +300,19 @@ mod tests {
     #[test]
     fn error_maps_each_inner_variant() {
         let invalid: LightningAddressError = InnerError::InvalidAddress("nope".into()).into();
-        assert!(matches!(invalid, LightningAddressError::InvalidAddress { .. }));
+        assert!(matches!(
+            invalid,
+            LightningAddressError::InvalidAddress { .. }
+        ));
 
         let net: LightningAddressError = InnerError::Network("dns".into()).into();
         assert!(matches!(net, LightningAddressError::Network { .. }));
 
         let resp: LightningAddressError = InnerError::InvalidResponse("bad json".into()).into();
-        assert!(matches!(resp, LightningAddressError::InvalidResponse { .. }));
+        assert!(matches!(
+            resp,
+            LightningAddressError::InvalidResponse { .. }
+        ));
 
         let oor: LightningAddressError = InnerError::AmountOutOfRange {
             amount_msat: 500,

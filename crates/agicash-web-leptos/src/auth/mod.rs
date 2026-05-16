@@ -96,9 +96,7 @@ const REFRESH_COOKIE: &str = "agicash_refresh_token";
 /// disable for local — Phase 2 work, not in this scaffold).
 fn refresh_cookie(token: &str) -> String {
     // 30-day lifetime matches the OpenSecret default refresh window.
-    format!(
-        "{REFRESH_COOKIE}={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000"
-    )
+    format!("{REFRESH_COOKIE}={token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000")
 }
 
 /// Build a cookie that clears the refresh-token cookie on the browser.
@@ -110,8 +108,12 @@ fn json_response<T: Serialize>(
     body: &T,
     cookie: Option<String>,
 ) -> Result<Response, (StatusCode, String)> {
-    let payload = serde_json::to_vec(body)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("encode json: {e}")))?;
+    let payload = serde_json::to_vec(body).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("encode json: {e}"),
+        )
+    })?;
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,
@@ -191,9 +193,7 @@ async fn signup_handler(
     )
 }
 
-async fn refresh_handler(
-    State(state): State<AuthState>,
-) -> Result<Response, (StatusCode, String)> {
+async fn refresh_handler(State(state): State<AuthState>) -> Result<Response, (StatusCode, String)> {
     // NOTE: the underlying `opensecret` crate manages refresh-token state
     // internally per client instance. In production the server would need
     // to look up the per-user session keyed on the cookie value; for the
@@ -208,13 +208,15 @@ async fn refresh_handler(
     ))
 }
 
-async fn logout_handler(
-    State(state): State<AuthState>,
-) -> Result<Response, (StatusCode, String)> {
+async fn logout_handler(State(state): State<AuthState>) -> Result<Response, (StatusCode, String)> {
     let _ = logout(&state.client).await; // best-effort
     let body = serde_json::json!({ "ok": true });
-    let payload = serde_json::to_vec(&body)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("encode json: {e}")))?;
+    let payload = serde_json::to_vec(&body).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("encode json: {e}"),
+        )
+    })?;
     let mut headers = HeaderMap::new();
     headers.insert(
         header::CONTENT_TYPE,

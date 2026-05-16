@@ -122,7 +122,11 @@ fn is_local_host(domain: &str) -> bool {
 /// [`LightningAddressError::InvalidResponse`] for malformed bodies.
 pub async fn resolve(address: &str) -> Result<LightningAddressInfo, LightningAddressError> {
     let (local, domain) = parse_lightning_address(address)?;
-    let scheme = if is_local_host(&domain) { "http" } else { "https" };
+    let scheme = if is_local_host(&domain) {
+        "http"
+    } else {
+        "https"
+    };
     let url = format!("{scheme}://{domain}/.well-known/lnurlp/{local}");
 
     let client = Client::builder()

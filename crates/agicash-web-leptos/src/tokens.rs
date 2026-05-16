@@ -26,8 +26,7 @@ pub const COLOR_DESTRUCTIVE: &str = "hsl(0 84.2% 60.2%)";
 // ---- Fonts ----------------------------------------------------------------
 // Kode Mono for UI text; Teko reserved for monetary displays elsewhere.
 // `fonts.primary` / `fonts.numeric` in tokens.json.
-pub const FONT_PRIMARY: &str =
-    "'Kode Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
+pub const FONT_PRIMARY: &str = "'Kode Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
 pub const FONT_NUMERIC: &str = "'Teko', sans-serif";
 
 // ---- Spacing scale --------------------------------------------------------
