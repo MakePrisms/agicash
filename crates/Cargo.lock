@@ -173,6 +173,7 @@ dependencies = [
  "agicash-storage-supabase",
  "agicash-traits",
  "async-trait",
+ "base64 0.22.1",
  "cdk",
  "chrono",
  "getrandom 0.2.17",
@@ -182,6 +183,9 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
+ "tracing-oslog",
+ "tracing-subscriber",
  "uniffi",
  "uuid",
 ]
@@ -2829,9 +2833,12 @@ dependencies = [
  "ciborium",
  "eventsource-stream",
  "futures",
+ "getrandom 0.2.17",
  "hex",
  "hkdf",
+ "js-sys",
  "p256",
+ "p384",
  "percent-encoding",
  "pin-project",
  "reqwest",
@@ -2843,6 +2850,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+ "wasm-bindgen",
  "x25519-dalek",
  "x509-parser",
  "yasna",
@@ -2869,6 +2877,18 @@ name = "p256"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
+dependencies = [
+ "ecdsa",
+ "elliptic-curve",
+ "primeorder",
+ "sha2",
+]
+
+[[package]]
+name = "p384"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe42f1670a52a47d448f14b6a5c61dd78fce51856e68edaa38f7ae3a46b8d6b6"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
@@ -4552,6 +4572,18 @@ dependencies = [
  "log",
  "once_cell",
  "tracing-core",
+]
+
+[[package]]
+name = "tracing-oslog"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d76902d2a8d5f9f55a81155c08971734071968c90f2d9bfe645fe700579b2950"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "tracing-core",
+ "tracing-subscriber",
 ]
 
 [[package]]

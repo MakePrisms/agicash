@@ -174,6 +174,54 @@ Detailed guidelines are available as skills (Claude loads them automatically whe
 - `supabase db push` or any remote database operations
 - Drop tables/columns without explicit approval
 
+## iOS Rust Logs (tracing -> os_log)
+
+The Rust FFI installs a `tracing-subscriber` -> `os_log` bridge on
+first FFI call (see `crates/agicash-ffi/src/observability.rs`). Every
+`tracing::info!` / `debug!` / `warn!` / `error!` in any Rust crate
+(`agicash-ffi`, `agicash-storage-supabase`, `agicash-auth-opensecret`,
+`agicash-cashu`, ...) shows up in the iOS simulator's unified logging
+system under subsystem `app.agicash.rust`.
+
+Stream live from the booted simulator:
+
+```bash
+xcrun simctl spawn booted log stream \
+  --predicate 'subsystem == "app.agicash.rust"' \
+  --info --debug
+```
+
+After-the-fact (last 5 minutes):
+
+```bash
+xcrun simctl spawn booted log show \
+  --predicate 'subsystem == "app.agicash.rust"' \
+  --info --debug \
+  --last 5m
+```
+
+Filter level: defaults to `info`. Override via the `AGICASH_LOG` env
+var (matches `tracing-subscriber`'s `EnvFilter` syntax), e.g.
+`AGICASH_LOG=agicash_storage_supabase=trace,info`. The env is read
+once at subscriber install (first FFI entry), so set it on the
+simulator's app environment if you need to change it.
+
+Already instrumented (good places to lift the pattern from):
+
+- `agicash-ffi::wallet` — `list_accounts`, `compute_cashu_balance`,
+  `receive_token`, the `new` constructor.
+- `agicash-storage-supabase::client` — `authenticated_client`
+  (logs JWT `sub` claim only, never the token).
+- `agicash-storage-supabase::user_storage` — `list_accounts` HTTP
+  request + status + response preview.
+- `agicash-storage-supabase::cashu_send_swap_storage` —
+  `list_unspent_proofs` HTTP request + status + response preview +
+  decrypted proof count.
+
+Never log JWTs themselves, secret keys, refresh tokens, full proof
+secrets, or full token strings. The `sub` claim and account UUIDs
+are safe (already in Supabase rows the user can query).
+
 ## Skills
 
 Load a skill before making changes in its domain, not after. Skill descriptions in the system prompt explain when each applies. See also `docs/architecture.md` for system diagrams.

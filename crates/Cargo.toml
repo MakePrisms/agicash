@@ -91,6 +91,14 @@ predicates = "3.1"
 # FFI
 uniffi = "0.30"
 
+# Observability — tracing surface used by FFI + storage + auth + cashu
+# crates. The `os_log` bridge (`tracing-oslog`) only links on Apple
+# targets, so it's pulled in via a target-gated dep in `agicash-ffi`
+# rather than the workspace root.
+tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "registry", "env-filter", "fmt"] }
+tracing-oslog = "0.3"
+
 [patch.crates-io]
 opensecret = { path = "/Users/claude/opensecret-sdk-fork/rust" }
 # Local fork: switches rustls TLS roots from webpki-roots to native-roots, so
