@@ -5,14 +5,16 @@
 //! - [`storage`] — [`CashuSendSwapStorage`] trait + DTOs.
 //! - [`error`] — [`SendSwapError`] union.
 //! - [`state`] — sans-IO state machine.
-//! - `service` — orchestrator with CDK + storage I/O (next commit).
+//! - [`service`] — orchestrator with CDK + storage I/O.
 
 pub mod error;
+pub mod service;
 pub mod state;
 pub mod storage;
 pub mod types;
 
 pub use error::*;
+pub use service::*;
 pub use state::*;
 pub use storage::*;
 pub use types::*;
