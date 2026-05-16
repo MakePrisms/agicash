@@ -1,8 +1,20 @@
 use crate::AuthError;
 use async_trait::async_trait;
 
-#[async_trait]
-pub trait TokenProvider: Send + Sync {
+/// Marker bound alias — `Send + Sync` on native, empty on wasm.
+#[cfg(not(target_arch = "wasm32"))]
+pub trait TokenProviderBounds: Send + Sync {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send + Sync> TokenProviderBounds for T {}
+
+#[cfg(target_arch = "wasm32")]
+pub trait TokenProviderBounds {}
+#[cfg(target_arch = "wasm32")]
+impl<T> TokenProviderBounds for T {}
+
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+pub trait TokenProvider: TokenProviderBounds {
     async fn get_jwt(&self) -> Result<String, AuthError>;
 }
 

@@ -93,12 +93,21 @@ fn account_list_help_works() {
 
 #[test]
 fn account_list_without_session_exits_three_and_emits_json_error() {
-    // No session in keyring; use a unique keyring service so we never collide
-    // with a real session. Even if SUPABASE_URL is missing, the "not logged in"
-    // check is supposed to fire BEFORE build_storage_deps runs — but the auth
-    // deps + storage deps are built up front. Provide dummy env values so
-    // build_storage_deps succeeds; the actual HTTP call is never made because
-    // load() returns None first.
+    // "No session present" exit-code contract. Two paths exercise this test:
+    //
+    //   - On macOS dev machines the OS keyring is reachable, so the CLI picks
+    //     `KeyringSessionStorage`; we pass a unique service id so it can't
+    //     collide with a real session.
+    //   - On Linux CI (no `dbus-daemon` + secret-service running), the
+    //     keyring probe reports `BackendUnavailable` and the CLI falls
+    //     through to `InMemorySessionStorage` (always available). The
+    //     in-memory store starts empty, so `load()` returns `Ok(None)`.
+    //
+    // Either way the CLI must exit 3 with a `not-logged-in` JSON error.
+    //
+    // SUPABASE_URL etc. are stubbed so build_storage_deps succeeds; the
+    // actual HTTP call is never made because the "not logged in" check fires
+    // first on `load() -> None`.
     let pid = std::process::id();
     let service = format!("com.agicash.cli.test.{pid}.account-list");
     let out = Command::cargo_bin("agicash")
@@ -124,9 +133,17 @@ fn account_list_without_session_exits_three_and_emits_json_error() {
         out.status.code(),
         String::from_utf8_lossy(&out.stderr),
     );
+    // stderr is line-oriented: zero or more `note: …` warnings (e.g. the
+    // keyring-unavailable diagnostic emitted by the fallback chain on Linux
+    // CI) followed by the structured JSON error body. Scan for the JSON
+    // line rather than parsing the whole blob.
     let stderr = String::from_utf8(out.stderr).unwrap();
-    let parsed: serde_json::Value = serde_json::from_str(stderr.trim())
-        .unwrap_or_else(|e| panic!("stderr was not valid JSON ({e}): {stderr}"));
+    let json_line = stderr
+        .lines()
+        .find(|l| l.trim_start().starts_with('{'))
+        .unwrap_or_else(|| panic!("no JSON error line in stderr: {stderr}"));
+    let parsed: serde_json::Value = serde_json::from_str(json_line.trim())
+        .unwrap_or_else(|e| panic!("error line was not valid JSON ({e}): {json_line}"));
     assert_eq!(
         parsed.pointer("/error/code").and_then(|v| v.as_str()),
         Some("not-logged-in"),

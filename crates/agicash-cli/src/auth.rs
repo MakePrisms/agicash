@@ -2,7 +2,7 @@ use crate::composition::AuthDeps;
 use agicash_auth_opensecret::{
     auth_error_from_opensecret, login_email, logout, register_email, register_guest,
 };
-use agicash_traits::{AuthError, PersistedSession, SessionStorage};
+use agicash_traits::{AuthError, PersistedSession};
 use serde::Serialize;
 
 #[derive(Serialize)]

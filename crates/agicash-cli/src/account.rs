@@ -1,6 +1,6 @@
 use crate::composition::{AuthDeps, StorageDeps};
 use agicash_domain::UserId;
-use agicash_traits::{AuthError, SessionStorage, StorageError, UserStorage};
+use agicash_traits::{AuthError, StorageError, UserStorage};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AccountCmdError {

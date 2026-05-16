@@ -5,10 +5,10 @@ pub mod config;
 pub mod error;
 pub mod key_provider;
 pub mod session;
-// keyring-backed session storage is OS-native only. WASM consumers must
-// wire their own `SessionStorage` impl (cookies / IndexedDB / web crypto)
-// in a future browser-targeted slice.
-#[cfg(not(target_arch = "wasm32"))]
+// `storage` ships at least the always-available `InMemorySessionStorage`
+// (works on every target including wasm). The OS-keyring impl inside this
+// module is gated behind the `keyring-storage` cargo feature, so wasm
+// builds compile in only the in-memory path. See `storage.rs` for details.
 pub mod storage;
 pub mod token_provider;
 
@@ -17,6 +17,5 @@ pub use config::*;
 pub use error::*;
 pub use key_provider::*;
 pub use session::*;
-#[cfg(not(target_arch = "wasm32"))]
 pub use storage::*;
 pub use token_provider::*;

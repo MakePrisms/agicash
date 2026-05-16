@@ -7,7 +7,7 @@
 use crate::composition::{AuthDeps, CashuDeps, ReceiveSwapDeps, StorageDeps};
 use agicash_cashu::{CompleteOutcome, ParsedToken, ReceiveSwapError, ReceiveSwapStorageError};
 use agicash_domain::{Account, AccountType, UserId};
-use agicash_traits::{AuthError, SessionStorage, StorageError, UserStorage};
+use agicash_traits::{AuthError, StorageError, UserStorage};
 use serde::Serialize;
 
 #[derive(Debug, thiserror::Error)]

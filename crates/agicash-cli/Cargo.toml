@@ -11,7 +11,10 @@ name = "agicash"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["keyring-storage"]
+# Toggle the OS-keyring session backend on/off. When off, the CLI uses
+# the always-available in-memory backend (used in CI and headless Linux).
+keyring-storage = ["agicash-auth-opensecret/keyring-storage"]
 # Enable integration tests that hit the real Open Secret dev environment.
 real-opensecret-tests = []
 # Enable integration tests that hit the real local Supabase instance.
