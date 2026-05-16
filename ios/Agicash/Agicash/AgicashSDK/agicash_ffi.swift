@@ -554,37 +554,18 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
     func listAccounts() async throws  -> [AccountFfi]
     
     /**
-     * Provision a new Cashu mint and create a BTC account row for it.
+     * Construct a fresh [`ReceiveFlow`] handle for an interactive
+     * receive-token flow. Each call returns a new orchestrator —
+     * flows are not persisted across constructions.
      *
-     * Mirrors the `agicash mint add <url>` CLI subcommand
-     * (`crates/agicash-cli/src/mint.rs`): parse the URL, fetch NUT-06 mint
-     * info, then call `wallet.upsert_user_with_accounts` to insert the new
-     * `wallet.accounts` row. Returns the new account id + name + canonical
-     * URL so the Add Mint sheet on iOS can show a confirmation and the
-     * Accounts screen can refresh without a follow-up `list_accounts`
-     * round-trip (though it will refresh anyway).
+     * The returned handle exposes:
+     * - `current_state()` to snapshot the current state
+     * - `dispatch(event)` to feed UI events in and run the resulting I/O
      *
-     * Hard-codes `currency = BTC` to match the web app's `add-mint-form.tsx`
-     * (which also hard-codes BTC). The iOS UI does not collect a currency
-     * today; if/when the web exposes USD mint creation we can add a
-     * parameter here.
-     *
-     * First-mint-add for a brand-new guest user creates a placeholder
-     * `Spark` account too — same workaround the CLI uses to satisfy the
-     * `wallet.upsert_user_with_accounts` "at least one BTC Spark"
-     * constraint. Slice 9 (Spark wiring) replaces it with a real-key-backed
-     * row.
-     *
-     * Errors:
-     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
-     * - `FfiError::Internal` for invalid URLs, mint unreachable, mint
-     * protocol errors, and the post-upsert "no account matching the new
-     * mint URL" sanity check (the underlying `MintCmdError` doesn't fit
-     * Auth/Storage cleanly — same shape as `receive_token` funnels
-     * `ReceiveSwapError` through Internal).
-     * - `FfiError::Storage` for raw Supabase failures (network, etc.).
+     * Requires an active session; returns `FfiError::Auth { UNAUTHENTICATED }`
+     * otherwise.
      */
-    func mintAdd(url: String) async throws  -> MintAddResult
+    func receiveFlow() async throws  -> ReceiveFlow
     
     /**
      * Redeem a Cashu token (V3 `cashuA…` or V4 `cashuB…`).
@@ -841,49 +822,30 @@ open func listAccounts()async throws  -> [AccountFfi]  {
 }
     
     /**
-     * Provision a new Cashu mint and create a BTC account row for it.
+     * Construct a fresh [`ReceiveFlow`] handle for an interactive
+     * receive-token flow. Each call returns a new orchestrator —
+     * flows are not persisted across constructions.
      *
-     * Mirrors the `agicash mint add <url>` CLI subcommand
-     * (`crates/agicash-cli/src/mint.rs`): parse the URL, fetch NUT-06 mint
-     * info, then call `wallet.upsert_user_with_accounts` to insert the new
-     * `wallet.accounts` row. Returns the new account id + name + canonical
-     * URL so the Add Mint sheet on iOS can show a confirmation and the
-     * Accounts screen can refresh without a follow-up `list_accounts`
-     * round-trip (though it will refresh anyway).
+     * The returned handle exposes:
+     * - `current_state()` to snapshot the current state
+     * - `dispatch(event)` to feed UI events in and run the resulting I/O
      *
-     * Hard-codes `currency = BTC` to match the web app's `add-mint-form.tsx`
-     * (which also hard-codes BTC). The iOS UI does not collect a currency
-     * today; if/when the web exposes USD mint creation we can add a
-     * parameter here.
-     *
-     * First-mint-add for a brand-new guest user creates a placeholder
-     * `Spark` account too — same workaround the CLI uses to satisfy the
-     * `wallet.upsert_user_with_accounts` "at least one BTC Spark"
-     * constraint. Slice 9 (Spark wiring) replaces it with a real-key-backed
-     * row.
-     *
-     * Errors:
-     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
-     * - `FfiError::Internal` for invalid URLs, mint unreachable, mint
-     * protocol errors, and the post-upsert "no account matching the new
-     * mint URL" sanity check (the underlying `MintCmdError` doesn't fit
-     * Auth/Storage cleanly — same shape as `receive_token` funnels
-     * `ReceiveSwapError` through Internal).
-     * - `FfiError::Storage` for raw Supabase failures (network, etc.).
+     * Requires an active session; returns `FfiError::Auth { UNAUTHENTICATED }`
+     * otherwise.
      */
-open func mintAdd(url: String)async throws  -> MintAddResult  {
+open func receiveFlow()async throws  -> ReceiveFlow  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_agicash_ffi_fn_method_agicashwallet_mint_add(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(url)
+                uniffi_agicash_ffi_fn_method_agicashwallet_receive_flow(
+                    self.uniffiCloneHandle()
+                    
                 )
             },
-            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeMintAddResult_lift,
+            pollFunc: ffi_agicash_ffi_rust_future_poll_u64,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_u64,
+            freeFunc: ffi_agicash_ffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeReceiveFlow_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -992,6 +954,178 @@ public func FfiConverterTypeAgicashWallet_lift(_ handle: UInt64) throws -> Agica
 #endif
 public func FfiConverterTypeAgicashWallet_lower(_ value: AgicashWallet) -> UInt64 {
     return FfiConverterTypeAgicashWallet.lower(value)
+}
+
+
+
+
+
+
+/**
+ * Long-lived handle the UI holds for the duration of one receive flow.
+ *
+ * Wraps a [`ReceiveFlowService`] behind a `Mutex` so the FFI can hand
+ * out shared references and still mutate the underlying machine on
+ * each `dispatch`. Each call to [`crate::wallet::AgicashWallet::receive_flow`]
+ * returns a fresh handle — flows are not persisted across constructions.
+ */
+public protocol ReceiveFlowProtocol: AnyObject, Sendable {
+    
+    /**
+     * Snapshot the current state of the flow. Cheap; safe to call from a
+     * polling UI loop.
+     */
+    func currentState() async  -> ReceiveFlowStateFfi
+    
+    /**
+     * Send a UI event into the flow and run any side effects it triggers.
+     * Returns the next stable state (waiting on user input or terminal).
+     */
+    func dispatch(event: ReceiveFlowEventFfi) async throws  -> ReceiveFlowStateFfi
+    
+}
+/**
+ * Long-lived handle the UI holds for the duration of one receive flow.
+ *
+ * Wraps a [`ReceiveFlowService`] behind a `Mutex` so the FFI can hand
+ * out shared references and still mutate the underlying machine on
+ * each `dispatch`. Each call to [`crate::wallet::AgicashWallet::receive_flow`]
+ * returns a fresh handle — flows are not persisted across constructions.
+ */
+open class ReceiveFlow: ReceiveFlowProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_agicash_ffi_fn_clone_receiveflow(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        try! rustCall { uniffi_agicash_ffi_fn_free_receiveflow(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Snapshot the current state of the flow. Cheap; safe to call from a
+     * polling UI loop.
+     */
+open func currentState()async  -> ReceiveFlowStateFfi  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_receiveflow_current_state(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeReceiveFlowStateFfi_lift,
+            errorHandler: nil
+            
+        )
+}
+    
+    /**
+     * Send a UI event into the flow and run any side effects it triggers.
+     * Returns the next stable state (waiting on user input or terminal).
+     */
+open func dispatch(event: ReceiveFlowEventFfi)async throws  -> ReceiveFlowStateFfi  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_receiveflow_dispatch(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeReceiveFlowEventFfi_lower(event)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeReceiveFlowStateFfi_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReceiveFlow: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = ReceiveFlow
+
+    public static func lift(_ handle: UInt64) throws -> ReceiveFlow {
+        return ReceiveFlow(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: ReceiveFlow) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReceiveFlow {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: ReceiveFlow, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveFlow_lift(_ handle: UInt64) throws -> ReceiveFlow {
+    return try FfiConverterTypeReceiveFlow.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveFlow_lower(_ value: ReceiveFlow) -> UInt64 {
+    return FfiConverterTypeReceiveFlow.lower(value)
 }
 
 
@@ -1168,87 +1302,57 @@ public func FfiConverterTypeAuthStatus_lower(_ value: AuthStatus) -> RustBuffer 
 
 
 /**
- * Outcome of [`crate::wallet::AgicashWallet::mint_add`].
- *
- * Mirrors the CLI's `MintAddOutput` (`crates/agicash-cli/src/mint.rs`):
- * the new account row's id + name, plus the canonical mint URL the row
- * was created against. Useful for an "Added <name>" toast and to navigate
- * the Accounts screen back to the newly-created row without an extra
- * `list_accounts` round-trip.
+ * FFI mirror of [`agicash_cashu::MintConfirmation`].
  */
-public struct MintAddResult: Equatable, Hashable {
-    /**
-     * Stringified UUID of the new `wallet.accounts` row.
-     */
-    public var accountId: String
-    /**
-     * Human-readable mint name (NUT-06 `name`, falling back to the URL
-     * itself when the mint doesn't supply one).
-     */
-    public var mintName: String
-    /**
-     * Canonical mint URL (parsed through `MintUrl`, so trailing-slash
-     * normalized).
-     */
+public struct MintConfirmationFfi: Equatable, Hashable {
     public var mintUrl: String
-    /**
-     * Currency code the account was created with — always `"BTC"` for
-     * now, but exposed so the iOS UI can render it in the success state
-     * without a separate lookup.
-     */
+    public var mintName: String
+    public var unit: String
     public var currency: String
+    public var amount: String
+    public var fee: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(
-        /**
-         * Stringified UUID of the new `wallet.accounts` row.
-         */accountId: String, 
-        /**
-         * Human-readable mint name (NUT-06 `name`, falling back to the URL
-         * itself when the mint doesn't supply one).
-         */mintName: String, 
-        /**
-         * Canonical mint URL (parsed through `MintUrl`, so trailing-slash
-         * normalized).
-         */mintUrl: String, 
-        /**
-         * Currency code the account was created with — always `"BTC"` for
-         * now, but exposed so the iOS UI can render it in the success state
-         * without a separate lookup.
-         */currency: String) {
-        self.accountId = accountId
-        self.mintName = mintName
+    public init(mintUrl: String, mintName: String, unit: String, currency: String, amount: String, fee: String) {
         self.mintUrl = mintUrl
+        self.mintName = mintName
+        self.unit = unit
         self.currency = currency
+        self.amount = amount
+        self.fee = fee
     }
 
     
 }
 
 #if compiler(>=6)
-extension MintAddResult: Sendable {}
+extension MintConfirmationFfi: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeMintAddResult: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MintAddResult {
+public struct FfiConverterTypeMintConfirmationFfi: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MintConfirmationFfi {
         return
-            try MintAddResult(
-                accountId: FfiConverterString.read(from: &buf), 
-                mintName: FfiConverterString.read(from: &buf), 
+            try MintConfirmationFfi(
                 mintUrl: FfiConverterString.read(from: &buf), 
-                currency: FfiConverterString.read(from: &buf)
+                mintName: FfiConverterString.read(from: &buf), 
+                unit: FfiConverterString.read(from: &buf), 
+                currency: FfiConverterString.read(from: &buf), 
+                amount: FfiConverterString.read(from: &buf), 
+                fee: FfiConverterString.read(from: &buf)
         )
     }
 
-    public static func write(_ value: MintAddResult, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.accountId, into: &buf)
-        FfiConverterString.write(value.mintName, into: &buf)
+    public static func write(_ value: MintConfirmationFfi, into buf: inout [UInt8]) {
         FfiConverterString.write(value.mintUrl, into: &buf)
+        FfiConverterString.write(value.mintName, into: &buf)
+        FfiConverterString.write(value.unit, into: &buf)
         FfiConverterString.write(value.currency, into: &buf)
+        FfiConverterString.write(value.amount, into: &buf)
+        FfiConverterString.write(value.fee, into: &buf)
     }
 }
 
@@ -1256,15 +1360,95 @@ public struct FfiConverterTypeMintAddResult: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeMintAddResult_lift(_ buf: RustBuffer) throws -> MintAddResult {
-    return try FfiConverterTypeMintAddResult.lift(buf)
+public func FfiConverterTypeMintConfirmationFfi_lift(_ buf: RustBuffer) throws -> MintConfirmationFfi {
+    return try FfiConverterTypeMintConfirmationFfi.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeMintAddResult_lower(_ value: MintAddResult) -> RustBuffer {
-    return FfiConverterTypeMintAddResult.lower(value)
+public func FfiConverterTypeMintConfirmationFfi_lower(_ value: MintConfirmationFfi) -> RustBuffer {
+    return FfiConverterTypeMintConfirmationFfi.lower(value)
+}
+
+
+/**
+ * FFI mirror of [`agicash_cashu::ReceiveFlowResult`]. Identical fields;
+ * stringified for Swift codegen.
+ */
+public struct ReceiveFlowResultFfi: Equatable, Hashable {
+    public var status: ReceiveStatusFfi
+    public var amount: String
+    public var fee: String
+    public var unit: String
+    public var currency: String
+    public var accountId: String
+    public var mintUrl: String
+    public var tokenHash: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(status: ReceiveStatusFfi, amount: String, fee: String, unit: String, currency: String, accountId: String, mintUrl: String, tokenHash: String) {
+        self.status = status
+        self.amount = amount
+        self.fee = fee
+        self.unit = unit
+        self.currency = currency
+        self.accountId = accountId
+        self.mintUrl = mintUrl
+        self.tokenHash = tokenHash
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension ReceiveFlowResultFfi: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReceiveFlowResultFfi: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReceiveFlowResultFfi {
+        return
+            try ReceiveFlowResultFfi(
+                status: FfiConverterTypeReceiveStatusFfi.read(from: &buf), 
+                amount: FfiConverterString.read(from: &buf), 
+                fee: FfiConverterString.read(from: &buf), 
+                unit: FfiConverterString.read(from: &buf), 
+                currency: FfiConverterString.read(from: &buf), 
+                accountId: FfiConverterString.read(from: &buf), 
+                mintUrl: FfiConverterString.read(from: &buf), 
+                tokenHash: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ReceiveFlowResultFfi, into buf: inout [UInt8]) {
+        FfiConverterTypeReceiveStatusFfi.write(value.status, into: &buf)
+        FfiConverterString.write(value.amount, into: &buf)
+        FfiConverterString.write(value.fee, into: &buf)
+        FfiConverterString.write(value.unit, into: &buf)
+        FfiConverterString.write(value.currency, into: &buf)
+        FfiConverterString.write(value.accountId, into: &buf)
+        FfiConverterString.write(value.mintUrl, into: &buf)
+        FfiConverterString.write(value.tokenHash, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveFlowResultFfi_lift(_ buf: RustBuffer) throws -> ReceiveFlowResultFfi {
+    return try FfiConverterTypeReceiveFlowResultFfi.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveFlowResultFfi_lower(_ value: ReceiveFlowResultFfi) -> RustBuffer {
+    return FfiConverterTypeReceiveFlowResultFfi.lower(value)
 }
 
 
@@ -1575,6 +1759,219 @@ public func FfiConverterTypeFfiError_lower(_ value: FfiError) -> RustBuffer {
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * FFI mirror of [`agicash_cashu::ReceiveFlowEvent`].
+ */
+
+public enum ReceiveFlowEventFfi: Equatable, Hashable {
+    
+    case start(token: String
+    )
+    case confirmAddMint
+    case cancelAddMint
+    case retry
+    case dismiss
+
+
+
+}
+
+#if compiler(>=6)
+extension ReceiveFlowEventFfi: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReceiveFlowEventFfi: FfiConverterRustBuffer {
+    typealias SwiftType = ReceiveFlowEventFfi
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReceiveFlowEventFfi {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .start(token: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .confirmAddMint
+        
+        case 3: return .cancelAddMint
+        
+        case 4: return .retry
+        
+        case 5: return .dismiss
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ReceiveFlowEventFfi, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .start(token):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(token, into: &buf)
+            
+        
+        case .confirmAddMint:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .cancelAddMint:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .retry:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .dismiss:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveFlowEventFfi_lift(_ buf: RustBuffer) throws -> ReceiveFlowEventFfi {
+    return try FfiConverterTypeReceiveFlowEventFfi.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveFlowEventFfi_lower(_ value: ReceiveFlowEventFfi) -> RustBuffer {
+    return FfiConverterTypeReceiveFlowEventFfi.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * FFI mirror of [`agicash_cashu::ReceiveFlowState`]. Same variants in the
+ * same order; the UI switches on the variant tag.
+ */
+
+public enum ReceiveFlowStateFfi: Equatable, Hashable {
+    
+    case idle
+    case parsing
+    case needsMintConfirmation(confirmation: MintConfirmationFfi
+    )
+    case addingMint(mintUrl: String
+    )
+    case swapping(accountId: String, mintUrl: String
+    )
+    case done(result: ReceiveFlowResultFfi
+    )
+    case failed(reason: String, code: String
+    )
+
+
+
+}
+
+#if compiler(>=6)
+extension ReceiveFlowStateFfi: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReceiveFlowStateFfi: FfiConverterRustBuffer {
+    typealias SwiftType = ReceiveFlowStateFfi
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReceiveFlowStateFfi {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .idle
+        
+        case 2: return .parsing
+        
+        case 3: return .needsMintConfirmation(confirmation: try FfiConverterTypeMintConfirmationFfi.read(from: &buf)
+        )
+        
+        case 4: return .addingMint(mintUrl: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 5: return .swapping(accountId: try FfiConverterString.read(from: &buf), mintUrl: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 6: return .done(result: try FfiConverterTypeReceiveFlowResultFfi.read(from: &buf)
+        )
+        
+        case 7: return .failed(reason: try FfiConverterString.read(from: &buf), code: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ReceiveFlowStateFfi, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .idle:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .parsing:
+            writeInt(&buf, Int32(2))
+        
+        
+        case let .needsMintConfirmation(confirmation):
+            writeInt(&buf, Int32(3))
+            FfiConverterTypeMintConfirmationFfi.write(confirmation, into: &buf)
+            
+        
+        case let .addingMint(mintUrl):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(mintUrl, into: &buf)
+            
+        
+        case let .swapping(accountId,mintUrl):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(accountId, into: &buf)
+            FfiConverterString.write(mintUrl, into: &buf)
+            
+        
+        case let .done(result):
+            writeInt(&buf, Int32(6))
+            FfiConverterTypeReceiveFlowResultFfi.write(result, into: &buf)
+            
+        
+        case let .failed(reason,code):
+            writeInt(&buf, Int32(7))
+            FfiConverterString.write(reason, into: &buf)
+            FfiConverterString.write(code, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveFlowStateFfi_lift(_ buf: RustBuffer) throws -> ReceiveFlowStateFfi {
+    return try FfiConverterTypeReceiveFlowStateFfi.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveFlowStateFfi_lower(_ value: ReceiveFlowStateFfi) -> RustBuffer {
+    return FfiConverterTypeReceiveFlowStateFfi.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * Status discriminator for [`ReceiveResult`]. Mirrors the JSON `status`
  * field the CLI emits — three terminal cases the Swift side switches on.
  */
@@ -1669,6 +2066,88 @@ public func FfiConverterTypeReceiveStatus_lift(_ buf: RustBuffer) throws -> Rece
 #endif
 public func FfiConverterTypeReceiveStatus_lower(_ value: ReceiveStatus) -> RustBuffer {
     return FfiConverterTypeReceiveStatus.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * FFI mirror of [`agicash_cashu::ReceiveFlowStatus`].
+ */
+
+public enum ReceiveStatusFfi: Equatable, Hashable {
+    
+    case received
+    case alreadyClaimed
+    case alreadyFailed
+    case pending
+
+
+
+}
+
+#if compiler(>=6)
+extension ReceiveStatusFfi: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeReceiveStatusFfi: FfiConverterRustBuffer {
+    typealias SwiftType = ReceiveStatusFfi
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReceiveStatusFfi {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .received
+        
+        case 2: return .alreadyClaimed
+        
+        case 3: return .alreadyFailed
+        
+        case 4: return .pending
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ReceiveStatusFfi, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .received:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .alreadyClaimed:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .alreadyFailed:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .pending:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveStatusFfi_lift(_ buf: RustBuffer) throws -> ReceiveStatusFfi {
+    return try FfiConverterTypeReceiveStatusFfi.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeReceiveStatusFfi_lower(_ value: ReceiveStatusFfi) -> RustBuffer {
+    return FfiConverterTypeReceiveStatusFfi.lower(value)
 }
 
 
@@ -1829,13 +2308,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_list_accounts() != 8926) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_agicash_ffi_checksum_method_agicashwallet_mint_add() != 35097) {
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_receive_flow() != 22861) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_receive_token() != 38168) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_set_session() != 35776) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_method_receiveflow_current_state() != 4694) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_method_receiveflow_dispatch() != 44773) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_constructor_agicashwallet_new() != 44726) {

@@ -8,7 +8,7 @@ pub(crate) const WALLET_SCHEMA: &str = "wallet";
 
 /// Build the shared `reqwest::Client` once and reuse it. TLS chain validation
 /// is delegated to the platform's native verifier (Security.framework on
-/// macOS/iOS, SChannel on Windows, system roots on Linux) so the system trust
+/// macOS/iOS, `SChannel` on Windows, system roots on Linux) so the system trust
 /// store — including any user-installed mkcert root in the iOS simulator
 /// keychain — is honored. Replaces the previous `rustls-tls-native-roots`
 /// approach, which only consulted the host trust store and silently failed

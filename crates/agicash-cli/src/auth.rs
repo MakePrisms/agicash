@@ -87,14 +87,7 @@ pub async fn cmd_signup(deps: &AuthDeps, email: String) -> Result<(), AuthError>
             "password must have at least 8 characters".into(),
         ));
     }
-    let resp = register_email(
-        &deps.client,
-        email,
-        password,
-        deps.client.client_id(),
-        None,
-    )
-    .await?;
+    let resp = register_email(&deps.client, email, password, deps.client.client_id(), None).await?;
     let session = PersistedSession {
         user_id: resp.id,
         refresh_token: resp.refresh_token.clone(),

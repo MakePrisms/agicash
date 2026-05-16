@@ -14,14 +14,16 @@ use crate::account::AccountFfi;
 use crate::error::FfiError;
 use crate::mint::MintAddResult;
 use crate::receive::{ReceiveResult, ReceiveStatus};
+use crate::receive_flow::{OpenSecretSeedProvider, ReceiveFlow};
 use crate::session::{AuthStatus, Session};
 use agicash_auth_opensecret::{
     auth_error_from_opensecret, login_email, logout, register_email, register_guest,
     OpenSecretClient, OpenSecretConfig, OpenSecretTokenProvider,
 };
 use agicash_cashu::{
-    CashuReceiveSwapService, CashuReceiveSwapState, CashuReceiveSwapStorage, CdkCashuProvider,
-    CompleteOutcome, ParsedToken, ReceiveSwapError, ReceiveSwapStorageError,
+    CashuReceiveSwapService, CashuReceiveSwapState, CashuReceiveSwapStorage, CashuSeedProvider,
+    CdkCashuProvider, CompleteOutcome, ParsedToken, ReceiveFlowService, ReceiveSwapError,
+    ReceiveSwapStorageError,
 };
 use agicash_domain::{Account, AccountPurpose, AccountType, Currency, UserId};
 use agicash_storage_supabase::{
@@ -46,7 +48,7 @@ pub struct AgicashWallet {
     /// share across receive/send swaps.
     cashu_provider: Arc<dyn CashuProvider>,
     /// Receive-swap orchestrator. Wired against the same `SupabaseStorage`
-    /// + `cashu_provider` the wallet already owns, with the slice-5
+    /// and `cashu_provider` the wallet already owns, with the slice-5
     /// `PassthroughProofEncryption` stub matching the CLI composition root.
     /// Once the encryption seam ships, this slot swaps to a real impl
     /// without the FFI surface changing.
@@ -226,14 +228,8 @@ impl AgicashWallet {
         password: String,
         name: Option<String>,
     ) -> Result<Session, FfiError> {
-        let resp = register_email(
-            &self.client,
-            email,
-            password,
-            self.client.client_id(),
-            name,
-        )
-        .await?;
+        let resp =
+            register_email(&self.client, email, password, self.client.client_id(), name).await?;
         let persisted = PersistedSession {
             user_id: resp.id,
             refresh_token: resp.refresh_token.clone(),
@@ -529,6 +525,34 @@ impl AgicashWallet {
             &parsed,
         ))
     }
+
+    /// Construct a fresh [`ReceiveFlow`] handle for an interactive
+    /// receive-token flow. Each call returns a new orchestrator —
+    /// flows are not persisted across constructions.
+    ///
+    /// The returned handle exposes:
+    /// - `current_state()` to snapshot the current state
+    /// - `dispatch(event)` to feed UI events in and run the resulting I/O
+    ///
+    /// Requires an active session; returns `FfiError::Auth { UNAUTHENTICATED }`
+    /// otherwise.
+    pub async fn receive_flow(&self) -> Result<Arc<ReceiveFlow>, FfiError> {
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+        let seed_provider: Arc<dyn CashuSeedProvider> =
+            Arc::new(OpenSecretSeedProvider::new(self.client.clone()));
+        let service = ReceiveFlowService::new(
+            user_id,
+            Arc::clone(&self.storage) as Arc<dyn UserStorage>,
+            Arc::clone(&self.cashu_provider),
+            Arc::clone(&self.receive_swap_service),
+            seed_provider,
+        );
+        Ok(Arc::new(ReceiveFlow::new(service)))
+    }
 }
 
 /// Find a `Cashu` account whose `(mint_url, currency)` pair matches the
@@ -576,9 +600,7 @@ fn receive_swap_error_to_ffi(e: ReceiveSwapError) -> FfiError {
         ReceiveSwapError::CurrencyMismatch { token, account } => FfiError::internal(format!(
             "currency mismatch: token currency {token} differs from account currency {account}",
         )),
-        ReceiveSwapError::AmountTooSmall => {
-            FfiError::internal("amount too small after mint fees")
-        }
+        ReceiveSwapError::AmountTooSmall => FfiError::internal("amount too small after mint fees"),
         ReceiveSwapError::InvalidTransition { from, event } => {
             FfiError::internal(format!("invalid state transition from {from} on {event}"))
         }
@@ -615,9 +637,7 @@ fn receive_result_from_outcome(
     parsed: &ParsedToken,
 ) -> ReceiveResult {
     match outcome {
-        CompleteOutcome::Completed {
-            swap, account, ..
-        } => ReceiveResult {
+        CompleteOutcome::Completed { swap, account, .. } => ReceiveResult {
             status: ReceiveStatus::Received,
             amount: swap.amount_received.amount().to_string(),
             fee: swap.fee_amount.amount().to_string(),
