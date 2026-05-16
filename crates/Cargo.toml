@@ -17,6 +17,7 @@ members = [
     "agicash-testing",
     "agicash-cli",
     "agicash-wasm",
+    "agicash-web-leptos",
     "agicash-ffi",
     "agicash-storage-supabase-codegen",
 ]
