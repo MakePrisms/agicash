@@ -371,7 +371,10 @@ mod gated {
         );
         let send_json: serde_json::Value =
             serde_json::from_str(String::from_utf8_lossy(&send.stdout).trim()).unwrap();
-        assert_eq!(send_json.get("status").and_then(|v| v.as_str()), Some("sent"));
+        assert_eq!(
+            send_json.get("status").and_then(|v| v.as_str()),
+            Some("sent")
+        );
     }
 }
 
