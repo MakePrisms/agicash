@@ -84,7 +84,7 @@ export default function ScanPage() {
       <Button
         type="button"
         onClick={handlePaste}
-        className="-translate-x-1/2 fixed bottom-4 left-1/2 z-20"
+        className="-translate-x-1/2 fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-20"
       >
         <Clipboard className="h-5 w-5" /> Paste
       </Button>
