@@ -3,7 +3,7 @@
 //!
 //! The web's tailwind utility classes (`p-4`, `text-sm`, `bg-card`, …) aren't
 //! consumable from Leptos's static `view!` macro directly — we emit inline
-//! CSS strings instead. Centralising the values here keeps the LoginView (and
+//! CSS strings instead. Centralising the values here keeps the `LoginView` (and
 //! anything we add later) faithful to the shared design system. When
 //! `design/tokens.json` changes, update the constants below to match.
 //!

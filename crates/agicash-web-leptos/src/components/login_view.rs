@@ -5,8 +5,12 @@
 //!   - "Continue as guest" calls `POST /api/auth/guest`, stores the
 //!     returned access token in the `AccessToken` signal, and navigates `/`.
 //!   - "Log in with Email" and "Log in with Google" show a placeholder
-//!     toast — those flows arrive after slice 12 wires the WalletClient.
+//!     toast — those flows arrive after slice 12 wires the `WalletClient`.
 //!   - "Sign up" link is a placeholder for the same reason.
+
+// The `LoginView` component renders a long view block in Leptos's IntoView
+// idiom; splitting it would just add indirection for indirection's sake.
+#![allow(clippy::too_many_lines)]
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -91,7 +95,7 @@ pub fn LoginView() -> impl IntoView {
             "Google login is coming soon. For now, continue as guest.".to_string(),
         ));
     };
-    let on_signup = move |_| {
+    let on_signup = move |()| {
         error_message.set(Some(
             "Sign up is coming soon. For now, continue as guest.".to_string(),
         ));

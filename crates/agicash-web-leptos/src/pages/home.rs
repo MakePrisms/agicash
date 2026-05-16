@@ -10,6 +10,7 @@
 
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
+use leptos_router::NavigateOptions;
 
 use crate::app::AccessToken;
 use crate::tokens;
@@ -24,7 +25,7 @@ pub fn HomePage() -> impl IntoView {
     // hydration when running in the browser).
     Effect::new(move |_| {
         if token.get().is_none() {
-            navigate("/login", Default::default());
+            navigate("/login", NavigateOptions::default());
         }
     });
 
