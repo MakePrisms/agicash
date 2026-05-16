@@ -10,13 +10,16 @@ import { QRScanner } from '~/components/qr-scanner';
 import { Button } from '~/components/ui/button';
 import { classifyInput } from '~/features/scan';
 import { validateBolt11 } from '~/features/send/validation';
+import useIsPwa from '~/hooks/use-is-pwa';
 import { useToast } from '~/hooks/use-toast';
 import { readClipboard } from '~/lib/read-clipboard';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
+import { cn } from '~/lib/utils';
 
 export default function ScanPage() {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
+  const isPwa = useIsPwa();
 
   const handleInput = (raw: string) => {
     const result = classifyInput(raw);
@@ -78,16 +81,16 @@ export default function ScanPage() {
         <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Scan</PageHeaderTitle>
       </PageHeader>
-      <PageContent className="relative flex items-center justify-center">
+      <PageContent className="relative z-10 mx-auto items-center pt-20 sm:justify-center sm:gap-32 sm:py-0">
         <QRScanner onDecode={handleInput} />
+        <div
+          className={cn('mt-auto flex w-72 flex-col gap-4', isPwa && 'pb-20')}
+        >
+          <Button type="button" onClick={handlePaste}>
+            <Clipboard className="h-5 w-5" /> Paste
+          </Button>
+        </div>
       </PageContent>
-      <Button
-        type="button"
-        onClick={handlePaste}
-        className="-translate-x-1/2 fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-20"
-      >
-        <Clipboard className="h-5 w-5" /> Paste
-      </Button>
     </Page>
   );
 }
