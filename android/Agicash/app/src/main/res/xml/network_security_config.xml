@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Phase 1 dev: the app talks to a local OpenSecret enclave on http://10.0.2.2:3999
+  and a local Supabase on https://10.0.2.2:54321 (mkcert dev cert that the
+  system trust store doesn't know about). For the emulator dev loop we
+  permit user-installed CAs + cleartext on the loopback equivalent so the
+  same code that works against prod (https://supabase + https://opensecret)
+  also works against the local stack.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

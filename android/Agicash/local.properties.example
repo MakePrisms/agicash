@@ -1,0 +1,11 @@
+# Copy to local.properties before opening the project in Android Studio.
+# Android Gradle Plugin requires sdk.dir to know where the Android SDK lives.
+#
+# The default install path is ~/Library/Android/sdk. If you only have Android
+# Studio installed and have never opened it, the SDK isn't downloaded yet; open
+# Android Studio once and accept the first-run wizard.
+
+sdk.dir=/Users/YOUR_USER/Library/Android/sdk
+
+# Optionally override the NDK location if cargo-ndk's auto-detection misses it.
+# ndk.dir=/opt/homebrew/share/android-ndk
