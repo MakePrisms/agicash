@@ -125,6 +125,19 @@ impl AgicashWallet {
         supabase_url: String,
         supabase_anon_key: String,
     ) -> Result<Arc<Self>, FfiError> {
+        // First FFI entry point on iOS — install the tracing → os_log
+        // bridge so every downstream `tracing::info!` is visible via
+        // `log stream --predicate 'subsystem == "app.agicash.rust"'`.
+        // Idempotent; safe to call from every constructor / method.
+        crate::observability::init();
+
+        tracing::info!(
+            target: "agicash_ffi::wallet",
+            opensecret_url = %opensecret_url,
+            supabase_url = %supabase_url,
+            "AgicashWallet::new"
+        );
+
         let client_id = Uuid::parse_str(&opensecret_client_id_uuid)
             .map_err(|e| FfiError::internal(format!("invalid opensecret_client_id_uuid: {e}")))?;
         let auth_cfg = OpenSecretConfig {
@@ -325,18 +338,43 @@ impl AgicashWallet {
     /// MVP scale but could grow to N+1 latency once users hold many
     /// proofs. A grouped query is the natural follow-up.
     pub async fn list_accounts(&self) -> Result<Vec<AccountFfi>, FfiError> {
+        crate::observability::init();
+        tracing::info!(target: "agicash_ffi::wallet", "list_accounts: enter");
         let session = self.session.read().await.clone().ok_or(FfiError::Auth {
             code: crate::error::auth_code::UNAUTHENTICATED,
             message: "not authenticated".into(),
         })?;
         let user_id = UserId::from(session.user_id);
+        tracing::info!(
+            target: "agicash_ffi::wallet",
+            user_id = %user_id.as_uuid(),
+            "list_accounts: session loaded"
+        );
         let accounts = self.storage.list_accounts(user_id).await?;
+        tracing::info!(
+            target: "agicash_ffi::wallet",
+            account_count = accounts.len(),
+            "list_accounts: storage returned accounts"
+        );
 
         let mut out = Vec::with_capacity(accounts.len());
         for account in accounts {
             let balance = compute_cashu_balance(self.send_swap_storage.as_ref(), &account).await?;
+            tracing::info!(
+                target: "agicash_ffi::wallet",
+                account_id = %account.id,
+                account_type = ?account.account_type,
+                currency = ?account.currency,
+                balance = balance,
+                "list_accounts: account balance computed"
+            );
             out.push(AccountFfi::from_account_with_balance(account, balance));
         }
+        tracing::info!(
+            target: "agicash_ffi::wallet",
+            returned = out.len(),
+            "list_accounts: exit"
+        );
         Ok(out)
     }
 
@@ -519,11 +557,22 @@ impl AgicashWallet {
     ///   the discriminator the iOS UI surfaces inline).
     /// - `FfiError::Storage` for raw Supabase failures (network, etc.).
     pub async fn receive_token(&self, token: String) -> Result<ReceiveResult, FfiError> {
+        crate::observability::init();
+        tracing::info!(
+            target: "agicash_ffi::wallet",
+            token_len = token.len(),
+            "receive_token: enter"
+        );
         let session = self.session.read().await.clone().ok_or(FfiError::Auth {
             code: crate::error::auth_code::UNAUTHENTICATED,
             message: "not authenticated".into(),
         })?;
         let user_id = UserId::from(session.user_id);
+        tracing::info!(
+            target: "agicash_ffi::wallet",
+            user_id = %user_id.as_uuid(),
+            "receive_token: session loaded"
+        );
 
         // Parse first so a malformed token surfaces as a clean error
         // before we touch storage / the mint.
@@ -842,11 +891,24 @@ async fn compute_cashu_balance(
 ) -> Result<u64, FfiError> {
     match account.account_type {
         AccountType::Cashu => {
+            tracing::info!(
+                target: "agicash_ffi::wallet",
+                account_id = %account.id,
+                "compute_cashu_balance: calling list_unspent_proofs"
+            );
             let proofs = storage
                 .list_unspent_proofs(account.id)
                 .await
                 .map_err(|e| FfiError::internal(format!("list unspent proofs: {e}")))?;
-            Ok(proofs.iter().map(|p| p.proof.amount).sum())
+            let total: u64 = proofs.iter().map(|p| p.proof.amount).sum();
+            tracing::info!(
+                target: "agicash_ffi::wallet",
+                account_id = %account.id,
+                proof_count = proofs.len(),
+                total_amount = total,
+                "compute_cashu_balance: list_unspent_proofs returned"
+            );
+            Ok(total)
         }
         AccountType::Spark => Ok(0),
     }

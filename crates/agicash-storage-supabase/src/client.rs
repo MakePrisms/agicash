@@ -1,7 +1,37 @@
 use crate::SupabaseStorageConfig;
 use agicash_traits::{StorageError, TokenProvider};
+use base64::Engine;
 use rustls_platform_verifier::ConfigVerifierExt;
 use std::sync::{Arc, OnceLock};
+
+/// Extract just the `sub` claim from a JWT for logging.
+///
+/// Mirrors `agicash_ffi::observability::jwt_sub` — duplicated rather
+/// than depending on `agicash-ffi` because that would invert the
+/// dependency graph (FFI already depends on storage). The function
+/// is tiny and stateless; keeping the logging-only helper local
+/// avoids the cycle.
+///
+/// Returns the user-id portion only. The full token never leaves
+/// this function.
+fn jwt_sub_for_log(jwt: &str) -> String {
+    let mut parts = jwt.split('.');
+    let _header = parts.next();
+    let Some(payload_b64) = parts.next() else {
+        return "<unparseable>".into();
+    };
+    let Ok(payload_bytes) = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(payload_b64)
+    else {
+        return "<unparseable>".into();
+    };
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(&payload_bytes) else {
+        return "<unparseable>".into();
+    };
+    value
+        .get("sub")
+        .and_then(|v| v.as_str())
+        .map_or_else(|| "<missing-sub>".into(), std::string::ToString::to_string)
+}
 
 /// Schema name in the Supabase project where all wallet tables live.
 pub(crate) const WALLET_SCHEMA: &str = "wallet";
@@ -79,6 +109,12 @@ impl SupabaseStorage {
             .get_jwt()
             .await
             .map_err(|e| StorageError::Backend(format!("token provider: {e}")))?;
+        tracing::info!(
+            target: "agicash_storage_supabase::client",
+            jwt_sub = %jwt_sub_for_log(&jwt),
+            jwt_len = jwt.len(),
+            "authenticated_client: jwt issued"
+        );
         let client = postgrest::Postgrest::new_with_client(&self.rest_url, self.http.clone())
             .schema(WALLET_SCHEMA)
             .insert_header("apikey", &self.anon_key)

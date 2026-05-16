@@ -48,6 +48,12 @@ impl UserStorage for SupabaseStorage {
     }
 
     async fn list_accounts(&self, user_id: UserId) -> Result<Vec<Account>, StorageError> {
+        tracing::info!(
+            target: "agicash_storage_supabase::user_storage",
+            url = %format!("{}/accounts?user_id=eq.{}&state=eq.active", self.rest_url, user_id),
+            method = "GET",
+            "list_accounts: request"
+        );
         let client = self.authenticated_client().await?;
         let response = client
             .from("accounts")
@@ -57,13 +63,25 @@ impl UserStorage for SupabaseStorage {
             .execute()
             .await
             .map_err(map_postgrest_error)?;
-        if !response.status().is_success() {
+        let status = response.status();
+        if !status.is_success() {
+            tracing::warn!(
+                target: "agicash_storage_supabase::user_storage",
+                http_status = status.as_u16(),
+                "list_accounts: non-success HTTP status"
+            );
             return Err(StorageError::Backend(format!(
-                "list_accounts: HTTP {}",
-                response.status()
+                "list_accounts: HTTP {status}"
             )));
         }
         let body = response.text().await.map_err(map_network_error)?;
+        tracing::info!(
+            target: "agicash_storage_supabase::user_storage",
+            http_status = status.as_u16(),
+            body_len = body.len(),
+            body_preview = %body.chars().take(200).collect::<String>(),
+            "list_accounts: response"
+        );
         serde_json::from_str::<Vec<Account>>(&body).map_err(|e| map_json_error(&e))
     }
 

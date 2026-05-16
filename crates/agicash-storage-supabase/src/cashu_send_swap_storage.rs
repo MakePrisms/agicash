@@ -320,6 +320,13 @@ impl CashuSendSwapStorage for SupabaseCashuSendSwapStorage {
         &self,
         account_id: AccountId,
     ) -> Result<Vec<ProofWithId>, SendSwapStorageError> {
+        tracing::info!(
+            target: "agicash_storage_supabase::cashu_send_swap_storage",
+            account_id = %account_id,
+            url = %format!("{}/cashu_proofs?account_id=eq.{}&state=eq.UNSPENT", self.base.rest_url, account_id),
+            method = "GET",
+            "list_unspent_proofs: request"
+        );
         let client = self.base.authenticated_client().await.map_err(map_auth)?;
         let response = client
             .from("cashu_proofs")
@@ -334,18 +341,44 @@ impl CashuSendSwapStorage for SupabaseCashuSendSwapStorage {
             .text()
             .await
             .map_err(|e| SendSwapStorageError::Backend(format!("read body: {e}")))?;
+        tracing::info!(
+            target: "agicash_storage_supabase::cashu_send_swap_storage",
+            account_id = %account_id,
+            http_status = status.as_u16(),
+            body_len = text.len(),
+            body_preview = %text.chars().take(200).collect::<String>(),
+            "list_unspent_proofs: response"
+        );
         if !status.is_success() {
+            tracing::warn!(
+                target: "agicash_storage_supabase::cashu_send_swap_storage",
+                account_id = %account_id,
+                http_status = status.as_u16(),
+                "list_unspent_proofs: non-success HTTP status"
+            );
             return Err(SendSwapStorageError::Backend(format!(
                 "list_unspent_proofs: HTTP {status}: {text}"
             )));
         }
         let rows: Vec<CashuProofRow> = serde_json::from_str(&text)
             .map_err(|e| SendSwapStorageError::Backend(format!("parse proofs: {e}")))?;
+        tracing::info!(
+            target: "agicash_storage_supabase::cashu_send_swap_storage",
+            account_id = %account_id,
+            row_count = rows.len(),
+            "list_unspent_proofs: parsed proof rows"
+        );
         let mut out = Vec::with_capacity(rows.len());
         for row in &rows {
             let proof = self.decrypt_proof(row).await?;
             out.push(ProofWithId { id: row.id, proof });
         }
+        tracing::info!(
+            target: "agicash_storage_supabase::cashu_send_swap_storage",
+            account_id = %account_id,
+            decrypted_count = out.len(),
+            "list_unspent_proofs: returning"
+        );
         Ok(out)
     }
 
