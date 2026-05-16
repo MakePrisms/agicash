@@ -6,7 +6,11 @@ pub mod provider;
 pub mod receive_swap;
 pub mod send_swap;
 
-pub use mint_quote::{CashuMintQuote, CashuMintQuoteState};
+pub use mint_quote::{
+    CashuMintQuote, CashuMintQuoteState, CashuMintQuoteStorage, CompleteMintQuote,
+    CompleteMintQuoteResult, CreateMintQuote, MintQuoteError, MintQuoteStorageError,
+    ProcessMintQuotePayment, ProcessMintQuotePaymentResult,
+};
 pub use provider::CdkCashuProvider;
 pub use receive_swap::{
     Action, CashuReceiveSwap, CashuReceiveSwapService, CashuReceiveSwapState,
