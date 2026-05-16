@@ -1,11 +1,13 @@
 //! Cashu protocol primitives and per-feature state machines.
 
 pub mod error;
+pub mod melt_quote;
 pub mod mint_quote;
 pub mod provider;
 pub mod receive_swap;
 pub mod send_swap;
 
+pub use melt_quote::{CashuMeltQuote, CashuMeltQuoteState};
 pub use mint_quote::{
     Action as MintQuoteAction, CashuMintQuote, CashuMintQuoteService, CashuMintQuoteState,
     CashuMintQuoteStorage, CompleteMintQuote, CompleteMintQuoteOutcome, CompleteMintQuoteResult,
