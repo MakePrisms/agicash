@@ -857,9 +857,9 @@ mod tests {
     use crate::send_swap::types::CashuSendSwapState;
     use agicash_domain::{AccountId, AccountPurpose, AccountState, AccountType, UserId};
     use async_trait::async_trait;
-    use uuid::Uuid;
     use chrono::Utc;
     use serde_json::json;
+    use uuid::Uuid;
 
     fn stub_account(currency: Currency, mint_url: &str) -> Account {
         Account {
