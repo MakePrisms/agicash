@@ -181,9 +181,7 @@ mod gated {
             String::from_utf8_lossy(&bal.stderr),
         );
         let bal_json = parse_json("guest B balance", &bal);
-        let entries = bal_json
-            .as_array()
-            .expect("balance must be a JSON array");
+        let entries = bal_json.as_array().expect("balance must be a JSON array");
         for entry in entries {
             let bal_str = entry
                 .get("balance")

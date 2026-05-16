@@ -26,7 +26,6 @@ postgrest = { workspace = true }
 # returns). Already transitively pulled in by postgrest.
 reqwest = { workspace = true }
 sha2 = "0.10"
-reqwest = { workspace = true }
 rustls = { workspace = true }
 rustls-platform-verifier = { workspace = true }
 rust_decimal = { workspace = true }

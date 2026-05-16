@@ -941,6 +941,13 @@ fn receive_swap_error_to_ffi(e: ReceiveSwapError) -> FfiError {
         // `From<StorageError>` impl when possible; otherwise fall back
         // to Internal so the caller still sees the failure reason.
         ReceiveSwapError::Storage(s) => FfiError::internal(format!("storage error: {s}")),
+        // NUT-12 DLEQ verification failed on a mint-returned blind signature
+        // or peer-token proof. A mint that fails DLEQ is malicious or
+        // compromised — surface with a distinct prefix so the UI can render
+        // a security-flavoured error rather than a generic network blip.
+        ReceiveSwapError::DleqVerificationFailed(inner) => {
+            FfiError::internal(format!("DLEQ verification failed: {inner}"))
+        }
     }
 }
 
@@ -1069,6 +1076,11 @@ fn mint_quote_error_to_ffi(e: MintQuoteError) -> FfiError {
         }
         MintQuoteError::Mint(inner) => cashu_provider_error_to_ffi(inner),
         MintQuoteError::Storage(s) => FfiError::internal(format!("storage error: {s}")),
+        // NUT-12 DLEQ verification failed on the mint-returned blind
+        // signature. Treat as a distinct, security-flavoured error.
+        MintQuoteError::DleqVerificationFailed(inner) => {
+            FfiError::internal(format!("DLEQ verification failed: {inner}"))
+        }
     }
 }
 

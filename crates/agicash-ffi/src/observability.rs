@@ -28,7 +28,7 @@
 //! crate takes a single category per logger, so we install ONE
 //! category (`rust`) and let the per-event `target` (e.g.
 //! `agicash_ffi::wallet`) ride along in the message body. Filtering
-//! by crate is easier through `AGICASH_LOG` than through the os_log
+//! by crate is easier through `AGICASH_LOG` than through the `os_log`
 //! category predicate anyway.
 //!
 //! ## Idempotency
@@ -90,7 +90,7 @@ fn env_filter() -> tracing_subscriber::EnvFilter {
 ///
 /// Returns `"<unparseable>"` on any decode/parse failure. Never
 /// returns or logs the token itself. The `sub` claim is the user
-/// id (a UUID in the OpenSecret case) which is safe to surface —
+/// id (a UUID in the `OpenSecret` case) which is safe to surface —
 /// it's the same id already in Supabase and the FFI wallet's
 /// in-memory session.
 #[must_use]

@@ -433,7 +433,7 @@ mod tests {
     }"#;
 
     /// Same proof, but `e` flipped on its last byte (still parses as a
-    /// SecretKey but no longer satisfies the DLEQ relation).
+    /// `SecretKey` but no longer satisfies the DLEQ relation).
     const TAMPERED_PROOF_JSON: &str = r#"{
         "amount": 1,
         "id": "00882760bfa2eb41",

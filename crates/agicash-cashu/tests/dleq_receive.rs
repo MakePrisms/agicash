@@ -12,7 +12,7 @@
 //! type the swap path operates on, and the verification step refuses
 //! them with the [`DleqVerificationError::ProofInvalid`] variant.
 //!
-//! A full live-mint e2e (parse cashuB token → service.complete_swap →
+//! A full live-mint e2e (parse cashuB token → `service.complete_swap` →
 //! observe `ReceiveSwapError::DleqVerificationFailed`) needs a running
 //! mint and is gated behind the `real-mint-tests` feature. This test
 //! covers the cryptographic + wire-format contract that the

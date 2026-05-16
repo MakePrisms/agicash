@@ -118,7 +118,8 @@ mod gated {
             // Best-effort — if it fails, the thread will still
             // exit on the next accept timeout.
             let _ = std::net::TcpStream::connect_timeout(
-                &self.url
+                &self
+                    .url
                     .strip_prefix("http://")
                     .unwrap_or(&self.url)
                     .parse::<SocketAddr>()
@@ -140,8 +141,7 @@ mod gated {
     /// touching production sources (Cargo.toml is borderline; the
     /// blocking-thread approach sidesteps that question entirely).
     fn spawn_mock_mint() -> MockMint {
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .expect("bind ephemeral port for mock mint");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind ephemeral port for mock mint");
         listener
             .set_nonblocking(false)
             .expect("set blocking listener");
@@ -291,9 +291,7 @@ mod gated {
                 a.get("details")
                     .and_then(|d| d.get("mint_url"))
                     .and_then(|u| u.as_str())
-                    .is_some_and(|s| {
-                        s.trim_end_matches('/') == mock.url.trim_end_matches('/')
-                    })
+                    .is_some_and(|s| s.trim_end_matches('/') == mock.url.trim_end_matches('/'))
             })
             .collect();
         assert_eq!(
