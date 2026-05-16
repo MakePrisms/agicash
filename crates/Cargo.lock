@@ -170,6 +170,7 @@ dependencies = [
  "agicash-auth-opensecret",
  "agicash-cashu",
  "agicash-domain",
+ "agicash-lightning-address",
  "agicash-money",
  "agicash-storage-supabase",
  "agicash-traits",
