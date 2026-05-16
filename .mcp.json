@@ -17,6 +17,14 @@
     "sentry": {
       "type": "http",
       "url": "https://mcp.sentry.dev/mcp/4509706567680000/4509707316690944"
+    },
+    "XcodeBuildMCP": {
+      "command": "npx",
+      "args": ["-y", "xcodebuildmcp@latest", "mcp"]
+    },
+    "apple-docs": {
+      "command": "npx",
+      "args": ["-y", "apple-docs-mcp"]
     }
   }
 }
