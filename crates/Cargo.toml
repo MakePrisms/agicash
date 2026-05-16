@@ -81,7 +81,7 @@ assert_cmd = "2.0"
 predicates = "3.1"
 
 [patch.crates-io]
-opensecret = { git = "https://github.com/gudnuf/OpenSecret-SDK", branch = "add-user-agent-override" }
+opensecret = { git = "https://github.com/gudnuf/OpenSecret-SDK", branch = "feat/wasm-compat" }
 # Fork: switches rustls TLS roots from webpki-roots to native-roots, so
 # the system trust store (including mkcert's local CA) is honored. Slice 3
 # integration tests hit local Supabase over HTTPS with an mkcert cert; webpki
