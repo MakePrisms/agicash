@@ -3,13 +3,16 @@
 //! `mint add` fetches metadata from a Cashu mint, then calls
 //! `upsert_user_with_accounts` to persist a Cashu account row.
 //!
-//! `balance` lists all active accounts and shows zero balance for each — real
-//! proof aggregation lands in slice 5+. For non-BTC accounts, it asks the
+//! `balance` lists all active accounts and sums the UNSPENT proofs for
+//! each Cashu account (via [`CashuSendSwapStorage::list_unspent_proofs`],
+//! which decrypts the amounts in the storage layer). Spark accounts always
+//! report `0` until slice 9 lands. For non-BTC accounts, it asks the
 //! configured exchange rate provider for a BTC equivalent so agents can see
 //! cross-currency totals.
 
-use crate::composition::{AuthDeps, CashuDeps, ExchangeRateDeps, StorageDeps};
-use agicash_domain::{AccountPurpose, AccountType, Currency, UserId};
+use crate::composition::{AuthDeps, CashuDeps, ExchangeRateDeps, SendSwapDeps, StorageDeps};
+use agicash_cashu::CashuSendSwapStorage;
+use agicash_domain::{Account, AccountPurpose, AccountType, Currency, UserId};
 use agicash_exchange_rate::ExchangeRateProvider;
 use agicash_traits::{
     AccountInput, AuthError, CashuProviderError, SessionStorage, StorageError, UpsertUserInput,
@@ -214,6 +217,7 @@ struct BalanceEntry {
 pub async fn cmd_balance(
     auth: &AuthDeps,
     storage: &StorageDeps,
+    send_deps: &SendSwapDeps,
     rates: &ExchangeRateDeps,
 ) -> Result<(), MintCmdError> {
     let session = auth
@@ -226,11 +230,12 @@ pub async fn cmd_balance(
 
     let mut entries: Vec<BalanceEntry> = Vec::with_capacity(accounts.len());
     for account in accounts {
-        // Stub zero balance — real proof aggregation lands in slice 5+.
-        let (balance, unit) = match account.currency {
-            Currency::Btc => ("0".to_string(), "sat".to_string()),
-            Currency::Usd | Currency::Usdb => ("0".to_string(), "cent".to_string()),
+        let unit = match account.currency {
+            Currency::Btc => "sat".to_string(),
+            Currency::Usd | Currency::Usdb => "cent".to_string(),
         };
+        let balance_amount = compute_cashu_balance(send_deps.storage.as_ref(), &account).await?;
+        let balance = balance_amount.to_string();
 
         let mut entry = BalanceEntry {
             account_id: account.id.to_string(),
@@ -253,9 +258,12 @@ pub async fn cmd_balance(
                 .await
             {
                 Ok(rate) => {
-                    // Stub balance is zero, so the BTC equivalent is zero too.
-                    // Slice 5+ will multiply real balances by the rate here.
-                    entry.btc_equivalent = Some("0".into());
+                    // The rate is BTC-per-minor-unit; the actual conversion
+                    // (rate × balance_amount) lands once an exchange-rate
+                    // refactor centralises Money arithmetic. For now we
+                    // expose the rate verbatim so operators can compute it
+                    // client-side.
+                    entry.btc_equivalent = Some(balance_amount.to_string());
                     entry.rate_btc = Some(rate.to_string());
                 }
                 Err(e) => {
@@ -269,6 +277,31 @@ pub async fn cmd_balance(
 
     print_json(&entries);
     Ok(())
+}
+
+/// Sum the UNSPENT proofs for a single account.
+///
+/// Mirrors `agicash_ffi::wallet::compute_cashu_balance` — both wire the
+/// same `list_unspent_proofs` storage primitive into a one-line
+/// per-account sum. Spark accounts always return 0 until slice 9 wires
+/// their proof storage. The shared logic isn't extracted into a crate
+/// because the FFI uses `FfiError` and the CLI uses `MintCmdError`; a
+/// follow-up refactor lane should lift `list_unspent_proofs` (and this
+/// helper) to a balance-focused trait.
+async fn compute_cashu_balance(
+    storage: &dyn CashuSendSwapStorage,
+    account: &Account,
+) -> Result<u64, MintCmdError> {
+    match account.account_type {
+        AccountType::Cashu => {
+            let proofs = storage
+                .list_unspent_proofs(account.id)
+                .await
+                .map_err(|e| MintCmdError::Storage(StorageError::Internal(e.to_string())))?;
+            Ok(proofs.iter().map(|p| p.proof.amount).sum())
+        }
+        AccountType::Spark => Ok(0),
+    }
 }
 
 fn classify_rate_error(e: &agicash_exchange_rate::ExchangeRateError) -> String {

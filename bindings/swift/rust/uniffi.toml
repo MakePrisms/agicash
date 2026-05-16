@@ -1,0 +1,8 @@
+[bindings.swift]
+cdylib_name = "agicash_ffi_swift"
+module_name = "AgicashSDK"
+# Note: ffi_module_name is fixed to "<crate_name>FFI" — i.e. agicash_ffiFFI —
+# by the uniffi proc-macro flavor used by setup_scaffolding!(). The framework
+# we ship must match that name so the Swift `import agicash_ffiFFI` resolves
+# inside the consumer app. See bindings/swift/generate-bindings.sh.
+generate_codable_conformance = true

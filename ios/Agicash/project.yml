@@ -1,0 +1,63 @@
+name: Agicash
+options:
+  bundleIdPrefix: com.makeprisms
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGN_IDENTITY: ""
+
+targets:
+  Agicash:
+    type: application
+    platform: iOS
+    sources:
+      - path: Agicash
+    info:
+      path: Agicash/Info.plist
+      properties:
+        UILaunchScreen:
+          UIColorName: ""
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSAppTransportSecurity:
+          # Phase 1 talks to local OpenSecret over plain HTTP and a local
+          # Supabase whose mkcert-signed certificate iOS doesn't trust by
+          # default. Allowing all loads (debug-only) is the cheapest way
+          # past it; harden once the wallet talks to real production
+          # endpoints.
+          NSAllowsArbitraryLoads: true
+        UIAppFonts:
+          # Bundled OFL Google Fonts — Kode Mono (font-primary) + Teko
+          # (font-numeric). Variable fonts; weights addressed via
+          # `Font.custom("Kode Mono", size:).weight(...)`.
+          - KodeMono-VariableFont_wght.ttf
+          - Teko-VariableFont_wght.ttf
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.makeprisms.agicash
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        ENABLE_PREVIEWS: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        # Xcode 26.2 (ld-prime) workaround: xcodebuild from CLI invokes
+        # `ld` directly with `-Xlinker` wrappers it no longer tolerates,
+        # producing `-objc_abi_version '-Xlinker' not supported`. Forcing
+        # clang as the linker driver fixes it. ENABLE_DEBUG_DYLIB=NO
+        # avoids the preview-mode `Agicash.debug.dylib` link path which
+        # hits the same bug. Xcode IDE Cmd-B isn't affected.
+        ENABLE_DEBUG_DYLIB: NO
+        LD: $(TOOLCHAIN_DIR)/usr/bin/clang
+    dependencies:
+      # Static-library XCFramework (sapling pattern). Linked at build
+      # time; nothing to embed at runtime.
+      - framework: ../../bindings/swift/build/xcframework/agicash_ffiFFI.xcframework
+        embed: false
+    scheme: {}

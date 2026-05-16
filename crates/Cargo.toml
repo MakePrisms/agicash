@@ -16,6 +16,7 @@ members = [
     "agicash-testing",
     "agicash-cli",
     "agicash-wasm",
+    "agicash-ffi",
 ]
 
 [workspace.package]
@@ -51,6 +52,14 @@ cdk = { version = "0.15", default-features = false, features = ["wallet"] }
 # crates that need TLS enable `rustls-tls` themselves.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
+# Rustls + platform verifier — used by agicash-storage-supabase to construct a
+# reqwest client whose TLS chain validation goes through the platform-native
+# trust store (macOS / iOS Security.framework, Windows SChannel, Linux native
+# certs). This is the only way the iOS simulator picks up the mkcert root that
+# `xcrun simctl keychain booted add-root-cert` installs.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12"] }
+rustls-platform-verifier = "0.7"
+
 # Auth / secrets / keyring / env
 opensecret = "3.1.1"
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native-sync-persistent", "crypto-rust"] }
@@ -79,13 +88,16 @@ js-sys = "0.3"
 assert_cmd = "2.0"
 predicates = "3.1"
 
+# FFI
+uniffi = "0.30"
+
 [patch.crates-io]
-opensecret = { path = "/Users/claude/opensecret-sdk-fork/rust" }
-# Local fork: switches rustls TLS roots from webpki-roots to native-roots, so
+opensecret = { git = "https://github.com/gudnuf/OpenSecret-SDK", branch = "feat/wasm-compat" }
+# Fork: switches rustls TLS roots from webpki-roots to native-roots, so
 # the system trust store (including mkcert's local CA) is honored. Slice 3
 # integration tests hit local Supabase over HTTPS with an mkcert cert; webpki
 # roots reject it. Drop this patch once a real CA is in use.
-postgrest = { path = "/Users/claude/postgrest-rs-fork" }
+postgrest = { git = "https://github.com/gudnuf/postgrest-rs", branch = "feat/reqwest-0.12-tls-injection" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

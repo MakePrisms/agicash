@@ -1,11 +1,11 @@
 //! End-to-end test for `agicash receive <token>` against the real testnut
 //! mint + the real Open Secret -> Supabase auth chain.
 //!
-//! The helper `mint_test_token_via_testnut` runs the NUT-04 mint flow
-//! against testnut.cashu.space: post a quote (testnut's fakewallet
-//! auto-pays test invoices), post mint to obtain proofs, and encode them
-//! into a V4 token string. The token is then handed to the CLI just like
-//! a user-supplied token.
+//! The helper `mint_test_token_via_testnut` (in `common`) runs the NUT-04
+//! mint flow against testnut.cashu.space: post a quote (testnut's
+//! fakewallet auto-pays test invoices), post mint to obtain proofs, and
+//! encode them into a token string. The token is then handed to the CLI
+//! just like a user-supplied token.
 //!
 //! Run:
 //!     cargo test -p agicash-cli \
@@ -17,121 +17,25 @@
     feature = "real-supabase-tests",
     feature = "real-opensecret-tests"
 ))]
+mod common;
+
+#[cfg(all(
+    feature = "real-mint-tests",
+    feature = "real-supabase-tests",
+    feature = "real-opensecret-tests"
+))]
 mod gated {
-    use assert_cmd::Command;
-    use cdk::amount::SplitTarget;
-    use cdk::dhke::construct_proofs;
-    use cdk::mint_url::MintUrl;
-    use cdk::nuts::nut02::Id as KeysetId;
-    use cdk::nuts::{
-        CurrencyUnit, MintQuoteBolt11Request, MintRequest, PaymentMethod, PreMintSecrets, Token,
-    };
-    use cdk::wallet::{HttpClient, MintConnector};
-    use cdk::Amount;
-    use std::str::FromStr;
-
-    const TEST_MINT_URL: &str = "https://testnut.cashu.space";
-
-    fn env_ready() -> bool {
-        let _ = dotenvy::dotenv();
-        std::env::var("OPENSECRET_BASE_URL").is_ok()
-            && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
-            && (std::env::var("SUPABASE_URL").is_ok() || std::env::var("VITE_SUPABASE_URL").is_ok())
-            && (std::env::var("SUPABASE_ANON_KEY").is_ok()
-                || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
-    }
-
-    async fn mint_test_token_via_testnut(
-        amount: u64,
-    ) -> Result<(String, u64), Box<dyn std::error::Error>> {
-        let mint_url = MintUrl::from_str(TEST_MINT_URL)?;
-        let client = HttpClient::new(mint_url.clone(), None);
-
-        // Pick an active sat keyset.
-        let keysets = client.get_mint_keysets().await?;
-        let active = keysets
-            .keysets
-            .iter()
-            .find(|k| k.unit == CurrencyUnit::Sat && k.active)
-            .ok_or("no active sat keyset on testnut")?
-            .clone();
-        let keyset_id: KeysetId = active.id;
-
-        // Request a mint quote.
-        let quote = client
-            .post_mint_quote(MintQuoteBolt11Request {
-                amount: Amount::from(amount),
-                unit: CurrencyUnit::Sat,
-                description: Some("agicash slice 5 e2e".into()),
-                pubkey: None,
-            })
-            .await?;
-
-        // testnut's fakewallet auto-pays test invoices after a short delay.
-        // Poll until PAID or fail after a few seconds.
-        let mut paid = false;
-        for _ in 0..20 {
-            let status = client
-                .get_mint_quote_status(&quote.quote.to_string())
-                .await?;
-            if matches!(status.state, cdk::nuts::nut23::QuoteState::Paid) {
-                paid = true;
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        }
-        if !paid {
-            return Err("testnut did not auto-pay the test invoice".into());
-        }
-
-        // Build blinded messages. Use a random seed; we don't need to keep
-        // track of counters for this test mint.
-        let mut seed = [0u8; 64];
-        getrandom::getrandom(&mut seed).map_err(|e| format!("getrandom: {e}"))?;
-        let fee_and_amounts = cdk::amount::FeeAndAmounts::from((
-            active.input_fee_ppk,
-            (0..32).map(|i| 1u64 << i).collect::<Vec<_>>(),
-        ));
-        let pre_mint = PreMintSecrets::from_seed(
-            keyset_id,
-            0,
-            &seed,
-            Amount::from(amount),
-            &SplitTarget::None,
-            &fee_and_amounts,
-        )?;
-
-        let response = client
-            .post_mint(
-                &PaymentMethod::BOLT11,
-                MintRequest {
-                    quote: quote.quote.to_string(),
-                    outputs: pre_mint.blinded_messages(),
-                    signature: None,
-                },
-            )
-            .await?;
-
-        // Unblind to proofs.
-        let keyset = client.get_mint_keyset(keyset_id).await?;
-        let proofs = construct_proofs(
-            response.signatures,
-            pre_mint.rs(),
-            pre_mint.secrets(),
-            &keyset.keys,
-        )?;
-
-        let token = Token::new(
-            mint_url.clone(),
-            proofs,
-            Some("agicash test".into()),
-            CurrencyUnit::Sat,
-        );
-        Ok((token.to_string(), amount))
-    }
+    use super::common::*;
 
     /// `auth guest` -> `mint add testnut` -> mint a test token -> `receive`
     /// -> assert success and balance > 0.
+    ///
+    /// Verifies the receive moves the wallet's persisted balance — the
+    /// receive command's own JSON return value would otherwise hide a
+    /// downstream surface (FFI / CLI `balance` / iOS Home) that ignores
+    /// the freshly-minted proofs. Asserting `agicash balance` for the
+    /// receiving account closes that gap: before the fix in this lane it
+    /// returned `"0"` regardless of UNSPENT proof count.
     #[test]
     #[allow(clippy::too_many_lines)]
     fn receive_token_increments_balance() {
@@ -139,68 +43,28 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.receive-success");
+        let session = TestSession::new("receive-success");
+        let (token, expected_amount) = mint_test_token_blocking(64);
 
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        let (token, expected_amount) = runtime
-            .block_on(mint_test_token_via_testnut(64))
-            .expect("mint test token");
-        drop(runtime);
+        session.spawn_guest_with_test_mint();
 
-        let guest = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "guest"])
+        // Capture the receiving account's starting balance so the final
+        // assertion can tolerate any pre-existing UNSPENT proofs (none for
+        // a fresh guest today, but the helper is shared with other tests).
+        let pre_balance = read_balance_for_currency(&session, "BTC");
+
+        let receive = session
+            .cmd()
+            .args(["receive", "token", &token])
             .output()
-            .expect("spawn agicash auth guest");
+            .expect("spawn agicash receive token");
         assert!(
-            guest.status.success(),
-            "auth guest failed: stdout={}, stderr={}",
-            String::from_utf8_lossy(&guest.stdout),
-            String::from_utf8_lossy(&guest.stderr),
+            receive.status.success(),
+            "receive failed: stdout={}, stderr={}",
+            String::from_utf8_lossy(&receive.stdout),
+            String::from_utf8_lossy(&receive.stderr),
         );
-
-        let cleanup = |service: &str| {
-            let _ = Command::cargo_bin("agicash")
-                .unwrap()
-                .env("AGICASH_KEYRING_SERVICE", service)
-                .args(["auth", "logout"])
-                .output();
-        };
-
-        let add = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["mint", "add", TEST_MINT_URL])
-            .output()
-            .expect("spawn agicash mint add");
-        if !add.status.success() {
-            cleanup(&service);
-            panic!(
-                "mint add failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&add.stdout),
-                String::from_utf8_lossy(&add.stderr),
-            );
-        }
-
-        let receive = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["receive", &token])
-            .output()
-            .expect("spawn agicash receive");
-        if !receive.status.success() {
-            cleanup(&service);
-            panic!(
-                "receive failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&receive.stdout),
-                String::from_utf8_lossy(&receive.stderr),
-            );
-        }
-        let receive_stdout = String::from_utf8_lossy(&receive.stdout).into_owned();
-        let receive_json: serde_json::Value = serde_json::from_str(receive_stdout.trim())
-            .unwrap_or_else(|e| panic!("receive stdout not JSON ({e}): {receive_stdout}"));
+        let receive_json = parse_json("receive", &receive);
         assert_eq!(
             receive_json.get("status").and_then(|v| v.as_str()),
             Some("received"),
@@ -210,33 +74,49 @@ mod gated {
             .get("amount")
             .and_then(|v| v.as_str())
             .expect("amount field");
-        assert_eq!(
-            amount_str,
-            &expected_amount.to_string(),
-            "expected amount {expected_amount}, got {amount_str}"
+        // testnut's keysets charge a per-input fee_ppk on receive (commonly
+        // 1 sat for a 64-sat token), so the credited amount is
+        // `expected_amount - fee`. Assert the lower bound rather than
+        // strict equality so the test tolerates the live mint's fee
+        // schedule.
+        let received_amount: u64 = amount_str.parse().expect("amount parses as u64");
+        assert!(
+            received_amount > 0 && received_amount <= expected_amount,
+            "expected credited amount in (0, {expected_amount}], got {received_amount}"
         );
         let token_hash = receive_json
             .get("token_hash")
             .and_then(|v| v.as_str())
-            .expect("token_hash field");
+            .expect("token_hash field")
+            .to_string();
         assert!(!token_hash.is_empty());
 
+        // `agicash balance` must reflect the freshly-received proofs.
+        // The receive's own `amount` field is the authoritative delta —
+        // it already accounts for any mint receive-side fee — so the
+        // balance change must equal it exactly. Pre-fix, this assertion
+        // would hit the Phase 1 stub that returned `"0"` regardless of
+        // UNSPENT proof count and fail loudly.
+        let post_balance = read_balance_for_currency(&session, "BTC");
+        let delta = post_balance - pre_balance;
+        assert_eq!(
+            delta, received_amount,
+            "balance delta {delta} != receive amount {received_amount} \
+             (pre={pre_balance}, post={post_balance})",
+        );
+
         // Second receive should be already-claimed (DB unique constraint).
-        let second = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["receive", &token])
+        let second = session
+            .cmd()
+            .args(["receive", "token", &token])
             .output()
-            .expect("spawn agicash receive (second)");
-        cleanup(&service);
+            .expect("spawn agicash receive token (second)");
         assert!(
             second.status.success(),
             "second receive should exit 0 with already-claimed status, stderr={}",
             String::from_utf8_lossy(&second.stderr),
         );
-        let second_stdout = String::from_utf8_lossy(&second.stdout).into_owned();
-        let second_json: serde_json::Value = serde_json::from_str(second_stdout.trim())
-            .unwrap_or_else(|e| panic!("second receive not JSON ({e}): {second_stdout}"));
+        let second_json = parse_json("second receive", &second);
         assert_eq!(
             second_json.get("status").and_then(|v| v.as_str()),
             Some("already-claimed"),
@@ -244,9 +124,71 @@ mod gated {
         );
         assert_eq!(
             second_json.get("token_hash").and_then(|v| v.as_str()),
-            Some(token_hash),
+            Some(token_hash.as_str()),
             "token_hash should match between the two receives"
         );
+
+        // Replay must not double-credit — the second receive should
+        // leave the balance untouched.
+        let final_balance = read_balance_for_currency(&session, "BTC");
+        assert_eq!(
+            final_balance, post_balance,
+            "already-claimed receive must not change the balance \
+             (post={post_balance}, final={final_balance})",
+        );
+    }
+
+    /// Run `agicash balance`, sum every entry whose `currency` matches
+    /// the supplied code, and return the total in smallest units
+    /// (sat/cent). Summing rather than picking the first row lets the
+    /// helper cope with the post-`mint add` shape that ships TWO BTC
+    /// accounts for a fresh guest (a Cashu BTC and the placeholder Spark
+    /// BTC `Lightning` row). Spark always reports 0 today, so the sum is
+    /// effectively the Cashu account's balance until slice 9 wires real
+    /// Spark proofs.
+    ///
+    /// Panics with a descriptive message when the JSON shape is wrong or
+    /// the requested currency isn't present, so a regression in the
+    /// `balance` output contract surfaces at the assertion site.
+    fn read_balance_for_currency(session: &TestSession, currency: &str) -> u64 {
+        let out = session
+            .cmd()
+            .arg("balance")
+            .output()
+            .expect("spawn agicash balance");
+        assert!(
+            out.status.success(),
+            "balance failed: stdout={}, stderr={}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr),
+        );
+        let body = parse_json("balance", &out);
+        let entries = body
+            .as_array()
+            .expect("balance: expected JSON array of entries");
+        let mut total: u64 = 0;
+        let mut matched = false;
+        for entry in entries {
+            if entry.get("currency").and_then(|v| v.as_str()) != Some(currency) {
+                continue;
+            }
+            matched = true;
+            let bal = entry
+                .get("balance")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or_else(|| {
+                    panic!("balance: entry missing numeric `balance` field; entry={entry}");
+                });
+            total = total
+                .checked_add(bal)
+                .expect("balance: sum overflow (should be impossible at MVP scale)");
+        }
+        assert!(
+            matched,
+            "balance: no entry for currency {currency}; body={body}",
+        );
+        total
     }
 
     /// Attempt to receive a token whose mint we haven't added; expect a
@@ -257,36 +199,16 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.receive-unknown-mint");
-
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        let (token, _) = runtime
-            .block_on(mint_test_token_via_testnut(32))
-            .expect("mint test token");
-        drop(runtime);
-
-        let guest = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "guest"])
-            .output()
-            .expect("spawn agicash auth guest");
-        assert!(guest.status.success());
+        let session = TestSession::new("receive-unknown-mint");
+        let (token, _) = mint_test_token_blocking(32);
+        session.spawn_guest();
 
         // Skip `mint add` — no matching account on this fresh guest.
-        let receive = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["receive", &token])
+        let receive = session
+            .cmd()
+            .args(["receive", "token", &token])
             .output()
-            .expect("spawn agicash receive");
-
-        let _ = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "logout"])
-            .output();
+            .expect("spawn agicash receive token");
 
         assert!(
             !receive.status.success(),

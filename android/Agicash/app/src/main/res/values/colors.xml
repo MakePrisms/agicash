@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Backwards-compat for the app icon background (mipmap-anydpi-v26 adaptive
+         icon foreground/background separation). The orange chosen matches the
+         iOS app's accent/tint. -->
+    <color name="ic_launcher_background">#FB923C</color>
+</resources>

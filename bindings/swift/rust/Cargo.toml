@@ -1,0 +1,36 @@
+[package]
+# Standalone manifest (not a workspace member). The agicash Rust workspace
+# lives under `../../../crates/` and uses `crates/Cargo.toml` as its root —
+# from this directory cargo's workspace discovery walks up and never finds it.
+# Inlining the few values we'd inherit is cheaper than restructuring the
+# whole workspace to live at the repo root.
+name = "agicash-ffi-swift"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/MakePrisms/agicash"
+description = "Swift bindings wrapper for the Agicash FFI"
+
+[lib]
+crate-type = ["staticlib", "cdylib"]
+name = "agicash_ffi_swift"
+
+[[bin]]
+name = "uniffi-bindgen-swift"
+path = "uniffi-bindgen-swift.rs"
+
+[dependencies]
+agicash-ffi = { path = "../../../crates/agicash-ffi" }
+uniffi = { version = "0.30", features = ["cli"] }
+
+[build-dependencies]
+uniffi = { version = "0.30", features = ["build"] }
+
+# The standalone wrapper has its own dependency resolution graph and cannot
+# inherit the workspace's `[patch.crates-io]` table from `crates/Cargo.toml`.
+# Mirror it here so the local opensecret + postgrest forks (which the auth
+# and storage crates require) are picked up.
+[patch.crates-io]
+opensecret = { path = "/Users/claude/opensecret-sdk-fork/rust" }
+postgrest = { path = "/Users/claude/postgrest-rs-fork" }

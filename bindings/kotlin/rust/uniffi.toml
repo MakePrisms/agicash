@@ -1,0 +1,6 @@
+[bindings.kotlin]
+# Package the generated sources land under. The Android app `import`s from
+# this package; matches the iOS `AgicashSDK` namespace.
+package_name = "com.makeprisms.agicash.sdk"
+cdylib_name = "agicash_ffi_kotlin"
+generate_immutable_records = true

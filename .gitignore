@@ -47,3 +47,15 @@ node_modules
 /target
 /crates/target
 /crates/**/pkg
+# Per-machine cargo cache config (shared CARGO_TARGET_DIR + sccache wrapper).
+# Generated locally for cross-worktree build caching; absolute macOS paths
+# inside break CI on Linux runners. See feedback_dev_loop_cache memory note.
+/crates/.cargo/
+
+# iOS / Swift bindings
+/bindings/swift/rust/target
+/bindings/swift/build
+/bindings/swift/Sources
+/ios/**/build
+/ios/**/*.xcodeproj
+/ios/**/DerivedData

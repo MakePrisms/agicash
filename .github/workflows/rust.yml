@@ -6,7 +6,9 @@ on:
       - "crates/**"
       - ".github/workflows/rust.yml"
   push:
-    branches: [master]
+    branches:
+      - master
+      - "feat/rust-*"
     paths:
       - "crates/**"
       - ".github/workflows/rust.yml"
@@ -40,6 +42,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.86.0
         with:
           components: clippy
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: crates -> target
@@ -54,10 +58,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.86.0
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: crates -> target
       - run: cargo test --workspace
+
+  # Surface-break gate: runs on every push to feat/rust-* branches
+  # (slice merges land here before they ever become PRs). Catches the
+  # class of rot where a slice splits a CLI/FFI surface and leaves
+  # pre-existing tests in sibling crates referring to the old shape.
+  #
+  # Two layers:
+  #  1. cargo test --workspace          — runs all non-gated tests
+  #  2. cargo check --all-features      — *compiles* the network-gated
+  #     real-* integration tests so a renamed subcommand or moved
+  #     symbol fails the build instead of silently no-op'ing.
+  #
+  # Does NOT execute real-network tests; those need a separate lane
+  # (local supabase + opensecret + mint stack).
+  workspace-surface-gate:
+    name: cargo test + check --all-features (workspace)
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/rust-')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: crates
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.86.0
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates -> target
+      - name: cargo test --workspace (no features)
+        run: cargo test --workspace
+      - name: cargo check --workspace --all-targets --all-features
+        # Compile-only pass for the real-* gated tests so surface
+        # breaks (renamed subcommands, moved symbols, changed APIs)
+        # fail CI instead of silently no-op'ing under cfg(feature).
+        run: cargo check --workspace --all-targets --all-features
 
   wasm-build:
     name: cargo build wasm32
