@@ -8,9 +8,10 @@ pub mod receive_swap;
 pub mod send_swap;
 
 pub use melt_quote::{
-    Action as MeltQuoteAction, CashuMeltQuote, CashuMeltQuoteState, CashuMeltQuoteStorage,
-    CompleteMeltQuote, CompleteMeltQuoteResult, CreateMeltQuote, CreateMeltQuoteResult,
-    Event as MeltQuoteEvent, MeltQuoteError, MeltQuoteMachine, MeltQuoteStorageError,
+    Action as MeltQuoteAction, CashuMeltQuote, CashuMeltQuoteService, CashuMeltQuoteState,
+    CashuMeltQuoteStorage, CompleteMeltQuote, CompleteMeltQuoteOutcome, CompleteMeltQuoteResult,
+    CreateMeltQuote, CreateMeltQuoteResult, Event as MeltQuoteEvent, MeltOutcome, MeltQuoteError,
+    MeltQuoteMachine, MeltQuotePreview, MeltQuoteStorageError,
 };
 pub use mint_quote::{
     Action as MintQuoteAction, CashuMintQuote, CashuMintQuoteService, CashuMintQuoteState,

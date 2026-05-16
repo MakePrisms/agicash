@@ -10,11 +10,13 @@
 //! - `service` — orchestrator with CDK + storage I/O (Task 4).
 
 pub mod error;
+pub mod service;
 pub mod state;
 pub mod storage;
 pub mod types;
 
 pub use error::*;
+pub use service::*;
 pub use state::*;
 pub use storage::*;
 pub use types::*;
