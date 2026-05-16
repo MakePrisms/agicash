@@ -1,9 +1,36 @@
 use crate::SupabaseStorageConfig;
 use agicash_traits::{StorageError, TokenProvider};
-use std::sync::Arc;
+use rustls_platform_verifier::ConfigVerifierExt;
+use std::sync::{Arc, OnceLock};
 
 /// Schema name in the Supabase project where all wallet tables live.
 pub(crate) const WALLET_SCHEMA: &str = "wallet";
+
+/// Build the shared `reqwest::Client` once and reuse it. TLS chain validation
+/// is delegated to the platform's native verifier (Security.framework on
+/// macOS/iOS, SChannel on Windows, system roots on Linux) so the system trust
+/// store — including any user-installed mkcert root in the iOS simulator
+/// keychain — is honored. Replaces the previous `rustls-tls-native-roots`
+/// approach, which only consulted the host trust store and silently failed
+/// on iOS targets.
+fn http_client() -> Result<reqwest::Client, StorageError> {
+    // `rustls-platform-verifier` builds a `ClientConfig` against the process
+    // default `CryptoProvider`. Install ring exactly once before the first
+    // call. `install_default` returns `Err` if a provider is already
+    // installed, which is fine — we just need *some* provider available.
+    static PROVIDER_INSTALL: OnceLock<()> = OnceLock::new();
+    PROVIDER_INSTALL.get_or_init(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+
+    let tls_config = rustls::ClientConfig::with_platform_verifier()
+        .map_err(|e| StorageError::Backend(format!("rustls platform verifier: {e}")))?;
+
+    reqwest::Client::builder()
+        .use_preconfigured_tls(tls_config)
+        .build()
+        .map_err(|e| StorageError::Backend(format!("reqwest client build: {e}")))
+}
 
 #[derive(Clone)]
 pub struct SupabaseStorage {
@@ -11,6 +38,9 @@ pub struct SupabaseStorage {
     pub(crate) rest_url: String,
     pub(crate) anon_key: String,
     pub(crate) tokens: Arc<dyn TokenProvider + Send + Sync>,
+    /// Reqwest client wired to the platform-native TLS verifier. Shared
+    /// across all RPC/select calls so the connection pool is reused.
+    pub(crate) http: reqwest::Client,
 }
 
 impl std::fmt::Debug for SupabaseStorage {
@@ -30,22 +60,26 @@ impl SupabaseStorage {
         // Normalize `<base>` -> `<base>/rest/v1`. Strip a trailing slash if any.
         let base = config.url.trim_end_matches('/');
         let rest_url = format!("{base}/rest/v1");
+        let http = http_client()?;
         Ok(Self {
             rest_url,
             anon_key: config.anon_key,
             tokens,
+            http,
         })
     }
 
     /// Build a `postgrest::Postgrest` instance scoped to the `wallet` schema
-    /// with per-request auth headers. Called once per RPC/select.
+    /// with per-request auth headers. Called once per RPC/select. Reuses the
+    /// shared `reqwest::Client` so platform-verifier TLS settings are applied
+    /// to every request.
     pub(crate) async fn authenticated_client(&self) -> Result<postgrest::Postgrest, StorageError> {
         let jwt = self
             .tokens
             .get_jwt()
             .await
             .map_err(|e| StorageError::Backend(format!("token provider: {e}")))?;
-        let client = postgrest::Postgrest::new(&self.rest_url)
+        let client = postgrest::Postgrest::new_with_client(&self.rest_url, self.http.clone())
             .schema(WALLET_SCHEMA)
             .insert_header("apikey", &self.anon_key)
             .insert_header("Authorization", format!("Bearer {jwt}"));

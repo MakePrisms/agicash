@@ -3,16 +3,24 @@ mod auth;
 mod cli;
 mod composition;
 mod mint;
+mod receive;
+mod send;
 
 use account::AccountCmdError;
-use agicash_traits::{AuthError, StorageError};
+use agicash_cashu::{
+    ReceiveSwapError, ReceiveSwapStorageError, SendSwapError, SendSwapStorageError,
+};
+use agicash_traits::{AuthError, CashuProviderError, StorageError};
 use auth::rehydrate_session;
 use clap::Parser;
 use cli::{AccountCommand, AuthCommand, Cli, Command, MintCommand};
 use composition::{
-    build_auth_deps, build_cashu_deps, build_exchange_rate_deps, build_storage_deps,
+    build_auth_deps, build_cashu_deps, build_exchange_rate_deps, build_receive_swap_deps,
+    build_send_swap_deps, build_storage_deps,
 };
 use mint::MintCmdError;
+use receive::ReceiveCmdError;
+use send::SendCmdError;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -55,6 +63,29 @@ fn classify_error(e: &(dyn std::error::Error + 'static)) -> (&'static str, i32) 
             MintCmdError::Storage(inner) => (classify_storage(inner), 1),
         };
     }
+    if let Some(rcv_err) = e.downcast_ref::<ReceiveCmdError>() {
+        return match rcv_err {
+            ReceiveCmdError::NotLoggedIn => ("not-logged-in", 3),
+            ReceiveCmdError::InvalidToken(_) => ("invalid-token", 1),
+            ReceiveCmdError::NoMatchingAccount(_) => ("no-matching-account", 1),
+            ReceiveCmdError::Receive(inner) => (classify_receive(inner), 1),
+            ReceiveCmdError::Storage(inner) => (classify_storage(inner), 1),
+            ReceiveCmdError::Auth(inner) => classify_auth(inner),
+        };
+    }
+    if let Some(snd_err) = e.downcast_ref::<SendCmdError>() {
+        return match snd_err {
+            SendCmdError::NotLoggedIn => ("not-logged-in", 3),
+            SendCmdError::NoMatchingAccount => ("no-matching-account", 1),
+            SendCmdError::AccountAmbiguous => ("account-ambiguous", 1),
+            SendCmdError::InvalidAccountId(_) => ("invalid-account-id", 1),
+            SendCmdError::UnsupportedTokenVersion(_) => ("unsupported-token-version", 1),
+            SendCmdError::TokenEncode(_) => ("token-encode-error", 1),
+            SendCmdError::Send(inner) => (classify_send(inner), 1),
+            SendCmdError::Storage(inner) => (classify_storage(inner), 1),
+            SendCmdError::Auth(inner) => classify_auth(inner),
+        };
+    }
     if let Some(auth) = e.downcast_ref::<AuthError>() {
         return classify_auth(auth);
     }
@@ -79,6 +110,50 @@ fn classify_storage(e: &StorageError) -> &'static str {
         StorageError::NotFound => "not-found",
         StorageError::Backend(_) => "storage-backend-error",
         StorageError::Internal(_) => "internal-error",
+    }
+}
+
+fn classify_send(e: &SendSwapError) -> &'static str {
+    match e {
+        SendSwapError::InvalidTransition { .. } => "invalid-state",
+        SendSwapError::Storage(inner) => match inner {
+            SendSwapStorageError::Concurrency(_) => "concurrency-error",
+            SendSwapStorageError::NotFound => "not-found",
+            SendSwapStorageError::InvalidState(_) => "invalid-state",
+            SendSwapStorageError::Backend(_) => "storage-backend-error",
+            SendSwapStorageError::Encryption(_) => "encryption-error",
+        },
+        SendSwapError::Mint(inner) => match inner {
+            CashuProviderError::InvalidUrl(_) => "invalid-mint-url",
+            CashuProviderError::Network(_) => "mint-unreachable",
+            CashuProviderError::Protocol(_) => "mint-error",
+        },
+        SendSwapError::InsufficientBalance { .. } => "insufficient-balance",
+        SendSwapError::AmountTooSmall => "amount-too-small",
+        SendSwapError::CurrencyMismatch { .. } => "currency-mismatch",
+        SendSwapError::TokenEncode(_) => "token-encode-error",
+    }
+}
+
+fn classify_receive(e: &ReceiveSwapError) -> &'static str {
+    match e {
+        ReceiveSwapError::InvalidTransition { .. } => "invalid-state",
+        ReceiveSwapError::Storage(inner) => match inner {
+            ReceiveSwapStorageError::AlreadyClaimed => "already-claimed",
+            ReceiveSwapStorageError::NotFound => "not-found",
+            ReceiveSwapStorageError::InvalidState(_) => "invalid-state",
+            ReceiveSwapStorageError::Backend(_) => "storage-backend-error",
+            ReceiveSwapStorageError::Encryption(_) => "encryption-error",
+        },
+        ReceiveSwapError::Mint(inner) => match inner {
+            CashuProviderError::InvalidUrl(_) => "invalid-mint-url",
+            CashuProviderError::Network(_) => "mint-unreachable",
+            CashuProviderError::Protocol(_) => "mint-error",
+        },
+        ReceiveSwapError::TokenParse(_) => "invalid-token",
+        ReceiveSwapError::AmountTooSmall => "amount-too-small",
+        ReceiveSwapError::MintMismatch { .. } => "mint-mismatch",
+        ReceiveSwapError::CurrencyMismatch { .. } => "currency-mismatch",
     }
 }
 
@@ -153,6 +228,40 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
             let storage_deps = build_storage_deps(&auth_deps)?;
             let rate_deps = build_exchange_rate_deps();
             mint::cmd_balance(&auth_deps, &storage_deps, &rate_deps).await?;
+        }
+        Some(Command::Receive { token }) => {
+            let storage_deps = build_storage_deps(&auth_deps)?;
+            let cashu_deps = build_cashu_deps();
+            let receive_deps = build_receive_swap_deps(&storage_deps, &cashu_deps);
+            receive::cmd_receive(
+                &auth_deps,
+                &storage_deps,
+                &cashu_deps,
+                &receive_deps,
+                &token,
+            )
+            .await?;
+        }
+        Some(Command::Send {
+            amount,
+            account,
+            token_version,
+            dry_run,
+        }) => {
+            let storage_deps = build_storage_deps(&auth_deps)?;
+            let cashu_deps = build_cashu_deps();
+            let send_deps = build_send_swap_deps(&storage_deps, &cashu_deps);
+            send::cmd_send(
+                &auth_deps,
+                &storage_deps,
+                &cashu_deps,
+                &send_deps,
+                amount,
+                account,
+                token_version,
+                dry_run,
+            )
+            .await?;
         }
         None => {}
     }

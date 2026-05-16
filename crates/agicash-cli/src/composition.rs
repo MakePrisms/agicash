@@ -2,10 +2,19 @@ use agicash_auth_opensecret::{
     KeyringSessionStorage, OpenSecretClient, OpenSecretConfig, OpenSecretTokenProvider,
     DEFAULT_SERVICE,
 };
-use agicash_cashu::CdkCashuProvider;
+use agicash_cashu::{
+    CashuReceiveSwapService, CashuReceiveSwapStorage, CashuSendSwapService, CashuSendSwapStorage,
+    CdkCashuProvider,
+};
 use agicash_exchange_rate::MempoolSpaceProvider;
-use agicash_storage_supabase::{SupabaseStorage, SupabaseStorageConfig};
-use agicash_traits::{AuthError, StorageError, TokenProvider};
+use agicash_storage_supabase::{
+    SupabaseCashuReceiveSwapStorage, SupabaseCashuSendSwapStorage, SupabaseStorage,
+    SupabaseStorageConfig,
+};
+use agicash_traits::{
+    AuthError, CashuProvider, PassthroughProofEncryption, ProofEncryption, StorageError,
+    TokenProvider,
+};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -43,7 +52,15 @@ pub fn build_storage_deps(auth: &AuthDeps) -> Result<StorageDeps, StorageError> 
 }
 
 pub struct CashuDeps {
-    pub provider: CdkCashuProvider,
+    pub provider: Arc<dyn CashuProvider>,
+}
+
+impl Clone for CashuDeps {
+    fn clone(&self) -> Self {
+        Self {
+            provider: Arc::clone(&self.provider),
+        }
+    }
 }
 
 impl std::fmt::Debug for CashuDeps {
@@ -54,7 +71,87 @@ impl std::fmt::Debug for CashuDeps {
 
 pub fn build_cashu_deps() -> CashuDeps {
     CashuDeps {
-        provider: CdkCashuProvider::new(),
+        provider: Arc::new(CdkCashuProvider::new()),
+    }
+}
+
+/// CLI-side dep bundle for the Cashu receive flow. Wires the slice-5
+/// passthrough encryption stub onto a real Supabase storage and the
+/// existing `CashuProvider`.
+pub struct ReceiveSwapDeps {
+    pub service: Arc<CashuReceiveSwapService>,
+    pub storage: Arc<dyn CashuReceiveSwapStorage>,
+}
+
+impl Clone for ReceiveSwapDeps {
+    fn clone(&self) -> Self {
+        Self {
+            service: Arc::clone(&self.service),
+            storage: Arc::clone(&self.storage),
+        }
+    }
+}
+
+impl std::fmt::Debug for ReceiveSwapDeps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ReceiveSwapDeps").finish_non_exhaustive()
+    }
+}
+
+pub fn build_receive_swap_deps(
+    storage_deps: &StorageDeps,
+    cashu_deps: &CashuDeps,
+) -> ReceiveSwapDeps {
+    let encryption: Arc<dyn ProofEncryption> = Arc::new(PassthroughProofEncryption);
+    let receive_storage: Arc<dyn CashuReceiveSwapStorage> = Arc::new(
+        SupabaseCashuReceiveSwapStorage::new(Arc::clone(&storage_deps.storage), encryption),
+    );
+    let service = Arc::new(CashuReceiveSwapService::new(
+        Arc::clone(&receive_storage),
+        Arc::clone(&cashu_deps.provider),
+    ));
+    ReceiveSwapDeps {
+        service,
+        storage: receive_storage,
+    }
+}
+
+/// CLI-side dep bundle for the Cashu send flow. Wires the slice-5
+/// passthrough encryption stub onto a real Supabase storage and the
+/// existing `CashuProvider`.
+pub struct SendSwapDeps {
+    pub service: Arc<CashuSendSwapService>,
+    pub storage: Arc<dyn CashuSendSwapStorage>,
+}
+
+impl Clone for SendSwapDeps {
+    fn clone(&self) -> Self {
+        Self {
+            service: Arc::clone(&self.service),
+            storage: Arc::clone(&self.storage),
+        }
+    }
+}
+
+impl std::fmt::Debug for SendSwapDeps {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SendSwapDeps").finish_non_exhaustive()
+    }
+}
+
+pub fn build_send_swap_deps(storage_deps: &StorageDeps, cashu_deps: &CashuDeps) -> SendSwapDeps {
+    let encryption: Arc<dyn ProofEncryption> = Arc::new(PassthroughProofEncryption);
+    let send_storage: Arc<dyn CashuSendSwapStorage> = Arc::new(SupabaseCashuSendSwapStorage::new(
+        Arc::clone(&storage_deps.storage),
+        encryption,
+    ));
+    let service = Arc::new(CashuSendSwapService::new(
+        Arc::clone(&send_storage),
+        Arc::clone(&cashu_deps.provider),
+    ));
+    SendSwapDeps {
+        service,
+        storage: send_storage,
     }
 }
 

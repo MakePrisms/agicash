@@ -27,6 +27,27 @@ pub enum Command {
         #[arg(long)]
         account: Option<String>,
     },
+    /// Receive a Cashu token into the matching mint's account.
+    Receive {
+        /// Encoded Cashu token (`cashuA...` V3 or `cashuB...` V4).
+        token: String,
+    },
+    /// Send a Cashu token by selecting proofs from the chosen account.
+    Send {
+        /// Amount to send in the account's unit (sats for BTC accounts,
+        /// cents for USD).
+        amount: u64,
+        /// Account ID to send from. If omitted, the only Cashu account is
+        /// used; if multiple Cashu accounts exist, this is required.
+        #[arg(long)]
+        account: Option<String>,
+        /// Token format version: 4 (CBOR, default) or 3 (legacy JSON).
+        #[arg(long, default_value_t = 4)]
+        token_version: u8,
+        /// Show preview without persisting or producing a token.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(clap::Args, Debug)]
@@ -191,6 +212,72 @@ mod tests {
         let cli = Cli::try_parse_from(["agicash", "balance", "--account", "abc-123"]).unwrap();
         match cli.cmd {
             Some(Command::Balance { account: Some(id) }) => assert_eq!(id, "abc-123"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_receive_with_token() {
+        let cli = Cli::try_parse_from(["agicash", "receive", "cashuAabc"]).unwrap();
+        match cli.cmd {
+            Some(Command::Receive { token }) => assert_eq!(token, "cashuAabc"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_receive_with_v4_token() {
+        let cli = Cli::try_parse_from(["agicash", "receive", "cashuBxyz"]).unwrap();
+        match cli.cmd {
+            Some(Command::Receive { token }) => assert_eq!(token, "cashuBxyz"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_send_with_amount() {
+        let cli = Cli::try_parse_from(["agicash", "send", "100"]).unwrap();
+        match cli.cmd {
+            Some(Command::Send {
+                amount,
+                account,
+                token_version,
+                dry_run,
+            }) => {
+                assert_eq!(amount, 100);
+                assert!(account.is_none());
+                assert_eq!(token_version, 4);
+                assert!(!dry_run);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_send_with_account_and_dry_run() {
+        let cli =
+            Cli::try_parse_from(["agicash", "send", "50", "--account", "abc-123", "--dry-run"])
+                .unwrap();
+        match cli.cmd {
+            Some(Command::Send {
+                amount,
+                account,
+                dry_run,
+                ..
+            }) => {
+                assert_eq!(amount, 50);
+                assert_eq!(account.as_deref(), Some("abc-123"));
+                assert!(dry_run);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_send_with_token_version_3() {
+        let cli = Cli::try_parse_from(["agicash", "send", "100", "--token-version", "3"]).unwrap();
+        match cli.cmd {
+            Some(Command::Send { token_version, .. }) => assert_eq!(token_version, 3),
             other => panic!("unexpected: {other:?}"),
         }
     }
