@@ -25,10 +25,8 @@ use uuid::Uuid;
 #[async_trait]
 pub trait CashuMintQuoteStorage: Send + Sync {
     /// Persist a new UNPAID mint quote (and its draft transaction).
-    async fn create(
-        &self,
-        input: CreateMintQuote,
-    ) -> Result<CashuMintQuote, MintQuoteStorageError>;
+    async fn create(&self, input: CreateMintQuote)
+        -> Result<CashuMintQuote, MintQuoteStorageError>;
 
     /// Transition UNPAID -> PAID. Stores the keyset metadata needed to
     /// reproduce blinded outputs and bumps the account's keyset counter.
