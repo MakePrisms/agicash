@@ -522,6 +522,18 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
     func authLogout() async throws 
     
     /**
+     * Register a new email + password user against OpenSecret. Mirrors the
+     * web app's `/signup` flow: on success the user is auto-signed-in and
+     * the resulting `Session` is returned so the Swift consumer can persist
+     * the refresh token in Keychain. The optional `name` slot maps to the
+     * OpenSecret SDK's display-name field; the iOS app does not collect it
+     * in v0 (web doesn't either) but the parameter is exposed so the
+     * surface matches the underlying SDK and future UI can populate it
+     * without another FFI churn.
+     */
+    func authSignup(email: String, password: String, name: String?) async throws  -> Session
+    
+    /**
      * Return whether the wallet currently holds a session.
      */
     func authStatus() async throws  -> AuthStatus
@@ -677,6 +689,33 @@ open func authLogout()async throws   {
             completeFunc: ffi_agicash_ffi_rust_future_complete_void,
             freeFunc: ffi_agicash_ffi_rust_future_free_void,
             liftFunc: { $0 },
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Register a new email + password user against OpenSecret. Mirrors the
+     * web app's `/signup` flow: on success the user is auto-signed-in and
+     * the resulting `Session` is returned so the Swift consumer can persist
+     * the refresh token in Keychain. The optional `name` slot maps to the
+     * OpenSecret SDK's display-name field; the iOS app does not collect it
+     * in v0 (web doesn't either) but the parameter is exposed so the
+     * surface matches the underlying SDK and future UI can populate it
+     * without another FFI churn.
+     */
+open func authSignup(email: String, password: String, name: String?)async throws  -> Session  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_auth_signup(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(email),FfiConverterString.lower(password),FfiConverterOptionString.lower(name)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeSession_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -1305,6 +1344,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_auth_logout() != 20704) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_auth_signup() != 51474) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_auth_status() != 22694) {
