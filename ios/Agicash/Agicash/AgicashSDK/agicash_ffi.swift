@@ -435,6 +435,22 @@ fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
+    typealias FfiType = UInt64
+    typealias SwiftType = UInt64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterBool : FfiConverter {
     typealias FfiType = Int8
     typealias SwiftType = Bool
@@ -539,6 +555,24 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
     func authStatus() async throws  -> AuthStatus
     
     /**
+     * Drive a PAID quote to COMPLETED — mint proofs and credit the
+     * account. Returns a [`ReceiveResult`] shape identical to
+     * `receive_token`'s output so the iOS UI can render success
+     * uniformly across both flows.
+     *
+     * Idempotent on already-completed quotes (returns the existing
+     * terminal state).
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for invalid UUID, quote not yet paid,
+     * missing account, or mint-protocol failure during the proof
+     * minting / restore round-trip.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+    func completeMintQuote(quoteId: String) async throws  -> ReceiveResult
+    
+    /**
      * Return the currently-loaded session, or `None` if the wallet is
      * logged out. Lets the Swift consumer re-sync its Keychain copy after
      * a `auth_guest` / `auth_login` call.
@@ -587,6 +621,30 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
     func mintAdd(url: String) async throws  -> MintAddResult
     
     /**
+     * Poll the mint for the current state of a previously-started
+     * quote. Single-shot: returns the snapshot of the persisted row
+     * (with one mint round-trip if still UNPAID), never loops.
+     *
+     * The iOS app owns the polling timer; this method is intended to
+     * be called every 1-3 seconds from a long-running `Task` while the
+     * LightningReceiveView is on the `invoice` step. Once the snapshot
+     * returns `Paid` (or any terminal state), the timer stops and the
+     * UI either transitions to `complete_mint_quote` (PAID) or to the
+     * failure/expiry states.
+     *
+     * `quote_id` is the wallet-side UUID returned in
+     * [`MintQuoteHandle::quote_id`] — NOT the mint-side string id.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for invalid UUID, missing quote row,
+     * ownership mismatch, account lookup failure, or mint-protocol
+     * failure during the single poll round-trip.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+    func pollMintQuote(quoteId: String) async throws  -> MintQuoteSnapshot
+    
+    /**
      * Redeem a Cashu token (V3 `cashuA…` or V4 `cashuB…`).
      *
      * Mirrors the `agicash receive token <token>` CLI subcommand
@@ -616,6 +674,38 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
      * Keychain entry.
      */
     func setSession(userIdUuid: String, refreshToken: String) async throws 
+    
+    /**
+     * Start a NUT-04 mint quote — request a BOLT-11 invoice from the
+     * mint backing the user's Cashu account.
+     *
+     * Mirrors the CLI's `agicash receive lightning <amount>` subcommand
+     * (`crates/agicash-cli/src/receive_lightning.rs`) but stops at the
+     * "quote issued" step. The Swift side displays the invoice and
+     * drives the poll/complete cycle itself so the polling cadence and
+     * UI feedback stay on the consumer.
+     *
+     * `amount` is the value the wallet wants to *receive* expressed in
+     * the account's minor unit (sats for BTC, cents for USD). The mint
+     * may add a small fee on top — surfaced via [`MintQuoteHandle::fee`]
+     * so the iOS UI can render a breakdown.
+     *
+     * `account_id` and `currency` together select the receiving Cashu
+     * account. `currency` is the wallet currency string (`"BTC"` /
+     * `"USD"`); when omitted defaults to `"BTC"`. `account_id` (UUID
+     * string) lets multi-mint users pick the receiving account; when
+     * omitted, the single matching Cashu+currency account is used, or
+     * an `Internal` error is returned if zero or multiple matches
+     * exist (same selector the CLI uses).
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for amount-too-small, currency mismatch,
+     * no/ambiguous matching account, or any mint-protocol failure
+     * (mirrors `receive_token`'s funneling pattern).
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+    func startMintQuote(amount: UInt64, accountId: String?, currency: String?) async throws  -> MintQuoteHandle
     
 }
 open class AgicashWallet: AgicashWalletProtocol, @unchecked Sendable {
@@ -795,6 +885,39 @@ open func authStatus()async throws  -> AuthStatus  {
 }
     
     /**
+     * Drive a PAID quote to COMPLETED — mint proofs and credit the
+     * account. Returns a [`ReceiveResult`] shape identical to
+     * `receive_token`'s output so the iOS UI can render success
+     * uniformly across both flows.
+     *
+     * Idempotent on already-completed quotes (returns the existing
+     * terminal state).
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for invalid UUID, quote not yet paid,
+     * missing account, or mint-protocol failure during the proof
+     * minting / restore round-trip.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+open func completeMintQuote(quoteId: String)async throws  -> ReceiveResult  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_complete_mint_quote(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(quoteId)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeReceiveResult_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Return the currently-loaded session, or `None` if the wallet is
      * logged out. Lets the Swift consumer re-sync its Keychain copy after
      * a `auth_guest` / `auth_login` call.
@@ -889,6 +1012,45 @@ open func mintAdd(url: String)async throws  -> MintAddResult  {
 }
     
     /**
+     * Poll the mint for the current state of a previously-started
+     * quote. Single-shot: returns the snapshot of the persisted row
+     * (with one mint round-trip if still UNPAID), never loops.
+     *
+     * The iOS app owns the polling timer; this method is intended to
+     * be called every 1-3 seconds from a long-running `Task` while the
+     * LightningReceiveView is on the `invoice` step. Once the snapshot
+     * returns `Paid` (or any terminal state), the timer stops and the
+     * UI either transitions to `complete_mint_quote` (PAID) or to the
+     * failure/expiry states.
+     *
+     * `quote_id` is the wallet-side UUID returned in
+     * [`MintQuoteHandle::quote_id`] — NOT the mint-side string id.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for invalid UUID, missing quote row,
+     * ownership mismatch, account lookup failure, or mint-protocol
+     * failure during the single poll round-trip.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+open func pollMintQuote(quoteId: String)async throws  -> MintQuoteSnapshot  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_poll_mint_quote(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(quoteId)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMintQuoteSnapshot_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Redeem a Cashu token (V3 `cashuA…` or V4 `cashuB…`).
      *
      * Mirrors the `agicash receive token <token>` CLI subcommand
@@ -945,6 +1107,53 @@ open func setSession(userIdUuid: String, refreshToken: String)async throws   {
             completeFunc: ffi_agicash_ffi_rust_future_complete_void,
             freeFunc: ffi_agicash_ffi_rust_future_free_void,
             liftFunc: { $0 },
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Start a NUT-04 mint quote — request a BOLT-11 invoice from the
+     * mint backing the user's Cashu account.
+     *
+     * Mirrors the CLI's `agicash receive lightning <amount>` subcommand
+     * (`crates/agicash-cli/src/receive_lightning.rs`) but stops at the
+     * "quote issued" step. The Swift side displays the invoice and
+     * drives the poll/complete cycle itself so the polling cadence and
+     * UI feedback stay on the consumer.
+     *
+     * `amount` is the value the wallet wants to *receive* expressed in
+     * the account's minor unit (sats for BTC, cents for USD). The mint
+     * may add a small fee on top — surfaced via [`MintQuoteHandle::fee`]
+     * so the iOS UI can render a breakdown.
+     *
+     * `account_id` and `currency` together select the receiving Cashu
+     * account. `currency` is the wallet currency string (`"BTC"` /
+     * `"USD"`); when omitted defaults to `"BTC"`. `account_id` (UUID
+     * string) lets multi-mint users pick the receiving account; when
+     * omitted, the single matching Cashu+currency account is used, or
+     * an `Internal` error is returned if zero or multiple matches
+     * exist (same selector the CLI uses).
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal` for amount-too-small, currency mismatch,
+     * no/ambiguous matching account, or any mint-protocol failure
+     * (mirrors `receive_token`'s funneling pattern).
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+open func startMintQuote(amount: UInt64, accountId: String?, currency: String?)async throws  -> MintQuoteHandle  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_start_mint_quote(
+                    self.uniffiCloneHandle(),
+                    FfiConverterUInt64.lower(amount),FfiConverterOptionString.lower(accountId),FfiConverterOptionString.lower(currency)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeMintQuoteHandle_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -1269,6 +1478,230 @@ public func FfiConverterTypeMintAddResult_lower(_ value: MintAddResult) -> RustB
 
 
 /**
+ * Lightning receive handle. Mirrors the CLI's `QuoteIssuedOutput` JSON
+ * (`crates/agicash-cli/src/receive_lightning.rs`) but with the Swift-side
+ * fields the carousel's `LightningReceiveView` needs to render:
+ * - `invoice` for the QR code + copy-to-clipboard,
+ * - `quote_id` / `mint_quote_id` for follow-up FFI calls,
+ * - `amount` + `fee` for the breakdown card,
+ * - `expires_at` for the countdown timer.
+ *
+ * `quote_id` is the **wallet-side** UUID (Supabase `wallet.mint_quotes` PK)
+ * — that's what `poll_mint_quote` and `complete_mint_quote` expect.
+ * `mint_quote_id` is the mint-side string identifier returned by NUT-04
+ * `POST /v1/mint/quote/bolt11`; exposed for receipt/debugging only.
+ */
+public struct MintQuoteHandle: Equatable, Hashable {
+    /**
+     * Wallet-side UUID of the persisted quote row. Pass this to
+     * `poll_mint_quote` and `complete_mint_quote`.
+     */
+    public var quoteId: String
+    /**
+     * Mint-side NUT-04 quote id string. Informational; not used for
+     * follow-up FFI calls.
+     */
+    public var mintQuoteId: String
+    /**
+     * BOLT-11 payment request the user pays.
+     */
+    public var invoice: String
+    /**
+     * Hex-encoded BOLT-11 payment hash.
+     */
+    public var paymentHash: String
+    /**
+     * Amount credited on completion. Decimal-stringified (matches the
+     * `ReceiveResult.amount` convention).
+     */
+    public var amount: String
+    /**
+     * Mint fee added to the invoice amount. Decimal-stringified.
+     * `"0"` when the mint charges nothing.
+     */
+    public var fee: String
+    /**
+     * Cashu sub-unit (`sat`, `usd`).
+     */
+    public var unit: String
+    /**
+     * Wallet account currency (`BTC`, `USD`).
+     */
+    public var currency: String
+    /**
+     * UUID of the account that will receive the proofs.
+     */
+    public var accountId: String
+    /**
+     * ISO 8601 timestamp at which the invoice expires.
+     */
+    public var expiresAt: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Wallet-side UUID of the persisted quote row. Pass this to
+         * `poll_mint_quote` and `complete_mint_quote`.
+         */quoteId: String, 
+        /**
+         * Mint-side NUT-04 quote id string. Informational; not used for
+         * follow-up FFI calls.
+         */mintQuoteId: String, 
+        /**
+         * BOLT-11 payment request the user pays.
+         */invoice: String, 
+        /**
+         * Hex-encoded BOLT-11 payment hash.
+         */paymentHash: String, 
+        /**
+         * Amount credited on completion. Decimal-stringified (matches the
+         * `ReceiveResult.amount` convention).
+         */amount: String, 
+        /**
+         * Mint fee added to the invoice amount. Decimal-stringified.
+         * `"0"` when the mint charges nothing.
+         */fee: String, 
+        /**
+         * Cashu sub-unit (`sat`, `usd`).
+         */unit: String, 
+        /**
+         * Wallet account currency (`BTC`, `USD`).
+         */currency: String, 
+        /**
+         * UUID of the account that will receive the proofs.
+         */accountId: String, 
+        /**
+         * ISO 8601 timestamp at which the invoice expires.
+         */expiresAt: String) {
+        self.quoteId = quoteId
+        self.mintQuoteId = mintQuoteId
+        self.invoice = invoice
+        self.paymentHash = paymentHash
+        self.amount = amount
+        self.fee = fee
+        self.unit = unit
+        self.currency = currency
+        self.accountId = accountId
+        self.expiresAt = expiresAt
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension MintQuoteHandle: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMintQuoteHandle: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MintQuoteHandle {
+        return
+            try MintQuoteHandle(
+                quoteId: FfiConverterString.read(from: &buf), 
+                mintQuoteId: FfiConverterString.read(from: &buf), 
+                invoice: FfiConverterString.read(from: &buf), 
+                paymentHash: FfiConverterString.read(from: &buf), 
+                amount: FfiConverterString.read(from: &buf), 
+                fee: FfiConverterString.read(from: &buf), 
+                unit: FfiConverterString.read(from: &buf), 
+                currency: FfiConverterString.read(from: &buf), 
+                accountId: FfiConverterString.read(from: &buf), 
+                expiresAt: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MintQuoteHandle, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.quoteId, into: &buf)
+        FfiConverterString.write(value.mintQuoteId, into: &buf)
+        FfiConverterString.write(value.invoice, into: &buf)
+        FfiConverterString.write(value.paymentHash, into: &buf)
+        FfiConverterString.write(value.amount, into: &buf)
+        FfiConverterString.write(value.fee, into: &buf)
+        FfiConverterString.write(value.unit, into: &buf)
+        FfiConverterString.write(value.currency, into: &buf)
+        FfiConverterString.write(value.accountId, into: &buf)
+        FfiConverterString.write(value.expiresAt, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintQuoteHandle_lift(_ buf: RustBuffer) throws -> MintQuoteHandle {
+    return try FfiConverterTypeMintQuoteHandle.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintQuoteHandle_lower(_ value: MintQuoteHandle) -> RustBuffer {
+    return FfiConverterTypeMintQuoteHandle.lower(value)
+}
+
+
+/**
+ * Snapshot returned by [`crate::wallet::AgicashWallet::poll_mint_quote`].
+ *
+ * `failure_reason` is only populated when `state == Failed`; for the
+ * other states it is `None`.
+ */
+public struct MintQuoteSnapshot: Equatable, Hashable {
+    public var state: MintQuoteFfiState
+    public var failureReason: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(state: MintQuoteFfiState, failureReason: String?) {
+        self.state = state
+        self.failureReason = failureReason
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension MintQuoteSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMintQuoteSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MintQuoteSnapshot {
+        return
+            try MintQuoteSnapshot(
+                state: FfiConverterTypeMintQuoteFfiState.read(from: &buf), 
+                failureReason: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MintQuoteSnapshot, into buf: inout [UInt8]) {
+        FfiConverterTypeMintQuoteFfiState.write(value.state, into: &buf)
+        FfiConverterOptionString.write(value.failureReason, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintQuoteSnapshot_lift(_ buf: RustBuffer) throws -> MintQuoteSnapshot {
+    return try FfiConverterTypeMintQuoteSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintQuoteSnapshot_lower(_ value: MintQuoteSnapshot) -> RustBuffer {
+    return FfiConverterTypeMintQuoteSnapshot.lower(value)
+}
+
+
+/**
  * Outcome of [`crate::wallet::AgicashWallet::receive_token`].
  *
  * All amounts are decimal-stringified (matching the CLI JSON shape) so
@@ -1575,6 +2008,116 @@ public func FfiConverterTypeFfiError_lower(_ value: FfiError) -> RustBuffer {
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Lifecycle state for a [`MintQuoteHandle`]. Mirrors
+ * `agicash_cashu::mint_quote::CashuMintQuoteState` but flattens the
+ * per-state payload out (the iOS UI never needs the keyset metadata —
+ * `complete_mint_quote` does the proof minting internally).
+ */
+
+public enum MintQuoteFfiState: Equatable, Hashable {
+    
+    /**
+     * Invoice issued, awaiting payment.
+     */
+    case unpaid
+    /**
+     * Mint detected payment; iOS should now call `complete_mint_quote`
+     * to mint proofs.
+     */
+    case paid
+    /**
+     * Proofs minted; quote is fully complete. `complete_mint_quote`
+     * returns `ReceiveResult` instead of re-walking the machine.
+     */
+    case completed
+    /**
+     * Invoice expired without payment.
+     */
+    case expired
+    /**
+     * Operational failure (mint rejected, already-issued with no
+     * recoverable proofs).
+     */
+    case failed
+
+
+
+}
+
+#if compiler(>=6)
+extension MintQuoteFfiState: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMintQuoteFfiState: FfiConverterRustBuffer {
+    typealias SwiftType = MintQuoteFfiState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MintQuoteFfiState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .unpaid
+        
+        case 2: return .paid
+        
+        case 3: return .completed
+        
+        case 4: return .expired
+        
+        case 5: return .failed
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: MintQuoteFfiState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .unpaid:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .paid:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .completed:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .expired:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .failed:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintQuoteFfiState_lift(_ buf: RustBuffer) throws -> MintQuoteFfiState {
+    return try FfiConverterTypeMintQuoteFfiState.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMintQuoteFfiState_lower(_ value: MintQuoteFfiState) -> RustBuffer {
+    return FfiConverterTypeMintQuoteFfiState.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * Status discriminator for [`ReceiveResult`]. Mirrors the JSON `status`
  * field the CLI emits — three terminal cases the Swift side switches on.
  */
@@ -1823,6 +2366,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_auth_status() != 22694) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_complete_mint_quote() != 50767) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_get_persisted_session() != 4899) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1832,10 +2378,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_mint_add() != 35097) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_poll_mint_quote() != 39309) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_receive_token() != 38168) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_set_session() != 35776) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_start_mint_quote() != 60988) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_constructor_agicashwallet_new() != 44726) {
