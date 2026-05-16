@@ -14,16 +14,20 @@
 use crate::error::{auth_code, FfiError};
 use agicash_auth_opensecret::OpenSecretClient;
 use agicash_cashu::{
-    CashuSeedProvider, MintConfirmation, ReceiveFlowError, ReceiveFlowEvent, ReceiveFlowResult,
-    ReceiveFlowService, ReceiveFlowState, ReceiveFlowStatus,
+    AlreadyClaimedInfo, CashuSeedProvider, MintConfirmation, ReceiveFlowError, ReceiveFlowEvent,
+    ReceiveFlowResult, ReceiveFlowService, ReceiveFlowState, ReceiveFlowStatus,
 };
 use tokio::sync::Mutex;
 
 /// FFI mirror of [`agicash_cashu::ReceiveFlowStatus`].
+///
+/// Note: the `AlreadyClaimed` idempotent case is no longer represented
+/// here — it is surfaced as a dedicated [`ReceiveFlowStateFfi::AlreadyClaimed`]
+/// state variant so UI can switch on the variant tag and never accidentally
+/// render an empty/zero `amount` field.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum ReceiveStatusFfi {
     Received,
-    AlreadyClaimed,
     AlreadyFailed,
     Pending,
 }
@@ -32,7 +36,6 @@ impl From<ReceiveFlowStatus> for ReceiveStatusFfi {
     fn from(s: ReceiveFlowStatus) -> Self {
         match s {
             ReceiveFlowStatus::Received => Self::Received,
-            ReceiveFlowStatus::AlreadyClaimed => Self::AlreadyClaimed,
             ReceiveFlowStatus::AlreadyFailed => Self::AlreadyFailed,
             ReceiveFlowStatus::Pending => Self::Pending,
         }
@@ -92,6 +95,29 @@ impl From<MintConfirmation> for MintConfirmationFfi {
     }
 }
 
+/// FFI mirror of [`agicash_cashu::AlreadyClaimedInfo`]. Deliberately
+/// omits any amount field — see the inner type's doc for the rationale.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct AlreadyClaimedInfoFfi {
+    pub unit: String,
+    pub currency: String,
+    pub account_id: String,
+    pub mint_url: String,
+    pub token_hash: String,
+}
+
+impl From<AlreadyClaimedInfo> for AlreadyClaimedInfoFfi {
+    fn from(i: AlreadyClaimedInfo) -> Self {
+        Self {
+            unit: i.unit,
+            currency: i.currency,
+            account_id: i.account_id,
+            mint_url: i.mint_url,
+            token_hash: i.token_hash,
+        }
+    }
+}
+
 /// FFI mirror of [`agicash_cashu::ReceiveFlowState`]. Same variants in the
 /// same order; the UI switches on the variant tag.
 #[derive(Debug, Clone, uniffi::Enum)]
@@ -110,6 +136,12 @@ pub enum ReceiveFlowStateFfi {
     },
     Done {
         result: ReceiveFlowResultFfi,
+    },
+    /// Idempotent re-paste of a token this user already claimed. UI shows
+    /// an informational message; **never** render `amount` here (there is
+    /// no amount field — see `AlreadyClaimedInfoFfi`).
+    AlreadyClaimed {
+        info: AlreadyClaimedInfoFfi,
     },
     Failed {
         reason: String,
@@ -136,6 +168,7 @@ impl From<ReceiveFlowState> for ReceiveFlowStateFfi {
             ReceiveFlowState::Done(result) => Self::Done {
                 result: result.into(),
             },
+            ReceiveFlowState::AlreadyClaimed(info) => Self::AlreadyClaimed { info: info.into() },
             ReceiveFlowState::Failed { reason, code } => Self::Failed { reason, code },
         }
     }
@@ -276,10 +309,6 @@ mod tests {
             ReceiveStatusFfi::Received,
         );
         assert_eq!(
-            ReceiveStatusFfi::from(InnerStatus::AlreadyClaimed),
-            ReceiveStatusFfi::AlreadyClaimed,
-        );
-        assert_eq!(
             ReceiveStatusFfi::from(InnerStatus::AlreadyFailed),
             ReceiveStatusFfi::AlreadyFailed,
         );
@@ -287,6 +316,25 @@ mod tests {
             ReceiveStatusFfi::from(InnerStatus::Pending),
             ReceiveStatusFfi::Pending,
         );
+    }
+
+    #[test]
+    fn already_claimed_state_round_trips_to_ffi_variant() {
+        let info = agicash_cashu::AlreadyClaimedInfo {
+            unit: "sat".into(),
+            currency: "BTC".into(),
+            account_id: "a".into(),
+            mint_url: "https://m".into(),
+            token_hash: "h".into(),
+        };
+        let s: ReceiveFlowStateFfi = ReceiveFlowState::AlreadyClaimed(info).into();
+        match s {
+            ReceiveFlowStateFfi::AlreadyClaimed { info } => {
+                assert_eq!(info.unit, "sat");
+                assert_eq!(info.token_hash, "h");
+            }
+            other => panic!("expected AlreadyClaimed, got {other:?}"),
+        }
     }
 
     #[test]
@@ -358,4 +406,5 @@ mod tests {
         let ffi = receive_flow_error_to_ffi(e);
         assert!(matches!(ffi, FfiError::Internal { .. }));
     }
+
 }
