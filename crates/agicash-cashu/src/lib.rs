@@ -3,6 +3,7 @@
 pub mod error;
 pub mod provider;
 pub mod receive_swap;
+pub mod send_swap;
 
 pub use provider::CdkCashuProvider;
 pub use receive_swap::{
@@ -10,4 +11,9 @@ pub use receive_swap::{
     CashuReceiveSwapStorage, CompleteOutcome, CompleteReceiveSwapResult, CreateReceiveSwap,
     CreateReceiveSwapResult, Event, MachineState, ParsedToken, ReceiveSwapError,
     ReceiveSwapMachine, ReceiveSwapStorageError, TokenProof,
+};
+pub use send_swap::{
+    CashuSendSwap, CashuSendSwapService, CashuSendSwapState, CashuSendSwapStorage,
+    CommitProofsToSend, CreateSendSwap, CreateSendSwapResult, OutputAmounts, ProofWithId,
+    SendQuote, SendSwapError, SendSwapMachine, SendSwapStorageError,
 };
