@@ -18,6 +18,12 @@ repository.workspace = true
 # discipline — see the target-gated `[dependencies]` block below.
 default = ["keyring-storage"]
 keyring-storage = ["dep:keyring"]
+# File-backed encrypted session storage. Used on Android where the
+# `keyring` crate ships no backend. The implementation is pure stdlib +
+# aes-gcm so it compiles on any target, but the `AndroidFileSessionStorage`
+# type is only re-exported on `target_os = "android"` (see storage.rs);
+# host targets compile the module for testing only.
+android-file-storage = ["dep:aes-gcm"]
 # Enable integration tests that hit the real Open Secret dev environment.
 # Requires OPENSECRET_BASE_URL and OPENSECRET_CLIENT_ID env vars.
 real-opensecret-tests = []
@@ -35,6 +41,13 @@ bip39 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+# `getrandom` is already a workspace dep; we use it directly here for
+# the AES-256-GCM nonce + key generation in the Android file backend.
+# Compiles on every target.
+getrandom = { workspace = true }
+# AES-256-GCM for the Android file backend. Pulled only when the
+# `android-file-storage` feature is enabled.
+aes-gcm = { version = "0.10", optional = true }
 
 # Optional dep — only pulled when the `keyring-storage` feature is on.
 # keyring itself doesn't compile on wasm; we additionally target-gate
@@ -47,6 +60,9 @@ tokio = { workspace = true }
 # its async surface; the multi-threaded runtime is what we drop.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "1.42", default-features = false, features = ["macros", "sync", "time"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true

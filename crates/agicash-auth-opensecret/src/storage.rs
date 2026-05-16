@@ -1,6 +1,6 @@
 //! Concrete [`SessionStorage`] impls for the opensecret-backed CLI.
 //!
-//! Two implementations ship with this crate:
+//! Implementations shipping with this crate:
 //!
 //! - [`InMemorySessionStorage`] is always available. It holds the session
 //!   in an `Arc<Mutex<Option<_>>>` and is used by tests, CI environments
@@ -10,13 +10,19 @@
 //! - [`KeyringSessionStorage`] is gated behind the `keyring-storage` cargo
 //!   feature (default-on for native targets, unconditionally off on wasm
 //!   because the `keyring` crate doesn't compile there). It wraps the OS
-//!   secret store via the `keyring` crate.
+//!   secret store via the `keyring` crate (macOS Keychain, Windows
+//!   Credential Manager, Linux secret-service).
+//! - On Android the `keyring` crate has no backend, so the
+//!   [`crate::android_storage::AndroidFileSessionStorage`] type (under the
+//!   `android-file-storage` feature) provides AES-256-GCM encrypted
+//!   storage in the app's private data dir. That type is re-exported from
+//!   the crate root only on `target_os = "android"`.
 //!
-//! Downstream targets that need different persistence (Android `KeyStore`,
-//! browser `IndexedDB` + `WebCrypto`, encrypted file) implement
-//! [`agicash_traits::SessionStorage`] in their own crate and select the
-//! backend at startup. The CLI's startup chain in `agicash-cli` shows the
-//! intended composition pattern.
+//! Downstream targets that need different persistence (browser
+//! `IndexedDB` + `WebCrypto`, hardware-backed Android Keystore via JNI)
+//! implement [`agicash_traits::SessionStorage`] in their own crate and
+//! select the backend at startup. The CLI's startup chain in
+//! `agicash-cli` shows the intended composition pattern.
 
 use agicash_traits::{AuthError, PersistedSession, SessionStorage, SessionStorageError};
 use async_trait::async_trait;
