@@ -5,6 +5,10 @@ pub mod config;
 pub mod error;
 pub mod key_provider;
 pub mod session;
+// `storage` ships at least the always-available `InMemorySessionStorage`
+// (works on every target including wasm). The OS-keyring impl inside this
+// module is gated behind the `keyring-storage` cargo feature, so wasm
+// builds compile in only the in-memory path. See `storage.rs` for details.
 pub mod storage;
 pub mod token_provider;
 

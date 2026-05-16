@@ -15,6 +15,14 @@ impl OpenSecretTokenProvider {
     }
 }
 
+// On wasm32 reqwest's response future contains `Rc<RefCell<…>>` +
+// `Closure<dyn FnMut + 'static>` — both `!Send`. The `TokenProvider` trait
+// is now `?Send` on wasm, but the impl still needs the matching attribute
+// (async-trait expands to a `Box<dyn Future + Send>` by default). The
+// WASM worker recommended cfg-gating the impl native-only until a browser
+// wallet shim lands (slice 13b); we follow that here. The inherent
+// methods on `OpenSecretClient` stay available on wasm.
+#[cfg(not(target_arch = "wasm32"))]
 #[async_trait]
 impl TokenProvider for OpenSecretTokenProvider {
     async fn get_jwt(&self) -> Result<String, AuthError> {

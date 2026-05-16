@@ -7,7 +7,17 @@ license.workspace = true
 repository.workspace = true
 
 [features]
-default = []
+# Native targets get keyring-backed session persistence by default. The
+# CLI and existing tests rely on it; turning it off compiles
+# `KeyringSessionStorage` out entirely and forces callers onto the
+# always-available `InMemorySessionStorage` (used in CI, headless Linux,
+# and as the fallback when the OS keyring is unreachable at runtime).
+#
+# On wasm32 the keyring crate cannot compile, so the feature is implicitly
+# off there even if a downstream crate forgets the `default-features = false`
+# discipline — see the target-gated `[dependencies]` block below.
+default = ["keyring-storage"]
+keyring-storage = ["dep:keyring"]
 # Enable integration tests that hit the real Open Secret dev environment.
 # Requires OPENSECRET_BASE_URL and OPENSECRET_CLIENT_ID env vars.
 real-opensecret-tests = []
@@ -17,8 +27,6 @@ agicash-domain = { path = "../agicash-domain" }
 agicash-crypto = { path = "../agicash-crypto" }
 agicash-traits = { path = "../agicash-traits" }
 opensecret = { workspace = true }
-keyring = { workspace = true }
-tokio = { workspace = true }
 async-trait = { workspace = true }
 uuid = { workspace = true }
 hex = { workspace = true }
@@ -27,6 +35,18 @@ bip39 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+
+# Optional dep — only pulled when the `keyring-storage` feature is on.
+# keyring itself doesn't compile on wasm; we additionally target-gate
+# the dep so a misconfigured downstream can't pull it into a wasm build.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+keyring = { workspace = true, optional = true }
+tokio = { workspace = true }
+
+# On wasm, agicash-auth-opensecret still needs tokio macros / sync / time for
+# its async surface; the multi-threaded runtime is what we drop.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1.42", default-features = false, features = ["macros", "sync", "time"] }
 
 [lints]
 workspace = true
