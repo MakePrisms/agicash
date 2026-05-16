@@ -1,0 +1,49 @@
+/* agicash-web-leptos — base stylesheet.
+ *
+ * Phase 1 partial keeps inline styles in the Leptos components for speed of
+ * iteration. The Tailwind v4 pipeline (spec §3) lands in Phase 1 proper once
+ * the postcss + tailwind binaries are wired into cargo-leptos. Until then
+ * this file is a minimal reset + font import so the LoginView renders
+ * consistently across browsers.
+ *
+ * Values mirror `~/agicash/design/tokens.json` so the Leptos PWA stays in
+ * lockstep with the iOS + TS web apps. Keep changes here in sync with the
+ * `src/tokens.rs` constants — both must agree.
+ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100dvh;
+  font-family: 'Kode Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Light-theme defaults — matches `tokens.json#themes.light`. */
+  background: hsl(0 0% 100%);
+  color: hsl(0 0% 3.9%);
+}
+
+main {
+  display: block;
+  min-height: 100dvh;
+}
+
+button {
+  font: inherit;
+}
+
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+a {
+  color: inherit;
+}
