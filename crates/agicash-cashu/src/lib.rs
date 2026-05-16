@@ -13,7 +13,6 @@ pub use receive_swap::{
     ReceiveSwapMachine, ReceiveSwapStorageError, TokenProof,
 };
 pub use send_swap::{
-    CashuSendSwap, CashuSendSwapService, CashuSendSwapState, CashuSendSwapStorage,
-    CommitProofsToSend, CreateSendSwap, CreateSendSwapResult, OutputAmounts, ProofWithId,
-    SendQuote, SendSwapError, SendSwapMachine, SendSwapStorageError,
+    CashuSendSwap, CashuSendSwapState, CashuSendSwapStorage, CommitProofsToSend, CreateSendSwap,
+    CreateSendSwapResult, OutputAmounts, SendSwapStorageError,
 };
