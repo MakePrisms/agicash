@@ -81,11 +81,11 @@ export default function ScanPage() {
         <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Scan</PageHeaderTitle>
       </PageHeader>
-      <PageContent className="relative z-10 mx-auto items-center pt-20 sm:justify-center sm:gap-32 sm:py-0">
+      <PageContent className="relative z-10 mx-auto items-center pt-20 sm:justify-center sm:py-0">
         <QRScanner onDecode={handleInput} />
         <div
           className={cn(
-            'mt-auto flex w-72 flex-col items-center gap-4',
+            'sm:-translate-x-1/2 mt-auto flex w-72 flex-col items-center gap-4 sm:absolute sm:bottom-14 sm:left-1/2 sm:mt-0',
             isPwa && 'pb-20',
           )}
         >
