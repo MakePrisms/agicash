@@ -14,19 +14,15 @@
     feature = "real-supabase-tests",
     feature = "real-opensecret-tests"
 ))]
+mod common;
+
+#[cfg(all(
+    feature = "real-mint-tests",
+    feature = "real-supabase-tests",
+    feature = "real-opensecret-tests"
+))]
 mod gated {
-    use assert_cmd::Command;
-
-    const TEST_MINT_URL: &str = "https://testnut.cashu.space";
-
-    fn env_ready() -> bool {
-        let _ = dotenvy::dotenv();
-        std::env::var("OPENSECRET_BASE_URL").is_ok()
-            && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
-            && (std::env::var("SUPABASE_URL").is_ok() || std::env::var("VITE_SUPABASE_URL").is_ok())
-            && (std::env::var("SUPABASE_ANON_KEY").is_ok()
-                || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
-    }
+    use super::common::*;
 
     /// `auth guest` -> `mint add` -> `balance` end-to-end.
     /// Verifies the JSON shape and that the mint URL round-trips through
@@ -37,49 +33,21 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.mint-add-then-balance");
+        let session = TestSession::new("mint-add-then-balance");
+        session.spawn_guest();
 
-        let guest = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "guest"])
-            .output()
-            .expect("spawn agicash auth guest");
-        assert!(
-            guest.status.success(),
-            "auth guest failed: stdout={}, stderr={}",
-            String::from_utf8_lossy(&guest.stdout),
-            String::from_utf8_lossy(&guest.stderr),
-        );
-
-        let add = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let add = session
+            .cmd()
             .args(["mint", "add", TEST_MINT_URL])
             .output()
             .expect("spawn agicash mint add");
-
-        // Stage cleanup before assertions so a panic still clears the keyring.
-        let cleanup = |service: &str| {
-            let _ = Command::cargo_bin("agicash")
-                .unwrap()
-                .env("AGICASH_KEYRING_SERVICE", service)
-                .args(["auth", "logout"])
-                .output();
-        };
-
-        if !add.status.success() {
-            cleanup(&service);
-            panic!(
-                "mint add failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&add.stdout),
-                String::from_utf8_lossy(&add.stderr),
-            );
-        }
-        let add_stdout = String::from_utf8_lossy(&add.stdout).into_owned();
-        let add_json: serde_json::Value = serde_json::from_str(add_stdout.trim())
-            .unwrap_or_else(|e| panic!("mint add stdout not JSON ({e}): {add_stdout}"));
+        assert!(
+            add.status.success(),
+            "mint add failed: stdout={}, stderr={}",
+            String::from_utf8_lossy(&add.stdout),
+            String::from_utf8_lossy(&add.stderr),
+        );
+        let add_json = parse_json("mint add", &add);
         assert_eq!(
             add_json.get("status").and_then(|v| v.as_str()),
             Some("added"),
@@ -90,24 +58,18 @@ mod gated {
             "mint add output missing account_id: {add_json}"
         );
 
-        let bal = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let bal = session
+            .cmd()
             .arg("balance")
             .output()
             .expect("spawn agicash balance");
-
-        cleanup(&service);
-
         assert!(
             bal.status.success(),
             "balance failed: stdout={}, stderr={}",
             String::from_utf8_lossy(&bal.stdout),
             String::from_utf8_lossy(&bal.stderr),
         );
-        let bal_stdout = String::from_utf8_lossy(&bal.stdout).into_owned();
-        let bal_json: serde_json::Value = serde_json::from_str(bal_stdout.trim())
-            .unwrap_or_else(|e| panic!("balance stdout not JSON ({e}): {bal_stdout}"));
+        let bal_json = parse_json("balance", &bal);
         assert!(
             bal_json.is_array(),
             "expected balance stdout to be a JSON array, got: {bal_json}",
@@ -131,30 +93,14 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.mint-add-unreachable");
+        let session = TestSession::new("mint-add-unreachable");
+        session.spawn_guest();
 
-        let guest = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "guest"])
-            .output()
-            .expect("spawn agicash auth guest");
-        assert!(guest.status.success());
-
-        let bad = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let bad = session
+            .cmd()
             .args(["mint", "add", "https://does-not-exist.invalid.example"])
             .output()
             .expect("spawn agicash mint add (bad URL)");
-
-        // Cleanup before assertions.
-        let _ = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "logout"])
-            .output();
 
         assert!(
             !bad.status.success(),

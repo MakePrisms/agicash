@@ -15,27 +15,15 @@
     feature = "real-supabase-tests",
     feature = "real-opensecret-tests"
 ))]
+mod common;
+
+#[cfg(all(
+    feature = "real-mint-tests",
+    feature = "real-supabase-tests",
+    feature = "real-opensecret-tests"
+))]
 mod gated {
-    use assert_cmd::Command;
-
-    const TEST_MINT_URL: &str = "https://testnut.cashu.space";
-
-    fn env_ready() -> bool {
-        let _ = dotenvy::dotenv();
-        std::env::var("OPENSECRET_BASE_URL").is_ok()
-            && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
-            && (std::env::var("SUPABASE_URL").is_ok() || std::env::var("VITE_SUPABASE_URL").is_ok())
-            && (std::env::var("SUPABASE_ANON_KEY").is_ok()
-                || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
-    }
-
-    fn cleanup(service: &str) {
-        let _ = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", service)
-            .args(["auth", "logout"])
-            .output();
-    }
+    use super::common::*;
 
     /// `auth guest` -> `mint add testnut` -> `receive lightning N` ->
     /// assert success and balance > 0.
@@ -45,40 +33,11 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.recv-lightning-e2e");
+        let session = TestSession::new("recv-lightning-e2e");
+        session.spawn_guest_with_test_mint();
 
-        let guest = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "guest"])
-            .output()
-            .expect("spawn agicash auth guest");
-        assert!(
-            guest.status.success(),
-            "auth guest failed: stdout={}, stderr={}",
-            String::from_utf8_lossy(&guest.stdout),
-            String::from_utf8_lossy(&guest.stderr),
-        );
-
-        let add = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["mint", "add", TEST_MINT_URL])
-            .output()
-            .expect("spawn agicash mint add");
-        if !add.status.success() {
-            cleanup(&service);
-            panic!(
-                "mint add failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&add.stdout),
-                String::from_utf8_lossy(&add.stderr),
-            );
-        }
-
-        let receive = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let receive = session
+            .cmd()
             .args([
                 "receive",
                 "lightning",
@@ -90,14 +49,12 @@ mod gated {
             ])
             .output()
             .expect("spawn agicash receive lightning");
-        if !receive.status.success() {
-            cleanup(&service);
-            panic!(
-                "receive lightning failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&receive.stdout),
-                String::from_utf8_lossy(&receive.stderr),
-            );
-        }
+        assert!(
+            receive.status.success(),
+            "receive lightning failed: stdout={}, stderr={}",
+            String::from_utf8_lossy(&receive.stdout),
+            String::from_utf8_lossy(&receive.stderr),
+        );
         let stdout = String::from_utf8_lossy(&receive.stdout).into_owned();
         // The command emits TWO newline-delimited JSON bodies: the initial
         // `quote-issued` and the final `received`. Parse the last one.
@@ -120,21 +77,17 @@ mod gated {
         );
 
         // Verify balance reflects the new proofs.
-        let balance = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let balance = session
+            .cmd()
             .arg("balance")
             .output()
             .expect("spawn agicash balance");
-        cleanup(&service);
         assert!(
             balance.status.success(),
             "balance failed: stderr={}",
             String::from_utf8_lossy(&balance.stderr)
         );
-        let bal_stdout = String::from_utf8_lossy(&balance.stdout).into_owned();
-        let balances: serde_json::Value = serde_json::from_str(bal_stdout.trim())
-            .unwrap_or_else(|e| panic!("balance stdout not JSON ({e}): {bal_stdout}"));
+        let balances = parse_json("balance", &balance);
         // `agicash balance` shape varies; assert there's at least one
         // non-zero positive balance anywhere in the JSON.
         let serialized = serde_json::to_string(&balances).unwrap();
@@ -152,49 +105,21 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.recv-lightning-no-wait");
+        let session = TestSession::new("recv-lightning-no-wait");
+        session.spawn_guest_with_test_mint();
 
-        let guest = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "guest"])
-            .output()
-            .expect("spawn agicash auth guest");
-        assert!(guest.status.success());
-
-        let add = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["mint", "add", TEST_MINT_URL])
-            .output()
-            .expect("spawn agicash mint add");
-        if !add.status.success() {
-            cleanup(&service);
-            panic!(
-                "mint add failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&add.stdout),
-                String::from_utf8_lossy(&add.stderr),
-            );
-        }
-
-        let issued = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let issued = session
+            .cmd()
             .args(["receive", "lightning", "32", "--no-wait"])
             .output()
             .expect("spawn agicash receive lightning --no-wait");
-        if !issued.status.success() {
-            cleanup(&service);
-            panic!(
-                "receive lightning --no-wait failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&issued.stdout),
-                String::from_utf8_lossy(&issued.stderr),
-            );
-        }
-        let issued_stdout = String::from_utf8_lossy(&issued.stdout).into_owned();
-        let issued_json: serde_json::Value = serde_json::from_str(issued_stdout.trim())
-            .unwrap_or_else(|e| panic!("no-wait stdout not JSON ({e}): {issued_stdout}"));
+        assert!(
+            issued.status.success(),
+            "receive lightning --no-wait failed: stdout={}, stderr={}",
+            String::from_utf8_lossy(&issued.stdout),
+            String::from_utf8_lossy(&issued.stderr),
+        );
+        let issued_json = parse_json("no-wait", &issued);
         assert_eq!(
             issued_json.get("status").and_then(|v| v.as_str()),
             Some("quote-issued"),
@@ -209,9 +134,8 @@ mod gated {
         // Give testnut's fakewallet a moment to settle the invoice.
         std::thread::sleep(std::time::Duration::from_secs(3));
 
-        let complete = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let complete = session
+            .cmd()
             .args([
                 "receive",
                 "lightning-complete",
@@ -223,16 +147,13 @@ mod gated {
             ])
             .output()
             .expect("spawn agicash receive lightning-complete");
-        cleanup(&service);
         assert!(
             complete.status.success(),
             "lightning-complete failed: stdout={}, stderr={}",
             String::from_utf8_lossy(&complete.stdout),
             String::from_utf8_lossy(&complete.stderr),
         );
-        let complete_stdout = String::from_utf8_lossy(&complete.stdout).into_owned();
-        let complete_json: serde_json::Value = serde_json::from_str(complete_stdout.trim())
-            .unwrap_or_else(|e| panic!("complete stdout not JSON ({e}): {complete_stdout}"));
+        let complete_json = parse_json("complete", &complete);
         assert_eq!(
             complete_json.get("status").and_then(|v| v.as_str()),
             Some("received"),
@@ -252,25 +173,15 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.recv-lightning-no-acct");
-
-        let guest = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
-            .args(["auth", "guest"])
-            .output()
-            .expect("spawn agicash auth guest");
-        assert!(guest.status.success());
+        let session = TestSession::new("recv-lightning-no-acct");
+        session.spawn_guest();
 
         // Skip `mint add` — no matching account on this fresh guest.
-        let receive = Command::cargo_bin("agicash")
-            .unwrap()
-            .env("AGICASH_KEYRING_SERVICE", &service)
+        let receive = session
+            .cmd()
             .args(["receive", "lightning", "64"])
             .output()
             .expect("spawn agicash receive lightning");
-        cleanup(&service);
         assert!(
             !receive.status.success(),
             "expected failure without matching account, stdout={}, stderr={}",

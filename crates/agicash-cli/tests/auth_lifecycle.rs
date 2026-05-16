@@ -12,13 +12,7 @@
 //! - `OPENSECRET_CLIENT_ID`
 
 #[cfg(feature = "real-opensecret-tests")]
-use assert_cmd::Command;
-
-#[cfg(feature = "real-opensecret-tests")]
-fn env_ready() -> bool {
-    let _ = dotenvy::dotenv();
-    std::env::var("OPENSECRET_BASE_URL").is_ok() && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
-}
+mod common;
 
 #[cfg(not(feature = "real-opensecret-tests"))]
 #[test]
@@ -32,36 +26,33 @@ fn auth_lifecycle_skipped_without_feature() {
 #[cfg(feature = "real-opensecret-tests")]
 #[test]
 fn session_survives_process_restart() {
-    if !env_ready() {
+    use common::{env_ready_opensecret_only, parse_json, TestSession};
+
+    if !env_ready_opensecret_only() {
         eprintln!("skipping: OPENSECRET_BASE_URL and/or OPENSECRET_CLIENT_ID not set");
         return;
     }
 
-    // Use a unique keyring service per test run so we don't collide with the
-    // developer's normal CLI state and so tests are isolated.
-    let pid = std::process::id();
-    let service = format!("com.agicash.cli.test.{pid}");
+    // Use a unique keyring service per test run so we don't collide with
+    // the developer's normal CLI state and so tests are isolated. The
+    // RAII session also clears the keyring on drop / panic.
+    let session = TestSession::new("auth-lifecycle");
 
-    // Helper: each call spawns a *fresh* process. assert_cmd::Command does
-    // not share state with the test process beyond env/args, which is
-    // exactly what we want — the only carrier is the OS keyring entry.
-    let make_cmd = || {
-        let mut c = Command::cargo_bin("agicash").unwrap();
-        c.env("AGICASH_KEYRING_SERVICE", &service);
-        c
-    };
-
-    // Step 1: register a guest user.
-    let guest_out = make_cmd()
+    // Step 1: register a guest user. Each `cmd()` returns a fresh
+    // `assert_cmd::Command`, so a separate process picks up the same
+    // keyring entry — exactly the rehydration path under test.
+    let guest = session
+        .cmd()
         .args(["auth", "guest"])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let guest_stdout = String::from_utf8(guest_out).unwrap();
-    let guest_json: serde_json::Value = serde_json::from_str(guest_stdout.trim())
-        .unwrap_or_else(|e| panic!("auth guest stdout not JSON ({e}): {guest_stdout}"));
+        .output()
+        .expect("spawn agicash auth guest");
+    assert!(
+        guest.status.success(),
+        "auth guest failed: stdout={}, stderr={}",
+        String::from_utf8_lossy(&guest.stdout),
+        String::from_utf8_lossy(&guest.stderr),
+    );
+    let guest_json = parse_json("auth guest", &guest);
     assert_eq!(
         guest_json.get("status").and_then(|v| v.as_str()),
         Some("signed-in"),
@@ -83,16 +74,13 @@ fn session_survives_process_restart() {
     );
 
     // Step 2: fresh process, status must show the same uuid.
-    let status_out = make_cmd()
+    let status = session
+        .cmd()
         .args(["auth", "status"])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let status_stdout = String::from_utf8(status_out).unwrap();
-    let status_json: serde_json::Value = serde_json::from_str(status_stdout.trim())
-        .unwrap_or_else(|e| panic!("auth status stdout not JSON ({e}): {status_stdout}"));
+        .output()
+        .expect("spawn agicash auth status");
+    assert!(status.status.success(), "auth status (logged in) failed");
+    let status_json = parse_json("auth status (logged in)", &status);
     assert_eq!(
         status_json
             .get("logged_in")
@@ -107,16 +95,13 @@ fn session_survives_process_restart() {
     );
 
     // Step 3: logout (fresh process).
-    let logout_out = make_cmd()
+    let logout = session
+        .cmd()
         .args(["auth", "logout"])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let logout_stdout = String::from_utf8(logout_out).unwrap();
-    let logout_json: serde_json::Value = serde_json::from_str(logout_stdout.trim())
-        .unwrap_or_else(|e| panic!("auth logout stdout not JSON ({e}): {logout_stdout}"));
+        .output()
+        .expect("spawn agicash auth logout");
+    assert!(logout.status.success(), "auth logout failed");
+    let logout_json = parse_json("auth logout", &logout);
     assert_eq!(
         logout_json.get("status").and_then(|v| v.as_str()),
         Some("signed-out"),
@@ -124,16 +109,13 @@ fn session_survives_process_restart() {
     );
 
     // Step 4: fresh process, status must report logged out.
-    let status_out2 = make_cmd()
+    let status2 = session
+        .cmd()
         .args(["auth", "status"])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let status_stdout2 = String::from_utf8(status_out2).unwrap();
-    let status_json2: serde_json::Value = serde_json::from_str(status_stdout2.trim())
-        .unwrap_or_else(|e| panic!("auth status stdout not JSON ({e}): {status_stdout2}"));
+        .output()
+        .expect("spawn agicash auth status (post-logout)");
+    assert!(status2.status.success());
+    let status_json2 = parse_json("auth status (post-logout)", &status2);
     assert_eq!(
         status_json2
             .get("logged_in")

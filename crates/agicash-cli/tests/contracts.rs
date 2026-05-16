@@ -53,16 +53,21 @@
     feature = "real-supabase-tests",
     feature = "real-opensecret-tests"
 ))]
+mod common;
+
+#[cfg(all(
+    feature = "real-mint-tests",
+    feature = "real-supabase-tests",
+    feature = "real-opensecret-tests"
+))]
 #[allow(
     clippy::if_not_else,
     clippy::redundant_closure_for_method_calls,
     clippy::map_unwrap_or
 )]
 mod gated {
-    use assert_cmd::Command;
+    use super::common::*;
     use serde_json::Value;
-
-    const TEST_MINT_URL: &str = "https://testnut.cashu.space";
 
     /// The canonical kebab-case error code allow-list. Mirror of every
     /// string emitted by `classify_*` in `agicash-cli/src/main.rs`.
@@ -108,25 +113,6 @@ mod gated {
         "unknown",
     ];
 
-    fn env_ready() -> bool {
-        let _ = dotenvy::dotenv();
-        std::env::var("OPENSECRET_BASE_URL").is_ok()
-            && std::env::var("OPENSECRET_CLIENT_ID").is_ok()
-            && (std::env::var("SUPABASE_URL").is_ok() || std::env::var("VITE_SUPABASE_URL").is_ok())
-            && (std::env::var("SUPABASE_ANON_KEY").is_ok()
-                || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
-    }
-
-    fn cmd(service: &str) -> Command {
-        let mut c = Command::cargo_bin("agicash").unwrap();
-        c.env("AGICASH_KEYRING_SERVICE", service);
-        c
-    }
-
-    fn cleanup(service: &str) {
-        let _ = cmd(service).args(["auth", "logout"]).output();
-    }
-
     /// True iff `s` is a non-empty kebab-case identifier (lowercase
     /// letters + digits, words separated by single hyphens, no leading
     /// or trailing hyphen).
@@ -136,19 +122,6 @@ mod gated {
         }
         s.chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
-    }
-
-    /// Pull the `error.code` string from a JSON error body, panicking
-    /// with a helpful diagnostic when the shape is wrong.
-    fn extract_error_code(label: &str, stderr: &str) -> String {
-        let parsed: Value = serde_json::from_str(stderr.trim())
-            .unwrap_or_else(|e| panic!("{label}: stderr was not JSON ({e}); stderr={stderr}",));
-        parsed
-            .get("error")
-            .and_then(|e| e.get("code"))
-            .and_then(|c| c.as_str())
-            .map(str::to_string)
-            .unwrap_or_else(|| panic!("{label}: missing error.code in stderr JSON: {parsed}"))
     }
 
     /// Catalog assertion: the static allow-list must itself be valid
@@ -176,17 +149,13 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.contracts-success");
+        let session = TestSession::new("contracts-success");
 
         let mut failures: Vec<String> = Vec::new();
 
-        // Defensive: clean slate before observing the no-session
-        // logout body shape.
-        cleanup(&service);
-
         // ---- 1. `version` (no auth, no env, hermetic). ----
-        let v = cmd(&service)
+        let v = session
+            .cmd()
             .arg("version")
             .output()
             .expect("spawn agicash version");
@@ -208,7 +177,8 @@ mod gated {
         }
 
         // ---- 2. `auth status` while logged out. ----
-        let s_out = cmd(&service)
+        let s_out = session
+            .cmd()
             .args(["auth", "status"])
             .output()
             .expect("spawn agicash auth status");
@@ -232,7 +202,8 @@ mod gated {
         }
 
         // ---- 3. `auth logout` while logged out (status=not-logged-in). ----
-        let lo = cmd(&service)
+        let lo = session
+            .cmd()
             .args(["auth", "logout"])
             .output()
             .expect("spawn agicash auth logout (no session)");
@@ -256,12 +227,12 @@ mod gated {
         }
 
         // ---- 4. `auth guest` (creates a session). ----
-        let g = cmd(&service)
+        let g = session
+            .cmd()
             .args(["auth", "guest"])
             .output()
             .expect("spawn agicash auth guest");
         if !g.status.success() {
-            cleanup(&service);
             failures.push(format!(
                 "auth guest: nonzero exit; stderr={}",
                 String::from_utf8_lossy(&g.stderr),
@@ -285,7 +256,8 @@ mod gated {
         }
 
         // ---- 5. `auth status` while logged in. ----
-        let si = cmd(&service)
+        let si = session
+            .cmd()
             .args(["auth", "status"])
             .output()
             .expect("spawn agicash auth status (logged in)");
@@ -312,7 +284,8 @@ mod gated {
         }
 
         // ---- 6. `account list` empty before mint add → JSON array. ----
-        let al = cmd(&service)
+        let al = session
+            .cmd()
             .args(["account", "list"])
             .output()
             .expect("spawn agicash account list");
@@ -334,7 +307,8 @@ mod gated {
         }
 
         // ---- 7. `mint add testnut` → status=added, account_id present. ----
-        let ma = cmd(&service)
+        let ma = session
+            .cmd()
             .args(["mint", "add", TEST_MINT_URL])
             .output()
             .expect("spawn agicash mint add");
@@ -362,7 +336,8 @@ mod gated {
         }
 
         // ---- 8. `balance` after mint add → JSON array of entries. ----
-        let bal = cmd(&service)
+        let bal = session
+            .cmd()
             .arg("balance")
             .output()
             .expect("spawn agicash balance");
@@ -394,13 +369,11 @@ mod gated {
         }
 
         // ---- 9. `auth logout` while signed in → status=signed-out. ----
-        let final_lo = cmd(&service)
+        let final_lo = session
+            .cmd()
             .args(["auth", "logout"])
             .output()
             .expect("spawn agicash auth logout (signed in)");
-
-        // Always run cleanup last (idempotent).
-        cleanup(&service);
 
         if !final_lo.status.success() {
             failures.push(format!(
@@ -438,11 +411,7 @@ mod gated {
             eprintln!("skipping: env vars not set");
             return;
         }
-        let pid = std::process::id();
-        let service = format!("com.agicash.cli.test.{pid}.contracts-errors");
-
-        // Defensive cleanup so the not-logged-in cases observe a clean slate.
-        cleanup(&service);
+        let session = TestSession::new("contracts-errors");
 
         // (label, args, expected error code)
         // Each row is a CLI invocation that MUST produce a typed JSON error.
@@ -476,7 +445,8 @@ mod gated {
         let mut failures: Vec<String> = Vec::new();
 
         for (label, args, expected_code) in cases {
-            let out = cmd(&service)
+            let out = session
+                .cmd()
                 .args(*args)
                 .output()
                 .unwrap_or_else(|e| panic!("spawn {label}: {e}"));
@@ -512,18 +482,7 @@ mod gated {
 
         // Now exercise the post-auth error surface to cover codes that
         // can't be hit without a session.
-        let g = cmd(&service)
-            .args(["auth", "guest"])
-            .output()
-            .expect("spawn agicash auth guest");
-        if !g.status.success() {
-            cleanup(&service);
-            panic!(
-                "auth guest failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&g.stdout),
-                String::from_utf8_lossy(&g.stderr),
-            );
-        }
+        session.spawn_guest();
 
         let pre_mint_cases: &[(&str, &[&str], &str)] = &[
             (
@@ -547,7 +506,8 @@ mod gated {
         ];
 
         for (label, args, expected_code) in pre_mint_cases {
-            let out = cmd(&service)
+            let out = session
+                .cmd()
                 .args(*args)
                 .output()
                 .unwrap_or_else(|e| panic!("spawn {label}: {e}"));
@@ -584,18 +544,7 @@ mod gated {
         // Add a mint so the empty-wallet send path exercises the
         // `insufficient-balance` branch (proof-selection error rather
         // than account-resolution error).
-        let ma = cmd(&service)
-            .args(["mint", "add", TEST_MINT_URL])
-            .output()
-            .expect("spawn agicash mint add (for empty-wallet send)");
-        if !ma.status.success() {
-            cleanup(&service);
-            panic!(
-                "mint add (for send) failed: stdout={}, stderr={}",
-                String::from_utf8_lossy(&ma.stdout),
-                String::from_utf8_lossy(&ma.stderr),
-            );
-        }
+        session.add_test_mint();
 
         let post_mint_cases: &[(&str, &[&str], &str)] = &[(
             "send empty wallet",
@@ -604,7 +553,8 @@ mod gated {
         )];
 
         for (label, args, expected_code) in post_mint_cases {
-            let out = cmd(&service)
+            let out = session
+                .cmd()
                 .args(*args)
                 .output()
                 .unwrap_or_else(|e| panic!("spawn {label}: {e}"));
@@ -637,8 +587,6 @@ mod gated {
                 ));
             }
         }
-
-        cleanup(&service);
 
         assert!(
             failures.is_empty(),
