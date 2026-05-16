@@ -213,8 +213,8 @@ impl ReceiveFlow {
     }
 }
 
-/// CashuSeedProvider impl that pulls from a shared `OpenSecretClient`.
-/// Lives in the FFI layer (rather than agicash-cashu) so the cashu crate
+/// `CashuSeedProvider` impl that pulls from a shared `OpenSecretClient`.
+/// Lives in the FFI layer (rather than `agicash-cashu`) so the cashu crate
 /// stays free of the auth dependency.
 pub struct OpenSecretSeedProvider {
     client: OpenSecretClient,
@@ -243,8 +243,8 @@ impl CashuSeedProvider for OpenSecretSeedProvider {
 }
 
 /// Translate a [`ReceiveFlowError`] from the inner orchestrator (which
-/// happens on `dispatch` failures like invalid-event) to FfiError. Most
-/// failure paths show up as a Failed state, not an error — the
+/// happens on `dispatch` failures like invalid-event) to `FfiError`. Most
+/// failure paths show up as a `Failed` state, not an error — the
 /// `Err(...)` here is reserved for invalid-event and auth issues.
 fn receive_flow_error_to_ffi(e: ReceiveFlowError) -> FfiError {
     match e {

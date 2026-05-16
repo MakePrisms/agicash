@@ -6,15 +6,15 @@
 //! instead of going through the CLI's one-shot `receive` subcommand.
 //!
 //! Two scenarios:
-//! 1. Add-mint flow: fresh guest, no accounts. Start → NeedsMintConfirmation
-//!    → ConfirmAddMint → Done.
-//! 2. Happy path with mint already added: Start → Done (skips the
+//! 1. Add-mint flow: fresh guest, no accounts. `Start` →
+//!    `NeedsMintConfirmation` → `ConfirmAddMint` → `Done`.
+//! 2. Happy path with mint already added: `Start` → `Done` (skips the
 //!    confirmation step).
 //!
 //! Run:
 //!     cargo test -p agicash-cli \
 //!         --features real-mint-tests,real-supabase-tests,real-opensecret-tests \
-//!         --test receive_flow -- --nocapture
+//!         --test `receive_flow` -- --nocapture
 
 #[cfg(all(
     feature = "real-mint-tests",
@@ -58,8 +58,8 @@ mod gated {
                 || std::env::var("VITE_SUPABASE_ANON_KEY").is_ok())
     }
 
-    /// SeedProvider that pulls from an OpenSecretClient — same wiring the
-    /// FFI uses, just lifted into the test directly.
+    /// `SeedProvider` that pulls from an `OpenSecretClient` — same wiring
+    /// the FFI uses, just lifted into the test directly.
     struct CliSeedProvider {
         client: OpenSecretClient,
     }
