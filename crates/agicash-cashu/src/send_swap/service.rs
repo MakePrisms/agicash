@@ -13,7 +13,7 @@
 use super::error::SendSwapError;
 use super::state::{Event, MachineState, SendSwapMachine};
 use super::storage::{
-    CashuSendSwapStorage, CommitProofsToSend, CreateSendSwap, CreateSendSwapResult,
+    CashuSendSwapStorage, CommitProofsToSend, CreateSendSwap, CreateSendSwapResult, ProofWithId,
 };
 use super::types::{CashuSendSwap, CashuSendSwapState, OutputAmounts};
 use crate::receive_swap::TokenProof;
@@ -42,7 +42,6 @@ use rust_decimal::Decimal;
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
 use std::sync::Arc;
-use uuid::Uuid;
 
 /// Service that orchestrates send-swap creation and the input swap.
 ///
@@ -614,14 +613,6 @@ pub struct SendQuote {
     pub cashu_send_fee: Money,
 }
 
-/// One UNSPENT proof loaded from the account, paired with its DB row id
-/// (so the storage layer can reserve it by id).
-#[derive(Debug, Clone, PartialEq)]
-pub struct ProofWithId {
-    pub id: Uuid,
-    pub proof: TokenProof,
-}
-
 #[derive(Debug)]
 struct PreparedSelection {
     send: Vec<ProofWithId>,
@@ -866,6 +857,7 @@ mod tests {
     use crate::send_swap::types::CashuSendSwapState;
     use agicash_domain::{AccountId, AccountPurpose, AccountState, AccountType, UserId};
     use async_trait::async_trait;
+    use uuid::Uuid;
     use chrono::Utc;
     use serde_json::json;
 
@@ -931,6 +923,12 @@ mod tests {
         ) -> Result<CashuSendSwap, SendSwapStorageError> {
             unreachable!()
         }
+        async fn list_unspent_proofs(
+            &self,
+            _account_id: agicash_domain::AccountId,
+        ) -> Result<Vec<ProofWithId>, SendSwapStorageError> {
+            unreachable!()
+        }
     }
 
     /// Storage that records the last `complete`/`fail` call for assertion
@@ -967,6 +965,12 @@ mod tests {
         ) -> Result<CashuSendSwap, SendSwapStorageError> {
             *self.failed.lock() = Some((swap_id, reason.into()));
             Ok(self.fail_response.clone())
+        }
+        async fn list_unspent_proofs(
+            &self,
+            _account_id: agicash_domain::AccountId,
+        ) -> Result<Vec<ProofWithId>, SendSwapStorageError> {
+            unreachable!()
         }
     }
 

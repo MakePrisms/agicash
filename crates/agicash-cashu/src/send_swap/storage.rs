@@ -26,6 +26,14 @@ use agicash_traits::EncryptionError;
 use async_trait::async_trait;
 use uuid::Uuid;
 
+/// One UNSPENT proof loaded from the account, paired with its DB row id
+/// (so the storage layer can reserve it by id when starting a swap).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProofWithId {
+    pub id: Uuid,
+    pub proof: TokenProof,
+}
+
 #[async_trait]
 pub trait CashuSendSwapStorage: Send + Sync {
     /// Create a send-swap row, reserving the chosen input proofs from the
@@ -55,6 +63,14 @@ pub trait CashuSendSwapStorage: Send + Sync {
         swap_id: Uuid,
         reason: &str,
     ) -> Result<CashuSendSwap, SendSwapStorageError>;
+
+    /// Load all UNSPENT proofs for `account_id`, decrypted. The returned
+    /// `ProofWithId.id` is the postgres row id (used to reserve the proof
+    /// when [`CashuSendSwapStorage::create`] is called).
+    async fn list_unspent_proofs(
+        &self,
+        account_id: AccountId,
+    ) -> Result<Vec<ProofWithId>, SendSwapStorageError>;
 }
 
 /// Input to [`CashuSendSwapStorage::create`].

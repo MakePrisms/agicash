@@ -13,7 +13,7 @@
 use crate::SupabaseStorage;
 use agicash_cashu::{
     CashuSendSwap, CashuSendSwapState, CashuSendSwapStorage, CommitProofsToSend, CreateSendSwap,
-    CreateSendSwapResult, OutputAmounts, SendSwapStorageError, TokenProof,
+    CreateSendSwapResult, OutputAmounts, ProofWithId, SendSwapStorageError, TokenProof,
 };
 use agicash_domain::{Account, AccountId, UserId};
 use agicash_money::Money;
@@ -89,9 +89,6 @@ struct CashuSendSwapRow {
 /// proofs-to-send / change proofs (set on the swap).
 #[derive(Debug, Clone, Deserialize)]
 struct CashuProofRow {
-    /// Postgres row id; not consumed during decryption but parsed so the
-    /// schema matches the join shape verbatim.
-    #[allow(dead_code)]
     id: Uuid,
     keyset_id: String,
     /// Encrypted payloads (base64-of-cipher).
@@ -317,6 +314,39 @@ impl CashuSendSwapStorage for SupabaseCashuSendSwapStorage {
             .ok_or_else(|| SendSwapStorageError::Backend("missing swap field".into()))?;
         let extra = value.get("spent_proofs").cloned();
         self.row_to_swap_with_extra_proofs(swap_value, extra).await
+    }
+
+    async fn list_unspent_proofs(
+        &self,
+        account_id: AccountId,
+    ) -> Result<Vec<ProofWithId>, SendSwapStorageError> {
+        let client = self.base.authenticated_client().await.map_err(map_auth)?;
+        let response = client
+            .from("cashu_proofs")
+            .select("*")
+            .eq("account_id", account_id.to_string())
+            .eq("state", "UNSPENT")
+            .execute()
+            .await
+            .map_err(|e| SendSwapStorageError::Backend(format!("postgrest: {e}")))?;
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .map_err(|e| SendSwapStorageError::Backend(format!("read body: {e}")))?;
+        if !status.is_success() {
+            return Err(SendSwapStorageError::Backend(format!(
+                "list_unspent_proofs: HTTP {status}: {text}"
+            )));
+        }
+        let rows: Vec<CashuProofRow> = serde_json::from_str(&text)
+            .map_err(|e| SendSwapStorageError::Backend(format!("parse proofs: {e}")))?;
+        let mut out = Vec::with_capacity(rows.len());
+        for row in &rows {
+            let proof = self.decrypt_proof(row).await?;
+            out.push(ProofWithId { id: row.id, proof });
+        }
+        Ok(out)
     }
 
     async fn fail(
