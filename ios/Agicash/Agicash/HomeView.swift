@@ -12,6 +12,13 @@ import SwiftUI
 struct HomeView: View {
     @Bindable var model: WalletViewModel
 
+    /// Drives presentation of `ReceiveView` as a sheet. The web routes
+    /// to `/receive` which is a separate page; on iOS a `.sheet` is the
+    /// closer-to-native equivalent and avoids rebuilding the nav stack.
+    /// Stays at this level (not on the action grid) so the sheet's
+    /// dismissal cleanly returns control to the home scroll view.
+    @State private var showReceive: Bool = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -19,8 +26,10 @@ struct HomeView: View {
                     BalanceHero(accounts: model.accounts)
                         .padding(.top, Spacing.hero)
 
-                    HomeActionGrid()
-                        .padding(.horizontal, Spacing.l)
+                    HomeActionGrid(
+                        onReceive: { showReceive = true }
+                    )
+                    .padding(.horizontal, Spacing.l)
                 }
                 .padding(.bottom, Spacing.xxl)
                 .frame(maxWidth: .infinity)
@@ -30,6 +39,9 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .refreshable { await model.refreshAccounts() }
             .task { await model.refreshAccounts() }
+            .sheet(isPresented: $showReceive) {
+                ReceiveView(model: model, onDismiss: { showReceive = false })
+            }
         }
     }
 }
@@ -80,15 +92,22 @@ private struct BalanceHero: View {
 /// The Receive / Buy / Send button trio from the web home
 /// (`_protected._index.tsx`): two secondary buttons side by side on top, a
 /// full-width primary Send button below, all in a 288pt (`w-72`) column.
+///
+/// Receive is wired in this lane (paste a Cashu token and claim it).
+/// Buy / Send / Lightning remain stubs — see the slice-8 worker for
+/// Lightning send and a follow-up lane for Buy.
 private struct HomeActionGrid: View {
+    let onReceive: () -> Void
+
     var body: some View {
         VStack(spacing: Spacing.l) {
             HStack(spacing: Spacing.l) {
                 BrandButton(
                     "Receive",
                     variant: .secondary,
-                    size: .large
-                ) { /* payment flows out of scope in v0 */ }
+                    size: .large,
+                    action: onReceive
+                )
                 BrandButton(
                     "Buy",
                     variant: .secondary,

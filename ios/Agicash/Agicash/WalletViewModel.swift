@@ -175,6 +175,45 @@ final class WalletViewModel {
         phase = .signedOut
     }
 
+    /// Outcome shape returned to `ReceiveView`. Success carries the FFI
+    /// `ReceiveResult` so the view can render amount/mint/etc. directly;
+    /// failure carries a presentation-ready string already mapped through
+    /// `ffiErrorMessage` so the view doesn't need to know about FFI shapes.
+    enum ReceiveOutcome {
+        case success(ReceiveResult)
+        case failure(String)
+    }
+
+    /// Redeem a Cashu token. Mirrors the auth methods' `runSignIn` shape:
+    /// flips `isWorking` for the duration so the calling view can render a
+    /// spinner, refreshes the accounts list on success so the home
+    /// balance updates without an extra round-trip, and translates FFI
+    /// errors into user-readable strings via the existing helper.
+    ///
+    /// Note: this method intentionally does NOT mutate `phase` on
+    /// failure (that's what `runSignIn` does because failed sign-ins
+    /// stay on the login screen). Receive failures stay inside the
+    /// receive sheet — the caller renders them inline.
+    func receive(token: String) async -> ReceiveOutcome {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return .failure("Paste a Cashu token first.")
+        }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let result = try await wallet.receiveToken(token: trimmed)
+            // Refresh so Home's balance/accounts list reflects the new
+            // proofs without forcing the user to pull-to-refresh.
+            await refreshAccounts()
+            return .success(result)
+        } catch let err as FfiError {
+            return .failure(ffiErrorMessage(err))
+        } catch {
+            return .failure("unexpected: \(error)")
+        }
+    }
+
     func refreshAccounts() async {
         if isDemoMode { return }
         do {
