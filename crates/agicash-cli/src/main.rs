@@ -208,6 +208,7 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Some(Command::Auth(a)) => match a.cmd {
             AuthCommand::Guest => auth::cmd_guest(&auth_deps).await?,
             AuthCommand::Login { email } => auth::cmd_login(&auth_deps, email).await?,
+            AuthCommand::Signup { email } => auth::cmd_signup(&auth_deps, email).await?,
             AuthCommand::Logout => auth::cmd_logout(&auth_deps).await?,
             AuthCommand::Status => auth::cmd_status(&auth_deps).await?,
         },

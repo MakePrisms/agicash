@@ -63,6 +63,12 @@ pub enum AuthCommand {
         /// Email address.
         email: String,
     },
+    /// Register a new email + password user (password prompted on stdin)
+    /// and sign in.
+    Signup {
+        /// Email address.
+        email: String,
+    },
     /// Register and sign in as an anonymous guest user.
     Guest,
     /// Clear the local session.

@@ -14,8 +14,8 @@ use crate::account::AccountFfi;
 use crate::error::FfiError;
 use crate::session::{AuthStatus, Session};
 use agicash_auth_opensecret::{
-    auth_error_from_opensecret, login_email, logout, register_guest, OpenSecretClient,
-    OpenSecretConfig, OpenSecretTokenProvider,
+    auth_error_from_opensecret, login_email, logout, register_email, register_guest,
+    OpenSecretClient, OpenSecretConfig, OpenSecretTokenProvider,
 };
 use agicash_domain::UserId;
 use agicash_storage_supabase::{SupabaseStorage, SupabaseStorageConfig};
@@ -162,6 +162,36 @@ impl AgicashWallet {
     /// Email + password login.
     pub async fn auth_login(&self, email: String, password: String) -> Result<Session, FfiError> {
         let resp = login_email(&self.client, email, password, self.client.client_id()).await?;
+        let persisted = PersistedSession {
+            user_id: resp.id,
+            refresh_token: resp.refresh_token.clone(),
+        };
+        *self.session.write().await = Some(persisted.clone());
+        Ok(persisted.into())
+    }
+
+    /// Register a new email + password user against OpenSecret. Mirrors the
+    /// web app's `/signup` flow: on success the user is auto-signed-in and
+    /// the resulting `Session` is returned so the Swift consumer can persist
+    /// the refresh token in Keychain. The optional `name` slot maps to the
+    /// OpenSecret SDK's display-name field; the iOS app does not collect it
+    /// in v0 (web doesn't either) but the parameter is exposed so the
+    /// surface matches the underlying SDK and future UI can populate it
+    /// without another FFI churn.
+    pub async fn auth_signup(
+        &self,
+        email: String,
+        password: String,
+        name: Option<String>,
+    ) -> Result<Session, FfiError> {
+        let resp = register_email(
+            &self.client,
+            email,
+            password,
+            self.client.client_id(),
+            name,
+        )
+        .await?;
         let persisted = PersistedSession {
             user_id: resp.id,
             refresh_token: resp.refresh_token.clone(),
