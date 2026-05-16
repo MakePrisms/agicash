@@ -1,14 +1,14 @@
 import SwiftUI
 
-/// Home / accounts overview. Mirrors `app/routes/_protected._index.tsx` —
-/// a centered total at the top, then the receive/buy/send action grid the
-/// web ships, then the accounts list (v0 keeps accounts on the home so
-/// users can see them without navigating; the web app puts them under
-/// Settings → Accounts).
+/// Home / accounts overview. Mirrors `app/routes/_protected._index.tsx`:
+/// a centered balance at the top (no label, no "Total Balance" header on
+/// web) and the receive/buy/send action grid the web ships.
 ///
-/// Payment flows are out of scope for v0 so the Receive / Buy / Send CTAs
-/// are rendered with the web's exact visual treatment but tap to nothing.
-/// They establish brand presence while keeping behaviour honest.
+/// Web does NOT render an accounts list on home — accounts live under
+/// `/settings/accounts`. The previous iOS pass added an `AccountListSection`
+/// here; it has been removed for parity. Payment flows are out of scope for
+/// v0 so the Receive / Buy / Send CTAs render with the web's exact visual
+/// treatment but tap to nothing.
 struct HomeView: View {
     @Bindable var model: WalletViewModel
 
@@ -21,12 +21,6 @@ struct HomeView: View {
 
                     HomeActionGrid()
                         .padding(.horizontal, Spacing.l)
-
-                    AccountListSection(
-                        accounts: model.accounts,
-                        title: "Accounts"
-                    )
-                    .padding(.horizontal, Spacing.l)
                 }
                 .padding(.bottom, Spacing.xxl)
                 .frame(maxWidth: .infinity)
@@ -42,7 +36,7 @@ struct HomeView: View {
 
 /// Centered balance display modeled on `MoneyWithConvertedAmount` on the
 /// web home: large numeric on top, smaller converted amount below in muted
-/// gray. Numeric uses `Font.brandNumericHero` — rounded fallback for Teko.
+/// gray. Numeric uses `Font.brandNumericHero` (Teko Bold).
 private struct BalanceHero: View {
     let accounts: [AccountFfi]
 
@@ -54,8 +48,6 @@ private struct BalanceHero: View {
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.brandForeground)
                     .baselineOffset(8)
-                // Phase 1 balances are always "0"; render that as the
-                // hero. Once `AccountFfi.balance` is real, sum here.
                 Text("0")
                     .font(.brandNumericHero)
                     .foregroundStyle(Color.brandForeground)
@@ -111,50 +103,5 @@ private struct HomeActionGrid: View {
         }
         .frame(maxWidth: 288)
         .frame(maxWidth: .infinity) // center the 288pt column.
-    }
-}
-
-/// Vertical list of `AccountRow` cards with a section header. Used by both
-/// `HomeView` and `SettingsView` so the visual treatment stays consistent.
-struct AccountListSection: View {
-    let accounts: [AccountFfi]
-    let title: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.m) {
-            Text(title)
-                .font(.brandTitleSmall)
-                .foregroundStyle(Color.brandForeground)
-
-            if accounts.isEmpty {
-                EmptyAccountsCard()
-            } else {
-                LazyVStack(spacing: Spacing.m) {
-                    ForEach(accounts, id: \.id) { account in
-                        AccountRow(account: account)
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct EmptyAccountsCard: View {
-    var body: some View {
-        VStack(spacing: Spacing.s) {
-            Image(systemName: "tray")
-                .font(.title2)
-                .foregroundStyle(Color.brandMutedForeground)
-            Text("No accounts yet")
-                .font(.brandTitleSmall)
-                .foregroundStyle(Color.brandForeground)
-            Text("Phase 1 fetched zero accounts from Supabase. Account creation lands in Phase 2.")
-                .font(.brandCaption)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Color.brandMutedForeground)
-        }
-        .padding(Spacing.xl)
-        .frame(maxWidth: .infinity)
-        .brandCard()
     }
 }

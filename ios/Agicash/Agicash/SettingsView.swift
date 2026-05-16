@@ -2,13 +2,15 @@ import SwiftUI
 
 /// Settings screen. Mirrors `app/features/settings/settings.tsx`:
 ///
-///   - User identity at the top (lightning address-style row, large text,
-///     copy affordance).
-///   - SettingsNavButton stack: Edit profile, Accounts, Contacts.
-///   - Accounts list (we collapse "Settings → Accounts" into the same
-///     scroll for v0 since the `AccountFfi` set is the only signed-in
-///     content we currently have).
-///   - Footer with the Sign Out CTA, terms/privacy links.
+///   - LnAddressDisplay at the top — large clickable text (`username@domain`)
+///     with a copy icon.
+///   - SettingsNavButton stack: Edit profile, {default account name}, Contacts.
+///   - Footer: Sign Out CTA, Terms / Privacy links.
+///
+/// Web also renders a `ColorModeToggle` and a row of social icons (X, Nostr,
+/// GitHub, Discord) in the footer; both are out of scope for the iOS pass
+/// today. The previous iOS pass added an inline `AccountListSection` here —
+/// removed for parity (web puts that under `/settings/accounts`).
 struct SettingsView: View {
     @Bindable var model: WalletViewModel
 
@@ -18,18 +20,12 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.xxl) {
-                    IdentityRow(model: model)
+                    LnAddressDisplay(model: model)
                         .padding(.horizontal, Spacing.l)
                         .padding(.top, Spacing.l)
 
-                    SettingsNavStack()
+                    SettingsNavStack(defaultAccountLabel: defaultAccountLabel)
                         .padding(.horizontal, Spacing.l)
-
-                    AccountListSection(
-                        accounts: model.accounts,
-                        title: "Accounts"
-                    )
-                    .padding(.horizontal, Spacing.l)
 
                     Spacer(minLength: Spacing.xxl)
 
@@ -60,19 +56,26 @@ struct SettingsView: View {
             }
         }
     }
+
+    /// Web shows `{defaultAccount.name}` in the second nav row. We don't
+    /// have a "default account" concept on iOS yet, so fall back to the
+    /// first account's name, then "Accounts" if the list is empty.
+    private var defaultAccountLabel: String {
+        model.accounts.first?.name ?? "Accounts"
+    }
 }
 
 /// Visual analogue of `LnAddressDisplay` from web settings: a row with the
 /// user identity on the left (large monospace text) and a copy icon on the
 /// right. We don't have a lightning address yet so we render the truncated
 /// user UUID — same layout, same affordance.
-private struct IdentityRow: View {
+private struct LnAddressDisplay: View {
     let model: WalletViewModel
 
     var body: some View {
         HStack {
             Text(displayUserId)
-                .font(.system(.title2, design: .monospaced).weight(.semibold))
+                .font(.brandTitle)
                 .foregroundStyle(Color.brandForeground)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -98,10 +101,12 @@ private struct IdentityRow: View {
 /// 40pt row, leading icon + label, trailing chevron. Borderless — the row
 /// is its own affordance, no card chrome.
 private struct SettingsNavStack: View {
+    let defaultAccountLabel: String
+
     var body: some View {
         VStack(spacing: 0) {
             SettingsNavRow(icon: "square.and.pencil", label: "Edit profile")
-            SettingsNavRow(icon: "creditcard", label: "Accounts")
+            SettingsNavRow(icon: "creditcard", label: defaultAccountLabel)
             SettingsNavRow(icon: "person.2", label: "Contacts")
         }
     }
@@ -129,9 +134,8 @@ private struct SettingsNavRow: View {
     }
 }
 
-/// Web `PageFooter` with a sign-out button at the top, then a row of
-/// terms/privacy links underneath. Web wraps the button in a centered
-/// 144pt (`w-36`) column; we mirror that.
+/// Web `PageFooter`: a Sign Out button in a centered `w-36` (144pt) column,
+/// then a row of "Terms & Privacy" links underneath in muted text.
 private struct SettingsFooter: View {
     let isWorking: Bool
     let onSignOut: () -> Void
@@ -144,17 +148,21 @@ private struct SettingsFooter: View {
                 isLoading: isWorking,
                 action: onSignOut
             )
-            .frame(maxWidth: 220)
+            .frame(maxWidth: 144) // matches `w-36` on web.
 
-            HStack(spacing: Spacing.s) {
+            // `flex w-full justify-between text-muted-foreground text-sm`
+            HStack {
                 Text("Terms")
                     .underline()
+                Spacer()
                 Text("&")
+                Spacer()
                 Text("Privacy")
                     .underline()
             }
-            .font(.brandCaption)
+            .font(.brandLabel)
             .foregroundStyle(Color.brandMutedForeground)
+            .frame(maxWidth: 144)
         }
         .frame(maxWidth: .infinity)
     }

@@ -1,18 +1,22 @@
 import SwiftUI
 
-/// Login screen. Mirrors the web `LoginOptions` + `LoginForm` flow: a small
-/// card centered on the page with a title, description, an email/password
-/// form, and a guest option. Visual treatment is one-to-one with
-/// `app/components/ui/card.tsx` (rounded-lg + hairline border + xs shadow)
-/// + `~/components/ui/button.tsx` (rounded-md, primary = near-black) +
-/// `~/components/ui/input.tsx` (40pt, rounded-md, hairline border).
+/// Login screen. Mirrors the web `Login` step machine in
+/// `app/features/login/login.tsx`: a two-step `pick-option` →
+/// `login-with-email` flow, both rendered as a single `Card` centered on
+/// the page.
 ///
-/// Phase 1 wires both branches to `WalletViewModel` (`signInWithEmail` and
-/// `signInAsGuest`). Google OAuth, signup, and forgot-password are out of
-/// scope for v0.
+/// Visual treatment is one-to-one with `app/features/login/login-options.tsx`
+/// + `app/features/login/login-form.tsx`. The web has no brand mark on this
+/// screen — just the card. We render the AgicashLogo above the card per the
+/// project spec ("do not change AgicashLogo placement or asset"); everything
+/// else (wordmark, tagline, "or" divider, guest button) is iOS surplus and
+/// has been removed.
 struct LoginView: View {
     @Bindable var model: WalletViewModel
 
+    enum Step { case pickOption, email }
+
+    @State private var step: Step = .pickOption
     @State private var email: String = ""
     @State private var password: String = ""
     @FocusState private var focusedField: Field?
@@ -26,27 +30,48 @@ struct LoginView: View {
             VStack(spacing: Spacing.xxl) {
                 Spacer(minLength: Spacing.hero)
 
-                BrandHeader()
+                // Logo only (no wordmark, no tagline) — keep the asset in
+                // place per spec, but match web's lack of header chrome
+                // beyond a single mark.
+                Image("AgicashLogo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(height: 56)
+                    .accessibilityLabel("Agicash")
 
-                LoginCard(
-                    email: $email,
-                    password: $password,
-                    focusedField: $focusedField,
-                    isWorking: model.isWorking,
-                    errorMessage: model.loginErrorMessage,
-                    onSignIn: {
-                        focusedField = nil
-                        Task {
-                            await model.signInWithEmail(
-                                email: email, password: password
-                            )
-                        }
-                    },
-                    onGuest: {
-                        focusedField = nil
-                        Task { await model.signInAsGuest() }
+                Group {
+                    switch step {
+                    case .pickOption:
+                        LoginOptionsCard(
+                            isWorking: model.isWorking,
+                            onPickEmail: { step = .email },
+                            onPickGoogle: {
+                                // Google OAuth is out of scope for v0;
+                                // button still rendered to match web.
+                            }
+                        )
+                    case .email:
+                        LoginFormCard(
+                            email: $email,
+                            password: $password,
+                            focusedField: $focusedField,
+                            isWorking: model.isWorking,
+                            errorMessage: model.loginErrorMessage,
+                            onSignIn: {
+                                focusedField = nil
+                                Task {
+                                    await model.signInWithEmail(
+                                        email: email, password: password
+                                    )
+                                }
+                            },
+                            onBack: {
+                                focusedField = nil
+                                step = .pickOption
+                            }
+                        )
                     }
-                )
+                }
                 .padding(.horizontal, Spacing.l)
 
                 Spacer(minLength: Spacing.xxl)
@@ -58,38 +83,99 @@ struct LoginView: View {
     }
 }
 
-private struct BrandHeader: View {
+/// Mirrors `LoginOptions` from `app/features/login/login-options.tsx`:
+///
+///   <Card>
+///     <CardHeader>
+///       <CardTitle>Login</CardTitle>
+///       <CardDescription>Choose your preferred login method</CardDescription>
+///     </CardHeader>
+///     <CardContent>
+///       <Button>Log in with Email</Button>
+///       <Button>Log in with Google</Button>
+///       <div>Don't have an account? <Link>Sign up</Link></div>
+///     </CardContent>
+///   </Card>
+private struct LoginOptionsCard: View {
+    let isWorking: Bool
+    let onPickEmail: () -> Void
+    let onPickGoogle: () -> Void
+
     var body: some View {
-        VStack(spacing: Spacing.s) {
-            // Keep the AgicashLogo asset as-is per spec.
-            Image("AgicashLogo")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(height: 64)
-                .accessibilityLabel("Agicash")
-            Text("Agicash")
-                .font(.brandTitleLarge)
-                .foregroundStyle(Color.brandForeground)
-            Text("Self-custody Bitcoin wallet")
+        VStack(alignment: .leading, spacing: Spacing.l) {
+            // CardHeader — `p-6 pb-0` on web, `space-y-1.5`.
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text("Login")
+                    .font(.brandTitle)
+                    .foregroundStyle(Color.brandCardForeground)
+                Text("Choose your preferred login method")
+                    .font(.brandLabel)
+                    .foregroundStyle(Color.brandMutedForeground)
+            }
+
+            // CardContent — `grid gap-4` on web.
+            VStack(spacing: Spacing.l) {
+                BrandButton(
+                    "Log in with Email",
+                    variant: .primary,
+                    isLoading: false,
+                    isDisabled: isWorking,
+                    action: onPickEmail
+                )
+                BrandButton(
+                    "Log in with Google",
+                    variant: .primary,
+                    isLoading: false,
+                    isDisabled: isWorking,
+                    action: onPickGoogle
+                )
+
+                // `mt-4 text-center text-sm`
+                HStack(spacing: 4) {
+                    Text("Don't have an account?")
+                        .foregroundStyle(Color.brandCardForeground)
+                    Text("Sign up")
+                        .underline()
+                        .foregroundStyle(Color.brandCardForeground)
+                }
                 .font(.brandLabel)
-                .foregroundStyle(Color.brandMutedForeground)
+                .frame(maxWidth: .infinity)
+            }
         }
+        .padding(Spacing.xxl)
+        .brandCard()
+        .frame(maxWidth: 384) // `max-w-sm`
     }
 }
 
-private struct LoginCard: View {
+/// Mirrors `LoginForm` from `app/features/login/login-form.tsx`:
+///
+///   <Card>
+///     <CardHeader>
+///       <CardTitle>Login</CardTitle>
+///       <CardDescription>Enter your email below to login to your wallet</CardDescription>
+///     </CardHeader>
+///     <CardContent>
+///       <form>
+///         <Label>Email</Label> <Input placeholder="satoshi@nakamoto.com" />
+///         <flex> <Label>Password</Label> <Link>Forgot your password?</Link> </flex>
+///         <Input type=password />
+///         <Button>Login</Button>
+///         <Button variant="ghost">Back</Button>
+///       </form>
+///       <div>Don't have a wallet? <Link>Sign up</Link></div>
+///     </CardContent>
+///   </Card>
+private struct LoginFormCard: View {
     @Binding var email: String
     @Binding var password: String
     var focusedField: FocusState<LoginView.Field?>.Binding
     let isWorking: Bool
     let errorMessage: String?
     let onSignIn: () -> Void
-    let onGuest: () -> Void
+    let onBack: () -> Void
 
     var body: some View {
-        // Card outer chrome — matches `<Card>` from
-        // `app/components/ui/card.tsx`. `CardHeader` is `p-6 pb-0`,
-        // `CardContent` is `p-6` → so the card has 24pt inset everywhere.
         VStack(alignment: .leading, spacing: Spacing.l) {
             // CardHeader
             VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -103,7 +189,7 @@ private struct LoginCard: View {
 
             // CardContent — form
             VStack(spacing: Spacing.l) {
-                // Email field group (mirrors the web `grid gap-2`).
+                // Email field group (`grid gap-2`).
                 VStack(alignment: .leading, spacing: Spacing.s) {
                     Text("Email")
                         .font(.brandLabelEmphasis)
@@ -121,7 +207,7 @@ private struct LoginCard: View {
                         ))
                 }
 
-                // Password field group with "Forgot your password?" inline
+                // Password field group with inline "Forgot your password?"
                 // link (matches web's `<div className="flex items-center">`).
                 VStack(alignment: .leading, spacing: Spacing.s) {
                     HStack {
@@ -129,14 +215,10 @@ private struct LoginCard: View {
                             .font(.brandLabelEmphasis)
                             .foregroundStyle(Color.brandCardForeground)
                         Spacer()
-                        // Web has an inline "Forgot your password?" link
-                        // here; signup + forgot-password are out of scope
-                        // for v0 (see file header). We render a disabled
-                        // sibling so layout matches.
                         Text("Forgot your password?")
-                            .font(.brandCaption)
+                            .font(.brandLabel)
                             .underline()
-                            .foregroundStyle(Color.brandMutedForeground)
+                            .foregroundStyle(Color.brandCardForeground)
                     }
                     SecureField("", text: $password)
                         .textContentType(.password)
@@ -162,32 +244,15 @@ private struct LoginCard: View {
                     action: onSignIn
                 )
 
-                // Web's `LoginOptions` separates email and guest with a
-                // gap-4 grid; we mirror that by rendering both buttons
-                // stacked. The "or" divider is a familiar shadcn motif
-                // and reads well as a divider between the two paths.
-                HStack(spacing: Spacing.m) {
-                    Rectangle().fill(Color.brandBorder).frame(height: 0.5)
-                    Text("or")
-                        .font(.brandCaption)
-                        .foregroundStyle(Color.brandMutedForeground)
-                    Rectangle().fill(Color.brandBorder).frame(height: 0.5)
-                }
-
                 BrandButton(
-                    variant: .secondary,
+                    "Back",
+                    variant: .ghost,
                     isLoading: false,
                     isDisabled: isWorking,
-                    action: onGuest
-                ) {
-                    HStack(spacing: Spacing.s) {
-                        Image(systemName: "person.crop.circle.badge.plus")
-                        Text("Continue as guest")
-                    }
-                }
+                    action: onBack
+                )
 
-                // Mirrors web's `mt-4 text-center text-sm "Don't have a
-                // wallet? Sign up"`. Signup not wired in v0.
+                // `mt-4 text-center text-sm`
                 HStack(spacing: 4) {
                     Text("Don't have a wallet?")
                         .foregroundStyle(Color.brandCardForeground)
@@ -195,12 +260,12 @@ private struct LoginCard: View {
                         .underline()
                         .foregroundStyle(Color.brandCardForeground)
                 }
-                .font(.brandCaption)
+                .font(.brandLabel)
                 .frame(maxWidth: .infinity)
             }
         }
-        .padding(Spacing.xxl) // matches `p-6` on web Card.
+        .padding(Spacing.xxl)
         .brandCard()
-        .frame(maxWidth: 384) // matches `max-w-sm` on web Card.
+        .frame(maxWidth: 384)
     }
 }
