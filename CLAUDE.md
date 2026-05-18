@@ -1,236 +1,208 @@
 # CLAUDE.md
 
-## Overview
+## Project
 
-**Agicash** is a self-custody Bitcoin wallet for Cashu ecash and Lightning payments. Users can send/receive money privately without trusting servers with their keys.
+Agicash is a multi-platform self-custody wallet SDK. A pure-Rust core
+(`crates/`) is consumed by four shells: `agicash-cli`, a SwiftUI iOS app
+(`ios/`), a Kotlin Android app (`android/`), and a Leptos browser PWA
+(`crates/agicash-web-leptos`). Primary protocol is Cashu; Lightning and
+LN-Address are secondary. Identity + seeds + per-user encryption keys live in
+the OpenSecret enclave. Wallet rows live in Supabase Postgres (`wallet`
+schema), with sensitive columns encrypted client-side using a key derived
+from the OpenSecret session.
 
-**Core concepts:**
-- **Cashu**: Ecash protocol using blind signatures. Mints sign tokens without seeing their content (privacy). Users hold cryptographic proofs that can be transferred peer-to-peer or redeemed.
-- **Spark**: Lightning Network SDK for Bitcoin payments
-- **Accounts**: Users have Cashu accounts (connected to mints) and Spark accounts (Lightning wallets)
+See `README.md` for operator-facing setup. See `docs/architecture.md` for the
+layered architecture. This file is the working notes for future Claude
+sessions in this repo.
 
-## Working Approach
+## Working approach
 
-**Spec-based**: Ask about unclear requirements - don't assume.
-
-**Self-review**: Check your changes for correctness and edge cases before reporting.
-
-**Summarize**: Report files changed, key decisions, and how it works.
-
-**Verify before using**: Before using any function or module — internal or third-party — read its source or type definitions to understand its signature, behavior, and return type. Don't assume based on the name. For third-party packages, check `node_modules/` type declarations. For internal code, read the source file. Never guess at APIs.
-
-**Verify by running**: When unsure how something works — a library API, a runtime behavior, or an edge case — don't guess or hallucinate. Instead, verify by running code: write a small test script and execute it with `bun`, write a quick unit test, or use the Chrome DevTools MCP to test behavior in the browser. Prefer evidence over assumptions.
-
-**Bug fixing**: Reproduce first, then fix. Write a failing test (or use Chrome DevTools MCP to reproduce in the browser), apply the fix, then verify the test passes. When the test has lasting value as a regression test, ask the user if they want to keep it.
+- **Spec-based.** If a requirement is unclear, ask. Don't assume.
+- **Verify before using.** Before calling any function — internal or
+  third-party — read its source or type definitions. Don't infer behavior
+  from the name. For crates outside the workspace, check the `Cargo.lock`
+  version and read the source under `$CARGO_HOME/registry/src/...` or the
+  crate's GitHub.
+- **Verify by running.** When unsure how something behaves at runtime, run
+  it. Write a small test, or call the binary, or hit the sim. Prefer
+  evidence over assumptions.
+- **Bug fixing.** Reproduce first, then fix. Write a failing test, apply the
+  fix, verify the test passes.
+- **Self-review.** Before reporting a task complete, re-read your own diff.
+  Run `aclippy` and `atest`.
+- **Money handling (CRITICAL).** Use the `agicash-money::Money` type for any
+  amount that crosses a crate boundary. Raw integer arithmetic on amounts is
+  a bug. Floating point is never acceptable.
 
 ## Autonomy
 
-**Ask first:** Installing dependencies, running migrations, destructive operations.
-
-**Do autonomously:** Read/edit code, run tests, use browser tools, run `bun run fix:all`, start dev server.
-
-**Package manager:** Always use `bun` and `bunx`. Never use `npm`, `npx`, `yarn`, or `pnpm`.
-
-**Git branch:** The default branch is `master` (not `main`). Always use `master` when referencing the base branch for PRs, diffs, rebases, etc.
-
-**After editing TypeScript**: Run `bun run fix:all` to catch type errors before considering the task complete. Don't wait for the user to discover build failures.
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Framework | React Router v7 (framework mode) |
-| Server State | TanStack Query v5 |
-| Client State | Zustand |
-| Auth | Open Secret → Supabase RLS |
-| Styling | Tailwind CSS + shadcn/ui |
-| Crypto | @cashu/cashu-ts, @buildonspark/spark-sdk, @noble/* |
-| DB | Supabase (PostgreSQL) |
-
-## File Structure
-
-See `docs/guidelines.md` for detailed directory structure and import hierarchy rules.
-
-```
-app/
-├── routes/           # Filesystem routes (_auth, _protected, _public layouts)
-├── features/         # Vertical slices (send/, receive/, accounts/, etc.)
-├── components/ui/    # shadcn base components
-├── lib/              # Utilities (money/, cashu/, spark/, bolt11/)
-└── hooks/            # Shared React hooks
-```
-
-**Import hierarchy** (never reverse): `lib/components` → `features` → `routes`
-
-## Key Patterns
-
-### Data Fetching (TanStack Query)
-```
-feature/
-├── *-hooks.ts       # Query hooks (useQuery, useMutation)
-├── *-repository.ts  # Database access
-└── *-service.ts     # Business logic
-```
-- Never use `useEffect` for data fetching
-- Use `queryOptions()` for reusable configs
-- Suspense boundaries for loading states
-
-### Money Handling (CRITICAL)
-Always use `Money` class (`~/lib/money`) — never raw arithmetic. Floating point errors will cause real financial bugs.
-
-### Authentication & Encryption
-
-**Open Secret** handles auth (email, Google, guest) and stores the user's BIP39 seed. From this seed, the app derives separate keys for Cashu wallets, Spark wallets, and encryption—all client-side.
-
-**Key constraint:** Private keys never leave the browser. Sensitive data (proofs, transaction details) is encrypted client-side before storage. Server cannot decrypt user data.
-
-**Auth flow:** Open Secret JWT → `generateThirdPartyToken()` → Supabase session → RLS enforcement
-
-**Route layouts:** `_protected.tsx` (requires auth), `_auth.tsx` (login/signup), `_public.tsx` (no auth)
-
-### State Management
-
-| State Type | Use | Example |
-|-----------|-----|---------|
-| **Multi-step flow** | Zustand store | SendStore, ReceiveStore (persists across pages) |
-| **Server data** | TanStack Query | Accounts, User, Transactions (caching, refetch) |
-| **Transient UI** | useState | Modal open, animation state |
-| **Cache control** | Custom Cache class | CashuSendQuoteCache (version-based updates) |
-
-**Rules:** Context is for dependency injection only, not state. Zustand stores accept dependencies via factory function (`createSendStore(deps)`). Use `useSuspenseQuery` for required data (lets Suspense handle loading).
-
-### Error Handling
-
-**Error classes** (`app/features/shared/error.ts`): `DomainError` (user-friendly, never retry), `ConcurrencyError` (always retry), `NotFoundError`.
-
-**Toasts** (Radix UI): One at a time, 3s. `DomainError` → show `error.message`. Unknown errors → `variant: 'destructive'` with generic message + `console.error`. Background tasks → log only, no toasts.
-
-**Retry** (TanStack Query): Queries default 3 retries, mutations 0. `DomainError` → never retry. `ConcurrencyError` → always retry.
-
-## Code Standards
-
-- **Files**: kebab-case (`send-quote-hooks.ts`)
-- **Types**: Prefer `type` over `interface`
-- **Components**: UI only; logic in hooks
-- **Validation**: Zod for all inputs
-- **Server code**: `*.server.ts` files only
-
-**Avoid:**
-- Derived state in useState (calculate instead)
-- Props drilling (use context or TanStack Query)
-- Components >200 lines (split them)
-- Redundant nullish coalescing (`value ?? null` when value is already `T | null`)
-- Returning `null` from functions when `undefined` is more idiomatic (avoids `?? undefined` conversions)
-- Excessive code duplication - extract common fields into shared objects. Some duplication is OK if it reduces complexity, but large repeated blocks should be refactored
-- Over-abstracting simple code into separate files (e.g., inline simple middleware in route files)
-- Adding boilerplate that parent components already handle (e.g., child routes don't need `clientLoader.hydrate` if parent layout has it)
-
-## Comments and JSDoc
-
-Default to no comments. The bar for adding one: a future reader couldn't recover the information from the code itself — a protocol quirk, a library bug being worked around, a perf tradeoff with bounds, a named external constraint (e.g. a specific DB unique constraint). Link the spec/issue/PR when relevant. Verify the reason before writing it; never guess.
-
-Don't write comments that explain things the code or its surroundings already show:
-- **Where** something is used or called from ("used by X", "comes from Y") — IDE references handle this
-- **Why** a refactor happened or what task it was for ("we changed this to…", "added for X") — that belongs in the commit message, not the code
-- **What** the code does step by step — let well-named identifiers carry the meaning
-
-JSDoc goes on public surfaces: exported `lib/` utilities, methods on services and repositories, exported types and their option fields. Skip it on React components, routes, trivial getters, and private helpers. Use `@param` / `@returns` / `@throws` only when they document a real contract.
-
-## Commands
-
-```bash
-bun run dev          # Dev server (http://127.0.0.1:3000)
-bun run dev --https  # Dev server with HTTPS (https://localhost:3000)
-bun run fix:all      # Lint + format + typecheck
-bun test             # Unit tests (ask first)
-bun run test:e2e     # E2E tests (ask first)
-```
-
-## Rust build cache
-
-The devshell wires `sccache` as `RUSTC_WRAPPER` (with `CARGO_INCREMENTAL=0`,
-required for sccache to see rustc invocations). Cache lives at `.sccache/`
-in the workspace, gitignored. Wrap cargo commands in `devenv shell -c '...'`
-or rely on `direnv` auto-activation to get the 10–30× warm rebuild speedup.
-Without the devshell, cargo runs without `RUSTC_WRAPPER` and pays full cold
-compile cost. See `crates/README.md` for details.
-
-**Database**: `bun run db:generate-types` after schema changes — but this only works if the migration has been applied first. If you created a new migration file, ask the user to apply it (via Supabase dashboard or `bun supabase migration up`) before running type generation. Do NOT run `db:generate-types` against unapplied migrations — it will silently produce stale types and cause confusing errors downstream.
-
-## Naming Conventions
-
-Hooks: `use{Action}{Entity}`. Query options: `{entity}QueryOptions`. Cache classes: `{Entity}Cache` with static `Key`. Stores: `{feature}-store.ts`.
-
-## Database & Supabase
-
-**Schema:** App data lives in the `wallet` schema (not `public`). Users are in `wallet.users` (not `auth.users`). Always query `wallet.*` tables when working with app data.
-
-Detailed guidelines are available as skills (Claude loads them automatically when relevant):
-- `supabase-database` - Migrations, RLS policies, functions, SQL style guide
-- `supabase-edge-functions` - Edge function patterns (Deno/TypeScript)
-
-**Key rules:**
-- Always enable RLS on new tables
-- Separate policies per operation (select/insert/update/delete) and role (anon/authenticated)
-- Migration files: `YYYYMMDDHHmmss_short_description.sql`
-- Write SQL in lowercase
-
 **Ask first:**
-- Applying local migrations (`supabase migration up`)
+- Installing new dependencies (cargo add, SDK adds).
+- Running migrations or anything that mutates a database you didn't create.
+- Destructive git ops (force push, hard reset on a shared branch).
 
-**Never do:**
-- `supabase db reset` - destroys local database data
-- `supabase db push` or any remote database operations
-- Drop tables/columns without explicit approval
+**Do autonomously:**
+- Read + edit code.
+- Run `atest`, `aclippy`, `afmt`.
+- Build platform artifacts (`bindings/swift/generate-bindings.sh`, etc.).
+- Run the CLI against the local stack.
 
-## iOS Rust Logs (tracing -> os_log)
+## Build + dev loop
 
-The Rust FFI installs a `tracing-subscriber` -> `os_log` bridge on
-first FFI call (see `crates/agicash-ffi/src/observability.rs`). Every
-`tracing::info!` / `debug!` / `warn!` / `error!` in any Rust crate
-(`agicash-ffi`, `agicash-storage-supabase`, `agicash-auth-opensecret`,
-`agicash-cashu`, ...) shows up in the iOS simulator's unified logging
-system under subsystem `app.agicash.rust`.
+The flake's default shell (in `nix/shells/default.nix`) provides shell
+functions, not aliases — they survive `nix develop -c <cmd>` and
+`bash -c`:
 
-Stream live from the booted simulator:
+| Function       | Purpose                                                  |
+|----------------|----------------------------------------------------------|
+| `acli`         | `cargo run -p agicash-cli --`                            |
+| `acli_keyring` | same with `--features keyring-storage`                   |
+| `aweb`         | leptos PWA dev loop                                      |
+| `acodegen`     | regenerate `agicash-storage-supabase/src/generated.rs`   |
+| `atest`        | `cargo test --workspace`                                 |
+| `abuild`       | `cargo build --workspace`                                |
+| `aclippy`      | `cargo clippy --workspace --all-targets -- -D warnings`  |
+| `afmt`         | `cargo fmt --all`                                        |
+| `awasm`        | `cargo build --target wasm32-unknown-unknown -p agicash-wasm` |
 
-```bash
+Cross-compile shells: `nix develop .#ios`, `.#android`, `.#wasm`.
+
+## Local stack
+
+- OpenSecret enclave on `:3999` — run from `~/opensecret` (`cargo run`).
+  Backed by a postgres on `:5432` (nix-native service, set up once).
+- Supabase on `:54321` (HTTPS, mkcert cert) — `bunx supabase start`.
+- The flake hook fills `OPENSECRET_BASE_URL`, `SUPABASE_URL`, etc. with
+  local defaults if unset. `.env` (gitignored) holds the regenerated
+  `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` after each
+  `bunx supabase start`.
+
+Full setup details: `docs/local-stack.md`.
+
+## Branch conventions
+
+- `agicash-rs/master` is the canonical main branch (remote
+  `git@github.com:gudnuf/agicash-rs.git`).
+- `master-merger` is the integration branch. Feature branches merge into
+  `master-merger`; the operator promotes `master-merger` → `master` once
+  the slice is green.
+- No PR-required workflow. Merges are direct.
+- Default branch name is `master`, not `main`.
+- Keep feature branches short-lived. Branch off the latest
+  `agicash-rs/master`.
+
+## Architecture (shape)
+
+```
+View → ViewModel → WalletClient (agicash-wallet)
+                ↓
+            agicash-services (async orchestrators)
+                ↓
+            agicash-cashu / agicash-spark (sans-IO state machines)
+                ↓
+            agicash-traits (Storage*, KeyProvider, TokenProvider, Clock)
+                ↓
+   agicash-storage-supabase · agicash-auth-opensecret · cdk providers
+```
+
+Trait composition is the spine. The same `WalletClient` runs on iOS,
+Android, the Leptos PWA, and the CLI. Sans-IO state machines own protocol
+logic; orchestrators glue them to providers; the facade aggregates them.
+
+**Auth flow:** OpenSecret session → third-party JWT → Supabase RLS
+session. Private keys never leave the device (or browser) — sensitive
+columns are encrypted client-side.
+
+## Platform gotchas
+
+- **iOS rebuild-first.** When iOS UI ≠ Rust behaviour, rebuild the
+  xcframework + reinstall the .app before debugging. Half of "the Swift
+  fix doesn't work" reports are stale builds. `strings` on the .app only
+  sees the Rust side; it lies about Swift fixes.
+- **iOS sim Keychain trap.** The simulator's Keychain survives app
+  uninstall. A stale session can produce a 36-min silent hang on next
+  launch. Run `xcrun simctl erase <udid>` between runs when chasing auth
+  issues.
+- **Android emulator localhost.** The emulator's `127.0.0.1` is the
+  emulator, not the host. Reach host services at `10.0.2.2`
+  (`OPENSECRET_BASE_URL=http://10.0.2.2:3999`,
+  `SUPABASE_URL=https://10.0.2.2:54321`).
+- **Android TLS.** rustls-platform-verifier must be initialized in
+  `MainActivity.onCreate` via JNI; without it every network call fails
+  silently. See `project_agicash_android_tls.md` if a worker is fixing
+  this.
+- **Swift bindings split.** `bindings/swift/Sources/AgicashSDK/*.swift`
+  is gitignored (regenerated per build); the XCFramework is also
+  gitignored. The `generate-bindings.sh` script + `bindings/swift/rust/`
+  manifest are tracked. Don't commit generated files.
+- **WASM build flag.** When building wasm crates inside `nix develop`,
+  set `NIX_HARDENING_ENABLE=""` if cross-compilation fails with
+  hardening-flag errors. The wasm shell handles this; the default shell
+  may not.
+- **CDK + wasm.** CDK supports wasm out of the box with
+  `default-features = false, features = ["wallet"]`. Do not fork CDK to
+  add wasm support.
+- **DLEQ verification missing.** NUT-12 DLEQ verification isn't yet in
+  the hot paths. P0 before mainnet. See
+  `project_agicash_dleq_gap.md` for patch sites.
+
+## Prek hook escape
+
+The prek hook is installed without a working config in some worktrees;
+`git commit` may hang. Two options:
+
+```sh
+# 1. one-shot bypass (allowed):
+PREK_ALLOW_NO_CONFIG=1 git commit -m "..."
+
+# 2. disable the stale hook locally:
+mv .git/hooks/pre-commit .git/hooks/pre-commit.disabled-stale-devenv
+```
+
+Don't `--no-verify` blindly; the bypass above keeps real hooks intact.
+
+## iOS rust logs
+
+The Rust FFI installs a `tracing-subscriber` → `os_log` bridge on first FFI
+call (see `crates/agicash-ffi/src/observability.rs`). Every `tracing::info!`
+/ `debug!` / `warn!` / `error!` in any rust crate shows up under subsystem
+`app.agicash.rust`.
+
+Stream live from the booted sim:
+
+```sh
 xcrun simctl spawn booted log stream \
   --predicate 'subsystem == "app.agicash.rust"' \
   --info --debug
 ```
 
-After-the-fact (last 5 minutes):
+After-the-fact (last 5 min):
 
-```bash
+```sh
 xcrun simctl spawn booted log show \
   --predicate 'subsystem == "app.agicash.rust"' \
   --info --debug \
   --last 5m
 ```
 
-Filter level: defaults to `info`. Override via the `AGICASH_LOG` env
-var (matches `tracing-subscriber`'s `EnvFilter` syntax), e.g.
-`AGICASH_LOG=agicash_storage_supabase=trace,info`. The env is read
-once at subscriber install (first FFI entry), so set it on the
-simulator's app environment if you need to change it.
+Filter level defaults to `info`; override via `AGICASH_LOG` (EnvFilter
+syntax) read once at first FFI call.
 
-Already instrumented (good places to lift the pattern from):
+**Never log:** JWTs, secret keys, refresh tokens, full proof secrets, full
+token strings. The OpenSecret `sub` claim and account UUIDs are safe.
 
-- `agicash-ffi::wallet` — `list_accounts`, `compute_cashu_balance`,
-  `receive_token`, the `new` constructor.
-- `agicash-storage-supabase::client` — `authenticated_client`
-  (logs JWT `sub` claim only, never the token).
-- `agicash-storage-supabase::user_storage` — `list_accounts` HTTP
-  request + status + response preview.
-- `agicash-storage-supabase::cashu_send_swap_storage` —
-  `list_unspent_proofs` HTTP request + status + response preview +
-  decrypted proof count.
+## Database safety
 
-Never log JWTs themselves, secret keys, refresh tokens, full proof
-secrets, or full token strings. The `sub` claim and account UUIDs
-are safe (already in Supabase rows the user can query).
+- Never run `bunx supabase db reset` against a local DB you care about.
+- Never run `bunx supabase db push` or any remote DB operation without
+  explicit approval. Hosted migrations go through the Supabase dashboard
+  branching workflow.
+- Don't drop tables or columns without explicit approval.
+- After schema changes: `acodegen` (or `bash scripts/gen-rust-types.sh`)
+  to regenerate `crates/agicash-storage-supabase/src/generated.rs`. Don't
+  run codegen against unapplied migrations — silently stale types.
 
 ## Skills
 
-Load a skill before making changes in its domain, not after. Skill descriptions in the system prompt explain when each applies. See also `docs/architecture.md` for system diagrams.
+Load a skill before making changes in its domain, not after. Skill
+descriptions in the system prompt explain when each applies.
