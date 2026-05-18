@@ -858,6 +858,83 @@ impl AgicashWallet {
             outcome, &account, &quote,
         ))
     }
+
+    // ---- cashu send-swap surface ----
+
+    /// Compute the fee breakdown for a hypothetical send. Pure preview —
+    /// no swap row is created. Mirrors the CLI's `agicash send <amount>
+    /// --dry-run` (`crates/agicash-cli/src/send.rs`).
+    ///
+    /// `amount` is the value the user wants the receiver to get,
+    /// expressed in the account's minor unit (sats for BTC, cents for
+    /// USD). `account_id` + `currency` together pick the source Cashu
+    /// account; same selector semantics as `start_mint_quote`.
+    ///
+    /// Errors:
+    /// - `FfiError::Auth { UNAUTHENTICATED }` if no session loaded.
+    /// - `FfiError::Internal` for amount-too-small, currency mismatch,
+    ///   no/ambiguous matching account, or mint-protocol failure.
+    /// - `FfiError::Storage` for raw Supabase failures.
+    pub async fn prepare_send_quote(
+        &self,
+        amount: u64,
+        account_id: Option<String>,
+        currency: Option<String>,
+    ) -> Result<crate::send::SendQuotePreview, FfiError> {
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+
+        if amount == 0 {
+            return Err(FfiError::internal("amount too small"));
+        }
+
+        let currency_str = currency.unwrap_or_else(|| "BTC".to_string());
+        let currency_enum = Currency::from_str(&currency_str)
+            .map_err(|_| FfiError::internal(format!("unsupported currency: {currency_str}")))?;
+        let unit = unit_for_currency(currency_enum);
+        let amount_money = Money::new(Decimal::from(amount), currency_enum, unit);
+
+        let accounts = self.storage.list_accounts(user_id).await?;
+        let account = pick_cashu_account_for_lightning(
+            &accounts,
+            account_id.as_deref(),
+            currency_enum,
+        )?;
+        let mint_url = account
+            .details
+            .get("mint_url")
+            .and_then(|v| v.as_str())
+            .map(std::string::ToString::to_string)
+            .ok_or_else(|| FfiError::internal("account.details missing mint_url"))?;
+
+        let proofs = self
+            .send_swap_storage
+            .list_unspent_proofs(account.id)
+            .await
+            .map_err(|e| FfiError::internal(format!("list unspent proofs: {e}")))?;
+
+        let quote = self
+            .send_swap_service
+            .get_quote(account, &proofs, amount_money)
+            .await
+            .map_err(send_swap_error_to_ffi)?;
+
+        Ok(crate::send::SendQuotePreview {
+            amount_requested: quote.amount_requested.amount().to_string(),
+            amount_to_send: quote.amount_to_send.amount().to_string(),
+            total_amount: quote.total_amount.amount().to_string(),
+            total_fee: quote.total_fee.amount().to_string(),
+            cashu_send_fee: quote.cashu_send_fee.amount().to_string(),
+            cashu_receive_fee: quote.cashu_receive_fee.amount().to_string(),
+            unit: quote.amount_to_send.unit().to_string(),
+            currency: account.currency.to_string(),
+            account_id: account.id.to_string(),
+            mint_url,
+        })
+    }
 }
 
 /// Find a `Cashu` account whose `(mint_url, currency)` pair matches the
@@ -1094,6 +1171,30 @@ fn mint_quote_error_to_ffi(e: MintQuoteError) -> FfiError {
         // NUT-12 DLEQ verification failed on the mint-returned blind
         // signature. Treat as a distinct, security-flavoured error.
         MintQuoteError::DleqVerificationFailed(inner) => {
+            FfiError::internal(format!("DLEQ verification failed: {inner}"))
+        }
+    }
+}
+
+/// Map `SendSwapError` down to `FfiError`. Same funneling pattern as
+/// `receive_swap_error_to_ffi` and `mint_quote_error_to_ffi`.
+fn send_swap_error_to_ffi(e: agicash_cashu::SendSwapError) -> FfiError {
+    use agicash_cashu::SendSwapError;
+    match e {
+        SendSwapError::AmountTooSmall => FfiError::internal("amount too small"),
+        SendSwapError::CurrencyMismatch { account, request } => FfiError::internal(format!(
+            "currency mismatch: account {account} differs from request {request}",
+        )),
+        SendSwapError::InsufficientBalance { needed, have } => FfiError::internal(format!(
+            "insufficient balance: need {needed}, have {have}",
+        )),
+        SendSwapError::InvalidTransition { from, event } => {
+            FfiError::internal(format!("invalid state transition from {from} on {event}"))
+        }
+        SendSwapError::Mint(inner) => cashu_provider_error_to_ffi(inner),
+        SendSwapError::Storage(s) => FfiError::internal(format!("storage error: {s}")),
+        SendSwapError::TokenEncode(msg) => FfiError::internal(format!("token encode error: {msg}")),
+        SendSwapError::DleqVerificationFailed(inner) => {
             FfiError::internal(format!("DLEQ verification failed: {inner}"))
         }
     }
@@ -1368,6 +1469,27 @@ mod tests {
         .expect("construct");
         let err = wallet
             .complete_mint_quote(Uuid::new_v4().to_string())
+            .await
+            .expect_err("no session");
+        assert!(
+            matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
+        );
+    }
+
+    // ---- cashu send-swap FFI surface ----
+
+    #[tokio::test]
+    async fn prepare_send_quote_without_session_returns_unauthenticated() {
+        let cfg = fake_config();
+        let wallet = AgicashWallet::new(
+            cfg.opensecret_url,
+            cfg.client_id,
+            cfg.supabase_url,
+            cfg.anon_key,
+        )
+        .expect("construct");
+        let err = wallet
+            .prepare_send_quote(64, None, None)
             .await
             .expect_err("no session");
         assert!(
