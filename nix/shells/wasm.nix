@@ -39,6 +39,17 @@ pkgs.mkShell {
     export AGICASH_DEV_SHELL="wasm"
     export RUST_BACKTRACE=1
 
+    # secp256k1-sys (transitive from `cashu`) wraps a C library. Even with
+    # `CC_wasm32_unknown_unknown` pointing at the UNWRAPPED clang, the nix
+    # cc-wrapper for the host clang still leaks `NIX_HARDENING_ENABLE=...`
+    # into the wasm child compile, injecting flags like
+    # `-fzero-call-used-regs=used-gpr` that wasm32 rejects. Clearing the
+    # var here (per Worker L4's notes, the previous devenv used the same
+    # workaround) ensures wasm builds of secp256k1-sys / ring succeed
+    # inside `nix develop .#wasm` without per-call env juggling. Native
+    # builds use the default shell and remain unaffected.
+    export NIX_HARDENING_ENABLE=""
+
     # sccache + shared CARGO_TARGET_DIR (same as default shell).
     export RUSTC_WRAPPER="${pkgs.sccache}/bin/sccache"
     export CARGO_TARGET_DIR="''${CARGO_TARGET_DIR:-$HOME/.cache/agicash-cargo-target}"

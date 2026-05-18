@@ -87,7 +87,15 @@ export CC_x86_64_apple_darwin=/usr/bin/clang
 export CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=/usr/bin/clang
 export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/bin/clang
 
+# The flake's default shell exports CARGO_TARGET_DIR to a shared cache
+# (~/.cache/agicash-cargo-target). The downstream xcframework + bindgen
+# steps below expect artifacts under $RUST_DIR/target — pin
+# CARGO_TARGET_DIR back to that path for the duration of this script
+# so cargo writes where we look. Subshells from cargo inherit this.
+export CARGO_TARGET_DIR="$TARGET_DIR"
+
 echo "  DEVELOPER_DIR:  $DEVELOPER_DIR"
+echo "  CARGO_TARGET_DIR: $CARGO_TARGET_DIR"
 
 # Clean previous XCFramework output. `target/` stays so cargo can do
 # incremental rebuilds across runs.
@@ -175,7 +183,26 @@ echo "Creating $FRAMEWORK_NAME.xcframework"
         -headers "$HEADERS_STAGING" \
     -output "$XCFRAMEWORK_DIR/$FRAMEWORK_NAME.xcframework"
 
+# ----- Sync Swift sources into the tracked iOS app path -----
+# `$SOURCES_DIR` (bindings/swift/Sources/AgicashSDK/) is gitignored
+# because it's a build artifact, but the iOS Xcode project references
+# `ios/Agicash/Agicash/AgicashSDK/agicash_ffi.swift` directly and that
+# copy IS tracked. Without this sync, regenerating bindings only updates
+# the build artifact and the iOS app silently keeps the old generated
+# Swift — surfaced as drift after multi-lane merges (post-merge-cleanup
+# session, May 2026). Copy the freshly-generated Swift file into the
+# tracked iOS path so `git diff` shows any FFI changes.
+IOS_TRACKED_SWIFT="$SWIFT_DIR/../../ios/Agicash/Agicash/AgicashSDK/agicash_ffi.swift"
+if [ -f "$SOURCES_DIR/agicash_ffi.swift" ]; then
+    mkdir -p "$(dirname "$IOS_TRACKED_SWIFT")"
+    cp "$SOURCES_DIR/agicash_ffi.swift" "$IOS_TRACKED_SWIFT"
+    echo "  iOS tracked:    $IOS_TRACKED_SWIFT (synced)"
+else
+    echo "warn: $SOURCES_DIR/agicash_ffi.swift missing — iOS path NOT synced" >&2
+fi
+
 echo
 echo "=== Done ==="
 echo "  XCFramework:    $XCFRAMEWORK_DIR/$FRAMEWORK_NAME.xcframework"
 echo "  Swift sources:  $SOURCES_DIR"
+echo "  iOS tracked:    $IOS_TRACKED_SWIFT"

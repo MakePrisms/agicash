@@ -27,6 +27,9 @@ result-*
 /certs/*
 !/certs/ci-localhost-cert.pem
 !/certs/ci-localhost-key.pem
+# Same certs, but the flake's default shell may auto-generate them from
+# `cd crates` (mkcert ends up rooted at the workspace root, not repo root).
+/crates/certs/
 
 # Breez Spark SDK cache data 
 .spark-data/
