@@ -25,8 +25,9 @@ use agicash_auth_opensecret::{
 use agicash_cashu::{
     CashuMintQuote, CashuMintQuoteService, CashuMintQuoteState, CashuMintQuoteStorage,
     CashuReceiveSwapService, CashuReceiveSwapState, CashuReceiveSwapStorage, CashuSeedProvider,
-    CashuSendSwapStorage, CdkCashuProvider, CompleteMintQuoteOutcome, CompleteOutcome,
-    MintQuoteError, ParsedToken, ReceiveFlowService, ReceiveSwapError, ReceiveSwapStorageError,
+    CashuSendSwapService, CashuSendSwapState, CashuSendSwapStorage, CdkCashuProvider,
+    CompleteMintQuoteOutcome, CompleteOutcome, MintQuoteError, ParsedToken, ReceiveFlowService,
+    ReceiveSwapError, ReceiveSwapStorageError, TokenProof,
 };
 use agicash_domain::{Account, AccountId, AccountPurpose, AccountType, Currency, UserId};
 use agicash_money::{Money, Unit};
@@ -39,6 +40,9 @@ use agicash_traits::{
     ProofEncryption, TokenProvider, UpdateUserDefaults, UpsertUserInput, UserStorage,
 };
 use cdk::mint_url::MintUrl;
+use cdk::nuts::nut02::Id as KeysetId;
+use cdk::nuts::{CurrencyUnit, Proof, Token};
+use cdk::Amount;
 use rust_decimal::Decimal;
 use serde_json::json;
 use std::str::FromStr;
@@ -75,6 +79,11 @@ pub struct AgicashWallet {
     /// `poll_mint_quote` can read the persisted quote by id without
     /// holding the service.
     mint_quote_storage: Arc<dyn CashuMintQuoteStorage>,
+    /// Send-swap orchestrator. Wired against the same `send_swap_storage`
+    /// + `cashu_provider` the wallet already owns. Drives
+    /// `prepare_send_quote`, `create_send_swap`, `check_send_swap_claimed`.
+    /// Mirrors `mint_quote_service`.
+    send_swap_service: Arc<CashuSendSwapService>,
     /// In-memory session. Phase 1 leaves persistence to the Swift consumer:
     /// the iOS app stores the `refresh_token` in Keychain and rehydrates this
     /// slot via `set_session` on app launch.
@@ -190,6 +199,14 @@ impl AgicashWallet {
             Arc::clone(&cashu_provider),
         ));
 
+        // Send-swap service wiring mirrors the CLI's `build_send_swap_deps`
+        // (composition.rs). Same `send_swap_storage` slot we already
+        // own; same CDK provider.
+        let send_swap_service = Arc::new(CashuSendSwapService::new(
+            Arc::clone(&send_swap_storage),
+            Arc::clone(&cashu_provider),
+        ));
+
         Ok(Arc::new(Self {
             client,
             storage,
@@ -198,6 +215,7 @@ impl AgicashWallet {
             send_swap_storage,
             mint_quote_service,
             mint_quote_storage,
+            send_swap_service,
             session: Arc::new(RwLock::new(None)),
         }))
     }
@@ -931,6 +949,303 @@ impl AgicashWallet {
             outcome, &account, &quote,
         ))
     }
+
+    // ---- cashu send-swap surface ----
+
+    /// Compute the fee breakdown for a hypothetical send. Pure preview —
+    /// no swap row is created. Mirrors the CLI's `agicash send <amount>
+    /// --dry-run` (`crates/agicash-cli/src/send.rs`).
+    ///
+    /// `amount` is the value the user wants the receiver to get,
+    /// expressed in the account's minor unit (sats for BTC, cents for
+    /// USD). `account_id` + `currency` together pick the source Cashu
+    /// account; same selector semantics as `start_mint_quote`.
+    ///
+    /// Errors:
+    /// - `FfiError::Auth { UNAUTHENTICATED }` if no session loaded.
+    /// - `FfiError::Internal` for amount-too-small, currency mismatch,
+    ///   no/ambiguous matching account, or mint-protocol failure.
+    /// - `FfiError::Storage` for raw Supabase failures.
+    pub async fn prepare_send_quote(
+        &self,
+        amount: u64,
+        account_id: Option<String>,
+        currency: Option<String>,
+    ) -> Result<crate::send::SendQuotePreview, FfiError> {
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+
+        if amount == 0 {
+            return Err(FfiError::internal("amount too small"));
+        }
+
+        let currency_str = currency.unwrap_or_else(|| "BTC".to_string());
+        let currency_enum = Currency::from_str(&currency_str)
+            .map_err(|_| FfiError::internal(format!("unsupported currency: {currency_str}")))?;
+        let unit = unit_for_currency(currency_enum);
+        let amount_money = Money::new(Decimal::from(amount), currency_enum, unit);
+
+        let accounts = self.storage.list_accounts(user_id).await?;
+        let account = pick_cashu_account_for_lightning(
+            &accounts,
+            account_id.as_deref(),
+            currency_enum,
+        )?;
+        let mint_url = account
+            .details
+            .get("mint_url")
+            .and_then(|v| v.as_str())
+            .map(std::string::ToString::to_string)
+            .ok_or_else(|| FfiError::internal("account.details missing mint_url"))?;
+
+        let proofs = self
+            .send_swap_storage
+            .list_unspent_proofs(account.id)
+            .await
+            .map_err(|e| FfiError::internal(format!("list unspent proofs: {e}")))?;
+
+        let quote = self
+            .send_swap_service
+            .get_quote(account, &proofs, amount_money)
+            .await
+            .map_err(send_swap_error_to_ffi)?;
+
+        Ok(crate::send::SendQuotePreview {
+            amount_requested: quote.amount_requested.amount().to_string(),
+            amount_to_send: quote.amount_to_send.amount().to_string(),
+            total_amount: quote.total_amount.amount().to_string(),
+            total_fee: quote.total_fee.amount().to_string(),
+            cashu_send_fee: quote.cashu_send_fee.amount().to_string(),
+            cashu_receive_fee: quote.cashu_receive_fee.amount().to_string(),
+            unit: quote.amount_to_send.unit().to_string(),
+            currency: account.currency.to_string(),
+            account_id: account.id.to_string(),
+            mint_url,
+        })
+    }
+
+    /// Persist a new Cashu send swap and produce a wire-form token.
+    /// Mirrors the CLI's `agicash send <amount>` (without `--dry-run`).
+    ///
+    /// Always encodes a **V4** (`cashuB…`) token. V3 is the legacy
+    /// shape; iOS v0 doesn't expose a chooser.
+    ///
+    /// Errors mirror `prepare_send_quote` plus token-encode failures.
+    pub async fn create_send_swap(
+        &self,
+        amount: u64,
+        account_id: Option<String>,
+        currency: Option<String>,
+    ) -> Result<crate::send::SendSwapHandle, FfiError> {
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+
+        if amount == 0 {
+            return Err(FfiError::internal("amount too small"));
+        }
+
+        let currency_str = currency.unwrap_or_else(|| "BTC".to_string());
+        let currency_enum = Currency::from_str(&currency_str)
+            .map_err(|_| FfiError::internal(format!("unsupported currency: {currency_str}")))?;
+        let unit = unit_for_currency(currency_enum);
+        let amount_money = Money::new(Decimal::from(amount), currency_enum, unit);
+
+        let accounts = self.storage.list_accounts(user_id).await?;
+        let account = pick_cashu_account_for_lightning(
+            &accounts,
+            account_id.as_deref(),
+            currency_enum,
+        )?
+        .clone();
+        let mint_url_str = account
+            .details
+            .get("mint_url")
+            .and_then(|v| v.as_str())
+            .map(std::string::ToString::to_string)
+            .ok_or_else(|| FfiError::internal("account.details missing mint_url"))?;
+
+        let proofs = self
+            .send_swap_storage
+            .list_unspent_proofs(account.id)
+            .await
+            .map_err(|e| FfiError::internal(format!("list unspent proofs: {e}")))?;
+
+        let create_result = self
+            .send_swap_service
+            .create(&account, &proofs, amount_money)
+            .await
+            .map_err(send_swap_error_to_ffi)?;
+
+        let swap = match &create_result.swap.state {
+            CashuSendSwapState::Draft => {
+                let seed = self.client.get_cashu_seed().await?;
+                self.send_swap_service
+                    .swap_for_proofs_to_send(&account, create_result.swap.clone(), &seed)
+                    .await
+                    .map_err(send_swap_error_to_ffi)?
+            }
+            CashuSendSwapState::Pending { .. } => create_result.swap.clone(),
+            other => {
+                return Err(FfiError::internal(format!(
+                    "unexpected post-create state: {other:?}"
+                )));
+            }
+        };
+
+        let proofs_to_send = match &swap.state {
+            CashuSendSwapState::Pending { proofs_to_send, .. }
+            | CashuSendSwapState::Completed { proofs_to_send, .. } => proofs_to_send.clone(),
+            other => {
+                return Err(FfiError::internal(format!(
+                    "swap not ready to encode: {other:?}"
+                )));
+            }
+        };
+
+        let token_str = encode_v4_token(&mint_url_str, &proofs_to_send, currency_enum)
+            .map_err(|e| FfiError::internal(format!("token encode error: {e}")))?;
+
+        Ok(crate::send::SendSwapHandle {
+            swap_id: swap.id.to_string(),
+            token: token_str,
+            amount: swap.amount_received.amount().to_string(),
+            fee: swap.total_fee.amount().to_string(),
+            unit: swap.amount_received.unit().to_string(),
+            currency: account.currency.to_string(),
+            account_id: account.id.to_string(),
+            mint_url: mint_url_str,
+        })
+    }
+
+    /// Check whether the receiver has claimed a previously-created
+    /// send swap. Pure poll: re-loads the swap, asks the mint via
+    /// NUT-07 `post_check_state` whether the swap's `proofs_to_send`
+    /// are SPENT, and (if so) flips the persisted row PENDING →
+    /// COMPLETED.
+    ///
+    /// Returns:
+    /// - `Pending` while at least one proof is still UNSPENT (or in
+    ///   any non-terminal state on the mint side).
+    /// - `Completed` when every proof is SPENT — the receiver
+    ///   redeemed. The persisted row is transitioned in the same
+    ///   call; subsequent polls short-circuit on the persisted state.
+    /// - `Failed` only if the swap row is already FAILED (defensive;
+    ///   shouldn't happen post-PENDING). `failure_reason` is surfaced
+    ///   for the iOS UI to render.
+    ///
+    /// Errors:
+    /// - `FfiError::Auth { UNAUTHENTICATED }` if no session loaded.
+    /// - `FfiError::Internal` for invalid UUID, missing swap, ownership
+    ///   mismatch, mint round-trip failure.
+    /// - `FfiError::Storage` for raw Supabase failures.
+    pub async fn check_send_swap_claimed(
+        &self,
+        swap_id: String,
+    ) -> Result<crate::send::SendSwapClaimSnapshot, FfiError> {
+        use cdk::nuts::{CheckStateRequest, State as CdkProofState};
+        // `MintConnector` is brought into scope so the dyn-Arc
+        // returned by `wallet.connector()` exposes `post_check_state`.
+        #[allow(unused_imports)]
+        use cdk::wallet::MintConnector;
+
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+
+        let id = Uuid::parse_str(&swap_id)
+            .map_err(|e| FfiError::internal(format!("invalid swap_id: {e}")))?;
+        let swap = self
+            .send_swap_storage
+            .get(id)
+            .await
+            .map_err(|e| FfiError::internal(format!("storage error: {e}")))?;
+        if swap.user_id != user_id {
+            return Err(FfiError::internal("swap belongs to a different user"));
+        }
+
+        // Fast path: already-terminal states short-circuit without a
+        // mint round-trip.
+        let proofs_to_send = match &swap.state {
+            CashuSendSwapState::Completed { .. } => {
+                return Ok(crate::send::SendSwapClaimSnapshot {
+                    state: crate::send::SendSwapClaimState::Completed,
+                    failure_reason: None,
+                });
+            }
+            CashuSendSwapState::Failed { failure_reason } => {
+                return Ok(crate::send::SendSwapClaimSnapshot {
+                    state: crate::send::SendSwapClaimState::Failed,
+                    failure_reason: Some(failure_reason.clone()),
+                });
+            }
+            CashuSendSwapState::Pending { proofs_to_send, .. } => proofs_to_send.clone(),
+            other => {
+                return Err(FfiError::internal(format!(
+                    "swap in unexpected state for claim-check: {other:?}"
+                )));
+            }
+        };
+
+        let accounts = self.storage.list_accounts(user_id).await?;
+        let account = accounts
+            .iter()
+            .find(|a| a.id == swap.account_id && a.account_type == AccountType::Cashu)
+            .ok_or_else(|| FfiError::internal("no matching account for swap"))?;
+
+        let wallet = self
+            .cashu_provider
+            .wallet_for_account(account)
+            .await
+            .map_err(cashu_provider_error_to_ffi)?;
+
+        // Hash each proof's secret to a curve point — this is the `Y`
+        // identifier NUT-07 uses to look up proof state by.
+        let ys: Vec<cdk::nuts::PublicKey> = proofs_to_send
+            .iter()
+            .map(|p| {
+                let secret = cdk::secret::Secret::from_str(&p.secret)
+                    .map_err(|e| FfiError::internal(format!("bad secret: {e}")))?;
+                cdk::dhke::hash_to_curve(secret.as_bytes())
+                    .map_err(|e| FfiError::internal(format!("hash_to_curve: {e}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let req = CheckStateRequest { ys };
+        let resp = wallet
+            .connector()
+            .post_check_state(req)
+            .await
+            .map_err(|e| FfiError::internal(format!("mint check_state: {e}")))?;
+
+        let all_spent = !resp.states.is_empty()
+            && resp.states.iter().all(|s| matches!(s.state, CdkProofState::Spent));
+
+        if all_spent {
+            // PENDING → COMPLETED so subsequent polls short-circuit on
+            // the persisted state.
+            self.send_swap_service
+                .complete(&swap)
+                .await
+                .map_err(send_swap_error_to_ffi)?;
+            Ok(crate::send::SendSwapClaimSnapshot {
+                state: crate::send::SendSwapClaimState::Completed,
+                failure_reason: None,
+            })
+        } else {
+            Ok(crate::send::SendSwapClaimSnapshot {
+                state: crate::send::SendSwapClaimState::Pending,
+                failure_reason: None,
+            })
+        }
+    }
 }
 
 /// Find a `Cashu` account whose `(mint_url, currency)` pair matches the
@@ -1172,6 +1487,30 @@ fn mint_quote_error_to_ffi(e: MintQuoteError) -> FfiError {
     }
 }
 
+/// Map `SendSwapError` down to `FfiError`. Same funneling pattern as
+/// `receive_swap_error_to_ffi` and `mint_quote_error_to_ffi`.
+fn send_swap_error_to_ffi(e: agicash_cashu::SendSwapError) -> FfiError {
+    use agicash_cashu::SendSwapError;
+    match e {
+        SendSwapError::AmountTooSmall => FfiError::internal("amount too small"),
+        SendSwapError::CurrencyMismatch { account, request } => FfiError::internal(format!(
+            "currency mismatch: account {account} differs from request {request}",
+        )),
+        SendSwapError::InsufficientBalance { needed, have } => FfiError::internal(format!(
+            "insufficient balance: need {needed}, have {have}",
+        )),
+        SendSwapError::InvalidTransition { from, event } => {
+            FfiError::internal(format!("invalid state transition from {from} on {event}"))
+        }
+        SendSwapError::Mint(inner) => cashu_provider_error_to_ffi(inner),
+        SendSwapError::Storage(s) => FfiError::internal(format!("storage error: {s}")),
+        SendSwapError::TokenEncode(msg) => FfiError::internal(format!("token encode error: {msg}")),
+        SendSwapError::DleqVerificationFailed(inner) => {
+            FfiError::internal(format!("DLEQ verification failed: {inner}"))
+        }
+    }
+}
+
 /// Map `Currency` -> minor `Unit` for amount-money construction. Mirrors
 /// the CLI's `unit_for_currency` (`receive_lightning.rs`).
 fn unit_for_currency(currency: Currency) -> Unit {
@@ -1303,6 +1642,51 @@ fn mint_url_from_account(account: &Account) -> String {
         .and_then(|v| v.as_str())
         .map(str::to_string)
         .unwrap_or_default()
+}
+
+// ---- cashu send-swap helpers ----
+
+/// Encode a slice of `TokenProof` into a V4 (`cashuB…`) wire token.
+/// Mirrors `encode_token` in `crates/agicash-cli/src/send.rs` with
+/// `token_version = 4` (the default `.to_string()` path on
+/// `cdk::nuts::Token`).
+fn encode_v4_token(
+    mint_url: &str,
+    proofs: &[TokenProof],
+    currency: Currency,
+) -> Result<String, String> {
+    let mint = MintUrl::from_str(mint_url).map_err(|e| format!("mint url: {e}"))?;
+    let cdk_proofs: Vec<Proof> = proofs
+        .iter()
+        .map(token_proof_to_cdk_proof)
+        .collect::<Result<Vec<_>, _>>()?;
+    let unit = cashu_unit_for_currency(currency);
+    let token = Token::new(mint, cdk_proofs, None, unit);
+    Ok(token.to_string())
+}
+
+fn cashu_unit_for_currency(currency: Currency) -> CurrencyUnit {
+    match currency {
+        Currency::Btc => CurrencyUnit::Sat,
+        Currency::Usd | Currency::Usdb => CurrencyUnit::Usd,
+    }
+}
+
+fn token_proof_to_cdk_proof(proof: &TokenProof) -> Result<Proof, String> {
+    use cdk::nuts::PublicKey;
+    use cdk::secret::Secret;
+    let keyset_id = KeysetId::from_str(&proof.id)
+        .map_err(|e| format!("keyset id {}: {e}", proof.id))?;
+    let secret = Secret::from_str(&proof.secret).map_err(|e| format!("secret: {e}"))?;
+    let c = PublicKey::from_hex(&proof.c).map_err(|e| format!("C: {e}"))?;
+    Ok(Proof {
+        amount: Amount::from(proof.amount),
+        keyset_id,
+        secret,
+        c,
+        witness: None,
+        dleq: None,
+    })
 }
 
 #[cfg(test)]
@@ -1515,6 +1899,65 @@ mod tests {
         .expect("construct");
         let err = wallet
             .complete_mint_quote(Uuid::new_v4().to_string())
+            .await
+            .expect_err("no session");
+        assert!(
+            matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
+        );
+    }
+
+    // ---- cashu send-swap FFI surface ----
+
+    #[tokio::test]
+    async fn prepare_send_quote_without_session_returns_unauthenticated() {
+        let cfg = fake_config();
+        let wallet = AgicashWallet::new(
+            cfg.opensecret_url,
+            cfg.client_id,
+            cfg.supabase_url,
+            cfg.anon_key,
+        )
+        .expect("construct");
+        let err = wallet
+            .prepare_send_quote(64, None, None)
+            .await
+            .expect_err("no session");
+        assert!(
+            matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
+        );
+    }
+
+    #[tokio::test]
+    async fn create_send_swap_without_session_returns_unauthenticated() {
+        let cfg = fake_config();
+        let wallet = AgicashWallet::new(
+            cfg.opensecret_url,
+            cfg.client_id,
+            cfg.supabase_url,
+            cfg.anon_key,
+        )
+        .expect("construct");
+        let err = wallet
+            .create_send_swap(64, None, None)
+            .await
+            .expect_err("no session");
+        assert!(
+            matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
+        );
+    }
+
+    #[tokio::test]
+    async fn check_send_swap_claimed_without_session_returns_unauthenticated() {
+        let cfg = fake_config();
+        let wallet = AgicashWallet::new(
+            cfg.opensecret_url,
+            cfg.client_id,
+            cfg.supabase_url,
+            cfg.anon_key,
+        )
+        .expect("construct");
+        let err = wallet
+            .check_send_swap_claimed(Uuid::new_v4().to_string())
             .await
             .expect_err("no session");
         assert!(
