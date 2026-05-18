@@ -75,7 +75,24 @@ pkgs.mkShell {
     }
     acli()        { cargo run --manifest-path "$(_agicash_manifest)" -p agicash-cli -- "$@"; }
     acli_keyring() { cargo run --manifest-path "$(_agicash_manifest)" -p agicash-cli --features keyring-storage -- "$@"; }
-    aweb()        { local root; root="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"; cargo leptos serve --manifest-path "$root/crates/agicash-web-leptos/Cargo.toml" "$@"; }
+    # `aweb` builds the leptos PWA wasm bundle via wasm-pack and
+    # (optionally) serves the crate dir as static files. The old SSR
+    # path (cargo-leptos + axum) was ripped on 2026-05-17 in favour of
+    # a pure CSR cdylib + browser-side opensecret calls. Run `aweb` to
+    # one-shot build; pass `--serve` to also start a
+    # `python3 -m http.server 3000` from the crate dir. The crate dir
+    # is the static-files root: index.html, style/, public/, and
+    # wasm-pack's pkg/ all live there. Note this function needs the
+    # wasm dev shell — run `nix develop .#wasm` first.
+    aweb() {
+      local root crate
+      root="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
+      crate="$root/crates/agicash-web-leptos"
+      (cd "$crate" && wasm-pack build --target web --out-dir pkg --dev) || return $?
+      if [ "$1" = "--serve" ]; then
+        (cd "$crate" && python3 -m http.server 3000)
+      fi
+    }
     acodegen()    { cargo run --manifest-path "$(_agicash_manifest)" -p agicash-storage-supabase-codegen -- "$@"; }
     atest()       { cargo test  --manifest-path "$(_agicash_manifest)" --workspace "$@"; }
     abuild()      { cargo build --manifest-path "$(_agicash_manifest)" --workspace "$@"; }
