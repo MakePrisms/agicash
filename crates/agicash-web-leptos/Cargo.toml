@@ -59,6 +59,14 @@ console_error_panic_hook = "0.1"
 # mocked Cashu redeem path to simulate the WalletClient round-trip
 # (see `// TODO[slice-12]` in `components/cashu_token_paste_view.rs`).
 gloo-timers = { version = "0.3", default-features = false, features = ["futures"] }
+# `gloo-net` — wasm-native fetch wrapper used by `WalletData::refresh`
+# to call Supabase PostgREST directly. Bypasses the
+# `agicash-storage-supabase` typed layer (which is not yet wasm-compat
+# due to rustls/ring/tokio-net pulls — see follow-up spec
+# `2026-05-17-storage-supabase-wasm-port-design.md`). The end-state
+# replaces this with `SupabaseStorage::list_accounts` once the port
+# lands; the signal shape on `WalletData` stays the same.
+gloo-net = { version = "0.6", default-features = false, features = ["http", "json"] }
 # `js-sys` + `web-sys` — used by the `ShareSheet` component to call the
 # Web Share API (`navigator.share`) with a clipboard fallback, and by
 # the LoginView's guest-auth path for getrandom-on-wasm wiring.

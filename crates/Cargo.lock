@@ -332,6 +332,7 @@ dependencies = [
  "cdk",
  "console_error_panic_hook",
  "getrandom 0.2.17",
+ "gloo-net",
  "gloo-timers",
  "http",
  "js-sys",
