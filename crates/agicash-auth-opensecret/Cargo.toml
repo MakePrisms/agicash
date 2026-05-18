@@ -58,8 +58,21 @@ tokio = { workspace = true }
 
 # On wasm, agicash-auth-opensecret still needs tokio macros / sync / time for
 # its async surface; the multi-threaded runtime is what we drop.
+#
+# `web-sys` + `wasm-bindgen` are pulled in for `BrowserSessionStorage`
+# (browser_storage.rs), which talks to `window.localStorage` to persist
+# the refresh token. We pick only the features the storage backend
+# touches — Window + Storage — to keep the wasm bundle tight.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "1.42", default-features = false, features = ["macros", "sync", "time"] }
+wasm-bindgen = { workspace = true }
+web-sys = { version = "0.3", features = ["Window", "Storage"] }
+
+# `wasm-bindgen-test` powers the browser-driven roundtrip tests in
+# `browser_storage.rs::tests`. Run with `wasm-pack test --headless
+# --chrome crates/agicash-auth-opensecret` (or --firefox / --safari).
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
 
 [dev-dependencies]
 tempfile = "3"
