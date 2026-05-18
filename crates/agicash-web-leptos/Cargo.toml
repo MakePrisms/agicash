@@ -36,6 +36,8 @@ hydrate = [
     "dep:wasm-bindgen-futures",
     "dep:console_error_panic_hook",
     "dep:gloo-net",
+    "dep:js-sys",
+    "dep:web-sys",
     "leptos/hydrate",
 ]
 
@@ -68,6 +70,17 @@ console_error_panic_hook = { version = "0.1", optional = true }
 # `gloo-net` wraps the browser fetch API; tiny dep, no transitive bloat,
 # avoids hand-rolling web_sys boilerplate for one POST.
 gloo-net = { version = "0.6", default-features = false, features = ["http", "json"], optional = true }
+# `js-sys` + `web-sys` — used by the `ShareSheet` component to call the
+# Web Share API (`navigator.share`) with a clipboard fallback. Leptos
+# already pulls both in transitively; declaring them as direct deps lets
+# this crate own the feature set it needs.
+js-sys = { workspace = true, optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "Clipboard",
+    "Navigator",
+    "Window",
+    "ShareData",
+] }
 
 [lints]
 workspace = true
