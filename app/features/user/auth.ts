@@ -28,6 +28,7 @@ import { generateRandomPassword } from '~/lib/password-generator';
 import { computeSHA256 } from '~/lib/sha256';
 import { guestAccountStorage } from './guest-account-storage';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
+import { sessionHintCookie } from './session-hint-cookie';
 
 export type AuthUser = UserResponse['user'];
 
@@ -50,6 +51,7 @@ export const authQueryOptions = () =>
       const access_token = window.localStorage.getItem('access_token');
       const refresh_token = window.localStorage.getItem('refresh_token');
       if (!access_token || !refresh_token) {
+        sessionHintCookie.clear();
         return { isLoggedIn: false } as const;
       }
 
@@ -63,10 +65,18 @@ export const authQueryOptions = () =>
         // Set Sentry user again to include the isGuest flag
         Sentry.setUser({ id: response.user.id, isGuest: !response.user.email });
 
+        // Mirror auth state into a hint cookie so the server can short-circuit
+        // SSR for unauthenticated visits. Lifetime matches the refresh token
+        // so we don't leave a stale "logged in" hint after the session
+        // genuinely expires.
+        const { exp } = jwtDecode<OpenSecretJwt>(refresh_token);
+        sessionHintCookie.set(exp - Math.floor(Date.now() / 1000));
+
         return { isLoggedIn: true, user: response.user } as const;
       } catch (error) {
         console.error('Failed to fetch user', { cause: error });
         Sentry.setUser(null);
+        sessionHintCookie.clear();
         return { isLoggedIn: false } as const;
       }
     },
@@ -362,6 +372,7 @@ const getJwt = (key: string): OpenSecretJwt | null => {
 const removeKeys = () => {
   localStorage.removeItem(accessTokenKey);
   localStorage.removeItem(refreshTokenKey);
+  sessionHintCookie.clear();
 };
 
 const getRefreshToken = () => getJwt(refreshTokenKey);

@@ -16,9 +16,9 @@ import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-sw
 import { CASH_APP_LOGO_URL } from '~/features/buy/cash-app';
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
-import useIsPwa from '~/hooks/use-is-pwa';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
 import { useUser } from '~/features/user/user-hooks';
+import useIsPwa from '~/hooks/use-is-pwa';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { cn } from '~/lib/utils';
 
