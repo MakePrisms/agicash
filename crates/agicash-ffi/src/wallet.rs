@@ -39,6 +39,9 @@ use agicash_traits::{
     ProofEncryption, TokenProvider, UpsertUserInput, UserStorage,
 };
 use cdk::mint_url::MintUrl;
+use cdk::nuts::nut02::Id as KeysetId;
+use cdk::nuts::{CurrencyUnit, Proof, Token};
+use cdk::Amount;
 use rust_decimal::Decimal;
 use serde_json::json;
 use std::str::FromStr;
@@ -935,6 +938,102 @@ impl AgicashWallet {
             mint_url,
         })
     }
+
+    /// Persist a new Cashu send swap and produce a wire-form token.
+    /// Mirrors the CLI's `agicash send <amount>` (without `--dry-run`).
+    ///
+    /// Always encodes a **V4** (`cashuB…`) token. V3 is the legacy
+    /// shape; iOS v0 doesn't expose a chooser.
+    ///
+    /// Errors mirror `prepare_send_quote` plus token-encode failures.
+    pub async fn create_send_swap(
+        &self,
+        amount: u64,
+        account_id: Option<String>,
+        currency: Option<String>,
+    ) -> Result<crate::send::SendSwapHandle, FfiError> {
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+
+        if amount == 0 {
+            return Err(FfiError::internal("amount too small"));
+        }
+
+        let currency_str = currency.unwrap_or_else(|| "BTC".to_string());
+        let currency_enum = Currency::from_str(&currency_str)
+            .map_err(|_| FfiError::internal(format!("unsupported currency: {currency_str}")))?;
+        let unit = unit_for_currency(currency_enum);
+        let amount_money = Money::new(Decimal::from(amount), currency_enum, unit);
+
+        let accounts = self.storage.list_accounts(user_id).await?;
+        let account = pick_cashu_account_for_lightning(
+            &accounts,
+            account_id.as_deref(),
+            currency_enum,
+        )?
+        .clone();
+        let mint_url_str = account
+            .details
+            .get("mint_url")
+            .and_then(|v| v.as_str())
+            .map(std::string::ToString::to_string)
+            .ok_or_else(|| FfiError::internal("account.details missing mint_url"))?;
+
+        let proofs = self
+            .send_swap_storage
+            .list_unspent_proofs(account.id)
+            .await
+            .map_err(|e| FfiError::internal(format!("list unspent proofs: {e}")))?;
+
+        let create_result = self
+            .send_swap_service
+            .create(&account, &proofs, amount_money)
+            .await
+            .map_err(send_swap_error_to_ffi)?;
+
+        let swap = match &create_result.swap.state {
+            CashuSendSwapState::Draft => {
+                let seed = self.client.get_cashu_seed().await?;
+                self.send_swap_service
+                    .swap_for_proofs_to_send(&account, create_result.swap.clone(), &seed)
+                    .await
+                    .map_err(send_swap_error_to_ffi)?
+            }
+            CashuSendSwapState::Pending { .. } => create_result.swap.clone(),
+            other => {
+                return Err(FfiError::internal(format!(
+                    "unexpected post-create state: {other:?}"
+                )));
+            }
+        };
+
+        let proofs_to_send = match &swap.state {
+            CashuSendSwapState::Pending { proofs_to_send, .. }
+            | CashuSendSwapState::Completed { proofs_to_send, .. } => proofs_to_send.clone(),
+            other => {
+                return Err(FfiError::internal(format!(
+                    "swap not ready to encode: {other:?}"
+                )));
+            }
+        };
+
+        let token_str = encode_v4_token(&mint_url_str, &proofs_to_send, currency_enum)
+            .map_err(|e| FfiError::internal(format!("token encode error: {e}")))?;
+
+        Ok(crate::send::SendSwapHandle {
+            swap_id: swap.id.to_string(),
+            token: token_str,
+            amount: swap.amount_received.amount().to_string(),
+            fee: swap.total_fee.amount().to_string(),
+            unit: swap.amount_received.unit().to_string(),
+            currency: account.currency.to_string(),
+            account_id: account.id.to_string(),
+            mint_url: mint_url_str,
+        })
+    }
 }
 
 /// Find a `Cashu` account whose `(mint_url, currency)` pair matches the
@@ -1333,6 +1432,51 @@ fn mint_url_from_account(account: &Account) -> String {
         .unwrap_or_default()
 }
 
+// ---- cashu send-swap helpers ----
+
+/// Encode a slice of `TokenProof` into a V4 (`cashuB…`) wire token.
+/// Mirrors `encode_token` in `crates/agicash-cli/src/send.rs` with
+/// `token_version = 4` (the default `.to_string()` path on
+/// `cdk::nuts::Token`).
+fn encode_v4_token(
+    mint_url: &str,
+    proofs: &[TokenProof],
+    currency: Currency,
+) -> Result<String, String> {
+    let mint = MintUrl::from_str(mint_url).map_err(|e| format!("mint url: {e}"))?;
+    let cdk_proofs: Vec<Proof> = proofs
+        .iter()
+        .map(token_proof_to_cdk_proof)
+        .collect::<Result<Vec<_>, _>>()?;
+    let unit = cashu_unit_for_currency(currency);
+    let token = Token::new(mint, cdk_proofs, None, unit);
+    Ok(token.to_string())
+}
+
+fn cashu_unit_for_currency(currency: Currency) -> CurrencyUnit {
+    match currency {
+        Currency::Btc => CurrencyUnit::Sat,
+        Currency::Usd | Currency::Usdb => CurrencyUnit::Usd,
+    }
+}
+
+fn token_proof_to_cdk_proof(proof: &TokenProof) -> Result<Proof, String> {
+    use cdk::nuts::PublicKey;
+    use cdk::secret::Secret;
+    let keyset_id = KeysetId::from_str(&proof.id)
+        .map_err(|e| format!("keyset id {}: {e}", proof.id))?;
+    let secret = Secret::from_str(&proof.secret).map_err(|e| format!("secret: {e}"))?;
+    let c = PublicKey::from_hex(&proof.c).map_err(|e| format!("C: {e}"))?;
+    Ok(Proof {
+        amount: Amount::from(proof.amount),
+        keyset_id,
+        secret,
+        c,
+        witness: None,
+        dleq: None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1490,6 +1634,25 @@ mod tests {
         .expect("construct");
         let err = wallet
             .prepare_send_quote(64, None, None)
+            .await
+            .expect_err("no session");
+        assert!(
+            matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
+        );
+    }
+
+    #[tokio::test]
+    async fn create_send_swap_without_session_returns_unauthenticated() {
+        let cfg = fake_config();
+        let wallet = AgicashWallet::new(
+            cfg.opensecret_url,
+            cfg.client_id,
+            cfg.supabase_url,
+            cfg.anon_key,
+        )
+        .expect("construct");
+        let err = wallet
+            .create_send_swap(64, None, None)
             .await
             .expect_err("no session");
         assert!(
