@@ -1,9 +1,7 @@
-# Devenv
-.devenv*
-devenv.local.nix
-
-# direnv
-.direnv
+# Nix
+.direnv/
+result
+result-*
 
 # pre-commit
 .pre-commit-config.yaml
@@ -16,24 +14,14 @@ devenv.local.nix
 !.vscode/launch.json
 !.vscode/extensions.json
 
-node_modules
-
 /.cache
-/build
 .env
-.vercel
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
 
 .DS_Store
 
 # Claude Code
 .claude/settings.local.json
 .claude/worktrees/
-
-.react-router/
 
 # Local SSL certificates
 /certs/*

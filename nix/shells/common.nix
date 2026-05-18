@@ -19,14 +19,43 @@ let
     ];
   };
 
+  # generate-ssl-cert script (preserves the behaviour of the old devenv
+  # `scripts.generate-ssl-cert.exec` hook). Wrapped as a Nix derivation so
+  # it lands on PATH and so `mkcert` resolves to the flake-pinned version.
+  generate-ssl-cert = pkgs.writeShellApplication {
+    name = "generate-ssl-cert";
+    runtimeInputs = [ pkgs.mkcert pkgs.nss.tools pkgs.openssl ];
+    text = builtins.readFile ../../tools/dev/generate-ssl-cert.sh;
+  };
+
   basePackages = [
     rustToolchain
-    pkgs.just
+
+    # General dev tools (survivors from devenv.nix).
     pkgs.git
+    pkgs.gh
     pkgs.jq
     pkgs.curl
     pkgs.openssl
     pkgs.pkg-config
+    pkgs.just
+
+    # Local Supabase HTTPS + JWT chain.
+    # mkcert + nss.tools install the local CA into Firefox/Chrome trust
+    # stores (see memory project_opensecret_local_stack.md).
+    pkgs.mkcert
+    pkgs.nss.tools
+
+    # Supabase CLI — `supabase start` runs the local postgres/auth/storage
+    # stack used by the rust storage crate + opensecret JWT chain.
+    pkgs.supabase-cli
+
+    # Build acceleration — shared cargo target + sccache wrapper (per memory
+    # feedback_dev_loop_cache.md: 10-30× warm-cache speedup across worktrees).
+    pkgs.sccache
+
+    # generate-ssl-cert script (defined above).
+    generate-ssl-cert
   ];
 in
 {
