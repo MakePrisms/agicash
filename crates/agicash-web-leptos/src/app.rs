@@ -1,8 +1,13 @@
-//! Root `<App/>` component + the SSR `shell` function cargo-leptos invokes
-//! to wrap the page in the standard `<html>...<body>` envelope.
+//! Root `<App/>` component.
+//!
+//! Pure CSR (no SSR shell): the surrounding `<html>...<body>` envelope
+//! lives in `crates/agicash-web-leptos/index.html`, which loads the
+//! wasm bundle and invokes `hydrate()` (see `lib.rs`). The previous
+//! `shell()` function and `LeptosOptions` plumbing were removed when
+//! the axum SSR pipeline was ripped on 2026-05-17.
 
 use leptos::prelude::*;
-use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
+use leptos_meta::{provide_meta_context, Stylesheet, Title};
 use leptos_router::{
     components::{ParentRoute, Route, Router, Routes},
     path, StaticSegment,
@@ -16,55 +21,12 @@ use crate::pages::{
 };
 
 /// Auth signal stored in the Leptos context. `Some(access_token)` means
-/// "logged in"; `None` redirects to `/login`. Spec §7 keeps the access
-/// token in memory only and never localStorage. Refresh token sits in an
-/// httpOnly cookie set by the axum auth proxy.
+/// "logged in"; `None` redirects to `/login`. The access token stays in
+/// memory only — the refresh token persists to `window.localStorage`
+/// via `BrowserSessionStorage` so a page reload can rehydrate the
+/// session (matches the legacy React app's convention).
 #[derive(Clone, Debug)]
 pub struct AccessToken(pub RwSignal<Option<String>>);
-
-/// SSR shell. cargo-leptos calls this per request to render the outer HTML
-/// envelope; the inner `<App/>` is what gets hydrated.
-pub fn shell(options: LeptosOptions) -> impl IntoView {
-    view! {
-        <!DOCTYPE html>
-        <html lang="en">
-            <head>
-                <meta charset="utf-8"/>
-                <meta name="viewport" content="width=device-width, initial-scale=1"/>
-                <meta name="theme-color" content="#ffffff"/>
-                <link rel="manifest" href="/manifest.json"/>
-                <link rel="icon" type="image/x-icon" href="/favicon.ico"/>
-                <link rel="apple-touch-icon" href="/icon-192x192.png"/>
-                <meta name="apple-mobile-web-app-capable" content="yes"/>
-                <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-                // Fonts from the design-tokens system (design/tokens.json):
-                // Kode Mono for UI text, Teko for monetary numerics.
-                <link rel="preconnect" href="https://fonts.googleapis.com"/>
-                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
-                <link
-                    rel="stylesheet"
-                    href="https://fonts.googleapis.com/css2?family=Kode+Mono:wght@400..700&family=Teko:wght@300..700&display=swap"
-                />
-                <AutoReload options=options.clone() />
-                <HydrationScripts options/>
-                <MetaTags/>
-            </head>
-            <body>
-                <App/>
-                // Register the service worker after hydration. Best-effort —
-                // browsers without SW support silently skip. Kept out of the
-                // App component proper so it only fires once per page load.
-                <script>
-                    "if ('serviceWorker' in navigator) {
-                        window.addEventListener('load', function() {
-                            navigator.serviceWorker.register('/service-worker.js').catch(function(){});
-                        });
-                    }"
-                </script>
-            </body>
-        </html>
-    }
-}
 
 /// Root reactive component. Provides the `AccessToken` context, the
 /// `<Title/>` + `<Stylesheet/>` from `leptos_meta`, and the router with
@@ -97,7 +59,7 @@ pub fn App() -> impl IntoView {
     provide_context(access_token);
 
     view! {
-        <Stylesheet id="leptos" href="/pkg/agicash-web-leptos.css"/>
+        <Stylesheet id="leptos" href="/style/main.css"/>
         <Title text="Agicash"/>
 
         <Router>

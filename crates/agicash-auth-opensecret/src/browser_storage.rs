@@ -5,7 +5,8 @@
 //! app-specific name). The XSS exposure on the refresh token is
 //! accepted — same threat surface as the React app. See the operator's
 //! pivot note dated 2026-05-17 for the decision rationale (browser
-//! storage chosen over IndexedDB + WebCrypto and over HttpOnly cookies).
+//! storage chosen over `IndexedDB` + `WebCrypto` and over `HttpOnly`
+//! cookies).
 //!
 //! Run the browser-driven tests from the workspace root with:
 //!
@@ -66,7 +67,7 @@ impl Default for BrowserSessionStorage {
 /// `localStorage` raises `QuotaExceededError`, `SecurityError`, etc.; we
 /// surface them as `Io` since the caller's recovery path is uniform
 /// (clear + retry / surface to the user).
-fn js_err_to_storage_error(err: JsValue) -> SessionStorageError {
+fn js_err_to_storage_error(err: &JsValue) -> SessionStorageError {
     SessionStorageError::Io(format!("{err:?}"))
 }
 
@@ -79,7 +80,7 @@ fn local_storage() -> Result<web_sys::Storage, SessionStorageError> {
     })?;
     window
         .local_storage()
-        .map_err(js_err_to_storage_error)?
+        .map_err(|e| js_err_to_storage_error(&e))?
         .ok_or_else(|| {
             // Some browsers (Safari private mode, embedded webviews with
             // storage disabled) return `Ok(None)` here. Treat the same

@@ -2,11 +2,16 @@
 //! `LoginOptionsCard` (see `ios/Agicash/Agicash/LoginView.swift` L123-193).
 //!
 //! Phase 1 partial behaviour:
-//!   - "Continue as guest" calls `POST /api/auth/guest`, stores the
-//!     returned access token in the `AccessToken` signal, and navigates `/`.
+//!   - "Continue as guest" calls `OpenSecretClient::register_guest`
+//!     directly from wasm, persists the refresh token to
+//!     `window.localStorage` via `BrowserSessionStorage`, stores the
+//!     access token in the `AccessToken` signal, and navigates `/`.
 //!   - "Log in with Email" and "Log in with Google" show a placeholder
 //!     toast — those flows arrive after slice 12 wires the `WalletClient`.
 //!   - "Sign up" link is a placeholder for the same reason.
+//!
+//! The axum SSR auth-proxy was ripped on 2026-05-17; the only path
+//! now is wasm → opensecret direct.
 
 // The `LoginView` component renders a long view block in Leptos's IntoView
 // idiom; splitting it would just add indirection for indirection's sake.
@@ -15,18 +20,16 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::hooks::use_navigate;
-use serde::Deserialize;
 
 use crate::app::AccessToken;
 use crate::tokens;
 
-/// Mirrors `agicash_web_leptos::auth::AuthResponse` on the SSR side.
-/// Kept local to avoid pulling the SSR-only module into the wasm bundle.
-/// Both fields are accessed only in the hydrate build (the SSR build
-/// compiles but never executes the fetch path), hence the dead-code
-/// allowance for the SSR-only check.
+/// Output of the in-browser guest-auth path. Only the `access_token`
+/// gets propagated to the `AccessToken` signal; `user_id` is kept for
+/// future plumbing (analytics, settings page) and currently unread on
+/// the native `rlib` build.
 #[allow(dead_code)]
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 struct AuthResponse {
     access_token: String,
     user_id: String,
@@ -44,8 +47,9 @@ pub fn LoginView() -> impl IntoView {
 
     // ---- Guest auth handler ------------------------------------------------
     // Clones for the move closure. spawn_local hops the request to the
-    // browser's microtask queue; SSR side compiles but `gloo_net::fetch`
-    // and friends only run on wasm32.
+    // browser's microtask queue; the native rlib build compiles the
+    // closure but the live opensecret round-trip is wasm-only (see the
+    // `cfg(target_arch = "wasm32")` gate inside the closure).
     let on_guest = {
         let navigate = navigate.clone();
         move |_ev| {
@@ -56,11 +60,14 @@ pub fn LoginView() -> impl IntoView {
             error_message.set(None);
             let navigate = navigate.clone();
             spawn_local(async move {
-                // The actual HTTP call lives behind `feature = "hydrate"` so
-                // the SSR build doesn't depend on browser-only crates.
-                // The closure body still has to compile for SSR though, hence
-                // the cfg-gated branches.
-                #[cfg(feature = "hydrate")]
+                // The opensecret round-trip is browser-only — `reqwest`'s
+                // wasm future is `!Send` and the native rlib build (kept
+                // for `cargo test` to pick up the unit tests on the
+                // pure-Rust pieces) cannot pull it in. Gate the live path
+                // on `target_arch = "wasm32"`; the native arm just
+                // touches the captured signals so they don't appear
+                // unused.
+                #[cfg(target_arch = "wasm32")]
                 {
                     match guest_auth_fetch().await {
                         Ok(resp) => {
@@ -72,11 +79,8 @@ pub fn LoginView() -> impl IntoView {
                         }
                     }
                 }
-                #[cfg(not(feature = "hydrate"))]
+                #[cfg(not(target_arch = "wasm32"))]
                 {
-                    // Touch the bindings so the compiler doesn't gripe about
-                    // unused captures on the SSR build. The closure is dead
-                    // code there anyway because there's no browser to run it.
                     let _ = (&token, &navigate);
                 }
                 is_working.set(false);
@@ -259,31 +263,78 @@ fn button_style(variant: ButtonVariant) -> String {
     )
 }
 
-// ---- Browser fetch helper -------------------------------------------------
-// Only compiled into the wasm bundle (gated behind `feature = "hydrate"`).
-// `gloo-net` wraps the platform `fetch` and handles credentials + JSON.
+// ---- Browser-side guest auth -------------------------------------------
+// No more axum proxy: the wasm bundle calls into `OpenSecretClient`
+// directly, persists the refresh token via `BrowserSessionStorage`
+// (`window.localStorage`), and surfaces the access token to the App
+// via the `AccessToken` signal.
+//
+// Threat model: XSS exposure on the refresh token is accepted, matching
+// the legacy React app's convention. See the operator's 2026-05-17
+// pivot note for the rationale.
+//
+// Config: for the Phase-1 smoke test we hardcode the local-dev
+// enclave (`http://127.0.0.1:3999`) + the workspace's `OPENSECRET_CLIENT_ID`
+// default. Real config injection (build-time env, `<meta>` tag, fetch
+// from a `/config.json`) is a follow-up — the surface here is the only
+// site that needs updating when we wire it.
 
-#[cfg(feature = "hydrate")]
+/// Local-dev enclave URL. Mirrors the default in `nix/shells/default.nix`
+/// (and the operator's `project_opensecret_local_stack.md` recipe).
+#[cfg(target_arch = "wasm32")]
+const DEV_OPENSECRET_BASE_URL: &str = "http://127.0.0.1:3999";
+
+/// Local-dev client_id. Mirrors the default in `nix/shells/default.nix`.
+#[cfg(target_arch = "wasm32")]
+const DEV_OPENSECRET_CLIENT_ID: &str = "ba5a14b5-d915-47b1-b7b1-afda52bc5fc6";
+
+#[cfg(target_arch = "wasm32")]
 async fn guest_auth_fetch() -> Result<AuthResponse, String> {
-    use gloo_net::http::Request;
+    use agicash_auth_opensecret::{
+        register_guest, BrowserSessionStorage, OpenSecretClient, OpenSecretConfig,
+    };
+    use agicash_traits::{PersistedSession, SessionStorage};
 
-    // Browser sends same-origin cookies by default on POST; the axum
-    // /api/auth/refresh route relies on this for httpOnly-cookie reads.
-    let resp = Request::post("/api/auth/guest")
-        .header("Content-Type", "application/json")
-        .send()
+    let config = OpenSecretConfig {
+        base_url: DEV_OPENSECRET_BASE_URL.to_string(),
+        client_id: DEV_OPENSECRET_CLIENT_ID
+            .parse()
+            .map_err(|e| format!("invalid built-in client_id: {e}"))?,
+    };
+    let client =
+        OpenSecretClient::new(config).map_err(|e| format!("build opensecret client: {e}"))?;
+
+    let password = random_password_browser();
+    let response = register_guest(&client, password, client.client_id())
         .await
-        .map_err(|e| format!("network error: {e}"))?;
+        .map_err(|e| format!("guest registration failed: {e}"))?;
 
-    if !resp.ok() {
-        return Err(format!(
-            "auth server returned {} {}",
-            resp.status(),
-            resp.status_text()
-        ));
-    }
-
-    resp.json::<AuthResponse>()
+    // Persist refresh token to localStorage so a page reload can resume
+    // the session. The access token stays in memory (the `AccessToken`
+    // signal) per spec §7's in-memory-only access-token rule.
+    let persisted = PersistedSession {
+        user_id: response.id,
+        refresh_token: response.refresh_token.clone(),
+    };
+    BrowserSessionStorage::new()
+        .store(&persisted)
         .await
-        .map_err(|e| format!("parse json: {e}"))
+        .map_err(|e| format!("session persist failed: {e}"))?;
+
+    Ok(AuthResponse {
+        access_token: response.access_token,
+        user_id: response.id.to_string(),
+    })
+}
+
+/// Throwaway 32-char hex password for guest registration. The enclave
+/// hashes it; we never need to recover it. Sourced from `getrandom`
+/// (wasm-compatible via the `js` feature on the workspace dep).
+#[cfg(target_arch = "wasm32")]
+fn random_password_browser() -> String {
+    let mut buf = [0u8; 16];
+    // Best-effort: if `getrandom` fails the downstream opensecret call
+    // will also fail and the user sees a comprehensible error in the UI.
+    let _ = getrandom::getrandom(&mut buf);
+    buf.iter().map(|b| format!("{b:02x}")).collect()
 }

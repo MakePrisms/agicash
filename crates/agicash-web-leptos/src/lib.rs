@@ -1,37 +1,36 @@
 //! `agicash-web-leptos` — the Rust UI for Agicash, built on Leptos 0.7.
 //!
-//! This crate ships in two shapes from one source tree:
-//!   - `feature = "ssr"`   — the axum server binary (Linux/macOS native).
-//!   - `feature = "hydrate"` — the wasm32 bundle the browser downloads.
+//! This crate ships a single wasm `cdylib` loaded by a static
+//! `index.html`. There is no SSR server; the previous axum auth-proxy
+//! and `cargo-leptos` SSR pipeline have been replaced by direct
+//! browser-side calls into `OpenSecretClient`, with refresh tokens
+//! persisted via `BrowserSessionStorage` (`window.localStorage`). The
+//! threat model on the refresh token matches the legacy React app.
 //!
-//! `cargo-leptos` orchestrates both builds (see `[package.metadata.leptos]`
-//! in `Cargo.toml`). The same Rust code defines the `App` component; the
-//! server prerenders it and the browser hydrates it.
+//! Build:
 //!
-//! See `~/agicash/docs/superpowers/specs/2026-05-16-agicash-leptos-pwa-design.md`
-//! for the full design.
+//! ```sh
+//! wasm-pack build --target web --out-dir pkg crates/agicash-web-leptos
+//! ```
+//!
+//! Then serve `crates/agicash-web-leptos/` as static files (e.g.
+//! `python3 -m http.server 3000` from that directory).
 
 pub mod app;
 pub mod components;
 pub mod pages;
 pub mod tokens;
 
-// The auth-proxy handlers (calls into opensecret) live in `auth/` and are
-// SSR-only — opensecret 3.1.1 does not currently compile to wasm32, and even
-// when it does, we keep the browser away from it for XSS hygiene (spec §7).
-#[cfg(feature = "ssr")]
-pub mod auth;
+pub use app::App;
 
-pub use app::{shell, App};
-
-/// Hydrate entry point — browsers call this to attach reactivity to the
-/// SSR-prerendered HTML. cargo-leptos's generated `pkg/...wasm` calls this
-/// automatically on load.
-#[cfg(feature = "hydrate")]
+/// Browser entry point — wasm-pack's generated JS glue calls this once
+/// the wasm module is loaded. With pure CSR (no SSR prerender), this
+/// performs the initial render onto `<body>`.
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub fn hydrate() {
-    // Surface Rust panics in the browser console as readable stack traces
-    // rather than a generic "unreachable executed" message.
+    // Surface Rust panics in the browser console as readable stack
+    // traces rather than a generic "unreachable executed" message.
     console_error_panic_hook::set_once();
-    leptos::mount::hydrate_body(App);
+    leptos::mount::mount_to_body(App);
 }
