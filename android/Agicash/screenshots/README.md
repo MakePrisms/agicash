@@ -1,5 +1,17 @@
 # Screenshots
 
+This directory holds emulator screenshots captured on the dev host.
+
+## Captures
+
+- `home_supabase_success.png` — guest auth + `list accounts` round-trip
+  against local Supabase (https://10.0.2.2:54321). Captured after running
+  `../../scripts/setup-emulator-tls.sh` which installs the mkcert root CA
+  into the emulator's APEX trust store so rustls-platform-verifier accepts
+  the local cert.
+
+## How-to (legacy operator setup)
+
 This directory will hold emulator screenshots once an Android Emulator AVD is
 available on the dev host.
 
