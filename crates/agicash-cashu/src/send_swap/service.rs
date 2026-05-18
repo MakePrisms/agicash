@@ -958,6 +958,9 @@ mod tests {
         ) -> Result<Vec<ProofWithId>, SendSwapStorageError> {
             unreachable!()
         }
+        async fn get(&self, _swap_id: Uuid) -> Result<CashuSendSwap, SendSwapStorageError> {
+            unreachable!()
+        }
     }
 
     /// Storage that records the last `complete`/`fail` call for assertion
@@ -999,6 +1002,9 @@ mod tests {
             &self,
             _account_id: agicash_domain::AccountId,
         ) -> Result<Vec<ProofWithId>, SendSwapStorageError> {
+            unreachable!()
+        }
+        async fn get(&self, _swap_id: Uuid) -> Result<CashuSendSwap, SendSwapStorageError> {
             unreachable!()
         }
     }
