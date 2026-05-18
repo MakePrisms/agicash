@@ -6,128 +6,76 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
-# The crate builds two things from one source tree, cargo-leptos style:
-#   - `cdylib` for the wasm32 hydrate bundle (browser-side rendering)
-#   - `rlib`   for the axum SSR server (Linux/macOS native)
-# `lib.rs` is shared; per-target code is `#[cfg(feature = "ssr" / "hydrate")]`-gated.
+# The crate ships as a single wasm cdylib loaded by `index.html`. We also
+# keep the `rlib` crate-type so the workspace `cargo test` can pick up
+# the unit tests on native (the pure-Rust pieces — tokens, design helpers,
+# anything not gated behind `target_arch = "wasm32"`).
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [features]
-# Server-side render + axum binary build. Pulls in all native-only deps
-# (axum, opensecret, tokio multi-thread). Used by `src/main.rs` and the
-# auth-proxy handlers in `src/auth/`.
-ssr = [
-    "dep:axum",
-    "dep:tokio",
-    "dep:tower",
-    "dep:tower-http",
-    "dep:leptos_axum",
-    "dep:agicash-auth-opensecret",
-    "leptos/ssr",
-    "leptos_meta/ssr",
-    "leptos_router/ssr",
-]
-# Browser-side hydrate bundle. Pulls in wasm-bindgen + console panic hook
-# only. Auth proxy crates are intentionally absent — the browser never
-# loads opensecret directly (spec §7).
-hydrate = [
-    "dep:wasm-bindgen",
-    "dep:wasm-bindgen-futures",
-    "dep:console_error_panic_hook",
-    "dep:gloo-net",
-    "dep:gloo-timers",
-    "dep:js-sys",
-    "dep:web-sys",
-    "leptos/hydrate",
-]
+# Browser-side build is the ONLY shipping target now — the axum SSR
+# server was ripped on 2026-05-17 in favour of pure CSR + direct
+# `OpenSecretClient` calls from wasm. Refresh token persists in
+# `window.localStorage` via `BrowserSessionStorage` (parity with the
+# legacy React app's convention).
+default = ["hydrate"]
+hydrate = ["leptos/hydrate"]
 
 [dependencies]
-# Leptos 0.7 — fine-grained reactivity, stable reactive-graph (spec §3).
-# Note: not using the `nightly` features; the workspace toolchain pins to
-# stable rust 1.88 (see `crates/rust-toolchain.toml`). The Function-trait
-# tracking-issue features `nightly` toggles are nice-to-haves, not required.
+# Leptos 0.7 — fine-grained reactivity, stable reactive-graph.
+# Note: not using the `nightly` features; the workspace toolchain pins
+# to stable rust 1.88 (see `crates/rust-toolchain.toml`).
 leptos = { version = "0.7" }
 leptos_meta = { version = "0.7" }
 leptos_router = { version = "0.7" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+uuid = { workspace = true }
 http = "1"
 
 # CDK — Cashu Development Kit. We only use the parser side here
 # (`cdk::nuts::Token::from_str` + `.value()/.mint_url()/.unit()/.memo()`),
 # which is wasm-clean with `default-features = false, features = ["wallet"]`
-# (the workspace dep already pins those — see `crates/Cargo.toml` line 51,
-# `project_agicash_wasm_path.md` for context). We don't touch
-# `cdk::wallet::HttpClient` from the browser; the redeem path is mocked
-# until slice 12 lands `WalletClient::receive_cashu_token`.
+# (the workspace dep already pins those — see `crates/Cargo.toml`,
+# `project_agicash_wasm_path.md` for context).
 cdk = { workspace = true }
 
-# --- SSR-only (axum server side) ---
-# Pulled in only when the `ssr` feature is on, so the wasm bundle never
-# tries to compile axum / tokio / opensecret (those don't target wasm32).
-axum = { version = "0.7", optional = true }
-tokio = { workspace = true, optional = true }
-tower = { version = "0.5", optional = true }
-tower-http = { version = "0.6", optional = true, features = ["fs", "trace"] }
-leptos_axum = { version = "0.7", optional = true }
-agicash-auth-opensecret = { path = "../agicash-auth-opensecret", default-features = false, optional = true }
+# Direct opensecret client — wasm-compatible per the
+# audit/auth-opensecret-wasm work. Disable default features so the
+# native-only `keyring-storage` cargo feature stays off (it's gated by
+# `target_arch` anyway, but skipping the dependency at request time
+# keeps the dep graph clean).
+agicash-auth-opensecret = { path = "../agicash-auth-opensecret", default-features = false }
+agicash-traits = { path = "../agicash-traits" }
 
-# --- Hydrate-only (browser side) ---
-wasm-bindgen = { workspace = true, optional = true }
-wasm-bindgen-futures = { workspace = true, optional = true }
-console_error_panic_hook = { version = "0.1", optional = true }
-# `gloo-net` wraps the browser fetch API; tiny dep, no transitive bloat,
-# avoids hand-rolling web_sys boilerplate for one POST.
-gloo-net = { version = "0.6", default-features = false, features = ["http", "json"], optional = true }
+# Browser-side runtime deps. Always-on now that ssr is gone — the
+# `target_arch = "wasm32"` cfg in `lib.rs::hydrate` keeps the native
+# `rlib` build (for unit tests) from trying to pull these in.
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+console_error_panic_hook = "0.1"
 # `gloo-timers` gives us a wasm-safe Future-based sleep. Used by the
 # mocked Cashu redeem path to simulate the WalletClient round-trip
 # (see `// TODO[slice-12]` in `components/cashu_token_paste_view.rs`).
-gloo-timers = { version = "0.3", default-features = false, features = ["futures"], optional = true }
+gloo-timers = { version = "0.3", default-features = false, features = ["futures"] }
 # `js-sys` + `web-sys` — used by the `ShareSheet` component to call the
-# Web Share API (`navigator.share`) with a clipboard fallback. Leptos
-# already pulls both in transitively; declaring them as direct deps lets
-# this crate own the feature set it needs.
-js-sys = { workspace = true, optional = true }
-web-sys = { version = "0.3", optional = true, features = [
+# Web Share API (`navigator.share`) with a clipboard fallback, and by
+# the LoginView's guest-auth path for getrandom-on-wasm wiring.
+js-sys = { workspace = true }
+web-sys = { version = "0.3", features = [
     "Clipboard",
     "Navigator",
     "Window",
+    "Storage",
     "ShareData",
 ] }
 
+# `getrandom` for the throwaway guest-registration password. Wasm
+# support requires the `js` feature; the native `rlib` build doesn't
+# need it but the feature is additive so it's safe to enable
+# unconditionally.
+getrandom = { workspace = true, features = ["js"] }
+
 [lints]
 workspace = true
-
-# -----------------------------------------------------------------------------
-# cargo-leptos metadata (see https://github.com/leptos-rs/cargo-leptos for
-# the canonical schema). Run `cargo leptos serve` from the workspace root or
-# from this crate dir to start the dev loop.
-# -----------------------------------------------------------------------------
-[package.metadata.leptos]
-# Public path inside the bundle dir, e.g. /pkg/agicash-web-leptos.js.
-output-name = "agicash-web-leptos"
-# Where cargo-leptos drops the bundle ((wasm + css + hashed assets)).
-site-root = "target/site"
-# Public URL prefix the SSR server mounts the bundle at (default).
-site-pkg-dir = "pkg"
-# Static asset dir copied verbatim into the site root.
-assets-dir = "public"
-# Tailwind/CSS entry. Build pipeline injects the hashed `<link>` into
-# the SSR shell automatically.
-style-file = "style/main.css"
-# Where the SSR server listens during `cargo leptos serve`.
-site-addr = "127.0.0.1:3000"
-# `cargo-leptos` runs the SSR binary on this port for reload signalling.
-reload-port = 3001
-# Which feature flags drive the bin vs lib builds.
-bin-features = ["ssr"]
-lib-features = ["hydrate"]
-# Cargo profile.
-bin-default-features = false
-lib-default-features = false
-# Browser target — tailored for the wasm bundle. `wasm-opt -Oz` runs as
-# part of the release pipeline; cargo-leptos handles the invocation.
-browserquery = "defaults"
-# Watch dirs (defaults are sensible; override only if we add more later).
-watch-additional-files = ["public", "style"]
