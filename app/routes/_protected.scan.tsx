@@ -3,7 +3,6 @@ import {
   ClosePageButton,
   Page,
   PageContent,
-  PageFooter,
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
@@ -11,13 +10,16 @@ import { QRScanner } from '~/components/qr-scanner';
 import { Button } from '~/components/ui/button';
 import { classifyInput } from '~/features/scan';
 import { validateBolt11 } from '~/features/send/validation';
+import useIsPwa from '~/hooks/use-is-pwa';
 import { useToast } from '~/hooks/use-toast';
 import { readClipboard } from '~/lib/read-clipboard';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
+import { cn } from '~/lib/utils';
 
 export default function ScanPage() {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
+  const isPwa = useIsPwa();
 
   const handleInput = (raw: string) => {
     const result = classifyInput(raw);
@@ -75,18 +77,23 @@ export default function ScanPage() {
 
   return (
     <Page>
-      <PageHeader className="z-10">
+      <PageHeader className="z-20">
         <ClosePageButton to="/" transition="slideDown" applyTo="oldView" />
         <PageHeaderTitle>Scan</PageHeaderTitle>
       </PageHeader>
-      <PageContent className="relative flex items-center justify-center">
+      <PageContent className="relative z-10 mx-auto items-center pt-20 sm:justify-center sm:py-0">
         <QRScanner onDecode={handleInput} />
+        <div
+          className={cn(
+            'sm:-translate-x-1/2 mt-auto flex w-72 flex-col items-center gap-4 sm:absolute sm:bottom-14 sm:left-1/2 sm:mt-0',
+            isPwa && 'pb-20',
+          )}
+        >
+          <Button type="button" onClick={handlePaste}>
+            <Clipboard className="h-5 w-5" /> Paste
+          </Button>
+        </div>
       </PageContent>
-      <PageFooter className="pb-14">
-        <Button type="button" onClick={handlePaste}>
-          <Clipboard className="h-5 w-5" /> Paste
-        </Button>
-      </PageFooter>
     </Page>
   );
 }

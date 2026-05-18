@@ -1,0 +1,184 @@
+@import url("https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap");
+
+/* CSS variables for the marketing palette / fonts.
+   Kept here (rather than in tailwind.css) because they're only used by the
+   homepage and several Tailwind arbitrary-value classes reference them via
+   text-[color:var(--mk-text)] etc. */
+.marketing {
+  --mk-bg: #04080f;
+  --mk-bg-card: rgba(12, 20, 36, 0.5);
+  --mk-text: #e8edf8;
+  --mk-text-dim: #8094b8;
+  --mk-text-muted: #455575;
+  --mk-brand: #00d4ff;
+  --mk-border: rgba(255, 255, 255, 0.06);
+  --mk-border-bright: rgba(255, 255, 255, 0.12);
+  --mk-font-display: "Cabinet Grotesk", -apple-system, BlinkMacSystemFont,
+    sans-serif;
+  --mk-font-mono: "Kode Mono", ui-monospace, monospace;
+  --mk-font-numeric: "Teko", sans-serif;
+
+  font-feature-settings: "ss01", "ss02";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Map Tailwind's font-mono utility to Kode Mono inside the marketing tree.
+   Without this, font-mono falls back to the default ui-monospace stack and
+   loses the brand monospace face. */
+.marketing .font-mono {
+  font-family: var(--mk-font-mono);
+}
+
+/* Section scroll target — the outer <section> carries the id (e.g. #buy,
+   #send), so a hash navigation lands at the top of the section itself
+   rather than mid-content where the section's label sits. Offset matches
+   the sticky nav's height per breakpoint (-1px so the section's border-t
+   overlays the nav's border-b as a single 1px line). */
+.marketing section[id] {
+  scroll-margin-top: 64px;
+}
+@media (min-width: 768px) {
+  .marketing section[id] {
+    scroll-margin-top: 70px;
+  }
+}
+
+/* Stagger children base animation. Per-child delays are set inline via
+   style={{ animationDelay }} on each child. */
+.marketing .stagger > * {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: mk-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Pay stage cyclical animations — when `.playing`, several descendants
+   animate independently on a single 6s cycle. Easier to leave as CSS
+   because Tailwind has no concept of "ancestor state triggers descendant
+   animation". */
+.marketing .pay-stage.playing .pay-qr-wrap {
+  animation: pay-qr-cycle 6s linear infinite;
+}
+.marketing .pay-stage.playing .pay-scanline {
+  animation: pay-scan-cycle 6s ease-in-out infinite;
+}
+.marketing .pay-stage.playing .pay-paid {
+  animation: pay-paid-cycle 6s ease-in-out infinite;
+}
+.marketing .pay-stage.playing .pay-status-scan {
+  animation: pay-status-scan 6s linear infinite;
+}
+.marketing .pay-stage.playing .pay-status-paid {
+  animation: pay-status-paid 6s linear infinite;
+}
+
+/* Transit card — when the parent .transit-rail.played fires, the card flies.
+   Could push to inline with React state but cleaner to keep the trigger as
+   an ancestor class toggle. */
+.marketing .transit-rail.played .transit-card {
+  animation: transit-fly 1500ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+/* Transit-card decorative inner gradient via ::before — Tailwind can do
+   `before:` with `content-['']` but stacking inset + radial gradient with
+   border-radius is more readable as plain CSS. */
+.marketing .transit-card::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 212, 255, 0.18),
+    rgba(0, 212, 255, 0.05)
+  );
+}
+
+/* Transit-track dashed midline via ::before — kept as CSS for the same
+   stacking + repeating gradient reason. */
+.marketing .transit-track::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-image: linear-gradient(
+    to right,
+    var(--mk-border) 50%,
+    transparent 50%
+  );
+  background-size: 8px 1px;
+  transform: translateY(-50%);
+}
+
+/* Buy-stage paid-state animation triggers — ancestor class drives nested
+   element animations + staggered delays. */
+.marketing .buy-stage.paid .cashapp-check,
+.marketing .buy-stage.paid .cashapp-headline,
+.marketing .buy-stage.paid .cashapp-done {
+  animation: confirm-pop 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.marketing .buy-stage.paid .cashapp-headline {
+  animation-delay: 80ms;
+}
+.marketing .buy-stage.paid .cashapp-done {
+  animation-delay: 160ms;
+}
+
+/* Footer image filter — turn the imported SVG socials into off-white
+   silhouettes. Filter chains are not in Tailwind out of the box. */
+.marketing .footer-social-img {
+  filter: invert(56%) sepia(8%) saturate(750%) hue-rotate(190deg)
+    brightness(95%) contrast(85%);
+  opacity: 0.9;
+  transition: filter 200ms ease, opacity 200ms ease;
+}
+.marketing .footer-social-link:hover .footer-social-img {
+  filter: invert(94%) sepia(5%) saturate(380%) hue-rotate(190deg)
+    brightness(102%) contrast(94%);
+  opacity: 1;
+}
+
+/* Spec-leader dotted line — repeating radial gradient. Tailwind can't
+   express this directly. */
+.marketing .spec-leader-line {
+  height: 1px;
+  background-image: radial-gradient(
+    circle,
+    var(--mk-text-muted) 0.6px,
+    transparent 0.6px
+  );
+  background-size: 6px 1px;
+  background-repeat: repeat-x;
+  background-position: 0 50%;
+  align-self: center;
+  opacity: 0.6;
+}
+
+@media (max-width: 767px) {
+  .marketing .spec-leader-line {
+    display: none;
+  }
+}
+
+/* Specimen-ruler — vertical ruler with repeating ticks. Tailwind doesn't
+   express repeating-linear-gradient cleanly. */
+.marketing .specimen-ruler-line {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--mk-border) 0,
+    var(--mk-border) 1px,
+    transparent 1px,
+    transparent 24px
+  );
+  background-position: right;
+  background-size: 6px 24px;
+  background-repeat: repeat-y;
+}
+
+@media (max-width: 767px) {
+  .marketing .specimen-ruler-line {
+    display: none;
+  }
+}
