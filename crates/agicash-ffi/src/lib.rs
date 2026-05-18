@@ -19,6 +19,7 @@ pub mod mint_quote;
 pub mod observability;
 pub mod receive;
 pub mod receive_flow;
+pub mod send;
 pub mod session;
 pub mod wallet;
 
@@ -29,6 +30,7 @@ pub use mint_quote::*;
 pub use observability::{init as init_observability, jwt_sub};
 pub use receive::*;
 pub use receive_flow::*;
+pub use send::*;
 pub use session::*;
 pub use wallet::*;
 
