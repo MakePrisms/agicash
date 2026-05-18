@@ -164,15 +164,17 @@ impl WalletData {
         // spinner even before the async work yields.
         self.accounts.set(LoadState::Loading);
 
+        // Capture context BEFORE spawning — `spawn_local` futures run
+        // outside the reactive owner that provided the context, so
+        // `use_context` inside the async block always returns None.
+        // Reading it sync here threads the value through to the future.
+        #[cfg(target_arch = "wasm32")]
+        let config = use_context::<AppConfig>();
+
         leptos::task::spawn_local(async move {
             #[cfg(target_arch = "wasm32")]
             {
-                // Best-effort grab of the AppConfig from context. The
-                // app root always provides one (see `app.rs`), so
-                // `expect_context` is safe in production. We `use_context`
-                // here so non-app callers (unlikely but possible) don't
-                // panic — they just fail the fetch with a clear message.
-                let Some(config) = use_context::<AppConfig>() else {
+                let Some(config) = config else {
                     self.accounts
                         .set(LoadState::Error("AppConfig context missing".to_string()));
                     return;
