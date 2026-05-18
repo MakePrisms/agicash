@@ -39,12 +39,13 @@ impl OpenSecretKeyProvider {
 
 // `KeyProvider: Send + Sync` is incompatible with wasm's reqwest (futures
 // hold `Rc<...>` / `wasm_bindgen::Closure<dyn FnMut + 'static>` which are
-// `!Send`). The trait is `?Send` on wasm, but `async_trait` on the impl
-// expands to a `Send` future by default. Per the WASM worker's report,
-// browser callers should reach for inherent methods on `OpenSecretClient`
-// until a wasm-shim provider lands (slice 13b).
-#[cfg(not(target_arch = "wasm32"))]
-#[async_trait]
+// `!Send`). The trait is `?Send` on wasm (see `agicash-traits`), and we
+// mirror the same cfg-gated `async_trait` attribute on the impl so wasm
+// callers (notably `agicash-web-leptos`) can compose with the
+// trait-based architecture instead of being limited to the inherent
+// surface on `OpenSecretClient`.
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl KeyProvider for OpenSecretKeyProvider {
     async fn derive_private_key(&self, options: KeyOptions) -> Result<SecretKey, AuthError> {
         self.client.ensure_handshake().await?;
