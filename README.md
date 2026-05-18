@@ -1,257 +1,82 @@
-# Agicash
+# agicash-rs
 
-Multi-platform self-custody wallet SDK. A pure-Rust core (`crates/`) is consumed
-by four shells: a `agicash-cli` terminal binary, a SwiftUI iOS app (`ios/`), a
-Kotlin Android app (`android/`), and a Leptos browser PWA (`crates/agicash-web-leptos`).
-The wallet's primary protocol is Cashu; Lightning and LN-Address support are
-secondary. Identity, seeds, and per-user encryption keys live in
-[OpenSecret](https://opensecret.cloud); mutable wallet rows live in Supabase
-Postgres with sensitive columns encrypted client-side.
+Experimental rewrite of [MakePrisms/agicash](https://github.com/MakePrisms/agicash) as a multi-platform Rust workspace.
+
+A pure-Rust core in `crates/` is consumed by four shells: a CLI binary, a SwiftUI iOS app, a Kotlin Android app, and a Leptos browser PWA. iOS + Android consume the core through UniFFI; the PWA consumes it as wasm. Identity + seeds live in [OpenSecret](https://opensecret.cloud); wallet rows live in Supabase Postgres.
 
 ## Quick start
 
-1. Install Nix (flakes enabled) and direnv. macOS:
-
-   ```sh
-   curl -L https://github.com/NixOS/experimental-nix-installer/releases/download/0.27.0/nix-installer.sh | sh -s -- install
-   brew install direnv
-   # then hook direnv into your shell: https://direnv.net/docs/hook.html
-   ```
-
-2. Clone and enter the repo:
-
-   ```sh
-   git clone git@github.com:gudnuf/agicash-rs.git ~/agicash
-   cd ~/agicash
-   direnv allow
-   ```
-
-   First entry into the flake takes a few minutes to populate the Nix store;
-   subsequent entries are instant. The default shell ships Rust 1.88 (workspace
-   pin) plus rustfmt, clippy, rust-analyzer, and the wasm32 / iOS / Android
-   target triples.
-
-3. Bring up the local stack:
-
-   ```sh
-   # OpenSecret enclave on :3999 — runs from a separate checkout.
-   # See docs/local-stack.md for the postgres + enclave details.
-   (cd ~/opensecret && cargo run) &
-
-   # Supabase (postgres + auth + storage + realtime).
-   bunx supabase start
-   ```
-
-   The flake's shell hook runs `generate-ssl-cert` on first entry, so the
-   mkcert-issued cert at `certs/localhost-cert.pem` is in place before
-   `supabase start` reads `supabase/config.toml`.
-
-4. Copy `.env.example` to `.env`. The only values you usually have to
-   override are `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`,
-   which `supabase start` regenerates each time it stands up a fresh
-   local instance. Read them out of `bunx supabase status`.
-
-5. Canary the stack:
-
-   ```sh
-   acli auth guest
-   acli account list
-   ```
-
-   `auth guest` should print a guest session; `account list` should return
-   the empty seed account set for a fresh user.
-
-### Shell functions
-
-Defined in `nix/shells/default.nix` as shell functions (not aliases) so they
-survive `bash -c`, `nix develop -c <cmd>`, and direnv-exported environments.
-
-| Function       | Expands to                                                        |
-|----------------|-------------------------------------------------------------------|
-| `acli`         | `cargo run -p agicash-cli --`                                     |
-| `acli_keyring` | same with `--features keyring-storage` (OS-keyring session store) |
-| `aweb`         | leptos PWA dev loop (currently `cargo leptos serve`)              |
-| `acodegen`     | `cargo run -p agicash-storage-supabase-codegen --`                |
-| `atest`        | `cargo test --workspace`                                          |
-| `abuild`       | `cargo build --workspace`                                         |
-| `aclippy`      | `cargo clippy --workspace --all-targets -- -D warnings`           |
-| `afmt`         | `cargo fmt --all`                                                 |
-| `awasm`        | `cargo build --target wasm32-unknown-unknown -p agicash-wasm`     |
-
-### Environment variables
-
-The flake's default shell hook (in `nix/shells/default.nix`) sets defaults for
-everything the workspace needs to talk to the local stack:
-
-| Variable                   | Default (set by flake if unset)                                  |
-|----------------------------|------------------------------------------------------------------|
-| `OPENSECRET_BASE_URL`      | `http://127.0.0.1:3999`                                          |
-| `OPENSECRET_CLIENT_ID`     | seeded Maple project UUID                                        |
-| `SUPABASE_URL`             | `https://127.0.0.1:54321`                                        |
-| `SUPABASE_JWT_SECRET`      | `super-secret-jwt-token-with-at-least-32-characters-long`        |
-| `SELF_SIGNED_CERT_PATH`    | `../certs/localhost-cert.pem` (resolved relative to `supabase/`) |
-| `SELF_SIGNED_CERT_KEY_PATH`| `../certs/localhost-key.pem`                                     |
-| `RUSTC_WRAPPER`            | path to `sccache`                                                |
-| `CARGO_TARGET_DIR`         | `$HOME/.cache/agicash-cargo-target` (shared across worktrees)    |
-| `SCCACHE_DIR`              | `$HOME/.cache/sccache`                                           |
-
-`.env` (gitignored) owns the values the operator controls:
-
-- `SUPABASE_ANON_KEY` — regenerated by `supabase start`.
-- `SUPABASE_SERVICE_ROLE_KEY` — same; required for integration tests that
-  bypass RLS.
-- Any of the flake defaults above, if you want to point at a non-local
-  deployment.
-
-`.env` is loaded by direnv on top of the flake hook, so anything set there
-wins.
-
-## Repository layout
-
-| Path                          | Purpose                                                                                    |
-|-------------------------------|--------------------------------------------------------------------------------------------|
-| `crates/`                     | Pure-Rust core. See the table below.                                                       |
-| `bindings/swift/`             | UniFFI swift bindings + `generate-bindings.sh` (builds the iOS xcframework).               |
-| `bindings/kotlin/`            | UniFFI kotlin bindings + `generate-bindings.sh` (builds JNI `.so` per ABI).                |
-| `ios/Agicash/`                | SwiftUI app. Consumes `bindings/swift/`. `project.yml` is xcodegen input.                  |
-| `android/Agicash/`            | Kotlin app. Consumes `bindings/kotlin/`. Gradle build.                                     |
-| `nix/`                        | Per-environment dev shells (`default`, `ios`, `android`, `wasm`).                          |
-| `flake.nix`, `flake.lock`     | Flake entry point. Pinned nixpkgs + rust-overlay + android-nixpkgs.                        |
-| `supabase/`                   | Local Supabase config, SQL migrations, seed.                                               |
-| `certs/`                      | mkcert-issued local-dev SSL cert (gitignored).                                             |
-| `scripts/`                    | Workspace helper scripts (`gen-rust-types.sh`).                                            |
-| `tools/`                      | One-off operator tools.                                                                    |
-| `docs/`                       | Architecture notes, specs, plans, audits, runbooks.                                        |
-| `.github/workflows/`          | CI: rust fmt + clippy + test on every push.                                                |
-
-Crates:
-
-| Crate                                | Purpose                                                                       |
-|--------------------------------------|-------------------------------------------------------------------------------|
-| `agicash-domain`                     | Foundational types: ids, currency, account, transaction.                      |
-| `agicash-money`                      | Currency- and unit-safe arithmetic. No raw integers cross crate boundaries.   |
-| `agicash-crypto`                     | xchacha20poly1305 + per-user key derivation helpers.                          |
-| `agicash-traits`                     | `Storage*`, `KeyProvider`, `TokenProvider`, providers, `Clock` — the seams.   |
-| `agicash-cashu`                      | `cdk` wrapper + sans-IO state machines per feature (send swap, receive, ...). |
-| `agicash-spark`                      | Breez SDK Spark fork wrapper + state machines.                                |
-| `agicash-exchange-rate`              | FX provider trait + impls.                                                    |
-| `agicash-lightning-address`          | LNURL-pay + LN-Address resolution.                                            |
-| `agicash-storage-supabase`           | `Storage*` impls over postgrest + RLS.                                        |
-| `agicash-storage-supabase-codegen`   | Generates rust storage types from SQL migrations.                             |
-| `agicash-auth-opensecret`            | `KeyProvider` + `TokenProvider` impls over OpenSecret 0.2.9.                  |
-| `agicash-cache`                      | `WalletCache` + event bus + subscription primitives.                          |
-| `agicash-services`                   | Async orchestrators per feature. Consume state machines + providers.          |
-| `agicash-wallet`                     | `WalletClient` facade. The public surface every shell binds to.               |
-| `agicash-cli`                        | `agicash` binary. clap + tokio + `WalletClient`.                              |
-| `agicash-ffi`                        | UniFFI surface consumed by iOS + Android bindings.                            |
-| `agicash-web-leptos`                 | Leptos PWA. Hydrate-only wasm bundle, served as static files.                 |
-| `agicash-wasm`                       | Thin wasm-bindgen shim for future browser consumers outside the leptos app.   |
-| `agicash-testing`                    | In-memory fakes, fixtures, builders.                                          |
-
-## How it works
-
-```
-   ┌─────────────────────────────────────────────────────────────────────┐
-   │  View                                                                │
-   │   SwiftUI (ios/Agicash)  Compose (android/Agicash)                   │
-   │   Leptos (agicash-web-leptos)   clap (agicash-cli)                   │
-   └────────────────────────┬─────────────────────────────────────────────┘
-                            │
-   ┌────────────────────────┴─────────────────────────────────────────────┐
-   │  ViewModel / handler                                                 │
-   │   Swift WalletViewModel · Kotlin ViewModel · Leptos signals · CLI cmd│
-   └────────────────────────┬─────────────────────────────────────────────┘
-                            │   (FFI for ios/android · direct call for rust)
-   ┌────────────────────────┴─────────────────────────────────────────────┐
-   │  agicash-wallet ─ WalletClient facade                                │
-   └────────────────────────┬─────────────────────────────────────────────┘
-                            │
-   ┌────────────────────────┴─────────────────────────────────────────────┐
-   │  agicash-services ─ async orchestrators per feature                  │
-   └────────────────────────┬─────────────────────────────────────────────┘
-                            │
-   ┌────────────────────────┴─────────────────────────────────────────────┐
-   │  agicash-cashu / agicash-spark ─ sans-IO state machines              │
-   └────────────────────────┬─────────────────────────────────────────────┘
-                            │   (via traits in agicash-traits)
-   ┌────────────────────────┴─────────────────────────────────────────────┐
-   │  Storage / KeyProvider / TokenProvider impls                         │
-   │   agicash-storage-supabase · agicash-auth-opensecret · cdk providers │
-   └──────────────────────────────────────────────────────────────────────┘
+```sh
+# Prereqs: Nix (flakes enabled) + direnv hooked into your shell.
+git clone git@github.com:gudnuf/agicash-rs.git ~/agicash
+cd ~/agicash
+direnv allow            # populates the flake shell (first run ~5 min)
 ```
 
-The core of the architecture is trait composition. `agicash-traits` defines the
-seams — `Storage*` for persistence, `KeyProvider` and `TokenProvider` for
-identity, plus `Clock` and feature-specific provider traits. Sans-IO state
-machines in `agicash-cashu` and `agicash-spark` are written against those
-traits and contain no async or I/O of their own; they consume input events and
-produce output events that the caller dispatches. The async orchestrators in
-`agicash-services` glue state machines to concrete providers, and
-`agicash-wallet::WalletClient` aggregates the orchestrators into a single
-facade — that facade is what every shell binds to. Swapping a backend (e.g. a
-fake `Storage*` for tests, an alternate auth provider for a hosted deployment)
-is a trait-impl swap at the composition root, not a rewrite. See
-`docs/architecture.md` for a per-crate dependency walk-through and
-`docs/superpowers/specs/2026-05-14-agicash-rust-sdk-design.md` for the design
-rationale.
+Bring up the local stack (separate checkouts run alongside):
+
+```sh
+(cd ~/opensecret && cargo run) &      # OpenSecret enclave on :3999
+bunx supabase start                   # Supabase on :54321
+```
+
+Copy `.env.example` to `.env` and fill in `SUPABASE_ANON_KEY` + `SUPABASE_SERVICE_ROLE_KEY` from `bunx supabase status`. Everything else has flake defaults.
+
+Canary:
+
+```sh
+acli auth guest
+acli account list
+```
+
+Stack details: `docs/local-stack.md`.
+
+## Shell functions
+
+In the flake shell (`nix develop`):
+
+| Function | What it runs |
+|---|---|
+| `acli` | `cargo run -p agicash-cli --` |
+| `aweb` | leptos PWA dev loop |
+| `atest` / `abuild` / `aclippy` / `afmt` | `cargo test`/`build`/`clippy`/`fmt --all` on the workspace |
+| `awasm` | wasm32 build of `agicash-wasm` |
+| `acodegen` | regenerate Supabase types |
+
+## Repo layout
+
+| Path | Contents |
+|---|---|
+| `crates/` | Rust core. Layout in `crates/README.md`. |
+| `bindings/{swift,kotlin}/` | UniFFI bindings + `generate-bindings.sh`. |
+| `ios/Agicash/` | SwiftUI app. `project.yml` is xcodegen input. |
+| `android/Agicash/` | Kotlin app. Gradle. |
+| `nix/` | Per-environment dev shells (`default`, `ios`, `android`, `wasm`). |
+| `supabase/` | Local Supabase config + SQL migrations. |
+| `docs/` | Architecture, specs, plans, audits. |
+
+## How it composes
+
+View (SwiftUI / Compose / Leptos / CLI) → ViewModel → `WalletClient` facade (`agicash-wallet`) → async orchestrators (`agicash-services`) → sans-IO state machines (`agicash-cashu`, `agicash-spark`) → trait impls (`agicash-storage-supabase`, `agicash-auth-opensecret`, cdk providers).
+
+Seams are traits in `agicash-traits`. Swapping a backend is a trait-impl swap at the composition root. Full walk-through: `docs/architecture.md`.
 
 ## Platform builds
 
-### iOS xcframework
+| Target | Commands |
+|---|---|
+| iOS xcframework | `nix develop .#ios && bindings/swift/generate-bindings.sh` → open `ios/Agicash/` in Xcode |
+| Android APK | `nix develop .#android && bindings/kotlin/generate-bindings.sh && (cd android/Agicash && ./gradlew assembleDebug)` |
+| Leptos PWA | `nix develop .#wasm && aweb` (output: `crates/agicash-web-leptos/target/site/`, static-hostable) |
+| CLI binary | `abuild --release -p agicash-cli` (output: `$CARGO_TARGET_DIR/release/agicash`) |
 
-```sh
-nix develop .#ios
-bindings/swift/generate-bindings.sh
-# → bindings/swift/build/xcframework/agicash_ffiFFI.xcframework
-# → bindings/swift/Sources/AgicashSDK/*.swift
-```
+## More docs
 
-Then open `ios/Agicash/` in Xcode (after running `xcodegen` against
-`project.yml`).
-
-### Android APK
-
-```sh
-nix develop .#android
-bindings/kotlin/generate-bindings.sh
-# → bindings/kotlin/build/jniLibs/<abi>/libagicash_ffi_kotlin.so
-# → bindings/kotlin/build/sources/com/makeprisms/agicash/sdk/*.kt
-
-cd android/Agicash
-./gradlew assembleDebug
-# → app/build/outputs/apk/debug/app-debug.apk
-```
-
-### Leptos PWA
-
-```sh
-nix develop .#wasm
-aweb
-# serves the dev build at the address printed in stdout (default :3000)
-```
-
-Cargo-leptos drops the bundle (hashed wasm + JS + CSS + assets) into
-`crates/agicash-web-leptos/target/site/`. Production deploy is static-file
-hosting of that directory; the bundle has no server-side runtime
-requirement.
-
-### CLI binary
-
-```sh
-abuild --release -p agicash-cli
-# → $CARGO_TARGET_DIR/release/agicash
-```
-
-## Where to find more
-
-- `docs/architecture.md` — layered architecture, per-crate dependency map.
-- `docs/local-stack.md` — OpenSecret enclave + Supabase + cert setup details.
-- `docs/supabase.md` — schema, migrations, event system, deploying to hosted envs.
-- `docs/testing.md` — unit/integration test layout, feature-gated real-service tests.
-- `docs/contributing.md` — code style, formatting, branching, CI policy.
-- `docs/migration-from-react.md` — pointer to the pre-rust React app archive.
-- `docs/superpowers/specs/` — design specs (the rust SDK design, ios redesigns, etc.).
-- `docs/superpowers/plans/` — implementation plans, per slice.
-- `docs/superpowers/audits/` — audits (NUT compliance, etc.).
-- `nix/README.md` — per-environment dev shell details.
-- `crates/README.md` — workspace layout and slice-by-slice build commands.
+- `docs/architecture.md` — layered architecture, per-crate dependency map
+- `docs/local-stack.md` — OpenSecret + Supabase + cert setup details
+- `docs/supabase.md` — schema, migrations, event system, hosted deploys
+- `docs/testing.md` — test layout, feature-gated real-service tests
+- `docs/contributing.md` — code style, branching, CI
+- `docs/migration-from-react.md` — pointer to the React app archive
+- `crates/README.md` — per-crate layout + dependencies
+- `nix/README.md` — per-environment dev shell details
