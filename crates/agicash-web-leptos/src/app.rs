@@ -13,7 +13,7 @@ use leptos_router::{
     path, StaticSegment,
 };
 
-use crate::components::{ProtectedLayout, WalletData};
+use crate::components::{ProtectedLayout, ToastProvider, WalletData};
 use crate::config::AppConfig;
 use crate::pages::{
     AccountsAddPage, AccountsIndexPage, HomePage, LoginPage, ReceiveCashuPage, ReceivePage,
@@ -75,36 +75,43 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/style/main.css"/>
         <Title text="Agicash"/>
 
-        <Router>
-            <main>
-                <Routes fallback=|| "Not found.">
-                    <Route path=StaticSegment("/login") view=LoginPage/>
+        // Toast queue wraps the whole router so any descendant can call
+        // `use_toast()` without each route having to provide its own
+        // context. Used today by `SendCashuView`'s copy-to-clipboard
+        // feedback (lane L5); future receive / settings flows can lean
+        // on the same handle.
+        <ToastProvider>
+            <Router>
+                <main>
+                    <Routes fallback=|| "Not found.">
+                        <Route path=StaticSegment("/login") view=LoginPage/>
 
-                    // Protected group. The empty-path ParentRoute matches
-                    // every URL that didn't match `/login` above; the inner
-                    // index child (also empty path) renders Home, siblings
-                    // handle the named tabs + their nested sub-routes.
-                    <ParentRoute path=StaticSegment("") view=ProtectedLayout>
-                        <Route path=StaticSegment("") view=HomePage/>
-                        <Route path=StaticSegment("receive") view=ReceivePage/>
-                        // Paste-Cashu-token receive flow (lane L4).
-                        // `path!` expands to a tuple of `StaticSegment`s
-                        // for multi-segment static paths.
-                        <Route path=path!("/receive/cashu") view=ReceiveCashuPage/>
-                        <Route path=StaticSegment("send") view=SendPage/>
-                        <Route path=StaticSegment("accounts") view=AccountsIndexPage/>
-                        <Route path=(StaticSegment("accounts"), StaticSegment("add"))
-                               view=AccountsAddPage/>
-                        <Route path=StaticSegment("settings") view=SettingsIndexPage/>
-                        <Route path=(StaticSegment("settings"), StaticSegment("profile"))
-                               view=SettingsProfilePage/>
-                        <Route path=(StaticSegment("settings"), StaticSegment("appearance"))
-                               view=SettingsAppearancePage/>
-                        <Route path=(StaticSegment("settings"), StaticSegment("contacts"))
-                               view=SettingsContactsPage/>
-                    </ParentRoute>
-                </Routes>
-            </main>
-        </Router>
+                        // Protected group. The empty-path ParentRoute matches
+                        // every URL that didn't match `/login` above; the inner
+                        // index child (also empty path) renders Home, siblings
+                        // handle the named tabs + their nested sub-routes.
+                        <ParentRoute path=StaticSegment("") view=ProtectedLayout>
+                            <Route path=StaticSegment("") view=HomePage/>
+                            <Route path=StaticSegment("receive") view=ReceivePage/>
+                            // Paste-Cashu-token receive flow (lane L4).
+                            // `path!` expands to a tuple of `StaticSegment`s
+                            // for multi-segment static paths.
+                            <Route path=path!("/receive/cashu") view=ReceiveCashuPage/>
+                            <Route path=StaticSegment("send") view=SendPage/>
+                            <Route path=StaticSegment("accounts") view=AccountsIndexPage/>
+                            <Route path=(StaticSegment("accounts"), StaticSegment("add"))
+                                   view=AccountsAddPage/>
+                            <Route path=StaticSegment("settings") view=SettingsIndexPage/>
+                            <Route path=(StaticSegment("settings"), StaticSegment("profile"))
+                                   view=SettingsProfilePage/>
+                            <Route path=(StaticSegment("settings"), StaticSegment("appearance"))
+                                   view=SettingsAppearancePage/>
+                            <Route path=(StaticSegment("settings"), StaticSegment("contacts"))
+                                   view=SettingsContactsPage/>
+                        </ParentRoute>
+                    </Routes>
+                </main>
+            </Router>
+        </ToastProvider>
     }
 }

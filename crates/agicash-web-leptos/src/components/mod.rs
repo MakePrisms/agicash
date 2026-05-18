@@ -5,6 +5,7 @@
 //!   - L2 (this lane, app shell): `bottom_nav`, `protected_layout`.
 //!   - L3 (primitives): `button`, `numpad`, `sheet`, `share`, `toast`, `currency_toggle`.
 //!   - L4 (receive-token): `cashu_token_paste_view`.
+//!   - L5 (send-token): `send_cashu_view` — Cashu send state machine.
 //!
 //! Phase 1 partial ships:
 //! - [`LoginView`] — three-option login chooser (slice 2).
@@ -13,6 +14,9 @@
 //!   conflict with the L3 component-library branch when those land — see the
 //!   `// TODO: replace with L3 <Card> / <Button>` markers in
 //!   `cashu_token_paste_view.rs`.
+//! - [`SendCashuView`] — Cashu send state machine (lane L5). Lives behind
+//!   `/send`'s Cashu tab; SDK boundary mocked behind `// TODO[slice-13]`
+//!   markers pending the storage-supabase wasm port.
 //!
 //! Phase 1 UI primitives (lane L3):
 //! - [`Button`] — Primary/Secondary/Destructive/Ghost variants, sizes,
@@ -30,6 +34,7 @@ mod currency_toggle;
 mod login_view;
 mod numpad;
 mod protected_layout;
+mod send_cashu_view;
 mod share_sheet;
 mod sheet;
 mod toast;
@@ -42,6 +47,7 @@ pub use currency_toggle::{Currency, CurrencyToggle};
 pub use login_view::LoginView;
 pub use numpad::{Numpad, DEFAULT_MAX_DIGITS};
 pub use protected_layout::ProtectedLayout;
+pub use send_cashu_view::SendCashuView;
 pub use share_sheet::{SharePayload, ShareSheet};
 pub use sheet::Sheet;
 pub use toast::{
