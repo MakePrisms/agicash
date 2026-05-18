@@ -24,8 +24,9 @@ use agicash_auth_opensecret::{
 use agicash_cashu::{
     CashuMintQuote, CashuMintQuoteService, CashuMintQuoteState, CashuMintQuoteStorage,
     CashuReceiveSwapService, CashuReceiveSwapState, CashuReceiveSwapStorage, CashuSeedProvider,
-    CashuSendSwapStorage, CdkCashuProvider, CompleteMintQuoteOutcome, CompleteOutcome,
-    MintQuoteError, ParsedToken, ReceiveFlowService, ReceiveSwapError, ReceiveSwapStorageError,
+    CashuSendSwapService, CashuSendSwapState, CashuSendSwapStorage, CdkCashuProvider,
+    CompleteMintQuoteOutcome, CompleteOutcome, MintQuoteError, ParsedToken, ReceiveFlowService,
+    ReceiveSwapError, ReceiveSwapStorageError, TokenProof,
 };
 use agicash_domain::{Account, AccountPurpose, AccountType, Currency, UserId};
 use agicash_money::{Money, Unit};
@@ -74,6 +75,11 @@ pub struct AgicashWallet {
     /// `poll_mint_quote` can read the persisted quote by id without
     /// holding the service.
     mint_quote_storage: Arc<dyn CashuMintQuoteStorage>,
+    /// Send-swap orchestrator. Wired against the same `send_swap_storage`
+    /// + `cashu_provider` the wallet already owns. Drives
+    /// `prepare_send_quote`, `create_send_swap`, `check_send_swap_claimed`.
+    /// Mirrors `mint_quote_service`.
+    send_swap_service: Arc<CashuSendSwapService>,
     /// In-memory session. Phase 1 leaves persistence to the Swift consumer:
     /// the iOS app stores the `refresh_token` in Keychain and rehydrates this
     /// slot via `set_session` on app launch.
@@ -189,6 +195,14 @@ impl AgicashWallet {
             Arc::clone(&cashu_provider),
         ));
 
+        // Send-swap service wiring mirrors the CLI's `build_send_swap_deps`
+        // (composition.rs). Same `send_swap_storage` slot we already
+        // own; same CDK provider.
+        let send_swap_service = Arc::new(CashuSendSwapService::new(
+            Arc::clone(&send_swap_storage),
+            Arc::clone(&cashu_provider),
+        ));
+
         Ok(Arc::new(Self {
             client,
             storage,
@@ -197,6 +211,7 @@ impl AgicashWallet {
             send_swap_storage,
             mint_quote_service,
             mint_quote_storage,
+            send_swap_service,
             session: Arc::new(RwLock::new(None)),
         }))
     }
