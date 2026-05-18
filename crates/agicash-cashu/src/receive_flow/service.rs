@@ -533,6 +533,15 @@ mod tests {
         ) -> Result<Option<Account>, agicash_traits::StorageError> {
             Ok(None)
         }
+        async fn update_user_defaults(
+            &self,
+            _user_id: UserId,
+            _patch: agicash_traits::UpdateUserDefaults,
+        ) -> Result<User, agicash_traits::StorageError> {
+            Err(agicash_traits::StorageError::Internal(
+                "not used in tests".into(),
+            ))
+        }
     }
 
     struct StubProvider {

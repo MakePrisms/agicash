@@ -3,6 +3,28 @@ use agicash_domain::{Account, AccountId, AccountPurpose, AccountType, Currency, 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+/// Patch shape for `UserStorage::update_user_defaults`. Each field is
+/// "leave unchanged" when `None`, and "set to this value" when `Some`.
+/// `default_btc_account_id` / `default_usd_account_id` further support
+/// "clear" by passing `Some(None)` — useful if the underlying account is
+/// deleted. (Pass `None` at the outer Option to leave the slot alone.)
+///
+/// Mirrors the partial update the web app does in
+/// `app/features/user/user-repository.ts` (`WriteUserRepository.update`) — it
+/// PATCHes the `wallet.users` row with whichever of `default_btc_account_id`,
+/// `default_usd_account_id`, `default_currency` the caller supplied.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateUserDefaults {
+    /// Outer `Option`: present? Inner `Option`: set value (Some) or null
+    /// it out (None). Use the `set_*` constructors below for clarity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_btc_account_id: Option<Option<AccountId>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_usd_account_id: Option<Option<AccountId>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_currency: Option<Currency>,
+}
+
 /// Element of `p_accounts` in `wallet.upsert_user_with_accounts`.
 /// Field order matches the `wallet.account_input` composite type.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -81,6 +103,20 @@ pub trait UserStorage: Send + Sync {
     /// if no row matches. Does NOT filter by state — expired accounts are
     /// still readable via this method.
     async fn get_account(&self, account_id: AccountId) -> Result<Option<Account>, StorageError>;
+
+    /// Partial PATCH on `wallet.users` for the per-currency default slots
+    /// and/or the default currency. Mirrors the web's
+    /// `WriteUserRepository.update` shape: only the fields whose patch
+    /// values are `Some(_)` get written; the rest stay as-is.
+    ///
+    /// Returns the updated user row so callers can immediately surface the
+    /// new state (web does the same via Supabase `.select().single()`).
+    /// Errors with `StorageError::NotFound` if the user_id has no row.
+    async fn update_user_defaults(
+        &self,
+        user_id: UserId,
+        patch: UpdateUserDefaults,
+    ) -> Result<User, StorageError>;
 }
 
 #[cfg(test)]
@@ -221,6 +257,14 @@ mod trait_tests {
         ) -> Result<Option<Account>, StorageError> {
             Ok(None)
         }
+
+        async fn update_user_defaults(
+            &self,
+            _user_id: UserId,
+            _patch: UpdateUserDefaults,
+        ) -> Result<User, StorageError> {
+            Err(StorageError::NotFound)
+        }
     }
 
     #[tokio::test]
@@ -256,5 +300,56 @@ mod trait_tests {
             .await
             .unwrap()
             .is_none());
+        assert!(matches!(
+            s.update_user_defaults(UserId::from(Uuid::nil()), UpdateUserDefaults::default())
+                .await,
+            Err(StorageError::NotFound)
+        ));
+    }
+
+    #[test]
+    fn update_user_defaults_empty_serializes_to_empty_object() {
+        // An empty patch (no fields set) serializes to `{}` — the SQL PATCH
+        // would be a no-op. Callers should avoid sending one of these, but
+        // the type ought to roundtrip cleanly.
+        let v = serde_json::to_value(UpdateUserDefaults::default()).unwrap();
+        assert_eq!(v, serde_json::json!({}));
+    }
+
+    #[test]
+    fn update_user_defaults_some_btc_serializes_only_that_field() {
+        let id = AccountId::from(Uuid::nil());
+        let v = serde_json::to_value(UpdateUserDefaults {
+            default_btc_account_id: Some(Some(id)),
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(v.get("default_btc_account_id").is_some());
+        assert!(v.get("default_usd_account_id").is_none());
+        assert!(v.get("default_currency").is_none());
+    }
+
+    #[test]
+    fn update_user_defaults_clear_btc_serializes_as_null() {
+        // Outer Some + inner None means "explicitly NULL this slot".
+        let v = serde_json::to_value(UpdateUserDefaults {
+            default_btc_account_id: Some(None),
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(v.get("default_btc_account_id").unwrap().is_null());
+    }
+
+    #[test]
+    fn update_user_defaults_set_currency_serializes_as_uppercase_string() {
+        let v = serde_json::to_value(UpdateUserDefaults {
+            default_currency: Some(Currency::Btc),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(
+            v.get("default_currency").and_then(|v| v.as_str()),
+            Some("BTC")
+        );
     }
 }
