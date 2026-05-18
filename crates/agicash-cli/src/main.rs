@@ -56,6 +56,9 @@ fn classify_error(e: &(dyn std::error::Error + 'static)) -> (&'static str, i32) 
     if let Some(acc) = e.downcast_ref::<AccountCmdError>() {
         return match acc {
             AccountCmdError::NotLoggedIn => ("not-logged-in", 3),
+            AccountCmdError::InvalidId(_) => ("invalid-argument", 2),
+            AccountCmdError::NotFound(_) => ("not-found", 4),
+            AccountCmdError::UnsupportedCurrency(_) => ("unsupported-currency", 2),
             AccountCmdError::Auth(inner) => classify_auth(inner),
             AccountCmdError::Storage(inner) => (classify_storage(inner), 1),
         };
@@ -325,6 +328,10 @@ async fn run(args: Cli) -> Result<(), Box<dyn std::error::Error>> {
             AccountCommand::List => {
                 let storage_deps = build_storage_deps(&auth_deps)?;
                 account::cmd_list(&auth_deps, &storage_deps).await?;
+            }
+            AccountCommand::Default { id } => {
+                let storage_deps = build_storage_deps(&auth_deps)?;
+                account::cmd_set_default(&auth_deps, &storage_deps, &id).await?;
             }
         },
         Some(Command::Mint(m)) => match m.cmd {

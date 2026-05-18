@@ -214,6 +214,12 @@ pub struct AccountArgs {
 pub enum AccountCommand {
     /// List active accounts for the current user.
     List,
+    /// Set the per-currency default account. Currency is inferred from
+    /// the account row (BTC -> default_btc_account_id, USD -> ditto).
+    Default {
+        /// Account ID (UUID).
+        id: String,
+    },
 }
 
 #[derive(clap::Args, Debug)]
@@ -294,10 +300,23 @@ mod tests {
     }
 
     #[test]
-    fn account_default_subcommand_is_not_recognized_yet() {
-        // Deferred to slice 5+; explicitly NOT in this slice.
-        let res = Cli::try_parse_from(["agicash", "account", "default", "<id>"]);
-        assert!(res.is_err());
+    fn parses_account_default_with_id() {
+        let cli = Cli::try_parse_from([
+            "agicash",
+            "account",
+            "default",
+            "00000000-0000-0000-0000-000000000000",
+        ])
+        .unwrap();
+        match cli.cmd {
+            Some(Command::Account(a)) => match a.cmd {
+                AccountCommand::Default { id } => {
+                    assert_eq!(id, "00000000-0000-0000-0000-000000000000");
+                }
+                other => panic!("unexpected: {other:?}"),
+            },
+            other => panic!("unexpected: {other:?}"),
+        }
     }
 
     #[test]
