@@ -71,6 +71,14 @@ pub trait CashuSendSwapStorage: Send + Sync {
         &self,
         account_id: AccountId,
     ) -> Result<Vec<ProofWithId>, SendSwapStorageError>;
+
+    /// Fetch a single swap by primary key. Returns
+    /// [`SendSwapStorageError::NotFound`] if absent.
+    ///
+    /// Mirrors `CashuMeltQuoteStorage::get`. Used by the FFI
+    /// `check_send_swap_claimed` path so the iOS app can poll a swap's
+    /// claim state by id without holding the full row locally.
+    async fn get(&self, swap_id: Uuid) -> Result<CashuSendSwap, SendSwapStorageError>;
 }
 
 /// Input to [`CashuSendSwapStorage::create`].
