@@ -5,10 +5,10 @@ use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
     components::{Route, Router, Routes},
-    StaticSegment,
+    path, StaticSegment,
 };
 
-use crate::pages::{HomePage, LoginPage};
+use crate::pages::{HomePage, LoginPage, ReceiveCashuPage};
 
 /// Auth signal stored in the Leptos context. `Some(access_token)` means
 /// "logged in"; `None` redirects to `/login`. Spec §7 keeps the access
@@ -81,6 +81,10 @@ pub fn App() -> impl IntoView {
             <main>
                 <Routes fallback=|| "Not found.">
                     <Route path=StaticSegment("/login") view=LoginPage/>
+                    // Paste-Cashu-token receive flow (lane L4).
+                    // `path!` expands to a tuple of `StaticSegment`s
+                    // for multi-segment static paths.
+                    <Route path=path!("/receive/cashu") view=ReceiveCashuPage/>
                     <Route path=StaticSegment("") view=HomePage/>
                 </Routes>
             </main>
