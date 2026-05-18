@@ -111,7 +111,11 @@ opensecret = { git = "https://github.com/gudnuf/OpenSecret-SDK", branch = "feat/
 postgrest = { git = "https://github.com/gudnuf/postgrest-rs", branch = "feat/reqwest-0.12-tls-injection" }
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# `deny` (not `forbid`) so crates that must declare `#[no_mangle]` FFI
+# entry points — currently only `agicash-ffi`'s android JNI shim — can
+# `#![allow(unsafe_code)]` in those specific files. Every override must
+# carry a comment justifying why FFI safety is upheld.
+unsafe_code = "deny"
 missing_debug_implementations = "warn"
 
 [workspace.lints.clippy]

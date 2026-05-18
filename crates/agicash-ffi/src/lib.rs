@@ -13,6 +13,8 @@
 #![allow(missing_debug_implementations)]
 
 pub mod account;
+#[cfg(target_os = "android")]
+pub mod android_tls;
 pub mod error;
 pub mod lightning_address;
 pub mod mint;

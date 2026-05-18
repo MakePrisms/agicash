@@ -30,6 +30,13 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+# The Kotlin half of `rustls-platform-verifier`. Resolved from the on-disk
+# Maven repo bundled in the Rust crate (see settings.gradle.kts). The version
+# tracks the `rustls-platform-verifier-android` crate version pulled in by
+# `crates/agicash-ffi`'s android-only deps; bump in lockstep if either side
+# moves. `metadataSources { artifact() }` in settings.gradle.kts is what
+# tells Gradle not to insist on a `.pom` (the bundled repo only has `.aar`).
+rustls-platform-verifier = { group = "rustls", name = "rustls-platform-verifier", version = "0.1.1" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

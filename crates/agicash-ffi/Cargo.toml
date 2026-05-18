@@ -42,6 +42,17 @@ tracing-subscriber = { workspace = true }
 [target.'cfg(target_vendor = "apple")'.dependencies]
 tracing-oslog = { workspace = true }
 
+# Android-only: the platform certificate verifier needs a JVM + Context
+# handle before it can validate TLS chains. Initialized once from
+# `MainActivity.onCreate` via the JNI shim in `src/android_tls.rs`. Without
+# this init, every `reqwest` call that uses
+# `rustls::ClientConfig::with_platform_verifier()` panics with
+# "Expect rustls-platform-verifier to be initialized" — iOS does not need
+# the same call because `Security.framework` is process-global.
+[target.'cfg(target_os = "android")'.dependencies]
+rustls-platform-verifier = { workspace = true }
+jni = "0.22"
+
 [dev-dependencies]
 
 [lints]

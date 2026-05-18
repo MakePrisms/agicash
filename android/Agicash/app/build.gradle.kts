@@ -86,6 +86,12 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.jna) { artifact { type = "aar" } }
+    // Kotlin classes that the Rust `rustls-platform-verifier` crate invokes
+    // via JNI to walk the system trust store. Without this AAR on the
+    // classpath the Rust shim's `init_with_env` call still latches its
+    // global, but TLS handshakes fail because the Kotlin verifier classes
+    // are missing.
+    implementation(libs.rustls.platform.verifier)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
