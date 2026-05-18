@@ -129,6 +129,12 @@ export enum CashuErrorCodes {
   PUBKEY_REQUIRED = 20009,
 
   /**
+   * Mint quota exceeded for the authenticated user
+   * Relevant nuts: @see [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
+   */
+  MINT_QUOTA_EXCEEDED = 33001,
+
+  /**
    * Endpoint requires clear auth
    * Relevant nuts: @see [NUT-21](https://github.com/cashubtc/nuts/blob/main/21.md)
    */

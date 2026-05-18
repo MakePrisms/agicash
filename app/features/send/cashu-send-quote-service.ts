@@ -1,11 +1,17 @@
 import {
   type MeltQuoteBolt11Response,
   MeltQuoteState,
+  MintOperationError,
   OutputData,
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
 import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
-import { getCashuUnit, sumProofs } from '~/lib/cashu';
+import {
+  CashuErrorCodes,
+  formatCashuQuoteError,
+  getCashuUnit,
+  sumProofs,
+} from '~/lib/cashu';
 import { matchBlindSignaturesToOutputData } from '~/lib/cashu/blind-signature-matching';
 import { type Currency, Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
@@ -147,7 +153,18 @@ export class CashuSendQuoteService {
     const cashuUnit = getCashuUnit(account.currency);
     const wallet = account.wallet;
 
-    const meltQuote = await wallet.createMeltQuoteBolt11(paymentRequest);
+    let meltQuote: MeltQuoteBolt11Response;
+    try {
+      meltQuote = await wallet.createMeltQuoteBolt11(paymentRequest);
+    } catch (error) {
+      if (
+        error instanceof MintOperationError &&
+        error.code === CashuErrorCodes.MINT_QUOTA_EXCEEDED
+      ) {
+        throw new DomainError(formatCashuQuoteError(error));
+      }
+      throw error;
+    }
 
     const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
 

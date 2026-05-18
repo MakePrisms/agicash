@@ -1,11 +1,22 @@
-import type { MintQuoteBolt11Response, Proof } from '@cashu/cashu-ts';
+import {
+  MintOperationError,
+  type MintQuoteBolt11Response,
+  type Proof,
+} from '@cashu/cashu-ts';
 import { HARDENED_OFFSET } from '@scure/bip32';
 import { decodeBolt11 } from '~/lib/bolt11';
-import { type ExtendedCashuWallet, getCashuUnit } from '~/lib/cashu';
+import {
+  CashuErrorCodes,
+  type ExtendedCashuWallet,
+  type ExtendedMintQuoteBolt11Response,
+  formatCashuQuoteError,
+  getCashuUnit,
+} from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { RedactedCashuAccount } from '../accounts/account';
 import { BASE_CASHU_LOCKING_DERIVATION_PATH } from '../shared/cashu';
 import { derivePublicKey } from '../shared/cryptography';
+import { DomainError } from '../shared/error';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 
@@ -265,11 +276,22 @@ export async function getLightningQuote(
   const { lockingPublicKey, fullLockingDerivationPath } =
     await deriveNut20LockingPublicKey(xPub);
 
-  const mintQuoteResponse = await wallet.createLockedMintQuote(
-    amount.toNumber(cashuUnit),
-    lockingPublicKey,
-    description,
-  );
+  let mintQuoteResponse: ExtendedMintQuoteBolt11Response;
+  try {
+    mintQuoteResponse = await wallet.createLockedMintQuote(
+      amount.toNumber(cashuUnit),
+      lockingPublicKey,
+      description,
+    );
+  } catch (error) {
+    if (
+      error instanceof MintOperationError &&
+      error.code === CashuErrorCodes.MINT_QUOTA_EXCEEDED
+    ) {
+      throw new DomainError(formatCashuQuoteError(error));
+    }
+    throw error;
+  }
 
   const expiresAt = new Date(mintQuoteResponse.expiry * 1000).toISOString();
 
