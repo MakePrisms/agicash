@@ -220,26 +220,38 @@ export function HeroSection() {
     <section className="relative w-full px-5 pt-12 pb-24 md:px-8 md:pt-20 md:pb-32">
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-16 md:grid-cols-[1fr_minmax(360px,40%)] md:gap-20">
         <div className="stagger flex flex-col text-center md:items-start md:text-left">
-          <div className="translate-y-2 text-left font-mono text-[11px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]">
+          <div
+            className="translate-y-2 text-left font-mono text-[11px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]"
+            style={{ animationDelay: '0ms' }}
+          >
             <span aria-hidden="true">{'> '}</span>agi.cash · public beta
           </div>
 
-          <h1 className="mt-8 text-balance font-bold font-mono text-4xl text-[color:var(--mk-text)] leading-[1.05] tracking-[-0.025em] md:mt-10 md:text-7xl">
+          <h1
+            className="mt-8 text-balance font-bold font-mono text-4xl text-[color:var(--mk-text)] leading-[1.05] tracking-[-0.025em] md:mt-10 md:text-7xl"
+            style={{ animationDelay: '80ms' }}
+          >
             <span className="text-[color:var(--mk-brand)]">Bitcoin</span>
             <br />
             Gift Cards.
           </h1>
 
-          <p className="mt-7 max-w-md text-balance text-[color:var(--mk-text-dim)] text-base leading-relaxed md:text-lg">
+          <p
+            className="mt-7 max-w-md text-balance text-[color:var(--mk-text-dim)] text-base leading-relaxed md:text-lg"
+            style={{ animationDelay: '160ms' }}
+          >
             Buy, send and spend bitcoin gift cards from your favorite merchants.
             All on the most advanced Bitcoin wallet.
           </p>
 
-          <div className="mt-9">
+          <div className="mt-9" style={{ animationDelay: '240ms' }}>
             <JoinBetaButton size="lg" />
           </div>
 
-          <div className="mt-8 font-mono text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em]">
+          <div
+            className="mt-8 font-mono text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em]"
+            style={{ animationDelay: '320ms' }}
+          >
             buy · send · spend
           </div>
         </div>

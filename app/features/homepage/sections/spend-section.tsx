@@ -45,8 +45,16 @@ function QrPattern() {
       {QR_GRID.flatMap((row, r) =>
         row.map((cell, c) =>
           cell ? (
-            // biome-ignore lint/suspicious/noArrayIndexKey: static QR grid never reorders
-            <rect key={`${r}-${c}`} x={c} y={r} width={1} height={1} />
+            <rect
+              // biome-ignore lint/suspicious/noArrayIndexKey: static QR grid never reorders
+              key={`${r}-${c}`}
+              x={c}
+              y={r}
+              width={1}
+              height={1}
+              fill="currentColor"
+              shapeRendering="crispEdges"
+            />
           ) : null,
         ),
       )}
