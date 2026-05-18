@@ -18,17 +18,21 @@ import SwiftUI
 ///
 /// The row is just a name + balance line. No leading icon, no account-type
 /// badge, no mint URL — those were iOS surplus from the earlier pass.
-/// Default / Offline badges only render when applicable; we don't have
-/// either signal in `AccountFfi` yet so the badge row stays empty.
+///
+/// `isDefault` mirrors the web's `account.isDefault` field (computed by
+/// `AccountService.isDefaultAccount` from the user row). When true, a
+/// small pill renders under the title row.
+///
+/// Offline / online distinction isn't surfaced by the FFI yet, so the
+/// "Offline" badge stays out of scope. Add it when `AccountFfi` learns
+/// an `isOnline` signal.
 ///
 /// `displayBalance` renders the FFI's smallest-unit balance suffixed with
 /// `account.unit` (`sat` / `cent`). If the FFI ever emits an empty unit
 /// (legacy / Phase 1 stub fallback), we fall back to the currency code.
-///
-/// Currently unreferenced — kept as the canonical row component for the
-/// future Settings → Accounts subview.
 struct AccountRow: View {
     let account: AccountFfi
+    var isDefault: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -44,6 +48,13 @@ struct AccountRow: View {
                     .font(.brandLabel.monospacedDigit())
                     .foregroundStyle(Color.brandMutedForeground)
             }
+
+            if isDefault {
+                HStack(spacing: Spacing.s) {
+                    DefaultBadge()
+                }
+                .padding(.top, Spacing.xs)
+            }
         }
         .padding(.vertical, Spacing.s)
         .padding(.horizontal, Spacing.l)
@@ -56,5 +67,24 @@ struct AccountRow: View {
             return "\(account.balance) \(account.currency)"
         }
         return "\(account.balance) \(account.unit)"
+    }
+}
+
+/// Compact pill badge mirroring web's shadcn `<Badge>`. Used today only for
+/// the "Default" marker, but the type is parameterised over the label so a
+/// future "Offline" badge can reuse it without a second definition.
+///
+/// Web's `<Badge>` (default variant) is `rounded-full bg-primary text-primary-foreground
+/// px-2.5 py-0.5 text-xs`. Mirrored at the iOS pixel scale.
+private struct DefaultBadge: View {
+    var body: some View {
+        Text("Default")
+            .font(.brandCaption)
+            .foregroundStyle(Color.brandPrimaryForeground)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(
+                Capsule().fill(Color.brandPrimary)
+            )
     }
 }

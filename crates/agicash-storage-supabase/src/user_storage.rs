@@ -28,8 +28,11 @@
 use crate::generated::{rpcs, tables};
 use crate::{map_json_error, map_network_error, map_postgrest_error, SupabaseStorage};
 use agicash_domain::{Account, AccountId, User, UserId};
-use agicash_traits::{AccountInput, StorageError, UpsertUserInput, UpsertUserResult, UserStorage};
+use agicash_traits::{
+    AccountInput, StorageError, UpdateUserDefaults, UpsertUserInput, UpsertUserResult, UserStorage,
+};
 use async_trait::async_trait;
+use serde_json::{json, Map, Value};
 
 #[async_trait]
 impl UserStorage for SupabaseStorage {
@@ -133,6 +136,94 @@ impl UserStorage for SupabaseStorage {
         let rows: Vec<Account> = serde_json::from_str(&body).map_err(|e| map_json_error(&e))?;
         Ok(rows.into_iter().next())
     }
+
+    async fn update_user_defaults(
+        &self,
+        user_id: UserId,
+        patch: UpdateUserDefaults,
+    ) -> Result<User, StorageError> {
+        // Build the partial body by hand so each `Option<Option<AccountId>>`
+        // slot can distinguish "leave alone" (omit), "set value" (Some(Some)),
+        // and "clear to NULL" (Some(None)).
+        let body_value = update_defaults_body(&patch);
+
+        // `{}` would PATCH every row to itself — refuse to send.
+        if body_value.as_object().is_none_or(Map::is_empty) {
+            return Err(StorageError::Internal(
+                "update_user_defaults: empty patch (no fields set)".into(),
+            ));
+        }
+
+        let body = serde_json::to_string(&body_value).map_err(|e| map_json_error(&e))?;
+
+        let client = self.authenticated_client().await?;
+        let response = client
+            .from(tables::users::NAME)
+            .eq(tables::users::columns::ID, user_id.to_string())
+            .select("*")
+            .update(body)
+            .execute()
+            .await
+            .map_err(map_postgrest_error)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(StorageError::Backend(format!(
+                "update_user_defaults: HTTP {status}: {text}"
+            )));
+        }
+
+        let text = response.text().await.map_err(map_network_error)?;
+        // postgrest with `Prefer: return=representation` returns a JSON array
+        // of the matched rows. We filtered by primary key, so 0 rows means
+        // the user didn't exist; 1 row is the happy path.
+        let rows: Vec<User> = serde_json::from_str(&text).map_err(|e| map_json_error(&e))?;
+        rows.into_iter().next().ok_or(StorageError::NotFound)
+    }
+}
+
+/// Build the JSON body sent to postgrest for the partial PATCH. Omits keys
+/// whose patch entries are `None` (leave-as-is). Inner `None` becomes a
+/// JSON `null` so postgrest writes SQL `NULL` to that column.
+fn update_defaults_body(patch: &UpdateUserDefaults) -> Value {
+    use crate::generated::enums::Currency as GenCurrency;
+    use agicash_domain::Currency as DomCurrency;
+
+    fn map_currency(c: DomCurrency) -> GenCurrency {
+        match c {
+            DomCurrency::Btc => GenCurrency::Btc,
+            // The SQL `wallet.currency` enum doesn't have USDB; mirror to USD
+            // at the boundary, matching the `upsert_args_from_input` adapter
+            // above.
+            DomCurrency::Usd | DomCurrency::Usdb => GenCurrency::Usd,
+        }
+    }
+
+    let mut map = Map::new();
+    if let Some(slot) = &patch.default_btc_account_id {
+        map.insert(
+            tables::users::columns::DEFAULT_BTC_ACCOUNT_ID.to_string(),
+            slot.as_ref()
+                .map(|id| Value::String(id.to_string()))
+                .unwrap_or(Value::Null),
+        );
+    }
+    if let Some(slot) = &patch.default_usd_account_id {
+        map.insert(
+            tables::users::columns::DEFAULT_USD_ACCOUNT_ID.to_string(),
+            slot.as_ref()
+                .map(|id| Value::String(id.to_string()))
+                .unwrap_or(Value::Null),
+        );
+    }
+    if let Some(c) = patch.default_currency {
+        map.insert(
+            tables::users::columns::DEFAULT_CURRENCY.to_string(),
+            json!(map_currency(c)),
+        );
+    }
+    Value::Object(map)
 }
 
 /// Adapter between the public trait input (`UpsertUserInput`, which uses
@@ -266,6 +357,66 @@ mod tests {
         assert_eq!(
             rpcs::upsert_user_with_accounts::NAME,
             "upsert_user_with_accounts"
+        );
+    }
+
+    #[test]
+    fn update_defaults_body_omits_unset_fields() {
+        // Default patch -> empty object. The impl refuses to send this
+        // (would PATCH every row in the table), but the body builder itself
+        // should produce `{}` for an empty input.
+        let body = super::update_defaults_body(&UpdateUserDefaults::default());
+        assert_eq!(body, serde_json::json!({}));
+    }
+
+    #[test]
+    fn update_defaults_body_writes_btc_uuid_string() {
+        let id = AccountId::from(Uuid::nil());
+        let body = super::update_defaults_body(&UpdateUserDefaults {
+            default_btc_account_id: Some(Some(id)),
+            ..Default::default()
+        });
+        assert_eq!(
+            body.get("default_btc_account_id").and_then(|v| v.as_str()),
+            Some(Uuid::nil().to_string()).as_deref()
+        );
+        // Only the field we set should be present.
+        assert!(body.get("default_usd_account_id").is_none());
+        assert!(body.get("default_currency").is_none());
+    }
+
+    #[test]
+    fn update_defaults_body_writes_null_for_inner_none() {
+        let body = super::update_defaults_body(&UpdateUserDefaults {
+            default_usd_account_id: Some(None),
+            ..Default::default()
+        });
+        assert!(body.get("default_usd_account_id").unwrap().is_null());
+    }
+
+    #[test]
+    fn update_defaults_body_writes_currency_as_uppercase_string() {
+        let body = super::update_defaults_body(&UpdateUserDefaults {
+            default_currency: Some(Currency::Btc),
+            ..Default::default()
+        });
+        assert_eq!(
+            body.get("default_currency").and_then(|v| v.as_str()),
+            Some("BTC")
+        );
+    }
+
+    #[test]
+    fn update_defaults_body_maps_usdb_currency_to_usd() {
+        let body = super::update_defaults_body(&UpdateUserDefaults {
+            default_currency: Some(Currency::Usdb),
+            ..Default::default()
+        });
+        // USDB is not in the SQL enum; the adapter normalises it to USD so
+        // postgrest doesn't 400 on us.
+        assert_eq!(
+            body.get("default_currency").and_then(|v| v.as_str()),
+            Some("USD")
         );
     }
 

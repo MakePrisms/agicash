@@ -580,6 +580,22 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
     func getPersistedSession() async  -> Session?
     
     /**
+     * Load the current user row from Supabase. Requires an active session.
+     *
+     * Mirrors `useUser()` on web — the resulting `UserFfi` carries the
+     * per-currency default-account slots iOS uses to render "Default"
+     * badges and to know which account is currently the default.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal("user row not found")` if the user has not
+     * yet been upserted (e.g., guest signed in but never added a
+     * mint). Callers can treat this the same as "no defaults set".
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+    func getUser() async throws  -> UserFfi
+    
+    /**
      * List Supabase `wallet.accounts` rows for the currently-logged-in
      * user. For each Cashu account, sums the account's UNSPENT proofs
      * (decrypted via the storage layer's `list_unspent_proofs`) and
@@ -684,6 +700,34 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
      * - `FfiError::Storage` for raw Supabase failures (network, etc.).
      */
     func receiveToken(token: String) async throws  -> ReceiveResult
+    
+    /**
+     * Set the user's default account for the account's currency. Mirrors
+     * the web `UserService.setDefaultAccount` exactly: writes the matching
+     * `default_<currency>_account_id` slot on `wallet.users`, preserving
+     * the other currency's slot. `default_currency` is NOT touched by this
+     * call — the web couples that flip to account-creation paths only, and
+     * the iOS swipe action shouldn't surprise-flip the user's primary
+     * currency.
+     *
+     * `account_id` must refer to an account that exists for the
+     * currently-logged-in user (looked up via `list_accounts`). The
+     * account's currency must be one of `BTC` or `USD` — `USDB` would have
+     * no default slot to write.
+     *
+     * Returns the resulting user row so the iOS UI can immediately reflect
+     * the change without a second round-trip.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal("invalid account_id: ...")` for non-UUID strings.
+     * - `FfiError::Internal("account not found")` if the id doesn't match
+     * any account on this user.
+     * - `FfiError::Internal("unsupported currency for default")` if the
+     * account's currency is `USDB`.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+    func setDefaultAccount(accountId: String) async throws  -> UserFfi
     
     /**
      * Rehydrate an existing session into the wallet. Called by the Swift
@@ -961,6 +1005,37 @@ open func getPersistedSession()async  -> Session?  {
 }
     
     /**
+     * Load the current user row from Supabase. Requires an active session.
+     *
+     * Mirrors `useUser()` on web — the resulting `UserFfi` carries the
+     * per-currency default-account slots iOS uses to render "Default"
+     * badges and to know which account is currently the default.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal("user row not found")` if the user has not
+     * yet been upserted (e.g., guest signed in but never added a
+     * mint). Callers can treat this the same as "no defaults set".
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+open func getUser()async throws  -> UserFfi  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_get_user(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeUserFfi_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * List Supabase `wallet.accounts` rows for the currently-logged-in
      * user. For each Cashu account, sums the account's UNSPENT proofs
      * (decrypted via the storage layer's `list_unspent_proofs`) and
@@ -1137,6 +1212,49 @@ open func receiveToken(token: String)async throws  -> ReceiveResult  {
             completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeReceiveResult_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Set the user's default account for the account's currency. Mirrors
+     * the web `UserService.setDefaultAccount` exactly: writes the matching
+     * `default_<currency>_account_id` slot on `wallet.users`, preserving
+     * the other currency's slot. `default_currency` is NOT touched by this
+     * call — the web couples that flip to account-creation paths only, and
+     * the iOS swipe action shouldn't surprise-flip the user's primary
+     * currency.
+     *
+     * `account_id` must refer to an account that exists for the
+     * currently-logged-in user (looked up via `list_accounts`). The
+     * account's currency must be one of `BTC` or `USD` — `USDB` would have
+     * no default slot to write.
+     *
+     * Returns the resulting user row so the iOS UI can immediately reflect
+     * the change without a second round-trip.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+     * - `FfiError::Internal("invalid account_id: ...")` for non-UUID strings.
+     * - `FfiError::Internal("account not found")` if the id doesn't match
+     * any account on this user.
+     * - `FfiError::Internal("unsupported currency for default")` if the
+     * account's currency is `USDB`.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+open func setDefaultAccount(accountId: String)async throws  -> UserFfi  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_set_default_account(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(accountId)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeUserFfi_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -1676,6 +1794,205 @@ public func FfiConverterTypeAuthStatus_lift(_ buf: RustBuffer) throws -> AuthSta
 #endif
 public func FfiConverterTypeAuthStatus_lower(_ value: AuthStatus) -> RustBuffer {
     return FfiConverterTypeAuthStatus.lower(value)
+}
+
+
+/**
+ * FFI mirror of [`agicash_lightning_address::LightningAddressInfo`].
+ *
+ * All numeric fields are kept as `u64` (msat is well within `u64`'s
+ * range). `comment_allowed` mirrors LUD-12: `None` means the server
+ * did not advertise comment support.
+ *
+ * Consumers receive this from [`resolve_lightning_address`] and pass
+ * it back unchanged to [`request_lightning_invoice`] — the Rust side
+ * re-validates the amount against `min_sendable`/`max_sendable`
+ * before hitting the callback.
+ */
+public struct LightningAddressInfo: Equatable, Hashable {
+    /**
+     * Must be `"payRequest"` for LUD-06 (the resolver enforces this).
+     */
+    public var tag: String
+    /**
+     * Callback URL the wallet GETs with `?amount=<msat>` to receive
+     * an invoice.
+     */
+    public var callback: String
+    /**
+     * Minimum amount in millisats the service is willing to invoice.
+     */
+    public var minSendable: UInt64
+    /**
+     * Maximum amount in millisats the service is willing to invoice.
+     */
+    public var maxSendable: UInt64
+    /**
+     * Raw LUD-06 metadata blob (JSON-encoded string). Not parsed here
+     * — surfaced verbatim so the UI can extract `text/plain` or
+     * `image/png` entries on demand.
+     */
+    public var metadata: String
+    /**
+     * Maximum comment length the server accepts per LUD-12, or
+     * `None` if comments are not advertised.
+     */
+    public var commentAllowed: UInt32?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Must be `"payRequest"` for LUD-06 (the resolver enforces this).
+         */tag: String, 
+        /**
+         * Callback URL the wallet GETs with `?amount=<msat>` to receive
+         * an invoice.
+         */callback: String, 
+        /**
+         * Minimum amount in millisats the service is willing to invoice.
+         */minSendable: UInt64, 
+        /**
+         * Maximum amount in millisats the service is willing to invoice.
+         */maxSendable: UInt64, 
+        /**
+         * Raw LUD-06 metadata blob (JSON-encoded string). Not parsed here
+         * — surfaced verbatim so the UI can extract `text/plain` or
+         * `image/png` entries on demand.
+         */metadata: String, 
+        /**
+         * Maximum comment length the server accepts per LUD-12, or
+         * `None` if comments are not advertised.
+         */commentAllowed: UInt32?) {
+        self.tag = tag
+        self.callback = callback
+        self.minSendable = minSendable
+        self.maxSendable = maxSendable
+        self.metadata = metadata
+        self.commentAllowed = commentAllowed
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension LightningAddressInfo: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLightningAddressInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LightningAddressInfo {
+        return
+            try LightningAddressInfo(
+                tag: FfiConverterString.read(from: &buf), 
+                callback: FfiConverterString.read(from: &buf), 
+                minSendable: FfiConverterUInt64.read(from: &buf), 
+                maxSendable: FfiConverterUInt64.read(from: &buf), 
+                metadata: FfiConverterString.read(from: &buf), 
+                commentAllowed: FfiConverterOptionUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: LightningAddressInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.tag, into: &buf)
+        FfiConverterString.write(value.callback, into: &buf)
+        FfiConverterUInt64.write(value.minSendable, into: &buf)
+        FfiConverterUInt64.write(value.maxSendable, into: &buf)
+        FfiConverterString.write(value.metadata, into: &buf)
+        FfiConverterOptionUInt32.write(value.commentAllowed, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLightningAddressInfo_lift(_ buf: RustBuffer) throws -> LightningAddressInfo {
+    return try FfiConverterTypeLightningAddressInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLightningAddressInfo_lower(_ value: LightningAddressInfo) -> RustBuffer {
+    return FfiConverterTypeLightningAddressInfo.lower(value)
+}
+
+
+/**
+ * Localpart + domain split of a LUD-16 Lightning Address.
+ *
+ * `parse_lightning_address("alice@example.com")` yields
+ * `{ localpart: "alice", domain: "example.com" }`. The shape mirrors
+ * the underlying crate's tuple return — flattened into a `Record` so
+ * Swift / Kotlin callers get named fields rather than positional
+ * tuple accessors.
+ */
+public struct LightningAddressParts: Equatable, Hashable {
+    /**
+     * Lowercase localpart per LUD-16 (allowed chars: `a-z 0-9 _ -`).
+     */
+    public var localpart: String
+    /**
+     * Domain portion — may include a port for local-dev addresses
+     * (e.g. `localhost:8080`).
+     */
+    public var domain: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Lowercase localpart per LUD-16 (allowed chars: `a-z 0-9 _ -`).
+         */localpart: String, 
+        /**
+         * Domain portion — may include a port for local-dev addresses
+         * (e.g. `localhost:8080`).
+         */domain: String) {
+        self.localpart = localpart
+        self.domain = domain
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension LightningAddressParts: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLightningAddressParts: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LightningAddressParts {
+        return
+            try LightningAddressParts(
+                localpart: FfiConverterString.read(from: &buf), 
+                domain: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: LightningAddressParts, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.localpart, into: &buf)
+        FfiConverterString.write(value.domain, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLightningAddressParts_lift(_ buf: RustBuffer) throws -> LightningAddressParts {
+    return try FfiConverterTypeLightningAddressParts.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLightningAddressParts_lower(_ value: LightningAddressParts) -> RustBuffer {
+    return FfiConverterTypeLightningAddressParts.lower(value)
 }
 
 
@@ -2355,6 +2672,98 @@ public func FfiConverterTypeSession_lower(_ value: Session) -> RustBuffer {
 }
 
 
+public struct UserFfi: Equatable, Hashable {
+    /**
+     * Stringified UUID for the user row.
+     */
+    public var id: String
+    /**
+     * User's default BTC account id, or `None` if no BTC default is set.
+     * Stringified UUID. Matches `wallet.users.default_btc_account_id`.
+     */
+    public var defaultBtcAccountId: String?
+    /**
+     * User's default USD account id, or `None` if no USD default is set.
+     */
+    public var defaultUsdAccountId: String?
+    /**
+     * One of `"BTC"`, `"USD"`, `"USDB"`. The currency the user has
+     * picked as their "primary" — drives which default slot the
+     * home/send screens consult by default. Mirrors
+     * `wallet.users.default_currency`.
+     */
+    public var defaultCurrency: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Stringified UUID for the user row.
+         */id: String, 
+        /**
+         * User's default BTC account id, or `None` if no BTC default is set.
+         * Stringified UUID. Matches `wallet.users.default_btc_account_id`.
+         */defaultBtcAccountId: String?, 
+        /**
+         * User's default USD account id, or `None` if no USD default is set.
+         */defaultUsdAccountId: String?, 
+        /**
+         * One of `"BTC"`, `"USD"`, `"USDB"`. The currency the user has
+         * picked as their "primary" — drives which default slot the
+         * home/send screens consult by default. Mirrors
+         * `wallet.users.default_currency`.
+         */defaultCurrency: String) {
+        self.id = id
+        self.defaultBtcAccountId = defaultBtcAccountId
+        self.defaultUsdAccountId = defaultUsdAccountId
+        self.defaultCurrency = defaultCurrency
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension UserFfi: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeUserFfi: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UserFfi {
+        return
+            try UserFfi(
+                id: FfiConverterString.read(from: &buf), 
+                defaultBtcAccountId: FfiConverterOptionString.read(from: &buf), 
+                defaultUsdAccountId: FfiConverterOptionString.read(from: &buf), 
+                defaultCurrency: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: UserFfi, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterOptionString.write(value.defaultBtcAccountId, into: &buf)
+        FfiConverterOptionString.write(value.defaultUsdAccountId, into: &buf)
+        FfiConverterString.write(value.defaultCurrency, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUserFfi_lift(_ buf: RustBuffer) throws -> UserFfi {
+    return try FfiConverterTypeUserFfi.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUserFfi_lower(_ value: UserFfi) -> RustBuffer {
+    return FfiConverterTypeUserFfi.lower(value)
+}
+
+
 public enum FfiError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
     
@@ -2457,6 +2866,137 @@ public func FfiConverterTypeFfiError_lift(_ buf: RustBuffer) throws -> FfiError 
 #endif
 public func FfiConverterTypeFfiError_lower(_ value: FfiError) -> RustBuffer {
     return FfiConverterTypeFfiError.lower(value)
+}
+
+
+/**
+ * FFI mirror of [`agicash_lightning_address::LightningAddressError`].
+ *
+ * Flat enum with stable variant names so Swift / Kotlin consumers can
+ * switch on the case and render UI accordingly:
+ * - `InvalidAddress` -> "this isn't a Lightning Address"
+ * - `Network` -> "couldn't reach the recipient's server, try again"
+ * - `InvalidResponse` -> "the recipient's server returned an unexpected response"
+ * - `AmountOutOfRange` -> "amount must be between min and max sats"
+ * - `ServerError` -> server-supplied human-readable reason
+ *
+ * `AmountOutOfRange` keeps the three bounds-relevant fields (the
+ * rejected amount + advertised min/max) so the UI can render
+ * "minimum 1000 sat" without re-parsing the message.
+ */
+public enum LightningAddressError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
+
+    
+    
+    case InvalidAddress(message: String
+    )
+    case Network(message: String
+    )
+    case InvalidResponse(message: String
+    )
+    case AmountOutOfRange(amountMsat: UInt64, min: UInt64, max: UInt64
+    )
+    case ServerError(message: String
+    )
+
+    
+
+    
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+    
+}
+
+#if compiler(>=6)
+extension LightningAddressError: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLightningAddressError: FfiConverterRustBuffer {
+    typealias SwiftType = LightningAddressError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LightningAddressError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .InvalidAddress(
+            message: try FfiConverterString.read(from: &buf)
+            )
+        case 2: return .Network(
+            message: try FfiConverterString.read(from: &buf)
+            )
+        case 3: return .InvalidResponse(
+            message: try FfiConverterString.read(from: &buf)
+            )
+        case 4: return .AmountOutOfRange(
+            amountMsat: try FfiConverterUInt64.read(from: &buf), 
+            min: try FfiConverterUInt64.read(from: &buf), 
+            max: try FfiConverterUInt64.read(from: &buf)
+            )
+        case 5: return .ServerError(
+            message: try FfiConverterString.read(from: &buf)
+            )
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: LightningAddressError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case let .InvalidAddress(message):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .Network(message):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .InvalidResponse(message):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .AmountOutOfRange(amountMsat,min,max):
+            writeInt(&buf, Int32(4))
+            FfiConverterUInt64.write(amountMsat, into: &buf)
+            FfiConverterUInt64.write(min, into: &buf)
+            FfiConverterUInt64.write(max, into: &buf)
+            
+        
+        case let .ServerError(message):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(message, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLightningAddressError_lift(_ buf: RustBuffer) throws -> LightningAddressError {
+    return try FfiConverterTypeLightningAddressError.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLightningAddressError_lower(_ value: LightningAddressError) -> RustBuffer {
+    return FfiConverterTypeLightningAddressError.lower(value)
 }
 
 // Note that we don't yet support `indirect` for enums.
@@ -2980,6 +3520,30 @@ public func FfiConverterTypeReceiveStatusFfi_lower(_ value: ReceiveStatusFfi) ->
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionUInt32: FfiConverterRustBuffer {
+    typealias SwiftType = UInt32?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt32.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt32.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
@@ -3097,6 +3661,99 @@ fileprivate func uniffiFutureContinuationCallback(handle: UInt64, pollResult: In
         print("uniffiFutureContinuationCallback invalid handle")
     }
 }
+/**
+ * Parse a Lightning Address into its localpart and domain.
+ *
+ * Validates the LUD-16 character set on the localpart and a sane
+ * domain shape. Accepts `user@localhost` and `user@127.0.0.1` for
+ * local development (the underlying crate switches to plain http for
+ * those hosts when resolving).
+ *
+ * This is the only synchronous-in-spirit call in the surface — kept
+ * `async` to match the other two so the Swift / Kotlin call sites
+ * look uniform (an iOS `Task { ... }` block can `await` all three
+ * without a special-case for the parse step).
+ *
+ * # Errors
+ * Returns [`LightningAddressError::InvalidAddress`] when the input
+ * fails to parse or violates LUD-16's character rules.
+ */
+public func parseLightningAddress(address: String)async throws  -> LightningAddressParts  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_func_parse_lightning_address(FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeLightningAddressParts_lift,
+            errorHandler: FfiConverterTypeLightningAddressError_lift
+        )
+}
+/**
+ * Request a BOLT-11 invoice from a previously-resolved Lightning
+ * Address.
+ *
+ * The `amount_msat` is bounds-checked against
+ * `info.min_sendable`/`info.max_sendable` client-side first so we
+ * fail fast without hitting the network. The optional `comment`
+ * rides along as `?comment=<comment>` per LUD-12 when the server
+ * advertises comment support.
+ *
+ * Returns the raw BOLT-11 invoice string the consumer should feed
+ * to the wallet's existing send-lightning flow.
+ *
+ * # Errors
+ * - [`LightningAddressError::AmountOutOfRange`] when `amount_msat`
+ * is outside the advertised range.
+ * - [`LightningAddressError::Network`] / `InvalidResponse` /
+ * `ServerError` for the usual callback failures.
+ */
+public func requestLightningInvoice(info: LightningAddressInfo, amountMsat: UInt64, comment: String?)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_func_request_lightning_invoice(FfiConverterTypeLightningAddressInfo_lower(info),FfiConverterUInt64.lower(amountMsat),FfiConverterOptionString.lower(comment)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeLightningAddressError_lift
+        )
+}
+/**
+ * Resolve a Lightning Address to its LUD-06 pay-request params.
+ *
+ * Performs the well-known lookup
+ * (`GET https://<domain>/.well-known/lnurlp/<localpart>`) and returns
+ * the parsed pay-request info. Networks are hit here — the iOS UI
+ * should show a spinner.
+ *
+ * # Errors
+ * - [`LightningAddressError::InvalidAddress`] for parse failures.
+ * - [`LightningAddressError::Network`] for transport failures.
+ * - [`LightningAddressError::InvalidResponse`] for malformed bodies.
+ * - [`LightningAddressError::ServerError`] when the LNURL server
+ * returns `{"status": "ERROR", "reason": "..."}` per LUD-06.
+ */
+public func resolveLightningAddress(address: String)async throws  -> LightningAddressInfo  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_func_resolve_lightning_address(FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeLightningAddressInfo_lift,
+            errorHandler: FfiConverterTypeLightningAddressError_lift
+        )
+}
 
 private enum InitializationResult {
     case ok
@@ -3112,6 +3769,15 @@ private let initializationResult: InitializationResult = {
     let scaffolding_contract_version = ffi_agicash_ffi_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_func_parse_lightning_address() != 26475) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_func_request_lightning_invoice() != 26243) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_func_resolve_lightning_address() != 31789) {
+        return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_auth_guest() != 40474) {
         return InitializationResult.apiChecksumMismatch
@@ -3134,6 +3800,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_get_persisted_session() != 4899) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_get_user() != 20368) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_list_accounts() != 25468) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3147,6 +3816,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_receive_token() != 38168) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_set_default_account() != 28440) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_set_session() != 35776) {

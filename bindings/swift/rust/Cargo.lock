@@ -53,6 +53,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bip39",
+ "getrandom 0.2.17",
  "hex",
  "keyring",
  "opensecret",
@@ -60,7 +61,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
- "tracing",
  "uuid",
 ]
 
@@ -115,6 +115,7 @@ dependencies = [
  "agicash-auth-opensecret",
  "agicash-cashu",
  "agicash-domain",
+ "agicash-lightning-address",
  "agicash-money",
  "agicash-storage-supabase",
  "agicash-traits",
@@ -142,6 +143,16 @@ version = "0.1.0"
 dependencies = [
  "agicash-ffi",
  "uniffi",
+]
+
+[[package]]
+name = "agicash-lightning-address"
+version = "0.1.0"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

@@ -6,14 +6,22 @@ import SwiftUI
 /// plus a "Add Mint" affordance for provisioning a new Cashu mint.
 ///
 /// The web puts the Add Mint CTA at the bottom of the list as a primary
-/// button. On iOS we expose it as a `+` toolbar item (closer-to-native
-/// nav surface) AND keep a primary button under the list for parity with
-/// the web's centered CTA — the two affordances render the same sheet, so
-/// users can tap whichever they reach first.
+/// button. On iOS we expose it solely as a `+` toolbar item in the
+/// navigation bar's trailing slot — closer to native conventions and
+/// frees the list footer from a fixed CTA that conflicts with row
+/// swipe gestures. The empty-state card still surfaces a primary
+/// "Add Mint" button because there are no rows to anchor the toolbar
+/// affordance against visually.
 ///
-/// Pull-to-refresh re-runs `wallet.listAccounts()` since `mint_add` calls
-/// already auto-refresh on success but a fresh server view is still
-/// useful when accounts were created on another device.
+/// Default account UX: each non-default row reveals a "Set as default"
+/// action on swipe-left (iOS Mail-style). Tapping it calls the FFI
+/// `setDefaultAccount`, which PATCHes the user row's
+/// `default_<currency>_account_id` slot (mirroring the web's
+/// `UserService.setDefaultAccount`). Rows reorder so the new default sits
+/// on top, matching the web's `AccountService.getExtendedAccounts.sort`.
+///
+/// Pull-to-refresh re-runs `wallet.listAccounts()` + `wallet.getUser()` so
+/// the badge stays correct if the default flipped on another device.
 ///
 /// Empty state mirrors web's behaviour: when the user has no accounts yet
 /// (brand-new guest, pre-first-mint-add) the list is replaced with a
@@ -26,40 +34,19 @@ struct AccountsView: View {
     /// the same regardless of which CTA the user tapped.
     @State private var showAddMint: Bool = false
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Spacing.l) {
-                if model.accounts.isEmpty {
-                    EmptyAccountsCard(onAddMint: { showAddMint = true })
-                        .padding(.horizontal, Spacing.l)
-                        .padding(.top, Spacing.xxl)
-                } else {
-                    VStack(spacing: Spacing.s) {
-                        ForEach(model.accounts, id: \.id) { account in
-                            AccountRow(account: account)
-                        }
-                    }
-                    .padding(.horizontal, Spacing.l)
-                    .padding(.top, Spacing.l)
+    /// Inline error surfaced as an alert when the swipe action's FFI
+    /// call fails (network, RLS rejection, etc.). Nil when no error is
+    /// pending. SwiftUI binds the alert's presentation to the non-nil
+    /// case.
+    @State private var setDefaultError: String?
 
-                    // Primary CTA mirrors the web's centered "Add Mint"
-                    // button below the list. Use the more action-specific
-                    // label "Add Mint" (web says "Add Account" but this
-                    // slice only wires the Cashu/mint flow).
-                    BrandButton(
-                        "Add Mint",
-                        variant: .primary,
-                        size: .large,
-                        action: { showAddMint = true }
-                    )
-                    .frame(maxWidth: 288)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, Spacing.l)
-                    .padding(.top, Spacing.xxl)
-                }
+    var body: some View {
+        Group {
+            if model.accounts.isEmpty {
+                emptyState
+            } else {
+                populatedList
             }
-            .padding(.bottom, Spacing.xxl)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Color.brandBackground.ignoresSafeArea())
         .navigationTitle("Accounts")
@@ -81,6 +68,91 @@ struct AccountsView: View {
                 model: model,
                 onDismiss: { showAddMint = false }
             )
+        }
+        .alert(
+            "Could not set default",
+            isPresented: Binding(
+                get: { setDefaultError != nil },
+                set: { if !$0 { setDefaultError = nil } }
+            ),
+            presenting: setDefaultError
+        ) { _ in
+            Button("OK", role: .cancel) { setDefaultError = nil }
+        } message: { message in
+            Text(message)
+        }
+    }
+
+    /// Empty path: ScrollView preserves pull-to-refresh + matches the
+    /// pre-swipe behaviour for users with zero accounts. (`List` won't
+    /// render a refreshable empty view here without juggling section
+    /// padding, and there are no rows to swipe on anyway.)
+    private var emptyState: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.l) {
+                EmptyAccountsCard(onAddMint: { showAddMint = true })
+                    .padding(.horizontal, Spacing.l)
+                    .padding(.top, Spacing.xxl)
+            }
+            .padding(.bottom, Spacing.xxl)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Populated path: `List` for native swipe-actions support. Brand
+    /// chrome is preserved by hiding the system list background and
+    /// neutralizing the row separators / row backgrounds — each
+    /// `AccountRow` keeps its `brandCard()` look, identical to the
+    /// previous `ScrollView { VStack }` pass.
+    ///
+    /// The "Add Mint" trigger lives in the navigation bar's trailing
+    /// `+` toolbar item (see the `.toolbar` modifier on `body`); the
+    /// list has no footer CTA — sticky-bottom CTAs interacted badly
+    /// with the swipe gesture's edge tracking.
+    private var populatedList: some View {
+        List {
+            Section {
+                ForEach(model.sortedAccounts, id: \.id) { account in
+                    AccountRow(account: account, isDefault: model.isDefault(account))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(
+                            top: Spacing.xs,
+                            leading: Spacing.l,
+                            bottom: Spacing.xs,
+                            trailing: Spacing.l
+                        ))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            if !model.isDefault(account) {
+                                Button {
+                                    Task { await handleSetDefault(account) }
+                                } label: {
+                                    // SwiftUI renders the label inside the
+                                    // system action chip (rounded rect,
+                                    // fixed height). Label gives both glyph
+                                    // and verb so VoiceOver picks both up.
+                                    Label("Set as default", systemImage: "star.fill")
+                                }
+                                .tint(Color.brandPrimary)
+                            }
+                        }
+                }
+            } header: {
+                // Top spacing without a literal "header" string — keeps
+                // the visual cadence of the previous ScrollView pass.
+                Color.clear
+                    .frame(height: Spacing.s)
+                    .listRowInsets(EdgeInsets())
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    private func handleSetDefault(_ account: AccountFfi) async {
+        let outcome = await model.setDefaultAccount(account)
+        if case .failure(let message) = outcome {
+            setDefaultError = message
         }
     }
 }

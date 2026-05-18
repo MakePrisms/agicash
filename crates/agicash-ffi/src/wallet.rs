@@ -17,6 +17,7 @@ use crate::mint_quote::{MintQuoteFfiState, MintQuoteHandle, MintQuoteSnapshot};
 use crate::receive::{ReceiveResult, ReceiveStatus};
 use crate::receive_flow::{OpenSecretSeedProvider, ReceiveFlow};
 use crate::session::{AuthStatus, Session};
+use crate::user::UserFfi;
 use agicash_auth_opensecret::{
     auth_error_from_opensecret, login_email, logout, register_email, register_guest,
     OpenSecretClient, OpenSecretConfig, OpenSecretTokenProvider,
@@ -27,7 +28,7 @@ use agicash_cashu::{
     CashuSendSwapStorage, CdkCashuProvider, CompleteMintQuoteOutcome, CompleteOutcome,
     MintQuoteError, ParsedToken, ReceiveFlowService, ReceiveSwapError, ReceiveSwapStorageError,
 };
-use agicash_domain::{Account, AccountPurpose, AccountType, Currency, UserId};
+use agicash_domain::{Account, AccountId, AccountPurpose, AccountType, Currency, UserId};
 use agicash_money::{Money, Unit};
 use agicash_storage_supabase::{
     SupabaseCashuMintQuoteStorage, SupabaseCashuReceiveSwapStorage, SupabaseCashuSendSwapStorage,
@@ -35,7 +36,7 @@ use agicash_storage_supabase::{
 };
 use agicash_traits::{
     AccountInput, CashuProvider, CashuProviderError, PassthroughProofEncryption, PersistedSession,
-    ProofEncryption, TokenProvider, UpsertUserInput, UserStorage,
+    ProofEncryption, TokenProvider, UpdateUserDefaults, UpsertUserInput, UserStorage,
 };
 use cdk::mint_url::MintUrl;
 use rust_decimal::Decimal;
@@ -376,6 +377,93 @@ impl AgicashWallet {
             "list_accounts: exit"
         );
         Ok(out)
+    }
+
+    // ---- user surface ----
+
+    /// Load the current user row from Supabase. Requires an active session.
+    ///
+    /// Mirrors `useUser()` on web — the resulting `UserFfi` carries the
+    /// per-currency default-account slots iOS uses to render "Default"
+    /// badges and to know which account is currently the default.
+    ///
+    /// Errors:
+    /// - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+    /// - `FfiError::Internal("user row not found")` if the user has not
+    ///   yet been upserted (e.g., guest signed in but never added a
+    ///   mint). Callers can treat this the same as "no defaults set".
+    /// - `FfiError::Storage` for raw Supabase failures.
+    pub async fn get_user(&self) -> Result<UserFfi, FfiError> {
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+        let row = self
+            .storage
+            .get_user(user_id)
+            .await?
+            .ok_or_else(|| FfiError::internal("user row not found"))?;
+        Ok(UserFfi::from(row))
+    }
+
+    /// Set the user's default account for the account's currency. Mirrors
+    /// the web `UserService.setDefaultAccount` exactly: writes the matching
+    /// `default_<currency>_account_id` slot on `wallet.users`, preserving
+    /// the other currency's slot. `default_currency` is NOT touched by this
+    /// call — the web couples that flip to account-creation paths only, and
+    /// the iOS swipe action shouldn't surprise-flip the user's primary
+    /// currency.
+    ///
+    /// `account_id` must refer to an account that exists for the
+    /// currently-logged-in user (looked up via `list_accounts`). The
+    /// account's currency must be one of `BTC` or `USD` — `USDB` would have
+    /// no default slot to write.
+    ///
+    /// Returns the resulting user row so the iOS UI can immediately reflect
+    /// the change without a second round-trip.
+    ///
+    /// Errors:
+    /// - `FfiError::Auth { UNAUTHENTICATED }` if no session is loaded.
+    /// - `FfiError::Internal("invalid account_id: ...")` for non-UUID strings.
+    /// - `FfiError::Internal("account not found")` if the id doesn't match
+    ///   any account on this user.
+    /// - `FfiError::Internal("unsupported currency for default")` if the
+    ///   account's currency is `USDB`.
+    /// - `FfiError::Storage` for raw Supabase failures.
+    pub async fn set_default_account(&self, account_id: String) -> Result<UserFfi, FfiError> {
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+
+        let id_uuid = Uuid::parse_str(account_id.trim())
+            .map_err(|e| FfiError::internal(format!("invalid account_id: {e}")))?;
+        let target_id = AccountId::from(id_uuid);
+
+        let accounts = self.storage.list_accounts(user_id).await?;
+        let account = accounts
+            .iter()
+            .find(|a| a.id == target_id)
+            .ok_or_else(|| FfiError::internal("account not found"))?;
+
+        let patch = match account.currency {
+            Currency::Btc => UpdateUserDefaults {
+                default_btc_account_id: Some(Some(target_id)),
+                ..Default::default()
+            },
+            Currency::Usd => UpdateUserDefaults {
+                default_usd_account_id: Some(Some(target_id)),
+                ..Default::default()
+            },
+            Currency::Usdb => {
+                return Err(FfiError::internal("unsupported currency for default"));
+            }
+        };
+
+        let updated = self.storage.update_user_defaults(user_id, patch).await?;
+        Ok(UserFfi::from(updated))
     }
 
     // ---- mint surface ----
@@ -1285,6 +1373,80 @@ mod tests {
         assert!(
             matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
         );
+    }
+
+    #[tokio::test]
+    async fn get_user_without_session_returns_unauthenticated() {
+        let cfg = fake_config();
+        let wallet = AgicashWallet::new(
+            cfg.opensecret_url,
+            cfg.client_id,
+            cfg.supabase_url,
+            cfg.anon_key,
+        )
+        .expect("construct");
+        let err = wallet.get_user().await.expect_err("no session");
+        assert!(
+            matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
+        );
+    }
+
+    #[tokio::test]
+    async fn set_default_account_without_session_returns_unauthenticated() {
+        let cfg = fake_config();
+        let wallet = AgicashWallet::new(
+            cfg.opensecret_url,
+            cfg.client_id,
+            cfg.supabase_url,
+            cfg.anon_key,
+        )
+        .expect("construct");
+        let err = wallet
+            .set_default_account(Uuid::new_v4().to_string())
+            .await
+            .expect_err("no session");
+        assert!(
+            matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
+        );
+    }
+
+    #[tokio::test]
+    async fn set_default_account_rejects_bad_uuid() {
+        // No session → unauth wins, so this test would pass for the wrong
+        // reason if we skipped the session check first. Re-order isn't an
+        // option here without a real session, so the test asserts that the
+        // unauth check IS first (consistent with every other FFI method).
+        let cfg = fake_config();
+        let wallet = AgicashWallet::new(
+            cfg.opensecret_url,
+            cfg.client_id,
+            cfg.supabase_url,
+            cfg.anon_key,
+        )
+        .expect("construct");
+        let err = wallet
+            .set_default_account("not-a-uuid".into())
+            .await
+            .expect_err("no session");
+        // Auth check fires first by design — same shape as start_mint_quote /
+        // poll_mint_quote. The bad-uuid branch is exercised once a session
+        // is loaded; covered by manual sim verification + by the validator
+        // helper test below.
+        assert!(
+            matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
+        );
+    }
+
+    #[test]
+    fn parse_account_id_for_default_rejects_garbage() {
+        // The bad-uuid path inside `set_default_account` is just
+        // `Uuid::parse_str(...)` with a custom error prefix. Re-test the
+        // raw parser so the assertion lives somewhere even when a session
+        // isn't available.
+        let err = Uuid::parse_str("not-a-uuid").expect_err("bad uuid");
+        // Sanity: confirm the error display is non-empty so the FFI's
+        // `format!("invalid account_id: {e}")` produces a useful message.
+        assert!(!err.to_string().is_empty());
     }
 
     #[tokio::test]

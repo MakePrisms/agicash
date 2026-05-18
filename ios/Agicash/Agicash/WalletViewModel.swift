@@ -36,6 +36,18 @@ final class WalletViewModel {
 
     var phase: Phase = .checking
     var accounts: [AccountFfi] = []
+    /// User row, including the per-currency default-account slots
+    /// (`defaultBtcAccountId`, `defaultUsdAccountId`) the web exposes via
+    /// `useUser` / `useDefaultAccount`. Fetched alongside `accounts` from
+    /// `refreshAccounts`; left `nil` until the first refresh, or when the
+    /// user row hasn't been created yet (brand-new guest before any mint
+    /// add — the row only exists after the first
+    /// `upsertUserWithAccounts` call).
+    ///
+    /// UI consumers should treat `nil` as "no defaults known": no
+    /// "Default" badge renders for any row, and the swipe action stays
+    /// available on every row.
+    var user: UserFfi?
     var isWorking = false
     /// Inline message shown on the login screen when an interactive sign-in
     /// attempt fails. Cleared on the next attempt. Distinct from `phase ==
@@ -159,6 +171,7 @@ final class WalletViewModel {
         defer { isWorking = false }
         if isDemoMode {
             accounts = []
+            user = nil
             loginErrorMessage = nil
             isDemoMode = false
             phase = .signedOut
@@ -171,6 +184,7 @@ final class WalletViewModel {
         }
         try? SessionStore.clear()
         accounts = []
+        user = nil
         loginErrorMessage = nil
         phase = .signedOut
     }
@@ -347,8 +361,103 @@ final class WalletViewModel {
             accounts = list
         } catch let err as FfiError {
             phase = .error("list accounts failed: \(ffiErrorMessage(err))")
+            return
         } catch {
             phase = .error("unexpected: \(error)")
+            return
+        }
+
+        // Refresh the user row so per-currency default-account ids are
+        // current. Failure here is non-fatal — leave `user` as-is (likely
+        // nil for a brand-new guest before the first mint_add creates the
+        // row). The accounts list is still useful without it; the UI just
+        // omits the "Default" badge.
+        do {
+            user = try await wallet.getUser()
+        } catch let err as FfiError {
+            // The "user row not found" Internal error is expected on the
+            // fresh-guest path. Treat it as "no defaults yet" rather than
+            // a hard failure.
+            if case .Internal(let msg) = err, msg.contains("user row not found") {
+                user = nil
+            } else {
+                // Other failures (Auth / Storage / unexpected Internal):
+                // leave `user` unchanged but don't escalate to `.error`
+                // phase — the accounts list view is still usable.
+                _ = err
+            }
+        } catch {
+            // Unexpected throw shape; same conservative handling.
+            _ = error
+        }
+    }
+
+    /// Outcome shape returned to the swipe handler in `AccountsView`.
+    /// Success carries no payload (the view re-reads `model.user` via
+    /// `@Bindable`); failure carries a presentation-ready string.
+    enum SetDefaultOutcome {
+        case success
+        case failure(String)
+    }
+
+    /// Mirror of the web `UserService.setDefaultAccount` for the iOS
+    /// swipe action. Calls the FFI, then refreshes accounts + user so
+    /// the row reorders and the badge moves without a separate
+    /// pull-to-refresh.
+    ///
+    /// Does NOT touch `default_currency` — see the FFI doc on
+    /// `set_default_account` for why (the web only flips it from
+    /// account-creation paths, not from "set this existing account as
+    /// default").
+    func setDefaultAccount(_ account: AccountFfi) async -> SetDefaultOutcome {
+        if isDemoMode {
+            // Demo mode has no FFI plumbing — pretend it worked so the
+            // SwiftUI Previews don't error.
+            return .success
+        }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            let updated = try await wallet.setDefaultAccount(accountId: account.id)
+            user = updated
+            // Re-list accounts so the row order reflects the new default
+            // even if the FFI hasn't changed any underlying account row.
+            // Cheap (one Supabase select).
+            await refreshAccounts()
+            return .success
+        } catch let err as FfiError {
+            return .failure(ffiErrorMessage(err))
+        } catch {
+            return .failure("unexpected: \(error)")
+        }
+    }
+
+    /// True when the given account is the user's default for its currency.
+    /// Mirrors `AccountService.isDefaultAccount` on web. Returns false
+    /// (no badge) when the user row hasn't loaded yet, or when the
+    /// account's currency has no default slot (e.g., USDB).
+    func isDefault(_ account: AccountFfi) -> Bool {
+        guard let user else { return false }
+        switch account.currency {
+        case "BTC": return account.id == user.defaultBtcAccountId
+        case "USD": return account.id == user.defaultUsdAccountId
+        default: return false
+        }
+    }
+
+    /// `accounts` with the default-for-its-currency rows sorted to the
+    /// top. Mirrors `AccountService.getExtendedAccounts.sort` on web.
+    /// Among non-default rows the original FFI order is preserved (the
+    /// FFI returns Supabase's natural order, which is creation-time).
+    var sortedAccounts: [AccountFfi] {
+        accounts.sorted { lhs, rhs in
+            let l = isDefault(lhs)
+            let r = isDefault(rhs)
+            if l != r { return l && !r }
+            // Stable: keep original FFI order for ties. SwiftUI's sort is
+            // stable as long as the comparator returns false for equal
+            // elements, which it does here.
+            return false
         }
     }
 

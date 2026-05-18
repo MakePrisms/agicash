@@ -21,6 +21,7 @@ pub mod observability;
 pub mod receive;
 pub mod receive_flow;
 pub mod session;
+pub mod user;
 pub mod wallet;
 
 pub use account::*;
@@ -32,6 +33,7 @@ pub use observability::{init as init_observability, jwt_sub};
 pub use receive::*;
 pub use receive_flow::*;
 pub use session::*;
+pub use user::*;
 pub use wallet::*;
 
 uniffi::setup_scaffolding!();
