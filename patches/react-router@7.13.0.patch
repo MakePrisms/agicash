@@ -1,0 +1,123 @@
+diff --git a/package.json b/package.json
+index c4ec835d848fe3e857238617c7a0b8bbe32012eb..6a8f186e55f4893b6bb6b1fe6af388c39444f107 100644
+--- a/package.json
++++ b/package.json
+@@ -24,81 +24,81 @@
+   "exports": {
+     ".": {
+       "react-server": {
+-        "module": "./dist/development/index-react-server.mjs",
+-        "default": "./dist/development/index-react-server.js"
++        "module": "./dist/production/index-react-server.mjs",
++        "default": "./dist/production/index-react-server.js"
+       },
+       "node": {
+-        "types": "./dist/development/index.d.ts",
+-        "module": "./dist/development/index.mjs",
+-        "module-sync": "./dist/development/index.mjs",
+-        "default": "./dist/development/index.js"
++        "types": "./dist/production/index.d.ts",
++        "module": "./dist/production/index.mjs",
++        "module-sync": "./dist/production/index.mjs",
++        "default": "./dist/production/index.js"
+       },
+       "module": {
+-        "types": "./dist/development/index.d.mts",
+-        "default": "./dist/development/index.mjs"
++        "types": "./dist/production/index.d.mts",
++        "default": "./dist/production/index.mjs"
+       },
+       "import": {
+-        "types": "./dist/development/index.d.mts",
+-        "default": "./dist/development/index.mjs"
++        "types": "./dist/production/index.d.mts",
++        "default": "./dist/production/index.mjs"
+       },
+       "default": {
+-        "types": "./dist/development/index.d.ts",
+-        "default": "./dist/development/index.js"
++        "types": "./dist/production/index.d.ts",
++        "default": "./dist/production/index.js"
+       }
+     },
+     "./dom": {
+       "node": {
+-        "types": "./dist/development/dom-export.d.ts",
+-        "module": "./dist/development/dom-export.mjs",
+-        "module-sync": "./dist/development/dom-export.mjs",
+-        "default": "./dist/development/dom-export.js"
++        "types": "./dist/production/dom-export.d.ts",
++        "module": "./dist/production/dom-export.mjs",
++        "module-sync": "./dist/production/dom-export.mjs",
++        "default": "./dist/production/dom-export.js"
+       },
+       "module": {
+-        "types": "./dist/development/dom-export.d.mts",
+-        "default": "./dist/development/dom-export.mjs"
++        "types": "./dist/production/dom-export.d.mts",
++        "default": "./dist/production/dom-export.mjs"
+       },
+       "import": {
+-        "types": "./dist/development/dom-export.d.mts",
+-        "default": "./dist/development/dom-export.mjs"
++        "types": "./dist/production/dom-export.d.mts",
++        "default": "./dist/production/dom-export.mjs"
+       },
+       "default": {
+-        "types": "./dist/development/dom-export.d.ts",
+-        "default": "./dist/development/dom-export.js"
++        "types": "./dist/production/dom-export.d.ts",
++        "default": "./dist/production/dom-export.js"
+       }
+     },
+     "./internal": {
+       "node": {
+-        "types": "./dist/development/lib/types/internal.d.ts"
++        "types": "./dist/production/lib/types/internal.d.ts"
+       },
+       "import": {
+-        "types": "./dist/development/lib/types/internal.d.mts"
++        "types": "./dist/production/lib/types/internal.d.mts"
+       },
+       "default": {
+-        "types": "./dist/development/lib/types/index.d.ts"
++        "types": "./dist/production/lib/types/index.d.ts"
+       }
+     },
+     "./internal/react-server-client": {
+       "react-server": {
+-        "module": "./dist/development/index-react-server-client.mjs",
+-        "default": "./dist/development/index-react-server-client.js"
++        "module": "./dist/production/index-react-server-client.mjs",
++        "default": "./dist/production/index-react-server-client.js"
+       },
+       "node": {
+-        "types": "./dist/development/index.d.ts",
+-        "module": "./dist/development/index.mjs",
+-        "module-sync": "./dist/development/index.mjs",
+-        "default": "./dist/development/index.js"
++        "types": "./dist/production/index.d.ts",
++        "module": "./dist/production/index.mjs",
++        "module-sync": "./dist/production/index.mjs",
++        "default": "./dist/production/index.js"
+       },
+       "module": {
+-        "types": "./dist/development/index.d.mts",
+-        "default": "./dist/development/index.mjs"
++        "types": "./dist/production/index.d.mts",
++        "default": "./dist/production/index.mjs"
+       },
+       "import": {
+-        "types": "./dist/development/index.d.mts",
+-        "default": "./dist/development/index.mjs"
++        "types": "./dist/production/index.d.mts",
++        "default": "./dist/production/index.mjs"
+       },
+       "default": {
+-        "types": "./dist/development/index.d.ts",
+-        "default": "./dist/development/index.js"
++        "types": "./dist/production/index.d.ts",
++        "default": "./dist/production/index.js"
+       }
+     },
+     "./package.json": "./package.json"

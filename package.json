@@ -118,10 +118,12 @@
   },
   "patchedDependencies": {
     "@tanstack/query-core@5.90.20": "patches/@tanstack%2Fquery-core@5.90.20.patch",
-    "@sentry/core@10.42.0": "patches/@sentry%2Fcore@10.42.0.patch"
+    "@sentry/core@10.42.0": "patches/@sentry%2Fcore@10.42.0.patch",
+    "react-router@7.13.0": "patches/react-router@7.13.0.patch"
   },
   "patchedDependencies:comments": {
     "@sentry/core@10.42.0": "This patch was added because we noticed that logs in Sentry dashboard started to show timstamps different than what our logs would record when the app would be in the background for a while and then brought back to the foreground. We suspected (not 100% sure but it seems like our patch has fixed it) that it is related to their logic which uses the Performance API to get the timestamp for greater precision (browser sometimes stops the performance api clock when the computer is asleep), so we opted out of that and are just using the Date API instead. Remove the patch once that has been solved.",
-    "@tanstack/query-core@5.90.20": "This patch is needed to add support for dynamic mutation scope. See https://github.com/TanStack/query/discussions/7126#discussioncomment-8815577 for more details. Remove the patch if tanstack query ever adds support for this natively."
+    "@tanstack/query-core@5.90.20": "This patch is needed to add support for dynamic mutation scope. See https://github.com/TanStack/query/discussions/7126#discussioncomment-8815577 for more details. Remove the patch if tanstack query ever adds support for this natively.",
+    "react-router@7.13.0": "Forces exports map to point at dist/production/ instead of dist/development/. The package ships both but its exports map only references development paths, so Vercel's lambda packager (which strips dev files from the bundle) produces a lambda that can't resolve react-router at runtime → ERR_MODULE_NOT_FOUND. Remove this patch when react-router upstream adds a production conditional to its exports map. Triggered 2026-05-18 by a silent change in Vercel's serverless lambda packaging."
   }
 }
