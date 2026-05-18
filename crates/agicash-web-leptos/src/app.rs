@@ -14,6 +14,7 @@ use leptos_router::{
 };
 
 use crate::components::{ProtectedLayout, WalletData};
+use crate::config::AppConfig;
 use crate::pages::{
     AccountsAddPage, AccountsIndexPage, HomePage, LoginPage, ReceiveCashuPage, ReceivePage,
     SendPage, SettingsAppearancePage, SettingsContactsPage, SettingsIndexPage, SettingsProfilePage,
@@ -51,6 +52,12 @@ pub struct AccessToken(pub RwSignal<Option<String>>);
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+
+    // Endpoint config (opensecret + supabase URLs / keys) loaded from
+    // `<meta>` tags on hydrate. See `config.rs` for the full rationale.
+    // Provided as a single context so LoginView + WalletData::refresh
+    // (and future consumers) can read the same values.
+    provide_context(AppConfig::load());
 
     // Empty on first paint — the LoginView reads + writes this; protected
     // routes redirect to /login when it's None.

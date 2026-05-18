@@ -13,6 +13,32 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
     <!--
+      Runtime endpoint config — read by `src/config.rs::AppConfig::load`
+      via `document.querySelector('meta[name="..."]')` on hydrate.
+
+      Default values point at the LOCAL stack (matches
+      `nix/shells/default.nix`). To switch to PROD (the cross-platform
+      demo against `damian+3@agi.cash`), uncomment the PROD block below
+      and comment out the DEV block. Or edit the values in place. No
+      recompile required — the wasm bundle reads these at startup.
+
+      The Supabase anon key is a public-by-design JWT enforced by RLS
+      on the server; safe to commit / serve to browsers.
+    -->
+    <!-- DEV (local stack) -->
+    <meta name="opensecret-base-url" content="http://127.0.0.1:3999" />
+    <meta name="opensecret-client-id" content="ba5a14b5-d915-47b1-b7b1-afda52bc5fc6" />
+    <meta name="supabase-url" content="https://127.0.0.1:54321" />
+    <meta name="supabase-anon-key" content="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0" />
+    <!-- PROD (cross-platform demo against damian+3@agi.cash):
+    <meta name="opensecret-base-url" content="https://enclave.trymaple.ai" />
+    <meta name="opensecret-client-id" content="a5e351d4-6dd9-4ee6-8e36-f5fb871e5432" />
+    <meta name="supabase-url" content="https://szuncqupizxelsxkxlpq.supabase.co" />
+    <meta name="supabase-anon-key" content="<PROD_SUPABASE_ANON_KEY_GOES_HERE>" />
+    -->
+
+
+    <!--
       Fonts from the design-tokens system (design/tokens.json):
       Kode Mono for UI text, Teko for monetary numerics.
     -->
