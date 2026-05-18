@@ -24,6 +24,9 @@ struct HomeView: View {
     /// sheet's dismissal cleanly returns control to the home scroll
     /// view.
     @State private var showReceive: Bool = false
+    /// Drives presentation of `SendCarouselView` as a sheet. Sibling
+    /// of `showReceive`; same `.sheet` pattern.
+    @State private var showSend: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -33,7 +36,8 @@ struct HomeView: View {
                         .padding(.top, Spacing.hero)
 
                     HomeActionGrid(
-                        onReceive: { showReceive = true }
+                        onReceive: { showReceive = true },
+                        onSend: { showSend = true }
                     )
                     .padding(.horizontal, Spacing.l)
                 }
@@ -49,6 +53,12 @@ struct HomeView: View {
                 ReceiveCarouselView(
                     model: model,
                     onDismiss: { showReceive = false }
+                )
+            }
+            .sheet(isPresented: $showSend) {
+                SendCarouselView(
+                    model: model,
+                    onDismiss: { showSend = false }
                 )
             }
         }
@@ -189,6 +199,7 @@ private struct BalanceHero: View {
 /// lane (slice 8 / Lightning send).
 private struct HomeActionGrid: View {
     let onReceive: () -> Void
+    let onSend: () -> Void
 
     var body: some View {
         VStack(spacing: Spacing.l) {
@@ -201,8 +212,9 @@ private struct HomeActionGrid: View {
             BrandButton(
                 "Send",
                 variant: .primary,
-                size: .large
-            ) { /* payment flows out of scope in v0 */ }
+                size: .large,
+                action: onSend
+            )
         }
         .frame(maxWidth: 288)
         .frame(maxWidth: .infinity) // center the 288pt column.
