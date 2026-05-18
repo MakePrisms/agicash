@@ -555,6 +555,31 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
     func authStatus() async throws  -> AuthStatus
     
     /**
+     * Check whether the receiver has claimed a previously-created
+     * send swap. Pure poll: re-loads the swap, asks the mint via
+     * NUT-07 `post_check_state` whether the swap's `proofs_to_send`
+     * are SPENT, and (if so) flips the persisted row PENDING →
+     * COMPLETED.
+     *
+     * Returns:
+     * - `Pending` while at least one proof is still UNSPENT (or in
+     * any non-terminal state on the mint side).
+     * - `Completed` when every proof is SPENT — the receiver
+     * redeemed. The persisted row is transitioned in the same
+     * call; subsequent polls short-circuit on the persisted state.
+     * - `Failed` only if the swap row is already FAILED (defensive;
+     * shouldn't happen post-PENDING). `failure_reason` is surfaced
+     * for the iOS UI to render.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session loaded.
+     * - `FfiError::Internal` for invalid UUID, missing swap, ownership
+     * mismatch, mint round-trip failure.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+    func checkSendSwapClaimed(swapId: String) async throws  -> SendSwapClaimSnapshot
+    
+    /**
      * Drive a PAID quote to COMPLETED — mint proofs and credit the
      * account. Returns a [`ReceiveResult`] shape identical to
      * `receive_token`'s output so the iOS UI can render success
@@ -571,6 +596,17 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
      * - `FfiError::Storage` for raw Supabase failures.
      */
     func completeMintQuote(quoteId: String) async throws  -> ReceiveResult
+    
+    /**
+     * Persist a new Cashu send swap and produce a wire-form token.
+     * Mirrors the CLI's `agicash send <amount>` (without `--dry-run`).
+     *
+     * Always encodes a **V4** (`cashuB…`) token. V3 is the legacy
+     * shape; iOS v0 doesn't expose a chooser.
+     *
+     * Errors mirror `prepare_send_quote` plus token-encode failures.
+     */
+    func createSendSwap(amount: UInt64, accountId: String?, currency: String?) async throws  -> SendSwapHandle
     
     /**
      * Return the currently-loaded session, or `None` if the wallet is
@@ -649,6 +685,24 @@ public protocol AgicashWalletProtocol: AnyObject, Sendable {
      * - `FfiError::Storage` for raw Supabase failures.
      */
     func pollMintQuote(quoteId: String) async throws  -> MintQuoteSnapshot
+    
+    /**
+     * Compute the fee breakdown for a hypothetical send. Pure preview —
+     * no swap row is created. Mirrors the CLI's `agicash send <amount>
+     * --dry-run` (`crates/agicash-cli/src/send.rs`).
+     *
+     * `amount` is the value the user wants the receiver to get,
+     * expressed in the account's minor unit (sats for BTC, cents for
+     * USD). `account_id` + `currency` together pick the source Cashu
+     * account; same selector semantics as `start_mint_quote`.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session loaded.
+     * - `FfiError::Internal` for amount-too-small, currency mismatch,
+     * no/ambiguous matching account, or mint-protocol failure.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+    func prepareSendQuote(amount: UInt64, accountId: String?, currency: String?) async throws  -> SendQuotePreview
     
     /**
      * Construct a fresh [`ReceiveFlow`] handle for an interactive
@@ -905,6 +959,46 @@ open func authStatus()async throws  -> AuthStatus  {
 }
     
     /**
+     * Check whether the receiver has claimed a previously-created
+     * send swap. Pure poll: re-loads the swap, asks the mint via
+     * NUT-07 `post_check_state` whether the swap's `proofs_to_send`
+     * are SPENT, and (if so) flips the persisted row PENDING →
+     * COMPLETED.
+     *
+     * Returns:
+     * - `Pending` while at least one proof is still UNSPENT (or in
+     * any non-terminal state on the mint side).
+     * - `Completed` when every proof is SPENT — the receiver
+     * redeemed. The persisted row is transitioned in the same
+     * call; subsequent polls short-circuit on the persisted state.
+     * - `Failed` only if the swap row is already FAILED (defensive;
+     * shouldn't happen post-PENDING). `failure_reason` is surfaced
+     * for the iOS UI to render.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session loaded.
+     * - `FfiError::Internal` for invalid UUID, missing swap, ownership
+     * mismatch, mint round-trip failure.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+open func checkSendSwapClaimed(swapId: String)async throws  -> SendSwapClaimSnapshot  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_check_send_swap_claimed(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(swapId)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeSendSwapClaimSnapshot_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
      * Drive a PAID quote to COMPLETED — mint proofs and credit the
      * account. Returns a [`ReceiveResult`] shape identical to
      * `receive_token`'s output so the iOS UI can render success
@@ -933,6 +1027,32 @@ open func completeMintQuote(quoteId: String)async throws  -> ReceiveResult  {
             completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeReceiveResult_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Persist a new Cashu send swap and produce a wire-form token.
+     * Mirrors the CLI's `agicash send <amount>` (without `--dry-run`).
+     *
+     * Always encodes a **V4** (`cashuB…`) token. V3 is the legacy
+     * shape; iOS v0 doesn't expose a chooser.
+     *
+     * Errors mirror `prepare_send_quote` plus token-encode failures.
+     */
+open func createSendSwap(amount: UInt64, accountId: String?, currency: String?)async throws  -> SendSwapHandle  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_create_send_swap(
+                    self.uniffiCloneHandle(),
+                    FfiConverterUInt64.lower(amount),FfiConverterOptionString.lower(accountId),FfiConverterOptionString.lower(currency)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeSendSwapHandle_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -1072,6 +1192,39 @@ open func pollMintQuote(quoteId: String)async throws  -> MintQuoteSnapshot  {
             completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeMintQuoteSnapshot_lift,
+            errorHandler: FfiConverterTypeFfiError_lift
+        )
+}
+    
+    /**
+     * Compute the fee breakdown for a hypothetical send. Pure preview —
+     * no swap row is created. Mirrors the CLI's `agicash send <amount>
+     * --dry-run` (`crates/agicash-cli/src/send.rs`).
+     *
+     * `amount` is the value the user wants the receiver to get,
+     * expressed in the account's minor unit (sats for BTC, cents for
+     * USD). `account_id` + `currency` together pick the source Cashu
+     * account; same selector semantics as `start_mint_quote`.
+     *
+     * Errors:
+     * - `FfiError::Auth { UNAUTHENTICATED }` if no session loaded.
+     * - `FfiError::Internal` for amount-too-small, currency mismatch,
+     * no/ambiguous matching account, or mint-protocol failure.
+     * - `FfiError::Storage` for raw Supabase failures.
+     */
+open func prepareSendQuote(amount: UInt64, accountId: String?, currency: String?)async throws  -> SendQuotePreview  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_agicash_ffi_fn_method_agicashwallet_prepare_send_quote(
+                    self.uniffiCloneHandle(),
+                    FfiConverterUInt64.lower(amount),FfiConverterOptionString.lower(accountId),FfiConverterOptionString.lower(currency)
+                )
+            },
+            pollFunc: ffi_agicash_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_agicash_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_agicash_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeSendQuotePreview_lift,
             errorHandler: FfiConverterTypeFfiError_lift
         )
 }
@@ -2287,6 +2440,352 @@ public func FfiConverterTypeReceiveResult_lower(_ value: ReceiveResult) -> RustB
 }
 
 
+/**
+ * Pre-commit quote shown on the confirmation screen.
+ *
+ * All `Money`-valued fields are decimal-stringified to match the
+ * [`crate::receive::ReceiveResult`] convention.
+ */
+public struct SendQuotePreview: Equatable, Hashable {
+    /**
+     * What the user asked to send (their typed amount).
+     */
+    public var amountRequested: String
+    /**
+     * What is encoded in the token the receiver claims. Equals
+     * `amount_requested + cashu_receive_fee` because the sender
+     * pre-pays the receive fee out of their own proofs.
+     */
+    public var amountToSend: String
+    /**
+     * `amount_to_send + cashu_send_fee` — total deducted from the
+     * sender's account.
+     */
+    public var totalAmount: String
+    /**
+     * `cashu_send_fee + cashu_receive_fee`.
+     */
+    public var totalFee: String
+    /**
+     * Mint fee for the sender's input swap. Zero when the account
+     * already holds exact-amount proofs.
+     */
+    public var cashuSendFee: String
+    /**
+     * Mint fee the receiver pays when claiming (pre-paid by sender via
+     * the token's encoded value).
+     */
+    public var cashuReceiveFee: String
+    /**
+     * Cashu sub-unit (`sat`, `usd`).
+     */
+    public var unit: String
+    /**
+     * Wallet account currency (`BTC`, `USD`).
+     */
+    public var currency: String
+    /**
+     * UUID of the account the send debits.
+     */
+    public var accountId: String
+    /**
+     * Canonical mint URL.
+     */
+    public var mintUrl: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * What the user asked to send (their typed amount).
+         */amountRequested: String, 
+        /**
+         * What is encoded in the token the receiver claims. Equals
+         * `amount_requested + cashu_receive_fee` because the sender
+         * pre-pays the receive fee out of their own proofs.
+         */amountToSend: String, 
+        /**
+         * `amount_to_send + cashu_send_fee` — total deducted from the
+         * sender's account.
+         */totalAmount: String, 
+        /**
+         * `cashu_send_fee + cashu_receive_fee`.
+         */totalFee: String, 
+        /**
+         * Mint fee for the sender's input swap. Zero when the account
+         * already holds exact-amount proofs.
+         */cashuSendFee: String, 
+        /**
+         * Mint fee the receiver pays when claiming (pre-paid by sender via
+         * the token's encoded value).
+         */cashuReceiveFee: String, 
+        /**
+         * Cashu sub-unit (`sat`, `usd`).
+         */unit: String, 
+        /**
+         * Wallet account currency (`BTC`, `USD`).
+         */currency: String, 
+        /**
+         * UUID of the account the send debits.
+         */accountId: String, 
+        /**
+         * Canonical mint URL.
+         */mintUrl: String) {
+        self.amountRequested = amountRequested
+        self.amountToSend = amountToSend
+        self.totalAmount = totalAmount
+        self.totalFee = totalFee
+        self.cashuSendFee = cashuSendFee
+        self.cashuReceiveFee = cashuReceiveFee
+        self.unit = unit
+        self.currency = currency
+        self.accountId = accountId
+        self.mintUrl = mintUrl
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension SendQuotePreview: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSendQuotePreview: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SendQuotePreview {
+        return
+            try SendQuotePreview(
+                amountRequested: FfiConverterString.read(from: &buf), 
+                amountToSend: FfiConverterString.read(from: &buf), 
+                totalAmount: FfiConverterString.read(from: &buf), 
+                totalFee: FfiConverterString.read(from: &buf), 
+                cashuSendFee: FfiConverterString.read(from: &buf), 
+                cashuReceiveFee: FfiConverterString.read(from: &buf), 
+                unit: FfiConverterString.read(from: &buf), 
+                currency: FfiConverterString.read(from: &buf), 
+                accountId: FfiConverterString.read(from: &buf), 
+                mintUrl: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SendQuotePreview, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.amountRequested, into: &buf)
+        FfiConverterString.write(value.amountToSend, into: &buf)
+        FfiConverterString.write(value.totalAmount, into: &buf)
+        FfiConverterString.write(value.totalFee, into: &buf)
+        FfiConverterString.write(value.cashuSendFee, into: &buf)
+        FfiConverterString.write(value.cashuReceiveFee, into: &buf)
+        FfiConverterString.write(value.unit, into: &buf)
+        FfiConverterString.write(value.currency, into: &buf)
+        FfiConverterString.write(value.accountId, into: &buf)
+        FfiConverterString.write(value.mintUrl, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSendQuotePreview_lift(_ buf: RustBuffer) throws -> SendQuotePreview {
+    return try FfiConverterTypeSendQuotePreview.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSendQuotePreview_lower(_ value: SendQuotePreview) -> RustBuffer {
+    return FfiConverterTypeSendQuotePreview.lower(value)
+}
+
+
+/**
+ * Snapshot returned by `check_send_swap_claimed`.
+ *
+ * `failure_reason` is only populated when `state == Failed`.
+ */
+public struct SendSwapClaimSnapshot: Equatable, Hashable {
+    public var state: SendSwapClaimState
+    public var failureReason: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(state: SendSwapClaimState, failureReason: String?) {
+        self.state = state
+        self.failureReason = failureReason
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension SendSwapClaimSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSendSwapClaimSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SendSwapClaimSnapshot {
+        return
+            try SendSwapClaimSnapshot(
+                state: FfiConverterTypeSendSwapClaimState.read(from: &buf), 
+                failureReason: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SendSwapClaimSnapshot, into buf: inout [UInt8]) {
+        FfiConverterTypeSendSwapClaimState.write(value.state, into: &buf)
+        FfiConverterOptionString.write(value.failureReason, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSendSwapClaimSnapshot_lift(_ buf: RustBuffer) throws -> SendSwapClaimSnapshot {
+    return try FfiConverterTypeSendSwapClaimSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSendSwapClaimSnapshot_lower(_ value: SendSwapClaimSnapshot) -> RustBuffer {
+    return FfiConverterTypeSendSwapClaimSnapshot.lower(value)
+}
+
+
+/**
+ * Handle returned by `create_send_swap`. The swap row is persisted
+ * PENDING; `token` is the wire-form V4 string the sender hands to the
+ * receiver; `swap_id` is the wallet-side UUID for follow-up polling.
+ */
+public struct SendSwapHandle: Equatable, Hashable {
+    /**
+     * Wallet-side UUID. Pass to `check_send_swap_claimed`.
+     */
+    public var swapId: String
+    /**
+     * V4 (`cashuB…`) wire token the sender shares.
+     */
+    public var token: String
+    /**
+     * What the receiver will get on claim. Decimal-stringified.
+     */
+    public var amount: String
+    /**
+     * Total fee paid (decimal-stringified).
+     */
+    public var fee: String
+    /**
+     * Cashu sub-unit (`sat`, `usd`).
+     */
+    public var unit: String
+    /**
+     * Wallet account currency (`BTC`, `USD`).
+     */
+    public var currency: String
+    /**
+     * UUID of the account that was debited.
+     */
+    public var accountId: String
+    /**
+     * Canonical mint URL.
+     */
+    public var mintUrl: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Wallet-side UUID. Pass to `check_send_swap_claimed`.
+         */swapId: String, 
+        /**
+         * V4 (`cashuB…`) wire token the sender shares.
+         */token: String, 
+        /**
+         * What the receiver will get on claim. Decimal-stringified.
+         */amount: String, 
+        /**
+         * Total fee paid (decimal-stringified).
+         */fee: String, 
+        /**
+         * Cashu sub-unit (`sat`, `usd`).
+         */unit: String, 
+        /**
+         * Wallet account currency (`BTC`, `USD`).
+         */currency: String, 
+        /**
+         * UUID of the account that was debited.
+         */accountId: String, 
+        /**
+         * Canonical mint URL.
+         */mintUrl: String) {
+        self.swapId = swapId
+        self.token = token
+        self.amount = amount
+        self.fee = fee
+        self.unit = unit
+        self.currency = currency
+        self.accountId = accountId
+        self.mintUrl = mintUrl
+    }
+
+    
+}
+
+#if compiler(>=6)
+extension SendSwapHandle: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSendSwapHandle: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SendSwapHandle {
+        return
+            try SendSwapHandle(
+                swapId: FfiConverterString.read(from: &buf), 
+                token: FfiConverterString.read(from: &buf), 
+                amount: FfiConverterString.read(from: &buf), 
+                fee: FfiConverterString.read(from: &buf), 
+                unit: FfiConverterString.read(from: &buf), 
+                currency: FfiConverterString.read(from: &buf), 
+                accountId: FfiConverterString.read(from: &buf), 
+                mintUrl: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SendSwapHandle, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.swapId, into: &buf)
+        FfiConverterString.write(value.token, into: &buf)
+        FfiConverterString.write(value.amount, into: &buf)
+        FfiConverterString.write(value.fee, into: &buf)
+        FfiConverterString.write(value.unit, into: &buf)
+        FfiConverterString.write(value.currency, into: &buf)
+        FfiConverterString.write(value.accountId, into: &buf)
+        FfiConverterString.write(value.mintUrl, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSendSwapHandle_lift(_ buf: RustBuffer) throws -> SendSwapHandle {
+    return try FfiConverterTypeSendSwapHandle.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSendSwapHandle_lower(_ value: SendSwapHandle) -> RustBuffer {
+    return FfiConverterTypeSendSwapHandle.lower(value)
+}
+
+
 public struct Session: Equatable, Hashable {
     /**
      * Stringified UUID for the authenticated user.
@@ -2977,6 +3476,93 @@ public func FfiConverterTypeReceiveStatusFfi_lower(_ value: ReceiveStatusFfi) ->
 }
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Claim state of a previously-created send swap.
+ */
+
+public enum SendSwapClaimState: Equatable, Hashable {
+    
+    /**
+     * At least one proof in the token is still UNSPENT — receiver
+     * hasn't claimed yet, keep polling.
+     */
+    case pending
+    /**
+     * All proofs are SPENT (or the swap row is already COMPLETED) —
+     * receiver claimed. The poll loop stops here.
+     */
+    case completed
+    /**
+     * Swap is FAILED. Shouldn't happen post-PENDING in practice;
+     * included so the iOS UI can render a terminal error if it does.
+     */
+    case failed
+
+
+
+}
+
+#if compiler(>=6)
+extension SendSwapClaimState: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSendSwapClaimState: FfiConverterRustBuffer {
+    typealias SwiftType = SendSwapClaimState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SendSwapClaimState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .pending
+        
+        case 2: return .completed
+        
+        case 3: return .failed
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: SendSwapClaimState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .pending:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .completed:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .failed:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSendSwapClaimState_lift(_ buf: RustBuffer) throws -> SendSwapClaimState {
+    return try FfiConverterTypeSendSwapClaimState.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSendSwapClaimState_lower(_ value: SendSwapClaimState) -> RustBuffer {
+    return FfiConverterTypeSendSwapClaimState.lower(value)
+}
+
+
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
@@ -3128,7 +3714,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_auth_status() != 22694) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_check_send_swap_claimed() != 50140) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_complete_mint_quote() != 50767) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_create_send_swap() != 63476) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_get_persisted_session() != 4899) {
@@ -3141,6 +3733,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_poll_mint_quote() != 39309) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_agicash_ffi_checksum_method_agicashwallet_prepare_send_quote() != 37161) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_agicash_ffi_checksum_method_agicashwallet_receive_flow() != 22861) {
