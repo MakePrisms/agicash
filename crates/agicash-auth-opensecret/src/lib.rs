@@ -20,8 +20,18 @@ pub mod session;
 pub mod storage;
 pub mod token_provider;
 
+// Browser-backed session storage (wasm-only). Lives behind a
+// `target_arch` gate because `web-sys::Window::local_storage` has no
+// native impl. See `browser_storage.rs` for the design + the operator's
+// 2026-05-17 pivot note that picked browser `localStorage` over
+// IndexedDB / HttpOnly cookies.
+#[cfg(target_arch = "wasm32")]
+pub mod browser_storage;
+
 #[cfg(all(feature = "android-file-storage", target_os = "android"))]
 pub use android_storage::AndroidFileSessionStorage;
+#[cfg(target_arch = "wasm32")]
+pub use browser_storage::{BrowserSessionStorage, DEFAULT_STORAGE_KEY};
 pub use client::*;
 pub use config::*;
 pub use error::*;
