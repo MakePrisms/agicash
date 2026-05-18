@@ -57,22 +57,19 @@ In the flake shell (`nix develop`):
 
 ## How it composes
 
-```mermaid
-flowchart TD
-    V["<b>View</b> &nbsp;·&nbsp; SwiftUI · Compose · Leptos · clap CLI"]
-    VM["<b>ViewModel / handler</b> &nbsp;·&nbsp; Swift / Kotlin / Leptos signals / CLI command"]
-    F["<b>agicash-wallet</b> &nbsp;·&nbsp; WalletClient facade"]
-    S["<b>agicash-services</b> &nbsp;·&nbsp; async orchestrators"]
-    SM["<b>sans-IO state machines</b> &nbsp;·&nbsp; agicash-cashu · agicash-spark"]
-    T["<b>agicash-traits</b> &nbsp;·&nbsp; Storage · KeyProvider · TokenProvider · Clock seams"]
-    I["<b>trait impls</b> &nbsp;·&nbsp; agicash-storage-supabase · agicash-auth-opensecret · cdk providers"]
-
-    V --> VM
-    VM -- "FFI (iOS, Android) · direct (Rust)" --> F
-    F --> S
-    S --> SM
-    SM -. composes against .-> T
-    T -. implemented by .-> I
+```
+┌──────────────────────────────────────────────────────────────┐
+│  View       SwiftUI · Compose · Leptos · clap CLI            │
+│  ViewModel  Swift · Kotlin · Leptos signals · CLI command    │
+│                          │ FFI (iOS, Android) · direct (Rust)│
+│  Facade     agicash-wallet · WalletClient                    │
+│  Services   agicash-services · async orchestrators           │
+│  Core       agicash-cashu · agicash-spark  (sans-IO)         │
+│                          │ composes against                  │
+│  Seams      agicash-traits · Storage · Key · Token · Clock   │
+│                          │ implemented by                    │
+│  Impls      storage-supabase · auth-opensecret · cdk         │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 Sans-IO state machines hold all the protocol logic without async or I/O; orchestrators in `agicash-services` glue them to concrete providers; `WalletClient` aggregates the orchestrators. Swapping a backend (real Supabase → in-memory fake for tests, alt auth provider, etc.) is a trait-impl swap at the composition root, not a rewrite. Full walk-through: `docs/architecture.md`.
