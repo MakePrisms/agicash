@@ -5,13 +5,14 @@ use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
     components::{ParentRoute, Route, Router, Routes},
-    StaticSegment,
+    path, StaticSegment,
 };
 
 use crate::components::ProtectedLayout;
 use crate::pages::{
-    AccountsAddPage, AccountsIndexPage, HomePage, LoginPage, ReceivePage, SendPage,
-    SettingsAppearancePage, SettingsContactsPage, SettingsIndexPage, SettingsProfilePage,
+    AccountsAddPage, AccountsIndexPage, HomePage, LoginPage, ReceiveCashuPage, ReceivePage,
+    SendPage, SettingsAppearancePage, SettingsContactsPage, SettingsIndexPage,
+    SettingsProfilePage,
 };
 
 /// Auth signal stored in the Leptos context. `Some(access_token)` means
@@ -73,7 +74,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 /// /login                        (public)
 /// / (ProtectedLayout)           (auth-gated, renders <Outlet/> + BottomNav)
 ///   ├── ""                      Home
-///   ├── receive                 Receive (sibling lane L4 fills sub-routes)
+///   ├── receive                 Receive
+///   ├── receive/cashu           Paste-Cashu-token receive flow (lane L4)
 ///   ├── send                    Send
 ///   ├── accounts                Accounts list
 ///   │     └── add               Add mint
@@ -110,6 +112,10 @@ pub fn App() -> impl IntoView {
                     <ParentRoute path=StaticSegment("") view=ProtectedLayout>
                         <Route path=StaticSegment("") view=HomePage/>
                         <Route path=StaticSegment("receive") view=ReceivePage/>
+                        // Paste-Cashu-token receive flow (lane L4).
+                        // `path!` expands to a tuple of `StaticSegment`s
+                        // for multi-segment static paths.
+                        <Route path=path!("/receive/cashu") view=ReceiveCashuPage/>
                         <Route path=StaticSegment("send") view=SendPage/>
                         <Route path=StaticSegment("accounts") view=AccountsIndexPage/>
                         <Route path=(StaticSegment("accounts"), StaticSegment("add"))

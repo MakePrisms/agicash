@@ -36,6 +36,7 @@ hydrate = [
     "dep:wasm-bindgen-futures",
     "dep:console_error_panic_hook",
     "dep:gloo-net",
+    "dep:gloo-timers",
     "dep:js-sys",
     "dep:web-sys",
     "leptos/hydrate",
@@ -52,6 +53,15 @@ leptos_router = { version = "0.7" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 http = "1"
+
+# CDK — Cashu Development Kit. We only use the parser side here
+# (`cdk::nuts::Token::from_str` + `.value()/.mint_url()/.unit()/.memo()`),
+# which is wasm-clean with `default-features = false, features = ["wallet"]`
+# (the workspace dep already pins those — see `crates/Cargo.toml` line 51,
+# `project_agicash_wasm_path.md` for context). We don't touch
+# `cdk::wallet::HttpClient` from the browser; the redeem path is mocked
+# until slice 12 lands `WalletClient::receive_cashu_token`.
+cdk = { workspace = true }
 
 # --- SSR-only (axum server side) ---
 # Pulled in only when the `ssr` feature is on, so the wasm bundle never
@@ -70,6 +80,10 @@ console_error_panic_hook = { version = "0.1", optional = true }
 # `gloo-net` wraps the browser fetch API; tiny dep, no transitive bloat,
 # avoids hand-rolling web_sys boilerplate for one POST.
 gloo-net = { version = "0.6", default-features = false, features = ["http", "json"], optional = true }
+# `gloo-timers` gives us a wasm-safe Future-based sleep. Used by the
+# mocked Cashu redeem path to simulate the WalletClient round-trip
+# (see `// TODO[slice-12]` in `components/cashu_token_paste_view.rs`).
+gloo-timers = { version = "0.3", default-features = false, features = ["futures"], optional = true }
 # `js-sys` + `web-sys` — used by the `ShareSheet` component to call the
 # Web Share API (`navigator.share`) with a clipboard fallback. Leptos
 # already pulls both in transitively; declaring them as direct deps lets
