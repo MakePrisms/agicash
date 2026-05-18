@@ -329,6 +329,7 @@ dependencies = [
  "console_error_panic_hook",
  "gloo-net",
  "http",
+ "js-sys",
  "leptos",
  "leptos_axum",
  "leptos_meta",
@@ -340,6 +341,7 @@ dependencies = [
  "tower-http",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

@@ -47,3 +47,36 @@ button:disabled {
 a {
   color: inherit;
 }
+
+/* ---- Animations used by component primitives ----------------------------
+ * Component files emit `animation: agicash-<name> ...` inline; the
+ * @keyframes have to live in a stylesheet (Leptos's `style:` attribute
+ * can't carry them). Keep names prefixed so they don't collide with
+ * future tailwind utilities.
+ * ---------------------------------------------------------------------- */
+
+@keyframes agicash-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes agicash-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes agicash-slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes agicash-slide-in {
+  from { transform: translateX(16px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* Active-press feedback for tappable surfaces (numpad keys). Web
+ * equivalent of iOS's `UIImpactFeedback`-paired button shrink. */
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
