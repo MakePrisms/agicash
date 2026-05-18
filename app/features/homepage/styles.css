@@ -1,4 +1,4 @@
-@import url("https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,600,700,800&display=swap");
+@import url("https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap");
 
 /* CSS variables for the marketing palette / fonts.
    Kept here (rather than in tailwind.css) because they're only used by the
