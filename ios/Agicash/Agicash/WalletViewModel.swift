@@ -270,6 +270,96 @@ final class WalletViewModel {
         }
     }
 
+    // MARK: - Cashu send (NUT-03 send swap)
+
+    /// Outcome shape for `prepareSend`. Success carries the FFI quote
+    /// (amount/fee breakdown) so the confirm card can render it
+    /// directly; failure carries a presentation-ready string already
+    /// mapped through `ffiErrorMessage`.
+    enum SendQuoteOutcome {
+        case success(SendQuotePreview)
+        case failure(String)
+    }
+
+    /// Outcome shape for `createSend`. Success carries the FFI handle
+    /// (token + swap_id + amount); failure carries a presentation-ready
+    /// error string.
+    enum SendOutcome {
+        case success(SendSwapHandle)
+        case failure(String)
+    }
+
+    /// Outcome shape for `pollSendClaim`. Mirrors `SendSwapClaimSnapshot`
+    /// plus a failure branch. The view loops on this until the state
+    /// flips to `.completed` (or the user dismisses).
+    enum SendClaimOutcome {
+        case state(SendSwapClaimState, failureReason: String?)
+        case failure(String)
+    }
+
+    /// Preview the fee + total for a send. Mirrors `startLightningQuote`
+    /// in shape; does NOT flip `isWorking` for the same reason — the
+    /// `SendCashuTokenView` owns its own phase machine and renders a
+    /// localised spinner during the brief quote round-trip.
+    func prepareSend(
+        amount: UInt64,
+        accountId: String? = nil,
+        currency: String? = nil
+    ) async -> SendQuoteOutcome {
+        do {
+            let quote = try await wallet.prepareSendQuote(
+                amount: amount,
+                accountId: accountId,
+                currency: currency
+            )
+            return .success(quote)
+        } catch let err as FfiError {
+            return .failure(ffiErrorMessage(err))
+        } catch {
+            return .failure("unexpected: \(error)")
+        }
+    }
+
+    /// Commit a send — runs the input swap (if needed) and produces a
+    /// wire-form V4 token. Refreshes the accounts list on success so
+    /// Home's balance reflects the debit without a pull-to-refresh.
+    /// Failure leaves the wallet untouched (the swap service rolls
+    /// back the row on error).
+    func createSend(
+        amount: UInt64,
+        accountId: String? = nil,
+        currency: String? = nil
+    ) async -> SendOutcome {
+        do {
+            let handle = try await wallet.createSendSwap(
+                amount: amount,
+                accountId: accountId,
+                currency: currency
+            )
+            await refreshAccounts()
+            return .success(handle)
+        } catch let err as FfiError {
+            return .failure(ffiErrorMessage(err))
+        } catch {
+            return .failure("unexpected: \(error)")
+        }
+    }
+
+    /// Single-shot poll for "has the receiver claimed?". Called from a
+    /// long-running `Task` in `SendCashuTokenView.share` every ~3s
+    /// while the share screen is on screen. The view owns cadence + the
+    /// cancel-on-disappear lifecycle so this method stays a pure shot.
+    func pollSendClaim(swapId: String) async -> SendClaimOutcome {
+        do {
+            let snapshot = try await wallet.checkSendSwapClaimed(swapId: swapId)
+            return .state(snapshot.state, failureReason: snapshot.failureReason)
+        } catch let err as FfiError {
+            return .failure(ffiErrorMessage(err))
+        } catch {
+            return .failure("unexpected: \(error)")
+        }
+    }
+
     // MARK: - Lightning receive (NUT-04 mint quote)
 
     /// Request a BOLT-11 invoice from the user's default Cashu BTC mint.
