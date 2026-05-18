@@ -118,8 +118,7 @@ fn share(
     // `web-sys` bindings would require a wider feature set than we want
     // to pull in.
     let nav_obj: &JsValue = navigator.as_ref();
-    let has_share = js_sys::Reflect::has(nav_obj, &JsValue::from_str("share"))
-        .unwrap_or(false);
+    let has_share = js_sys::Reflect::has(nav_obj, &JsValue::from_str("share")).unwrap_or(false);
 
     if has_share {
         let data = web_sys::ShareData::new();
@@ -163,10 +162,7 @@ fn share(
     }
 
     // Fallback path — write `url` (or `text`) to the clipboard.
-    let text_to_copy = payload
-        .url
-        .or(payload.text)
-        .or(payload.title);
+    let text_to_copy = payload.url.or(payload.text).or(payload.title);
 
     let Some(text) = text_to_copy else {
         if let Some(cb) = on_error {

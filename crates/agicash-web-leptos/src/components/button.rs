@@ -168,11 +168,7 @@ fn colors(variant: ButtonVariant) -> (&'static str, &'static str, &'static str) 
             tokens::COLOR_PRIMARY_FOREGROUND,
             tokens::COLOR_DESTRUCTIVE,
         ),
-        ButtonVariant::Ghost => (
-            "transparent",
-            tokens::COLOR_FOREGROUND,
-            "transparent",
-        ),
+        ButtonVariant::Ghost => ("transparent", tokens::COLOR_FOREGROUND, "transparent"),
     }
 }
 
