@@ -6,10 +6,12 @@ import SwiftUI
 /// plus a "Add Mint" affordance for provisioning a new Cashu mint.
 ///
 /// The web puts the Add Mint CTA at the bottom of the list as a primary
-/// button. On iOS we expose it as a `+` toolbar item (closer-to-native
-/// nav surface) AND keep a primary button under the list for parity with
-/// the web's centered CTA — the two affordances render the same sheet, so
-/// users can tap whichever they reach first.
+/// button. On iOS we expose it solely as a `+` toolbar item in the
+/// navigation bar's trailing slot — closer to native conventions and
+/// frees the list footer from a fixed CTA that conflicts with row
+/// swipe gestures. The empty-state card still surfaces a primary
+/// "Add Mint" button because there are no rows to anchor the toolbar
+/// affordance against visually.
 ///
 /// Default account UX: each non-default row reveals a "Set as default"
 /// action on swipe-left (iOS Mail-style). Tapping it calls the FFI
@@ -103,9 +105,10 @@ struct AccountsView: View {
     /// `AccountRow` keeps its `brandCard()` look, identical to the
     /// previous `ScrollView { VStack }` pass.
     ///
-    /// The primary "Add Mint" CTA sits in a List footer section so it
-    /// scrolls naturally with the rows (sticky-bottom CTAs interact
-    /// badly with the swipe gesture's edge tracking).
+    /// The "Add Mint" trigger lives in the navigation bar's trailing
+    /// `+` toolbar item (see the `.toolbar` modifier on `body`); the
+    /// list has no footer CTA — sticky-bottom CTAs interacted badly
+    /// with the swipe gesture's edge tracking.
     private var populatedList: some View {
         List {
             Section {
@@ -140,20 +143,6 @@ struct AccountsView: View {
                 Color.clear
                     .frame(height: Spacing.s)
                     .listRowInsets(EdgeInsets())
-            } footer: {
-                VStack {
-                    BrandButton(
-                        "Add Mint",
-                        variant: .primary,
-                        size: .large,
-                        action: { showAddMint = true }
-                    )
-                    .frame(maxWidth: 288)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, Spacing.xxl)
-                    .padding(.bottom, Spacing.xxl)
-                }
-                .listRowInsets(EdgeInsets())
             }
         }
         .listStyle(.plain)
