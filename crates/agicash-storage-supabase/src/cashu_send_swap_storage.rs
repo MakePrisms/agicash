@@ -423,6 +423,42 @@ impl CashuSendSwapStorage for SupabaseCashuSendSwapStorage {
         let extra = value.get("released_proofs").cloned();
         self.row_to_swap_with_extra_proofs(swap_value, extra).await
     }
+
+    async fn get(&self, swap_id: Uuid) -> Result<CashuSendSwap, SendSwapStorageError> {
+        // Single-row read used by the FFI `check_send_swap_claimed`
+        // path. Embeds the joined `cashu_proofs` so
+        // `row_to_swap_with_extra_proofs` can rebuild proofs_to_send /
+        // input_proofs without a second round trip. Mirrors
+        // `CashuMeltQuoteStorage::get`.
+        let client = self.base.authenticated_client().await.map_err(map_auth)?;
+        let response = client
+            .from("cashu_send_swaps")
+            .select("*, cashu_proofs!cashu_send_swap_id(*)")
+            .eq("id", swap_id.to_string())
+            .execute()
+            .await
+            .map_err(|e| SendSwapStorageError::Backend(format!("postgrest: {e}")))?;
+        let status = response.status();
+        let text = response
+            .text()
+            .await
+            .map_err(|e| SendSwapStorageError::Backend(format!("read body: {e}")))?;
+        if !status.is_success() {
+            return Err(SendSwapStorageError::Backend(format!(
+                "get cashu_send_swap: HTTP {status}: {text}"
+            )));
+        }
+        // PostgREST returns an array even for single-row queries unless
+        // `Accept: application/vnd.pgrst.object+json` is set. Decode the
+        // array and take the first element; empty array → NotFound.
+        let rows: Vec<Value> = serde_json::from_str(&text)
+            .map_err(|e| SendSwapStorageError::Backend(format!("parse rows: {e}")))?;
+        let row = rows
+            .into_iter()
+            .next()
+            .ok_or(SendSwapStorageError::NotFound)?;
+        self.row_to_swap_with_extra_proofs(row, None).await
+    }
 }
 
 impl SupabaseCashuSendSwapStorage {
