@@ -59,41 +59,20 @@ In the flake shell (`nix develop`):
 
 ```mermaid
 flowchart TD
-    subgraph view ["View"]
-        direction LR
-        SwiftUI
-        Compose
-        Leptos
-        CLI[clap CLI]
-    end
-    subgraph vm ["ViewModel / handler"]
-        direction LR
-        SwiftVM[Swift WalletViewModel]
-        KotlinVM[Kotlin ViewModel]
-        LeptosSig[Leptos signals]
-        CmdHandler[CLI command]
-    end
-    facade["<b>agicash-wallet</b><br/>WalletClient facade"]
-    services["<b>agicash-services</b><br/>async orchestrators"]
-    subgraph machines ["sans-IO state machines"]
-        direction LR
-        cashu[agicash-cashu]
-        spark[agicash-spark]
-    end
-    subgraph impls ["trait impls"]
-        direction LR
-        storage[agicash-storage-supabase]
-        auth[agicash-auth-opensecret]
-        cdk[cdk providers]
-    end
-    traits[/"<b>agicash-traits</b><br/>storage · key · token · clock seams"/]
+    V["<b>View</b> &nbsp;·&nbsp; SwiftUI · Compose · Leptos · clap CLI"]
+    VM["<b>ViewModel / handler</b> &nbsp;·&nbsp; Swift / Kotlin / Leptos signals / CLI command"]
+    F["<b>agicash-wallet</b> &nbsp;·&nbsp; WalletClient facade"]
+    S["<b>agicash-services</b> &nbsp;·&nbsp; async orchestrators"]
+    SM["<b>sans-IO state machines</b> &nbsp;·&nbsp; agicash-cashu · agicash-spark"]
+    T["<b>agicash-traits</b> &nbsp;·&nbsp; Storage · KeyProvider · TokenProvider · Clock seams"]
+    I["<b>trait impls</b> &nbsp;·&nbsp; agicash-storage-supabase · agicash-auth-opensecret · cdk providers"]
 
-    view --> vm
-    vm -- "FFI (iOS, Android) · direct (Rust)" --> facade
-    facade --> services
-    services --> machines
-    machines -- "compose against" --> traits
-    traits -- "are implemented by" --> impls
+    V --> VM
+    VM -- "FFI (iOS, Android) · direct (Rust)" --> F
+    F --> S
+    S --> SM
+    SM -. composes against .-> T
+    T -. implemented by .-> I
 ```
 
 Sans-IO state machines hold all the protocol logic without async or I/O; orchestrators in `agicash-services` glue them to concrete providers; `WalletClient` aggregates the orchestrators. Swapping a backend (real Supabase → in-memory fake for tests, alt auth provider, etc.) is a trait-impl swap at the composition root, not a rewrite. Full walk-through: `docs/architecture.md`.
