@@ -13,11 +13,10 @@ use leptos_router::{
     path, StaticSegment,
 };
 
-use crate::components::ProtectedLayout;
+use crate::components::{ProtectedLayout, WalletData};
 use crate::pages::{
     AccountsAddPage, AccountsIndexPage, HomePage, LoginPage, ReceiveCashuPage, ReceivePage,
-    SendPage, SettingsAppearancePage, SettingsContactsPage, SettingsIndexPage,
-    SettingsProfilePage,
+    SendPage, SettingsAppearancePage, SettingsContactsPage, SettingsIndexPage, SettingsProfilePage,
 };
 
 /// Auth signal stored in the Leptos context. `Some(access_token)` means
@@ -57,6 +56,13 @@ pub fn App() -> impl IntoView {
     // routes redirect to /login when it's None.
     let access_token = AccessToken(RwSignal::new(None));
     provide_context(access_token);
+
+    // Shared wallet view-model. Idle on first paint; the home page (and
+    // any other consumer) calls `.refresh()` from an Effect once it
+    // mounts. The shape stays the same when slice 13 ships a real
+    // wasm wallet binding — only the body of `WalletData::refresh`
+    // changes. See `components/wallet_context.rs`.
+    provide_context(WalletData::new());
 
     view! {
         <Stylesheet id="leptos" href="/style/main.css"/>
