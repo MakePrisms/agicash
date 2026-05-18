@@ -30,7 +30,7 @@ import {
   pendingGiftCardMintTermsStorage,
   pendingWalletTermsStorage,
 } from '~/features/user/pending-terms-storage';
-import { sessionHintCookie } from '~/features/user/session-hint-cookie';
+import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
 import { type User, shouldAcceptTerms } from '~/features/user/user';
 import {
   defaultAccounts,
@@ -237,18 +237,8 @@ export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
 // unauthenticated path — 302 before any HTML is sent, so no flicker on the
 // way to /home.
 export async function loader({ request }: Route.LoaderArgs) {
-  const cookieHeader = request.headers.get('Cookie');
-  if (sessionHintCookie.isPresent(cookieHeader)) {
-    return null;
-  }
-
-  const url = new URL(request.url);
-  const params = new URLSearchParams(url.search);
-  if (url.pathname !== '/') {
-    params.set('redirectTo', url.pathname);
-  }
-  const search = params.toString();
-  throw redirect(`/home${search ? `?${search}` : ''}`);
+  requireSessionHintOrRedirect(request);
+  return null;
 }
 
 export async function clientLoader() {
