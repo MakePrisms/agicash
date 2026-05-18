@@ -12,10 +12,38 @@
 # fills a var when it is currently unset.
 { pkgs, lib, common }:
 
+let
+  # ---- workspace shell command wrappers ----------------------------------
+  # `acli` etc. are convenience wrappers around `cargo run -p ...`.
+  # Built as real script-bin derivations on PATH so they work in any shell
+  # (bash, zsh, fish), any subprocess, any `nix develop -c <cmd>`, and any
+  # direnv-exported environment. Each resolves the workspace root via
+  # `git rev-parse --show-toplevel` so it works no matter where the
+  # operator's cwd is under the repo. The bash function form used to break
+  # for zsh users because `export -f` only propagates through bash.
+  mkAgicashBin = name: body: pkgs.writeShellScriptBin name ''
+    set -euo pipefail
+    root="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
+    manifest="$root/crates/Cargo.toml"
+    ${body}
+  '';
+
+  agicashBins = [
+    (mkAgicashBin "acli"         ''exec cargo run --manifest-path "$manifest" -p agicash-cli -- "$@"'')
+    (mkAgicashBin "acli_keyring" ''exec cargo run --manifest-path "$manifest" -p agicash-cli --features keyring-storage -- "$@"'')
+    (mkAgicashBin "aweb"         ''exec cargo leptos serve --manifest-path "$root/crates/agicash-web-leptos/Cargo.toml" "$@"'')
+    (mkAgicashBin "acodegen"     ''exec cargo run --manifest-path "$manifest" -p agicash-storage-supabase-codegen -- "$@"'')
+    (mkAgicashBin "atest"        ''exec cargo test  --manifest-path "$manifest" --workspace "$@"'')
+    (mkAgicashBin "abuild"       ''exec cargo build --manifest-path "$manifest" --workspace "$@"'')
+    (mkAgicashBin "aclippy"      ''exec cargo clippy --manifest-path "$manifest" --workspace --all-targets "$@" -- -D warnings'')
+    (mkAgicashBin "afmt"         ''exec cargo fmt   --manifest-path "$manifest" --all "$@"'')
+    (mkAgicashBin "awasm"        ''exec cargo build --manifest-path "$manifest" --target wasm32-unknown-unknown -p agicash-wasm "$@"'')
+  ];
+in
 pkgs.mkShell {
   name = "agicash-default";
 
-  packages = common.basePackages ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+  packages = common.basePackages ++ agicashBins ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
     pkgs.libiconv
   ];
 
@@ -62,27 +90,11 @@ pkgs.mkShell {
       fi
     fi
 
-    # ---- workspace shell functions ----------------------------------------
-    # `acli` etc. are convenience wrappers around `cargo run -p ...`.
-    # Defined as shell functions (not aliases) so they survive `bash -c`,
-    # `nix develop -c <cmd>`, and direnv-exported environments. Each
-    # resolves the workspace via `git rev-parse --show-toplevel` so it
-    # works no matter where the operator's cwd is under the repo.
-    _agicash_manifest() {
-      local root
-      root="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
-      echo "$root/crates/Cargo.toml"
-    }
-    acli()        { cargo run --manifest-path "$(_agicash_manifest)" -p agicash-cli -- "$@"; }
-    acli_keyring() { cargo run --manifest-path "$(_agicash_manifest)" -p agicash-cli --features keyring-storage -- "$@"; }
-    aweb()        { local root; root="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"; cargo leptos serve --manifest-path "$root/crates/agicash-web-leptos/Cargo.toml" "$@"; }
-    acodegen()    { cargo run --manifest-path "$(_agicash_manifest)" -p agicash-storage-supabase-codegen -- "$@"; }
-    atest()       { cargo test  --manifest-path "$(_agicash_manifest)" --workspace "$@"; }
-    abuild()      { cargo build --manifest-path "$(_agicash_manifest)" --workspace "$@"; }
-    aclippy()     { cargo clippy --manifest-path "$(_agicash_manifest)" --workspace --all-targets "$@" -- -D warnings; }
-    afmt()        { cargo fmt   --manifest-path "$(_agicash_manifest)" --all "$@"; }
-    awasm()       { cargo build --manifest-path "$(_agicash_manifest)" --target wasm32-unknown-unknown -p agicash-wasm "$@"; }
-    export -f _agicash_manifest acli acli_keyring aweb acodegen atest abuild aclippy afmt awasm 2>/dev/null || true
+    # Workspace command wrappers (acli, aweb, atest, …) are real bin
+    # derivations defined in this file's `let` block and added to the
+    # devshell's `packages` list — they appear on PATH automatically and
+    # work in any shell (bash, zsh, fish), unlike the old `export -f`
+    # bash functions which were invisible to zsh.
 
     # Generate the local-dev SSL cert if missing, so `supabase start`
     # comes up clean. Idempotent — script no-ops when the cert is good.
@@ -99,7 +111,7 @@ pkgs.mkShell {
       echo "  OPENSECRET:      $OPENSECRET_BASE_URL"
       echo "  SUPABASE:        $SUPABASE_URL"
       echo ""
-      echo "  functions: acli, acli_keyring, aweb, acodegen, atest, abuild, aclippy, afmt, awasm"
+      echo "  binaries: acli, acli_keyring, aweb, acodegen, atest, abuild, aclippy, afmt, awasm"
       echo "  platform shells: nix develop .#{ios,android,wasm}"
     fi
   '';
