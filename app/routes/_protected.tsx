@@ -30,6 +30,7 @@ import {
   pendingGiftCardMintTermsStorage,
   pendingWalletTermsStorage,
 } from '~/features/user/pending-terms-storage';
+import { sessionHintCookie } from '~/features/user/session-hint-cookie';
 import { type User, shouldAcceptTerms } from '~/features/user/user';
 import {
   defaultAccounts,
@@ -230,6 +231,25 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
 export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
   routeGuardMiddleware,
 ];
+
+// Cookie is a hint, not auth: clientMiddleware above still validates the JWT,
+// so a forged cookie just buys a brief loading screen. The win is the common
+// unauthenticated path — 302 before any HTML is sent, so no flicker on the
+// way to /home.
+export async function loader({ request }: Route.LoaderArgs) {
+  const cookieHeader = request.headers.get('Cookie');
+  if (sessionHintCookie.isPresent(cookieHeader)) {
+    return null;
+  }
+
+  const url = new URL(request.url);
+  const params = new URLSearchParams(url.search);
+  if (url.pathname !== '/') {
+    params.set('redirectTo', url.pathname);
+  }
+  const search = params.toString();
+  throw redirect(`/home${search ? `?${search}` : ''}`);
+}
 
 export async function clientLoader() {
   // We are keeping this clientLoader to force client rendering for all protected routes.
