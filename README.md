@@ -57,9 +57,46 @@ In the flake shell (`nix develop`):
 
 ## How it composes
 
-View (SwiftUI / Compose / Leptos / CLI) → ViewModel → `WalletClient` facade (`agicash-wallet`) → async orchestrators (`agicash-services`) → sans-IO state machines (`agicash-cashu`, `agicash-spark`) → trait impls (`agicash-storage-supabase`, `agicash-auth-opensecret`, cdk providers).
+```mermaid
+flowchart TD
+    subgraph view ["View"]
+        direction LR
+        SwiftUI
+        Compose
+        Leptos
+        CLI[clap CLI]
+    end
+    subgraph vm ["ViewModel / handler"]
+        direction LR
+        SwiftVM[Swift WalletViewModel]
+        KotlinVM[Kotlin ViewModel]
+        LeptosSig[Leptos signals]
+        CmdHandler[CLI command]
+    end
+    facade["<b>agicash-wallet</b><br/>WalletClient facade"]
+    services["<b>agicash-services</b><br/>async orchestrators"]
+    subgraph machines ["sans-IO state machines"]
+        direction LR
+        cashu[agicash-cashu]
+        spark[agicash-spark]
+    end
+    subgraph impls ["trait impls"]
+        direction LR
+        storage[agicash-storage-supabase]
+        auth[agicash-auth-opensecret]
+        cdk[cdk providers]
+    end
+    traits[/"<b>agicash-traits</b><br/>storage · key · token · clock seams"/]
 
-Seams are traits in `agicash-traits`. Swapping a backend is a trait-impl swap at the composition root. Full walk-through: `docs/architecture.md`.
+    view --> vm
+    vm -- "FFI (iOS, Android) · direct (Rust)" --> facade
+    facade --> services
+    services --> machines
+    machines -- "compose against" --> traits
+    traits -- "are implemented by" --> impls
+```
+
+Sans-IO state machines hold all the protocol logic without async or I/O; orchestrators in `agicash-services` glue them to concrete providers; `WalletClient` aggregates the orchestrators. Swapping a backend (real Supabase → in-memory fake for tests, alt auth provider, etc.) is a trait-impl swap at the composition root, not a rewrite. Full walk-through: `docs/architecture.md`.
 
 ## Platform builds
 
