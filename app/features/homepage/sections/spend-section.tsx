@@ -1,69 +1,37 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Section } from '../components/section';
 import { SectionLabel } from '../components/section-label';
 
 const QR_SIZE = 21;
-const FINDER_SIZE = 7;
 
-// Mulberry32 — small deterministic PRNG so the QR pattern is stable
-function mulberry32(seed: number) {
-  let a = seed;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function buildQrPattern(size: number, seed: number): boolean[][] {
-  const grid: boolean[][] = Array.from({ length: size }, () =>
-    Array(size).fill(false),
-  );
-
-  const drawFinder = (r0: number, c0: number) => {
-    for (let dr = 0; dr < FINDER_SIZE; dr++) {
-      for (let dc = 0; dc < FINDER_SIZE; dc++) {
-        const isOuter = dr === 0 || dr === 6 || dc === 0 || dc === 6;
-        const isInner = dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4;
-        grid[r0 + dr][c0 + dc] = isOuter || isInner;
-      }
-    }
-  };
-
-  drawFinder(0, 0);
-  drawFinder(0, size - FINDER_SIZE);
-  drawFinder(size - FINDER_SIZE, 0);
-
-  const inFinderZone = (r: number, c: number) =>
-    (r < FINDER_SIZE + 1 && c < FINDER_SIZE + 1) ||
-    (r < FINDER_SIZE + 1 && c >= size - FINDER_SIZE - 1) ||
-    (r >= size - FINDER_SIZE - 1 && c < FINDER_SIZE + 1);
-
-  const rng = mulberry32(seed);
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (inFinderZone(r, c)) continue;
-      // Timing pattern on row 6 + col 6
-      if (r === 6) {
-        grid[r][c] = c % 2 === 0;
-        continue;
-      }
-      if (c === 6) {
-        grid[r][c] = r % 2 === 0;
-        continue;
-      }
-      grid[r][c] = rng() < 0.46;
-    }
-  }
-
-  return grid;
-}
+// Decorative QR-shaped grid (aria-hidden) pre-baked from the original
+// seeded generator; not a scannable code, so don't "fix" the random-looking cells.
+const QR_ROWS = [
+  '███████░░█░░░░███████',
+  '█░░░░░█░████░░█░░░░░█',
+  '█░███░█░░░░░█░█░███░█',
+  '█░███░█░░░█░█░█░███░█',
+  '█░███░█░█████░█░███░█',
+  '█░░░░░█░███░░░█░░░░░█',
+  '███████░█░█░█░███████',
+  '░░░░░░░░░██░█░░░░░░░░',
+  '░░█░█░██░░░░░░░█░░██░',
+  '█░░░█░░░░░█░░█░░█░░░░',
+  '░█░██░█░██░██░░█░░█░░',
+  '░█░█░█░░░░░░█░█░░░░██',
+  '░░░░████░░██░░░███░██',
+  '░░░░░░░░█░██░█░██████',
+  '███████░█░███░░█░░██░',
+  '█░░░░░█░█░█░░█░░█░██░',
+  '█░███░█░█░░█░████░█░█',
+  '█░███░█░██░░███░█░░░░',
+  '█░███░█░░█░░░█░░░██░░',
+  '█░░░░░█░░░░░█░░██░███',
+  '███████░█░████░░░░█░█',
+];
+const QR_GRID = QR_ROWS.map((r) => [...r].map((c) => c === '█'));
 
 function QrPattern() {
-  const grid = useMemo(() => buildQrPattern(QR_SIZE, 4242), []);
   return (
     <svg
       className="pay-qr block text-[#04080f]"
@@ -74,7 +42,7 @@ function QrPattern() {
       overflow="hidden"
       aria-hidden="true"
     >
-      {grid.flatMap((row, r) =>
+      {QR_GRID.flatMap((row, r) =>
         row.map((cell, c) =>
           cell ? (
             // biome-ignore lint/suspicious/noArrayIndexKey: static QR grid never reorders
