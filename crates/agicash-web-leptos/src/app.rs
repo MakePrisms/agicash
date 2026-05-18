@@ -4,11 +4,15 @@
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
-    components::{Route, Router, Routes},
+    components::{ParentRoute, Route, Router, Routes},
     StaticSegment,
 };
 
-use crate::pages::{HomePage, LoginPage};
+use crate::components::ProtectedLayout;
+use crate::pages::{
+    AccountsAddPage, AccountsIndexPage, HomePage, LoginPage, ReceivePage, SendPage,
+    SettingsAppearancePage, SettingsContactsPage, SettingsIndexPage, SettingsProfilePage,
+};
 
 /// Auth signal stored in the Leptos context. `Some(access_token)` means
 /// "logged in"; `None` redirects to `/login`. Spec §7 keeps the access
@@ -63,7 +67,24 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 
 /// Root reactive component. Provides the `AccessToken` context, the
 /// `<Title/>` + `<Stylesheet/>` from `leptos_meta`, and the router with
-/// the two routes Phase-1-partial ships: `/login` and `/`.
+/// the route tree:
+///
+/// ```text
+/// /login                        (public)
+/// / (ProtectedLayout)           (auth-gated, renders <Outlet/> + BottomNav)
+///   ├── ""                      Home
+///   ├── receive                 Receive (sibling lane L4 fills sub-routes)
+///   ├── send                    Send
+///   ├── accounts                Accounts list
+///   │     └── add               Add mint
+///   └── settings                Settings index
+///         ├── profile           Profile
+///         ├── appearance        Appearance
+///         └── contacts          Contacts
+/// ```
+///
+/// The protected group uses `ParentRoute` so the `BottomNav` stays
+/// mounted across navigations (no flash, no scroll-position loss).
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
@@ -81,7 +102,26 @@ pub fn App() -> impl IntoView {
             <main>
                 <Routes fallback=|| "Not found.">
                     <Route path=StaticSegment("/login") view=LoginPage/>
-                    <Route path=StaticSegment("") view=HomePage/>
+
+                    // Protected group. The empty-path ParentRoute matches
+                    // every URL that didn't match `/login` above; the inner
+                    // index child (also empty path) renders Home, siblings
+                    // handle the named tabs + their nested sub-routes.
+                    <ParentRoute path=StaticSegment("") view=ProtectedLayout>
+                        <Route path=StaticSegment("") view=HomePage/>
+                        <Route path=StaticSegment("receive") view=ReceivePage/>
+                        <Route path=StaticSegment("send") view=SendPage/>
+                        <Route path=StaticSegment("accounts") view=AccountsIndexPage/>
+                        <Route path=(StaticSegment("accounts"), StaticSegment("add"))
+                               view=AccountsAddPage/>
+                        <Route path=StaticSegment("settings") view=SettingsIndexPage/>
+                        <Route path=(StaticSegment("settings"), StaticSegment("profile"))
+                               view=SettingsProfilePage/>
+                        <Route path=(StaticSegment("settings"), StaticSegment("appearance"))
+                               view=SettingsAppearancePage/>
+                        <Route path=(StaticSegment("settings"), StaticSegment("contacts"))
+                               view=SettingsContactsPage/>
+                    </ParentRoute>
                 </Routes>
             </main>
         </Router>
