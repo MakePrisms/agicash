@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import logoUrl from '~/assets/full_logo.png';
 import { authQueryOptions } from '~/features/user/auth';
 
@@ -13,6 +13,7 @@ const signupBtn =
   'border-[color:var(--mk-brand)] bg-[color:var(--mk-brand)] text-[#04080f] hover:bg-transparent hover:text-[color:var(--mk-brand)]';
 
 export function MarketingNav() {
+  const location = useLocation();
   const { data: authState } = useQuery(authQueryOptions());
   const isLoggedIn = authState?.isLoggedIn ?? false;
 
@@ -43,10 +44,16 @@ export function MarketingNav() {
             </Link>
           ) : (
             <>
-              <Link to="/login" className={`${navBtnBase} ${loginBtn}`}>
+              <Link
+                to={{ ...location, pathname: '/login' }}
+                className={`${navBtnBase} ${loginBtn}`}
+              >
                 Log in
               </Link>
-              <Link to="/signup" className={`${navBtnBase} ${signupBtn}`}>
+              <Link
+                to={{ ...location, pathname: '/signup' }}
+                className={`${navBtnBase} ${signupBtn}`}
+              >
                 Sign up
               </Link>
             </>
