@@ -1034,6 +1034,130 @@ impl AgicashWallet {
             mint_url: mint_url_str,
         })
     }
+
+    /// Check whether the receiver has claimed a previously-created
+    /// send swap. Pure poll: re-loads the swap, asks the mint via
+    /// NUT-07 `post_check_state` whether the swap's `proofs_to_send`
+    /// are SPENT, and (if so) flips the persisted row PENDING →
+    /// COMPLETED.
+    ///
+    /// Returns:
+    /// - `Pending` while at least one proof is still UNSPENT (or in
+    ///   any non-terminal state on the mint side).
+    /// - `Completed` when every proof is SPENT — the receiver
+    ///   redeemed. The persisted row is transitioned in the same
+    ///   call; subsequent polls short-circuit on the persisted state.
+    /// - `Failed` only if the swap row is already FAILED (defensive;
+    ///   shouldn't happen post-PENDING). `failure_reason` is surfaced
+    ///   for the iOS UI to render.
+    ///
+    /// Errors:
+    /// - `FfiError::Auth { UNAUTHENTICATED }` if no session loaded.
+    /// - `FfiError::Internal` for invalid UUID, missing swap, ownership
+    ///   mismatch, mint round-trip failure.
+    /// - `FfiError::Storage` for raw Supabase failures.
+    pub async fn check_send_swap_claimed(
+        &self,
+        swap_id: String,
+    ) -> Result<crate::send::SendSwapClaimSnapshot, FfiError> {
+        use cdk::nuts::{CheckStateRequest, State as CdkProofState};
+        // `MintConnector` is brought into scope so the dyn-Arc
+        // returned by `wallet.connector()` exposes `post_check_state`.
+        #[allow(unused_imports)]
+        use cdk::wallet::MintConnector;
+
+        let session = self.session.read().await.clone().ok_or(FfiError::Auth {
+            code: crate::error::auth_code::UNAUTHENTICATED,
+            message: "not authenticated".into(),
+        })?;
+        let user_id = UserId::from(session.user_id);
+
+        let id = Uuid::parse_str(&swap_id)
+            .map_err(|e| FfiError::internal(format!("invalid swap_id: {e}")))?;
+        let swap = self
+            .send_swap_storage
+            .get(id)
+            .await
+            .map_err(|e| FfiError::internal(format!("storage error: {e}")))?;
+        if swap.user_id != user_id {
+            return Err(FfiError::internal("swap belongs to a different user"));
+        }
+
+        // Fast path: already-terminal states short-circuit without a
+        // mint round-trip.
+        let proofs_to_send = match &swap.state {
+            CashuSendSwapState::Completed { .. } => {
+                return Ok(crate::send::SendSwapClaimSnapshot {
+                    state: crate::send::SendSwapClaimState::Completed,
+                    failure_reason: None,
+                });
+            }
+            CashuSendSwapState::Failed { failure_reason } => {
+                return Ok(crate::send::SendSwapClaimSnapshot {
+                    state: crate::send::SendSwapClaimState::Failed,
+                    failure_reason: Some(failure_reason.clone()),
+                });
+            }
+            CashuSendSwapState::Pending { proofs_to_send, .. } => proofs_to_send.clone(),
+            other => {
+                return Err(FfiError::internal(format!(
+                    "swap in unexpected state for claim-check: {other:?}"
+                )));
+            }
+        };
+
+        let accounts = self.storage.list_accounts(user_id).await?;
+        let account = accounts
+            .iter()
+            .find(|a| a.id == swap.account_id && a.account_type == AccountType::Cashu)
+            .ok_or_else(|| FfiError::internal("no matching account for swap"))?;
+
+        let wallet = self
+            .cashu_provider
+            .wallet_for_account(account)
+            .await
+            .map_err(cashu_provider_error_to_ffi)?;
+
+        // Hash each proof's secret to a curve point — this is the `Y`
+        // identifier NUT-07 uses to look up proof state by.
+        let ys: Vec<cdk::nuts::PublicKey> = proofs_to_send
+            .iter()
+            .map(|p| {
+                let secret = cdk::secret::Secret::from_str(&p.secret)
+                    .map_err(|e| FfiError::internal(format!("bad secret: {e}")))?;
+                cdk::dhke::hash_to_curve(secret.as_bytes())
+                    .map_err(|e| FfiError::internal(format!("hash_to_curve: {e}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let req = CheckStateRequest { ys };
+        let resp = wallet
+            .connector()
+            .post_check_state(req)
+            .await
+            .map_err(|e| FfiError::internal(format!("mint check_state: {e}")))?;
+
+        let all_spent = !resp.states.is_empty()
+            && resp.states.iter().all(|s| matches!(s.state, CdkProofState::Spent));
+
+        if all_spent {
+            // PENDING → COMPLETED so subsequent polls short-circuit on
+            // the persisted state.
+            self.send_swap_service
+                .complete(&swap)
+                .await
+                .map_err(send_swap_error_to_ffi)?;
+            Ok(crate::send::SendSwapClaimSnapshot {
+                state: crate::send::SendSwapClaimState::Completed,
+                failure_reason: None,
+            })
+        } else {
+            Ok(crate::send::SendSwapClaimSnapshot {
+                state: crate::send::SendSwapClaimState::Pending,
+                failure_reason: None,
+            })
+        }
+    }
 }
 
 /// Find a `Cashu` account whose `(mint_url, currency)` pair matches the
@@ -1653,6 +1777,25 @@ mod tests {
         .expect("construct");
         let err = wallet
             .create_send_swap(64, None, None)
+            .await
+            .expect_err("no session");
+        assert!(
+            matches!(err, FfiError::Auth { code, .. } if code == crate::error::auth_code::UNAUTHENTICATED)
+        );
+    }
+
+    #[tokio::test]
+    async fn check_send_swap_claimed_without_session_returns_unauthenticated() {
+        let cfg = fake_config();
+        let wallet = AgicashWallet::new(
+            cfg.opensecret_url,
+            cfg.client_id,
+            cfg.supabase_url,
+            cfg.anon_key,
+        )
+        .expect("construct");
+        let err = wallet
+            .check_send_swap_claimed(Uuid::new_v4().to_string())
             .await
             .expect_err("no session");
         assert!(
