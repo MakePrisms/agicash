@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Backwards-compat for the app icon background (mipmap-anydpi-v26 adaptive
-         icon foreground/background separation). The orange chosen matches the
-         iOS app's accent/tint. -->
-    <color name="ic_launcher_background">#FB923C</color>
+    <!-- Background color for the adaptive launcher icon. Matches the iOS app
+         icon background (pure black) so the Agicash mark reads consistently
+         across platforms regardless of the launcher's mask shape (circle,
+         squircle, teardrop, etc). The mark itself lives in
+         @mipmap/ic_launcher_foreground and is sized to fit within the 66dp
+         adaptive-icon safe zone. -->
+    <color name="ic_launcher_background">#000000</color>
 </resources>

@@ -91,7 +91,11 @@ dependencies {
     // classpath the Rust shim's `init_with_env` call still latches its
     // global, but TLS handshakes fail because the Kotlin verifier classes
     // are missing.
-    implementation(libs.rustls.platform.verifier)
+    // Force the AAR variant: the on-disk Maven repo shipped by the Rust crate
+    // contains only `rustls-platform-verifier-0.1.1.aar`, but Gradle's
+    // default resolution looks for .jar first, so without this artifact
+    // hint the build errors with "Could not find rustls:rustls-platform-verifier".
+    implementation(libs.rustls.platform.verifier) { artifact { type = "aar" } }
 
     debugImplementation(libs.androidx.ui.tooling)
 }
