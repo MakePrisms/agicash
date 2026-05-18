@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Agicash</title>
+
+    <link rel="manifest" href="public/manifest.json" />
+    <link rel="icon" type="image/x-icon" href="public/favicon.ico" />
+    <link rel="apple-touch-icon" href="public/icon-192x192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!--
+      Fonts from the design-tokens system (design/tokens.json):
+      Kode Mono for UI text, Teko for monetary numerics.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Kode+Mono:wght@400..700&family=Teko:wght@300..700&display=swap"
+    />
+    <link rel="stylesheet" href="style/main.css" />
+  </head>
+  <body>
+    <!--
+      Pure CSR boot: wasm-pack emits pkg/agicash_web_leptos.js +
+      pkg/agicash_web_leptos_bg.wasm. The js glue's default export is
+      the `init` function (returns once the wasm is instantiated);
+      `hydrate` is the wasm-bindgen-exported entry from lib.rs that
+      mounts the Leptos component tree onto <body>.
+    -->
+    <script type="module">
+      import init, { hydrate } from "./pkg/agicash_web_leptos.js";
+      await init();
+      hydrate();
+    </script>
+
+    <script>
+      // Best-effort service-worker registration (same logic that used
+      // to live inside the SSR shell). Browsers without SW support
+      // silently skip.
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker
+            .register("public/service-worker.js")
+            .catch(function () {});
+        });
+      }
+    </script>
+  </body>
+</html>
