@@ -3,7 +3,7 @@
 //! Lane split (sibling worktrees collide here):
 //!   - L1 (auth, future): `login_view` — three-option login chooser.
 //!   - L2 (this lane, app shell): `bottom_nav`, `protected_layout`.
-//!   - L3 (primitives): button, numpad, sheet, share, toast, currency_toggle.
+//!   - L3 (primitives): `button`, `numpad`, `sheet`, `share`, `toast`, `currency_toggle`.
 //!   - L4 (receive-token): `cashu_token_paste_view`.
 //!
 //! Phase 1 partial ships:

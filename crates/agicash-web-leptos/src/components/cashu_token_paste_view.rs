@@ -642,6 +642,31 @@ enum ButtonVariant {
     Ghost,
 }
 
+fn button_style(variant: ButtonVariant) -> String {
+    let (bg, fg, border) = match variant {
+        ButtonVariant::Primary => (
+            tokens::COLOR_PRIMARY,
+            tokens::COLOR_PRIMARY_FOREGROUND,
+            tokens::COLOR_PRIMARY,
+        ),
+        ButtonVariant::Ghost => (
+            "transparent",
+            tokens::COLOR_CARD_FOREGROUND,
+            tokens::COLOR_BORDER,
+        ),
+    };
+    format!(
+        "display:inline-flex; align-items:center; justify-content:center; \
+         height:40px; padding:0 {pad}; border-radius:{radius}; \
+         font-size:{text}; font-weight:500; font-family:inherit; \
+         background:{bg}; color:{fg}; border:1px solid {border}; \
+         cursor:pointer; transition:opacity 150ms ease;",
+        pad = tokens::SPACE_L,
+        radius = tokens::RADIUS_MD,
+        text = tokens::TEXT_SM,
+    )
+}
+
 // ---- Tests ----------------------------------------------------------------
 
 #[cfg(test)]
@@ -649,7 +674,7 @@ mod tests {
     use super::{is_known_mint, parse_token, KNOWN_MINTS};
 
     /// V3 token (cashuA) fixture copied from `cashu-0.15.1` upstream
-    /// tests. 2+8 = 10 sat at https://8333.space:3338, memo "Thank you
+    /// tests. 2+8 = 10 sat at <https://8333.space:3338>, memo "Thank you
     /// very much.". Verifies the pure-parse path doesn't need any
     /// network calls — exactly what makes the wasm preview viable.
     const V3_TOKEN_FIXTURE: &str = "cashuAeyJ0b2tlbiI6W3sibWludCI6Imh0dHBzOi8vODMzMy5zcGFjZTozMzM4IiwicHJvb2ZzIjpbeyJhbW91bnQiOjIsImlkIjoiMDA5YTFmMjkzMjUzZTQxZSIsInNlY3JldCI6IjQwNzkxNWJjMjEyYmU2MWE3N2UzZTZkMmFlYjRjNzI3OTgwYmRhNTFjZDA2YTZhZmMyOWUyODYxNzY4YTc4MzciLCJDIjoiMDJiYzkwOTc5OTdkODFhZmIyY2M3MzQ2YjVlNDM0NWE5MzQ2YmQyYTUwNmViNzk1ODU5OGE3MmYwY2Y4NTE2M2VhIn0seyJhbW91bnQiOjgsImlkIjoiMDA5YTFmMjkzMjUzZTQxZSIsInNlY3JldCI6ImZlMTUxMDkzMTRlNjFkNzc1NmIwZjhlZTBmMjNhNjI0YWNhYTNmNGUwNDJmNjE0MzNjNzI4YzcwNTdiOTMxYmUiLCJDIjoiMDI5ZThlNTA1MGI4OTBhN2Q2YzA5NjhkYjE2YmMxZDVkNWZhMDQwZWExZGUyODRmNmVjNjlkNjEyOTlmNjcxMDU5In1dfV0sInVuaXQiOiJzYXQiLCJtZW1vIjoiVGhhbmsgeW91IHZlcnkgbXVjaC4ifQ==";
@@ -699,29 +724,4 @@ mod tests {
     fn unknown_mint_returns_false() {
         assert!(!is_known_mint("https://example.com"));
     }
-}
-
-fn button_style(variant: ButtonVariant) -> String {
-    let (bg, fg, border) = match variant {
-        ButtonVariant::Primary => (
-            tokens::COLOR_PRIMARY,
-            tokens::COLOR_PRIMARY_FOREGROUND,
-            tokens::COLOR_PRIMARY,
-        ),
-        ButtonVariant::Ghost => (
-            "transparent",
-            tokens::COLOR_CARD_FOREGROUND,
-            tokens::COLOR_BORDER,
-        ),
-    };
-    format!(
-        "display:inline-flex; align-items:center; justify-content:center; \
-         height:40px; padding:0 {pad}; border-radius:{radius}; \
-         font-size:{text}; font-weight:500; font-family:inherit; \
-         background:{bg}; color:{fg}; border:1px solid {border}; \
-         cursor:pointer; transition:opacity 150ms ease;",
-        pad = tokens::SPACE_L,
-        radius = tokens::RADIUS_MD,
-        text = tokens::TEXT_SM,
-    )
 }

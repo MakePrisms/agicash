@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Mirrors the partial update the web app does in
 /// `app/features/user/user-repository.ts` (`WriteUserRepository.update`) — it
-/// PATCHes the `wallet.users` row with whichever of `default_btc_account_id`,
+/// `PATCH`es the `wallet.users` row with whichever of `default_btc_account_id`,
 /// `default_usd_account_id`, `default_currency` the caller supplied.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UpdateUserDefaults {

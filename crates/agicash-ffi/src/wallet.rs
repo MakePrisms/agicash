@@ -81,8 +81,8 @@ pub struct AgicashWallet {
     mint_quote_storage: Arc<dyn CashuMintQuoteStorage>,
     /// Send-swap orchestrator. Wired against the same `send_swap_storage`
     /// + `cashu_provider` the wallet already owns. Drives
-    /// `prepare_send_quote`, `create_send_swap`, `check_send_swap_claimed`.
-    /// Mirrors `mint_quote_service`.
+    ///   `prepare_send_quote`, `create_send_swap`, `check_send_swap_claimed`.
+    ///   Mirrors `mint_quote_service`.
     send_swap_service: Arc<CashuSendSwapService>,
     /// In-memory session. Phase 1 leaves persistence to the Swift consumer:
     /// the iOS app stores the `refresh_token` in Keychain and rehydrates this

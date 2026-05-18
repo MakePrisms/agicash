@@ -205,16 +205,14 @@ fn update_defaults_body(patch: &UpdateUserDefaults) -> Value {
         map.insert(
             tables::users::columns::DEFAULT_BTC_ACCOUNT_ID.to_string(),
             slot.as_ref()
-                .map(|id| Value::String(id.to_string()))
-                .unwrap_or(Value::Null),
+                .map_or(Value::Null, |id| Value::String(id.to_string())),
         );
     }
     if let Some(slot) = &patch.default_usd_account_id {
         map.insert(
             tables::users::columns::DEFAULT_USD_ACCOUNT_ID.to_string(),
             slot.as_ref()
-                .map(|id| Value::String(id.to_string()))
-                .unwrap_or(Value::Null),
+                .map_or(Value::Null, |id| Value::String(id.to_string())),
         );
     }
     if let Some(c) = patch.default_currency {
