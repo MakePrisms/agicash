@@ -171,45 +171,49 @@ impl WalletData {
         #[cfg(target_arch = "wasm32")]
         let config = use_context::<AppConfig>();
 
-        leptos::task::spawn_local(async move {
-            #[cfg(target_arch = "wasm32")]
-            {
-                let Some(config) = config else {
-                    self.accounts
-                        .set(LoadState::Error("AppConfig context missing".to_string()));
-                    return;
-                };
+        // Wasm uses wasm_bindgen_futures directly because `leptos::task::
+        // spawn_local` requires the leptos Executor to be installed, and
+        // refresh() can fire from an Effect before hydration completes
+        // that handshake. Native test build uses leptos's spawn since
+        // tests run under tokio + the reactive harness.
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(async move {
+            let Some(config) = config else {
+                self.accounts
+                    .set(LoadState::Error("AppConfig context missing".to_string()));
+                return;
+            };
 
-                match load_session_user_id().await {
-                    Ok(Some(uid)) => {
-                        self.user_id.set(Some(uid));
-                        match fetch_accounts_via_rest(&config, uid).await {
-                            Ok(accounts) => {
-                                self.accounts.set(LoadState::Ready(accounts));
-                            }
-                            Err(msg) => {
-                                self.accounts.set(LoadState::Error(msg));
-                            }
+            match load_session_user_id().await {
+                Ok(Some(uid)) => {
+                    self.user_id.set(Some(uid));
+                    match fetch_accounts_via_rest(&config, uid).await {
+                        Ok(accounts) => {
+                            self.accounts.set(LoadState::Ready(accounts));
+                        }
+                        Err(msg) => {
+                            self.accounts.set(LoadState::Error(msg));
                         }
                     }
-                    Ok(None) => {
-                        // No session — ProtectedLayout should have
-                        // redirected, but we don't want to spin.
-                        self.accounts.set(LoadState::Ready(Vec::new()));
-                    }
-                    Err(msg) => {
-                        self.accounts.set(LoadState::Error(msg));
-                    }
+                }
+                Ok(None) => {
+                    // No session — ProtectedLayout should have
+                    // redirected, but we don't want to spin.
+                    self.accounts.set(LoadState::Ready(Vec::new()));
+                }
+                Err(msg) => {
+                    self.accounts.set(LoadState::Error(msg));
                 }
             }
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                // Native: don't touch anything async — the test runner
-                // doesn't have a browser. Just settle into Ready(empty)
-                // so any view tests rendering this state get the same
-                // shape they'd see in the browser steady-state.
-                self.accounts.set(LoadState::Ready(Vec::new()));
-            }
+        });
+
+        #[cfg(not(target_arch = "wasm32"))]
+        leptos::task::spawn_local(async move {
+            // Native: don't touch anything async — the test runner
+            // doesn't have a browser. Just settle into Ready(empty)
+            // so any view tests rendering this state get the same
+            // shape they'd see in the browser steady-state.
+            self.accounts.set(LoadState::Ready(Vec::new()));
         });
     }
 }
