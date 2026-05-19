@@ -236,7 +236,7 @@ export function SendInput() {
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-start gap-4">
+                <div className="flex h-10 items-center justify-start gap-4">
                   <button type="button" onClick={handlePaste}>
                     <Clipboard />
                   </button>
