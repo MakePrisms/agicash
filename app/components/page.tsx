@@ -1,5 +1,6 @@
 import { ChevronLeft, X } from 'lucide-react';
 import React from 'react';
+import { Link } from 'react-router';
 import {
   LinkWithViewTransition,
   type ViewTransitionLinkProps,
@@ -46,9 +47,11 @@ export function PageHeaderItem({
 PageHeaderItem.isHeaderItem = true;
 PageHeaderItem.defaultPosition = undefined as PageHeaderPosition | undefined;
 
-type ClosePageButtonProps = ViewTransitionLinkProps & {
-  position?: PageHeaderPosition;
-};
+type LinkProps = React.ComponentProps<typeof Link>;
+
+type ClosePageButtonProps =
+  | (ViewTransitionLinkProps & { position?: PageHeaderPosition })
+  | (LinkProps & { transition?: never; position?: PageHeaderPosition });
 
 /**
  * @default position - 'left'
@@ -60,18 +63,24 @@ export function ClosePageButton({
 }: ClosePageButtonProps) {
   return (
     <PageHeaderItem position={position}>
-      <LinkWithViewTransition {...props}>
-        <X />
-      </LinkWithViewTransition>
+      {props.transition ? (
+        <LinkWithViewTransition {...props}>
+          <X />
+        </LinkWithViewTransition>
+      ) : (
+        <Link {...props} viewTransition>
+          <X />
+        </Link>
+      )}
     </PageHeaderItem>
   );
 }
 ClosePageButton.isHeaderItem = true;
 ClosePageButton.defaultPosition = 'left' as PageHeaderPosition;
 
-export type PageBackButtonProps = ViewTransitionLinkProps & {
-  position?: PageHeaderPosition;
-};
+export type PageBackButtonProps =
+  | (ViewTransitionLinkProps & { position?: PageHeaderPosition })
+  | (LinkProps & { transition?: never; position?: PageHeaderPosition });
 
 /**
  * @default position - 'left'
@@ -83,9 +92,15 @@ export function PageBackButton({
 }: PageBackButtonProps) {
   return (
     <PageHeaderItem position={position}>
-      <LinkWithViewTransition {...props}>
-        <ChevronLeft />
-      </LinkWithViewTransition>
+      {props.transition ? (
+        <LinkWithViewTransition {...props}>
+          <ChevronLeft />
+        </LinkWithViewTransition>
+      ) : (
+        <Link {...props} viewTransition>
+          <ChevronLeft />
+        </Link>
+      )}
     </PageHeaderItem>
   );
 }

@@ -274,7 +274,7 @@ export function useViewTransitionEffect() {
 }
 
 type ViewTransitionCommonProps = {
-  transition?: Transition;
+  transition: Transition;
   applyTo?: ApplyTo;
 };
 
@@ -295,9 +295,10 @@ type ViewTransitionNavLinkProps = ViewTransitionCommonProps & {
 export function LinkWithViewTransition<
   T extends ViewTransitionLinkProps | ViewTransitionNavLinkProps,
 >({ transition, applyTo = 'bothViews', as = Link, ...props }: T) {
-  const linkState: ViewTransitionState | null = transition
-    ? { transition, applyTo }
-    : null;
+  const linkState: ViewTransitionState = {
+    transition,
+    applyTo,
+  };
 
   const commonProps = {
     ...props,
@@ -308,13 +309,11 @@ export function LinkWithViewTransition<
       // "loading" state entirely, so our useEffect never gets a chance to apply styles.
       // Browser back/forward (popstate) navigations still go through loading state and
       // will be handled by useViewTransitionEffect.
-      if (transition) {
-        applyTransitionStyles(transition, applyTo);
-      }
+      applyTransitionStyles(transition, applyTo);
       props.onClick?.(event);
     },
     viewTransition: true,
-    state: linkState ? { ...props.state, ...linkState } : props.state,
+    state: { ...props.state, ...linkState },
   };
 
   if (as === NavLink) {
