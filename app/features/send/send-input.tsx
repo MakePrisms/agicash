@@ -186,33 +186,22 @@ export function SendInput() {
         <PageHeaderTitle>Send</PageHeaderTitle>
       </PageHeader>
 
-      <PageContent className="mx-auto flex flex-col items-center justify-between">
-        <div className="flex flex-col items-center justify-between gap-4">
-          <div className="flex h-[124px] flex-col items-center gap-2">
-            <div className={shakeAnimationClass}>
-              <MoneyInputDisplay
-                inputValue={rawInputValue}
-                currency={inputValue.currency}
-                unit={getDefaultUnit(inputValue.currency)}
-              />
-            </div>
-
-            {!exchangeRateError && (
-              <ConvertedMoneySwitcher
-                onSwitch={switchInputCurrency}
-                money={convertedValue}
-              />
-            )}
+      <PageContent className="flex flex-col items-center justify-between">
+        <div className="flex h-[124px] flex-col items-center gap-2">
+          <div className={shakeAnimationClass}>
+            <MoneyInputDisplay
+              inputValue={rawInputValue}
+              currency={inputValue.currency}
+              unit={getDefaultUnit(inputValue.currency)}
+            />
           </div>
 
-          <div className="flex h-[24px] items-center justify-center gap-4">
-            {destinationDisplay && (
-              <>
-                <p>{destinationDisplay}</p>
-                <X onClick={clearDestination} className="h-4 w-4" />
-              </>
-            )}
-          </div>
+          {!exchangeRateError && (
+            <ConvertedMoneySwitcher
+              onSwitch={switchInputCurrency}
+              money={convertedValue}
+            />
+          )}
         </div>
 
         <div className="w-full max-w-sm sm:max-w-none">
@@ -231,39 +220,53 @@ export function SendInput() {
           />
         </div>
 
-        <div className="flex w-full flex-col items-center gap-4 sm:items-start sm:justify-between">
-          <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
-            <div className="flex items-center justify-start gap-4">
-              <button type="button" onClick={handlePaste}>
-                <Clipboard />
+        <div className="grid w-full max-w-sm grid-cols-3 gap-4 sm:max-w-none">
+          {destinationDisplay ? (
+            <div className="col-span-2 flex h-10 items-center justify-between gap-2 rounded-lg border border-primary bg-background px-3 text-sm">
+              <span className="min-w-0 truncate">{destinationDisplay}</span>
+              <button
+                type="button"
+                onClick={clearDestination}
+                aria-label="Clear destination"
+                className="shrink-0"
+              >
+                <X className="h-4 w-4" />
               </button>
-
-              <LinkWithViewTransition
-                to={buildLinkWithSearchParams('/send/scan')}
-                transition="slideUp"
-                applyTo="newView"
-              >
-                <Scan />
-              </LinkWithViewTransition>
-
-              {sendAccount.purpose === 'transactional' && (
-                <SelectDestinationDrawer
-                  open={selectDestinationDrawerOpen}
-                  onOpenChange={setSelectDestinationDrawerOpen}
-                  onSelect={handleSelectDestination}
-                />
-              )}
             </div>
-            <div /> {/* spacer */}
-            <div className="flex items-center justify-end">
-              <Button
-                onClick={() => handleContinue(inputValue, convertedValue)}
-                disabled={inputValue.isZero()}
-                loading={status === 'quoting' || isContinuing}
-              >
-                Continue
-              </Button>
-            </div>
+          ) : (
+            <>
+              <div className="flex h-10 items-center justify-start gap-4">
+                <button type="button" onClick={handlePaste}>
+                  <Clipboard />
+                </button>
+
+                <LinkWithViewTransition
+                  to={buildLinkWithSearchParams('/send/scan')}
+                  transition="slideUp"
+                  applyTo="newView"
+                >
+                  <Scan />
+                </LinkWithViewTransition>
+
+                {sendAccount.purpose === 'transactional' && (
+                  <SelectDestinationDrawer
+                    open={selectDestinationDrawerOpen}
+                    onOpenChange={setSelectDestinationDrawerOpen}
+                    onSelect={handleSelectDestination}
+                  />
+                )}
+              </div>
+              <div /> {/* spacer */}
+            </>
+          )}
+          <div className="flex items-center justify-end">
+            <Button
+              onClick={() => handleContinue(inputValue, convertedValue)}
+              disabled={inputValue.isZero()}
+              loading={status === 'quoting' || isContinuing}
+            >
+              Continue
+            </Button>
           </div>
         </div>
       </PageContent>

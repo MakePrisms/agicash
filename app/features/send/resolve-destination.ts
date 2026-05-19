@@ -79,7 +79,7 @@ export async function resolveSendDestination(
       data: {
         sendType: 'BOLT11_INVOICE',
         destination: encoded,
-        destinationDisplay: `${encoded.slice(0, 6)}...${encoded.slice(-4)}`,
+        destinationDisplay: `${encoded.slice(0, 10)}...${encoded.slice(-6)}`,
         amount: validated.amount,
         decoded: bolt11.decoded,
       },
