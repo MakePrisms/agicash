@@ -6,7 +6,7 @@ import {
   X,
   ZapIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
@@ -70,6 +70,8 @@ export function SendInput() {
   const clearDestination = useSendStore((s) => s.clearDestination);
   const continueSend = useSendStore((s) => s.proceedWithSend);
   const status = useSendStore((s) => s.status);
+  const pendingContinue = useSendStore((s) => s.pendingContinue);
+  const setPendingContinue = useSendStore((s) => s.setPendingContinue);
 
   const sendAmountCurrencyUnit = sendAmount
     ? getDefaultUnit(sendAmount.currency)
@@ -136,8 +138,15 @@ export function SendInput() {
     });
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-fire when the pending flag flips
+  useEffect(() => {
+    if (!pendingContinue || !destinationDisplay) return;
+    setPendingContinue(false);
+    handleContinue(inputValue, convertedValue);
+  }, [pendingContinue, destinationDisplay]);
+
   const handleSelectDestination = async (destination: string | Contact) => {
-    const result = await selectDestination(destination);
+    const result = selectDestination(destination);
     if (!result.success) {
       toast({
         title: 'Invalid destination',

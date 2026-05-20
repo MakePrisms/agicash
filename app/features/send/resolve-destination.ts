@@ -1,6 +1,5 @@
 import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
-import { isValidLightningAddress } from '~/lib/lnurl';
 import type { Money } from '~/lib/money';
 import { type Contact, isContact } from '../contacts/contact';
 import { validateBolt11, validateLightningAddressFormat } from './validation';
@@ -33,10 +32,10 @@ type ResolveResult =
   | { success: true; data: SendDestination }
   | { success: false; error: string };
 
-export async function resolveSendDestination(
+export function resolveSendDestination(
   input: string | Contact,
   { allowZeroAmountBolt11 = false }: { allowZeroAmountBolt11?: boolean } = {},
-): Promise<ResolveResult> {
+): ResolveResult {
   if (isContact(input)) {
     return {
       success: true,
@@ -50,10 +49,6 @@ export async function resolveSendDestination(
   }
 
   if (validateLightningAddressFormat(input) === true) {
-    const isValid = await isValidLightningAddress(input);
-    if (!isValid) {
-      return { success: false, error: 'Invalid lightning address' };
-    }
     return {
       success: true,
       data: {

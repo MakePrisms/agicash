@@ -73,6 +73,10 @@ type State = {
    * E.g. for agicash contact it's the username, for ln address it's the ln address, etc.
    */
   destinationDisplay: string | null;
+  /**
+   * When true, SendInput auto-fires Continue on mount.
+   */
+  pendingContinue: boolean;
 } & (
   | {
       sendType: 'CASHU_TOKEN';
@@ -124,12 +128,12 @@ type Actions = {
   getSourceAccount: () => Account;
   selectDestination: (
     destination: string | Contact,
-  ) => Promise<
+  ) =>
     | { success: true; data: DecodedDestination }
-    | { success: false; error: string }
-  >;
+    | { success: false; error: string };
   clearDestination: () => void;
   hasRequiredDestination: () => boolean;
+  setPendingContinue: (value: boolean) => void;
   proceedWithSend: (
     amount: Money<Currency>,
     convertedAmount: Money<Currency> | undefined,
@@ -214,6 +218,7 @@ export const createSendStore = ({
           ? initialDestination.amount
           : null,
       quote: null,
+      pendingContinue: false,
 
       selectSourceAccount: (account) => {
         const {
@@ -256,9 +261,9 @@ export const createSendStore = ({
         } as Partial<SendState>);
       },
 
-      selectDestination: async (input) => {
+      selectDestination: (input) => {
         const account = get().getSourceAccount();
-        const result = await resolveSendDestination(input, {
+        const result = resolveSendDestination(input, {
           allowZeroAmountBolt11: account.type === 'spark',
         });
         if (!result.success) {
@@ -282,24 +287,29 @@ export const createSendStore = ({
             : null;
         const accountId = matched?.id ?? account.id;
 
+        const amount =
+          result.data.sendType === 'BOLT11_INVOICE' ? result.data.amount : null;
+
         set({
           accountId,
           sendType,
           destination,
           destinationDisplay,
           destinationDetails,
+          amount,
         } as Partial<SendState>);
 
         return {
           success: true,
           data: {
             type: result.data.sendType,
-            amount:
-              result.data.sendType === 'BOLT11_INVOICE'
-                ? result.data.amount
-                : null,
+            amount,
           },
         };
+      },
+
+      setPendingContinue: (value) => {
+        set({ pendingContinue: value });
       },
 
       hasRequiredDestination: () => {

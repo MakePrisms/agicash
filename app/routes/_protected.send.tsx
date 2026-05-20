@@ -14,10 +14,10 @@ import { getQueryClient } from '~/features/shared/query-client';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.send';
 
-export async function clientLoader(): Promise<{
+export function clientLoader(): {
   initialDestination: SendDestination | null;
   initialAccountId: string | null;
-}> {
+} {
   const hash = window.location.hash.slice(1);
   if (!hash) {
     return { initialDestination: null, initialAccountId: null };
@@ -31,7 +31,7 @@ export async function clientLoader(): Promise<{
     window.location.pathname + window.location.search,
   );
 
-  const result = await resolveSendDestination(hash, {
+  const result = resolveSendDestination(hash, {
     allowZeroAmountBolt11: true,
   });
 
