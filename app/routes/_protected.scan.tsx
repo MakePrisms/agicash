@@ -11,6 +11,7 @@ import { Button } from '~/components/ui/button';
 import { classifyInput } from '~/features/scan';
 import { validateBolt11 } from '~/features/send/validation';
 import useIsPwa from '~/hooks/use-is-pwa';
+import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { readClipboard } from '~/lib/read-clipboard';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
@@ -20,6 +21,7 @@ export default function ScanPage() {
   const navigate = useNavigateWithViewTransition();
   const { toast } = useToast();
   const isPwa = useIsPwa();
+  const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
 
   const handleInput = (raw: string) => {
     const result = classifyInput(raw);
@@ -40,7 +42,7 @@ export default function ScanPage() {
       // See https://github.com/remix-run/remix/discussions/10721
       window.history.replaceState(null, '', hash);
       navigate(
-        { pathname: '/receive/cashu/token', hash },
+        { ...buildLinkWithSearchParams('/receive/cashu/token'), hash },
         { transition: 'slideLeft', applyTo: 'newView' },
       );
       return;
@@ -65,7 +67,7 @@ export default function ScanPage() {
     // See https://github.com/remix-run/remix/discussions/10721
     window.history.replaceState(null, '', hash);
     navigate(
-      { pathname: '/send', hash },
+      { ...buildLinkWithSearchParams('/send'), hash },
       { transition: 'slideLeft', applyTo: 'newView' },
     );
   };

@@ -6,7 +6,7 @@ import {
   X,
   ZapIcon,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
@@ -70,8 +70,6 @@ export function SendInput() {
   const clearDestination = useSendStore((s) => s.clearDestination);
   const continueSend = useSendStore((s) => s.proceedWithSend);
   const status = useSendStore((s) => s.status);
-  const pendingContinue = useSendStore((s) => s.pendingContinue);
-  const setPendingContinue = useSendStore((s) => s.setPendingContinue);
 
   const sendAmountCurrencyUnit = sendAmount
     ? getDefaultUnit(sendAmount.currency)
@@ -137,13 +135,6 @@ export function SendInput() {
       transition: 'slideLeft',
     });
   };
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-fire when the pending flag flips
-  useEffect(() => {
-    if (!pendingContinue || !destinationDisplay) return;
-    setPendingContinue(false);
-    handleContinue(inputValue, convertedValue);
-  }, [pendingContinue, destinationDisplay]);
 
   const handleSelectDestination = async (destination: string | Contact) => {
     const result = selectDestination(destination);
@@ -250,7 +241,9 @@ export function SendInput() {
                 </button>
 
                 <LinkWithViewTransition
-                  to={buildLinkWithSearchParams('/send/scan')}
+                  to={buildLinkWithSearchParams('/scan', {
+                    accountId: sendAccount.id,
+                  })}
                   transition="slideUp"
                   applyTo="newView"
                 >

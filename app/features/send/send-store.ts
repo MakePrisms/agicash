@@ -73,10 +73,6 @@ type State = {
    * E.g. for agicash contact it's the username, for ln address it's the ln address, etc.
    */
   destinationDisplay: string | null;
-  /**
-   * When true, SendInput auto-fires Continue on mount.
-   */
-  pendingContinue: boolean;
 } & (
   | {
       sendType: 'CASHU_TOKEN';
@@ -133,7 +129,6 @@ type Actions = {
     | { success: false; error: string };
   clearDestination: () => void;
   hasRequiredDestination: () => boolean;
-  setPendingContinue: (value: boolean) => void;
   proceedWithSend: (
     amount: Money<Currency>,
     convertedAmount: Money<Currency> | undefined,
@@ -218,7 +213,6 @@ export const createSendStore = ({
           ? initialDestination.amount
           : null,
       quote: null,
-      pendingContinue: false,
 
       selectSourceAccount: (account) => {
         const {
@@ -296,7 +290,6 @@ export const createSendStore = ({
           destination,
           destinationDisplay,
           destinationDetails,
-          amount,
         } as Partial<SendState>);
 
         return {
@@ -306,10 +299,6 @@ export const createSendStore = ({
             amount,
           },
         };
-      },
-
-      setPendingContinue: (value) => {
-        set({ pendingContinue: value });
       },
 
       hasRequiredDestination: () => {

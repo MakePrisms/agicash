@@ -169,7 +169,9 @@ export default function ReceiveInput() {
               </button>
 
               <LinkWithViewTransition
-                to={buildLinkWithSearchParams('/receive/scan')}
+                to={buildLinkWithSearchParams('/scan', {
+                  selectedAccountId: receiveAccountId,
+                })}
                 transition="slideUp"
                 applyTo="newView"
               >
