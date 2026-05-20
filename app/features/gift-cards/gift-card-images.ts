@@ -8,6 +8,7 @@ import kissOfMatchaCard from '~/assets/gift-cards/kissofmatcha.agi.cash.webp';
 import mapleCard from '~/assets/gift-cards/maple.agi.cash.webp';
 import mariposaCard from '~/assets/gift-cards/mariposa.agi.cash.webp';
 import pinkOwlCoffeeCard from '~/assets/gift-cards/pinkowl.agi.cash.webp';
+import pizzaDayCard from '~/assets/gift-cards/pizzaday.agi.cash.webp';
 import pubkeyCard from '~/assets/gift-cards/pubkey.agi.cash.webp';
 import theShackCard from '~/assets/gift-cards/shack.agi.cash.webp';
 import squarealphaMayCard from '~/assets/gift-cards/squarealphamay.agi.cash.webp';
@@ -25,6 +26,7 @@ const GIFT_CARD_IMAGES: Record<string, string> = {
   'https://maple.agi.cash': mapleCard,
   'https://mariposa.agi.cash': mariposaCard,
   'https://pinkowl.agi.cash': pinkOwlCoffeeCard,
+  'https://pizzaday.agi.cash': pizzaDayCard,
   'https://pubkey.agi.cash': pubkeyCard,
   'https://shack.agi.cash': theShackCard,
   'https://squarealphamay.agi.cash': squarealphaMayCard,
@@ -40,6 +42,7 @@ const GIFT_CARD_OG_IMAGES: Record<string, string> = {
   'https://kissofmatcha.agi.cash': '/og/kissofmatcha.webp',
   'https://mariposa.agi.cash': '/og/mariposa.webp',
   'https://pinkowl.agi.cash': '/og/pinkowl.webp',
+  'https://pizzaday.agi.cash': '/og/pizzaday.webp',
   'https://pubkey.agi.cash': '/og/pubkey.webp',
   'https://squarealphamay.agi.cash': '/og/sf-offer.webp',
   'https://squaresantacruz.agi.cash': '/og/sc-offer.webp',
