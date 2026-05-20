@@ -43,7 +43,7 @@ export default function ScanPage() {
       window.history.replaceState(null, '', hash);
       navigate(
         { ...buildLinkWithSearchParams('/receive/cashu/token'), hash },
-        { transition: 'slideLeft', applyTo: 'newView' },
+        { transition: 'slideDown', applyTo: 'oldView' },
       );
       return;
     }
@@ -68,7 +68,7 @@ export default function ScanPage() {
     window.history.replaceState(null, '', hash);
     navigate(
       { ...buildLinkWithSearchParams('/send'), hash },
-      { transition: 'slideLeft', applyTo: 'newView' },
+      { transition: 'slideDown', applyTo: 'oldView' },
     );
   };
 
