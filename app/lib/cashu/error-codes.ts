@@ -3,34 +3,40 @@
  */
 export enum CashuErrorCodes {
   /**
-   * Blinded message of output already signed
-   * Relevant nuts: @see [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
-   */
-  OUTPUT_ALREADY_SIGNED = 10002,
-
-  /**
-   * Token could not be verified
+   * Proof verification failed
    * Relevant nuts: @see [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
    */
-  TOKEN_VERIFICATION_FAILED = 10003,
+  TOKEN_VERIFICATION_FAILED = 10001,
 
   /**
-   * Token is already spent
+   * Proofs already spent
    * Relevant nuts: @see [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
    */
   TOKEN_ALREADY_SPENT = 11001,
 
   /**
+   * Proofs are pending (in flight in a parallel operation)
+   * Relevant nuts: @see [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
+   */
+  PROOFS_ARE_PENDING = 11002,
+
+  /**
+   * Blinded message of output already signed
+   * Relevant nuts: @see [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
+   */
+  OUTPUT_ALREADY_SIGNED = 11003,
+
+  /**
+   * Outputs are pending (in flight in a parallel operation)
+   * Relevant nuts: @see [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
+   */
+  OUTPUTS_ARE_PENDING = 11004,
+
+  /**
    * Transaction is not balanced (inputs != outputs)
    * Relevant nuts: @see [NUT-02](https://github.com/cashubtc/nuts/blob/main/02.md), [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
    */
-  TRANSACTION_NOT_BALANCED = 11002,
-
-  /**
-   * Unit in request is not supported
-   * Relevant nuts: @see [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
-   */
-  UNIT_NOT_SUPPORTED = 11005,
+  TRANSACTION_NOT_BALANCED = 11005,
 
   /**
    * Amount outside of limit range
@@ -63,6 +69,46 @@ export enum CashuErrorCodes {
   UNIT_MISMATCH = 11010,
 
   /**
+   * Amountless invoice is not supported
+   * Relevant nuts: @see [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
+   */
+  AMOUNTLESS_INVOICE_UNSUPPORTED = 11011,
+
+  /**
+   * Amount in request does not equal invoice amount
+   * Relevant nuts: @see [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
+   */
+  AMOUNT_MISMATCH = 11012,
+
+  /**
+   * Unit in request is not supported
+   * Relevant nuts: @see [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
+   */
+  UNIT_NOT_SUPPORTED = 11013,
+
+  /**
+   * Maximum number of inputs exceeded for a single request
+   * Relevant nuts: @see [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
+   */
+  MAX_INPUTS_EXCEEDED = 11014,
+
+  /**
+   * Maximum number of outputs exceeded for a single request
+   * Relevant nuts: @see [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md), [NUT-05](https://github.com/cashubtc/nuts/blob/main/05.md)
+   */
+  MAX_OUTPUTS_EXCEEDED = 11015,
+
+  /**
+   * Duplicate quote IDs provided in a batched request
+   */
+  DUPLICATE_QUOTE_IDS = 11016,
+
+  /**
+   * Maximum batch size exceeded for a batched request
+   */
+  MAX_BATCH_SIZE_EXCEEDED = 11017,
+
+  /**
    * Keyset is not known
    * Relevant nuts: @see [NUT-02](https://github.com/cashubtc/nuts/blob/main/02.md), [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md)
    */
@@ -73,6 +119,12 @@ export enum CashuErrorCodes {
    * Relevant nuts: @see [NUT-02](https://github.com/cashubtc/nuts/blob/main/02.md), [NUT-03](https://github.com/cashubtc/nuts/blob/main/03.md), [NUT-04](https://github.com/cashubtc/nuts/blob/main/04.md)
    */
   KEYSET_INACTIVE = 12002,
+
+  /**
+   * Keyset has expired
+   * Relevant nuts: @see [NUT-02](https://github.com/cashubtc/nuts/blob/main/02.md)
+   */
+  KEYSET_EXPIRED = 12003,
 
   /**
    * Quote request is not paid
