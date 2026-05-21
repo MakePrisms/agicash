@@ -196,13 +196,13 @@ export function useCashuReceiveQuoteCache() {
   return useMemo(() => new CashuReceiveQuoteCache(queryClient), [queryClient]);
 }
 
-type UseCashuReceiveQuoteProps = {
+type UseTrackCashuReceiveQuoteProps = {
   quoteId?: string;
   onPaid?: (quote: CashuReceiveQuote) => void;
   onExpired?: (quote: CashuReceiveQuote) => void;
 };
 
-type UseCashuReceiveQuoteResponse =
+type UseTrackCashuReceiveQuoteResponse =
   | {
       status: 'LOADING';
       quote?: undefined;
@@ -212,11 +212,11 @@ type UseCashuReceiveQuoteResponse =
       quote: CashuReceiveQuote;
     };
 
-export function useCashuReceiveQuote({
+export function useTrackCashuReceiveQuote({
   quoteId,
   onPaid,
   onExpired,
-}: UseCashuReceiveQuoteProps): UseCashuReceiveQuoteResponse {
+}: UseTrackCashuReceiveQuoteProps): UseTrackCashuReceiveQuoteResponse {
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);

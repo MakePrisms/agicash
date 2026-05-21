@@ -28,8 +28,8 @@ import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
-  useCashuReceiveQuote,
   useCreateCashuReceiveQuote,
+  useTrackCashuReceiveQuote,
 } from './cashu-receive-quote-hooks';
 
 type CreateQuoteProps = {
@@ -46,7 +46,7 @@ const useCreateQuote = ({ account, amount, onPaid }: CreateQuoteProps) => {
     error,
   } = useCreateCashuReceiveQuote();
 
-  const { quote, status: quotePaymentStatus } = useCashuReceiveQuote({
+  const { quote, status: quotePaymentStatus } = useTrackCashuReceiveQuote({
     quoteId: createdQuote?.id,
     onPaid: onPaid,
   });
