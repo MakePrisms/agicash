@@ -328,7 +328,12 @@ const useErrorDetails = (error: unknown) => {
           'Try opening agi.cash in a recent version of Chrome, Safari, or ' +
           'Firefox (not an in-app browser).',
       footer: (
-        <Button variant="default" type="button" onClick={reload}>
+        <Button
+          className="mt-4"
+          variant="default"
+          type="button"
+          onClick={reload}
+        >
           Reload Page
         </Button>
       ),
