@@ -6,7 +6,7 @@ Today every agicash user gets one Spark account (`currency: 'BTC'`) plus, in dev
 
 ## Approach: one user, two Spark wallets
 
-Each user gets two Spark accounts — `(type:'spark', currency:'BTC')` and `(type:'spark', currency:'USD')` — seeded on user upsert. Both share the same BIP-85-derived spark mnemonic. They differ at the SDK layer by `ConnectRequest.account_number`: BTC keeps the existing implicit default (preserving every existing user's wallet); USD uses the next index up (`pre-flight default + 1`, expected to be `2`).
+Each user gets two Spark accounts — `(type:'spark', currency:'BTC')` and `(type:'spark', currency:'USD')` — seeded on user upsert. Both share the same BIP-85-derived spark mnemonic. They differ at the SDK layer by `KeySetConfig.accountNumber`: BTC stays on the existing implicit default (`accountNumber = 1`, preserving every existing user's wallet); USD uses the next index up (`accountNumber = 2`). Both values are locked in the pre-flight section below. Note: `ConnectRequest` exposes no `accountNumber` field — this parameter must flow through `SdkBuilder.withKeySet({ keySetType: 'default', useAddressIndex: false, accountNumber })` or `defaultExternalSigner(..., keySetConfig) + connectWithSigner(...)`.
 
 The USD wallet is configured with `stable_balance_config.tokens = [{ label:"USDB", token_identifier: USDB_MAINNET_ID }]`, `default_active_label: "USDB"`, `threshold_sats: 0`. Every Lightning sat received on the USD wallet auto-converts to USDB via Flashnet; every Lightning send from the USD wallet auto-converts USDB→sats first. The BTC wallet has no `stable_balance_config`.
 
@@ -32,20 +32,58 @@ User-driven allocation in MVP = self-pay over Lightning. To move BTC→USD: rece
 
 ## Pre-flight verification (run before any code lands)
 
-Two one-off scripts in `tools/`, run by an engineer; findings get baked into the implementation plan and the resulting choice locked in.
+Two one-off checks in `tools/spark-usdb-preflight.ts`, run by an engineer; findings baked in below and locked.
 
-### P1. account_number invariant
+### P1. account_number invariant — LOCKED
 
-Open two SDK instances against mainnet with the same mnemonic — one with `account_number: undefined`, one with each of `account_number: 0`, `1`, `2`. Compare `getInfo().receiver_identity_pubkey`. Determine which numeric value equals the implicit default. Outcomes:
+Ran `tools/spark-usdb-preflight.ts` against `@agicash/breez-sdk-spark@0.13.5-1` on mainnet. The script opens five SDK instances on the same throwaway mnemonic — one via `connect()` (implicit default) and four via `SdkBuilder.new(...).withKeySet({ keySetType: 'default', useAddressIndex: false, accountNumber }).withDefaultStorage(...).build()` for `accountNumber ∈ {0, 1, 2, 3}` — then compares `getInfo().identityPubkey`.
 
-- **Default == 1** (likely, matching prior-SDK convention): existing BTC users are on `account_number: 1`. USD must be `2`. The implementation passes `account_number: 2` explicitly for the USD wallet and leaves the BTC wallet's `connect()` call untouched.
-- **Default == 0**: USD can be `1` as originally proposed.
-- **Default == something else**: USD = default + 1.
-- **Any pubkey collision between two distinct numbers**: stop. Migration plan needed.
+Important SDK quirk discovered while building the script: **`ConnectRequest` has no `accountNumber` field**. Passing one there is silently ignored and every instance lands on the implicit default. To exercise `accountNumber` you must use `SdkBuilder.withKeySet(...)`, `defaultExternalSigner(..., keySetConfig)`, or `connectWithSigner` with that signer.
 
-### P2. USDB metadata reachable
+Observed mapping (mainnet, 2026-05-21):
 
-Call `getTokensMetadata({ identifiers: [USDB_MAINNET_ID] })` against mainnet. Assert returned metadata has `ticker === "USDB"`, `decimals === 6`. If it fails or returns unexpected values, the identifier or network is wrong — fix before shipping.
+```
+account_number=undefined → 03306d04c5f275a71219150429428a3931a7d551abf455a8a493527985c8efb4aa
+account_number=0         → 02caf557cc3dd4ffebfcdda12863be9416e75fa7f813f4f1887a7193694e28c346
+account_number=1         → 03306d04c5f275a71219150429428a3931a7d551abf455a8a493527985c8efb4aa
+account_number=2         → 0365982a7a0a7951215b4590fa30241b10ad91427dfd050777db510b3d9df35f82
+account_number=3         → 021f8c31a029994fd2ce43495cee73fb38ea850a90eff9c28e7983565c401db8d7
+
+Groups:
+  1, undefined → 03306d04…
+  0            → 02caf557…
+  2            → 0365982a…
+  3            → 021f8c31…
+```
+
+So `undefined == 1`: existing BTC users derive their identity at `account_number = 1`. Each of `0`, `2`, `3` is distinct.
+
+**Locked constants** (used everywhere the SDK is initialised):
+
+```
+BTC_ACCOUNT_NUMBER = 1   // implicit default; existing users are here. Pass explicitly going forward.
+USD_ACCOUNT_NUMBER = 2   // smallest numeric value distinct from BTC, and the next sequential index — matches the "default + 1" rule.
+```
+
+Note: although `accountNumber: 0` produced a distinct pubkey, picking `0` would be confusing (numerically lower than the BTC default) and `2` is the smallest *sequentially-greater* distinct value, which is what every prior outcome bullet in this section assumed. Stick with `2`.
+
+### P2. USDB metadata reachable — LOCKED
+
+Called `getTokensMetadata({ tokenIdentifiers: [USDB_MAINNET_ID] })` (the actual SDK request field is `tokenIdentifiers`, not `identifiers`). Returned, mainnet, 2026-05-21:
+
+```json
+{
+  "identifier": "btkn1xgrvjwey5ngcagvap2dzzvsy4uk8ua9x69k82dwvt5e7ef9drm9qztux87",
+  "issuerPublicKey": "024137d3a0a67d26254a0c87260a80e9ea3430945d4c9520d3f549f019171252a7",
+  "name": "Bitcoin USD",
+  "ticker": "USDB",
+  "decimals": 6,
+  "maxSupply": "0",
+  "isFreezable": true
+}
+```
+
+`ticker === "USDB"` ✓, `decimals === 6` ✓. Issuer pubkey matches the Brale-controlled key. Metadata path is healthy.
 
 ## Architecture
 
