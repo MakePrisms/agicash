@@ -38,7 +38,13 @@ configure({
 // Start Breez WASM fetch/compile as early as possible so it overlaps with
 // hydration, Sentry init, and the auth query — by the time the _protected
 // middleware awaits it, init is often already done.
-ensureBreezWasm();
+// Swallow the rejection here; the middleware re-awaits the same cached promise
+// and surfaces the error through the route ErrorBoundary, where we render a
+// friendly message. Without this `.catch`, the rejection also fires
+// `unhandledrejection` and is reported to Sentry as a duplicate.
+ensureBreezWasm().catch(() => {
+  // Surfaced via _protected middleware → route ErrorBoundary.
+});
 
 // Prefetch feature flags as early as possible.
 // Before login the DB client uses the anon key (no access token),
