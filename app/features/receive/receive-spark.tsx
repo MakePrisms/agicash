@@ -23,7 +23,7 @@ import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount'
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import {
   useCreateSparkReceiveQuote,
-  useSparkReceiveQuote,
+  useTrackSparkReceiveQuote,
 } from './spark-receive-quote-hooks';
 
 type Props = {
@@ -47,7 +47,7 @@ const useCreateQuote = ({
     error,
   } = useCreateSparkReceiveQuote();
 
-  const { quote, status: quotePaymentStatus } = useSparkReceiveQuote({
+  const { quote, status: quotePaymentStatus } = useTrackSparkReceiveQuote({
     quoteId: createdQuote?.id,
     onPaid,
   });
