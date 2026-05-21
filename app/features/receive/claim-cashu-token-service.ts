@@ -72,7 +72,6 @@ export class ClaimCashuTokenService {
       }
 
       const message = 'Unexpected error while claiming the token';
-      // TODO: do we need to send this error to Sentry or Sentry can make alert from error log?
       console.error(message, { cause: error, time: new Date().toISOString() });
       return {
         success: false,
