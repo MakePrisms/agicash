@@ -1,5 +1,6 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
+import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
@@ -72,8 +73,7 @@ export class ClaimCashuTokenService {
       }
 
       const message = 'Unexpected error while claiming the token';
-      // TODO: do we need to send this error to Sentry or Sentry can make alert from error log?
-      console.error(message, { cause: error, time: new Date().toISOString() });
+      Sentry.captureException(new Error(message, { cause: error }));
       return {
         success: false,
         message,
