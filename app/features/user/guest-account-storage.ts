@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { safeJsonParse } from '~/lib/json';
 
 const storageKey = 'guestAccount';

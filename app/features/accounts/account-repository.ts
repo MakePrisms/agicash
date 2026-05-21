@@ -1,6 +1,6 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { normalizeMintUrl } from '~/lib/cashu';
 import { ProofSchema } from '~/lib/cashu/types';
 import type { Currency } from '~/lib/money';

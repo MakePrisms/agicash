@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 import { CashuTokenMeltDataSchema } from './cashu-token-melt-data';
 
@@ -30,7 +30,7 @@ const SparkReceiveQuoteBaseSchema = z.object({
   /**
    * Description of the receive.
    */
-  description: z.string().optional(),
+  description: z.optional(z.string()),
   /**
    * Bolt 11 payment request.
    */
@@ -42,7 +42,7 @@ const SparkReceiveQuoteBaseSchema = z.object({
   /**
    * Optional public key of the wallet receiving the lightning invoice.
    */
-  receiverIdentityPubkey: z.string().optional(),
+  receiverIdentityPubkey: z.optional(z.string()),
   /**
    * UUID of the corresponding transaction.
    */

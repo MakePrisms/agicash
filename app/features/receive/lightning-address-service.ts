@@ -1,7 +1,7 @@
 import { hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import type { QueryClient } from '@tanstack/react-query';
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { getCashuWallet } from '~/lib/cashu';
 import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
 import type {

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { CashuLightningReceiveDbDataSchema } from '~/features/agicash-db/json-models';
 import { Money } from '~/lib/money';
 import { TransactionStateSchema } from '../transaction-enums';
@@ -20,12 +20,12 @@ export const CashuLightningReceiveTransactionDetailsSchema = z.object({
   /**
    * The description of the transaction.
    */
-  description: z.string().optional(),
+  description: z.optional(z.string()),
   /**
    * Optional fee charged by the mint to deposit money into the account.
    * The payer of the lightning invoice pays this fee.
    */
-  mintingFee: z.instanceof(Money).optional(),
+  mintingFee: z.optional(z.instanceof(Money)),
   /**
    * The amount credited to the account.
    */
@@ -38,25 +38,25 @@ export const CashuLightningReceiveTransactionDetailsSchema = z.object({
   /**
    * UUID linking paired send/receive transactions for internal transfers.
    */
-  transferId: z.string().optional(),
+  transferId: z.optional(z.string()),
 });
 
 export type CashuLightningReceiveTransactionDetails = z.infer<
   typeof CashuLightningReceiveTransactionDetailsSchema
 >;
 
-export const CashuLightningReceiveTransactionDetailsParser = z
-  .object({
+export const CashuLightningReceiveTransactionDetailsParser = z.pipe(
+  z.object({
     type: z.literal('CASHU_LIGHTNING'),
     direction: z.literal('RECEIVE'),
     state: TransactionStateSchema,
     transactionDetails: z.object({
       paymentHash: z.string(),
-      transferId: z.string().optional(),
+      transferId: z.optional(z.string()),
     }),
     decryptedTransactionDetails: CashuLightningReceiveDbDataSchema,
-  })
-  .transform(
+  }),
+  z.transform(
     ({
       transactionDetails,
       decryptedTransactionDetails,
@@ -71,4 +71,5 @@ export const CashuLightningReceiveTransactionDetailsParser = z
         transferId: transactionDetails.transferId,
       };
     },
-  ) satisfies TransactionDetailsParserShape;
+  ),
+) satisfies TransactionDetailsParserShape;

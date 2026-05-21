@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 import { CashuProofSchema } from '../accounts/cashu-account';
 
@@ -44,18 +44,18 @@ const CashuSendSwapBaseSchema = z.object({
    * The keyset id used to generate the output data at the time the swap was created.
    * This will be defined only when the cashu swap is needed to get the exact amount of proofs to send.
    */
-  keysetId: z.string().optional(),
+  keysetId: z.optional(z.string()),
   /**
    * The keyset counter used to generate the output data at the time the swap was created.
    * This will be defined only when the cashu swap is needed to get the exact amount of proofs to send.
    */
-  keysetCounter: z.number().optional(),
+  keysetCounter: z.optional(z.number()),
   /**
    * The output data used for deterministic outputs when we swap the inputProofs for proofsToSend.
    * This will be defined only when the cashu swap is needed to get the exact amount of proofs to send.
    */
-  outputAmounts: z
-    .object({
+  outputAmounts: z.optional(
+    z.object({
       /**
        * The output amounts to use when constructing the send output data.
        */
@@ -64,8 +64,8 @@ const CashuSendSwapBaseSchema = z.object({
        * The output amounts to use when constructing the change output data.
        */
       change: z.array(z.number()),
-    })
-    .optional(),
+    }),
+  ),
   /**
    * The sum of the inputProofs.
    */
@@ -113,15 +113,18 @@ const CashuSendSwapBaseSchema = z.object({
   version: z.number(),
 });
 
-const CashuSendSwapDraftStateSchema = CashuSendSwapBaseSchema.pick({
-  keysetId: true,
-  keysetCounter: true,
-  outputAmounts: true,
-})
-  .required()
-  .extend({
+const CashuSendSwapDraftStateSchema = z.extend(
+  z.required(
+    z.pick(CashuSendSwapBaseSchema, {
+      keysetId: true,
+      keysetCounter: true,
+      outputAmounts: true,
+    }),
+  ),
+  {
     state: z.literal('DRAFT'),
-  });
+  },
+);
 
 const CashuSendSwapPendingCompletedStateSchema = z.object({
   state: z.enum(['PENDING', 'COMPLETED']),

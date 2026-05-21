@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 import { CashuTokenMeltDbDataSchema } from './cashu-token-melt-db-data';
 
@@ -22,23 +22,23 @@ export const CashuLightningReceiveDbDataSchema = z.object({
   /**
    * The description of the transaction.
    */
-  description: z.string().optional(),
+  description: z.optional(z.string()),
   /**
    * Optional fee charged by the mint to deposit money into the account.
    * The payer of the lightning invoice pays this fee.
    */
-  mintingFee: z.instanceof(Money).optional(),
+  mintingFee: z.optional(z.instanceof(Money)),
   /**
    * Amounts for each blinded message created for this receive.
    * Will be set only when the receive quote gets paid.
    */
-  outputAmounts: z.array(z.number()).optional(),
+  outputAmounts: z.optional(z.array(z.number())),
   /**
    * The data of the cashu token melted for the receive.
    * This will be set only for cashu token receives when the destination account is not the mint that issued the token (the token was melted to
    * pay the lightning invoice of the mint quote from the destination mint).
    */
-  cashuTokenMeltData: CashuTokenMeltDbDataSchema.optional(),
+  cashuTokenMeltData: z.optional(CashuTokenMeltDbDataSchema),
   /**
    * The total fee for the transaction.
    * For lightning receives this will equal to `mintingFee` or zero if the mint has no minting fee.

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 import { AccountPurposeSchema, AccountTypeSchema } from '../accounts/account';
 import { CashuLightningReceiveTransactionDetailsSchema } from './transaction-details/cashu-lightning-receive-transaction-details';
@@ -62,7 +62,7 @@ export const BaseTransactionSchema = z.object({
    * accountName/Type/Purpose fields still describe the account at the time
    * of the transaction.
    */
-  accountId: z.string().nullable(),
+  accountId: z.nullable(z.string()),
   /**
    * Name of the account at the time this transaction was created.
    */
@@ -86,7 +86,7 @@ export const BaseTransactionSchema = z.object({
   /**
    * UUID of the transaction that is reversed by this transaction.
    */
-  reversedTransactionId: z.string().nullish(),
+  reversedTransactionId: z.nullish(z.string()),
   /**
    * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
    * Defaults to 'PAYMENT' for organic send/receive transactions.
@@ -98,7 +98,7 @@ export const BaseTransactionSchema = z.object({
    * - `pending`: The transaction has entered a state where the user should acknowledge it.
    * - `acknowledged`: The transaction has been acknowledged by the user.
    */
-  acknowledgmentStatus: z.enum(['pending', 'acknowledged']).nullable(),
+  acknowledgmentStatus: z.nullable(z.enum(['pending', 'acknowledged'])),
   /**
    * Date and time the transaction was created in ISO 8601 format.
    */
@@ -106,19 +106,19 @@ export const BaseTransactionSchema = z.object({
   /**
    * Date and time the transaction was set to pending in ISO 8601 format.
    */
-  pendingAt: z.string().nullish(),
+  pendingAt: z.nullish(z.string()),
   /**
    * Date and time the transaction was completed in ISO 8601 format.
    */
-  completedAt: z.string().nullish(),
+  completedAt: z.nullish(z.string()),
   /**
    * Date and time the transaction failed in ISO 8601 format.
    */
-  failedAt: z.string().nullish(),
+  failedAt: z.nullish(z.string()),
   /**
    * Date and time the transaction was reversed in ISO 8601 format.
    */
-  reversedAt: z.string().nullish(),
+  reversedAt: z.nullish(z.string()),
   /**
    * Version of the transaction.
    * Incremented on every update.
@@ -126,71 +126,83 @@ export const BaseTransactionSchema = z.object({
   version: z.number(),
 });
 
-const CashuTokenSendTransactionSchema = BaseTransactionSchema.extend({
+const CashuTokenSendTransactionSchema = z.extend(BaseTransactionSchema, {
   type: z.literal('CASHU_TOKEN'),
   direction: z.literal('SEND'),
   details: CashuTokenSendTransactionDetailsSchema,
 });
 
-const CashuTokenReceiveTransactionSchema = BaseTransactionSchema.extend({
+const CashuTokenReceiveTransactionSchema = z.extend(BaseTransactionSchema, {
   type: z.literal('CASHU_TOKEN'),
   direction: z.literal('RECEIVE'),
   details: CashuTokenReceiveTransactionDetailsSchema,
 });
 
-const IncompleteCashuLightningSendTransactionSchema =
-  BaseTransactionSchema.extend({
+const IncompleteCashuLightningSendTransactionSchema = z.extend(
+  BaseTransactionSchema,
+  {
     type: z.literal('CASHU_LIGHTNING'),
     direction: z.literal('SEND'),
     state: z.enum(['PENDING', 'FAILED']),
     details: IncompleteCashuLightningSendTransactionDetailsSchema,
-  });
+  },
+);
 
-const CompletedCashuLightningSendTransactionSchema =
-  BaseTransactionSchema.extend({
+const CompletedCashuLightningSendTransactionSchema = z.extend(
+  BaseTransactionSchema,
+  {
     type: z.literal('CASHU_LIGHTNING'),
     direction: z.literal('SEND'),
     state: z.literal('COMPLETED'),
     details: CompletedCashuLightningSendTransactionDetailsSchema,
-  });
+  },
+);
 
-const CashuLightningReceiveTransactionSchema = BaseTransactionSchema.extend({
+const CashuLightningReceiveTransactionSchema = z.extend(BaseTransactionSchema, {
   type: z.literal('CASHU_LIGHTNING'),
   direction: z.literal('RECEIVE'),
   details: CashuLightningReceiveTransactionDetailsSchema,
 });
 
-const IncompleteSparkLightningReceiveTransactionSchema =
-  BaseTransactionSchema.extend({
+const IncompleteSparkLightningReceiveTransactionSchema = z.extend(
+  BaseTransactionSchema,
+  {
     type: z.literal('SPARK_LIGHTNING'),
     direction: z.literal('RECEIVE'),
     state: z.enum(['DRAFT', 'PENDING', 'FAILED']),
     details: SparkLightningReceiveTransactionDetailsSchema,
-  });
+  },
+);
 
-const CompletedSparkLightningReceiveTransactionSchema =
-  BaseTransactionSchema.extend({
+const CompletedSparkLightningReceiveTransactionSchema = z.extend(
+  BaseTransactionSchema,
+  {
     type: z.literal('SPARK_LIGHTNING'),
     direction: z.literal('RECEIVE'),
     state: z.literal('COMPLETED'),
     details: CompletedSparkLightningReceiveTransactionDetailsSchema,
-  });
+  },
+);
 
-const IncompleteSparkLightningSendTransactionSchema =
-  BaseTransactionSchema.extend({
+const IncompleteSparkLightningSendTransactionSchema = z.extend(
+  BaseTransactionSchema,
+  {
     type: z.literal('SPARK_LIGHTNING'),
     direction: z.literal('SEND'),
     state: z.enum(['DRAFT', 'PENDING', 'FAILED']),
     details: IncompleteSparkLightningSendTransactionDetailsSchema,
-  });
+  },
+);
 
-const CompletedSparkLightningSendTransactionSchema =
-  BaseTransactionSchema.extend({
+const CompletedSparkLightningSendTransactionSchema = z.extend(
+  BaseTransactionSchema,
+  {
     type: z.literal('SPARK_LIGHTNING'),
     direction: z.literal('SEND'),
     state: z.literal('COMPLETED'),
     details: CompletedSparkLightningSendTransactionDetailsSchema,
-  });
+  },
+);
 
 /**
  * Union of all transaction type/direction/state variants.
@@ -211,13 +223,15 @@ const TransactionByTypeSchema = z.union([
  * Schema for all transaction types.
  */
 export const TransactionSchema = z.union([
-  TransactionByTypeSchema.and(
+  z.intersection(
+    TransactionByTypeSchema,
     z.object({
       purpose: z.literal('TRANSFER'),
       details: z.object({ transferId: z.string() }),
     }),
   ),
-  TransactionByTypeSchema.and(
+  z.intersection(
+    TransactionByTypeSchema,
     z.object({
       purpose: z.enum(['PAYMENT', 'BUY_CASHAPP']),
     }),

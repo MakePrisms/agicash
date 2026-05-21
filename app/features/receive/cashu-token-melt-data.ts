@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { ProofSchema } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 
@@ -43,7 +43,7 @@ export const CashuTokenMeltDataSchema = z.object({
    * For cashu token receives over lightning, we are currently not returning the change to the user.
    * Available only when the melt is completed.
    */
-  lightningFee: z.instanceof(Money).optional(),
+  lightningFee: z.optional(z.instanceof(Money)),
 });
 
 export type CashuTokenMeltData = z.infer<typeof CashuTokenMeltDataSchema>;

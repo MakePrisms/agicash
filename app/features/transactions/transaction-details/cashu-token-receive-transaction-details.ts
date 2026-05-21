@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import {
   CashuLightningReceiveDbDataSchema,
   CashuSwapReceiveDbDataSchema,
@@ -23,7 +23,7 @@ export const CashuTokenReceiveTransactionDetailsSchema = z.object({
   /**
    * The description of the transaction.
    */
-  description: z.string().optional(),
+  description: z.optional(z.string()),
   /**
    * Amount credited to the account.
    * This is the `tokenAmount` minus `totalFee`.
@@ -41,13 +41,13 @@ export const CashuTokenReceiveTransactionDetailsSchema = z.object({
    * but only if the destination mint has a minting fee.
    * In this case the receiving account creates a mint quote, and then the ln invoice of the mint quote is paid by melting the token proofs.
    */
-  mintingFee: z.instanceof(Money).optional(),
+  mintingFee: z.optional(z.instanceof(Money)),
   /**
    * The fee reserved for the lightning payment.
    * This is defined when receving the token to spark account or cashu account with mint different than the one that issued the token being
    * received.
    */
-  lightningFeeReserve: z.instanceof(Money).optional(),
+  lightningFeeReserve: z.optional(z.instanceof(Money)),
   /**
    * The total fee for the transaction.
    * This is the sum of `cashuReceiveFee`, `lightningFeeReserve`, and `mintingFee`.
@@ -74,14 +74,14 @@ export type CashuTokenReceiveTransactionDetails = z.infer<
  * Thus CashuTokenReceiveTransactionDetailsParser will be a union of three parsers, one for each of the three cases.
  */
 
-const CashuSwapReceiveParser = z
-  .object({
+const CashuSwapReceiveParser = z.pipe(
+  z.object({
     type: z.literal('CASHU_TOKEN'),
     direction: z.literal('RECEIVE'),
     state: TransactionStateSchema,
     decryptedTransactionDetails: CashuSwapReceiveDbDataSchema,
-  })
-  .transform(
+  }),
+  z.transform(
     ({ decryptedTransactionDetails }): CashuTokenReceiveTransactionDetails => ({
       tokenAmount: decryptedTransactionDetails.tokenAmount,
       tokenMintUrl: decryptedTransactionDetails.tokenMintUrl,
@@ -90,18 +90,19 @@ const CashuSwapReceiveParser = z
       cashuReceiveFee: decryptedTransactionDetails.cashuReceiveFee,
       totalFee: decryptedTransactionDetails.cashuReceiveFee,
     }),
-  ) satisfies TransactionDetailsParserShape;
+  ),
+) satisfies TransactionDetailsParserShape;
 
-const CashuLightningReceiveParser: TransactionDetailsParserShape = z
-  .object({
+const CashuLightningReceiveParser: TransactionDetailsParserShape = z.pipe(
+  z.object({
     type: z.literal('CASHU_TOKEN'),
     direction: z.literal('RECEIVE'),
     state: TransactionStateSchema,
-    decryptedTransactionDetails: CashuLightningReceiveDbDataSchema.required({
+    decryptedTransactionDetails: z.required(CashuLightningReceiveDbDataSchema, {
       cashuTokenMeltData: true,
     }),
-  })
-  .transform(
+  }),
+  z.transform(
     ({ decryptedTransactionDetails }): CashuTokenReceiveTransactionDetails => ({
       tokenAmount: decryptedTransactionDetails.cashuTokenMeltData.tokenAmount,
       tokenMintUrl: decryptedTransactionDetails.cashuTokenMeltData.tokenMintUrl,
@@ -114,18 +115,19 @@ const CashuLightningReceiveParser: TransactionDetailsParserShape = z
         decryptedTransactionDetails.cashuTokenMeltData.lightningFeeReserve,
       totalFee: decryptedTransactionDetails.totalFee,
     }),
-  ) satisfies TransactionDetailsParserShape;
+  ),
+) satisfies TransactionDetailsParserShape;
 
-const SparkLightningReceiveParser = z
-  .object({
+const SparkLightningReceiveParser = z.pipe(
+  z.object({
     type: z.literal('CASHU_TOKEN'),
     direction: z.literal('RECEIVE'),
     state: TransactionStateSchema,
-    decryptedTransactionDetails: SparkLightningReceiveDbDataSchema.required({
+    decryptedTransactionDetails: z.required(SparkLightningReceiveDbDataSchema, {
       cashuTokenMeltData: true,
     }),
-  })
-  .transform(
+  }),
+  z.transform(
     ({ decryptedTransactionDetails }): CashuTokenReceiveTransactionDetails => ({
       tokenAmount: decryptedTransactionDetails.cashuTokenMeltData.tokenAmount,
       tokenMintUrl: decryptedTransactionDetails.cashuTokenMeltData.tokenMintUrl,
@@ -137,7 +139,8 @@ const SparkLightningReceiveParser = z
         decryptedTransactionDetails.cashuTokenMeltData.lightningFeeReserve,
       totalFee: decryptedTransactionDetails.totalFee,
     }),
-  ) satisfies TransactionDetailsParserShape;
+  ),
+) satisfies TransactionDetailsParserShape;
 
 export const CashuTokenReceiveTransactionDetailsParser = z.union([
   CashuSwapReceiveParser,

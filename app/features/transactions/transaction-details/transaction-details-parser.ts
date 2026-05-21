@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { CashuLightningReceiveTransactionDetailsParser } from './cashu-lightning-receive-transaction-details';
 import { CashuLightningSendTransactionDetailsParser } from './cashu-lightning-send-transaction-details';
 import { CashuTokenReceiveTransactionDetailsParser } from './cashu-token-receive-transaction-details';

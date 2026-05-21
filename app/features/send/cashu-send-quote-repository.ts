@@ -1,5 +1,5 @@
 import type { Proof } from '@cashu/cashu-ts';
-import type { z } from 'zod';
+import type { z } from 'zod/mini';
 import { proofToY } from '~/lib/cashu';
 import type { Money } from '~/lib/money';
 import { computeSHA256 } from '~/lib/sha256';
