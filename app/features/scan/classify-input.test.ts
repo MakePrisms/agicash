@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { type Token, getEncodedToken } from '@cashu/cashu-ts';
+import { Amount, type Token, getEncodedToken } from '@cashu/cashu-ts';
 import { classifyInput } from './classify-input';
 
 // -- Test fixtures --
@@ -9,7 +9,7 @@ const CASHU_TOKEN: Token = {
   proofs: [
     {
       id: '009a1f293253e41e',
-      amount: 1,
+      amount: Amount.from(1),
       secret: 'test-secret-1',
       C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
     },
@@ -17,8 +17,8 @@ const CASHU_TOKEN: Token = {
   unit: 'sat',
 };
 
-const CASHU_A_TOKEN = getEncodedToken(CASHU_TOKEN, { version: 3 });
-const CASHU_B_TOKEN = getEncodedToken(CASHU_TOKEN, { version: 4 });
+const CASHU_A_TOKEN = getEncodedToken(CASHU_TOKEN);
+const CASHU_B_TOKEN = getEncodedToken(CASHU_TOKEN);
 
 // Real BOLT11 test vector from bolt11.test.ts (250,000 sats, "1 cup coffee")
 const BOLT11_INVOICE =

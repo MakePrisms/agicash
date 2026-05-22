@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { type Token, getDecodedToken, getEncodedToken } from '@cashu/cashu-ts';
+import {
+  Amount,
+  type Token,
+  getDecodedToken,
+  getEncodedToken,
+} from '@cashu/cashu-ts';
 import { extractCashuToken } from './token';
 
 // A real v1 cashuA token (v1 keyset ID starts with "00")
@@ -8,7 +13,7 @@ const V1_TOKEN: Token = {
   proofs: [
     {
       id: '009a1f293253e41e',
-      amount: 1,
+      amount: Amount.from(1),
       secret: 'test-secret-1',
       C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
     },
@@ -16,8 +21,11 @@ const V1_TOKEN: Token = {
   unit: 'sat',
 };
 
-const V1_ENCODED_A = getEncodedToken(V1_TOKEN, { version: 3 });
-const V1_ENCODED_B = getEncodedToken(V1_TOKEN, { version: 4 });
+// cashu-ts only decodes the cashuA format, so this fixture is a hand-encoded
+// cashuA serialization of V1_TOKEN.
+const V1_ENCODED_A =
+  'cashuAeyJ0b2tlbiI6W3sibWludCI6Imh0dHBzOi8vbWludC5leGFtcGxlLmNvbSIsInByb29mcyI6W3siaWQiOiIwMDlhMWYyOTMyNTNlNDFlIiwiYW1vdW50IjoxLCJzZWNyZXQiOiJ0ZXN0LXNlY3JldC0xIiwiQyI6IjAyNjk4YzRlMmI1Zjk1MzRjZDA2ODdkODc1MTNjNzU5NzkwY2Y4MjlhYTU3MzkxODRhM2UzNzM1NDcxZmJkYTkwNCJ9XX1dLCJ1bml0Ijoic2F0In0';
+const V1_ENCODED_B = getEncodedToken(V1_TOKEN);
 
 describe('extractCashuToken', () => {
   test('extracts a valid cashuA token with metadata from content', () => {
@@ -54,7 +62,7 @@ const V2_TOKEN: Token = {
   proofs: [
     {
       id: V2_KEYSET_ID,
-      amount: 1,
+      amount: Amount.from(1),
       secret: 'test-secret-v2',
       C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
     },
@@ -62,10 +70,13 @@ const V2_TOKEN: Token = {
   unit: 'sat',
 };
 
-// cashuA preserves full keyset IDs in the JSON
-const V2_ENCODED_A = getEncodedToken(V2_TOKEN, { version: 3 });
+// cashuA preserves full keyset IDs in the JSON. cashu-ts only decodes the
+// cashuA format, so this fixture is a hand-encoded cashuA serialization of
+// V2_TOKEN.
+const V2_ENCODED_A =
+  'cashuAeyJ0b2tlbiI6W3sibWludCI6Imh0dHBzOi8vdjJtaW50LmV4YW1wbGUuY29tIiwicHJvb2ZzIjpbeyJpZCI6IjAxYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsImFtb3VudCI6MSwic2VjcmV0IjoidGVzdC1zZWNyZXQtdjIiLCJDIjoiMDI2OThjNGUyYjVmOTUzNGNkMDY4N2Q4NzUxM2M3NTk3OTBjZjgyOWFhNTczOTE4NGEzZTM3MzU0NzFmYmRhOTA0In1dfV0sInVuaXQiOiJzYXQifQ';
 // cashuB truncates v2 keyset IDs to 16 chars (short ID)
-const V2_ENCODED_B = getEncodedToken(V2_TOKEN, { version: 4 });
+const V2_ENCODED_B = getEncodedToken(V2_TOKEN);
 
 describe('getDecodedToken with v2 keyset IDs', () => {
   test('decodes a v2 cashuB token with keyset IDs', () => {
@@ -93,6 +104,8 @@ describe('getDecodedToken with v2 keyset IDs', () => {
     const roundTripped = getDecodedToken(reEncoded, [V2_KEYSET_ID]);
     expect(roundTripped.mint).toBe(original.mint);
     expect(roundTripped.proofs[0].id).toBe(V2_KEYSET_ID);
-    expect(roundTripped.proofs[0].amount).toBe(original.proofs[0].amount);
+    expect(
+      roundTripped.proofs[0].amount.equals(original.proofs[0].amount),
+    ).toBe(true);
   });
 });
