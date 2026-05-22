@@ -120,7 +120,7 @@ export const sparkWalletQueryOptions = ({
       tryInitLogging();
 
       const sdk = await measureOperation(
-        'BreezSdk.connect',
+        'SparkSdk.init',
         async () => {
           const builderWithKeySet = SdkBuilder.new(
             {

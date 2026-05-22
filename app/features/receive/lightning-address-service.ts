@@ -321,6 +321,9 @@ export class LightningAddressService {
         network: 'MAINNET',
         currency: 'BTC',
         mnemonic: sparkMnemonic,
+        // LNURL verify only consults coordinator state, not local SDK storage —
+        // keeping this path on the legacy un-suffixed dir is intentional and
+        // works regardless of which account would have served the callback.
         storageDir: '/tmp/.spark-data',
       }),
     );
