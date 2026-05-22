@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { Money } from '~/lib/money';
 import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type {
   AgicashDb,
@@ -45,6 +46,7 @@ export class SparkReceiveQuoteRepository {
       receiveType,
       description,
       totalFee,
+      bolt11AmountSats,
     } = params;
 
     const receiveData = SparkLightningReceiveDbDataSchema.parse({
@@ -54,6 +56,7 @@ export class SparkReceiveQuoteRepository {
       cashuTokenMeltData:
         receiveType === 'CASHU_TOKEN' ? params.meltData : undefined,
       totalFee,
+      bolt11AmountSats,
     } satisfies z.input<typeof SparkLightningReceiveDbDataSchema>);
 
     const encryptedData = await this.encryption.encrypt(receiveData);
@@ -94,6 +97,10 @@ export class SparkReceiveQuoteRepository {
       quote,
       paymentPreimage,
       sparkTransferId,
+      bolt11AmountSats,
+      conversionFee,
+      slippageDelta,
+      usdbAmountReceived,
     }: {
       /**
        * The spark receive quote to complete.
@@ -107,6 +114,26 @@ export class SparkReceiveQuoteRepository {
        * ID of the transfer in Spark system.
        */
       sparkTransferId: string;
+      /**
+       * Sats credited by the lightning leg, before conversion.
+       * Set only on USD-account receives. Denominated in sats.
+       */
+      bolt11AmountSats?: Money;
+      /**
+       * Fee charged by Flashnet for the sats → USDB swap.
+       * Set only on USD-account receives.
+       */
+      conversionFee?: Money;
+      /**
+       * Difference between estimated and actual USDB output.
+       * Set only on USD-account receives.
+       */
+      slippageDelta?: Money;
+      /**
+       * USDB amount actually credited after conversion.
+       * Set only on USD-account receives.
+       */
+      usdbAmountReceived?: Money;
     },
     options?: Options,
   ): Promise<SparkReceiveQuote> {
@@ -129,6 +156,10 @@ export class SparkReceiveQuoteRepository {
       cashuTokenMeltData,
       totalFee: quote.totalFee,
       paymentPreimage,
+      bolt11AmountSats,
+      conversionFee,
+      slippageDelta,
+      usdbAmountReceived,
     } satisfies z.input<typeof SparkLightningReceiveDbDataSchema>);
 
     const encryptedData = await this.encryption.encrypt(receiveData);

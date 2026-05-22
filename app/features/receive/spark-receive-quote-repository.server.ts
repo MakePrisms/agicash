@@ -62,6 +62,7 @@ export class SparkReceiveQuoteRepositoryServer {
       receiveType,
       description,
       totalFee,
+      bolt11AmountSats,
     } = params;
 
     const receiveData = SparkLightningReceiveDbDataSchema.parse({
@@ -71,6 +72,7 @@ export class SparkReceiveQuoteRepositoryServer {
       cashuTokenMeltData:
         receiveType === 'CASHU_TOKEN' ? params.meltData : undefined,
       totalFee,
+      bolt11AmountSats,
     } satisfies z.input<typeof SparkLightningReceiveDbDataSchema>);
 
     const encryptedData = encryptToPublicKey(

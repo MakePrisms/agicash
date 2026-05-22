@@ -3,8 +3,9 @@ import type {
   LightningReceiveStatus,
 } from '@agicash/breez-sdk-spark';
 import type { Proof } from '@cashu/cashu-ts';
+import type Big from 'big.js';
 import { parseBolt11Invoice } from '~/lib/bolt11';
-import { Money } from '~/lib/money';
+import { type Currency, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import type { SparkAccount } from '../accounts/account';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
@@ -23,11 +24,19 @@ export type SparkReceiveLightningQuote = {
   invoice: {
     paymentRequest: string;
     paymentHash: string;
+    /** Always denominated in sats — the BOLT11 invoice amount. **/
     amount: Money<'BTC'>;
     createdAt: string;
     expiresAt: string;
     memo?: string;
   };
+  /**
+   * The user-visible amount to be credited to the receiving account.
+   * For BTC accounts this equals `invoice.amount`. For USD accounts this is
+   * the user-entered USD amount that will be credited once Flashnet's
+   * sats → USDB conversion completes.
+   */
+  amountToReceive: Money;
   /** The status of the request. **/
   status: LightningReceiveStatus;
   /** The receiver's identity public key if different from owner of the request. **/
@@ -40,9 +49,21 @@ export type GetLightningQuoteParams = {
    */
   wallet: BreezSdk;
   /**
-   * The amount to receive.
+   * The amount to receive, denominated in the destination account's currency.
+   * For USD accounts this is the user-entered USD amount; it will be
+   * converted to sats for the BOLT11 invoice.
    */
   amount: Money;
+  /**
+   * Destination account currency. Defaults to `'BTC'` for callers that
+   * pre-date the USDB account work.
+   */
+  accountCurrency?: Currency;
+  /**
+   * Required when `accountCurrency === 'USD'` and `amount.currency === 'USD'`.
+   * Rate is in `USD-BTC` format (multiply USD cents by rate to get sats).
+   */
+  exchangeRate?: Big | string;
   /**
    * The Spark public key of the receiver used to create invoices on behalf of another user.
    * If provided, the incoming payment can only be claimed by the Spark wallet that controls the specified public key.
@@ -164,6 +185,13 @@ export type RepositoryCreateQuoteParams = {
    */
   totalFee: Money;
   /**
+   * Sats encoded in the BOLT11 invoice. Set when the account currency differs
+   * from BTC (e.g. a USD account where the lightning leg settles sats before
+   * the auto-conversion to USDB). Typed as a generic `Money` to match the
+   * encrypted-blob schema; values are always denominated in sats.
+   */
+  bolt11AmountSats?: Money;
+  /**
    * The purpose of this transaction (e.g. a Cash App buy or an internal transfer).
    * When not provided, the transaction will be created with PAYMENT purpose.
    */
@@ -226,15 +254,34 @@ export type RepositoryCreateQuoteParams = {
 export async function getLightningQuote({
   wallet,
   amount,
+  accountCurrency = 'BTC',
+  exchangeRate,
   receiverIdentityPubkey,
   description,
 }: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
+  let amountSats: number;
+  if (accountCurrency === 'USD') {
+    if (amount.currency !== 'USD') {
+      throw new Error(
+        `USD spark receive requires a USD amount; got ${amount.currency}`,
+      );
+    }
+    if (!exchangeRate) {
+      throw new Error(
+        'Exchange rate is required for USD spark receive quotes',
+      );
+    }
+    amountSats = amount.convert('BTC', exchangeRate).toNumber('sat');
+  } else {
+    amountSats = amount.toNumber('sat');
+  }
+
   const response = await measureOperation('BreezSdk.receivePayment', () =>
     wallet.receivePayment({
       paymentMethod: {
         type: 'bolt11Invoice',
         description: description ?? '',
-        amountSats: amount.toNumber('sat'),
+        amountSats,
         receiverIdentityPubkey,
       },
     }),
@@ -251,9 +298,9 @@ export async function getLightningQuote({
   }
 
   const invoice = bolt11.decoded;
-  const invoiceAmount = invoice.amountMsat
+  const invoiceAmount: Money<'BTC'> = invoice.amountMsat
     ? new Money({ amount: invoice.amountMsat, currency: 'BTC', unit: 'msat' })
-    : (amount as Money<'BTC'>);
+    : new Money({ amount: amountSats, currency: 'BTC', unit: 'sat' });
   const { receiveRequestId, status, createdAt, updatedAt } =
     response.lightningReceiveDetails;
 
@@ -269,6 +316,8 @@ export async function getLightningQuote({
       expiresAt: new Date(invoice.expiryUnixMs).toISOString(),
       memo: description,
     },
+    amountToReceive:
+      accountCurrency === 'USD' ? amount : (invoiceAmount as Money),
     status,
     receiverIdentityPublicKey: receiverIdentityPubkey,
   };
@@ -301,7 +350,7 @@ export function getAmountAndFee(params: CreateQuoteBaseParams): {
   amount: Money;
   totalFee: Money;
 } {
-  const amount = params.lightningQuote.invoice.amount as Money;
+  const amount = params.lightningQuote.amountToReceive;
 
   if (params.receiveType === 'LIGHTNING') {
     return { amount, totalFee: Money.zero(amount.currency) };

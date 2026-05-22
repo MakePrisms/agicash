@@ -1,3 +1,4 @@
+import type { Money } from '~/lib/money';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import {
   type CreateQuoteBaseParams,
@@ -10,6 +11,28 @@ import {
 } from './spark-receive-quote-repository';
 
 type CreateQuoteParams = CreateQuoteBaseParams;
+
+/**
+ * Optional fields recorded when the Flashnet sats → USDB conversion completes
+ * on a USD-account receive. The lightning leg has already settled by the time
+ * these are known; calling `complete` writes them into the encrypted jsonb
+ * blob alongside `paymentPreimage` and `sparkTransferId`.
+ *
+ * `Money` fields are typed as the generic `Money` (not `Money<'BTC'>` etc.) to
+ * align with the encrypted-blob schema's `z.instanceof(Money)`. Values are
+ * always denominated in sats (`bolt11AmountSats`, `conversionFee`) or cents
+ * (`slippageDelta`, `usdbAmountReceived`).
+ */
+export type SparkReceiveCompletionExtras = {
+  /** Sats credited by the lightning leg, before conversion. */
+  bolt11AmountSats?: Money;
+  /** Fee charged by Flashnet for the sats → USDB swap. */
+  conversionFee?: Money;
+  /** Difference between estimated and actual USDB output (within slippage). */
+  slippageDelta?: Money;
+  /** USDB amount actually credited after conversion. */
+  usdbAmountReceived?: Money;
+};
 
 export class SparkReceiveQuoteService {
   constructor(private readonly repository: SparkReceiveQuoteRepository) {}
@@ -25,6 +48,17 @@ export class SparkReceiveQuoteService {
     const expiresAt = computeQuoteExpiry(params);
     const { amount, totalFee } = getAmountAndFee(params);
 
+    // For non-BTC accounts (e.g. USD/USDB), persist the BOLT11's sats amount
+    // alongside the user-facing `amountToReceive` so the lightning-leg payload
+    // is recoverable when the conversion leg completes later. Widened to
+    // `Money` (vs `Money<'BTC'>`) to match the encrypted-blob schema's
+    // `z.instanceof(Money)`; the cast is the standard pattern in this codebase
+    // (see `lightning-address-service.ts:186`).
+    const bolt11AmountSats: Money | undefined =
+      account.currency === 'BTC'
+        ? undefined
+        : (lightningQuote.invoice.amount as Money);
+
     const baseParams = {
       userId,
       accountId: account.id,
@@ -36,6 +70,7 @@ export class SparkReceiveQuoteService {
       sparkId: lightningQuote.id,
       receiverIdentityPubkey: lightningQuote.receiverIdentityPublicKey,
       totalFee,
+      bolt11AmountSats,
       purpose,
       transferId,
     };
@@ -76,6 +111,8 @@ export class SparkReceiveQuoteService {
    * @param quote - The spark receive quote to complete.
    * @param paymentPreimage - The payment preimage from the lightning payment.
    * @param sparkTransferId - The Spark transfer ID from the completed transfer.
+   * @param extras - Optional conversion-leg fields recorded on USD-account
+   *   receives once the sats → USDB conversion completes.
    * @returns The updated quote.
    * @throws An error if the quote is not in UNPAID state.
    */
@@ -83,6 +120,7 @@ export class SparkReceiveQuoteService {
     quote: SparkReceiveQuote,
     paymentPreimage: string,
     sparkTransferId: string,
+    extras?: SparkReceiveCompletionExtras,
   ): Promise<SparkReceiveQuote> {
     if (quote.state === 'PAID') {
       return quote;
@@ -98,6 +136,7 @@ export class SparkReceiveQuoteService {
       quote,
       paymentPreimage,
       sparkTransferId,
+      ...(extras ?? {}),
     });
   }
 

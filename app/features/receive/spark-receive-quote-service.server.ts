@@ -1,3 +1,4 @@
+import type { Money } from '~/lib/money';
 import {
   type CreateQuoteBaseParams,
   type GetLightningQuoteParams,
@@ -51,6 +52,11 @@ export class SparkReceiveQuoteServiceServer {
     const expiresAt = computeQuoteExpiry(params);
     const { amount, totalFee } = getAmountAndFee(params);
 
+    const bolt11AmountSats: Money | undefined =
+      account.currency === 'BTC'
+        ? undefined
+        : (lightningQuote.invoice.amount as Money);
+
     const baseParams = {
       userId,
       accountId: account.id,
@@ -62,6 +68,7 @@ export class SparkReceiveQuoteServiceServer {
       sparkId: lightningQuote.id,
       receiverIdentityPubkey: lightningQuote.receiverIdentityPublicKey,
       totalFee,
+      bolt11AmountSats,
     };
 
     if (params.receiveType === 'CASHU_TOKEN') {
