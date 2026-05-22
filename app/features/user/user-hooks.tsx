@@ -86,6 +86,15 @@ export const defaultAccounts = [
     purpose: 'transactional',
     expiresAt: null,
   },
+  {
+    type: 'spark',
+    currency: 'USD',
+    name: 'Dollars',
+    network: 'MAINNET',
+    isDefault: true,
+    purpose: 'transactional',
+    expiresAt: null,
+  },
   ...(isDevelopmentMode
     ? ([
         {
@@ -104,7 +113,7 @@ export const defaultAccounts = [
           name: 'Testnut USD',
           mintUrl: 'https://testnut.cashu.space',
           isTestMint: true,
-          isDefault: true,
+          isDefault: false,
           purpose: 'transactional',
           expiresAt: null,
         },
