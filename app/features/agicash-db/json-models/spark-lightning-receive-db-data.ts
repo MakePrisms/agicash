@@ -39,6 +39,29 @@ export const SparkLightningReceiveDbDataSchema = z.object({
    * fee is known.
    */
   totalFee: z.instanceof(Money),
+  /**
+   * Sats received over Lightning before the stable_balance conversion runs.
+   * Set only on USD-account receives, when the lightning leg has settled.
+   */
+  bolt11AmountSats: z.instanceof(Money).optional(),
+  /**
+   * Conversion fee charged by Flashnet for the sats→USDB swap.
+   * Set only on USD-account receives, when the conversion has completed.
+   */
+  conversionFee: z.instanceof(Money).optional(),
+  /**
+   * Difference between the estimated and actual USDB output (price movement
+   * within the configured slippage tolerance).
+   * Set only on USD-account receives, when the conversion has completed.
+   */
+  slippageDelta: z.instanceof(Money).optional(),
+  /**
+   * USDB amount actually credited after conversion.
+   * Set only on USD-account receives, when the conversion has completed.
+   * Same as `amountReceived` once both legs are done, but kept separately
+   * for accounting clarity vs the lightning-leg sats.
+   */
+  usdbAmountReceived: z.instanceof(Money).optional(),
 });
 
 /**
