@@ -52,7 +52,7 @@ const getClaimCashuTokenService = async () => {
     queryClient,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
-    './.spark-data',
+    (accountId: string) => `./.spark-data/${accountId}`,
   );
   const accountService = new AccountService(accountRepository, queryClient);
   const receiveSwapRepository = new CashuReceiveSwapRepository(

@@ -172,7 +172,7 @@ export class LightningAddressService {
         this.db,
         this.queryClient,
         getSparkWalletMnemonic,
-        '/tmp/.spark-data',
+        (accountId: string) => `/tmp/.spark-data/${accountId}`,
       );
 
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
@@ -319,6 +319,7 @@ export class LightningAddressService {
     const wallet = await this.queryClient.fetchQuery(
       sparkWalletQueryOptions({
         network: 'MAINNET',
+        currency: 'BTC',
         mnemonic: sparkMnemonic,
         storageDir: '/tmp/.spark-data',
       }),

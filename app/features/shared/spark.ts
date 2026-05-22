@@ -1,20 +1,26 @@
 import {
   type BreezSdk,
+  type GetInfoResponse,
+  SdkBuilder,
   type SdkEvent,
-  connect,
   defaultConfig,
   initLogging,
 } from '@agicash/breez-sdk-spark';
 import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
+import * as Sentry from '@sentry/react-router';
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Money } from '~/lib/money';
+import { type Currency, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
 import {
   type SparkNetwork,
+  USDB_MAINNET_ID,
+  convertUsdbToMoney,
   createSparkWalletStub,
+  getSparkAccountNumber,
   getSparkIdentityPublicKeyFromMnemonic,
+  getSparkStableBalanceConfig,
 } from '~/lib/spark';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
@@ -91,11 +97,23 @@ export const sparkIdentityPublicKeyQueryOptions = ({
 
 export const sparkWalletQueryOptions = ({
   network,
+  currency,
   mnemonic,
   storageDir,
-}: { network: SparkNetwork; mnemonic: string; storageDir: string }) =>
+}: {
+  network: SparkNetwork;
+  currency: Currency;
+  mnemonic: string;
+  storageDir: string;
+}) =>
   queryOptions({
-    queryKey: ['spark-wallet', computeSHA256(mnemonic), network, storageDir],
+    queryKey: [
+      'spark-wallet',
+      computeSHA256(mnemonic),
+      network,
+      currency,
+      storageDir,
+    ],
     queryFn: async () => {
       const breezNetwork = network.toLowerCase() as 'mainnet' | 'regtest';
 
@@ -103,9 +121,9 @@ export const sparkWalletQueryOptions = ({
 
       const sdk = await measureOperation(
         'BreezSdk.connect',
-        () =>
-          connect({
-            config: {
+        async () => {
+          const builderWithKeySet = SdkBuilder.new(
+            {
               ...defaultConfig(breezNetwork),
               apiKey,
               lnurlDomain: undefined, // Disables Breez's built-in lightning address recovery — we use our own ln address system
@@ -114,11 +132,22 @@ export const sparkWalletQueryOptions = ({
                 autoEnabled: true,
                 multiplicity: 2,
               },
+              stableBalanceConfig: getSparkStableBalanceConfig(
+                currency,
+                network,
+              ),
             },
-            seed: { type: 'mnemonic', mnemonic },
-            storageDir,
-          }),
-        { 'spark.network': network },
+            { type: 'mnemonic', mnemonic },
+          ).withKeySet({
+            keySetType: 'default',
+            useAddressIndex: false,
+            accountNumber: getSparkAccountNumber(currency),
+          });
+          const builderWithStorage =
+            await builderWithKeySet.withDefaultStorage(storageDir);
+          return builderWithStorage.build();
+        },
+        { 'spark.network': network, 'spark.currency': currency },
       );
 
       return sdk;
@@ -127,18 +156,36 @@ export const sparkWalletQueryOptions = ({
     gcTime: Number.POSITIVE_INFINITY,
   });
 
+function computeSparkAccountBalance(
+  info: GetInfoResponse,
+  currency: Currency,
+): Money {
+  if (currency === 'USD') {
+    const raw = info.tokenBalances.get(USDB_MAINNET_ID)?.balance ?? 0n;
+    return convertUsdbToMoney(raw) as Money;
+  }
+  return new Money({
+    amount: info.balanceSats,
+    currency: 'BTC',
+    unit: 'sat',
+  }) as Money;
+}
+
 /**
  * Initializes a Spark wallet with offline handling.
  * If Spark is offline or times out, returns a minimal wallet with isOnline: false.
  * @param queryClient - The query client to use for async queries and caching.
  * @param mnemonic - The Spark wallet mnemonic.
  * @param network - The Spark network that the wallet is on.
+ * @param currency - The currency of the account this wallet belongs to.
+ * @param storageDir - The per-account storage directory for the underlying SDK.
  * @returns The wallet, balance and online status.
  */
 export async function getInitializedSparkWallet(
   queryClient: QueryClient,
   mnemonic: string,
   network: SparkNetwork,
+  currency: Currency,
   storageDir: string,
 ): Promise<{
   wallet: BreezSdk;
@@ -150,19 +197,28 @@ export async function getInitializedSparkWallet(
     async () => {
       try {
         const wallet = await queryClient.fetchQuery(
-          sparkWalletQueryOptions({ network, mnemonic, storageDir }),
+          sparkWalletQueryOptions({ network, currency, mnemonic, storageDir }),
         );
         const info = await measureOperation('BreezSdk.getInfo', () =>
           wallet.getInfo({}),
         );
 
-        const balance = new Money({
-          amount: info.balanceSats,
-          currency: 'BTC',
-          unit: 'sat',
-        }) as Money;
+        if (currency === 'USD') {
+          await measureOperation('BreezSdk.getTokensMetadata', () =>
+            wallet.getTokensMetadata({ tokenIdentifiers: [USDB_MAINNET_ID] }),
+          );
+        }
+
+        const balance = computeSparkAccountBalance(info, currency);
         return { wallet, balance, isOnline: true };
       } catch (error) {
+        Sentry.captureException(error, {
+          tags: {
+            'spark.network': network,
+            'spark.currency': currency,
+            'spark.account_number': String(getSparkAccountNumber(currency)),
+          },
+        });
         console.error('Failed to initialize spark wallet', { cause: error });
         return {
           wallet: createSparkWalletStub(
@@ -173,7 +229,7 @@ export async function getInitializedSparkWallet(
         };
       }
     },
-    { sparkNetwork: network },
+    { sparkNetwork: network, sparkCurrency: currency },
   );
 }
 
@@ -201,11 +257,10 @@ export function useTrackAndUpdateSparkAccountBalances() {
             event.type === 'synced'
           ) {
             account.wallet.getInfo({}).then((info) => {
-              const balance = new Money({
-                amount: info.balanceSats,
-                currency: 'BTC',
-                unit: 'sat',
-              }) as Money;
+              const balance = computeSparkAccountBalance(
+                info,
+                account.currency,
+              );
               accountCache.updateSparkAccountBalance({
                 accountId: account.id,
                 balance,

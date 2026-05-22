@@ -116,7 +116,7 @@ const ensureUserData = async (
       queryClient,
       getCashuWalletSeed,
       getSparkWalletMnemonic,
-      './.spark-data',
+      (accountId: string) => `./.spark-data/${accountId}`,
     );
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,

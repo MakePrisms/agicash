@@ -53,7 +53,7 @@ export class AccountRepository {
     private readonly queryClient: QueryClient,
     private readonly getCashuWalletSeed: () => Promise<Uint8Array>,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
-    private readonly sparkStorageDir: string,
+    private readonly sparkStorageDir: (accountId: string) => string,
   ) {}
 
   /**
@@ -211,7 +211,11 @@ export class AccountRepository {
     if (isSparkAccount(data)) {
       const { network } = data.details;
       const { wallet, balance, isOnline } =
-        await this.getInitializedSparkWallet(network);
+        await this.getInitializedSparkWallet(
+          data.id,
+          network,
+          data.currency as Currency,
+        );
 
       return {
         ...commonData,
@@ -241,13 +245,18 @@ export class AccountRepository {
     });
   }
 
-  private async getInitializedSparkWallet(network: SparkNetwork) {
+  private async getInitializedSparkWallet(
+    accountId: string,
+    network: SparkNetwork,
+    currency: Currency,
+  ) {
     const mnemonic = await this.getSparkWalletMnemonic();
     return getInitializedSparkWallet(
       this.queryClient,
       mnemonic,
       network,
-      this.sparkStorageDir,
+      currency,
+      this.sparkStorageDir(accountId),
     );
   }
 
@@ -300,6 +309,6 @@ export function useAccountRepository() {
     queryClient,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
-    './.spark-data',
+    (accountId: string) => `./.spark-data/${accountId}`,
   );
 }
