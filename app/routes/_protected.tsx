@@ -33,9 +33,9 @@ import {
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
 import { type User, shouldAcceptTerms } from '~/features/user/user';
 import {
+  UserCache,
   defaultAccounts,
   getUserFromCache,
-  userQueryKey,
 } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
@@ -144,7 +144,7 @@ const ensureUserData = async (
       },
     });
     user = upsertedUser;
-    queryClient.setQueryData([userQueryKey], user);
+    queryClient.setQueryData([UserCache.Key], user);
     queryClient.setQueryData([AccountsCache.Key], accounts);
   }
 

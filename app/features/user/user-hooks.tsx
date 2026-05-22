@@ -22,10 +22,8 @@ import {
 } from './user-repository';
 import { useUserService } from './user-service';
 
-export const userQueryKey = 'user';
-
 export class UserCache {
-  public static Key = userQueryKey;
+  public static Key = 'user';
 
   constructor(private readonly queryClient: QueryClient) {}
 
@@ -64,7 +62,7 @@ export function useUserChangeHandlers() {
 export const getUserFromCache = (
   queryClient: QueryClient = getQueryClient(),
 ) => {
-  return queryClient.getQueryData<User>([userQueryKey]) ?? null;
+  return queryClient.getQueryData<User>([UserCache.Key]) ?? null;
 };
 
 export const getUserFromCacheOrThrow = () => {
@@ -84,7 +82,7 @@ const userQueryOptions = <TData = User>({
   userRepository: ReadUserRepository;
   select?: (data: User) => TData;
 }) => ({
-  queryKey: [userQueryKey],
+  queryKey: [UserCache.Key],
   queryFn: () => userRepository.get(userId),
   select,
 });
@@ -241,7 +239,7 @@ const useUpdateUser = () => {
   return useMutation({
     mutationFn: (updates: UpdateUser) => userRepository.update(userId, updates),
     onSuccess: (data) => {
-      queryClient.setQueryData([userQueryKey], data);
+      queryClient.setQueryData([UserCache.Key], data);
     },
   });
 };
@@ -264,7 +262,7 @@ export const useSetDefaultAccount = () => {
     mutationFn: (account: Account) =>
       userService.setDefaultAccount(user.current, account),
     onSuccess: (data) => {
-      queryClient.setQueryData([userQueryKey], data);
+      queryClient.setQueryData([UserCache.Key], data);
     },
   });
 
