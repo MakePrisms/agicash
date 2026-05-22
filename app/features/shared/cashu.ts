@@ -67,7 +67,7 @@ function getCurrencyAndUnitFromToken(token: Token): {
 
 export function tokenToMoney(token: Token): Money {
   const { currency, unit } = getCurrencyAndUnitFromToken(token);
-  const amount = sumProofs(token.proofs);
+  const amount = sumProofs(token.proofs).toNumber();
   return new Money<Currency>({
     amount,
     currency,
