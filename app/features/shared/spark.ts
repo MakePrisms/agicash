@@ -12,12 +12,12 @@ import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
 import {
+  type SparkNetwork,
   createSparkWalletStub,
   getSparkIdentityPublicKeyFromMnemonic,
 } from '~/lib/spark';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
-import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { getFeatureFlag } from './feature-flags';
 
 const apiKey = import.meta.env.VITE_BREEZ_API_KEY;

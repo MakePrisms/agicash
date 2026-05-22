@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { normalizeMintUrl } from '~/lib/cashu';
 import { ProofSchema } from '~/lib/cashu/types';
 import type { Currency } from '~/lib/money';
+import type { SparkNetwork } from '~/lib/spark';
 import {
   type AgicashDb,
   type AgicashDbAccountWithProofs,
@@ -12,7 +13,6 @@ import {
 } from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
-import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,

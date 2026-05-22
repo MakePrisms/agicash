@@ -1,7 +1,7 @@
 import type { Config } from '@agicash/breez-sdk-spark';
-import type { SparkNetwork } from '~/features/agicash-db/json-models/spark-account-details-db-data';
 import { Money } from '~/lib/money';
 import type { Currency } from '~/lib/money';
+import type { SparkNetwork } from './network';
 
 /**
  * Canonical mainnet token identifier for USDB.

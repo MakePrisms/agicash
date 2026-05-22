@@ -11,5 +11,3 @@ export const SparkAccountDetailsDbDataSchema = z.object({
 export type SparkAccountDetailsDbData = z.infer<
   typeof SparkAccountDetailsDbDataSchema
 >;
-
-export type SparkNetwork = SparkAccountDetailsDbData['network'];
