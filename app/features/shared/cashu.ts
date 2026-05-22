@@ -342,7 +342,6 @@ export async function getInitializedCashuWallet({
         authProvider,
       });
       const keyChainCache = KeyChain.mintToCacheDTO(
-        wallet.unit,
         mintUrl,
         unitKeysets,
         [activeKeysForUnit],
