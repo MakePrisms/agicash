@@ -40,7 +40,11 @@ import {
   useTransactionChangeHandlers,
   useTransactionsCache,
 } from '../transactions/transaction-hooks';
-import { useUser } from '../user/user-hooks';
+import {
+  useUser,
+  useUserCache,
+  useUserChangeHandlers,
+} from '../user/user-hooks';
 
 type DatabaseChangeHandler = {
   event: string;
@@ -95,6 +99,7 @@ export const useTrackWalletChanges = () => {
   const contactChangeHandlers = useContactChangeHandlers();
   const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
   const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
+  const userChangeHandlers = useUserChangeHandlers();
 
   const accountsCache = useAccountsCache();
   const transactionsCache = useTransactionsCache();
@@ -108,6 +113,7 @@ export const useTrackWalletChanges = () => {
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
   const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
+  const userCache = useUserCache();
 
   useTrackDatabaseChanges({
     handlers: [
@@ -120,6 +126,7 @@ export const useTrackWalletChanges = () => {
       ...contactChangeHandlers,
       ...sparkReceiveQuoteChangeHandlers,
       ...sparkSendQuoteChangeHandlers,
+      ...userChangeHandlers,
     ],
     onConnected: () => {
       // Makes sure that data is refetched to get the latest updates from the database.
@@ -137,6 +144,7 @@ export const useTrackWalletChanges = () => {
       sparkReceiveQuoteCache.invalidate();
       pendingSparkReceiveQuotesCache.invalidate();
       unresolvedSparkSendQuotesCache.invalidate();
+      userCache.invalidate();
     },
   });
 };

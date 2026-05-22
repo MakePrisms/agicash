@@ -5,12 +5,13 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import type { Currency } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
+import type { AgicashDbUser } from '../agicash-db/database';
 import { guestAccountStorage } from './guest-account-storage';
 import type { User } from './user';
 import {
@@ -22,6 +23,43 @@ import {
 import { useUserService } from './user-service';
 
 export const userQueryKey = 'user';
+
+export class UserCache {
+  public static Key = userQueryKey;
+
+  constructor(private readonly queryClient: QueryClient) {}
+
+  set(user: User) {
+    this.queryClient.setQueryData([UserCache.Key], user);
+  }
+
+  get() {
+    return this.queryClient.getQueryData<User>([UserCache.Key]);
+  }
+
+  invalidate() {
+    return this.queryClient.invalidateQueries({ queryKey: [UserCache.Key] });
+  }
+}
+
+export function useUserCache() {
+  const queryClient = useQueryClient();
+  return useMemo(() => new UserCache(queryClient), [queryClient]);
+}
+
+export function useUserChangeHandlers() {
+  const userRepository = useReadUserRepository();
+  const userCache = useUserCache();
+
+  return [
+    {
+      event: 'USER_UPDATED',
+      handleEvent: async (payload: AgicashDbUser) => {
+        userCache.set(userRepository.toUser(payload));
+      },
+    },
+  ];
+}
 
 export const getUserFromCache = (
   queryClient: QueryClient = getQueryClient(),

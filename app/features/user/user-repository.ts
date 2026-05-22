@@ -387,6 +387,10 @@ export class ReadUserRepository {
 
     return data ? toUser(data) : null;
   }
+
+  toUser(dbUser: AgicashDbUser): User {
+    return toUser(dbUser);
+  }
 }
 
 export function useReadUserRepository() {
