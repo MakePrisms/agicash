@@ -1,4 +1,4 @@
-import type { Proof } from '@cashu/cashu-ts';
+import { Amount, type Proof } from '@cashu/cashu-ts';
 import { z } from 'zod/mini';
 import { ProofSchema } from '~/lib/cashu/types';
 
@@ -25,7 +25,7 @@ export type CashuProof = z.infer<typeof CashuProofSchema>;
 export const toProof = (proof: CashuProof): Proof => {
   return {
     id: proof.keysetId,
-    amount: proof.amount,
+    amount: Amount.from(proof.amount),
     secret: proof.secret,
     C: proof.unblindedSignature,
     dleq: proof.dleq,

@@ -67,7 +67,7 @@ function getCurrencyAndUnitFromToken(token: Token): {
 
 export function tokenToMoney(token: Token): Money {
   const { currency, unit } = getCurrencyAndUnitFromToken(token);
-  const amount = sumProofs(token.proofs).toNumber();
+  const amount = sumProofs(token.proofs);
   return new Money<Currency>({
     amount,
     currency,
@@ -341,11 +341,9 @@ export async function getInitializedCashuWallet({
         bip39seed: bip39seed ?? undefined,
         authProvider,
       });
-      const keyChainCache = KeyChain.mintToCacheDTO(
-        mintUrl,
-        unitKeysets,
-        [activeKeysForUnit],
-      );
+      const keyChainCache = KeyChain.mintToCacheDTO(mintUrl, unitKeysets, [
+        activeKeysForUnit,
+      ]);
       wallet.loadMintFromCache(mintInfo.cache, keyChainCache);
 
       return { wallet, isOnline: true };

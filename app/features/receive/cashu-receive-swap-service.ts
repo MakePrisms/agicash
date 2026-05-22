@@ -70,7 +70,7 @@ export class CashuReceiveSwapService {
     const wallet = account.wallet;
 
     const keyset = wallet.getKeyset();
-    const fee = wallet.getFeesForProofs(token.proofs);
+    const fee = wallet.getFeesForProofs(token.proofs).toNumber();
     const amountToReceive = sumProofs(token.proofs) - fee;
 
     if (amountToReceive <= 0) {
@@ -89,7 +89,9 @@ export class CashuReceiveSwapService {
       unit: cashuUnit,
     });
 
-    const outputAmounts = splitAmount(amountToReceive, keyset.keys);
+    const outputAmounts = splitAmount(amountToReceive, keyset.keys).map((a) =>
+      a.toNumber(),
+    );
 
     return await this.receiveSwapRepository.create({
       token,
@@ -205,11 +207,7 @@ export class CashuReceiveSwapService {
   ) {
     try {
       return await wallet.ops
-        .receive({
-          mint: wallet.mint.mintUrl,
-          proofs: receiveSwap.tokenProofs,
-          unit: wallet.unit,
-        })
+        .receive(receiveSwap.tokenProofs)
         .asCustom(outputData)
         .run();
     } catch (error) {

@@ -101,7 +101,10 @@ export class CashuReceiveSwapRepository {
     const receiveData = CashuSwapReceiveDbDataSchema.parse({
       tokenMintUrl: token.mint,
       tokenAmount: inputAmount,
-      tokenProofs: token.proofs,
+      tokenProofs: token.proofs.map((p) => ({
+        ...p,
+        amount: p.amount.toNumber(),
+      })),
       tokenDescription: token.memo,
       amountReceived: receiveAmount,
       outputAmounts,
@@ -174,7 +177,10 @@ export class CashuReceiveSwapRepository {
     account: CashuAccount;
     addedProofs: string[];
   }> {
-    const dataToEncrypt = proofs.flatMap((x) => [x.amount, x.secret]);
+    const dataToEncrypt = proofs.flatMap((x) => [
+      x.amount.toNumber(),
+      x.secret,
+    ]);
     const encryptedData = await this.encryption.encryptBatch(dataToEncrypt);
     const encryptedProofs = proofs.map((x, index) => {
       const encryptedDataIndex = index * 2;

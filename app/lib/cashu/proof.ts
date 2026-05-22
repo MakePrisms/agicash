@@ -1,10 +1,10 @@
-import { type Proof, hashToCurve } from '@cashu/cashu-ts';
+import { Amount, type Proof, hashToCurve } from '@cashu/cashu-ts';
 import { parseSecret } from './secret';
 
 /** Sum the amounts from a list of proofs. */
-export const sumProofs = (proofs: Pick<Proof, 'amount'>[]): number => {
+export const sumProofs = (proofs: { amount: number | Amount }[]): number => {
   return proofs.reduce((acc, proof) => {
-    return acc + proof.amount;
+    return acc + Amount.from(proof.amount).toNumber();
   }, 0);
 };
 
@@ -13,7 +13,7 @@ export const sumProofs = (proofs: Pick<Proof, 'amount'>[]): number => {
  *
  * @see https://github.com/cashubtc/nuts/blob/main/00.md#hash_to_curvex-bytes---curve-point-y
  */
-export const proofToY = (proof: Proof): string => {
+export const proofToY = (proof: Pick<Proof, 'secret'>): string => {
   const encoder = new TextEncoder();
   return hashToCurve(encoder.encode(proof.secret)).toHex(true);
 };

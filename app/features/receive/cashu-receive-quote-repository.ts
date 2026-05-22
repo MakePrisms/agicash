@@ -64,7 +64,15 @@ export class CashuReceiveQuoteRepository {
       description,
       mintingFee,
       cashuTokenMeltData:
-        receiveType === 'CASHU_TOKEN' ? params.meltData : undefined,
+        receiveType === 'CASHU_TOKEN'
+          ? {
+              ...params.meltData,
+              tokenProofs: params.meltData.tokenProofs.map((p) => ({
+                ...p,
+                amount: p.amount.toNumber(),
+              })),
+            }
+          : undefined,
       totalFee,
     } satisfies z.input<typeof CashuLightningReceiveDbDataSchema>);
 
@@ -316,7 +324,10 @@ export class CashuReceiveQuoteRepository {
      */
     addedProofs: string[];
   }> {
-    const dataToEncrypt = proofs.flatMap((x) => [x.amount, x.secret]);
+    const dataToEncrypt = proofs.flatMap((x) => [
+      x.amount.toNumber(),
+      x.secret,
+    ]);
     const encryptedData = await this.encryption.encryptBatch(dataToEncrypt);
     const encryptedProofs = proofs.map((x, index) => {
       const encryptedDataIndex = index * 2;

@@ -1,4 +1,5 @@
 import {
+  Amount,
   MintOperationError,
   MintQuoteState,
   OutputData,
@@ -246,7 +247,9 @@ export class CashuReceiveQuoteService {
     const keyset = wallet.getKeyset(keysetId);
     const cashuUnit = getCashuUnit(quote.amount.currency);
     const amountInCashuUnit = quote.amount.toNumber(cashuUnit);
-    const outputAmounts = splitAmount(amountInCashuUnit, keyset.keys);
+    const outputAmounts = splitAmount(amountInCashuUnit, keyset.keys).map((a) =>
+      a.toNumber(),
+    );
 
     const result = await this.cashuReceiveQuoteRepository.processPayment({
       quote,
@@ -322,7 +325,7 @@ export class CashuReceiveQuoteService {
           state: MintQuoteState.PAID,
           expiry: Math.floor(new Date(quote.expiresAt).getTime() / 1000),
           pubkey: lockingPublicKey,
-          amount,
+          amount: Amount.from(amount),
           unit: wallet.unit,
         })
         .keyset(quote.keysetId)

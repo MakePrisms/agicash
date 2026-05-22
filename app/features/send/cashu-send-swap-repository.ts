@@ -195,7 +195,10 @@ export class CashuSendSwapRepository {
     changeProofs: Proof[];
   }) {
     const allProofs = proofsToSend.concat(changeProofs);
-    const proofDataToEncrypt = allProofs.flatMap((x) => [x.amount, x.secret]);
+    const proofDataToEncrypt = allProofs.flatMap((x) => [
+      x.amount.toNumber(),
+      x.secret,
+    ]);
 
     const encryptedProofData =
       await this.encryption.encryptBatch(proofDataToEncrypt);
