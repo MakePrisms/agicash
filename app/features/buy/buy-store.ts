@@ -1,8 +1,10 @@
+import type Big from 'big.js';
 import { create } from 'zustand';
 import type { Currency, Money } from '~/lib/money';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
+import { DomainError } from '../shared/error';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 
 export type BuyQuote = {
@@ -35,6 +37,7 @@ export type BuyState<T extends Currency = Currency> = {
 type CreateBuyStoreProps = {
   initialAccount: Account;
   getAccount: (id: string) => Account;
+  getExchangeRate: () => Big | string | undefined;
   createCashuReceiveQuote: (params: {
     account: CashuAccount;
     amount: Money;
@@ -45,6 +48,7 @@ type CreateBuyStoreProps = {
     account: SparkAccount;
     amount: Money;
     description?: string;
+    exchangeRate?: Big | string;
     purpose?: TransactionPurpose;
   }) => Promise<SparkReceiveQuote>;
 };
@@ -52,6 +56,7 @@ type CreateBuyStoreProps = {
 export const createBuyStore = ({
   initialAccount,
   getAccount,
+  getExchangeRate,
   createCashuReceiveQuote,
   createSparkReceiveQuote,
 }: CreateBuyStoreProps) => {
@@ -84,10 +89,17 @@ export const createBuyStore = ({
             mintingFee: cashuQuote.mintingFee,
           };
         } else {
+          const exchangeRate = getExchangeRate();
+          if (account.currency === 'USD' && !exchangeRate) {
+            throw new DomainError(
+              'Could not load exchange rate. Please try again.',
+            );
+          }
           const sparkQuote = await createSparkReceiveQuote({
             account,
             amount,
             description: 'Pay to Agicash',
+            exchangeRate,
             purpose: 'BUY_CASHAPP',
           });
           quote = {

@@ -10,6 +10,7 @@ import {
 import { QRCode } from '~/components/qr-code';
 import { Button } from '~/components/ui/button';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
+import { useExchangeRate } from '~/hooks/use-exchange-rate';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
@@ -47,6 +48,10 @@ const useCreateQuote = ({
     error,
   } = useCreateSparkReceiveQuote();
 
+  const needsExchangeRate = account.currency === 'USD';
+  const { data: exchangeRate, error: exchangeRateError } =
+    useExchangeRate('USD-BTC');
+
   const { quote, status: quotePaymentStatus } = useSparkReceiveQuote({
     quoteId: createdQuote?.id,
     onPaid,
@@ -55,17 +60,31 @@ const useCreateQuote = ({
   const isExpired = quotePaymentStatus === 'EXPIRED';
 
   useEffectNoStrictMode(() => {
-    if (!quote && createQuoteStatus === 'idle') {
-      createQuote({ account, amount });
-    }
-  }, [quote, createQuoteStatus, createQuote, amount, account]);
+    if (quote || createQuoteStatus !== 'idle') return;
+    if (needsExchangeRate && !exchangeRate) return;
+    createQuote({ account, amount, exchangeRate });
+  }, [
+    quote,
+    createQuoteStatus,
+    createQuote,
+    amount,
+    account,
+    needsExchangeRate,
+    exchangeRate,
+  ]);
+
+  const rateErrorMessage =
+    needsExchangeRate && exchangeRateError
+      ? 'Could not load exchange rate. Please try again.'
+      : undefined;
 
   return {
     quote,
     errorMessage: isExpired
       ? 'This invoice has expired. Please create a new one.'
-      : error?.message,
-    isLoading: ['pending', 'idle'].includes(createQuoteStatus),
+      : (rateErrorMessage ?? error?.message),
+    isLoading:
+      ['pending', 'idle'].includes(createQuoteStatus) && !rateErrorMessage,
   };
 };
 
