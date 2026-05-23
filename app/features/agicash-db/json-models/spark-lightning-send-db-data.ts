@@ -34,6 +34,26 @@ export const SparkLightningSendDbDataSchema = z.object({
    * Will be set only when the send is completed.
    */
   paymentPreimage: z.string().optional(),
+  /**
+   * USDB amount debited from the USD wallet before conversion.
+   * Set only for USD-account sends.
+   */
+  usdbDebited: z.instanceof(Money).optional(),
+  /**
+   * Sats obtained after USDB → sats conversion (the input to the Lightning payment).
+   * Set only for USD-account sends, when the conversion has completed.
+   */
+  satsAfterConversion: z.instanceof(Money).optional(),
+  /**
+   * Conversion fee charged by Flashnet for the USDB → sats swap.
+   * Set only for USD-account sends, when the conversion has completed.
+   */
+  conversionFee: z.instanceof(Money).optional(),
+  /**
+   * Actual slippage realised on the USDB → sats swap.
+   * Set only for USD-account sends, when the conversion has completed.
+   */
+  slippageActual: z.instanceof(Money).optional(),
 });
 
 /**
