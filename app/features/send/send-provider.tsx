@@ -2,10 +2,12 @@ import {
   type PropsWithChildren,
   createContext,
   useContext,
+  useRef,
   useState,
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
+import { useExchangeRate } from '~/hooks/use-exchange-rate';
 import { useAccountsCache, useGetAccount } from '../accounts/account-hooks';
 import { GIFT_CARDS } from '../gift-cards/use-discover-cards';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
@@ -38,6 +40,9 @@ export const SendProvider = ({
   const getAccount = useGetAccount();
   const accountsCache = useAccountsCache();
   const getAccounts = () => accountsCache.getAll() ?? [];
+  const { data: exchangeRate } = useExchangeRate('USD-BTC');
+  const exchangeRateRef = useRef(exchangeRate);
+  exchangeRateRef.current = exchangeRate;
 
   const [store] = useState(() =>
     createSendStore({
@@ -45,6 +50,7 @@ export const SendProvider = ({
       initialDestination,
       getAccount,
       getAccounts,
+      getExchangeRate: () => exchangeRateRef.current,
       giftCards: GIFT_CARDS,
       getInvoiceFromLud16,
       getCashuLightningQuote,

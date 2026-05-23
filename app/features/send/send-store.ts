@@ -1,3 +1,4 @@
+import type Big from 'big.js';
 import { create } from 'zustand';
 import type {
   Account,
@@ -144,6 +145,7 @@ type CreateSendStoreProps = {
   initialDestination: SendDestination | null;
   getAccount: (accountId: string) => Account;
   getAccounts: () => Account[];
+  getExchangeRate: () => Big | string | undefined;
   giftCards: GiftCardInfo[];
   getInvoiceFromLud16: (params: {
     lud16: string;
@@ -163,6 +165,7 @@ type CreateSendStoreProps = {
     account: SparkAccount;
     paymentRequest: string;
     amount?: Money<Currency>;
+    exchangeRate?: Big | string;
   }) => Promise<SparkLightningQuote>;
 };
 
@@ -183,6 +186,7 @@ export const createSendStore = ({
   initialDestination,
   getAccount,
   getAccounts,
+  getExchangeRate,
   giftCards,
   getInvoiceFromLud16,
   getCashuLightningQuote,
@@ -388,10 +392,17 @@ export const createSendStore = ({
               });
               set({ quote });
             } else if (account.type === 'spark') {
+              const exchangeRate = getExchangeRate();
+              if (account.currency === 'USD' && !exchangeRate) {
+                throw new DomainError(
+                  'Could not load exchange rate. Please try again.',
+                );
+              }
               const quote = await getSparkLightningQuote({
                 account,
                 paymentRequest: destination,
                 amount: amountToSend,
+                exchangeRate,
               });
               set({ quote });
             }
