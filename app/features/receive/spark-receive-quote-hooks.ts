@@ -519,7 +519,8 @@ export function useOnSparkReceiveStateChange({
 
         if (conversionStatus === 'completed') {
           const cached = usdPreimageByQuoteIdRef.current.get(quote.id);
-          const preimage = getPaymentPreimage(payment) ?? cached?.paymentPreimage;
+          const preimage =
+            getPaymentPreimage(payment) ?? cached?.paymentPreimage;
           if (!preimage) {
             // We never saw the lightning leg's preimage (e.g. initial-status
             // catch-up where the SDK already merged the legs and dropped the
@@ -614,6 +615,7 @@ export function useOnSparkReceiveStateChange({
           conversionStatus === 'failed' ||
           conversionStatus === 'refundNeeded'
         ) {
+          usdPreimageByQuoteIdRef.current.delete(quote.id);
           // Conversion failed or needs operator action. The lightning leg has
           // already credited sats to the account; leaving the quote UNPAID
           // surfaces the discrepancy in the dashboard while the operator
@@ -692,10 +694,8 @@ export function useOnSparkReceiveStateChange({
       for (const { wallet, listenerPromise } of registrations) {
         listenerPromise
           .then((id) => wallet.removeEventListener(id))
-          .catch(() => {
-            () => {
-              console.warn('Failed to remove Spark event listener');
-            };
+          .catch((err) => {
+            console.warn('Failed to remove Spark event listener', err);
           });
       }
     };
