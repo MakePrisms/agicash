@@ -57,6 +57,11 @@ const SparkSendQuoteBaseSchema = z.object({
    * When true, the amount field contains the user-specified amount.
    */
   paymentRequestIsAmountless: z.boolean(),
+  /**
+   * USDB amount debited from a USD wallet to cover the Lightning send, as
+   * estimated at quote creation time. Undefined for BTC-source quotes.
+   */
+  usdbDebited: z.instanceof(Money).optional(),
 });
 
 const SparkSendQuoteUnpaidStateSchema = z.object({

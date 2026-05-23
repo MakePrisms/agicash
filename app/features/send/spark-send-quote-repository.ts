@@ -57,6 +57,12 @@ type CreateQuoteParams = {
    * UUID linking paired send/receive transactions in a transfer.
    */
   transferId?: string;
+  /**
+   * USDB amount that will be debited from a USD wallet to cover this send.
+   * Estimated at quote creation time via `prepareSendPayment.conversionEstimate`.
+   * Set only for USD-source quotes.
+   */
+  usdbDebited?: Money;
 };
 
 export class SparkSendQuoteRepository {
@@ -82,12 +88,14 @@ export class SparkSendQuoteRepository {
       paymentHash,
       paymentRequestIsAmountless,
       expiresAt,
+      usdbDebited,
     } = params;
 
     const sendData = SparkLightningSendDbDataSchema.parse({
       paymentRequest,
       amountReceived: amount,
       estimatedLightningFee: estimatedFee,
+      usdbDebited,
     } satisfies z.input<typeof SparkLightningSendDbDataSchema>);
 
     const encryptedData = await this.encryption.encrypt(sendData);
@@ -161,6 +169,7 @@ export class SparkSendQuoteRepository {
       estimatedLightningFee: quote.estimatedFee,
       amountSpent: quote.amount.add(fee),
       lightningFee: fee,
+      usdbDebited: quote.usdbDebited,
     } satisfies z.input<typeof SparkLightningSendDbDataSchema>);
 
     const encryptedData = await this.encryption.encrypt(sendData);
@@ -195,6 +204,9 @@ export class SparkSendQuoteRepository {
     {
       quote,
       paymentPreimage,
+      satsAfterConversion,
+      conversionFee,
+      slippageActual,
     }: {
       /**
        * The spark send quote to complete.
@@ -204,6 +216,21 @@ export class SparkSendQuoteRepository {
        * Payment preimage from the lightning payment.
        */
       paymentPreimage: string;
+      /**
+       * Sats obtained from the USDB → sats conversion (input to the lightning leg).
+       * Set only for USD-account sends.
+       */
+      satsAfterConversion?: Money;
+      /**
+       * Fee charged by Flashnet for the USDB → sats swap.
+       * Set only for USD-account sends.
+       */
+      conversionFee?: Money;
+      /**
+       * Actual slippage realised on the conversion.
+       * Set only for USD-account sends.
+       */
+      slippageActual?: Money;
     },
     options?: Options,
   ): Promise<SparkSendQuote> {
@@ -214,6 +241,10 @@ export class SparkSendQuoteRepository {
       amountSpent: quote.amount.add(quote.fee),
       lightningFee: quote.fee,
       paymentPreimage,
+      usdbDebited: quote.usdbDebited,
+      satsAfterConversion,
+      conversionFee,
+      slippageActual,
     } satisfies z.input<typeof SparkLightningSendDbDataSchema>);
 
     const encryptedData = await this.encryption.encrypt(sendData);
@@ -333,6 +364,7 @@ export class SparkSendQuoteRepository {
       accountId: data.account_id,
       version: data.version,
       paymentRequestIsAmountless: data.payment_request_is_amountless,
+      usdbDebited: sendData.usdbDebited,
       state: data.state,
       sparkTransferId: data.spark_transfer_id ?? undefined,
       fee: sendData.lightningFee,

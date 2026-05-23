@@ -1,7 +1,9 @@
+import type Big from 'big.js';
 import { parseBolt11Invoice } from '~/lib/bolt11';
 import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import {
+  convertUsdbToMoney,
   isInsufficentBalanceError,
   isInvoiceAlreadyPaidError,
 } from '~/lib/spark';
@@ -41,10 +43,13 @@ export type SparkLightningQuote = {
   estimatedLightningFee: Money<'BTC'>;
   /**
    * The estimated total fee (lightning fee).
+   * On USD-source quotes this includes the Flashnet conversion fee.
    */
   estimatedTotalFee: Money;
   /**
-   * Estimated total amount of the send (amount to receive + estimated lightning fee).
+   * Estimated total amount of the send.
+   * For BTC-source quotes: amount to receive + lightning fee, in sats.
+   * For USD-source quotes: USDB debited from the wallet (in cents).
    */
   estimatedTotalAmount: Money;
   /**
@@ -55,6 +60,12 @@ export type SparkLightningQuote = {
    * The expiry date of the lightning invoice.
    */
   expiresAt: Date | null;
+  /**
+   * USDB amount that will be debited from a USD wallet to cover the
+   * Lightning send, as estimated by `prepareSendPayment.conversionEstimate`.
+   * Set only for USD-source quotes; undefined for BTC.
+   */
+  usdbDebited?: Money<'USD'>;
 };
 
 type GetSparkSendQuoteOptions = {
@@ -68,8 +79,15 @@ type GetSparkSendQuoteOptions = {
   paymentRequest: string;
   /**
    * Amount to send. Required for zero-amount invoices. If the invoice has an amount, this will be ignored.
+   * For USD source accounts paying an amountless invoice, this is the user-entered
+   * USD amount and is converted to sats via `exchangeRate`.
    */
-  amount?: Money<'BTC'>;
+  amount?: Money;
+  /**
+   * Required when paying an amountless invoice from a USD source account.
+   * Rate is in `USD-BTC` format (multiply USD cents by rate to get sats).
+   */
+  exchangeRate?: Big | string;
 };
 
 type CreateSendQuoteParams = {
@@ -107,16 +125,40 @@ type InitiateSendParams = {
   sendQuote: SparkSendQuote;
 };
 
+/**
+ * Optional fields recorded when the Flashnet USDB → sats conversion completes
+ * on a USD-account send. Captured during the conversion-leg `paymentSucceeded`
+ * event and persisted alongside the lightning preimage once both legs settle.
+ *
+ * `Money` fields are typed as the generic `Money` to align with the encrypted
+ * blob's `z.instanceof(Money)` schema; sats vs cents is tracked via the
+ * underlying `unit`/`currency`.
+ */
+export type SparkSendCompletionExtras = {
+  /** Sats produced by the USDB → sats conversion (input to the lightning leg). */
+  satsAfterConversion?: Money;
+  /** Fee charged by Flashnet for the USDB → sats swap. */
+  conversionFee?: Money;
+  /** Actual slippage realised on the conversion. */
+  slippageActual?: Money;
+};
+
 export class SparkSendQuoteService {
   constructor(private readonly repository: SparkSendQuoteRepository) {}
 
   /**
    * Estimates the fee for paying a Lightning invoice and returns a quote for the send.
+   *
+   * For USD-source accounts (Spark USDB), the wallet's `stable_balance_config`
+   * causes `prepareSendPayment` to surface a `conversionEstimate` describing how
+   * much USDB must be debited to cover the sats Lightning send. The quote then
+   * carries `usdbDebited` and folds the conversion fee into `estimatedTotalFee`.
    */
   async getLightningSendQuote({
     account,
     amount,
     paymentRequest,
+    exchangeRate,
   }: GetSparkSendQuoteOptions): Promise<SparkLightningQuote> {
     const bolt11ValidationResult = parseBolt11Invoice(paymentRequest);
     if (!bolt11ValidationResult.valid) {
@@ -143,7 +185,13 @@ export class SparkSendQuoteService {
         unit: 'msat',
       });
     } else if (amount) {
-      amountRequestedInBtc = amount;
+      if (amount.currency === 'BTC') {
+        amountRequestedInBtc = amount as Money<'BTC'>;
+      } else if (exchangeRate) {
+        amountRequestedInBtc = amount.convert('BTC', exchangeRate);
+      } else {
+        throw new Error('Exchange rate is required for non-BTC amounts');
+      }
     } else {
       throw new Error('Unknown send amount');
     }
@@ -172,16 +220,43 @@ export class SparkSendQuoteService {
       unit: 'sat',
     });
 
-    const estimatedTotalAmount = amountRequestedInBtc.add(
-      estimatedLightningFee,
-    ) as Money;
+    const isUsdAccount = account.currency === 'USD';
+    const conversionEstimate = prepareResponse.conversionEstimate;
+
+    if (isUsdAccount && !conversionEstimate) {
+      throw new Error(
+        'USD send: prepareSendPayment did not return a conversionEstimate',
+      );
+    }
+
+    const conversionFeeSats = conversionEstimate?.fee ?? 0n;
+    const conversionFee = new Money({
+      amount: conversionFeeSats.toString(),
+      currency: 'BTC',
+      unit: 'sat',
+    });
+
+    const estimatedTotalFee = isUsdAccount
+      ? (estimatedLightningFee.add(conversionFee) as Money)
+      : (estimatedLightningFee as Money);
+
+    const usdbDebited =
+      isUsdAccount && conversionEstimate
+        ? convertUsdbToMoney(conversionEstimate.amountIn)
+        : undefined;
+
+    const estimatedTotalAmount = isUsdAccount
+      ? // For USD accounts the total spend the user sees is the USDB debited
+        // from the wallet — sats fees are already priced into the conversion.
+        (usdbDebited as Money)
+      : (amountRequestedInBtc.add(estimatedLightningFee) as Money);
 
     const balance = account.balance ?? Money.zero(account.currency);
 
     if (balance.lessThan(estimatedTotalAmount)) {
-      const estimatedTotalFormatted = estimatedTotalAmount.toLocaleString({
-        unit: 'sat',
-      });
+      const estimatedTotalFormatted = isUsdAccount
+        ? estimatedTotalAmount.toLocaleString()
+        : estimatedTotalAmount.toLocaleString({ unit: 'sat' });
       throw new DomainError(
         `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted}.`,
       );
@@ -194,10 +269,11 @@ export class SparkSendQuoteService {
       amountRequestedInBtc,
       amountToReceive: amountRequestedInBtc as Money,
       estimatedLightningFee,
-      estimatedTotalFee: estimatedLightningFee as Money,
+      estimatedTotalFee,
       estimatedTotalAmount,
       paymentRequestIsAmountless: invoice.amountMsat === undefined,
       expiresAt,
+      usdbDebited,
     };
   }
 
@@ -216,14 +292,13 @@ export class SparkSendQuoteService {
       throw new DomainError('Lightning invoice has expired');
     }
 
+    const isUsdAccount = account.currency === 'USD';
     const balance = account.balance ?? Money.zero(account.currency);
 
     if (balance.lessThan(quote.estimatedTotalAmount)) {
-      const estimatedTotalFormatted = quote.estimatedTotalAmount.toLocaleString(
-        {
-          unit: 'sat',
-        },
-      );
+      const estimatedTotalFormatted = isUsdAccount
+        ? quote.estimatedTotalAmount.toLocaleString()
+        : quote.estimatedTotalAmount.toLocaleString({ unit: 'sat' });
       throw new DomainError(
         `Insufficient balance. Estimated total including fee is ${estimatedTotalFormatted}.`,
       );
@@ -240,6 +315,7 @@ export class SparkSendQuoteService {
       expiresAt: quote.expiresAt,
       purpose,
       transferId,
+      usdbDebited: quote.usdbDebited as Money | undefined,
     });
   }
 
@@ -315,6 +391,15 @@ export class SparkSendQuoteService {
       }
 
       if (isInsufficentBalanceError(error)) {
+        if (account.currency === 'USD') {
+          const balanceFormatted = (
+            account.balance ?? Money.zero('USD')
+          ).toLocaleString();
+          throw new DomainError(
+            `Insufficient balance. Available balance is ${balanceFormatted}.`,
+          );
+        }
+
         const totalSats = sendQuote.amount
           .add(sendQuote.estimatedFee)
           .toNumber('sat');
@@ -345,12 +430,15 @@ export class SparkSendQuoteService {
    * It's a no-op if the quote is already completed.
    * @param quote - The spark send quote to complete.
    * @param paymentPreimage - The payment preimage from the lightning payment.
+   * @param extras - Optional conversion-leg fields recorded on USD-account sends
+   *   once the USDB → sats conversion has completed.
    * @returns The updated quote.
    * @throws An error if the quote is not in PENDING state.
    */
   async complete(
     quote: SparkSendQuote,
     paymentPreimage: string,
+    extras?: SparkSendCompletionExtras,
   ): Promise<SparkSendQuote> {
     if (quote.state === 'COMPLETED') {
       return quote;
@@ -365,6 +453,7 @@ export class SparkSendQuoteService {
     return this.repository.complete({
       quote,
       paymentPreimage,
+      ...(extras ?? {}),
     });
   }
 
