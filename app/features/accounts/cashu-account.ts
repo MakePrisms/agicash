@@ -1,5 +1,5 @@
 import type { Proof } from '@cashu/cashu-ts';
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { ProofSchema } from '~/lib/cashu/types';
 
 export const CashuProofSchema = z.object({
@@ -16,8 +16,8 @@ export const CashuProofSchema = z.object({
   state: z.enum(['UNSPENT', 'RESERVED', 'SPENT']),
   version: z.number(),
   createdAt: z.string(),
-  reservedAt: z.string().nullable().optional(),
-  spentAt: z.string().nullable().optional(),
+  reservedAt: z.optional(z.nullable(z.string())),
+  spentAt: z.optional(z.nullable(z.string())),
 });
 
 export type CashuProof = z.infer<typeof CashuProofSchema>;

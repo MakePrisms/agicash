@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { ProofSchema } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 
@@ -26,7 +26,7 @@ const CashuReceiveSwapBaseSchema = z.object({
   /**
    * Description (memo) of the token being received.
    */
-  tokenDescription: z.string().optional(),
+  tokenDescription: z.optional(z.string()),
   /**
    * UUID of the user receiving the token.
    */

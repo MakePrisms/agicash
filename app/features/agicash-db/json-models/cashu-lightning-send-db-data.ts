@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { DestinationDetailsSchema } from '~/features/send/cashu-send-quote';
 import { Money } from '~/lib/money';
 
@@ -52,32 +52,32 @@ export const CashuLightningSendDbDataSchema = z.object({
    * Destination details of the send.
    * This will be undefined if the send is directly paying a bolt11.
    */
-  destinationDetails: DestinationDetailsSchema.optional(),
+  destinationDetails: z.optional(DestinationDetailsSchema),
   /**
    * Preimage of the lightning payment.
    * Will be set only when the send is completed.
    * If the lightning payment is settled internally in the mint, this will be an empty string or '0x0000000000000000000000000000000000000000000000000000000000000000'.
    */
-  paymentPreimage: z.string().optional(),
+  paymentPreimage: z.optional(z.string()),
   /**
    * Amount spent on the send.
    * This is the sum of `amountReceived` and `totalFee`.
    * Available only when the send is completed.
    */
-  amountSpent: z.instanceof(Money).optional(),
+  amountSpent: z.optional(z.instanceof(Money)),
   /**
    * The actual Lightning Network fee that was charged after the transaction completed.
    * This may be less than the `lightningFeeReserve` if the payment was cheaper than expected.
    * The difference between `lightningFeeReserve` and `lightningFee`, along with any overpaid inputs, is returned as change to the user.
    * Available only when the send is completed.
    */
-  lightningFee: z.instanceof(Money).optional(),
+  lightningFee: z.optional(z.instanceof(Money)),
   /**
    * The actual fee for the transaction.
    * This is the sum of `lightningFee` and `cashuSendFee`.
    * Available only when the send is completed.
    */
-  totalFee: z.instanceof(Money).optional(),
+  totalFee: z.optional(z.instanceof(Money)),
 });
 
 /**

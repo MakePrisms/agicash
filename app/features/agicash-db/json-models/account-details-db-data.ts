@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { CashuAccountDetailsDbDataSchema } from './cashu-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from './spark-account-details-db-data';
 

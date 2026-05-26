@@ -1,5 +1,5 @@
 import type { Json } from 'supabase/database.types';
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import {
   CashuLightningReceiveDbDataSchema,
   CashuLightningSendDbDataSchema,
@@ -50,7 +50,7 @@ export type TransactionDetailsParserInput = {
 
 type TransactionDetailsParserOutput = TransactionDetails;
 
-export type TransactionDetailsParserShape = z.ZodType<
+export type TransactionDetailsParserShape = z.ZodMiniType<
   TransactionDetailsParserOutput,
   TransactionDetailsParserInput
 >;

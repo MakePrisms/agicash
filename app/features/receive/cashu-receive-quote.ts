@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 import { CashuTokenMeltDataSchema } from './cashu-token-melt-data';
 
@@ -28,7 +28,7 @@ const CashuReceiveQuoteBaseSchema = z.object({
   /**
    * Description of the receive.
    */
-  description: z.string().optional(),
+  description: z.optional(z.string()),
   /**
    * Date and time the receive quote was created in ISO 8601 format.
    */
@@ -61,7 +61,7 @@ const CashuReceiveQuoteBaseSchema = z.object({
    * This amount is added to the payment request amount so the amount in the payment request is equal to `amount` plus `mintingFee`.
    * The sender pays the fee. The receiver will receive `amount` worth of ecash, while the mint keeps the `mintingFee`.
    */
-  mintingFee: z.instanceof(Money).optional(),
+  mintingFee: z.optional(z.instanceof(Money)),
   /**
    * The total fee for the transaction.
    * For receives of type LIGHTNING, this will be zero.

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router';
-import { z } from 'zod';
+import { z } from 'zod/mini';
 
 /**
  * Persists and restores the horizontal scroll position of a container across

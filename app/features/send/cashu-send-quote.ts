@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 import { CashuProofSchema } from '../accounts/cashu-account';
 
@@ -116,7 +116,7 @@ const CashuSendQuoteBaseSchema = z.object({
    * Destination details of the send.
    * This will be undefined if the send is directly paying a bolt11.
    */
-  destinationDetails: DestinationDetailsSchema.optional(),
+  destinationDetails: z.optional(DestinationDetailsSchema),
   /**
    * ID of the keyset used for the send.
    */

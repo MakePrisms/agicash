@@ -1,19 +1,19 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { nullToUndefined } from '../zod';
 
 const SerializedDLEQSchema = z.object({
   s: z.string(),
   e: z.string(),
-  r: z.string().optional(),
+  r: z.optional(z.string()),
 });
 
 const P2PKWitnessSchema = z.object({
-  signatures: z.array(z.string()).optional(),
+  signatures: z.optional(z.array(z.string())),
 });
 
 const HTLCWitnessSchema = z.object({
   preimage: z.string(),
-  signatures: z.array(z.string()).optional(),
+  signatures: z.optional(z.array(z.string())),
 });
 
 const WitnessSchema = z.union([
@@ -36,9 +36,9 @@ export const ProofSchema = z.object({
   /** The unblinded signature for this secret, signed by the mints private key. */
   C: z.string(),
   /** DLEQ proof. */
-  dleq: nullToUndefined(SerializedDLEQSchema.optional()).optional(),
+  dleq: z.optional(nullToUndefined(z.optional(SerializedDLEQSchema))),
   /** Witness for P2PK or HTLC spending conditions. */
-  witness: nullToUndefined(WitnessSchema.optional()).optional(),
+  witness: z.optional(nullToUndefined(z.optional(WitnessSchema))),
 });
 
 /**

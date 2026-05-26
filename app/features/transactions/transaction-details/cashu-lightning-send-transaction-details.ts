@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { CashuLightningSendDbDataSchema } from '~/features/agicash-db/json-models';
 import { DestinationDetailsSchema } from '~/features/send/cashu-send-quote';
 import { Money } from '~/lib/money';
@@ -21,7 +21,7 @@ export const IncompleteCashuLightningSendTransactionDetailsSchema = z.object({
    * Additional details related to the transaction.
    * This will be undefined if the send is directly paying a bolt11.
    */
-  destinationDetails: DestinationDetailsSchema.optional(),
+  destinationDetails: z.optional(DestinationDetailsSchema),
   /**
    * The amount reserved for the send.
    * This is the sum of all proofs used as inputs to the cashu melt operation.
@@ -61,7 +61,7 @@ export const IncompleteCashuLightningSendTransactionDetailsSchema = z.object({
   /**
    * UUID linking paired send/receive transactions for internal transfers.
    */
-  transferId: z.string().optional(),
+  transferId: z.optional(z.string()),
 });
 
 export type IncompleteCashuLightningSendTransactionDetails = z.infer<
@@ -71,8 +71,9 @@ export type IncompleteCashuLightningSendTransactionDetails = z.infer<
 /**
  * Schema for completed cashu lightning send transaction.
  */
-export const CompletedCashuLightningSendTransactionDetailsSchema =
-  IncompleteCashuLightningSendTransactionDetailsSchema.extend({
+export const CompletedCashuLightningSendTransactionDetailsSchema = z.extend(
+  IncompleteCashuLightningSendTransactionDetailsSchema,
+  {
     /**
      * The preimage of the lightning payment.
      * If the lightning payment is settled internally in the mint, this will be an empty string or '0x0000000000000000000000000000000000000000000000000000000000000000'
@@ -89,7 +90,8 @@ export const CompletedCashuLightningSendTransactionDetailsSchema =
      * This is the sum of `lightningFee` and `cashuSendFee`.
      */
     totalFee: z.instanceof(Money),
-  });
+  },
+);
 
 export type CompletedCashuLightningSendTransactionDetails = z.infer<
   typeof CompletedCashuLightningSendTransactionDetailsSchema
@@ -104,18 +106,18 @@ export type CashuLightningSendTransactionDetails = z.infer<
   typeof CashuLightningSendTransactionDetailsSchema
 >;
 
-export const CashuLightningSendTransactionDetailsParser = z
-  .object({
+export const CashuLightningSendTransactionDetailsParser = z.pipe(
+  z.object({
     type: z.literal('CASHU_LIGHTNING'),
     direction: z.literal('SEND'),
     state: TransactionStateSchema,
     transactionDetails: z.object({
       paymentHash: z.string(),
-      transferId: z.string().optional(),
+      transferId: z.optional(z.string()),
     }),
     decryptedTransactionDetails: CashuLightningSendDbDataSchema,
-  })
-  .transform(
+  }),
+  z.transform(
     ({
       state,
       transactionDetails,
@@ -155,4 +157,5 @@ export const CashuLightningSendTransactionDetailsParser = z
 
       return incompleteDetails;
     },
-  ) satisfies TransactionDetailsParserShape;
+  ),
+) satisfies TransactionDetailsParserShape;

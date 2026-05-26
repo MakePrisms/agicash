@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
-import { ZodError } from 'zod';
+import { core } from 'zod/mini';
 import { AccountsCache } from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
@@ -137,7 +137,7 @@ const ensureUserData = async (
           giftCardMintTermsAcceptedAt,
         }),
       retry: (attemptIndex, error) => {
-        if (error instanceof ZodError) {
+        if (error instanceof core.$ZodError) {
           return false;
         }
         return attemptIndex < 2;

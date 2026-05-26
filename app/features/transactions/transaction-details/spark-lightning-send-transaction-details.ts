@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { SparkLightningSendDbDataSchema } from '~/features/agicash-db/json-models';
 import { Money } from '~/lib/money';
 import { TransactionStateSchema } from '../transaction-enums';
@@ -44,16 +44,16 @@ export const IncompleteSparkLightningSendTransactionDetailsSchema = z.object({
    * The ID of the send request in Spark system.
    * Available after the payment is initiated.
    */
-  sparkId: z.string().optional(),
+  sparkId: z.optional(z.string()),
   /**
    * The ID of the transfer in Spark system.
    * Available after the payment is initiated.
    */
-  sparkTransferId: z.string().optional(),
+  sparkTransferId: z.optional(z.string()),
   /**
    * UUID linking paired send/receive transactions for internal transfers.
    */
-  transferId: z.string().optional(),
+  transferId: z.optional(z.string()),
 });
 
 export type IncompleteSparkLightningSendTransactionDetails = z.infer<
@@ -63,13 +63,15 @@ export type IncompleteSparkLightningSendTransactionDetails = z.infer<
 /**
  * Schema for a Spark lightning send transaction that is completed.
  */
-export const CompletedSparkLightningSendTransactionDetailsSchema =
-  IncompleteSparkLightningSendTransactionDetailsSchema.required().extend({
+export const CompletedSparkLightningSendTransactionDetailsSchema = z.extend(
+  z.required(IncompleteSparkLightningSendTransactionDetailsSchema),
+  {
     /** The preimage of the lightning payment. */
     paymentPreimage: z.string(),
     /** transferId remains optional — only present for TRANSFER transactions. */
-    transferId: z.string().optional(),
-  });
+    transferId: z.optional(z.string()),
+  },
+);
 
 export type CompletedSparkLightningSendTransactionDetails = z.infer<
   typeof CompletedSparkLightningSendTransactionDetailsSchema
@@ -84,20 +86,20 @@ export type SparkLightningSendTransactionDetails = z.infer<
   typeof SparkLightningSendTransactionDetailsSchema
 >;
 
-export const SparkLightningSendTransactionDetailsParser = z
-  .object({
+export const SparkLightningSendTransactionDetailsParser = z.pipe(
+  z.object({
     type: z.literal('SPARK_LIGHTNING'),
     direction: z.literal('SEND'),
     state: TransactionStateSchema,
     transactionDetails: z.object({
       paymentHash: z.string(),
-      sparkId: z.string().optional(),
-      sparkTransferId: z.string().optional(),
-      transferId: z.string().optional(),
+      sparkId: z.optional(z.string()),
+      sparkTransferId: z.optional(z.string()),
+      transferId: z.optional(z.string()),
     }),
     decryptedTransactionDetails: SparkLightningSendDbDataSchema,
-  })
-  .transform(
+  }),
+  z.transform(
     ({
       state,
       transactionDetails,
@@ -139,4 +141,5 @@ export const SparkLightningSendTransactionDetailsParser = z
 
       return incompleteDetails;
     },
-  ) satisfies TransactionDetailsParserShape;
+  ),
+) satisfies TransactionDetailsParserShape;

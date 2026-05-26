@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 
 /**
@@ -51,8 +51,8 @@ export const CashuSwapSendDbDataSchema = z.object({
    * The swap output amounts used for the send and change.
    * Will be defined only when the swap is needed (`inputAmount` is greater than the `amountToSend`).
    */
-  outputAmounts: z
-    .object({
+  outputAmounts: z.optional(
+    z.object({
       /**
        * The swap output amounts used for the send.
        * Proofs with these amounts are then used to create a token which is shared with the receiver.
@@ -63,8 +63,8 @@ export const CashuSwapSendDbDataSchema = z.object({
        * Proofs with these amounts are then returned to the source account as change.
        */
       change: z.array(z.number()),
-    })
-    .optional(),
+    }),
+  ),
 });
 
 /**
