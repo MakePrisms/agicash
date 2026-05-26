@@ -15,7 +15,7 @@ import type { AgicashDbUser } from '../agicash-db/database';
 import { guestAccountStorage } from './guest-account-storage';
 import type { User } from './user';
 import {
-  type ReadUserRepository,
+  ReadUserRepository,
   type UpdateUser,
   useReadUserRepository,
   useWriteUserRepository,
@@ -46,14 +46,13 @@ export function useUserCache() {
 }
 
 export function useUserChangeHandlers() {
-  const userRepository = useReadUserRepository();
   const userCache = useUserCache();
 
   return [
     {
       event: 'USER_UPDATED',
       handleEvent: async (payload: AgicashDbUser) => {
-        userCache.set(userRepository.toUser(payload));
+        userCache.set(ReadUserRepository.toUser(payload));
       },
     },
   ];

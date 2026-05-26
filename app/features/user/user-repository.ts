@@ -55,35 +55,6 @@ type AccountInput = {
   | 'state'
 >;
 
-/**
- * Maps a database user row to a user object.
- * @param dbUser - The database user row.
- * @returns The user object.
- */
-function toUser(dbUser: AgicashDbUser): User {
-  const commonData = {
-    id: dbUser.id,
-    username: dbUser.username,
-    emailVerified: dbUser.email_verified,
-    createdAt: dbUser.created_at,
-    updatedAt: dbUser.updated_at,
-    cashuLockingXpub: dbUser.cashu_locking_xpub,
-    encryptionPublicKey: dbUser.encryption_public_key,
-    sparkIdentityPublicKey: dbUser.spark_identity_public_key,
-    defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
-    defaultUsdAccountId: dbUser.default_usd_account_id,
-    defaultCurrency: dbUser.default_currency,
-    termsAcceptedAt: dbUser.terms_accepted_at,
-    giftCardMintTermsAcceptedAt: dbUser.gift_card_mint_terms_accepted_at,
-  };
-
-  if (dbUser.email) {
-    return { ...commonData, email: dbUser.email, isGuest: false };
-  }
-
-  return { ...commonData, isGuest: true };
-}
-
 export class WriteUserRepository {
   constructor(
     private readonly db: AgicashDb,
@@ -127,7 +98,7 @@ export class WriteUserRepository {
       throw new Error('Failed to update user', { cause: error });
     }
 
-    return toUser(updatedUser);
+    return ReadUserRepository.toUser(updatedUser);
   }
 
   /**
@@ -224,7 +195,7 @@ export class WriteUserRepository {
 
     const { accounts, user: upsertedUser } = data;
     return {
-      user: toUser(upsertedUser),
+      user: ReadUserRepository.toUser(upsertedUser),
       accounts: await Promise.all(
         accounts.map((account) => this.accountRepository.toAccount(account)),
       ),
@@ -366,7 +337,7 @@ export class ReadUserRepository {
       throw new Error('Failed to get user', { cause: error });
     }
 
-    return toUser(data);
+    return ReadUserRepository.toUser(data);
   }
 
   async getByUsername(
@@ -385,11 +356,31 @@ export class ReadUserRepository {
       throw new Error('Failed to get user by username', { cause: error });
     }
 
-    return data ? toUser(data) : null;
+    return data ? ReadUserRepository.toUser(data) : null;
   }
 
-  toUser(dbUser: AgicashDbUser): User {
-    return toUser(dbUser);
+  static toUser(dbUser: AgicashDbUser): User {
+    const commonData = {
+      id: dbUser.id,
+      username: dbUser.username,
+      emailVerified: dbUser.email_verified,
+      createdAt: dbUser.created_at,
+      updatedAt: dbUser.updated_at,
+      cashuLockingXpub: dbUser.cashu_locking_xpub,
+      encryptionPublicKey: dbUser.encryption_public_key,
+      sparkIdentityPublicKey: dbUser.spark_identity_public_key,
+      defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
+      defaultUsdAccountId: dbUser.default_usd_account_id,
+      defaultCurrency: dbUser.default_currency,
+      termsAcceptedAt: dbUser.terms_accepted_at,
+      giftCardMintTermsAcceptedAt: dbUser.gift_card_mint_terms_accepted_at,
+    };
+
+    if (dbUser.email) {
+      return { ...commonData, email: dbUser.email, isGuest: false };
+    }
+
+    return { ...commonData, isGuest: true };
   }
 }
 
