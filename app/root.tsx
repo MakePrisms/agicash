@@ -29,6 +29,7 @@ import { ThemeProvider, useTheme } from '~/features/theme';
 import { getBgColorForTheme } from '~/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
 import { getThemeScript } from '~/features/theme/theme-script';
+import { getCanonicalOrigin } from '~/lib/canonical-origin.server';
 import { WebAssemblyUnavailableError } from '~/lib/spark';
 import { SupabaseRealtimeError } from '~/lib/supabase/supabase-realtime-hooks';
 import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
@@ -91,18 +92,17 @@ export async function loader({ request }: Route.LoaderArgs) {
     cookieSettings: cookieSettings || null,
     userAgentString: userAgentString || '',
     origin: url.origin,
+    canonicalOrigin: getCanonicalOrigin(url.origin),
     domain: url.host,
   };
 }
 
 export const meta = ({ loaderData }: Route.MetaArgs) => {
-  const { origin } = loaderData || {};
+  const canonicalOrigin = loaderData?.canonicalOrigin ?? 'https://agi.cash';
 
   const title = 'Agicash';
   const description = 'The easiest way to send and receive cash.';
-  const image = origin
-    ? `${origin}/og/agicash-card.webp`
-    : '/og/agicash-card.webp';
+  const image = `${canonicalOrigin}/og/agicash-card.webp`;
   const imageWidth = '900';
   const imageHeight = '473';
   const imageType = 'image/webp';
@@ -137,7 +137,7 @@ export const meta = ({ loaderData }: Route.MetaArgs) => {
       content: imageType,
     },
     { property: 'og:type', content: 'website' },
-    { property: 'og:url', content: origin },
+    { property: 'og:url', content: canonicalOrigin },
     { property: 'og:site_name', content: ogSiteName },
 
     // Twitter Card meta tags
