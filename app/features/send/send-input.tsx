@@ -6,7 +6,8 @@ import {
   X,
   ZapIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
@@ -53,6 +54,8 @@ import { useSendStore } from './send-provider';
 export function SendInput() {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
+  const plainNavigate = useNavigate();
+  const location = useLocation();
   const { redirectTo } = useRedirectTo('/');
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
@@ -165,6 +168,28 @@ export function SendInput() {
     await handleContinue(latestInputValue, latestConvertedValue);
     return true;
   };
+
+  const scannedDestination =
+    location.state && typeof location.state === 'object'
+      ? (location.state as { scannedDestination?: unknown }).scannedDestination
+      : undefined;
+  const consumedScannedDestinationRef = useRef(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only re-run when the scanned value changes; the ref guard plus history-state strip make this consume-once and back-nav safe
+  useEffect(() => {
+    if (typeof scannedDestination !== 'string' || !scannedDestination) {
+      return;
+    }
+    if (consumedScannedDestinationRef.current) {
+      return;
+    }
+    consumedScannedDestinationRef.current = true;
+    plainNavigate(location.pathname + location.search, {
+      replace: true,
+      state: {},
+    });
+    void handleSelectDestination(scannedDestination);
+  }, [scannedDestination]);
 
   const handlePaste = async () => {
     const input = await readClipboard();
