@@ -2,7 +2,6 @@ import type { Config, Preset } from '@react-router/dev/config';
 import { sentryOnBuildEnd } from '@sentry/react-router';
 import { vercelPreset } from '@vercel/react-router/vite';
 import type { NavigateOptions, To } from 'react-router';
-import { PRERENDERED_PATHS } from './app/prerender-paths';
 
 // Check https://reactrouter.com/api/hooks/useNavigate#return-type-augmentation to see why this is needed
 declare module 'react-router' {
@@ -25,7 +24,16 @@ export default {
     (preset): preset is Preset => Boolean(preset),
   ),
   async prerender() {
-    return [...PRERENDERED_PATHS];
+    return [
+      '/terms',
+      '/terms/wallet',
+      '/terms/mint',
+      '/privacy',
+      '/privacy/wallet',
+      '/privacy/mint',
+      '/mint-risks',
+      '/home',
+    ];
   },
   future: {
     v8_middleware: true,

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 import { CashuTokenMeltDbDataSchema } from './cashu-token-melt-db-data';
 
@@ -18,17 +18,17 @@ export const SparkLightningReceiveDbDataSchema = z.object({
   /**
    * The description of the transaction.
    */
-  description: z.string().optional(),
+  description: z.optional(z.string()),
   /**
    * The payment preimage of the lightning payment.
    * Will be set only when the receive quote gets paid.
    */
-  paymentPreimage: z.string().optional(),
+  paymentPreimage: z.optional(z.string()),
   /**
    * The data of the cashu token melted for the receive.
    * This will be set only for cashu token receives to spark accounts.
    */
-  cashuTokenMeltData: CashuTokenMeltDbDataSchema.optional(),
+  cashuTokenMeltData: z.optional(CashuTokenMeltDbDataSchema),
   /**
    * The total fee for the transaction.
    * For lightning receives this will be zero.

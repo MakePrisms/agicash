@@ -20,8 +20,8 @@ import {
   type SparkAccount,
   getAccountHomePath,
 } from '../accounts/account';
-import { useCashuReceiveQuote } from '../receive/cashu-receive-quote-hooks';
-import { useSparkReceiveQuote } from '../receive/spark-receive-quote-hooks';
+import { useTrackCashuReceiveQuote } from '../receive/cashu-receive-quote-hooks';
+import { useTrackSparkReceiveQuote } from '../receive/spark-receive-quote-hooks';
 import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import type { BuyQuote } from './buy-store';
@@ -225,7 +225,7 @@ export function BuyCheckoutCashu({
   const { redirectTo } = useRedirectTo(getAccountHomePath(account));
   const navigateToTransaction = useNavigateToTransaction(redirectTo);
 
-  const { status: quotePaymentStatus } = useCashuReceiveQuote({
+  const { status: quotePaymentStatus } = useTrackCashuReceiveQuote({
     quoteId: quote.id,
     onPaid: (cashuQuote) => {
       navigateToTransaction(cashuQuote.transactionId);
@@ -255,7 +255,7 @@ export function BuyCheckoutSpark({
   const { redirectTo } = useRedirectTo(getAccountHomePath(account));
   const navigateToTransaction = useNavigateToTransaction(redirectTo);
 
-  const { status: quotePaymentStatus } = useSparkReceiveQuote({
+  const { status: quotePaymentStatus } = useTrackSparkReceiveQuote({
     quoteId: quote.id,
     onPaid: (sparkQuote) => {
       navigateToTransaction(sparkQuote.transactionId);

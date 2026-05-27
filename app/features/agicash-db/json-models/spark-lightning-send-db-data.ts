@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 
 /**
@@ -23,17 +23,17 @@ export const SparkLightningSendDbDataSchema = z.object({
    * This is the amount to send plus the actual fee paid to the lightning network.
    * Available only when the send is initiated.
    */
-  amountSpent: z.instanceof(Money).optional(),
+  amountSpent: z.optional(z.instanceof(Money)),
   /**
    * The actual Lightning Network fee that was charged for the transaction.
    * Will be set only when the send is initiated.
    */
-  lightningFee: z.instanceof(Money).optional(),
+  lightningFee: z.optional(z.instanceof(Money)),
   /**
    * Preimage of the lightning payment.
    * Will be set only when the send is completed.
    */
-  paymentPreimage: z.string().optional(),
+  paymentPreimage: z.optional(z.string()),
 });
 
 /**

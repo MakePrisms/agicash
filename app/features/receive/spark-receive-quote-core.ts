@@ -50,9 +50,14 @@ export type GetLightningQuoteParams = {
    */
   receiverIdentityPubkey?: string;
   /**
-   * The description of the receive request.
+   * The description of the receive request (BOLT11 `d` tag).
    */
   description?: string;
+  /**
+   * Hex-encoded SHA-256 commitment to a description (BOLT11 `h` tag).
+   * When set, Breez SDK emits `h` only and drops `description`.
+   */
+  descriptionHash?: string;
 };
 
 export type CreateQuoteBaseParams = {
@@ -228,6 +233,7 @@ export async function getLightningQuote({
   amount,
   receiverIdentityPubkey,
   description,
+  descriptionHash,
 }: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
   const response = await measureOperation('BreezSdk.receivePayment', () =>
     wallet.receivePayment({
@@ -236,6 +242,7 @@ export async function getLightningQuote({
         description: description ?? '',
         amountSats: amount.toNumber('sat'),
         receiverIdentityPubkey,
+        descriptionHash,
       },
     }),
   );

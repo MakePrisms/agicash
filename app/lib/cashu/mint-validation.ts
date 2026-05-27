@@ -1,5 +1,5 @@
 import type { MintInfo, MintKeyset, WebSocketSupport } from '@cashu/cashu-ts';
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import {
   CASHU_PROTOCOL_UNITS,
   type CashuProtocolUnit,
@@ -21,7 +21,7 @@ export const MintBlocklistSchema = z.array(
   z.object({
     mintUrl: z.url(),
     /** If null, the entire mint is blocked */
-    unit: z.enum(CASHU_PROTOCOL_UNITS).nullable(),
+    unit: z.nullable(z.enum(CASHU_PROTOCOL_UNITS)),
   }),
 );
 

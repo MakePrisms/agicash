@@ -68,13 +68,13 @@ export function useSparkReceiveQuoteCache() {
   return useMemo(() => new SparkReceiveQuoteCache(queryClient), [queryClient]);
 }
 
-type UseSparkReceiveQuoteProps = {
+type UseTrackSparkReceiveQuoteProps = {
   quoteId?: string;
   onPaid?: (quote: SparkReceiveQuote) => void;
   onExpired?: (quote: SparkReceiveQuote) => void;
 };
 
-type UseSparkReceiveQuoteResponse =
+type UseTrackSparkReceiveQuoteResponse =
   | {
       status: 'LOADING';
       quote?: undefined;
@@ -84,11 +84,11 @@ type UseSparkReceiveQuoteResponse =
       quote: SparkReceiveQuote;
     };
 
-export function useSparkReceiveQuote({
+export function useTrackSparkReceiveQuote({
   quoteId,
   onPaid,
   onExpired,
-}: UseSparkReceiveQuoteProps): UseSparkReceiveQuoteResponse {
+}: UseTrackSparkReceiveQuoteProps): UseTrackSparkReceiveQuoteResponse {
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);

@@ -25,7 +25,6 @@ export async function sendWelcomeEmail(data: {
   if (!resendApiKey || !resendWelcomeTemplateId) {
     Sentry.captureException(
       new Error('Missing RESEND_API_KEY or RESEND_WELCOME_TEMPLATE_ID'),
-      { extra: { code: 'server_misconfigured', userId } },
     );
     return;
   }
@@ -60,8 +59,8 @@ export async function sendWelcomeEmail(data: {
       userId,
     });
   } catch (error) {
-    Sentry.captureException(error, {
-      extra: { code: 'email_send_failed', userId },
-    });
+    Sentry.captureException(
+      new Error('Failed to send welcome email', { cause: error }),
+    );
   }
 }

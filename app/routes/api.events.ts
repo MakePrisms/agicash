@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex } from '@noble/hashes/utils';
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import type { AgicashDbUser } from '~/features/agicash-db/database';
 import { sendWelcomeEmail } from '~/features/email/welcome-email-service';
 import { safeJsonParse } from '~/lib/json';
@@ -13,9 +13,9 @@ const MAX_SIGNATURE_AGE_SECONDS = 300;
 // -- Schemas --
 
 const userDataSchema = z.object({
-  id: z.string().uuid(),
-  email: z.string().nullable(),
-}) satisfies z.ZodType<Pick<AgicashDbUser, 'id' | 'email'>>;
+  id: z.uuid(),
+  email: z.nullable(z.string()),
+}) satisfies z.ZodMiniType<Pick<AgicashDbUser, 'id' | 'email'>>;
 
 const eventSchema = z.intersection(
   z.object({
@@ -34,9 +34,11 @@ const eventSchema = z.intersection(
     // the whole parse rather than falling through here as `data: unknown`.
     z
       .object({ type: z.string(), data: z.unknown() })
-      .refine((v) => v.type !== 'user.email_verified', {
-        message: 'known event type with invalid data',
-      }),
+      .check(
+        z.refine((v) => v.type !== 'user.email_verified', {
+          message: 'known event type with invalid data',
+        }),
+      ),
   ]),
 );
 

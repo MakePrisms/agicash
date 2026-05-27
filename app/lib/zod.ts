@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 
 /**
  * Converts null values to undefined before passing the value to schema.
@@ -8,8 +8,8 @@ import { z } from 'zod';
  * @param schema - The schema to do the preprocessing for.
  * @returns The schema with preprocessing null to undefined.
  */
-export const nullToUndefined = <T extends z.ZodTypeAny>(schema: T) =>
-  z.preprocess<z.infer<T> | undefined, T, z.infer<T> | null>(
-    (v) => (v === null ? undefined : v),
-    schema,
+export const nullToUndefined = <T extends z.ZodMiniType>(schema: T) =>
+  z.pipe(
+    z.transform((v: unknown): unknown => (v === null ? undefined : v)),
+    schema as z.ZodMiniType<z.infer<T>, unknown>,
   );

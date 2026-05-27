@@ -1,6 +1,6 @@
 import type { BreezSdk } from '@agicash/breez-sdk-spark';
 import type { DistributedOmit } from 'type-fest';
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { type ExtendedCashuWallet, getCashuUnit, sumProofs } from '~/lib/cashu';
 import { type Currency, Money } from '~/lib/money';
 import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';

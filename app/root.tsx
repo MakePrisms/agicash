@@ -29,6 +29,8 @@ import { ThemeProvider, useTheme } from '~/features/theme';
 import { getBgColorForTheme } from '~/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
 import { getThemeScript } from '~/features/theme/theme-script';
+import { getCanonicalOrigin } from '~/lib/canonical-origin.server';
+import { WebAssemblyUnavailableError } from '~/lib/spark';
 import { SupabaseRealtimeError } from '~/lib/supabase/supabase-realtime-hooks';
 import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
 import stylesheet from '~/tailwind.css?url';
@@ -85,23 +87,22 @@ export async function loader({ request }: Route.LoaderArgs) {
   const cookieSettings = getThemeCookies(request);
   const userAgentString = request.headers.get('user-agent');
   const url = new URL(request.url);
+  const origin = getCanonicalOrigin(url.origin);
 
   return {
     cookieSettings: cookieSettings || null,
     userAgentString: userAgentString || '',
-    origin: url.origin,
-    domain: url.host,
+    origin,
+    domain: new URL(origin).host,
   };
 }
 
 export const meta = ({ loaderData }: Route.MetaArgs) => {
-  const { origin } = loaderData || {};
+  const origin = loaderData?.origin ?? 'https://agi.cash';
 
   const title = 'Agicash';
   const description = 'The easiest way to send and receive cash.';
-  const image = origin
-    ? `${origin}/og/agicash-card.webp`
-    : '/og/agicash-card.webp';
+  const image = `${origin}/og/agicash-card.webp`;
   const imageWidth = '900';
   const imageHeight = '473';
   const imageType = 'image/webp';
@@ -302,6 +303,41 @@ const useErrorDetails = (error: unknown) => {
         ),
       };
     }
+  }
+
+  if (error instanceof WebAssemblyUnavailableError) {
+    // All iOS browsers run on WebKit, so iOS Lockdown Mode disables WASM
+    // everywhere on iOS. On macOS, Lockdown Mode only restricts WebKit
+    // (Safari and embeds); Chrome/Firefox use their own engines and aren't
+    // affected. Detect at error time, not at boot — UA can lie, but it's
+    // only used to tailor the copy.
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isIOS = /iPhone|iPad|iPod/.test(ua);
+    const isMacSafari =
+      /Macintosh/.test(ua) &&
+      /Safari\//.test(ua) &&
+      !/Chrome\/|CriOS\/|FxiOS\/|Edg\//.test(ua);
+    const lockdownLikely = isIOS || isMacSafari;
+    return {
+      title: 'Browser not supported',
+      message: lockdownLikely
+        ? 'Agicash needs WebAssembly, which is disabled on this device. ' +
+          "If you've turned on Lockdown Mode, add agi.cash as an exception " +
+          'in Settings → Privacy & Security → Lockdown Mode, then reload.'
+        : "Agicash needs WebAssembly, but it isn't available in this browser. " +
+          'Try opening agi.cash in a recent version of Chrome, Safari, or ' +
+          'Firefox (not an in-app browser).',
+      footer: (
+        <Button
+          className="mt-4"
+          variant="default"
+          type="button"
+          onClick={reload}
+        >
+          Reload Page
+        </Button>
+      ),
+    };
   }
 
   if (error instanceof Error) {

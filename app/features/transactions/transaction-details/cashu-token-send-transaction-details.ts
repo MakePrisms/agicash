@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { CashuSwapSendDbDataSchema } from '~/features/agicash-db/json-models';
 import { Money } from '~/lib/money';
 import { TransactionStateSchema } from '../transaction-enums';
@@ -58,14 +58,14 @@ export type CashuTokenSendTransactionDetails = z.infer<
   typeof CashuTokenSendTransactionDetailsSchema
 >;
 
-export const CashuTokenSendTransactionDetailsParser = z
-  .object({
+export const CashuTokenSendTransactionDetailsParser = z.pipe(
+  z.object({
     type: z.literal('CASHU_TOKEN'),
     direction: z.literal('SEND'),
     state: TransactionStateSchema,
     decryptedTransactionDetails: CashuSwapSendDbDataSchema,
-  })
-  .transform(
+  }),
+  z.transform(
     ({
       state,
       decryptedTransactionDetails,
@@ -84,4 +84,5 @@ export const CashuTokenSendTransactionDetailsParser = z
         totalFee: decryptedTransactionDetails.totalFee,
       };
     },
-  ) satisfies TransactionDetailsParserShape;
+  ),
+) satisfies TransactionDetailsParserShape;

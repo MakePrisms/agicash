@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { Money } from '~/lib/money';
 
 /**
@@ -19,7 +19,7 @@ const SparkSendQuoteBaseSchema = z.object({
   /**
    * Date and time the send quote expires in ISO 8601 format.
    */
-  expiresAt: z.string().nullish(),
+  expiresAt: z.nullish(z.string()),
   /**
    * Amount being sent.
    */
@@ -108,15 +108,15 @@ const SparkSendQuoteFailedStateSchema = z.object({
   /**
    * ID of the send request in spark system.
    */
-  sparkId: z.string().optional(),
+  sparkId: z.optional(z.string()),
   /**
    * Spark transfer ID.
    */
-  sparkTransferId: z.string().optional(),
+  sparkTransferId: z.optional(z.string()),
   /**
    * Actual fee of the lightning payment.
    */
-  fee: z.instanceof(Money).optional(),
+  fee: z.optional(z.instanceof(Money)),
 });
 
 /**

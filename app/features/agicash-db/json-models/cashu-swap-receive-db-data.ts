@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { ProofSchema } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 
@@ -22,7 +22,7 @@ export const CashuSwapReceiveDbDataSchema = z.object({
   /**
    * The description (memo) of the token being swapped.
    */
-  tokenDescription: z.string().optional(),
+  tokenDescription: z.optional(z.string()),
   /**
    * The amount credited to the account.
    */

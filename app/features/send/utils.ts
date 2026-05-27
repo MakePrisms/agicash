@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { ProofSchema } from '~/lib/cashu/types';
 import type { CashuProof } from '../accounts/cashu-account';
 import type { AgicashDbCashuProof } from '../agicash-db/database';

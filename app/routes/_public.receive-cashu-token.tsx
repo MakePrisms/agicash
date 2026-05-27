@@ -47,7 +47,8 @@ export function meta({ location, matches }: Route.MetaArgs): MetaDescriptor[] {
   if (!preview) return rootMatch?.meta ?? [];
 
   const origin =
-    (rootMatch?.data as { origin?: string } | undefined)?.origin ?? '';
+    (rootMatch?.data as { origin?: string } | undefined)?.origin ??
+    'https://agi.cash';
   const imageUrl = `${origin}${preview.ogImage}`;
   const { title, description } = preview;
 

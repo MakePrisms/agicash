@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import type { z } from 'zod/mini';
 import type { Money } from '~/lib/money';
 import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type {

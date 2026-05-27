@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { SparkLightningReceiveDbDataSchema } from '~/features/agicash-db/json-models';
 import { Money } from '~/lib/money';
 import { TransactionStateSchema } from '../transaction-enums';
@@ -24,7 +24,7 @@ export const IncompleteSparkLightningReceiveTransactionDetailsSchema = z.object(
     /**
      * The description of the transaction.
      */
-    description: z.string().optional(),
+    description: z.optional(z.string()),
     /**
      * Amount credited to the account.
      * This is the amount of the bolt 11 payment request.
@@ -33,7 +33,7 @@ export const IncompleteSparkLightningReceiveTransactionDetailsSchema = z.object(
     /**
      * UUID linking paired send/receive transactions for internal transfers.
      */
-    transferId: z.string().optional(),
+    transferId: z.optional(z.string()),
   },
 );
 
@@ -44,8 +44,9 @@ export type IncompleteSparkLightningReceiveTransactionDetails = z.infer<
 /**
  * Schema for completed Spark lightning receive transaction.
  */
-export const CompletedSparkLightningReceiveTransactionDetailsSchema =
-  IncompleteSparkLightningReceiveTransactionDetailsSchema.extend({
+export const CompletedSparkLightningReceiveTransactionDetailsSchema = z.extend(
+  IncompleteSparkLightningReceiveTransactionDetailsSchema,
+  {
     /**
      * The payment preimage of the lightning payment.
      */
@@ -54,7 +55,8 @@ export const CompletedSparkLightningReceiveTransactionDetailsSchema =
      * The ID of the transfer in Spark system.
      */
     sparkTransferId: z.string(),
-  });
+  },
+);
 
 export type CompletedSparkLightningReceiveTransactionDetails = z.infer<
   typeof CompletedSparkLightningReceiveTransactionDetailsSchema
@@ -69,20 +71,20 @@ export type SparkLightningReceiveTransactionDetails = z.infer<
   typeof SparkLightningReceiveTransactionDetailsSchema
 >;
 
-export const SparkLightningReceiveTransactionDetailsParser = z
-  .object({
+export const SparkLightningReceiveTransactionDetailsParser = z.pipe(
+  z.object({
     type: z.literal('SPARK_LIGHTNING'),
     direction: z.literal('RECEIVE'),
     state: TransactionStateSchema,
     transactionDetails: z.object({
       paymentHash: z.string(),
       sparkId: z.string(),
-      sparkTransferId: z.string().optional(),
-      transferId: z.string().optional(),
+      sparkTransferId: z.optional(z.string()),
+      transferId: z.optional(z.string()),
     }),
     decryptedTransactionDetails: SparkLightningReceiveDbDataSchema,
-  })
-  .transform(
+  }),
+  z.transform(
     ({
       state,
       transactionDetails,
@@ -114,4 +116,5 @@ export const SparkLightningReceiveTransactionDetailsParser = z
 
       return incompleteDetails;
     },
-  ) satisfies TransactionDetailsParserShape;
+  ),
+) satisfies TransactionDetailsParserShape;

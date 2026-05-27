@@ -1,7 +1,8 @@
-import { hexToBytes } from '@noble/hashes/utils';
+import { sha256 } from '@noble/hashes/sha2';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import type { QueryClient } from '@tanstack/react-query';
-import { z } from 'zod';
+import { z } from 'zod/mini';
 import { getCashuWallet } from '~/lib/cashu';
 import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
 import type {
@@ -118,11 +119,7 @@ export class LightningAddressService {
       }
 
       const callback = `${this.baseUrl}/api/lnurlp/callback/${user.id}`;
-      const address = `${user.username}@${new URL(this.baseUrl).host}`;
-      const metadata = JSON.stringify([
-        ['text/plain', `Pay to ${address}`],
-        ['text/identifier', address],
-      ]);
+      const metadata = this.buildLnurlpMetadata(user.username);
 
       return {
         callback,
@@ -192,6 +189,8 @@ export class LightningAddressService {
       }
 
       if (account.type === 'cashu') {
+        // cashu does not support setting the description_hash of an invoice.
+        // Read more here: https://github.com/cashubtc/nuts/issues/110#issuecomment-2062898765
         const lightningQuote = await getLightningQuote({
           wallet: account.wallet,
           amount: amountToReceive,
@@ -227,10 +226,16 @@ export class LightningAddressService {
         new SparkReceiveQuoteRepositoryServer(this.db),
       );
 
+      const metadata = this.buildLnurlpMetadata(user.username);
+      const descriptionHash = bytesToHex(
+        sha256(new TextEncoder().encode(metadata)),
+      );
+
       const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
         wallet: account.wallet,
         amount: amountToReceive,
         receiverIdentityPubkey: user.sparkIdentityPublicKey,
+        descriptionHash,
       });
 
       await sparkReceiveQuoteService.createReceiveQuote({
@@ -344,6 +349,14 @@ export class LightningAddressService {
       preimage: receiveRequest.paymentPreimage ?? null,
       pr: receiveRequest.invoice,
     };
+  }
+
+  private buildLnurlpMetadata(username: string): string {
+    const address = `${username}@${new URL(this.baseUrl).host}`;
+    return JSON.stringify([
+      ['text/plain', `Pay to ${address}`],
+      ['text/identifier', address],
+    ]);
   }
 
   private encryptLnurlVerifyQuoteData(payload: LnurlVerifyQuoteData): string {
