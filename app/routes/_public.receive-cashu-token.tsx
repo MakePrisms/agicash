@@ -46,10 +46,10 @@ export function meta({ location, matches }: Route.MetaArgs): MetaDescriptor[] {
   const preview = mintUrl ? resolveSharePreview(mintUrl) : undefined;
   if (!preview) return rootMatch?.meta ?? [];
 
-  const canonicalOrigin =
-    (rootMatch?.data as { canonicalOrigin?: string } | undefined)
-      ?.canonicalOrigin ?? 'https://agi.cash';
-  const imageUrl = `${canonicalOrigin}${preview.ogImage}`;
+  const origin =
+    (rootMatch?.data as { origin?: string } | undefined)?.origin ??
+    'https://agi.cash';
+  const imageUrl = `${origin}${preview.ogImage}`;
   const { title, description } = preview;
 
   return [

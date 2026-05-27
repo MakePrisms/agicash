@@ -87,22 +87,22 @@ export async function loader({ request }: Route.LoaderArgs) {
   const cookieSettings = getThemeCookies(request);
   const userAgentString = request.headers.get('user-agent');
   const url = new URL(request.url);
+  const origin = getCanonicalOrigin(url.origin);
 
   return {
     cookieSettings: cookieSettings || null,
     userAgentString: userAgentString || '',
-    origin: url.origin,
-    canonicalOrigin: getCanonicalOrigin(url.origin),
-    domain: url.host,
+    origin,
+    domain: new URL(origin).host,
   };
 }
 
 export const meta = ({ loaderData }: Route.MetaArgs) => {
-  const canonicalOrigin = loaderData?.canonicalOrigin ?? 'https://agi.cash';
+  const origin = loaderData?.origin ?? 'https://agi.cash';
 
   const title = 'Agicash';
   const description = 'The easiest way to send and receive cash.';
-  const image = `${canonicalOrigin}/og/agicash-card.webp`;
+  const image = `${origin}/og/agicash-card.webp`;
   const imageWidth = '900';
   const imageHeight = '473';
   const imageType = 'image/webp';
@@ -137,7 +137,7 @@ export const meta = ({ loaderData }: Route.MetaArgs) => {
       content: imageType,
     },
     { property: 'og:type', content: 'website' },
-    { property: 'og:url', content: canonicalOrigin },
+    { property: 'og:url', content: origin },
     { property: 'og:site_name', content: ogSiteName },
 
     // Twitter Card meta tags

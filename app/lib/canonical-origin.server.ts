@@ -9,13 +9,16 @@ function getPreviewDeploymentUrl(): string | undefined {
 }
 
 /**
- * Origin for absolute URLs that external services must fetch (OG/Twitter
- * images, `og:url`). Prefers Vercel's deployment URL over the request origin
- * because at build-time prerender (`/home`, `/terms`) react-router uses
- * `http://localhost`, which gets frozen into the static HTML and is
- * unreachable by crawlers. Precedence mirrors Next.js's metadataBase fallback.
+ * The site's reachable origin, for absolute URLs that leave the app — OG/Twitter
+ * images, shared token links, profile URLs, `username@domain` Lightning
+ * Addresses. On Vercel it returns the production domain (or the branch/deploy
+ * URL on preview); elsewhere it falls back to the request origin. We avoid the
+ * request origin because at build-time prerender (`/home`, `/terms`) react-router
+ * uses `http://localhost`, which is frozen into the static HTML and — since the
+ * root loader never revalidates — served for the whole session. Precedence
+ * mirrors Next.js's metadataBase fallback.
  * @see https://github.com/vercel/next.js/pull/65089
- * @param requestOrigin used outside Vercel (local dev / non-Vercel SSR).
+ * @param requestOrigin fallback used off Vercel (local dev / non-Vercel SSR).
  */
 export function getCanonicalOrigin(requestOrigin: string): string {
   if (process.env.VERCEL_ENV === 'preview') {
