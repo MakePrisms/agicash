@@ -148,8 +148,10 @@ export class CashuSendQuoteService {
     const wallet = account.wallet;
 
     const meltQuote = await wallet.createMeltQuoteBolt11(paymentRequest);
+    const meltAmount = meltQuote.amount.toNumber();
+    const feeReserve = meltQuote.fee_reserve.toNumber();
 
-    const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
+    const amountWithLightningFee = meltAmount + feeReserve;
 
     const { proofs, fee: proofsFee } = this.selectProofs(
       account,
@@ -157,12 +159,12 @@ export class CashuSendQuoteService {
     );
 
     const amountToReceive = new Money({
-      amount: meltQuote.amount,
+      amount: meltAmount,
       currency: account.currency,
       unit: cashuUnit,
     });
     const lightningFeeReserve = new Money({
-      amount: meltQuote.fee_reserve,
+      amount: feeReserve,
       currency: account.currency,
       unit: cashuUnit,
     });
@@ -249,7 +251,9 @@ export class CashuSendQuoteService {
     const keyset = wallet.getKeyset();
     const keysetId = keyset.id;
 
-    const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
+    const meltAmount = meltQuote.amount.toNumber();
+    const feeReserve = meltQuote.fee_reserve.toNumber();
+    const amountWithLightningFee = meltAmount + feeReserve;
 
     const { proofs, fee: proofsFee } = this.selectProofs(
       account,
@@ -260,12 +264,12 @@ export class CashuSendQuoteService {
     const totalAmountToSend = amountWithLightningFee + proofsFee;
 
     const amountToReceive = new Money({
-      amount: meltQuote.amount,
+      amount: meltAmount,
       currency: account.currency,
       unit: cashuUnit,
     });
     const lightningFeeReserve = new Money({
-      amount: meltQuote.fee_reserve,
+      amount: feeReserve,
       currency: account.currency,
       unit: cashuUnit,
     });
@@ -283,8 +287,7 @@ export class CashuSendQuoteService {
       );
     }
 
-    const maxPotentialChangeAmount =
-      proofsToSendSum - meltQuote.amount - proofsFee;
+    const maxPotentialChangeAmount = proofsToSendSum - meltAmount - proofsFee;
     const numberOfChangeOutputs =
       maxPotentialChangeAmount === 0
         ? 0
@@ -562,7 +565,7 @@ export class CashuSendQuoteService {
 
     return {
       proofs: selectedProofs,
-      fee: account.wallet.getFeesForProofs(send),
+      fee: account.wallet.getFeesForProofs(send).toNumber(),
     };
   }
 }

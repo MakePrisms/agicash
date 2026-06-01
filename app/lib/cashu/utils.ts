@@ -1,11 +1,12 @@
 import {
+  Amount,
   type Keyset,
   type MeltQuoteBolt11Response,
   MeltQuoteState,
   type Mint,
   type MintKeyset,
   type MintQuoteBolt11Response,
-  type Proof,
+  type ProofLike,
   Wallet,
   splitAmount,
 } from '@cashu/cashu-ts';
@@ -103,6 +104,13 @@ export const getMintPurpose = (
   return mintInfo?.agicash?.purpose ?? 'transactional';
 };
 
+const isKeysetActive = (ks: MintKeyset | Keyset): boolean =>
+  'isActive' in ks ? ks.isActive : ks.active;
+
+const getKeysetFinalExpiry = (
+  ks: MintKeyset | Keyset,
+): number | null | undefined => ('expiry' in ks ? ks.expiry : ks.final_expiry);
+
 /**
  * Finds the first active keyset for the given currency.
  */
@@ -111,15 +119,16 @@ export const findFirstActiveKeyset = <T extends MintKeyset | Keyset>(
   currency: Currency,
 ): T | undefined => {
   const unit = getCashuProtocolUnit(currency);
-  return keysets.find((ks) => ks.unit === unit && ks.active);
+  return keysets.find((ks) => ks.unit === unit && isKeysetActive(ks));
 };
 
 /**
  * Returns the keyset's expiry as a Date, or null if it has no expiry.
  */
 export const getKeysetExpiry = (keyset: MintKeyset | Keyset): Date | null => {
-  if (!keyset.final_expiry) return null;
-  return new Date(keyset.final_expiry * 1000);
+  const expiry = getKeysetFinalExpiry(keyset);
+  if (!expiry) return null;
+  return new Date(expiry * 1000);
 };
 
 export const getWalletCurrency = (wallet: Wallet) => {
@@ -237,16 +246,20 @@ export class ExtendedCashuWallet extends Wallet {
    * This handles the case where meltProofs is called twice for the same quote.
    */
   async meltProofsIdempotent(
-    meltQuote: Pick<MeltQuoteBolt11Response, 'quote' | 'amount'>,
-    proofs: Proof[],
+    meltQuote: { quote: string; amount: number | Amount },
+    proofs: ProofLike[],
     config?: Parameters<Wallet['meltProofsBolt11']>[2],
     outputType?: Parameters<Wallet['meltProofsBolt11']>[3],
   ) {
     // cashu-ts accepts a full MeltQuoteBolt11Response but only reads .quote (the ID)
     // and .amount (for fee reserve calculation). Some callers only have these two fields
     // from stored data, so we accept a partial and cast it.
+    const normalizedMeltQuote = {
+      ...meltQuote,
+      amount: Amount.from(meltQuote.amount),
+    } as MeltQuoteBolt11Response;
     return this.meltProofsBolt11(
-      meltQuote as MeltQuoteBolt11Response,
+      normalizedMeltQuote,
       proofs,
       config,
       outputType,

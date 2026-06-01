@@ -1,12 +1,9 @@
-import {
-  type HasKeysetKeys,
-  type OutputData,
-  type Proof,
-  type SerializedBlindedSignature,
-  pointFromHex,
-  verifyDLEQProof_reblind,
+import type {
+  HasKeysetKeys,
+  OutputData,
+  Proof,
+  SerializedBlindedSignature,
 } from '@cashu/cashu-ts';
-import { hexToBytes } from '@noble/hashes/utils';
 
 /**
  * Match blind signatures to output data using DLEQ verification.
@@ -41,33 +38,21 @@ export function matchBlindSignaturesToOutputData(
 
     for (const i of unmatched) {
       const od = outputData[i];
-      const proof = od.toProof(sig, keyset);
 
-      if (!proof.dleq) {
+      let proof: Proof;
+      try {
+        proof = od.toProof(sig, keyset);
+      } catch {
+        // OutputData.toProof verifies DLEQ internally and throws on mismatch;
+        // treat that as a non-match and continue trying other OutputData.
         continue;
       }
 
-      const K = pointFromHex(keyset.keys[sig.amount]);
-      const C = pointFromHex(proof.C);
-
-      const isValid = verifyDLEQProof_reblind(
-        new TextEncoder().encode(proof.secret),
-        {
-          s: hexToBytes(proof.dleq.s),
-          e: hexToBytes(proof.dleq.e),
-          r: od.blindingFactor,
-        },
-        C,
-        K,
-      );
-
-      if (isValid) {
-        result.push(proof);
-        matchedIndices.push(i);
-        unmatched.delete(i);
-        matched = true;
-        break;
-      }
+      result.push(proof);
+      matchedIndices.push(i);
+      unmatched.delete(i);
+      matched = true;
+      break;
     }
 
     if (!matched) {

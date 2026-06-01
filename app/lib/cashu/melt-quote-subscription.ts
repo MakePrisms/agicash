@@ -68,7 +68,8 @@ export function useOnMeltQuoteStateChange({
       } else if (meltQuote.state === MeltQuoteState.PAID) {
         // There is a bug in nutshell where the change is not included in the melt quote state updates, so we need to refetch the quote to get the change proofs.
         // see https://github.com/cashubtc/nutshell/pull/788
-        const expectChange = quoteData.inputAmount > meltQuote.amount;
+        const expectChange =
+          quoteData.inputAmount > meltQuote.amount.toNumber();
         if (
           expectChange &&
           !(meltQuote.change && meltQuote.change.length > 0)

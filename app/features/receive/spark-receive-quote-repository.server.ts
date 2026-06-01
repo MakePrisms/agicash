@@ -69,7 +69,15 @@ export class SparkReceiveQuoteRepositoryServer {
       amountReceived: amount,
       description,
       cashuTokenMeltData:
-        receiveType === 'CASHU_TOKEN' ? params.meltData : undefined,
+        receiveType === 'CASHU_TOKEN'
+          ? {
+              ...params.meltData,
+              tokenProofs: params.meltData.tokenProofs.map((p) => ({
+                ...p,
+                amount: p.amount.toNumber(),
+              })),
+            }
+          : undefined,
       totalFee,
     } satisfies z.input<typeof SparkLightningReceiveDbDataSchema>);
 

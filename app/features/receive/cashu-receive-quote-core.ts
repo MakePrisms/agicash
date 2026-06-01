@@ -271,7 +271,17 @@ export async function getLightningQuote(
     description,
   );
 
-  const expiresAt = new Date(mintQuoteResponse.expiry * 1000).toISOString();
+  const {
+    decoded: { paymentHash, expiryUnixMs },
+  } = decodeBolt11(mintQuoteResponse.request);
+
+  // NUT-23 defines mint quote expiry as the bolt11 invoice expiry; when the
+  // mint omits it, use the decoded invoice directly.
+  const expiresAt = new Date(
+    mintQuoteResponse.expiry !== null
+      ? mintQuoteResponse.expiry * 1000
+      : expiryUnixMs,
+  ).toISOString();
 
   const mintingFee = mintQuoteResponse.fee
     ? new Money({
@@ -280,10 +290,6 @@ export async function getLightningQuote(
         unit: cashuUnit,
       })
     : undefined;
-
-  const {
-    decoded: { paymentHash },
-  } = decodeBolt11(mintQuoteResponse.request);
 
   return {
     mintQuote: mintQuoteResponse,

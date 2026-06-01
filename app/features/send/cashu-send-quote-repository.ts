@@ -241,7 +241,7 @@ export class CashuSendQuoteRepository {
     } satisfies z.input<typeof CashuLightningSendDbDataSchema>);
 
     const proofDataToEncrypt = changeProofs.flatMap((x) => [
-      x.amount,
+      x.amount.toNumber(),
       x.secret,
     ]);
 

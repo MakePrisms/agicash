@@ -1,4 +1,4 @@
-import { CheckStateEnum, type Proof } from '@cashu/cashu-ts';
+import { CheckStateEnum, type ProofLike } from '@cashu/cashu-ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import {
@@ -20,7 +20,7 @@ import type { Transaction } from './transaction';
 import { useTransaction } from './transaction-hooks';
 
 const augmentProofsWithState = (
-  proofs: CashuProof[] | Proof[],
+  proofs: CashuProof[] | ProofLike[],
   states: Map<string, CheckStateEnum>,
 ) => {
   return proofs.map((p) => ({
@@ -34,7 +34,7 @@ const augmentProofsWithState = (
 const useProofStates = (
   transactionId: string,
   account: CashuAccount,
-  proofs: CashuProof[] | Proof[],
+  proofs: CashuProof[] | ProofLike[],
 ) => {
   const { data: states } = useSuspenseQuery({
     queryKey: ['transaction-proof-states', transactionId],

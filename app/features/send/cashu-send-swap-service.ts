@@ -154,8 +154,10 @@ export class CashuSendSwapService {
       const amountToKeep =
         sumProofs(inputProofs) - totalAmountToSend - cashuSendFee;
       outputAmounts = {
-        send: splitAmount(totalAmountToSend, keyset.keys),
-        change: splitAmount(amountToKeep, keyset.keys),
+        send: splitAmount(totalAmountToSend, keyset.keys).map((a) =>
+          a.toNumber(),
+        ),
+        change: splitAmount(amountToKeep, keyset.keys).map((a) => a.toNumber()),
       };
     }
 
@@ -333,7 +335,7 @@ export class CashuSendSwapService {
       requestedAmountNumber,
       includeFeesInSendAmount,
     );
-    const feeToSwapSelectedProofs = wallet.getFeesForProofs(send);
+    const feeToSwapSelectedProofs = wallet.getFeesForProofs(send).toNumber();
 
     let proofAmountSelected = sumProofs(send);
     const amountToSend = requestedAmountNumber + feeToSwapSelectedProofs;
@@ -370,7 +372,7 @@ export class CashuSendSwapService {
     ));
     proofAmountSelected = sumProofs(send);
 
-    const cashuSendFee = wallet.getFeesForProofs(send);
+    const cashuSendFee = wallet.getFeesForProofs(send).toNumber();
     const cashuReceiveFee = estimatedFeeToReceive;
 
     if (

@@ -11,6 +11,7 @@ import {
   NetworkError,
   type Token,
   getDecodedToken,
+  getEncodedToken,
 } from '@cashu/cashu-ts';
 import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
@@ -35,7 +36,6 @@ import {
   MintBlocklistSchema,
   buildMintValidator,
 } from '~/lib/cashu/mint-validation';
-import { encodeToken } from '~/lib/cashu/token';
 import { type Currency, type CurrencyUnit, Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
@@ -161,7 +161,7 @@ export function getTokenHash(token: Token | string): Promise<string> {
   if (typeof token === 'string') {
     return computeSHA256(token);
   }
-  return computeSHA256(encodeToken(token));
+  return computeSHA256(getEncodedToken(token));
 }
 
 const mintBlocklist = MintBlocklistSchema.parse(
@@ -341,12 +341,9 @@ export async function getInitializedCashuWallet({
         bip39seed: bip39seed ?? undefined,
         authProvider,
       });
-      const keyChainCache = KeyChain.mintToCacheDTO(
-        wallet.unit,
-        mintUrl,
-        unitKeysets,
-        [activeKeysForUnit],
-      );
+      const keyChainCache = KeyChain.mintToCacheDTO(mintUrl, unitKeysets, [
+        activeKeysForUnit,
+      ]);
       wallet.loadMintFromCache(mintInfo.cache, keyChainCache);
 
       return { wallet, isOnline: true };

@@ -1,4 +1,4 @@
-import type { Token } from '@cashu/cashu-ts';
+import { type Token, getEncodedToken } from '@cashu/cashu-ts';
 import { Banknote, Link, Share } from 'lucide-react';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';
@@ -22,7 +22,6 @@ import {
 import useLocationData from '~/hooks/use-location';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
-import { encodeToken } from '~/lib/cashu/token';
 import { normalizeMintUrl } from '~/lib/cashu/utils';
 import type { Money } from '~/lib/money';
 import { canShare, shareContent } from '~/lib/share';
@@ -42,7 +41,7 @@ type ShareOption = {
 };
 
 const deriveTokenStrings = (token: Token, origin: string) => {
-  const encodedToken = encodeToken(token, { removeDleq: true });
+  const encodedToken = getEncodedToken(token, { removeDleq: true });
   const mintParam = encodeURIComponent(
     normalizeMintUrl(token.mint).replace(/^https?:\/\//, ''),
   );

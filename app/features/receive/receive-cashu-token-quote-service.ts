@@ -107,7 +107,9 @@ export class ReceiveCashuTokenQuoteService {
       throw new Error('Must melt token to a different account than source');
     }
 
-    const feesForProofs = sourceAccount.wallet.getFeesForProofs(token.proofs);
+    const feesForProofs = sourceAccount.wallet
+      .getFeesForProofs(token.proofs)
+      .toNumber();
     const cashuReceiveFee = new Money({
       amount: feesForProofs,
       currency: tokenAmount.currency,
@@ -133,7 +135,7 @@ export class ReceiveCashuTokenQuoteService {
     ).toISOString();
 
     const lightningFeeReserve = new Money({
-      amount: quotes.meltQuote.fee_reserve,
+      amount: quotes.meltQuote.fee_reserve.toNumber(),
       currency: tokenAmount.currency,
       unit: sourceCashuUnit,
     });
@@ -251,7 +253,7 @@ export class ReceiveCashuTokenQuoteService {
         await sourceAccount.wallet.createMeltQuoteBolt11(paymentRequest);
 
       const amountRequired = new Money({
-        amount: meltQuote.amount + meltQuote.fee_reserve,
+        amount: meltQuote.amount.toNumber() + meltQuote.fee_reserve.toNumber(),
         currency: sourceCurrency,
         unit: getCashuUnit(sourceCurrency),
       });

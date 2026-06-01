@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  Amount,
   OutputData,
   type SerializedBlindedSignature,
   createBlindSignature,
@@ -35,11 +36,11 @@ function mintSign(
   B_: ReturnType<typeof pointFromHex>,
   amount: number,
 ): SerializedBlindedSignature {
-  const blindSig = createBlindSignature(B_, PRIVATE_KEY, amount, KEYSET_ID);
+  const blindSig = createBlindSignature(B_, PRIVATE_KEY, KEYSET_ID);
   const dleq = createDLEQProof(B_, PRIVATE_KEY);
   return {
     id: blindSig.id,
-    amount: blindSig.amount,
+    amount: Amount.from(amount),
     C_: blindSig.C_.toHex(),
     dleq: {
       s: bytesToHex(dleq.s),
@@ -87,7 +88,7 @@ describe('matchBlindSignaturesToOutputData', () => {
     );
 
     expect(proofs).toHaveLength(5);
-    expect(proofs.map((p) => p.amount)).toEqual(amounts);
+    expect(proofs.map((p) => p.amount.toNumber())).toEqual(amounts);
   });
 
   test('matches reversed signatures', () => {
@@ -104,7 +105,9 @@ describe('matchBlindSignaturesToOutputData', () => {
 
     expect(proofs).toHaveLength(5);
     // Proofs should match the reversed signature order (each proof matches its signature)
-    expect(proofs.map((p) => p.amount)).toEqual([...amounts].reverse());
+    expect(proofs.map((p) => p.amount.toNumber())).toEqual(
+      [...amounts].reverse(),
+    );
     // But each proof's secret should match the CORRECT OutputData, not the positional one
     for (const proof of proofs) {
       expect(proof.dleq).toBeDefined();
@@ -151,7 +154,7 @@ describe('matchBlindSignaturesToOutputData', () => {
     );
 
     expect(proofs).toHaveLength(1);
-    expect(proofs[0].amount).toBe(1024);
+    expect(proofs[0].amount.toNumber()).toBe(1024);
   });
 
   test('matches empty signatures', () => {
@@ -181,7 +184,7 @@ describe('matchBlindSignaturesToOutputData', () => {
     );
 
     expect(proofs).toHaveLength(3);
-    expect(proofs.map((p) => p.amount)).toEqual([2048, 1024, 512]);
+    expect(proofs.map((p) => p.amount.toNumber())).toEqual([2048, 1024, 512]);
   });
 
   test('throws when signature has no DLEQ', () => {
@@ -216,6 +219,25 @@ describe('matchBlindSignaturesToOutputData', () => {
         outputData,
         TEST_KEYSET,
       ),
+    ).toThrow('No matching OutputData');
+  });
+
+  test('throws when DLEQ proof is corrupted (toProof rejects internally)', () => {
+    const amounts = [1024];
+    const outputData = createTestOutputData(amounts, TEST_SEED, 90);
+    const [validSig] = signOutputData(outputData, amounts);
+
+    // Corrupt one byte of dleq.s so it stays valid-shaped (64 hex chars) but
+    // fails verification. toProof must reject this; nothing should match.
+    const corruptedByte = validSig.dleq?.s.startsWith('00') ? 'ff' : '00';
+    const corruptedSig: SerializedBlindedSignature = {
+      ...validSig,
+      // biome-ignore lint/style/noNonNullAssertion: signOutputData always sets dleq
+      dleq: { ...validSig.dleq!, s: corruptedByte + validSig.dleq!.s.slice(2) },
+    };
+
+    expect(() =>
+      matchBlindSignaturesToOutputData([corruptedSig], outputData, TEST_KEYSET),
     ).toThrow('No matching OutputData');
   });
 

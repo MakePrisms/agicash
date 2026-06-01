@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import type { Proof } from '@cashu/cashu-ts';
+import { Amount, type Proof } from '@cashu/cashu-ts';
 import { getClaimableProofs, sumProofs } from './proof';
 
 const proofWithP2PKSecret: Proof = {
-  amount: 1,
+  amount: Amount.from(1),
   secret:
     '["P2PK",{"nonce":"0","data":"0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7","tags":[["sigflag","SIG_INPUTS"]]}]',
   C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
@@ -11,14 +11,14 @@ const proofWithP2PKSecret: Proof = {
 };
 
 const proofWithPlainSecret: Proof = {
-  amount: 1,
+  amount: Amount.from(1),
   secret: '0249098aa8b9d2fbec49ff8598feb17b592b986e62319a4fa488a3dc36387157a7',
   C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
   id: '009a1f293253e41e',
 };
 
 const unknownTypeProof: Proof = {
-  amount: 1,
+  amount: Amount.from(1),
   secret: '["UNKNOWN_TYPE",{"some":"data"}]',
   C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
   id: '009a1f293253e41e',
