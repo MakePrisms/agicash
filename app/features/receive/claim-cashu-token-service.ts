@@ -9,7 +9,7 @@ import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
 import type { User } from '../user/user';
-import { userQueryKey } from '../user/user-hooks';
+import { UserCache } from '../user/user-hooks';
 import type { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
@@ -135,7 +135,7 @@ export class ClaimCashuTokenService {
       // when home page loads might not show the correct currency.
       const result = await this.trySetDefaultAccount(user, receiveAccount);
       if (result.success) {
-        this.queryClient.setQueryData([userQueryKey], result.user);
+        this.queryClient.setQueryData([UserCache.Key], result.user);
       }
     }
 

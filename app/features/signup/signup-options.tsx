@@ -72,9 +72,10 @@ export function SignupOptions({ onSelect }: Props) {
       </CardHeader>
       <CardContent>
         <div className="grid gap-4">
-          <Button onClick={() => selectOption('email')}>
+          {/* TEMPORARILY DISABLED: email signup (revert to re-enable) */}
+          {/* <Button onClick={() => selectOption('email')}>
             Create wallet with Email
-          </Button>
+          </Button> */}
           <Button onClick={() => selectOption('google')}>
             Create wallet with Google
           </Button>
