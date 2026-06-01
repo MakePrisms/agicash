@@ -2,7 +2,7 @@
   "framework": "react-router",
   "installCommand": "bun install",
   "buildCommand": "bun run build",
-  "outputDirectory": "build",
+  "outputDirectory": "apps/web/build",
   "headers": [
     {
       "source": "/(.*)",

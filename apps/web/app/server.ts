@@ -8,8 +8,8 @@ import express from 'express';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const certPath = path.join(dirname, '../certs/localhost-cert.pem');
-const keyPath = path.join(dirname, '../certs/localhost-key.pem');
+const certPath = path.join(dirname, '../../../certs/localhost-cert.pem');
+const keyPath = path.join(dirname, '../../../certs/localhost-key.pem');
 
 const certificateExists = fs.existsSync(certPath) && fs.existsSync(keyPath);
 const useHttps = process.argv.includes('--https');

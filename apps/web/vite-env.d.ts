@@ -36,3 +36,11 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+interface Window {
+  /**
+   * Returns the promise which resolves to mock password or null if the mock is not set up.
+   * Set by the e2e password-generator fixture via page.exposeFunction.
+   */
+  getMockPassword?: () => Promise<string | null>;
+}

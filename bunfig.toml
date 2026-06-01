@@ -1,6 +1,3 @@
-[test]
-root = "./app"
-
 [install]
 # 3 days, in seconds — see https://bun.com/docs/runtime/bunfig#install-minimumreleaseage
 minimumReleaseAge = 259200
