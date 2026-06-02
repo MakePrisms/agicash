@@ -69,7 +69,7 @@ jobs:
         uses: ./.github/actions/setup-environment
 
       - name: Run Unit Tests
-        run: bun run test
+        run: bun test
 
   # e2e-tests:
   #   name: "E2E Tests"
