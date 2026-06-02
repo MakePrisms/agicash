@@ -21,10 +21,10 @@ We use [Nix](https://nixos.org/) and [devenv](https://devenv.sh/) to set up the 
 1. Create `.env` file:
 
 ```sh
-cp .env.example .env
+cp apps/web/.env.example apps/web/.env
 ```
 
-If needed, update the `.env` file with alternative values. This file is ignored by git and used only for local development.
+If needed, update the `apps/web/.env` file with alternative values. This file is ignored by git and used only for local development.
 
 2. Start Supabase local stack:
 
@@ -263,17 +263,17 @@ Use the provided conversion script:
 
 ```sh
 # Convert a single file
-./tools/convert-to-webp.sh app/assets/gift-cards/mycard.png
+./tools/convert-to-webp.sh apps/web/app/assets/gift-cards/mycard.png
 
 # Convert all PNGs in the gift-cards directory
-./tools/convert-to-webp.sh --dir app/assets/gift-cards
+./tools/convert-to-webp.sh --dir apps/web/app/assets/gift-cards
 
 # With custom quality (default is 80)
-./tools/convert-to-webp.sh -q 85 --dir app/assets/gift-cards
+./tools/convert-to-webp.sh -q 85 --dir apps/web/app/assets/gift-cards
 ```
 
 Requires `cwebp` - install with `brew install webp` or run via nix:
 
 ```sh
-nix shell nixpkgs#libwebp --command ./tools/convert-to-webp.sh --dir app/assets/gift-cards
+nix shell nixpkgs#libwebp --command ./tools/convert-to-webp.sh --dir apps/web/app/assets/gift-cards
 ```

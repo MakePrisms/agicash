@@ -7,7 +7,7 @@
     "typecheck": "tsc"
   },
   "devDependencies": {
-    "@playwright/test": "catalog:",
+    "@playwright/test": "1.49.1",
     "@types/bun": "catalog:",
     "dotenv": "catalog:"
   }

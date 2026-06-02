@@ -33,9 +33,9 @@
   scripts.generate-ssl-cert.exec = "$DEVENV_ROOT/tools/devenv/generate-ssl-cert.sh";
   scripts.convert-gift-card-images.exec = ''
     shopt -s nullglob
-    pngs=("$DEVENV_ROOT/app/assets/gift-cards/"*.png)
+    pngs=("$DEVENV_ROOT/apps/web/app/assets/gift-cards/"*.png)
     if [ ''${#pngs[@]} -eq 0 ]; then
-      echo "No PNG files found in app/assets/gift-cards/"
+      echo "No PNG files found in apps/web/app/assets/gift-cards/"
       exit 0
     fi
     convert-to-webp "''${pngs[@]}"
