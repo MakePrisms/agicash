@@ -1,5 +1,5 @@
 {
-  "name": "e2e",
+  "name": "web-e2e",
   "private": true,
   "type": "module",
   "scripts": {

@@ -11,19 +11,6 @@
         "typescript": "catalog:",
       },
     },
-    "apps/e2e": {
-      "name": "e2e",
-      "devDependencies": {
-        "@agicash/opensecret": "catalog:",
-        "@playwright/test": "1.49.1",
-        "@stablelib/base64": "catalog:",
-        "@stablelib/chacha20poly1305": "catalog:",
-        "@types/bun": "catalog:",
-        "dotenv": "catalog:",
-        "jwt-encode": "catalog:",
-        "typescript": "catalog:",
-      },
-    },
     "apps/web": {
       "name": "web",
       "dependencies": {
@@ -104,6 +91,19 @@
         "vite": "7.3.1",
         "vite-plugin-devtools-json": "1.0.0",
         "vite-tsconfig-paths": "6.0.5",
+      },
+    },
+    "apps/web-e2e": {
+      "name": "web-e2e",
+      "devDependencies": {
+        "@agicash/opensecret": "catalog:",
+        "@playwright/test": "1.49.1",
+        "@stablelib/base64": "catalog:",
+        "@stablelib/chacha20poly1305": "catalog:",
+        "@types/bun": "catalog:",
+        "dotenv": "catalog:",
+        "jwt-encode": "catalog:",
+        "typescript": "catalog:",
       },
     },
     "packages/sdk": {
@@ -861,8 +861,6 @@
 
     "dunder-proto": ["dunder-proto@1.0.1", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.1", "es-errors": "^1.3.0", "gopd": "^1.2.0" } }, "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A=="],
 
-    "e2e": ["e2e@workspace:apps/e2e"],
-
     "ee-first": ["ee-first@1.1.1", "", {}, "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.286", "", {}, "sha512-9tfDXhJ4RKFNerfjdCcZfufu49vg620741MNs26a9+bhLThdB+plgMeou98CAaHu/WATj2iHOOHTp1hWtABj2A=="],
@@ -1530,6 +1528,8 @@
     "vite-tsconfig-paths": ["vite-tsconfig-paths@6.0.5", "", { "dependencies": { "debug": "^4.1.1", "globrex": "^0.1.2", "tsconfck": "^3.0.3" }, "peerDependencies": { "vite": "*" } }, "sha512-f/WvY6ekHykUF1rWJUAbCU7iS/5QYDIugwpqJA+ttwKbxSbzNlqlE8vZSrsnxNQciUW+z6lvhlXMaEyZn9MSig=="],
 
     "web": ["web@workspace:apps/web"],
+
+    "web-e2e": ["web-e2e@workspace:apps/web-e2e"],
 
     "web-streams-polyfill": ["web-streams-polyfill@3.3.3", "", {}, "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="],
 

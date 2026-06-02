@@ -19,7 +19,7 @@
     "build": "bun --filter=web run build",
     "start": "bun --filter=web run start",
     "test": "bun --filter='*' run test",
-    "test:e2e": "bun --filter=e2e run test:e2e",
+    "test:e2e": "bun --filter=web-e2e run test:e2e",
     "typecheck": "bun --filter='*' run typecheck",
     "lint": "biome lint --write",
     "lint:check": "biome lint",

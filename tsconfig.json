@@ -2,7 +2,7 @@
   "files": [],
   "references": [
     { "path": "./apps/web" },
-    { "path": "./apps/e2e" },
+    { "path": "./apps/web-e2e" },
     { "path": "./packages/sdk" }
   ]
 }
