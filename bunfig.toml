@@ -1,9 +1,3 @@
 [install]
 # 3 days, in seconds — see https://bun.com/docs/runtime/bunfig#install-minimumreleaseage
 minimumReleaseAge = 259200
-
-[test]
-# Root for bun test discovery at workspace level.
-# Limits bare `bun test` to apps/web unit tests only;
-# playwright specs (apps/e2e) run separately via `bun run test:e2e`.
-root = "apps/web"

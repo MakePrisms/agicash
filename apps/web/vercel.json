@@ -1,8 +1,8 @@
 {
   "framework": "react-router",
   "installCommand": "bun install",
-  "buildCommand": "bun run build && node tools/vercel-post-build.mjs",
-  "outputDirectory": "apps/web/build",
+  "buildCommand": "bun run build",
+  "outputDirectory": "build",
   "headers": [
     {
       "source": "/(.*)",

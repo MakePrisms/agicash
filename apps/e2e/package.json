@@ -7,8 +7,13 @@
     "typecheck": "tsc"
   },
   "devDependencies": {
+    "@agicash/opensecret": "catalog:",
     "@playwright/test": "1.49.1",
+    "@stablelib/base64": "catalog:",
+    "@stablelib/chacha20poly1305": "catalog:",
     "@types/bun": "catalog:",
-    "dotenv": "catalog:"
+    "dotenv": "catalog:",
+    "jwt-encode": "catalog:",
+    "typescript": "catalog:"
   }
 }
