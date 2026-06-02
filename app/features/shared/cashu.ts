@@ -255,6 +255,34 @@ export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
   });
 
 /**
+ * Fetches mint info, keysets, and active keys with a 10s timeout. Cancels any
+ * in-flight queries on timeout so they don't populate the cache after the fact.
+ * Throws `NetworkError` if the mint is unreachable or the timeout elapses.
+ */
+export async function fetchMintDataWithTimeout(
+  mintUrl: string,
+  queryClient: QueryClient,
+): Promise<[ExtendedMintInfo, GetKeysetsResponse, GetKeysResponse]> {
+  return Promise.race([
+    Promise.all([
+      queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
+      queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
+      queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
+    ]),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        queryClient.cancelQueries({ queryKey: mintInfoQueryKey(mintUrl) });
+        queryClient.cancelQueries({
+          queryKey: allMintKeysetsQueryKey(mintUrl),
+        });
+        queryClient.cancelQueries({ queryKey: mintKeysQueryKey(mintUrl) });
+        reject(new NetworkError('Mint request timed out'));
+      }, 10_000);
+    }),
+  ]);
+}
+
+/**
  * Initializes a Cashu wallet with offline handling.
  * If the mint is offline or times out, returns a minimal wallet with isOnline: false.
  * @param queryClient - The query client to use for fetching mint data.
@@ -284,27 +312,8 @@ export async function getInitializedCashuWallet({
       let mintActiveKeys: GetKeysResponse;
 
       try {
-        [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
-          Promise.all([
-            queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
-            queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
-            queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
-          ]),
-          new Promise<never>((_, reject) => {
-            setTimeout(() => {
-              queryClient.cancelQueries({
-                queryKey: mintInfoQueryKey(mintUrl),
-              });
-              queryClient.cancelQueries({
-                queryKey: allMintKeysetsQueryKey(mintUrl),
-              });
-              queryClient.cancelQueries({
-                queryKey: mintKeysQueryKey(mintUrl),
-              });
-              reject(new NetworkError('Mint request timed out'));
-            }, 10_000);
-          }),
-        ]);
+        [mintInfo, allMintKeysets, mintActiveKeys] =
+          await fetchMintDataWithTimeout(mintUrl, queryClient);
       } catch (error) {
         if (error instanceof NetworkError) {
           const wallet = getCashuWallet(mintUrl, {

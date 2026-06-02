@@ -3,11 +3,15 @@ import { Page } from '~/components/page';
 import { getGiftCardByUrl } from '~/features/gift-cards/use-discover-cards';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token';
-import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
-import { decodeCashuToken } from '~/features/shared/cashu';
+import { UnclaimableCashuTokenPage } from '~/features/receive/unclaimable-cashu-token-page';
+import {
+  decodeCashuToken,
+  fetchMintDataWithTimeout,
+} from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
 import { validateCashuToken } from '~/lib/cashu';
+import { extractCashuToken } from '~/lib/cashu/token';
 import { normalizeMintUrl } from '~/lib/cashu/utils';
 import type { Route } from './+types/_public.receive-cashu-token';
 
@@ -85,6 +89,23 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(`/receive/cashu/token${location.search}${hash}`);
   }
 
+  const extracted = extractCashuToken(hash);
+  if (!extracted) {
+    throw redirect('/home');
+  }
+
+  // Probe mint reachability before mounting the receive flow. Side effect: primes
+  // the query cache so the component's wallet init resolves without a round-trip.
+  try {
+    await fetchMintDataWithTimeout(extracted.metadata.mint, queryClient);
+  } catch (error) {
+    console.error('Failed to probe mint', error);
+    return {
+      isClaimable: false as const,
+      message: 'The mint that issued this ecash is currently offline',
+    };
+  }
+
   const token = await decodeCashuToken(hash);
 
   if (!token) {
@@ -95,12 +116,12 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   if (!validation.isTokenSupported) {
     return {
-      isTokenSupported: false as const,
+      isClaimable: false as const,
       message: validation.message,
     };
   }
 
-  return { isTokenSupported: true as const, token };
+  return { isClaimable: true as const, token };
 }
 
 clientLoader.hydrate = true as const;
@@ -112,8 +133,8 @@ export function HydrateFallback() {
 export default function ReceiveCashuTokenPage({
   loaderData,
 }: Route.ComponentProps) {
-  if (!loaderData.isTokenSupported) {
-    return <UnsupportedCashuTokenPage message={loaderData.message} />;
+  if (!loaderData.isClaimable) {
+    return <UnclaimableCashuTokenPage message={loaderData.message} />;
   }
 
   return (
