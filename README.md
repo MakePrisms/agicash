@@ -16,6 +16,31 @@ We use [Nix](https://nixos.org/) and [devenv](https://devenv.sh/) to set up the 
     * add the direnv hook to your shell as described [here](https://direnv.net/docs/hook.html)
 4. Install the packages with `bun i`
 
+## Workspace layout
+
+This is a [bun workspace](https://bun.com/docs/install/workspaces) monorepo:
+
+```
+apps/web-wallet/        # the React Router web app
+apps/web-wallet-e2e/    # Playwright end-to-end tests for the web app
+packages/wallet-sdk/    # @agicash/wallet-sdk — shared, framework-free library (imported as source)
+```
+
+`apps/*` are runnable applications — private and never imported, so they have plain names (`web-wallet`, `web-wallet-e2e`). `packages/*` are libraries other workspaces import, so they're scoped under `@agicash/*` (the name is the import specifier, e.g. `import { … } from '@agicash/wallet-sdk'`).
+
+Run scripts through the root delegators, which fan out to the packages:
+
+```sh
+bun run dev          # apps/web-wallet dev server
+bun run build        # build apps/web-wallet
+bun run test         # unit tests across all packages
+bun run test:e2e     # Playwright tests (apps/web-wallet-e2e)
+bun run typecheck    # typecheck every package
+bun run check:all    # typecheck + lint + format (the CI gate)
+```
+
+To target a single package, filter by its name: `bun --filter=web-wallet run <script>`. To add a package, create `apps/<name>` or `packages/<name>` with its own `package.json` — the `workspaces` globs pick it up on the next `bun install`.
+
 ## Development
 
 1. Create `.env` file:
@@ -134,6 +159,17 @@ should be inspected and pinned to an exact version (`bun add <package_name>@<ver
 to the client side, be mindful of the bundle size. [Bundlephobia](https://bundlephobia.com/) can be used to check the
 total size of the dependency (the actual impact on the app bundle size could be smaller if we are using only some 
 elements and the lib supports tree shaking).
+
+### Where a dependency goes
+
+Each workspace declares its own dependencies in its `package.json` (`apps/web-wallet`, `apps/web-wallet-e2e`, `packages/wallet-sdk`); the root `package.json` only holds workspace-wide tooling (`biome`, `supabase`, `typescript`, `npm-run-all`).
+
+A [catalog](https://bun.com/docs/install/catalogs) (under `workspaces.catalog` in the root `package.json`) keeps **shared** versions in sync:
+
+- **Used by two or more packages** → add it to the catalog with an exact version and reference it from each package as `"<name>": "catalog:"`, so they all resolve the same version.
+- **Used by one package** → add it straight to that package's `package.json` (`bun add <name>@<version> --exact`, run from the package's directory).
+
+After editing the catalog or a package's deps, run `bun install` to sync the lockfile.
 
 ## Database
 
