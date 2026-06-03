@@ -1,9 +1,12 @@
 /**
  * Event layer — §11 of the contract. FULLY NET-NEW (no master EventEmitter).
  *
- * PR1 ships the `SdkEventMap` keys + the `EventEmitter<M>` INTERFACE (declaration
- * only — no implementation). `BackgroundState` is defined here (used by
- * `background:state` and `BackgroundDomain.state()`).
+ * This module owns the `SdkEventMap` keys + the PUBLIC `EventEmitter<M>` interface
+ * (subscribe-only: `on` / `once`). The runtime backing — `TypedEventEmitter<M>`, which
+ * also has the internal `emit` / `off` — lands in `./internal/event-emitter` (PR2). The
+ * `Sdk` exposes the instance typed as this narrow interface so consumers can subscribe
+ * but not publish. `BackgroundState` is defined here (used by `background:state` and
+ * `BackgroundDomain.state()`).
  */
 import type { Account } from './types/account';
 import type { Contact } from './types/contact';

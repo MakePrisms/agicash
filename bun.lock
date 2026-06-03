@@ -108,6 +108,12 @@
     },
     "packages/wallet-sdk": {
       "name": "@agicash/wallet-sdk",
+      "dependencies": {
+        "@agicash/opensecret": "catalog:",
+        "@cashu/cashu-ts": "3.6.1",
+        "@supabase/supabase-js": "2.95.2",
+        "jwt-decode": "4.0.0",
+      },
       "devDependencies": {
         "typescript": "catalog:",
       },

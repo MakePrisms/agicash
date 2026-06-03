@@ -1,20 +1,27 @@
 /**
- * @agicash/wallet-sdk — public contract (PR1: types + interfaces, no impl).
+ * @agicash/wallet-sdk — public entry barrel.
  *
- * This barrel is the package's single public entry (`exports["."]`). It re-exports
- * the public domain TYPES + domain INTERFACES + the `Sdk` class shape + `SdkConfig`
- * + the event layer + the error classes. No implementation lands in PR1.
+ * This is the package's single public entry (`exports["."]`). It re-exports the public
+ * domain TYPES + domain INTERFACES + the `Sdk` class + `SdkConfig` + the event layer +
+ * the error classes + the `classify` seam.
+ *
+ * PR1 shipped the contract (types + interfaces + `declare class Sdk`). PR2 (core) lands
+ * the CORE implementation: the real `Money` value export, the runtime error classes +
+ * the pure `classify()`, the typed event emitter, and the `Sdk.create` shell with
+ * OpenSecret / Supabase / storage wiring. Domain business logic (auth, accounts, scan,
+ * cashu, spark, transactions, contacts, transfers, background) is STUBBED until each
+ * later slice lands — calling a stubbed method throws `NotImplementedError`.
  */
 
 // --- entry point + config --------------------------------------------------
-export type { Sdk } from './sdk';
+// `Sdk` is now a real VALUE export (PR2 implemented the class) — `Sdk.create(...)`.
+export { Sdk } from './sdk';
 export type { SdkConfig } from './config';
 
 // --- value types -----------------------------------------------------------
-// `Money` is a TYPE-ONLY export in PR1 (it is a placeholder `declare class` with
-// no runtime binding — see ./types/money). Slice 0 replaces it with a real
-// re-export of `app/lib/money`'s `Money`, at which point this becomes a value export.
-export type { Money } from './types/money';
+// `Money` is now a real VALUE export (Slice 0 resolved PR1's placeholder): it
+// re-exports the live `Money` class from `app/lib/money` — see ./types/money.
+export { Money } from './types/money';
 export type { Currency, CurrencyUnit, BtcUnit, UsdUnit } from './types/money';
 
 // --- domain interfaces -----------------------------------------------------
@@ -45,7 +52,12 @@ export {
   ConcurrencyError,
   DomainError,
   NotFoundError,
+  NotImplementedError,
 } from './errors';
+
+// --- error classifier (§12 — pure 4-bucket seam) ---------------------------
+export { classify } from './classify';
+export type { ErrorClass } from './classify';
 
 // --- accounts (§2) ---------------------------------------------------------
 export type {

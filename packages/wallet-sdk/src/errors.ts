@@ -4,7 +4,7 @@
  * `SdkError` (base + `readonly code`) is NET-NEW (master's errors have no shared
  * base / no `code`). `ConcurrencyError` / `DomainError` / `NotFoundError` are
  * re-parented onto `SdkError` (master forms live in `app/features/shared/error.ts`).
- * PR1 ships the class SHAPES only — empty bodies, no logic.
+ * These are the REAL runtime classes (consumed by `classify()` + the domain stubs).
  */
 
 /**
@@ -34,3 +34,18 @@ export class DomainError extends SdkError {}
 
 /** The requested entity does not exist. */
 export class NotFoundError extends SdkError {}
+
+/**
+ * A method that exists on the contract but whose implementation has not landed yet
+ * (a later build slice fills it in). Thrown by the domain stubs the `Sdk` shell wires
+ * in PR2 so calling an unimplemented method fails loudly + identifiably rather than
+ * returning `undefined`. NOT a runtime error model the orchestrator recovers from.
+ */
+export class NotImplementedError extends SdkError {
+  constructor(method: string) {
+    super(
+      `${method} is not implemented yet (wired by a later @agicash/wallet-sdk build slice)`,
+      'NOT_IMPLEMENTED',
+    );
+  }
+}
