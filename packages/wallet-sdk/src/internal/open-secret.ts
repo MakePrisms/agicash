@@ -19,8 +19,45 @@
  *
  * @module
  */
-import { configure, generateThirdPartyToken } from '@agicash/opensecret';
+import {
+  changePassword as osChangePassword,
+  configure,
+  confirmPasswordReset as osConfirmPasswordReset,
+  convertGuestToUserAccount as osConvertGuestToUserAccount,
+  fetchUser as osFetchUser,
+  generateThirdPartyToken,
+  handleGoogleCallback as osHandleGoogleCallback,
+  initiateGoogleAuth as osInitiateGoogleAuth,
+  refreshAccessToken as osRefreshAccessToken,
+  requestPasswordReset as osRequestPasswordReset,
+  signIn as osSignIn,
+  signInGuest as osSignInGuest,
+  signOut as osSignOut,
+  signUp as osSignUp,
+  signUpGuest as osSignUpGuest,
+} from '@agicash/opensecret';
+import { jwtDecode } from 'jwt-decode';
 import type { StorageAdapter } from '../types/dependencies';
+
+/**
+ * The current OpenSecret user (master `AuthUser = UserResponse['user']`). This is the
+ * ENCLAVE user (id / email / verified flag), NOT the agicash domain `User` (which is a
+ * `wallet.users` DB row). The auth/user domains use `.id` to read the DB row.
+ */
+export type OpenSecretUser = {
+  id: string;
+  name: string | null;
+  email?: string;
+  email_verified: boolean;
+  login_method: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/** localStorage key the OpenSecret SDK persists its access token under. */
+const ACCESS_TOKEN_KEY = 'access_token';
+/** localStorage key the OpenSecret SDK persists its refresh token under. */
+const REFRESH_TOKEN_KEY = 'refresh_token';
 
 /** Init params for the OpenSecret client (from `SdkConfig.openSecret`). */
 export type OpenSecretConfig = {
@@ -69,5 +106,136 @@ export class OpenSecretClient {
   async generateThirdPartyToken(audience?: string): Promise<string> {
     const { token } = await generateThirdPartyToken(audience);
     return token;
+  }
+
+  // --- session presence ------------------------------------------------------
+
+  /**
+   * Whether a (non-expired) OpenSecret session exists, read from the storage adapter.
+   *
+   * Re-houses master `shared/auth.ts#isLoggedIn` off `window.localStorage` onto the
+   * injected {@link StorageAdapter}: there must be both an access and a refresh token,
+   * and the refresh token must not be expired. Used to short-circuit `getCurrentUser`
+   * and the Supabase token provider to `null` when signed out (rather than letting the
+   * enclave request fail).
+   *
+   * @returns `true` when a live session is present.
+   */
+  async hasSession(): Promise<boolean> {
+    const [accessToken, refreshToken] = await Promise.all([
+      this.storage.getItem(ACCESS_TOKEN_KEY),
+      this.storage.getItem(REFRESH_TOKEN_KEY),
+    ]);
+    if (!accessToken || !refreshToken) {
+      return false;
+    }
+    const { exp } = jwtDecode(refreshToken);
+    return !!exp && exp * 1000 > Date.now();
+  }
+
+  // --- auth (OpenSecret SDK wrappers; framework-free) ------------------------
+  //
+  // Each is a thin pass-through to the module-global `@agicash/opensecret` function;
+  // the SDK domain layer (see ../domains/auth) adds the DB-user resolution + events.
+  // The OpenSecret SDK persists/clears its own access+refresh tokens internally.
+
+  /** Sign in an existing user (enclave). Persists the session internally. */
+  async signIn(email: string, password: string): Promise<void> {
+    await osSignIn(email, password);
+  }
+
+  /** Create a full (email) user and sign it in (enclave). `inviteCode` is `''` (master). */
+  async signUp(email: string, password: string): Promise<void> {
+    await osSignUp(email, password, '');
+  }
+
+  /** Create a guest user (enclave), returning its generated id. `inviteCode` is `''`. */
+  async signUpGuest(password: string): Promise<{ id: string }> {
+    const { id } = await osSignUpGuest(password, '');
+    return { id };
+  }
+
+  /** Sign in to an existing guest account by its id + generated password (enclave). */
+  async signInGuest(id: string, password: string): Promise<void> {
+    await osSignInGuest(id, password);
+  }
+
+  /** Sign out (enclave). Clears the persisted session internally. */
+  async signOut(): Promise<void> {
+    await osSignOut();
+  }
+
+  /** Refresh the access token (enclave). Updates the persisted session internally. */
+  async refresh(): Promise<void> {
+    await osRefreshAccessToken();
+  }
+
+  /** Convert the current guest user into a full (email) account (enclave). */
+  async convertGuestToUserAccount(
+    email: string,
+    password: string,
+  ): Promise<void> {
+    await osConvertGuestToUserAccount(email, password);
+  }
+
+  /** Change the signed-in user's password (enclave). */
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    await osChangePassword(currentPassword, newPassword);
+  }
+
+  /**
+   * Request a password reset (enclave). The caller hashes a freshly-generated secret and
+   * passes the hash; the secret is returned so the caller can later confirm the reset.
+   */
+  async requestPasswordReset(
+    email: string,
+    hashedSecret: string,
+  ): Promise<void> {
+    await osRequestPasswordReset(email, hashedSecret);
+  }
+
+  /** Confirm a password reset with the emailed code + the secret from the request (enclave). */
+  async confirmPasswordReset(
+    email: string,
+    alphanumericCode: string,
+    plaintextSecret: string,
+    newPassword: string,
+  ): Promise<void> {
+    await osConfirmPasswordReset(
+      email,
+      alphanumericCode,
+      plaintextSecret,
+      newPassword,
+    );
+  }
+
+  /** Begin Google OAuth (enclave); returns the raw `auth_url` to redirect to. `inviteCode` is `''`. */
+  async initiateGoogleAuth(): Promise<{ authUrl: string }> {
+    const { auth_url } = await osInitiateGoogleAuth('');
+    return { authUrl: auth_url };
+  }
+
+  /** Complete Google OAuth from the redirect callback params (enclave). Persists the session. */
+  async handleGoogleCallback(
+    code: string,
+    state: string,
+    inviteCode: string,
+  ): Promise<void> {
+    await osHandleGoogleCallback(code, state, inviteCode);
+  }
+
+  /**
+   * The current enclave user (`fetchUser`), or `null` when there is no session. Returns
+   * the OpenSecret user — the domain layer maps `.id` to the `wallet.users` DB row.
+   */
+  async fetchUser(): Promise<OpenSecretUser | null> {
+    if (!(await this.hasSession())) {
+      return null;
+    }
+    const { user } = await osFetchUser();
+    return user;
   }
 }

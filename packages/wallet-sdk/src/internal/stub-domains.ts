@@ -3,8 +3,8 @@
  *
  * Each factory returns an object implementing its domain interface (§2-§10) where
  * every method throws {@link NotImplementedError}. The `Sdk` shell wires its domain
- * accessors to these so the public surface is fully present + type-correct in PR2,
- * while the real business logic lands in later slices (auth → S1, accounts/scan → S2,
+ * accessors to these so the public surface is fully present + type-correct, while the
+ * real business logic lands in later slices (auth/user → S1 (DONE), accounts/scan → S2,
  * cashu/spark → S3, transactions/contacts/transfers → S4, background → S5). Swapping a
  * stub for a real impl is the unit of work for each slice — these are the seams.
  *
@@ -15,7 +15,6 @@
  */
 import type {
   AccountsDomain,
-  AuthDomain,
   BackgroundDomain,
   CashuDomain,
   ContactsDomain,
@@ -24,7 +23,6 @@ import type {
   SparkDomain,
   TransactionsDomain,
   TransfersDomain,
-  UserDomain,
 } from '../domains';
 import { NotImplementedError } from '../errors';
 import type { BackgroundState } from '../events';
@@ -34,25 +32,11 @@ const unimplemented = (method: string): never => {
   throw new NotImplementedError(method);
 };
 
-/** Stub `AuthDomain` (real impl: Slice 1). */
-export const createAuthStub = (): AuthDomain => ({
-  signIn: () => unimplemented('auth.signIn'),
-  signUp: () => unimplemented('auth.signUp'),
-  signInGuest: () => unimplemented('auth.signInGuest'),
-  signOut: () => unimplemented('auth.signOut'),
-  refresh: () => unimplemented('auth.refresh'),
-  resetPassword: () => unimplemented('auth.resetPassword'),
-  changePassword: () => unimplemented('auth.changePassword'),
-  upgradeGuest: () => unimplemented('auth.upgradeGuest'),
-  beginGoogleSignIn: () => unimplemented('auth.beginGoogleSignIn'),
-  completeOAuth: () => unimplemented('auth.completeOAuth'),
-});
-
-/** Stub `UserDomain` (real impl: Slice 1). */
-export const createUserStub = (): UserDomain => ({
-  getCurrentUser: () => unimplemented('user.getCurrentUser'),
-  updateUsername: () => unimplemented('user.updateUsername'),
-});
+/**
+ * Stub factories for the domains not yet implemented. `auth` + `user` (Slice 1) are no
+ * longer stubbed — they are real (`../domains/auth`, `../domains/user`), wired directly in
+ * `Sdk.create`.
+ */
 
 /** Stub `AccountsDomain` (real impl: Slice 2). */
 export const createAccountsStub = (): AccountsDomain => ({
