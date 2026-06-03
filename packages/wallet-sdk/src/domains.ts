@@ -6,12 +6,11 @@
  * (params + the full account). Reactivity is events-only; all methods return
  * Promises.
  */
+import type { Account, CashuAccount, SparkAccount } from './types/account';
 import type {
-  Account,
-  CashuAccount,
-  SparkAccount,
-} from './types/account';
-import type { AccountSuggestion, AddAccountConfig } from './types/account-config';
+  AccountSuggestion,
+  AddAccountConfig,
+} from './types/account-config';
 import type {
   CashuReceiveQuote,
   CashuSendQuote,
@@ -56,7 +55,10 @@ export interface AccountsDomain {
   setDefault(account: Account): Promise<void>; // FULL OBJECT; one default PER currency
   getBalance(account: Account): Promise<Money>; // FULL OBJECT
   /** PURE over passed-in accounts */
-  suggestFor(intent: PaymentIntent, accounts: Account[]): Promise<AccountSuggestion>;
+  suggestFor(
+    intent: PaymentIntent,
+    accounts: Account[],
+  ): Promise<AccountSuggestion>;
 }
 
 // --- §3 Scan ---------------------------------------------------------------
@@ -74,7 +76,10 @@ export interface CashuSendOps {
     amount?: Money;
   }): Promise<CashuSendQuote>;
   // token-send -> a SEPARATE CashuSendSwap
-  createTokenQuote(params: { account: CashuAccount; amount: Money }): Promise<CashuSendSwap>;
+  createTokenQuote(params: {
+    account: CashuAccount;
+    amount: Money;
+  }): Promise<CashuSendSwap>;
   // executeQuote drives the LIGHTNING quote's state machine (FULL OBJECT);
   // kicks off, resolves on transition; terminal arrives via event.
   executeQuote(quote: CashuSendQuote): Promise<CashuSendQuote>;
@@ -136,7 +141,10 @@ export interface TransactionsDomain {
     accountId?: string;
     cursor?: TransactionCursor;
     pageSize?: number;
-  }): Promise<{ transactions: Transaction[]; nextCursor: TransactionCursor | null }>;
+  }): Promise<{
+    transactions: Transaction[];
+    nextCursor: TransactionCursor | null;
+  }>;
   get(id: string): Promise<Transaction | null>;
   countPendingAck(): Promise<number>;
   acknowledge(transaction: Transaction): Promise<void>; // FULL OBJECT

@@ -24,7 +24,10 @@ import type {
 
 // --- enums (transaction-enums.ts) ------------------------------------------
 export type TransactionDirection = 'SEND' | 'RECEIVE';
-export type TransactionType = 'CASHU_LIGHTNING' | 'CASHU_TOKEN' | 'SPARK_LIGHTNING';
+export type TransactionType =
+  | 'CASHU_LIGHTNING'
+  | 'CASHU_TOKEN'
+  | 'SPARK_LIGHTNING';
 export type TransactionState =
   | 'DRAFT'
   | 'PENDING'
@@ -125,7 +128,10 @@ type TransactionByType =
   | CompletedSparkLightningSendTransaction;
 
 export type Transaction =
-  | (TransactionByType & { purpose: 'TRANSFER'; details: { transferId: string } })
+  | (TransactionByType & {
+      purpose: 'TRANSFER';
+      details: { transferId: string };
+    })
   | (TransactionByType & { purpose: 'PAYMENT' | 'BUY_CASHAPP' });
 
 /** Cursor pagination (state-sorted: PENDING first). */

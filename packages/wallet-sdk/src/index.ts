@@ -40,7 +40,12 @@ export type {
 export type { EventEmitter, SdkEventMap, BackgroundState } from './events';
 
 // --- errors (real classes — values, not just types) ------------------------
-export { SdkError, ConcurrencyError, DomainError, NotFoundError } from './errors';
+export {
+  SdkError,
+  ConcurrencyError,
+  DomainError,
+  NotFoundError,
+} from './errors';
 
 // --- accounts (§2) ---------------------------------------------------------
 export type {
@@ -57,7 +62,10 @@ export type {
   RedactedAccount,
   RedactedCashuAccount,
 } from './types/account';
-export type { AddAccountConfig, AccountSuggestion } from './types/account-config';
+export type {
+  AddAccountConfig,
+  AccountSuggestion,
+} from './types/account-config';
 
 // --- scan (§3) -------------------------------------------------------------
 export type { ParsedDestination, PaymentIntent } from './types/scan';
@@ -108,7 +116,11 @@ export type {
 export type { Contact, UserProfile } from './types/contact';
 
 // --- transfers (§9) --------------------------------------------------------
-export type { TransferQuote, TransferLeg, TransferResult } from './types/transfer';
+export type {
+  TransferQuote,
+  TransferLeg,
+  TransferResult,
+} from './types/transfer';
 
 // --- type-dependency placeholders (PR1) ------------------------------------
 // Re-exported so consumers/contract reviewers can see the deferred seams.

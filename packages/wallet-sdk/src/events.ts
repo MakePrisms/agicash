@@ -20,14 +20,22 @@ export type BackgroundState =
   | 'stopping';
 
 export type SdkEventMap = {
-  'send:pending': { quoteId: string; transactionId: string; protocol: 'cashu' | 'spark' };
+  'send:pending': {
+    quoteId: string;
+    transactionId: string;
+    protocol: 'cashu' | 'spark';
+  };
   'send:completed': {
     quoteId: string;
     transactionId: string;
     amount: Money;
     protocol: 'cashu' | 'spark';
   };
-  'send:failed': { quoteId: string; error: SdkError; protocol: 'cashu' | 'spark' };
+  'send:failed': {
+    quoteId: string;
+    error: SdkError;
+    protocol: 'cashu' | 'spark';
+  };
   'receive:completed': {
     quoteId: string;
     transactionId: string;
@@ -35,7 +43,11 @@ export type SdkEventMap = {
     protocol: 'cashu' | 'spark';
   };
   'receive:expired': { quoteId: string; protocol: 'cashu' | 'spark' };
-  'receive:failed': { quoteId: string; error: SdkError; protocol: 'cashu' | 'spark' };
+  'receive:failed': {
+    quoteId: string;
+    error: SdkError;
+    protocol: 'cashu' | 'spark';
+  };
   // NO transfer:* events (decision 5): a transfer is TWO transactions (debit + credit),
   // reconstructed consumer-side from the two transaction:* events, linked by `transferId`.
   'account:updated': { account: Account; op: 'created' | 'updated' };

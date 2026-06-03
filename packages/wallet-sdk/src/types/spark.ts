@@ -74,7 +74,10 @@ type SparkReceiveQuoteBase = {
 };
 
 export type SparkReceiveQuote = SparkReceiveQuoteBase &
-  ({ type: 'LIGHTNING' } | { type: 'CASHU_TOKEN'; tokenReceiveData: CashuTokenMeltData }) &
+  (
+    | { type: 'LIGHTNING' }
+    | { type: 'CASHU_TOKEN'; tokenReceiveData: CashuTokenMeltData }
+  ) &
   (
     | { state: 'UNPAID' | 'EXPIRED' }
     | { state: 'PAID'; paymentPreimage: string; sparkTransferId: string }

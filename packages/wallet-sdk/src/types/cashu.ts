@@ -105,7 +105,11 @@ export type CashuSendSwap = CashuSendSwapBase &
         keysetCounter: number;
         outputAmounts: { send: number[]; change: number[] };
       }
-    | { state: 'PENDING' | 'COMPLETED'; tokenHash: string; proofsToSend: CashuProof[] }
+    | {
+        state: 'PENDING' | 'COMPLETED';
+        tokenHash: string;
+        proofsToSend: CashuProof[];
+      }
     | { state: 'FAILED'; failureReason: string }
     | { state: 'REVERSED' }
   );
@@ -163,7 +167,10 @@ type CashuReceiveQuoteBase = {
 };
 
 export type CashuReceiveQuote = CashuReceiveQuoteBase &
-  ({ type: 'LIGHTNING' } | { type: 'CASHU_TOKEN'; tokenReceiveData: CashuTokenMeltData }) &
+  (
+    | { type: 'LIGHTNING' }
+    | { type: 'CASHU_TOKEN'; tokenReceiveData: CashuTokenMeltData }
+  ) &
   (
     | { state: 'UNPAID' | 'EXPIRED' }
     | {
