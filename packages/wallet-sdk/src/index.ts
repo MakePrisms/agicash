@@ -1,1 +1,121 @@
-// @agicash/wallet-sdk
+/**
+ * @agicash/wallet-sdk — public contract (PR1: types + interfaces, no impl).
+ *
+ * This barrel is the package's single public entry (`exports["."]`). It re-exports
+ * the public domain TYPES + domain INTERFACES + the `Sdk` class shape + `SdkConfig`
+ * + the event layer + the error classes. No implementation lands in PR1.
+ */
+
+// --- entry point + config --------------------------------------------------
+export type { Sdk } from './sdk';
+export type { SdkConfig } from './config';
+
+// --- value types -----------------------------------------------------------
+// `Money` is a TYPE-ONLY export in PR1 (it is a placeholder `declare class` with
+// no runtime binding — see ./types/money). Slice 0 replaces it with a real
+// re-export of `app/lib/money`'s `Money`, at which point this becomes a value export.
+export type { Money } from './types/money';
+export type { Currency, CurrencyUnit, BtcUnit, UsdUnit } from './types/money';
+
+// --- domain interfaces -----------------------------------------------------
+export type {
+  AuthDomain,
+  UserDomain,
+  AccountsDomain,
+  ScanDomain,
+  CashuDomain,
+  CashuSendOps,
+  CashuReceiveOps,
+  SparkDomain,
+  SparkSendOps,
+  SparkReceiveOps,
+  TransactionsDomain,
+  ContactsDomain,
+  TransfersDomain,
+  ExchangeRateDomain,
+  BackgroundDomain,
+} from './domains';
+
+// --- events ----------------------------------------------------------------
+export type { EventEmitter, SdkEventMap, BackgroundState } from './events';
+
+// --- errors (real classes — values, not just types) ------------------------
+export { SdkError, ConcurrencyError, DomainError, NotFoundError } from './errors';
+
+// --- accounts (§2) ---------------------------------------------------------
+export type {
+  Account,
+  AccountType,
+  AccountState,
+  AccountPurpose,
+  CashuProof,
+  ExtendedAccount,
+  CashuAccount,
+  SparkAccount,
+  ExtendedCashuAccount,
+  ExtendedSparkAccount,
+  RedactedAccount,
+  RedactedCashuAccount,
+} from './types/account';
+export type { AddAccountConfig, AccountSuggestion } from './types/account-config';
+
+// --- scan (§3) -------------------------------------------------------------
+export type { ParsedDestination, PaymentIntent } from './types/scan';
+
+// --- user (§4) -------------------------------------------------------------
+export type { User, FullUser, GuestUser } from './types/user';
+
+// --- cashu (§5) ------------------------------------------------------------
+export type {
+  CashuSendQuote,
+  CashuSendSwap,
+  PendingCashuSendSwap,
+  CashuReceiveQuote,
+  CashuTokenMeltData,
+  DestinationDetails,
+} from './types/cashu';
+
+// --- spark (§6) ------------------------------------------------------------
+export type { SparkSendQuote, SparkReceiveQuote } from './types/spark';
+
+// --- transactions (§7) -----------------------------------------------------
+export type {
+  Transaction,
+  BaseTransaction,
+  TransactionCursor,
+  TransactionDirection,
+  TransactionType,
+  TransactionState,
+  TransactionPurpose,
+} from './types/transaction';
+export type {
+  TransactionDetails,
+  CashuTokenSendTransactionDetails,
+  CashuTokenReceiveTransactionDetails,
+  CashuLightningSendTransactionDetails,
+  IncompleteCashuLightningSendTransactionDetails,
+  CompletedCashuLightningSendTransactionDetails,
+  CashuLightningReceiveTransactionDetails,
+  SparkLightningSendTransactionDetails,
+  IncompleteSparkLightningSendTransactionDetails,
+  CompletedSparkLightningSendTransactionDetails,
+  SparkLightningReceiveTransactionDetails,
+  IncompleteSparkLightningReceiveTransactionDetails,
+  CompletedSparkLightningReceiveTransactionDetails,
+} from './types/transaction-details';
+
+// --- contacts (§8) ---------------------------------------------------------
+export type { Contact, UserProfile } from './types/contact';
+
+// --- transfers (§9) --------------------------------------------------------
+export type { TransferQuote, TransferLeg, TransferResult } from './types/transfer';
+
+// --- type-dependency placeholders (PR1) ------------------------------------
+// Re-exported so consumers/contract reviewers can see the deferred seams.
+// Each is wired to its real source in a later slice — see ./dependencies.
+export type {
+  StorageAdapter,
+  Bolt11Invoice,
+  ParsedToken,
+  SparkNetwork,
+} from './types/dependencies';
