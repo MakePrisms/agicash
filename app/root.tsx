@@ -36,7 +36,7 @@ import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
 import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
 import { LoadingScreen } from './features/loading/LoadingScreen';
-import { NotFoundError } from './features/shared/error';
+import { DomainError, NotFoundError } from './features/shared/error';
 import { getQueryClient } from './features/shared/query-client';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
 import { sanitizeUrl } from './tracing-utils';
@@ -271,6 +271,18 @@ const useErrorDetails = (error: unknown) => {
       footer: (
         <Button variant="default" type="button" onClick={reload}>
           Reload
+        </Button>
+      ),
+    };
+  }
+
+  if (error instanceof DomainError) {
+    // Carries a user-facing message and isn't a bug — show it, don't report.
+    return {
+      message: error.message,
+      footer: (
+        <Button variant="default" type="button" onClick={reload}>
+          Reload Page
         </Button>
       ),
     };

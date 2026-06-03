@@ -19,6 +19,7 @@ import {
   getInitializedCashuWallet,
   tokenToMoney,
 } from '../shared/cashu';
+import { DomainError } from '../shared/error';
 import type {
   CashuAccountWithTokenFlags,
   ReceiveCashuTokenAccount,
@@ -43,6 +44,12 @@ export class ReceiveCashuTokenService {
       mintUrl,
       currency,
     });
+
+    // The code below reads mint info (e.g. wallet.purpose), which isn't loaded
+    // when the mint is offline.
+    if (!isOnline) {
+      throw new DomainError('The mint that issued this ecash is offline');
+    }
 
     let expiresAt: string | null = null;
     if (wallet.purpose === 'offer') {
@@ -76,11 +83,11 @@ export class ReceiveCashuTokenService {
       wallet,
     };
 
-    if (!isOnline || isExpired) {
+    if (isExpired) {
       return {
         ...baseAccount,
         canReceive: false,
-        cannotReceiveReason: isExpired ? 'This offer has expired' : undefined,
+        cannotReceiveReason: 'This offer has expired',
         isOnline,
         isTestMint: false,
       };

@@ -71,7 +71,8 @@ export function useCashuTokenSourceAccountQuery(
         existingAccounts,
       ),
     staleTime: 3 * 60 * 1000,
-    retry: 1,
+    retry: (failureCount, error) =>
+      !(error instanceof DomainError) && failureCount < 1,
   });
 }
 
@@ -299,7 +300,8 @@ function useBuildCashuAccountPlaceholder(mintUrl: string, currency: Currency) {
       receiveCashuTokenService.buildAccountForMint(mintUrl, currency),
     staleTime: 0,
     gcTime: 0,
-    retry: 1,
+    retry: (failureCount, error) =>
+      !(error instanceof DomainError) && failureCount < 1,
   });
 
   return data;
