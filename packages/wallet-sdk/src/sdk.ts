@@ -53,7 +53,17 @@ import { CashuSendSwapService } from './internal/cashu-send-swap-service';
 import { MintMetadataCache } from './internal/cashu-wallet';
 import { dbAccountToAccount } from './internal/db-account';
 import { createEncryption } from './internal/encryption';
+import { SparkBalanceTracker } from './internal/spark-balance-tracker';
+import { SparkReceiveQuoteRepository } from './internal/spark-receive-quote-repository';
+import { SparkReceiveQuoteService } from './internal/spark-receive-quote-service';
+import { SparkSendQuoteRepository } from './internal/spark-send-quote-repository';
+import { SparkSendQuoteService } from './internal/spark-send-quote-service';
 import { SparkWalletCache } from './internal/spark-wallet';
+import {
+  SparkDomainImpl,
+  SparkReceiveOpsImpl,
+  SparkSendOpsImpl,
+} from './domains/spark';
 import { TypedEventEmitter } from './internal/event-emitter';
 import { GuestAccountStorage } from './internal/guest-account-storage';
 import { OpenSecretClient } from './internal/open-secret';
@@ -62,7 +72,6 @@ import {
   createBackgroundStub,
   createContactsStub,
   createExchangeRateStub,
-  createSparkStub,
   createTransactionsStub,
   createTransfersStub,
 } from './internal/stub-domains';
@@ -96,6 +105,12 @@ export type SdkConnections = {
   readonly mintCache: MintMetadataCache;
   /** Per-(mnemonic,network) connected-spark-wallet memo (held so `destroy()` can drop it). */
   readonly sparkCache: SparkWalletCache;
+  /**
+   * Spark balance source: Breez event listeners → `account:updated` (compare-before-emit). Held
+   * so `destroy()` removes its listeners. PR5c builds it; the S5 background/realtime slice calls
+   * `track(onlineSparkAccounts)` to start it.
+   */
+  readonly sparkBalanceTracker: SparkBalanceTracker;
 };
 
 /** Validate `config` (shape the rest of `create` relies on). Throws on a missing field. */
@@ -184,6 +199,7 @@ export class Sdk {
       accounts: AccountsDomain;
       scan: ScanDomain;
       cashu: CashuDomain;
+      spark: SparkDomain;
     },
   ) {
     this.connections = connections;
@@ -198,9 +214,10 @@ export class Sdk {
     this.scan = domains.scan;
     // Slice 3 / PR5b: cashu send + receive ops (executeQuote orchestrator deferred to PR5d).
     this.cashu = domains.cashu;
+    // Slice 3 / PR5c: spark send + receive ops (executeQuote orchestrator deferred to PR5d).
+    this.spark = domains.spark;
 
     // --- domain accessors still STUBBED (swap per slice) ---------------------
-    this.spark = createSparkStub();
     this.transactions = createTransactionsStub();
     this.contacts = createContactsStub();
     this.transfers = createTransfersStub();
@@ -255,6 +272,8 @@ export class Sdk {
     // connection). Held on the connection bundle so `destroy()` can drop them.
     const mintCache = new MintMetadataCache();
     const sparkCache = new SparkWalletCache();
+    // Spark balance source (Breez listeners → `account:updated`). Built here, started by S5.
+    const sparkBalanceTracker = new SparkBalanceTracker(events);
 
     const connections: SdkConnections = {
       supabase,
@@ -265,6 +284,7 @@ export class Sdk {
       clientId: config.clientId ?? generateClientId(),
       mintCache,
       sparkCache,
+      sparkBalanceTracker,
     };
 
     // --- Slice 1: auth + user domains ----------------------------------------
@@ -382,7 +402,35 @@ export class Sdk {
       ),
     );
 
-    return new Sdk(connections, { auth, user, accounts, scan, cashu });
+    // --- Slice 3 / PR5c: spark send + receive ops ----------------------------
+    // The spark repos write/read the `wallet.spark_{send,receive}_quotes` tables over the
+    // SDK-owned Supabase client + the SDK Encryption (encrypt-on-write / decrypt-on-read of the
+    // jsonb). The services drive each account's live `BreezSdk` handle (PR5a) for the protocol
+    // work: `prepareSendPayment`/`sendPayment` (send — idempotent via `idempotencyKey: quote.id`)
+    // and `receivePayment` (the receive invoice). Spark balance is sourced from Breez's OWN event
+    // listener (`sparkBalanceTracker`, started by S5), NOT a DB trigger. `executeQuote` (the
+    // orchestrator state machine) is DEFERRED to PR5d — see `domains/spark.ts`; PR5c ships the
+    // primitives it sequences.
+    const sparkSendQuoteRepository = new SparkSendQuoteRepository(
+      supabase,
+      encryption,
+    );
+    const sparkReceiveQuoteRepository = new SparkReceiveQuoteRepository(
+      supabase,
+      encryption,
+    );
+    const sparkSendQuoteService = new SparkSendQuoteService(
+      sparkSendQuoteRepository,
+    );
+    const sparkReceiveQuoteService = new SparkReceiveQuoteService(
+      sparkReceiveQuoteRepository,
+    );
+    const spark = new SparkDomainImpl(
+      new SparkSendOpsImpl(sparkSendQuoteService, session),
+      new SparkReceiveOpsImpl(sparkReceiveQuoteService, session),
+    );
+
+    return new Sdk(connections, { auth, user, accounts, scan, cashu, spark });
   }
 
   /**
@@ -403,6 +451,8 @@ export class Sdk {
     // Drop the live-handle memos (cashu mint metadata + connected spark wallets).
     this.connections.mintCache.clear();
     this.connections.sparkCache.clear();
+    // Remove the spark Breez balance listeners (the `account:updated` source).
+    this.connections.sparkBalanceTracker.stop();
     // Remove every event subscriber.
     this.connections.events.removeAllListeners();
     // TODO(Slice 3/5): close mint melt/mint-quote WS subs + Breez SDK instances (call
