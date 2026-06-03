@@ -15,11 +15,11 @@
     }
   },
   "scripts": {
-    "dev": "bun --filter=web run dev",
-    "build": "bun --filter=web run build",
-    "start": "bun --filter=web run start",
+    "dev": "bun --filter=web-wallet run dev",
+    "build": "bun --filter=web-wallet run build",
+    "start": "bun --filter=web-wallet run start",
     "test": "bun --filter='*' run test",
-    "test:e2e": "bun --filter=web-e2e run test:e2e",
+    "test:e2e": "bun --filter=web-wallet-e2e run test:e2e",
     "typecheck": "bun --filter='*' run typecheck",
     "lint": "biome lint --write",
     "lint:check": "biome lint",
@@ -32,8 +32,8 @@
     "db:generate-types": "supabase gen types typescript --local --schema wallet > supabase/database.types.ts"
   },
   "scripts:comments": {
-    "dev": "Delegates to apps/web. The web dev server uses tsx instead of bun because with bun the server hangs and eventually errors with 'ELOOP: too many symbolic links encountered...'.",
-    "test": "Runs each workspace package's own test script. apps/web runs bun test; packages/sdk has no tests yet.",
+    "dev": "Delegates to apps/web-wallet. The web dev server uses tsx instead of bun because with bun the server hangs and eventually errors with 'ELOOP: too many symbolic links encountered...'.",
+    "test": "Runs each workspace package's own test script. apps/web-wallet runs bun test; packages/wallet-sdk has no tests yet.",
     "typecheck": "Runs each workspace package's own typecheck script (react-router typegen && tsc for web, tsc for the rest)."
   },
   "devDependencies": {

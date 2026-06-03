@@ -1,8 +1,8 @@
 {
   "files": [],
   "references": [
-    { "path": "./apps/web" },
-    { "path": "./apps/web-e2e" },
-    { "path": "./packages/sdk" }
+    { "path": "./apps/web-wallet" },
+    { "path": "./apps/web-wallet-e2e" },
+    { "path": "./packages/wallet-sdk" }
   ]
 }

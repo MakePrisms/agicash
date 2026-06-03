@@ -33,18 +33,18 @@
   scripts.generate-ssl-cert.exec = "$DEVENV_ROOT/tools/devenv/generate-ssl-cert.sh";
   scripts.convert-gift-card-images.exec = ''
     shopt -s nullglob
-    pngs=("$DEVENV_ROOT/apps/web/app/assets/gift-cards/"*.png)
+    pngs=("$DEVENV_ROOT/apps/web-wallet/app/assets/gift-cards/"*.png)
     if [ ''${#pngs[@]} -eq 0 ]; then
-      echo "No PNG files found in apps/web/app/assets/gift-cards/"
+      echo "No PNG files found in apps/web-wallet/app/assets/gift-cards/"
       exit 0
     fi
     convert-to-webp "''${pngs[@]}"
   '';
   scripts.convert-og-images.exec = ''
     shopt -s nullglob
-    pngs=("$DEVENV_ROOT/apps/web/public/og/"*.png)
+    pngs=("$DEVENV_ROOT/apps/web-wallet/public/og/"*.png)
     if [ ''${#pngs[@]} -eq 0 ]; then
-      echo "No PNG files found in apps/web/public/og/"
+      echo "No PNG files found in apps/web-wallet/public/og/"
       exit 0
     fi
     convert-to-webp "''${pngs[@]}"

@@ -11,8 +11,8 @@
         "typescript": "catalog:",
       },
     },
-    "apps/web": {
-      "name": "web",
+    "apps/web-wallet": {
+      "name": "web-wallet",
       "dependencies": {
         "@agicash/bc-ur": "0.1.0",
         "@agicash/breez-sdk-spark": "0.13.5-1",
@@ -93,8 +93,8 @@
         "vite-tsconfig-paths": "6.0.5",
       },
     },
-    "apps/web-e2e": {
-      "name": "web-e2e",
+    "apps/web-wallet-e2e": {
+      "name": "web-wallet-e2e",
       "devDependencies": {
         "@agicash/opensecret": "catalog:",
         "@playwright/test": "1.49.1",
@@ -106,8 +106,8 @@
         "typescript": "catalog:",
       },
     },
-    "packages/sdk": {
-      "name": "@agicash/sdk",
+    "packages/wallet-sdk": {
+      "name": "@agicash/wallet-sdk",
       "devDependencies": {
         "typescript": "catalog:",
       },
@@ -135,7 +135,7 @@
 
     "@agicash/qr-scanner": ["@agicash/qr-scanner@0.1.2", "", { "dependencies": { "zxing-wasm": "2.2.4" } }, "sha512-7qNJoDRqBbHSm12qZ1l0O2JDof0sXNiooebsCXGZOsJpCLBYF9bAJXuy/4Q/jFwbiH0knFZq8myRI5v6IFqpEQ=="],
 
-    "@agicash/sdk": ["@agicash/sdk@workspace:packages/sdk"],
+    "@agicash/wallet-sdk": ["@agicash/wallet-sdk@workspace:packages/wallet-sdk"],
 
     "@apocentre/alias-sampling": ["@apocentre/alias-sampling@0.5.3", "", {}, "sha512-7UDWIIF9hIeJqfKXkNIzkVandlwLf1FWTSdrb9iXvOP8oF544JRXQjCbiTmCv2c9n44n/FIWtehhBfNuAx2CZA=="],
 
@@ -1527,11 +1527,11 @@
 
     "vite-tsconfig-paths": ["vite-tsconfig-paths@6.0.5", "", { "dependencies": { "debug": "^4.1.1", "globrex": "^0.1.2", "tsconfck": "^3.0.3" }, "peerDependencies": { "vite": "*" } }, "sha512-f/WvY6ekHykUF1rWJUAbCU7iS/5QYDIugwpqJA+ttwKbxSbzNlqlE8vZSrsnxNQciUW+z6lvhlXMaEyZn9MSig=="],
 
-    "web": ["web@workspace:apps/web"],
-
-    "web-e2e": ["web-e2e@workspace:apps/web-e2e"],
-
     "web-streams-polyfill": ["web-streams-polyfill@3.3.3", "", {}, "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="],
+
+    "web-wallet": ["web-wallet@workspace:apps/web-wallet"],
+
+    "web-wallet-e2e": ["web-wallet-e2e@workspace:apps/web-wallet-e2e"],
 
     "webidl-conversions": ["webidl-conversions@3.0.1", "", {}, "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ=="],
 

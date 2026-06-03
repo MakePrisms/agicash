@@ -7,7 +7,7 @@
     "types": ["@playwright/test", "bun"],
     "baseUrl": ".",
     "paths": {
-      "~/*": ["../web/app/*"]
+      "~/*": ["../web-wallet/app/*"]
     },
     "noEmit": true
   }

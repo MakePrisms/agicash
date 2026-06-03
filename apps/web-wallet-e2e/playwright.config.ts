@@ -79,10 +79,10 @@ export default defineConfig({
   /* Run your local dev server before starting the tests */
   webServer: {
     // Runs from the workspace root: supabase config.toml lives there and the web
-    // app is a workspace package launched via `bun --filter=web`.
+    // app is a workspace package launched via `bun --filter=web-wallet`.
     command: process.env.CI
-      ? 'cd ../.. && bun --filter=web run build && bun supabase start --exclude gotrue,storage-api,imgproxy,inbucket,studio,edge-runtime,logflare,vector,supavisor && bun --filter=web run start'
-      : 'cd ../.. && bun supabase start && bun --filter=web run dev',
+      ? 'cd ../.. && bun --filter=web-wallet run build && bun supabase start --exclude gotrue,storage-api,imgproxy,inbucket,studio,edge-runtime,logflare,vector,supavisor && bun --filter=web-wallet run start'
+      : 'cd ../.. && bun supabase start && bun --filter=web-wallet run dev',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: !process.env.CI,
     // Long timeout because Supabase sometimes needs to pull docker images.
