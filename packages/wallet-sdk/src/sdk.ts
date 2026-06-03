@@ -33,11 +33,25 @@ import type {
 import type { EventEmitter, SdkEventMap } from './events';
 import { AccountsDomainImpl } from './domains/accounts';
 import { AuthDomainImpl } from './domains/auth';
+import {
+  CashuDomainImpl,
+  CashuReceiveOpsImpl,
+  CashuSendOpsImpl,
+} from './domains/cashu';
 import { ScanDomainImpl } from './domains/scan';
 import { UserDomainImpl } from './domains/user';
 import { LiveAccountHandleResolver } from './internal/account-handle-resolver';
 import { AccountRepository } from './internal/account-repository';
+import { CashuReceiveQuoteRepository } from './internal/cashu-receive-quote-repository';
+import { CashuReceiveQuoteService } from './internal/cashu-receive-quote-service';
+import { CashuReceiveSwapRepository } from './internal/cashu-receive-swap-repository';
+import { CashuReceiveSwapService } from './internal/cashu-receive-swap-service';
+import { CashuSendQuoteRepository } from './internal/cashu-send-quote-repository';
+import { CashuSendQuoteService } from './internal/cashu-send-quote-service';
+import { CashuSendSwapRepository } from './internal/cashu-send-swap-repository';
+import { CashuSendSwapService } from './internal/cashu-send-swap-service';
 import { MintMetadataCache } from './internal/cashu-wallet';
+import { dbAccountToAccount } from './internal/db-account';
 import { createEncryption } from './internal/encryption';
 import { SparkWalletCache } from './internal/spark-wallet';
 import { TypedEventEmitter } from './internal/event-emitter';
@@ -46,7 +60,6 @@ import { OpenSecretClient } from './internal/open-secret';
 import { SessionResolver } from './internal/session';
 import {
   createBackgroundStub,
-  createCashuStub,
   createContactsStub,
   createExchangeRateStub,
   createSparkStub,
@@ -60,6 +73,8 @@ import {
 } from './internal/supabase-client';
 import { SupabaseSessionTokenProvider } from './internal/supabase-session';
 import { UserRepository } from './internal/user-repository';
+import type { AgicashDbAccountWithProofs } from './internal/db-account';
+import type { CashuAccount } from './types/account';
 import type { StorageAdapter } from './types/dependencies';
 
 /**
@@ -168,6 +183,7 @@ export class Sdk {
       user: UserDomain;
       accounts: AccountsDomain;
       scan: ScanDomain;
+      cashu: CashuDomain;
     },
   ) {
     this.connections = connections;
@@ -180,9 +196,10 @@ export class Sdk {
     // Slice 2: accounts + scan.
     this.accounts = domains.accounts;
     this.scan = domains.scan;
+    // Slice 3 / PR5b: cashu send + receive ops (executeQuote orchestrator deferred to PR5d).
+    this.cashu = domains.cashu;
 
     // --- domain accessors still STUBBED (swap per slice) ---------------------
-    this.cashu = createCashuStub();
     this.spark = createSparkStub();
     this.transactions = createTransactionsStub();
     this.contacts = createContactsStub();
@@ -273,8 +290,9 @@ export class Sdk {
     // proofs (OpenSecret-derived key + ECIES), and connects the spark Breez wallet (when a
     // `breezApiKey` is configured). The per-mint + per-spark memos (built above, on the
     // connection bundle) live as long as the SDK and are dropped in `destroy()`.
-    const encryption = createEncryption(() =>
-      openSecret.getEncryptionPrivateKeyHex(),
+    const encryption = createEncryption(
+      () => openSecret.getEncryptionPrivateKeyHex(),
+      () => openSecret.getEncryptionPublicKeyHex(),
     );
     const accountHandleResolver = new LiveAccountHandleResolver({
       encryption,
@@ -296,7 +314,75 @@ export class Sdk {
     // SDK does not read.
     const scan = new ScanDomainImpl();
 
-    return new Sdk(connections, { auth, user, accounts, scan });
+    // --- Slice 3 / PR5b: cashu send + receive ops ----------------------------
+    // The cashu repos write/read the `wallet.cashu_{send,receive}_*` tables over the SDK-owned
+    // Supabase client + the SDK Encryption (encrypt-on-write / decrypt-on-read of the jsonb +
+    // proof ciphertext). The account-returning RPCs (receive payment/complete) map the returned
+    // row via the resolver-backed `dbAccountToAccount` (the same live-handle resolver Slice 2
+    // wires). The services drive the mint over each account's live `ExtendedCashuWallet` (PR5a),
+    // keeping master's idempotency (`wallet.restore`) + DB reservation / CONCURRENCY_ERROR
+    // guards. `executeQuote` (the orchestrator state machine) is DEFERRED to PR5d — see
+    // `domains/cashu.ts`; PR5b ships the primitives it sequences.
+    const mapCashuAccount = (row: AgicashDbAccountWithProofs) =>
+      dbAccountToAccount<CashuAccount>(row, accountHandleResolver);
+
+    const cashuSendQuoteRepository = new CashuSendQuoteRepository(
+      supabase,
+      encryption,
+    );
+    const cashuSendSwapRepository = new CashuSendSwapRepository(
+      supabase,
+      encryption,
+    );
+    const cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
+      supabase,
+      encryption,
+      mapCashuAccount,
+    );
+    const cashuReceiveSwapRepository = new CashuReceiveSwapRepository(
+      supabase,
+      encryption,
+      mapCashuAccount,
+    );
+
+    const cashuReceiveSwapService = new CashuReceiveSwapService(
+      cashuReceiveSwapRepository,
+    );
+    const cashuSendQuoteService = new CashuSendQuoteService(
+      cashuSendQuoteRepository,
+    );
+    const cashuSendSwapService = new CashuSendSwapService(
+      cashuSendSwapRepository,
+      cashuReceiveSwapService,
+    );
+    // The cashu crypto operations (NUT-20 quote-locking xPub + unlocking key) are backed by the
+    // OpenSecret client (re-housed off master's `useCashuCryptography` query options).
+    const cashuReceiveQuoteService = new CashuReceiveQuoteService(
+      {
+        getXpub: (path?: string) => openSecret.getCashuLockingXpub(path),
+        getPrivateKey: (path?: string) =>
+          openSecret.getCashuLockingPrivateKeyHex(path),
+      },
+      cashuReceiveQuoteRepository,
+    );
+
+    const cashu = new CashuDomainImpl(
+      new CashuSendOpsImpl(
+        cashuSendQuoteService,
+        cashuSendSwapService,
+        cashuSendQuoteRepository,
+        cashuSendSwapRepository,
+        accountRepository,
+        session,
+      ),
+      new CashuReceiveOpsImpl(
+        cashuReceiveQuoteService,
+        cashuReceiveQuoteRepository,
+        session,
+      ),
+    );
+
+    return new Sdk(connections, { auth, user, accounts, scan, cashu });
   }
 
   /**

@@ -1,0 +1,165 @@
+import { afterEach, describe, expect, mock, test } from 'bun:test';
+
+// Mock the LNURL module so the ln-address fold is exercised without a real HTTP call.
+// `getInvoiceFromLud16` returns whatever the test queues (an invoice result or an LNURL error).
+let lnurlResult: unknown = {
+  pr: 'lnbc-resolved',
+  verify: undefined,
+  routes: [],
+};
+const getInvoiceFromLud16 = mock(async () => lnurlResult);
+mock.module('../internal/lib-lnurl', () => ({
+  getInvoiceFromLud16,
+  isLNURLError: (o: unknown) =>
+    typeof o === 'object' &&
+    o !== null &&
+    (o as { status?: string }).status === 'ERROR',
+}));
+
+import type { Currency, Money as MoneyType } from '../types/money';
+
+const { CashuSendOpsImpl, CashuReceiveOpsImpl } = await import('./cashu');
+const { NotImplementedError, DomainError } = await import('../errors');
+const { Money } = await import('../types/money');
+
+// -- Fakes ----------------------------------------------------------------------------------
+
+const sats = (n: number): MoneyType =>
+  new Money({ amount: n, currency: 'BTC' as Currency, unit: 'sat' });
+
+const session = {
+  requireCurrentUser: async () => ({ id: 'u1' }),
+} as never;
+
+const cashuAccount = {
+  id: 'acc1',
+  type: 'cashu',
+  currency: 'BTC',
+  mintUrl: 'https://mint.example',
+} as never;
+
+/** A send-quote service whose getLightningQuote echoes the payment request it was given. */
+function fakeSendQuoteService() {
+  return {
+    getLightningQuote: mock(
+      async ({ paymentRequest }: { paymentRequest: string }) => ({
+        paymentRequest,
+        amountRequested: sats(100),
+        amountRequestedInBtc: sats(100),
+        meltQuote: { quote: 'melt1' },
+      }),
+    ),
+    createSendQuote: mock(
+      async (args: {
+        sendQuote: { paymentRequest: string };
+        destinationDetails?: unknown;
+      }) => ({
+        id: 'q1',
+        state: 'UNPAID',
+        paymentRequest: args.sendQuote.paymentRequest,
+        destinationDetails: args.destinationDetails,
+      }),
+    ),
+  };
+}
+
+function makeSendOps(sendQuoteService = fakeSendQuoteService()) {
+  const ops = new CashuSendOpsImpl(
+    // biome-ignore lint/suspicious/noExplicitAny: minimal service/repo stubs for the fold + stub tests.
+    sendQuoteService as any,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    session,
+  );
+  return { ops, sendQuoteService };
+}
+
+afterEach(() => {
+  getInvoiceFromLud16.mockClear();
+  lnurlResult = { pr: 'lnbc-resolved', verify: undefined, routes: [] };
+});
+
+// -- Tests ----------------------------------------------------------------------------------
+
+describe('CashuSendOps.createLightningQuote — destination resolution', () => {
+  test('a bolt11 invoice is passed through (no LNURL call, no destinationDetails)', async () => {
+    const { ops, sendQuoteService } = makeSendOps();
+
+    const quote = await ops.createLightningQuote({
+      account: cashuAccount,
+      destination: 'lnbc1pjinvoice',
+    });
+
+    expect(getInvoiceFromLud16).not.toHaveBeenCalled();
+    expect(
+      sendQuoteService.getLightningQuote.mock.calls[0][0].paymentRequest,
+    ).toBe('lnbc1pjinvoice');
+    expect(
+      (quote as { destinationDetails?: unknown }).destinationDetails,
+    ).toBeUndefined();
+  });
+
+  test('an ln-address is resolved via LNURL-pay and tagged LN_ADDRESS', async () => {
+    const { ops, sendQuoteService } = makeSendOps();
+
+    const quote = await ops.createLightningQuote({
+      account: cashuAccount,
+      destination: 'alice@example.com',
+      amount: sats(100),
+    });
+
+    expect(getInvoiceFromLud16).toHaveBeenCalledTimes(1);
+    // The resolved invoice flows into the quote service.
+    expect(
+      sendQuoteService.getLightningQuote.mock.calls[0][0].paymentRequest,
+    ).toBe('lnbc-resolved');
+    expect(
+      (quote as { destinationDetails?: unknown }).destinationDetails,
+    ).toEqual({
+      sendType: 'LN_ADDRESS',
+      lnAddress: 'alice@example.com',
+    });
+  });
+
+  test('an ln-address without an amount is rejected (LNURL needs the amount)', async () => {
+    const { ops } = makeSendOps();
+    await expect(
+      ops.createLightningQuote({
+        account: cashuAccount,
+        destination: 'alice@example.com',
+      }),
+    ).rejects.toBeInstanceOf(DomainError);
+    expect(getInvoiceFromLud16).not.toHaveBeenCalled();
+  });
+
+  test('an LNURL error surfaces as a DomainError', async () => {
+    lnurlResult = { status: 'ERROR', reason: 'amount out of range' };
+    const { ops } = makeSendOps();
+
+    await expect(
+      ops.createLightningQuote({
+        account: cashuAccount,
+        destination: 'alice@example.com',
+        amount: sats(100),
+      }),
+    ).rejects.toThrow(/amount out of range/);
+  });
+});
+
+describe('CashuSendOps.executeQuote — deferred to PR5d', () => {
+  test('throws NotImplementedError (orchestrator state machine deferred)', () => {
+    const { ops } = makeSendOps();
+    expect(() => ops.executeQuote({} as never)).toThrow(NotImplementedError);
+  });
+});
+
+describe('CashuReceiveOps.receiveToken — deferred to PR5d', () => {
+  test('throws NotImplementedError with no side effects (the claim flow is deferred)', () => {
+    const ops = new CashuReceiveOpsImpl({} as never, {} as never, session);
+    expect(() => ops.receiveToken({ token: 'cashuAabc' })).toThrow(
+      NotImplementedError,
+    );
+  });
+});

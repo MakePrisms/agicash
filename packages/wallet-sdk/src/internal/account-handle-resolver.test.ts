@@ -21,6 +21,10 @@ function fakeEncryption(plaintexts: unknown[]): Encryption {
   return {
     decryptBatch: async (data: readonly string[]) =>
       plaintexts.slice(0, data.length) as never,
+    // The resolver only decrypts; the encrypt/decrypt-single halves are unused here.
+    decrypt: async () => undefined as never,
+    encrypt: async () => '',
+    encryptBatch: async (data: readonly unknown[]) => data.map(() => ''),
   };
 }
 
@@ -173,6 +177,9 @@ describe('LiveAccountHandleResolver.resolveCashu', () => {
           called = true;
           return [] as never;
         },
+        decrypt: async () => undefined as never,
+        encrypt: async () => '',
+        encryptBatch: async () => [],
       },
       mintCache: onlineMintCache(),
       sparkCache: new SparkWalletCache(),
