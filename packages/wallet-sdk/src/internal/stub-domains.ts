@@ -14,12 +14,10 @@
  * @module
  */
 import type {
-  AccountsDomain,
   BackgroundDomain,
   CashuDomain,
   ContactsDomain,
   ExchangeRateDomain,
-  ScanDomain,
   SparkDomain,
   TransactionsDomain,
   TransfersDomain,
@@ -33,26 +31,10 @@ const unimplemented = (method: string): never => {
 };
 
 /**
- * Stub factories for the domains not yet implemented. `auth` + `user` (Slice 1) are no
- * longer stubbed — they are real (`../domains/auth`, `../domains/user`), wired directly in
- * `Sdk.create`.
+ * Stub factories for the domains not yet implemented. `auth` + `user` (Slice 1) and
+ * `accounts` + `scan` (Slice 2) are no longer stubbed — they are real (`../domains/*`),
+ * wired directly in `Sdk.create`.
  */
-
-/** Stub `AccountsDomain` (real impl: Slice 2). */
-export const createAccountsStub = (): AccountsDomain => ({
-  list: () => unimplemented('accounts.list'),
-  get: () => unimplemented('accounts.get'),
-  getDefault: () => unimplemented('accounts.getDefault'),
-  add: () => unimplemented('accounts.add'),
-  setDefault: () => unimplemented('accounts.setDefault'),
-  getBalance: () => unimplemented('accounts.getBalance'),
-  suggestFor: () => unimplemented('accounts.suggestFor'),
-});
-
-/** Stub `ScanDomain` (real impl: Slice 2). */
-export const createScanStub = (): ScanDomain => ({
-  parse: () => unimplemented('scan.parse'),
-});
 
 /** Stub `CashuDomain` (`.send` + `.receive`; real impl: Slice 3). */
 export const createCashuStub = (): CashuDomain => ({
