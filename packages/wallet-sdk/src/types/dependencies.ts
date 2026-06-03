@@ -9,27 +9,33 @@
  */
 
 // ---------------------------------------------------------------------------
-// External package types (import once the deps are added to the package)
+// External package types (RESOLVED in Slice 3 — the live wallet handles)
 // ---------------------------------------------------------------------------
 
-/**
- * Live Breez/Spark SDK instance held on a spark `Account`.
- * TODO(Slice-0): `import type { BreezSdk } from '@agicash/breez-sdk-spark'`
- * (add `@agicash/breez-sdk-spark` to the package deps + root catalog first).
- */
-export type BreezSdk = unknown;
+import type { BreezSdk as BreezSdkType } from '@agicash/breez-sdk-spark';
+import type { Proof } from '@cashu/cashu-ts';
+// The live `ExtendedCashuWallet` is the SDK-internal cashu-ts wallet subclass; re-exported
+// from `app/lib/cashu/utils` (SDK-internal, §12) — same single-source re-export as
+// `internal/lib-cashu-wallet.ts`. Importing the TYPE here keeps `Account.wallet` correctly
+// typed without `types/` depending on `internal/`.
+import type { ExtendedCashuWallet as ExtendedCashuWalletClass } from '../../../../apps/web-wallet/app/lib/cashu/utils';
 
 /**
- * Live cashu wallet handle (mint info / keysets / keys / seed) held on a cashu
- * `Account` — the per-mint protocol-metadata memo (§0 state kind 2).
- * TODO(Slice-3): import the real `ExtendedCashuWallet` from the SDK-internal
- * `lib/cashu` (extracted from `app/lib/cashu`).
+ * Live Breez/Spark SDK instance held on a spark `Account`. Resolved (Slice 3) to the real
+ * `BreezSdk` from `@agicash/breez-sdk-spark` (a native/WASM package — only the TYPE is
+ * imported here; the runtime is dynamically loaded by `internal/spark-wallet.ts`).
  */
-export type ExtendedCashuWallet = unknown;
+export type BreezSdk = BreezSdkType;
 
 /**
- * Spark network discriminant.
- * TODO(Slice-2): lift `SparkNetwork` verbatim from
+ * Live cashu wallet handle (mint info / keysets / keys / seed) held on a cashu `Account` —
+ * the per-mint protocol-metadata memo (§0 state kind 2). Resolved (Slice 3) to the real
+ * `ExtendedCashuWallet` (cashu-ts `Wallet` subclass) from the SDK-internal `lib/cashu`.
+ */
+export type ExtendedCashuWallet = ExtendedCashuWalletClass;
+
+/**
+ * Spark network discriminant. Lifted verbatim from
  * `app/features/agicash-db/json-models/spark-account-details-db-data.ts`.
  */
 export type SparkNetwork = 'MAINNET' | 'REGTEST';
@@ -37,19 +43,17 @@ export type SparkNetwork = 'MAINNET' | 'REGTEST';
 /**
  * A raw cashu-ts protocol `Proof` (distinct from the domain `CashuProof`).
  * Carried by `CashuTokenMeltData.tokenProofs` (master: `z.array(ProofSchema)`).
- * TODO(Slice-2/3): `import type { Proof } from '@cashu/cashu-ts'` (alias here as
- * `CashuProtocolProof`); shape = `app/lib/cashu/types.ts#ProofSchema`.
+ * Resolved (Slice 3) to cashu-ts `Proof`.
  */
-export type CashuProtocolProof = unknown;
+export type CashuProtocolProof = Proof;
 
 /**
- * The `dleq` / `witness` sub-fields of a cashu-ts `Proof`, referenced by
- * `CashuProof`.
- * TODO(Slice-2/3): `import type { Proof } from '@cashu/cashu-ts'` and use
- * `Proof['dleq']` / `Proof['witness']` (matches `app/lib/cashu/types.ts#ProofSchema`).
+ * The `dleq` / `witness` sub-fields of a cashu-ts `Proof`, referenced by `CashuProof`.
+ * Resolved (Slice 3) to `Proof['dleq']` / `Proof['witness']` (matches
+ * `app/lib/cashu/types.ts#ProofSchema`).
  */
-export type ProofDleq = unknown;
-export type ProofWitness = unknown;
+export type ProofDleq = Proof['dleq'];
+export type ProofWitness = Proof['witness'];
 
 // ---------------------------------------------------------------------------
 // Utility types

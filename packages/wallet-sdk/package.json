@@ -11,8 +11,12 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@agicash/breez-sdk-spark": "0.13.5-1",
     "@agicash/opensecret": "catalog:",
     "@cashu/cashu-ts": "3.6.1",
+    "@noble/hashes": "1.8.0",
+    "@scure/bip39": "1.6.0",
+    "@stablelib/base64": "catalog:",
     "@supabase/supabase-js": "2.95.2",
     "jwt-decode": "4.0.0"
   },

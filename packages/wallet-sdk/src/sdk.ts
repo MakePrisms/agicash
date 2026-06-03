@@ -35,8 +35,11 @@ import { AccountsDomainImpl } from './domains/accounts';
 import { AuthDomainImpl } from './domains/auth';
 import { ScanDomainImpl } from './domains/scan';
 import { UserDomainImpl } from './domains/user';
-import { DeferredAccountHandleResolver } from './internal/account-handle-resolver';
+import { LiveAccountHandleResolver } from './internal/account-handle-resolver';
 import { AccountRepository } from './internal/account-repository';
+import { MintMetadataCache } from './internal/cashu-wallet';
+import { createEncryption } from './internal/encryption';
+import { SparkWalletCache } from './internal/spark-wallet';
 import { TypedEventEmitter } from './internal/event-emitter';
 import { GuestAccountStorage } from './internal/guest-account-storage';
 import { OpenSecretClient } from './internal/open-secret';
@@ -74,6 +77,10 @@ export type SdkConnections = {
   readonly events: TypedEventEmitter<SdkEventMap>;
   /** leader-election instance id (provided or auto-generated). */
   readonly clientId: string;
+  /** Per-mint protocol-metadata memo (held so `destroy()` can drop it). */
+  readonly mintCache: MintMetadataCache;
+  /** Per-(mnemonic,network) connected-spark-wallet memo (held so `destroy()` can drop it). */
+  readonly sparkCache: SparkWalletCache;
 };
 
 /** Validate `config` (shape the rest of `create` relies on). Throws on a missing field. */
@@ -227,6 +234,11 @@ export class Sdk {
 
     const events = new TypedEventEmitter<SdkEventMap>();
 
+    // Live-handle memos (the cashu per-mint protocol metadata + the spark per-wallet
+    // connection). Held on the connection bundle so `destroy()` can drop them.
+    const mintCache = new MintMetadataCache();
+    const sparkCache = new SparkWalletCache();
+
     const connections: SdkConnections = {
       supabase,
       openSecret,
@@ -234,6 +246,8 @@ export class Sdk {
       storage: config.storage,
       events,
       clientId: config.clientId ?? generateClientId(),
+      mintCache,
+      sparkCache,
     };
 
     // --- Slice 1: auth + user domains ----------------------------------------
@@ -254,10 +268,24 @@ export class Sdk {
     // --- Slice 2: accounts + scan domains ------------------------------------
     // The account repository reads/writes the `wallet.accounts` table and maps rows to the
     // domain `Account`. An account's LIVE wallet handle + decrypted cashu proofs / spark
-    // balance are filled in by the handle resolver, which is DEFERRED to Slice 3 (the heavy
-    // mint/Breez init + `shared/encryption` decryption); here it is the deferral stub that
-    // yields the DB fields with a lazy live-handle (see `account-handle-resolver.ts`).
-    const accountHandleResolver = new DeferredAccountHandleResolver();
+    // balance are filled in by the handle resolver — the REAL one (Slice 3): it initialises
+    // the cashu mint wallet (1 h-memo'd keyset/keys fetch + 10 s timeout), decrypts the
+    // proofs (OpenSecret-derived key + ECIES), and connects the spark Breez wallet (when a
+    // `breezApiKey` is configured). The per-mint + per-spark memos (built above, on the
+    // connection bundle) live as long as the SDK and are dropped in `destroy()`.
+    const encryption = createEncryption(() =>
+      openSecret.getEncryptionPrivateKeyHex(),
+    );
+    const accountHandleResolver = new LiveAccountHandleResolver({
+      encryption,
+      getCashuWalletSeed: () => openSecret.getCashuWalletSeed(),
+      mintCache,
+      getSparkWalletMnemonic: () => openSecret.getSparkWalletMnemonic(),
+      sparkCache,
+      breezApiKey: config.breezApiKey,
+      // Master's `account-repository` default; the Breez SDK persists per-wallet state here.
+      sparkStorageDir: './.spark-data',
+    });
     const accountRepository = new AccountRepository(
       supabase,
       accountHandleResolver,
@@ -286,9 +314,13 @@ export class Sdk {
     await this.connections.supabase.removeAllChannels();
     // Drop the cached access token.
     this.connections.sessionToken.clear();
+    // Drop the live-handle memos (cashu mint metadata + connected spark wallets).
+    this.connections.mintCache.clear();
+    this.connections.sparkCache.clear();
     // Remove every event subscriber.
     this.connections.events.removeAllListeners();
-    // TODO(Slice 3/5): close mint melt/mint-quote WS subs + Breez SDK instances + halt
-    // the leader-elected processor + clear its timers (wired into this seam when opened).
+    // TODO(Slice 3/5): close mint melt/mint-quote WS subs + Breez SDK instances (call
+    // `disconnect()` on connected wallets) + halt the leader-elected processor + clear its
+    // timers (wired into this seam when those connections are opened).
   }
 }

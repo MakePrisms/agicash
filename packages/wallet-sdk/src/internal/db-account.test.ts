@@ -137,8 +137,10 @@ describe('DeferredAccountHandleResolver — the live handle is a throwing stub',
 
   test('reading a method off the deferred spark wallet throws NotImplementedError', async () => {
     const { wallet } = await deferred.resolveSpark({ network: 'MAINNET' });
-    expect(() => (wallet as { getInfo: () => unknown }).getInfo()).toThrow(
-      'Slice 3',
-    );
+    // `BreezSdk.getInfo` requires an argument (the type is real now); cast via `unknown` to
+    // assert the lazy stub throws on any access regardless of the method's real signature.
+    expect(() =>
+      (wallet as unknown as { getInfo: () => unknown }).getInfo(),
+    ).toThrow('Slice 3');
   });
 });

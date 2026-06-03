@@ -26,6 +26,8 @@ import {
   convertGuestToUserAccount as osConvertGuestToUserAccount,
   fetchUser as osFetchUser,
   generateThirdPartyToken,
+  getPrivateKey as osGetPrivateKey,
+  getPrivateKeyBytes as osGetPrivateKeyBytes,
   handleGoogleCallback as osHandleGoogleCallback,
   initiateGoogleAuth as osInitiateGoogleAuth,
   refreshAccessToken as osRefreshAccessToken,
@@ -36,7 +38,9 @@ import {
   signUp as osSignUp,
   signUpGuest as osSignUpGuest,
 } from '@agicash/opensecret';
+import { mnemonicToSeedSync } from '@scure/bip39';
 import { jwtDecode } from 'jwt-decode';
+import { getSeedPhraseDerivationPath } from './lib-account-cryptography';
 import type { StorageAdapter } from '../types/dependencies';
 
 /**
@@ -58,6 +62,16 @@ export type OpenSecretUser = {
 const ACCESS_TOKEN_KEY = 'access_token';
 /** localStorage key the OpenSecret SDK persists its refresh token under. */
 const REFRESH_TOKEN_KEY = 'refresh_token';
+
+/**
+ * Derivation path for the user's data-encryption key (`'enc'` = `10111099` in ASCII). Matches
+ * master `shared/encryption.ts#encryptionKeyDerivationPath`; used to decrypt cashu proofs.
+ */
+const ENCRYPTION_KEY_DERIVATION_PATH = `m/10111099'/0'`;
+/** BIP-85 path for the cashu wallet's child seed mnemonic (master `getSeedPhraseDerivationPath('cashu', 12)`). */
+const CASHU_SEED_DERIVATION_PATH = getSeedPhraseDerivationPath('cashu', 12);
+/** BIP-85 path for the spark wallet's child seed mnemonic (master `getSeedPhraseDerivationPath('spark', 12)`). */
+const SPARK_SEED_DERIVATION_PATH = getSeedPhraseDerivationPath('spark', 12);
 
 /** Init params for the OpenSecret client (from `SdkConfig.openSecret`). */
 export type OpenSecretConfig = {
@@ -237,5 +251,54 @@ export class OpenSecretClient {
     }
     const { user } = await osFetchUser();
     return user;
+  }
+
+  // --- per-user secret derivation (Slice 3 — cashu proof decrypt + wallet seeds) ----
+  //
+  // Each derives a deterministic per-user secret from the enclave. The SDK never sees the
+  // master seed; it asks the enclave to derive a child key/mnemonic at a fixed path. Re-houses
+  // master's `shared/encryption.ts` + `shared/cashu.ts` + `shared/spark.ts` query options off
+  // TanStack onto plain calls (the values are stable for the session; the resolver memoises).
+
+  /**
+   * The hex-encoded data-encryption private key (`getPrivateKeyBytes` at
+   * {@link ENCRYPTION_KEY_DERIVATION_PATH}). The `internal/encryption` layer `hexToBytes`-
+   * decodes it. Re-houses master `encryptionPrivateKeyQueryOptions`.
+   *
+   * @returns the hex-encoded private key.
+   */
+  async getEncryptionPrivateKeyHex(): Promise<string> {
+    const { private_key } = await osGetPrivateKeyBytes({
+      private_key_derivation_path: ENCRYPTION_KEY_DERIVATION_PATH,
+    });
+    return private_key;
+  }
+
+  /**
+   * The cashu wallet's BIP39 seed bytes: derive the child mnemonic at
+   * {@link CASHU_SEED_DERIVATION_PATH} then `mnemonicToSeedSync`. Re-houses master
+   * `shared/cashu.ts#seedQueryOptions`.
+   *
+   * @returns the 64-byte BIP39 seed.
+   */
+  async getCashuWalletSeed(): Promise<Uint8Array> {
+    const { mnemonic } = await osGetPrivateKey({
+      seed_phrase_derivation_path: CASHU_SEED_DERIVATION_PATH,
+    });
+    return mnemonicToSeedSync(mnemonic);
+  }
+
+  /**
+   * The spark wallet's seed mnemonic (the child mnemonic at
+   * {@link SPARK_SEED_DERIVATION_PATH}). Re-houses master
+   * `shared/spark.ts#sparkMnemonicQueryOptions`.
+   *
+   * @returns the BIP39 mnemonic phrase.
+   */
+  async getSparkWalletMnemonic(): Promise<string> {
+    const { mnemonic } = await osGetPrivateKey({
+      seed_phrase_derivation_path: SPARK_SEED_DERIVATION_PATH,
+    });
+    return mnemonic;
   }
 }
