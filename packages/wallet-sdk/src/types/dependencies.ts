@@ -89,13 +89,21 @@ export type Json =
  * (extracted from `app/lib/bolt11`).
  */
 export type Bolt11Invoice = {
+  /** Invoice amount in millisatoshis, or undefined for amountless invoices. */
   amountMsat: number | undefined;
+  /** Invoice amount in satoshis, or undefined for amountless invoices. */
   amountSat: number | undefined;
+  /** Invoice creation time, Unix epoch milliseconds. */
   createdAtUnixMs: number;
+  /** Invoice expiry time, Unix epoch milliseconds. */
   expiryUnixMs: number;
+  /** Network the invoice is for (e.g. "bitcoin"/"testnet"), or undefined. */
   network: string | undefined;
+  /** Invoice description/memo, or undefined. */
   description: string | undefined;
+  /** Public key of the payee node. */
   payeeNodeKey: string;
+  /** Payment hash of the invoice. */
   paymentHash: string;
 };
 
@@ -119,7 +127,10 @@ export type ParsedToken = {
  * `@agicash/opensecret-sdk` (its `configure({ storage })` contract).
  */
 export type StorageAdapter = {
+  /** Read a stored value by key (null if absent); may be sync or async. */
   getItem(key: string): Promise<string | null> | string | null;
+  /** Write a value under a key; may be sync or async. */
   setItem(key: string, value: string): Promise<void> | void;
+  /** Delete a stored value by key; may be sync or async. */
   removeItem(key: string): Promise<void> | void;
 };

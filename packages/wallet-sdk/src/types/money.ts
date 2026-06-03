@@ -15,7 +15,9 @@
 /** supported currencies — verbatim from app/lib/money/types.ts */
 export type Currency = 'USD' | 'BTC';
 
+/** Denomination units for USD amounts. */
 export type UsdUnit = 'usd' | 'cent';
+/** Denomination units for BTC amounts. */
 export type BtcUnit = 'btc' | 'sat' | 'msat';
 
 /** Unit to denominate the given currency — verbatim from app/lib/money/types.ts */
