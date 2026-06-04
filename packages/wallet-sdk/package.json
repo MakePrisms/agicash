@@ -7,7 +7,15 @@
     "./*": "./src/*"
   },
   "scripts": {
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agicash/opensecret": "catalog:",
+    "@cashu/cashu-ts": "3.6.1",
+    "@supabase/supabase-js": "2.95.2",
+    "@tanstack/query-core": "5.90.20",
+    "jwt-decode": "4.0.0"
   },
   "devDependencies": {
     "typescript": "catalog:"

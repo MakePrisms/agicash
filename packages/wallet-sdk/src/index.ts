@@ -1,5 +1,12 @@
-// @agicash/wallet-sdk — reactive contract (design B)
-// TanStack is hidden behind Query<T>; reads return Query<T>, derivations are sync, writes return Promise.
+/**
+ * @agicash/wallet-sdk — public entry barrel (PR2: core + reactive runtime).
+ *
+ * TanStack stays HIDDEN inside the SDK behind the lib-agnostic Query<T> contract.
+ * PR2 turns PR1's `declare class` shells into real implementations: the error
+ * classes, the classify() fn, the event emitter, the Sdk.create factory + the
+ * QueryClient-backed reactive runtime. Domain business logic is STUBBED until
+ * each later slice lands.
+ */
 
 // ---- Core reactive types ----
 export type { Query, QueryState } from './types/query';
@@ -7,14 +14,16 @@ export type { Query, QueryState } from './types/query';
 // ---- Value types ----
 export type { Money, Currency } from './types/money';
 
-// ---- Error classes + classifier ----
+// ---- Error classes + classifier (real VALUES in PR2) ----
 export {
   SdkError,
   ConcurrencyError,
   DomainError,
   NotFoundError,
-  classify,
-} from './types/errors';
+  NotImplementedError,
+} from './errors';
+export { classify } from './classify';
+export type { ErrorClass } from './classify';
 
 // ---- Events ----
 export type {
@@ -118,7 +127,7 @@ export type {
   ExchangeRateDomain,
 } from './domains';
 
-// ---- Sdk class + config ----
+// ---- Sdk class + config (real VALUE in PR2) ----
 export type { StorageAdapter, SdkConfig } from './sdk';
 export { Sdk } from './sdk';
 

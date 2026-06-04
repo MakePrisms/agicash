@@ -1,0 +1,23 @@
+{
+  "name": "@agicash/react-wallet-sdk",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agicash/wallet-sdk": "workspace:*",
+    "react": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.5",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^18 || ^19"
+  }
+}
