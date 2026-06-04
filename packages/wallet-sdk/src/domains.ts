@@ -5,6 +5,7 @@ import type {
   Account,
   AddAccountConfig,
   CashuAccount,
+  ExtendedAccount,
   SparkAccount,
 } from './types/account';
 import type {
@@ -43,16 +44,33 @@ export type CompleteOAuthParams = { code: string; state?: string };
 // ---- Domains ----
 
 export interface AccountsDomain {
-  /** Observable fetch — returns Query<T> */
-  list(): Query<Account[]>;
-  /** Observable fetch — returns Query<T> */
-  get(id: string): Query<Account | null>;
-  /** Observable fetch — returns Query<T> */
-  getDefault(params?: { currency?: Currency }): Query<Account | null>;
+  /**
+   * Observable fetch — returns `Query<ExtendedAccount[]>`. Each account carries `isDefault`
+   * (the SDK computes it from the user's per-currency default-account ids); the default sorts
+   * to the top.
+   */
+  list(): Query<ExtendedAccount[]>;
+  /**
+   * Observable fetch — returns `Query<ExtendedAccount | null>` (the account carries
+   * `isDefault`).
+   */
+  get(id: string): Query<ExtendedAccount | null>;
+  /**
+   * Observable fetch — returns `Query<ExtendedAccount | null>` (the default account, which
+   * therefore has `isDefault === true`).
+   */
+  getDefault(params?: { currency?: Currency }): Query<ExtendedAccount | null>;
   /** Pure derivation — sync */
   getBalance(account: Account): Money;
-  /** Pure derivation over passed-in accounts — sync */
-  suggestFor(intent: PaymentIntent, accounts: Account[]): AccountSuggestion;
+  /**
+   * Pure derivation over passed-in accounts — sync. Takes {@link ExtendedAccount}s so the
+   * no-sufficient-balance fallback can pick the user's default account (`isDefault`),
+   * matching master.
+   */
+  suggestFor(
+    intent: PaymentIntent,
+    accounts: ExtendedAccount[],
+  ): AccountSuggestion;
   add(config: AddAccountConfig): Promise<Account>;
   setDefault(account: Account): Promise<void>;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { suggestAccountFor } from './suggest-account';
-import type { Account, CashuAccount, SparkAccount } from '../types/account';
+import type { Account, ExtendedAccount } from '../types/account';
 import { type Currency, Money } from '../types/money';
 import type { ParsedDestination, PaymentIntent } from '../types/scan';
 
@@ -18,7 +18,8 @@ function cashuAccount(opts: {
   currency?: 'BTC' | 'USD';
   purpose?: Account['purpose'];
   createdAt?: string;
-}): CashuAccount {
+  isDefault?: boolean;
+}): ExtendedAccount<'cashu'> {
   return {
     id: opts.id,
     name: opts.id,
@@ -35,9 +36,12 @@ function cashuAccount(opts: {
     keysetCounters: {},
     proofs:
       opts.sats > 0
-        ? ([{ amount: opts.sats }] as unknown as CashuAccount['proofs'])
+        ? ([
+            { amount: opts.sats },
+          ] as unknown as ExtendedAccount<'cashu'>['proofs'])
         : [],
     wallet: {} as never,
+    isDefault: opts.isDefault ?? false,
   };
 }
 
@@ -48,7 +52,8 @@ function sparkAccount(opts: {
   isOnline?: boolean;
   currency?: 'BTC' | 'USD';
   createdAt?: string;
-}): SparkAccount {
+  isDefault?: boolean;
+}): ExtendedAccount<'spark'> {
   const currency = opts.currency ?? 'BTC';
   return {
     id: opts.id,
@@ -67,6 +72,7 @@ function sparkAccount(opts: {
         : new Money({ amount: opts.sats, currency, unit: 'sat' }),
     network: 'MAINNET',
     wallet: {} as never,
+    isDefault: opts.isDefault ?? false,
   };
 }
 
@@ -196,22 +202,36 @@ describe('suggestAccountFor', () => {
   });
 
   describe('default fallback (nothing has sufficient balance)', () => {
-    test('falls back to the user default account id when provided', () => {
+    test('falls back to the isDefault account (master parity)', () => {
       const a = cashuAccount({ id: 'a', sats: 10 });
-      const b = cashuAccount({ id: 'b', sats: 20 });
-      const result = suggestAccountFor(sendSats(5000), [a, b], 'b');
+      const b = cashuAccount({ id: 'b', sats: 20, isDefault: true });
+      const result = suggestAccountFor(sendSats(5000), [a, b]);
       expect(result.recommended.id).toBe('b');
       expect(result.alternatives).toHaveLength(0);
       expect(result.insufficient.map((x) => x.id)).toEqual(['a']);
       expect(result.reason).toBe('insufficient balance; default account');
     });
 
-    test('falls back to the first insufficient account when no default id given', () => {
+    test('falls back to the first insufficient account when none is the default', () => {
       const a = cashuAccount({ id: 'a', sats: 10 });
       const b = cashuAccount({ id: 'b', sats: 20 });
       const result = suggestAccountFor(sendSats(5000), [a, b]);
       expect(result.recommended.id).toBe('a');
       expect(result.insufficient.map((x) => x.id)).toEqual(['b']);
+    });
+
+    test('the isDefault fallback respects the currency filter (per-currency default)', () => {
+      // A BTC Lightning send filters out USD accounts BEFORE the fallback, so a USD default
+      // is never picked for a BTC send (mirrors master's currency-scoped isDefault).
+      const usdDefault = cashuAccount({
+        id: 'usd-default',
+        sats: 10,
+        currency: 'USD',
+        isDefault: true,
+      });
+      const btc = cashuAccount({ id: 'btc', sats: 10, currency: 'BTC' });
+      const result = suggestAccountFor(sendSats(5000), [usdDefault, btc]);
+      expect(result.recommended.id).toBe('btc');
     });
   });
 

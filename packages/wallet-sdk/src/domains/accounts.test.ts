@@ -4,7 +4,7 @@ import type { AccountRepository } from '../internal/account-repository';
 import type { SessionResolver } from '../internal/session';
 import type { UserRepository } from '../internal/user-repository';
 import { QueryClient } from '../query';
-import type { Account, CashuAccount } from '../types/account';
+import type { Account, CashuAccount, ExtendedAccount } from '../types/account';
 import { type Currency, Money } from '../types/money';
 import type { Query } from '../types/query';
 import type { PaymentIntent } from '../types/scan';
@@ -56,6 +56,13 @@ function cashuAccount(opts: {
         : [],
     wallet: {} as never,
   };
+}
+
+/** Build an extended account (adds the `isDefault` flag `suggestFor` reads). */
+function extended(
+  opts: Parameters<typeof cashuAccount>[0] & { isDefault?: boolean },
+): ExtendedAccount {
+  return { ...cashuAccount(opts), isDefault: opts.isDefault ?? false };
 }
 
 /** A fresh QueryClient per domain (the SDK-internal one in production). */
@@ -139,6 +146,22 @@ describe('AccountsDomainImpl.list (observable read → Query)', () => {
 
     const result = await query.toPromise();
     expect(result.map((x) => x.id)).toEqual(['b', 'a']);
+    // ExtendedAccount: every account carries `isDefault` (none is the user's default here).
+    expect(result.map((x) => x.isDefault)).toEqual([false, false]);
+  });
+
+  test('decorates accounts with isDefault and sorts the default account to the top', async () => {
+    // baseUser.defaultBtcAccountId === 'btc-default'.
+    const def = cashuAccount({ id: 'btc-default' });
+    def.createdAt = '2026-05-01T00:00:00.000Z'; // newest — would sort LAST by creation date
+    const other = cashuAccount({ id: 'other' });
+    other.createdAt = '2026-01-01T00:00:00.000Z';
+    const { domain } = buildDomain({ accounts: [other, def] });
+
+    const result = await domain.list().toPromise();
+    // Default sorts to the top despite being the newest account.
+    expect(result.map((x) => x.id)).toEqual(['btc-default', 'other']);
+    expect(result.map((x) => x.isDefault)).toEqual([true, false]);
   });
 
   test('subscribe fires with the resolved accounts', async () => {
@@ -162,8 +185,20 @@ describe('AccountsDomainImpl.get (observable read → Query)', () => {
 
     const query = domain.get('a');
     expect(typeof query.subscribe).toBe('function');
-    expect((await query.toPromise())?.id).toBe('a');
+    const got = await query.toPromise();
+    expect(got?.id).toBe('a');
+    // ExtendedAccount: carries `isDefault` (false — 'a' is not the user's default).
+    expect(got?.isDefault).toBe(false);
     expect(getById).toHaveBeenCalledWith('a');
+  });
+
+  test('flags isDefault when the fetched account is the user default', async () => {
+    const def = cashuAccount({ id: 'btc-default' });
+    const { domain } = buildDomain({ accounts: [def] });
+
+    const got = await domain.get('btc-default').toPromise();
+    expect(got?.id).toBe('btc-default');
+    expect(got?.isDefault).toBe(true);
   });
 
   test('resolves to null for a missing id', async () => {
@@ -188,6 +223,8 @@ describe('AccountsDomainImpl.getDefault (observable read → Query)', () => {
 
     const result = await domain.getDefault().toPromise();
     expect(result?.id).toBe('btc-default');
+    // The default account is, by definition, flagged isDefault.
+    expect(result?.isDefault).toBe(true);
   });
 
   test('reads the USD default when currency=USD', async () => {
@@ -198,6 +235,7 @@ describe('AccountsDomainImpl.getDefault (observable read → Query)', () => {
 
     const result = await domain.getDefault({ currency: 'USD' }).toPromise();
     expect(result?.id).toBe('usd-default');
+    expect(result?.isDefault).toBe(true);
     expect(getById).toHaveBeenCalledWith('usd-default');
   });
 
@@ -273,6 +311,43 @@ describe('AccountsDomainImpl.setDefault (write → Promise)', () => {
       'Unsupported currency',
     );
   });
+
+  test('invalidates the accounts reads so isDefault flips live for subscribers', async () => {
+    // Spy a client to assert the read keys are invalidated after the write.
+    const invalidateQueries = mock(
+      async (_filters: { queryKey: unknown[] }) => undefined,
+    );
+    const client = { invalidateQueries } as unknown as QueryClient;
+    const accountRepo = {
+      getAllActive: mock(async () => []),
+      get: mock(async () => null),
+      add: mock(async () => cashuAccount({ id: 'x' })),
+    } as unknown as AccountRepository;
+    const userRepo = {
+      setDefaultAccount: mock(async () => baseUser),
+    } as unknown as UserRepository;
+    const session = {
+      requireCurrentUser: async () => baseUser,
+      getCurrentUser: async () => baseUser,
+    } as unknown as SessionResolver;
+    const domain = new AccountsDomainImpl(
+      client,
+      accountRepo,
+      userRepo,
+      session,
+    );
+
+    await domain.setDefault(cashuAccount({ id: 'new-btc', currency: 'BTC' }));
+
+    const invalidatedKeys = invalidateQueries.mock.calls.map(
+      ([arg]) => arg.queryKey,
+    );
+    expect(invalidatedKeys).toEqual([
+      ['accounts'],
+      ['account'],
+      ['accounts:default'],
+    ]);
+  });
 });
 
 describe('AccountsDomainImpl.getBalance (pure derivation → SYNC)', () => {
@@ -302,7 +377,7 @@ describe('AccountsDomainImpl.getBalance (pure derivation → SYNC)', () => {
 
 describe('AccountsDomainImpl.suggestFor (pure pick → SYNC)', () => {
   test('recommends the funded online account for a token-receive, returning the value DIRECTLY', () => {
-    const a = cashuAccount({ id: 'a', sats: 0 });
+    const a = extended({ id: 'a', sats: 0 });
     const { domain } = buildDomain();
     const intent: PaymentIntent = { kind: 'token-receive', token: 'cashuAx' };
 
@@ -312,9 +387,11 @@ describe('AccountsDomainImpl.suggestFor (pure pick → SYNC)', () => {
     expect(Array.isArray(result.alternatives)).toBe(true);
   });
 
-  test('is pure over the passed-in accounts (no session read) — falls back to the first insufficient when none has enough balance', () => {
-    const a = cashuAccount({ id: 'a', sats: 10 });
-    const def = cashuAccount({ id: 'btc-default', sats: 20 });
+  test('restores master default-fallback: no sufficient balance → suggests the DEFAULT account (not "first insufficient")', () => {
+    // Two insufficient accounts; the SECOND is the user's default. The pure fallback now
+    // picks the `isDefault` account (master parity) rather than the first insufficient one.
+    const first = extended({ id: 'a', sats: 10, isDefault: false });
+    const def = extended({ id: 'btc-default', sats: 20, isDefault: true });
     const { domain } = buildDomain();
     const intent: PaymentIntent = {
       kind: 'send',
@@ -338,14 +415,46 @@ describe('AccountsDomainImpl.suggestFor (pure pick → SYNC)', () => {
       }),
     };
 
-    // SYNC `suggestFor` does NOT read the session for a default-account id, so the fallback
-    // degrades to the first insufficient account (the pure suggester's no-default behaviour).
-    const result = domain.suggestFor(intent, [a, def]);
+    // Reads `isDefault` off the passed-in accounts — no session read inside suggestFor.
+    const result = domain.suggestFor(intent, [first, def]);
+    expect(result.recommended.id).toBe('btc-default');
+    expect(result.reason).toBe('insufficient balance; default account');
+    // The non-recommended insufficient account is still surfaced.
+    expect(result.insufficient.map((x) => x.id)).toEqual(['a']);
+  });
+
+  test('is pure (no session read): when nothing is default, falls back to the first insufficient', () => {
+    const a = extended({ id: 'a', sats: 10 });
+    const b = extended({ id: 'b', sats: 20 });
+    const { domain } = buildDomain({ user: null });
+    const intent: PaymentIntent = {
+      kind: 'send',
+      destination: {
+        kind: 'bolt11',
+        invoice: {
+          amountSat: 5000,
+          amountMsat: 5000000,
+          createdAtUnixMs: 0,
+          expiryUnixMs: 0,
+          network: 'bitcoin',
+          description: undefined,
+          payeeNodeKey: '00'.repeat(33),
+          paymentHash: 'hash',
+        },
+      },
+      amount: new Money<Currency>({
+        amount: 5000,
+        currency: 'BTC',
+        unit: 'sat',
+      }),
+    };
+
+    const result = domain.suggestFor(intent, [a, b]);
     expect(result.recommended.id).toBe('a');
   });
 
   test('works without a session set up at all (pure over accounts)', () => {
-    const a = cashuAccount({ id: 'a', sats: 1000 });
+    const a = extended({ id: 'a', sats: 1000 });
     const { domain } = buildDomain({ user: null });
     const intent: PaymentIntent = { kind: 'receive' };
 

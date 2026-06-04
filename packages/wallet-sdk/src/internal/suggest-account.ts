@@ -26,7 +26,7 @@
  * @module
  */
 import type { AccountSuggestion } from '../domains';
-import type { Account } from '../types/account';
+import type { Account, ExtendedAccount } from '../types/account';
 import type { Money } from '../types/money';
 import type { ParsedDestination, PaymentIntent } from '../types/scan';
 import { getAccountBalance } from './account-balance';
@@ -120,20 +120,24 @@ function compareCandidates(a: Account, b: Account): number {
  *  4. **Rank** — order the sufficient accounts cheap-first (purpose priority → balance → age)
  *     and pick the top one as `recommended`, the rest as `alternatives`.
  *  5. **Default fallback** — if nothing has sufficient balance, fall back to the user's
- *     default account for the (filtered) currency when one is present in `accounts`, so the
- *     UI can still pre-select an account to top up; otherwise throw (no candidate at all).
+ *     default account (the `isDefault` account in the filtered/eligible set) so the UI can
+ *     still pre-select an account to top up; otherwise the first insufficient account; only
+ *     throw when there is no candidate at all.
+ *
+ * The default is read straight off the passed-in {@link ExtendedAccount}s (`isDefault`,
+ * computed currency-scoped in the accounts read), so this stays PURE — no session read. Since
+ * `isDefault` is per-currency, the eligible-currency filter already restricts the flagged
+ * account to the intent's currency.
  *
  * @param intent - what the user wants to do.
- * @param accounts - the accounts to choose from (the caller's cached set).
- * @param defaultAccountId - the user's default account id for the intent's currency, if known
- *   (used only for the fallback when no account has sufficient balance).
+ * @param accounts - the extended accounts to choose from (the caller's cached set; carry
+ *   `isDefault`).
  * @returns the {@link AccountSuggestion}.
  * @throws Error if `accounts` is empty or no account matches the intent at all.
  */
 export function suggestAccountFor(
   intent: PaymentIntent,
-  accounts: Account[],
-  defaultAccountId?: string,
+  accounts: ExtendedAccount[],
 ): AccountSuggestion {
   if (accounts.length === 0) {
     throw new Error('No accounts to choose from');
@@ -154,8 +158,8 @@ export function suggestAccountFor(
   });
 
   // 3: split by sufficient balance.
-  const sufficient: Account[] = [];
-  const insufficient: Account[] = [];
+  const sufficient: ExtendedAccount[] = [];
+  const insufficient: ExtendedAccount[] = [];
   for (const account of eligible) {
     if (hasSufficientBalance(account, amount, isReceive)) {
       sufficient.push(account);
@@ -177,10 +181,10 @@ export function suggestAccountFor(
   }
 
   // 5: default fallback — nothing has sufficient balance. Prefer the user's default account
-  // (for the eligible currency) so the UI can still pre-select; else the first insufficient.
-  const fallback =
-    (defaultAccountId && eligible.find((a) => a.id === defaultAccountId)) ||
-    insufficient[0];
+  // (the `isDefault` one in the eligible set) so the UI can still pre-select; else the first
+  // insufficient. `isDefault` is per-currency, so the eligible-currency filter already scopes
+  // it to the intent's currency.
+  const fallback = eligible.find((a) => a.isDefault) ?? insufficient[0];
 
   if (!fallback) {
     throw new Error('No account matches the payment intent');

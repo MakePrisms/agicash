@@ -8,17 +8,21 @@
  *
  * REACTIVE OVERLAY: TanStack is no longer in the consumer — it is hidden inside the SDK.
  *  - `list()` / `get(id)` / `getDefault(params?)` are OBSERVABLE FETCHES → each returns a
- *    `Query<T>`. The fetch BODY is identical to the no-cache read (the DB read via the
- *    account repository + session); it is wrapped via {@link toQuery} over the SDK-internal
- *    `QueryClient` and MEMOISED per key (`#q`) so repeated calls return the SAME stable
- *    `Query` ref (matching the per-key-memo pattern the other reactive domains use).
- *    Parameterised reads (`get(id)`, `getDefault({currency})`) memo one `Query` per
- *    id/currency. Realtime / orchestrators (Slice 5) write the same client (e.g.
- *    `setQueryData(['accounts'], next)`) to push fresh values to subscribers.
+ *    `Query<ExtendedAccount...>`. The fetch BODY is the no-cache read (the DB read via the
+ *    account repository + session) DECORATED with `isDefault`: the resolved current user's
+ *    per-currency default-account ids drive {@link getExtendedAccounts}, so each account
+ *    carries `isDefault` (and the default sorts to the top). The body is wrapped via
+ *    {@link toQuery} over the SDK-internal `QueryClient` and MEMOISED per key (`#q`) so
+ *    repeated calls return the SAME stable `Query` ref (matching the per-key-memo pattern
+ *    the other reactive domains use). Parameterised reads (`get(id)`, `getDefault({currency})`)
+ *    memo one `Query` per id/currency. Realtime / orchestrators (Slice 5) write the same
+ *    client (e.g. `setQueryData(['accounts'], next)`) to push fresh values to subscribers;
+ *    `setDefault` invalidates these keys so `isDefault` flips live for subscribers.
  *  - `getBalance(account)` is a PURE DERIVATION → stays SYNC. It sums proofs (cashu) / reads
  *    `account.balance` (spark) over the account it is handed; it never reads the cache, so it
  *    is NOT wrapped in `toQuery`.
- *  - `suggestFor(intent, accounts)` is a PURE pick over the passed-in accounts → stays SYNC.
+ *  - `suggestFor(intent, accounts)` is a PURE pick over the passed-in {@link ExtendedAccount}s
+ *    → stays SYNC. The default-account fallback reads `accounts[].isDefault` (no session read).
  *  - `add(...)` / `setDefault(account)` are WRITES → stay `Promise` (lifted verbatim).
  *
  * Two-mode API rule (Josip 6/01): `list`/`get`/`getDefault` are FETCHES; `add` CREATES;
@@ -36,11 +40,16 @@
 import type { AccountsDomain, AccountSuggestion } from '../domains';
 import { getAccountBalance } from '../internal/account-balance';
 import type { AccountRepository } from '../internal/account-repository';
+import { getExtendedAccounts } from '../internal/extended-account';
 import type { SessionResolver } from '../internal/session';
 import { suggestAccountFor } from '../internal/suggest-account';
 import type { UserRepository } from '../internal/user-repository';
 import { type QueryClient, toQuery } from '../query';
-import type { Account, AddAccountConfig } from '../types/account';
+import type {
+  Account,
+  AddAccountConfig,
+  ExtendedAccount,
+} from '../types/account';
 import { type Currency, Money } from '../types/money';
 import type { Query } from '../types/query';
 import type { PaymentIntent } from '../types/scan';
@@ -96,34 +105,47 @@ export class AccountsDomainImpl implements AccountsDomain {
   }
 
   /**
-   * All of the user's active accounts — as an observable {@link Query}. Re-houses master
-   * `useAccounts` / `getAllActive`; sorted oldest-first (matching master's creation-date
-   * sort). The fetch body is the no-cache read (session → `accounts.getAllActive`); the
-   * reactive overlay wraps it in a {@link toQuery}-backed `Query` (memoised per key).
+   * All of the user's active accounts — as an observable {@link Query} of
+   * {@link ExtendedAccount}s (each carries `isDefault`). Re-houses master `useAccounts`
+   * (`getAllActive` + `getExtendedAccounts`). The fetch body is the no-cache read
+   * (session → `accounts.getAllActive`) sorted oldest-first (master's creation-date sort),
+   * then decorated with `isDefault` from the current user's default-account ids (which
+   * re-sorts the default account to the top); the reactive overlay wraps it in a
+   * {@link toQuery}-backed `Query` (memoised per key).
    *
-   * @returns a stable `Query<Account[]>`.
+   * @returns a stable `Query<ExtendedAccount[]>`.
    */
-  list(): Query<Account[]> {
+  list(): Query<ExtendedAccount[]> {
     return this.#memo([ACCOUNTS_KEY], async () => {
       const user = await this.session.requireCurrentUser();
       const accounts = await this.accounts.getAllActive(user.id);
-      return accounts.sort(
+      const sorted = accounts.sort(
         (a, b) =>
           new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       );
+      return getExtendedAccounts(user, sorted);
     });
   }
 
   /**
-   * The account with this id, or `null` — as an observable {@link Query}. Re-houses master
-   * `AccountRepository.get` (the lazy DB lookup behind `useAccountOrNull`), so it returns
-   * expired accounts too. Memoised per id (one `Query` per distinct id).
+   * The account with this id, or `null` — as an observable {@link Query} of an
+   * {@link ExtendedAccount} (carries `isDefault`). Re-houses master `AccountRepository.get`
+   * (the lazy DB lookup behind `useAccountOrNull`), so it returns expired accounts too,
+   * decorated with `isDefault` from the current user's default-account ids. Memoised per id
+   * (one `Query` per distinct id).
    *
    * @param id - the account id.
-   * @returns a stable `Query<Account | null>`.
+   * @returns a stable `Query<ExtendedAccount | null>`.
    */
-  get(id: string): Query<Account | null> {
-    return this.#memo([ACCOUNT_KEY, id], () => this.accounts.get(id));
+  get(id: string): Query<ExtendedAccount | null> {
+    return this.#memo([ACCOUNT_KEY, id], async () => {
+      const account = await this.accounts.get(id);
+      if (!account) {
+        return null;
+      }
+      const user = await this.session.requireCurrentUser();
+      return getExtendedAccounts(user, [account])[0] ?? null;
+    });
   }
 
   /**
@@ -135,9 +157,9 @@ export class AccountsDomainImpl implements AccountsDomain {
    * the "user's default currency" case).
    *
    * @param params - optional `{ currency }`; defaults to the user's default currency.
-   * @returns a stable `Query<Account | null>`.
+   * @returns a stable `Query<ExtendedAccount | null>`.
    */
-  getDefault(params?: { currency?: Currency }): Query<Account | null> {
+  getDefault(params?: { currency?: Currency }): Query<ExtendedAccount | null> {
     const currencyKey = params?.currency ?? 'auto';
     return this.#memo([ACCOUNTS_DEFAULT_KEY, currencyKey], async () => {
       const user = await this.session.requireCurrentUser();
@@ -153,7 +175,12 @@ export class AccountsDomainImpl implements AccountsDomain {
       if (!defaultId) {
         return null;
       }
-      return this.accounts.get(defaultId);
+      const account = await this.accounts.get(defaultId);
+      if (!account) {
+        return null;
+      }
+      // The fetched account is the current default for the currency, so `isDefault` is true.
+      return getExtendedAccounts(user, [account])[0] ?? null;
     });
   }
 
@@ -193,6 +220,11 @@ export class AccountsDomainImpl implements AccountsDomain {
       // currency (master's `setDefaultCurrency` option defaults to false).
       defaultCurrency: user.defaultCurrency,
     });
+    // The default-account ids drive every read's `isDefault` (and the default-first sort), so
+    // invalidate the accounts reads: subscribers refetch and `isDefault` flips live.
+    await this.client.invalidateQueries({ queryKey: [ACCOUNTS_KEY] });
+    await this.client.invalidateQueries({ queryKey: [ACCOUNT_KEY] });
+    await this.client.invalidateQueries({ queryKey: [ACCOUNTS_DEFAULT_KEY] });
   }
 
   /**
@@ -211,22 +243,25 @@ export class AccountsDomainImpl implements AccountsDomain {
 
   /**
    * Recommend which of the passed-in `accounts` to use for `intent`. PURE → SYNC (no DB read,
-   * no live-wallet call, not wrapped in `toQuery`). NET-NEW logic; generalizes master's
-   * `findMatchingOfferOrGiftCardAccount` + online filter + default fallback. The web wallet
-   * feeds its cached accounts for an instant result.
+   * no session read, no live-wallet call, not wrapped in `toQuery`). NET-NEW logic;
+   * generalizes master's `findMatchingOfferOrGiftCardAccount` + online filter + default
+   * fallback. The web wallet feeds its cached {@link ExtendedAccount}s for an instant result.
    *
    * Pure over the accounts handed in: the cheap-first ranking and the online/balance filters
-   * read only the passed-in `accounts`. (The no-cache impl additionally read the current
-   * session to seed the default-account fallback; the reactive contract types this method
-   * SYNC and pure over `accounts`, so the session read is dropped — when nothing has
-   * sufficient balance the fallback degrades to the first insufficient account, exactly as
-   * the underlying pure suggester does with no default id.)
+   * read only the passed-in `accounts`. The default-account fallback (when nothing has
+   * sufficient balance, suggest the user's default account so the UI can pre-select an account
+   * to top up) reads `accounts[].isDefault` — which is why the read is `ExtendedAccount`,
+   * carrying that flag — so it stays pure (no session read) while restoring master's
+   * default-account fallback (rather than degrading to the first insufficient account).
    *
    * @param intent - what the user wants to do.
-   * @param accounts - the accounts to choose from.
+   * @param accounts - the extended accounts to choose from (carry `isDefault`).
    * @returns the {@link AccountSuggestion}.
    */
-  suggestFor(intent: PaymentIntent, accounts: Account[]): AccountSuggestion {
+  suggestFor(
+    intent: PaymentIntent,
+    accounts: ExtendedAccount[],
+  ): AccountSuggestion {
     return suggestAccountFor(intent, accounts);
   }
 }
