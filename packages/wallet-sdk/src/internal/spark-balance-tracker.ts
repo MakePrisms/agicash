@@ -27,10 +27,14 @@
  * @module
  */
 import type { SdkEvent } from '@agicash/breez-sdk-spark';
-import type { TypedEventEmitter } from './event-emitter';
-import { Money } from '../types/money';
+import type { QueryClient } from '../query';
 import type { SparkAccount } from '../types/account';
 import type { SdkEventMap } from '../types/events';
+import { Money } from '../types/money';
+import type { TypedEventEmitter } from './event-emitter';
+
+/** The accounts-list query key the `['accounts']`-keyed `accounts.list()` `Query` memoises on. */
+const ACCOUNTS_KEY = 'accounts';
 
 /**
  * Breez event types that can move a spark account's balance (master verbatim). On any of these
@@ -54,6 +58,13 @@ type Registration = {
  * Tracks live spark account balances off the Breez SDK's event stream and forwards balance
  * changes to the SDK event emitter as `account:updated` (compare-before-emit). One instance per
  * SDK; held so `Sdk.destroy()` / `background.stop()` can remove the listeners.
+ *
+ * REACTIVE OVERLAY (design B): a balance change is ALSO a DB-read-model change — the spark
+ * balance is not a Supabase DB trigger (it never crosses the `wallet:${userId}` realtime channel),
+ * so the realtime cache-invalidation backstop can never see it. This tracker therefore invalidates
+ * the `['accounts']` Query key ITSELF (alongside the `account:updated` emit), so an
+ * `accounts.list()` subscriber re-reads the now-changed balance and goes live. It is the spark
+ * analogue of the realtime forwarder's invalidate-on-broadcast.
  */
 export class SparkBalanceTracker {
   /** accountId -> its Breez listener registration. */
@@ -61,7 +72,16 @@ export class SparkBalanceTracker {
   /** accountId -> the last balance we emitted for (the compare-before-emit baseline). */
   private readonly lastBalances = new Map<string, Money | null>();
 
-  constructor(private readonly events: TypedEventEmitter<SdkEventMap>) {}
+  /**
+   * @param events - the SDK event emitter (the `account:updated` source).
+   * @param client - the SDK-internal `QueryClient`; on a balance change the tracker invalidates
+   *   `['accounts']` so the `accounts.list()` `Query` re-reads (the reactive net-new). Never
+   *   exposed to consumers.
+   */
+  constructor(
+    private readonly events: TypedEventEmitter<SdkEventMap>,
+    private readonly client: QueryClient,
+  ) {}
 
   /**
    * Register Breez balance listeners for the given online spark accounts. Idempotent per account
@@ -125,7 +145,10 @@ export class SparkBalanceTracker {
 
   /**
    * Emit `account:updated` iff `balance` differs from the last emitted balance for this account
-   * (compare-before-emit). The emitted account carries the fresh balance.
+   * (compare-before-emit). The emitted account carries the fresh balance. ALSO invalidates the
+   * `['accounts']` Query key (the reactive backstop) so an `accounts.list()` subscriber re-reads
+   * the now-changed balance — spark balances never cross the realtime channel, so this is the only
+   * place the cache learns of them.
    */
   private emitIfChanged(account: SparkAccount, balance: Money): void {
     const previous = this.lastBalances.get(account.id);
@@ -135,6 +158,8 @@ export class SparkBalanceTracker {
     this.lastBalances.set(account.id, balance);
     const updated: SparkAccount = { ...account, balance };
     this.events.emit('account:updated', { account: updated, op: 'updated' });
+    // Reactive net-new: the accounts-list read-model changed — re-read it for subscribers.
+    void this.client.invalidateQueries({ queryKey: [ACCOUNTS_KEY] });
   }
 
   /** Remove one account's Breez listener. */

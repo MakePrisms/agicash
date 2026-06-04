@@ -1,12 +1,29 @@
 import { describe, expect, mock, test } from 'bun:test';
-import { SparkBalanceTracker } from './spark-balance-tracker';
-import { TypedEventEmitter } from './event-emitter';
+import type { QueryClient } from '../query';
 import type { SparkAccount } from '../types/account';
-import { type Currency, Money } from '../types/money';
 import type { SdkEventMap } from '../types/events';
+import { type Currency, Money } from '../types/money';
+import { TypedEventEmitter } from './event-emitter';
+import { SparkBalanceTracker } from './spark-balance-tracker';
 
 const sats = (n: number): Money =>
   new Money({ amount: n, currency: 'BTC' as Currency, unit: 'sat' });
+
+/** A fake QueryClient capturing the `invalidateQueries` keys (the reactive backstop assertion). */
+function fakeQueryClient() {
+  const invalidated: unknown[][] = [];
+  const client = {
+    invalidateQueries: mock(async (filters: { queryKey: unknown[] }) => {
+      invalidated.push(filters.queryKey);
+    }),
+  } as unknown as QueryClient;
+  return {
+    client,
+    invalidated,
+    invalidatedKey: (key: unknown[]) =>
+      invalidated.some((k) => JSON.stringify(k) === JSON.stringify(key)),
+  };
+}
 
 /**
  * A mock spark account whose live Breez `wallet` records the registered `onEvent` callback (so a
@@ -61,9 +78,10 @@ const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 // -- Tests ----------------------------------------------------------------------------------
 
 describe('SparkBalanceTracker', () => {
-  test('emits account:updated on a balance-relevant Breez event with the fresh balance', async () => {
+  test('emits account:updated on a balance-relevant Breez event with the fresh balance, and invalidates ["accounts"]', async () => {
     const events = new TypedEventEmitter<SdkEventMap>();
-    const tracker = new SparkBalanceTracker(events);
+    const qc = fakeQueryClient();
+    const tracker = new SparkBalanceTracker(events, qc.client);
     const updates: SdkEventMap['account:updated'][] = [];
     events.on('account:updated', (e) => updates.push(e));
 
@@ -80,11 +98,28 @@ describe('SparkBalanceTracker', () => {
     expect((updates[0].account as SparkAccount).balance?.toNumber('sat')).toBe(
       5000,
     );
+    // Reactive net-new: a balance change invalidates the accounts-list Query so subscribers re-read.
+    expect(qc.invalidatedKey(['accounts'])).toBe(true);
+  });
+
+  test('compare-before-emit also gates the invalidate: an unchanged balance invalidates nothing', async () => {
+    const events = new TypedEventEmitter<SdkEventMap>();
+    const qc = fakeQueryClient();
+    const tracker = new SparkBalanceTracker(events, qc.client);
+
+    // baseline 5000; the wallet still reports 5000 after the event → no emit, no invalidate.
+    const { account, fire } = fakeSparkAccount('acc1', sats(5000));
+    tracker.track([account]);
+
+    fire('synced');
+    await flush();
+
+    expect(qc.invalidatedKey(['accounts'])).toBe(false);
   });
 
   test('ignores Breez events that cannot move the balance (no getInfo, no emit)', async () => {
     const events = new TypedEventEmitter<SdkEventMap>();
-    const tracker = new SparkBalanceTracker(events);
+    const tracker = new SparkBalanceTracker(events, fakeQueryClient().client);
     const updates: unknown[] = [];
     events.on('account:updated', (e) => updates.push(e));
 
@@ -104,7 +139,7 @@ describe('SparkBalanceTracker', () => {
 
   test('compare-before-emit: an event that does not change the balance is not forwarded', async () => {
     const events = new TypedEventEmitter<SdkEventMap>();
-    const tracker = new SparkBalanceTracker(events);
+    const tracker = new SparkBalanceTracker(events, fakeQueryClient().client);
     const updates: unknown[] = [];
     events.on('account:updated', (e) => updates.push(e));
 
@@ -120,7 +155,7 @@ describe('SparkBalanceTracker', () => {
 
   test('emits once, then suppresses a repeat at the same (new) balance', async () => {
     const events = new TypedEventEmitter<SdkEventMap>();
-    const tracker = new SparkBalanceTracker(events);
+    const tracker = new SparkBalanceTracker(events, fakeQueryClient().client);
     const updates: unknown[] = [];
     events.on('account:updated', (e) => updates.push(e));
 
@@ -139,7 +174,7 @@ describe('SparkBalanceTracker', () => {
 
   test('registers exactly one Breez listener per account even if track is called again', async () => {
     const events = new TypedEventEmitter<SdkEventMap>();
-    const tracker = new SparkBalanceTracker(events);
+    const tracker = new SparkBalanceTracker(events, fakeQueryClient().client);
     const { account } = fakeSparkAccount('acc1', sats(0));
 
     tracker.track([account]);
@@ -152,7 +187,7 @@ describe('SparkBalanceTracker', () => {
 
   test('stop() removes the Breez listeners', async () => {
     const events = new TypedEventEmitter<SdkEventMap>();
-    const tracker = new SparkBalanceTracker(events);
+    const tracker = new SparkBalanceTracker(events, fakeQueryClient().client);
     const { account, removed } = fakeSparkAccount('acc1', sats(0));
 
     tracker.track([account]);
@@ -165,7 +200,7 @@ describe('SparkBalanceTracker', () => {
 
   test('untracks an account no longer in the tracked set', async () => {
     const events = new TypedEventEmitter<SdkEventMap>();
-    const tracker = new SparkBalanceTracker(events);
+    const tracker = new SparkBalanceTracker(events, fakeQueryClient().client);
     const a = fakeSparkAccount('acc1', sats(0));
     const b = fakeSparkAccount('acc2', sats(0));
 

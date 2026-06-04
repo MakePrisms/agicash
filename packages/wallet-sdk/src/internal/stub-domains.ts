@@ -15,12 +15,7 @@
  *
  * @module
  */
-import type {
-  BackgroundDomain,
-  CashuDomain,
-  ExchangeRateDomain,
-  SparkDomain,
-} from '../domains';
+import type { CashuDomain, ExchangeRateDomain, SparkDomain } from '../domains';
 import { NotImplementedError } from '../errors';
 import type { Query } from '../types/query';
 
@@ -92,17 +87,10 @@ export const createSparkStub = (): SparkDomain => ({
 // ../domains/transactions + ../domains/contacts + ../domains/transfers, wired in Sdk.create) —
 // their stubs are removed.
 
+// NOTE: `BackgroundDomain` is REAL as of Slice 5 (see ../domains/background, wired in Sdk.create) —
+// its stub is removed.
+
 /** Stub `ExchangeRateDomain` (real impl: a later slice). */
 export const createExchangeRateStub = (): ExchangeRateDomain => ({
   get: () => stubQuery('exchangeRate.get'),
-});
-
-/**
- * Stub `BackgroundDomain` (real impl: Slice 5). `state()` returns a Query stub —
- * real observers get `NotImplementedError` until the slice lands.
- */
-export const createBackgroundStub = (): BackgroundDomain => ({
-  start: () => unimplemented('background.start'),
-  stop: () => unimplemented('background.stop'),
-  state: () => stubQuery('background.state'),
 });
