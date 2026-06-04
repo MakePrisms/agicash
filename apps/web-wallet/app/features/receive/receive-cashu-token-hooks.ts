@@ -14,7 +14,7 @@ import {
 import { tokenToMoney } from '~/features/shared/cashu';
 import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
 import { getClaimableProofs, getUnspentProofsFromToken } from '~/lib/cashu';
-import { type Currency, Money } from '~/lib/money';
+import { type Currency, Money } from '@agicash/lib';
 import { createSparkWalletStub } from '~/lib/spark';
 import {
   type AccountSelectorOption,

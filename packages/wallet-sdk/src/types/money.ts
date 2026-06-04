@@ -16,33 +16,26 @@
  * Every prior reference was `import type`, so swapping the shell for the real value export is
  * non-breaking.
  *
- * SOURCE OF TRUTH. The canonical `Money` (+ `Currency` / `CurrencyUnit`) lives in
- * `apps/web-wallet/app/lib/money` (`{ index, money, types }.ts`; leaf + dependency-free
- * apart from `big.js`). Per the build plan the SDK owns `Money` and the web app imports it
- * from this package; the canonical relocation of the source files INTO this package + the
- * rewrite of web's `~/lib/money` import sites is a deliberately-deferred follow-up (out of
- * the SDK build-plan scope). Until then this module re-exports the single live source via a
- * relative path so there is exactly ONE `Money` implementation (no duplication, no web
- * churn).
+ * SOURCE OF TRUTH. The canonical `Money` (+ `Currency` / `CurrencyUnit`) lives in the shared
+ * leaf package `@agicash/lib` (`packages/lib/src/money`; framework-free, depending only on
+ * `big.js`). It is a pure cross-cutting primitive used by BOTH the web app and this SDK
+ * independently of any wallet-domain concern, so it lives at the bottom of the dep graph in
+ * `@agicash/lib` rather than inside the SDK (which would couple the web UI to the wallet SDK
+ * just to format a `Money`). This module re-exports that single live source so there is
+ * exactly ONE `Money` implementation and a consumer can `import { Money } from
+ * '@agicash/wallet-sdk'`.
  *
  * NOTE on `lib: ["DOM"]`: `money.ts` ships a dev-only `registerDevToolsFormatter()` that
  * touches `window`; the SDK is a browser consumer (the web wallet), so the package tsconfig
  * already includes the `DOM` lib. The formatter is never invoked by SDK code.
- *
- * TODO(follow-up): move `app/lib/money/**` into `packages/wallet-sdk/src/money/` and rewire
- * web's `~/lib/money` imports to `@agicash/wallet-sdk`; then this re-export becomes a local
- * `./money` re-export.
  */
 
-export { Money } from '../../../../apps/web-wallet/app/lib/money';
-export type {
-  Currency,
-  CurrencyUnit,
-} from '../../../../apps/web-wallet/app/lib/money';
+export { Money } from '@agicash/lib';
+export type { Currency, CurrencyUnit } from '@agicash/lib';
 
 /**
  * Unit sub-types for `CurrencyUnit`. Kept here (the contract's `money.ts` surface) because
- * the canonical `app/lib/money/types.ts` does not export them by name and the SDK contract
+ * the canonical `@agicash/lib` money types do not export them by name and the SDK contract
  * lists them on the public barrel. They are structurally identical to the `UsdUnit` /
  * `BtcUnit` the canonical `CurrencyUnit<T>` is built from.
  */

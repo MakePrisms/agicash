@@ -24,7 +24,7 @@ import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { encodeToken } from '~/lib/cashu/token';
 import { normalizeMintUrl } from '~/lib/cashu/utils';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/lib';
 import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';

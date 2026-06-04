@@ -5,7 +5,7 @@ import {
 } from '~/features/accounts/account';
 import type { GiftCardInfo } from '~/features/gift-cards/gift-card-config';
 import type { DecodedBolt11 } from '@agicash/wallet-sdk/lib';
-import { type Currency, Money } from '~/lib/money';
+import { type Currency, Money } from '@agicash/lib';
 
 type FindMatchingOfferOrGiftCardAccountInput = {
   decodedBolt11: DecodedBolt11;

@@ -11,7 +11,7 @@ import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
-import { Money } from './lib/money';
+import { Money } from '@agicash/lib';
 import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 

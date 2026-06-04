@@ -18,7 +18,7 @@ import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { decodeBolt11 } from '@agicash/wallet-sdk/lib';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/lib';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';

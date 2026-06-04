@@ -1,5 +1,5 @@
 import { parseBolt11Invoice } from '@agicash/wallet-sdk/lib';
-import { Money } from '~/lib/money';
+import { Money } from '@agicash/lib';
 import { measureOperation } from '~/lib/performance';
 import {
   isInsufficentBalanceError,

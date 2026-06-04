@@ -1,7 +1,7 @@
 import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
-import type { Currency } from '../money';
+import type { Currency } from '@agicash/lib';
 import { type LongTimeout, clearLongTimeout, setLongTimeout } from '../timeout';
 import { useLatest } from '../use-latest';
 import { MeltQuoteSubscriptionManager } from './melt-quote-subscription-manager';

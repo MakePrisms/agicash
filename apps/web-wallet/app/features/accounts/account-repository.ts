@@ -3,7 +3,7 @@ import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
 import { normalizeMintUrl } from '~/lib/cashu';
 import { ProofSchema } from '~/lib/cashu/types';
-import type { Currency } from '~/lib/money';
+import type { Currency } from '@agicash/lib';
 import {
   type AgicashDb,
   type AgicashDbAccountWithProofs,

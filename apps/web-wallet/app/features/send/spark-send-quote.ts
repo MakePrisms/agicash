@@ -1,5 +1,5 @@
 import { z } from 'zod/mini';
-import { Money } from '~/lib/money';
+import { Money } from '@agicash/lib';
 
 /**
  * Base schema for Spark Lightning send quote.

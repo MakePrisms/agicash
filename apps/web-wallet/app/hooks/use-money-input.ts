@@ -3,8 +3,8 @@ import type { NumpadButton } from '~/components/numpad';
 import { getDefaultUnit } from '~/features/shared/currencies';
 import type { Ticker } from '~/lib/exchange-rate';
 import { getLocaleDecimalSeparator } from '~/lib/locale';
-import type { Currency } from '~/lib/money';
-import { Money } from '~/lib/money';
+import type { Currency } from '@agicash/lib';
+import { Money } from '@agicash/lib';
 import { useExchangeRates } from './use-exchange-rate';
 
 type State = {

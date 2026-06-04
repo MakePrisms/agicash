@@ -13,7 +13,7 @@ import { Card, CardContent } from '~/components/ui/card';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import useUserAgent from '~/hooks/use-user-agent';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/lib';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import {
   type CashuAccount,

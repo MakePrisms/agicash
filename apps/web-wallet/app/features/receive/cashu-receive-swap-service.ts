@@ -11,7 +11,7 @@ import {
   getCashuUnit,
   sumProofs,
 } from '~/lib/cashu';
-import { Money } from '~/lib/money';
+import { Money } from '@agicash/lib';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
 import type { CashuReceiveSwap } from './cashu-receive-swap';

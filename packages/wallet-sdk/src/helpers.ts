@@ -4,4 +4,6 @@
  * Returns the CashApp deep-link URL for a Lightning payment request.
  * Pure — the amount is already encoded in the invoice.
  */
-export declare function cashAppDeepLink(paymentRequest: string): string;
+export function cashAppDeepLink(paymentRequest: string): string {
+  return `https://cash.app/launch/lightning/${paymentRequest}`;
+}

@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/lib';
 import type { Account } from '../accounts/account';
 import { ConcurrencyError, DomainError } from '../shared/error';
 import { useUser } from '../user/user-hooks';

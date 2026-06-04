@@ -4,7 +4,7 @@ import type {
 } from '@agicash/breez-sdk-spark';
 import type { Proof } from '@cashu/cashu-ts';
 import { parseBolt11Invoice } from '@agicash/wallet-sdk/lib';
-import { Money } from '~/lib/money';
+import { Money } from '@agicash/lib';
 import { measureOperation } from '~/lib/performance';
 import type { SparkAccount } from '../accounts/account';
 import type { TransactionPurpose } from '../transactions/transaction-enums';

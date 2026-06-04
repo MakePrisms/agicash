@@ -11,7 +11,7 @@ import type {
   LNURLPayResult,
   LNURLVerifyResult,
 } from '~/lib/lnurl/types';
-import { Money } from '~/lib/money';
+import { Money } from '@agicash/lib';
 import { measureOperation } from '~/lib/performance';
 import {
   decryptXChaCha20Poly1305,

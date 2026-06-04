@@ -32,11 +32,3 @@ export class NotFoundError extends SdkError {
     this.name = 'NotFoundError';
   }
 }
-
-/**
- * Pure error classifier — consumed by both the SDK orchestrator and web hooks.
- * Keeps to the four-bucket contract (gudnuf 5/21).
- */
-export declare function classify(
-  err: unknown,
-): 'transient' | 'permanent' | 'already-resolved' | 'unhandled';

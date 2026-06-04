@@ -3,7 +3,7 @@ import {
   type SecretKind,
   parseSecret as parseNut10Secret,
 } from '@cashu/cashu-ts';
-import { safeJsonParse } from '../json';
+import { safeJsonParse } from '@agicash/lib';
 
 const isValidHexString = (str: string): boolean => {
   return /^[0-9a-fA-F]+$/.test(str);

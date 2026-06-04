@@ -13,7 +13,7 @@ import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/lib';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,

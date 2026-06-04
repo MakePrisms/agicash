@@ -8,7 +8,7 @@ import { QRScanner } from '~/components/qr-scanner';
 import { useExchangeRate } from '~/hooks/use-exchange-rate';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/lib';
 import { useNavigateWithViewTransition } from '~/lib/transitions/view-transition';
 import type { Account } from '../accounts/account';
 import { DomainError, getErrorMessage } from '../shared/error';
