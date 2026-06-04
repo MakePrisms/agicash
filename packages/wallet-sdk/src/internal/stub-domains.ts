@@ -4,10 +4,11 @@
  * Each factory returns an object implementing its domain interface (§2-§10) where
  * every method throws {@link NotImplementedError} (or returns a rejected/throwing
  * Query for observable-fetch methods). The `Sdk` shell wires its domain accessors
- * to these so the public surface is fully present + type-correct in PR2, while the
- * real business logic lands in later slices (auth → S1, accounts/scan → S2,
- * cashu/spark → S3, transactions/contacts/transfers → S4, background → S5).
- * Swapping a stub for a real impl is the unit of work for each slice.
+ * to these so the public surface is fully present + type-correct, while the real
+ * business logic lands in later slices (auth + user → S1 (DONE — real impls wired in
+ * Sdk.create), accounts/scan → S2, cashu/spark → S3,
+ * transactions/contacts/transfers → S4, background → S5). Swapping a stub for a real
+ * impl is the unit of work for each slice.
  *
  * Implementing the interfaces (rather than casting) keeps the stubs honest: if a
  * contract method's signature changes, the stub fails to compile until updated.
@@ -16,7 +17,6 @@
  */
 import type {
   AccountsDomain,
-  AuthDomain,
   BackgroundDomain,
   CashuDomain,
   ContactsDomain,
@@ -25,7 +25,6 @@ import type {
   SparkDomain,
   TransactionsDomain,
   TransfersDomain,
-  UserDomain,
 } from '../domains';
 import { NotImplementedError } from '../errors';
 import type { Query } from '../types/query';
@@ -55,25 +54,8 @@ function stubQuery<T = any>(method: string): Query<T> {
   };
 }
 
-/** Stub `AuthDomain` (real impl: Slice 1). */
-export const createAuthStub = (): AuthDomain => ({
-  signIn: () => unimplemented('auth.signIn'),
-  signUp: () => unimplemented('auth.signUp'),
-  signInGuest: () => unimplemented('auth.signInGuest'),
-  signOut: () => unimplemented('auth.signOut'),
-  refresh: () => unimplemented('auth.refresh'),
-  resetPassword: () => unimplemented('auth.resetPassword'),
-  changePassword: () => unimplemented('auth.changePassword'),
-  upgradeGuest: () => unimplemented('auth.upgradeGuest'),
-  beginGoogleSignIn: () => unimplemented('auth.beginGoogleSignIn'),
-  completeOAuth: () => unimplemented('auth.completeOAuth'),
-});
-
-/** Stub `UserDomain` (real impl: Slice 1). */
-export const createUserStub = (): UserDomain => ({
-  getCurrentUser: () => stubQuery('user.getCurrentUser'),
-  updateUsername: () => unimplemented('user.updateUsername'),
-});
+// NOTE: `AuthDomain` + `UserDomain` are REAL as of Slice 1 (see ../domains/auth +
+// ../domains/user, wired in Sdk.create) — their stubs have been removed.
 
 /** Stub `AccountsDomain` (real impl: Slice 2). */
 export const createAccountsStub = (): AccountsDomain => ({

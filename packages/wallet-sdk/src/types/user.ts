@@ -16,8 +16,10 @@ type CommonUserData = {
   giftCardMintTermsAcceptedAt: string | null;
 };
 
-type FullUser = CommonUserData & { email: string; isGuest: false };
-type GuestUser = CommonUserData & { isGuest: true };
+// Exported (Slice 1) so the internal DB→domain mapper (`internal/db-user.ts`) can
+// `satisfies FullUser` / `satisfies GuestUser` when narrowing a row to the domain user.
+export type FullUser = CommonUserData & { email: string; isGuest: false };
+export type GuestUser = CommonUserData & { isGuest: true };
 
 export type User = FullUser | GuestUser;
 

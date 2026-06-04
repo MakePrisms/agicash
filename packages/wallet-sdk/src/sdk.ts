@@ -31,11 +31,14 @@ import type {
   TransfersDomain,
   UserDomain,
 } from './domains';
+import { AuthDomainImpl } from './domains/auth';
+import { UserDomainImpl } from './domains/user';
 import { TypedEventEmitter } from './internal/event-emitter';
+import { GuestAccountStorage } from './internal/guest-account-storage';
 import { OpenSecretClient } from './internal/open-secret';
+import { SessionResolver } from './internal/session';
 import {
   createAccountsStub,
-  createAuthStub,
   createBackgroundStub,
   createCashuStub,
   createContactsStub,
@@ -44,7 +47,6 @@ import {
   createSparkStub,
   createTransactionsStub,
   createTransfersStub,
-  createUserStub,
 } from './internal/stub-domains';
 import {
   type SupabaseConnectionConfig,
@@ -52,6 +54,7 @@ import {
   createSupabaseClient,
 } from './internal/supabase-client';
 import { SupabaseSessionTokenProvider } from './internal/supabase-session';
+import { UserRepository } from './internal/user-repository';
 import { QueryClient } from './query';
 import type { EventEmitter, SdkEventMap } from './types/events';
 
@@ -201,17 +204,26 @@ export class Sdk {
   private readonly connections: SdkConnections;
 
   /**
-   * Private — construct via {@link Sdk.create}. Takes the assembled connection bundle and
-   * wires the domain accessors. PR2 wires every accessor to a stub; later slices replace
-   * the stub factories here with real implementations that receive `connections`.
+   * Private — construct via {@link Sdk.create}. Takes the assembled connection bundle plus
+   * the already-built real domains (`auth` + `user` as of Slice 1) and wires the domain
+   * accessors. Domains not yet implemented are wired to a stub; later slices replace each
+   * stub here with its real implementation.
+   *
+   * @param connections - the shared connection bundle.
+   * @param domains - the real domain implementations built in {@link Sdk.create}.
    */
-  private constructor(connections: SdkConnections) {
+  private constructor(
+    connections: SdkConnections,
+    domains: { auth: AuthDomain; user: UserDomain },
+  ) {
     this.connections = connections;
     this.events = connections.events;
 
-    // --- domain accessors (STUBS in PR2 — swap per slice) --------------------
-    this.auth = createAuthStub();
-    this.user = createUserStub();
+    // --- real domains (Slice 1: auth + user) ---------------------------------
+    this.auth = domains.auth;
+    this.user = domains.user;
+
+    // --- domain accessors still STUBBED (swap per slice) ---------------------
     this.accounts = createAccountsStub();
     this.scan = createScanStub();
     this.cashu = createCashuStub();
@@ -244,9 +256,14 @@ export class Sdk {
 
     // Access-token provider: the Supabase `accessToken` callback. Audience = the Supabase
     // project URL (so the mint-CAT audience stays separate, per master's two-audience use).
-    const sessionToken = new SupabaseSessionTokenProvider(() =>
-      openSecret.generateThirdPartyToken(config.supabase.url),
-    );
+    // Short-circuit to `null` when signed out (master `supabase-session.ts` gates on
+    // `isLoggedIn()`) so unauthenticated DB reads don't trigger a failing enclave call.
+    const sessionToken = new SupabaseSessionTokenProvider(async () => {
+      if (!(await openSecret.hasSession())) {
+        return null;
+      }
+      return openSecret.generateThirdPartyToken(config.supabase.url);
+    });
 
     // Supabase: SDK-owned client (schema 'wallet', RLS via the token provider).
     const supabaseConfig: SupabaseConnectionConfig = {
@@ -263,17 +280,35 @@ export class Sdk {
     // Never exposed to consumers — wired via SdkConnections.
     const queryClient = new QueryClient();
 
+    const events = new TypedEventEmitter<SdkEventMap>();
+
     const connections: SdkConnections = {
       supabase,
       openSecret,
       sessionToken,
       storage: config.storage,
-      events: new TypedEventEmitter<SdkEventMap>(),
+      events,
       queryClient,
       clientId: config.clientId ?? generateClientId(),
     };
 
-    return new Sdk(connections);
+    // --- Slice 1: auth + user domains ----------------------------------------
+    // The agicash domain `User` is the `wallet.users` row keyed by the OpenSecret user id,
+    // so both domains share a session resolver (enclave id → DB row + `auth:*` events) over
+    // one user repository. `getCurrentUser` is reactive, so the user domain also takes the
+    // SDK-internal QueryClient (it wraps the resolver read via `toQuery`).
+    const users = new UserRepository(supabase);
+    const session = new SessionResolver(
+      openSecret,
+      users,
+      sessionToken,
+      events,
+    );
+    const guestStorage = new GuestAccountStorage(config.storage);
+    const auth = new AuthDomainImpl(openSecret, session, guestStorage);
+    const user = new UserDomainImpl(queryClient, session, users);
+
+    return new Sdk(connections, { auth, user });
   }
 
   /**
