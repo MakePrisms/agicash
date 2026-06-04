@@ -13,7 +13,7 @@
  */
 import type { CashuProtocolProof } from './dependencies';
 import type { Money } from './money';
-import type { CashuProof } from './account';
+import type { Account, CashuProof } from './account';
 
 // ---------------------------------------------------------------------------
 // DestinationDetails (discriminated on `sendType`)
@@ -424,3 +424,41 @@ export type CashuReceiveQuote = CashuReceiveQuoteBase &
         failureReason: string;
       }
   );
+
+// ---------------------------------------------------------------------------
+// Token-claim result (cashu.receive.receiveToken)
+// MIRRORS master `ClaimTokenResult` (app/features/receive/claim-cashu-token-service.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * The result of {@link CashuReceiveOps.receiveToken} — a lightweight outcome that
+ * MIRRORS master's `ClaimTokenResult` (`claim-cashu-token-service.ts#claimToken`).
+ *
+ * The receive-swap / receive-quote object the claim actually creates is kept INTERNAL
+ * (DB-persisted and driven to completion by the background processor) and is NOT returned;
+ * the caller only learns whether the claim started and where it landed (`destinationAccount`),
+ * or why it could not start (`message`). Completion later surfaces via the `receive:*` events
+ * and `transactions(...)` — never as a returned quote/swap.
+ *
+ * **This result NEVER throws — `receiveToken` swallows to a result.** A user-facing
+ * `DomainError` becomes `{ success: false, message: error.message }`; any unexpected error is
+ * captured and becomes `{ success: false, message: 'Unexpected error while claiming the token' }`.
+ * Build-deferred internal branches (cross-currency, unknown-mint auto-add) likewise return
+ * `{ success: false, message }` with a clear deferral message rather than throwing.
+ *
+ * `destinationAccount` is the master `Pick<Account, 'id' | 'purpose'>` projection (the id to
+ * navigate to + the purpose that decides which post-claim UI to show), not the full account.
+ */
+export type ReceiveTokenResult =
+  | {
+      /** The claim started successfully (completion arrives via `receive:*` events). */
+      success: true;
+      /** The account the token is being claimed into (id + purpose only, master-projected). */
+      destinationAccount: Pick<Account, 'id' | 'purpose'>;
+    }
+  | {
+      /** The claim could not be started. */
+      success: false;
+      /** A user-facing reason (safe to display). */
+      message: string;
+    };

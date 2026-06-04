@@ -15,6 +15,7 @@ import type {
   CashuReceiveQuote,
   CashuSendQuote,
   CashuSendSwap,
+  ReceiveTokenResult,
 } from './types/cashu';
 import type { Contact, UserProfile } from './types/contact';
 import type { Currency, Money } from './types/money';
@@ -164,15 +165,26 @@ export interface CashuSendOps {
 /** Cashu receive operations: claim a token, or create a lightning receive quote. */
 export interface CashuReceiveOps {
   /**
-   * Claim a cashu token. By default it is received to the token's own mint; pass
-   * `destinationAccount` to receive cross-account — token → another cashu mint, or
-   * token → spark — which is done internally via melt-then-mint (hence the result
-   * may be a {@link SparkReceiveQuote}).
+   * Claim a received cashu token. Mirrors master `ClaimCashuTokenService.claimToken`:
+   * the receive-swap / receive-quote object the claim creates is kept INTERNAL
+   * (DB-persisted, driven to completion by the background processor) and is NOT
+   * returned — the call resolves to a lightweight {@link ReceiveTokenResult}
+   * (`{ success: true, destinationAccount }` once the claim has started, or
+   * `{ success: false, message }` if it could not). Completion surfaces later via the
+   * `receive:*` events + `transactions(...)`.
+   *
+   * **Never throws** — a `DomainError` or any unexpected error is swallowed into a
+   * `{ success: false, message }` result.
+   *
+   * By default the token is claimed back to its own mint (master's
+   * `getDefaultReceiveAccount` — the same-mint cashu account, the common
+   * paste-and-claim path). Pass `destinationAccount` to claim cross-account — token →
+   * another cashu mint, or token → spark — done internally via melt-then-mint.
    */
   receiveToken(params: {
     token: string;
     destinationAccount?: Account;
-  }): Promise<CashuReceiveQuote | SparkReceiveQuote>;
+  }): Promise<ReceiveTokenResult>;
   /**
    * Create a lightning receive quote (an invoice to be paid). `purpose` defaults
    * to `'PAYMENT'`; `'BUY_CASHAPP'` is the buy-bitcoin / Cash App flow (pairs with

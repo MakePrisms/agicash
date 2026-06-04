@@ -93,6 +93,7 @@ export type {
   CashuReceiveQuote,
   CashuTokenMeltData,
   DestinationDetails,
+  ReceiveTokenResult,
 } from './types/cashu';
 
 // --- spark (§6) ------------------------------------------------------------

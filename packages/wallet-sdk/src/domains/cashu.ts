@@ -14,7 +14,9 @@
  * the orchestrator (the build plan's single biggest net-new construct) — it hands the full quote
  * to the shared {@link Orchestrator}, which opens the mint melt-quote WS subscription and drives
  * UNPAID→PENDING→PAID off FRESH DB state (no cache). `receiveToken` drives the full token-claim
- * flow (same-mint receive swap + the cross-account melt-then-mint path) through the orchestrator.
+ * flow (same-mint receive swap + the cross-account melt-then-mint path) through the orchestrator and
+ * — mirroring master `claimToken` — keeps the created swap/quote INTERNAL, resolving to a
+ * lightweight `ReceiveTokenResult` (never throws; swallow-to-result).
  * Both resolve on KICK-OFF; the terminal arrives via `send:*`/`receive:*` events + a later `.get`.
  *
  * @module
@@ -37,8 +39,8 @@ import type {
   CashuReceiveQuote,
   CashuSendQuote,
   CashuSendSwap,
+  ReceiveTokenResult,
 } from '../types/cashu';
-import type { SparkReceiveQuote } from '../types/spark';
 import type { Money } from '../types/money';
 
 /**
@@ -236,55 +238,55 @@ export class CashuReceiveOpsImpl implements CashuReceiveOps {
   ) {}
 
   /**
-   * Claim a cashu token (PR5d). Decodes the token, resolves source/destination accounts, and
-   * routes the claim through the orchestrator:
-   *  - **same-mint** (default — into the token's own mint): a {@link CashuReceiveSwapService} swap
-   *    driven to COMPLETED by the orchestrator. A same-mint claim yields an internal swap, NOT a
-   *    quote, so it resolves to a quote-less in-progress receive (track via `receive:completed`
-   *    keyed by its transaction id) — see the divergence note below;
-   *  - **cross-account** (`destinationAccount` is a different cashu mint, or spark): the
-   *    melt-then-mint path, returning the destination {@link CashuReceiveQuote} /
-   *    {@link SparkReceiveQuote} (the cross-account token→spark path the contract names).
+   * Claim a received cashu token (PR5d). MIRRORS master `ClaimCashuTokenService.claimToken`: the
+   * receive-swap / receive-quote it creates is INTERNAL (DB-persisted, driven to completion by the
+   * background processor) and is NOT returned — this resolves to a lightweight
+   * {@link ReceiveTokenResult}. Completion surfaces via `receive:completed` / `receive:failed`.
    *
-   * Resolves on KICK-OFF; completion arrives via `receive:completed` / `receive:failed`.
+   * **NEVER throws — swallow-to-result** (master's outer try/catch). A user-facing `DomainError`
+   * becomes `{ success: false, message: error.message }`; any unexpected error is logged (with its
+   * cause) and becomes `{ success: false, message: 'Unexpected error while claiming the token' }`.
    *
-   * DIVERGENCE / DEFERRED (vs master `ClaimCashuTokenService`, documented for review — folds in
-   * with the Slice-4 exchangeRate + user-service work, see {@link ClaimCashuTokenFlow}):
-   *  - cross-account is supported for the SAME currency only (a cross-currency claim needs the
-   *    still-stubbed `exchangeRate` domain → `DomainError`);
-   *  - claiming into a mint the user has no account for needs the auto-add + set-default UX
-   *    (`userService.setDefaultAccount`, Slice 4) — pass a full `destinationAccount` instead;
-   *  - the SAME-MINT path returns the contract's quote union as a best-effort: master's same-mint
-   *    claim is a swap with no quote, so for that case the method currently returns the IN-PROGRESS
-   *    receive without a quote body is not representable in the locked return type — the same-mint
-   *    branch therefore throws a typed `DomainError` directing same-mint claims through the
-   *    (already-built + tested) swap primitive until the return type is widened (PR5e). The
-   *    cross-account branch — the one the contract's cross-protocol note targets — is fully wired.
+   * Decodes the token, resolves source/destination accounts, and routes the claim:
+   *  - **same-mint** (default — `destinationAccount` omitted → master's default resolution into the
+   *    token's own mint): creates a {@link CashuReceiveSwapService} swap and kicks the orchestrator;
+   *  - **cross-account, same-currency** (`destinationAccount` is a different cashu mint, or spark):
+   *    the melt-then-mint path (token → other-mint / token → spark).
+   * Both return `{ success: true, destinationAccount: { id, purpose } }` on kickoff.
+   *
+   * Build-DEFERRED internal branches (vs master, see {@link ClaimCashuTokenFlow}) surface through
+   * the result as `{ success: false, message }`, NOT a throw:
+   *  - **cross-currency** claims need the still-stubbed `exchangeRate` domain (Slice 4 / PR5e);
+   *  - claiming into a **mint the user has no account for** needs the auto-add + set-default UX
+   *    (`userService.setDefaultAccount`, Slice 4) — pass a full `destinationAccount` instead.
    *
    * @param params.token - the encoded cashu token string.
-   * @param params.destinationAccount - the account to claim into (cross-account).
-   * @returns the destination receive quote (cross-account).
+   * @param params.destinationAccount - the account to claim into; omitted → master default
+   *   resolution (the token's own mint = same-mint claim).
+   * @returns a {@link ReceiveTokenResult} — started + destination, or failure + message.
    */
   async receiveToken(params: {
     token: string;
     destinationAccount?: Account;
-  }): Promise<CashuReceiveQuote | SparkReceiveQuote> {
-    const user = await this.session.requireCurrentUser();
-    const result = await this.claimFlow.claim({
-      userId: user.id,
-      encodedToken: params.token,
-      destinationAccount: params.destinationAccount,
-    });
-    if (result.kind === 'same-mint') {
-      // A same-mint claim produces an internal receive SWAP, which the locked `receiveToken` return
-      // type (a receive QUOTE) cannot carry. The flow performs NO side effect for this case, so this
-      // is a clean boundary, not a half-done claim: surface it explicitly. Widening the return type
-      // to carry the (already-built + tested) same-mint swap is the PR5e follow-up.
-      throw new DomainError(
-        'Claiming a token back into its own mint yields a receive swap that the locked receiveToken return type (a receive quote) cannot carry; pass a cross-account destinationAccount (different mint, or spark) to claim, or use the receive-swap primitive directly (PR5e widens the return type).',
-      );
+  }): Promise<ReceiveTokenResult> {
+    try {
+      const user = await this.session.requireCurrentUser();
+      const result = await this.claimFlow.claim({
+        userId: user.id,
+        encodedToken: params.token,
+        destinationAccount: params.destinationAccount,
+      });
+      return { success: true, destinationAccount: result.destinationAccount };
+    } catch (error) {
+      if (error instanceof DomainError) {
+        return { success: false, message: error.message };
+      }
+      // No Sentry/error-reporting seam in the framework-free SDK — master `captureException`s here;
+      // we log with the cause (best-effort, like the service primitives) + return a generic message.
+      const message = 'Unexpected error while claiming the token';
+      console.error(message, { cause: error });
+      return { success: false, message };
     }
-    return result.quote;
   }
 
   /**

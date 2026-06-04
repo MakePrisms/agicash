@@ -173,11 +173,12 @@ describe('CashuSendOps.executeQuote — wired to the orchestrator (PR5d)', () =>
 });
 
 describe('CashuReceiveOps.receiveToken — wired to the claim flow (PR5d)', () => {
-  test('returns the cross-account quote the claim flow produces', async () => {
-    const crossQuote = { id: 'rq1', type: 'CASHU_TOKEN' };
+  test('a SAME-MINT claim returns { success:true, destinationAccount } (no throw)', async () => {
+    // The same-mint branch creates an internal CashuReceiveSwap + kicks the orchestrator; the flow
+    // reports kind:'same-mint' with the destination account projection (the swap stays internal).
     const claim = mock(async () => ({
-      kind: 'cross-account' as const,
-      quote: crossQuote,
+      kind: 'same-mint' as const,
+      destinationAccount: { id: 'acc1', purpose: 'transactional' },
     }));
     const ops = new CashuReceiveOpsImpl({} as never, {} as never, session, {
       claim,
@@ -186,17 +187,64 @@ describe('CashuReceiveOps.receiveToken — wired to the claim flow (PR5d)', () =
     const result = await ops.receiveToken({ token: 'cashuAabc' });
 
     expect(claim).toHaveBeenCalledTimes(1);
-    expect(result).toBe(crossQuote as never);
+    expect(result).toEqual({
+      success: true,
+      destinationAccount: { id: 'acc1', purpose: 'transactional' },
+    });
   });
 
-  test('surfaces a DomainError for a same-mint claim (return-type boundary, no side effect)', async () => {
-    const claim = mock(async () => ({ kind: 'same-mint' as const }));
+  test('a CROSS-account claim returns { success:true, destinationAccount }', async () => {
+    const claim = mock(async () => ({
+      kind: 'cross-account' as const,
+      destinationAccount: { id: 'spark1', purpose: 'transactional' },
+    }));
     const ops = new CashuReceiveOpsImpl({} as never, {} as never, session, {
       claim,
     } as never);
 
-    await expect(ops.receiveToken({ token: 'cashuAabc' })).rejects.toThrow(
-      DomainError,
-    );
+    const result = await ops.receiveToken({
+      token: 'cashuAabc',
+      destinationAccount: { id: 'spark1', type: 'spark' } as never,
+    });
+
+    expect(claim).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      success: true,
+      destinationAccount: { id: 'spark1', purpose: 'transactional' },
+    });
+  });
+
+  test('a DomainError from the flow is swallowed to { success:false, message } (no throw)', async () => {
+    const claim = mock(async () => {
+      throw new DomainError(
+        'Claiming a token from a new mint is not supported yet',
+      );
+    });
+    const ops = new CashuReceiveOpsImpl({} as never, {} as never, session, {
+      claim,
+    } as never);
+
+    const result = await ops.receiveToken({ token: 'cashuAabc' });
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Claiming a token from a new mint is not supported yet',
+    });
+  });
+
+  test('an unexpected (non-Domain) error is swallowed to a generic { success:false } result', async () => {
+    const claim = mock(async () => {
+      throw new TypeError('boom');
+    });
+    const ops = new CashuReceiveOpsImpl({} as never, {} as never, session, {
+      claim,
+    } as never);
+
+    const result = await ops.receiveToken({ token: 'cashuAabc' });
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Unexpected error while claiming the token',
+    });
   });
 });
