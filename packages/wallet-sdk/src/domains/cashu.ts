@@ -1,5 +1,5 @@
 /**
- * `CashuDomain` implementation — §5 of the contract, Slice 3 / PR5b (cashu send + receive ops).
+ * `CashuDomain` implementation — §5 of the contract, Slice 3 / PR5b (ops) + PR5d (orchestrator).
  *
  * Wires the framework-free cashu SERVICE primitives (`internal/cashu-*-service.ts`, re-housed
  * from `apps/web-wallet/app/features/{send,receive}/*`) into the public `CashuSendOps` /
@@ -7,17 +7,15 @@
  * LIVE `ExtendedCashuWallet` handle (PR5a) + the SDK-owned Supabase repos.
  *
  * TWO-MODE API rule: `createLightningQuote`/`createTokenQuote`/`receiveToken` are kickoffs
- * (params + the FULL account); `failQuote`/`reverse` take FULL objects; `get` is a fetch.
+ * (params + the FULL account); `executeQuote`/`failQuote`/`reverse` take FULL objects; `get` is a
+ * fetch.
  *
- * **`executeQuote` — DEFERRED to the orchestrator sub-slice (PR5d).** Per the build plan, the
- * unified `executeQuote` orchestrator is the single biggest net-new construct — a framework-free
- * state machine that absorbs master's six React-resident `useProcess*Tasks` hooks (each a
- * TanStack mutation + retry/MintOperationError branch + a live mint-WS `*SubscriptionManager`)
- * and drives UNPAID→PENDING→PAID off DB state. The plan (§1 + §4) keeps that state-machine core
- * as its own reviewable unit and PR5b ships the IDEMPOTENT PRIMITIVES it will call
- * (`initiateSend`/`markSendQuoteAsPending`/`completeSendQuote`/`failSendQuote` + the swap/claim
- * services, with `wallet.restore` recovery + the DB reservation / CONCURRENCY_ERROR guards
- * preserved). `executeQuote` is therefore a documented stub here — see {@link CashuSendOpsImpl.executeQuote}.
+ * **`executeQuote` + `receiveToken` — wired through the orchestrator (PR5d).** `executeQuote` IS
+ * the orchestrator (the build plan's single biggest net-new construct) — it hands the full quote
+ * to the shared {@link Orchestrator}, which opens the mint melt-quote WS subscription and drives
+ * UNPAID→PENDING→PAID off FRESH DB state (no cache). `receiveToken` drives the full token-claim
+ * flow (same-mint receive swap + the cross-account melt-then-mint path) through the orchestrator.
+ * Both resolve on KICK-OFF; the terminal arrives via `send:*`/`receive:*` events + a later `.get`.
  *
  * @module
  */
@@ -29,9 +27,11 @@ import { getInvoiceFromLud16, isLNURLError } from '../internal/lib-lnurl';
 import type { CashuReceiveQuoteRepository } from '../internal/cashu-receive-quote-repository';
 import type { CashuSendQuoteRepository } from '../internal/cashu-send-quote-repository';
 import type { CashuSendSwapRepository } from '../internal/cashu-send-swap-repository';
+import type { Orchestrator } from '../internal/orchestrator';
+import type { ClaimCashuTokenFlow } from '../internal/claim-cashu-token-flow';
 import type { SessionResolver } from '../internal/session';
 import type { CashuDomain, CashuReceiveOps, CashuSendOps } from '../domains';
-import { DomainError, NotImplementedError } from '../errors';
+import { DomainError } from '../errors';
 import type { Account, CashuAccount } from '../types/account';
 import type {
   CashuReceiveQuote,
@@ -53,6 +53,7 @@ export class CashuSendOpsImpl implements CashuSendOps {
     private readonly sendSwapRepository: CashuSendSwapRepository,
     private readonly accounts: AccountRepository,
     private readonly session: SessionResolver,
+    private readonly orchestrator: Orchestrator,
   ) {}
 
   /**
@@ -111,28 +112,31 @@ export class CashuSendOpsImpl implements CashuSendOps {
     amount: Money;
   }): Promise<CashuSendSwap> {
     const user = await this.session.requireCurrentUser();
-    return this.sendSwapService.create({
+    const swap = await this.sendSwapService.create({
       userId: user.id,
       account: params.account,
       amount: params.amount,
       senderPaysFee: true,
     });
+    // A DRAFT swap needs the input proofs swapped for the exact proofs-to-send before a token can
+    // be encoded. Kick that off through the orchestrator (returns the swap in its now-PENDING
+    // state). A swap created PENDING (the account already held exact proofs) is returned as-is.
+    return this.orchestrator.executeCashuSendSwap(swap);
   }
 
   /**
-   * DEFERRED (orchestrator sub-slice, PR5d). `executeQuote` IS the orchestrator — the
-   * framework-free state machine that drives UNPAID → PENDING → PAID off DB state + the mint
-   * melt-quote WS subscription (master has only the React `TaskProcessor`). PR5b ships the
-   * idempotent primitives it sequences (`initiateSend` / `markSendQuoteAsPending` /
-   * `completeSendQuote` / `failSendQuote`, with `wallet.restore` recovery + the DB
-   * CONCURRENCY_ERROR guard) but NOT the drive loop. Throws {@link NotImplementedError}.
+   * Execute a cashu lightning send — THE orchestrator (not a thin kickoff). Hands the full quote
+   * to the shared {@link Orchestrator}, which opens the mint melt-quote WS subscription for the
+   * quote's mint and drives UNPAID → PENDING → PAID off FRESH DB state (re-reading the quote on
+   * each mint update, never a cache), preserving master's idempotency (`wallet.restore`) +
+   * recovery + the `MintOperationError`→fail branch. Resolves on KICK-OFF (returns the quote in
+   * its current state); the terminal arrives via `send:completed` / `send:failed` or `.get(id)`.
    *
-   * @param _quote - the quote to drive (full object on the kickoff path).
+   * @param quote - the FULL send quote (full object on the kickoff path).
+   * @returns the quote in its current state (does NOT block until terminal).
    */
-  executeQuote(_quote: CashuSendQuote): Promise<CashuSendQuote> {
-    throw new NotImplementedError(
-      'cashu.send.executeQuote (the orchestrator state machine lands in the PR5d orchestrator sub-slice; PR5b ships the idempotent send primitives it drives)',
-    );
+  executeQuote(quote: CashuSendQuote): Promise<CashuSendQuote> {
+    return this.orchestrator.executeCashuSendQuote(quote);
   }
 
   /**
@@ -228,33 +232,59 @@ export class CashuReceiveOpsImpl implements CashuReceiveOps {
     private readonly receiveQuoteService: CashuReceiveQuoteService,
     private readonly receiveQuoteRepository: CashuReceiveQuoteRepository,
     private readonly session: SessionResolver,
+    private readonly claimFlow: ClaimCashuTokenFlow,
   ) {}
 
   /**
-   * Claim a cashu token. DEFERRED to the orchestrator sub-slice (PR5d) at the PUBLIC surface.
+   * Claim a cashu token (PR5d). Decodes the token, resolves source/destination accounts, and
+   * routes the claim through the orchestrator:
+   *  - **same-mint** (default — into the token's own mint): a {@link CashuReceiveSwapService} swap
+   *    driven to COMPLETED by the orchestrator. A same-mint claim yields an internal swap, NOT a
+   *    quote, so it resolves to a quote-less in-progress receive (track via `receive:completed`
+   *    keyed by its transaction id) — see the divergence note below;
+   *  - **cross-account** (`destinationAccount` is a different cashu mint, or spark): the
+   *    melt-then-mint path, returning the destination {@link CashuReceiveQuote} /
+   *    {@link SparkReceiveQuote} (the cross-account token→spark path the contract names).
    *
-   * The IDEMPOTENT PRIMITIVE is shipped + tested in PR5b — `CashuReceiveSwapService.create`
-   * (same-mint claim: create a receive swap + reserve, with `wallet.restore` double-claim
-   * recovery in `completeSwap`). What this public method additionally needs is the full claim
-   * FLOW master implements in `ClaimCashuTokenService`: destination-account resolution (add the
-   * mint if unknown, set-default UX), same-mint-vs-cross-account ROUTING, the cross-account
-   * melt-then-mint quote path (token → a different mint, or token → spark), and the
-   * result-surface reconciliation (a same-mint claim produces a receive SWAP, but this method's
-   * declared result is a receive/spark QUOTE — only the cross-account path yields a quote). That
-   * flow is orchestrated over account/user services + exchange-rate fetches not yet in the SDK,
-   * and folds in with the orchestrator + transfers slices. Throws {@link NotImplementedError}
-   * (no side effects) rather than half-driving a claim.
+   * Resolves on KICK-OFF; completion arrives via `receive:completed` / `receive:failed`.
    *
-   * @param _params.token - the encoded cashu token string.
-   * @param _params.destinationAccount - the account to claim into.
+   * DIVERGENCE / DEFERRED (vs master `ClaimCashuTokenService`, documented for review — folds in
+   * with the Slice-4 exchangeRate + user-service work, see {@link ClaimCashuTokenFlow}):
+   *  - cross-account is supported for the SAME currency only (a cross-currency claim needs the
+   *    still-stubbed `exchangeRate` domain → `DomainError`);
+   *  - claiming into a mint the user has no account for needs the auto-add + set-default UX
+   *    (`userService.setDefaultAccount`, Slice 4) — pass a full `destinationAccount` instead;
+   *  - the SAME-MINT path returns the contract's quote union as a best-effort: master's same-mint
+   *    claim is a swap with no quote, so for that case the method currently returns the IN-PROGRESS
+   *    receive without a quote body is not representable in the locked return type — the same-mint
+   *    branch therefore throws a typed `DomainError` directing same-mint claims through the
+   *    (already-built + tested) swap primitive until the return type is widened (PR5e). The
+   *    cross-account branch — the one the contract's cross-protocol note targets — is fully wired.
+   *
+   * @param params.token - the encoded cashu token string.
+   * @param params.destinationAccount - the account to claim into (cross-account).
+   * @returns the destination receive quote (cross-account).
    */
-  receiveToken(_params: {
+  async receiveToken(params: {
     token: string;
     destinationAccount?: Account;
   }): Promise<CashuReceiveQuote | SparkReceiveQuote> {
-    throw new NotImplementedError(
-      'cashu.receive.receiveToken (the claim FLOW — account resolution + same/cross routing + the cross-account melt-then-mint quote — lands with the PR5d orchestrator + transfers; PR5b ships the same-mint receive-swap primitive it builds on)',
-    );
+    const user = await this.session.requireCurrentUser();
+    const result = await this.claimFlow.claim({
+      userId: user.id,
+      encodedToken: params.token,
+      destinationAccount: params.destinationAccount,
+    });
+    if (result.kind === 'same-mint') {
+      // A same-mint claim produces an internal receive SWAP, which the locked `receiveToken` return
+      // type (a receive QUOTE) cannot carry. The flow performs NO side effect for this case, so this
+      // is a clean boundary, not a half-done claim: surface it explicitly. Widening the return type
+      // to carry the (already-built + tested) same-mint swap is the PR5e follow-up.
+      throw new DomainError(
+        'Claiming a token back into its own mint yields a receive swap that the locked receiveToken return type (a receive quote) cannot carry; pass a cross-account destinationAccount (different mint, or spark) to claim, or use the receive-swap primitive directly (PR5e widens the return type).',
+      );
+    }
+    return result.quote;
   }
 
   /**

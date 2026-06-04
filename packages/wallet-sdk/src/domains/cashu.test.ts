@@ -19,7 +19,7 @@ mock.module('../internal/lib-lnurl', () => ({
 import type { Currency, Money as MoneyType } from '../types/money';
 
 const { CashuSendOpsImpl, CashuReceiveOpsImpl } = await import('./cashu');
-const { NotImplementedError, DomainError } = await import('../errors');
+const { DomainError } = await import('../errors');
 const { Money } = await import('../types/money');
 
 // -- Fakes ----------------------------------------------------------------------------------
@@ -65,13 +65,14 @@ function fakeSendQuoteService() {
 
 function makeSendOps(sendQuoteService = fakeSendQuoteService()) {
   const ops = new CashuSendOpsImpl(
-    // biome-ignore lint/suspicious/noExplicitAny: minimal service/repo stubs for the fold + stub tests.
+    // biome-ignore lint/suspicious/noExplicitAny: minimal service/repo stubs for the fold tests.
     sendQuoteService as any,
     {} as never,
     {} as never,
     {} as never,
     {} as never,
     session,
+    {} as never,
   );
   return { ops, sendQuoteService };
 }
@@ -148,18 +149,54 @@ describe('CashuSendOps.createLightningQuote — destination resolution', () => {
   });
 });
 
-describe('CashuSendOps.executeQuote — deferred to PR5d', () => {
-  test('throws NotImplementedError (orchestrator state machine deferred)', () => {
-    const { ops } = makeSendOps();
-    expect(() => ops.executeQuote({} as never)).toThrow(NotImplementedError);
+describe('CashuSendOps.executeQuote — wired to the orchestrator (PR5d)', () => {
+  test('delegates the full quote to orchestrator.executeCashuSendQuote', async () => {
+    const quote = { id: 'q1', state: 'UNPAID' } as never;
+    const executeCashuSendQuote = mock(async (q: unknown) => q);
+    const orchestrator = { executeCashuSendQuote } as never;
+    const ops = new CashuSendOpsImpl(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      session,
+      orchestrator,
+    );
+
+    const result = await ops.executeQuote(quote);
+
+    expect(executeCashuSendQuote).toHaveBeenCalledTimes(1);
+    expect(executeCashuSendQuote).toHaveBeenCalledWith(quote);
+    expect(result).toBe(quote);
   });
 });
 
-describe('CashuReceiveOps.receiveToken — deferred to PR5d', () => {
-  test('throws NotImplementedError with no side effects (the claim flow is deferred)', () => {
-    const ops = new CashuReceiveOpsImpl({} as never, {} as never, session);
-    expect(() => ops.receiveToken({ token: 'cashuAabc' })).toThrow(
-      NotImplementedError,
+describe('CashuReceiveOps.receiveToken — wired to the claim flow (PR5d)', () => {
+  test('returns the cross-account quote the claim flow produces', async () => {
+    const crossQuote = { id: 'rq1', type: 'CASHU_TOKEN' };
+    const claim = mock(async () => ({
+      kind: 'cross-account' as const,
+      quote: crossQuote,
+    }));
+    const ops = new CashuReceiveOpsImpl({} as never, {} as never, session, {
+      claim,
+    } as never);
+
+    const result = await ops.receiveToken({ token: 'cashuAabc' });
+
+    expect(claim).toHaveBeenCalledTimes(1);
+    expect(result).toBe(crossQuote as never);
+  });
+
+  test('surfaces a DomainError for a same-mint claim (return-type boundary, no side effect)', async () => {
+    const claim = mock(async () => ({ kind: 'same-mint' as const }));
+    const ops = new CashuReceiveOpsImpl({} as never, {} as never, session, {
+      claim,
+    } as never);
+
+    await expect(ops.receiveToken({ token: 'cashuAabc' })).rejects.toThrow(
+      DomainError,
     );
   });
 });
