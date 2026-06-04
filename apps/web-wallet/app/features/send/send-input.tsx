@@ -57,7 +57,7 @@ export function SendInput() {
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const { animationClass: shakeAnimationClass, start: startShakeAnimation } =
     useAnimation({ name: 'shake' });
-  const { data: accounts } = useAccounts();
+  const accounts = useAccounts();
   const [selectDestinationDrawerOpen, setSelectDestinationDrawerOpen] =
     useState(false);
   const [isContinuing, setIsContinuing] = useState(false);

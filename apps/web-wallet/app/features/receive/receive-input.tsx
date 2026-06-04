@@ -44,7 +44,7 @@ export default function ReceiveInput() {
   const receiveCurrencyUnit = getDefaultUnit(receiveAccount.currency);
   const setReceiveAccount = useReceiveStore((s) => s.setAccount);
   const setReceiveAmount = useReceiveStore((s) => s.setAmount);
-  const { data: accounts } = useAccounts();
+  const accounts = useAccounts();
 
   const {
     rawInputValue,

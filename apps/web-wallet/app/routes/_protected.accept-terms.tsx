@@ -4,10 +4,8 @@ import { Page, PageContent } from '~/components/page';
 import { AcceptTerms } from '~/features/user/accept-terms';
 import { useSignOut } from '~/features/user/auth';
 import { shouldAcceptTerms } from '~/features/user/user';
-import {
-  getUserFromCacheOrThrow,
-  useAcceptTerms,
-} from '~/features/user/user-hooks';
+import { getSdk } from '~/features/shared/sdk';
+import { useAcceptTerms } from '~/features/user/user-hooks';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.accept-terms';
@@ -16,9 +14,10 @@ const acceptTermsRouteGuard: Route.ClientMiddlewareFunction = async (
   { request },
   next,
 ) => {
-  const user = getUserFromCacheOrThrow();
+  const sdk = await getSdk();
+  const user = await sdk.user.getCurrentUser().toPromise();
 
-  if (!shouldAcceptTerms(user)) {
+  if (!user || !shouldAcceptTerms(user)) {
     const location = new URL(request.url);
     const redirectTo = location.searchParams.get('redirectTo') || '/';
     throw redirect(`${redirectTo}${window.location.hash}`);

@@ -15,7 +15,7 @@ import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 export default function AllAccounts() {
-  const { data: accounts } = useAccounts({
+  const accounts = useAccounts({
     currency: 'BTC',
     purpose: 'transactional',
   });

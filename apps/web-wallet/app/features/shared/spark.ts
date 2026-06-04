@@ -16,7 +16,8 @@ import {
   getSparkIdentityPublicKeyFromMnemonic,
 } from '~/lib/spark';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
-import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
+import { useSdk } from '@agicash/react-wallet-sdk';
+import { useAccounts } from '../accounts/account-hooks';
 import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { getFeatureFlag } from './feature-flags';
 
@@ -178,11 +179,11 @@ export async function getInitializedSparkWallet(
 }
 
 export function useTrackAndUpdateSparkAccountBalances() {
-  const { data: sparkOnlineAccounts } = useAccounts({
+  const sparkOnlineAccounts = useAccounts({
     type: 'spark',
     isOnline: true,
   });
-  const accountCache = useAccountsCache();
+  const sdk = useSdk();
 
   useEffect(() => {
     const registrations = sparkOnlineAccounts.map((account) => {
@@ -200,17 +201,9 @@ export function useTrackAndUpdateSparkAccountBalances() {
             event.type === 'claimedDeposits' ||
             event.type === 'synced'
           ) {
-            account.wallet.getInfo({}).then((info) => {
-              const balance = new Money({
-                amount: info.balanceSats,
-                currency: 'BTC',
-                unit: 'sat',
-              }) as Money;
-              accountCache.updateSparkAccountBalance({
-                accountId: account.id,
-                balance,
-              });
-            });
+            // Trigger a refetch of the SDK's accounts list so the updated
+            // Spark balance propagates to reactive subscribers.
+            void sdk.accounts.list().refetch();
           }
         },
       });
@@ -226,5 +219,5 @@ export function useTrackAndUpdateSparkAccountBalances() {
           });
       }
     };
-  }, [sparkOnlineAccounts, accountCache]);
+  }, [sparkOnlineAccounts, sdk]);
 }

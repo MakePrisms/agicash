@@ -27,8 +27,8 @@ import {
   getEncryption,
 } from '~/features/shared/encryption';
 import { getQueryClient } from '~/features/shared/query-client';
+import { getSdk } from '~/features/shared/sdk';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
-import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
@@ -131,7 +131,11 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const claimTo = getClaimTo(location.searchParams);
 
   if (claimTo) {
-    const user = getUserFromCacheOrThrow();
+    const sdk = await getSdk();
+    const user = await sdk.user.getCurrentUser().toPromise();
+    if (!user) {
+      throw new Error('Cannot claim token: no authenticated user');
+    }
     const claimCashuTokenService = await getClaimCashuTokenService();
 
     const result = await claimCashuTokenService.claimToken(

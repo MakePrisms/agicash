@@ -1,10 +1,7 @@
+import { useSdk } from '@agicash/react-wallet-sdk';
 import { agicashRealtimeClient } from '~/features/agicash-db/database.client';
 import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
-import {
-  useAccountChangeHandlers,
-  useAccountsCache,
-} from '../accounts/account-hooks';
 import {
   useContactChangeHandlers,
   useContactsCache,
@@ -40,11 +37,7 @@ import {
   useTransactionChangeHandlers,
   useTransactionsCache,
 } from '../transactions/transaction-hooks';
-import {
-  useUser,
-  useUserCache,
-  useUserChangeHandlers,
-} from '../user/user-hooks';
+import { useUser } from '../user/user-hooks';
 
 type DatabaseChangeHandler = {
   event: string;
@@ -90,7 +83,7 @@ function useTrackDatabaseChanges({ handlers, onConnected }: Props) {
 }
 
 export const useTrackWalletChanges = () => {
-  const accountChangeHandlers = useAccountChangeHandlers();
+  const sdk = useSdk();
   const transactionChangeHandlers = useTransactionChangeHandlers();
   const cashuReceiveQuoteChangeHandlers = useCashuReceiveQuoteChangeHandlers();
   const cashuReceiveSwapChangeHandlers = useCashuReceiveSwapChangeHandlers();
@@ -99,9 +92,7 @@ export const useTrackWalletChanges = () => {
   const contactChangeHandlers = useContactChangeHandlers();
   const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
   const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
-  const userChangeHandlers = useUserChangeHandlers();
 
-  const accountsCache = useAccountsCache();
   const transactionsCache = useTransactionsCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
   const pendingCashuReceiveQuotesCache = usePendingCashuReceiveQuotesCache();
@@ -113,7 +104,34 @@ export const useTrackWalletChanges = () => {
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
   const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
-  const userCache = useUserCache();
+
+  // Account and user change handlers: refetch the SDK's reactive queries so
+  // useQ(sdk.accounts.list()) and useQ(sdk.user.getCurrentUser()) subscribers
+  // see the new data. SDK background (PR8d) will own this long-term; for PR8b
+  // we drive it off the same web Supabase realtime channel.
+  const accountChangeHandlers: DatabaseChangeHandler[] = [
+    {
+      event: 'ACCOUNT_CREATED',
+      handleEvent: () => {
+        void sdk.accounts.list().refetch();
+      },
+    },
+    {
+      event: 'ACCOUNT_UPDATED',
+      handleEvent: () => {
+        void sdk.accounts.list().refetch();
+      },
+    },
+  ];
+
+  const userChangeHandlers: DatabaseChangeHandler[] = [
+    {
+      event: 'USER_UPDATED',
+      handleEvent: () => {
+        void sdk.user.getCurrentUser().refetch();
+      },
+    },
+  ];
 
   useTrackDatabaseChanges({
     handlers: [
@@ -129,10 +147,10 @@ export const useTrackWalletChanges = () => {
       ...userChangeHandlers,
     ],
     onConnected: () => {
-      // Makes sure that data is refetched to get the latest updates from the database.
-      // This handles possibly missed updates while the realtime was not connected yet
-      // or while it was reconnecting.
-      accountsCache.invalidate();
+      // Refetch SDK reactive reads on reconnect to catch any missed updates.
+      void sdk.accounts.list().refetch();
+      void sdk.user.getCurrentUser().refetch();
+      // Invalidate the web TanStack caches for the other features.
       transactionsCache.invalidate();
       cashuReceiveQuoteCache.invalidate();
       pendingCashuReceiveQuotesCache.invalidate();
@@ -144,7 +162,6 @@ export const useTrackWalletChanges = () => {
       sparkReceiveQuoteCache.invalidate();
       pendingSparkReceiveQuotesCache.invalidate();
       unresolvedSparkSendQuotesCache.invalidate();
-      userCache.invalidate();
     },
   });
 };

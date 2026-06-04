@@ -32,7 +32,7 @@ export function getGiftCardByUrl(url: string): GiftCardInfo | undefined {
  * Returns gift cards that the user has not yet added.
  */
 export function useDiscoverGiftCards(): GiftCardInfo[] {
-  const { data: cashuAccounts } = useAccounts({ type: 'cashu' });
+  const cashuAccounts = useAccounts({ type: 'cashu' });
 
   return useMemo(() => {
     const existingGiftCardAccounts = new Set(

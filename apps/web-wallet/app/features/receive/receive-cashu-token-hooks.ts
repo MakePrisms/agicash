@@ -80,7 +80,7 @@ export function useCashuTokenSourceAccountQuery(
  * If the account does not exist, we construct and return an account, but we do not store it in the database.
  */
 function useCashuTokenSourceAccount(token: Token) {
-  const { data: existingAccounts } = useAccounts();
+  const existingAccounts = useAccounts();
   const { data } = useCashuTokenSourceAccountQuery(token, existingAccounts);
 
   return data;

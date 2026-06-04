@@ -25,10 +25,10 @@ import { useDiscoverGiftCards } from './use-discover-cards';
  * Clicking a card navigates to the card details page with view transitions.
  */
 export function GiftCards() {
-  const { data: accounts } = useAccounts({
+  const accounts = useAccounts({
     purpose: 'gift-card',
   });
-  const { data: offerCards } = useAccounts({ purpose: 'offer' });
+  const offerCards = useAccounts({ purpose: 'offer' });
 
   const navigate = useNavigate();
   const isGiftCardTransitioning = useViewTransitionState(

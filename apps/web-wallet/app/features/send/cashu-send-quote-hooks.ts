@@ -19,7 +19,7 @@ import {
 import type { Money } from '@agicash/lib';
 import type { CashuAccount } from '../accounts/account';
 import {
-  useAccountsCache,
+  useAccounts,
   useGetCashuAccount,
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
@@ -197,11 +197,11 @@ function useUnresolvedCashuSendQuotes() {
 
 function usePendingMeltQuotes() {
   const unresolvedCashuSendQuotes = useUnresolvedCashuSendQuotes();
-  const accountsCache = useAccountsCache();
+  const accounts = useAccounts();
 
   return useMemo(() => {
     return unresolvedCashuSendQuotes.map((q) => {
-      const account = accountsCache.get(q.accountId);
+      const account = accounts.find((a) => a.id === q.accountId);
       if (!account || account.type !== 'cashu') {
         throw new Error(`Cashu account not found for send quote: ${q.id}`);
       }
@@ -213,7 +213,7 @@ function usePendingMeltQuotes() {
         inputAmount: sumProofs(q.proofs),
       };
     });
-  }, [unresolvedCashuSendQuotes, accountsCache]);
+  }, [unresolvedCashuSendQuotes, accounts]);
 }
 /**
  * Hook that returns a cashu send quote change handler.

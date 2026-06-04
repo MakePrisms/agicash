@@ -1,7 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
-import { AccountsCache } from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
@@ -17,6 +16,7 @@ import {
   getEncryption,
 } from '~/features/shared/encryption';
 import { getQueryClient } from '~/features/shared/query-client';
+import { getSdk } from '~/features/shared/sdk';
 import {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
@@ -32,11 +32,7 @@ import {
 } from '~/features/user/pending-terms-storage';
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
 import { type User, shouldAcceptTerms } from '~/features/user/user';
-import {
-  UserCache,
-  defaultAccounts,
-  getUserFromCache,
-} from '~/features/user/user-hooks';
+import { defaultAccounts } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
 import { ensureBreezWasm } from '~/lib/spark';
@@ -61,92 +57,83 @@ const buildRedirectWithReturnUrl = (
   return redirect(`${destinationRoute}${search}${hash}`);
 };
 
-const hasUserChanged = (user: User, authUser: AuthUser) => {
-  const currentAuthUserEmail = authUser.email ?? null;
-  const currentUserEmail = user.isGuest ? null : user.email;
-
-  return (
-    currentUserEmail !== currentAuthUserEmail ||
-    user.emailVerified !== authUser.email_verified
-  );
-};
-
 const ensureUserData = async (
   queryClient: QueryClient,
   authUser: AuthUser,
   termsAcceptedAt?: string,
   giftCardMintTermsAcceptedAt?: string,
 ): Promise<User> => {
-  let user = getUserFromCache(queryClient);
+  // Seed the web TanStack cache for the Supabase session token while we do the
+  // upsert so the session token is ready before the first DB read.
+  queryClient.prefetchQuery(supabaseSessionTokenQuery());
 
-  if (!user) {
-    queryClient.prefetchQuery(supabaseSessionTokenQuery());
-  }
+  const [
+    encryptionPrivateKey,
+    encryptionPublicKey,
+    cashuLockingXpub,
+    sparkIdentityPublicKey,
+  ] = await Promise.all([
+    queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
+    queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
+    queryClient.ensureQueryData(
+      xpubQueryOptions({
+        queryClient,
+        derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
+      }),
+    ),
+    // TODO: how to handle this network? We specify the network on the account creation.
+    queryClient.ensureQueryData(
+      sparkIdentityPublicKeyQueryOptions({ queryClient, network: 'MAINNET' }),
+    ),
+    queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
+    queryClient.ensureQueryData(cashuSeedQueryOptions()),
+  ]);
+  const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
+  const getCashuWalletSeed = () =>
+    queryClient.fetchQuery(cashuSeedQueryOptions());
+  const getSparkWalletMnemonic = () =>
+    queryClient.fetchQuery(sparkMnemonicQueryOptions());
+  const accountRepository = new AccountRepository(
+    agicashDbClient,
+    encryption,
+    queryClient,
+    getCashuWalletSeed,
+    getSparkWalletMnemonic,
+    './.spark-data',
+  );
+  const writeUserRepository = new WriteUserRepository(
+    agicashDbClient,
+    accountRepository,
+  );
 
-  if (!user || hasUserChanged(user, authUser)) {
-    const [
-      encryptionPrivateKey,
-      encryptionPublicKey,
-      cashuLockingXpub,
-      sparkIdentityPublicKey,
-    ] = await Promise.all([
-      queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-      queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-      queryClient.ensureQueryData(
-        xpubQueryOptions({
-          queryClient,
-          derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
-        }),
-      ),
-      // TODO: how to handle this network? We specify the network on the account creation.
-      queryClient.ensureQueryData(
-        sparkIdentityPublicKeyQueryOptions({ queryClient, network: 'MAINNET' }),
-      ),
-      queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
-      queryClient.ensureQueryData(cashuSeedQueryOptions()),
-    ]);
-    const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-    const getCashuWalletSeed = () =>
-      queryClient.fetchQuery(cashuSeedQueryOptions());
-    const getSparkWalletMnemonic = () =>
-      queryClient.fetchQuery(sparkMnemonicQueryOptions());
-    const accountRepository = new AccountRepository(
-      agicashDbClient,
-      encryption,
-      queryClient,
-      getCashuWalletSeed,
-      getSparkWalletMnemonic,
-      './.spark-data',
-    );
-    const writeUserRepository = new WriteUserRepository(
-      agicashDbClient,
-      accountRepository,
-    );
+  const { user } = await withRetry({
+    fn: () =>
+      writeUserRepository.upsert({
+        id: authUser.id,
+        email: authUser.email,
+        emailVerified: authUser.email_verified,
+        accounts: [...defaultAccounts],
+        cashuLockingXpub,
+        encryptionPublicKey,
+        sparkIdentityPublicKey,
+        termsAcceptedAt,
+        giftCardMintTermsAcceptedAt,
+      }),
+    retry: (attemptIndex, error) => {
+      if (error instanceof core.$ZodError) {
+        return false;
+      }
+      return attemptIndex < 2;
+    },
+  });
 
-    const { user: upsertedUser, accounts } = await withRetry({
-      fn: () =>
-        writeUserRepository.upsert({
-          id: authUser.id,
-          email: authUser.email,
-          emailVerified: authUser.email_verified,
-          accounts: [...defaultAccounts],
-          cashuLockingXpub,
-          encryptionPublicKey,
-          sparkIdentityPublicKey,
-          termsAcceptedAt,
-          giftCardMintTermsAcceptedAt,
-        }),
-      retry: (attemptIndex, error) => {
-        if (error instanceof core.$ZodError) {
-          return false;
-        }
-        return attemptIndex < 2;
-      },
-    });
-    user = upsertedUser;
-    queryClient.setQueryData([UserCache.Key], user);
-    queryClient.setQueryData([AccountsCache.Key], accounts);
-  }
+  // Pre-warm the SDK's internal QueryClient so useQ(sdk.user.getCurrentUser())
+  // and useQ(sdk.accounts.list()) resolve from cache on first render (no loading flash).
+  const sdk = await getSdk();
+  await Promise.all([
+    sdk.user.getCurrentUser().toPromise(),
+    sdk.accounts.list().toPromise(),
+  ]);
 
   return user;
 };

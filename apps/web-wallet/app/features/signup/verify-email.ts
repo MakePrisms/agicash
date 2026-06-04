@@ -6,7 +6,7 @@ import type { Route } from '../../routes/+types/_protected.verify-email.($code)'
 import { invalidateAuthQueries } from '../user/auth';
 import { type FullUser, shouldVerifyEmail } from '../user/user';
 import { useRequestNewEmailVerificationCode } from '../user/user-hooks';
-import { getUserFromCacheOrThrow } from '../user/user-hooks';
+import { getSdk } from '../shared/sdk';
 
 export const verifyEmailContext = createContext<FullUser>();
 
@@ -14,7 +14,11 @@ export const verifyEmailRouteGuard: Route.ClientMiddlewareFunction = async (
   { request, context },
   next,
 ) => {
-  const user = getUserFromCacheOrThrow();
+  const sdk = await getSdk();
+  const user = await sdk.user.getCurrentUser().toPromise();
+  if (!user) {
+    throw new Error('Cannot verify email: no authenticated user');
+  }
 
   if (!shouldVerifyEmail(user)) {
     throw getRedirectAwayFromVerifyEmail(request);

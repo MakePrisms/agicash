@@ -4,12 +4,10 @@ import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
-import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
 import type { User } from '../user/user';
-import { UserCache } from '../user/user-hooks';
 import type { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
@@ -31,8 +29,6 @@ type ClaimTokenResult =
   | { success: false; message: string };
 
 export class ClaimCashuTokenService {
-  private readonly accountsCache: AccountsCache;
-
   constructor(
     private readonly queryClient: QueryClient,
     private readonly accountRepository: AccountRepository,
@@ -43,9 +39,7 @@ export class ClaimCashuTokenService {
     private readonly receiveCashuTokenService: ReceiveCashuTokenService,
     private readonly receiveCashuTokenQuoteService: ReceiveCashuTokenQuoteService,
     private readonly userService: UserService,
-  ) {
-    this.accountsCache = new AccountsCache(queryClient);
-  }
+  ) {}
 
   /**
    * Claims the cashu token for the user.
@@ -86,12 +80,7 @@ export class ClaimCashuTokenService {
     token: Token,
     claimTo: 'cashu' | 'spark',
   ): Promise<ClaimTokenResult> {
-    const accounts = await this.queryClient.fetchQuery(
-      accountsQueryOptions({
-        userId: user.id,
-        accountRepository: this.accountRepository,
-      }),
-    );
+    const accounts = await this.accountRepository.getAllActive(user.id);
     const extendedAccounts = AccountService.getExtendedAccounts(user, accounts);
     const preferredReceiveAccountId =
       claimTo === 'spark'
@@ -122,7 +111,6 @@ export class ClaimCashuTokenService {
         userId: user.id,
         account: receiveAccount,
       });
-      this.accountsCache.upsert(addedAccount);
       receiveAccount = { ...receiveAccount, ...addedAccount };
     }
 
@@ -133,10 +121,7 @@ export class ClaimCashuTokenService {
       // We don't want to fail the entire claim flow if setting the default account fails because it's not
       // critical and the user can still claim the token, it just won't be as nice UX because the balance
       // when home page loads might not show the correct currency.
-      const result = await this.trySetDefaultAccount(user, receiveAccount);
-      if (result.success) {
-        this.queryClient.setQueryData([UserCache.Key], result.user);
-      }
+      await this.trySetDefaultAccount(user, receiveAccount);
     }
 
     const isSameAccountClaim = isClaimingToSameCashuAccount(
@@ -150,7 +135,6 @@ export class ClaimCashuTokenService {
         token,
         account: receiveAccount as CashuAccount,
       });
-      this.accountsCache.upsert(account);
 
       // We want to fail the entire claim flow if completing the swap fails only if the swap is in failed state (non
       // recoverable error). Otherwise, the background processing can pick it up and retry when the app loads. If the
@@ -158,9 +142,7 @@ export class ClaimCashuTokenService {
       // credited with some delay. If the background processing fails to complete it, the app already has a way to
       // handle the failed swap.
       const result = await this.tryCompleteSwap(account, swap);
-      if (result.success) {
-        this.accountsCache.upsert(result.account);
-      } else if (result.swap?.state === 'FAILED') {
+      if (result.swap?.state === 'FAILED') {
         return {
           success: false,
           message: result.swap.failureReason,
@@ -198,10 +180,7 @@ export class ClaimCashuTokenService {
       // can pick it up and retry when the app loads. If the background processing manages to complete it, it would just
       // be a minor UX issue because the balance would be credited with some delay. If the background processing fails to
       // complete it, the app already has a way to handle the failed receive.
-      const result = await this.tryCompleteReceive(quotes);
-      if (result.success && result.account) {
-        this.accountsCache.upsert(result.account);
-      }
+      await this.tryCompleteReceive(quotes);
     }
 
     return {
@@ -216,22 +195,16 @@ export class ClaimCashuTokenService {
   private async trySetDefaultAccount(
     user: User,
     account: Account,
-  ): Promise<{ success: true; user: User } | { success: false }> {
+  ): Promise<void> {
     try {
-      const updatedUser = await this.userService.setDefaultAccount(
-        user,
-        account,
-        {
-          setDefaultCurrency: true,
-        },
-      );
-      return { success: true, user: updatedUser };
+      await this.userService.setDefaultAccount(user, account, {
+        setDefaultCurrency: true,
+      });
     } catch (error) {
       console.error('Failed to set default account while claiming the token', {
         cause: error,
         accountId: account.id,
       });
-      return { success: false };
     }
   }
 
@@ -263,18 +236,14 @@ export class ClaimCashuTokenService {
 
   private async tryCompleteReceive(
     quotes: CrossAccountReceiveQuotesResult,
-  ): Promise<{ success: true; account?: CashuAccount } | { success: false }> {
+  ): Promise<void> {
     try {
       if (quotes.destinationType === 'cashu') {
-        const { account: updatedAccount } =
-          await this.cashuReceiveQuoteService.completeReceive(
-            quotes.destinationAccount,
-            quotes.cashuReceiveQuote,
-          );
-        return { success: true, account: updatedAccount };
-      }
-
-      if (quotes.destinationType === 'spark') {
+        await this.cashuReceiveQuoteService.completeReceive(
+          quotes.destinationAccount,
+          quotes.cashuReceiveQuote,
+        );
+      } else if (quotes.destinationType === 'spark') {
         const { sparkTransferId, paymentPreimage } =
           await this.waitForSparkReceiveToComplete(
             quotes.destinationAccount,
@@ -285,7 +254,6 @@ export class ClaimCashuTokenService {
           paymentPreimage,
           sparkTransferId,
         );
-        return { success: true };
       }
     } catch (error) {
       console.error('Failed to complete the receive while claiming the token', {
@@ -298,8 +266,6 @@ export class ClaimCashuTokenService {
             : quotes.sparkReceiveQuote.id,
       });
     }
-
-    return { success: false };
   }
 
   /**

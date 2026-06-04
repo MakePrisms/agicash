@@ -2,11 +2,12 @@ import {
   type PropsWithChildren,
   createContext,
   useContext,
+  useRef,
   useState,
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
-import { useAccountsCache, useGetAccount } from '../accounts/account-hooks';
+import { useAccounts, useGetAccount } from '../accounts/account-hooks';
 import { GIFT_CARDS } from '../gift-cards/use-discover-cards';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
@@ -36,8 +37,12 @@ export const SendProvider = ({
   const { mutateAsync: getSparkLightningQuote } =
     useCreateSparkLightningSendQuote();
   const getAccount = useGetAccount();
-  const accountsCache = useAccountsCache();
-  const getAccounts = () => accountsCache.getAll() ?? [];
+  // Keep a stable ref to the latest accounts list so getAccounts() always
+  // returns the current snapshot without capturing a stale closure.
+  const accounts = useAccounts();
+  const accountsRef = useRef(accounts);
+  accountsRef.current = accounts;
+  const getAccounts = useRef(() => accountsRef.current as Account[]).current;
 
   const [store] = useState(() =>
     createSendStore({
