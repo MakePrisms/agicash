@@ -6,7 +6,7 @@
  * Query for observable-fetch methods). The `Sdk` shell wires its domain accessors
  * to these so the public surface is fully present + type-correct, while the real
  * business logic lands in later slices (auth + user → S1 (DONE — real impls wired in
- * Sdk.create), accounts/scan → S2, cashu/spark → S3,
+ * Sdk.create), accounts/scan → S2 (DONE — real impls wired in Sdk.create), cashu/spark → S3,
  * transactions/contacts/transfers → S4, background → S5). Swapping a stub for a real
  * impl is the unit of work for each slice.
  *
@@ -16,12 +16,10 @@
  * @module
  */
 import type {
-  AccountsDomain,
   BackgroundDomain,
   CashuDomain,
   ContactsDomain,
   ExchangeRateDomain,
-  ScanDomain,
   SparkDomain,
   TransactionsDomain,
   TransfersDomain,
@@ -55,23 +53,8 @@ function stubQuery<T = any>(method: string): Query<T> {
 }
 
 // NOTE: `AuthDomain` + `UserDomain` are REAL as of Slice 1 (see ../domains/auth +
-// ../domains/user, wired in Sdk.create) — their stubs have been removed.
-
-/** Stub `AccountsDomain` (real impl: Slice 2). */
-export const createAccountsStub = (): AccountsDomain => ({
-  list: () => stubQuery('accounts.list'),
-  get: () => stubQuery('accounts.get'),
-  getDefault: () => stubQuery('accounts.getDefault'),
-  getBalance: () => unimplemented('accounts.getBalance'),
-  suggestFor: () => unimplemented('accounts.suggestFor'),
-  add: () => unimplemented('accounts.add'),
-  setDefault: () => unimplemented('accounts.setDefault'),
-});
-
-/** Stub `ScanDomain` (real impl: Slice 2). */
-export const createScanStub = (): ScanDomain => ({
-  parse: () => unimplemented('scan.parse'),
-});
+// ../domains/user) and `AccountsDomain` + `ScanDomain` are REAL as of Slice 2 (see
+// ../domains/accounts + ../domains/scan), all wired in Sdk.create — their stubs are removed.
 
 /** Stub `CashuDomain` (`.send` + `.receive`; real impl: Slice 3). */
 export const createCashuStub = (): CashuDomain => ({

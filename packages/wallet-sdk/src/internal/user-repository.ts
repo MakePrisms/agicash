@@ -8,13 +8,14 @@
  * are plain async methods over the SDK-owned client (passed in), reading/writing the
  * `wallet.users` table and mapping rows via {@link dbUserToUser}.
  *
- * Only the two reads/writes the auth + user domains need are ported: fetch-by-id and
- * username update. The rest of master's user repository (upsert-with-accounts, default
- * account resolution) belongs to later slices.
+ * The reads/writes the auth + user + accounts domains need are ported: fetch-by-id,
+ * username update, and the default-account update (Slice 2's `accounts.setDefault`). The
+ * rest of master's user repository (upsert-with-accounts) belongs to later slices.
  *
  * @module
  */
 import { DomainError, NotFoundError } from '../errors';
+import type { Currency } from '../types/money';
 import type { User } from '../types/user';
 import { type AgicashDbUser, dbUserToUser } from './db-user';
 import type { WalletSupabaseClient } from './supabase-client';
@@ -96,6 +97,46 @@ export class UserRepository {
           'USERNAME_TAKEN',
         );
       }
+      throw new Error('Failed to update user', { cause: error });
+    }
+
+    return dbUserToUser(data);
+  }
+
+  /**
+   * Update the user's default-account columns and return the updated domain {@link User}.
+   *
+   * Re-houses master `WriteUserRepository.update` (the default-account path used by
+   * `user-service.setDefaultAccount`): writes `default_btc_account_id` /
+   * `default_usd_account_id` / `default_currency`. The account domain computes which
+   * column changes from the account's currency; this is the thin row-write.
+   *
+   * @param userId - the user id.
+   * @param defaults - the new default-account ids + currency to persist.
+   * @returns the updated domain user.
+   * @throws Error if the update fails (e.g. the DB constraint that a default currency must
+   *   have a default account set).
+   */
+  async setDefaultAccount(
+    userId: string,
+    defaults: {
+      defaultBtcAccountId: string | null;
+      defaultUsdAccountId: string | null;
+      defaultCurrency: Currency;
+    },
+  ): Promise<User> {
+    const { data, error } = await this.db
+      .from('users')
+      .update({
+        default_btc_account_id: defaults.defaultBtcAccountId,
+        default_usd_account_id: defaults.defaultUsdAccountId,
+        default_currency: defaults.defaultCurrency,
+      })
+      .eq('id', userId)
+      .select()
+      .single<AgicashDbUser>();
+
+    if (error) {
       throw new Error('Failed to update user', { cause: error });
     }
 

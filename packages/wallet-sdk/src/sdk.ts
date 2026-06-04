@@ -31,19 +31,21 @@ import type {
   TransfersDomain,
   UserDomain,
 } from './domains';
+import { AccountsDomainImpl } from './domains/accounts';
 import { AuthDomainImpl } from './domains/auth';
+import { ScanDomainImpl } from './domains/scan';
 import { UserDomainImpl } from './domains/user';
+import { DeferredAccountHandleResolver } from './internal/account-handle-resolver';
+import { AccountRepository } from './internal/account-repository';
 import { TypedEventEmitter } from './internal/event-emitter';
 import { GuestAccountStorage } from './internal/guest-account-storage';
 import { OpenSecretClient } from './internal/open-secret';
 import { SessionResolver } from './internal/session';
 import {
-  createAccountsStub,
   createBackgroundStub,
   createCashuStub,
   createContactsStub,
   createExchangeRateStub,
-  createScanStub,
   createSparkStub,
   createTransactionsStub,
   createTransfersStub,
@@ -205,27 +207,32 @@ export class Sdk {
 
   /**
    * Private — construct via {@link Sdk.create}. Takes the assembled connection bundle plus
-   * the already-built real domains (`auth` + `user` as of Slice 1) and wires the domain
-   * accessors. Domains not yet implemented are wired to a stub; later slices replace each
-   * stub here with its real implementation.
+   * the already-built real domains (`auth` + `user` as of Slice 1; `accounts` + `scan` as of
+   * Slice 2) and wires the domain accessors. Domains not yet implemented are wired to a stub;
+   * later slices replace each stub here with its real implementation.
    *
    * @param connections - the shared connection bundle.
    * @param domains - the real domain implementations built in {@link Sdk.create}.
    */
   private constructor(
     connections: SdkConnections,
-    domains: { auth: AuthDomain; user: UserDomain },
+    domains: {
+      auth: AuthDomain;
+      user: UserDomain;
+      accounts: AccountsDomain;
+      scan: ScanDomain;
+    },
   ) {
     this.connections = connections;
     this.events = connections.events;
 
-    // --- real domains (Slice 1: auth + user) ---------------------------------
+    // --- real domains (Slice 1: auth + user; Slice 2: accounts + scan) -------
     this.auth = domains.auth;
     this.user = domains.user;
+    this.accounts = domains.accounts;
+    this.scan = domains.scan;
 
     // --- domain accessors still STUBBED (swap per slice) ---------------------
-    this.accounts = createAccountsStub();
-    this.scan = createScanStub();
     this.cashu = createCashuStub();
     this.spark = createSparkStub();
     this.transactions = createTransactionsStub();
@@ -308,7 +315,25 @@ export class Sdk {
     const auth = new AuthDomainImpl(openSecret, session, guestStorage);
     const user = new UserDomainImpl(queryClient, session, users);
 
-    return new Sdk(connections, { auth, user });
+    // --- Slice 2: accounts + scan domains ------------------------------------
+    // The account repository reads/writes `wallet.accounts` over the same Supabase client and
+    // fills in each account's deferred live-handle fields via the resolver. Slice 2 supplies
+    // the DEFERRED resolver (cashu `getBalance` → 0, spark balance → null, live `wallet`
+    // handle is a throwing stub); Slice 3 (PR5) swaps in the real mint/Breez init + proof
+    // decryption with no change here. `accounts` reads are reactive, so the domain also takes
+    // the SDK-internal QueryClient (it wraps the DB reads via `toQuery`). `scan.parse` is a
+    // connection-free decode action; `allowLocalhost` defaults to false (production).
+    const accountResolver = new DeferredAccountHandleResolver();
+    const accountRepository = new AccountRepository(supabase, accountResolver);
+    const accounts = new AccountsDomainImpl(
+      queryClient,
+      accountRepository,
+      users,
+      session,
+    );
+    const scan = new ScanDomainImpl();
+
+    return new Sdk(connections, { auth, user, accounts, scan });
   }
 
   /**
