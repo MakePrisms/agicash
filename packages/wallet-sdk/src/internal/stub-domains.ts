@@ -18,11 +18,8 @@
 import type {
   BackgroundDomain,
   CashuDomain,
-  ContactsDomain,
   ExchangeRateDomain,
   SparkDomain,
-  TransactionsDomain,
-  TransfersDomain,
 } from '../domains';
 import { NotImplementedError } from '../errors';
 import type { Query } from '../types/query';
@@ -91,28 +88,9 @@ export const createSparkStub = (): SparkDomain => ({
   },
 });
 
-/** Stub `TransactionsDomain` (real impl: Slice 4). */
-export const createTransactionsStub = (): TransactionsDomain => ({
-  list: () => stubQuery('transactions.list'),
-  get: () => stubQuery('transactions.get'),
-  countPendingAck: () => stubQuery('transactions.countPendingAck'),
-  acknowledge: () => unimplemented('transactions.acknowledge'),
-});
-
-/** Stub `ContactsDomain` (real impl: Slice 4). */
-export const createContactsStub = (): ContactsDomain => ({
-  list: () => stubQuery('contacts.list'),
-  get: () => stubQuery('contacts.get'),
-  add: () => unimplemented('contacts.add'),
-  remove: () => unimplemented('contacts.remove'),
-  search: () => unimplemented('contacts.search'),
-});
-
-/** Stub `TransfersDomain` (real impl: Slice 4). */
-export const createTransfersStub = (): TransfersDomain => ({
-  createQuote: () => unimplemented('transfers.createQuote'),
-  executeQuote: () => unimplemented('transfers.executeQuote'),
-});
+// NOTE: `TransactionsDomain` + `ContactsDomain` + `TransfersDomain` are REAL as of Slice 4 (see
+// ../domains/transactions + ../domains/contacts + ../domains/transfers, wired in Sdk.create) —
+// their stubs are removed.
 
 /** Stub `ExchangeRateDomain` (real impl: a later slice). */
 export const createExchangeRateStub = (): ExchangeRateDomain => ({

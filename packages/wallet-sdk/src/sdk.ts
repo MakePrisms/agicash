@@ -39,9 +39,14 @@ import {
   CashuSendOpsImpl,
 } from './domains/cashu';
 import { ScanDomainImpl } from './domains/scan';
+import { ContactsDomainImpl } from './domains/contacts';
+import { TransactionsDomainImpl } from './domains/transactions';
+import { TransfersDomainImpl } from './domains/transfers';
 import { UserDomainImpl } from './domains/user';
 import { LiveAccountHandleResolver } from './internal/account-handle-resolver';
 import { AccountRepository } from './internal/account-repository';
+import { ContactEventForwarder } from './internal/contact-event-forwarder';
+import { ContactRepository } from './internal/contact-repository';
 import { CashuReceiveQuoteRepository } from './internal/cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './internal/cashu-receive-quote-service';
 import { CashuReceiveSwapRepository } from './internal/cashu-receive-swap-repository';
@@ -73,11 +78,11 @@ import { OpenSecretClient } from './internal/open-secret';
 import { SessionResolver } from './internal/session';
 import {
   createBackgroundStub,
-  createContactsStub,
   createExchangeRateStub,
-  createTransactionsStub,
-  createTransfersStub,
 } from './internal/stub-domains';
+import { TransactionEventForwarder } from './internal/transaction-event-forwarder';
+import { TransactionRepository } from './internal/transaction-repository';
+import { TransferService } from './internal/transfer-service';
 import {
   type SupabaseConnectionConfig,
   type WalletSupabaseClient,
@@ -179,6 +184,17 @@ export type SdkConnections = {
    * + in-flight indices.
    */
   readonly orchestrator: Orchestrator;
+  /**
+   * Realtime → `transaction:*` event forwarder (Slice 4 defines the shape + emit path). Held so the
+   * Slice-5 realtime hub can drive it from the `wallet:${userId}` broadcast channel; it carries no
+   * subscription yet.
+   */
+  readonly transactionEventForwarder: TransactionEventForwarder;
+  /**
+   * Realtime → `contact:*` event forwarder (Slice 4 defines the shape + emit path). Held for the
+   * Slice-5 realtime hub, like {@link transactionEventForwarder}.
+   */
+  readonly contactEventForwarder: ContactEventForwarder;
 };
 
 /** Validate `config` (shape the rest of `create` relies on). Throws on a missing field. */
@@ -269,6 +285,9 @@ export class Sdk {
       scan: ScanDomain;
       cashu: CashuDomain;
       spark: SparkDomain;
+      transactions: TransactionsDomain;
+      contacts: ContactsDomain;
+      transfers: TransfersDomain;
     },
   ) {
     this.connections = connections;
@@ -283,11 +302,12 @@ export class Sdk {
     this.cashu = domains.cashu;
     // Slice 3 / PR5c: spark send + receive ops (executeQuote orchestrator deferred to PR5d).
     this.spark = domains.spark;
+    // Slice 4: transactions + contacts + transfers.
+    this.transactions = domains.transactions;
+    this.contacts = domains.contacts;
+    this.transfers = domains.transfers;
 
     // --- domain accessors still STUBBED (swap per slice) ---------------------
-    this.transactions = createTransactionsStub();
-    this.contacts = createContactsStub();
-    this.transfers = createTransfersStub();
     this.exchangeRate = createExchangeRateStub();
     this.background = createBackgroundStub();
   }
@@ -545,6 +565,54 @@ export class Sdk {
       new SparkReceiveOpsImpl(queryClient, sparkReceiveQuoteService, session),
     );
 
+    // --- Slice 4: transactions + contacts + transfers ------------------------
+    // Transactions: the repo reads `wallet.transactions` over the SDK Supabase client + Encryption
+    // (it decrypts each row's `encrypted_transaction_details` then runs the internal 6-variant
+    // DB→domain parser, decision 7-ii); the reactive domain wraps its reads in `Query<T>` over the
+    // shared QueryClient. Contacts: the repo reads `wallet.contacts` and computes each contact's
+    // `lud16` from `config.domain` (the CONTACT DRIFT reconciliation — `lud16` derived, not stored);
+    // its reads are likewise `Query<T>`. Transfers: the service COMPOSES the PR5b/5c cashu + spark
+    // send/receive quote services (a transfer = a cashu leg + a spark leg) and auto-fails the
+    // receive on a send-persist failure; the domain's createQuote/executeQuote are `Promise`
+    // actions over the VERBATIM-FULL `TransferQuote` (each leg's live Lightning quote is plain data,
+    // read directly — no symbol carrier).
+    const agicashDomain = config.domain ?? '';
+    const transactionRepository = new TransactionRepository(
+      supabase,
+      encryption,
+    );
+    const contactRepository = new ContactRepository(supabase, agicashDomain);
+    const transferService = new TransferService(
+      cashuReceiveQuoteService,
+      sparkReceiveQuoteService,
+      cashuSendQuoteService,
+      sparkSendQuoteService,
+    );
+
+    const transactions = new TransactionsDomainImpl(
+      queryClient,
+      transactionRepository,
+      session,
+    );
+    const contacts = new ContactsDomainImpl(
+      queryClient,
+      contactRepository,
+      session,
+    );
+    const transfers = new TransfersDomainImpl(transferService, session);
+
+    // Realtime → SDK-event forwarders (Slice 4 defines the `transaction:*` / `contact:*` event
+    // SHAPES + emit path; the Slice-5 realtime hub will drive them from the `wallet:${userId}`
+    // broadcast channel — no subscription is opened here).
+    const transactionEventForwarder = new TransactionEventForwarder(
+      transactionRepository,
+      events,
+    );
+    const contactEventForwarder = new ContactEventForwarder(
+      agicashDomain,
+      events,
+    );
+
     // The shared connection bundle (held by `Sdk` so `destroy()` can tear everything down). Built
     // last because the orchestrator (PR5d) needs every protocol service/repo constructed first.
     const connections: SdkConnections = {
@@ -559,9 +627,21 @@ export class Sdk {
       sparkCache,
       sparkBalanceTracker,
       orchestrator,
+      transactionEventForwarder,
+      contactEventForwarder,
     };
 
-    return new Sdk(connections, { auth, user, accounts, scan, cashu, spark });
+    return new Sdk(connections, {
+      auth,
+      user,
+      accounts,
+      scan,
+      cashu,
+      spark,
+      transactions,
+      contacts,
+      transfers,
+    });
   }
 
   /**

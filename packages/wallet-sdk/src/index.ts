@@ -95,9 +95,11 @@ export type {
 } from './types/transaction';
 
 export type { Contact } from './types/contact';
+export type { Destination } from './types/destination';
 
 export type {
-  TransferLeg,
+  TransferReceiveSide,
+  TransferSendSide,
   TransferQuote,
   TransferResult,
 } from './types/transfer';
