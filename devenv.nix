@@ -73,19 +73,19 @@
   '';
 
   # https://devenv.sh/pre-commit-hooks/
- git-hooks.hooks.generate-db-types = {
+  git-hooks.hooks.generate-db-types = {
     enable = true;
     name = "Generate database types from local db";
     entry = "bun run db:generate-types";
   };
   
- git-hooks.hooks.typecheck = {
+  git-hooks.hooks.typecheck = {
     enable = true;
     entry = "bun run typecheck";
     pass_filenames = false;
   };
   
- git-hooks.hooks.biome = {
+  git-hooks.hooks.biome = {
     enable = true;
     entry = "bun run fix:staged";
   };
