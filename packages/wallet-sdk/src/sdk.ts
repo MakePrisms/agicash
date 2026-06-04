@@ -33,6 +33,7 @@ import type {
 import type { EventEmitter, SdkEventMap } from './events';
 import { AccountsDomainImpl } from './domains/accounts';
 import { AuthDomainImpl } from './domains/auth';
+import { BackgroundDomainImpl } from './domains/background';
 import {
   CashuDomainImpl,
   CashuReceiveOpsImpl,
@@ -44,7 +45,9 @@ import { TransactionsDomainImpl } from './domains/transactions';
 import { TransfersDomainImpl } from './domains/transfers';
 import { UserDomainImpl } from './domains/user';
 import { LiveAccountHandleResolver } from './internal/account-handle-resolver';
+import { AccountEventForwarder } from './internal/account-event-forwarder';
 import { AccountRepository } from './internal/account-repository';
+import { BackgroundProcessor } from './internal/background-processor';
 import { ContactEventForwarder } from './internal/contact-event-forwarder';
 import { ContactRepository } from './internal/contact-repository';
 import { CashuReceiveQuoteRepository } from './internal/cashu-receive-quote-repository';
@@ -59,9 +62,12 @@ import { MintMetadataCache } from './internal/cashu-wallet';
 import { ClaimCashuTokenFlow } from './internal/claim-cashu-token-flow';
 import { dbAccountToAccount } from './internal/db-account';
 import { createEncryption } from './internal/encryption';
+import { LeaderElection } from './internal/leader-election';
 import { Orchestrator } from './internal/orchestrator';
+import { RealtimeHub } from './internal/realtime-hub';
 import { ReceiveCashuTokenQuoteService } from './internal/receive-cashu-token-quote-service';
 import { SparkBalanceTracker } from './internal/spark-balance-tracker';
+import { SparkEventForwarder } from './internal/spark-event-forwarder';
 import { SparkReceiveQuoteRepository } from './internal/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from './internal/spark-receive-quote-service';
 import { SparkSendQuoteRepository } from './internal/spark-send-quote-repository';
@@ -76,10 +82,8 @@ import { TypedEventEmitter } from './internal/event-emitter';
 import { GuestAccountStorage } from './internal/guest-account-storage';
 import { OpenSecretClient } from './internal/open-secret';
 import { SessionResolver } from './internal/session';
-import {
-  createBackgroundStub,
-  createExchangeRateStub,
-} from './internal/stub-domains';
+import { TaskProcessingLockRepository } from './internal/task-processing-lock-repository';
+import { createExchangeRateStub } from './internal/stub-domains';
 import { TransactionEventForwarder } from './internal/transaction-event-forwarder';
 import { TransactionRepository } from './internal/transaction-repository';
 import { TransferService } from './internal/transfer-service';
@@ -136,6 +140,12 @@ export type SdkConnections = {
    * Slice-5 realtime hub, like {@link transactionEventForwarder}.
    */
   readonly contactEventForwarder: ContactEventForwarder;
+  /**
+   * The Slice-5 background engine (leader election + the always-on realtime forwarding + the
+   * leader-gated resume sweep). Held so `destroy()` halts the leader loop, unsubscribes the realtime
+   * channel, and removes the spark Breez listeners.
+   */
+  readonly backgroundProcessor: BackgroundProcessor;
 };
 
 /** Validate `config` (shape the rest of `create` relies on). Throws on a missing field. */
@@ -228,6 +238,7 @@ export class Sdk {
       transactions: TransactionsDomain;
       contacts: ContactsDomain;
       transfers: TransfersDomain;
+      background: BackgroundDomain;
     },
   ) {
     this.connections = connections;
@@ -248,10 +259,11 @@ export class Sdk {
     this.transactions = domains.transactions;
     this.contacts = domains.contacts;
     this.transfers = domains.transfers;
+    // Slice 5: background (leader-elected orchestrators + realtime event forwarding).
+    this.background = domains.background;
 
     // --- domain accessors still STUBBED (swap per slice) ---------------------
     this.exchangeRate = createExchangeRateStub();
-    this.background = createBackgroundStub();
   }
 
   /**
@@ -517,9 +529,15 @@ export class Sdk {
     const contacts = new ContactsDomainImpl(contactRepository, session);
     const transfers = new TransfersDomainImpl(transferService, session);
 
-    // Realtime → SDK-event forwarders (Slice 4 defines the `transaction:*` / `contact:*` event
-    // SHAPES + emit path; the Slice-5 realtime hub will drive them from the `wallet:${userId}`
-    // broadcast channel — no subscription is opened here).
+    // Realtime → SDK-event forwarders. Slice 4 defined the `transaction:*` / `contact:*` event
+    // SHAPES + emit path; the `account:updated` realtime forwarder is the Slice-5 add (the spark
+    // balance path already emits `account:updated` off the Breez stream — this covers the
+    // cashu-balance / account-metadata DB-trigger updates). The Slice-5 realtime hub (below) drives
+    // all three from the `wallet:${userId}` broadcast channel.
+    const accountEventForwarder = new AccountEventForwarder(
+      accountRepository,
+      events,
+    );
     const transactionEventForwarder = new TransactionEventForwarder(
       transactionRepository,
       events,
@@ -528,6 +546,62 @@ export class Sdk {
       agicashDomain,
       events,
     );
+
+    // --- Slice 5: background (leader election + realtime forwarding) ----------
+    // The leader-election timer loop over the lifted `take_lead` lock; the single `wallet:${userId}`
+    // realtime channel; the spark Breez terminal-event substrate (drives spark sends/receives to
+    // their terminal state off the Breez stream — spark has no mint WS). All three are owned by the
+    // BackgroundProcessor, which reacts to lead transitions, routes realtime broadcasts (forwarders
+    // always; quote/swap → orchestrator when leader), and runs the resume sweep (the no-cache
+    // "listPending": enumerate unresolved/pending FROM THE DB + kick each off).
+    const getUserId = async (): Promise<string | null> => {
+      const user = await session.getCurrentUser();
+      return user?.id ?? null;
+    };
+    const lockRepository = new TaskProcessingLockRepository(supabase);
+    const sparkEventForwarder = new SparkEventForwarder(orchestrator);
+
+    // `processor` is referenced by the leaderElection/realtimeHub callbacks before it is assigned,
+    // so it is captured via a forward reference and the callbacks run only after construction.
+    // biome-ignore lint/style/useConst: assigned after the callbacks below close over it (forward ref).
+    let processor: BackgroundProcessor;
+    const leaderElection = new LeaderElection({
+      lockRepository,
+      clientId,
+      getUserId,
+      onChange: (status) => {
+        void processor.onLeadChange(status);
+      },
+    });
+    const realtimeHub = new RealtimeHub({
+      supabase,
+      dispatch: (event, payload) => {
+        processor.dispatch(event, payload);
+      },
+      onConnected: () => {
+        void processor.reconcile();
+      },
+    });
+    processor = new BackgroundProcessor({
+      events,
+      getUserId,
+      leaderElection,
+      realtimeHub,
+      orchestrator,
+      accountEventForwarder,
+      transactionEventForwarder,
+      contactEventForwarder,
+      sparkBalanceTracker,
+      sparkEventForwarder,
+      accounts: accountRepository,
+      cashuSendQuoteRepository,
+      cashuSendSwapRepository,
+      cashuReceiveQuoteRepository,
+      cashuReceiveSwapRepository,
+      sparkSendQuoteRepository,
+      sparkReceiveQuoteRepository,
+    });
+    const background = new BackgroundDomainImpl(processor);
 
     // The shared connection bundle (held by `Sdk` so `destroy()` can tear everything down). Built
     // last because the orchestrator (PR5d) needs every protocol service/repo constructed first.
@@ -544,6 +618,7 @@ export class Sdk {
       orchestrator,
       transactionEventForwarder,
       contactEventForwarder,
+      backgroundProcessor: processor,
     };
 
     return new Sdk(connections, {
@@ -556,6 +631,7 @@ export class Sdk {
       transactions,
       contacts,
       transfers,
+      background,
     });
   }
 
@@ -564,25 +640,29 @@ export class Sdk {
    * halt the background orchestrators, and clear timers + subscribers. Call when the
    * consumer is done with the SDK.
    *
-   * PR2 implements the parts that exist in the core shell: it stops Supabase realtime,
-   * drops the cached session token, and clears all event subscribers. The mint-WS /
-   * Breez / orchestrator / leader-election teardown is finalised in Slice 5 when those
-   * connections are actually opened — this method is the single seam they hook.
+   * Slice 5 finalises this: it first stops the background engine — halting the leader-election
+   * timer (and aborting any in-flight `take_lead`), unsubscribing the single `wallet:${userId}`
+   * realtime channel, and removing the spark Breez listeners — then closes the orchestrator's mint
+   * melt/mint-quote WS subscriptions, drops the live-handle memos + cached token, and clears all
+   * event subscribers.
    */
   async destroy(): Promise<void> {
-    // Close Supabase realtime channels (no-op if none were opened yet).
+    // Halt the background engine FIRST: stop lead-polling, unsubscribe the realtime channel, and
+    // remove the spark Breez balance + terminal-event listeners + clear timers (Slice 5).
+    await this.connections.backgroundProcessor.stop();
+    // Close any remaining Supabase realtime channels (no-op after the processor's unsubscribe).
     await this.connections.supabase.removeAllChannels();
     // Drop the cached access token.
     this.connections.sessionToken.clear();
     // Drop the live-handle memos (cashu mint metadata + connected spark wallets).
     this.connections.mintCache.clear();
     this.connections.sparkCache.clear();
-    // Remove the spark Breez balance listeners (the `account:updated` source).
+    // Remove the spark Breez balance listeners (the `account:updated` source) — idempotent after the
+    // processor stop above (covers a `destroy()` without a prior `background.start()`).
     this.connections.sparkBalanceTracker.stop();
     // Close the orchestrator's live mint melt/mint-quote WS subscriptions + clear its in-flight
     // indices (PR5d). The cashu account wallets' own mint sockets + the Breez SDK `disconnect()`
-    // are dropped with the live-handle memos above; the leader-elected processor + its timers are
-    // the Slice-5 addition to this same seam.
+    // are dropped with the live-handle memos above.
     await this.connections.orchestrator.destroy();
     // Remove every event subscriber.
     this.connections.events.removeAllListeners();

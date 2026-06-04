@@ -106,6 +106,22 @@ export class AccountRepository {
   }
 
   /**
+   * Map a `wallet.accounts` realtime broadcast row (joined with its proofs) to the domain
+   * {@link Account}.
+   *
+   * Mirrors master `AccountRepository.toAccount` (used by `useAccountChangeHandlers`): it just
+   * delegates to {@link dbAccountToAccount} with the repository's live-handle resolver. The
+   * Slice-5 realtime account forwarder calls this to translate an `ACCOUNT_CREATED` /
+   * `ACCOUNT_UPDATED` payload into the domain account it emits.
+   *
+   * @param row - the broadcast account row (with its proofs).
+   * @returns the domain account.
+   */
+  async toAccount(row: AgicashDbAccountWithProofs): Promise<Account> {
+    return dbAccountToAccount(row, this.resolver);
+  }
+
+  /**
    * Create an account from an {@link AddAccountConfig} and return the mapped domain account.
    *
    * Re-houses master `account-service.addCashuAccount` + `account-repository.create`: builds
