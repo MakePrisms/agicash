@@ -21,7 +21,7 @@ import type { Currency, Money as MoneyType } from '../types/money';
 import type { Query } from '../types/query';
 
 const { CashuSendOpsImpl, CashuReceiveOpsImpl } = await import('./cashu');
-const { NotImplementedError, DomainError } = await import('../errors');
+const { DomainError } = await import('../errors');
 const { Money } = await import('../types/money');
 
 // -- Fakes ----------------------------------------------------------------------------------
@@ -95,13 +95,14 @@ function makeSendOps(
 ) {
   const ops = new CashuSendOpsImpl(
     makeClient(),
-    // biome-ignore lint/suspicious/noExplicitAny: minimal service/repo stubs for the fold + stub tests.
+    // biome-ignore lint/suspicious/noExplicitAny: minimal service/repo stubs for the fold tests.
     sendQuoteService as any,
     {} as never,
     sendQuoteRepository,
     sendSwapRepository,
     {} as never,
     session,
+    {} as never,
   );
   return { ops, sendQuoteService };
 }
@@ -178,24 +179,128 @@ describe('CashuSendOps.createLightningQuote — destination resolution', () => {
   });
 });
 
-describe('CashuSendOps.executeQuote — deferred to PR5d', () => {
-  test('throws NotImplementedError (orchestrator state machine deferred)', () => {
-    const { ops } = makeSendOps();
-    expect(() => ops.executeQuote({} as never)).toThrow(NotImplementedError);
+describe('CashuSendOps.executeQuote — wired to the orchestrator (PR5d)', () => {
+  test('delegates the full quote to orchestrator.executeCashuSendQuote', async () => {
+    const quote = { id: 'q1', state: 'UNPAID' } as never;
+    const executeCashuSendQuote = mock(async (q: unknown) => q);
+    const orchestrator = { executeCashuSendQuote } as never;
+    const ops = new CashuSendOpsImpl(
+      makeClient(),
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      session,
+      orchestrator,
+    );
+
+    const result = await ops.executeQuote(quote);
+
+    expect(executeCashuSendQuote).toHaveBeenCalledTimes(1);
+    expect(executeCashuSendQuote).toHaveBeenCalledWith(quote);
+    expect(result).toBe(quote);
   });
 });
 
-describe('CashuReceiveOps.receiveToken — deferred to PR5d', () => {
-  test('throws NotImplementedError with no side effects (the claim flow is deferred)', () => {
+describe('CashuReceiveOps.receiveToken — wired to the claim flow (PR5d)', () => {
+  test('a SAME-MINT claim returns { success:true, destinationAccount } (no throw)', async () => {
+    // The same-mint branch creates an internal CashuReceiveSwap + kicks the orchestrator; the flow
+    // reports kind:'same-mint' with the destination account projection (the swap stays internal).
+    const claim = mock(async () => ({
+      kind: 'same-mint' as const,
+      destinationAccount: { id: 'acc1', purpose: 'transactional' },
+    }));
     const ops = new CashuReceiveOpsImpl(
       makeClient(),
       {} as never,
       {} as never,
       session,
+      {
+        claim,
+      } as never,
     );
-    expect(() => ops.receiveToken({ token: 'cashuAabc' })).toThrow(
-      NotImplementedError,
+
+    const result = await ops.receiveToken({ token: 'cashuAabc' });
+
+    expect(claim).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      success: true,
+      destinationAccount: { id: 'acc1', purpose: 'transactional' },
+    });
+  });
+
+  test('a CROSS-account claim returns { success:true, destinationAccount }', async () => {
+    const claim = mock(async () => ({
+      kind: 'cross-account' as const,
+      destinationAccount: { id: 'spark1', purpose: 'transactional' },
+    }));
+    const ops = new CashuReceiveOpsImpl(
+      makeClient(),
+      {} as never,
+      {} as never,
+      session,
+      {
+        claim,
+      } as never,
     );
+
+    const result = await ops.receiveToken({
+      token: 'cashuAabc',
+      destinationAccount: { id: 'spark1', type: 'spark' } as never,
+    });
+
+    expect(claim).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      success: true,
+      destinationAccount: { id: 'spark1', purpose: 'transactional' },
+    });
+  });
+
+  test('a DomainError from the flow is swallowed to { success:false, message } (no throw)', async () => {
+    const claim = mock(async () => {
+      throw new DomainError(
+        'Claiming a token from a new mint is not supported yet',
+      );
+    });
+    const ops = new CashuReceiveOpsImpl(
+      makeClient(),
+      {} as never,
+      {} as never,
+      session,
+      {
+        claim,
+      } as never,
+    );
+
+    const result = await ops.receiveToken({ token: 'cashuAabc' });
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Claiming a token from a new mint is not supported yet',
+    });
+  });
+
+  test('an unexpected (non-Domain) error is swallowed to a generic { success:false } result', async () => {
+    const claim = mock(async () => {
+      throw new TypeError('boom');
+    });
+    const ops = new CashuReceiveOpsImpl(
+      makeClient(),
+      {} as never,
+      {} as never,
+      session,
+      {
+        claim,
+      } as never,
+    );
+
+    const result = await ops.receiveToken({ token: 'cashuAabc' });
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Unexpected error while claiming the token',
+    });
   });
 });
 
@@ -274,6 +379,7 @@ describe('CashuReceiveOps.get — reactive Query<T>', () => {
       {} as never,
       receiveQuoteRepository,
       session,
+      {} as never,
     );
   }
 

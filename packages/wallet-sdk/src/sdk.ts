@@ -51,8 +51,11 @@ import { CashuSendQuoteService } from './internal/cashu-send-quote-service';
 import { CashuSendSwapRepository } from './internal/cashu-send-swap-repository';
 import { CashuSendSwapService } from './internal/cashu-send-swap-service';
 import { MintMetadataCache } from './internal/cashu-wallet';
+import { ClaimCashuTokenFlow } from './internal/claim-cashu-token-flow';
 import { dbAccountToAccount } from './internal/db-account';
 import { createEncryption } from './internal/encryption';
+import { Orchestrator } from './internal/orchestrator';
+import { ReceiveCashuTokenQuoteService } from './internal/receive-cashu-token-quote-service';
 import { SparkBalanceTracker } from './internal/spark-balance-tracker';
 import { SparkReceiveQuoteRepository } from './internal/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from './internal/spark-receive-quote-service';
@@ -170,6 +173,12 @@ export type SdkConnections = {
    * `track(onlineSparkAccounts)` to start it.
    */
   readonly sparkBalanceTracker: SparkBalanceTracker;
+  /**
+   * The unified `executeQuote` ORCHESTRATOR (PR5d): the framework-free state machine the cashu +
+   * spark send/receive domains drive. Held so `destroy()` tears down its live mint-WS subscriptions
+   * + in-flight indices.
+   */
+  readonly orchestrator: Orchestrator;
 };
 
 /** Validate `config` (shape the rest of `create` relies on). Throws on a missing field. */
@@ -336,19 +345,7 @@ export class Sdk {
     const sparkCache = new SparkWalletCache();
     // Spark balance source (Breez listeners → `account:updated`). Built here, started by S5.
     const sparkBalanceTracker = new SparkBalanceTracker(events);
-
-    const connections: SdkConnections = {
-      supabase,
-      openSecret,
-      sessionToken,
-      storage: config.storage,
-      events,
-      queryClient,
-      clientId: config.clientId ?? generateClientId(),
-      mintCache,
-      sparkCache,
-      sparkBalanceTracker,
-    };
+    const clientId = config.clientId ?? generateClientId();
 
     // --- Slice 1: auth + user domains ----------------------------------------
     // The agicash domain `User` is the `wallet.users` row keyed by the OpenSecret user id,
@@ -454,24 +451,6 @@ export class Sdk {
       cashuReceiveQuoteRepository,
     );
 
-    const cashu = new CashuDomainImpl(
-      new CashuSendOpsImpl(
-        queryClient,
-        cashuSendQuoteService,
-        cashuSendSwapService,
-        cashuSendQuoteRepository,
-        cashuSendSwapRepository,
-        accountRepository,
-        session,
-      ),
-      new CashuReceiveOpsImpl(
-        queryClient,
-        cashuReceiveQuoteService,
-        cashuReceiveQuoteRepository,
-        session,
-      ),
-    );
-
     // --- Slice 3 / PR5c: spark send + receive ops ----------------------------
     // The spark repos write/read the `wallet.spark_{send,receive}_quotes` tables over the
     // SDK-owned Supabase client + the SDK Encryption (encrypt-on-write / decrypt-on-read of the
@@ -496,10 +475,91 @@ export class Sdk {
     const sparkReceiveQuoteService = new SparkReceiveQuoteService(
       sparkReceiveQuoteRepository,
     );
+
+    // --- Slice 3 / PR5d: the executeQuote ORCHESTRATOR -----------------------
+    // The framework-free state machine (build plan's single biggest net-new construct) that
+    // absorbs master's six React-resident `useProcess*Tasks` hooks. It DRIVES the idempotent
+    // PR5b/5c service primitives off FRESH DB reads (no cache) + the mint melt/mint-quote WS
+    // subscriptions, and emits the `send:*` / `receive:*` events. Shared by both protocols' send
+    // (`executeQuote`) + receive (kickoff/completion) domains so a kickoff and the (future,
+    // Slice-5) leader-gated processor act on one source of truth.
+    const orchestrator = new Orchestrator({
+      accounts: accountRepository,
+      events,
+      cashuSendQuoteService,
+      cashuSendQuoteRepository,
+      cashuSendSwapService,
+      cashuSendSwapRepository,
+      cashuReceiveQuoteService,
+      cashuReceiveQuoteRepository,
+      cashuReceiveSwapService,
+      cashuReceiveSwapRepository,
+      sparkSendQuoteService,
+      sparkSendQuoteRepository,
+      sparkReceiveQuoteService,
+      sparkReceiveQuoteRepository,
+    });
+
+    // The cross-account cashu-token receive quote builder + the token-claim flow behind
+    // `cashu.receive.receiveToken` (decode → resolve source/destination → same-mint swap OR
+    // cross-account melt-then-mint, all driven by the orchestrator).
+    const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
+      cashuReceiveQuoteService,
+      sparkReceiveQuoteService,
+    );
+    const claimCashuTokenFlow = new ClaimCashuTokenFlow({
+      accounts: accountRepository,
+      cashuReceiveSwapService,
+      receiveCashuTokenQuoteService,
+      orchestrator,
+      mintCache,
+    });
+
+    const cashu = new CashuDomainImpl(
+      new CashuSendOpsImpl(
+        queryClient,
+        cashuSendQuoteService,
+        cashuSendSwapService,
+        cashuSendQuoteRepository,
+        cashuSendSwapRepository,
+        accountRepository,
+        session,
+        orchestrator,
+      ),
+      new CashuReceiveOpsImpl(
+        queryClient,
+        cashuReceiveQuoteService,
+        cashuReceiveQuoteRepository,
+        session,
+        claimCashuTokenFlow,
+      ),
+    );
+
     const spark = new SparkDomainImpl(
-      new SparkSendOpsImpl(queryClient, sparkSendQuoteService, session),
+      new SparkSendOpsImpl(
+        queryClient,
+        sparkSendQuoteService,
+        session,
+        orchestrator,
+      ),
       new SparkReceiveOpsImpl(queryClient, sparkReceiveQuoteService, session),
     );
+
+    // The shared connection bundle (held by `Sdk` so `destroy()` can tear everything down). Built
+    // last because the orchestrator (PR5d) needs every protocol service/repo constructed first.
+    const connections: SdkConnections = {
+      supabase,
+      openSecret,
+      sessionToken,
+      storage: config.storage,
+      events,
+      queryClient,
+      clientId,
+      mintCache,
+      sparkCache,
+      sparkBalanceTracker,
+      orchestrator,
+    };
 
     return new Sdk(connections, { auth, user, accounts, scan, cashu, spark });
   }
@@ -528,8 +588,10 @@ export class Sdk {
     this.connections.sparkCache.clear();
     // Remove the spark Breez balance listeners (the `account:updated` source).
     this.connections.sparkBalanceTracker.stop();
-    // TODO(Slice 3/5): close mint melt/mint-quote WS subs + Breez SDK instances (call
-    // `disconnect()` on connected wallets) + halt the leader-elected processor + clear its
-    // timers (wired into this seam when those connections are opened).
+    // Close the orchestrator's live mint melt/mint-quote WS subscriptions + clear its in-flight
+    // indices (PR5d). The cashu account wallets' own mint sockets + the Breez SDK `disconnect()`
+    // are dropped with the live-handle memos above; the leader-elected processor + its timers are
+    // the Slice-5 addition to this same seam.
+    await this.connections.orchestrator.destroy();
   }
 }

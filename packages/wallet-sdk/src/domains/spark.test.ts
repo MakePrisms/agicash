@@ -21,7 +21,7 @@ import type { Currency, Money as MoneyType } from '../types/money';
 import type { Query } from '../types/query';
 
 const { SparkSendOpsImpl, SparkReceiveOpsImpl } = await import('./spark');
-const { NotImplementedError, DomainError } = await import('../errors');
+const { DomainError } = await import('../errors');
 const { Money } = await import('../types/money');
 
 // -- Fakes ----------------------------------------------------------------------------------
@@ -93,12 +93,16 @@ function fakeSendQuoteService() {
   };
 }
 
-function makeSendOps(sendQuoteService = fakeSendQuoteService()) {
+function makeSendOps(
+  sendQuoteService = fakeSendQuoteService(),
+  orchestrator: unknown = {},
+) {
   const ops = new SparkSendOpsImpl(
     makeClient(),
-    // biome-ignore lint/suspicious/noExplicitAny: minimal service stub for the fold + stub tests.
+    // biome-ignore lint/suspicious/noExplicitAny: minimal service stub for the fold tests.
     sendQuoteService as any,
     session,
+    orchestrator as never,
   );
   return { ops, sendQuoteService };
 }
@@ -210,10 +214,19 @@ describe('SparkSendOps.createLightningQuote — destination resolution', () => {
   });
 });
 
-describe('SparkSendOps.executeQuote — deferred to PR5d', () => {
-  test('throws NotImplementedError (orchestrator state machine deferred, like cashu)', () => {
-    const { ops } = makeSendOps();
-    expect(() => ops.executeQuote({} as never)).toThrow(NotImplementedError);
+describe('SparkSendOps.executeQuote — wired to the orchestrator (PR5d)', () => {
+  test('delegates the full quote to orchestrator.executeSparkSendQuote', async () => {
+    const quote = { id: 'q1', state: 'UNPAID' } as never;
+    const executeSparkSendQuote = mock(async (q: unknown) => q);
+    const { ops } = makeSendOps(fakeSendQuoteService(), {
+      executeSparkSendQuote,
+    });
+
+    const result = await ops.executeQuote(quote);
+
+    expect(executeSparkSendQuote).toHaveBeenCalledTimes(1);
+    expect(executeSparkSendQuote).toHaveBeenCalledWith(quote);
+    expect(result).toBe(quote);
   });
 });
 
@@ -286,7 +299,12 @@ describe('SparkSendOps.get — reactive Query<T>', () => {
     // biome-ignore lint/suspicious/noExplicitAny: minimal service stub for the `get` read tests.
     sendQuoteService: any,
   ) {
-    return new SparkSendOpsImpl(makeClient(), sendQuoteService, session);
+    return new SparkSendOpsImpl(
+      makeClient(),
+      sendQuoteService,
+      session,
+      {} as never,
+    );
   }
 
   test('returns a Query (subscribe + toPromise) whose toPromise resolves the send quote (null when absent)', async () => {

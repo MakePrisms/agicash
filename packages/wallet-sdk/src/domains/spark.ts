@@ -19,28 +19,25 @@
  * Every WRITE/ACTION (`createLightningQuote` / `failQuote` / `executeQuote`) stays a `Promise` —
  * lifted verbatim from the no-cache slice.
  *
- * **`executeQuote` — DEFERRED to the orchestrator sub-slice (PR5d).** This is the SAME decision
- * PR5b made for cashu's `executeQuote`, and for the same reason: the unified `executeQuote`
+ * **`executeQuote` — wired through the orchestrator (PR5d).** The unified `executeQuote`
  * orchestrator (the build plan's single biggest net-new construct) absorbs master's six
  * React-resident `useProcess*Tasks` hooks — INCLUDING `spark-send-quote-hooks.ts#useProcessSparkSendQuoteTasks`
- * — into one framework-free state machine, kept as its own reviewable unit (build plan §1 + §4 +
- * risk callout). For spark specifically: `initiateSend` (Breez `sendPayment`) moves a quote
- * UNPAID → PENDING, but the TERMINAL transition (→ COMPLETED / FAILED) is driven by the Breez
- * `paymentSucceeded` / `paymentFailed` event callback — the same event-listener substrate
- * `SparkBalanceTracker` uses and that the orchestrator owns (it also emits `send:completed` /
- * `send:failed`). Building only spark's drive loop here would duplicate that substrate and split
- * the orchestrator across two PRs. PR5c therefore ships the IDEMPOTENT PRIMITIVES the orchestrator
- * sequences (`initiateSend` with `idempotencyKey: quote.id` / `complete` / `fail`) + the balance
- * source, and leaves `executeQuote` a documented {@link NotImplementedError} stub — see
- * {@link SparkSendOpsImpl.executeQuote}.
+ * — into one framework-free state machine. For spark: `executeQuote` hands the full quote to the
+ * shared {@link Orchestrator}, which calls `initiateSend` (Breez `sendPayment`, UNPAID → PENDING)
+ * immediately; the TERMINAL transition (→ COMPLETED / FAILED) is driven by the Breez
+ * `paymentSucceeded` / `paymentFailed` event surfaced to the orchestrator's `stepSparkSend*` cores
+ * (the same event substrate `SparkBalanceTracker` uses, whose wiring lands with the S5 spark-event
+ * forwarder). PR5c ships the IDEMPOTENT PRIMITIVES the orchestrator sequences (`initiateSend` with
+ * `idempotencyKey: quote.id` / `complete` / `fail`). `executeQuote` resolves on KICK-OFF.
  *
  * @module
  */
 import { getInvoiceFromLud16, isLNURLError } from '../internal/lib-lnurl';
+import type { Orchestrator } from '../internal/orchestrator';
 import type { SparkReceiveQuoteService } from '../internal/spark-receive-quote-service';
 import type { SparkSendQuoteService } from '../internal/spark-send-quote-service';
 import type { SparkDomain, SparkReceiveOps, SparkSendOps } from '../domains';
-import { DomainError, NotImplementedError } from '../errors';
+import { DomainError } from '../errors';
 import { type QueryClient, toQuery } from '../query';
 import type { SparkAccount } from '../types/account';
 import type { SessionResolver } from '../internal/session';
@@ -69,6 +66,7 @@ export class SparkSendOpsImpl implements SparkSendOps {
     private readonly client: QueryClient,
     private readonly sendQuoteService: SparkSendQuoteService,
     private readonly session: SessionResolver,
+    private readonly orchestrator: Orchestrator,
   ) {}
 
   /**
@@ -122,19 +120,19 @@ export class SparkSendOpsImpl implements SparkSendOps {
   }
 
   /**
-   * DEFERRED (orchestrator sub-slice, PR5d). `executeQuote` IS the orchestrator — the
-   * framework-free state machine that drives UNPAID → PENDING → COMPLETED/FAILED off Breez
-   * `sendPayment` + its `paymentSucceeded` / `paymentFailed` event callback (master has only the
-   * React `TaskProcessor` + `useProcessSparkSendQuoteTasks`). PR5c ships the idempotent primitives
-   * it sequences (`initiateSend` with `idempotencyKey: quote.id`, `complete`, `fail`) but NOT the
-   * drive loop. Throws {@link NotImplementedError}. (Same placement as cashu's `executeQuote`.)
+   * Execute a spark lightning send — THE orchestrator. Hands the full quote to the shared
+   * {@link Orchestrator}, which calls Breez `sendPayment` (UNPAID → PENDING) immediately and emits
+   * `send:pending`; the terminal transition (→ COMPLETED / FAILED) arrives via the account's Breez
+   * `paymentSucceeded` / `paymentFailed` event (surfaced to `stepSparkSend*`, wired by the S5
+   * spark-event forwarder), emitting `send:completed` / `send:failed`. PR5c's `initiateSend`
+   * (`idempotencyKey: quote.id`) keeps a re-issue safe. Resolves on KICK-OFF (returns the quote in
+   * its now-PENDING state); the terminal arrives via events or `.get(id)`.
    *
-   * @param _quote - the quote to drive (full object on the kickoff path).
+   * @param quote - the FULL send quote (full object on the kickoff path).
+   * @returns the quote after initiation (PENDING), or unchanged if past UNPAID.
    */
-  executeQuote(_quote: SparkSendQuote): Promise<SparkSendQuote> {
-    throw new NotImplementedError(
-      'spark.send.executeQuote (the orchestrator state machine lands in the PR5d orchestrator sub-slice, with cashu.send.executeQuote; PR5c ships the idempotent spark send primitives it drives)',
-    );
+  executeQuote(quote: SparkSendQuote): Promise<SparkSendQuote> {
+    return this.orchestrator.executeSparkSendQuote(quote);
   }
 
   /**
