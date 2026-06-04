@@ -7,6 +7,10 @@
  *
  * - `bolt11` — BOLT11 invoice decode / parse + payee-pubkey recovery.
  * - `ecies` — ECIES (secp256k1 + ChaCha20-Poly1305 + HKDF) encrypt / decrypt.
+ * - `cashu` — pure cashu-protocol helpers (proofs, tokens, secrets, mint URL/unit
+ *   utils, extended wallet/mint-info, mint-feature validation, DLEQ blind-signature
+ *   matching, payment-request + error codes).
+ * - `lnurl` — LNURL-pay (LUD-16) resolution + lightning-address validation.
  *
  * Importable as the `@agicash/wallet-sdk/lib` subpath or via the top-level barrel.
  *
@@ -20,3 +24,5 @@ export {
   eciesEncrypt,
   eciesEncryptBatch,
 } from './ecies';
+export * from './cashu';
+export * from './lnurl';

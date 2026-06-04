@@ -13,14 +13,14 @@
  *  3. small framework-free cashu protocol helpers (`proofToY` / `sumProofs` / `splitAmount` /
  *     `getCashuProtocolUnit` / `areMintUrlsEqual`) + `toProof` / `CashuProofSchema`.
  *
- * Re-housing approach (matches `./lib-cashu` / `./lib-cashu-wallet` / `types/money.ts`):
- * re-export the SINGLE live source from the specific `apps/web-wallet/app/...` modules via a
- * relative path so there is exactly ONE implementation (no duplication, no web churn). We
- * import from the SPECIFIC modules (NOT the `lib/cashu` barrel) so we do NOT pull the heavier
- * `melt-quote-subscription-manager` / `mint-quote-subscription-manager` surface the barrel
- * re-exports — those mint-WS managers are the orchestrator sub-slice (5d), not PR5b. None of
- * the symbols re-exported here transitively pulls react / @tanstack (verified): the master
- * domain-schema + json-model files are pure `zod/mini` + `Money` + `@cashu/cashu-ts`.
+ * The small framework-free cashu protocol helpers (group 3) now live IN the package at
+ * `../lib/cashu/*` (relocated out of the web app) and are re-exported here from the specific
+ * modules (`proof` / `utils` / `token`). The runtime domain schemas + json-model validators
+ * (groups 1+2) still re-export the SINGLE live source from the `apps/web-wallet/app/features/*`
+ * modules via a relative path (no duplication, no web churn) — those feature-domain seams are
+ * relocated in their own follow-up (PR8). None of the symbols re-exported here transitively
+ * pulls react / @tanstack (verified): the master domain-schema + json-model files are pure
+ * `zod/mini` + `Money` + `@cashu/cashu-ts`.
  *
  * The `~/*` path alias (mapped in the package `tsconfig.json` to `apps/web-wallet/app/*`) lets
  * the re-exported schema files resolve their own `~/lib/money` / `~/lib/cashu` imports — the
@@ -28,8 +28,8 @@
  * `toDecryptedCashuProofs` is the one helper NOT re-exported (it imports a `database.ts` DB-row
  * type that pulls the generated `supabase/database.types`, not in the package's resolution); it
  * is re-housed locally below (a tiny pure mapper) — matching `db-account.ts`'s hand-written DB
- * rows. The canonical relocation of `app/lib/cashu/**` + these schema files INTO the package is
- * a deferred follow-up (out of the build-plan's scope).
+ * rows. The canonical relocation of the remaining feature-domain schema files INTO the package
+ * is a deferred follow-up (PR8).
  *
  * @module
  */
@@ -38,19 +38,19 @@ import { z } from 'zod/mini';
 import type { AgicashDbCashuProof } from './db-account';
 import { ProofSchema } from './lib-cashu-wallet';
 import { computeSHA256 } from './crypto';
-import { encodeToken } from '../../../../apps/web-wallet/app/lib/cashu/token';
-import { sumProofs } from '../../../../apps/web-wallet/app/lib/cashu/proof';
+import { encodeToken } from '../lib/cashu/token';
+import { sumProofs } from '../lib/cashu/proof';
 import type { CashuProof } from '../types/account';
 import { type Currency, type CurrencyUnit, Money } from '../types/money';
 
 // --- cashu protocol helpers (specific modules; framework-free) ---------------------------
-export { proofToY } from '../../../../apps/web-wallet/app/lib/cashu/proof';
+export { proofToY } from '../lib/cashu/proof';
 export {
   areMintUrlsEqual,
   getCashuProtocolUnit,
   getCashuUnit,
-} from '../../../../apps/web-wallet/app/lib/cashu/utils';
-export { encodeToken } from '../../../../apps/web-wallet/app/lib/cashu/token';
+} from '../lib/cashu/utils';
+export { encodeToken } from '../lib/cashu/token';
 export { splitAmount } from '@cashu/cashu-ts';
 export { sumProofs };
 

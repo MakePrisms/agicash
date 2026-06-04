@@ -156,7 +156,10 @@
         "@supabase/supabase-js": "2.95.2",
         "@tanstack/query-core": "5.90.20",
         "jwt-decode": "4.0.0",
+        "ky": "1.14.3",
         "light-bolt11-decoder": "3.2.0",
+        "type-fest": "5.4.3",
+        "zod": "4.3.6",
       },
       "devDependencies": {
         "typescript": "catalog:",

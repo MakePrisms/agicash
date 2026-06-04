@@ -1,9 +1,9 @@
 import {
   type DecodedBolt11,
+  buildLightningAddressFormatValidator,
+  extractCashuToken,
   parseBolt11Invoice,
 } from '@agicash/wallet-sdk/lib';
-import { extractCashuToken } from '~/lib/cashu/token';
-import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
 
 const validateLnAddressFormat = buildLightningAddressFormatValidator({
   message: 'invalid',

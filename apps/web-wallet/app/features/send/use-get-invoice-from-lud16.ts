@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import useLocationData from '~/hooks/use-location';
-import { getInvoiceFromLud16, isLNURLError } from '~/lib/lnurl';
+import { getInvoiceFromLud16, isLNURLError } from '@agicash/wallet-sdk/lib';
 import type { Money } from '@agicash/lib';
 
 export function useGetInvoiceFromLud16() {

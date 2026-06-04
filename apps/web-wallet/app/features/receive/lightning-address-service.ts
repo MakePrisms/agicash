@@ -10,7 +10,7 @@ import type {
   LNURLPayParams,
   LNURLPayResult,
   LNURLVerifyResult,
-} from '~/lib/lnurl/types';
+} from '@agicash/wallet-sdk/lib';
 import { Money } from '@agicash/lib';
 import { measureOperation } from '~/lib/performance';
 import {

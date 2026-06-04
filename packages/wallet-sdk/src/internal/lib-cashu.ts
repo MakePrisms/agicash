@@ -8,13 +8,12 @@
  *    detect a test mint, mirroring master `account-service.addCashuAccount` +
  *    `account-repository.create`).
  *
- * The build plan makes `lib/cashu` **SDK-internal** (§12). Re-housing approach (matches
- * `types/money.ts` + `lib-scan.ts`): re-export the single live source from the specific
- * `app/lib/cashu/*` modules via a relative path so there is exactly ONE implementation. We
- * import from the specific modules (`utils` for the URL/unit helpers, `proof` for
- * `sumProofs`) NOT the `lib/cashu` barrel, to avoid pulling the heavier subscription-manager
- * / payment-request surface the barrel re-exports — those are Slice 3. None of the imported
- * functions transitively pulls react / @tanstack (verified).
+ * The pure cashu helpers now live IN the package at `../lib/cashu` (relocated out of the
+ * web app — framework-free: `@cashu/cashu-ts` / `@agicash/lib` / `@noble/*` / `zod/mini`,
+ * no react / @tanstack; verified). This seam re-exports them from the specific modules
+ * (`utils` for the URL/unit helpers, `proof` for `sumProofs`) so SDK consumers import them
+ * single-source. The web-only React subscription managers are NOT here — they stay in
+ * `apps/web-wallet/app/lib/cashu` behind the web `~/lib/cashu` shim.
  *
  * @module
  */
@@ -23,5 +22,5 @@ export {
   checkIsTestMint,
   getCashuUnit,
   normalizeMintUrl,
-} from '../../../../apps/web-wallet/app/lib/cashu/utils';
-export { sumProofs } from '../../../../apps/web-wallet/app/lib/cashu/proof';
+} from '../lib/cashu/utils';
+export { sumProofs } from '../lib/cashu/proof';

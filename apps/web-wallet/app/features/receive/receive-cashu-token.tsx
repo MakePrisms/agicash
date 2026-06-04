@@ -21,7 +21,7 @@ import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { encodeToken } from '~/lib/cashu/token';
+import { encodeToken } from '@agicash/wallet-sdk/lib/cashu';
 import type { Currency } from '@agicash/lib';
 import {
   LinkWithViewTransition,

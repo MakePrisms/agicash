@@ -5,8 +5,8 @@ import {
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
 import { decodeBolt11, parseBolt11Invoice } from '@agicash/wallet-sdk/lib';
+import { matchBlindSignaturesToOutputData } from '@agicash/wallet-sdk/lib/cashu';
 import { getCashuUnit, sumProofs } from '~/lib/cashu';
-import { matchBlindSignaturesToOutputData } from '~/lib/cashu/blind-signature-matching';
 import { type Currency, Money } from '@agicash/lib';
 import type { CashuAccount } from '../accounts/account';
 import { type CashuProof, toProof } from '../accounts/cashu-account';

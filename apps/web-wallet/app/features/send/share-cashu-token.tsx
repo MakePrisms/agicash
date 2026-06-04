@@ -22,8 +22,7 @@ import {
 import useLocationData from '~/hooks/use-location';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
-import { encodeToken } from '~/lib/cashu/token';
-import { normalizeMintUrl } from '~/lib/cashu/utils';
+import { encodeToken, normalizeMintUrl } from '@agicash/wallet-sdk/lib/cashu';
 import type { Money } from '@agicash/lib';
 import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';

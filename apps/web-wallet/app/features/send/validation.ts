@@ -1,5 +1,5 @@
 import type { DecodedBolt11 } from '@agicash/wallet-sdk/lib';
-import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
+import { buildLightningAddressFormatValidator } from '@agicash/wallet-sdk/lib';
 import { type Currency, Money } from '@agicash/lib';
 
 export type ValidateResult =

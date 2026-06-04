@@ -24,7 +24,7 @@ import {
   OutputData,
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
-import { matchBlindSignaturesToOutputData } from '../../../../apps/web-wallet/app/lib/cashu/blind-signature-matching';
+import { matchBlindSignaturesToOutputData } from '../lib/cashu/blind-signature-matching';
 import { getDefaultUnit } from '../../../../apps/web-wallet/app/features/shared/currencies';
 import type { CashuSendQuoteRepository } from './cashu-send-quote-repository';
 import { getCashuUnit, sumProofs, toProof } from './lib-cashu-quotes';

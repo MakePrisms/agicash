@@ -1,43 +1,67 @@
 import type { Token } from '@cashu/cashu-ts';
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import * as cashuTs from '@cashu/cashu-ts';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from 'bun:test';
+import { ClaimCashuTokenFlow } from './claim-cashu-token-flow';
+import * as cashuWalletModule from './cashu-wallet';
+import * as libScanModule from './lib-scan';
+import { DomainError } from '../errors';
 
 // Mock the decode layer so `claim()` can be driven without a real mint:
 //  - `extractCashuToken` (lib-scan) returns the raw token's encoded form + mint metadata;
 //  - `getDecodedToken` (cashu-ts) echoes the queued decoded token.
 // The same-mint route below resolves the SOURCE account from the user's existing accounts, so it
 // never touches `getInitializedCashuWallet` — only the decode needs mocking.
+//
+// These are installed as `spyOn` SPIES (set up in `beforeEach`, restored in `afterEach`) rather
+// than process-global `mock.module` overrides. `lib-scan` re-exports `extractCashuToken` from
+// `lib/cashu/token` (the same live binding), and `@cashu/cashu-ts`'s `getDecodedToken` is the
+// same binding `lib/cashu/token.test.ts` imports — a sticky `mock.module` here would leak into
+// that suite in the same run. Per-test spies that restore in `afterEach` are isolated because
+// Bun runs files sequentially and the spies are torn down before the next file's tests run.
 let decodedToken: Token = {
   mint: 'https://mint.example',
   unit: 'sat',
   proofs: [{ id: 'ks1', amount: 100, secret: 's', C: 'C' } as never],
 };
-const getDecodedToken = mock(() => decodedToken);
-// Override ONLY `getDecodedToken`; preserve every other cashu-ts export (other modules import
-// `MintInfo`, `OutputData`, etc. from it — a full replacement would break them).
-const actualCashuTs = await import('@cashu/cashu-ts');
-mock.module('@cashu/cashu-ts', () => ({ ...actualCashuTs, getDecodedToken }));
-const extractCashuToken = mock((_encoded: string) => ({
-  encoded: 'cashuAabc',
-  metadata: { mint: 'https://mint.example' },
-}));
-const actualLibScan = await import('./lib-scan');
-mock.module('./lib-scan', () => ({ ...actualLibScan, extractCashuToken }));
+let getDecodedToken: ReturnType<typeof spyOn>;
+let extractCashuToken: ReturnType<typeof spyOn>;
+let getInitializedCashuWallet: ReturnType<typeof spyOn>;
 
-// Mock the wallet-init so an UNKNOWN-mint source resolves to an (online) placeholder without a real
-// mint — lets the unknown-mint-destination deferral be exercised. Override only
-// `getInitializedCashuWallet`; preserve the rest of the module's exports.
-const getInitializedCashuWallet = mock(async () => ({
-  wallet: {} as never,
-  isOnline: true,
-}));
-const actualCashuWallet = await import('./cashu-wallet');
-mock.module('./cashu-wallet', () => ({
-  ...actualCashuWallet,
-  getInitializedCashuWallet,
-}));
-
-const { ClaimCashuTokenFlow } = await import('./claim-cashu-token-flow');
-const { DomainError } = await import('../errors');
+beforeEach(() => {
+  decodedToken = {
+    mint: 'https://mint.example',
+    unit: 'sat',
+    proofs: [{ id: 'ks1', amount: 100, secret: 's', C: 'C' } as never],
+  };
+  // Override ONLY `getDecodedToken` / `extractCashuToken` / `getInitializedCashuWallet`; every
+  // other export of these modules is left intact.
+  getDecodedToken = spyOn(cashuTs, 'getDecodedToken').mockImplementation(
+    () => decodedToken,
+  );
+  extractCashuToken = spyOn(libScanModule, 'extractCashuToken').mockReturnValue(
+    {
+      encoded: 'cashuAabc',
+      metadata: { mint: 'https://mint.example' },
+    } as ReturnType<typeof libScanModule.extractCashuToken>,
+  );
+  // Mock the wallet-init so an UNKNOWN-mint source resolves to an (online) placeholder without a
+  // real mint — lets the unknown-mint-destination deferral be exercised.
+  getInitializedCashuWallet = spyOn(
+    cashuWalletModule,
+    'getInitializedCashuWallet',
+  ).mockResolvedValue({
+    wallet: {} as never,
+    isOnline: true,
+  } as Awaited<ReturnType<typeof cashuWalletModule.getInitializedCashuWallet>>);
+});
 
 import type { CashuAccount } from '../types/account';
 
@@ -89,13 +113,12 @@ function makeFlow(opts: { accounts?: CashuAccount[] } = {}) {
 }
 
 afterEach(() => {
-  getDecodedToken.mockClear();
-  extractCashuToken.mockClear();
-  decodedToken = {
-    mint: 'https://mint.example',
-    unit: 'sat',
-    proofs: [{ id: 'ks1', amount: 100, secret: 's', C: 'C' } as never],
-  };
+  // Restore the real module exports so the cashu-ts / lib-scan overrides do not leak into other
+  // suites in the same run (e.g. `lib/cashu/token.test.ts`, which exercises the real
+  // `getDecodedToken` / `extractCashuToken`).
+  getDecodedToken.mockRestore();
+  extractCashuToken.mockRestore();
+  getInitializedCashuWallet.mockRestore();
 });
 
 // -- Tests ----------------------------------------------------------------------------------
@@ -141,7 +164,9 @@ describe('ClaimCashuTokenFlow.claim — routes a same-mint token to the swap pat
 
   test('an undecodable token throws DomainError (caller swallows to a failure result)', async () => {
     extractCashuToken.mockReturnValueOnce(
-      undefined as unknown as ReturnType<typeof extractCashuToken>,
+      undefined as unknown as ReturnType<
+        typeof libScanModule.extractCashuToken
+      >,
     );
     const { flow, create } = makeFlow();
 
@@ -161,7 +186,7 @@ describe('ClaimCashuTokenFlow.claim — routes a same-mint token to the swap pat
     extractCashuToken.mockReturnValueOnce({
       encoded: 'cashuAabc',
       metadata: { mint: 'https://other-mint.example' },
-    } as ReturnType<typeof extractCashuToken>);
+    } as ReturnType<typeof libScanModule.extractCashuToken>);
     // No accounts → the source resolves to the mocked (online) placeholder wallet, then
     // destination-resolution finds no own-mint account and raises the unknown-mint deferral.
     const { flow } = makeFlow({ accounts: [] });

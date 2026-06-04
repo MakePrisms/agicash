@@ -12,11 +12,11 @@
 
 import type { BreezSdk as BreezSdkType } from '@agicash/breez-sdk-spark';
 import type { Proof } from '@cashu/cashu-ts';
-// The live `ExtendedCashuWallet` is the SDK-internal cashu-ts wallet subclass; re-exported
-// from `app/lib/cashu/utils` (SDK-internal, §12) — same single-source re-export as
-// `internal/lib-cashu-wallet.ts`. Importing the TYPE here keeps `Account.wallet` correctly
-// typed without `types/` depending on `internal/`.
-import type { ExtendedCashuWallet as ExtendedCashuWalletClass } from '../../../../apps/web-wallet/app/lib/cashu/utils';
+// The live `ExtendedCashuWallet` is the SDK-internal cashu-ts wallet subclass; it now lives
+// IN the package at `../lib/cashu/utils` (relocated out of the web app) — same module
+// `internal/lib-cashu-wallet.ts` re-exports. Importing the TYPE here keeps `Account.wallet`
+// correctly typed without `types/` depending on `internal/`.
+import type { ExtendedCashuWallet as ExtendedCashuWalletClass } from '../lib/cashu/utils';
 import type { Currency, Money } from './money';
 
 export type AccountType = 'cashu' | 'spark';

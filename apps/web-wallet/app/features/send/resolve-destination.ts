@@ -2,8 +2,8 @@ import {
   type DecodedBolt11,
   parseBolt11Invoice,
 } from '@agicash/wallet-sdk/lib';
+import { isValidLightningAddress } from '@agicash/wallet-sdk/lib';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
-import { isValidLightningAddress } from '~/lib/lnurl';
 import type { Money } from '@agicash/lib';
 import { type Contact, isContact } from '../contacts/contact';
 import { validateBolt11, validateLightningAddressFormat } from './validation';

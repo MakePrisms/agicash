@@ -185,4 +185,9 @@ export const buildLightningAddressValidator = (props: {
   };
 };
 
-export type { LNURLPayResult, LNURLError };
+export type {
+  LNURLError,
+  LNURLPayParams,
+  LNURLPayResult,
+  LNURLVerifyResult,
+} from './types';

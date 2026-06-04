@@ -34,8 +34,8 @@ import {
 import {
   MintBlocklistSchema,
   buildMintValidator,
-} from '~/lib/cashu/mint-validation';
-import { encodeToken } from '~/lib/cashu/token';
+  encodeToken,
+} from '@agicash/wallet-sdk/lib/cashu';
 import { type Currency, type CurrencyUnit, Money } from '@agicash/lib';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';

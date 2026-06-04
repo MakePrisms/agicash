@@ -1,6 +1,6 @@
 import type { Proof } from '@cashu/cashu-ts';
 import { z } from 'zod/mini';
-import { ProofSchema } from '~/lib/cashu/types';
+import { ProofSchema } from '@agicash/wallet-sdk/lib/cashu';
 
 export const CashuProofSchema = z.object({
   id: z.string(),
