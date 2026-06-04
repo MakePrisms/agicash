@@ -46,7 +46,9 @@ function stubQuery<T = any>(method: string): Query<T> {
     subscribe: (_onData, onError) => {
       const err = new NotImplementedError(method);
       onError?.(err);
-      return () => { /* noop */ };
+      return () => {
+        /* noop */
+      };
     },
     toPromise: () => Promise.reject(new NotImplementedError(method)),
     refetch: () => Promise.reject(new NotImplementedError(method)),

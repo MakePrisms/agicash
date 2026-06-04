@@ -12,7 +12,9 @@ import type { Query, QueryState } from '@agicash/wallet-sdk';
 function makeQuery<T>(snapshot: QueryState<T>): Query<T> {
   return {
     getSnapshot: () => snapshot,
-    subscribe: (_onData, _onError) => () => { /* noop */ },
+    subscribe: (_onData, _onError) => () => {
+      /* noop */
+    },
     toPromise: () => Promise.resolve(snapshot.data as T),
     refetch: () => Promise.resolve(snapshot.data as T),
   };
@@ -84,7 +86,9 @@ describe('Query<T> state machine contract', () => {
       subscribe: (onData, _onError) => {
         // simulate immediate emit
         onData('hello');
-        return () => { /* noop */ };
+        return () => {
+          /* noop */
+        };
       },
       toPromise: () => Promise.resolve('hello'),
       refetch: () => Promise.resolve('hello'),
@@ -94,14 +98,18 @@ describe('Query<T> state machine contract', () => {
   });
 
   test('subscribe returns an unsubscribe function', () => {
-    const unsubscribeMock = mock(() => { /* noop */ });
+    const unsubscribeMock = mock(() => {
+      /* noop */
+    });
     const q: Query<number> = {
       getSnapshot: () => successSnapshot(42),
       subscribe: (_onData, _onError) => unsubscribeMock,
       toPromise: () => Promise.resolve(42),
       refetch: () => Promise.resolve(42),
     };
-    const off = q.subscribe(() => { /* noop */ });
+    const off = q.subscribe(() => {
+      /* noop */
+    });
     off();
     expect(unsubscribeMock).toHaveBeenCalledTimes(1);
   });
