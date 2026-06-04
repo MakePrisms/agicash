@@ -11,6 +11,7 @@ import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
+import { getSdk } from './features/shared/sdk';
 import { Money } from '@agicash/lib';
 import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
@@ -33,6 +34,15 @@ if (!openSecretClientId) {
 configure({
   apiUrl: openSecretApiUrl,
   clientId: openSecretClientId,
+});
+
+// Eagerly create the (browser-only) Sdk singleton so its promise is already settling before
+// hydration — `SdkProvider`'s `use(getSdk())` then resolves without suspending. PR8a only makes
+// the SDK available via its provider; it is NOT started (the web keeps driving its own caches +
+// realtime + task-processor), and `Sdk.create` opens no connections, so this is inert. Swallow
+// the rejection here; a genuinely broken config also surfaces through `SdkProvider`.
+getSdk().catch(() => {
+  // Surfaced via SdkProvider when the SDK is first read (no reads in PR8a).
 });
 
 // Start Breez WASM fetch/compile as early as possible so it overlaps with

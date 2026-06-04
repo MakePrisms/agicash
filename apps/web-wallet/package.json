@@ -22,6 +22,7 @@
     "@agicash/db-types": "workspace:*",
     "@agicash/lib": "workspace:*",
     "@agicash/wallet-sdk": "workspace:*",
+    "@agicash/react-wallet-sdk": "workspace:*",
     "@agicash/opensecret": "catalog:",
     "@agicash/qr-scanner": "0.1.2",
     "@cashu/cashu-ts": "3.6.1",

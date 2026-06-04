@@ -38,6 +38,7 @@ import type { Route } from './+types/root';
 import { LoadingScreen } from './features/loading/LoadingScreen';
 import { NotFoundError } from './features/shared/error';
 import { getQueryClient } from './features/shared/query-client';
+import { SdkProvider } from './features/shared/sdk-provider';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
 import { sanitizeUrl } from './tracing-utils';
 
@@ -207,12 +208,14 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <HydrationBoundary state={dehydratedState}>
-        <Suspense fallback={<LoadingScreen />}>
-          <Outlet />
-        </Suspense>
-        <ReactQueryDevtools initialIsOpen={false} />
-      </HydrationBoundary>
+      <SdkProvider>
+        <HydrationBoundary state={dehydratedState}>
+          <Suspense fallback={<LoadingScreen />}>
+            <Outlet />
+          </Suspense>
+          <ReactQueryDevtools initialIsOpen={false} />
+        </HydrationBoundary>
+      </SdkProvider>
     </QueryClientProvider>
   );
 }
