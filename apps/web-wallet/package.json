@@ -91,7 +91,7 @@
     "tsx": "4.21.0",
     "type-fest": "5.4.3",
     "typescript": "catalog:",
-    "vite": "7.3.1",
+    "vite": "7.3.2",
     "vite-plugin-devtools-json": "1.0.0",
     "vite-tsconfig-paths": "6.0.5"
   }
