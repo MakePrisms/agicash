@@ -4,9 +4,9 @@
  * Each factory returns an object implementing its domain interface (§2-§10) where
  * every method throws {@link NotImplementedError}. The `Sdk` shell wires its domain
  * accessors to these so the public surface is fully present + type-correct, while the
- * real business logic lands in later slices (auth/user → S1 (DONE), accounts/scan → S2,
- * cashu/spark → S3, transactions/contacts/transfers → S4, background → S5). Swapping a
- * stub for a real impl is the unit of work for each slice — these are the seams.
+ * real business logic lands in later slices (auth/user → S1 (DONE), accounts/scan → S2 (DONE),
+ * cashu/spark → S3 (DONE), transactions/contacts/transfers → S4 (DONE), background → S5).
+ * Swapping a stub for a real impl is the unit of work for each slice — these are the seams.
  *
  * Implementing the interfaces (rather than casting) keeps the stubs honest: if a
  * contract method's signature changes, the stub fails to compile until updated.
@@ -16,11 +16,8 @@
 import type {
   BackgroundDomain,
   CashuDomain,
-  ContactsDomain,
   ExchangeRateDomain,
   SparkDomain,
-  TransactionsDomain,
-  TransfersDomain,
 } from '../domains';
 import { NotImplementedError } from '../errors';
 import type { BackgroundState } from '../events';
@@ -69,29 +66,6 @@ export const createSparkStub = (): SparkDomain => ({
       unimplemented('spark.receive.createLightningQuote'),
     get: () => unimplemented('spark.receive.get'),
   },
-});
-
-/** Stub `TransactionsDomain` (real impl: Slice 4). */
-export const createTransactionsStub = (): TransactionsDomain => ({
-  list: () => unimplemented('transactions.list'),
-  get: () => unimplemented('transactions.get'),
-  countPendingAck: () => unimplemented('transactions.countPendingAck'),
-  acknowledge: () => unimplemented('transactions.acknowledge'),
-});
-
-/** Stub `ContactsDomain` (real impl: Slice 4). */
-export const createContactsStub = (): ContactsDomain => ({
-  list: () => unimplemented('contacts.list'),
-  get: () => unimplemented('contacts.get'),
-  add: () => unimplemented('contacts.add'),
-  remove: () => unimplemented('contacts.remove'),
-  search: () => unimplemented('contacts.search'),
-});
-
-/** Stub `TransfersDomain` (real impl: Slice 4). */
-export const createTransfersStub = (): TransfersDomain => ({
-  createQuote: () => unimplemented('transfers.createQuote'),
-  executeQuote: () => unimplemented('transfers.executeQuote'),
 });
 
 /** Stub `ExchangeRateDomain` (real impl: a later slice). */

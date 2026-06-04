@@ -36,6 +36,13 @@ export type SdkConfig = {
   };
   /** API key for the Spark/Breez SDK (required for spark accounts). */
   breezApiKey?: string;
+  /**
+   * The Agicash deployment's Lightning-address domain (e.g. `agicash.me`). Used to compute a
+   * contact's `lud16` as `` `${username}@${domain}` `` (§8) and as the optional LNURL-pay
+   * `requestDomain` amount-validation bypass. Re-housed off master's `useLocationData().domain`;
+   * defaults to an empty string (contacts' `lud16` then has an empty host) when omitted.
+   */
+  domain?: string;
   /** Pluggable @agicash/opensecret-sdk storage (web = browser, mcp = fs/sqlite). */
   storage: StorageAdapter;
   /**

@@ -127,6 +127,7 @@ export type {
 
 // --- contacts (§8) ---------------------------------------------------------
 export type { Contact, UserProfile } from './types/contact';
+export type { Destination } from './types/destination';
 
 // --- transfers (§9) --------------------------------------------------------
 export type {
