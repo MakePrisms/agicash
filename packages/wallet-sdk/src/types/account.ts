@@ -1,6 +1,22 @@
 // Account domain types — master verbatim (app/features/accounts/account.ts)
 // Note: `wallet` fields hold LIVE handles (not serializable).
+//
+// The live-handle + proof sub-field types are RESOLVED to their real implementations in
+// Slice 3 (PR5a — the live account-handle resolver): `ExtendedCashuWallet` / `BreezSdk` are
+// the genuine cashu-ts wallet subclass / Breez SDK instance the resolver constructs, and
+// `ProofDleq` / `ProofWitness` are cashu-ts `Proof['dleq']` / `Proof['witness']` (so a proof
+// decrypted via cashu-ts `ProofSchema` is assignable). The reactive base shipped these as
+// opaque placeholders (a `declare abstract class` / a minimal hand-written shape) until the
+// resolver that needs the real types landed — exactly the no-cache extraction's Slice-0/3
+// `types/dependencies.ts` resolution, in-place in this module.
 
+import type { BreezSdk as BreezSdkType } from '@agicash/breez-sdk-spark';
+import type { Proof } from '@cashu/cashu-ts';
+// The live `ExtendedCashuWallet` is the SDK-internal cashu-ts wallet subclass; re-exported
+// from `app/lib/cashu/utils` (SDK-internal, §12) — same single-source re-export as
+// `internal/lib-cashu-wallet.ts`. Importing the TYPE here keeps `Account.wallet` correctly
+// typed without `types/` depending on `internal/`.
+import type { ExtendedCashuWallet as ExtendedCashuWalletClass } from '../../../../apps/web-wallet/app/lib/cashu/utils';
 import type { Currency, Money } from './money';
 
 export type AccountType = 'cashu' | 'spark';
@@ -10,16 +26,18 @@ export type SparkNetwork = 'MAINNET' | 'REGTEST';
 
 // ---- Cashu proof (app/features/accounts/cashu-account.ts, zod/mini z.infer) ----
 
-// Minimal re-export of the DLEQ proof fields from @cashu/cashu-ts
-export type ProofDleq = {
-  e: string;
-  s: string;
-  r?: string;
-};
+/**
+ * The `dleq` sub-field of a cashu-ts `Proof` (`SerializedDLEQ`), carried by {@link CashuProof}.
+ * Resolved (Slice 3) to cashu-ts `Proof['dleq']` — matches `app/lib/cashu/types.ts#ProofSchema`.
+ */
+export type ProofDleq = Proof['dleq'];
 
-export type ProofWitness = {
-  signatures?: string[];
-};
+/**
+ * The `witness` sub-field of a cashu-ts `Proof` (P2PK / HTLC / raw), carried by
+ * {@link CashuProof}. Resolved (Slice 3) to cashu-ts `Proof['witness']` — matches
+ * `app/lib/cashu/types.ts#ProofSchema`.
+ */
+export type ProofWitness = Proof['witness'];
 
 export type CashuProof = {
   id: string;
@@ -39,13 +57,22 @@ export type CashuProof = {
   spentAt?: string | null;
 };
 
-// ---- Live wallet handles (opaque — implementation in deps not imported here) ----
+// ---- Live wallet handles (resolved Slice 3 to the real protocol handles) ----
 
-/** Mint info/keysets/keys/seed (protocol-metadata memo). LIVE handle, not serializable. */
-export declare abstract class ExtendedCashuWallet {}
+/**
+ * Live cashu wallet handle (mint info / keysets / keys / seed) — the per-mint protocol-
+ * metadata memo. Resolved (Slice 3) to the real `ExtendedCashuWallet` (cashu-ts `Wallet`
+ * subclass) from the SDK-internal `lib/cashu`. LIVE handle, not serializable.
+ */
+export type ExtendedCashuWallet = ExtendedCashuWalletClass;
 
-/** Live Breez SDK instance (a connection). NOT DB data. Stub-that-throws when offline. */
-export declare abstract class BreezSdk {}
+/**
+ * Live Breez/Spark SDK instance held on a spark `Account`. Resolved (Slice 3) to the real
+ * `BreezSdk` from `@agicash/breez-sdk-spark` (a native/WASM package — only the TYPE is
+ * imported here; the runtime is dynamically loaded by `internal/spark-wallet.ts`). When the
+ * wallet is offline this is a stub that throws on any method call. NOT DB data.
+ */
+export type BreezSdk = BreezSdkType;
 
 // ---- Account union ----
 

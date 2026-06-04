@@ -35,8 +35,11 @@ import { AccountsDomainImpl } from './domains/accounts';
 import { AuthDomainImpl } from './domains/auth';
 import { ScanDomainImpl } from './domains/scan';
 import { UserDomainImpl } from './domains/user';
-import { DeferredAccountHandleResolver } from './internal/account-handle-resolver';
+import { LiveAccountHandleResolver } from './internal/account-handle-resolver';
 import { AccountRepository } from './internal/account-repository';
+import { MintMetadataCache } from './internal/cashu-wallet';
+import { createEncryption } from './internal/encryption';
+import { SparkWalletCache } from './internal/spark-wallet';
 import { TypedEventEmitter } from './internal/event-emitter';
 import { GuestAccountStorage } from './internal/guest-account-storage';
 import { OpenSecretClient } from './internal/open-secret';
@@ -133,6 +136,10 @@ export type SdkConnections = {
   readonly queryClient: QueryClient;
   /** leader-election instance id (provided or auto-generated). */
   readonly clientId: string;
+  /** Per-mint protocol-metadata memo (held so `destroy()` can drop it). */
+  readonly mintCache: MintMetadataCache;
+  /** Per-(mnemonic,network) connected-spark-wallet memo (held so `destroy()` can drop it). */
+  readonly sparkCache: SparkWalletCache;
 };
 
 /** Validate `config` (shape the rest of `create` relies on). Throws on a missing field. */
@@ -289,6 +296,11 @@ export class Sdk {
 
     const events = new TypedEventEmitter<SdkEventMap>();
 
+    // Live-handle memos (the cashu per-mint protocol metadata + the spark per-wallet
+    // connection). Held on the connection bundle so `destroy()` can drop them.
+    const mintCache = new MintMetadataCache();
+    const sparkCache = new SparkWalletCache();
+
     const connections: SdkConnections = {
       supabase,
       openSecret,
@@ -297,6 +309,8 @@ export class Sdk {
       events,
       queryClient,
       clientId: config.clientId ?? generateClientId(),
+      mintCache,
+      sparkCache,
     };
 
     // --- Slice 1: auth + user domains ----------------------------------------
@@ -315,15 +329,30 @@ export class Sdk {
     const auth = new AuthDomainImpl(openSecret, session, guestStorage);
     const user = new UserDomainImpl(queryClient, session, users);
 
-    // --- Slice 2: accounts + scan domains ------------------------------------
+    // --- Slice 2: accounts + scan domains; Slice 3 (PR5a): the live handle resolver --
     // The account repository reads/writes `wallet.accounts` over the same Supabase client and
-    // fills in each account's deferred live-handle fields via the resolver. Slice 2 supplies
-    // the DEFERRED resolver (cashu `getBalance` → 0, spark balance → null, live `wallet`
-    // handle is a throwing stub); Slice 3 (PR5) swaps in the real mint/Breez init + proof
-    // decryption with no change here. `accounts` reads are reactive, so the domain also takes
-    // the SDK-internal QueryClient (it wraps the DB reads via `toQuery`). `scan.parse` is a
-    // connection-free decode action; `allowLocalhost` defaults to false (production).
-    const accountResolver = new DeferredAccountHandleResolver();
+    // fills in each account's deferred live-handle fields via the resolver — the REAL one
+    // (Slice 3): it initialises the cashu mint wallet (1 h-memo'd keyset/keys fetch + 10 s
+    // timeout), decrypts the proofs (OpenSecret-derived key + ECIES), and connects the spark
+    // Breez wallet (when a `breezApiKey` is configured). The per-mint + per-spark memos (built
+    // above, on the connection bundle) live as long as the SDK and are dropped in `destroy()`.
+    // No change to the repository — the resolver seam is the whole point. `accounts` reads are
+    // reactive, so the domain also takes the SDK-internal QueryClient (it wraps the DB reads
+    // via `toQuery`). `scan.parse` is a connection-free decode action; `allowLocalhost`
+    // defaults to false (production).
+    const encryption = createEncryption(() =>
+      openSecret.getEncryptionPrivateKeyHex(),
+    );
+    const accountResolver = new LiveAccountHandleResolver({
+      encryption,
+      getCashuWalletSeed: () => openSecret.getCashuWalletSeed(),
+      mintCache,
+      getSparkWalletMnemonic: () => openSecret.getSparkWalletMnemonic(),
+      sparkCache,
+      breezApiKey: config.breezApiKey,
+      // Master's `account-repository` default; the Breez SDK persists per-wallet state here.
+      sparkStorageDir: './.spark-data',
+    });
     const accountRepository = new AccountRepository(supabase, accountResolver);
     const accounts = new AccountsDomainImpl(
       queryClient,
@@ -355,7 +384,11 @@ export class Sdk {
     this.connections.events.removeAllListeners();
     // Clear the QueryClient: cancels in-flight queries, clears the cache.
     this.connections.queryClient.clear();
-    // TODO(Slice 3/5): close mint melt/mint-quote WS subs + Breez SDK instances + halt
-    // the leader-elected processor + clear its timers (wired into this seam when opened).
+    // Drop the live-handle memos (cashu mint metadata + connected spark wallets).
+    this.connections.mintCache.clear();
+    this.connections.sparkCache.clear();
+    // TODO(Slice 3/5): close mint melt/mint-quote WS subs + Breez SDK instances (call
+    // `disconnect()` on connected wallets) + halt the leader-elected processor + clear its
+    // timers (wired into this seam when those connections are opened).
   }
 }
