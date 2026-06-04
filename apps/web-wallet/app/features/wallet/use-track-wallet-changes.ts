@@ -33,10 +33,6 @@ import {
   useSparkSendQuoteChangeHandlers,
   useUnresolvedSparkSendQuotesCache,
 } from '../send/spark-send-quote-hooks';
-import {
-  useTransactionChangeHandlers,
-  useTransactionsCache,
-} from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
 
 type DatabaseChangeHandler = {
@@ -84,7 +80,6 @@ function useTrackDatabaseChanges({ handlers, onConnected }: Props) {
 
 export const useTrackWalletChanges = () => {
   const sdk = useSdk();
-  const transactionChangeHandlers = useTransactionChangeHandlers();
   const cashuReceiveQuoteChangeHandlers = useCashuReceiveQuoteChangeHandlers();
   const cashuReceiveSwapChangeHandlers = useCashuReceiveSwapChangeHandlers();
   const cashuSendQuoteChangeHandlers = useCashuSendQuoteChangeHandlers();
@@ -93,7 +88,6 @@ export const useTrackWalletChanges = () => {
   const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
   const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
 
-  const transactionsCache = useTransactionsCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
   const pendingCashuReceiveQuotesCache = usePendingCashuReceiveQuotesCache();
   const pendingCashuReceiveSwapsCache = usePendingCashuReceiveSwapsCache();
@@ -133,6 +127,27 @@ export const useTrackWalletChanges = () => {
     },
   ];
 
+  // Transaction change handlers: refetch the SDK's reactive transaction reads so
+  // useQ(sdk.transactions.list()) / useQ(sdk.transactions.countPendingAck())
+  // subscribers see the new data. SDK background (PR8d) will own this long-term;
+  // for PR8c we drive it off the same web Supabase realtime channel.
+  const transactionChangeHandlers: DatabaseChangeHandler[] = [
+    {
+      event: 'TRANSACTION_CREATED',
+      handleEvent: () => {
+        void sdk.transactions.list().refetch();
+        void sdk.transactions.countPendingAck().refetch();
+      },
+    },
+    {
+      event: 'TRANSACTION_UPDATED',
+      handleEvent: () => {
+        void sdk.transactions.list().refetch();
+        void sdk.transactions.countPendingAck().refetch();
+      },
+    },
+  ];
+
   useTrackDatabaseChanges({
     handlers: [
       ...accountChangeHandlers,
@@ -150,8 +165,9 @@ export const useTrackWalletChanges = () => {
       // Refetch SDK reactive reads on reconnect to catch any missed updates.
       void sdk.accounts.list().refetch();
       void sdk.user.getCurrentUser().refetch();
+      void sdk.transactions.list().refetch();
+      void sdk.transactions.countPendingAck().refetch();
       // Invalidate the web TanStack caches for the other features.
-      transactionsCache.invalidate();
       cashuReceiveQuoteCache.invalidate();
       pendingCashuReceiveQuotesCache.invalidate();
       pendingCashuReceiveSwapsCache.invalidate();

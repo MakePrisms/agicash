@@ -1,3 +1,5 @@
+import type { Money } from '@agicash/lib';
+import { useSdk } from '@agicash/react-wallet-sdk';
 import {
   HttpResponseError,
   MintOperationError,
@@ -22,7 +24,6 @@ import {
   sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
-import type { Money } from '@agicash/lib';
 import {
   type LongTimeout,
   clearLongTimeout,
@@ -39,7 +40,6 @@ import {
 import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
-import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
@@ -583,7 +583,7 @@ export function useProcessCashuReceiveQuoteTasks() {
     useGetCashuAccountByMintUrlAndCurrency();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const transactionsCache = useTransactionsCache();
+  const sdk = useSdk();
   const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
@@ -603,11 +603,12 @@ export function useProcessCashuReceiveQuoteTasks() {
         // Updating the quote cache triggers navigation to the transaction details page.
         // Completing the quote also completes the transaction and if navigation to transaction
         // page happens before transaction udpated realtime notification is processed, the
-        // transaction would be stale in the cache with the DRAFT state. We are invalidating the
-        // transaction cache here so that it starts refetching the transaction as soon as possible
+        // transaction would be stale in the cache with the DRAFT state. We refetch the SDK
+        // transaction read here so that it starts refetching the transaction as soon as possible
         // without relying on realtime notification which might be delayed when reconnecting due to
         // the app being in background.
-        transactionsCache.invalidateTransaction(data.quote.transactionId);
+        void sdk.transactions.get(data.quote.transactionId).refetch();
+        void sdk.transactions.list().refetch();
         cashuReceiveQuoteCache.updateIfExists(data.quote);
         pendingQuotesCache.update(data.quote);
       }

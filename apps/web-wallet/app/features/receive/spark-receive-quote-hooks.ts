@@ -1,4 +1,6 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
+import type { Money } from '@agicash/lib';
+import { useSdk } from '@agicash/react-wallet-sdk';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -14,7 +16,6 @@ import {
   sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
-import type { Money } from '@agicash/lib';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
@@ -26,7 +27,6 @@ import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import { sparkDebugLog } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
-import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import { getLightningQuote } from './spark-receive-quote-core';
@@ -461,7 +461,7 @@ export function useProcessSparkReceiveQuoteTasks() {
     useGetCashuAccountByMintUrlAndCurrency();
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const transactionsCache = useTransactionsCache();
+  const sdk = useSdk();
   const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
@@ -497,11 +497,12 @@ export function useProcessSparkReceiveQuoteTasks() {
         // Updating the quote cache triggers navigation to the transaction details page.
         // Completing the quote also completes the transaction and if navigation to transaction
         // page happens before transaction updated realtime notification is processed, the
-        // transaction would be stale in the cache with the DRAFT state. We are invalidating the
-        // transaction cache here so that it starts refetching the transaction as soon as possible
+        // transaction would be stale in the cache with the DRAFT state. We refetch the SDK
+        // transaction read here so that it starts refetching the transaction as soon as possible
         // without relying on realtime notification which might be delayed when reconnecting due to
         // the app being in background.
-        transactionsCache.invalidateTransaction(updatedQuote.transactionId);
+        void sdk.transactions.get(updatedQuote.transactionId).refetch();
+        void sdk.transactions.list().refetch();
         sparkReceiveQuoteCache.updateIfExists(updatedQuote);
         pendingQuotesCache.remove(updatedQuote);
       }

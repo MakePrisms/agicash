@@ -1,217 +1,71 @@
-import {
-  type InfiniteData,
-  type QueryClient,
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  useSuspenseQuery,
-} from '@tanstack/react-query';
-import { useMemo } from 'react';
-import type { AgicashDbTransaction } from '~/features/agicash-db/database';
+import { useSdk } from '@agicash/react-wallet-sdk';
+import { useQ } from '@agicash/react-wallet-sdk';
+import type { TransactionCursor } from '@agicash/wallet-sdk';
+import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
 import { NotFoundError } from '../shared/error';
-import { useUser } from '../user/user-hooks';
 import type { Transaction } from './transaction';
-import {
-  type Cursor,
-  useTransactionRepository,
-} from './transaction-repository';
 
-/**
- * Cache that manages transaction data and acknowledgment counts.
- */
-class TransactionsCache {
-  public static Key = 'transactions';
-  public static AllTransactionsKey = 'all-transactions';
-  public static UnacknowledgedCountKey = 'unacknowledged-transactions-count';
+export function useTransaction(id: string): Transaction {
+  const sdk = useSdk();
+  const transaction = useQ(sdk.transactions.get(id));
 
-  constructor(private readonly queryClient: QueryClient) {}
-
-  /**
-   * Adds a new transaction or updates an existing transaction in the individual transaction cache.
-   * Only updates when the incoming version is higher than the cached version, to avoid
-   * overwriting newer data with older in case of out-of-order events.
-   * @param transaction - The transaction to add or update.
-   */
-  upsert(transaction: Transaction) {
-    this.queryClient.setQueryData<Transaction>(
-      [TransactionsCache.Key, transaction.id],
-      (curr) =>
-        !curr || transaction.version > curr.version ? transaction : undefined,
-    );
+  if (!transaction) {
+    throw new NotFoundError(`Transaction not found for id: ${id}`);
   }
 
-  /**
-   * Invalidates all transaction caches.
-   */
-  invalidate() {
-    return Promise.all([
-      this.queryClient.invalidateQueries({
-        queryKey: [TransactionsCache.Key],
-      }),
-      this.queryClient.invalidateQueries({
-        queryKey: [TransactionsCache.AllTransactionsKey],
-      }),
-      this.queryClient.invalidateQueries({
-        queryKey: [TransactionsCache.UnacknowledgedCountKey],
-      }),
-    ]);
-  }
-
-  /**
-   * Invalidates a single transaction query by ID.
-   */
-  invalidateTransaction(transactionId: string) {
-    return this.queryClient.invalidateQueries({
-      queryKey: [TransactionsCache.Key, transactionId],
-    });
-  }
-
-  /**
-   * Invalidates the unacknowledged count query.
-   */
-  invalidateUnacknowledgedCount() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [TransactionsCache.UnacknowledgedCountKey],
-    });
-  }
+  return transaction as unknown as Transaction;
 }
 
-export function useTransactionsCache() {
-  const queryClient = useQueryClient();
-  return useMemo(() => new TransactionsCache(queryClient), [queryClient]);
-}
+const ALL_TRANSACTIONS_KEY = 'all-transactions';
 
-export function useTransaction(id: string) {
-  const transactionRepository = useTransactionRepository();
-
-  return useSuspenseQuery({
-    queryKey: [TransactionsCache.Key, id],
-    queryFn: async () => {
-      const transaction = await transactionRepository.get(id);
-
-      if (!transaction) {
-        throw new NotFoundError(`Transaction not found for id: ${id}`);
-      }
-
-      return transaction;
-    },
-    retry: (failureCount, error) => {
-      if (error instanceof NotFoundError) {
-        return false;
-      }
-      return failureCount <= 3;
-    },
-    staleTime: Number.POSITIVE_INFINITY,
-    refetchOnWindowFocus: 'always',
-    refetchOnReconnect: 'always',
-  });
-}
-
-const PAGE_SIZE = 25;
+type TransactionsPage = {
+  transactions: Transaction[];
+  nextCursor: TransactionCursor | null;
+};
 
 export function useTransactions(accountId?: string) {
-  const userId = useUser((user) => user.id);
-  const transactionRepository = useTransactionRepository();
-  const transactionsCache = useTransactionsCache();
+  const sdk = useSdk();
 
-  const result = useInfiniteQuery({
-    queryKey: [TransactionsCache.AllTransactionsKey, accountId],
-    initialPageParam: null,
-    queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
-      const result = await transactionRepository.list({
-        userId,
-        cursor: pageParam,
-        pageSize: PAGE_SIZE,
-        accountId,
-      });
-
-      for (const transaction of result.transactions) {
-        transactionsCache.upsert(transaction);
-      }
-
-      return {
-        transactions: result.transactions,
-        nextCursor:
-          result.transactions.length === PAGE_SIZE ? result.nextCursor : null,
-      };
-    },
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+  return useInfiniteQuery({
+    queryKey: [ALL_TRANSACTIONS_KEY, accountId],
+    initialPageParam: undefined as TransactionCursor | undefined,
+    queryFn: ({ pageParam }: { pageParam: TransactionCursor | undefined }) =>
+      // The SDK and web `Transaction` types are structurally equivalent at
+      // runtime; the web's zod-narrowed union is just stricter on `details`.
+      sdk.transactions
+        .list({ accountId, cursor: pageParam ?? undefined })
+        .toPromise() as Promise<TransactionsPage>,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     retry: 1,
   });
-
-  return result;
 }
 
 export function useHasTransactionsPendingAck() {
-  const transactionRepository = useTransactionRepository();
-  const userId = useUser((user) => user.id);
-
-  const result = useQuery({
-    queryKey: [TransactionsCache.UnacknowledgedCountKey],
-    queryFn: () =>
-      transactionRepository.countTransactionsPendingAck({ userId }),
-    select: (data) => data > 0,
-    staleTime: Number.POSITIVE_INFINITY,
-    refetchOnWindowFocus: 'always',
-    refetchOnReconnect: 'always',
-    retry: 1,
-  });
-
-  return result.data ?? false;
+  const sdk = useSdk();
+  const count = useQ(sdk.transactions.countPendingAck());
+  return count > 0;
 }
 
-const acknowledgeTransactionInHistoryCache = (
-  queryClient: QueryClient,
-  transaction: Transaction,
-) => {
-  // Update all transaction query caches (both unified and account-specific)
-  const queries = queryClient.getQueriesData<
-    InfiniteData<{
-      transactions: Transaction[];
-      nextCursor: Cursor | null;
-    }>
-  >({ queryKey: [TransactionsCache.AllTransactionsKey] });
-
-  queries.forEach(([queryKey, data]) => {
-    if (!data) return;
-
-    queryClient.setQueryData(queryKey, {
-      ...data,
-      pages: data.pages.map((page) => ({
-        ...page,
-        transactions: page.transactions.map((tx) =>
-          tx.id === transaction.id && tx.acknowledgmentStatus === 'pending'
-            ? { ...tx, acknowledgmentStatus: 'acknowledged' }
-            : tx,
-        ),
-      })),
-    });
-  });
-};
-
 export function useAcknowledgeTransaction() {
-  const transactionRepository = useTransactionRepository();
-  const userId = useUser((user) => user.id);
-  const queryClient = useQueryClient();
-  const transactionsCache = useTransactionsCache();
+  const sdk = useSdk();
 
   return useMutation({
     mutationFn: async ({ transaction }: { transaction: Transaction }) => {
-      await transactionRepository.acknowledgeTransaction({
-        userId,
-        transactionId: transaction.id,
-      });
+      await sdk.transactions.acknowledge(
+        transaction as unknown as Parameters<
+          typeof sdk.transactions.acknowledge
+        >[0],
+      );
     },
-    onSuccess: (_, { transaction }) => {
-      acknowledgeTransactionInHistoryCache(queryClient, transaction);
-      transactionsCache.invalidateUnacknowledgedCount();
+    onSuccess: () => {
+      void sdk.transactions.list().refetch();
+      void sdk.transactions.countPendingAck().refetch();
     },
     retry: 1,
   });
@@ -271,44 +125,4 @@ export function useReverseTransaction({
       onErrorRef.current?.(error);
     },
   });
-}
-
-/**
- * Hook that returns a transaction change handler.
- */
-export function useTransactionChangeHandlers() {
-  const transactionRepository = useTransactionRepository();
-  const transactionsCache = useTransactionsCache();
-
-  return [
-    {
-      event: 'TRANSACTION_CREATED',
-      handleEvent: async (payload: AgicashDbTransaction) => {
-        const transaction = await transactionRepository.toTransaction(payload);
-        transactionsCache.upsert(transaction);
-
-        if (transaction.acknowledgmentStatus === 'pending') {
-          transactionsCache.invalidateUnacknowledgedCount();
-        }
-      },
-    },
-    {
-      event: 'TRANSACTION_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbTransaction & {
-          previous_acknowledgment_status: Transaction['acknowledgmentStatus'];
-        },
-      ) => {
-        const transaction = await transactionRepository.toTransaction(payload);
-        transactionsCache.upsert(transaction);
-
-        if (
-          payload.previous_acknowledgment_status !==
-          transaction.acknowledgmentStatus
-        ) {
-          transactionsCache.invalidateUnacknowledgedCount();
-        }
-      },
-    },
-  ];
 }

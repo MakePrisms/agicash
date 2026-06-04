@@ -12,7 +12,7 @@ import type { Route } from './+types/_protected.transactions.$transactionId_';
 export default function TransactionDetailsPage({
   params: { transactionId },
 }: Route.ComponentProps) {
-  const { data: transaction } = useTransaction(transactionId);
+  const transaction = useTransaction(transactionId);
   const { redirectTo } = useRedirectTo('/');
 
   return (

@@ -205,7 +205,7 @@ const getDetails = (transaction: Transaction, account: CashuAccount) => {
 export function TransactionAdditionalDetails({
   transactionId,
 }: { transactionId: string }) {
-  const { data: transaction } = useTransaction(transactionId);
+  const transaction = useTransaction(transactionId);
   const account = useAccountOrNull(transaction.accountId);
 
   if (!account) {
