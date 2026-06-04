@@ -51,8 +51,8 @@ jobs:
 
           echo "Checking types..."
           bun supabase db start
-          bun supabase gen types typescript --local --schema wallet > supabase/database.types.ts
-          if ! git diff --ignore-space-at-eol --exit-code --quiet supabase/database.types.ts; then
+          bun supabase gen types typescript --local --schema wallet > packages/db-types/src/database.types.ts
+          if ! git diff --ignore-space-at-eol --exit-code --quiet packages/db-types/src/database.types.ts; then
             echo "Detected uncommitted changes in database types. This means that db was changed but types were not updated. To fix regenerate the types and commit the changes. See missing types below:"
             git diff
             exit 1

@@ -16,8 +16,8 @@
  * `zod/mini` + `Money` + the `agicash-db/json-models` schemas (verified: no `react` /
  * `@tanstack/*` — the React-coupled `transaction-hooks.ts` / `transaction-details.tsx` /
  * `transaction-ack-status-store.ts` are NOT in this chain and are re-housed separately). The
- * `transaction-details-types.ts` `Json` import resolves to `supabase/database.types` via the
- * `~/*` alias.
+ * `transaction-details-types.ts` `Json` import resolves to the shared `@agicash/db-types`
+ * package (the generated Supabase types both the app and this SDK depend on).
  *
  * The DB-data union ({@link TransactionDetailsDbDataSchema}) + the per-variant parsers stay
  * SDK-INTERNAL (decision 7-ii: the SDK parses DB→domain inside; the DB-data shape is never

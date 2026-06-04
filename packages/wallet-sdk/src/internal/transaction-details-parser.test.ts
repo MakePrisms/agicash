@@ -7,7 +7,7 @@
  * the single-source `TransactionDetailsParser` (the 6 `z.pipe` parsers) + `TransactionSchema` work
  * re-housed in the SDK, and that the public domain shape differs from the DB-data shape.
  */
-import type { Json } from 'supabase/database.types';
+import type { Json } from '@agicash/db-types';
 import { describe, expect, test } from 'bun:test';
 import type { Encryption } from './encryption';
 import { TransactionRepository } from './transaction-repository';

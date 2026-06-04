@@ -1,4 +1,4 @@
-import type { Json } from 'supabase/database.types';
+import type { Json } from '@agicash/db-types';
 import { z } from 'zod/mini';
 import {
   CashuLightningReceiveDbDataSchema,

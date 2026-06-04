@@ -14,7 +14,7 @@
  *
  * @module
  */
-import type { Json } from 'supabase/database.types';
+import type { Json } from '@agicash/db-types';
 import type { AccountPurpose, AccountType } from '../types/account';
 import type { Currency } from '../types/money';
 import type {

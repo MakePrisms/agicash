@@ -8,8 +8,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "~/*": ["../../apps/web-wallet/app/*"],
-      "supabase/database.types": ["../../supabase/database.types.ts"]
+      "~/*": ["../../apps/web-wallet/app/*"]
     }
   }
 }

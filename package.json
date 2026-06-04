@@ -31,7 +31,7 @@
     "fix:staged": "biome check --write --staged --verbose",
     "check:all": "run-p typecheck lint:check format:check",
     "supabase": "supabase",
-    "db:generate-types": "supabase gen types typescript --local --schema wallet > supabase/database.types.ts"
+    "db:generate-types": "supabase gen types typescript --local --schema wallet > packages/db-types/src/database.types.ts"
   },
   "scripts:comments": {
     "dev": "Delegates to apps/web-wallet. The web dev server uses tsx instead of bun because with bun the server hangs and eventually errors with 'ELOOP: too many symbolic links encountered...'.",
