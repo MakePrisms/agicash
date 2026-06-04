@@ -24,6 +24,7 @@
 
 export {
   type DecodedBolt11,
+  decodeBolt11,
   parseBolt11Invoice,
 } from '../../../../apps/web-wallet/app/lib/bolt11';
 export { extractCashuToken } from '../../../../apps/web-wallet/app/lib/cashu/token';

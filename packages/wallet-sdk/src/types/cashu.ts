@@ -1,6 +1,7 @@
 // Cashu domain types — master verbatim
 // send/cashu-send-quote.ts, send/cashu-send-swap.ts, receive/cashu-receive-quote.ts
 
+import type { Proof } from '@cashu/cashu-ts';
 import type { CashuProof } from './account';
 import type { Money } from './money';
 
@@ -97,7 +98,14 @@ export type CashuSendSwap = CashuSendSwapBase &
 export type CashuTokenMeltData = {
   sourceMintUrl: string;
   tokenAmount: Money;
+  /**
+   * The proofs from the source cashu token that will be melted. Master:
+   * `z.array(ProofSchema)` (`@cashu/cashu-ts` `Proof[]`).
+   */
+  tokenProofs: Proof[];
   meltQuoteId: string;
+  /** Whether the melt has been initiated on the source mint. */
+  meltInitiated: boolean;
   cashuReceiveFee: Money;
   lightningFeeReserve: Money;
   lightningFee?: Money;

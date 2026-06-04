@@ -28,6 +28,7 @@ import {
   generateThirdPartyToken,
   getPrivateKey as osGetPrivateKey,
   getPrivateKeyBytes as osGetPrivateKeyBytes,
+  getPublicKey as osGetPublicKey,
   handleGoogleCallback as osHandleGoogleCallback,
   initiateGoogleAuth as osInitiateGoogleAuth,
   refreshAccessToken as osRefreshAccessToken,
@@ -38,6 +39,7 @@ import {
   signUp as osSignUp,
   signUpGuest as osSignUpGuest,
 } from '@agicash/opensecret';
+import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { jwtDecode } from 'jwt-decode';
 import { getSeedPhraseDerivationPath } from './lib-account-cryptography';
@@ -303,5 +305,54 @@ export class OpenSecretClient {
       seed_phrase_derivation_path: SPARK_SEED_DERIVATION_PATH,
     });
     return mnemonic;
+  }
+
+  /**
+   * The hex-encoded data-encryption PUBLIC key (`getPublicKey('schnorr', …)` at
+   * {@link ENCRYPTION_KEY_DERIVATION_PATH}). The `internal/encryption` layer's `encrypt`/
+   * `encryptBatch` path needs it. Re-houses master `encryptionPublicKeyQueryOptions`.
+   *
+   * @returns the hex-encoded public key.
+   */
+  async getEncryptionPublicKeyHex(): Promise<string> {
+    const { public_key } = await osGetPublicKey('schnorr', {
+      private_key_derivation_path: ENCRYPTION_KEY_DERIVATION_PATH,
+    });
+    return public_key;
+  }
+
+  /**
+   * The cashu locking xPub at the given derivation path off the cashu wallet seed. Re-houses
+   * master `shared/cashu.ts#xpubQueryOptions`: derive the cashu child seed, build an
+   * {@link HDKey} from it, and return the (optionally child-derived) extended public key.
+   * Used to derive NUT-20 quote-locking public keys (receive quotes).
+   *
+   * @param derivationPath - optional child path off the cashu master seed.
+   * @returns the base58-check extended public key.
+   */
+  async getCashuLockingXpub(derivationPath?: string): Promise<string> {
+    const seed = await this.getCashuWalletSeed();
+    const hdKey = HDKey.fromMasterSeed(seed);
+    if (derivationPath) {
+      return hdKey.derive(derivationPath).publicExtendedKey;
+    }
+    return hdKey.publicExtendedKey;
+  }
+
+  /**
+   * The hex-encoded cashu locking PRIVATE key at the given derivation path (used to unlock a
+   * NUT-20-locked mint quote when minting). Re-houses master
+   * `shared/cashu.ts#privateKeyQueryOptions`: `getPrivateKeyBytes` off the cashu seed at the
+   * given `private_key_derivation_path`.
+   *
+   * @param derivationPath - the locking key's derivation path off the cashu seed.
+   * @returns the hex-encoded private key.
+   */
+  async getCashuLockingPrivateKeyHex(derivationPath?: string): Promise<string> {
+    const { private_key } = await osGetPrivateKeyBytes({
+      seed_phrase_derivation_path: CASHU_SEED_DERIVATION_PATH,
+      private_key_derivation_path: derivationPath,
+    });
+    return private_key;
   }
 }

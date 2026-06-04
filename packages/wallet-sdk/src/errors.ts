@@ -19,15 +19,31 @@ export class SdkError extends Error {
   /** Stable, machine-readable error code (e.g. a cashu/protocol code). */
   readonly code: string;
 
-  constructor(message: string, code: string) {
+  /**
+   * @param message - the human-readable message.
+   * @param code - the machine-readable code; defaults to the concrete subclass name (e.g.
+   *   `'DomainError'`) when a specific code is not supplied. The default lets the framework-free
+   *   service primitives (re-housed verbatim from master, which throws `new DomainError(msg)`)
+   *   construct an error without inventing a code, while callers that have a protocol/DB code
+   *   (e.g. the repos' `ConcurrencyError`) still pass one.
+   */
+  constructor(message: string, code?: string) {
     super(message);
     this.name = new.target.name;
-    this.code = code;
+    this.code = code ?? new.target.name;
   }
 }
 
 /** Transient/stale state (e.g. an optimistic-lock conflict); the caller (or orchestrator) refetches + retries. */
 export class ConcurrencyError extends SdkError {}
+
+/**
+ * A unique-constraint violation (a duplicate insert). Lifted from master
+ * `shared/error.ts#UniqueConstraintError`; the cashu receive-swap path raises it when a token
+ * has already been claimed (DB `23505`). A `ConcurrencyError` sub-type — it is transient from
+ * the caller's perspective (the conflicting row already exists, so the work is effectively done).
+ */
+export class UniqueConstraintError extends ConcurrencyError {}
 
 /** A definitive, user-facing failure; the message is safe to show and the caller must never retry. */
 export class DomainError extends SdkError {}

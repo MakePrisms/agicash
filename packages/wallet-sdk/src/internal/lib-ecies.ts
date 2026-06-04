@@ -10,12 +10,16 @@
  * there is ONE implementation and no web churn. The canonical relocation of `app/lib/ecies`
  * INTO the package is a deferred follow-up (out of the build-plan's scope).
  *
- * Only the BATCH decrypt is re-exported: that is the single primitive `./encryption`'s
- * `decryptBatch` (the proof-decrypt path) needs. The other ECIES functions
- * (encrypt/decrypt single, encrypt batch) are not used by Slice 3 and are pulled in by
- * later slices that write encrypted rows.
+ * The proof-DECRYPT path (PR5a) needs `eciesDecryptBatch`; the send/receive services this
+ * slice (PR5b) adds WRITE encrypted rows, so they also need the ENCRYPT primitives
+ * (`eciesEncrypt` single + `eciesEncryptBatch`). All three are re-exported single-source.
  *
  * @module
  */
 
-export { eciesDecryptBatch } from '../../../../apps/web-wallet/app/lib/ecies/ecies';
+export {
+  eciesDecrypt,
+  eciesDecryptBatch,
+  eciesEncrypt,
+  eciesEncryptBatch,
+} from '../../../../apps/web-wallet/app/lib/ecies/ecies';

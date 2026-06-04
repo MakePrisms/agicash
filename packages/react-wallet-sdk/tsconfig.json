@@ -5,6 +5,10 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
     "jsx": "react-jsx",
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "~/*": ["../../apps/web-wallet/app/*"]
+    }
   }
 }
