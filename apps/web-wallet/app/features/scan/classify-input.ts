@@ -1,4 +1,7 @@
-import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
+import {
+  type DecodedBolt11,
+  parseBolt11Invoice,
+} from '@agicash/wallet-sdk/lib';
 import { extractCashuToken } from '~/lib/cashu/token';
 import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
 

@@ -135,3 +135,14 @@ export { Sdk } from './sdk';
 
 // ---- Pure helpers ----
 export { cashAppDeepLink } from './helpers';
+
+// ---- Framework-free wallet-domain libs (also at the ./lib subpath) ----
+export {
+  type DecodedBolt11,
+  decodeBolt11,
+  parseBolt11Invoice,
+  eciesDecrypt,
+  eciesDecryptBatch,
+  eciesEncrypt,
+  eciesEncryptBatch,
+} from './lib';

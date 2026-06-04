@@ -1,6 +1,6 @@
 import type { MintQuoteBolt11Response, Proof } from '@cashu/cashu-ts';
 import { HARDENED_OFFSET } from '@scure/bip32';
-import { decodeBolt11 } from '~/lib/bolt11';
+import { decodeBolt11 } from '@agicash/wallet-sdk/lib';
 import { type ExtendedCashuWallet, getCashuUnit } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { RedactedCashuAccount } from '../accounts/account';

@@ -8,7 +8,7 @@ import {
   eciesDecryptBatch,
   eciesEncrypt,
   eciesEncryptBatch,
-} from '~/lib/ecies';
+} from '@agicash/wallet-sdk/lib';
 import { Money } from '~/lib/money';
 
 // 10111099 is 'enc' (for encryption) in ascii

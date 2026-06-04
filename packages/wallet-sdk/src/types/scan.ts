@@ -9,7 +9,7 @@
 // resolved to the REAL decode-lib outputs the `scan.parse` impl actually produces — the
 // reactive base shipped placeholder shapes (`{ paymentRequest; paymentHash; ... }` /
 // `{ token; amount?; mintUrl? }`) that no scan code consumed and that do NOT match the live
-// libs. `parseBolt11Invoice` returns `app/lib/bolt11#DecodedBolt11` and `extractCashuToken`
+// libs. `parseBolt11Invoice` returns `lib/bolt11#DecodedBolt11` and `extractCashuToken`
 // returns `{ encoded; metadata: TokenMetadata }`; the shapes below mirror those verbatim
 // (matching the no-cache extraction's types). Nothing in the prior slices used the old
 // shapes, so this is a non-breaking correction.
@@ -18,7 +18,7 @@ import type { Money } from './money';
 
 /**
  * Decoded BOLT11 invoice carried by a `bolt11` `ParsedDestination`.
- * Shape = `app/lib/bolt11/index.ts#DecodedBolt11` (verbatim — what `parseBolt11Invoice`
+ * Shape = `lib/bolt11/index.ts#DecodedBolt11` (verbatim — what `parseBolt11Invoice`
  * returns).
  */
 export type Bolt11Invoice = {

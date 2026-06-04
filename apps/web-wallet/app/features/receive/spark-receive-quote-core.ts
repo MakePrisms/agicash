@@ -3,7 +3,7 @@ import type {
   LightningReceiveStatus,
 } from '@agicash/breez-sdk-spark';
 import type { Proof } from '@cashu/cashu-ts';
-import { parseBolt11Invoice } from '~/lib/bolt11';
+import { parseBolt11Invoice } from '@agicash/wallet-sdk/lib';
 import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import type { SparkAccount } from '../accounts/account';

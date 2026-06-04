@@ -4,7 +4,7 @@ import {
   getAccountBalance,
 } from '~/features/accounts/account';
 import type { GiftCardInfo } from '~/features/gift-cards/gift-card-config';
-import type { DecodedBolt11 } from '~/lib/bolt11';
+import type { DecodedBolt11 } from '@agicash/wallet-sdk/lib';
 import { type Currency, Money } from '~/lib/money';
 
 type FindMatchingOfferOrGiftCardAccountInput = {

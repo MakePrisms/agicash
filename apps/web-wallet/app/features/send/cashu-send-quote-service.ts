@@ -4,7 +4,7 @@ import {
   OutputData,
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
-import { decodeBolt11, parseBolt11Invoice } from '~/lib/bolt11';
+import { decodeBolt11, parseBolt11Invoice } from '@agicash/wallet-sdk/lib';
 import { getCashuUnit, sumProofs } from '~/lib/cashu';
 import { matchBlindSignaturesToOutputData } from '~/lib/cashu/blind-signature-matching';
 import { type Currency, Money } from '~/lib/money';

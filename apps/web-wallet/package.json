@@ -19,6 +19,7 @@
   "dependencies": {
     "@agicash/bc-ur": "0.1.0",
     "@agicash/breez-sdk-spark": "0.13.5-1",
+    "@agicash/wallet-sdk": "workspace:*",
     "@agicash/opensecret": "catalog:",
     "@agicash/qr-scanner": "0.1.2",
     "@cashu/cashu-ts": "3.6.1",
@@ -58,7 +59,6 @@
     "isbot": "5.1.34",
     "jwt-decode": "4.0.0",
     "ky": "1.14.3",
-    "light-bolt11-decoder": "3.2.0",
     "lucide-react": "0.468.0",
     "qrcode.react": "4.2.0",
     "react": "catalog:",

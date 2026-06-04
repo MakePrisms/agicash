@@ -1,4 +1,4 @@
-import type { DecodedBolt11 } from '~/lib/bolt11';
+import type { DecodedBolt11 } from '@agicash/wallet-sdk/lib';
 import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
 import { type Currency, Money } from '~/lib/money';
 
