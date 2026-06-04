@@ -26,7 +26,7 @@ export function SingleContact({ contact }: { contact: Contact }) {
 
   const handleDelete = async () => {
     try {
-      await deleteContact(contact.id);
+      await deleteContact(contact);
       toast({
         title: 'Contact deleted',
         description: contact?.username,
