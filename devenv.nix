@@ -33,18 +33,18 @@
   scripts.generate-ssl-cert.exec = "$DEVENV_ROOT/tools/devenv/generate-ssl-cert.sh";
   scripts.convert-gift-card-images.exec = ''
     shopt -s nullglob
-    pngs=("$DEVENV_ROOT/app/assets/gift-cards/"*.png)
+    pngs=("$DEVENV_ROOT/apps/web-wallet/app/assets/gift-cards/"*.png)
     if [ ''${#pngs[@]} -eq 0 ]; then
-      echo "No PNG files found in app/assets/gift-cards/"
+      echo "No PNG files found in apps/web-wallet/app/assets/gift-cards/"
       exit 0
     fi
     convert-to-webp "''${pngs[@]}"
   '';
   scripts.convert-og-images.exec = ''
     shopt -s nullglob
-    pngs=("$DEVENV_ROOT/public/og/"*.png)
+    pngs=("$DEVENV_ROOT/apps/web-wallet/public/og/"*.png)
     if [ ''${#pngs[@]} -eq 0 ]; then
-      echo "No PNG files found in public/og/"
+      echo "No PNG files found in apps/web-wallet/public/og/"
       exit 0
     fi
     convert-to-webp "''${pngs[@]}"
@@ -73,19 +73,19 @@
   '';
 
   # https://devenv.sh/pre-commit-hooks/
- git-hooks.hooks.generate-db-types = {
+  git-hooks.hooks.generate-db-types = {
     enable = true;
     name = "Generate database types from local db";
     entry = "bun run db:generate-types";
   };
   
- git-hooks.hooks.typecheck = {
+  git-hooks.hooks.typecheck = {
     enable = true;
     entry = "bun run typecheck";
     pass_filenames = false;
   };
   
- git-hooks.hooks.biome = {
+  git-hooks.hooks.biome = {
     enable = true;
     entry = "bun run fix:staged";
   };
