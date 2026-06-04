@@ -10,11 +10,11 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@agicash/wallet-sdk": "workspace:*",
-    "react": "19.2.4"
+    "@agicash/wallet-sdk": "workspace:*"
   },
   "devDependencies": {
-    "@types/react": "19.1.5",
+    "@types/react": "catalog:",
+    "react": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {
