@@ -12,6 +12,7 @@ import {
   type ExtendedCashuWallet,
   getCashuProtocolUnit,
   getCashuUnit,
+  isTransientCashuSwapError,
   sumProofs,
 } from '~/lib/cashu';
 import { Money } from '~/lib/money';
@@ -21,7 +22,7 @@ import {
 } from '../receive/cashu-receive-swap-service';
 import { getTokenHash } from '../shared/cashu';
 import { getDefaultUnit } from '../shared/currencies';
-import { DomainError } from '../shared/error';
+import { ConcurrencyError, DomainError } from '../shared/error';
 import type { CashuSendSwap } from './cashu-send-swap';
 import {
   type CashuSendSwapRepository,
@@ -455,6 +456,10 @@ export class CashuSendSwapService {
             ),
           ),
         };
+      }
+
+      if (isTransientCashuSwapError(error)) {
+        throw new ConcurrencyError(error.message);
       }
 
       throw error;

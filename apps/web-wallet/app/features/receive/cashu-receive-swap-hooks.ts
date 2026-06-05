@@ -12,6 +12,7 @@ import {
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbCashuReceiveSwap } from '../agicash-db/database';
+import { ConcurrencyError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import { useCashuReceiveSwapRepository } from './cashu-receive-swap-repository';
@@ -163,8 +164,13 @@ export function useProcessCashuReceiveSwapTasks() {
       const account = getCashuAccount(swap.accountId);
       await receiveSwapService.completeSwap(account, swap);
     },
-    retry: 3,
-    throwOnError: true,
+    retry: (failureCount, error) => {
+      if (error instanceof ConcurrencyError) {
+        return true;
+      }
+      return failureCount < 3;
+    },
+    throwOnError: (error) => !(error instanceof ConcurrencyError),
     onError: (error, tokenHash) => {
       console.error('Error finalizing receive swap', {
         cause: error,

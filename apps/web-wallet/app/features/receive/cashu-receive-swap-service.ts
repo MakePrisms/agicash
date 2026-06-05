@@ -9,11 +9,13 @@ import {
   CashuErrorCodes,
   areMintUrlsEqual,
   getCashuUnit,
+  isTransientCashuSwapError,
   sumProofs,
 } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
+import { ConcurrencyError } from '../shared/error';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import {
   type CashuReceiveSwapRepository,
@@ -244,6 +246,11 @@ export class CashuReceiveSwapService {
         // TODO: make sure these proofs are not already in our balance and that they are not spent
         return proofs;
       }
+
+      if (isTransientCashuSwapError(error)) {
+        throw new ConcurrencyError(error.message);
+      }
+
       throw error;
     }
   }

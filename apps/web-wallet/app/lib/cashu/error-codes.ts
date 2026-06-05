@@ -1,3 +1,5 @@
+import { MintOperationError } from '@cashu/cashu-ts';
+
 /**
  * Based on https://github.com/cashubtc/nuts/blob/main/error_codes.md
  */
@@ -216,3 +218,18 @@ export enum CashuErrorCodes {
    */
   BAT_MINT_RATE_LIMIT_EXCEEDED = 31004,
 }
+
+/**
+ * Whether the error is a transient swap error returned by the mint: the outputs or
+ * input proofs are still in flight in a parallel operation (codes 11002 and 11004).
+ * The mint settles them on its own, so the swap should be retried rather than failed.
+ * @see https://github.com/cashubtc/nuts/blob/main/error_codes.md
+ */
+export const isTransientCashuSwapError = (
+  error: unknown,
+): error is MintOperationError =>
+  error instanceof MintOperationError &&
+  [
+    CashuErrorCodes.PROOFS_ARE_PENDING,
+    CashuErrorCodes.OUTPUTS_ARE_PENDING,
+  ].includes(error.code);
