@@ -31,6 +31,17 @@ export function GiftCardItem({
   const balance = getAccountBalance(account);
   const name = account.name;
 
+  if (!image && hideOverlayContent) {
+    return (
+      <WalletCard size={size} className={className}>
+        <WalletCardBlank />
+        <WalletCardOverlay className="flex items-center justify-center px-4">
+          <span className="truncate text-foreground text-lg">{name}</span>
+        </WalletCardOverlay>
+      </WalletCard>
+    );
+  }
+
   return (
     <WalletCard size={size} className={className}>
       {image ? (
