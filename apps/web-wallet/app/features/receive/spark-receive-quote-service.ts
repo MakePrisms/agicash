@@ -1,3 +1,4 @@
+import type { Money } from '~/lib/money';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import {
   type CreateQuoteBaseParams,
@@ -76,6 +77,9 @@ export class SparkReceiveQuoteService {
    * @param quote - The spark receive quote to complete.
    * @param paymentPreimage - The payment preimage from the lightning payment.
    * @param sparkTransferId - The Spark transfer ID from the completed transfer.
+   * @param paidAmount - The actual amount paid by the sender. For amountless
+   * invoices the sender determines the amount, so the stored amount is updated
+   * here to reflect what was actually received.
    * @returns The updated quote.
    * @throws An error if the quote is not in UNPAID state.
    */
@@ -83,6 +87,7 @@ export class SparkReceiveQuoteService {
     quote: SparkReceiveQuote,
     paymentPreimage: string,
     sparkTransferId: string,
+    paidAmount: Money<'BTC'>,
   ): Promise<SparkReceiveQuote> {
     if (quote.state === 'PAID') {
       return quote;
@@ -95,7 +100,7 @@ export class SparkReceiveQuoteService {
     }
 
     return this.repository.complete({
-      quote,
+      quote: { ...quote, amount: paidAmount as Money },
       paymentPreimage,
       sparkTransferId,
     });
