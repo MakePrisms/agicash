@@ -6,7 +6,7 @@ import {
   X,
   ZapIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
 import {
@@ -48,6 +48,7 @@ import { AddContactDrawer, ContactsList } from '../contacts';
 import type { Contact } from '../contacts/contact';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError, getErrorMessage } from '../shared/error';
+import { exceedsAccountBalance } from './balance-check';
 import { useSendStore } from './send-provider';
 
 export function SendInput() {
@@ -90,6 +91,18 @@ export function SendInput() {
     initialInputCurrency: initialInputCurrency,
     initialOtherCurrency: initialInputCurrency === 'BTC' ? 'USD' : 'BTC',
   });
+
+  const insufficientBalance = exceedsAccountBalance(
+    inputValue,
+    convertedValue,
+    sendAccount,
+  );
+
+  const wasInsufficient = useRef(false);
+  useEffect(() => {
+    if (insufficientBalance && !wasInsufficient.current) startShakeAnimation();
+    wasInsufficient.current = insufficientBalance;
+  }, [insufficientBalance, startShakeAnimation]);
 
   const handleContinue = async (
     inputValue: Money,
@@ -160,6 +173,22 @@ export function SendInput() {
         newInputValue: latestInputValue,
         newConvertedValue: latestConvertedValue,
       } = setInputValue(amount.toString(defaultUnit), amount.currency));
+
+      if (
+        exceedsAccountBalance(
+          latestInputValue,
+          latestConvertedValue,
+          sendAccount,
+        )
+      ) {
+        toast({
+          title: 'Insufficient balance',
+          description:
+            'The invoice amount is greater than your available balance.',
+          variant: 'destructive',
+        });
+        return true;
+      }
     }
 
     await handleContinue(latestInputValue, latestConvertedValue);
@@ -196,11 +225,15 @@ export function SendInput() {
             />
           </div>
 
-          {!exchangeRateError && (
-            <ConvertedMoneySwitcher
-              onSwitch={switchInputCurrency}
-              money={convertedValue}
-            />
+          {insufficientBalance ? (
+            <p className="text-destructive text-sm">Insufficient balance</p>
+          ) : (
+            !exchangeRateError && (
+              <ConvertedMoneySwitcher
+                onSwitch={switchInputCurrency}
+                money={convertedValue}
+              />
+            )
           )}
         </div>
 
@@ -262,7 +295,7 @@ export function SendInput() {
           <div className="flex items-center justify-end">
             <Button
               onClick={() => handleContinue(inputValue, convertedValue)}
-              disabled={inputValue.isZero()}
+              disabled={inputValue.isZero() || insufficientBalance}
               loading={status === 'quoting' || isContinuing}
             >
               Continue

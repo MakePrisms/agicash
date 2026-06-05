@@ -12,6 +12,7 @@ import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions/view-transition';
 import type { Account } from '../accounts/account';
 import { DomainError, getErrorMessage } from '../shared/error';
+import { exceedsAccountBalance } from './balance-check';
 import { useSendStore } from './send-provider';
 
 /**
@@ -68,6 +69,20 @@ export default function SendScanner() {
 
     const convertedAmount =
       amount.currency !== sendAccount.currency ? convert(amount) : undefined;
+
+    if (exceedsAccountBalance(amount, convertedAmount, sendAccount)) {
+      toast({
+        title: 'Insufficient balance',
+        description:
+          'The invoice amount is greater than your available balance.',
+        variant: 'destructive',
+      });
+      return navigate(buildLinkWithSearchParams('/send'), {
+        applyTo: 'oldView',
+        transition: 'slideDown',
+      });
+    }
+
     const result = await continueSend(amount, convertedAmount);
 
     if (!result.success) {
