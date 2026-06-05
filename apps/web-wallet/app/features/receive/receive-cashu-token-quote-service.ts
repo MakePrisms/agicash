@@ -1,4 +1,8 @@
-import type { MeltQuoteBolt11Response, Token } from '@cashu/cashu-ts';
+import {
+  type MeltQuoteBolt11Response,
+  MintOperationError,
+  type Token,
+} from '@cashu/cashu-ts';
 import { getCashuUnit } from '~/lib/cashu';
 import { Money } from '~/lib/money';
 import type {
@@ -247,8 +251,16 @@ export class ReceiveCashuTokenQuoteService {
           description,
         });
 
-      const meltQuote =
-        await sourceAccount.wallet.createMeltQuoteBolt11(paymentRequest);
+      let meltQuote: MeltQuoteBolt11Response;
+      try {
+        meltQuote =
+          await sourceAccount.wallet.createMeltQuoteBolt11(paymentRequest);
+      } catch (error) {
+        if (error instanceof MintOperationError) {
+          throw new DomainError(error.message);
+        }
+        throw error;
+      }
 
       const amountRequired = new Money({
         amount: meltQuote.amount + meltQuote.fee_reserve,

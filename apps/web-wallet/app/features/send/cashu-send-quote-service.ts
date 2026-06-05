@@ -1,6 +1,7 @@
 import {
   type MeltQuoteBolt11Response,
   MeltQuoteState,
+  MintOperationError,
   OutputData,
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
@@ -147,7 +148,15 @@ export class CashuSendQuoteService {
     const cashuUnit = getCashuUnit(account.currency);
     const wallet = account.wallet;
 
-    const meltQuote = await wallet.createMeltQuoteBolt11(paymentRequest);
+    let meltQuote: MeltQuoteBolt11Response;
+    try {
+      meltQuote = await wallet.createMeltQuoteBolt11(paymentRequest);
+    } catch (error) {
+      if (error instanceof MintOperationError) {
+        throw new DomainError(error.message);
+      }
+      throw error;
+    }
 
     const amountWithLightningFee = meltQuote.amount + meltQuote.fee_reserve;
 
