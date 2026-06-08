@@ -1,0 +1,23 @@
+{
+  "name": "@agicash/utils",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./money": "./src/money/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "big.js": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/big.js": "catalog:",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}
