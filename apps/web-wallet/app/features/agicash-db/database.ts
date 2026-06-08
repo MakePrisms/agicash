@@ -1,5 +1,5 @@
+import type { Database as DatabaseGenerated } from '@agicash/db-types';
 import type { createClient } from '@supabase/supabase-js';
-import type { Database as DatabaseGenerated } from 'supabase/database.types';
 import type { MergeDeep } from 'type-fest';
 import {
   type CashuAccountDetailsDbData,

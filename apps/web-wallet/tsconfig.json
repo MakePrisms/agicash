@@ -16,8 +16,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "~/*": ["./app/*"],
-      "supabase/database.types": ["../../supabase/database.types.ts"]
+      "~/*": ["./app/*"]
     },
 
     // Vite takes care of building everything, not tsc.
