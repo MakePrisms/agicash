@@ -1,0 +1,24 @@
+{
+  "name": "@agicash/cashu",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agicash/utils": "workspace:*",
+    "@cashu/cashu-ts": "catalog:",
+    "@noble/hashes": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@noble/curves": "catalog:",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}
