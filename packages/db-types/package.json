@@ -10,6 +10,8 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@agicash/cashu": "workspace:*",
+    "@agicash/utils": "workspace:*",
     "@supabase/supabase-js": "catalog:",
     "type-fest": "catalog:",
     "zod": "catalog:"
