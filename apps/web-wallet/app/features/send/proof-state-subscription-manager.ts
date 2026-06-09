@@ -10,6 +10,11 @@ type Subscription = {
   onSpent: (swap: CashuSendSwap) => void;
 };
 
+// This is framework-free WebSocket orchestration (like the cashu mint-quote /
+// melt-quote managers that already live in @agicash/cashu) and the SDK send-swap
+// orchestrator will need it headlessly — it likely belongs in @agicash/cashu too.
+// Left here for now because it depends on send-domain types (cashu-send-swap);
+// move it when the send/swap domain is extracted.
 export class ProofStateSubscriptionManager {
   private subscriptions: Map<string, Subscription> = new Map();
   private proofUpdates: Record<string, Record<string, ProofState['state']>> =

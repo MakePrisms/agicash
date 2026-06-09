@@ -114,6 +114,7 @@
         "@agicash/utils": "workspace:*",
         "@cashu/cashu-ts": "catalog:",
         "@noble/hashes": "catalog:",
+        "type-fest": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {

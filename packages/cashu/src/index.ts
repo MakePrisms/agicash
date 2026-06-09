@@ -8,3 +8,7 @@ export * from './token';
 export * from './payment-request';
 export * from './protocol-extensions';
 export * from './blind-signature-matching';
+export * from './utils';
+export * from './mint-validation';
+export * from './melt-quote-subscription-manager';
+export * from './mint-quote-subscription-manager';
