@@ -9,6 +9,11 @@
   "scripts": {
     "typecheck": "tsc"
   },
+  "dependencies": {
+    "@supabase/supabase-js": "catalog:",
+    "type-fest": "catalog:",
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "typescript": "catalog:"
   }

@@ -1,20 +1,2 @@
-import { z } from 'zod/mini';
-
-export const CashuAccountDetailsDbDataSchema = z.object({
-  /**
-   * URL of the mint.
-   */
-  mint_url: z.string(),
-  /**
-   * Whether the mint is a test mint.
-   */
-  is_test_mint: z.boolean(),
-  /**
-   * Holds counter value for each mint keyset. Key is the keyset id, value is counter value.
-   */
-  keyset_counters: z.record(z.string(), z.number()),
-});
-
-export type CashuAccountDetailsDbData = z.infer<
-  typeof CashuAccountDetailsDbDataSchema
->;
+// Transitional re-export — moved to @agicash/db-types; removed in the import-cleanup PR.
+export * from '@agicash/db-types/json-models/cashu-account-details-db-data';
