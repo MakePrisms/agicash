@@ -15,7 +15,7 @@
       "name": "web-wallet",
       "dependencies": {
         "@agicash/bc-ur": "0.1.0",
-        "@agicash/breez-sdk-spark": "0.13.5-1",
+        "@agicash/breez-sdk-spark": "catalog:",
         "@agicash/cashu": "workspace:*",
         "@agicash/db-types": "workspace:*",
         "@agicash/opensecret": "catalog:",
@@ -153,7 +153,14 @@
     "packages/wallet-sdk": {
       "name": "@agicash/wallet-sdk",
       "dependencies": {
+        "@agicash/breez-sdk-spark": "catalog:",
+        "@agicash/cashu": "workspace:*",
+        "@agicash/db-types": "workspace:*",
+        "@agicash/utils": "workspace:*",
+        "@cashu/cashu-ts": "catalog:",
         "@tanstack/query-core": "5.90.20",
+        "type-fest": "catalog:",
+        "zod": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -166,6 +173,7 @@
     "@sentry/core@10.42.0": "patches/@sentry%2Fcore@10.42.0.patch",
   },
   "catalog": {
+    "@agicash/breez-sdk-spark": "0.13.5-1",
     "@agicash/opensecret": "0.1.0",
     "@cashu/cashu-ts": "3.6.1",
     "@noble/curves": "1.9.7",

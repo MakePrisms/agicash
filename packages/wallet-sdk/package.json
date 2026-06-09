@@ -11,7 +11,14 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tanstack/query-core": "5.90.20"
+    "@agicash/breez-sdk-spark": "catalog:",
+    "@agicash/cashu": "workspace:*",
+    "@agicash/db-types": "workspace:*",
+    "@agicash/utils": "workspace:*",
+    "@cashu/cashu-ts": "catalog:",
+    "@tanstack/query-core": "5.90.20",
+    "type-fest": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
