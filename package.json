@@ -8,6 +8,7 @@
       "@agicash/breez-sdk-spark": "0.13.5-1",
       "@agicash/opensecret": "0.1.0",
       "@cashu/cashu-ts": "3.6.1",
+      "@noble/ciphers": "1.3.0",
       "@noble/curves": "1.9.7",
       "@noble/hashes": "1.8.0",
       "@stablelib/base64": "2.0.1",
