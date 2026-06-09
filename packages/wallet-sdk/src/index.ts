@@ -1,1 +1,1 @@
-// @agicash/wallet-sdk
+export * from './query-client';
