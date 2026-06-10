@@ -14,13 +14,20 @@
     "@agicash/breez-sdk-spark": "catalog:",
     "@agicash/cashu": "workspace:*",
     "@agicash/db-types": "workspace:*",
+    "@agicash/opensecret": "catalog:",
     "@agicash/utils": "workspace:*",
     "@cashu/cashu-ts": "catalog:",
+    "@noble/hashes": "catalog:",
+    "@stablelib/base64": "catalog:",
     "@tanstack/query-core": "5.90.20",
     "type-fest": "catalog:",
     "zod": "catalog:"
   },
+  "dependencies:comments": {
+    "@agicash/opensecret": "Currently the react build (transitive react peer-dep + localStorage). A storage-pluggable version is in flight; the bump removes the transitive react/browser binding before the MCP phase. Until then this is the single tracked exception to the SDK's framework-free rule (no DIRECT react/DOM imports in src)."
+  },
   "devDependencies": {
+    "@noble/curves": "catalog:",
     "@types/bun": "catalog:",
     "typescript": "catalog:"
   }
