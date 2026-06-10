@@ -9,3 +9,6 @@ export * from './encryption';
 export * from './auth';
 export * from './supabase-session';
 export * from './agicash-db';
+export * from './performance';
+export * from './agicash-mint-auth-provider';
+export * from './cashu';

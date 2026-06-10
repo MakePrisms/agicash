@@ -18,6 +18,8 @@
     "@agicash/utils": "workspace:*",
     "@cashu/cashu-ts": "catalog:",
     "@noble/hashes": "catalog:",
+    "@scure/bip32": "catalog:",
+    "@scure/bip39": "catalog:",
     "@stablelib/base64": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@tanstack/query-core": "5.90.20",

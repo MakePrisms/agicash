@@ -1,4 +1,5 @@
 import { configure } from '@agicash/opensecret';
+import { setOperationMeasurer } from '@agicash/wallet-sdk/performance';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -12,6 +13,7 @@ import { getEnvironment, isServedLocally } from './environment';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
 import { Money } from './lib/money';
+import { measureOperation } from './lib/performance';
 import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
@@ -34,6 +36,10 @@ configure({
   apiUrl: openSecretApiUrl,
   clientId: openSecretClientId,
 });
+
+// Route the SDK's internal operation measurements through the web app's
+// Sentry-backed instrumentation (the SDK defaults to an unmeasured pass-through).
+setOperationMeasurer(measureOperation);
 
 // Start Breez WASM fetch/compile as early as possible so it overlaps with
 // hydration, Sentry init, and the auth query — by the time the _protected
