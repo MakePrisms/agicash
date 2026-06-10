@@ -10,7 +10,7 @@ import { getSupabaseSessionToken } from './supabase-session';
  * The consumer supplies the connection params (the web app reads them from its
  * Vite env); the SDK owns the client construction.
  */
-export const createAgicashDb = ({
+const createAgicashDb = ({
   url,
   anonKey,
 }: {
@@ -48,3 +48,37 @@ export const createAgicashDb = ({
       logLevel: 'info',
     },
   });
+
+let dbConfig: { url: string; anonKey: string } | undefined;
+let agicashDb: ReturnType<typeof createAgicashDb> | undefined;
+
+/**
+ * Configures the Agicash DB connection. The host app calls this once at
+ * startup with its env-derived connection params; the client itself is
+ * constructed lazily on the first getAgicashDb() call.
+ */
+export function configureAgicashDb(config: {
+  url: string;
+  anonKey: string;
+}): void {
+  dbConfig = config;
+}
+
+/**
+ * The SDK-owned Agicash Supabase client (lazy singleton).
+ *
+ * Transitional: the web app re-exports this as `agicashDbClient` for
+ * not-yet-migrated repositories. Once the Sdk composition root lands, this
+ * getter is absorbed into it — the raw client is never part of the public API.
+ */
+export function getAgicashDb() {
+  if (!agicashDb) {
+    if (!dbConfig) {
+      throw new Error(
+        'Agicash DB is not configured. Call configureAgicashDb first.',
+      );
+    }
+    agicashDb = createAgicashDb(dbConfig);
+  }
+  return agicashDb;
+}

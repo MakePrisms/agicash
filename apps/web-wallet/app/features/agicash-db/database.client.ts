@@ -1,4 +1,7 @@
-import { createAgicashDb } from '@agicash/wallet-sdk/agicash-db';
+import {
+  configureAgicashDb,
+  getAgicashDb,
+} from '@agicash/wallet-sdk/agicash-db';
 import { SupabaseRealtimeManager } from '~/lib/supabase';
 
 const getSupabaseUrl = () => {
@@ -29,14 +32,15 @@ if (!supabaseAnonKey) {
   throw new Error('VITE_SUPABASE_ANON_KEY is not set');
 }
 
+configureAgicashDb({ url: supabaseUrl, anonKey: supabaseAnonKey });
+
 /**
- * The client-side Supabase database client.
- * If you need to use a client on the server, which bypasses RLS, use `agicashDbServer` instead.
+ * The client-side Supabase database client (the SDK-owned instance).
+ * Transitional re-export for not-yet-migrated repositories; removed in the
+ * import-cleanup PR. If you need a client on the server, which bypasses RLS,
+ * use `agicashDbServer` instead.
  */
-export const agicashDbClient = createAgicashDb({
-  url: supabaseUrl,
-  anonKey: supabaseAnonKey,
-});
+export const agicashDbClient = getAgicashDb();
 
 /**
  * The client-side Supabase realtime client.
