@@ -12,3 +12,5 @@ export * from './agicash-db';
 export * from './performance';
 export * from './agicash-mint-auth-provider';
 export * from './cashu';
+export * from './spark';
+export * from './spark-utils';
