@@ -19,7 +19,6 @@ import {
 import type { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import {
-  useAccountsCache,
   useGetCashuAccount,
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
@@ -29,6 +28,7 @@ import type {
   AgicashDbCashuSendQuote,
 } from '../agicash-db/database';
 import { ConcurrencyError, DomainError } from '../shared/error';
+import { getSdk } from '../shared/sdk';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
 import { useCashuSendQuoteRepository } from './cashu-send-quote-repository';
@@ -197,11 +197,10 @@ function useUnresolvedCashuSendQuotes() {
 
 function usePendingMeltQuotes() {
   const unresolvedCashuSendQuotes = useUnresolvedCashuSendQuotes();
-  const accountsCache = useAccountsCache();
 
   return useMemo(() => {
     return unresolvedCashuSendQuotes.map((q) => {
-      const account = accountsCache.get(q.accountId);
+      const account = getSdk().accounts.getCached(q.accountId);
       if (!account || account.type !== 'cashu') {
         throw new Error(`Cashu account not found for send quote: ${q.id}`);
       }
@@ -213,7 +212,7 @@ function usePendingMeltQuotes() {
         inputAmount: sumProofs(q.proofs),
       };
     });
-  }, [unresolvedCashuSendQuotes, accountsCache]);
+  }, [unresolvedCashuSendQuotes]);
 }
 /**
  * Hook that returns a cashu send quote change handler.

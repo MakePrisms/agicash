@@ -20,8 +20,7 @@ import {
   type SparkAccount,
   getAccountBalance,
 } from './account';
-import { useAccountRepository } from './account-repository';
-import { AccountService, useAccountService } from './account-service';
+import { AccountService } from './account-service';
 
 export {
   AccountsCache,
@@ -30,18 +29,24 @@ export {
 
 /**
  * Hook that provides the accounts cache.
- * Reference of the returned data is stable as long as the logged in user doesn't change (see App component in root.tsx).
+ *
+ * Transitional (sdk.accounts.internal): only for the not-yet-migrated
+ * send/receive/user domain code and the web-owned realtime + spark-balance
+ * infrastructure. App/UI code must use the curated sdk.accounts methods.
  * @returns The accounts cache.
  */
 export function useAccountsCache() {
-  return getSdk().accounts.cache;
+  return getSdk().accounts.internal.cache;
 }
 
 /**
  * Hook that returns an account change handlers.
+ *
+ * Transitional (sdk.accounts.internal): consumed by the web-owned realtime
+ * wiring until the realtime hub moves into the SDK.
  */
 export function useAccountChangeHandlers() {
-  return getSdk().accounts.changeHandlers;
+  return getSdk().accounts.internal.changeHandlers;
 }
 
 /**
@@ -212,16 +217,14 @@ const ALL_ACCOUNT_STATES: AccountState[] = ['active', 'expired'];
  * @param id - The ID of the account to retrieve.
  */
 export function useAccountOrNull(id: string | null): Account | null {
-  const accountsCache = useAccountsCache();
-  const accountRepository = useAccountRepository();
   const { data: accounts } = useAccounts({ state: ALL_ACCOUNT_STATES });
 
   useSuspenseQuery({
     queryKey: ['fetch-account-by-id', id],
     queryFn: async () => {
-      if (!id || accountsCache.get(id)) return null;
-      const fetched = await accountRepository.get(id);
-      if (fetched) accountsCache.upsert(fetched);
+      const sdkAccounts = getSdk().accounts;
+      if (!id || sdkAccounts.getCached(id)) return null;
+      await sdkAccounts.get(id);
       return null;
     },
     // The query stores no useful data (always null); it's just a fetch + dedup
@@ -352,18 +355,11 @@ export function useAccountOrDefault(accountId: string | null) {
 
 export function useAddCashuAccount() {
   const userId = useUser((x) => x.id);
-  const accountCache = useAccountsCache();
-  const accountService = useAccountService();
 
   const { mutateAsync } = useMutation({
     mutationFn: async (
-      account: Parameters<typeof accountService.addCashuAccount>[0]['account'],
-    ) => accountService.addCashuAccount({ userId, account }),
-    onSuccess: (account) => {
-      // We add the account as soon as it is created so that it is available in the cache immediately.
-      // This is important when using other hooks that are trying to use the account immediately after it is created.
-      accountCache.upsert(account);
-    },
+      account: Parameters<AccountService['addCashuAccount']>[0]['account'],
+    ) => getSdk().accounts.add({ userId, account }),
   });
 
   return mutateAsync;

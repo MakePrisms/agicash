@@ -103,7 +103,7 @@ const ensureUserData = async (
         queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
         queryClient.ensureQueryData(cashuSeedQueryOptions()),
       ]);
-    const accountRepository = getSdk().accounts.repository;
+    const accountRepository = getSdk().accounts.internal.repository;
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,
       accountRepository,

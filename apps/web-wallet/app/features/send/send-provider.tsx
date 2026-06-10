@@ -6,8 +6,9 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import type { Account } from '~/features/accounts/account';
-import { useAccountsCache, useGetAccount } from '../accounts/account-hooks';
+import { useGetAccount } from '../accounts/account-hooks';
 import { GIFT_CARDS } from '../gift-cards/use-discover-cards';
+import { getSdk } from '../shared/sdk';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
 import type { SendDestination } from './resolve-destination';
@@ -36,8 +37,7 @@ export const SendProvider = ({
   const { mutateAsync: getSparkLightningQuote } =
     useCreateSparkLightningSendQuote();
   const getAccount = useGetAccount();
-  const accountsCache = useAccountsCache();
-  const getAccounts = () => accountsCache.getAll() ?? [];
+  const getAccounts = () => getSdk().accounts.listCached();
 
   const [store] = useState(() =>
     createSendStore({

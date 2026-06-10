@@ -40,8 +40,8 @@ const getClaimCashuTokenService = async () => {
     queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
   ]);
   const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-  const accountRepository = getSdk().accounts.repository;
-  const accountService = getSdk().accounts.service;
+  const accountRepository = getSdk().accounts.internal.repository;
+  const accountService = getSdk().accounts.internal.service;
   const receiveSwapRepository = new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,

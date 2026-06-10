@@ -1,8 +1,5 @@
 import { Outlet, useSearchParams } from 'react-router';
-import {
-  AccountsCache,
-  useAccountOrDefault,
-} from '~/features/accounts/account-hooks';
+import { useAccountOrDefault } from '~/features/accounts/account-hooks';
 import { GIFT_CARDS } from '~/features/gift-cards/use-discover-cards';
 import { SendProvider } from '~/features/send';
 import { findMatchingOfferOrGiftCardAccount } from '~/features/send/find-matching-offer-or-gift-card-account';
@@ -10,7 +7,7 @@ import {
   type SendDestination,
   resolveSendDestination,
 } from '~/features/send/resolve-destination';
-import { getQueryClient } from '~/features/shared/query-client';
+import { getSdk } from '~/features/shared/sdk';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.send';
 
@@ -48,8 +45,7 @@ export async function clientLoader(): Promise<{
   const initialDestination = result.data;
   let initialAccountId: string | null = null;
   if (initialDestination.sendType === 'BOLT11_INVOICE') {
-    const accountsCache = new AccountsCache(getQueryClient());
-    const accounts = accountsCache.getAll() ?? [];
+    const accounts = getSdk().accounts.listCached();
     const matched = findMatchingOfferOrGiftCardAccount({
       decodedBolt11: initialDestination.decoded,
       accounts,
