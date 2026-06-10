@@ -110,14 +110,14 @@ const ensureUserData = async (
       queryClient.fetchQuery(cashuSeedQueryOptions());
     const getSparkWalletMnemonic = () =>
       queryClient.fetchQuery(sparkMnemonicQueryOptions());
-    const accountRepository = new AccountRepository(
-      agicashDbClient,
+    const accountRepository = new AccountRepository({
+      db: agicashDbClient,
       encryption,
       queryClient,
       getCashuWalletSeed,
       getSparkWalletMnemonic,
-      './.spark-data',
-    );
+      sparkStorageDir: './.spark-data',
+    });
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,
       accountRepository,

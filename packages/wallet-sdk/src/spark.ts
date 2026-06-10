@@ -11,44 +11,16 @@ import { computeSHA256 } from '@agicash/utils/sha256';
 import type { QueryClient } from '@tanstack/query-core';
 import { getSeedPhraseDerivationPath } from './accounts/account-cryptography';
 import { measureOperation } from './performance';
+import { getSparkConfig, isSparkDebugLoggingEnabled } from './spark-config';
 import {
   createSparkWalletStub,
   getSparkIdentityPublicKeyFromMnemonic,
 } from './spark-utils';
 
-type SparkConfig = {
-  /** Breez API key (the web app reads it from its Vite env). */
-  apiKey: string;
-  /** Gate for spark/Breez debug logging; checked per log call. */
-  isDebugLoggingEnabled: () => boolean;
-};
-
-let sparkConfig: SparkConfig | undefined;
-
-/**
- * Configures the spark/Breez connection. The host app calls this once at
- * startup (the web app does it at module load of its spark feature, supplying
- * the env-derived API key and the feature-flag-gated debug-log check).
- */
-export function configureSpark(config: {
-  apiKey: string;
-  isDebugLoggingEnabled?: () => boolean;
-}): void {
-  sparkConfig = { isDebugLoggingEnabled: () => false, ...config };
-}
-
-function getSparkConfig(): SparkConfig {
-  if (!sparkConfig) {
-    throw new Error('Spark is not configured. Call configureSpark first.');
-  }
-  return sparkConfig;
-}
-
-export function sparkDebugLog(message: string, data?: Record<string, unknown>) {
-  if (sparkConfig?.isDebugLoggingEnabled()) {
-    console.debug(`[Spark] ${message}`, data ?? '');
-  }
-}
+// The config seam lives in ./spark-config so light consumers (e.g. the
+// accounts cache importing sparkDebugLog) don't pull the Breez connection
+// module into their import graph.
+export * from './spark-config';
 
 // Breez's initLogging delegates to Rust's tracing crate, which enforces a
 // single global subscriber per process — calling it twice always errors. Track
@@ -60,7 +32,7 @@ function tryInitLogging() {
   loggingStatus = 'initializing';
   initLogging({
     log(logEntry) {
-      if (sparkConfig?.isDebugLoggingEnabled()) {
+      if (isSparkDebugLoggingEnabled()) {
         console.debug(`[Breez ${logEntry.level}] ${logEntry.line}`);
       }
     },

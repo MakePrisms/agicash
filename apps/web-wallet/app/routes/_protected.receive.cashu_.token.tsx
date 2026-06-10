@@ -46,15 +46,15 @@ const getClaimCashuTokenService = async () => {
   const getSparkWalletMnemonic = () =>
     queryClient.fetchQuery(sparkMnemonicQueryOptions());
   const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-  const accountRepository = new AccountRepository(
-    agicashDbClient,
+  const accountRepository = new AccountRepository({
+    db: agicashDbClient,
     encryption,
     queryClient,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
-    './.spark-data',
-  );
-  const accountService = new AccountService(accountRepository, queryClient);
+    sparkStorageDir: './.spark-data',
+  });
+  const accountService = new AccountService({ accountRepository, queryClient });
   const receiveSwapRepository = new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,

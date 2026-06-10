@@ -1,0 +1,297 @@
+import { normalizeMintUrl } from '@agicash/cashu';
+import { ProofSchema } from '@agicash/cashu/types';
+import {
+  type AgicashDb,
+  type AgicashDbAccountWithProofs,
+  isCashuAccount,
+  isSparkAccount,
+} from '@agicash/db-types';
+import { CashuAccountDetailsDbDataSchema } from '@agicash/db-types/json-models/cashu-account-details-db-data';
+import type { SparkNetwork } from '@agicash/db-types/json-models/spark-account-details-db-data';
+import { SparkAccountDetailsDbDataSchema } from '@agicash/db-types/json-models/spark-account-details-db-data';
+import type { Currency } from '@agicash/utils/money';
+import type { QueryClient } from '@tanstack/query-core';
+import type { DistributedOmit } from 'type-fest';
+import { z } from 'zod/mini';
+import { getInitializedCashuWallet, getMintAuthProvider } from '../cashu';
+import type { Encryption } from '../encryption';
+import { DomainError } from '../error';
+import { getInitializedSparkWallet } from '../spark';
+import type { Account, AccountPurpose, CashuAccount } from './account';
+import type { CashuProof } from './cashu-account';
+
+type AccountOmit<
+  T extends Account,
+  AdditionalOmit extends keyof T = never,
+> = DistributedOmit<
+  T,
+  'id' | 'createdAt' | 'version' | 'isOnline' | 'state' | AdditionalOmit
+>;
+
+type AccountInput<T extends Account> = {
+  userId: string;
+} & (T extends CashuAccount
+  ? AccountOmit<CashuAccount, 'wallet' | 'proofs'>
+  : AccountOmit<T>);
+
+type Options = {
+  abortSignal?: AbortSignal;
+};
+
+export type AccountRepositoryDeps = {
+  db: AgicashDb;
+  encryption: Encryption;
+  queryClient: QueryClient;
+  getCashuWalletSeed: () => Promise<Uint8Array>;
+  getSparkWalletMnemonic: () => Promise<string>;
+  sparkStorageDir: string;
+};
+
+export class AccountRepository {
+  private readonly db: AgicashDb;
+  private readonly encryption: Encryption;
+  private readonly queryClient: QueryClient;
+  private readonly getCashuWalletSeed: () => Promise<Uint8Array>;
+  private readonly getSparkWalletMnemonic: () => Promise<string>;
+  private readonly sparkStorageDir: string;
+
+  constructor(deps: AccountRepositoryDeps) {
+    this.db = deps.db;
+    this.encryption = deps.encryption;
+    this.queryClient = deps.queryClient;
+    this.getCashuWalletSeed = deps.getCashuWalletSeed;
+    this.getSparkWalletMnemonic = deps.getSparkWalletMnemonic;
+    this.sparkStorageDir = deps.sparkStorageDir;
+  }
+
+  /**
+   * Gets the account with the given id.
+   * @param id - The id of the account to get.
+   * @returns The account, or null if not found.
+   */
+  async get(id: string, options?: Options): Promise<Account | null> {
+    // Currently we limit the number of proofs returned to 6000
+    // We will need to handle that somehow later (e.g. require user to swap when the limit is reaching)
+    const query = this.db
+      .from('accounts')
+      .select('*, cashu_proofs(*)')
+      .eq('id', id)
+      .eq('cashu_proofs.state', 'UNSPENT');
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      throw new Error('Failed to get account', { cause: error });
+    }
+
+    return data ? this.toAccount(data) : null;
+  }
+
+  /**
+   * Gets all active accounts for the given user.
+   * @param userId - The id of the user to get the accounts for.
+   * @returns The active accounts with unspent proofs.
+   */
+  async getAllActive(userId: string, options?: Options): Promise<Account[]> {
+    // Currently we limit the number of proofs returned to 6000
+    // We will need to handle that somehow later (e.g. require user to swap when the limit is reaching)
+    const query = this.db
+      .from('accounts')
+      .select('*, cashu_proofs(*)')
+      .eq('user_id', userId)
+      .eq('state', 'active')
+      .eq('cashu_proofs.state', 'UNSPENT');
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error('Failed to get accounts', { cause: error });
+    }
+
+    return Promise.all(data.map((x) => this.toAccount(x)));
+  }
+
+  /**
+   * Creates a single account.
+   * @param accountInput - The account to create.
+   * @returns The created account.
+   */
+  async create<T extends Account = Account>(
+    accountInput: AccountInput<T>,
+    options?: Options,
+  ): Promise<T> {
+    let details = {};
+    if (accountInput.type === 'cashu') {
+      details = CashuAccountDetailsDbDataSchema.parse({
+        mint_url: normalizeMintUrl(accountInput.mintUrl),
+        is_test_mint: accountInput.isTestMint,
+        keyset_counters: accountInput.keysetCounters,
+      } satisfies z.input<typeof CashuAccountDetailsDbDataSchema>);
+    } else {
+      details = SparkAccountDetailsDbDataSchema.parse({
+        network: accountInput.network,
+      } satisfies z.input<typeof SparkAccountDetailsDbDataSchema>);
+    }
+    const accountsToCreate = {
+      name: accountInput.name,
+      type: accountInput.type,
+      currency: accountInput.currency,
+      details,
+      user_id: accountInput.userId,
+      purpose: accountInput.purpose,
+      expires_at: accountInput.expiresAt,
+    };
+
+    const query = this.db
+      .from('accounts')
+      .insert(accountsToCreate)
+      .select('*, cashu_proofs(*)')
+      .eq('cashu_proofs.state', 'UNSPENT');
+
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const resp = await query.single();
+    const { data, error, status } = resp;
+
+    if (error) {
+      if (error.hint === 'LIMIT_REACHED') {
+        throw new DomainError(`${error.message} ${error.details}`);
+      }
+
+      const message =
+        status === 409 && accountInput.type === 'cashu'
+          ? 'Account for this mint and currency already exists'
+          : 'Failed to create account';
+      throw new Error(message, { cause: error });
+    }
+
+    return this.toAccount<T>(data);
+  }
+
+  async toAccount<T extends Account = Account>(
+    data: AgicashDbAccountWithProofs,
+  ): Promise<T> {
+    const commonData = {
+      id: data.id,
+      name: data.name,
+      currency: data.currency,
+      purpose: data.purpose,
+      state: data.state,
+      createdAt: data.created_at,
+      version: data.version,
+      expiresAt: data.expires_at,
+    };
+
+    if (isCashuAccount(data)) {
+      const details = data.details;
+
+      const [{ wallet, isOnline }, proofs] = await Promise.all([
+        this.getInitializedCashuWallet(
+          details.mint_url,
+          data.currency,
+          data.purpose,
+        ),
+        this.decryptCashuProofs(data),
+      ]);
+
+      return {
+        ...commonData,
+        isOnline,
+        type: 'cashu',
+        mintUrl: details.mint_url,
+        isTestMint: details.is_test_mint,
+        keysetCounters: details.keyset_counters,
+        proofs,
+        wallet,
+      } as T;
+    }
+
+    if (isSparkAccount(data)) {
+      const { network } = data.details;
+      const { wallet, balance, isOnline } =
+        await this.getInitializedSparkWallet(network);
+
+      return {
+        ...commonData,
+        type: 'spark',
+        balance,
+        network,
+        isOnline,
+        wallet,
+      } as T;
+    }
+
+    throw new Error('Invalid account type');
+  }
+
+  private async getInitializedCashuWallet(
+    mintUrl: string,
+    currency: Currency,
+    purpose: AccountPurpose,
+  ) {
+    const seed = await this.getCashuWalletSeed();
+    return getInitializedCashuWallet({
+      queryClient: this.queryClient,
+      mintUrl,
+      currency,
+      bip39seed: seed ?? undefined,
+      authProvider: getMintAuthProvider(purpose),
+    });
+  }
+
+  private async getInitializedSparkWallet(network: SparkNetwork) {
+    const mnemonic = await this.getSparkWalletMnemonic();
+    return getInitializedSparkWallet(
+      this.queryClient,
+      mnemonic,
+      network,
+      this.sparkStorageDir,
+    );
+  }
+
+  private async decryptCashuProofs(
+    data: AgicashDbAccountWithProofs,
+  ): Promise<CashuProof[]> {
+    if (!isCashuAccount(data)) {
+      throw new Error('Account is not a cashu account');
+    }
+
+    const encryptedData = data.cashu_proofs.flatMap((x) => [
+      x.amount,
+      x.secret,
+    ]);
+    const decryptedData = await this.encryption.decryptBatch(encryptedData);
+
+    return data.cashu_proofs.map((dbProof, index) => {
+      const decryptedDataIndex = index * 2;
+      const amount = z.number().parse(decryptedData[decryptedDataIndex]);
+      const secret = z.string().parse(decryptedData[decryptedDataIndex + 1]);
+      return {
+        id: dbProof.id,
+        accountId: dbProof.account_id,
+        userId: dbProof.user_id,
+        keysetId: dbProof.keyset_id,
+        amount,
+        secret,
+        unblindedSignature: dbProof.unblinded_signature,
+        publicKeyY: dbProof.public_key_y,
+        dleq: ProofSchema.shape.dleq.parse(dbProof.dleq),
+        witness: ProofSchema.shape.witness.parse(dbProof.witness),
+        state: dbProof.state,
+        version: dbProof.version,
+        createdAt: dbProof.created_at,
+        reservedAt: dbProof.reserved_at,
+      };
+    });
+  }
+}

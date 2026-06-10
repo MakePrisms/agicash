@@ -6,6 +6,7 @@
 // additive: useSuspenseQuery(x.listOptions()) -> useQ(x.list()).
 export * from './query-client';
 export * from './encryption';
+export * from './error';
 export * from './auth';
 export * from './supabase-session';
 export * from './agicash-db';
