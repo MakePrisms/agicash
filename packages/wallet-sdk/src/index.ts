@@ -4,6 +4,7 @@
 // owns is intentionally deferred to the MCP phase that immediately follows this
 // extraction — the MCP wallet is what the extraction is for. Adding it then is
 // additive: useSuspenseQuery(x.listOptions()) -> useQ(x.list()).
+export * from './sdk';
 export * from './query-client';
 export * from './encryption';
 export * from './error';

@@ -2,7 +2,6 @@ import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
 import { AccountsCache } from '~/features/accounts/account-hooks';
-import { AccountRepository } from '~/features/accounts/account-repository';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
@@ -14,9 +13,9 @@ import {
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
-  getEncryption,
 } from '~/features/shared/encryption';
 import { getQueryClient } from '~/features/shared/query-client';
+import { getSdk } from '~/features/shared/sdk';
 import {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
@@ -84,40 +83,27 @@ const ensureUserData = async (
   }
 
   if (!user || hasUserChanged(user, authUser)) {
-    const [
-      encryptionPrivateKey,
-      encryptionPublicKey,
-      cashuLockingXpub,
-      sparkIdentityPublicKey,
-    ] = await Promise.all([
-      queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-      queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-      queryClient.ensureQueryData(
-        xpubQueryOptions({
-          queryClient,
-          derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
-        }),
-      ),
-      // TODO: how to handle this network? We specify the network on the account creation.
-      queryClient.ensureQueryData(
-        sparkIdentityPublicKeyQueryOptions({ queryClient, network: 'MAINNET' }),
-      ),
-      queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
-      queryClient.ensureQueryData(cashuSeedQueryOptions()),
-    ]);
-    const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-    const getCashuWalletSeed = () =>
-      queryClient.fetchQuery(cashuSeedQueryOptions());
-    const getSparkWalletMnemonic = () =>
-      queryClient.fetchQuery(sparkMnemonicQueryOptions());
-    const accountRepository = new AccountRepository({
-      db: agicashDbClient,
-      encryption,
-      queryClient,
-      getCashuWalletSeed,
-      getSparkWalletMnemonic,
-      sparkStorageDir: './.spark-data',
-    });
+    const [, encryptionPublicKey, cashuLockingXpub, sparkIdentityPublicKey] =
+      await Promise.all([
+        queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
+        queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
+        queryClient.ensureQueryData(
+          xpubQueryOptions({
+            queryClient,
+            derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
+          }),
+        ),
+        // TODO: how to handle this network? We specify the network on the account creation.
+        queryClient.ensureQueryData(
+          sparkIdentityPublicKeyQueryOptions({
+            queryClient,
+            network: 'MAINNET',
+          }),
+        ),
+        queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
+        queryClient.ensureQueryData(cashuSeedQueryOptions()),
+      ]);
+    const accountRepository = getSdk().accounts.repository;
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,
       accountRepository,

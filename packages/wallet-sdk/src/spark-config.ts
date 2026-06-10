@@ -6,6 +6,7 @@ type SparkConfig = {
 };
 
 let sparkConfig: SparkConfig | undefined;
+let debugLoggingOverride: (() => boolean) | undefined;
 
 /**
  * Configures the spark/Breez connection. The host app calls this once at
@@ -26,9 +27,21 @@ export function getSparkConfig(): SparkConfig {
   return sparkConfig;
 }
 
+/**
+ * Binds the debug-logging gate separately from configureSpark, in either
+ * order. Exists so the host can wire a gate that depends on modules which
+ * must not be imported by its SDK-configuration entrypoint (the web's
+ * feature-flag module would create an import cycle there).
+ */
+export function setSparkDebugLogging(isEnabled: () => boolean): void {
+  debugLoggingOverride = isEnabled;
+}
+
 /** Non-throwing check — debug logging is off while spark is unconfigured. */
 export function isSparkDebugLoggingEnabled(): boolean {
-  return sparkConfig?.isDebugLoggingEnabled() ?? false;
+  return (
+    (debugLoggingOverride ?? sparkConfig?.isDebugLoggingEnabled)?.() ?? false
+  );
 }
 
 export function sparkDebugLog(message: string, data?: Record<string, unknown>) {

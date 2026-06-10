@@ -1,19 +1,14 @@
 // AccountsCache, accountsQueryOptions and the change-handler factory moved to
 // @agicash/wallet-sdk; the re-export is removed in the import-cleanup PR. The
-// React hooks below stay in the web app and consume them.
-import {
-  AccountsCache,
-  accountsQueryOptions,
-  createAccountChangeHandlers,
-} from '@agicash/wallet-sdk/accounts/accounts-cache';
+// React hooks below stay in the web app and read from the sdk instance.
 import {
   type UseSuspenseQueryResult,
   useMutation,
-  useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { type Currency, Money } from '~/lib/money';
+import { getSdk } from '../shared/sdk';
 import { useUser } from '../user/user-hooks';
 import {
   type Account,
@@ -39,19 +34,14 @@ export {
  * @returns The accounts cache.
  */
 export function useAccountsCache() {
-  const queryClient = useQueryClient();
-  // The query client is a singleton created in the root of the app (see App component in root.tsx).
-  return useMemo(() => new AccountsCache(queryClient), [queryClient]);
+  return getSdk().accounts.cache;
 }
 
 /**
  * Hook that returns an account change handlers.
  */
 export function useAccountChangeHandlers() {
-  const accountRepository = useAccountRepository();
-  const accountCache = useAccountsCache();
-
-  return createAccountChangeHandlers(accountRepository, accountCache);
+  return getSdk().accounts.changeHandlers;
 }
 
 /**
@@ -147,12 +137,11 @@ export function useAccounts<
   select?: UseAccountsSelect<T, P>,
 ): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
-  const accountRepository = useAccountRepository();
 
   const { currency, type, isOnline, purpose, state = 'active' } = select ?? {};
 
   return useSuspenseQuery({
-    ...accountsQueryOptions({ userId: user.id, accountRepository }),
+    ...getSdk().accounts.listOptions(user.id),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select: useCallback(
@@ -364,8 +353,7 @@ export function useAccountOrDefault(accountId: string | null) {
 export function useAddCashuAccount() {
   const userId = useUser((x) => x.id);
   const accountCache = useAccountsCache();
-  const queryClient = useQueryClient();
-  const accountService = useAccountService(queryClient);
+  const accountService = useAccountService();
 
   const { mutateAsync } = useMutation({
     mutationFn: async (

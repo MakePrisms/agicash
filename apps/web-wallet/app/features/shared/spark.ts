@@ -1,25 +1,23 @@
 // The framework-free spark connection layer (mnemonic/identity/wallet
 // queryOptions, wallet init, sparkDebugLog) moved to @agicash/wallet-sdk; the
-// re-export is removed in the import-cleanup PR. The env reading, the spark
-// configuration, and the React hook below stay in the web app.
+// re-export is removed in the import-cleanup PR. The React hook below stays in
+// the web app.
 import type { SdkEvent } from '@agicash/breez-sdk-spark';
-import { configureSpark, sparkDebugLog } from '@agicash/wallet-sdk/spark';
+import { setSparkDebugLogging, sparkDebugLog } from '@agicash/wallet-sdk/spark';
 import { useEffect } from 'react';
 import { Money } from '~/lib/money';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import { getFeatureFlag } from './feature-flags';
+// Configures the SDK (incl. the spark/Breez API key) for every import path
+// that reaches spark — including the server-side lightning-address flow.
+import './sdk';
 
 export * from '@agicash/wallet-sdk/spark';
 
-const apiKey = import.meta.env.VITE_BREEZ_API_KEY;
-if (!apiKey) {
-  throw new Error('VITE_BREEZ_API_KEY is not set');
-}
-
-configureSpark({
-  apiKey,
-  isDebugLoggingEnabled: () => getFeatureFlag('DEBUG_LOGGING_SPARK'),
-});
+// Wired here rather than in shared/sdk.ts: the feature-flag module reads from
+// the DB client, which configures through shared/sdk.ts — importing it there
+// would create an import cycle.
+setSparkDebugLogging(() => getFeatureFlag('DEBUG_LOGGING_SPARK'));
 
 export function useTrackAndUpdateSparkAccountBalances() {
   const { data: sparkOnlineAccounts } = useAccounts({

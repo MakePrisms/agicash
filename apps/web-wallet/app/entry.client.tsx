@@ -1,5 +1,3 @@
-import { configure } from '@agicash/opensecret';
-import { setOperationMeasurer } from '@agicash/wallet-sdk/performance';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -12,8 +10,10 @@ import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
+// Configures the wallet SDK (opensecret, supabase, spark, instrumentation)
+// before anything below touches it.
+import './features/shared/sdk';
 import { Money } from './lib/money';
-import { measureOperation } from './lib/performance';
 import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
@@ -21,25 +21,6 @@ import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 if (process.env.NODE_ENV === 'development') {
   Money.registerDevToolsFormatter();
 }
-
-const openSecretApiUrl = import.meta.env.VITE_OPEN_SECRET_API_URL ?? '';
-if (!openSecretApiUrl) {
-  throw new Error('VITE_OPEN_SECRET_API_URL is not set');
-}
-
-const openSecretClientId = import.meta.env.VITE_OPEN_SECRET_CLIENT_ID ?? '';
-if (!openSecretClientId) {
-  throw new Error('VITE_OPEN_SECRET_CLIENT_ID is not set');
-}
-
-configure({
-  apiUrl: openSecretApiUrl,
-  clientId: openSecretClientId,
-});
-
-// Route the SDK's internal operation measurements through the web app's
-// Sentry-backed instrumentation (the SDK defaults to an unmeasured pass-through).
-setOperationMeasurer(measureOperation);
 
 // Start Breez WASM fetch/compile as early as possible so it overlaps with
 // hydration, Sentry init, and the auth query — by the time the _protected

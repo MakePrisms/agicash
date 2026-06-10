@@ -1,8 +1,6 @@
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
-import { AccountRepository } from '~/features/accounts/account-repository';
-import { AccountService } from '~/features/accounts/account-service';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
@@ -19,7 +17,6 @@ import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-
 import {
   decodeCashuToken,
   getCashuCryptography,
-  seedQueryOptions,
 } from '~/features/shared/cashu';
 import {
   encryptionPrivateKeyQueryOptions,
@@ -27,7 +24,7 @@ import {
   getEncryption,
 } from '~/features/shared/encryption';
 import { getQueryClient } from '~/features/shared/query-client';
-import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
+import { getSdk } from '~/features/shared/sdk';
 import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
@@ -42,19 +39,9 @@ const getClaimCashuTokenService = async () => {
     queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
     queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
   ]);
-  const getCashuWalletSeed = () => queryClient.fetchQuery(seedQueryOptions());
-  const getSparkWalletMnemonic = () =>
-    queryClient.fetchQuery(sparkMnemonicQueryOptions());
   const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-  const accountRepository = new AccountRepository({
-    db: agicashDbClient,
-    encryption,
-    queryClient,
-    getCashuWalletSeed,
-    getSparkWalletMnemonic,
-    sparkStorageDir: './.spark-data',
-  });
-  const accountService = new AccountService({ accountRepository, queryClient });
+  const accountRepository = getSdk().accounts.repository;
+  const accountService = getSdk().accounts.service;
   const receiveSwapRepository = new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,
