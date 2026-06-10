@@ -19,7 +19,9 @@
     "@cashu/cashu-ts": "catalog:",
     "@noble/hashes": "catalog:",
     "@stablelib/base64": "catalog:",
+    "@supabase/supabase-js": "catalog:",
     "@tanstack/query-core": "5.90.20",
+    "jwt-decode": "catalog:",
     "type-fest": "catalog:",
     "zod": "catalog:"
   },
