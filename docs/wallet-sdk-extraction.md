@@ -1,8 +1,9 @@
 # Wallet SDK extraction — plan, progress, and working rules
 
 Status document for the `@agicash/wallet-sdk` extraction (restarted greenfield from master
-2026-06-08). Updated at the end of each phase. Current as of: **Phase 2 complete**
-(branch `sdk/phase2-sdk-root`, 17 commits, all local — no PRs/pushes yet).
+2026-06-08). Updated at the end of each phase. Current as of: **Phase 3 complete —
+CHECKPOINT next** (branch `sdk/phase3-user-surface`, 20 commits, all local — no
+PRs/pushes yet).
 
 ## Goal
 
@@ -93,7 +94,7 @@ process.
 
 Stack order (each on the previous): `master` → utils → db-types → db-augmented → cashu →
 queryclient → accounts-leaf → ecies → encryption → supabase → cashu-init → spark-init →
-db-singleton → accounts-core → sdk-root.
+db-singleton → accounts-core → sdk-root → user-types → user-core → user-surface.
 
 | Phase | Branch · commit | What landed |
 |---|---|---|
@@ -112,31 +113,31 @@ db-singleton → accounts-core → sdk-root.
 | 2.5 | `sdk/phase2-accounts-core` · 4da2567d | `AccountRepository` (typed deps object; wallet-init now plain SDK imports), `AccountService` (structural `UserDefaultAccounts` until Phase 3), `AccountsCache` + `accountsQueryOptions` + `createAccountChangeHandlers`, `error.ts` (DomainError etc.) → SDK; `spark-config.ts` split keeps cache import graph light; cache test-lock (8 tests) |
 | 2.6 | `sdk/phase2-sdk-root` · 91cc9001 | `configureWalletSdk` (absorbs 4 configure seams; one web config point `features/shared/sdk.ts`) + `getSdk()`; **lazy Encryption facade** (keys resolve on first use — root constructs pre-login); wiring hooks → one-liners; measurer registered server-side too (restores lnurlp Sentry spans) |
 | 2.7 | `sdk/phase2-sdk-root` · 523f78ae | curated `sdk.accounts` surface: `listOptions/get/getCached/listCached/add` public; `internal = {repository, service, cache, changeHandlers}` escape hatch; `useAccountService` deleted; all app touchpoints on curated methods |
+| 3.1 | `sdk/phase3-user-types` · c2eda5b6 | `User`/`FullUser`/`GuestUser`/`UserProfile`/`UpdateUser` + 3 predicates → SDK `user/user.ts`; `AccountService`'s structural `UserDefaultAccounts` replaced with the real `User`; web `user.ts` → shim |
+| 3.2 | `sdk/phase3-user-core` · 4312041e | `ReadUserRepository`/`WriteUserRepository` (`upsert_user_with_accounts` RPC)/`ReadUserDefaultAccountRepository` + `UserService` + `UserCache`/`userQueryOptions`/`createUserChangeHandlers` → SDK (verbatim, import remaps only); web repo/service files → shims keeping hooks one more chunk |
+| 3.3 | `sdk/phase3-user-surface` · f4ab912f | curated `sdk.user` surface: `queryOptions/getCached/getCachedOrThrow/upsert/update/setDefaultAccount` (cache write-backs absorbed; `upsert` records accounts via new `AccountsCache.set`); `internal = {readRepository, writeRepository, service, cache, changeHandlers}`; `ensureUserData` + accept-terms + verify-email + receive-token migrated; `useReadUserRepository`/`useWriteUserRepository`/`useUserService`/`getUserFromCache(OrThrow)` deleted. `ReadUserDefaultAccountRepository` deliberately NOT in the root: its only consumer is the server-side lnurl path (per-request server db + `LNURL_SERVER_SPARK_MNEMONIC`); a root instance would wrongly bind the logged-in user's mnemonic |
 
 ## Remaining roadmap
 
-1. **Browser smoke test of the current stack** (pending, recommended before Phase 3):
-   login → account list → send/receive screens → receive-token route. The Sdk root rewired
-   app startup; gates are green but it has not been driven in a browser.
-2. **Phase 3 — user domain**, landing natively as `sdk.user.*` with a curated surface
-   (types, `toUser`, Read/Write repositories, service, `UserCache`/options, change
-   handlers; replace `AccountService`'s structural `UserDefaultAccounts` with the SDK
-   `User`). Ground first (consumers: ~18 files; `_protected.tsx` `ensureUserData` bootstrap;
-   `upsert_user_with_accounts` RPC; realtime user updates; `defaultAccounts` stays web).
-   Known follow-up: `USER_UPDATED` has no version-guard (preserve behavior, file an issue).
-3. **CHECKPOINT** (user evaluates the approach on two fully-migrated domains before more).
-4. Then, order TBD at checkpoint: transactions, contacts, receive, send (incl. quote/swap
+1. **CHECKPOINT** (user evaluates the approach on two fully-migrated domains —
+   accounts + user — before more). Browser smoke test of Phase 2 was done 2026-06-11
+   (console clean apart from testnut.cashu.space being down + a one-time Vite
+   stale-dep reload); Phase 3 rewired the same startup path, so re-drive
+   login → account list → settings (default account/username) → receive-token.
+   Known follow-up to file: `USER_UPDATED` has no version-guard (`wallet.users`
+   has no version column — latest realtime payload wins).
+2. Then, order TBD at checkpoint: transactions, contacts, receive, send (incl. quote/swap
    services + `ProofStateSubscriptionManager` — breadcrumb comment points it to
    `@agicash/cashu`), the `cashu-lightning-send` json-model (needs send-domain
    `DestinationDetailsSchema`), `account-details-db-data` (account-domain combined schema).
-5. **Realtime hub into the SDK** (after most domains): the `wallet:${userId}` channel,
+3. **Realtime hub into the SDK** (after most domains): the `wallet:${userId}` channel,
    dispatch, reconnect invalidation breadth, spark balance tracker → SDK; the
    `internal.changeHandlers`/cache escape hatches die here.
-6. **Phase 4 — thin auth shell** (auth queryOptions + invalidate with injected
+4. **Phase 4 — thin auth shell** (auth queryOptions + invalidate with injected
    opensecret/storage; oauth/guest/session flows stay web).
-7. **Import-cleanup PR**: rewrite all shim imports to the packages, delete shims, replace
+5. **Import-cleanup PR**: rewrite all shim imports to the packages, delete shims, replace
    `"./*"` exports wildcards with curated barrels.
-8. **Phase 5 — MCP boundary** (the goal): tested `Query<T>` + `useQ`, flip web hooks,
+6. **Phase 5 — MCP boundary** (the goal): tested `Query<T>` + `useQ`, flip web hooks,
    storage-pluggable opensecret bump (removes the framework-free exception), headless auth.
 
 ## Landmines & nuances (do not rediscover these the hard way)
