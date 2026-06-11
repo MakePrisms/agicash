@@ -7,7 +7,6 @@ import {
 } from '@cashu/cashu-ts';
 import {
   type Query,
-  type QueryClient,
   useMutation,
   useQueries,
   useQuery,
@@ -36,14 +35,11 @@ import {
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
+import { getSdk } from '../shared/sdk';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
-import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
-import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
-import { useCashuReceiveQuoteService } from './cashu-receive-quote-service';
 
 type CreateProps = {
   account: CashuAccount;
@@ -52,148 +48,32 @@ type CreateProps = {
   purpose?: TransactionPurpose;
   transferId?: string;
 };
-class CashuReceiveQuoteCache {
-  // Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
-  // We want to track active quote even after it is expired and completed which is why we can't use pending quotes query.
-  // Pending quotes query is used for active pending quote plus "background" pending quotes. "Background" quotes are quotes
-  // that were created in previous browser sessions.
-  public static Key = 'cashu-receive-quote';
 
-  constructor(private readonly queryClient: QueryClient) {}
-
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [CashuReceiveQuoteCache.Key],
-    });
-  }
-
-  add(quote: CashuReceiveQuote) {
-    this.queryClient.setQueryData<CashuReceiveQuote>(
-      [CashuReceiveQuoteCache.Key, quote.id],
-      quote,
-    );
-  }
-
-  updateIfExists(quote: CashuReceiveQuote) {
-    this.queryClient.setQueryData<CashuReceiveQuote>(
-      [CashuReceiveQuoteCache.Key, quote.id],
-      (curr) => (curr && curr.version < quote.version ? quote : undefined),
-    );
-  }
-}
-
-export class PendingCashuReceiveQuotesCache {
-  // Query that tracks all pending cashu receive quotes (active and background ones).
-  public static Key = 'pending-cashu-receive-quotes';
-
-  constructor(private readonly queryClient: QueryClient) {}
-
-  get(quoteId: string) {
-    return this.queryClient
-      .getQueryData<CashuReceiveQuote[]>([PendingCashuReceiveQuotesCache.Key])
-      ?.find((q) => q.id === quoteId);
-  }
-
-  add(quote: CashuReceiveQuote) {
-    this.queryClient.setQueryData<CashuReceiveQuote[]>(
-      [PendingCashuReceiveQuotesCache.Key],
-      (curr) => [...(curr ?? []), quote],
-    );
-  }
-
-  update(quote: CashuReceiveQuote) {
-    this.queryClient.setQueryData<CashuReceiveQuote[]>(
-      [PendingCashuReceiveQuotesCache.Key],
-      (curr) =>
-        curr?.map((q) =>
-          q.id === quote.id && q.version < quote.version ? quote : q,
-        ),
-    );
-  }
-
-  remove(quote: CashuReceiveQuote) {
-    this.queryClient.setQueryData<CashuReceiveQuote[]>(
-      [PendingCashuReceiveQuotesCache.Key],
-      (curr) => curr?.filter((q) => q.id !== quote.id),
-    );
-  }
-
-  getByMintQuoteId(mintQuoteId: string) {
-    const quotes = this.queryClient.getQueryData<CashuReceiveQuote[]>([
-      PendingCashuReceiveQuotesCache.Key,
-    ]);
-    return quotes?.find((q) => q.quoteId === mintQuoteId);
-  }
-
-  getByMeltQuoteId(
-    meltQuoteId: string,
-  ): (CashuReceiveQuote & { type: 'CASHU_TOKEN' }) | undefined {
-    const quotes = this.queryClient.getQueryData<CashuReceiveQuote[]>([
-      PendingCashuReceiveQuotesCache.Key,
-    ]);
-    return quotes?.find(
-      (q): q is CashuReceiveQuote & { type: 'CASHU_TOKEN' } =>
-        q.type === 'CASHU_TOKEN' &&
-        q.tokenReceiveData.meltQuoteId === meltQuoteId,
-    );
-  }
-
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [PendingCashuReceiveQuotesCache.Key],
-    });
-  }
-}
-
+/**
+ * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
+ * and task processing until the SDK owns them (Phase 8).
+ */
 export function usePendingCashuReceiveQuotesCache() {
-  const queryClient = useQueryClient();
-  return useMemo(
-    () => new PendingCashuReceiveQuotesCache(queryClient),
-    [queryClient],
-  );
+  return getSdk().receive.internal.pendingCashuReceiveQuotesCache;
+}
+
+/**
+ * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
+ * and task processing until the SDK owns them (Phase 8).
+ */
+export function useCashuReceiveQuoteCache() {
+  return getSdk().receive.internal.cashuReceiveQuoteCache;
 }
 
 export function useCreateCashuReceiveQuote() {
-  const userId = useUser((user) => user.id);
-  const cashuReceiveQuoteService = useCashuReceiveQuoteService();
-  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-
   return useMutation({
     scope: {
       id: 'create-cashu-receive-quote',
     },
-    mutationFn: async ({
-      account,
-      amount,
-      description,
-      purpose,
-      transferId,
-    }: CreateProps) => {
-      const lightningQuote = await cashuReceiveQuoteService.getLightningQuote({
-        wallet: account.wallet,
-        amount,
-        description,
-      });
-
-      return cashuReceiveQuoteService.createReceiveQuote({
-        userId,
-        account,
-        receiveType: 'LIGHTNING',
-        lightningQuote,
-        purpose,
-        transferId,
-      });
-    },
-    onSuccess: (data) => {
-      cashuReceiveQuoteCache.add(data);
-    },
+    mutationFn: (props: CreateProps) =>
+      getSdk().receive.createCashuReceiveQuote(props),
     retry: 1,
   });
-}
-
-export function useCashuReceiveQuoteCache() {
-  const queryClient = useQueryClient();
-  return useMemo(() => new CashuReceiveQuoteCache(queryClient), [queryClient]);
 }
 
 type UseTrackCashuReceiveQuoteProps = {
@@ -220,13 +100,9 @@ export function useTrackCashuReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
 
   const { data } = useQuery({
-    queryKey: [CashuReceiveQuoteCache.Key, quoteId],
-    // biome-ignore lint/style/noNonNullAssertion: quoteId is guaranteed by enabled
-    queryFn: () => cashuReceiveQuoteRepository.get(quoteId!),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...getSdk().receive.cashuQuoteOptions(quoteId),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     enabled,
@@ -254,48 +130,20 @@ export function useTrackCashuReceiveQuote({
 
 /**
  * Hook that returns a cashu receive quote change handler.
+ *
+ * Transitional (sdk.receive.internal): consumed by the web-owned realtime
+ * wiring until the realtime hub moves into the SDK (Phase 8).
  */
 export function useCashuReceiveQuoteChangeHandlers() {
-  const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
-  const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
-
-  return [
-    {
-      event: 'CASHU_RECEIVE_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
-        const addedQuote = await cashuReceiveQuoteRepository.toQuote(payload);
-        pendingQuotesCache.add(addedQuote);
-      },
-    },
-    {
-      event: 'CASHU_RECEIVE_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
-        const quote = await cashuReceiveQuoteRepository.toQuote(payload);
-
-        cashuReceiveQuoteCache.updateIfExists(quote);
-
-        const isQuoteStillPending = ['UNPAID', 'PAID'].includes(quote.state);
-        if (isQuoteStillPending) {
-          pendingQuotesCache.update(quote);
-        } else {
-          pendingQuotesCache.remove(quote);
-        }
-      },
-    },
-  ];
+  return getSdk().receive.internal.changeHandlers.cashuReceiveQuote;
 }
 
 const usePendingCashuReceiveQuotes = () => {
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
-  const userId = useUser((user) => user.id);
   const selectReceiveQuotesWithOnlineAccount =
     useSelectItemsWithOnlineAccount();
 
   const { data } = useQuery({
-    queryKey: [PendingCashuReceiveQuotesCache.Key],
-    queryFn: () => cashuReceiveQuoteRepository.getPending(userId),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...getSdk().receive.pendingCashuQuotesOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
@@ -575,7 +423,8 @@ const useOnMintQuoteStateChange = ({
 };
 
 export function useProcessCashuReceiveQuoteTasks() {
-  const cashuReceiveQuoteService = useCashuReceiveQuoteService();
+  const cashuReceiveQuoteService =
+    getSdk().receive.internal.cashuReceiveQuoteService;
   const pendingCashuReceiveQuotes = usePendingCashuReceiveQuotes();
   const pendingMeltQuotes = usePendingMeltQuotes(pendingCashuReceiveQuotes);
   const getCashuAccount = useGetCashuAccount();

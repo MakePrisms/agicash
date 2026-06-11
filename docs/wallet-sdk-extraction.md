@@ -1,8 +1,8 @@
 # Wallet SDK extraction — plan, progress, and working rules
 
 Status document for the `@agicash/wallet-sdk` extraction (restarted greenfield from master
-2026-06-08). Updated at the end of each phase. Current as of: **mid-Phase 6 (receive
-domain) — chunks 6.1 + 6.2 committed, 6.3 next** (branch
+2026-06-08). Updated at the end of each phase. Current as of: **Phase 6 (receive domain)
+COMPLETE — curated `sdk.receive` live; Phase 7 (send) next** (branch
 `sdk/phase6-receive`, all local — no PRs/pushes yet, working tree clean, all gates green).
 
 ## HANDOFF — read this first
@@ -14,11 +14,11 @@ the git history; there is no other context. How to resume:
    master). Verify: `git status` clean, `git log --oneline -8` matches the ledger below.
 2. Read **Architecture decisions**, **Working method**, and **Landmines** below — these are
    settled with the user; do not relitigate them.
-3. Continue with **Phase 6.2** in the *Remaining roadmap* — it contains exact,
-   already-grounded instructions. Phases after it are specified at decreasing resolution;
-   ground each one (read the files, map consumers with `git grep`) before moving code.
+3. Continue with the first section in the *Remaining roadmap* (currently **Phase 7 —
+   send domain**). Phases are specified at decreasing resolution; ground each one (read
+   the files, map consumers with `git grep`) before moving code.
 4. The user's standing instruction: **finish the whole effort autonomously, no checkpoints**
-   — phases 6.2 → 10, then a final report on what the codebase looks like. Commit per
+   — through Phase 10, then a final report on what the codebase looks like. Commit per
    chunk; never push or open PRs; ask only if genuinely blocked.
 5. Conventions: bun only (never npm/yarn/pnpm); default branch is `master`; commit messages
    in the style of the existing ledger commits, ending with the `Co-Authored-By:` line for
@@ -93,7 +93,7 @@ process.
    rewrites all imports and deletes shims.
 4. **Gates on every chunk** (all must pass before commit):
    - `bun run typecheck` (all packages), `bun run fix:all`, `bun run test`
-     (test count must not drop; currently 152: utils 41, cashu 35, wallet-sdk 19, web 57),
+     (test count must not drop; currently 162: utils 41, cashu 35, wallet-sdk 34, web 52),
      `bun run build` (client+server+prerender — needs `.env` loaded:
      `set -a; . ./.env; set +a`)
    - framework-free grep: `git grep -nE "from 'react'|@tanstack/react" packages/wallet-sdk/src`
@@ -176,7 +176,8 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 | 4.2 | `sdk/phase4-transactions` · 7d6d9eae | transactions domain → SDK `transactions/`: types + `isTransactionReversable`, enums, `transaction-details/` (8 files), `TransactionRepository`; `TransactionsCache` + `createTransactionChangeHandlers` extracted from hooks, `acknowledgeInHistory` absorbed into the cache, test-locked (4 tests). Curated `sdk.transactions`: `queryOptions(id)` (NotFoundError retry semantics live in the SDK), `listOptions(accountId?)` (infinite, PAGE_SIZE 25, per-id write-through), `pendingAckCountOptions()` (primitive count; web derives the boolean), `acknowledge(tx)`. Root now shares ONE lazy Encryption + ONE `getCurrentUserId` thunk across domains. `useReverseTransaction` stays web-wired (send-domain services) until Phase 7 |
 | 5 | `sdk/phase5-contacts` · 719f55ec | contacts domain → SDK `contacts/`: types, `ContactRepository`, `ContactsCache`, change handlers. New config thunk `WalletSdkConfig.getLightningAddressDomain` (web passes `() => window.location.host`, matching the root loader's `domain`; a thunk because config records on the server too — only invoked client-side). Curated `sdk.contacts`: `listOptions/getCached/create/delete/findCandidatesOptions`; **`create` deliberately does NOT write the cache** — CONTACT_CREATED realtime is the single write path (behavior preserved) |
 | 6.1 | `sdk/phase6-receive` · 6ca5d29d | receive leaf+cores → SDK `receive/`: cashu/spark quote types, swap types, melt-data, both quote cores, token models (verbatim). `lib/bolt11` → `@agicash/utils/bolt11` (+tests; `light-bolt11-decoder` dep moved to utils, `@scure/base@2.0.0` added to catalog). `derivePublicKey` → SDK `cryptography.ts` (the `useCryptography` hook stays web) |
-| 6.2 | `sdk/phase6-receive` · (see git log) | receive repositories ×3 + services ×5 → SDK `receive/` (verbatim + remaps, tail hooks stripped; shims keep the `use*` hooks wiring `agicashDbClient`/`useEncryption`/`useAccountRepository`). `lib/type-utils` → `@agicash/utils/type-utils` (`type-fest` dep moved web→utils; web shim stays for the 3 send repos until Phase 7). `ReceiveCashuTokenService` ctor gains `cashuMintValidator: MintValidator` dep (it was an env-derived module-level import; web shim + the receive-token route inject web's validator); new `MintValidator` type exported from `@agicash/cashu` mint-validation |
+| 6.2 | `sdk/phase6-receive` · 71138490 | receive repositories ×3 + services ×5 → SDK `receive/` (verbatim + remaps, tail hooks stripped; shims keep the `use*` hooks wiring `agicashDbClient`/`useEncryption`/`useAccountRepository`). `lib/type-utils` → `@agicash/utils/type-utils` (`type-fest` dep moved web→utils; web shim stays for the 3 send repos until Phase 7). `ReceiveCashuTokenService` ctor gains `cashuMintValidator: MintValidator` dep (it was an env-derived module-level import; web shim + the receive-token route inject web's validator); new `MintValidator` type exported from `@agicash/cashu` mint-validation |
+| 6.3 | `sdk/phase6-receive` · (HEAD) | curated `sdk.receive` surface. New seams: SDK `error-reporting.ts` (`setErrorReporter`/`captureException` no-op default; `WalletSdkConfig.captureException?` — web passes Sentry's) mirroring `performance.ts`; `lib/exchange-rate/` → SDK `exchange-rate/` (+5 tests; `ky` to catalog; `exchangeRate(s)QueryOptions` + `getExchangeRate` extracted from `hooks/use-exchange-rate.ts` — web keeps the 3 hooks + 15s refetchInterval policy; explicit `./exchange-rate` exports entry). `ClaimCashuTokenService` → SDK (Sentry swapped for `captureException`). Cache classes + change handlers extracted from the 3 hooks files → `receive/{cashu,spark}-receive-quote-cache.ts`, `receive/cashu-receive-swap-cache.ts` (version guards test-locked, +10 tests). `receive-api.ts`: `claimToken(token, claimTo)` (derives the FULL user via new root `getCurrentUser` thunk), `createCashuReceiveQuote`/`createSparkReceiveQuote` (absorb active-quote cache.add), `createCashuReceiveSwap` (NO cache write — realtime is the write path), `cashuQuoteOptions`/`sparkQuoteOptions`/`pendingCashu(Spark)QuotesOptions`/`pendingCashuSwapsOptions` (staleTime ∞ in SDK; refetch/select/throwOnError stay web), `internal` = repos+services+caches+changeHandlers for tracking/task-processing hooks (die in Phase 8). `WalletSdkConfig.cashuMintValidator` (required) — web passes its env-derived validator. Root factories now return `{api, service}` (user) / `{api, repository, service, cache}` (accounts) so receive wires without `internal`-reaching. Hooks files: only React orchestration left (websocket/polling tracking, task processing, spark event listeners); `useCreateCashuReceiveQuote` et al one-line delegate; receive-token route's hand-built 9-class graph replaced by `getSdk().receive.claimToken`. Zero-consumer cleanup: hooks-file `getExchangeRate` re-export dropped |
 
 ## Remaining roadmap (handoff instructions — work top to bottom)
 
@@ -202,67 +203,6 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 
 `@tanstack/react-query` **type-only** imports (e.g. `QueryClient`) become
 `@tanstack/query-core`.
-
-### Phase 6.2 — receive repositories + services (grounded, do next)
-
-Move into `packages/wallet-sdk/src/receive/`, verbatim + remaps, shims at old paths:
-
-- `cashu-receive-quote-repository.ts`, `cashu-receive-swap-repository.ts`,
-  `spark-receive-quote-repository.ts` — each ends with a `use*Repository()` hook (strip;
-  keep in web shim only if other web files import it — check; the hooks files are the
-  usual sole consumers). They import `AllUnionFieldsRequired` from `~/lib/type-utils` — a
-  pure type-fest helper; move `lib/type-utils.ts` → `@agicash/utils/type-utils` first
-  (add `type-fest` to utils deps via catalog; 6 consumers, all repos being moved in 6.2/7,
-  so a web shim is still needed for the 3 send repos until Phase 7).
-- `cashu-receive-quote-service.ts`, `cashu-receive-swap-service.ts`,
-  `spark-receive-quote-service.ts`, `receive-cashu-token-quote-service.ts` — pure once
-  remapped (`derivePublicKey` → `../cryptography`, `tokenToMoney`/`getTokenHash` already in
-  SDK `cashu.ts`).
-- `receive-cashu-token-service.ts` — pure class + a 3-line `useReceiveCashuTokenService`
-  tail hook (strip; class takes `queryClient`). It imports `cashuMintValidator` from
-  `../shared/cashu` — CHECK: that one is env-derived and web-only; if the class receives it
-  as a ctor/method arg keep as-is, if it imports it module-level the validator needs to
-  become a dep (ground this file before moving).
-- **Stays web**: `lightning-address-service.ts` + the four `*.server.ts` files (the lnurl
-  server path: per-request server db, `LNURL_SERVER_*` env, server ExchangeRateService) —
-  they keep consuming SDK classes through the shims; `receive-store.ts` (zustand),
-  `receive-provider/-input/-scanner/*.tsx` (UI), `index.ts` (UI barrel).
-
-### Phase 6.3 — receive caches + api + hooks delegation
-
-1. **Error-reporting seam** (mirrors `measureOperation`): SDK `error-reporting.ts` with
-   `setErrorReporter(fn)` + `captureException(error)` no-op default;
-   `WalletSdkConfig.captureException?`; web passes Sentry's. Needed by the claim service
-   (single `Sentry.captureException` at claim-cashu-token-service.ts:76).
-2. **Exchange rate into the SDK**: `lib/exchange-rate/` (service + providers + tests) is
-   pure fetch — move to SDK `exchange-rate/` (web `~/lib/exchange-rate` shim stays for UI
-   + lnurl server). Move `exchangeRateQueryOptions` + `getExchangeRate(queryClient, ticker)`
-   from `hooks/use-exchange-rate.ts` into it (the `useExchangeRate` hook stays web and
-   spreads the SDK options). Consumers: claim service, receive-token hooks, send UI,
-   money-input hooks.
-3. **Claim service → SDK**: `claim-cashu-token-service.ts` after (1)+(2): swap Sentry for
-   `captureException`, `getExchangeRate` from SDK exchange-rate, `AccountsCache`/
-   `accountsQueryOptions`/`UserCache` imports to SDK relatives. It is the MCP-shaped
-   orchestrator — expose curated `sdk.receive.claimToken(token, claimTo)` (derive user via
-   the root's `getCurrentUserId`/`getCached`; check its `user` param usage first).
-4. **Extract cache classes + change handlers from the hooks files** into SDK
-   `receive/cashu-receive-quote-cache.ts` etc.: `CashuReceiveQuoteCache` (hooks line ~55),
-   `PendingCashuReceiveQuotesCache` (~85), `SparkReceiveQuoteCache` (~36),
-   `PendingSparkReceiveQuotesCache` (~127), the pending-swaps cache in
-   `cashu-receive-swap-hooks.ts`, and the three `use*ChangeHandlers` bodies →
-   `create*ChangeHandlers`. Version-guards inside them are load-bearing — verbatim +
-   test-lock.
-5. **`receive-api.ts`**: curated `claimToken` + quote/swap creation methods where the hook
-   bodies are thin (`useCreateCashuReceiveQuote` etc. — ground each; creation methods
-   typically wrap `service.create(...)` + cache write). `internal = {repositories,
-   services, caches, changeHandlers}` for the orchestration hooks (`useTrack*Quote`,
-   `useOnSparkReceiveStateChange`, `useProcess*Tasks` — these stay web until Phase 8).
-   Wire into the root with the shared `encryption` + `getCurrentUserId`; pass
-   `cashuMintValidator`-style web deps via api deps if 6.2 grounding found any.
-6. Hooks files keep ONLY React orchestration, delegating to `sdk.receive.*`; the
-   receive-token route swaps its hand-built service graph for `sdk.receive` methods
-   (`getClaimCashuTokenService` in `routes/_protected.receive.cashu_.token.tsx` should
-   reduce to `getSdk().receive...`).
 
 ### Phase 7 — send domain (`sdk/phase7-send`)
 

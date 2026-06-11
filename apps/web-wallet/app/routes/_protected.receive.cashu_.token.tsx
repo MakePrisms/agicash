@@ -1,87 +1,15 @@
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
-import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
-import { CashuReceiveQuoteRepository } from '~/features/receive/cashu-receive-quote-repository';
-import { CashuReceiveQuoteService } from '~/features/receive/cashu-receive-quote-service';
-import { CashuReceiveSwapRepository } from '~/features/receive/cashu-receive-swap-repository';
-import { CashuReceiveSwapService } from '~/features/receive/cashu-receive-swap-service';
-import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
-import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
-import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
-import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
-import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
-import {
-  cashuMintValidator,
-  decodeCashuToken,
-  getCashuCryptography,
-} from '~/features/shared/cashu';
-import {
-  encryptionPrivateKeyQueryOptions,
-  encryptionPublicKeyQueryOptions,
-  getEncryption,
-} from '~/features/shared/encryption';
-import { getQueryClient } from '~/features/shared/query-client';
+import { decodeCashuToken } from '~/features/shared/cashu';
 import { getSdk } from '~/features/shared/sdk';
-import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { toast } from '~/hooks/use-toast';
 import { validateCashuToken } from '~/lib/cashu';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
-
-const getClaimCashuTokenService = async () => {
-  const queryClient = getQueryClient();
-  const [encryptionPrivateKey, encryptionPublicKey] = await Promise.all([
-    queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-    queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-  ]);
-  const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-  const accountRepository = getSdk().accounts.internal.repository;
-  const accountService = getSdk().accounts.internal.service;
-  const receiveSwapRepository = new CashuReceiveSwapRepository(
-    agicashDbClient,
-    encryption,
-    accountRepository,
-  );
-  const receiveSwapService = new CashuReceiveSwapService(receiveSwapRepository);
-  const cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
-    agicashDbClient,
-    encryption,
-    accountRepository,
-  );
-  const cashuCryptography = getCashuCryptography(queryClient);
-  const cashuReceiveQuoteService = new CashuReceiveQuoteService(
-    cashuCryptography,
-    cashuReceiveQuoteRepository,
-  );
-  const sparkReceiveQuoteService = new SparkReceiveQuoteService(
-    new SparkReceiveQuoteRepository(agicashDbClient, encryption),
-  );
-  const receiveCashuTokenService = new ReceiveCashuTokenService(
-    queryClient,
-    cashuMintValidator,
-  );
-  const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
-    cashuReceiveQuoteService,
-    sparkReceiveQuoteService,
-  );
-  const userService = getSdk().user.internal.service;
-
-  return new ClaimCashuTokenService(
-    queryClient,
-    accountRepository,
-    accountService,
-    receiveSwapService,
-    cashuReceiveQuoteService,
-    sparkReceiveQuoteService,
-    receiveCashuTokenService,
-    receiveCashuTokenQuoteService,
-    userService,
-  );
-};
 
 const getClaimTo = (
   searchParams: URLSearchParams,
@@ -116,14 +44,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const claimTo = getClaimTo(location.searchParams);
 
   if (claimTo) {
-    const user = getUserFromCacheOrThrow();
-    const claimCashuTokenService = await getClaimCashuTokenService();
-
-    const result = await claimCashuTokenService.claimToken(
-      user,
-      token,
-      claimTo,
-    );
+    const result = await getSdk().receive.claimToken(token, claimTo);
     if (!result.success) {
       toast({
         title: 'Failed to claim the token',

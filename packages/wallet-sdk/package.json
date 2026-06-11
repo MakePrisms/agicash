@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./exchange-rate": "./src/exchange-rate/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
@@ -24,6 +25,7 @@
     "@supabase/supabase-js": "catalog:",
     "@tanstack/query-core": "5.90.20",
     "jwt-decode": "catalog:",
+    "ky": "catalog:",
     "type-fest": "catalog:",
     "zod": "catalog:"
   },

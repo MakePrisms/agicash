@@ -79,7 +79,10 @@ export type UserApiDeps = {
   accountsCache: AccountsCache;
 };
 
-export function createUserApi(deps: UserApiDeps): UserApi {
+export function createUserApi(deps: UserApiDeps): {
+  api: UserApi;
+  service: UserService;
+} {
   const { queryClient, db, accountRepository, accountsCache } = deps;
 
   const readRepository = new ReadUserRepository(db);
@@ -95,7 +98,7 @@ export function createUserApi(deps: UserApiDeps): UserApi {
     return user;
   };
 
-  return {
+  const api: UserApi = {
     queryOptions: () =>
       userQueryOptions({
         getUserId: () => getCurrentUser().id,
@@ -134,4 +137,6 @@ export function createUserApi(deps: UserApiDeps): UserApi {
       changeHandlers: createUserChangeHandlers(cache),
     },
   };
+
+  return { api, service };
 }

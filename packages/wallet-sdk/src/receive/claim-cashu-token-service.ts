@@ -1,15 +1,18 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
-import * as Sentry from '@sentry/react-router';
-import type { QueryClient } from '@tanstack/react-query';
-import { getExchangeRate } from '~/hooks/use-exchange-rate';
+import type { QueryClient } from '@tanstack/query-core';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
-import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
-import { DomainError } from '../shared/error';
+import {
+  AccountsCache,
+  accountsQueryOptions,
+} from '../accounts/accounts-cache';
+import { DomainError } from '../error';
+import { captureException } from '../error-reporting';
+import { getExchangeRate } from '../exchange-rate';
 import type { User } from '../user/user';
-import { UserCache } from '../user/user-hooks';
+import { UserCache } from '../user/user-cache';
 import type { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
@@ -23,7 +26,7 @@ import { ReceiveCashuTokenService } from './receive-cashu-token-service';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import type { SparkReceiveQuoteService } from './spark-receive-quote-service';
 
-type ClaimTokenResult =
+export type ClaimTokenResult =
   | {
       success: true;
       destinationAccount: Pick<Account, 'id' | 'purpose'>;
@@ -73,7 +76,7 @@ export class ClaimCashuTokenService {
       }
 
       const message = 'Unexpected error while claiming the token';
-      Sentry.captureException(new Error(message, { cause: error }));
+      captureException(new Error(message, { cause: error }));
       return {
         success: false,
         message,

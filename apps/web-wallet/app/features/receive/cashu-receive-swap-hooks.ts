@@ -1,83 +1,25 @@
 import type { Token } from '@cashu/cashu-ts';
-import {
-  type QueryClient,
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuReceiveSwap } from '../agicash-db/database';
-import { useUser } from '../user/user-hooks';
-import type { CashuReceiveSwap } from './cashu-receive-swap';
-import { useCashuReceiveSwapRepository } from './cashu-receive-swap-repository';
-import { useCashuReceiveSwapService } from './cashu-receive-swap-service';
+import { getSdk } from '../shared/sdk';
 
 type CreateProps = {
   token: Token;
   accountId: string;
 };
-class PendingCashuReceiveSwapsCache {
-  // Query to track all pending receive swaps for a given user (active and ones where recovery is being attempted).
-  public static Key = 'pending-cashu-receive-swaps';
 
-  constructor(private readonly queryClient: QueryClient) {}
-
-  get(tokenHash: string) {
-    return this.queryClient
-      .getQueryData<CashuReceiveSwap[]>([PendingCashuReceiveSwapsCache.Key])
-      ?.find((s) => s.tokenHash === tokenHash);
-  }
-
-  add(receiveSwap: CashuReceiveSwap) {
-    this.queryClient.setQueryData<CashuReceiveSwap[]>(
-      [PendingCashuReceiveSwapsCache.Key],
-      (curr) => [...(curr ?? []), receiveSwap],
-    );
-  }
-
-  update(receiveSwap: CashuReceiveSwap) {
-    this.queryClient.setQueryData<CashuReceiveSwap[]>(
-      [PendingCashuReceiveSwapsCache.Key],
-      (curr) =>
-        curr?.map((d) =>
-          d.tokenHash === receiveSwap.tokenHash &&
-          d.version < receiveSwap.version
-            ? receiveSwap
-            : d,
-        ),
-    );
-  }
-
-  remove(receiveSwap: CashuReceiveSwap) {
-    this.queryClient.setQueryData<CashuReceiveSwap[]>(
-      [PendingCashuReceiveSwapsCache.Key],
-      (curr) => curr?.filter((d) => d.tokenHash !== receiveSwap.tokenHash),
-    );
-  }
-
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [PendingCashuReceiveSwapsCache.Key],
-    });
-  }
-}
-
+/**
+ * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
+ * and task processing until the SDK owns them (Phase 8).
+ */
 export function usePendingCashuReceiveSwapsCache() {
-  const queryClient = useQueryClient();
-  return useMemo(
-    () => new PendingCashuReceiveSwapsCache(queryClient),
-    [queryClient],
-  );
+  return getSdk().receive.internal.pendingCashuReceiveSwapsCache;
 }
 
 export function useCreateCashuReceiveSwap() {
-  const userId = useUser((user) => user.id);
-  const receiveSwapService = useCashuReceiveSwapService();
   const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
@@ -87,24 +29,16 @@ export function useCreateCashuReceiveSwap() {
     },
     mutationFn: ({ token, accountId }: CreateProps) => {
       const account = getCashuAccount(accountId);
-      return receiveSwapService.create({
-        userId,
-        token,
-        account,
-      });
+      return getSdk().receive.createCashuReceiveSwap({ token, account });
     },
   });
 }
 
 function usePendingCashuReceiveSwaps() {
-  const userId = useUser((user) => user.id);
-  const receiveSwapRepository = useCashuReceiveSwapRepository();
   const selectReceiveSwapsWithOnlineAccount = useSelectItemsWithOnlineAccount();
 
   const { data } = useQuery({
-    queryKey: [PendingCashuReceiveSwapsCache.Key],
-    queryFn: () => receiveSwapRepository.getPending(userId),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...getSdk().receive.pendingCashuSwapsOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
@@ -116,38 +50,17 @@ function usePendingCashuReceiveSwaps() {
 
 /**
  * Hook that returns a cashu receive swap change handler.
+ *
+ * Transitional (sdk.receive.internal): consumed by the web-owned realtime
+ * wiring until the realtime hub moves into the SDK (Phase 8).
  */
 export function useCashuReceiveSwapChangeHandlers() {
-  const pendingSwapsCache = usePendingCashuReceiveSwapsCache();
-  const cashuReceiveSwapRepository = useCashuReceiveSwapRepository();
-
-  return [
-    {
-      event: 'CASHU_RECEIVE_SWAP_CREATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveSwap) => {
-        const swap = await cashuReceiveSwapRepository.toReceiveSwap(payload);
-        pendingSwapsCache.add(swap);
-      },
-    },
-    {
-      event: 'CASHU_RECEIVE_SWAP_UPDATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveSwap) => {
-        const swap = await cashuReceiveSwapRepository.toReceiveSwap(payload);
-
-        const isSwapStillPending = swap.state === 'PENDING';
-        if (isSwapStillPending) {
-          pendingSwapsCache.update(swap);
-        } else {
-          pendingSwapsCache.remove(swap);
-        }
-      },
-    },
-  ];
+  return getSdk().receive.internal.changeHandlers.cashuReceiveSwap;
 }
 
 export function useProcessCashuReceiveSwapTasks() {
   const pendingSwaps = usePendingCashuReceiveSwaps();
-  const receiveSwapService = useCashuReceiveSwapService();
+  const receiveSwapService = getSdk().receive.internal.cashuReceiveSwapService;
   const getCashuAccount = useGetCashuAccount();
   const pendingSwapsCache = usePendingCashuReceiveSwapsCache();
 

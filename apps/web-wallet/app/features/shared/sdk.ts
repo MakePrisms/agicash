@@ -5,7 +5,9 @@
 // that read from the DB (e.g. feature-flags) — they import database.client,
 // which configures through this module.
 import { configureWalletSdk } from '@agicash/wallet-sdk/sdk';
+import * as Sentry from '@sentry/react-router';
 import { measureOperation } from '~/lib/performance';
+import { cashuMintValidator } from './cashu';
 
 const openSecretApiUrl = import.meta.env.VITE_OPEN_SECRET_API_URL ?? '';
 if (!openSecretApiUrl) {
@@ -64,7 +66,11 @@ configureWalletSdk({
   // Matches the root loader's `domain` (new URL(origin).host) for same-origin
   // pages; only invoked client-side after getSdk().
   getLightningAddressDomain: () => window.location.host,
+  cashuMintValidator,
   measureOperation,
+  captureException: (error, context) => {
+    Sentry.captureException(error, context ? { extra: context } : undefined);
+  },
 });
 
 export { getSdk } from '@agicash/wallet-sdk/sdk';

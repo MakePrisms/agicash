@@ -1,11 +1,14 @@
+import type { MintValidator } from '@agicash/cashu';
 import { configure as configureOpenSecret } from '@agicash/opensecret';
 import { type QueryClient, isServer } from '@tanstack/query-core';
 import { type AccountsApi, createAccountsApi } from './accounts/accounts-api';
 import { configureAgicashDb, getAgicashDb } from './agicash-db';
 import { type ContactsApi, createContactsApi } from './contacts/contacts-api';
 import { createLazyEncryption } from './encryption';
+import { type CaptureException, setErrorReporter } from './error-reporting';
 import { type MeasureOperation, setOperationMeasurer } from './performance';
 import { getQueryClient } from './query-client';
+import { type ReceiveApi, createReceiveApi } from './receive/receive-api';
 import { configureSpark } from './spark-config';
 import {
   type TransactionsApi,
@@ -15,6 +18,7 @@ import { type UserApi, createUserApi } from './user/user-api';
 
 export type { AccountsApi } from './accounts/accounts-api';
 export type { ContactsApi } from './contacts/contacts-api';
+export type { ReceiveApi } from './receive/receive-api';
 export type { TransactionsApi } from './transactions/transactions-api';
 export type { UserApi } from './user/user-api';
 
@@ -43,10 +47,21 @@ export type WalletSdkConfig = {
    */
   getLightningAddressDomain: () => string;
   /**
+   * The mint validation policy applied when the receive flow builds an
+   * account for an unknown mint. Host-provided because the blocklist is
+   * derived from the host's environment.
+   */
+  cashuMintValidator: MintValidator;
+  /**
    * Host instrumentation for the SDK's internal operation measurements
    * (the web app passes its Sentry-backed implementation).
    */
   measureOperation?: MeasureOperation;
+  /**
+   * Host error reporting for failures the SDK handles itself but the host
+   * wants to observe (the web app passes Sentry's captureException).
+   */
+  captureException?: CaptureException;
 };
 
 let sdkConfig: WalletSdkConfig | undefined;
@@ -67,6 +82,9 @@ export function configureWalletSdk(config: WalletSdkConfig): void {
   if (config.measureOperation) {
     setOperationMeasurer(config.measureOperation);
   }
+  if (config.captureException) {
+    setErrorReporter(config.captureException);
+  }
 }
 
 export class WalletSdk {
@@ -75,20 +93,22 @@ export class WalletSdk {
   readonly user: UserApi;
   readonly transactions: TransactionsApi;
   readonly contacts: ContactsApi;
+  readonly receive: ReceiveApi;
 
   constructor(config: WalletSdkConfig) {
     this.queryClient = getQueryClient();
     const db = getAgicashDb();
     const encryption = createLazyEncryption(this.queryClient);
-    // Closes over this.user (assigned below) — safe because it is only
+    // Close over this.user (assigned below) — safe because they are only
     // invoked at query/call time, after the bootstrap upsert.
-    const getCurrentUserId = () => {
+    const getCurrentUser = () => {
       const user = this.user.getCached();
       if (!user) {
         throw new Error('No user is loaded. Bootstrap the session first.');
       }
-      return user.id;
+      return user;
     };
+    const getCurrentUserId = () => getCurrentUser().id;
 
     const accounts = createAccountsApi({
       queryClient: this.queryClient,
@@ -99,12 +119,13 @@ export class WalletSdk {
     });
     this.accounts = accounts.api;
 
-    this.user = createUserApi({
+    const user = createUserApi({
       queryClient: this.queryClient,
       db,
       accountRepository: accounts.repository,
       accountsCache: accounts.cache,
     });
+    this.user = user.api;
 
     this.transactions = createTransactionsApi({
       queryClient: this.queryClient,
@@ -118,6 +139,18 @@ export class WalletSdk {
       db,
       getCurrentUserId,
       getDomain: config.getLightningAddressDomain,
+    });
+
+    this.receive = createReceiveApi({
+      queryClient: this.queryClient,
+      db,
+      encryption,
+      getCurrentUserId,
+      getCurrentUser,
+      accountRepository: accounts.repository,
+      accountService: accounts.service,
+      userService: user.service,
+      cashuMintValidator: config.cashuMintValidator,
     });
   }
 }

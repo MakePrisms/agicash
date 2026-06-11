@@ -75,6 +75,7 @@ export type AccountsApiDeps = {
 export function createAccountsApi(deps: AccountsApiDeps): {
   api: AccountsApi;
   repository: AccountRepository;
+  service: AccountService;
   cache: AccountsCache;
 } {
   const { queryClient, db, encryption, sparkStorageDir, getCurrentUserId } =
@@ -128,5 +129,5 @@ export function createAccountsApi(deps: AccountsApiDeps): {
     },
   };
 
-  return { api, repository, cache };
+  return { api, repository, service, cache };
 }

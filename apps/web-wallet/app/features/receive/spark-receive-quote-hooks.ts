@@ -1,11 +1,6 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
-import {
-  type QueryClient,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import {
   type ExtendedCashuWallet,
@@ -22,50 +17,19 @@ import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
+import { getSdk } from '../shared/sdk';
 import { sparkDebugLog } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
-import { useUser } from '../user/user-hooks';
 import type { SparkReceiveQuote } from './spark-receive-quote';
-import { getLightningQuote } from './spark-receive-quote-core';
-import { useSparkReceiveQuoteRepository } from './spark-receive-quote-repository';
-import { useSparkReceiveQuoteService } from './spark-receive-quote-service';
 
-class SparkReceiveQuoteCache {
-  // Query that tracks the "active" spark receive quote. Active one is the one that user created in current browser session.
-  // We want to track active quote even after it is expired and completed which is why we can't use pending quotes query.
-  // Pending quotes query is used for active pending quote plus "background" pending quotes. "Background" quotes are quotes
-  // that were created in previous browser sessions.
-  public static Key = 'spark-receive-quote';
-
-  constructor(private readonly queryClient: QueryClient) {}
-
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [SparkReceiveQuoteCache.Key],
-    });
-  }
-
-  add(quote: SparkReceiveQuote) {
-    this.queryClient.setQueryData<SparkReceiveQuote>(
-      [SparkReceiveQuoteCache.Key, quote.id],
-      quote,
-    );
-  }
-
-  updateIfExists(quote: SparkReceiveQuote) {
-    this.queryClient.setQueryData<SparkReceiveQuote>(
-      [SparkReceiveQuoteCache.Key, quote.id],
-      (curr) => (curr && curr.version < quote.version ? quote : undefined),
-    );
-  }
-}
-
+/**
+ * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
+ * and task processing until the SDK owns them (Phase 8).
+ */
 export function useSparkReceiveQuoteCache() {
-  const queryClient = useQueryClient();
-  return useMemo(() => new SparkReceiveQuoteCache(queryClient), [queryClient]);
+  return getSdk().receive.internal.sparkReceiveQuoteCache;
 }
 
 type UseTrackSparkReceiveQuoteProps = {
@@ -92,13 +56,9 @@ export function useTrackSparkReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
 
   const { data } = useQuery({
-    queryKey: [SparkReceiveQuoteCache.Key, quoteId],
-    // biome-ignore lint/style/noNonNullAssertion: quoteId is guaranteed by enabled
-    queryFn: () => sparkReceiveQuoteRepository.get(quoteId!),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...getSdk().receive.sparkQuoteOptions(quoteId),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     enabled,
@@ -124,112 +84,29 @@ export function useTrackSparkReceiveQuote({
   };
 }
 
-export class PendingSparkReceiveQuotesCache {
-  public static Key = 'pending-spark-receive-quotes';
-
-  constructor(private readonly queryClient: QueryClient) {}
-
-  get(quoteId: string) {
-    return this.queryClient
-      .getQueryData<SparkReceiveQuote[]>([PendingSparkReceiveQuotesCache.Key])
-      ?.find((q) => q.id === quoteId);
-  }
-
-  getByMeltQuoteId(
-    meltQuoteId: string,
-  ): (SparkReceiveQuote & { type: 'CASHU_TOKEN' }) | undefined {
-    const quotes = this.queryClient.getQueryData<SparkReceiveQuote[]>([
-      PendingSparkReceiveQuotesCache.Key,
-    ]);
-    return quotes?.find(
-      (q): q is SparkReceiveQuote & { type: 'CASHU_TOKEN' } =>
-        q.type === 'CASHU_TOKEN' &&
-        q.tokenReceiveData.meltQuoteId === meltQuoteId,
-    );
-  }
-
-  add(quote: SparkReceiveQuote) {
-    this.queryClient.setQueryData<SparkReceiveQuote[]>(
-      [PendingSparkReceiveQuotesCache.Key],
-      (curr) => [...(curr ?? []), quote],
-    );
-  }
-
-  update(quote: SparkReceiveQuote) {
-    this.queryClient.setQueryData<SparkReceiveQuote[]>(
-      [PendingSparkReceiveQuotesCache.Key],
-      (curr) =>
-        curr?.map((q) =>
-          q.id === quote.id && q.version < quote.version ? quote : q,
-        ),
-    );
-  }
-
-  remove(quote: SparkReceiveQuote) {
-    this.queryClient.setQueryData<SparkReceiveQuote[]>(
-      [PendingSparkReceiveQuotesCache.Key],
-      (curr) => curr?.filter((q) => q.id !== quote.id),
-    );
-  }
-
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [PendingSparkReceiveQuotesCache.Key],
-    });
-  }
-}
-
+/**
+ * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
+ * and task processing until the SDK owns them (Phase 8).
+ */
 export function usePendingSparkReceiveQuotesCache() {
-  const queryClient = useQueryClient();
-  return useMemo(
-    () => new PendingSparkReceiveQuotesCache(queryClient),
-    [queryClient],
-  );
+  return getSdk().receive.internal.pendingSparkReceiveQuotesCache;
 }
 
 /**
  * Hook that returns spark receive quote change handlers.
+ *
+ * Transitional (sdk.receive.internal): consumed by the web-owned realtime
+ * wiring until the realtime hub moves into the SDK (Phase 8).
  */
 export function useSparkReceiveQuoteChangeHandlers() {
-  const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
-  const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
-
-  return [
-    {
-      event: 'SPARK_RECEIVE_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const addedQuote = await sparkReceiveQuoteRepository.toQuote(payload);
-        pendingQuotesCache.add(addedQuote);
-      },
-    },
-    {
-      event: 'SPARK_RECEIVE_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const quote = await sparkReceiveQuoteRepository.toQuote(payload);
-
-        sparkReceiveQuoteCache.updateIfExists(quote);
-
-        const isQuoteStillPending = quote.state === 'UNPAID';
-        if (isQuoteStillPending) {
-          pendingQuotesCache.update(quote);
-        } else {
-          pendingQuotesCache.remove(quote);
-        }
-      },
-    },
-  ];
+  return getSdk().receive.internal.changeHandlers.sparkReceiveQuote;
 }
 
 const usePendingSparkReceiveQuotes = () => {
-  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
-  const userId = useUser((user) => user.id);
   const selectWithOnlineAccount = useSelectItemsWithOnlineAccount();
 
   const { data } = useQuery({
-    queryKey: [PendingSparkReceiveQuotesCache.Key],
-    queryFn: () => sparkReceiveQuoteRepository.getPending(userId),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...getSdk().receive.pendingSparkQuotesOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
@@ -287,39 +164,12 @@ type CreateProps = {
  * The quote is stored in the database and will be tracked by the background task processor.
  */
 export function useCreateSparkReceiveQuote() {
-  const userId = useUser((user) => user.id);
-  const sparkReceiveQuoteService = useSparkReceiveQuoteService();
-  const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-
   return useMutation({
     scope: {
       id: 'create-spark-receive-quote',
     },
-    mutationFn: async ({
-      account,
-      amount,
-      description,
-      purpose,
-      transferId,
-    }: CreateProps) => {
-      const lightningQuote = await getLightningQuote({
-        wallet: account.wallet,
-        amount,
-        description,
-      });
-
-      return sparkReceiveQuoteService.createReceiveQuote({
-        userId,
-        account,
-        lightningQuote,
-        receiveType: 'LIGHTNING',
-        purpose,
-        transferId,
-      });
-    },
-    onSuccess: (data) => {
-      sparkReceiveQuoteCache.add(data);
-    },
+    mutationFn: (props: CreateProps) =>
+      getSdk().receive.createSparkReceiveQuote(props),
     retry: 1,
   });
 }
@@ -455,7 +305,8 @@ export function useOnSparkReceiveStateChange({
  * Polls the Spark API to check for payment status and updates quotes accordingly.
  */
 export function useProcessSparkReceiveQuoteTasks() {
-  const sparkReceiveQuoteService = useSparkReceiveQuoteService();
+  const sparkReceiveQuoteService =
+    getSdk().receive.internal.sparkReceiveQuoteService;
   const pendingMeltQuotes = usePendingMeltQuotes();
   const getCashuAccountByMintUrlAndCurrency =
     useGetCashuAccountByMintUrlAndCurrency();
