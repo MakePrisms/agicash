@@ -88,7 +88,7 @@ export class ClaimCashuTokenService {
   ): Promise<ClaimTokenResult> {
     const accounts = await this.queryClient.fetchQuery(
       accountsQueryOptions({
-        userId: user.id,
+        getUserId: () => user.id,
         accountRepository: this.accountRepository,
       }),
     );

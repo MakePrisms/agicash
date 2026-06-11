@@ -69,6 +69,15 @@ export class WalletSdk {
       db,
       encryption: createLazyEncryption(this.queryClient),
       sparkStorageDir: config.sparkStorageDir,
+      // Closes over this.user (assigned below) — safe because it is only
+      // invoked at query/call time, after the bootstrap upsert.
+      getCurrentUserId: () => {
+        const user = this.user.getCached();
+        if (!user) {
+          throw new Error('No user is loaded. Bootstrap the session first.');
+        }
+        return user.id;
+      },
     });
     this.accounts = accounts.api;
 

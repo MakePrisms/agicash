@@ -74,7 +74,7 @@ describe('AccountsCache.updateSparkAccountBalance (write-guard)', () => {
 
 describe('accountsQueryOptions (structuralSharing)', () => {
   const { structuralSharing } = accountsQueryOptions({
-    userId: 'u',
+    getUserId: () => 'u',
     accountRepository: {} as AccountRepository,
   });
 

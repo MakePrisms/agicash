@@ -13,8 +13,12 @@ import {
 } from './accounts-cache';
 
 export type AccountsApi = {
-  /** Query config for the reactive accounts list (consume with useSuspenseQuery). */
-  listOptions: (userId: string) => ReturnType<typeof accountsQueryOptions>;
+  /**
+   * Query config for the reactive accounts list of the current user (consume
+   * with useSuspenseQuery). The id is resolved from the user state at fetch
+   * time, so the queryFn rejects if no user is loaded yet.
+   */
+  listOptions: () => ReturnType<typeof accountsQueryOptions>;
   /**
    * Fetches an account from the DB (including expired ones the list query
    * doesn't return) and records it in the accounts state.
@@ -25,9 +29,13 @@ export type AccountsApi = {
   getCached: (id: string) => Account | null;
   /** Snapshot of the in-memory accounts state. */
   listCached: () => Account[];
-  /** Creates a cashu account and records it in the accounts state. */
+  /**
+   * Creates a cashu account for the current user and records it in the
+   * accounts state.
+   * @throws if no user is loaded yet.
+   */
   add: (
-    params: Parameters<AccountService['addCashuAccount']>[0],
+    account: Parameters<AccountService['addCashuAccount']>[0]['account'],
   ) => Promise<CashuAccount>;
   /**
    * Transitional escape hatch — NOT part of the public surface. Only for (a)
@@ -50,6 +58,13 @@ export type AccountsApiDeps = {
   db: AgicashDb;
   encryption: Encryption;
   sparkStorageDir: string;
+  /**
+   * Resolves the current user's id from the SDK's user state. A thunk because
+   * the accounts domain is constructed before the user domain; it is only
+   * invoked at query/call time, after the bootstrap upsert.
+   * @throws if no user is loaded yet.
+   */
+  getCurrentUserId: () => string;
 };
 
 /**
@@ -62,7 +77,8 @@ export function createAccountsApi(deps: AccountsApiDeps): {
   repository: AccountRepository;
   cache: AccountsCache;
 } {
-  const { queryClient, db, encryption, sparkStorageDir } = deps;
+  const { queryClient, db, encryption, sparkStorageDir, getCurrentUserId } =
+    deps;
 
   const repository = new AccountRepository({
     db,
@@ -80,8 +96,11 @@ export function createAccountsApi(deps: AccountsApiDeps): {
   const cache = new AccountsCache(queryClient);
 
   const api: AccountsApi = {
-    listOptions: (userId: string) =>
-      accountsQueryOptions({ userId, accountRepository: repository }),
+    listOptions: () =>
+      accountsQueryOptions({
+        getUserId: getCurrentUserId,
+        accountRepository: repository,
+      }),
     get: async (id: string) => {
       const account = await repository.get(id);
       if (account) {
@@ -91,12 +110,15 @@ export function createAccountsApi(deps: AccountsApiDeps): {
     },
     getCached: (id: string) => cache.get(id),
     listCached: () => cache.getAll() ?? [],
-    add: async (params) => {
-      const account = await service.addCashuAccount(params);
+    add: async (account) => {
+      const created = await service.addCashuAccount({
+        userId: getCurrentUserId(),
+        account,
+      });
       // Recorded immediately so reads right after creation see the account
       // without waiting for the realtime broadcast.
-      cache.upsert(account);
-      return account;
+      cache.upsert(created);
+      return created;
     },
     internal: {
       repository,

@@ -146,7 +146,7 @@ export function useAccounts<
   const { currency, type, isOnline, purpose, state = 'active' } = select ?? {};
 
   return useSuspenseQuery({
-    ...getSdk().accounts.listOptions(user.id),
+    ...getSdk().accounts.listOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select: useCallback(
@@ -354,12 +354,10 @@ export function useAccountOrDefault(accountId: string | null) {
 }
 
 export function useAddCashuAccount() {
-  const userId = useUser((x) => x.id);
-
   const { mutateAsync } = useMutation({
     mutationFn: async (
       account: Parameters<AccountService['addCashuAccount']>[0]['account'],
-    ) => getSdk().accounts.add({ userId, account }),
+    ) => getSdk().accounts.add(account),
   });
 
   return mutateAsync;

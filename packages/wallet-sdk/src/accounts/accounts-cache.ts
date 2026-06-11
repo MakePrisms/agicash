@@ -83,11 +83,13 @@ export class AccountsCache {
 }
 
 export const accountsQueryOptions = ({
-  userId,
+  getUserId,
   accountRepository,
-}: { userId: string; accountRepository: AccountRepository }) => ({
+}: { getUserId: () => string; accountRepository: AccountRepository }) => ({
   queryKey: [AccountsCache.Key],
-  queryFn: () => accountRepository.getAllActive(userId),
+  // The id is resolved at fetch time (not captured at options creation) so a
+  // long-lived observer can never pin a previous session's id.
+  queryFn: () => accountRepository.getAllActive(getUserId()),
   staleTime: Number.POSITIVE_INFINITY,
   // Refetches use `getAllActive`, so any expired account previously in the
   // cache (lazy-fetched via useAccountOrNull, or just expired before the
