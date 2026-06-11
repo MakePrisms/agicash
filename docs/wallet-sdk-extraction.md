@@ -119,7 +119,7 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 | 3.4 | `sdk/phase3-user-surface` · ca4937df | checkpoint feedback: `getCachedOrThrow` removed from `sdk.user` — whether a missing cached user is exceptional is caller policy, and accounts exposes no orThrow either. SDK keeps the `getCached(): User \| null` primitive; web's `getUserFromCacheOrThrow` (user-hooks) wraps it for protected-layout contexts where missing user = bug |
 | 3.5 | `sdk/phase3-user-surface` · 24315f2d | checkpoint feedback: `sdk.ts` split — each domain owns `{domain}/{domain}-api.ts` with the `*Api` type + `create*Api(deps)` factory; `sdk.ts` is just config + the composition root. `createAccountsApi` returns `{api, repository, cache}` so the root wires cross-domain deps (user's WriteUserRepository, upsert accounts write-back) WITHOUT reaching through `internal`; `createLazyEncryption` moved to `encryption.ts`. Pattern for every future domain: new file + one `create*Api` call in the root |
 | 3.6 | `sdk/phase3-user-surface` · 92366aa6 | checkpoint feedback: the SDK is a single-user instance (RLS-scoped session), so `sdk.user` methods no longer take the user's identity from outside — `update(data)`, `setDefaultAccount(account)`, `queryOptions()` derive the current user from the SDK's own state (id resolved at fetch/call time, so long-lived observers can't pin a previous session's id). `upsert` keeps `id` in params: it IS the identity injection point from the host's auth layer. Web hooks shrink (`useUpdateUser`/`useSetDefaultAccount` no longer subscribe to user just to echo it back) |
-| 3.7 | `sdk/phase3-user-surface` · (accounts identity) | same treatment for accounts: `listOptions()` and `add(account)` drop caller-passed identity; `AccountsApiDeps.getCurrentUserId` is a thunk the root wires from `this.user.getCached()` (lazy — accounts is constructed before user; only invoked post-bootstrap); `accountsQueryOptions` takes `getUserId` resolved at fetch time (structuralSharing untouched). `useAccounts`/`useAddCashuAccount` stop echoing the id; claim-token service passes `getUserId: () => user.id` for its explicit-user flow |
+| 3.7 | `sdk/phase3-user-surface` · 1bddaed4 | same treatment for accounts: `listOptions()` and `add(account)` drop caller-passed identity; `AccountsApiDeps.getCurrentUserId` is a thunk the root wires from `this.user.getCached()` (lazy — accounts is constructed before user; only invoked post-bootstrap); `accountsQueryOptions` takes `getUserId` resolved at fetch time (structuralSharing untouched). `useAccounts`/`useAddCashuAccount` stop echoing the id; claim-token service passes `getUserId: () => user.id` for its explicit-user flow |
 
 ## Remaining roadmap
 
@@ -138,7 +138,14 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
    dispatch, reconnect invalidation breadth, spark balance tracker → SDK; the
    `internal.changeHandlers`/cache escape hatches die here.
 4. **Phase 4 — thin auth shell** (auth queryOptions + invalidate with injected
-   opensecret/storage; oauth/guest/session flows stay web).
+   opensecret/storage; oauth/guest/session flows stay web). Decided at checkpoint:
+   auth and user stay SEPARATE domains (different systems and lifecycles — OpenSecret
+   session/`AuthUser` vs `wallet.users` row/`User`; auth is alive pre-user on login
+   screens) but get WIRED: `sdk.auth` becomes the identity source the root injects
+   into the user domain, the same way user now feeds accounts (3.6/3.7). That absorbs
+   the last outside-passed identity — `sdk.user.upsert` stops taking `id` (becomes
+   `sdk.user.ensure()` or derives the id from auth internally), and the dependency
+   chain reads auth → user → accounts.
 5. **Import-cleanup PR**: rewrite all shim imports to the packages, delete shims, replace
    `"./*"` exports wildcards with curated barrels.
 6. **Phase 5 — MCP boundary** (the goal): tested `Query<T>` + `useQ`, flip web hooks,
