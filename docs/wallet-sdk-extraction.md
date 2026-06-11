@@ -124,10 +124,16 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 ## Remaining roadmap
 
 1. **CHECKPOINT** (user evaluates the approach on two fully-migrated domains —
-   accounts + user — before more). Browser smoke test of Phase 2 was done 2026-06-11
-   (console clean apart from testnut.cashu.space being down + a one-time Vite
-   stale-dep reload); Phase 3 rewired the same startup path, so re-drive
-   login → account list → settings (default account/username) → receive-token.
+   accounts + user — before more). Checkpoint review 2026-06-11/12 produced 3.4–3.7
+   and the Phase 4 auth-wiring decision. Browser smoke test of the full Phase 3
+   stack driven 2026-06-12 with a fresh guest account: signup → terms →
+   bootstrap upsert (new-user path: user + 3 default accounts via RPC, both caches
+   populated), wallet home, accounts list (`listOptions()`), `setDefaultAccount`
+   (badge flip + propagation into receive's preselected account), username
+   `update`, send/receive screens, full reload (returning-user bootstrap on a
+   fresh QueryClient — both mutations persisted). Console clean apart from
+   testnut.cashu.space being down (environmental). `accounts.add` not driven in
+   browser (needs a live mint) — typecheck/test verified only.
    Known follow-up to file: `USER_UPDATED` has no version-guard (`wallet.users`
    has no version column — latest realtime payload wins).
 2. Then, order TBD at checkpoint: transactions, contacts, receive, send (incl. quote/swap
