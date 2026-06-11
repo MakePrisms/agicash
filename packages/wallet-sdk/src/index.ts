@@ -17,3 +17,6 @@ export * from './cashu';
 export * from './spark';
 export * from './spark-utils';
 export * from './user/user';
+export * from './user/user-repository';
+export * from './user/user-service';
+export * from './user/user-cache';

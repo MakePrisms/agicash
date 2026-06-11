@@ -1,4 +1,5 @@
 import { requestNewVerificationCode } from '@agicash/opensecret';
+import { UserCache, createUserChangeHandlers } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
   useMutation,
@@ -11,34 +12,16 @@ import { useAuthActions, useAuthState } from '~/features/user/auth';
 import type { Currency } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
-import type { AgicashDbUser } from '../agicash-db/database';
 import { guestAccountStorage } from './guest-account-storage';
-import type { User } from './user';
+import type { UpdateUser, User } from './user';
 import {
-  ReadUserRepository,
-  type UpdateUser,
+  type ReadUserRepository,
   useReadUserRepository,
   useWriteUserRepository,
 } from './user-repository';
 import { useUserService } from './user-service';
 
-export class UserCache {
-  public static Key = 'user';
-
-  constructor(private readonly queryClient: QueryClient) {}
-
-  set(user: User) {
-    this.queryClient.setQueryData([UserCache.Key], user);
-  }
-
-  get() {
-    return this.queryClient.getQueryData<User>([UserCache.Key]);
-  }
-
-  invalidate() {
-    return this.queryClient.invalidateQueries({ queryKey: [UserCache.Key] });
-  }
-}
+export { UserCache };
 
 export function useUserCache() {
   const queryClient = useQueryClient();
@@ -47,15 +30,7 @@ export function useUserCache() {
 
 export function useUserChangeHandlers() {
   const userCache = useUserCache();
-
-  return [
-    {
-      event: 'USER_UPDATED',
-      handleEvent: async (payload: AgicashDbUser) => {
-        userCache.set(ReadUserRepository.toUser(payload));
-      },
-    },
-  ];
+  return createUserChangeHandlers(userCache);
 }
 
 export const getUserFromCache = (
