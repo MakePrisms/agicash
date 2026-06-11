@@ -1,9 +1,9 @@
 # Wallet SDK extraction — plan, progress, and working rules
 
 Status document for the `@agicash/wallet-sdk` extraction (restarted greenfield from master
-2026-06-08). Updated at the end of each phase. Current as of: **Phase 10 (import-cleanup)
-COMPLETE — extraction finished; only the final report remains** (branch
-`sdk/phase10-import-cleanup`, all local — no PRs/pushes yet, working tree clean, all gates green).
+2026-06-08). Updated at the end of each phase. Current as of: **EXTRACTION COMPLETE
+(Phases 0–10 + final report)** (branch
+`sdk/phase10-import-cleanup`, 40 commits stacked on master, all local — no PRs/pushes yet, working tree clean, all gates green).
 
 ## HANDOFF — read this first
 
@@ -209,12 +209,72 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 `@tanstack/react-query` **type-only** imports (e.g. `QueryClient`) become
 `@tanstack/query-core`.
 
-### Final report
+### Final report — the codebase after the extraction
 
-Update this doc (ledger + status), then report: final package surfaces (what `sdk.*`
-exposes per domain), what remains in web (UI, hooks-as-bindings, stores, server lnurl,
-auth flows), LOC moved, test counts, the tracked opensecret exception, and what the MCP
-phase picks up next (`Query<T>`/`useQ`, opensecret storage-pluggable bump, headless auth).
+40 commits stacked on master (`sdk/phase0-utils` → … → `sdk/phase10-import-cleanup`),
+285 files changed, +6,552/−4,206 lines vs master. 168 tests (utils 41, cashu 35,
+wallet-sdk 40, web 52; was 95 on master — +73 test-locking load-bearing behavior).
+Zero transitional shims remain.
+
+**Package layout** (`@agicash/utils` 1.4k LOC ← `@agicash/cashu` 1.5k LOC /
+`@agicash/db-types` 2.7k LOC ← `@agicash/wallet-sdk` 15.4k LOC; web app 27.3k LOC of
+UI/hooks/routes/stores). All four packages have curated explicit exports maps — internals
+are not importable.
+
+**The `WalletSdk` surface** (`configureWalletSdk(config)` + `getSdk()`):
+
+- `sdk.auth` — `stateOptions / getUserId / invalidate / isLoggedIn /
+  getSessionExpiresInMs / clearTokens`. The identity source.
+- `sdk.user` — `queryOptions / getCached / upsert (id derived from auth) / update /
+  setDefaultAccount`.
+- `sdk.accounts` — `listOptions / get / getCached / listCached / add /
+  trackSparkBalances`.
+- `sdk.transactions` — `queryOptions / listOptions (infinite) / pendingAckCountOptions /
+  acknowledge`.
+- `sdk.contacts` — `listOptions / getCached / create / delete / findCandidatesOptions`.
+- `sdk.receive` — `claimToken / createCashuReceiveQuote / createSparkReceiveQuote /
+  createCashuReceiveSwap / cashuQuoteOptions / sparkQuoteOptions /
+  pendingCashuQuotesOptions / pendingSparkQuotesOptions / pendingCashuSwapsOptions`.
+- `sdk.send` — `getCashuLightningQuote / createCashuSendQuote /
+  getSparkLightningSendQuote / createSparkSendQuote / getCashuSendSwapQuote /
+  createCashuSendSwap / reverseTransaction / cashuSwapOptions / trackCashuSwapOptions /
+  unresolvedCashuQuotesOptions / unresolvedSparkQuotesOptions /
+  unresolvedCashuSwapsOptions`.
+- `sdk.realtime` — `subscribe / unsubscribe / getStatus / getError / onStatusChange /
+  setOnlineStatus / setActiveStatus` (composes all domain change handlers + the
+  invalidate-on-reconnect breadth internally).
+- `sdk.queryClient` — the single query-core client.
+
+Host seams in `WalletSdkConfig`: connections (openSecret/supabase/breez/sparkStorageDir),
+`getLightningAddressDomain`, `cashuMintValidator`, `measureOperation`,
+`captureException`, `onAuthUserIdDecoded`, `onAuthStateResolved`.
+
+**`internal` escape hatches that remain** (transitional until the MCP phase): receive/send
+repositories+services+caches feed the web's tracking + task-processing hooks; accounts
+repository/service/cache feed web account helpers and the lnurl server path; user
+repositories/service feed the lnurl server path; `realtime.internal.manager` is a window
+debug handle. Every site carries a JSDoc; `git grep "\.internal\." -- apps/web-wallet`
+is the audit.
+
+**What remains in the web app**: routes/UI components; React hooks as bindings over sdk
+options/mutations (query-policy split: refetch/select/retry-counts/suspense live web-side);
+zustand stores (send/receive flows); websocket/event tracking + background task processing
+(React-orchestrated via useMutation/useQueries); OAuth/guest login flows + session-expiry
+handling; the lnurl server path (per-request server db + `LNURL_SERVER_*` env); env
+reading + the one `configureWalletSdk` call (`features/shared/sdk.ts`); Sentry; the
+env-derived mint validator; web-only `~/lib` (lnurl, locale, transitions, clipboard,
+supabase react hooks, spark wasm…).
+
+**The tracked exception**: `@agicash/opensecret` is still the React build (transitive
+react peer-dep + localStorage reads in sdk auth/encryption paths). Documented in
+wallet-sdk `package.json` `dependencies:comments`; the storage-pluggable bump lands
+before the MCP phase.
+
+**What the MCP phase picks up**: `Query<T>`/`useQ` (subscribe/getSnapshot over the
+QueryObserver the SDK owns); the opensecret storage-pluggable bump + headless auth; moving
+the tracking/task-processing orchestration out of React hooks into the SDK (kills the
+remaining `internal` surfaces); a headless task processor. Known follow-up issue to file:
+`USER_UPDATED` realtime has no version guard (`wallet.users` has no version column).
 
 ## Landmines & nuances (do not rediscover these the hard way)
 
