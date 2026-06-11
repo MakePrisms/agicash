@@ -1,3 +1,15 @@
+import { decodeBolt11 } from '@agicash/utils/bolt11';
+import type { Money } from '@agicash/utils/money';
+import type {
+  CashuAccount,
+  SparkAccount,
+} from '@agicash/wallet-sdk/accounts/account';
+import { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
+import { DomainError } from '@agicash/wallet-sdk/error';
+import type { DestinationDetails } from '@agicash/wallet-sdk/send/cashu-send-quote';
+import type { CashuLightningQuote } from '@agicash/wallet-sdk/send/cashu-send-quote-service';
+import type { CashuSwapQuote } from '@agicash/wallet-sdk/send/cashu-send-swap-service';
+import type { SparkLightningQuote } from '@agicash/wallet-sdk/send/spark-send-quote-service';
 import { AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';
 import { PageFooter, PageHeaderTitle } from '~/components/page';
@@ -7,27 +19,15 @@ import { Page } from '~/components/page';
 import { PageContent } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
-import {
-  type CashuAccount,
-  type SparkAccount,
-  getAccountHomePath,
-} from '~/features/accounts/account';
-import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
+import { getAccountHomePath } from '~/features/accounts/account';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { decodeBolt11 } from '~/lib/bolt11';
-import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
-import { getDefaultUnit } from '../shared/currencies';
-import { DomainError } from '../shared/error';
-import type { DestinationDetails } from './cashu-send-quote';
 import { useInitiateCashuSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwap } from './cashu-send-swap-hooks';
-import type { CashuSwapQuote } from './cashu-send-swap-service';
 import { useInitiateSparkSendQuote } from './spark-send-quote-hooks';
-import type { SparkLightningQuote } from './spark-send-quote-service';
 
 const ConfirmationRow = ({
   label,

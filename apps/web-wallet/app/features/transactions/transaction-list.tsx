@@ -1,3 +1,5 @@
+import { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
+import type { Transaction } from '@agicash/wallet-sdk/transactions/transaction';
 import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
 import {
   type Ref,
@@ -19,8 +21,6 @@ import {
 } from '~/lib/transitions';
 import { useLatest } from '~/lib/use-latest';
 import { cn } from '~/lib/utils';
-import { getDefaultUnit } from '../shared/currencies';
-import type { Transaction } from './transaction';
 import {
   useAcknowledgeTransaction,
   useTransactions,

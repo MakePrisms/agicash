@@ -1,9 +1,13 @@
+import type { Currency, Money } from '@agicash/utils/money';
+import type {
+  Account,
+  CashuAccount,
+  SparkAccount,
+} from '@agicash/wallet-sdk/accounts/account';
+import type { CashuReceiveQuote } from '@agicash/wallet-sdk/receive/cashu-receive-quote';
+import type { SparkReceiveQuote } from '@agicash/wallet-sdk/receive/spark-receive-quote';
+import type { TransactionPurpose } from '@agicash/wallet-sdk/transactions/transaction-enums';
 import { create } from 'zustand';
-import type { Currency, Money } from '~/lib/money';
-import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
-import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
-import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
-import type { TransactionPurpose } from '../transactions/transaction-enums';
 
 export type BuyQuote = {
   id: string;

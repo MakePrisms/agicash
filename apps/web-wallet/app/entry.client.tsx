@@ -1,3 +1,4 @@
+import { getQueryClient } from '@agicash/wallet-sdk/query-client';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -9,11 +10,10 @@ import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
-import { getQueryClient } from './features/shared/query-client';
 // Configures the wallet SDK (opensecret, supabase, spark, instrumentation)
 // before anything below touches it.
 import './features/shared/sdk';
-import { Money } from './lib/money';
+import { Money } from '@agicash/utils/money';
 import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 

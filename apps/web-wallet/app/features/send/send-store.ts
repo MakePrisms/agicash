@@ -1,21 +1,21 @@
-import { create } from 'zustand';
+import type { Currency, Money } from '@agicash/utils/money';
 import type {
   Account,
   CashuAccount,
   SparkAccount,
-} from '~/features/accounts/account';
-import type { Currency, Money } from '~/lib/money';
-import type { Contact } from '../contacts/contact';
+} from '@agicash/wallet-sdk/accounts/account';
+import type { Contact } from '@agicash/wallet-sdk/contacts/contact';
+import { DomainError } from '@agicash/wallet-sdk/error';
+import type { CashuLightningQuote } from '@agicash/wallet-sdk/send/cashu-send-quote-service';
+import type { CashuSwapQuote } from '@agicash/wallet-sdk/send/cashu-send-swap-service';
+import type { SparkLightningQuote } from '@agicash/wallet-sdk/send/spark-send-quote-service';
+import { create } from 'zustand';
 import type { GiftCardInfo } from '../gift-cards/gift-card-config';
-import { DomainError } from '../shared/error';
-import type { CashuLightningQuote } from './cashu-send-quote-service';
-import type { CashuSwapQuote } from './cashu-send-swap-service';
 import { findMatchingOfferOrGiftCardAccount } from './find-matching-offer-or-gift-card-account';
 import {
   type SendDestination,
   resolveSendDestination,
 } from './resolve-destination';
-import type { SparkLightningQuote } from './spark-send-quote-service';
 
 /**
  * Returns the default send type based on account type.

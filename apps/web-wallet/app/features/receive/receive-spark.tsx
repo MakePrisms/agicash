@@ -1,3 +1,6 @@
+import type { Money } from '@agicash/utils/money';
+import type { SparkAccount } from '@agicash/wallet-sdk/accounts/account';
+import type { SparkReceiveQuote } from '@agicash/wallet-sdk/receive/spark-receive-quote';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';
 import {
@@ -13,14 +16,12 @@ import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import type { Money } from '~/lib/money';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { type SparkAccount, getAccountHomePath } from '../accounts/account';
+import { getAccountHomePath } from '../accounts/account';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import type { SparkReceiveQuote } from './spark-receive-quote';
 import {
   useCreateSparkReceiveQuote,
   useTrackSparkReceiveQuote,

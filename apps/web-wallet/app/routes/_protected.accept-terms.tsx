@@ -1,9 +1,9 @@
+import { shouldAcceptTerms } from '@agicash/wallet-sdk';
 import { useState } from 'react';
 import { redirect, useNavigate } from 'react-router';
 import { Page, PageContent } from '~/components/page';
 import { AcceptTerms } from '~/features/user/accept-terms';
 import { useSignOut } from '~/features/user/auth';
-import { shouldAcceptTerms } from '~/features/user/user';
 import {
   getUserFromCacheOrThrow,
   useAcceptTerms,

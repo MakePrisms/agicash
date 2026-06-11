@@ -1,15 +1,4 @@
-// AccountsCache, accountsQueryOptions and the change-handler factory moved to
-// @agicash/wallet-sdk; the re-export is removed in the import-cleanup PR. The
-// React hooks below stay in the web app and read from the sdk instance.
-import {
-  type UseSuspenseQueryResult,
-  useMutation,
-  useSuspenseQuery,
-} from '@tanstack/react-query';
-import { useCallback, useRef } from 'react';
-import { type Currency, Money } from '~/lib/money';
-import { getSdk } from '../shared/sdk';
-import { useUser } from '../user/user-hooks';
+import { type Currency, Money } from '@agicash/utils/money';
 import {
   type Account,
   type AccountPurpose,
@@ -19,20 +8,24 @@ import {
   type ExtendedAccount,
   type SparkAccount,
   getAccountBalance,
-} from './account';
-import { AccountService } from './account-service';
-
-export {
-  AccountsCache,
-  accountsQueryOptions,
-} from '@agicash/wallet-sdk/accounts/accounts-cache';
+} from '@agicash/wallet-sdk/accounts/account';
+import { AccountService } from '@agicash/wallet-sdk/accounts/account-service';
+// React hooks over the SDK accounts domain (sdk.accounts).
+import {
+  type UseSuspenseQueryResult,
+  useMutation,
+  useSuspenseQuery,
+} from '@tanstack/react-query';
+import { useCallback, useRef } from 'react';
+import { getSdk } from '../shared/sdk';
+import { useUser } from '../user/user-hooks';
 
 /**
  * Hook that provides the accounts cache.
  *
- * Transitional (sdk.accounts.internal): only for the not-yet-migrated
- * send/receive/user domain code and the web-owned realtime + spark-balance
- * infrastructure. App/UI code must use the curated sdk.accounts methods.
+ * Transitional (sdk.accounts.internal): only for the web-owned tracking and
+ * task-processing hooks until they move into the SDK (the MCP phase). App/UI
+ * code must use the curated sdk.accounts methods.
  * @returns The accounts cache.
  */
 export function useAccountsCache() {

@@ -1,4 +1,16 @@
 import {
+  type ExtendedCashuWallet,
+  MintQuoteSubscriptionManager,
+  getCashuUnit,
+  getCashuWallet,
+  sumProofs,
+} from '@agicash/cashu';
+import type { Money } from '@agicash/utils/money';
+import type { CashuAccount } from '@agicash/wallet-sdk/accounts/account';
+import { getInitializedCashuWallet } from '@agicash/wallet-sdk/cashu';
+import type { CashuReceiveQuote } from '@agicash/wallet-sdk/receive/cashu-receive-quote';
+import type { TransactionPurpose } from '@agicash/wallet-sdk/transactions/transaction-enums';
+import {
   HttpResponseError,
   MintOperationError,
   type MintQuoteBolt11Response,
@@ -13,15 +25,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  type ExtendedCashuWallet,
-  MintQuoteSubscriptionManager,
-  getCashuUnit,
-  getCashuWallet,
-  sumProofs,
-  useOnMeltQuoteStateChange,
-} from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import {
   type LongTimeout,
   clearLongTimeout,
@@ -29,17 +33,13 @@ import {
 } from '~/lib/timeout';
 import { useLatest } from '~/lib/use-latest';
 import { withRetry } from '~/lib/with-retry';
-import type { CashuAccount } from '../accounts/account';
 import {
   useGetCashuAccount,
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { getInitializedCashuWallet } from '../shared/cashu';
 import { getSdk } from '../shared/sdk';
-import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
 
 type CreateProps = {
   account: CashuAccount;
@@ -51,7 +51,7 @@ type CreateProps = {
 
 /**
  * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
- * and task processing until the SDK owns them (Phase 8).
+ * and task processing until the background task processing moves into the SDK (the MCP phase).
  */
 export function usePendingCashuReceiveQuotesCache() {
   return getSdk().receive.internal.pendingCashuReceiveQuotesCache;
@@ -59,7 +59,7 @@ export function usePendingCashuReceiveQuotesCache() {
 
 /**
  * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
- * and task processing until the SDK owns them (Phase 8).
+ * and task processing until the background task processing moves into the SDK (the MCP phase).
  */
 export function useCashuReceiveQuoteCache() {
   return getSdk().receive.internal.cashuReceiveQuoteCache;

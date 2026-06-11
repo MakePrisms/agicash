@@ -1,9 +1,9 @@
-import { MintQuoteState } from '@cashu/cashu-ts';
 import {
   type CreateQuoteBaseParams,
   computeQuoteExpiry,
   computeTotalFee,
-} from './cashu-receive-quote-core';
+} from '@agicash/wallet-sdk/receive/cashu-receive-quote-core';
+import { MintQuoteState } from '@cashu/cashu-ts';
 import type {
   CashuReceiveQuoteCreated,
   CashuReceiveQuoteRepositoryServer,

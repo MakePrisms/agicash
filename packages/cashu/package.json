@@ -4,7 +4,12 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    "./blind-signature-matching": "./src/blind-signature-matching.ts",
+    "./melt-quote-subscription-manager": "./src/melt-quote-subscription-manager.ts",
+    "./mint-quote-subscription-manager": "./src/mint-quote-subscription-manager.ts",
+    "./token": "./src/token.ts",
+    "./types": "./src/types.ts",
+    "./utils": "./src/utils.ts"
   },
   "scripts": {
     "typecheck": "tsc",

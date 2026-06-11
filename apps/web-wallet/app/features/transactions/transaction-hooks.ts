@@ -1,4 +1,8 @@
 import {
+  type Transaction,
+  isTransactionReversable,
+} from '@agicash/wallet-sdk/transactions/transaction';
+import {
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -6,7 +10,6 @@ import {
 } from '@tanstack/react-query';
 import { getSdk } from '~/features/shared/sdk';
 import { useLatest } from '~/lib/use-latest';
-import { type Transaction, isTransactionReversable } from './transaction';
 
 export { isTransactionReversable };
 

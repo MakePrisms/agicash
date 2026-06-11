@@ -1,23 +1,24 @@
-import type { QueryClient } from '@tanstack/react-query';
-import { Outlet, redirect } from 'react-router';
-import { core } from 'zod/mini';
-import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
-import { LoadingScreen } from '~/features/loading/LoadingScreen';
+import { type User, shouldAcceptTerms } from '@agicash/wallet-sdk';
 import {
   BASE_CASHU_LOCKING_DERIVATION_PATH,
   seedQueryOptions as cashuSeedQueryOptions,
   xpubQueryOptions,
-} from '~/features/shared/cashu';
+} from '@agicash/wallet-sdk/cashu';
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
-} from '~/features/shared/encryption';
-import { getQueryClient } from '~/features/shared/query-client';
-import { getSdk } from '~/features/shared/sdk';
+} from '@agicash/wallet-sdk/encryption';
+import { getQueryClient } from '@agicash/wallet-sdk/query-client';
 import {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
-} from '~/features/shared/spark';
+} from '@agicash/wallet-sdk/spark';
+import { supabaseSessionTokenQuery } from '@agicash/wallet-sdk/supabase-session';
+import type { QueryClient } from '@tanstack/react-query';
+import { Outlet, redirect } from 'react-router';
+import { core } from 'zod/mini';
+import { LoadingScreen } from '~/features/loading/LoadingScreen';
+import { getSdk } from '~/features/shared/sdk';
 import {
   type AuthUser,
   authQueryOptions,
@@ -28,7 +29,6 @@ import {
   pendingWalletTermsStorage,
 } from '~/features/user/pending-terms-storage';
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
-import { type User, shouldAcceptTerms } from '~/features/user/user';
 import { defaultAccounts } from '~/features/user/user-hooks';
 import { Wallet } from '~/features/wallet/wallet';
 import { ensureBreezWasm } from '~/lib/spark';

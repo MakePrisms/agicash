@@ -1,6 +1,6 @@
+import { getQueryClient } from '@agicash/wallet-sdk/query-client';
 import { Outlet, redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
-import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
 import type { Route } from './+types/_auth';
 

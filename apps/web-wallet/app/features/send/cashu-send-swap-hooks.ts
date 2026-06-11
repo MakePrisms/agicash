@@ -1,3 +1,11 @@
+import type { Money } from '@agicash/utils/money';
+import type { CashuAccount } from '@agicash/wallet-sdk/accounts/account';
+import { ConcurrencyError, DomainError } from '@agicash/wallet-sdk/error';
+import type {
+  CashuSendSwap,
+  PendingCashuSendSwap,
+} from '@agicash/wallet-sdk/send/cashu-send-swap';
+import { ProofStateSubscriptionManager } from '@agicash/wallet-sdk/send/proof-state-subscription-manager';
 import {
   useMutation,
   useQueries,
@@ -5,22 +13,17 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
-import type { CashuAccount } from '../accounts/account';
 import {
   useAccount,
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { ConcurrencyError, DomainError } from '../shared/error';
 import { getSdk } from '../shared/sdk';
-import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
-import { ProofStateSubscriptionManager } from './proof-state-subscription-manager';
 
 /**
  * Transitional (sdk.send.internal): only for the web-owned realtime wiring
- * and task processing until the SDK owns them (Phase 8).
+ * and task processing until the background task processing moves into the SDK (the MCP phase).
  */
 export function useUnresolvedCashuSendSwapsCache() {
   return getSdk().send.internal.unresolvedCashuSendSwapsCache;
@@ -28,7 +31,7 @@ export function useUnresolvedCashuSendSwapsCache() {
 
 /**
  * Transitional (sdk.send.internal): only for the web-owned realtime wiring
- * and task processing until the SDK owns them (Phase 8).
+ * and task processing until the background task processing moves into the SDK (the MCP phase).
  */
 export function useCashuSendSwapCache() {
   return getSdk().send.internal.cashuSendSwapCache;

@@ -1,3 +1,4 @@
+import type { CashuAccount } from '@agicash/wallet-sdk/accounts/account';
 import { useNavigate, useViewTransitionState } from 'react-router';
 import {
   WalletCard,
@@ -5,7 +6,6 @@ import {
   WalletCardBlank,
   WalletCardOverlay,
 } from '~/components/wallet-card';
-import type { CashuAccount } from '~/features/accounts/account';
 import useUserAgent from '~/hooks/use-user-agent';
 import { cn } from '~/lib/utils';
 import { CARD_WIDTH } from './card-stack-constants';

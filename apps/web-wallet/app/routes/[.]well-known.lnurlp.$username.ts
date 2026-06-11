@@ -3,9 +3,9 @@
  * defined by LUD 16: https://github.com/lnurl/luds/blob/luds/16.md
  */
 
+import { getQueryClient } from '@agicash/wallet-sdk/query-client';
 import { agicashDbServer } from '~/features/agicash-db/database.server';
 import { LightningAddressService } from '~/features/receive/lightning-address-service';
-import { getQueryClient } from '~/features/shared/query-client';
 import type { Route } from './+types/[.]well-known.lnurlp.$username';
 
 export async function loader({ request, params }: Route.LoaderArgs) {

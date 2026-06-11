@@ -1,13 +1,13 @@
+import { validateCashuToken } from '@agicash/cashu';
+import { decodeCashuToken } from '@agicash/wallet-sdk/cashu';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
-import { decodeCashuToken } from '~/features/shared/cashu';
 import { getSdk } from '~/features/shared/sdk';
 import { toast } from '~/hooks/use-toast';
-import { validateCashuToken } from '~/lib/cashu';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 

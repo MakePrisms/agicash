@@ -1,3 +1,10 @@
+import { proofToY } from '@agicash/cashu';
+import type { CashuAccount } from '@agicash/wallet-sdk/accounts/account';
+import {
+  type CashuProof,
+  toProof,
+} from '@agicash/wallet-sdk/accounts/cashu-account';
+import type { Transaction } from '@agicash/wallet-sdk/transactions/transaction';
 import { CheckStateEnum, type Proof } from '@cashu/cashu-ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -8,15 +15,8 @@ import {
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
-import { proofToY } from '~/lib/cashu';
-import type { CashuAccount } from '../accounts/account';
 import { useAccountOrNull } from '../accounts/account-hooks';
-import { type CashuProof, toProof } from '../accounts/cashu-account';
-import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
-import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
-import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
-import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
-import type { Transaction } from './transaction';
+import { getSdk } from '../shared/sdk';
 import { useTransaction } from './transaction-hooks';
 
 const augmentProofsWithState = (
@@ -65,7 +65,7 @@ function LightningSendDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const repository = useCashuSendQuoteRepository();
+  const repository = getSdk().send.internal.cashuSendQuoteRepository;
 
   const { data: sendQuote } = useSuspenseQuery({
     queryKey: ['transaction-details', transaction.id],
@@ -93,7 +93,7 @@ function LightningSendDetails({
 function LightningReceiveDetails({
   transaction,
 }: { transaction: Transaction }) {
-  const repository = useCashuReceiveQuoteRepository();
+  const repository = getSdk().receive.internal.cashuReceiveQuoteRepository;
 
   const { data } = useSuspenseQuery({
     queryKey: ['transaction-details', transaction.id],
@@ -113,7 +113,7 @@ function CashuTokenSendDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const repository = useCashuSendSwapRepository();
+  const repository = getSdk().send.internal.cashuSendSwapRepository;
 
   const { data: swap } = useSuspenseQuery({
     queryKey: ['transaction-details', transaction.id],
@@ -148,7 +148,7 @@ function CashuTokenReceiveDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const repository = useCashuReceiveSwapRepository();
+  const repository = getSdk().receive.internal.cashuReceiveSwapRepository;
 
   const { data: swap } = useSuspenseQuery({
     queryKey: ['transaction-details', transaction.id],

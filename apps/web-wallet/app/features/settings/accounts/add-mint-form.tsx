@@ -1,3 +1,12 @@
+import {
+  type ExtendedMintInfo,
+  getCashuProtocolUnit,
+  getMintPurpose,
+} from '@agicash/cashu';
+import {
+  allMintKeysetsQueryOptions,
+  mintInfoQueryOptions,
+} from '@agicash/wallet-sdk/cashu';
 import type { MintKeyset } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -6,17 +15,8 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
-import {
-  allMintKeysetsQueryOptions,
-  cashuMintValidator,
-  mintInfoQueryOptions,
-} from '~/features/shared/cashu';
+import { cashuMintValidator } from '~/features/shared/cashu';
 import { useToast } from '~/hooks/use-toast';
-import {
-  type ExtendedMintInfo,
-  getCashuProtocolUnit,
-  getMintPurpose,
-} from '~/lib/cashu';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 type FormValues = {

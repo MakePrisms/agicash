@@ -1,31 +1,34 @@
 import {
+  MeltQuoteSubscriptionManager,
+  getCashuWallet,
+  sumProofs,
+} from '@agicash/cashu';
+import type { Money } from '@agicash/utils/money';
+import type { CashuAccount } from '@agicash/wallet-sdk/accounts/account';
+import { ConcurrencyError, DomainError } from '@agicash/wallet-sdk/error';
+import type {
+  CashuSendQuote,
+  DestinationDetails,
+} from '@agicash/wallet-sdk/send/cashu-send-quote';
+import type { SendQuoteRequest } from '@agicash/wallet-sdk/send/cashu-send-quote-service';
+import {
   type MeltQuoteBolt11Response,
   MintOperationError,
 } from '@cashu/cashu-ts';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type Big from 'big.js';
 import { useMemo, useState } from 'react';
-import {
-  MeltQuoteSubscriptionManager,
-  getCashuWallet,
-  sumProofs,
-  useOnMeltQuoteStateChange,
-} from '~/lib/cashu';
-import type { Money } from '~/lib/money';
-import type { CashuAccount } from '../accounts/account';
+import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import {
   useGetCashuAccount,
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { ConcurrencyError, DomainError } from '../shared/error';
 import { getSdk } from '../shared/sdk';
-import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
-import type { SendQuoteRequest } from './cashu-send-quote-service';
 
 /**
  * Transitional (sdk.send.internal): only for the web-owned realtime wiring
- * and task processing until the SDK owns them (Phase 8).
+ * and task processing until the background task processing moves into the SDK (the MCP phase).
  */
 export function useUnresolvedCashuSendQuotesCache() {
   return getSdk().send.internal.unresolvedCashuSendQuotesCache;

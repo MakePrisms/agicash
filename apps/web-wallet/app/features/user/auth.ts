@@ -1,7 +1,5 @@
-// The framework-free auth session layer (auth state query, token/session
-// primitives) moved to @agicash/wallet-sdk (sdk.auth); the re-exports are
-// removed in the import-cleanup PR. The React hooks and the OAuth/guest
-// login flows below stay in the web app.
+// The web auth feature: React hooks and OAuth/guest login flows over the SDK
+// auth domain (sdk.auth).
 import {
   confirmPasswordReset as osConfirmPasswordReset,
   convertGuestToUserAccount as osConvertGuestToFullAccount,
@@ -14,31 +12,30 @@ import {
   signUpGuest as osSignUpGuest,
   verifyEmail as osVerifyEmail,
 } from '@agicash/opensecret';
+import { computeSHA256 } from '@agicash/utils/sha256';
 import {
   type AuthState,
   type AuthUser,
   authStateQueryKey,
 } from '@agicash/wallet-sdk/auth';
+import { getQueryClient } from '@agicash/wallet-sdk/query-client';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
-import { getQueryClient } from '~/features/shared/query-client';
 import { getSdk } from '~/features/shared/sdk';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { generateRandomPassword } from '~/lib/password-generator';
-import { computeSHA256 } from '~/lib/sha256';
 import { guestAccountStorage } from './guest-account-storage';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 import { sessionHintCookie } from './session-hint-cookie';
 
 export type { AuthState, AuthUser };
 
-// Transitional — moved to sdk.auth.stateOptions; removed in the import-cleanup PR.
-// Server-safe wrapper: public pages build these options during SSR/prerender,
-// where getSdk() throws — so the sdk is only touched inside the queryFn,
-// which never runs on the server.
+// Server-safe wrapper over sdk.auth.stateOptions: public pages build these
+// options during SSR/prerender, where getSdk() throws — so the sdk is only
+// touched inside the queryFn, which never runs on the server.
 export const authQueryOptions = () => ({
   queryKey: [authStateQueryKey],
   queryFn: () => getSdk().auth.stateOptions().queryFn(),

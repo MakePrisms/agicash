@@ -1,3 +1,8 @@
+import {
+  type CashuAccount,
+  getAccountBalance,
+} from '@agicash/wallet-sdk/accounts/account';
+import { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
 import { MoneyDisplay } from '~/components/money-display';
 import {
   WalletCard,
@@ -6,11 +11,6 @@ import {
   WalletCardOverlay,
   type WalletCardSize,
 } from '~/components/wallet-card';
-import {
-  type CashuAccount,
-  getAccountBalance,
-} from '~/features/accounts/account';
-import { getDefaultUnit } from '../shared/currencies';
 import { VERTICAL_CARD_OFFSET_IN_STACK } from './card-stack-constants';
 
 type GiftCardItemProps = {

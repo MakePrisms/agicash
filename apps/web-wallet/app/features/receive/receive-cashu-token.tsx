@@ -1,3 +1,14 @@
+import { encodeToken } from '@agicash/cashu/token';
+import type { Currency } from '@agicash/utils/money';
+import { shouldAcceptGiftCardMintTerms } from '@agicash/wallet-sdk';
+import { accountRequiresGiftCardTermsAcceptance } from '@agicash/wallet-sdk/accounts/account';
+import { tokenToMoney } from '@agicash/wallet-sdk/cashu';
+import { getErrorMessage } from '@agicash/wallet-sdk/error';
+import {
+  type CashuAccountWithTokenFlags,
+  type ReceiveCashuTokenAccount,
+  isClaimingToSameCashuAccount,
+} from '@agicash/wallet-sdk/receive/receive-cashu-token-models';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -21,22 +32,15 @@ import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { encodeToken } from '~/lib/cashu/token';
-import type { Currency } from '~/lib/money';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import {
-  accountRequiresGiftCardTermsAcceptance,
-  getAccountHomePath,
-} from '../accounts/account';
+import { getAccountHomePath } from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
 import { OfferItem } from '../gift-cards/offer-item';
 import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
-import { tokenToMoney } from '../shared/cashu';
-import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { AcceptTerms } from '../user/accept-terms';
 import { useAuthActions } from '../user/auth';
@@ -44,7 +48,6 @@ import {
   pendingGiftCardMintTermsStorage,
   pendingWalletTermsStorage,
 } from '../user/pending-terms-storage';
-import { shouldAcceptGiftCardMintTerms } from '../user/user';
 import { useAcceptTerms, useUser } from '../user/user-hooks';
 import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
@@ -53,11 +56,6 @@ import {
   useReceiveCashuTokenAccountPlaceholders,
   useReceiveCashuTokenAccounts,
 } from './receive-cashu-token-hooks';
-import {
-  type CashuAccountWithTokenFlags,
-  type ReceiveCashuTokenAccount,
-  isClaimingToSameCashuAccount,
-} from './receive-cashu-token-models';
 
 type Props = {
   token: Token;

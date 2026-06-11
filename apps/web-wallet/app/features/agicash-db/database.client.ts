@@ -2,10 +2,10 @@ import { getAgicashDb } from '@agicash/wallet-sdk/agicash-db';
 import { getSdk } from '../shared/sdk';
 
 /**
- * The client-side Supabase database client (the SDK-owned instance).
- * Transitional re-export for not-yet-migrated repositories; removed in the
- * import-cleanup PR. If you need a client on the server, which bypasses RLS,
- * use `agicashDbServer` instead.
+ * The web's client-side handle to the SDK-owned Supabase database instance,
+ * for web-owned features (feature flags, the task-processing lock). If you
+ * need a client on the server, which bypasses RLS, use `agicashDbServer`
+ * instead.
  */
 export const agicashDbClient = getAgicashDb();
 

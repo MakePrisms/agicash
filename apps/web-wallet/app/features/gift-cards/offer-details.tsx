@@ -1,16 +1,16 @@
 import { useNavigate, useViewTransitionState } from 'react-router';
 
 import {
+  type CashuAccount,
+  getAccountBalance,
+} from '@agicash/wallet-sdk/accounts/account';
+import {
   ClosePageButton,
   Page,
   PageContent,
   PageHeader,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import {
-  type CashuAccount,
-  getAccountBalance,
-} from '~/features/accounts/account';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { LinkWithViewTransition } from '~/lib/transitions';

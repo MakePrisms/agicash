@@ -5,9 +5,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./money": "./src/money/index.ts",
+    "./money/types": "./src/money/types.ts",
     "./ecies": "./src/ecies/index.ts",
     "./bolt11": "./src/bolt11/index.ts",
-    "./*": "./src/*.ts"
+    "./json": "./src/json.ts",
+    "./sha256": "./src/sha256.ts",
+    "./type-utils": "./src/type-utils.ts",
+    "./zod": "./src/zod.ts"
   },
   "scripts": {
     "typecheck": "tsc",

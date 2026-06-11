@@ -1,7 +1,7 @@
+import type { Money } from '@agicash/utils/money';
 import { useMutation } from '@tanstack/react-query';
 import useLocationData from '~/hooks/use-location';
 import { getInvoiceFromLud16, isLNURLError } from '~/lib/lnurl';
-import type { Money } from '~/lib/money';
 
 export function useGetInvoiceFromLud16() {
   const { domain } = useLocationData();

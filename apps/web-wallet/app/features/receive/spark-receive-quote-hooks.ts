@@ -1,32 +1,32 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
-import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
 import {
   type ExtendedCashuWallet,
   getCashuUnit,
   getCashuWallet,
   sumProofs,
-  useOnMeltQuoteStateChange,
-} from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+} from '@agicash/cashu';
+import type { Money } from '@agicash/utils/money';
+import type { SparkAccount } from '@agicash/wallet-sdk/accounts/account';
+import { getInitializedCashuWallet } from '@agicash/wallet-sdk/cashu';
+import type { SparkReceiveQuote } from '@agicash/wallet-sdk/receive/spark-receive-quote';
+import { sparkDebugLog } from '@agicash/wallet-sdk/spark';
+import type { TransactionPurpose } from '@agicash/wallet-sdk/transactions/transaction-enums';
+import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
+import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { useLatest } from '~/lib/use-latest';
-import type { SparkAccount } from '../accounts/account';
 import {
   useGetCashuAccountByMintUrlAndCurrency,
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { getInitializedCashuWallet } from '../shared/cashu';
 import { getSdk } from '../shared/sdk';
-import { sparkDebugLog } from '../shared/spark';
-import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
-import type { SparkReceiveQuote } from './spark-receive-quote';
 
 /**
  * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
- * and task processing until the SDK owns them (Phase 8).
+ * and task processing until the background task processing moves into the SDK (the MCP phase).
  */
 export function useSparkReceiveQuoteCache() {
   return getSdk().receive.internal.sparkReceiveQuoteCache;
@@ -86,7 +86,7 @@ export function useTrackSparkReceiveQuote({
 
 /**
  * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
- * and task processing until the SDK owns them (Phase 8).
+ * and task processing until the background task processing moves into the SDK (the MCP phase).
  */
 export function usePendingSparkReceiveQuotesCache() {
   return getSdk().receive.internal.pendingSparkReceiveQuotesCache;

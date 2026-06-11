@@ -1,5 +1,5 @@
-import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
-import { extractCashuToken } from '~/lib/cashu/token';
+import { extractCashuToken } from '@agicash/cashu/token';
+import { type DecodedBolt11, parseBolt11Invoice } from '@agicash/utils/bolt11';
 import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
 
 const validateLnAddressFormat = buildLightningAddressFormatValidator({

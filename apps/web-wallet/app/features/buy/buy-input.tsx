@@ -1,3 +1,6 @@
+import type { Money } from '@agicash/utils/money';
+import { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
+import { DomainError } from '@agicash/wallet-sdk/error';
 import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
@@ -16,14 +19,11 @@ import {
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { ConvertedMoneySwitcher } from '~/features/shared/converted-money-switcher';
-import { getDefaultUnit } from '~/features/shared/currencies';
-import { DomainError } from '~/features/shared/error';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import type { Money } from '~/lib/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { useAccount, useAccounts } from '../accounts/account-hooks';
 import { BuyFaqDrawer } from './buy-faq-drawer';

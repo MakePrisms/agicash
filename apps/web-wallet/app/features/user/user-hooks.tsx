@@ -1,14 +1,14 @@
 import { requestNewVerificationCode } from '@agicash/opensecret';
+import type { Currency } from '@agicash/utils/money';
 import { UserCache } from '@agicash/wallet-sdk';
+import type { UpdateUser, User } from '@agicash/wallet-sdk';
+import type { Account } from '@agicash/wallet-sdk/accounts/account';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { getSdk } from '~/features/shared/sdk';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
-import type { Currency } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
-import type { Account } from '../accounts/account';
 import { guestAccountStorage } from './guest-account-storage';
-import type { UpdateUser, User } from './user';
 
 export { UserCache };
 

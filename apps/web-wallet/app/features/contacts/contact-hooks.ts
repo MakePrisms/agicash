@@ -1,6 +1,6 @@
+import type { Contact } from '@agicash/wallet-sdk/contacts/contact';
 import { useMutation, useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { getSdk } from '~/features/shared/sdk';
-import type { Contact } from './contact';
 
 export { ContactsCache } from '@agicash/wallet-sdk';
 

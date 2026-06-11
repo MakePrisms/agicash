@@ -1,9 +1,7 @@
-// Most of accounts/account moved to @agicash/wallet-sdk; this shim is removed in the
-// import-cleanup PR. getAccountHomePath returns app route strings (web-only — it has no
-// meaning for a non-React SDK consumer), so it stays here.
+// getAccountHomePath returns app route strings (web-only — it has no meaning
+// for a non-React SDK consumer); the account types live in
+// @agicash/wallet-sdk/accounts/account.
 import type { Account } from '@agicash/wallet-sdk/accounts/account';
-
-export * from '@agicash/wallet-sdk/accounts/account';
 
 /**
  * Returns the home path for an account based on its purpose.

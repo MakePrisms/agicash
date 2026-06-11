@@ -1,22 +1,22 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
+import type { Money } from '@agicash/utils/money';
+import type { SparkAccount } from '@agicash/wallet-sdk/accounts/account';
+import { DomainError } from '@agicash/wallet-sdk/error';
+import type { SparkSendQuote } from '@agicash/wallet-sdk/send/spark-send-quote';
+import type { SparkLightningQuote } from '@agicash/wallet-sdk/send/spark-send-quote-service';
+import { sparkDebugLog } from '@agicash/wallet-sdk/spark';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
-import type { SparkAccount } from '../accounts/account';
 import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { DomainError } from '../shared/error';
 import { getSdk } from '../shared/sdk';
-import { sparkDebugLog } from '../shared/spark';
-import type { SparkSendQuote } from './spark-send-quote';
-import type { SparkLightningQuote } from './spark-send-quote-service';
 
 /**
  * Transitional (sdk.send.internal): only for the web-owned realtime wiring
- * and task processing until the SDK owns them (Phase 8).
+ * and task processing until the background task processing moves into the SDK (the MCP phase).
  */
 export function useUnresolvedSparkSendQuotesCache() {
   return getSdk().send.internal.unresolvedSparkSendQuotesCache;

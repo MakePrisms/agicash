@@ -13,7 +13,7 @@ type CreateProps = {
 
 /**
  * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
- * and task processing until the SDK owns them (Phase 8).
+ * and task processing until the background task processing moves into the SDK (the MCP phase).
  */
 export function usePendingCashuReceiveSwapsCache() {
   return getSdk().receive.internal.pendingCashuReceiveSwapsCache;

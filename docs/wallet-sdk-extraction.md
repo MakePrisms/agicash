@@ -1,9 +1,9 @@
 # Wallet SDK extraction — plan, progress, and working rules
 
 Status document for the `@agicash/wallet-sdk` extraction (restarted greenfield from master
-2026-06-08). Updated at the end of each phase. Current as of: **Phase 9 (auth)
-COMPLETE — `sdk.auth` is the identity source; Phase 10 (import-cleanup) next** (branch
-`sdk/phase9-auth`, all local — no PRs/pushes yet, working tree clean, all gates green).
+2026-06-08). Updated at the end of each phase. Current as of: **Phase 10 (import-cleanup)
+COMPLETE — extraction finished; only the final report remains** (branch
+`sdk/phase10-import-cleanup`, all local — no PRs/pushes yet, working tree clean, all gates green).
 
 ## HANDOFF — read this first
 
@@ -14,9 +14,9 @@ the git history; there is no other context. How to resume:
    `sdk/phaseN-<name>` branch on the previous one, all the way down to master). Verify: `git status` clean, `git log --oneline -8` matches the ledger below.
 2. Read **Architecture decisions**, **Working method**, and **Landmines** below — these are
    settled with the user; do not relitigate them.
-3. Continue with the first section in the *Remaining roadmap* (currently **Phase 10 —
-   import-cleanup**). Phases are specified at decreasing resolution; ground each one (read
-   the files, map consumers with `git grep`) before moving code.
+3. The extraction is COMPLETE through Phase 10. What remains in web by design: UI/hooks,
+   stores, the lnurl server path, auth flows, and the transitional internal bindings for
+   tracking/task-processing (they move in the MCP phase).
 4. The user's standing instruction: **finish the whole effort autonomously, no checkpoints**
    — through Phase 10, then a final report on what the codebase looks like. Commit per
    chunk; never push or open PRs; ask only if genuinely blocked.
@@ -182,6 +182,7 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 | 7.2 | `sdk/phase7-send` · (HEAD) | curated `sdk.send` surface: `getCashuLightningQuote`/`createCashuSendQuote`/`getSparkLightningSendQuote`/`createSparkSendQuote`/`getCashuSendSwapQuote`/`createCashuSendSwap` (absorbs active-swap cache.add)/`reverseTransaction(tx)` (absorbs `useReverseTransaction` body; resolves the swap's cashu account via the accounts cache), `cashuSwapOptions` (NotFoundError retry semantics)/`trackCashuSwapOptions`/`unresolved*Options` ×3. Cache classes + change handlers extracted into `send/{cashu,spark}-send-quote-cache.ts`, `send/cashu-send-swap-cache.ts` (version guards test-locked, +6 tests → 168). `createReceiveApi` now returns `{api, cashuReceiveSwapService}` so the root wires the send-swap reversal dependency without internal-reaching. Hooks files keep only React orchestration (melt-quote websocket tracking, spark event listeners, proof-state subscriptions, task processing). Zero-consumer cleanup: `useCashuSendSwapService` hook deleted from its shim |
 | 8 | `sdk/phase8-realtime` · (HEAD) | realtime hub → SDK. `SupabaseRealtimeManager`/channel/builder → SDK `realtime/` (verbatim; `@supabase/realtime-js` type imports remapped to `@supabase/supabase-js` which star-re-exports them — no new dep). New `sdk.realtime` (`realtime-api.ts`): `subscribe/unsubscribe` (the `wallet:{userId}` private broadcast channel, topic resolved at call time), `getStatus/getError/onStatusChange` (useSyncExternalStore-ready), `setOnlineStatus/setActiveStatus` (host activity bindings); composes every domain's change handlers + the 13-cache invalidate-on-reconnect internally. **`internal.changeHandlers` deleted from every `*Api`** — domain factories now return `{api, …, cache(s), changeHandlers}` to the root. Web: `useTrackWalletChanges` is a ~40-line lifecycle binding (subscribe/unsubscribe + status + throws `SupabaseRealtimeError` to the boundary); `useSupabaseRealtimeActivityTracking` takes the structural `{setOnlineStatus,setActiveStatus}` target; the 10 `use*ChangeHandlers` hooks + `useUserCache` + `useContactsCache` deleted (zero consumers); `database.client.ts` keeps only the db re-export + the window debug handle (`sdk.realtime.internal.manager` — the one sanctioned realtime internal). Spark balance tracking → `sdk.accounts.trackSparkBalances(accounts)` (web binds it to the reactive spark-accounts list). `TaskProcessingLockRepository` → SDK root (grounding deviation: the task PROCESSOR stays web — it is useMutation/useQueries-based React orchestration; a headless rewrite belongs to the MCP phase) |
 | 9 | `sdk/phase9-auth` · (HEAD) | thin auth shell. SDK `auth.ts` becomes the auth domain: `AuthUser`/`AuthState`/`authStateQueryKey`, the auth-state queryFn (token read → `fetchUser` → state; verbatim) and the session/JWT primitives move in; web side effects became host hooks — `WalletSdkConfig.onAuthUserIdDecoded` (web: early `Sentry.setUser`) + `onAuthStateResolved` (web: Sentry user incl. isGuest + SSR session-hint cookie set/clear; `reason: 'no-tokens' \| 'fetch-failed'` preserves the original Sentry-null-only-on-failure behavior). Curated `sdk.auth`: `stateOptions/getUserId/invalidate/isLoggedIn/getSessionExpiresInMs/clearTokens` (no internal). **`sdk.user.upsert` no longer takes `id`** — the root wires `getAuthUserId: () => this.auth.getUserId()` into the user domain (reads the resolved auth state; throws pre-login); `ensureUserData` passes only profile fields. Identity chain: auth → user → accounts. Web `auth.ts` keeps `useAuthState/useAuthActions/useSignOut/useHandleSessionExpiry` + OAuth/guest flows + `invalidateAuthQueries` (sdk.auth.invalidate + the WEB-owned feature-flags key). Landmine fixed in-flight: the transitional `authQueryOptions` wrapper must stay server-safe (public pages build it during SSR/prerender) — `getSdk()` is only touched inside the queryFn |
+| 10 | `sdk/phase10-import-cleanup` · (HEAD) | import-cleanup. All ~90 transitional shims deleted; 191 imports rewritten to package paths by a resolver script (handles both `~/` and relative forms) + 56 symbol-split imports for the mixed files (web hooks stay at the feature path, moved names go to the package) + 16 `~/lib/cashu` splits (`useOnMeltQuoteStateChange` → its own file; protocol names → `@agicash/cashu`). The last constructed-in-web SDK collaborators became `sdk.*.internal` bindings (transaction-additional-details, transfer-service, receive-cashu-token-hooks). `agicashDbClient` survives ONLY as the web's client-only handle for web-owned features (feature flags, task lock) — no repository consumers remain. Exports wildcards (`"./*"`) replaced with curated explicit maps in all four packages (utils 9 entries, cashu 7, db-types 11, wallet-sdk 36). `~/lib` keeps only genuinely-web modules. Browser smoke test green (fresh guest: signup → terms → wallet home → receive → send → settings; realtime `wallet:{userId}` subscribed via sdk.realtime incl. strict-mode ref-count, Breez sync + spark-balance listener firing, task-lock yielding; only the known testnut.cashu.space CORS noise) |
 
 ## Remaining roadmap (handoff instructions — work top to bottom)
 
@@ -207,19 +208,6 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 
 `@tanstack/react-query` **type-only** imports (e.g. `QueryClient`) become
 `@tanstack/query-core`.
-
-### Phase 10 — import-cleanup (`sdk/phase10-import-cleanup`)
-
-1. Rewrite every shim import to its package path across `apps/web-wallet` (the shims all
-   carry the marker comment `Transitional re-export` — grep it for the inventory).
-2. Delete the shim files; delete `agicashDbClient` re-export once Phase 6–8 removed the
-   last repository consumers (verify with `git grep agicashDbClient`).
-3. Replace `"./*": "./src/*.ts"` exports wildcards in wallet-sdk/utils/db-types/cashu with
-   curated explicit maps (the wildcard leaks internals — old-stack lesson).
-4. Final full gates + SSR build + a browser smoke test (dev server: `bun run dev`,
-   guest-account flow: signup → terms → wallet home → settings → send/receive screens —
-   see the 3.x smoke-test ledger entry for the known-good sequence; testnut.cashu.space
-   being down/CORS-blocked in dev is environmental noise, not a regression).
 
 ### Final report
 
@@ -264,12 +252,12 @@ phase picks up next (`Query<T>`/`useQ`, opensecret storage-pluggable bump, headl
 
 ## Status of verification
 
-Every chunk so far: typecheck ×6 packages, biome, full test suite (152 — always recount),
-SSR build incl. prerender, pre-commit hooks (biome, db-types drift, typecheck). Browser
-smoke tests driven and green after Phase 2 (2026-06-11) and Phase 3 incl. the curated
-surfaces (2026-06-12, fresh guest account — see ledger). Phases 4–6.1 are gate-verified
-but not yet browser-driven; Phase 10 ends with a full smoke test. e2e
-(`bun run test:e2e`) not run — ask the user before running it.
+Every chunk: typecheck ×6 packages, biome, full test suite (168: utils 41, cashu 35,
+wallet-sdk 40, web 52), SSR build incl. prerender, pre-commit hooks (biome, db-types
+drift, typecheck). Browser smoke tests driven and green after Phase 2, Phase 3, and
+Phase 10 (fresh guest account: signup → terms → wallet home → receive/send/settings;
+realtime + Breez + task-lock verified in the console). e2e (`bun run test:e2e`) not
+run — ask the user before running it.
 
 Known follow-up to file as an issue (not in this effort's scope): `USER_UPDATED` realtime
 has no version-guard (`wallet.users` has no version column — latest payload wins).

@@ -1,3 +1,4 @@
+import { getAccountBalance } from '@agicash/wallet-sdk/accounts/account';
 import { Plus } from 'lucide-react';
 import {
   PageBackButton,
@@ -8,7 +9,6 @@ import {
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { Card } from '~/components/ui/card';
-import { getAccountBalance } from '~/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { BalanceOfflineHoverCard } from '~/features/accounts/balance-offline-hover-card';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';

@@ -1,5 +1,5 @@
+import type { Database } from '@agicash/db-types';
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from './database';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';
 if (!supabaseUrl) {

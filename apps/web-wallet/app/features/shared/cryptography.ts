@@ -6,9 +6,6 @@ import {
 } from '@agicash/opensecret';
 import { useMemo } from 'react';
 
-// Transitional re-export — moved to @agicash/wallet-sdk; removed in the import-cleanup PR.
-export { derivePublicKey } from '@agicash/wallet-sdk/cryptography';
-
 /**
  * Hook that provides the OpenSecret cryptography functions.
  * Reference of the returned data is stable and doesn't change between renders.

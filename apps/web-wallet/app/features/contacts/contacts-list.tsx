@@ -1,8 +1,8 @@
 import { LoaderCircle } from 'lucide-react';
 import { Suspense, useState } from 'react';
 
+import type { Contact } from '@agicash/wallet-sdk/contacts/contact';
 import { LinkWithViewTransition } from '~/lib/transitions';
-import type { Contact } from './contact';
 import { ContactAvatar } from './contact-avatar';
 import { useContacts } from './contact-hooks';
 

@@ -1,3 +1,5 @@
+import { extractCashuToken } from '@agicash/cashu';
+import { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
 import { Clipboard, Scan } from 'lucide-react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
@@ -15,13 +17,11 @@ import {
 } from '~/features/accounts/account-selector';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { ConvertedMoneySwitcher } from '~/features/shared/converted-money-switcher';
-import { getDefaultUnit } from '~/features/shared/currencies';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { extractCashuToken } from '~/lib/cashu';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,

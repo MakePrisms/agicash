@@ -5,7 +5,7 @@ import {
   computeQuoteExpiry,
   getAmountAndFee,
   getLightningQuote,
-} from './spark-receive-quote-core';
+} from '@agicash/wallet-sdk/receive/spark-receive-quote-core';
 import type {
   SparkReceiveQuoteCreated,
   SparkReceiveQuoteRepositoryServer,

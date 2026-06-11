@@ -1,33 +1,30 @@
-import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
-import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { getClaimableProofs, getUnspentProofsFromToken } from '@agicash/cashu';
+import { type Currency, Money } from '@agicash/utils/money';
 import {
   type Account,
   type CashuAccount,
   type ExtendedAccount,
   canSendToLightning,
-} from '~/features/accounts/account';
+} from '@agicash/wallet-sdk/accounts/account';
+import { tokenToMoney } from '@agicash/wallet-sdk/cashu';
+import { DomainError } from '@agicash/wallet-sdk/error';
+import type { ReceiveCashuTokenAccount } from '@agicash/wallet-sdk/receive/receive-cashu-token-models';
+import { ReceiveCashuTokenService } from '@agicash/wallet-sdk/receive/receive-cashu-token-service';
+import { createSparkWalletStub } from '@agicash/wallet-sdk/spark-utils';
+import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
+import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import {
   useAccounts,
   useAddCashuAccount,
 } from '~/features/accounts/account-hooks';
-import { tokenToMoney } from '~/features/shared/cashu';
 import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
-import { getClaimableProofs, getUnspentProofsFromToken } from '~/lib/cashu';
-import { type Currency, Money } from '~/lib/money';
-import { createSparkWalletStub } from '~/lib/spark';
 import {
   type AccountSelectorOption,
   toAccountSelectorOption,
 } from '../accounts/account-selector';
-import { DomainError } from '../shared/error';
+import { getSdk } from '../shared/sdk';
 import { useUser } from '../user/user-hooks';
-import type { ReceiveCashuTokenAccount } from './receive-cashu-token-models';
-import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
-import {
-  ReceiveCashuTokenService,
-  useReceiveCashuTokenService,
-} from './receive-cashu-token-service';
 
 type UseGetClaimableTokenProps = {
   token: Token;
@@ -56,7 +53,8 @@ export function useCashuTokenSourceAccountQuery(
   existingAccounts: ExtendedAccount[] = [],
 ) {
   const tokenCurrency = tokenToMoney(token).currency;
-  const receiveCashuTokenService = useReceiveCashuTokenService();
+  const receiveCashuTokenService =
+    getSdk().receive.internal.receiveCashuTokenService;
 
   return useSuspenseQuery({
     queryKey: [
@@ -257,7 +255,8 @@ type CreateCrossAccountReceiveQuotesProps = {
 export function useCreateCrossAccountReceiveQuotes() {
   const userId = useUser((user) => user.id);
   const getExchangeRate = useGetExchangeRate();
-  const receiveCashuTokenQuoteService = useReceiveCashuTokenQuoteService();
+  const receiveCashuTokenQuoteService =
+    getSdk().receive.internal.receiveCashuTokenQuoteService;
 
   return useMutation({
     mutationFn: async ({
@@ -291,7 +290,8 @@ export function useCreateCrossAccountReceiveQuotes() {
 }
 
 function useBuildCashuAccountPlaceholder(mintUrl: string, currency: Currency) {
-  const receiveCashuTokenService = useReceiveCashuTokenService();
+  const receiveCashuTokenService =
+    getSdk().receive.internal.receiveCashuTokenService;
 
   const { data } = useSuspenseQuery({
     queryKey: ['build-cashu-account-for-mint', mintUrl, currency],

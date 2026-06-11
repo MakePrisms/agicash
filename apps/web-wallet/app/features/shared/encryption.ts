@@ -1,6 +1,4 @@
-// The framework-free encryption core (ECIES helpers, getEncryption, the
-// opensecret-backed key queryOptions) moved to @agicash/wallet-sdk; the re-export
-// is removed in the import-cleanup PR. The React hooks below stay in the web app.
+// React bindings for the SDK encryption core (@agicash/wallet-sdk/encryption).
 import {
   type Encryption,
   encryptionPrivateKeyQueryOptions,
@@ -9,8 +7,6 @@ import {
 } from '@agicash/wallet-sdk/encryption';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-
-export * from '@agicash/wallet-sdk/encryption';
 
 export const useEncryptionPrivateKey = () => {
   const { data } = useSuspenseQuery(encryptionPrivateKeyQueryOptions());
