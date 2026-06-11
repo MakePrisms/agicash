@@ -1,12 +1,2 @@
-import type { Currency, CurrencyUnit } from '~/lib/money';
-
-const currencyToDefaultUnit: {
-  [K in Currency]: CurrencyUnit<K>;
-} = {
-  BTC: 'sat',
-  USD: 'usd',
-};
-
-export const getDefaultUnit = (currency: Currency) => {
-  return currencyToDefaultUnit[currency];
-};
+// Transitional re-export — moved to @agicash/wallet-sdk/currencies; removed in the import-cleanup PR.
+export { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
