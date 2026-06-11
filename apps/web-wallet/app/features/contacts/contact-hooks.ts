@@ -1,87 +1,26 @@
-import {
-  type QueryClient,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  useSuspenseQuery,
-} from '@tanstack/react-query';
-import { useMemo } from 'react';
-import useLocationData from '~/hooks/use-location';
-import type { AgicashDbContact } from '../agicash-db/database';
-import { useUser } from '../user/user-hooks';
+import { useMutation, useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { getSdk } from '~/features/shared/sdk';
 import type { Contact } from './contact';
-import { ContactRepository, useContactRepository } from './contact-repository';
-export class ContactsCache {
-  public static Key = 'contacts';
 
-  constructor(private readonly queryClient: QueryClient) {}
+export { ContactsCache } from '@agicash/wallet-sdk';
 
-  /**
-   * Adds a contact to the cache.
-   * @param contact - The contact to add.
-   */
-  add(contact: Contact) {
-    this.queryClient.setQueryData<Contact[]>([ContactsCache.Key], (curr) => [
-      ...(curr ?? []),
-      contact,
-    ]);
-  }
-
-  /**
-   * Gets all contacts in the cache for the current user.
-   * @returns The list of contacts.
-   */
-  getAll() {
-    return this.queryClient.getQueryData<Contact[]>([ContactsCache.Key]);
-  }
-
-  /**
-   * Get a contact by id.
-   * @param id - The id of the contact.
-   * @returns The contact or null if the contact is not found.
-   */
-  get(id: string) {
-    const contacts = this.getAll();
-    return contacts?.find((x) => x.id === id) ?? null;
-  }
-
-  /**
-   * Removes a contact from the cache.
-   * @param contactId - The id of the contact to remove.
-   */
-  remove(contactId: string) {
-    this.queryClient.setQueryData<Contact[]>(
-      [ContactsCache.Key],
-      (curr) => curr?.filter((x) => x.id !== contactId) ?? [],
-    );
-  }
-
-  /**
-   * Invalidates the contacts cache.
-   */
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [ContactsCache.Key],
-    });
-  }
-}
-
+/**
+ * Hook that provides the contacts cache.
+ *
+ * Transitional (sdk.contacts.internal): only for the not-yet-migrated send
+ * domain code and the web-owned realtime infrastructure. App/UI code must
+ * use the curated sdk.contacts methods.
+ */
 export function useContactsCache() {
-  const queryClient = useQueryClient();
-  return useMemo(() => new ContactsCache(queryClient), [queryClient]);
+  return getSdk().contacts.internal.cache;
 }
 
 /**
  * Hook for listing contacts for the current user with optional filtering
  */
 export function useContacts(select?: (contacts: Contact[]) => Contact[]) {
-  const userId = useUser((user) => user.id);
-  const contactRepository = useContactRepository();
-
   const { data: contacts } = useSuspenseQuery({
-    queryKey: [ContactsCache.Key],
-    queryFn: async () => contactRepository.getAll(userId),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...getSdk().contacts.listOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select,
@@ -100,27 +39,19 @@ export function useContact(contactId: string) {
 }
 
 export function useCreateContact() {
-  const userId = useUser((user) => user.id);
-  const contactRepository = useContactRepository();
-
   const { mutateAsync: createContact } = useMutation({
     mutationKey: ['create-contact'],
     mutationFn: ({ username }: { username: string }) =>
-      contactRepository.create({
-        ownerId: userId,
-        username,
-      }),
+      getSdk().contacts.create({ username }),
   });
 
   return createContact;
 }
 
 export function useDeleteContact() {
-  const contactRepository = useContactRepository();
-
   const { mutateAsync: deleteContact } = useMutation({
     mutationKey: ['delete-contact'],
-    mutationFn: (contactId: string) => contactRepository.delete(contactId),
+    mutationFn: (contactId: string) => getSdk().contacts.delete(contactId),
   });
 
   return deleteContact;
@@ -131,12 +62,8 @@ export function useDeleteContact() {
  * @return the query response containing any user profiles that match the query
  */
 export function useFindContactCandidates(query: string) {
-  const contactRepository = useContactRepository();
-  const userId = useUser((user) => user.id);
-
   return useQuery({
-    queryKey: ['search-user-profiles', query],
-    queryFn: async () => contactRepository.findContactCandidates(query, userId),
+    ...getSdk().contacts.findCandidatesOptions(query),
     initialData: [],
     initialDataUpdatedAt: () => Date.now() - 1000 * 6,
     staleTime: 1000 * 5,
@@ -144,25 +71,11 @@ export function useFindContactCandidates(query: string) {
 }
 
 /**
- * Hook that returns a contact change handler.
+ * Hook that returns the contact change handlers.
+ *
+ * Transitional (sdk.contacts.internal): consumed by the web-owned realtime
+ * wiring until the realtime hub moves into the SDK.
  */
 export function useContactChangeHandlers() {
-  const contactsCache = useContactsCache();
-  const { domain } = useLocationData();
-
-  return [
-    {
-      event: 'CONTACT_CREATED',
-      handleEvent: async (payload: AgicashDbContact) => {
-        const contact = ContactRepository.toContact(payload, domain);
-        contactsCache.add(contact);
-      },
-    },
-    {
-      event: 'CONTACT_DELETED',
-      handleEvent: async (payload: AgicashDbContact) => {
-        contactsCache.remove(payload.id);
-      },
-    },
-  ];
+  return getSdk().contacts.internal.changeHandlers;
 }

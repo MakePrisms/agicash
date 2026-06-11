@@ -2,6 +2,7 @@ import { configure as configureOpenSecret } from '@agicash/opensecret';
 import { type QueryClient, isServer } from '@tanstack/query-core';
 import { type AccountsApi, createAccountsApi } from './accounts/accounts-api';
 import { configureAgicashDb, getAgicashDb } from './agicash-db';
+import { type ContactsApi, createContactsApi } from './contacts/contacts-api';
 import { createLazyEncryption } from './encryption';
 import { type MeasureOperation, setOperationMeasurer } from './performance';
 import { getQueryClient } from './query-client';
@@ -13,6 +14,7 @@ import {
 import { type UserApi, createUserApi } from './user/user-api';
 
 export type { AccountsApi } from './accounts/accounts-api';
+export type { ContactsApi } from './contacts/contacts-api';
 export type { TransactionsApi } from './transactions/transactions-api';
 export type { UserApi } from './user/user-api';
 
@@ -33,6 +35,13 @@ export type WalletSdkConfig = {
   };
   /** Storage directory for the Breez SDK (browser: a virtual path). */
   sparkStorageDir: string;
+  /**
+   * Resolves the domain used to build lightning addresses (lud16) for the
+   * current session. A thunk because the config is recorded on the server
+   * too, where the host environment is not available; it is only invoked
+   * client-side after getSdk().
+   */
+  getLightningAddressDomain: () => string;
   /**
    * Host instrumentation for the SDK's internal operation measurements
    * (the web app passes its Sentry-backed implementation).
@@ -65,6 +74,7 @@ export class WalletSdk {
   readonly accounts: AccountsApi;
   readonly user: UserApi;
   readonly transactions: TransactionsApi;
+  readonly contacts: ContactsApi;
 
   constructor(config: WalletSdkConfig) {
     this.queryClient = getQueryClient();
@@ -101,6 +111,13 @@ export class WalletSdk {
       db,
       encryption,
       getCurrentUserId,
+    });
+
+    this.contacts = createContactsApi({
+      queryClient: this.queryClient,
+      db,
+      getCurrentUserId,
+      getDomain: config.getLightningAddressDomain,
     });
   }
 }

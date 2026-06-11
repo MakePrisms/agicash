@@ -61,6 +61,9 @@ configureWalletSdk({
     apiKey: breezApiKey,
   },
   sparkStorageDir: './.spark-data',
+  // Matches the root loader's `domain` (new URL(origin).host) for same-origin
+  // pages; only invoked client-side after getSdk().
+  getLightningAddressDomain: () => window.location.host,
   measureOperation,
 });
 

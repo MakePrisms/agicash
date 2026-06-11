@@ -24,3 +24,6 @@ export * from './transactions/transaction';
 export * from './transactions/transaction-enums';
 export * from './transactions/transaction-repository';
 export * from './transactions/transactions-cache';
+export * from './contacts/contact';
+export * from './contacts/contact-repository';
+export * from './contacts/contacts-cache';
