@@ -138,11 +138,6 @@ export type UserApi = {
   /** The user from the in-memory user state, or null if not loaded yet. */
   getCached: () => User | null;
   /**
-   * The user from the in-memory user state.
-   * @throws if the user is not loaded yet.
-   */
-  getCachedOrThrow: () => User;
-  /**
    * Creates the user (with their initial accounts) or updates an existing one,
    * then records both the user and the accounts in the in-memory state.
    */
@@ -221,13 +216,6 @@ export class WalletSdk {
       queryOptions: (userId: string) =>
         userQueryOptions({ userId, userRepository: readUserRepository }),
       getCached: () => userCache.get() ?? null,
-      getCachedOrThrow: () => {
-        const user = userCache.get();
-        if (!user) {
-          throw new Error('User not found');
-        }
-        return user;
-      },
       upsert: async (params, options) => {
         const result = await writeUserRepository.upsert(params, options);
         userCache.set(result.user);

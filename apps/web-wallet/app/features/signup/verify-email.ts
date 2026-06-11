@@ -1,12 +1,14 @@
 import { verifyEmail as osVerifyEmail } from '@agicash/opensecret';
 import { useState } from 'react';
 import { createContext, redirect } from 'react-router';
-import { getSdk } from '~/features/shared/sdk';
 import { useToast } from '~/hooks/use-toast';
 import type { Route } from '../../routes/+types/_protected.verify-email.($code)';
 import { invalidateAuthQueries } from '../user/auth';
 import { type FullUser, shouldVerifyEmail } from '../user/user';
-import { useRequestNewEmailVerificationCode } from '../user/user-hooks';
+import {
+  getUserFromCacheOrThrow,
+  useRequestNewEmailVerificationCode,
+} from '../user/user-hooks';
 
 export const verifyEmailContext = createContext<FullUser>();
 
@@ -14,7 +16,7 @@ export const verifyEmailRouteGuard: Route.ClientMiddlewareFunction = async (
   { request, context },
   next,
 ) => {
-  const user = getSdk().user.getCachedOrThrow();
+  const user = getUserFromCacheOrThrow();
 
   if (!shouldVerifyEmail(user)) {
     throw getRedirectAwayFromVerifyEmail(request);

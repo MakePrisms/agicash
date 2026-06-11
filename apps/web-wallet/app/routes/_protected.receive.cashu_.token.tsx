@@ -25,6 +25,7 @@ import {
 } from '~/features/shared/encryption';
 import { getQueryClient } from '~/features/shared/query-client';
 import { getSdk } from '~/features/shared/sdk';
+import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { toast } from '~/hooks/use-toast';
 import { validateCashuToken } from '~/lib/cashu';
 import type { Route } from './+types/_protected.receive.cashu_.token';
@@ -111,7 +112,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const claimTo = getClaimTo(location.searchParams);
 
   if (claimTo) {
-    const user = getSdk().user.getCachedOrThrow();
+    const user = getUserFromCacheOrThrow();
     const claimCashuTokenService = await getClaimCashuTokenService();
 
     const result = await claimCashuTokenService.claimToken(

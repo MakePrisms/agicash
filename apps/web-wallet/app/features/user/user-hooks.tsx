@@ -35,6 +35,20 @@ export function useUserChangeHandlers() {
 }
 
 /**
+ * The cached user for contexts where a missing user is a bug (routes under
+ * the protected layout, whose middleware guarantees the user is loaded).
+ * The throw is web policy — the SDK only exposes `user.getCached(): User | null`.
+ * @throws if the user is not loaded yet.
+ */
+export const getUserFromCacheOrThrow = (): User => {
+  const user = getSdk().user.getCached();
+  if (!user) {
+    throw new Error('User not found');
+  }
+  return user;
+};
+
+/**
  * This hook returns the logged in user data.
  * @param select - This option can be used to transform or select a part of the data returned by the query function. If not provided, the user data will be returned as is.
  * @returns The selected user data.
