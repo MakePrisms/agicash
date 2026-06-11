@@ -1,7 +1,7 @@
+import { CashuLightningSendDbDataSchema } from '@agicash/db-types/json-models/cashu-lightning-send-db-data';
+import { DestinationDetailsSchema } from '@agicash/db-types/json-models/destination-details';
+import { Money } from '@agicash/utils/money';
 import { z } from 'zod/mini';
-import { CashuLightningSendDbDataSchema } from '~/features/agicash-db/json-models';
-import { DestinationDetailsSchema } from '~/features/send/cashu-send-quote';
-import { Money } from '~/lib/money';
 import { TransactionStateSchema } from '../transaction-enums';
 import type { TransactionDetailsParserShape } from './transaction-details-types';
 

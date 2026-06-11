@@ -1,10 +1,8 @@
+import { CashuLightningReceiveDbDataSchema } from '@agicash/db-types/json-models/cashu-lightning-receive-db-data';
+import { CashuSwapReceiveDbDataSchema } from '@agicash/db-types/json-models/cashu-swap-receive-db-data';
+import { SparkLightningReceiveDbDataSchema } from '@agicash/db-types/json-models/spark-lightning-receive-db-data';
+import { Money } from '@agicash/utils/money';
 import { z } from 'zod/mini';
-import {
-  CashuLightningReceiveDbDataSchema,
-  CashuSwapReceiveDbDataSchema,
-  SparkLightningReceiveDbDataSchema,
-} from '~/features/agicash-db/json-models';
-import { Money } from '~/lib/money';
 import { TransactionStateSchema } from '../transaction-enums';
 import type { TransactionDetailsParserShape } from './transaction-details-types';
 

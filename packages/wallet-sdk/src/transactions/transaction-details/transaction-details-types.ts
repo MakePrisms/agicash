@@ -1,13 +1,11 @@
 import type { Json } from '@agicash/db-types';
+import { CashuLightningReceiveDbDataSchema } from '@agicash/db-types/json-models/cashu-lightning-receive-db-data';
+import { CashuLightningSendDbDataSchema } from '@agicash/db-types/json-models/cashu-lightning-send-db-data';
+import { CashuSwapReceiveDbDataSchema } from '@agicash/db-types/json-models/cashu-swap-receive-db-data';
+import { CashuSwapSendDbDataSchema } from '@agicash/db-types/json-models/cashu-swap-send-db-data';
+import { SparkLightningReceiveDbDataSchema } from '@agicash/db-types/json-models/spark-lightning-receive-db-data';
+import { SparkLightningSendDbDataSchema } from '@agicash/db-types/json-models/spark-lightning-send-db-data';
 import { z } from 'zod/mini';
-import {
-  CashuLightningReceiveDbDataSchema,
-  CashuLightningSendDbDataSchema,
-  CashuSwapReceiveDbDataSchema,
-  CashuSwapSendDbDataSchema,
-  SparkLightningReceiveDbDataSchema,
-  SparkLightningSendDbDataSchema,
-} from '~/features/agicash-db/json-models';
 import type {
   TransactionDirection,
   TransactionState,

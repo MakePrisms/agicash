@@ -6,9 +6,14 @@ import { createLazyEncryption } from './encryption';
 import { type MeasureOperation, setOperationMeasurer } from './performance';
 import { getQueryClient } from './query-client';
 import { configureSpark } from './spark-config';
+import {
+  type TransactionsApi,
+  createTransactionsApi,
+} from './transactions/transactions-api';
 import { type UserApi, createUserApi } from './user/user-api';
 
 export type { AccountsApi } from './accounts/accounts-api';
+export type { TransactionsApi } from './transactions/transactions-api';
 export type { UserApi } from './user/user-api';
 
 export type WalletSdkConfig = {
@@ -59,25 +64,28 @@ export class WalletSdk {
   readonly queryClient: QueryClient;
   readonly accounts: AccountsApi;
   readonly user: UserApi;
+  readonly transactions: TransactionsApi;
 
   constructor(config: WalletSdkConfig) {
     this.queryClient = getQueryClient();
     const db = getAgicashDb();
+    const encryption = createLazyEncryption(this.queryClient);
+    // Closes over this.user (assigned below) — safe because it is only
+    // invoked at query/call time, after the bootstrap upsert.
+    const getCurrentUserId = () => {
+      const user = this.user.getCached();
+      if (!user) {
+        throw new Error('No user is loaded. Bootstrap the session first.');
+      }
+      return user.id;
+    };
 
     const accounts = createAccountsApi({
       queryClient: this.queryClient,
       db,
-      encryption: createLazyEncryption(this.queryClient),
+      encryption,
       sparkStorageDir: config.sparkStorageDir,
-      // Closes over this.user (assigned below) — safe because it is only
-      // invoked at query/call time, after the bootstrap upsert.
-      getCurrentUserId: () => {
-        const user = this.user.getCached();
-        if (!user) {
-          throw new Error('No user is loaded. Bootstrap the session first.');
-        }
-        return user.id;
-      },
+      getCurrentUserId,
     });
     this.accounts = accounts.api;
 
@@ -86,6 +94,13 @@ export class WalletSdk {
       db,
       accountRepository: accounts.repository,
       accountsCache: accounts.cache,
+    });
+
+    this.transactions = createTransactionsApi({
+      queryClient: this.queryClient,
+      db,
+      encryption,
+      getCurrentUserId,
     });
   }
 }
