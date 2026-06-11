@@ -1,65 +1,38 @@
 import { requestNewVerificationCode } from '@agicash/opensecret';
-import { UserCache, createUserChangeHandlers } from '@agicash/wallet-sdk';
-import {
-  type QueryClient,
-  useMutation,
-  useSuspenseQuery,
-} from '@tanstack/react-query';
-import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
-import { getQueryClient } from '~/features/shared/query-client';
+import { UserCache } from '@agicash/wallet-sdk';
+import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { getSdk } from '~/features/shared/sdk';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import type { Currency } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
 import { guestAccountStorage } from './guest-account-storage';
 import type { UpdateUser, User } from './user';
-import {
-  type ReadUserRepository,
-  useReadUserRepository,
-  useWriteUserRepository,
-} from './user-repository';
-import { useUserService } from './user-service';
 
 export { UserCache };
 
+/**
+ * Hook that provides the user cache.
+ *
+ * Transitional (sdk.user.internal): only for the not-yet-migrated
+ * receive/wallet domain code and the web-owned realtime infrastructure.
+ * App/UI code must use the curated sdk.user methods.
+ * @returns The user cache.
+ */
 export function useUserCache() {
-  const queryClient = useQueryClient();
-  return useMemo(() => new UserCache(queryClient), [queryClient]);
+  return getSdk().user.internal.cache;
 }
 
+/**
+ * Hook that returns the user change handlers.
+ *
+ * Transitional (sdk.user.internal): consumed by the web-owned realtime
+ * wiring until the realtime hub moves into the SDK.
+ */
 export function useUserChangeHandlers() {
-  const userCache = useUserCache();
-  return createUserChangeHandlers(userCache);
+  return getSdk().user.internal.changeHandlers;
 }
-
-export const getUserFromCache = (
-  queryClient: QueryClient = getQueryClient(),
-) => {
-  return queryClient.getQueryData<User>([UserCache.Key]) ?? null;
-};
-
-export const getUserFromCacheOrThrow = () => {
-  const user = getUserFromCache();
-  if (!user) {
-    throw new Error('User not found');
-  }
-  return user;
-};
-
-const userQueryOptions = <TData = User>({
-  userId,
-  userRepository,
-  select,
-}: {
-  userId: string;
-  userRepository: ReadUserRepository;
-  select?: (data: User) => TData;
-}) => ({
-  queryKey: [UserCache.Key],
-  queryFn: () => userRepository.get(userId),
-  select,
-});
 
 /**
  * This hook returns the logged in user data.
@@ -75,11 +48,10 @@ export const useUser = <TData = User>(
     throw new Error('Cannot use useUser hook in anonymous context');
   }
 
-  const userRepository = useReadUserRepository();
-
-  const { data } = useSuspenseQuery(
-    userQueryOptions({ userId: authUser.id, userRepository, select }),
-  );
+  const { data } = useSuspenseQuery({
+    ...getSdk().user.queryOptions(authUser.id),
+    select,
+  });
 
   return data;
 };
@@ -206,15 +178,10 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
 };
 
 const useUpdateUser = () => {
-  const queryClient = useQueryClient();
   const userId = useUser((user) => user.id);
-  const userRepository = useWriteUserRepository();
 
   return useMutation({
-    mutationFn: (updates: UpdateUser) => userRepository.update(userId, updates),
-    onSuccess: (data) => {
-      queryClient.setQueryData([UserCache.Key], data);
-    },
+    mutationFn: (updates: UpdateUser) => getSdk().user.update(userId, updates),
   });
 };
 
@@ -228,16 +195,11 @@ export const useSetDefaultCurrency = () => {
 };
 
 export const useSetDefaultAccount = () => {
-  const userService = useUserService();
   const user = useUserRef();
-  const queryClient = useQueryClient();
 
   const { mutateAsync } = useMutation({
     mutationFn: (account: Account) =>
-      userService.setDefaultAccount(user.current, account),
-    onSuccess: (data) => {
-      queryClient.setQueryData([UserCache.Key], data);
-    },
+      getSdk().user.setDefaultAccount(user.current, account),
   });
 
   return mutateAsync;

@@ -10,6 +10,11 @@ export class AccountsCache {
 
   constructor(private readonly queryClient: QueryClient) {}
 
+  /** Replaces the whole accounts list (bootstrap population — no version-guard). */
+  set(accounts: Account[]) {
+    this.queryClient.setQueryData([AccountsCache.Key], accounts);
+  }
+
   upsert(account: Account) {
     this.queryClient.setQueryData([AccountsCache.Key], (curr: Account[]) => {
       const existingAccountIndex = curr.findIndex((x) => x.id === account.id);

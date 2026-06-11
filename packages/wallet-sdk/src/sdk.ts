@@ -20,6 +20,17 @@ import { type MeasureOperation, setOperationMeasurer } from './performance';
 import { getQueryClient } from './query-client';
 import { sparkMnemonicQueryOptions } from './spark';
 import { configureSpark } from './spark-config';
+import type { UpdateUser, User } from './user/user';
+import {
+  UserCache,
+  createUserChangeHandlers,
+  userQueryOptions,
+} from './user/user-cache';
+import {
+  ReadUserRepository,
+  WriteUserRepository,
+} from './user/user-repository';
+import { UserService } from './user/user-service';
 
 export type WalletSdkConfig = {
   /** OpenSecret auth/enclave backend connection. */
@@ -121,9 +132,64 @@ export type AccountsApi = {
   };
 };
 
+export type UserApi = {
+  /** Query config for the reactive current user (consume with useSuspenseQuery). */
+  queryOptions: (userId: string) => ReturnType<typeof userQueryOptions>;
+  /** The user from the in-memory user state, or null if not loaded yet. */
+  getCached: () => User | null;
+  /**
+   * The user from the in-memory user state.
+   * @throws if the user is not loaded yet.
+   */
+  getCachedOrThrow: () => User;
+  /**
+   * Creates the user (with their initial accounts) or updates an existing one,
+   * then records both the user and the accounts in the in-memory state.
+   */
+  upsert: (
+    params: Parameters<WriteUserRepository['upsert']>[0],
+    options?: Parameters<WriteUserRepository['upsert']>[1],
+  ) => Promise<{ user: User; accounts: Account[] }>;
+  /**
+   * Updates user fields and records the result in the user state.
+   * @returns the updated user.
+   */
+  update: (
+    userId: string,
+    data: UpdateUser,
+    options?: Parameters<WriteUserRepository['update']>[2],
+  ) => Promise<User>;
+  /**
+   * Sets the account as the user's default for its currency (optionally also
+   * the default currency) and records the result in the user state.
+   * @returns the updated user.
+   */
+  setDefaultAccount: (
+    user: User,
+    account: Account,
+    options?: Parameters<UserService['setDefaultAccount']>[2],
+  ) => Promise<User>;
+  /**
+   * Transitional escape hatch — NOT part of the public surface. Only for (a)
+   * not-yet-migrated SDK collaborators still composed in web feature code
+   * (the receive/send services) and (b) the web-owned realtime infrastructure
+   * until the SDK owns the realtime hub. App/UI code must use the curated
+   * methods above. Shrinks each phase and is removed once the remaining
+   * domains and the realtime hub move into the SDK.
+   */
+  internal: {
+    readRepository: ReadUserRepository;
+    writeRepository: WriteUserRepository;
+    service: UserService;
+    cache: UserCache;
+    changeHandlers: ReturnType<typeof createUserChangeHandlers>;
+  };
+};
+
 export class WalletSdk {
   readonly queryClient: QueryClient;
   readonly accounts: AccountsApi;
+  readonly user: UserApi;
 
   constructor(config: WalletSdkConfig) {
     this.queryClient = getQueryClient();
@@ -142,6 +208,54 @@ export class WalletSdk {
       queryClient: this.queryClient,
     });
     const cache = new AccountsCache(this.queryClient);
+
+    const readUserRepository = new ReadUserRepository(getAgicashDb());
+    const writeUserRepository = new WriteUserRepository(
+      getAgicashDb(),
+      repository,
+    );
+    const userService = new UserService(writeUserRepository);
+    const userCache = new UserCache(this.queryClient);
+
+    this.user = {
+      queryOptions: (userId: string) =>
+        userQueryOptions({ userId, userRepository: readUserRepository }),
+      getCached: () => userCache.get() ?? null,
+      getCachedOrThrow: () => {
+        const user = userCache.get();
+        if (!user) {
+          throw new Error('User not found');
+        }
+        return user;
+      },
+      upsert: async (params, options) => {
+        const result = await writeUserRepository.upsert(params, options);
+        userCache.set(result.user);
+        cache.set(result.accounts);
+        return result;
+      },
+      update: async (userId, data, options) => {
+        const updated = await writeUserRepository.update(userId, data, options);
+        userCache.set(updated);
+        return updated;
+      },
+      setDefaultAccount: async (user, account, options) => {
+        const updated = await userService.setDefaultAccount(
+          user,
+          account,
+          options,
+        );
+        userCache.set(updated);
+        return updated;
+      },
+      internal: {
+        readRepository: readUserRepository,
+        writeRepository: writeUserRepository,
+        service: userService,
+        cache: userCache,
+        changeHandlers: createUserChangeHandlers(userCache),
+      },
+    };
 
     this.accounts = {
       listOptions: (userId: string) =>

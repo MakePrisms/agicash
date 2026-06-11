@@ -1,8 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
-import { AccountsCache } from '~/features/accounts/account-hooks';
-import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import {
@@ -31,12 +29,7 @@ import {
 } from '~/features/user/pending-terms-storage';
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
 import { type User, shouldAcceptTerms } from '~/features/user/user';
-import {
-  UserCache,
-  defaultAccounts,
-  getUserFromCache,
-} from '~/features/user/user-hooks';
-import { WriteUserRepository } from '~/features/user/user-repository';
+import { defaultAccounts } from '~/features/user/user-hooks';
 import { Wallet } from '~/features/wallet/wallet';
 import { ensureBreezWasm } from '~/lib/spark';
 import { withRetry } from '~/lib/with-retry';
@@ -76,7 +69,7 @@ const ensureUserData = async (
   termsAcceptedAt?: string,
   giftCardMintTermsAcceptedAt?: string,
 ): Promise<User> => {
-  let user = getUserFromCache(queryClient);
+  let user = getSdk().user.getCached();
 
   if (!user) {
     queryClient.prefetchQuery(supabaseSessionTokenQuery());
@@ -103,15 +96,9 @@ const ensureUserData = async (
         queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
         queryClient.ensureQueryData(cashuSeedQueryOptions()),
       ]);
-    const accountRepository = getSdk().accounts.internal.repository;
-    const writeUserRepository = new WriteUserRepository(
-      agicashDbClient,
-      accountRepository,
-    );
-
-    const { user: upsertedUser, accounts } = await withRetry({
+    const { user: upsertedUser } = await withRetry({
       fn: () =>
-        writeUserRepository.upsert({
+        getSdk().user.upsert({
           id: authUser.id,
           email: authUser.email,
           emailVerified: authUser.email_verified,
@@ -130,8 +117,6 @@ const ensureUserData = async (
       },
     });
     user = upsertedUser;
-    queryClient.setQueryData([UserCache.Key], user);
-    queryClient.setQueryData([AccountsCache.Key], accounts);
   }
 
   return user;
