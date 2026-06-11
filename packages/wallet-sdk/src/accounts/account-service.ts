@@ -6,18 +6,9 @@ import {
 import type { QueryClient } from '@tanstack/query-core';
 import type { DistributedOmit } from 'type-fest';
 import { allMintKeysetsQueryOptions } from '../cashu';
+import type { User } from '../user/user';
 import type { Account, CashuAccount, ExtendedAccount } from './account';
 import type { AccountRepository } from './account-repository';
-
-/**
- * The slice of the user the service needs for default-account checks. The
- * web's User satisfies it structurally; replaced by the SDK User type when the
- * user domain is extracted.
- */
-type UserDefaultAccounts = {
-  defaultBtcAccountId: string | null;
-  defaultUsdAccountId: string | null;
-};
 
 export type AccountServiceDeps = {
   accountRepository: AccountRepository;
@@ -36,7 +27,7 @@ export class AccountService {
   /**
    * Returns true if the account is the user's default account for the respective currency.
    */
-  static isDefaultAccount(user: UserDefaultAccounts, account: Account) {
+  static isDefaultAccount(user: User, account: Account) {
     if (account.currency === 'BTC') {
       return user.defaultBtcAccountId === account.id;
     }
@@ -51,7 +42,7 @@ export class AccountService {
    * default account for the respective currency. Sorts the default account to the top.
    */
   static getExtendedAccounts(
-    user: UserDefaultAccounts,
+    user: User,
     accounts: Account[],
   ): ExtendedAccount[] {
     return accounts
