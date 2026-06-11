@@ -99,7 +99,6 @@ const ensureUserData = async (
     const { user: upsertedUser } = await withRetry({
       fn: () =>
         getSdk().user.upsert({
-          id: authUser.id,
           email: authUser.email,
           emailVerified: authUser.email_verified,
           accounts: [...defaultAccounts],

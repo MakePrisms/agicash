@@ -1,9 +1,9 @@
 # Wallet SDK extraction — plan, progress, and working rules
 
 Status document for the `@agicash/wallet-sdk` extraction (restarted greenfield from master
-2026-06-08). Updated at the end of each phase. Current as of: **Phase 8 (realtime hub)
-COMPLETE — `sdk.realtime` owns the wallet channel; Phase 9 (auth) next** (branch
-`sdk/phase8-realtime`, all local — no PRs/pushes yet, working tree clean, all gates green).
+2026-06-08). Updated at the end of each phase. Current as of: **Phase 9 (auth)
+COMPLETE — `sdk.auth` is the identity source; Phase 10 (import-cleanup) next** (branch
+`sdk/phase9-auth`, all local — no PRs/pushes yet, working tree clean, all gates green).
 
 ## HANDOFF — read this first
 
@@ -14,8 +14,8 @@ the git history; there is no other context. How to resume:
    `sdk/phaseN-<name>` branch on the previous one, all the way down to master). Verify: `git status` clean, `git log --oneline -8` matches the ledger below.
 2. Read **Architecture decisions**, **Working method**, and **Landmines** below — these are
    settled with the user; do not relitigate them.
-3. Continue with the first section in the *Remaining roadmap* (currently **Phase 9 —
-   thin auth shell**). Phases are specified at decreasing resolution; ground each one (read
+3. Continue with the first section in the *Remaining roadmap* (currently **Phase 10 —
+   import-cleanup**). Phases are specified at decreasing resolution; ground each one (read
    the files, map consumers with `git grep`) before moving code.
 4. The user's standing instruction: **finish the whole effort autonomously, no checkpoints**
    — through Phase 10, then a final report on what the codebase looks like. Commit per
@@ -181,6 +181,7 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 | 7.1 | `sdk/phase7-send` · 96b7950f | send leafs ×3 + `utils.ts` + repositories ×3 + services ×3 + `proof-state-subscription-manager` → SDK `send/` (verbatim + remaps; tail hooks stay in shims). `shared/currencies` → SDK `currencies.ts`; `lib/spark/errors` guards → SDK `spark-utils.ts` (errors.ts deleted — zero direct importers). Grounding deviations (web-only consumers): `find-matching-offer-or-gift-card-account` (+test), `resolve-destination`, `validation` stay web; `melt-quote-subscription` is the React `useOnMeltQuoteStateChange` hook and stays web. The proof-state manager stays in the SDK rather than `@agicash/cashu` (coupled to db-flavored `CashuProof` + send-swap types) |
 | 7.2 | `sdk/phase7-send` · (HEAD) | curated `sdk.send` surface: `getCashuLightningQuote`/`createCashuSendQuote`/`getSparkLightningSendQuote`/`createSparkSendQuote`/`getCashuSendSwapQuote`/`createCashuSendSwap` (absorbs active-swap cache.add)/`reverseTransaction(tx)` (absorbs `useReverseTransaction` body; resolves the swap's cashu account via the accounts cache), `cashuSwapOptions` (NotFoundError retry semantics)/`trackCashuSwapOptions`/`unresolved*Options` ×3. Cache classes + change handlers extracted into `send/{cashu,spark}-send-quote-cache.ts`, `send/cashu-send-swap-cache.ts` (version guards test-locked, +6 tests → 168). `createReceiveApi` now returns `{api, cashuReceiveSwapService}` so the root wires the send-swap reversal dependency without internal-reaching. Hooks files keep only React orchestration (melt-quote websocket tracking, spark event listeners, proof-state subscriptions, task processing). Zero-consumer cleanup: `useCashuSendSwapService` hook deleted from its shim |
 | 8 | `sdk/phase8-realtime` · (HEAD) | realtime hub → SDK. `SupabaseRealtimeManager`/channel/builder → SDK `realtime/` (verbatim; `@supabase/realtime-js` type imports remapped to `@supabase/supabase-js` which star-re-exports them — no new dep). New `sdk.realtime` (`realtime-api.ts`): `subscribe/unsubscribe` (the `wallet:{userId}` private broadcast channel, topic resolved at call time), `getStatus/getError/onStatusChange` (useSyncExternalStore-ready), `setOnlineStatus/setActiveStatus` (host activity bindings); composes every domain's change handlers + the 13-cache invalidate-on-reconnect internally. **`internal.changeHandlers` deleted from every `*Api`** — domain factories now return `{api, …, cache(s), changeHandlers}` to the root. Web: `useTrackWalletChanges` is a ~40-line lifecycle binding (subscribe/unsubscribe + status + throws `SupabaseRealtimeError` to the boundary); `useSupabaseRealtimeActivityTracking` takes the structural `{setOnlineStatus,setActiveStatus}` target; the 10 `use*ChangeHandlers` hooks + `useUserCache` + `useContactsCache` deleted (zero consumers); `database.client.ts` keeps only the db re-export + the window debug handle (`sdk.realtime.internal.manager` — the one sanctioned realtime internal). Spark balance tracking → `sdk.accounts.trackSparkBalances(accounts)` (web binds it to the reactive spark-accounts list). `TaskProcessingLockRepository` → SDK root (grounding deviation: the task PROCESSOR stays web — it is useMutation/useQueries-based React orchestration; a headless rewrite belongs to the MCP phase) |
+| 9 | `sdk/phase9-auth` · (HEAD) | thin auth shell. SDK `auth.ts` becomes the auth domain: `AuthUser`/`AuthState`/`authStateQueryKey`, the auth-state queryFn (token read → `fetchUser` → state; verbatim) and the session/JWT primitives move in; web side effects became host hooks — `WalletSdkConfig.onAuthUserIdDecoded` (web: early `Sentry.setUser`) + `onAuthStateResolved` (web: Sentry user incl. isGuest + SSR session-hint cookie set/clear; `reason: 'no-tokens' \| 'fetch-failed'` preserves the original Sentry-null-only-on-failure behavior). Curated `sdk.auth`: `stateOptions/getUserId/invalidate/isLoggedIn/getSessionExpiresInMs/clearTokens` (no internal). **`sdk.user.upsert` no longer takes `id`** — the root wires `getAuthUserId: () => this.auth.getUserId()` into the user domain (reads the resolved auth state; throws pre-login); `ensureUserData` passes only profile fields. Identity chain: auth → user → accounts. Web `auth.ts` keeps `useAuthState/useAuthActions/useSignOut/useHandleSessionExpiry` + OAuth/guest flows + `invalidateAuthQueries` (sdk.auth.invalidate + the WEB-owned feature-flags key). Landmine fixed in-flight: the transitional `authQueryOptions` wrapper must stay server-safe (public pages build it during SSR/prerender) — `getSdk()` is only touched inside the queryFn |
 
 ## Remaining roadmap (handoff instructions — work top to bottom)
 
@@ -206,19 +207,6 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 
 `@tanstack/react-query` **type-only** imports (e.g. `QueryClient`) become
 `@tanstack/query-core`.
-
-### Phase 9 — thin auth shell (`sdk/phase9-auth`)
-
-Decided at checkpoint: auth and user stay SEPARATE domains (different systems and
-lifecycles — OpenSecret session/`AuthUser` vs `wallet.users` row/`User`; auth is alive
-pre-user on login screens) but get WIRED: `sdk.auth` becomes the identity source the root
-injects into the user domain, the same way user now feeds accounts (3.6/3.7). Move
-`authQueryOptions` + `invalidateAuthQueries` + token/session primitives from
-`features/user/auth.ts` into SDK `auth/` (file exists with session bits already); web keeps
-`useAuthState/useAuthActions` + oauth/guest/login UI flows. Then absorb the last
-outside-passed identity: `sdk.user.upsert` stops taking `id` (derive from auth internally;
-`_protected.tsx` `ensureUserData` passes only profile fields). Dependency chain reads
-auth → user → accounts.
 
 ### Phase 10 — import-cleanup (`sdk/phase10-import-cleanup`)
 

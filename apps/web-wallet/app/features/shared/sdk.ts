@@ -6,6 +6,7 @@
 // which configures through this module.
 import { configureWalletSdk } from '@agicash/wallet-sdk/sdk';
 import * as Sentry from '@sentry/react-router';
+import { sessionHintCookie } from '~/features/user/session-hint-cookie';
 import { measureOperation } from '~/lib/performance';
 import { cashuMintValidator } from './cashu';
 
@@ -70,6 +71,28 @@ configureWalletSdk({
   measureOperation,
   captureException: (error, context) => {
     Sentry.captureException(error, context ? { extra: context } : undefined);
+  },
+  // We want to set the Sentry user id as soon as possible so that events are
+  // associated with the user even before the auth user fetch completes.
+  onAuthUserIdDecoded: (userId) => {
+    Sentry.setUser({ id: userId });
+  },
+  onAuthStateResolved: (state) => {
+    if (state.isLoggedIn) {
+      Sentry.setUser({ id: state.user.id, isGuest: !state.user.email });
+      // Mirror auth state into a hint cookie so the server can short-circuit
+      // SSR for unauthenticated visits. Lifetime matches the refresh token
+      // so we don't leave a stale "logged in" hint after the session
+      // genuinely expires.
+      sessionHintCookie.set(
+        state.refreshTokenExpiresAt - Math.floor(Date.now() / 1000),
+      );
+    } else {
+      if (state.reason === 'fetch-failed') {
+        Sentry.setUser(null);
+      }
+      sessionHintCookie.clear();
+    }
   },
 });
 

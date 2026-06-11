@@ -28,7 +28,7 @@ export type UserApi = {
    * and every other method operates on the user it established.
    */
   upsert: (
-    params: Parameters<WriteUserRepository['upsert']>[0],
+    params: Omit<Parameters<WriteUserRepository['upsert']>[0], 'id'>,
     options?: Parameters<WriteUserRepository['upsert']>[1],
   ) => Promise<{ user: User; accounts: Account[] }>;
   /**
@@ -76,6 +76,12 @@ export type UserApiDeps = {
    * accounts state. */
   accountRepository: AccountRepository;
   accountsCache: AccountsCache;
+  /**
+   * Resolves the authenticated user's id from the SDK's auth state. The auth
+   * domain is the identity source; upsert injects this id.
+   * @throws if there is no authenticated session.
+   */
+  getAuthUserId: () => string;
 };
 
 export function createUserApi(deps: UserApiDeps): {
@@ -84,7 +90,8 @@ export function createUserApi(deps: UserApiDeps): {
   cache: UserCache;
   changeHandlers: ReturnType<typeof createUserChangeHandlers>;
 } {
-  const { queryClient, db, accountRepository, accountsCache } = deps;
+  const { queryClient, db, accountRepository, accountsCache, getAuthUserId } =
+    deps;
 
   const readRepository = new ReadUserRepository(db);
   const writeRepository = new WriteUserRepository(db, accountRepository);
@@ -107,7 +114,10 @@ export function createUserApi(deps: UserApiDeps): {
       }),
     getCached: () => cache.get() ?? null,
     upsert: async (params, options) => {
-      const result = await writeRepository.upsert(params, options);
+      const result = await writeRepository.upsert(
+        { ...params, id: getAuthUserId() },
+        options,
+      );
       cache.set(result.user);
       accountsCache.set(result.accounts);
       return result;

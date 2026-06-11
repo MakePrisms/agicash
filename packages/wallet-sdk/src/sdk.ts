@@ -3,6 +3,7 @@ import { configure as configureOpenSecret } from '@agicash/opensecret';
 import { type QueryClient, isServer } from '@tanstack/query-core';
 import { type AccountsApi, createAccountsApi } from './accounts/accounts-api';
 import { configureAgicashDb, getAgicashDb } from './agicash-db';
+import { type AuthApi, type ResolvedAuthState, createAuthApi } from './auth';
 import { type ContactsApi, createContactsApi } from './contacts/contacts-api';
 import { createLazyEncryption } from './encryption';
 import { type CaptureException, setErrorReporter } from './error-reporting';
@@ -19,6 +20,7 @@ import {
 import { type UserApi, createUserApi } from './user/user-api';
 
 export type { AccountsApi } from './accounts/accounts-api';
+export type { AuthApi } from './auth';
 export type { ContactsApi } from './contacts/contacts-api';
 export type { RealtimeApi } from './realtime/realtime-api';
 export type { ReceiveApi } from './receive/receive-api';
@@ -66,6 +68,17 @@ export type WalletSdkConfig = {
    * wants to observe (the web app passes Sentry's captureException).
    */
   captureException?: CaptureException;
+  /**
+   * Host hook invoked with the token's user id before the auth user fetch
+   * (lets the host associate observability with the user as early as
+   * possible).
+   */
+  onAuthUserIdDecoded?: (userId: string | undefined) => void;
+  /**
+   * Host hook invoked when the auth state query resolves (the web app
+   * mirrors the state into Sentry and its SSR session-hint cookie).
+   */
+  onAuthStateResolved?: (state: ResolvedAuthState) => void;
 };
 
 let sdkConfig: WalletSdkConfig | undefined;
@@ -93,6 +106,7 @@ export function configureWalletSdk(config: WalletSdkConfig): void {
 
 export class WalletSdk {
   readonly queryClient: QueryClient;
+  readonly auth: AuthApi;
   readonly accounts: AccountsApi;
   readonly user: UserApi;
   readonly transactions: TransactionsApi;
@@ -105,6 +119,12 @@ export class WalletSdk {
     this.queryClient = getQueryClient();
     const db = getAgicashDb();
     const encryption = createLazyEncryption(this.queryClient);
+
+    this.auth = createAuthApi({
+      queryClient: this.queryClient,
+      onAuthUserIdDecoded: config.onAuthUserIdDecoded,
+      onAuthStateResolved: config.onAuthStateResolved,
+    });
     // Close over this.user (assigned below) — safe because they are only
     // invoked at query/call time, after the bootstrap upsert.
     const getCurrentUser = () => {
@@ -130,6 +150,9 @@ export class WalletSdk {
       db,
       accountRepository: accounts.repository,
       accountsCache: accounts.cache,
+      // The auth domain is the identity source: upsert derives the user's id
+      // from the authenticated session.
+      getAuthUserId: () => this.auth.getUserId(),
     });
     this.user = user.api;
 
