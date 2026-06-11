@@ -2,7 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { bytesToHex } from '@noble/hashes/utils';
 import { QueryClient } from '@tanstack/query-core';
-import { createLazyEncryption, getSdk } from './sdk';
+import { createLazyEncryption } from './encryption';
+import { getSdk } from './sdk';
 
 describe('getSdk', () => {
   // bun test runs with no `window`, so isServer is true.

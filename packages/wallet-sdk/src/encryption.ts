@@ -8,6 +8,7 @@ import {
 import { Money } from '@agicash/utils/money';
 import { hexToBytes } from '@noble/hashes/utils';
 import { decode, encode } from '@stablelib/base64';
+import type { QueryClient } from '@tanstack/query-core';
 
 // 10111099 is 'enc' (for encryption) in ascii
 const encryptionKeyDerivationPath = `m/10111099'/0'`;
@@ -225,3 +226,26 @@ export const getEncryption = (
     ) => decryptBatchWithPrivateKey<T>(data, privateKey),
   };
 };
+
+/**
+ * An Encryption whose keys are resolved lazily through the SDK's key
+ * queryOptions (staleTime Infinity — one fetch, then cached). This lets the
+ * Sdk root construct domains before login/key-availability; the first
+ * encrypt/decrypt awaits the keys.
+ */
+export function createLazyEncryption(queryClient: QueryClient): Encryption {
+  const resolve = async () => {
+    const [privateKey, publicKeyHex] = await Promise.all([
+      queryClient.fetchQuery(encryptionPrivateKeyQueryOptions()),
+      queryClient.fetchQuery(encryptionPublicKeyQueryOptions()),
+    ]);
+    return getEncryption(privateKey, publicKeyHex);
+  };
+
+  return {
+    encrypt: async (data) => (await resolve()).encrypt(data),
+    decrypt: async (data) => (await resolve()).decrypt(data),
+    encryptBatch: async (data) => (await resolve()).encryptBatch(data),
+    decryptBatch: async (data) => (await resolve()).decryptBatch(data),
+  };
+}
