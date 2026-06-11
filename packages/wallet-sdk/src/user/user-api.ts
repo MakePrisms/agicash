@@ -13,34 +13,42 @@ import { ReadUserRepository, WriteUserRepository } from './user-repository';
 import { UserService } from './user-service';
 
 export type UserApi = {
-  /** Query config for the reactive current user (consume with useSuspenseQuery). */
-  queryOptions: (userId: string) => ReturnType<typeof userQueryOptions>;
+  /**
+   * Query config for the reactive current user (consume with
+   * useSuspenseQuery). The id is resolved from the user state at fetch time,
+   * so the queryFn rejects if no user is loaded yet.
+   */
+  queryOptions: () => ReturnType<typeof userQueryOptions>;
   /** The user from the in-memory user state, or null if not loaded yet. */
   getCached: () => User | null;
   /**
    * Creates the user (with their initial accounts) or updates an existing one,
-   * then records both the user and the accounts in the in-memory state.
+   * then records both the user and the accounts in the in-memory state. This
+   * is the identity injection point: the id comes from the host's auth layer,
+   * and every other method operates on the user it established.
    */
   upsert: (
     params: Parameters<WriteUserRepository['upsert']>[0],
     options?: Parameters<WriteUserRepository['upsert']>[1],
   ) => Promise<{ user: User; accounts: Account[] }>;
   /**
-   * Updates user fields and records the result in the user state.
+   * Updates fields of the current user and records the result in the user
+   * state.
    * @returns the updated user.
+   * @throws if no user is loaded yet.
    */
   update: (
-    userId: string,
     data: UpdateUser,
     options?: Parameters<WriteUserRepository['update']>[2],
   ) => Promise<User>;
   /**
-   * Sets the account as the user's default for its currency (optionally also
-   * the default currency) and records the result in the user state.
+   * Sets the account as the current user's default for its currency
+   * (optionally also the default currency) and records the result in the
+   * user state.
    * @returns the updated user.
+   * @throws if no user is loaded yet.
    */
   setDefaultAccount: (
-    user: User,
     account: Account,
     options?: Parameters<UserService['setDefaultAccount']>[2],
   ) => Promise<User>;
@@ -79,9 +87,20 @@ export function createUserApi(deps: UserApiDeps): UserApi {
   const service = new UserService(writeRepository);
   const cache = new UserCache(queryClient);
 
+  const getCurrentUser = (): User => {
+    const user = cache.get();
+    if (!user) {
+      throw new Error('No user is loaded. Bootstrap the session first.');
+    }
+    return user;
+  };
+
   return {
-    queryOptions: (userId: string) =>
-      userQueryOptions({ userId, userRepository: readRepository }),
+    queryOptions: () =>
+      userQueryOptions({
+        getUserId: () => getCurrentUser().id,
+        userRepository: readRepository,
+      }),
     getCached: () => cache.get() ?? null,
     upsert: async (params, options) => {
       const result = await writeRepository.upsert(params, options);
@@ -89,13 +108,21 @@ export function createUserApi(deps: UserApiDeps): UserApi {
       accountsCache.set(result.accounts);
       return result;
     },
-    update: async (userId, data, options) => {
-      const updated = await writeRepository.update(userId, data, options);
+    update: async (data, options) => {
+      const updated = await writeRepository.update(
+        getCurrentUser().id,
+        data,
+        options,
+      );
       cache.set(updated);
       return updated;
     },
-    setDefaultAccount: async (user, account, options) => {
-      const updated = await service.setDefaultAccount(user, account, options);
+    setDefaultAccount: async (account, options) => {
+      const updated = await service.setDefaultAccount(
+        getCurrentUser(),
+        account,
+        options,
+      );
       cache.set(updated);
       return updated;
     },

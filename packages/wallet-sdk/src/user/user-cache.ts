@@ -24,17 +24,19 @@ export class UserCache {
 /**
  * Query options for the current user. The queryFn fetches from the DB; in
  * practice the user is pre-populated via cache.set() during the bootstrap
- * upsert and the queryFn only fires on a cold load.
+ * upsert and the queryFn only fires on refetch. The id is resolved at fetch
+ * time (not captured at options creation) so a long-lived observer can never
+ * pin a previous session's id across an account switch.
  */
 export const userQueryOptions = ({
-  userId,
+  getUserId,
   userRepository,
 }: {
-  userId: string;
+  getUserId: () => string;
   userRepository: ReadUserRepository;
 }) => ({
   queryKey: [UserCache.Key],
-  queryFn: () => userRepository.get(userId),
+  queryFn: () => userRepository.get(getUserId()),
 });
 
 /**

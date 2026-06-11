@@ -63,7 +63,7 @@ export const useUser = <TData = User>(
   }
 
   const { data } = useSuspenseQuery({
-    ...getSdk().user.queryOptions(authUser.id),
+    ...getSdk().user.queryOptions(),
     select,
   });
 
@@ -192,10 +192,8 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
 };
 
 const useUpdateUser = () => {
-  const userId = useUser((user) => user.id);
-
   return useMutation({
-    mutationFn: (updates: UpdateUser) => getSdk().user.update(userId, updates),
+    mutationFn: (updates: UpdateUser) => getSdk().user.update(updates),
   });
 };
 
@@ -209,11 +207,8 @@ export const useSetDefaultCurrency = () => {
 };
 
 export const useSetDefaultAccount = () => {
-  const user = useUserRef();
-
   const { mutateAsync } = useMutation({
-    mutationFn: (account: Account) =>
-      getSdk().user.setDefaultAccount(user.current, account),
+    mutationFn: (account: Account) => getSdk().user.setDefaultAccount(account),
   });
 
   return mutateAsync;
