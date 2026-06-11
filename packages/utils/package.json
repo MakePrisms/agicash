@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./money": "./src/money/index.ts",
     "./ecies": "./src/ecies/index.ts",
+    "./bolt11": "./src/bolt11/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
@@ -16,7 +17,9 @@
     "@noble/ciphers": "catalog:",
     "@noble/curves": "catalog:",
     "@noble/hashes": "catalog:",
+    "@scure/base": "catalog:",
     "big.js": "catalog:",
+    "light-bolt11-decoder": "3.2.0",
     "zod": "catalog:"
   },
   "devDependencies": {
