@@ -20,6 +20,7 @@
     "@scure/base": "catalog:",
     "big.js": "catalog:",
     "light-bolt11-decoder": "3.2.0",
+    "type-fest": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

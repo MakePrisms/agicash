@@ -2,7 +2,7 @@
 
 Status document for the `@agicash/wallet-sdk` extraction (restarted greenfield from master
 2026-06-08). Updated at the end of each phase. Current as of: **mid-Phase 6 (receive
-domain) — chunk 6.1 committed, 6.2 grounded but not started** (branch
+domain) — chunks 6.1 + 6.2 committed, 6.3 next** (branch
 `sdk/phase6-receive`, all local — no PRs/pushes yet, working tree clean, all gates green).
 
 ## HANDOFF — read this first
@@ -176,6 +176,7 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 | 4.2 | `sdk/phase4-transactions` · 7d6d9eae | transactions domain → SDK `transactions/`: types + `isTransactionReversable`, enums, `transaction-details/` (8 files), `TransactionRepository`; `TransactionsCache` + `createTransactionChangeHandlers` extracted from hooks, `acknowledgeInHistory` absorbed into the cache, test-locked (4 tests). Curated `sdk.transactions`: `queryOptions(id)` (NotFoundError retry semantics live in the SDK), `listOptions(accountId?)` (infinite, PAGE_SIZE 25, per-id write-through), `pendingAckCountOptions()` (primitive count; web derives the boolean), `acknowledge(tx)`. Root now shares ONE lazy Encryption + ONE `getCurrentUserId` thunk across domains. `useReverseTransaction` stays web-wired (send-domain services) until Phase 7 |
 | 5 | `sdk/phase5-contacts` · 719f55ec | contacts domain → SDK `contacts/`: types, `ContactRepository`, `ContactsCache`, change handlers. New config thunk `WalletSdkConfig.getLightningAddressDomain` (web passes `() => window.location.host`, matching the root loader's `domain`; a thunk because config records on the server too — only invoked client-side). Curated `sdk.contacts`: `listOptions/getCached/create/delete/findCandidatesOptions`; **`create` deliberately does NOT write the cache** — CONTACT_CREATED realtime is the single write path (behavior preserved) |
 | 6.1 | `sdk/phase6-receive` · 6ca5d29d | receive leaf+cores → SDK `receive/`: cashu/spark quote types, swap types, melt-data, both quote cores, token models (verbatim). `lib/bolt11` → `@agicash/utils/bolt11` (+tests; `light-bolt11-decoder` dep moved to utils, `@scure/base@2.0.0` added to catalog). `derivePublicKey` → SDK `cryptography.ts` (the `useCryptography` hook stays web) |
+| 6.2 | `sdk/phase6-receive` · (see git log) | receive repositories ×3 + services ×5 → SDK `receive/` (verbatim + remaps, tail hooks stripped; shims keep the `use*` hooks wiring `agicashDbClient`/`useEncryption`/`useAccountRepository`). `lib/type-utils` → `@agicash/utils/type-utils` (`type-fest` dep moved web→utils; web shim stays for the 3 send repos until Phase 7). `ReceiveCashuTokenService` ctor gains `cashuMintValidator: MintValidator` dep (it was an env-derived module-level import; web shim + the receive-token route inject web's validator); new `MintValidator` type exported from `@agicash/cashu` mint-validation |
 
 ## Remaining roadmap (handoff instructions — work top to bottom)
 

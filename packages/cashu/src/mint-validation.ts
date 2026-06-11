@@ -44,17 +44,25 @@ type BuildMintValidatorOptions = {
 };
 
 /**
+ * Validates a mint for use with the given unit.
+ * @returns `true` when the mint is valid, otherwise a user-facing reason string.
+ */
+export type MintValidator = (
+  mintUrl: string,
+  selectedUnit: CashuProtocolUnit,
+  mintInfo: MintInfo,
+  keysets: MintKeyset[],
+) => string | true;
+
+/**
  * Builds a validator function that checks if the mint is valid according to the given NUTs
  * and the selected unit. If mint info is not provided, it will be fetched from the URL.
  * @returns The validator function
  */
-export const buildMintValidator = (params: BuildMintValidatorOptions) => {
-  return (
-    mintUrl: string,
-    selectedUnit: CashuProtocolUnit,
-    mintInfo: MintInfo,
-    keysets: MintKeyset[],
-  ): string | true => {
+export const buildMintValidator = (
+  params: BuildMintValidatorOptions,
+): MintValidator => {
+  return (mintUrl, selectedUnit, mintInfo, keysets) => {
     if (!/^https?:\/\/.+/.test(mintUrl)) {
       return 'Must be a valid URL starting with http(s)://';
     }

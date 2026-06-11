@@ -15,6 +15,7 @@ import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-qu
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
 import {
+  cashuMintValidator,
   decodeCashuToken,
   getCashuCryptography,
 } from '~/features/shared/cashu';
@@ -59,7 +60,10 @@ const getClaimCashuTokenService = async () => {
   const sparkReceiveQuoteService = new SparkReceiveQuoteService(
     new SparkReceiveQuoteRepository(agicashDbClient, encryption),
   );
-  const receiveCashuTokenService = new ReceiveCashuTokenService(queryClient);
+  const receiveCashuTokenService = new ReceiveCashuTokenService(
+    queryClient,
+    cashuMintValidator,
+  );
   const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
