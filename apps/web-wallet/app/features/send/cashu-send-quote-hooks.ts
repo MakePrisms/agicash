@@ -2,12 +2,7 @@ import {
   type MeltQuoteBolt11Response,
   MintOperationError,
 } from '@cashu/cashu-ts';
-import {
-  type QueryClient,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import type Big from 'big.js';
 import { useMemo, useState } from 'react';
 import {
@@ -23,102 +18,30 @@ import {
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendQuote,
-} from '../agicash-db/database';
 import { ConcurrencyError, DomainError } from '../shared/error';
 import { getSdk } from '../shared/sdk';
-import { useUser } from '../user/user-hooks';
 import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
-import { useCashuSendQuoteRepository } from './cashu-send-quote-repository';
-import {
-  type SendQuoteRequest,
-  useCashuSendQuoteService,
-} from './cashu-send-quote-service';
+import type { SendQuoteRequest } from './cashu-send-quote-service';
 
-class UnresolvedCashuSendQuotesCache {
-  // Query that tracks all unresolved cashu send quotes (active and background ones).
-  public static Key = 'unresolved-cashu-send-quotes';
-
-  constructor(private readonly queryClient: QueryClient) {}
-
-  get(sendQuoteId: string) {
-    return this.queryClient
-      .getQueryData<CashuSendQuote[]>([UnresolvedCashuSendQuotesCache.Key])
-      ?.find((q) => q.id === sendQuoteId);
-  }
-
-  getByMeltQuoteId(meltQuoteId: string) {
-    const quotes = this.queryClient.getQueryData<CashuSendQuote[]>([
-      UnresolvedCashuSendQuotesCache.Key,
-    ]);
-    return quotes?.find((q) => q.quoteId === meltQuoteId);
-  }
-
-  add(quote: CashuSendQuote) {
-    this.queryClient.setQueryData<CashuSendQuote[]>(
-      [UnresolvedCashuSendQuotesCache.Key],
-      (curr) => [...(curr ?? []), quote],
-    );
-  }
-
-  update(quote: CashuSendQuote) {
-    this.queryClient.setQueryData<CashuSendQuote[]>(
-      [UnresolvedCashuSendQuotesCache.Key],
-      (curr) =>
-        curr?.map((q) =>
-          q.id === quote.id && q.version < quote.version ? quote : q,
-        ),
-    );
-  }
-
-  remove(quote: CashuSendQuote) {
-    this.queryClient.setQueryData<CashuSendQuote[]>(
-      [UnresolvedCashuSendQuotesCache.Key],
-      (curr) => curr?.filter((q) => q.id !== quote.id),
-    );
-  }
-
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [UnresolvedCashuSendQuotesCache.Key],
-    });
-  }
-}
-
+/**
+ * Transitional (sdk.send.internal): only for the web-owned realtime wiring
+ * and task processing until the SDK owns them (Phase 8).
+ */
 export function useUnresolvedCashuSendQuotesCache() {
-  const queryClient = useQueryClient();
-  return useMemo(
-    () => new UnresolvedCashuSendQuotesCache(queryClient),
-    [queryClient],
-  );
+  return getSdk().send.internal.unresolvedCashuSendQuotesCache;
 }
 
 export function useCreateCashuLightningSendQuote() {
-  const cashuSendQuoteService = useCashuSendQuoteService();
-
   return useMutation({
     scope: {
       id: 'create-cashu-lightning-send-quote',
     },
-    mutationFn: ({
-      account,
-      amount,
-      paymentRequest,
-      exchangeRate,
-    }: {
+    mutationFn: (props: {
       account: CashuAccount;
       paymentRequest: string;
       amount?: Money;
       exchangeRate?: Big;
-    }) =>
-      cashuSendQuoteService.getLightningQuote({
-        account,
-        amount,
-        paymentRequest,
-        exchangeRate,
-      }),
+    }) => getSdk().send.getCashuLightningQuote(props),
     retry: (failureCount, error) => {
       if (error instanceof DomainError) {
         return false;
@@ -135,8 +58,6 @@ export function useInitiateCashuSendQuote({
   onSuccess: (data: CashuSendQuote) => void;
   onError: (error: Error) => void;
 }) {
-  const userId = useUser((user) => user.id);
-  const cashuSendQuoteService = useCashuSendQuoteService();
   const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
@@ -154,8 +75,7 @@ export function useInitiateCashuSendQuote({
       destinationDetails?: DestinationDetails;
     }) => {
       const account = getCashuAccount(accountId);
-      return cashuSendQuoteService.createSendQuote({
-        userId,
+      return getSdk().send.createCashuSendQuote({
         account,
         sendQuote,
         destinationDetails,
@@ -178,14 +98,10 @@ export function useInitiateCashuSendQuote({
 }
 
 function useUnresolvedCashuSendQuotes() {
-  const cashuSendQuoteRepository = useCashuSendQuoteRepository();
-  const userId = useUser((user) => user.id);
   const selectSendQuotesWithOnlineAccount = useSelectItemsWithOnlineAccount();
 
   const { data } = useQuery({
-    queryKey: [UnresolvedCashuSendQuotesCache.Key],
-    queryFn: () => cashuSendQuoteRepository.getUnresolved(userId),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...getSdk().send.unresolvedCashuQuotesOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
@@ -214,46 +130,19 @@ function usePendingMeltQuotes() {
     });
   }, [unresolvedCashuSendQuotes]);
 }
+
 /**
  * Hook that returns a cashu send quote change handler.
+ *
+ * Transitional (sdk.send.internal): consumed by the web-owned realtime
+ * wiring until the realtime hub moves into the SDK (Phase 8).
  */
 export function useCashuSendQuoteChangeHandlers() {
-  const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
-  const cashuSendQuoteRepository = useCashuSendQuoteRepository();
-
-  return [
-    {
-      event: 'CASHU_SEND_QUOTE_CREATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const quote = await cashuSendQuoteRepository.toQuote(payload);
-        unresolvedSendQuotesCache.add(quote);
-      },
-    },
-    {
-      event: 'CASHU_SEND_QUOTE_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const quote = await cashuSendQuoteRepository.toQuote(payload);
-
-        if (['UNPAID', 'PENDING'].includes(quote.state)) {
-          unresolvedSendQuotesCache.update(quote);
-        } else {
-          unresolvedSendQuotesCache.remove(quote);
-        }
-      },
-    },
-  ];
+  return getSdk().send.internal.changeHandlers.cashuSendQuote;
 }
 
 export function useProcessCashuSendQuoteTasks() {
-  const cashuSendService = useCashuSendQuoteService();
+  const cashuSendService = getSdk().send.internal.cashuSendQuoteService;
   const pendingMeltQuotes = usePendingMeltQuotes();
   const getCashuAccount = useGetCashuAccount();
   const getCashuAccountByMintUrlAndCurrency =

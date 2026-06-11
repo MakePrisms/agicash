@@ -9,6 +9,7 @@ import { type CaptureException, setErrorReporter } from './error-reporting';
 import { type MeasureOperation, setOperationMeasurer } from './performance';
 import { getQueryClient } from './query-client';
 import { type ReceiveApi, createReceiveApi } from './receive/receive-api';
+import { type SendApi, createSendApi } from './send/send-api';
 import { configureSpark } from './spark-config';
 import {
   type TransactionsApi,
@@ -19,6 +20,7 @@ import { type UserApi, createUserApi } from './user/user-api';
 export type { AccountsApi } from './accounts/accounts-api';
 export type { ContactsApi } from './contacts/contacts-api';
 export type { ReceiveApi } from './receive/receive-api';
+export type { SendApi } from './send/send-api';
 export type { TransactionsApi } from './transactions/transactions-api';
 export type { UserApi } from './user/user-api';
 
@@ -94,6 +96,7 @@ export class WalletSdk {
   readonly transactions: TransactionsApi;
   readonly contacts: ContactsApi;
   readonly receive: ReceiveApi;
+  readonly send: SendApi;
 
   constructor(config: WalletSdkConfig) {
     this.queryClient = getQueryClient();
@@ -141,7 +144,7 @@ export class WalletSdk {
       getDomain: config.getLightningAddressDomain,
     });
 
-    this.receive = createReceiveApi({
+    const receive = createReceiveApi({
       queryClient: this.queryClient,
       db,
       encryption,
@@ -151,6 +154,16 @@ export class WalletSdk {
       accountService: accounts.service,
       userService: user.service,
       cashuMintValidator: config.cashuMintValidator,
+    });
+    this.receive = receive.api;
+
+    this.send = createSendApi({
+      queryClient: this.queryClient,
+      db,
+      encryption,
+      getCurrentUserId,
+      accountsCache: accounts.cache,
+      cashuReceiveSwapService: receive.cashuReceiveSwapService,
     });
   }
 }

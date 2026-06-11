@@ -178,7 +178,11 @@ export type ReceiveApiDeps = {
   cashuMintValidator: MintValidator;
 };
 
-export function createReceiveApi(deps: ReceiveApiDeps): ReceiveApi {
+export function createReceiveApi(deps: ReceiveApiDeps): {
+  api: ReceiveApi;
+  /** Shared with the send api: send swap reversal claims back through it. */
+  cashuReceiveSwapService: CashuReceiveSwapService;
+} {
   const {
     queryClient,
     db,
@@ -250,7 +254,7 @@ export function createReceiveApi(deps: ReceiveApiDeps): ReceiveApi {
     queryClient,
   );
 
-  return {
+  const api: ReceiveApi = {
     claimToken: (token, claimTo) =>
       claimCashuTokenService.claimToken(getCurrentUser(), token, claimTo),
     createCashuReceiveQuote: async ({
@@ -374,4 +378,6 @@ export function createReceiveApi(deps: ReceiveApiDeps): ReceiveApi {
       },
     },
   };
+
+  return { api, cashuReceiveSwapService };
 }

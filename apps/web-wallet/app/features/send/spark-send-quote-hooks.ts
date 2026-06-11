@@ -1,11 +1,6 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
-import {
-  type QueryClient,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { useEffect, useMemo, useRef } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
@@ -13,111 +8,35 @@ import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbSparkSendQuote } from '../agicash-db/database';
 import { DomainError } from '../shared/error';
+import { getSdk } from '../shared/sdk';
 import { sparkDebugLog } from '../shared/spark';
-import { useUser } from '../user/user-hooks';
 import type { SparkSendQuote } from './spark-send-quote';
-import { useSparkSendQuoteRepository } from './spark-send-quote-repository';
-import {
-  type SparkLightningQuote,
-  useSparkSendQuoteService,
-} from './spark-send-quote-service';
+import type { SparkLightningQuote } from './spark-send-quote-service';
 
 /**
- * Cache for unresolved (UNPAID or PENDING) spark send quotes.
+ * Transitional (sdk.send.internal): only for the web-owned realtime wiring
+ * and task processing until the SDK owns them (Phase 8).
  */
-export class UnresolvedSparkSendQuotesCache {
-  public static Key = 'unresolved-spark-send-quotes';
-
-  constructor(private readonly queryClient: QueryClient) {}
-
-  get(quoteId: string) {
-    return this.queryClient
-      .getQueryData<SparkSendQuote[]>([UnresolvedSparkSendQuotesCache.Key])
-      ?.find((q) => q.id === quoteId);
-  }
-
-  add(quote: SparkSendQuote) {
-    this.queryClient.setQueryData<SparkSendQuote[]>(
-      [UnresolvedSparkSendQuotesCache.Key],
-      (curr) => [...(curr ?? []), quote],
-    );
-  }
-
-  update(quote: SparkSendQuote) {
-    this.queryClient.setQueryData<SparkSendQuote[]>(
-      [UnresolvedSparkSendQuotesCache.Key],
-      (curr) =>
-        curr?.map((q) =>
-          q.id === quote.id && q.version < quote.version ? quote : q,
-        ),
-    );
-  }
-
-  remove(quote: SparkSendQuote) {
-    this.queryClient.setQueryData<SparkSendQuote[]>(
-      [UnresolvedSparkSendQuotesCache.Key],
-      (curr) => curr?.filter((q) => q.id !== quote.id),
-    );
-  }
-
-  invalidate() {
-    return this.queryClient.invalidateQueries({
-      queryKey: [UnresolvedSparkSendQuotesCache.Key],
-    });
-  }
-}
-
 export function useUnresolvedSparkSendQuotesCache() {
-  const queryClient = useQueryClient();
-  return useMemo(
-    () => new UnresolvedSparkSendQuotesCache(queryClient),
-    [queryClient],
-  );
+  return getSdk().send.internal.unresolvedSparkSendQuotesCache;
 }
 
 /**
  * Hook that returns spark send quote change handlers.
+ *
+ * Transitional (sdk.send.internal): consumed by the web-owned realtime
+ * wiring until the realtime hub moves into the SDK (Phase 8).
  */
 export function useSparkSendQuoteChangeHandlers() {
-  const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
-  const sparkSendQuoteRepository = useSparkSendQuoteRepository();
-
-  return [
-    {
-      event: 'SPARK_SEND_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const addedQuote = await sparkSendQuoteRepository.toQuote(payload);
-        unresolvedQuotesCache.add(addedQuote);
-      },
-    },
-    {
-      event: 'SPARK_SEND_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const quote = await sparkSendQuoteRepository.toQuote(payload);
-
-        const isQuoteStillUnresolved =
-          quote.state === 'UNPAID' || quote.state === 'PENDING';
-        if (isQuoteStillUnresolved) {
-          unresolvedQuotesCache.update(quote);
-        } else {
-          unresolvedQuotesCache.remove(quote);
-        }
-      },
-    },
-  ];
+  return getSdk().send.internal.changeHandlers.sparkSendQuote;
 }
 
 const useUnresolvedSparkSendQuotes = () => {
-  const sparkSendQuoteRepository = useSparkSendQuoteRepository();
-  const userId = useUser((user) => user.id);
   const selectWithOnlineAccount = useSelectItemsWithOnlineAccount();
 
   const { data } = useQuery({
-    queryKey: [UnresolvedSparkSendQuotesCache.Key],
-    queryFn: () => sparkSendQuoteRepository.getUnresolved(userId),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...getSdk().send.unresolvedSparkQuotesOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     throwOnError: true,
@@ -305,15 +224,13 @@ type CreateSparkLightningSendQuoteParams = {
  * Returns a mutation for creating a Spark Lightning send quote.
  */
 export function useCreateSparkLightningSendQuote() {
-  const sparkSendQuoteService = useSparkSendQuoteService();
-
   return useMutation({
     mutationFn: async ({
       account,
       paymentRequest,
       amount,
     }: CreateSparkLightningSendQuoteParams) => {
-      return sparkSendQuoteService.getLightningSendQuote({
+      return getSdk().send.getSparkLightningSendQuote({
         account,
         paymentRequest,
         amount: amount as Money<'BTC'>,
@@ -351,19 +268,12 @@ export function useInitiateSparkSendQuote({
   onSuccess: (data: SparkSendQuote) => void;
   onError: (error: Error) => void;
 }) {
-  const userId = useUser((user) => user.id);
-  const sparkSendQuoteService = useSparkSendQuoteService();
-
   return useMutation({
     scope: {
       id: 'create-spark-send-quote',
     },
     mutationFn: ({ account, quote }: CreateSparkSendQuoteParams) => {
-      return sparkSendQuoteService.createSendQuote({
-        userId,
-        account,
-        quote,
-      });
+      return getSdk().send.createSparkSendQuote({ account, quote });
     },
     onSuccess: (data) => {
       onSuccess(data);
@@ -384,7 +294,7 @@ export function useInitiateSparkSendQuote({
  * - For PENDING quotes: Listens for Breez SDK payment events to update quote state.
  */
 export function useProcessSparkSendQuoteTasks() {
-  const sparkSendQuoteService = useSparkSendQuoteService();
+  const sparkSendQuoteService = getSdk().send.internal.sparkSendQuoteService;
   const unresolvedSendQuotes = useUnresolvedSparkSendQuotes();
   const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
   const getSparkAccount = useGetSparkAccount();

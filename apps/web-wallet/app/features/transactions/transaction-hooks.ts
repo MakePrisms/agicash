@@ -6,9 +6,6 @@ import {
 } from '@tanstack/react-query';
 import { getSdk } from '~/features/shared/sdk';
 import { useLatest } from '~/lib/use-latest';
-import { useGetCashuAccount } from '../accounts/account-hooks';
-import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
-import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
 import { type Transaction, isTransactionReversable } from './transaction';
 
 export { isTransactionReversable };
@@ -75,31 +72,12 @@ export function useReverseTransaction({
   onSuccess?: () => void;
   onError?: (error: Error) => void;
 }) {
-  const cashuSendSwapService = useCashuSendSwapService();
-  const getCashuAccount = useGetCashuAccount();
-  const cashuSendSwapRepository = useCashuSendSwapRepository();
   const onSuccessRef = useLatest(onSuccess);
   const onErrorRef = useLatest(onError);
 
   return useMutation({
-    mutationFn: async ({ transaction }: { transaction: Transaction }) => {
-      if (!isTransactionReversable(transaction)) {
-        throw new Error('Transaction cannot be reversed');
-      }
-
-      if (transaction.type === 'CASHU_TOKEN') {
-        const swap = await cashuSendSwapRepository.getByTransactionId(
-          transaction.id,
-        );
-        if (!swap) {
-          throw new Error(`Swap not found for transaction ${transaction.id}`);
-        }
-        const account = getCashuAccount(swap.accountId);
-        await cashuSendSwapService.reverse(swap, account);
-      } else {
-        throw new Error('Only CASHU_TOKEN transactions can be reversed');
-      }
-    },
+    mutationFn: ({ transaction }: { transaction: Transaction }) =>
+      getSdk().send.reverseTransaction(transaction),
     onSuccess: () => {
       onSuccessRef.current?.();
     },

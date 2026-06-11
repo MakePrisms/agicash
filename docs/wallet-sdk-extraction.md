@@ -1,21 +1,21 @@
 # Wallet SDK extraction — plan, progress, and working rules
 
 Status document for the `@agicash/wallet-sdk` extraction (restarted greenfield from master
-2026-06-08). Updated at the end of each phase. Current as of: **Phase 6 (receive domain)
-COMPLETE — curated `sdk.receive` live; Phase 7 (send) next** (branch
-`sdk/phase6-receive`, all local — no PRs/pushes yet, working tree clean, all gates green).
+2026-06-08). Updated at the end of each phase. Current as of: **Phase 7 (send domain)
+COMPLETE — curated `sdk.send` live; Phase 8 (realtime hub) next** (branch
+`sdk/phase7-send`, all local — no PRs/pushes yet, working tree clean, all gates green).
 
 ## HANDOFF — read this first
 
 This work is being handed to a fresh agent. Everything you need is in this document plus
 the git history; there is no other context. How to resume:
 
-1. You are on branch `sdk/phase6-receive` (stacked on phase5 → phase4 → phase3 → … →
-   master). Verify: `git status` clean, `git log --oneline -8` matches the ledger below.
+1. You are on the branch named in the status header above (each phase stacks a new
+   `sdk/phaseN-<name>` branch on the previous one, all the way down to master). Verify: `git status` clean, `git log --oneline -8` matches the ledger below.
 2. Read **Architecture decisions**, **Working method**, and **Landmines** below — these are
    settled with the user; do not relitigate them.
-3. Continue with the first section in the *Remaining roadmap* (currently **Phase 7 —
-   send domain**). Phases are specified at decreasing resolution; ground each one (read
+3. Continue with the first section in the *Remaining roadmap* (currently **Phase 8 —
+   realtime hub**). Phases are specified at decreasing resolution; ground each one (read
    the files, map consumers with `git grep`) before moving code.
 4. The user's standing instruction: **finish the whole effort autonomously, no checkpoints**
    — through Phase 10, then a final report on what the codebase looks like. Commit per
@@ -93,7 +93,7 @@ process.
    rewrites all imports and deletes shims.
 4. **Gates on every chunk** (all must pass before commit):
    - `bun run typecheck` (all packages), `bun run fix:all`, `bun run test`
-     (test count must not drop; currently 162: utils 41, cashu 35, wallet-sdk 34, web 52),
+     (test count must not drop; currently 168: utils 41, cashu 35, wallet-sdk 40, web 52),
      `bun run build` (client+server+prerender — needs `.env` loaded:
      `set -a; . ./.env; set +a`)
    - framework-free grep: `git grep -nE "from 'react'|@tanstack/react" packages/wallet-sdk/src`
@@ -178,6 +178,8 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 | 6.1 | `sdk/phase6-receive` · 6ca5d29d | receive leaf+cores → SDK `receive/`: cashu/spark quote types, swap types, melt-data, both quote cores, token models (verbatim). `lib/bolt11` → `@agicash/utils/bolt11` (+tests; `light-bolt11-decoder` dep moved to utils, `@scure/base@2.0.0` added to catalog). `derivePublicKey` → SDK `cryptography.ts` (the `useCryptography` hook stays web) |
 | 6.2 | `sdk/phase6-receive` · 71138490 | receive repositories ×3 + services ×5 → SDK `receive/` (verbatim + remaps, tail hooks stripped; shims keep the `use*` hooks wiring `agicashDbClient`/`useEncryption`/`useAccountRepository`). `lib/type-utils` → `@agicash/utils/type-utils` (`type-fest` dep moved web→utils; web shim stays for the 3 send repos until Phase 7). `ReceiveCashuTokenService` ctor gains `cashuMintValidator: MintValidator` dep (it was an env-derived module-level import; web shim + the receive-token route inject web's validator); new `MintValidator` type exported from `@agicash/cashu` mint-validation |
 | 6.3 | `sdk/phase6-receive` · (HEAD) | curated `sdk.receive` surface. New seams: SDK `error-reporting.ts` (`setErrorReporter`/`captureException` no-op default; `WalletSdkConfig.captureException?` — web passes Sentry's) mirroring `performance.ts`; `lib/exchange-rate/` → SDK `exchange-rate/` (+5 tests; `ky` to catalog; `exchangeRate(s)QueryOptions` + `getExchangeRate` extracted from `hooks/use-exchange-rate.ts` — web keeps the 3 hooks + 15s refetchInterval policy; explicit `./exchange-rate` exports entry). `ClaimCashuTokenService` → SDK (Sentry swapped for `captureException`). Cache classes + change handlers extracted from the 3 hooks files → `receive/{cashu,spark}-receive-quote-cache.ts`, `receive/cashu-receive-swap-cache.ts` (version guards test-locked, +10 tests). `receive-api.ts`: `claimToken(token, claimTo)` (derives the FULL user via new root `getCurrentUser` thunk), `createCashuReceiveQuote`/`createSparkReceiveQuote` (absorb active-quote cache.add), `createCashuReceiveSwap` (NO cache write — realtime is the write path), `cashuQuoteOptions`/`sparkQuoteOptions`/`pendingCashu(Spark)QuotesOptions`/`pendingCashuSwapsOptions` (staleTime ∞ in SDK; refetch/select/throwOnError stay web), `internal` = repos+services+caches+changeHandlers for tracking/task-processing hooks (die in Phase 8). `WalletSdkConfig.cashuMintValidator` (required) — web passes its env-derived validator. Root factories now return `{api, service}` (user) / `{api, repository, service, cache}` (accounts) so receive wires without `internal`-reaching. Hooks files: only React orchestration left (websocket/polling tracking, task processing, spark event listeners); `useCreateCashuReceiveQuote` et al one-line delegate; receive-token route's hand-built 9-class graph replaced by `getSdk().receive.claimToken`. Zero-consumer cleanup: hooks-file `getExchangeRate` re-export dropped |
+| 7.1 | `sdk/phase7-send` · 96b7950f | send leafs ×3 + `utils.ts` + repositories ×3 + services ×3 + `proof-state-subscription-manager` → SDK `send/` (verbatim + remaps; tail hooks stay in shims). `shared/currencies` → SDK `currencies.ts`; `lib/spark/errors` guards → SDK `spark-utils.ts` (errors.ts deleted — zero direct importers). Grounding deviations (web-only consumers): `find-matching-offer-or-gift-card-account` (+test), `resolve-destination`, `validation` stay web; `melt-quote-subscription` is the React `useOnMeltQuoteStateChange` hook and stays web. The proof-state manager stays in the SDK rather than `@agicash/cashu` (coupled to db-flavored `CashuProof` + send-swap types) |
+| 7.2 | `sdk/phase7-send` · (HEAD) | curated `sdk.send` surface: `getCashuLightningQuote`/`createCashuSendQuote`/`getSparkLightningSendQuote`/`createSparkSendQuote`/`getCashuSendSwapQuote`/`createCashuSendSwap` (absorbs active-swap cache.add)/`reverseTransaction(tx)` (absorbs `useReverseTransaction` body; resolves the swap's cashu account via the accounts cache), `cashuSwapOptions` (NotFoundError retry semantics)/`trackCashuSwapOptions`/`unresolved*Options` ×3. Cache classes + change handlers extracted into `send/{cashu,spark}-send-quote-cache.ts`, `send/cashu-send-swap-cache.ts` (version guards test-locked, +6 tests → 168). `createReceiveApi` now returns `{api, cashuReceiveSwapService}` so the root wires the send-swap reversal dependency without internal-reaching. Hooks files keep only React orchestration (melt-quote websocket tracking, spark event listeners, proof-state subscriptions, task processing). Zero-consumer cleanup: `useCashuSendSwapService` hook deleted from its shim |
 
 ## Remaining roadmap (handoff instructions — work top to bottom)
 
@@ -203,25 +205,6 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 
 `@tanstack/react-query` **type-only** imports (e.g. `QueryClient`) become
 `@tanstack/query-core`.
-
-### Phase 7 — send domain (`sdk/phase7-send`)
-
-Mirror of Phase 6, files in `features/send/`: leafs (`cashu-send-quote.ts` — already
-re-exports DestinationDetails from db-types, `cashu-send-swap.ts`, `spark-send-quote.ts`),
-repositories ×3, services ×3 (+ `find-matching-offer-or-gift-card-account.ts` + its test —
-pure, moves; test moves with it), then caches/changeHandlers out of the three hooks files,
-`send-api.ts`, hooks delegate. Specifics:
-- `proof-state-subscription-manager.ts` carries a breadcrumb comment → move to
-  `@agicash/cashu` next to the other two subscription managers.
-- `lib/cashu/melt-quote-subscription.ts` is the one web-local file in `lib/cashu` (the
-  index re-exports it) — likely moves to `@agicash/cashu` with the proof-state manager;
-  ground its imports first (it may have React).
-- `useReverseTransaction` (transactions hooks) can now absorb into a curated
-  `sdk.transactions.reverse(tx)` or `sdk.send` method — it needs CashuSendSwapRepository
-  + CashuSendSwapService + a cashu account lookup, all SDK-side after this phase.
-- Stays web: `send-store.ts` (zustand), `resolve-destination.ts` (CHECK — it imports
-  contacts + bolt11; if pure it moves), `use-get-invoice-from-lud16.ts` (hook),
-  `validation.ts` (CHECK purity), UI tsx files, `utils.ts` (CHECK).
 
 ### Phase 8 — realtime hub into the SDK (`sdk/phase8-realtime`)
 
