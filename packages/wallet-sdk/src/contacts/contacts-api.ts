@@ -42,7 +42,6 @@ export type ContactsApi = {
   internal: {
     repository: ContactRepository;
     cache: ContactsCache;
-    changeHandlers: ReturnType<typeof createContactChangeHandlers>;
   };
 };
 
@@ -61,7 +60,11 @@ export type ContactsApiDeps = {
   getDomain: () => string;
 };
 
-export function createContactsApi(deps: ContactsApiDeps): ContactsApi {
+export function createContactsApi(deps: ContactsApiDeps): {
+  api: ContactsApi;
+  cache: ContactsCache;
+  changeHandlers: ReturnType<typeof createContactChangeHandlers>;
+} {
   const { queryClient, db, getCurrentUserId, getDomain } = deps;
 
   // Safe to resolve here: domains are constructed lazily on first getSdk(),
@@ -69,7 +72,7 @@ export function createContactsApi(deps: ContactsApiDeps): ContactsApi {
   const repository = new ContactRepository(db, getDomain());
   const cache = new ContactsCache(queryClient);
 
-  return {
+  const api: ContactsApi = {
     listOptions: () => ({
       queryKey: [ContactsCache.Key],
       queryFn: () => repository.getAll(getCurrentUserId()),
@@ -90,7 +93,12 @@ export function createContactsApi(deps: ContactsApiDeps): ContactsApi {
     internal: {
       repository,
       cache,
-      changeHandlers: createContactChangeHandlers(cache, getDomain),
     },
+  };
+
+  return {
+    api,
+    cache,
+    changeHandlers: createContactChangeHandlers(cache, getDomain),
   };
 }

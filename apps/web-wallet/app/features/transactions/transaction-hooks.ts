@@ -86,13 +86,3 @@ export function useReverseTransaction({
     },
   });
 }
-
-/**
- * Hook that returns the transaction change handlers.
- *
- * Transitional (sdk.transactions.internal): consumed by the web-owned
- * realtime wiring until the realtime hub moves into the SDK.
- */
-export function useTransactionChangeHandlers() {
-  return getSdk().transactions.internal.changeHandlers;
-}

@@ -22,16 +22,6 @@ export function useUnresolvedSparkSendQuotesCache() {
   return getSdk().send.internal.unresolvedSparkSendQuotesCache;
 }
 
-/**
- * Hook that returns spark send quote change handlers.
- *
- * Transitional (sdk.send.internal): consumed by the web-owned realtime
- * wiring until the realtime hub moves into the SDK (Phase 8).
- */
-export function useSparkSendQuoteChangeHandlers() {
-  return getSdk().send.internal.changeHandlers.sparkSendQuote;
-}
-
 const useUnresolvedSparkSendQuotes = () => {
   const selectWithOnlineAccount = useSelectItemsWithOnlineAccount();
 

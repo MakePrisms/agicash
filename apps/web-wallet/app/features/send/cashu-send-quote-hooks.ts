@@ -131,16 +131,6 @@ function usePendingMeltQuotes() {
   }, [unresolvedCashuSendQuotes]);
 }
 
-/**
- * Hook that returns a cashu send quote change handler.
- *
- * Transitional (sdk.send.internal): consumed by the web-owned realtime
- * wiring until the realtime hub moves into the SDK (Phase 8).
- */
-export function useCashuSendQuoteChangeHandlers() {
-  return getSdk().send.internal.changeHandlers.cashuSendQuote;
-}
-
 export function useProcessCashuSendQuoteTasks() {
   const cashuSendService = getSdk().send.internal.cashuSendQuoteService;
   const pendingMeltQuotes = usePendingMeltQuotes();

@@ -1,9 +1,12 @@
+import type { SdkEvent } from '@agicash/breez-sdk-spark';
 import type { AgicashDb } from '@agicash/db-types';
+import { Money } from '@agicash/utils/money';
 import type { QueryClient } from '@tanstack/query-core';
 import { seedQueryOptions } from '../cashu';
 import type { Encryption } from '../encryption';
 import { sparkMnemonicQueryOptions } from '../spark';
-import type { Account, CashuAccount } from './account';
+import { sparkDebugLog } from '../spark-config';
+import type { Account, CashuAccount, SparkAccount } from './account';
 import { AccountRepository } from './account-repository';
 import { AccountService } from './account-service';
 import {
@@ -38,6 +41,13 @@ export type AccountsApi = {
     account: Parameters<AccountService['addCashuAccount']>[0]['account'],
   ) => Promise<CashuAccount>;
   /**
+   * Registers Breez event listeners on the given spark accounts and records
+   * balance changes in the accounts state. The host binds this to its
+   * reactive accounts list lifecycle.
+   * @returns a cleanup function removing the listeners.
+   */
+  trackSparkBalances: (accounts: SparkAccount[]) => () => void;
+  /**
    * Transitional escape hatch — NOT part of the public surface. Only for (a)
    * not-yet-migrated SDK collaborators still composed in web feature code
    * (receive/send repositories and services) and (b) the web-owned
@@ -49,7 +59,6 @@ export type AccountsApi = {
     repository: AccountRepository;
     service: AccountService;
     cache: AccountsCache;
-    changeHandlers: ReturnType<typeof createAccountChangeHandlers>;
   };
 };
 
@@ -77,6 +86,7 @@ export function createAccountsApi(deps: AccountsApiDeps): {
   repository: AccountRepository;
   service: AccountService;
   cache: AccountsCache;
+  changeHandlers: ReturnType<typeof createAccountChangeHandlers>;
 } {
   const { queryClient, db, encryption, sparkStorageDir, getCurrentUserId } =
     deps;
@@ -121,13 +131,61 @@ export function createAccountsApi(deps: AccountsApiDeps): {
       cache.upsert(created);
       return created;
     },
+    trackSparkBalances: (sparkAccounts) => {
+      const registrations = sparkAccounts.map((account) => {
+        const listenerPromise = account.wallet.addEventListener({
+          onEvent(event: SdkEvent) {
+            sparkDebugLog('Breez event', {
+              accountId: account.id,
+              type: event.type,
+            });
+
+            if (
+              event.type === 'paymentSucceeded' ||
+              event.type === 'paymentPending' ||
+              event.type === 'paymentFailed' ||
+              event.type === 'claimedDeposits' ||
+              event.type === 'synced'
+            ) {
+              account.wallet.getInfo({}).then((info) => {
+                const balance = new Money({
+                  amount: info.balanceSats,
+                  currency: 'BTC',
+                  unit: 'sat',
+                }) as Money;
+                cache.updateSparkAccountBalance({
+                  accountId: account.id,
+                  balance,
+                });
+              });
+            }
+          },
+        });
+        return { wallet: account.wallet, listenerPromise };
+      });
+
+      return () => {
+        for (const { wallet, listenerPromise } of registrations) {
+          listenerPromise
+            .then((id) => wallet.removeEventListener(id))
+            .catch(() => {
+              console.warn('Failed to remove Spark event listener');
+            });
+        }
+      };
+    },
     internal: {
       repository,
       service,
       cache,
-      changeHandlers: createAccountChangeHandlers(repository, cache),
     },
   };
 
-  return { api, repository, service, cache };
+  return {
+    api,
+    repository,
+    service,
+    cache,
+    changeHandlers: createAccountChangeHandlers(repository, cache),
+  };
 }

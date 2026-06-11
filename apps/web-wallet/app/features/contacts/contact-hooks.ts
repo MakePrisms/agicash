@@ -5,17 +5,6 @@ import type { Contact } from './contact';
 export { ContactsCache } from '@agicash/wallet-sdk';
 
 /**
- * Hook that provides the contacts cache.
- *
- * Transitional (sdk.contacts.internal): only for the not-yet-migrated send
- * domain code and the web-owned realtime infrastructure. App/UI code must
- * use the curated sdk.contacts methods.
- */
-export function useContactsCache() {
-  return getSdk().contacts.internal.cache;
-}
-
-/**
  * Hook for listing contacts for the current user with optional filtering
  */
 export function useContacts(select?: (contacts: Contact[]) => Contact[]) {
@@ -68,14 +57,4 @@ export function useFindContactCandidates(query: string) {
     initialDataUpdatedAt: () => Date.now() - 1000 * 6,
     staleTime: 1000 * 5,
   });
-}
-
-/**
- * Hook that returns the contact change handlers.
- *
- * Transitional (sdk.contacts.internal): consumed by the web-owned realtime
- * wiring until the realtime hub moves into the SDK.
- */
-export function useContactChangeHandlers() {
-  return getSdk().contacts.internal.changeHandlers;
 }

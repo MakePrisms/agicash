@@ -8,6 +8,7 @@ import type { AccountRepository } from '../accounts/account-repository';
 import type { AccountService } from '../accounts/account-service';
 import { getCashuCryptography } from '../cashu';
 import type { Encryption } from '../encryption';
+import type { DatabaseChangeHandler } from '../realtime/realtime-api';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import type { User } from '../user/user';
 import type { UserService } from '../user/user-service';
@@ -145,15 +146,6 @@ export type ReceiveApi = {
     sparkReceiveQuoteCache: SparkReceiveQuoteCache;
     pendingSparkReceiveQuotesCache: PendingSparkReceiveQuotesCache;
     pendingCashuReceiveSwapsCache: PendingCashuReceiveSwapsCache;
-    changeHandlers: {
-      cashuReceiveQuote: ReturnType<
-        typeof createCashuReceiveQuoteChangeHandlers
-      >;
-      sparkReceiveQuote: ReturnType<
-        typeof createSparkReceiveQuoteChangeHandlers
-      >;
-      cashuReceiveSwap: ReturnType<typeof createCashuReceiveSwapChangeHandlers>;
-    };
   };
 };
 
@@ -182,6 +174,8 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
   api: ReceiveApi;
   /** Shared with the send api: send swap reversal claims back through it. */
   cashuReceiveSwapService: CashuReceiveSwapService;
+  caches: { invalidate: () => unknown }[];
+  changeHandlers: DatabaseChangeHandler[];
 } {
   const {
     queryClient,
@@ -360,24 +354,34 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
       sparkReceiveQuoteCache,
       pendingSparkReceiveQuotesCache,
       pendingCashuReceiveSwapsCache,
-      changeHandlers: {
-        cashuReceiveQuote: createCashuReceiveQuoteChangeHandlers(
-          cashuReceiveQuoteRepository,
-          cashuReceiveQuoteCache,
-          pendingCashuReceiveQuotesCache,
-        ),
-        sparkReceiveQuote: createSparkReceiveQuoteChangeHandlers(
-          sparkReceiveQuoteRepository,
-          sparkReceiveQuoteCache,
-          pendingSparkReceiveQuotesCache,
-        ),
-        cashuReceiveSwap: createCashuReceiveSwapChangeHandlers(
-          cashuReceiveSwapRepository,
-          pendingCashuReceiveSwapsCache,
-        ),
-      },
     },
   };
 
-  return { api, cashuReceiveSwapService };
+  return {
+    api,
+    cashuReceiveSwapService,
+    caches: [
+      cashuReceiveQuoteCache,
+      pendingCashuReceiveQuotesCache,
+      pendingCashuReceiveSwapsCache,
+      sparkReceiveQuoteCache,
+      pendingSparkReceiveQuotesCache,
+    ],
+    changeHandlers: [
+      ...createCashuReceiveQuoteChangeHandlers(
+        cashuReceiveQuoteRepository,
+        cashuReceiveQuoteCache,
+        pendingCashuReceiveQuotesCache,
+      ),
+      ...createCashuReceiveSwapChangeHandlers(
+        cashuReceiveSwapRepository,
+        pendingCashuReceiveSwapsCache,
+      ),
+      ...createSparkReceiveQuoteChangeHandlers(
+        sparkReceiveQuoteRepository,
+        sparkReceiveQuoteCache,
+        pendingSparkReceiveQuotesCache,
+      ),
+    ],
+  };
 }

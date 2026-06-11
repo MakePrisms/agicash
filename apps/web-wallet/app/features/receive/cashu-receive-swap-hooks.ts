@@ -48,16 +48,6 @@ function usePendingCashuReceiveSwaps() {
   return data ?? [];
 }
 
-/**
- * Hook that returns a cashu receive swap change handler.
- *
- * Transitional (sdk.receive.internal): consumed by the web-owned realtime
- * wiring until the realtime hub moves into the SDK (Phase 8).
- */
-export function useCashuReceiveSwapChangeHandlers() {
-  return getSdk().receive.internal.changeHandlers.cashuReceiveSwap;
-}
-
 export function useProcessCashuReceiveSwapTasks() {
   const pendingSwaps = usePendingCashuReceiveSwaps();
   const receiveSwapService = getSdk().receive.internal.cashuReceiveSwapService;

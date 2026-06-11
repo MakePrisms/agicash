@@ -40,16 +40,6 @@ export function useAccountsCache() {
 }
 
 /**
- * Hook that returns an account change handlers.
- *
- * Transitional (sdk.accounts.internal): consumed by the web-owned realtime
- * wiring until the realtime hub moves into the SDK.
- */
-export function useAccountChangeHandlers() {
-  return getSdk().accounts.internal.changeHandlers;
-}
-
-/**
  * Filter options for `useAccounts` hook.
  * Results are sorted by creation date (oldest first).
  */

@@ -1,4 +1,4 @@
-import type { AgicashDb } from '../agicash-db/database';
+import type { AgicashDb } from '@agicash/db-types';
 
 type Options = {
   abortSignal?: AbortSignal;

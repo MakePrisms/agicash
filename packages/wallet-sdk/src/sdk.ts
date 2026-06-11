@@ -8,6 +8,7 @@ import { createLazyEncryption } from './encryption';
 import { type CaptureException, setErrorReporter } from './error-reporting';
 import { type MeasureOperation, setOperationMeasurer } from './performance';
 import { getQueryClient } from './query-client';
+import { type RealtimeApi, createRealtimeApi } from './realtime/realtime-api';
 import { type ReceiveApi, createReceiveApi } from './receive/receive-api';
 import { type SendApi, createSendApi } from './send/send-api';
 import { configureSpark } from './spark-config';
@@ -19,6 +20,7 @@ import { type UserApi, createUserApi } from './user/user-api';
 
 export type { AccountsApi } from './accounts/accounts-api';
 export type { ContactsApi } from './contacts/contacts-api';
+export type { RealtimeApi } from './realtime/realtime-api';
 export type { ReceiveApi } from './receive/receive-api';
 export type { SendApi } from './send/send-api';
 export type { TransactionsApi } from './transactions/transactions-api';
@@ -97,6 +99,7 @@ export class WalletSdk {
   readonly contacts: ContactsApi;
   readonly receive: ReceiveApi;
   readonly send: SendApi;
+  readonly realtime: RealtimeApi;
 
   constructor(config: WalletSdkConfig) {
     this.queryClient = getQueryClient();
@@ -130,19 +133,21 @@ export class WalletSdk {
     });
     this.user = user.api;
 
-    this.transactions = createTransactionsApi({
+    const transactions = createTransactionsApi({
       queryClient: this.queryClient,
       db,
       encryption,
       getCurrentUserId,
     });
+    this.transactions = transactions.api;
 
-    this.contacts = createContactsApi({
+    const contacts = createContactsApi({
       queryClient: this.queryClient,
       db,
       getCurrentUserId,
       getDomain: config.getLightningAddressDomain,
     });
+    this.contacts = contacts.api;
 
     const receive = createReceiveApi({
       queryClient: this.queryClient,
@@ -157,13 +162,42 @@ export class WalletSdk {
     });
     this.receive = receive.api;
 
-    this.send = createSendApi({
+    const send = createSendApi({
       queryClient: this.queryClient,
       db,
       encryption,
       getCurrentUserId,
       accountsCache: accounts.cache,
       cashuReceiveSwapService: receive.cashuReceiveSwapService,
+    });
+    this.send = send.api;
+
+    const invalidateOnReconnect = [
+      accounts.cache,
+      transactions.cache,
+      ...receive.caches,
+      ...send.caches,
+      contacts.cache,
+      user.cache,
+    ];
+    this.realtime = createRealtimeApi({
+      realtimeClient: db.realtime,
+      getCurrentUserId,
+      changeHandlers: [
+        ...accounts.changeHandlers,
+        ...transactions.changeHandlers,
+        ...receive.changeHandlers,
+        ...send.changeHandlers,
+        ...contacts.changeHandlers,
+        ...user.changeHandlers,
+      ],
+      // Refetches the domain state on connect/reconnect to catch up on
+      // updates missed while the realtime connection was down.
+      onConnected: () => {
+        for (const cache of invalidateOnReconnect) {
+          cache.invalidate();
+        }
+      },
     });
   }
 }

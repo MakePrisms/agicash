@@ -13,28 +13,6 @@ import type { UpdateUser, User } from './user';
 export { UserCache };
 
 /**
- * Hook that provides the user cache.
- *
- * Transitional (sdk.user.internal): only for the not-yet-migrated
- * receive/wallet domain code and the web-owned realtime infrastructure.
- * App/UI code must use the curated sdk.user methods.
- * @returns The user cache.
- */
-export function useUserCache() {
-  return getSdk().user.internal.cache;
-}
-
-/**
- * Hook that returns the user change handlers.
- *
- * Transitional (sdk.user.internal): consumed by the web-owned realtime
- * wiring until the realtime hub moves into the SDK.
- */
-export function useUserChangeHandlers() {
-  return getSdk().user.internal.changeHandlers;
-}
-
-/**
  * The cached user for contexts where a missing user is a bug (routes under
  * the protected layout, whose middleware guarantees the user is loaded).
  * The throw is web policy — the SDK only exposes `user.getCached(): User | null`.

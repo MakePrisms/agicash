@@ -92,16 +92,6 @@ export function usePendingSparkReceiveQuotesCache() {
   return getSdk().receive.internal.pendingSparkReceiveQuotesCache;
 }
 
-/**
- * Hook that returns spark receive quote change handlers.
- *
- * Transitional (sdk.receive.internal): consumed by the web-owned realtime
- * wiring until the realtime hub moves into the SDK (Phase 8).
- */
-export function useSparkReceiveQuoteChangeHandlers() {
-  return getSdk().receive.internal.changeHandlers.sparkReceiveQuote;
-}
-
 const usePendingSparkReceiveQuotes = () => {
   const selectWithOnlineAccount = useSelectItemsWithOnlineAccount();
 

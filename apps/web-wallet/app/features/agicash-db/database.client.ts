@@ -1,7 +1,5 @@
 import { getAgicashDb } from '@agicash/wallet-sdk/agicash-db';
-import { SupabaseRealtimeManager } from '~/lib/supabase';
-// Configures the SDK (incl. the DB connection) before the client is built.
-import '../shared/sdk';
+import { getSdk } from '../shared/sdk';
 
 /**
  * The client-side Supabase database client (the SDK-owned instance).
@@ -11,12 +9,6 @@ import '../shared/sdk';
  */
 export const agicashDbClient = getAgicashDb();
 
-/**
- * The client-side Supabase realtime client.
- * Cannot be used on the server.
- */
-export const agicashRealtimeClient = new SupabaseRealtimeManager(
-  agicashDbClient.realtime,
-);
+// Debug handle for the SDK-owned realtime manager.
 // biome-ignore lint/suspicious/noExplicitAny: attaching to window for debugging
-(window as any).agicashRealtime = agicashRealtimeClient;
+(window as any).agicashRealtime = getSdk().realtime.internal.manager;

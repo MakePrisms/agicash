@@ -65,7 +65,6 @@ export type UserApi = {
     writeRepository: WriteUserRepository;
     service: UserService;
     cache: UserCache;
-    changeHandlers: ReturnType<typeof createUserChangeHandlers>;
   };
 };
 
@@ -82,6 +81,8 @@ export type UserApiDeps = {
 export function createUserApi(deps: UserApiDeps): {
   api: UserApi;
   service: UserService;
+  cache: UserCache;
+  changeHandlers: ReturnType<typeof createUserChangeHandlers>;
 } {
   const { queryClient, db, accountRepository, accountsCache } = deps;
 
@@ -134,9 +135,13 @@ export function createUserApi(deps: UserApiDeps): {
       writeRepository,
       service,
       cache,
-      changeHandlers: createUserChangeHandlers(cache),
     },
   };
 
-  return { api, service };
+  return {
+    api,
+    service,
+    cache,
+    changeHandlers: createUserChangeHandlers(cache),
+  };
 }

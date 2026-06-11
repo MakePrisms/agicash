@@ -6,6 +6,7 @@ import type { CashuAccount, SparkAccount } from '../accounts/account';
 import type { AccountsCache } from '../accounts/accounts-cache';
 import type { Encryption } from '../encryption';
 import { NotFoundError } from '../error';
+import type { DatabaseChangeHandler } from '../realtime/realtime-api';
 import type { CashuReceiveSwapService } from '../receive/cashu-receive-swap-service';
 import type { Transaction } from '../transactions/transaction';
 import { isTransactionReversable } from '../transactions/transaction';
@@ -160,11 +161,6 @@ export type SendApi = {
     unresolvedCashuSendQuotesCache: UnresolvedCashuSendQuotesCache;
     unresolvedCashuSendSwapsCache: UnresolvedCashuSendSwapsCache;
     unresolvedSparkSendQuotesCache: UnresolvedSparkSendQuotesCache;
-    changeHandlers: {
-      cashuSendQuote: ReturnType<typeof createCashuSendQuoteChangeHandlers>;
-      sparkSendQuote: ReturnType<typeof createSparkSendQuoteChangeHandlers>;
-      cashuSendSwap: ReturnType<typeof createCashuSendSwapChangeHandlers>;
-    };
   };
 };
 
@@ -183,7 +179,11 @@ export type SendApiDeps = {
   cashuReceiveSwapService: CashuReceiveSwapService;
 };
 
-export function createSendApi(deps: SendApiDeps): SendApi {
+export function createSendApi(deps: SendApiDeps): {
+  api: SendApi;
+  caches: { invalidate: () => unknown }[];
+  changeHandlers: DatabaseChangeHandler[];
+} {
   const {
     queryClient,
     db,
@@ -230,7 +230,7 @@ export function createSendApi(deps: SendApiDeps): SendApi {
     return account;
   };
 
-  return {
+  const api: SendApi = {
     getCashuLightningQuote: ({
       account,
       paymentRequest,
@@ -349,21 +349,31 @@ export function createSendApi(deps: SendApiDeps): SendApi {
       unresolvedCashuSendQuotesCache,
       unresolvedCashuSendSwapsCache,
       unresolvedSparkSendQuotesCache,
-      changeHandlers: {
-        cashuSendQuote: createCashuSendQuoteChangeHandlers(
-          cashuSendQuoteRepository,
-          unresolvedCashuSendQuotesCache,
-        ),
-        sparkSendQuote: createSparkSendQuoteChangeHandlers(
-          sparkSendQuoteRepository,
-          unresolvedSparkSendQuotesCache,
-        ),
-        cashuSendSwap: createCashuSendSwapChangeHandlers(
-          cashuSendSwapRepository,
-          cashuSendSwapCache,
-          unresolvedCashuSendSwapsCache,
-        ),
-      },
     },
+  };
+
+  return {
+    api,
+    caches: [
+      unresolvedCashuSendQuotesCache,
+      cashuSendSwapCache,
+      unresolvedCashuSendSwapsCache,
+      unresolvedSparkSendQuotesCache,
+    ],
+    changeHandlers: [
+      ...createCashuSendQuoteChangeHandlers(
+        cashuSendQuoteRepository,
+        unresolvedCashuSendQuotesCache,
+      ),
+      ...createCashuSendSwapChangeHandlers(
+        cashuSendSwapRepository,
+        cashuSendSwapCache,
+        unresolvedCashuSendSwapsCache,
+      ),
+      ...createSparkSendQuoteChangeHandlers(
+        sparkSendQuoteRepository,
+        unresolvedSparkSendQuotesCache,
+      ),
+    ],
   };
 }

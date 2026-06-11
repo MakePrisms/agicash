@@ -247,16 +247,6 @@ function useOnProofStateChange({ swaps, onSpent }: OnProofStateChangeProps) {
   }, [subscribe, swaps, getCashuAccount]);
 }
 
-/**
- * Hook that returns a cashu send quote change handler.
- *
- * Transitional (sdk.send.internal): consumed by the web-owned realtime
- * wiring until the realtime hub moves into the SDK (Phase 8).
- */
-export function useCashuSendSwapChangeHandlers() {
-  return getSdk().send.internal.changeHandlers.cashuSendSwap;
-}
-
 export function useProcessCashuSendSwapTasks() {
   const { draft, pending } = useUnresolvedCashuSendSwaps();
   const cashuSendSwapService = getSdk().send.internal.cashuSendSwapService;

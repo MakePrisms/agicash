@@ -128,16 +128,6 @@ export function useTrackCashuReceiveQuote({
   };
 }
 
-/**
- * Hook that returns a cashu receive quote change handler.
- *
- * Transitional (sdk.receive.internal): consumed by the web-owned realtime
- * wiring until the realtime hub moves into the SDK (Phase 8).
- */
-export function useCashuReceiveQuoteChangeHandlers() {
-  return getSdk().receive.internal.changeHandlers.cashuReceiveQuote;
-}
-
 const usePendingCashuReceiveQuotes = () => {
   const selectReceiveQuotesWithOnlineAccount =
     useSelectItemsWithOnlineAccount();

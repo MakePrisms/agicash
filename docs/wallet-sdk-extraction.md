@@ -1,9 +1,9 @@
 # Wallet SDK extraction — plan, progress, and working rules
 
 Status document for the `@agicash/wallet-sdk` extraction (restarted greenfield from master
-2026-06-08). Updated at the end of each phase. Current as of: **Phase 7 (send domain)
-COMPLETE — curated `sdk.send` live; Phase 8 (realtime hub) next** (branch
-`sdk/phase7-send`, all local — no PRs/pushes yet, working tree clean, all gates green).
+2026-06-08). Updated at the end of each phase. Current as of: **Phase 8 (realtime hub)
+COMPLETE — `sdk.realtime` owns the wallet channel; Phase 9 (auth) next** (branch
+`sdk/phase8-realtime`, all local — no PRs/pushes yet, working tree clean, all gates green).
 
 ## HANDOFF — read this first
 
@@ -14,8 +14,8 @@ the git history; there is no other context. How to resume:
    `sdk/phaseN-<name>` branch on the previous one, all the way down to master). Verify: `git status` clean, `git log --oneline -8` matches the ledger below.
 2. Read **Architecture decisions**, **Working method**, and **Landmines** below — these are
    settled with the user; do not relitigate them.
-3. Continue with the first section in the *Remaining roadmap* (currently **Phase 8 —
-   realtime hub**). Phases are specified at decreasing resolution; ground each one (read
+3. Continue with the first section in the *Remaining roadmap* (currently **Phase 9 —
+   thin auth shell**). Phases are specified at decreasing resolution; ground each one (read
    the files, map consumers with `git grep`) before moving code.
 4. The user's standing instruction: **finish the whole effort autonomously, no checkpoints**
    — through Phase 10, then a final report on what the codebase looks like. Commit per
@@ -180,6 +180,7 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 | 6.3 | `sdk/phase6-receive` · (HEAD) | curated `sdk.receive` surface. New seams: SDK `error-reporting.ts` (`setErrorReporter`/`captureException` no-op default; `WalletSdkConfig.captureException?` — web passes Sentry's) mirroring `performance.ts`; `lib/exchange-rate/` → SDK `exchange-rate/` (+5 tests; `ky` to catalog; `exchangeRate(s)QueryOptions` + `getExchangeRate` extracted from `hooks/use-exchange-rate.ts` — web keeps the 3 hooks + 15s refetchInterval policy; explicit `./exchange-rate` exports entry). `ClaimCashuTokenService` → SDK (Sentry swapped for `captureException`). Cache classes + change handlers extracted from the 3 hooks files → `receive/{cashu,spark}-receive-quote-cache.ts`, `receive/cashu-receive-swap-cache.ts` (version guards test-locked, +10 tests). `receive-api.ts`: `claimToken(token, claimTo)` (derives the FULL user via new root `getCurrentUser` thunk), `createCashuReceiveQuote`/`createSparkReceiveQuote` (absorb active-quote cache.add), `createCashuReceiveSwap` (NO cache write — realtime is the write path), `cashuQuoteOptions`/`sparkQuoteOptions`/`pendingCashu(Spark)QuotesOptions`/`pendingCashuSwapsOptions` (staleTime ∞ in SDK; refetch/select/throwOnError stay web), `internal` = repos+services+caches+changeHandlers for tracking/task-processing hooks (die in Phase 8). `WalletSdkConfig.cashuMintValidator` (required) — web passes its env-derived validator. Root factories now return `{api, service}` (user) / `{api, repository, service, cache}` (accounts) so receive wires without `internal`-reaching. Hooks files: only React orchestration left (websocket/polling tracking, task processing, spark event listeners); `useCreateCashuReceiveQuote` et al one-line delegate; receive-token route's hand-built 9-class graph replaced by `getSdk().receive.claimToken`. Zero-consumer cleanup: hooks-file `getExchangeRate` re-export dropped |
 | 7.1 | `sdk/phase7-send` · 96b7950f | send leafs ×3 + `utils.ts` + repositories ×3 + services ×3 + `proof-state-subscription-manager` → SDK `send/` (verbatim + remaps; tail hooks stay in shims). `shared/currencies` → SDK `currencies.ts`; `lib/spark/errors` guards → SDK `spark-utils.ts` (errors.ts deleted — zero direct importers). Grounding deviations (web-only consumers): `find-matching-offer-or-gift-card-account` (+test), `resolve-destination`, `validation` stay web; `melt-quote-subscription` is the React `useOnMeltQuoteStateChange` hook and stays web. The proof-state manager stays in the SDK rather than `@agicash/cashu` (coupled to db-flavored `CashuProof` + send-swap types) |
 | 7.2 | `sdk/phase7-send` · (HEAD) | curated `sdk.send` surface: `getCashuLightningQuote`/`createCashuSendQuote`/`getSparkLightningSendQuote`/`createSparkSendQuote`/`getCashuSendSwapQuote`/`createCashuSendSwap` (absorbs active-swap cache.add)/`reverseTransaction(tx)` (absorbs `useReverseTransaction` body; resolves the swap's cashu account via the accounts cache), `cashuSwapOptions` (NotFoundError retry semantics)/`trackCashuSwapOptions`/`unresolved*Options` ×3. Cache classes + change handlers extracted into `send/{cashu,spark}-send-quote-cache.ts`, `send/cashu-send-swap-cache.ts` (version guards test-locked, +6 tests → 168). `createReceiveApi` now returns `{api, cashuReceiveSwapService}` so the root wires the send-swap reversal dependency without internal-reaching. Hooks files keep only React orchestration (melt-quote websocket tracking, spark event listeners, proof-state subscriptions, task processing). Zero-consumer cleanup: `useCashuSendSwapService` hook deleted from its shim |
+| 8 | `sdk/phase8-realtime` · (HEAD) | realtime hub → SDK. `SupabaseRealtimeManager`/channel/builder → SDK `realtime/` (verbatim; `@supabase/realtime-js` type imports remapped to `@supabase/supabase-js` which star-re-exports them — no new dep). New `sdk.realtime` (`realtime-api.ts`): `subscribe/unsubscribe` (the `wallet:{userId}` private broadcast channel, topic resolved at call time), `getStatus/getError/onStatusChange` (useSyncExternalStore-ready), `setOnlineStatus/setActiveStatus` (host activity bindings); composes every domain's change handlers + the 13-cache invalidate-on-reconnect internally. **`internal.changeHandlers` deleted from every `*Api`** — domain factories now return `{api, …, cache(s), changeHandlers}` to the root. Web: `useTrackWalletChanges` is a ~40-line lifecycle binding (subscribe/unsubscribe + status + throws `SupabaseRealtimeError` to the boundary); `useSupabaseRealtimeActivityTracking` takes the structural `{setOnlineStatus,setActiveStatus}` target; the 10 `use*ChangeHandlers` hooks + `useUserCache` + `useContactsCache` deleted (zero consumers); `database.client.ts` keeps only the db re-export + the window debug handle (`sdk.realtime.internal.manager` — the one sanctioned realtime internal). Spark balance tracking → `sdk.accounts.trackSparkBalances(accounts)` (web binds it to the reactive spark-accounts list). `TaskProcessingLockRepository` → SDK root (grounding deviation: the task PROCESSOR stays web — it is useMutation/useQueries-based React orchestration; a headless rewrite belongs to the MCP phase) |
 
 ## Remaining roadmap (handoff instructions — work top to bottom)
 
@@ -205,26 +206,6 @@ db-singleton → accounts-core → sdk-root → user-types → user-core → use
 
 `@tanstack/react-query` **type-only** imports (e.g. `QueryClient`) become
 `@tanstack/query-core`.
-
-### Phase 8 — realtime hub into the SDK (`sdk/phase8-realtime`)
-
-Ground first: `features/agicash-db/database.client.ts` (SupabaseRealtimeManager),
-`features/wallet/use-track-wallet-changes.ts` (the `wallet:${userId}` channel: collects
-every domain's changeHandlers, dispatches by event, reconnect invalidation breadth),
-`features/shared/spark.ts` (`useTrackAndUpdateSparkAccountBalances`), and
-`features/wallet/task-processing.ts` + `task-processing-lock-repository.ts` (background
-task processor driven by `useProcess*Tasks` hooks). Target:
-- SDK `realtime.ts` owning channel lifecycle (`sdk.realtime.start(…)/stop()` or
-  subscribe-on-construction with explicit lifecycle), dispatching to the domain
-  changeHandlers it composes internally — **the `internal.changeHandlers` escape hatches
-  die here** (delete them from every `*Api.internal`), and caches leave `internal` where
-  realtime was their last external consumer.
-- Reconnect behavior (invalidate-all breadth) and the production payload-redacting logger
-  are load-bearing — verbatim.
-- Web keeps one thin lifecycle hook (`useEffect` start/stop bound to auth state).
-- Spark balance tracking similarly becomes SDK-owned with a web lifecycle binding.
-- Task processing: if it is framework-free orchestration over SDK services, move it and
-  expose `sdk.tasks`-style start/stop; the `useProcess*Tasks` hooks become bindings.
 
 ### Phase 9 — thin auth shell (`sdk/phase9-auth`)
 

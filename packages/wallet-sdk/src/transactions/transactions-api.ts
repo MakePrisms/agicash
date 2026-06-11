@@ -63,7 +63,6 @@ export type TransactionsApi = {
   internal: {
     repository: TransactionRepository;
     cache: TransactionsCache;
-    changeHandlers: ReturnType<typeof createTransactionChangeHandlers>;
   };
 };
 
@@ -78,15 +77,17 @@ export type TransactionsApiDeps = {
   getCurrentUserId: () => string;
 };
 
-export function createTransactionsApi(
-  deps: TransactionsApiDeps,
-): TransactionsApi {
+export function createTransactionsApi(deps: TransactionsApiDeps): {
+  api: TransactionsApi;
+  cache: TransactionsCache;
+  changeHandlers: ReturnType<typeof createTransactionChangeHandlers>;
+} {
   const { queryClient, db, encryption, getCurrentUserId } = deps;
 
   const repository = new TransactionRepository(db, encryption);
   const cache = new TransactionsCache(queryClient);
 
-  return {
+  const api: TransactionsApi = {
     queryOptions: (id: string) => ({
       queryKey: [TransactionsCache.Key, id],
       queryFn: async () => {
@@ -149,7 +150,12 @@ export function createTransactionsApi(
     internal: {
       repository,
       cache,
-      changeHandlers: createTransactionChangeHandlers(repository, cache),
     },
+  };
+
+  return {
+    api,
+    cache,
+    changeHandlers: createTransactionChangeHandlers(repository, cache),
   };
 }
