@@ -147,13 +147,12 @@ export type SendApi = {
   /**
    * Transitional escape hatch — NOT part of the public surface. Only for the
    * web-owned tracking/task-processing hooks and realtime wiring until the
-   * SDK owns the realtime hub and background processing (Phase 8). App/UI
+   * background task processing moves into the SDK (the MCP phase). App/UI
    * code must use the curated methods above.
    */
   internal: {
     cashuSendQuoteRepository: CashuSendQuoteRepository;
     cashuSendSwapRepository: CashuSendSwapRepository;
-    sparkSendQuoteRepository: SparkSendQuoteRepository;
     cashuSendQuoteService: CashuSendQuoteService;
     cashuSendSwapService: CashuSendSwapService;
     sparkSendQuoteService: SparkSendQuoteService;
@@ -341,7 +340,6 @@ export function createSendApi(deps: SendApiDeps): {
     internal: {
       cashuSendQuoteRepository,
       cashuSendSwapRepository,
-      sparkSendQuoteRepository,
       cashuSendQuoteService,
       cashuSendSwapService,
       sparkSendQuoteService,

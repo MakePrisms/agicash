@@ -129,13 +129,12 @@ export type ReceiveApi = {
   /**
    * Transitional escape hatch — NOT part of the public surface. Only for the
    * web-owned tracking/task-processing hooks and realtime wiring until the
-   * SDK owns the realtime hub and background processing (Phase 8). App/UI
+   * background task processing moves into the SDK (the MCP phase). App/UI
    * code must use the curated methods above.
    */
   internal: {
     cashuReceiveQuoteRepository: CashuReceiveQuoteRepository;
     cashuReceiveSwapRepository: CashuReceiveSwapRepository;
-    sparkReceiveQuoteRepository: SparkReceiveQuoteRepository;
     cashuReceiveQuoteService: CashuReceiveQuoteService;
     cashuReceiveSwapService: CashuReceiveSwapService;
     sparkReceiveQuoteService: SparkReceiveQuoteService;
@@ -343,7 +342,6 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
     internal: {
       cashuReceiveQuoteRepository,
       cashuReceiveSwapRepository,
-      sparkReceiveQuoteRepository,
       cashuReceiveQuoteService,
       cashuReceiveSwapService,
       sparkReceiveQuoteService,

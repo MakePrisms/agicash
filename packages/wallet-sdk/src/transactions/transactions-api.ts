@@ -61,7 +61,6 @@ export type TransactionsApi = {
    * methods above.
    */
   internal: {
-    repository: TransactionRepository;
     cache: TransactionsCache;
   };
 };
@@ -148,7 +147,6 @@ export function createTransactionsApi(deps: TransactionsApiDeps): {
       cache.invalidateUnacknowledgedCount();
     },
     internal: {
-      repository,
       cache,
     },
   };

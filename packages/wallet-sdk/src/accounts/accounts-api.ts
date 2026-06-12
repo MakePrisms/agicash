@@ -56,8 +56,6 @@ export type AccountsApi = {
    * removed once the remaining domains and the realtime hub move into the SDK.
    */
   internal: {
-    repository: AccountRepository;
-    service: AccountService;
     cache: AccountsCache;
   };
 };
@@ -175,8 +173,6 @@ export function createAccountsApi(deps: AccountsApiDeps): {
       };
     },
     internal: {
-      repository,
-      service,
       cache,
     },
   };
