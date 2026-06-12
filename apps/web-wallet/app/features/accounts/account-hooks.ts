@@ -21,18 +21,6 @@ import { getSdk } from '../shared/sdk';
 import { useUser } from '../user/user-hooks';
 
 /**
- * Hook that provides the accounts cache.
- *
- * Transitional (sdk.accounts.internal): only for the web-owned tracking and
- * task-processing hooks until they move into the SDK (the MCP phase). App/UI
- * code must use the curated sdk.accounts methods.
- * @returns The accounts cache.
- */
-export function useAccountsCache() {
-  return getSdk().accounts.internal.cache;
-}
-
-/**
  * Filter options for `useAccounts` hook.
  * Results are sorted by creation date (oldest first).
  */
@@ -233,11 +221,9 @@ export function useGetAccount<T extends keyof AccountTypeMap>(
 ): (id: string) => AccountTypeMap[T];
 export function useGetAccount(type?: undefined): (id: string) => Account;
 export function useGetAccount(type?: keyof AccountTypeMap) {
-  const accountsCache = useAccountsCache();
-
   return useCallback(
     (id: string) => {
-      const account = accountsCache.get(id);
+      const account = getSdk().accounts.getCached(id);
       if (!account) {
         throw new Error(`Account not found for id: ${id}`);
       }
@@ -246,7 +232,7 @@ export function useGetAccount(type?: keyof AccountTypeMap) {
       }
       return account;
     },
-    [accountsCache, type],
+    [type],
   );
 }
 
@@ -263,19 +249,17 @@ export function useGetCashuAccount() {
  * @returns A function that takes a mint URL and currency and returns the matching cashu account or null.
  */
 export function useGetCashuAccountByMintUrlAndCurrency() {
-  const accountsCache = useAccountsCache();
-
   return useCallback(
     (mintUrl: string, currency: Currency) =>
-      accountsCache
-        .getAll()
-        ?.find(
+      getSdk()
+        .accounts.listCached()
+        .find(
           (a): a is CashuAccount =>
             a.type === 'cashu' &&
             a.mintUrl === mintUrl &&
             a.currency === currency,
         ) ?? null,
-    [accountsCache],
+    [],
   );
 }
 
@@ -366,15 +350,10 @@ export function useBalance(currency: Currency) {
  * Hook that returns a selector function to filter out items with offline accounts.
  */
 export function useSelectItemsWithOnlineAccount() {
-  const accountsCache = useAccountsCache();
-
-  return useCallback(
-    <T extends { accountId: string }>(items: T[]): T[] => {
-      return items.filter((item) => {
-        const account = accountsCache.get(item.accountId);
-        return account?.isOnline;
-      });
-    },
-    [accountsCache],
-  );
+  return useCallback(<T extends { accountId: string }>(items: T[]): T[] => {
+    return items.filter((item) => {
+      const account = getSdk().accounts.getCached(item.accountId);
+      return account?.isOnline;
+    });
+  }, []);
 }

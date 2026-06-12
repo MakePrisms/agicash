@@ -1,12 +1,16 @@
 import type { MintValidator } from '@agicash/cashu';
 import type { AgicashDb } from '@agicash/db-types';
-import type { Money } from '@agicash/utils/money';
+import type { Currency, Money } from '@agicash/utils/money';
 import type { Token } from '@cashu/cashu-ts';
 import type { QueryClient } from '@tanstack/query-core';
-import type { CashuAccount, SparkAccount } from '../accounts/account';
+import type {
+  CashuAccount,
+  ExtendedAccount,
+  SparkAccount,
+} from '../accounts/account';
 import type { AccountRepository } from '../accounts/account-repository';
 import type { AccountService } from '../accounts/account-service';
-import { getCashuCryptography } from '../cashu';
+import { getCashuCryptography, tokenToMoney } from '../cashu';
 import type { Encryption } from '../encryption';
 import type { DatabaseChangeHandler } from '../realtime/realtime-api';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
@@ -31,7 +35,10 @@ import {
   ClaimCashuTokenService,
   type ClaimTokenResult,
 } from './claim-cashu-token-service';
-import { ReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
+import {
+  type CrossAccountReceiveQuotesResult,
+  ReceiveCashuTokenQuoteService,
+} from './receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from './receive-cashu-token-service';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import {
@@ -127,19 +134,73 @@ export type ReceiveApi = {
     staleTime: number;
   };
   /**
+   * Query config for the cashu receive quote backing a transaction (consume
+   * with useSuspenseQuery). The queryFn resolves null when no such quote
+   * exists; throw-on-missing is caller policy.
+   */
+  quoteByTransactionIdOptions: (transactionId: string) => {
+    queryKey: string[];
+    queryFn: () => Promise<CashuReceiveQuote | null>;
+  };
+  /**
+   * Query config for the cashu receive swap backing a transaction (consume
+   * with useSuspenseQuery). The queryFn resolves null when no such swap
+   * exists; throw-on-missing is caller policy.
+   */
+  swapByTransactionIdOptions: (transactionId: string) => {
+    queryKey: string[];
+    queryFn: () => Promise<CashuReceiveSwap | null>;
+  };
+  /**
+   * Query config for resolving the source and possible destination accounts
+   * for receiving a cashu token. Unknown mints are fetched and validated into
+   * a placeholder source account. Pass the user's existing accounts to fold
+   * them into the destinations.
+   */
+  tokenReceiveAccountsOptions: (
+    token: Token,
+    existingAccounts?: ExtendedAccount[],
+  ) => {
+    queryKey: (string | string[])[];
+    queryFn: () => ReturnType<
+      ReceiveCashuTokenService['getSourceAndDestinationAccounts']
+    >;
+    staleTime: number;
+  };
+  /**
+   * Builds a (non-persisted) placeholder cashu account for the mint and
+   * currency, fetching and validating the mint. Use when receiving a token
+   * from a mint the user has no account for.
+   */
+  buildCashuAccountPlaceholder: (
+    mintUrl: string,
+    currency: Currency,
+  ) => ReturnType<ReceiveCashuTokenService['buildAccountForMint']>;
+  /**
+   * Creates the receive quotes (and, for cashu destinations, the melt quote)
+   * needed to claim a cashu token into a different mint or currency account
+   * for the current user. The caller performs the actual proof melt. The
+   * pending/active quote state is recorded by the receive-quote realtime
+   * broadcasts, not here.
+   */
+  createCrossAccountReceiveQuotes: (
+    params: Omit<
+      Parameters<
+        ReceiveCashuTokenQuoteService['createCrossAccountReceiveQuotes']
+      >[0],
+      'userId'
+    >,
+  ) => Promise<CrossAccountReceiveQuotesResult>;
+  /**
    * Transitional escape hatch — NOT part of the public surface. Only for the
    * web-owned tracking/task-processing hooks and realtime wiring until the
    * background task processing moves into the SDK (the MCP phase). App/UI
    * code must use the curated methods above.
    */
   internal: {
-    cashuReceiveQuoteRepository: CashuReceiveQuoteRepository;
-    cashuReceiveSwapRepository: CashuReceiveSwapRepository;
     cashuReceiveQuoteService: CashuReceiveQuoteService;
     cashuReceiveSwapService: CashuReceiveSwapService;
     sparkReceiveQuoteService: SparkReceiveQuoteService;
-    receiveCashuTokenService: ReceiveCashuTokenService;
-    receiveCashuTokenQuoteService: ReceiveCashuTokenQuoteService;
     cashuReceiveQuoteCache: CashuReceiveQuoteCache;
     pendingCashuReceiveQuotesCache: PendingCashuReceiveQuotesCache;
     sparkReceiveQuoteCache: SparkReceiveQuoteCache;
@@ -339,14 +400,41 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
       queryFn: () => cashuReceiveSwapRepository.getPending(getCurrentUserId()),
       staleTime: Number.POSITIVE_INFINITY,
     }),
+    quoteByTransactionIdOptions: (transactionId) => ({
+      queryKey: ['transaction-details', transactionId],
+      queryFn: () =>
+        cashuReceiveQuoteRepository.getByTransactionId(transactionId),
+    }),
+    swapByTransactionIdOptions: (transactionId) => ({
+      queryKey: ['transaction-details', transactionId],
+      queryFn: () =>
+        cashuReceiveSwapRepository.getByTransactionId(transactionId),
+    }),
+    tokenReceiveAccountsOptions: (token, existingAccounts = []) => ({
+      queryKey: [
+        'token-source-account',
+        token.mint,
+        tokenToMoney(token).currency,
+        existingAccounts.map((account) => account.id).sort(),
+      ],
+      queryFn: () =>
+        receiveCashuTokenService.getSourceAndDestinationAccounts(
+          token,
+          existingAccounts,
+        ),
+      staleTime: 3 * 60 * 1000,
+    }),
+    buildCashuAccountPlaceholder: (mintUrl, currency) =>
+      receiveCashuTokenService.buildAccountForMint(mintUrl, currency),
+    createCrossAccountReceiveQuotes: (params) =>
+      receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes({
+        userId: getCurrentUserId(),
+        ...params,
+      }),
     internal: {
-      cashuReceiveQuoteRepository,
-      cashuReceiveSwapRepository,
       cashuReceiveQuoteService,
       cashuReceiveSwapService,
       sparkReceiveQuoteService,
-      receiveCashuTokenService,
-      receiveCashuTokenQuoteService,
       cashuReceiveQuoteCache,
       pendingCashuReceiveQuotesCache,
       sparkReceiveQuoteCache,

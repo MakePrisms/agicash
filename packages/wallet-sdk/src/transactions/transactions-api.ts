@@ -54,15 +54,11 @@ export type TransactionsApi = {
    */
   acknowledge: (transaction: Transaction) => Promise<void>;
   /**
-   * Transitional escape hatch — NOT part of the public surface. Only for (a)
-   * not-yet-migrated SDK collaborators still composed in web feature code
-   * (the receive/send services) and (b) the web-owned realtime infrastructure
-   * until the SDK owns the realtime hub. App/UI code must use the curated
-   * methods above.
+   * Invalidates the single-transaction query so it refetches. Call after a
+   * state change the realtime broadcast may deliver late (e.g. right before
+   * navigating to the transaction details page).
    */
-  internal: {
-    cache: TransactionsCache;
-  };
+  invalidate: (transactionId: string) => Promise<void>;
 };
 
 export type TransactionsApiDeps = {
@@ -146,9 +142,8 @@ export function createTransactionsApi(deps: TransactionsApiDeps): {
       cache.acknowledgeInHistory(transaction);
       cache.invalidateUnacknowledgedCount();
     },
-    internal: {
-      cache,
-    },
+    invalidate: (transactionId: string) =>
+      cache.invalidateTransaction(transactionId),
   };
 
   return {

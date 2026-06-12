@@ -22,7 +22,6 @@ import {
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import { getSdk } from '../shared/sdk';
-import { useTransactionsCache } from '../transactions/transaction-hooks';
 
 /**
  * Transitional (sdk.receive.internal): only for the web-owned realtime wiring
@@ -302,7 +301,6 @@ export function useProcessSparkReceiveQuoteTasks() {
     useGetCashuAccountByMintUrlAndCurrency();
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const transactionsCache = useTransactionsCache();
   const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
@@ -342,7 +340,7 @@ export function useProcessSparkReceiveQuoteTasks() {
         // transaction cache here so that it starts refetching the transaction as soon as possible
         // without relying on realtime notification which might be delayed when reconnecting due to
         // the app being in background.
-        transactionsCache.invalidateTransaction(updatedQuote.transactionId);
+        getSdk().transactions.invalidate(updatedQuote.transactionId);
         sparkReceiveQuoteCache.updateIfExists(updatedQuote);
         pendingQuotesCache.remove(updatedQuote);
       }

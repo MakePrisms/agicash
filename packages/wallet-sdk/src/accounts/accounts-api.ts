@@ -47,17 +47,6 @@ export type AccountsApi = {
    * @returns a cleanup function removing the listeners.
    */
   trackSparkBalances: (accounts: SparkAccount[]) => () => void;
-  /**
-   * Transitional escape hatch — NOT part of the public surface. Only for (a)
-   * not-yet-migrated SDK collaborators still composed in web feature code
-   * (receive/send repositories and services) and (b) the web-owned
-   * realtime + spark-balance infrastructure until the SDK owns realtime.
-   * App/UI code must use the curated methods above. Shrinks each phase and is
-   * removed once the remaining domains and the realtime hub move into the SDK.
-   */
-  internal: {
-    cache: AccountsCache;
-  };
 };
 
 export type AccountsApiDeps = {
@@ -171,9 +160,6 @@ export function createAccountsApi(deps: AccountsApiDeps): {
             });
         }
       };
-    },
-    internal: {
-      cache,
     },
   };
 

@@ -145,14 +145,30 @@ export type SendApi = {
     staleTime: number;
   };
   /**
+   * Query config for the cashu send quote backing a transaction (consume with
+   * useSuspenseQuery). The queryFn resolves null when no such quote exists;
+   * throw-on-missing is caller policy.
+   */
+  quoteByTransactionIdOptions: (transactionId: string) => {
+    queryKey: string[];
+    queryFn: () => Promise<CashuSendQuote | null>;
+  };
+  /**
+   * Query config for the cashu send swap backing a transaction (consume with
+   * useSuspenseQuery). The queryFn resolves null when no such swap exists;
+   * throw-on-missing is caller policy.
+   */
+  swapByTransactionIdOptions: (transactionId: string) => {
+    queryKey: string[];
+    queryFn: () => Promise<CashuSendSwap | null>;
+  };
+  /**
    * Transitional escape hatch — NOT part of the public surface. Only for the
    * web-owned tracking/task-processing hooks and realtime wiring until the
    * background task processing moves into the SDK (the MCP phase). App/UI
    * code must use the curated methods above.
    */
   internal: {
-    cashuSendQuoteRepository: CashuSendQuoteRepository;
-    cashuSendSwapRepository: CashuSendSwapRepository;
     cashuSendQuoteService: CashuSendQuoteService;
     cashuSendSwapService: CashuSendSwapService;
     sparkSendQuoteService: SparkSendQuoteService;
@@ -337,9 +353,15 @@ export function createSendApi(deps: SendApiDeps): {
       queryFn: () => cashuSendSwapRepository.getUnresolved(getCurrentUserId()),
       staleTime: Number.POSITIVE_INFINITY,
     }),
+    quoteByTransactionIdOptions: (transactionId) => ({
+      queryKey: ['transaction-details', transactionId],
+      queryFn: () => cashuSendQuoteRepository.getByTransactionId(transactionId),
+    }),
+    swapByTransactionIdOptions: (transactionId) => ({
+      queryKey: ['transaction-details', transactionId],
+      queryFn: () => cashuSendSwapRepository.getByTransactionId(transactionId),
+    }),
     internal: {
-      cashuSendQuoteRepository,
-      cashuSendSwapRepository,
       cashuSendQuoteService,
       cashuSendSwapService,
       sparkSendQuoteService,

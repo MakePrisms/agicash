@@ -13,17 +13,6 @@ import { useLatest } from '~/lib/use-latest';
 
 export { isTransactionReversable };
 
-/**
- * Hook that provides the transactions cache.
- *
- * Transitional (sdk.transactions.internal): only for the not-yet-migrated
- * receive/send domain code and the web-owned realtime infrastructure.
- * App/UI code must use the curated sdk.transactions methods.
- */
-export function useTransactionsCache() {
-  return getSdk().transactions.internal.cache;
-}
-
 export function useTransaction(id: string) {
   return useSuspenseQuery({
     ...getSdk().transactions.queryOptions(id),

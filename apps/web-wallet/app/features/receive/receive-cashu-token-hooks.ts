@@ -24,7 +24,6 @@ import {
   toAccountSelectorOption,
 } from '../accounts/account-selector';
 import { getSdk } from '../shared/sdk';
-import { useUser } from '../user/user-hooks';
 
 type UseGetClaimableTokenProps = {
   token: Token;
@@ -52,23 +51,8 @@ export function useCashuTokenSourceAccountQuery(
   token: Token,
   existingAccounts: ExtendedAccount[] = [],
 ) {
-  const tokenCurrency = tokenToMoney(token).currency;
-  const receiveCashuTokenService =
-    getSdk().receive.internal.receiveCashuTokenService;
-
   return useSuspenseQuery({
-    queryKey: [
-      'token-source-account',
-      token.mint,
-      tokenCurrency,
-      existingAccounts.map((a) => a.id).sort(),
-    ],
-    queryFn: async () =>
-      receiveCashuTokenService.getSourceAndDestinationAccounts(
-        token,
-        existingAccounts,
-      ),
-    staleTime: 3 * 60 * 1000,
+    ...getSdk().receive.tokenReceiveAccountsOptions(token, existingAccounts),
     retry: 1,
   });
 }
@@ -253,10 +237,7 @@ type CreateCrossAccountReceiveQuotesProps = {
  * The actual melting of proofs should be done by the caller.
  */
 export function useCreateCrossAccountReceiveQuotes() {
-  const userId = useUser((user) => user.id);
   const getExchangeRate = useGetExchangeRate();
-  const receiveCashuTokenQuoteService =
-    getSdk().receive.internal.receiveCashuTokenQuoteService;
 
   return useMutation({
     mutationFn: async ({
@@ -270,15 +251,12 @@ export function useCreateCrossAccountReceiveQuotes() {
         `${tokenCurrency}-${accountCurrency}`,
       );
 
-      return await receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(
-        {
-          userId,
-          token,
-          sourceAccount,
-          destinationAccount,
-          exchangeRate,
-        },
-      );
+      return await getSdk().receive.createCrossAccountReceiveQuotes({
+        token,
+        sourceAccount,
+        destinationAccount,
+        exchangeRate,
+      });
     },
     retry: (failureCount, error) => {
       if (error instanceof DomainError) {
@@ -290,13 +268,10 @@ export function useCreateCrossAccountReceiveQuotes() {
 }
 
 function useBuildCashuAccountPlaceholder(mintUrl: string, currency: Currency) {
-  const receiveCashuTokenService =
-    getSdk().receive.internal.receiveCashuTokenService;
-
   const { data } = useSuspenseQuery({
     queryKey: ['build-cashu-account-for-mint', mintUrl, currency],
-    queryFn: async () =>
-      receiveCashuTokenService.buildAccountForMint(mintUrl, currency),
+    queryFn: () =>
+      getSdk().receive.buildCashuAccountPlaceholder(mintUrl, currency),
     staleTime: 0,
     gcTime: 0,
     retry: 1,

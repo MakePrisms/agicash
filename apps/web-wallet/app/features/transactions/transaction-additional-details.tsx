@@ -65,12 +65,12 @@ function LightningSendDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const repository = getSdk().send.internal.cashuSendQuoteRepository;
+  const options = getSdk().send.quoteByTransactionIdOptions(transaction.id);
 
   const { data: sendQuote } = useSuspenseQuery({
-    queryKey: ['transaction-details', transaction.id],
+    ...options,
     queryFn: async () => {
-      const quote = await repository.getByTransactionId(transaction.id);
+      const quote = await options.queryFn();
       if (!quote) {
         throw new Error('No send quote found for transaction');
       }
@@ -93,12 +93,12 @@ function LightningSendDetails({
 function LightningReceiveDetails({
   transaction,
 }: { transaction: Transaction }) {
-  const repository = getSdk().receive.internal.cashuReceiveQuoteRepository;
+  const options = getSdk().receive.quoteByTransactionIdOptions(transaction.id);
 
   const { data } = useSuspenseQuery({
-    queryKey: ['transaction-details', transaction.id],
+    ...options,
     queryFn: async () => {
-      const quote = await repository.getByTransactionId(transaction.id);
+      const quote = await options.queryFn();
       if (!quote) {
         throw new Error('No receive quote found for transaction');
       }
@@ -113,12 +113,12 @@ function CashuTokenSendDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const repository = getSdk().send.internal.cashuSendSwapRepository;
+  const options = getSdk().send.swapByTransactionIdOptions(transaction.id);
 
   const { data: swap } = useSuspenseQuery({
-    queryKey: ['transaction-details', transaction.id],
+    ...options,
     queryFn: async () => {
-      const swap = await repository.getByTransactionId(transaction.id);
+      const swap = await options.queryFn();
       if (!swap) {
         throw new Error('No send swap found for transaction');
       }
@@ -148,12 +148,12 @@ function CashuTokenReceiveDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const repository = getSdk().receive.internal.cashuReceiveSwapRepository;
+  const options = getSdk().receive.swapByTransactionIdOptions(transaction.id);
 
   const { data: swap } = useSuspenseQuery({
-    queryKey: ['transaction-details', transaction.id],
+    ...options,
     queryFn: async () => {
-      const swap = await repository.getByTransactionId(transaction.id);
+      const swap = await options.queryFn();
       if (!swap) {
         throw new Error('No receive swap found for transaction');
       }

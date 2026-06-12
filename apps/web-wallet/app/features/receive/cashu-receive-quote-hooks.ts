@@ -39,7 +39,6 @@ import {
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import { getSdk } from '../shared/sdk';
-import { useTransactionsCache } from '../transactions/transaction-hooks';
 
 type CreateProps = {
   account: CashuAccount;
@@ -422,7 +421,6 @@ export function useProcessCashuReceiveQuoteTasks() {
     useGetCashuAccountByMintUrlAndCurrency();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const transactionsCache = useTransactionsCache();
   const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
@@ -446,7 +444,7 @@ export function useProcessCashuReceiveQuoteTasks() {
         // transaction cache here so that it starts refetching the transaction as soon as possible
         // without relying on realtime notification which might be delayed when reconnecting due to
         // the app being in background.
-        transactionsCache.invalidateTransaction(data.quote.transactionId);
+        getSdk().transactions.invalidate(data.quote.transactionId);
         cashuReceiveQuoteCache.updateIfExists(data.quote);
         pendingQuotesCache.update(data.quote);
       }
