@@ -1,5 +1,6 @@
 import { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
 import { DomainError } from '@agicash/wallet-sdk/error';
+import type { TransferQuote } from '@agicash/wallet-sdk/transfer/transfer-service';
 import { MoneyDisplay } from '~/components/money-display';
 import {
   PageBackButton,
@@ -15,7 +16,6 @@ import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { useInitiateTransfer } from './transfer-hooks';
-import type { TransferQuote } from './transfer-service';
 
 type Props = {
   quote: TransferQuote;

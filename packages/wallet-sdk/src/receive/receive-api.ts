@@ -234,6 +234,10 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
   api: ReceiveApi;
   /** Shared with the send api: send swap reversal claims back through it. */
   cashuReceiveSwapService: CashuReceiveSwapService;
+  /** Shared with the transfer api: it persists the transfer's receive quote. */
+  cashuReceiveQuoteService: CashuReceiveQuoteService;
+  /** Shared with the transfer api: it persists the transfer's receive quote. */
+  sparkReceiveQuoteService: SparkReceiveQuoteService;
   caches: { invalidate: () => unknown }[];
   changeHandlers: DatabaseChangeHandler[];
 } {
@@ -446,6 +450,8 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
   return {
     api,
     cashuReceiveSwapService,
+    cashuReceiveQuoteService,
+    sparkReceiveQuoteService,
     caches: [
       cashuReceiveQuoteCache,
       pendingCashuReceiveQuotesCache,

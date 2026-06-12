@@ -17,6 +17,7 @@ import {
   type TransactionsApi,
   createTransactionsApi,
 } from './transactions/transactions-api';
+import { type TransferApi, createTransferApi } from './transfer/transfer-api';
 import { type UserApi, createUserApi } from './user/user-api';
 
 export type { AccountsApi } from './accounts/accounts-api';
@@ -26,6 +27,7 @@ export type { RealtimeApi } from './realtime/realtime-api';
 export type { ReceiveApi } from './receive/receive-api';
 export type { SendApi } from './send/send-api';
 export type { TransactionsApi } from './transactions/transactions-api';
+export type { TransferApi } from './transfer/transfer-api';
 export type { UserApi } from './user/user-api';
 
 export type WalletSdkConfig = {
@@ -113,6 +115,7 @@ export class WalletSdk {
   readonly contacts: ContactsApi;
   readonly receive: ReceiveApi;
   readonly send: SendApi;
+  readonly transfer: TransferApi;
   readonly realtime: RealtimeApi;
 
   constructor(config: WalletSdkConfig) {
@@ -194,6 +197,15 @@ export class WalletSdk {
       cashuReceiveSwapService: receive.cashuReceiveSwapService,
     });
     this.send = send.api;
+
+    const transfer = createTransferApi({
+      getCurrentUserId,
+      cashuReceiveQuoteService: receive.cashuReceiveQuoteService,
+      sparkReceiveQuoteService: receive.sparkReceiveQuoteService,
+      cashuSendQuoteService: send.cashuSendQuoteService,
+      sparkSendQuoteService: send.sparkSendQuoteService,
+    });
+    this.transfer = transfer.api;
 
     const invalidateOnReconnect = [
       accounts.cache,

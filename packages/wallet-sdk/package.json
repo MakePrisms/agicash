@@ -38,7 +38,8 @@
     "./supabase-session": "./src/supabase-session.ts",
     "./task-processing-lock-repository": "./src/task-processing-lock-repository.ts",
     "./transactions/transaction": "./src/transactions/transaction.ts",
-    "./transactions/transaction-enums": "./src/transactions/transaction-enums.ts"
+    "./transactions/transaction-enums": "./src/transactions/transaction-enums.ts",
+    "./transfer/transfer-service": "./src/transfer/transfer-service.ts"
   },
   "scripts": {
     "typecheck": "tsc",

@@ -1,32 +1,25 @@
 import { Money } from '@agicash/utils/money';
-import type {
-  Account,
-  CashuAccount,
-  SparkAccount,
-} from '@agicash/wallet-sdk/accounts/account';
+import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import {
   canReceiveFromLightning,
   canSendToLightning,
-} from '@agicash/wallet-sdk/accounts/account';
-import type { CashuReceiveQuote } from '@agicash/wallet-sdk/receive/cashu-receive-quote';
-import type { CashuReceiveLightningQuote } from '@agicash/wallet-sdk/receive/cashu-receive-quote-core';
-import type { CashuReceiveQuoteService } from '@agicash/wallet-sdk/receive/cashu-receive-quote-service';
-import type { SparkReceiveQuote } from '@agicash/wallet-sdk/receive/spark-receive-quote';
-import { getLightningQuote as getSparkLightningQuote } from '@agicash/wallet-sdk/receive/spark-receive-quote-core';
-import type { SparkReceiveLightningQuote } from '@agicash/wallet-sdk/receive/spark-receive-quote-core';
-import type { SparkReceiveQuoteService } from '@agicash/wallet-sdk/receive/spark-receive-quote-service';
+} from '../accounts/account';
+import { DomainError } from '../error';
+import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
+import type { CashuReceiveLightningQuote } from '../receive/cashu-receive-quote-core';
+import type { CashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';
+import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
+import { getLightningQuote as getSparkLightningQuote } from '../receive/spark-receive-quote-core';
+import type { SparkReceiveLightningQuote } from '../receive/spark-receive-quote-core';
+import type { SparkReceiveQuoteService } from '../receive/spark-receive-quote-service';
 import type {
   CashuLightningQuote,
   CashuSendQuoteService,
-} from '@agicash/wallet-sdk/send/cashu-send-quote-service';
-
+} from '../send/cashu-send-quote-service';
 import type {
   SparkLightningQuote,
   SparkSendQuoteService,
-} from '@agicash/wallet-sdk/send/spark-send-quote-service';
-
-import { DomainError } from '@agicash/wallet-sdk/error';
-import { getSdk } from '../shared/sdk';
+} from '../send/spark-send-quote-service';
 
 export type TransferReceiveSide =
   | {
@@ -278,19 +271,4 @@ export class TransferService {
       transferId,
     });
   }
-}
-
-export function useTransferService() {
-  const cashuReceiveQuoteService =
-    getSdk().receive.internal.cashuReceiveQuoteService;
-  const sparkReceiveQuoteService =
-    getSdk().receive.internal.sparkReceiveQuoteService;
-  const cashuSendQuoteService = getSdk().send.internal.cashuSendQuoteService;
-  const sparkSendQuoteService = getSdk().send.internal.sparkSendQuoteService;
-  return new TransferService(
-    cashuReceiveQuoteService,
-    sparkReceiveQuoteService,
-    cashuSendQuoteService,
-    sparkSendQuoteService,
-  );
 }

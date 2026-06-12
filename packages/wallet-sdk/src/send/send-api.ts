@@ -196,6 +196,10 @@ export type SendApiDeps = {
 
 export function createSendApi(deps: SendApiDeps): {
   api: SendApi;
+  /** Shared with the transfer api: it persists the transfer's send quote. */
+  cashuSendQuoteService: CashuSendQuoteService;
+  /** Shared with the transfer api: it persists the transfer's send quote. */
+  sparkSendQuoteService: SparkSendQuoteService;
   caches: { invalidate: () => unknown }[];
   changeHandlers: DatabaseChangeHandler[];
 } {
@@ -374,6 +378,8 @@ export function createSendApi(deps: SendApiDeps): {
 
   return {
     api,
+    cashuSendQuoteService,
+    sparkSendQuoteService,
     caches: [
       unresolvedCashuSendQuotesCache,
       cashuSendSwapCache,
