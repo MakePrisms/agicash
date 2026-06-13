@@ -1,5 +1,5 @@
+import type { Money } from '@agicash/money';
 import ky from 'ky';
-import type { Money } from '../money';
 import type { LNURLError, LNURLPayParams, LNURLPayResult } from './types';
 
 export const isLNURLError = (obj: unknown): obj is LNURLError => {
