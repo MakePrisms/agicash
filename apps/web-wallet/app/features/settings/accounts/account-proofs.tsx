@@ -11,7 +11,7 @@ import type { CashuAccount } from '~/features/accounts/account';
 import { useAccount } from '~/features/accounts/account-hooks';
 import type { CashuProof } from '~/features/accounts/cashu-account';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
-import { getCashuUnit, sumProofs } from '~/lib/cashu';
+import { getCashuUnit, sumProofs } from '@agicash/cashu';
 
 function ProofRow({
   proof,

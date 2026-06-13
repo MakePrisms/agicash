@@ -8,7 +8,7 @@ import {
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
-import { proofToY } from '~/lib/cashu';
+import { proofToY } from '@agicash/cashu';
 import type { CashuAccount } from '../accounts/account';
 import { useAccountOrNull } from '../accounts/account-hooks';
 import { type CashuProof, toProof } from '../accounts/cashu-account';

@@ -1,7 +1,7 @@
 import type { Money } from '@agicash/money';
 import type { Proof, Token } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
-import { proofToY } from '~/lib/cashu';
+import { proofToY } from '@agicash/cashu';
 import type { AllUnionFieldsRequired } from '@agicash/utils';
 import type { CashuAccount } from '../accounts/account';
 import {

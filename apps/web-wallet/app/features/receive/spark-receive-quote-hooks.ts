@@ -8,11 +8,10 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
+import { getCashuUnit, sumProofs } from '@agicash/cashu';
 import {
   type ExtendedCashuWallet,
-  getCashuUnit,
   getCashuWallet,
-  sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
 import { useLatest } from '~/lib/use-latest';

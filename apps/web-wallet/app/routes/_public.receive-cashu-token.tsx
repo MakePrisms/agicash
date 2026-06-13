@@ -7,8 +7,7 @@ import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-
 import { decodeCashuToken } from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
-import { validateCashuToken } from '~/lib/cashu';
-import { normalizeMintUrl } from '~/lib/cashu/utils';
+import { normalizeMintUrl, validateCashuToken } from '@agicash/cashu';
 import type { Route } from './+types/_public.receive-cashu-token';
 
 type SharePreview = {

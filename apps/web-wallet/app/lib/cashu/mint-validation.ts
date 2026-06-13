@@ -5,8 +5,8 @@ import {
   type CashuProtocolUnit,
   type NUT,
   type NUT17WebSocketCommand,
-} from './types';
-import { areMintUrlsEqual } from './utils';
+  areMintUrlsEqual,
+} from '@agicash/cashu';
 
 type NutValidationResult =
   | { isValid: false; message: string }

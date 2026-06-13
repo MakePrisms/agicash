@@ -16,7 +16,7 @@ import {
   type ExtendedMintInfo,
   getCashuProtocolUnit,
   getMintPurpose,
-} from '~/lib/cashu';
+} from '@agicash/cashu';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 type FormValues = {

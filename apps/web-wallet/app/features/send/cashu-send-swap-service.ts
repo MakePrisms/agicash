@@ -10,11 +10,11 @@ import type { CashuAccount } from '~/features/accounts/account';
 import { type CashuProof, toProof } from '~/features/accounts/cashu-account';
 import {
   CashuErrorCodes,
-  type ExtendedCashuWallet,
   getCashuProtocolUnit,
   getCashuUnit,
   sumProofs,
-} from '~/lib/cashu';
+} from '@agicash/cashu';
+import type { ExtendedCashuWallet } from '~/lib/cashu';
 import {
   type CashuReceiveSwapService,
   useCashuReceiveSwapService,

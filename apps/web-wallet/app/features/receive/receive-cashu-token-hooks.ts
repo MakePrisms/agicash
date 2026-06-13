@@ -14,7 +14,7 @@ import {
 } from '~/features/accounts/account-hooks';
 import { tokenToMoney } from '~/features/shared/cashu';
 import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
-import { getClaimableProofs, getUnspentProofsFromToken } from '~/lib/cashu';
+import { getClaimableProofs, getUnspentProofsFromToken } from '@agicash/cashu';
 import { createSparkWalletStub } from '~/lib/spark';
 import {
   type AccountSelectorOption,

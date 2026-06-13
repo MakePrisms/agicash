@@ -11,10 +11,10 @@ import {
 } from '@tanstack/react-query';
 import type Big from 'big.js';
 import { useMemo, useState } from 'react';
+import { sumProofs } from '@agicash/cashu';
 import {
   MeltQuoteSubscriptionManager,
   getCashuWallet,
-  sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
 import type { CashuAccount } from '../accounts/account';

@@ -15,12 +15,11 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { getCashuUnit, sumProofs } from '@agicash/cashu';
 import {
   type ExtendedCashuWallet,
   MintQuoteSubscriptionManager,
-  getCashuUnit,
   getCashuWallet,
-  sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
 import {

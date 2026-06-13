@@ -23,20 +23,19 @@ import {
 import { useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import {
-  type ExtendedCashuWallet,
   ExtendedMintInfo,
   type MintPurpose,
+  encodeToken,
   extractCashuToken,
   getCashuProtocolUnit,
   getCashuUnit,
-  getCashuWallet,
   sumProofs,
-} from '~/lib/cashu';
+} from '@agicash/cashu';
+import { type ExtendedCashuWallet, getCashuWallet } from '~/lib/cashu';
 import {
   MintBlocklistSchema,
   buildMintValidator,
 } from '~/lib/cashu/mint-validation';
-import { encodeToken } from '~/lib/cashu/token';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '@agicash/ecies';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';

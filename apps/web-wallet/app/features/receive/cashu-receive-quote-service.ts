@@ -5,11 +5,8 @@ import {
   type Proof,
   splitAmount,
 } from '@cashu/cashu-ts';
-import {
-  CashuErrorCodes,
-  type ExtendedCashuWallet,
-  getCashuUnit,
-} from '~/lib/cashu';
+import { CashuErrorCodes, getCashuUnit } from '@agicash/cashu';
+import type { ExtendedCashuWallet } from '~/lib/cashu';
 import type { CashuAccount } from '../accounts/account';
 import {
   BASE_CASHU_LOCKING_DERIVATION_PATH,

@@ -11,7 +11,7 @@ import {
   areMintUrlsEqual,
   getCashuUnit,
   sumProofs,
-} from '~/lib/cashu';
+} from '@agicash/cashu';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
 import type { CashuReceiveSwap } from './cashu-receive-swap';

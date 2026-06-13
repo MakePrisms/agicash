@@ -5,7 +5,7 @@ import {
   checkIsTestMint,
   findFirstActiveKeyset,
   getKeysetExpiry,
-} from '~/lib/cashu';
+} from '@agicash/cashu';
 import type { User } from '../user/user';
 import type { Account, CashuAccount, ExtendedAccount } from './account';
 import {

@@ -1,6 +1,6 @@
 import { Money } from '@agicash/money';
 import { z } from 'zod/mini';
-import { ProofSchema } from '~/lib/cashu';
+import { ProofSchema } from '@agicash/cashu';
 
 /**
  * Schema for cashu swap receive db data.

@@ -23,8 +23,7 @@ import {
 import useLocationData from '~/hooks/use-location';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
-import { encodeToken } from '~/lib/cashu/token';
-import { normalizeMintUrl } from '~/lib/cashu/utils';
+import { encodeToken, normalizeMintUrl } from '@agicash/cashu';
 import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';

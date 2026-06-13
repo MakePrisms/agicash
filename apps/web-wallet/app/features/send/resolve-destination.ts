@@ -1,6 +1,6 @@
 import type { Money } from '@agicash/money';
 import { type DecodedBolt11, parseBolt11Invoice } from '@agicash/bolt11';
-import { parseCashuPaymentRequest } from '~/lib/cashu';
+import { parseCashuPaymentRequest } from '@agicash/cashu';
 import { isValidLightningAddress } from '~/lib/lnurl';
 import { type Contact, isContact } from '../contacts/contact';
 import { validateBolt11, validateLightningAddressFormat } from './validation';

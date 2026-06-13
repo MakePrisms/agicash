@@ -1,6 +1,6 @@
 import { Money } from '@agicash/money';
 import type { MeltQuoteBolt11Response, Token } from '@cashu/cashu-ts';
-import { getCashuUnit } from '~/lib/cashu';
+import { getCashuUnit } from '@agicash/cashu';
 import type {
   Account,
   AccountType,

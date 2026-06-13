@@ -2,8 +2,7 @@ import type { Currency } from '@agicash/money';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
-import { normalizeMintUrl } from '~/lib/cashu';
-import { ProofSchema } from '~/lib/cashu/types';
+import { ProofSchema, normalizeMintUrl } from '@agicash/cashu';
 import {
   type AgicashDb,
   type AgicashDbAccountWithProofs,

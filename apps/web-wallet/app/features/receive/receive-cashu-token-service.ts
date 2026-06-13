@@ -7,7 +7,7 @@ import {
   findFirstActiveKeyset,
   getCashuProtocolUnit,
   getKeysetExpiry,
-} from '~/lib/cashu';
+} from '@agicash/cashu';
 import {
   type ExtendedAccount,
   type ExtendedCashuAccount,
