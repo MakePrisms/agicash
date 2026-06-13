@@ -470,10 +470,20 @@ in the base lineage and propagated to both branches. Implementation runs in fres
 sessions (one worktree per branch) driven by three implementation plans (base, A,
 B) produced via `writing-plans`.
 
-**Prerequisite spike (before base):** Supabase realtime over websockets headless in
-bun — both variants depend on it; if it fails, design the polling fallback before
-building the change feed. Spark/Breez headless (WASM under bun/node) is validated
-during base (needed for MCP later; the web build already runs it browser-side).
+**Prerequisite spike — DONE 2026-06-13, PASSED.** Validated `@supabase/realtime-js`
+2.95.2 headless under bun 1.3.11 against the local stack: wss socket opened, broadcast
+round-trip (subscribe + self-echo received), and a `postgres_changes` binding on
+`wallet.transactions` subscribed with no error — `window` is `undefined`, so the core
+transport needs no browser. **No polling fallback needed; the SDK-owns-background
+design stands.** Headless TLS to the self-signed local endpoint works once the process
+trusts the cert (`NODE_EXTRA_CA_CERTS` = mkcert root CA in devenv; `certs/ci-localhost-*`
+in CI) — so the SDK must accept a CA / cert-trust seam for self-signed local/CI, a
+non-issue against production Supabase. Still to validate in the core-runtime PR (out of
+the transport spike's scope, gated on auth): authorized **private** broadcast channels
+via the real OpenSecret JWT (`realtime.setAuth`), end-to-end DB-change → broadcast →
+headless receipt, and reconnection/resync resilience (sleep/wake, network drop) when
+porting `SupabaseRealtimeManager`. Spark/Breez headless (WASM under bun/node) is
+validated during base (needed for MCP later; the web build already runs it browser-side).
 
 **Tests (same suite shape in both PRs):** ported send/receive state-machine tests
 against SDK processors; lane-serialization tests (FIFO per lane, initiate-lane
