@@ -38,7 +38,7 @@ import {
 } from '~/lib/cashu/mint-validation';
 import { encodeToken } from '~/lib/cashu/token';
 import { measureOperation } from '~/lib/performance';
-import { computeSHA256 } from '~/lib/sha256';
+import { computeSHA256 } from '@agicash/ecies';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { getAgicashMintAuthProvider } from './agicash-mint-auth-provider';
 

@@ -16,7 +16,7 @@ import { measureOperation } from '~/lib/performance';
 import {
   decryptXChaCha20Poly1305,
   encryptXChaCha20Poly1305,
-} from '~/lib/xchacha20poly1305';
+} from '@agicash/ecies';
 import type { AgicashDb } from '../agicash-db/database';
 import { NotFoundError } from '../shared/error';
 import { sparkWalletQueryOptions } from '../shared/spark';

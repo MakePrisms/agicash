@@ -1,6 +1,6 @@
 import type { Money } from '@agicash/money';
 import type { z } from 'zod/mini';
-import { computeSHA256 } from '~/lib/sha256';
+import { computeSHA256 } from '@agicash/ecies';
 import type { AgicashDb } from '../agicash-db/database';
 import { CashuLightningReceiveDbDataSchema } from '../agicash-db/json-models';
 import { encryptToPublicKey } from '../shared/encryption';

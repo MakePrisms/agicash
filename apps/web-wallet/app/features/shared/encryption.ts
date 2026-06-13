@@ -9,7 +9,7 @@ import {
   eciesDecryptBatch,
   eciesEncrypt,
   eciesEncryptBatch,
-} from '~/lib/ecies';
+} from '@agicash/ecies';
 
 // 10111099 is 'enc' (for encryption) in ascii
 const encryptionKeyDerivationPath = `m/10111099'/0'`;
