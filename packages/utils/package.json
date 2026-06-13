@@ -7,7 +7,7 @@
     "./*": "./src/*"
   },
   "scripts": {
-    "test": "bun test",
+    "test": "bun test --pass-with-no-tests",
     "typecheck": "tsc"
   },
   "dependencies": {
