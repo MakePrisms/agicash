@@ -22,6 +22,7 @@
     "@agicash/breez-sdk-spark": "0.13.5-1",
     "@agicash/ecies": "workspace:*",
     "@agicash/money": "workspace:*",
+    "@agicash/utils": "workspace:*",
     "@agicash/opensecret": "catalog:",
     "@agicash/qr-scanner": "0.1.2",
     "@cashu/cashu-ts": "3.6.1",
@@ -71,7 +72,7 @@
     "tailwindcss-animate": "1.0.7",
     "usehooks-ts": "3.1.1",
     "vaul": "1.1.2",
-    "zod": "4.3.6",
+    "zod": "catalog:",
     "zustand": "5.0.11"
   },
   "devDependencies": {
@@ -91,7 +92,6 @@
     "npm-run-all": "4.1.5",
     "tailwindcss": "4.1.18",
     "tsx": "4.21.0",
-    "type-fest": "5.4.3",
     "typescript": "catalog:",
     "vite": "7.3.2",
     "vite-plugin-devtools-json": "1.0.0",

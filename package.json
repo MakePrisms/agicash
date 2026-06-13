@@ -16,7 +16,8 @@
       "big.js": "7.0.1",
       "dotenv": "16.4.7",
       "jwt-encode": "1.0.1",
-      "typescript": "5.9.3"
+      "typescript": "5.9.3",
+      "zod": "4.3.6"
     }
   },
   "scripts": {

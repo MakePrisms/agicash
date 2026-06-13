@@ -1,5 +1,5 @@
 import type { z } from 'zod/mini';
-import type { AllUnionFieldsRequired } from '~/lib/type-utils';
+import type { AllUnionFieldsRequired } from '@agicash/utils';
 import type {
   AgicashDb,
   AgicashDbSparkReceiveQuote,

@@ -2,7 +2,7 @@ import type { Money } from '@agicash/money';
 import type { Proof, Token } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
 import { proofToY } from '~/lib/cashu';
-import type { AllUnionFieldsRequired } from '~/lib/type-utils';
+import type { AllUnionFieldsRequired } from '@agicash/utils';
 import type { CashuAccount } from '../accounts/account';
 import {
   type AccountRepository,
