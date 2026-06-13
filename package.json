@@ -6,6 +6,8 @@
     "packages": ["apps/*", "packages/*"],
     "catalog": {
       "@agicash/opensecret": "0.1.0",
+      "@noble/curves": "1.9.7",
+      "@noble/hashes": "1.8.0",
       "@stablelib/base64": "2.0.1",
       "@stablelib/chacha20poly1305": "2.0.1",
       "@types/big.js": "6.2.2",
