@@ -7,8 +7,16 @@ background payment state machines — lives inside the React web app
 (`apps/web-wallet/app`), entangled with React and TanStack Query. We want the exact
 same logic usable from a future **MCP stdio wallet** (bun/node, same Supabase +
 Open Secret backend). The SDK (`packages/wallet-sdk`, `@agicash/wallet-sdk`) must
-**completely contain the wallet logic** so that no frontend ever reimplements any of
-it, behind a contract that is clean, minimal, and understandable on its own.
+**completely contain the wallet's business logic and background processing** so that
+no frontend ever reimplements either, behind a contract that is clean, minimal, and
+understandable on its own.
+
+**What the two variants actually contest is caching.** Business logic, the six
+background processors, and leader election live in the SDK in *both* variants. The
+open question is whether *freshness/caching of hot reads* is the SDK's job (variant
+B: the SDK keeps a live view) or the frontend's job (variant A: the SDK is
+operations + events, each frontend caches as it sees fit). That axis — not the
+business logic — is what we are comparing.
 
 Two contract philosophies survived design review. Instead of deciding on paper, we
 build **both, completely**, and decide by using them.
@@ -28,8 +36,10 @@ seams; if A wins, C is moot.
 ## Goals & constraints (both variants)
 
 - React-agnostic SDK, fully usable headless under bun/node.
-- SDK owns **all** wallet logic: operations, the six background payment processors,
-  leader election, retry policy, serialization, encryption, version handling.
+- SDK owns **all business logic and background processing** in both variants:
+  operations, the six background payment processors, leader election, retry policy,
+  serialization, encryption, version handling. (Caching of hot reads is the one
+  responsibility that moves between SDK and frontend across the two variants.)
 - Web app keeps its UX and routing; its change is a rebind of data access, not a
   redesign.
 - The MCP target runs the same full stack (Supabase RLS + realtime, Open Secret).
@@ -50,7 +60,7 @@ class Sdk {
   // domains: auth, user, accounts, cashu, spark, transactions, contacts,
   //          transfers, scan, rates, background
   on<E extends keyof SdkEventMap>(e: E, cb: (p: SdkEventMap[E]) => void): () => void;
-  resync(): Promise<void>;   // host hint: re-check connection + catch up (web wires visibility/online; MCP never calls)
+  resync(): Promise<void>;   // coarse, idempotent host hint: run the catch-up now (re-verify subs + refetch state). Web wires it to visibility/online; MCP rarely needs it.
   dispose(): Promise<void>;  // close sockets, stop processors, drop secret refs
 }
 
@@ -128,55 +138,63 @@ decrypts payloads, converts rows → domain entities, stamps `version`, and fans
 to: (1) the public event bus, (2) variant-specific state (B: cache writes; A:
 nothing — events only), (3) processors (trigger checks). Reconnect handling
 (exponential backoff, online/active resubscribe) ports from
-`SupabaseRealtimeManager`; on reconnect the SDK emits `connection:state` and runs
-its resync (B: refetch stores; A: emits `connection:resync` so consumers refetch;
-processors re-load their work sets from DB in both). The SDK cannot listen to
-`window` online/visibility events itself: `sdk.resync()` is the host-side hint
-(web calls it on visibility/online changes — the replacement for today's
-`refetchOnWindowFocus`); headless hosts rely on channel-level reconnect detection
-alone.
+`SupabaseRealtimeManager`. On channel reconnect the SDK emits `connection:state` and
+runs **the catch-up** automatically (internal `onConnected`): re-establish mint/Breez
+subscriptions and reconcile current state, because realtime events that fired during
+the gap were pushed to a dead socket and are lost (not queued). The catch-up does:
+B → active-refetch the hot stores (pushes fresh data to subscribers now, not lazy
+invalidation); A → reload the processors' work sets from DB and emit
+`connection:resync` so the frontend invalidates its own cache. Processors reload
+their work sets in both.
+
+`sdk.resync()` is simply the **on-demand trigger of that same catch-up path** — for
+when the socket didn't notice it dropped (device merely slept and missed events) or
+to catch up on focus faster than the heartbeat would. It is coarse and idempotent
+(safe to call spuriously). The SDK cannot observe `window` online/visibility itself,
+so the web host wires `resync()` to those events (replacing today's
+`refetchOnWindowFocus`); headless hosts rely on channel-level reconnect detection and
+rarely call it.
 
 ### Error taxonomy
 
 `SdkError` base; `DomainError` (user-facing, never retried), `ConcurrencyError`
 (transient, retried), `NotFoundError` move from `features/shared/error.ts` into the
-SDK and are exported. Methods reject with these; `payment:failed` carries one.
+SDK and are exported. Methods reject with these; `send:failed` / `receive:failed`
+carry one.
 
-### Event map (uniform across variants)
+### Event map (variant-specific — follows the caching split)
 
-Events serve two audiences: semantic payment lifecycle (MCP notifications, toasts)
-and entity changes (cache maintenance in A; informational in B). Entity payloads
-are **full decrypted domain objects** with `version` — consumers never need a
-follow-up `get()`.
+The event surface is **not uniform**. A *core* set fires in both variants, but
+*row-level entity events* exist **only in variant A**. In B the stores are the change
+mechanism, so row events would be dead weight — a public API with no consumer that we
+would nonetheless have to support. This is a direct consequence of the
+caching-responsibility split: an event that exists only to maintain A's frontend cache
+has no place in B's contract.
+
+**Core `SdkCoreEventMap` (both variants).** Flow-lifecycle (semantic) + infra.
+Lifecycle events fire **once, on a terminal transition** — distinct from row changes:
+a send quote goes UNPAID→PENDING→PAID and its row changes three times, but
+`send:completed` fires once. All fire on **every instance** (derived from realtime
+entity transitions, not from the processing mutation), so a passive tab or a headless
+MCP is notified of a flow another instance processed.
 
 ```ts
-type SdkEventMap = {
-  // payment lifecycle (semantic)
-  'payment:sent':      { protocol: 'cashu' | 'spark'; quoteId: string; transactionId: string; amount: Money };
-  'payment:received':  { protocol: 'cashu' | 'spark'; quoteId: string; transactionId: string; amount: Money };
-  'payment:failed':    { protocol: 'cashu' | 'spark'; quoteId: string; transactionId?: string; error: SdkError };
-  'payment:expired':   { protocol: 'cashu' | 'spark'; quoteId: string };
-  // entity changes (version-stamped, decrypted)
-  'user:updated':              { user: User };
-  'account:upserted':          { account: Account };
-  'transaction:upserted':      { transaction: Transaction };
-  'contact:added':             { contact: Contact };
-  'contact:removed':           { contactId: string };
-  'cashu-send-quote:upserted': { quote: CashuSendQuote };
-  'cashu-send-swap:upserted':  { swap: CashuSendSwap };
-  'cashu-receive-quote:upserted': { quote: CashuReceiveQuote };
-  'cashu-receive-swap:upserted':  { swap: CashuReceiveSwap };
-  'spark-send-quote:upserted':    { quote: SparkSendQuote };
-  'spark-receive-quote:upserted': { quote: SparkReceiveQuote };
-  // lifecycle / infra
-  'auth:signed-in':      { user: User };
-  'auth:signed-out':     Record<string, never>;
+type SdkCoreEventMap = {
+  'send:completed':    { protocol: 'cashu' | 'spark'; quoteId: string; transactionId: string; amount: Money };
+  'send:failed':       { protocol: 'cashu' | 'spark'; quoteId: string; transactionId?: string; error: SdkError };
+  'receive:completed': { protocol: 'cashu' | 'spark'; quoteId: string; transactionId: string; amount: Money };
+  'receive:failed':    { protocol: 'cashu' | 'spark'; quoteId: string; error: SdkError };
+  'receive:expired':   { protocol: 'cashu' | 'spark'; quoteId: string };
+  'auth:signed-in':       { user: User };
+  'auth:signed-out':      Record<string, never>;
   'auth:session-expired': Record<string, never>;
-  'connection:state':    { state: 'connected' | 'disconnected' };
-  'connection:resync':   Record<string, never>;   // emitted after reconnect catch-up
-  'background:state':    { state: BackgroundState };
+  'connection:state':  { state: 'connected' | 'disconnected' };
+  'background:state':  { state: BackgroundState };
 };
 ```
+
+Variant A extends this with row-level events (see Variant A); variant B exposes
+`SdkCoreEventMap` unchanged.
 
 ### Domain surface
 
@@ -300,6 +318,28 @@ change feed. Nothing is cached; nothing can be stale; there is no engine.
 - Version gating is the consumer's concern only where the consumer keeps state
   (the web app's caches); events carry `version` to make it trivial.
 
+**Row-level events (A only) — `SdkEventMapA = SdkCoreEventMap & {…}`.** A's frontend
+rebuilds its cache from these, so they mirror today's Supabase change feed 1:1:
+explicit `created` / `updated` (not a collapsed upsert), each carrying the full
+decrypted entity + `version`. The handler replaces-by-version and decides
+add/update/remove-from-list from the entity's state (exactly what today's Cache
+classes do).
+
+```ts
+'user:updated'                                                 { user: User }
+'account:created' | 'account:updated'                          { account: Account }
+'transaction:created' | 'transaction:updated'                  { transaction: Transaction }
+'contact:created'                                              { contact: Contact }
+'contact:deleted'                                              { contactId: string }
+'cashu-send-quote:created' | 'cashu-send-quote:updated'        { quote: CashuSendQuote }
+'cashu-send-swap:created' | 'cashu-send-swap:updated'          { swap: CashuSendSwap }
+'cashu-receive-quote:created' | 'cashu-receive-quote:updated'  { quote: CashuReceiveQuote }
+'cashu-receive-swap:created' | 'cashu-receive-swap:updated'    { swap: CashuReceiveSwap }
+'spark-send-quote:created' | 'spark-send-quote:updated'        { quote: SparkSendQuote }
+'spark-receive-quote:created' | 'spark-receive-quote:updated'  { quote: SparkReceiveQuote }
+'connection:resync'                                            Record<string, never>  // A-only: invalidate + refetch
+```
+
 **Web integration:** the app **keeps TanStack Query as its wallet cache**. Read
 hooks keep their `queryOptions` with `queryFn: () => sdk.…`; the existing Cache
 classes and change handlers survive but are rewired to consume SDK entity events
@@ -346,6 +386,31 @@ Snapshot rules: `get()` returns the observer's cached result (referentially stab
 between changes — `useSyncExternalStore` requirement); `undefined` strictly means
 "not loaded" (legitimately-empty is `[]`/`null`); `toPromise()` uses
 `fetchOptimistic` for true first-load semantics.
+
+**Events:** B exposes only `SdkCoreEventMap`. Account / contact / user / quote-set
+freshness is delivered by the stores, not events — there are no row-level change
+events to subscribe to, because nothing in B's contract needs them.
+
+**Transactions** are Promise-based in **both** variants (`list(cursor)` / `get(id)` /
+`countPendingAck()` / `acknowledge()`) — no transaction store, and **no transaction
+store is warranted**, because the current wallet does not live-update history either:
+verified in `transaction-hooks.ts`, the realtime handlers upsert only the individual
+`['transactions', id]` cache and invalidate the unacked count, while the paginated
+`all-transactions` list is a stale-while-revalidate snapshot — `staleTime: 0` +
+`refetchOnMount: true` (both defaults) mean revisiting the page shows cached pages
+instantly and refetches in the background, plus `refetchOnWindowFocus`/`Reconnect:
+'always'`.
+
+**This SWR-on-visit behavior is preserved in BOTH variants for free.** The history
+list stays an app-side `useInfiniteQuery`; the only change is its `queryFn` calls
+`sdk.transactions.list(cursor)` instead of the repository. Every refetch trigger
+(`staleTime`/`refetchOnMount`/focus/reconnect) lives in the app's query config, which
+does not move into the SDK — the SDK's `list()` is just the fetch underneath. B keeps
+this query in its own UI-side QueryClient (transactions are the one read that stays
+app-cached in both variants); an in-flight transaction's detail observes liveness via
+the pending/unresolved **stores** until the lifecycle event fires. (A gets identical
+behavior, and additionally its `transaction:created` / `transaction:updated` row
+events feed the individual-transaction cache exactly as today.)
 
 **Engine rules (hard requirements):**
 
@@ -445,9 +510,6 @@ Judged side by side, same local stack, same flows:
 2. `rates` internals (provider chain placement) — SDK needs conversion for
    LN-address amounts; app needs 15s-polled UI rates; decide whether app polls SDK
    or keeps its own UI-side query (likely: app polls `sdk.rates`).
-3. Whether `payment:*` events fire on the *emitting* instance only or on all
-   instances (recommendation: all instances, derived from entity transitions, so
-   every frontend can toast/notify regardless of who processed).
 
 ## Out of scope
 
