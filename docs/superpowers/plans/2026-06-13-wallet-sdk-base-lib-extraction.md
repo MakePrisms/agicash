@@ -259,6 +259,22 @@ If Steps 1-3 were already green with no changes, skip this commit.
 
 ---
 
+## Recipe corrections (learned from the money extraction — apply to every package)
+
+Three gaps surfaced while extracting `@agicash/money`; fold these into each remaining package's plan:
+
+1. **Declare the new package as an app dependency.** After the codemod, add `"@agicash/<pkg>": "workspace:*"` to `apps/web-wallet/package.json` `dependencies` (alphabetical among the `@agicash/*` entries) and run `bun install`. The codemod makes imports *resolve* via Bun's hoist symlink, but the dependency must also be *declared* (every other internal `@agicash/*` package is) — otherwise it is invisible to `--frozen-lockfile`/CI/audits. (This was missing from the money plan and caught in code review.)
+
+2. **The codemod must catch RELATIVE imports too, not just the `~/lib/<x>` alias.** Some files import the lib by relative path (`entry.client.tsx` used `import { Money } from './lib/money'`); a `~/lib/<x>`-only replace misses these. After the alias codemod, sweep the whole repo for any reference to the old location — alias *and* relative forms — and rewrite/verify each:
+   ```bash
+   grep -rnE "(['\"])(\.{1,2}/)*lib/<x>(/types)?\1" apps packages | grep -v node_modules
+   grep -rn "lib/<x>" apps packages | grep -v node_modules   # final guard: only legit @agicash/<x> hits remain
+   ```
+
+3. **`bun run build` is a required gate — `tsc`/`fix:all` alone is insufficient.** With `moduleResolution: "Bundler"` + `noEmit`, `tsc` does NOT verify that a *relative* path points to a real file (it assumes the bundler resolves it), so it silently passed a dangling `./lib/money` import pointing at the deleted directory; Vite's build caught it. Run `bun --filter='web-wallet' run build` in verification. A failure on missing `VITE_*` env (this worktree lacks the app `.env`) is an acceptable, non-blocking environment limitation — only a module-resolution error is a real regression.
+
+**Deferred follow-up (not part of lib extraction):** relocate `registerDevToolsFormatter` (the `window.devtoolsFormatters` block in `packages/money/src/money.ts`) out of the shared lib into the app's browser entry, so `@agicash/money` can drop `"DOM"` from its `tsconfig` lib and be truly headless. Left as-is here because this task was move-not-refactor.
+
 ## Applying this pattern to the remaining four packages
 
 Each of these is a separate follow-on plan that reuses Tasks 1-3 verbatim, substituting the package's files, deps, and import specifier. Extraction order (leaf → dependent): **bolt11, ecies, utils** (independent — any order), then **cashu** (depends on money + utils). Per-package deltas:
