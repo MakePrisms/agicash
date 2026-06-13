@@ -1,6 +1,6 @@
+import { type Currency, Money } from '@agicash/money';
 import type { DecodedBolt11 } from '~/lib/bolt11';
 import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
-import { type Currency, Money } from '~/lib/money';
 
 export type ValidateResult =
   | {

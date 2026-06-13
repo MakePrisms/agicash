@@ -1,4 +1,5 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
+import type { Money } from '@agicash/money';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -14,7 +15,6 @@ import {
   sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {

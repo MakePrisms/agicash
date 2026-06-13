@@ -1,4 +1,4 @@
-import { Money } from '~/lib/money';
+import { Money } from '@agicash/money';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import {
   canReceiveFromLightning,

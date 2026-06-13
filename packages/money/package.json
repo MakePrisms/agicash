@@ -1,0 +1,21 @@
+{
+  "name": "@agicash/money",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "big.js": "catalog:"
+  },
+  "devDependencies": {
+    "@types/big.js": "catalog:",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}

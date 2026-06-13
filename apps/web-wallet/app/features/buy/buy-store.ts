@@ -1,5 +1,5 @@
+import type { Currency, Money } from '@agicash/money';
 import { create } from 'zustand';
-import type { Currency, Money } from '~/lib/money';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';

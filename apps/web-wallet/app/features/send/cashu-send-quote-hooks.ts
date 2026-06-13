@@ -1,3 +1,4 @@
+import type { Money } from '@agicash/money';
 import {
   type MeltQuoteBolt11Response,
   MintOperationError,
@@ -16,7 +17,6 @@ import {
   sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import {
   useAccountsCache,

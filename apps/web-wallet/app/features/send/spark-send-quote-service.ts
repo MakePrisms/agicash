@@ -1,5 +1,5 @@
+import { Money } from '@agicash/money';
 import { parseBolt11Invoice } from '~/lib/bolt11';
-import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import {
   isInsufficentBalanceError,

@@ -1,3 +1,4 @@
+import type { Money } from '@agicash/money';
 import {
   HttpResponseError,
   MintOperationError,
@@ -22,7 +23,6 @@ import {
   sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
 import {
   type LongTimeout,
   clearLongTimeout,
