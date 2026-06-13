@@ -42,7 +42,7 @@ verification gate (§9–§10).
 | D7 | **One PR, big-bang delivery.** | Owner's decision, made against the recommendation to stage it. The risk (entire money path, fresh code, unreviewable-as-one-diff, unverifiable-until-end) was presented and accepted. De-risked by the build sequence + verification gate (§9–§10), **not** by reducing scope. |
 | D8 | **`@agicash/money` is a standalone shared workspace package**; `db-types` and the other pure libs (`bolt11`, `ecies`, `lnurl`, `cashu-protocol`) are **SDK-internal**. | `Money` *values* cross the SDK↔web boundary, so a single shared module is mandatory (`instanceof` must hold). Nothing outside the SDK touches the DB or those libs in the end state. Rule: *shared package iff a non-SDK consumer needs it (esp. values crossing the boundary); else internal.* |
 | D9 | **Client and server are separate facades** — a narrow `ServerSdk` (via `createServer(config)`) over the **same** internal substrate, not one class branching on mode. | The two surfaces differ radically; one branching class would expose ~10 domains that throw server-side — a footgun and a dishonest type. Services are written session-agnostic, so the internals are shared with no duplication. |
-| D10 | **Connectivity is driven by intent-level commands**, not a state-push. The web calls `sdk.background.start()`/`stop()` (or a lighter `resume()`/`pause()`) on browser `online`/`offline`/`visibilitychange`. No `notifyConnectivity`. | The SDK owns the logic (resubscribe, refetch); the web only observes browser APIs it alone has. |
+| D10 | **No connectivity seam.** Catch-up after reconnect/resume stays web-side via TanStack `refetchOnReconnect`/`refetchOnWindowFocus: 'always'` (already set on the queries; kept). The SDK's realtime self-heals (Supabase client + manager backoff). `background.start()`/`stop()` tie to **auth lifecycle** (start on sign-in/app-ready, stop on sign-out/destroy), **not** visibility — so nothing halts when backgrounded; pending sends keep processing. | Cache staleness is a *cache* concern → lives with the cache (web). Realtime resubscription is SDK-internal. The two were conflated in an earlier draft. An optional reconnect *nudge* can be added later if WS recovery proves too slow. |
 
 ---
 
@@ -113,7 +113,7 @@ packages/
         services/             session-agnostic business logic (take explicit account/user; shared by both facades)
         orchestrator/         executeQuote state machine · receiveToken melt-then-mint · balance listener · task processors
         background/           leader election (take_lead, 5s poll) · start/stop · lifecycle state
-        realtime/             pure subscribe/backoff manager + DB-event → SDK-event forwarder (connectivity signals injected)
+        realtime/             pure subscribe/backoff manager (self-healing) + DB-event → SDK-event forwarder
         crypto/               framework-free password/sha256 + key-derivation paths
         lib/                  SDK-only pure libs: cashu-protocol · bolt11 · ecies · lnurl
 ```
@@ -153,7 +153,9 @@ key, lud16 domain, and `serverSparkMnemonic` (server mode) all arrive via
 | `account:updated {account, op}` | upsert into `['accounts']` (version-aware) |
 | `transaction:created` / `:updated` | upsert `['transactions']` + refresh pending-ack count |
 | `contact:created` / `:deleted` | upsert / remove `['contacts']` |
-| `send:*` / `receive:*` | surfaced via the transaction updates above; foreground flows still drive toasts from their Zustand stores |
+| `send:*` / `receive:*` | (a) drive the transaction/account updates above; (b) refresh the per-quote query the **active flow screen** reads for live UNPAID→PENDING→PAID state; (c) foreground flows still drive toasts from their Zustand stores |
+
+**Active flow screens** (sending…/receiving…) read a per-quote query (e.g. `['cashu-send-quote', id]` backed by `sdk.cashu.send.get(id)`); the bridge refreshes that key on the matching `send:*`/`receive:*` event — this replaces the deleted quote caches.
 
 **Two rules carried over:** (a) **version-aware apply** — never overwrite a newer
 cache entry with an older event (reuse the existing `{Entity}Cache` version
@@ -186,6 +188,12 @@ interface UserDomain {
   setDefaultCurrency(currency: Currency): Promise<User>;
 }
 type SdkEventMap = { /* … */ 'user:updated': { user: User } };
+
+interface ExchangeRateDomain {
+  convert(params: { amount: Money; to: Currency }): Promise<Money>;   // existing (contract)
+  getRates(params: { tickers: Ticker[] }): Promise<Rates>;            // new — raw rates for the reactive rate UI
+  getRate(ticker: Ticker): Promise<string>;                           // new
+}
 ```
 
 Plus a small **server surface** on `ServerSdk` (exact names settled in the plan):
@@ -206,7 +214,7 @@ LUD JSON wire format stays in the RR routes; `SdkConfig` gains `serverSparkMnemo
 | `shared/cashu.ts` (seed/xpub/wallet-init/mint-auth), `agicash-mint-auth-provider.ts` | `internal/connections` (cashu) + key derivation; `VITE_CASHU_MINT_BLOCKLIST` → config |
 | `shared/spark.ts` (mnemonic, identity pubkey, `connect()`, balance listener, WASM), `lib/spark/*` | `internal/connections/breez`; `VITE_BREEZ_API_KEY` → config; `DEBUG_LOGGING_SPARK` → `config.featureFlags` |
 | `database.client.ts` + `database.server.ts` + `supabase-session.ts` | `internal/connections/supabase-client` (client+server) + `supabase-session` |
-| `lib/supabase/*` realtime **manager** (pure) | `internal/realtime`; connectivity signals injected via `start`/`stop` commands |
+| `lib/supabase/*` realtime **manager** (pure, self-healing) | `internal/realtime` (auto-reconnect/backoff is internal; no web connectivity seam) |
 
 Libs: `money` → `@agicash/money`. `bolt11`·`ecies`·`lnurl`·`cashu-protocol` → `internal/lib`. `agicash-db/database.ts` → `internal/db`.
 
@@ -218,13 +226,13 @@ Libs: `money` → `@agicash/money`. `bolt11`·`ecies`·`lnurl`·`cashu-protocol`
 | **user** | repos (get/update/**upsert + ensure-on-resolve**), `UserService`, dbUser mapper → `domains/user` | `UserCache`, `useUserChangeHandlers` | `useUser`, thin mutation hooks, profile UI |
 | **accounts** | types/utils, BIP-85 paths, repo (`toAccount`+decrypt+wallet-init), service → `domains/accounts` | `AccountsCache`, `useAccountChangeHandlers` | `useAccounts`/`useBalance` (derive over subscribed list), account UI |
 | **scan** | `classify-input` → `domains/scan`; `MODE` → config | — | scan route + nav/toast |
-| **exchangeRate** | service + 3 providers (coinbase/coingecko/mempool) → `domains/exchange-rate` | — | `use-exchange-rate` hooks (refetchInterval stays) |
+| **exchangeRate** | service + 3 providers (coinbase/coingecko/mempool) → `domains/exchange-rate` (exposes `getRates`/`getRate` **and** `convert`) | — | `use-exchange-rate` hooks (queryFn→`sdk…getRates`; 15s refetch stays) |
 | **cashu** | send/receive quote+swap (schema/service/repo), token-claim, melt/mint subscription **managers**, mint-validation → `domains/cashu` + `orchestrator` + `internal/lib/cashu-protocol` | all cashu caches, `useProcessCashu*Tasks`, cashu change-handlers, `useOnMeltQuoteStateChange`, queryClient-in-service | send/receive Zustand stores, `animated-qr-code`, routes |
 | **spark** | send/receive quote (+`.server` variants), `shared/spark` lifecycle+balance-listener, `lib/spark` → `domains/spark` + `connections/breez` + `orchestrator` | spark caches, `useProcessSpark*Tasks`, `useTrackAndUpdateSparkAccountBalances` | spark send/receive UI + routes |
 | **transactions** | schema, repo (cursor list/count/ack/`toTransaction`), 6 details parsers → `domains/transactions` + `internal/db` | `TransactionsCache`, `useTransactionChangeHandlers` | `useTransactions` (infinite query over cursor), list/details UI, ack-status Zustand store, visibility-ack |
 | **contacts** | `contact` + repo (CRUD + `findContactCandidates`) → `domains/contacts` | `ContactsCache`, `useContactChangeHandlers` | `useContacts`/search; lud16 domain → config |
 | **transfers** | `transfer-service` (paired send+receive, `transferId`, auto-fail) → `domains/transfers` | quote/initiate hook internals (no transfer cache) | `transfer-store` (Zustand), transfer UI/scanner |
-| **background** | `take_lead` repo, leader election, 6 task orchestrators, realtime forwarder → `domains/background` + `internal/{background,realtime}` | `TaskProcessor`, `useTakeTaskProcessingLead`, `use-track-wallet-changes`, all `*ChangeHandlers` | `Wallet` calls `sdk.background.start()` + mounts the one bridge; maps connectivity events to start/stop |
+| **background** | `take_lead` repo, leader election, 6 task orchestrators, realtime forwarder → `domains/background` + `internal/{background,realtime}` | `TaskProcessor`, `useTakeTaskProcessingLead`, `use-track-wallet-changes`, all `*ChangeHandlers` | `Wallet` calls `sdk.background.start()` (sign-in) / `stop()` (sign-out) + mounts the one bridge; keeps `refetchOnReconnect`/`OnWindowFocus` for catch-up |
 
 ### 7c — Web residue (thin consumer)
 - `features/shared/sdk.ts`: `getSdk()` client singleton from `VITE_*` → `SdkConfig` (incl. `featureFlags`, `cashuMintBlocklist`, lud16 domain). Server entry builds a `createServer()` instance.
@@ -247,7 +255,7 @@ cookie + `require-session-hint.server`, OAuth redirect stashing
 | **Spark stale-balance race** (`shared/spark.ts:180-230`) | Already handled today; **porting hazard only** | The balance listener must re-read `getInfo()` on the `synced` event, not just on `paymentSucceeded`. Without it, a stale (pre-payment) balance sticks. `account:updated` compare-before-emit suppresses the no-op. **Regression test required.** |
 | **nutshell #788 change loss** (`melt-quote-subscription.ts:68-86`) | Must be preserved, abstracted into the SDK | On melt `PAID`, if `inputAmount > meltQuote.amount` (change expected) but `change` is absent from the WS payload, refetch via `checkMeltQuoteBolt11` before completing — else the user's change ecash (real sats) is lost. Lives inside the orchestrator's melt handler; invisible to consumers. **Regression test required.** |
 | **Server-side Spark receive** | Understood; works today | The server uses a **dedicated server Spark wallet** (`LNURL_SERVER_SPARK_MNEMONIC` → `config.serverSparkMnemonic`) and calls `getLightningQuote({ wallet: serverWallet, amount, receiverIdentityPubkey: user.sparkIdentityPublicKey })` — Breez `receivePayment` mints an invoice claimable only by the receiver, using the receiver's *public* key. No receiver private keys. Cashu receivers need no Breez. ⇒ **server mode runs Breez WASM** (corrects an earlier "no Breez server-side" assumption). |
-| **Connectivity seam** | Resolved by D10 | Realtime manager is pure + SDK-internal; `navigator.onLine`/`document.hidden`/window events are browser-only, so the web maps them to `sdk.background.start()`/`stop()`. SDK also self-detects drops via Supabase backoff; the command just makes catch-up immediate. |
+| **Reconnect/resume staleness** | Resolved (no seam) | Supabase realtime can't replay missed messages, so after a drop the web cache would be stale. Fix stays **web-side**: TanStack `refetchOnReconnect`/`refetchOnWindowFocus: 'always'` (kept) refetches via SDK reads. SDK realtime resubscribes internally. No web→SDK connectivity API; `background.start/stop` are auth-lifecycle only (D10). |
 | **Breez `initLogging` single-global-subscriber** | Note | The SDK must guard `initLogging` to a single attempt (master's `loggingStatus` guard) so it can't be called twice. |
 | **Leader-election / dual-ownership** | Avoided by sequencing | The web's task-processor + realtime are deleted in the same cut-over step (§9 S13) that starts `sdk.background` — never two leaders or two realtime owners in the merged result. |
 
@@ -274,9 +282,11 @@ cookie + `require-session-hint.server`, OAuth redirect stashing
 ### Phase 2 — Web cut-over (old code deleted here)
 - **S11** `getSdk()` singleton + `SdkConfig` (client entry) and `createServer()` (server entry)
 - **S12 · Reads** — flip every `queryFn` to `sdk.*`. Web realtime still drives reactivity. **Checkpoint: app works on SDK reads.**
-- **S13 · Reactivity + orchestration flip** (the atomic step) — `sdk.background.start()`, mount the events→cache bridge, flip send/receive/transfer mutations, wire connectivity commands; **delete** the web's repos · services · OS-wrappers · encryption · cashu/spark shared · `database.client` · `supabase-session` · task-processor · realtime · all `*ChangeHandlers`. **Checkpoint: app fully on the SDK (client).**
+- **S13 · Reactivity + orchestration flip** (necessarily atomic — see below) — `sdk.background.start()`, mount the events→cache bridge, flip send/receive/transfer mutations; **delete** the web's repos · services · OS-wrappers · encryption · cashu/spark shared · `database.client` · `supabase-session` · task-processor · realtime · all `*ChangeHandlers`. **Checkpoint: app fully on the SDK (client).**
 - **S14 · Server routes** — LN-address routes call the `createServer()` instance; delete `database.server.ts` + `lightning-address-service.ts` from the web.
 - **S15 · Cleanup** — delete the web's now-dead lib copies, drop unused deps, `fix:all`.
+
+> **S13 cannot be subdivided per-domain.** The web `TaskProcessor` and the SDK background processor both poll the same `wallet.task_processing_locks` + task tables; running both at once risks double-processing a quote (double melt/mint — a real-money bug). So orchestration flips in one step (start SDK background ⇄ delete web processor). Reads (S12) subdivide freely; the write/orchestration path does not. This step is the focus of the verification gate.
 
 Temporary lib duplication lives only on the branch; the cut-over deletes the web's copies, so the merged PR has each lib in exactly one place (`money` shared, the rest SDK-internal).
 
@@ -292,17 +302,18 @@ Temporary lib duplication lives only on the branch; the cut-over deletes the web
 
 ## 11. Open items to resolve during planning
 
-- **`exchangeRate` surface** — ground the `convert` contract method against the
-  real `ExchangeRateService` (`getRates`/`getRate` + providers); decide whether
-  `convert` wraps a rate lookup + `Money` conversion or the raw rate is exposed.
-- **Gift-card discovery** (`use-discover-cards`) — stays web-side reading SDK
-  account data, or a small accounts helper. `VITE_GIFT_CARDS` → config.
-- **`ServerSdk` method names** — final naming for resolution / receive-primitive /
+- **`ServerSdk` method names** — final naming for the resolution / receive-primitive /
   quote-status surface.
-- **Connectivity method** — confirm `background.start()`/`stop()` are
-  appropriately weighted, or add a lighter `resume()`/`pause()` pair.
 - **Server Breez footprint** — confirm the server Spark wallet's WASM init cost
   is acceptable in the Vercel/Node runtime, and the `storageDir` strategy
   (`/tmp/.spark-data` today).
 - **`SdkConfig` additions** — `featureFlags`, `cashuMintBlocklist`, lud16
-  `domain`, `serverSparkMnemonic`; fold into the contract amendment.
+  `domain`, `serverSparkMnemonic`, plus the `Ticker`/`Rates` types for
+  exchange-rate; fold into the contract amendment.
+
+**Resolved during review (2026-06-13):** exchangeRate surface = `getRates`/`getRate`
++ `convert` (§6); gift-card discovery stays web-side reading SDK account data
+(`VITE_GIFT_CARDS` → config); **no connectivity seam** — catch-up is web-side
+TanStack refetch and `background.start/stop` are auth-lifecycle (D10/§8); active
+flow-screen live state via a per-quote query fed by the bridge (§5); S13 is
+necessarily atomic (§9).
