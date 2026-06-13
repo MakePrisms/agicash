@@ -1,5 +1,5 @@
 import type { Money } from '@agicash/money';
-import { type DecodedBolt11, parseBolt11Invoice } from '~/lib/bolt11';
+import { type DecodedBolt11, parseBolt11Invoice } from '@agicash/bolt11';
 import { parseCashuPaymentRequest } from '~/lib/cashu';
 import { isValidLightningAddress } from '~/lib/lnurl';
 import { type Contact, isContact } from '../contacts/contact';
