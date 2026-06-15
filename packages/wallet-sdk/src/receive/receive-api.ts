@@ -196,16 +196,15 @@ export type ReceiveApi = {
    * web-owned tracking/task-processing hooks and realtime wiring until the
    * background task processing moves into the SDK (the MCP phase). App/UI
    * code must use the curated methods above.
+   *
+   * The cashu-receive families moved into the SDK's `sdk.tasks` engine (chunk
+   * 4a); their service/cache members were deleted from here. Only the spark
+   * members remain until spark receive moves in chunk 4b.
    */
   internal: {
-    cashuReceiveQuoteService: CashuReceiveQuoteService;
-    cashuReceiveSwapService: CashuReceiveSwapService;
     sparkReceiveQuoteService: SparkReceiveQuoteService;
-    cashuReceiveQuoteCache: CashuReceiveQuoteCache;
-    pendingCashuReceiveQuotesCache: PendingCashuReceiveQuotesCache;
     sparkReceiveQuoteCache: SparkReceiveQuoteCache;
     pendingSparkReceiveQuotesCache: PendingSparkReceiveQuotesCache;
-    pendingCashuReceiveSwapsCache: PendingCashuReceiveSwapsCache;
   };
 };
 
@@ -232,10 +231,21 @@ export type ReceiveApiDeps = {
 
 export function createReceiveApi(deps: ReceiveApiDeps): {
   api: ReceiveApi;
-  /** Shared with the send api: send swap reversal claims back through it. */
+  /** Shared with the send api: send swap reversal claims back through it.
+   * Also the cashu-receive-swap saga service the tasks engine calls. */
   cashuReceiveSwapService: CashuReceiveSwapService;
-  /** Shared with the transfer api: it persists the transfer's receive quote. */
+  /** Shared with the transfer api: it persists the transfer's receive quote.
+   * Also the cashu-receive-quote saga service the tasks engine calls. */
   cashuReceiveQuoteService: CashuReceiveQuoteService;
+  /** Shared with the tasks engine: the cashu-receive-quote saga writes the
+   * completed quote back into this active-quote cache. */
+  cashuReceiveQuoteCache: CashuReceiveQuoteCache;
+  /** Shared with the tasks engine: the cashu-receive-quote saga re-reads the
+   * live entity from this pending cache and writes back the complete transition. */
+  pendingCashuReceiveQuotesCache: PendingCashuReceiveQuotesCache;
+  /** Shared with the tasks engine: the cashu-receive-swap saga re-reads the live
+   * entity from this pending cache. */
+  pendingCashuReceiveSwapsCache: PendingCashuReceiveSwapsCache;
   /** Shared with the transfer api: it persists the transfer's receive quote. */
   sparkReceiveQuoteService: SparkReceiveQuoteService;
   caches: { invalidate: () => unknown }[];
@@ -436,14 +446,9 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
         ...params,
       }),
     internal: {
-      cashuReceiveQuoteService,
-      cashuReceiveSwapService,
       sparkReceiveQuoteService,
-      cashuReceiveQuoteCache,
-      pendingCashuReceiveQuotesCache,
       sparkReceiveQuoteCache,
       pendingSparkReceiveQuotesCache,
-      pendingCashuReceiveSwapsCache,
     },
   };
 
@@ -452,6 +457,9 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
     cashuReceiveSwapService,
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
+    cashuReceiveQuoteCache,
+    pendingCashuReceiveQuotesCache,
+    pendingCashuReceiveSwapsCache,
     caches: [
       cashuReceiveQuoteCache,
       pendingCashuReceiveQuotesCache,

@@ -14,6 +14,8 @@ import { type ReceiveApi, createReceiveApi } from './receive/receive-api';
 import { type SendApi, createSendApi } from './send/send-api';
 import { configureSpark } from './spark-config';
 import { TaskProcessingLockRepository } from './task-processing-lock-repository';
+import { createCashuReceiveQuoteProcessor } from './tasks/cashu-receive-quote-processor';
+import { createCashuReceiveSwapProcessor } from './tasks/cashu-receive-swap-processor';
 import { createCashuSendQuoteProcessor } from './tasks/cashu-send-quote-processor';
 import { type TasksApi, createTasksApi } from './tasks/tasks-api';
 import {
@@ -251,6 +253,23 @@ export class WalletSdk {
           unresolvedCashuSendQuotesCache: send.unresolvedCashuSendQuotesCache,
           accountsCache: accounts.cache,
           unresolvedCashuQuotesOptions: send.api.unresolvedCashuQuotesOptions,
+        }),
+        createCashuReceiveQuoteProcessor({
+          queryClient: this.queryClient,
+          cashuReceiveQuoteService: receive.cashuReceiveQuoteService,
+          cashuReceiveQuoteCache: receive.cashuReceiveQuoteCache,
+          pendingCashuReceiveQuotesCache:
+            receive.pendingCashuReceiveQuotesCache,
+          accountsCache: accounts.cache,
+          invalidateTransaction: transactions.api.invalidate,
+          pendingCashuQuotesOptions: receive.api.pendingCashuQuotesOptions,
+        }),
+        createCashuReceiveSwapProcessor({
+          queryClient: this.queryClient,
+          cashuReceiveSwapService: receive.cashuReceiveSwapService,
+          pendingCashuReceiveSwapsCache: receive.pendingCashuReceiveSwapsCache,
+          accountsCache: accounts.cache,
+          pendingCashuSwapsOptions: receive.api.pendingCashuSwapsOptions,
         }),
       ],
     });
