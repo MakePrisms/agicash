@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { QueryClient } from '@tanstack/query-core';
 import type { TaskProcessingLockRepository } from '../task-processing-lock-repository';
+import type { SagaProcessor } from './processor';
 import { type TasksApi, createTasksApi } from './tasks-api';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -23,7 +24,10 @@ const waitForStatus = async (api: TasksApi, expected: string) => {
  */
 const setup = (
   takeLead: (userId: string, clientId: string) => Promise<boolean>,
-  options?: { getCurrentUserId?: () => string },
+  options?: {
+    getCurrentUserId?: () => string;
+    processors?: SagaProcessor[];
+  },
 ) => {
   const queryClient = new QueryClient();
   const takeLeadMock = mock(takeLead);
@@ -35,6 +39,7 @@ const setup = (
     queryClient,
     taskProcessingLockRepository,
     getCurrentUserId: options?.getCurrentUserId ?? (() => 'user-1'),
+    processors: options?.processors ?? [],
   });
 
   return { api, takeLeadMock, queryClient };
@@ -198,5 +203,94 @@ describe('createTasksApi', () => {
     await waitForStatus(api, 'leader');
 
     expect(takeLeadMock).toHaveBeenCalledWith('user-1', 'fixed-client');
+  });
+
+  const makeProcessor = () => {
+    const activate = mock(() => undefined);
+    const deactivate = mock(() => undefined);
+    const processor: SagaProcessor = { activate, deactivate };
+    return { processor, activate, deactivate };
+  };
+
+  it('activates processors only on becoming leader', async () => {
+    const { processor, activate, deactivate } = makeProcessor();
+    const { api } = setup(async () => true, { processors: [processor] });
+    running = api;
+
+    expect(activate).not.toHaveBeenCalled();
+
+    api.start();
+    await waitForStatus(api, 'leader');
+
+    expect(activate).toHaveBeenCalledTimes(1);
+    expect(deactivate).not.toHaveBeenCalled();
+  });
+
+  it('does not activate processors while only a follower', async () => {
+    const { processor, activate, deactivate } = makeProcessor();
+    const { api } = setup(async () => false, { processors: [processor] });
+    running = api;
+
+    api.start();
+    await waitForStatus(api, 'follower');
+    await flush();
+
+    expect(activate).not.toHaveBeenCalled();
+    expect(deactivate).not.toHaveBeenCalled();
+  });
+
+  it('deactivates processors when leadership is lost (stop)', async () => {
+    const { processor, activate, deactivate } = makeProcessor();
+    const { api } = setup(async () => true, { processors: [processor] });
+    running = api;
+
+    api.start();
+    await waitForStatus(api, 'leader');
+    expect(activate).toHaveBeenCalledTimes(1);
+
+    api.stop();
+
+    expect(deactivate).toHaveBeenCalledTimes(1);
+  });
+
+  it('deactivates processors when the leader poll starts failing', async () => {
+    let succeed = true;
+    const { processor, activate, deactivate } = makeProcessor();
+    const { api, queryClient } = setup(
+      async () => {
+        if (!succeed) {
+          throw new Error('lost lease');
+        }
+        return true;
+      },
+      { processors: [processor] },
+    );
+    running = api;
+
+    api.start();
+    await waitForStatus(api, 'leader');
+    expect(activate).toHaveBeenCalledTimes(1);
+
+    succeed = false;
+    await queryClient.invalidateQueries({ queryKey: ['take-lead'] });
+    await waitForStatus(api, 'error');
+
+    expect(deactivate).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-activate processors on a redundant leader poll', async () => {
+    const { processor, activate } = makeProcessor();
+    const { api, queryClient } = setup(async () => true, {
+      processors: [processor],
+    });
+    running = api;
+
+    api.start();
+    await waitForStatus(api, 'leader');
+    await queryClient.invalidateQueries({ queryKey: ['take-lead'] });
+    await flush();
+
+    // Still leader across two successful polls — activate fires once.
+    expect(activate).toHaveBeenCalledTimes(1);
   });
 });

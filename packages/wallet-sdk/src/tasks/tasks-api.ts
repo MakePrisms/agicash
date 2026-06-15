@@ -1,5 +1,6 @@
 import { type QueryClient, QueryObserver } from '@tanstack/query-core';
 import type { TaskProcessingLockRepository } from '../task-processing-lock-repository';
+import type { SagaProcessor } from './processor';
 
 /**
  * The engine's lifecycle status.
@@ -56,28 +57,59 @@ export type TasksApiDeps = {
    * @throws if no user is loaded yet.
    */
   getCurrentUserId: () => string;
+  /**
+   * The saga-family processors. Each is activated while this client is the
+   * leader and deactivated otherwise — the headless equivalent of
+   * `{isLead && <TaskProcessor/>}`.
+   */
+  processors: SagaProcessor[];
 };
 
 /**
- * The background task-processing engine. Chunk 3a is the skeleton plus leader
- * election only: it absorbs the `take_lead` poll the web's
- * `useTakeTaskProcessingLead` ran, exposing it as an imperative lifecycle the
- * web (and later a headless daemon) drives. No saga families have moved into
- * the engine yet; the web's `TaskProcessor` still runs them, now gated on this
- * engine's leadership so there is exactly one lock.
+ * The background task-processing engine. It absorbs the `take_lead` poll the
+ * web's `useTakeTaskProcessingLead` ran (exposing it as an imperative lifecycle
+ * the web, and later a headless daemon, drives) and runs the registered saga
+ * processors while this client holds the lease — the headless equivalent of
+ * `{isLead && <TaskProcessor/>}`. Families not yet moved into the engine stay
+ * in the web's `TaskProcessor`, now gated on this engine's leadership so there
+ * is exactly one lock.
  */
 export function createTasksApi(deps: TasksApiDeps): TasksApi {
-  const { queryClient, taskProcessingLockRepository, getCurrentUserId } = deps;
+  const {
+    queryClient,
+    taskProcessingLockRepository,
+    getCurrentUserId,
+    processors,
+  } = deps;
 
   let status: TasksStatus = 'stopped';
   let error: Error | null = null;
   let observer: QueryObserver<boolean> | null = null;
   let unsubscribeObserver: (() => void) | null = null;
+  let processorsActive = false;
   const listeners = new Set<() => void>();
 
   const notify = () => {
     for (const listener of listeners) {
       listener();
+    }
+  };
+
+  // The reconciler-while-leader gate: run the registered families only while
+  // this client holds the lease (status 'leader'); tear them down on any other
+  // status (follower/stopped/error). Idempotent in both directions.
+  const reconcileProcessors = () => {
+    const shouldBeActive = status === 'leader';
+    if (shouldBeActive === processorsActive) {
+      return;
+    }
+    processorsActive = shouldBeActive;
+    for (const processor of processors) {
+      if (shouldBeActive) {
+        processor.activate();
+      } else {
+        processor.deactivate();
+      }
     }
   };
 
@@ -87,6 +119,7 @@ export function createTasksApi(deps: TasksApiDeps): TasksApi {
     }
     status = nextStatus;
     error = nextError;
+    reconcileProcessors();
     notify();
   };
 

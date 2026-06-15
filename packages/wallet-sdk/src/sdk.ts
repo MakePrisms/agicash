@@ -14,6 +14,7 @@ import { type ReceiveApi, createReceiveApi } from './receive/receive-api';
 import { type SendApi, createSendApi } from './send/send-api';
 import { configureSpark } from './spark-config';
 import { TaskProcessingLockRepository } from './task-processing-lock-repository';
+import { createCashuSendQuoteProcessor } from './tasks/cashu-send-quote-processor';
 import { type TasksApi, createTasksApi } from './tasks/tasks-api';
 import {
   type TransactionsApi,
@@ -243,6 +244,15 @@ export class WalletSdk {
       queryClient: this.queryClient,
       taskProcessingLockRepository: new TaskProcessingLockRepository(db),
       getCurrentUserId,
+      processors: [
+        createCashuSendQuoteProcessor({
+          queryClient: this.queryClient,
+          cashuSendQuoteService: send.cashuSendQuoteService,
+          unresolvedCashuSendQuotesCache: send.unresolvedCashuSendQuotesCache,
+          accountsCache: accounts.cache,
+          unresolvedCashuQuotesOptions: send.api.unresolvedCashuQuotesOptions,
+        }),
+      ],
     });
   }
 }

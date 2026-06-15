@@ -169,11 +169,9 @@ export type SendApi = {
    * code must use the curated methods above.
    */
   internal: {
-    cashuSendQuoteService: CashuSendQuoteService;
     cashuSendSwapService: CashuSendSwapService;
     sparkSendQuoteService: SparkSendQuoteService;
     cashuSendSwapCache: CashuSendSwapCache;
-    unresolvedCashuSendQuotesCache: UnresolvedCashuSendQuotesCache;
     unresolvedCashuSendSwapsCache: UnresolvedCashuSendSwapsCache;
     unresolvedSparkSendQuotesCache: UnresolvedSparkSendQuotesCache;
   };
@@ -200,6 +198,9 @@ export function createSendApi(deps: SendApiDeps): {
   cashuSendQuoteService: CashuSendQuoteService;
   /** Shared with the transfer api: it persists the transfer's send quote. */
   sparkSendQuoteService: SparkSendQuoteService;
+  /** Shared with the tasks engine: the cashu-send-quote saga re-reads the live
+   * entity from this cache and writes back the markPending transition. */
+  unresolvedCashuSendQuotesCache: UnresolvedCashuSendQuotesCache;
   caches: { invalidate: () => unknown }[];
   changeHandlers: DatabaseChangeHandler[];
 } {
@@ -366,11 +367,9 @@ export function createSendApi(deps: SendApiDeps): {
       queryFn: () => cashuSendSwapRepository.getByTransactionId(transactionId),
     }),
     internal: {
-      cashuSendQuoteService,
       cashuSendSwapService,
       sparkSendQuoteService,
       cashuSendSwapCache,
-      unresolvedCashuSendQuotesCache,
       unresolvedCashuSendSwapsCache,
       unresolvedSparkSendQuotesCache,
     },
@@ -380,6 +379,7 @@ export function createSendApi(deps: SendApiDeps): {
     api,
     cashuSendQuoteService,
     sparkSendQuoteService,
+    unresolvedCashuSendQuotesCache,
     caches: [
       unresolvedCashuSendQuotesCache,
       cashuSendSwapCache,

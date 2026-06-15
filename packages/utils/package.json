@@ -10,6 +10,7 @@
     "./bolt11": "./src/bolt11/index.ts",
     "./json": "./src/json.ts",
     "./sha256": "./src/sha256.ts",
+    "./timeout": "./src/timeout.ts",
     "./type-utils": "./src/type-utils.ts",
     "./zod": "./src/zod.ts"
   },

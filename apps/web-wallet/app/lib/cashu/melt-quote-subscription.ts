@@ -1,10 +1,14 @@
 import { MeltQuoteSubscriptionManager } from '@agicash/cashu/melt-quote-subscription-manager';
 import type { ExtendedCashuWallet } from '@agicash/cashu/utils';
 import type { Currency } from '@agicash/utils/money';
+import {
+  type LongTimeout,
+  clearLongTimeout,
+  setLongTimeout,
+} from '@agicash/utils/timeout';
 import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
-import { type LongTimeout, clearLongTimeout, setLongTimeout } from '../timeout';
 import { useLatest } from '../use-latest';
 
 type OnMeltQuoteStateChangeProps = {

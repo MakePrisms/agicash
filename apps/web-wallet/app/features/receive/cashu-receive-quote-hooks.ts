@@ -6,6 +6,11 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import type { Money } from '@agicash/utils/money';
+import {
+  type LongTimeout,
+  clearLongTimeout,
+  setLongTimeout,
+} from '@agicash/utils/timeout';
 import type { CashuAccount } from '@agicash/wallet-sdk/accounts/account';
 import { getInitializedCashuWallet } from '@agicash/wallet-sdk/cashu';
 import type { CashuReceiveQuote } from '@agicash/wallet-sdk/receive/cashu-receive-quote';
@@ -26,11 +31,6 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
-import {
-  type LongTimeout,
-  clearLongTimeout,
-  setLongTimeout,
-} from '~/lib/timeout';
 import { useLatest } from '~/lib/use-latest';
 import { withRetry } from '~/lib/with-retry';
 import {
