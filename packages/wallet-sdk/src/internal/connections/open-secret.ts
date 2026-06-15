@@ -1,9 +1,14 @@
 import {
   configure,
   generateThirdPartyToken,
+  getPrivateKey,
+  getPrivateKeyBytes,
+  getPublicKey,
   type StorageProvider,
 } from '@agicash/opensecret';
+import { hexToBytes } from '@noble/hashes/utils';
 import type { SdkConfig } from '../../config';
+import type { KeyProvider } from '../crypto/keys';
 
 /**
  * Configure the OpenSecret SDK from {@link SdkConfig}. Must be called once
@@ -55,3 +60,19 @@ function decodeJwtExp(jwt: string): number | undefined {
 
 /** Re-exported session primitives used by the SDK's Supabase session wiring. */
 export { generateThirdPartyToken };
+
+/** A {@link KeyProvider} backed by the OpenSecret enclave key APIs. */
+export function openSecretKeyProvider(): KeyProvider {
+  return {
+    getChildMnemonic: async (path) =>
+      (await getPrivateKey({ seed_phrase_derivation_path: path })).mnemonic,
+    getPrivateKeyBytes: async (path) =>
+      hexToBytes(
+        (await getPrivateKeyBytes({ private_key_derivation_path: path }))
+          .private_key,
+      ),
+    getPublicKeyHex: async (path, algorithm) =>
+      (await getPublicKey(algorithm, { private_key_derivation_path: path }))
+        .public_key,
+  };
+}

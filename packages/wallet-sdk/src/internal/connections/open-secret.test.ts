@@ -8,6 +8,14 @@ mock.module('@agicash/opensecret', () => ({
   },
   generateThirdPartyToken: async () => 'token',
   isLoggedIn: () => true,
+  getPrivateKey: async () => ({ mnemonic: 'test mnemonic' }),
+  getPrivateKeyBytes: async () => ({
+    private_key: '00'.repeat(32),
+  }),
+  getPublicKey: async () => ({
+    public_key: '02' + '00'.repeat(32),
+    algorithm: 'ecdsa',
+  }),
 }));
 
 const { configureOpenSecret, isLoggedIn } = await import('./open-secret');
