@@ -11,6 +11,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@agicash/breez-sdk-spark": "0.13.5-1",
     "@agicash/money": "workspace:*",
     "@agicash/opensecret": "catalog:",
     "@noble/ciphers": "1.3.0",
