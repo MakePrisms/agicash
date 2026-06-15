@@ -124,6 +124,7 @@
         "@agicash/money": "workspace:*",
         "@agicash/opensecret": "catalog:",
         "@supabase/supabase-js": "2.95.2",
+        "jwt-decode": "4.0.0",
         "type-fest": "5.4.3",
       },
       "devDependencies": {
