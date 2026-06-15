@@ -7,7 +7,7 @@
  */
 
 // --- entry point + config --------------------------------------------------
-export type { Sdk } from './sdk';
+export { Sdk } from './sdk';
 export type { SdkConfig } from './config';
 
 // --- value types -----------------------------------------------------------
@@ -44,6 +44,7 @@ export {
   ConcurrencyError,
   DomainError,
   NotFoundError,
+  NotImplementedError,
 } from './errors';
 
 // --- accounts (§2) ---------------------------------------------------------

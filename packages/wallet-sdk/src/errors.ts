@@ -34,3 +34,10 @@ export class DomainError extends SdkError {}
 
 /** The requested entity does not exist. */
 export class NotFoundError extends SdkError {}
+
+/** A contract surface that exists but has no implementation yet (build-in-progress). */
+export class NotImplementedError extends SdkError {
+  constructor(method: string) {
+    super(`${method} is not implemented`, 'not_implemented');
+  }
+}
