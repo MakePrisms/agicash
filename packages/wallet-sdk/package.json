@@ -7,9 +7,27 @@
     "./*": "./src/*"
   },
   "scripts": {
+    "test": "bun test --pass-with-no-tests",
     "typecheck": "tsc"
   },
+  "dependencies": {
+    "@agicash/breez-sdk-spark": "catalog:",
+    "@agicash/cashu": "workspace:*",
+    "@agicash/ecies": "workspace:*",
+    "@agicash/money": "workspace:*",
+    "@agicash/opensecret": "catalog:",
+    "@agicash/utils": "workspace:*",
+    "@noble/hashes": "catalog:",
+    "@scure/bip32": "catalog:",
+    "@scure/bip39": "catalog:",
+    "@stablelib/base64": "catalog:",
+    "@supabase/supabase-js": "catalog:",
+    "jwt-decode": "catalog:",
+    "zod": "catalog:"
+  },
   "devDependencies": {
+    "@types/bun": "catalog:",
+    "jwt-encode": "catalog:",
     "typescript": "catalog:"
   }
 }

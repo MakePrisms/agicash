@@ -1,3 +1,7 @@
 [install]
 # 3 days, in seconds — see https://bun.com/docs/runtime/bunfig#install-minimumreleaseage
 minimumReleaseAge = 259200
+# First-party package intentionally tracked at a just-published RC; exempt from
+# the release-age hold (it's our own org's package, not third-party supply chain).
+# Remove once 1.0.0-rc.0 (or its successor) ages past the window above.
+minimumReleaseAgeExcludes = ["@agicash/opensecret"]
