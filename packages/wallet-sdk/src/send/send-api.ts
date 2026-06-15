@@ -162,19 +162,6 @@ export type SendApi = {
     queryKey: string[];
     queryFn: () => Promise<CashuSendSwap | null>;
   };
-  /**
-   * Transitional escape hatch — NOT part of the public surface. Only for the
-   * web-owned tracking/task-processing hooks and realtime wiring until the
-   * background task processing moves into the SDK (the MCP phase). App/UI
-   * code must use the curated methods above.
-   */
-  internal: {
-    cashuSendSwapService: CashuSendSwapService;
-    sparkSendQuoteService: SparkSendQuoteService;
-    cashuSendSwapCache: CashuSendSwapCache;
-    unresolvedCashuSendSwapsCache: UnresolvedCashuSendSwapsCache;
-    unresolvedSparkSendQuotesCache: UnresolvedSparkSendQuotesCache;
-  };
 };
 
 export type SendApiDeps = {
@@ -194,13 +181,24 @@ export type SendApiDeps = {
 
 export function createSendApi(deps: SendApiDeps): {
   api: SendApi;
-  /** Shared with the transfer api: it persists the transfer's send quote. */
+  /** Shared with the transfer api: it persists the transfer's send quote.
+   * Also the cashu-send-quote saga service the tasks engine calls. */
   cashuSendQuoteService: CashuSendQuoteService;
-  /** Shared with the transfer api: it persists the transfer's send quote. */
+  /** Shared with the transfer api: it persists the transfer's send quote.
+   * Also the spark-send-quote saga service the tasks engine calls. */
   sparkSendQuoteService: SparkSendQuoteService;
+  /** Shared with the tasks engine: the cashu-send-swap saga's swap/complete
+   * transitions call this service. */
+  cashuSendSwapService: CashuSendSwapService;
+  /** Shared with the tasks engine: the cashu-send-swap saga invalidates this
+   * active-swap cache (full refetch) on complete. */
+  cashuSendSwapCache: CashuSendSwapCache;
   /** Shared with the tasks engine: the cashu-send-quote saga re-reads the live
    * entity from this cache and writes back the markPending transition. */
   unresolvedCashuSendQuotesCache: UnresolvedCashuSendQuotesCache;
+  /** Shared with the tasks engine: the spark-send-quote saga re-reads the live
+   * entity from this cache and writes back the initiate/complete/fail transitions. */
+  unresolvedSparkSendQuotesCache: UnresolvedSparkSendQuotesCache;
   caches: { invalidate: () => unknown }[];
   changeHandlers: DatabaseChangeHandler[];
 } {
@@ -366,20 +364,16 @@ export function createSendApi(deps: SendApiDeps): {
       queryKey: ['transaction-details', transactionId],
       queryFn: () => cashuSendSwapRepository.getByTransactionId(transactionId),
     }),
-    internal: {
-      cashuSendSwapService,
-      sparkSendQuoteService,
-      cashuSendSwapCache,
-      unresolvedCashuSendSwapsCache,
-      unresolvedSparkSendQuotesCache,
-    },
   };
 
   return {
     api,
     cashuSendQuoteService,
     sparkSendQuoteService,
+    cashuSendSwapService,
+    cashuSendSwapCache,
     unresolvedCashuSendQuotesCache,
+    unresolvedSparkSendQuotesCache,
     caches: [
       unresolvedCashuSendQuotesCache,
       cashuSendSwapCache,
