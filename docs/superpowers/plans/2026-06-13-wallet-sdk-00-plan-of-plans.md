@@ -30,7 +30,7 @@
 
 | # | Slice(s) | Produces (testable on its own) | Status |
 |---|---|---|---|
-| 01 | S1 | `@agicash/money` shared package; app + SDK build on it | not written |
+| 01 | S1 | `@agicash/money` shared package; app + SDK build on it | [written](2026-06-13-wallet-sdk-01-money-package.md) |
 | 02 | S2 | SDK core shell — config · events · errors+classify · connections · crypto (domains stubbed) | not written |
 | 03 | S3 | auth + user (+ session resolver, ensure-on-resolve bootstrap) | not written |
 | 04 | S4 | accounts + scan + exchangeRate (+ live wallet-handle resolution) | not written |

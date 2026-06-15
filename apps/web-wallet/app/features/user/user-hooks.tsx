@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
-import type { Currency } from '~/lib/money';
+import type { Currency } from '@agicash/money';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
 import type { AgicashDbUser } from '../agicash-db/database';

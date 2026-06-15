@@ -4,7 +4,7 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '~/features/accounts/account';
-import type { Currency, Money } from '~/lib/money';
+import type { Currency, Money } from '@agicash/money';
 import type { Contact } from '../contacts/contact';
 import type { GiftCardInfo } from '../gift-cards/gift-card-config';
 import { DomainError } from '../shared/error';

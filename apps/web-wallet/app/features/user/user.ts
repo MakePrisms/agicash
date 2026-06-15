@@ -1,4 +1,4 @@
-import type { Currency } from '~/lib/money';
+import type { Currency } from '@agicash/money';
 
 type CommonUserData = {
   id: string;

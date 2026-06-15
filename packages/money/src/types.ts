@@ -83,7 +83,7 @@ export type CurrencyDataMap = {
   [K in Currency]: CurrencyData<K>;
 };
 
-export interface LocalizedStringParts {
+export type LocalizedStringParts = {
   /** The complete formatted string including currency symbol */
   fullValue: string;
   /** The integer portion of the value. Includes the group separator. For example, '1,234' in $1,234.56 */
@@ -106,4 +106,4 @@ export interface LocalizedStringParts {
   currencySymbol: string;
   /** Whether the currency symbol appears at the start or end */
   currencySymbolPosition: 'prefix' | 'suffix';
-}
+};

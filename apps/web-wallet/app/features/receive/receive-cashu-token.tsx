@@ -22,7 +22,7 @@ import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { encodeToken } from '~/lib/cashu/token';
-import type { Currency } from '~/lib/money';
+import type { Currency } from '@agicash/money';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,

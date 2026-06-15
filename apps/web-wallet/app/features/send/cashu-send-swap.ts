@@ -1,5 +1,5 @@
 import { z } from 'zod/mini';
-import { Money } from '~/lib/money';
+import { Money } from '@agicash/money';
 import { CashuProofSchema } from '../accounts/cashu-account';
 
 /**

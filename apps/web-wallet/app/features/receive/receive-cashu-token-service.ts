@@ -7,7 +7,7 @@ import {
   getCashuProtocolUnit,
   getKeysetExpiry,
 } from '~/lib/cashu';
-import type { Currency } from '~/lib/money';
+import type { Currency } from '@agicash/money';
 import {
   type ExtendedAccount,
   type ExtendedCashuAccount,

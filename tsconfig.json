@@ -3,6 +3,7 @@
   "references": [
     { "path": "./apps/web-wallet" },
     { "path": "./apps/web-wallet-e2e" },
-    { "path": "./packages/wallet-sdk" }
+    { "path": "./packages/wallet-sdk" },
+    { "path": "./packages/money" }
   ]
 }

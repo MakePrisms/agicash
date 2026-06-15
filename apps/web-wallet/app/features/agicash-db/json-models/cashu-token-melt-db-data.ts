@@ -1,6 +1,6 @@
 import { z } from 'zod/mini';
 import { ProofSchema } from '~/lib/cashu';
-import { Money } from '~/lib/money';
+import { Money } from '@agicash/money';
 
 /**
  * Schema of the db data for a cashu token melted for the receive.

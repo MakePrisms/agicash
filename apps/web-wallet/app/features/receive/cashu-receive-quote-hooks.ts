@@ -22,7 +22,7 @@ import {
   sumProofs,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import type { Money } from '@agicash/money';
 import {
   type LongTimeout,
   clearLongTimeout,
