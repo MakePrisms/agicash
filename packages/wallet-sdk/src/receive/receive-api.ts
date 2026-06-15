@@ -191,21 +191,6 @@ export type ReceiveApi = {
       'userId'
     >,
   ) => Promise<CrossAccountReceiveQuotesResult>;
-  /**
-   * Transitional escape hatch — NOT part of the public surface. Only for the
-   * web-owned tracking/task-processing hooks and realtime wiring until the
-   * background task processing moves into the SDK (the MCP phase). App/UI
-   * code must use the curated methods above.
-   *
-   * The cashu-receive families moved into the SDK's `sdk.tasks` engine (chunk
-   * 4a); their service/cache members were deleted from here. Only the spark
-   * members remain until spark receive moves in chunk 4b.
-   */
-  internal: {
-    sparkReceiveQuoteService: SparkReceiveQuoteService;
-    sparkReceiveQuoteCache: SparkReceiveQuoteCache;
-    pendingSparkReceiveQuotesCache: PendingSparkReceiveQuotesCache;
-  };
 };
 
 export type ReceiveApiDeps = {
@@ -246,8 +231,15 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
   /** Shared with the tasks engine: the cashu-receive-swap saga re-reads the live
    * entity from this pending cache. */
   pendingCashuReceiveSwapsCache: PendingCashuReceiveSwapsCache;
-  /** Shared with the transfer api: it persists the transfer's receive quote. */
+  /** Shared with the transfer api: it persists the transfer's receive quote.
+   * Also the spark-receive-quote saga service the tasks engine calls. */
   sparkReceiveQuoteService: SparkReceiveQuoteService;
+  /** Shared with the tasks engine: the spark-receive-quote saga writes the
+   * completed quote back into this active-quote cache. */
+  sparkReceiveQuoteCache: SparkReceiveQuoteCache;
+  /** Shared with the tasks engine: the spark-receive-quote saga re-reads the
+   * live entity from this pending cache and removes it on complete. */
+  pendingSparkReceiveQuotesCache: PendingSparkReceiveQuotesCache;
   caches: { invalidate: () => unknown }[];
   changeHandlers: DatabaseChangeHandler[];
 } {
@@ -445,11 +437,6 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
         userId: getCurrentUserId(),
         ...params,
       }),
-    internal: {
-      sparkReceiveQuoteService,
-      sparkReceiveQuoteCache,
-      pendingSparkReceiveQuotesCache,
-    },
   };
 
   return {
@@ -457,6 +444,8 @@ export function createReceiveApi(deps: ReceiveApiDeps): {
     cashuReceiveSwapService,
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
+    sparkReceiveQuoteCache,
+    pendingSparkReceiveQuotesCache,
     cashuReceiveQuoteCache,
     pendingCashuReceiveQuotesCache,
     pendingCashuReceiveSwapsCache,

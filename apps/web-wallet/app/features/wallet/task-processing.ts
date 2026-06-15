@@ -1,4 +1,3 @@
-import { useProcessSparkReceiveQuoteTasks } from '../receive/spark-receive-quote-hooks';
 import { useProcessCashuSendSwapTasks } from '../send/cashu-send-swap-hooks';
 import { useProcessSparkSendQuoteTasks } from '../send/spark-send-quote-hooks';
 
@@ -8,13 +7,12 @@ import { useProcessSparkSendQuoteTasks } from '../send/spark-send-quote-hooks';
  * An example of such task is processing paid cashu mint quote to mint the tokens.
  * Should be used only by the user's lead client.
  *
- * The cashu-send-quote (chunk 3b) and both cashu-receive sagas (quote + swap,
- * chunk 4a) moved into the SDK's `sdk.tasks` engine; the engine runs them while
- * this client is the leader.
+ * The cashu-send-quote (chunk 3b), both cashu-receive sagas (quote + swap,
+ * chunk 4a), and spark-receive-quote (chunk 4b) moved into the SDK's
+ * `sdk.tasks` engine; the engine runs them while this client is the leader.
  */
 export const TaskProcessor = () => {
   useProcessCashuSendSwapTasks();
-  useProcessSparkReceiveQuoteTasks();
   useProcessSparkSendQuoteTasks();
   return null;
 };
