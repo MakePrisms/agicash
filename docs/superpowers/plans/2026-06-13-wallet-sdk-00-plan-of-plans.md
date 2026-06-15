@@ -31,7 +31,7 @@
 | # | Slice(s) | Produces (testable on its own) | Status |
 |---|---|---|---|
 | 01 | S1 | `@agicash/money` shared package; app + SDK build on it | ✅ [done](2026-06-13-wallet-sdk-01-money-package.md) (2 commits) |
-| 02 | S2 | SDK core shell — config · events · errors+classify · connections · crypto (domains stubbed) | [written](2026-06-13-wallet-sdk-02-sdk-core-shell.md) — adopts `@agicash/opensecret@1.0.0-rc.0` (catalog bump + storage provider) |
+| 02 | S2 | SDK core shell — config · events · errors+classify · connections · crypto (domains stubbed) | ✅ [done](2026-06-13-wallet-sdk-02-sdk-core-shell.md) (11 commits) — adopted `@agicash/opensecret@1.0.0-rc.0` (catalog bump + `StorageProvider`); framework-free, gate green |
 | 03 | S3 | auth + user (+ session resolver, ensure-on-resolve bootstrap) | not written |
 | 04 | S4 | accounts + scan + exchangeRate (+ live wallet-handle resolution) | not written |
 | 05 | S5 | cashu ops (send / receive / token-claim) | not written |
