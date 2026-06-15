@@ -11,10 +11,9 @@ export type { Sdk } from './sdk';
 export type { SdkConfig } from './config';
 
 // --- value types -----------------------------------------------------------
-// `Money` is a TYPE-ONLY export in PR1 (it is a placeholder `declare class` with
-// no runtime binding — see ./types/money). Slice 0 replaces it with a real
-// re-export of `app/lib/money`'s `Money`, at which point this becomes a value export.
-export type { Money } from './types/money';
+// `Money` is a real class re-exported from the shared @agicash/money package, so
+// `instanceof` holds across the SDK↔web boundary (see ./types/money).
+export { Money } from './types/money';
 export type { Currency, CurrencyUnit, BtcUnit, UsdUnit } from './types/money';
 
 // --- domain interfaces -----------------------------------------------------

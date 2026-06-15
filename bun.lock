@@ -120,6 +120,9 @@
     },
     "packages/wallet-sdk": {
       "name": "@agicash/wallet-sdk",
+      "dependencies": {
+        "@agicash/money": "workspace:*",
+      },
       "devDependencies": {
         "typescript": "catalog:",
       },

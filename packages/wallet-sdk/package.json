@@ -9,6 +9,9 @@
   "scripts": {
     "typecheck": "tsc"
   },
+  "dependencies": {
+    "@agicash/money": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "catalog:"
   }
