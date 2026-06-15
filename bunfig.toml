@@ -1,3 +1,6 @@
 [install]
 # 3 days, in seconds — see https://bun.com/docs/runtime/bunfig#install-minimumreleaseage
 minimumReleaseAge = 259200
+# 1.0.0-rc.0 was published 2026-06-15; exclude our own freshly-cut package from
+# the 3-day quarantine (kept for every other package).
+minimumReleaseAgeExcludes = ["@agicash/opensecret"]
