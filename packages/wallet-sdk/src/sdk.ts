@@ -1,10 +1,14 @@
 import { jwtDecode } from 'jwt-decode';
 import type { SdkConfig } from './config';
 import { AuthDomain } from './domains/auth';
+import { UserDomain } from './domains/user';
 import type { SdkCoreEventMap } from './events';
 import { createAgicashDb } from './internal/db/client';
 import { SessionTokenProvider } from './internal/db/session-token';
-import { WriteUserRepository } from './internal/db/user-repository';
+import {
+  ReadUserRepository,
+  WriteUserRepository,
+} from './internal/db/user-repository';
 import { EventBus } from './internal/event-bus';
 import { KeyService } from './internal/keys';
 import { type OpenSecret, realOpenSecret } from './internal/opensecret';
@@ -19,17 +23,20 @@ const REFRESH_TOKEN_KEY = 'refresh_token';
  */
 export class Sdk {
   readonly auth: AuthDomain;
+  readonly user: UserDomain;
   private readonly events: EventBus<SdkCoreEventMap>;
   private readonly keys: KeyService;
   private readonly sessionToken: SessionTokenProvider;
 
   private constructor(parts: {
     auth: AuthDomain;
+    user: UserDomain;
     events: EventBus<SdkCoreEventMap>;
     keys: KeyService;
     sessionToken: SessionTokenProvider;
   }) {
     this.auth = parts.auth;
+    this.user = parts.user;
     this.events = parts.events;
     this.keys = parts.keys;
     this.sessionToken = parts.sessionToken;
@@ -69,6 +76,16 @@ export class Sdk {
     const sessionToken = new SessionTokenProvider(os, isLoggedIn);
     const db = createAgicashDb(config.supabase, sessionToken.getToken);
     const writeUserRepo = new WriteUserRepository(db);
+    const readUserRepo = new ReadUserRepository(db);
+    const getCurrentUserId = async (): Promise<string | null> => {
+      if (!(await isLoggedIn())) return null;
+      try {
+        const { user } = await os.fetchUser();
+        return user.id;
+      } catch {
+        return null;
+      }
+    };
 
     const auth = new AuthDomain({
       os,
@@ -82,10 +99,16 @@ export class Sdk {
       includeTestAccounts: config.includeTestAccounts ?? false,
     });
 
+    const user = new UserDomain({
+      readUserRepo,
+      writeUserRepo,
+      getCurrentUserId,
+    });
+
     // Re-arm the session-expiry timer if a session is already present.
     await auth.initialize();
 
-    return new Sdk({ auth, events, keys, sessionToken });
+    return new Sdk({ auth, user, events, keys, sessionToken });
   }
 
   /** Subscribe to a core event. Returns an unsubscribe function. */
