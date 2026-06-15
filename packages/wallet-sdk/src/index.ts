@@ -1,1 +1,8 @@
-export {}; // populated as modules land
+export {
+  ConcurrencyError,
+  DomainError,
+  getErrorMessage,
+  NotFoundError,
+  SdkError,
+  UniqueConstraintError,
+} from './errors';
