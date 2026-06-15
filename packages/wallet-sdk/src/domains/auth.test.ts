@@ -142,4 +142,38 @@ describe('AuthDomain', () => {
     expect(await storage.get('agicash.guest-account')).toBeUndefined();
     auth.cancelSessionExpiry();
   });
+
+  test('guest session expiry silently re-authenticates (no event)', async () => {
+    const { auth, os, events, storage } = makeAuth();
+    await storage.set(
+      'agicash.guest-account',
+      JSON.stringify({ id: 'g9', password: 'pw' }),
+    );
+    // refresh token already within the 5s skew window -> timer fires immediately
+    await storage.set('refresh_token', refreshJwt(0));
+    let expired = false;
+    events.on('auth:session-expired', () => {
+      expired = true;
+    });
+    await auth.initialize();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(os.signInGuest).toHaveBeenCalled();
+    expect(expired).toBe(false);
+    auth.cancelSessionExpiry();
+  });
+
+  test('full-user session expiry tears down and emits auth:session-expired', async () => {
+    const { auth, os, events, storage } = makeAuth();
+    // no guest credentials -> full-user expiry path
+    await storage.set('refresh_token', refreshJwt(0));
+    let expired = false;
+    events.on('auth:session-expired', () => {
+      expired = true;
+    });
+    await auth.initialize();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(os.signOut).toHaveBeenCalled();
+    expect(expired).toBe(true);
+    auth.cancelSessionExpiry();
+  });
 });
