@@ -11,4 +11,4 @@ export const agicashDbClient = getAgicashDb();
 
 // Debug handle for the SDK-owned realtime manager.
 // biome-ignore lint/suspicious/noExplicitAny: attaching to window for debugging
-(window as any).agicashRealtime = getSdk().realtime.internal.manager;
+(window as any).agicashRealtime = getSdk().realtime.__debugManager;

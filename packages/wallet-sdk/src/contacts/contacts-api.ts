@@ -33,16 +33,6 @@ export type ContactsApi = {
     queryKey: string[];
     queryFn: () => Promise<UserProfile[]>;
   };
-  /**
-   * Transitional escape hatch — NOT part of the public surface. Only for the
-   * not-yet-migrated send domain code and the web-owned realtime
-   * infrastructure until the SDK owns the realtime hub. App/UI code must use
-   * the curated methods above.
-   */
-  internal: {
-    repository: ContactRepository;
-    cache: ContactsCache;
-  };
 };
 
 export type ContactsApiDeps = {
@@ -90,10 +80,6 @@ export function createContactsApi(deps: ContactsApiDeps): {
       queryFn: () =>
         repository.findContactCandidates(query, getCurrentUserId()),
     }),
-    internal: {
-      repository,
-      cache,
-    },
   };
 
   return {

@@ -34,12 +34,12 @@ export type RealtimeApi = {
   /** Host binding for the app's active/foreground signal. */
   setActiveStatus: (isActive: boolean) => void;
   /**
-   * Transitional escape hatch — NOT part of the public surface. The raw
-   * manager is exposed only for the web's window debug handle.
+   * The raw realtime manager, for devtools inspection only (the web attaches it
+   * to `window` for debugging). NOT a supported API: it is unstable and may be
+   * removed. The `__` prefix marks it as a debug accessor, not part of the
+   * curated surface.
    */
-  internal: {
-    manager: SupabaseRealtimeManager;
-  };
+  __debugManager: SupabaseRealtimeManager;
 };
 
 export type RealtimeApiDeps = {
@@ -94,8 +94,6 @@ export function createRealtimeApi(deps: RealtimeApiDeps): RealtimeApi {
       manager.subscribeToChannelStatusChange(getTopic(), listener),
     setOnlineStatus: (isOnline) => manager.setOnlineStatus(isOnline),
     setActiveStatus: (isActive) => manager.setActiveStatus(isActive),
-    internal: {
-      manager,
-    },
+    __debugManager: manager,
   };
 }

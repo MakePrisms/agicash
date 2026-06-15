@@ -52,20 +52,6 @@ export type UserApi = {
     account: Account,
     options?: Parameters<UserService['setDefaultAccount']>[2],
   ) => Promise<User>;
-  /**
-   * Transitional escape hatch — NOT part of the public surface. Only for (a)
-   * not-yet-migrated SDK collaborators still composed in web feature code
-   * (the receive/send services) and (b) the web-owned realtime infrastructure
-   * until the SDK owns the realtime hub. App/UI code must use the curated
-   * methods above. Shrinks each phase and is removed once the remaining
-   * domains and the realtime hub move into the SDK.
-   */
-  internal: {
-    readRepository: ReadUserRepository;
-    writeRepository: WriteUserRepository;
-    service: UserService;
-    cache: UserCache;
-  };
 };
 
 export type UserApiDeps = {
@@ -139,12 +125,6 @@ export function createUserApi(deps: UserApiDeps): {
       );
       cache.set(updated);
       return updated;
-    },
-    internal: {
-      readRepository,
-      writeRepository,
-      service,
-      cache,
     },
   };
 
