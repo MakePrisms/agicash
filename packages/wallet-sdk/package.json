@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./domains/user-types": "./src/domains/user-types.ts",
     "./*": "./src/*"
   },
   "scripts": {
