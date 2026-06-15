@@ -46,6 +46,7 @@ export {
   NotFoundError,
   NotImplementedError,
 } from './errors';
+export { classify } from './internal/classify';
 
 // --- accounts (§2) ---------------------------------------------------------
 export type {
