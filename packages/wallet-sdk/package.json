@@ -7,12 +7,14 @@
     "./*": "./src/*"
   },
   "scripts": {
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "test": "bun test"
   },
   "dependencies": {
     "@agicash/money": "workspace:*"
   },
   "devDependencies": {
+    "@types/bun": "catalog:",
     "typescript": "catalog:"
   }
 }
