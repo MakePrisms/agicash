@@ -5,6 +5,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./domains/user-types": "./src/domains/user-types.ts",
+    "./internal/db/database": "./src/internal/db/database.ts",
+    "./internal/db/json-models/cashu-account-details-db-data": "./src/internal/db/json-models/cashu-account-details-db-data.ts",
+    "./internal/db/json-models/spark-account-details-db-data": "./src/internal/db/json-models/spark-account-details-db-data.ts",
     "./*": "./src/*"
   },
   "scripts": {
@@ -24,6 +27,7 @@
     "@stablelib/base64": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "jwt-decode": "catalog:",
+    "type-fest": "5.4.3",
     "zod": "catalog:"
   },
   "devDependencies": {

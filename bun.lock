@@ -186,6 +186,7 @@
         "@stablelib/base64": "catalog:",
         "@supabase/supabase-js": "catalog:",
         "jwt-decode": "catalog:",
+        "type-fest": "5.4.3",
         "zod": "catalog:",
       },
       "devDependencies": {
