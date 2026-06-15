@@ -2,8 +2,7 @@
  * The `Sdk` class — §1 of the contract.
  *
  * S2 (core shell): events are real; the 11 domains are stubbed
- * (`NotImplementedError`) until their slices implement them. The connection
- * bundle is wired in a later task of this slice.
+ * (`NotImplementedError`) until their slices implement them.
  */
 import type { SdkConfig } from './config';
 import type {
@@ -24,6 +23,7 @@ import type {
   UserDomain,
 } from './domains';
 import type { EventEmitter, SdkEventMap } from './events';
+import { buildConnections, type SdkConnections } from './internal/connections';
 import { SdkEventEmitter } from './internal/event-emitter';
 import { notImplementedDomain } from './internal/not-implemented';
 
@@ -33,8 +33,7 @@ import { notImplementedDomain } from './internal/not-implemented';
  * {@link Sdk.destroy}. Framework-free, no general domain cache.
  *
  * S2 (core shell): events are real; the 11 domains are stubbed
- * (`NotImplementedError`) until their slices implement them. The connection
- * bundle is wired in a later task of this slice.
+ * (`NotImplementedError`) until their slices implement them.
  */
 export class Sdk {
   readonly auth: AuthDomain = notImplementedDomain<AuthDomain>('auth');
@@ -64,18 +63,20 @@ export class Sdk {
   private readonly emitter = new SdkEventEmitter<SdkEventMap>();
   readonly events: EventEmitter<SdkEventMap> = this.emitter;
 
-  protected constructor(protected readonly config: SdkConfig) {}
+  protected constructor(
+    protected readonly config: SdkConfig,
+    protected readonly connections: SdkConnections,
+  ) {}
 
-  /**
-   * Construct the SDK from `config`. S2: stores config + wires events; the
-   * connection bundle is attached in a later task (still domains-stubbed).
-   */
+  /** Construct the SDK from `config`, wiring the full connection bundle. */
   static async create(config: SdkConfig): Promise<Sdk> {
-    return new Sdk(config);
+    const connections = buildConnections(config);
+    return new Sdk(config, connections);
   }
 
-  /** Tear down: clear event handlers (connection teardown added later). */
+  /** Tear down realtime channels and clear event handlers. */
   async destroy(): Promise<void> {
+    await this.connections.supabase.removeAllChannels();
     this.emitter.removeAll();
   }
 }

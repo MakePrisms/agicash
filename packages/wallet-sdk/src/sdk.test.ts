@@ -1,6 +1,21 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
 import type { SdkConfig } from './config';
 import { NotImplementedError, Sdk } from './index';
+
+mock.module('@agicash/opensecret', () => ({
+  configure: () => {},
+  generateThirdPartyToken: async () => ({ token: 'tok' }),
+  getPrivateKey: async () => ({ mnemonic: 'm' }),
+  getPrivateKeyBytes: async () => ({ private_key: '00'.repeat(32) }),
+  getPublicKey: async () => ({ public_key: '02'.padEnd(66, '0') }),
+}));
+
+mock.module('@supabase/supabase-js', () => ({
+  createClient: () => ({
+    realtime: {},
+    removeAllChannels: async () => [],
+  }),
+}));
 
 function makeMem() {
   const m = new Map<string, string>();
