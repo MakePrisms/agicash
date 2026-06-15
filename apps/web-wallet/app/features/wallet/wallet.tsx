@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react-router';
-import { type PropsWithChildren, useEffect } from 'react';
+import { type PropsWithChildren, useEffect, useSyncExternalStore } from 'react';
 import { useToast } from '~/hooks/use-toast';
 import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
 import { getSdk } from '../shared/sdk';
@@ -7,7 +7,7 @@ import { useTrackAndUpdateSparkAccountBalances } from '../shared/spark';
 import { useTheme } from '../theme';
 import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
-import { TaskProcessor, useTakeTaskProcessingLead } from './task-processing';
+import { TaskProcessor } from './task-processing';
 import { useTrackWalletChanges } from './use-track-wallet-changes';
 
 /**
@@ -55,7 +55,17 @@ export const Wallet = ({ children }: PropsWithChildren) => {
   useSupabaseRealtimeActivityTracking(getSdk().realtime);
   useTrackAndUpdateSparkAccountBalances();
 
-  const isLead = useTakeTaskProcessingLead();
+  useEffect(() => {
+    const tasks = getSdk().tasks;
+    tasks.start();
+    return () => tasks.stop();
+  }, []);
+
+  const isLead = useSyncExternalStore(
+    getSdk().tasks.onStatusChange,
+    () => getSdk().tasks.getStatus() === 'leader',
+    () => false,
+  );
 
   return (
     <>

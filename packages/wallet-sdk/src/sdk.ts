@@ -13,6 +13,8 @@ import { type RealtimeApi, createRealtimeApi } from './realtime/realtime-api';
 import { type ReceiveApi, createReceiveApi } from './receive/receive-api';
 import { type SendApi, createSendApi } from './send/send-api';
 import { configureSpark } from './spark-config';
+import { TaskProcessingLockRepository } from './task-processing-lock-repository';
+import { type TasksApi, createTasksApi } from './tasks/tasks-api';
 import {
   type TransactionsApi,
   createTransactionsApi,
@@ -26,6 +28,7 @@ export type { ContactsApi } from './contacts/contacts-api';
 export type { RealtimeApi } from './realtime/realtime-api';
 export type { ReceiveApi } from './receive/receive-api';
 export type { SendApi } from './send/send-api';
+export type { TasksApi } from './tasks/tasks-api';
 export type { TransactionsApi } from './transactions/transactions-api';
 export type { TransferApi } from './transfer/transfer-api';
 export type { UserApi } from './user/user-api';
@@ -117,6 +120,7 @@ export class WalletSdk {
   readonly send: SendApi;
   readonly transfer: TransferApi;
   readonly realtime: RealtimeApi;
+  readonly tasks: TasksApi;
 
   constructor(config: WalletSdkConfig) {
     this.queryClient = getQueryClient();
@@ -233,6 +237,12 @@ export class WalletSdk {
           cache.invalidate();
         }
       },
+    });
+
+    this.tasks = createTasksApi({
+      queryClient: this.queryClient,
+      taskProcessingLockRepository: new TaskProcessingLockRepository(db),
+      getCurrentUserId,
     });
   }
 }
