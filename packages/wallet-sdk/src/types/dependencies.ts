@@ -119,18 +119,3 @@ export type ParsedToken = {
   /** cashu-ts TokenMetadata (mint/unit/amount summary) */
   metadata: unknown;
 };
-
-/**
- * Pluggable storage adapter (web = browser, mcp = fs/sqlite) threaded into the
- * OpenSecret SDK and used for session resume.
- * TODO(Slice-0): replace with the real `StorageAdapter` type from
- * `@agicash/opensecret-sdk` (its `configure({ storage })` contract).
- */
-export type StorageAdapter = {
-  /** Read a stored value by key (null if absent); may be sync or async. */
-  getItem(key: string): Promise<string | null> | string | null;
-  /** Write a value under a key; may be sync or async. */
-  setItem(key: string, value: string): Promise<void> | void;
-  /** Delete a stored value by key; may be sync or async. */
-  removeItem(key: string): Promise<void> | void;
-};

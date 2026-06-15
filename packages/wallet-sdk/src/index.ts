@@ -126,8 +126,8 @@ export type {
 // Re-exported so consumers/contract reviewers can see the deferred seams.
 // Each is wired to its real source in a later slice — see ./dependencies.
 export type {
-  StorageAdapter,
   Bolt11Invoice,
   ParsedToken,
   SparkNetwork,
 } from './types/dependencies';
+export type { StorageProvider } from '@agicash/opensecret';

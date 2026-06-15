@@ -11,7 +11,10 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@agicash/money": "workspace:*"
+    "@agicash/money": "workspace:*",
+    "@agicash/opensecret": "catalog:",
+    "@supabase/supabase-js": "2.95.2",
+    "type-fest": "5.4.3"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

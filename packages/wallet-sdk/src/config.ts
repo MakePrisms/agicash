@@ -6,7 +6,7 @@
  * (web = browser, mcp = fs/sqlite). `clientId` is the leader-election instance id
  * (auto-generated if omitted) — distinct from `openSecret.clientId`.
  */
-import type { StorageAdapter } from './types/dependencies';
+import type { StorageProvider } from '@agicash/opensecret';
 
 /**
  * Configuration passed to {@link Sdk.create}. The consumer supplies connection
@@ -36,8 +36,11 @@ export type SdkConfig = {
   };
   /** API key for the Spark/Breez SDK (required for spark accounts). */
   breezApiKey?: string;
-  /** Pluggable @agicash/opensecret-sdk storage (web = browser, mcp = fs/sqlite). */
-  storage: StorageAdapter;
+  /**
+   * Pluggable OpenSecret storage provider (`{ persistent, session }`). Browser
+   * passes the exported `browserStorage`; MCP/Node implements it over fs/sqlite.
+   */
+  storage: StorageProvider;
   /**
    * Leader-election INSTANCE id for background processing; auto-generated if
    * omitted. Distinct from `openSecret.clientId`.
