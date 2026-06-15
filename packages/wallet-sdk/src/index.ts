@@ -18,3 +18,5 @@ export {
   browserStorageAdapter,
   browserSessionStorageAdapter,
 } from '../storage/browser';
+export { Sdk } from './sdk';
+export type { SdkCoreEventMap, BackgroundState } from './events';
