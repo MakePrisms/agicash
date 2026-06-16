@@ -21,7 +21,6 @@
     "@agicash/breez-sdk-spark": "catalog:",
     "@agicash/cashu": "workspace:*",
     "@agicash/db-types": "workspace:*",
-    "@agicash/opensecret": "catalog:",
     "@agicash/qr-scanner": "0.1.2",
     "@agicash/utils": "workspace:*",
     "@agicash/wallet-sdk": "workspace:*",

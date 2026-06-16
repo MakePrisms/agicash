@@ -1,19 +1,6 @@
 // The web auth feature: React hooks and OAuth/guest login flows over the SDK
 // auth domain (sdk.auth).
 import {
-  confirmPasswordReset as osConfirmPasswordReset,
-  convertGuestToUserAccount as osConvertGuestToFullAccount,
-  initiateGoogleAuth as osInitiateGoogleAuth,
-  requestPasswordReset as osRequestPasswordReset,
-  signIn as osSignIn,
-  signInGuest as osSignInGuest,
-  signOut as osSignOut,
-  signUp as osSignUp,
-  signUpGuest as osSignUpGuest,
-  verifyEmail as osVerifyEmail,
-} from '@agicash/opensecret';
-import { computeSHA256 } from '@agicash/utils/sha256';
-import {
   type AuthState,
   type AuthUser,
   authStateQueryKey,
@@ -170,7 +157,7 @@ export const useAuthActions = (): AuthActions => {
 
   const signUp = useCallback(
     async (email: string, password: string) => {
-      await osSignUp(email, password, '');
+      await getSdk().auth.signUp(email, password);
       await refreshSession();
     },
     [refreshSession],
@@ -178,7 +165,7 @@ export const useAuthActions = (): AuthActions => {
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      await osSignIn(email, password);
+      await getSdk().auth.signIn(email, password);
       await refreshSession();
     },
     [refreshSession],
@@ -186,7 +173,7 @@ export const useAuthActions = (): AuthActions => {
 
   const signInGuest = useCallback(
     async (id: string, password: string) => {
-      await osSignInGuest(id, password);
+      await getSdk().auth.signInGuest(id, password);
       await refreshSession();
     },
     [refreshSession],
@@ -194,7 +181,7 @@ export const useAuthActions = (): AuthActions => {
 
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
-      await osSignOut();
+      await getSdk().auth.signOut();
       await refreshSession(options.redirectTo);
       Sentry.setUser(null);
       queryClient.clear();
@@ -203,9 +190,9 @@ export const useAuthActions = (): AuthActions => {
   );
 
   const initiateGoogleAuth = useCallback(async () => {
-    const response = await osInitiateGoogleAuth('');
+    const { authUrl } = await getSdk().auth.initiateGoogleAuth();
 
-    const authLocation = new URL(response.auth_url);
+    const authLocation = new URL(authUrl);
     const stateParam = authLocation.searchParams.get('state');
     const state = stateParam
       ? JSON.parse(new TextDecoder().decode(decodeURLSafe(stateParam)))
@@ -234,26 +221,21 @@ export const useAuthActions = (): AuthActions => {
       );
     }
 
-    const createGuestAccount = async () => {
-      const password = await generateRandomPassword(32);
-      const guestAccount = await osSignUpGuest(password, '');
-      guestAccountStorage.store({ id: guestAccount.id, password });
-      await refreshSession();
-    };
-
-    await createGuestAccount();
+    const password = await generateRandomPassword(32);
+    const { id } = await getSdk().auth.signUpGuest(password);
+    guestAccountStorage.store({ id, password });
+    await refreshSession();
   }, [signInGuest, refreshSession]);
 
   const requestPasswordReset = useCallback(async (email: string) => {
     const secret = await generateRandomPassword(20);
-    const hash = await computeSHA256(secret);
-    await osRequestPasswordReset(email, hash);
+    await getSdk().auth.requestPasswordReset(email, secret);
     return { email, secret };
   }, []);
 
   const verifyEmail = useCallback(
     async (code: string) => {
-      await osVerifyEmail(code);
+      await getSdk().auth.verifyEmail(code);
       await refreshSession();
     },
     [refreshSession],
@@ -261,10 +243,26 @@ export const useAuthActions = (): AuthActions => {
 
   const convertGuestToFullAccount = useCallback(
     async (email: string, password: string) => {
-      await osConvertGuestToFullAccount(email, password);
+      await getSdk().auth.convertGuestToFullAccount(email, password);
       await refreshSession();
     },
     [refreshSession],
+  );
+
+  const confirmPasswordReset = useCallback(
+    (
+      email: string,
+      alphanumericCode: string,
+      plaintextSecret: string,
+      newPassword: string,
+    ) =>
+      getSdk().auth.confirmPasswordReset(
+        email,
+        alphanumericCode,
+        plaintextSecret,
+        newPassword,
+      ),
+    [],
   );
 
   return {
@@ -273,7 +271,7 @@ export const useAuthActions = (): AuthActions => {
     signIn,
     signOut,
     requestPasswordReset,
-    confirmPasswordReset: osConfirmPasswordReset,
+    confirmPasswordReset,
     initiateGoogleAuth,
     verifyEmail,
     convertGuestToFullAccount,

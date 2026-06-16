@@ -4,8 +4,7 @@
 // only records state; connections are lazy). Must NOT import feature modules
 // that read from the DB (e.g. feature-flags) — they import database.client,
 // which configures through this module.
-import { browserStorage } from '@agicash/opensecret';
-import { configureWalletSdk } from '@agicash/wallet-sdk/sdk';
+import { browserStorage, configureWalletSdk } from '@agicash/wallet-sdk/sdk';
 import * as Sentry from '@sentry/react-router';
 import { sessionHintCookie } from '~/features/user/session-hint-cookie';
 import { measureOperation } from '~/lib/performance';

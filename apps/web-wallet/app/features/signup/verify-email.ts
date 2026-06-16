@@ -1,7 +1,7 @@
-import { verifyEmail as osVerifyEmail } from '@agicash/opensecret';
 import { type FullUser, shouldVerifyEmail } from '@agicash/wallet-sdk';
 import { useState } from 'react';
 import { createContext, redirect } from 'react-router';
+import { getSdk } from '~/features/shared/sdk';
 import { useToast } from '~/hooks/use-toast';
 import type { Route } from '../../routes/+types/_protected.verify-email.($code)';
 import { invalidateAuthQueries } from '../user/auth';
@@ -38,7 +38,7 @@ export const verifyEmail = async (
   code: string,
 ): Promise<{ verified: true } | { verified: false; error: Error }> => {
   try {
-    await osVerifyEmail(code);
+    await getSdk().auth.verifyEmail(code);
     await invalidateAuthQueries();
     return { verified: true };
   } catch (e) {

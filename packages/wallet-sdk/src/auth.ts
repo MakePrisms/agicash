@@ -1,4 +1,21 @@
-import { type UserResponse, fetchUser, getConfig } from '@agicash/opensecret';
+import {
+  type UserResponse,
+  fetchUser,
+  getConfig,
+  confirmPasswordReset as osConfirmPasswordReset,
+  convertGuestToUserAccount as osConvertGuestToUserAccount,
+  handleGoogleCallback as osHandleGoogleCallback,
+  initiateGoogleAuth as osInitiateGoogleAuth,
+  requestNewVerificationCode as osRequestNewVerificationCode,
+  requestPasswordReset as osRequestPasswordReset,
+  signIn as osSignIn,
+  signInGuest as osSignInGuest,
+  signOut as osSignOut,
+  signUp as osSignUp,
+  signUpGuest as osSignUpGuest,
+  verifyEmail as osVerifyEmail,
+} from '@agicash/opensecret';
+import { computeSHA256 } from '@agicash/utils/sha256';
 import type { QueryClient } from '@tanstack/query-core';
 import { jwtDecode } from 'jwt-decode';
 
@@ -125,6 +142,45 @@ export type AuthApi = {
   getSessionExpiresInMs: () => Promise<number | null>;
   /** Removes the session tokens from storage. */
   clearTokens: () => Promise<void>;
+  /** Creates a full account and signs in. */
+  signUp: (email: string, password: string) => Promise<void>;
+  /** Signs in an existing user. */
+  signIn: (email: string, password: string) => Promise<void>;
+  /** Signs in a previously created guest account by its id + password. */
+  signInGuest: (id: string, password: string) => Promise<void>;
+  /**
+   * Creates a guest account and signs in. Returns the new account's id; the
+   * caller persists it (with the password) to sign back into the same guest.
+   */
+  signUpGuest: (password: string) => Promise<{ id: string }>;
+  /** Signs out the current user (clears the session tokens). */
+  signOut: () => Promise<void>;
+  /**
+   * Starts an email password reset. The plaintext `secret` is hashed here
+   * before it leaves the device; the caller keeps the plaintext to complete
+   * the reset with {@link AuthApi.confirmPasswordReset}.
+   */
+  requestPasswordReset: (email: string, secret: string) => Promise<void>;
+  /** Completes a password reset with the emailed code + the kept secret. */
+  confirmPasswordReset: (
+    email: string,
+    alphanumericCode: string,
+    plaintextSecret: string,
+    newPassword: string,
+  ) => Promise<void>;
+  /** Verifies the account email with the emailed code. */
+  verifyEmail: (code: string) => Promise<void>;
+  /** Requests a fresh email verification code for the current account. */
+  requestNewVerificationCode: () => Promise<void>;
+  /** Upgrades the current guest account to a full email/password account. */
+  convertGuestToFullAccount: (email: string, password: string) => Promise<void>;
+  /**
+   * Returns the provider URL to redirect to for Google sign-in. The host owns
+   * the redirect and any browser-side OAuth session bookkeeping.
+   */
+  initiateGoogleAuth: () => Promise<{ authUrl: string }>;
+  /** Completes a Google OAuth redirect callback (code + state from the URL). */
+  handleGoogleCallback: (code: string, state: string) => Promise<void>;
 };
 
 export type AuthApiDeps = {
@@ -194,6 +250,47 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
       const { persistent } = getConfig().storage;
       await persistent.removeItem(accessTokenKey);
       await persistent.removeItem(refreshTokenKey);
+    },
+    signUp: async (email, password) => {
+      await osSignUp(email, password, '');
+    },
+    signIn: async (email, password) => {
+      await osSignIn(email, password);
+    },
+    signInGuest: async (id, password) => {
+      await osSignInGuest(id, password);
+    },
+    signUpGuest: async (password) => {
+      const { id } = await osSignUpGuest(password, '');
+      return { id };
+    },
+    signOut: () => osSignOut(),
+    requestPasswordReset: async (email, secret) => {
+      const hashedSecret = await computeSHA256(secret);
+      await osRequestPasswordReset(email, hashedSecret);
+    },
+    confirmPasswordReset: (
+      email,
+      alphanumericCode,
+      plaintextSecret,
+      newPassword,
+    ) =>
+      osConfirmPasswordReset(
+        email,
+        alphanumericCode,
+        plaintextSecret,
+        newPassword,
+      ),
+    verifyEmail: (code) => osVerifyEmail(code),
+    requestNewVerificationCode: () => osRequestNewVerificationCode(),
+    convertGuestToFullAccount: (email, password) =>
+      osConvertGuestToUserAccount(email, password),
+    initiateGoogleAuth: async () => {
+      const { auth_url } = await osInitiateGoogleAuth('');
+      return { authUrl: auth_url };
+    },
+    handleGoogleCallback: async (code, state) => {
+      await osHandleGoogleCallback(code, state, '');
     },
   };
 }

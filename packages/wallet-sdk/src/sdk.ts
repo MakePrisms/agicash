@@ -31,6 +31,10 @@ import {
 import { type TransferApi, createTransferApi } from './transfer/transfer-api';
 import { type UserApi, createUserApi } from './user/user-api';
 
+// Re-exported so hosts configure storage without importing @agicash/opensecret
+// directly — the SDK is their only boundary to the auth backend.
+export { browserStorage } from '@agicash/opensecret';
+
 export type { AccountsApi } from './accounts/accounts-api';
 export type { AuthApi } from './auth';
 export type { ContactsApi } from './contacts/contacts-api';

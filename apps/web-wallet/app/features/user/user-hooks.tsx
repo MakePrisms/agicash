@@ -1,4 +1,3 @@
-import { requestNewVerificationCode } from '@agicash/opensecret';
 import type { Currency } from '@agicash/utils/money';
 import { UserCache } from '@agicash/wallet-sdk';
 import type { UpdateUser, User } from '@agicash/wallet-sdk';
@@ -136,7 +135,7 @@ export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
         throw new Error('Email is already verified');
       }
 
-      return requestNewVerificationCode();
+      return getSdk().auth.requestNewVerificationCode();
     },
     scope: {
       id: 'request-new-email-verification-code',
