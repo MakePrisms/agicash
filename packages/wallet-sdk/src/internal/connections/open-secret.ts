@@ -78,7 +78,8 @@ export function openSecretKeyProvider(): KeyProvider {
 }
 
 /** OpenSecret auth operations, re-exported `os*`-aliased so domains never import
- * `@agicash/opensecret` directly (single seam; one module to mock in tests). */
+ * `@agicash/opensecret` directly (single seam; one module to mock in tests).
+ * `fetchUser` is kept under its own name (used by the session resolver). */
 export {
   signIn as osSignIn,
   signUp as osSignUp,
