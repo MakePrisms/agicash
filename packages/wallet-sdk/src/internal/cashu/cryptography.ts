@@ -22,13 +22,25 @@ export function createCashuCryptography(
   keys: KeyService,
   os: Pick<OpenSecret, 'getPrivateKeyBytes'>,
 ): CashuCryptography {
+  // Memoize derived xpubs per path — the app cached these permanently via React
+  // Query (staleTime: Infinity); without this each call re-derives the HD key.
+  const xpubCache = new Map<string, Promise<string>>();
+
   return {
     getSeed: () => keys.getCashuSeed(),
-    getXpub: async (derivationPath) => {
-      const hd = HDKey.fromMasterSeed(await keys.getCashuSeed());
-      return derivationPath
-        ? hd.derive(derivationPath).publicExtendedKey
-        : hd.publicExtendedKey;
+    getXpub: (derivationPath) => {
+      const cacheKey = derivationPath ?? '';
+      let cached = xpubCache.get(cacheKey);
+      if (!cached) {
+        cached = keys.getCashuSeed().then((seed) => {
+          const hd = HDKey.fromMasterSeed(seed);
+          return derivationPath
+            ? hd.derive(derivationPath).publicExtendedKey
+            : hd.publicExtendedKey;
+        });
+        xpubCache.set(cacheKey, cached);
+      }
+      return cached;
     },
     getPrivateKey: async (derivationPath) => {
       const { private_key } = await os.getPrivateKeyBytes({

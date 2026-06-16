@@ -10,22 +10,34 @@ import type { OpenSecret } from '../opensecret';
  */
 export class AgicashMintAuthProvider {
   private cached: { token: string; expiresAtMs: number } | null = null;
+  private inFlight: Promise<string | undefined> | null = null;
 
   constructor(
     private readonly os: Pick<OpenSecret, 'generateThirdPartyToken'>,
     private readonly isLoggedIn: () => Promise<boolean>,
   ) {}
 
+  // Arrow so `this` stays bound when passed as AuthProvider.ensureCAT. The
+  // in-flight guard restores the request dedup that React Query's fetchQuery
+  // provided in the app (mirrors SessionTokenProvider).
   private ensureCAT = async (): Promise<string | undefined> => {
     if (this.cached && this.cached.expiresAtMs > Date.now()) {
       return this.cached.token;
     }
+    if (this.inFlight) return this.inFlight;
+    this.inFlight = this.fetch().finally(() => {
+      this.inFlight = null;
+    });
+    return this.inFlight;
+  };
+
+  private async fetch(): Promise<string | undefined> {
     if (!(await this.isLoggedIn())) return undefined;
     const { token } = await this.os.generateThirdPartyToken('agicash-mint');
     const { exp } = jwtDecode<{ exp?: number }>(token);
     this.cached = { token, expiresAtMs: ((exp ?? 0) - 5) * 1000 };
     return token;
-  };
+  }
 
   toAuthProvider(): AuthProvider {
     return {
@@ -44,6 +56,7 @@ export class AgicashMintAuthProvider {
 
   clear(): void {
     this.cached = null;
+    this.inFlight = null;
   }
 }
 
