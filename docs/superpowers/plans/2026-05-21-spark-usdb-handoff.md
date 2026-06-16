@@ -2,7 +2,7 @@
 
 > Resume point for the Spark USD account (USDB) work. Companion to the plan
 > (`2026-05-21-spark-usdb.md`) and spec (`../specs/2026-05-21-spark-usdb-design.md`).
-> Last updated 2026-05-21.
+> Last updated 2026-06-16.
 
 ## Where things stand
 
@@ -17,48 +17,89 @@ subagent per task, spec-compliance review then code-quality review after each).
 | 3 — Seed USD spark account by default | ✅ done | `1b2eacbd` |
 | 4 — Account-aware Spark SDK init | ✅ done, reviewed | `8bd9ca9e` + fix `0fbfa357` |
 | 5 — Receive DB JSON schema conversion fields | ✅ done | `21aea69b` |
-| 6 — Receive flow: currency dispatch + conversion wait | ⚠️ committed, **code-quality review NOT run** | `58215313` |
-| 7 — Send DB JSON schema conversion fields | ⛔ not started | — |
-| 8 — Send flow: currency dispatch + two-leg wait | ⛔ not started | — |
+| 6 — Receive flow: currency dispatch + conversion wait | ✅ done, reviewed, fixes applied | `58215313` + fixes `029fd3ec` |
+| 6b — Receive UI: pass `exchangeRate` (out-of-plan follow-up) | ✅ done | `f3cc4ef1` |
+| 7 — Send DB JSON schema conversion fields | ✅ done | `ca9861db` |
+| 8 — Send flow: currency dispatch + two-leg wait | ✅ done, reviewed, open findings ↓ | `59e9506f` |
+| 8b — Send UI: pass `exchangeRate` (out-of-plan follow-up) | ✅ done | `e17848b5` |
 | 9 — Manual mainnet smoke checklist | ⛔ deferred to operator (human-only) | — |
 
-Branch `spark-usdb`, 11 commits ahead of `origin/master` (first 2 are the
-pre-existing plan/spec doc commits). Working tree clean. Not pushed.
+Branch `spark-usdb`, pushed to `origin/spark-usdb`. Working tree clean.
 
 ## ⚠️ First thing to do on resume
 
-**Task 6's code-quality review was interrupted before it ran.** Spec-compliance
-review passed (commit matches plan, BTC path verified intact, all 4 fields
-persisted). But the code-quality pass never completed. Before starting Task 7,
-either run the code-quality reviewer against `58215313` (BASE `0fbfa357`,
-HEAD `58215313`) or consciously accept the spec-review-only state.
+**Three open Task 8 review findings need a decision before merge.** Reviewer
+ran the same criteria that surfaced the Task 6 P1/P2 issues. Findings:
 
-Task 6 known concerns to weigh during that review:
-1. **Preimage cache leak** — `usdPreimageByQuoteIdRef` (a `useRef<Map>`) is
-   cleared on the completed path but **not** on `failed`/`refundNeeded` or on
-   quote expiry. Small per-session leak. Tidy fix: also `.delete(quote.id)` in
-   the failure branch.
-2. **`slippageDelta` is always `undefined`** — the quote shape carries no
-   quote-time USDB estimate to diff against actual output. Schema field is
-   `.optional()`, so this is spec-legal. A real slippage number needs a
-   quote-time estimate persisted (follow-up).
-3. **Page-reload mid-conversion** loses the in-memory preimage cache; the
-   catch-up path then can't find a preimage and leaves the quote UNPAID +
-   fires Sentry. Acceptable for MVP, may be noisy.
-4. **UI callers don't pass `exchangeRate`** — `receive-spark.tsx` and
-   `buy-store.ts` were NOT touched (out of Task 6 scope). USD-account quote
-   creation will throw at runtime until that wiring lands. BTC unaffected.
-   This is genuine remaining work not covered by any plan task — see below.
+1. **P1 (conf. 82) — `isConversionLeg` may swallow `status === 'pending'`.**
+   `app/features/send/spark-send-quote-hooks.ts:315-316` guards with
+   `conversionStatus !== undefined && conversionStatus !== 'pending'`. If a
+   conversion-leg `paymentSucceeded` ever fires with `status === 'pending'`,
+   the code falls through to the lightning-leg path and the extras cache never
+   populates → stranded quote. The **same idiom exists on the corrected
+   receive side** (`spark-receive-quote-hooks.ts`) — so this is either a
+   parallel bug to fix in both, or an SDK guarantee to verify and document.
+   Cheap hardening: switch the conversion-leg detection from "status field"
+   to "details.type !== 'lightning'", which patches both sides at once.
+
+2. **P2 (conf. 88) — silent PENDING on conversion failure has no UI feedback.**
+   `spark-send-quote-hooks.ts:445-449` + `367-397`. When a `paymentPending`
+   event arrives with `conversionStatus === 'failed'` / `'refundNeeded'`, the
+   code routes through `handlePaymentSucceeded`, fires Sentry, and returns —
+   leaving the quote PENDING. The PENDING-state unique index also blocks
+   future attempts for the same invoice. Product decision required:
+   (a) toast user + leave PENDING for manual ops resolution, or
+   (b) mark FAILED and accept the "dangling sats" data loss.
+
+3. **P2 (conf. 80) — `payment.fees` unit assumption may be wrong.**
+   `spark-send-quote-hooks.ts:329-330, 343-347`. SDK-storage replay path
+   falls back to `payment.fees` and constructs `Money({ unit: 'sat' })`. If
+   the SDK ever returns `payment.fees` in msats on `'spark'`/`'token'`-detail
+   payments, the stored fee will be 1000× too large. Verify against
+   `node_modules/@agicash/breez-sdk-spark/web/breez_sdk_spark_wasm.d.ts`
+   before merge — should take 30 seconds.
+
+4. **P3 — explanatory comment** at `spark-send-quote-hooks.ts:352-357`
+   about the deferred `slippageActual` belongs in the commit message per
+   CLAUDE.md, not inline.
+
+Task 8 review also verified clean: listener `.catch` calls `console.warn`
+directly (no regression of the Task 6 dead-catch bug); extras cache cleared
+on 5 exit paths (completed / failed / refundNeeded / refunded /
+handlePaymentFailed); all four `currency: 'BTC'` hardcodes in service.ts
+turned out to be genuinely sats and were intentionally kept; balance check
+is USD-vs-USD; all `bigint → Money` use `.toString()`; `paymentRequest`
+fallback in `findQuote` robust across `'lightning'` / `'spark'` / `'token'`
+detail shapes.
+
+### Resolved Task 6 concerns (kept for historical reference)
+
+1. **Preimage cache leak on failure** — fixed in `029fd3ec`: `.delete(quote.id)`
+   now runs at the top of the `failed`/`refundNeeded` branches.
+2. **Dead `catch` body** in listener removal — fixed in `029fd3ec`: now calls
+   `console.warn` directly (the original inner-arrow-never-called pattern is
+   gone). **The same pattern was avoided from the start in Task 8.**
+3. **`slippageDelta` always `undefined`** — confirmed real follow-up. Schema
+   field is `.optional()`, so spec-legal. Needs a quote-time estimate persisted
+   to ever be non-undefined. Same shape on the send side as `slippageActual`.
+4. **Page-reload mid-conversion** — known gap. Preimage map is in-memory only;
+   if the user reloads between the lightning leg and the conversion leg, the
+   catch-up path leaves the quote UNPAID + fires Sentry. Acceptable for MVP;
+   real fix needs a durable preimage store. Same gap likely exists on the
+   send side.
+5. **UI callers don't pass `exchangeRate`** — fixed for receive in `f3cc4ef1`
+   (Task 6b) and for send in `e17848b5` (Task 8b). Mirror pattern: ref-backed
+   `getExchangeRate` injected into the store via the provider; store throws
+   `DomainError` for USD without a rate; BTC path untouched.
 
 ## How to resume
 
 1. `cd /Users/claude/agicash/.claude/worktrees/spark-usdb`
-2. Re-load `superpowers:subagent-driven-development`.
-3. (Optional) finish Task 6 code-quality review — see above.
-4. Task 7 then Task 8, each: implementer subagent → spec review → code-quality
-   review → fix loop. Task 7 is trivial (schema add, mirror of Task 5).
-   Task 8 is large (mirror of Task 6 shape, send direction).
-5. Task 9 is a human-run mainnet smoke checklist — hand it to the operator.
+2. Decide on the three open Task 8 review findings above (P1 `isConversionLeg`
+   hardening, P2 PENDING-on-failure UX, P2 `payment.fees` unit verification,
+   P3 comment cleanup). If you fix P1, **fix it on the receive side too** —
+   same idiom, same potential bug.
+3. Task 9 is a human-run mainnet smoke checklist — hand it to the operator.
 
 ## Hard-won facts (don't rediscover these)
 
