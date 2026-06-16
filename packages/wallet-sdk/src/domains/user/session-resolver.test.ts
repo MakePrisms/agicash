@@ -15,7 +15,9 @@ mock.module('@agicash/opensecret', () =>
 mock.module('@agicash/breez-sdk-spark', () => breezModuleMock());
 afterAll(() => mock.restore());
 
-const { resolveSession, hasUserChanged } = await import('./session-resolver');
+const { resolveSession, resolveSessionRequired, hasUserChanged } = await import(
+  './session-resolver'
+);
 import type { SdkConfig } from '../../config';
 import type { KeyProvider } from '../../internal/crypto/keys';
 import { SdkEventEmitter } from '../../internal/event-emitter';
@@ -45,7 +47,10 @@ const keys: KeyProvider = {
   getPublicKeyHex: async () => 'enc-pub',
 };
 
-function ctx(db: ReturnType<typeof makeFakeDb>, loggedIn = true): DomainContext {
+function ctx(
+  db: ReturnType<typeof makeFakeDb>,
+  loggedIn = true,
+): DomainContext {
   const storage = loggedIn
     ? inMemoryStorage({
         access_token: jwtWith({ sub: 'u1' }),
@@ -66,7 +71,10 @@ function ctx(db: ReturnType<typeof makeFakeDb>, loggedIn = true): DomainContext 
       ],
       storage,
     } as unknown as SdkConfig,
-    connections: { supabase: db, keys } as unknown as DomainContext['connections'],
+    connections: {
+      supabase: db,
+      keys,
+    } as unknown as DomainContext['connections'],
     emitter: new SdkEventEmitter(),
   };
 }
@@ -75,18 +83,28 @@ describe('hasUserChanged', () => {
   it('detects email drift', () => {
     const guest = { isGuest: true, emailVerified: false } as never;
     expect(
-      hasUserChanged(guest, { id: 'u1', email: 'a@b.co', email_verified: false }),
+      hasUserChanged(guest, {
+        id: 'u1',
+        email: 'a@b.co',
+        email_verified: false,
+      }),
     ).toBe(true);
   });
   it('detects verified drift', () => {
-    const full = { isGuest: false, email: 'a@b.co', emailVerified: false } as never;
+    const full = {
+      isGuest: false,
+      email: 'a@b.co',
+      emailVerified: false,
+    } as never;
     expect(
       hasUserChanged(full, { id: 'u1', email: 'a@b.co', email_verified: true }),
     ).toBe(true);
   });
   it('no drift → false', () => {
     const guest = { isGuest: true, emailVerified: false } as never;
-    expect(hasUserChanged(guest, { id: 'u1', email_verified: false })).toBe(false);
+    expect(hasUserChanged(guest, { id: 'u1', email_verified: false })).toBe(
+      false,
+    );
   });
 });
 
@@ -98,7 +116,10 @@ describe('resolveSession', () => {
 
   it('returns the existing row when there is no drift (no upsert)', async () => {
     const calls = { rpc: [] as Array<{ name: string; args: unknown }> };
-    const db = makeFakeDb({ selectResult: { data: guestRow, error: null }, calls });
+    const db = makeFakeDb({
+      selectResult: { data: guestRow, error: null },
+      calls,
+    });
     const user = await resolveSession(ctx(db));
     expect(user?.id).toBe('u1');
     expect(calls.rpc).toHaveLength(0);
@@ -122,5 +143,28 @@ describe('resolveSession', () => {
     expect(args.p_spark_identity_public_key).toBe('07');
     expect(args.p_terms_accepted_at).toBe('2026-06-16T00:00:00Z');
     expect((args.p_accounts as unknown[]).length).toBe(1);
+  });
+
+  it('bootstraps (upsert) when the existing row has drifted', async () => {
+    const calls = { rpc: [] as Array<{ name: string; args: unknown }> };
+    const driftedRow = { ...guestRow, email_verified: true };
+    const db = makeFakeDb({
+      selectResult: { data: driftedRow, error: null },
+      rpcResult: { data: { user: guestRow, accounts: [] }, error: null },
+      calls,
+    });
+    const user = await resolveSession(ctx(db));
+    expect(user?.id).toBe('u1');
+    expect(calls.rpc).toHaveLength(1);
+    expect(calls.rpc[0]?.name).toBe('upsert_user_with_accounts');
+  });
+});
+
+describe('resolveSessionRequired', () => {
+  it('throws SdkError(SESSION_RESOLUTION_FAILED) when no session resolves', async () => {
+    const db = makeFakeDb({ selectResult: { data: null, error: null } });
+    await expect(resolveSessionRequired(ctx(db, false))).rejects.toMatchObject({
+      code: 'SESSION_RESOLUTION_FAILED',
+    });
   });
 });

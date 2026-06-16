@@ -78,7 +78,10 @@ export function openSecretModuleMock(
     generateThirdPartyToken: async () => ({ token: 'tok' }),
     getPrivateKey: async () => ({ mnemonic: 'm' }),
     getPrivateKeyBytes: async () => ({ private_key: '00'.repeat(32) }),
-    getPublicKey: async () => ({ public_key: `02${'00'.repeat(32)}`, algorithm: 'schnorr' }),
+    getPublicKey: async () => ({
+      public_key: '00'.repeat(32),
+      algorithm: 'schnorr',
+    }),
     signIn: noop,
     signUp: noop,
     signInGuest: noop,
