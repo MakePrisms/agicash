@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./domains/account-types": "./src/domains/account-types.ts",
     "./domains/cashu-proof": "./src/domains/cashu-proof.ts",
+    "./domains/contact": "./src/domains/contact.ts",
     "./domains/cashu-receive-quote": "./src/domains/cashu-receive-quote.ts",
     "./domains/cashu-receive-swap": "./src/domains/cashu-receive-swap.ts",
     "./domains/cashu-send-quote": "./src/domains/cashu-send-quote.ts",

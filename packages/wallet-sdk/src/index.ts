@@ -63,5 +63,7 @@ export {
   tokenToMoney,
   getTokenHash,
 } from './internal/cashu/token';
+export type { Contact } from './domains/contact';
+export { isContact } from './domains/contact';
 export type { Transaction } from './domains/transaction';
 export type { TransactionDetails } from './domains/transaction-details/transaction-details-types';
