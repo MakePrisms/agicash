@@ -1,8 +1,8 @@
 /**
  * The `Sdk` class — §1 of the contract.
  *
- * S2 (core shell): events are real; the 11 domains are stubbed
- * (`NotImplementedError`) until their slices implement them.
+ * S3: `auth` + `user` are real (built from the connection bundle); the other 9
+ * domains are stubbed (`NotImplementedError`) until their slices implement them.
  */
 import type { SdkConfig } from './config';
 import type {
@@ -22,8 +22,11 @@ import type {
   TransfersDomain,
   UserDomain,
 } from './domains';
+import { createAuthDomain } from './domains/auth/auth-domain';
+import type { DomainContext } from './domains/context';
+import { createUserDomain } from './domains/user/user-domain';
 import type { EventEmitter, SdkEventMap } from './events';
-import { type SdkConnections, buildConnections } from './internal/connections';
+import { buildConnections, type SdkConnections } from './internal/connections';
 import { SdkEventEmitter } from './internal/event-emitter';
 import { notImplementedDomain } from './internal/not-implemented';
 
@@ -32,12 +35,12 @@ import { notImplementedDomain } from './internal/not-implemented';
  * through the domain accessors; subscribe via {@link Sdk.events}; tear down with
  * {@link Sdk.destroy}. Framework-free, no general domain cache.
  *
- * S2 (core shell): events are real; the 11 domains are stubbed
- * (`NotImplementedError`) until their slices implement them.
+ * S3: `auth` + `user` are implemented; the remaining domains are stubbed
+ * (`NotImplementedError`) until their slices land.
  */
 export class Sdk {
-  readonly auth: AuthDomain = notImplementedDomain<AuthDomain>('auth');
-  readonly user: UserDomain = notImplementedDomain<UserDomain>('user');
+  readonly auth: AuthDomain;
+  readonly user: UserDomain;
   readonly accounts: AccountsDomain =
     notImplementedDomain<AccountsDomain>('accounts');
   readonly cashu: CashuDomain = {
@@ -60,13 +63,19 @@ export class Sdk {
   readonly background: BackgroundDomain =
     notImplementedDomain<BackgroundDomain>('background');
 
-  private readonly emitter = new SdkEventEmitter<SdkEventMap>();
-  readonly events: EventEmitter<SdkEventMap> = this.emitter;
+  private readonly emitter: SdkEventEmitter<SdkEventMap>;
+  readonly events: EventEmitter<SdkEventMap>;
 
   protected constructor(
     protected readonly config: SdkConfig,
     protected readonly connections: SdkConnections,
-  ) {}
+  ) {
+    this.emitter = new SdkEventEmitter<SdkEventMap>();
+    this.events = this.emitter;
+    const ctx: DomainContext = { config, connections, emitter: this.emitter };
+    this.user = createUserDomain(ctx);
+    this.auth = createAuthDomain(ctx);
+  }
 
   /** Construct the SDK from `config`, wiring the full connection bundle. */
   static async create(config: SdkConfig): Promise<Sdk> {
