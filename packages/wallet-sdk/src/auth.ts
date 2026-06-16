@@ -56,10 +56,11 @@ const refreshTokenKey = 'refresh_token';
 
 export const authStateQueryKey = 'auth-state';
 
-// The localStorage reads in this module read the token keys the OpenSecret
-// client writes; they switch to the OpenSecret StorageAdapter when the
-// storage-pluggable bump lands (same tracked exception as the opensecret
-// dependency itself).
+// These reads hit the same token keys the OpenSecret client writes. OpenSecret
+// 1.0 made storage pluggable (configure({ storage })) and the web backs it with
+// window.localStorage, so the direct reads below still work in the browser. To
+// run headless (Node/MCP) they must go through the configured StorageProvider
+// instead of window.localStorage — tracked as the headless-auth follow-up.
 
 const getJwt = (key: string): OpenSecretJwt | null => {
   const jwt = localStorage.getItem(key);

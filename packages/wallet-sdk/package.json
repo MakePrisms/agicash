@@ -60,7 +60,7 @@
     "zod": "catalog:"
   },
   "dependencies:comments": {
-    "@agicash/opensecret": "Currently the react build (transitive react peer-dep + localStorage). A storage-pluggable version is in flight; the bump removes the transitive react/browser binding before the MCP phase. Until then this is the single tracked exception to the SDK's framework-free rule (no DIRECT react/DOM imports in src)."
+    "@agicash/opensecret": "1.0.0-rc.0 dropped the react peer-dep — the SDK is now framework-free with no tracked exception. Token storage is pluggable via configure({ storage }); the web passes the browserStorage helper. Remaining headless follow-up (not a framework issue): auth.ts still reads window.localStorage directly instead of through the configured StorageProvider — route those through the provider for a Node/MCP runtime."
   },
   "devDependencies": {
     "@noble/curves": "catalog:",

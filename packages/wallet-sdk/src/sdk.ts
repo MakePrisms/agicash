@@ -1,5 +1,8 @@
 import type { MintValidator } from '@agicash/cashu';
-import { configure as configureOpenSecret } from '@agicash/opensecret';
+import {
+  type StorageProvider,
+  configure as configureOpenSecret,
+} from '@agicash/opensecret';
 import { type QueryClient, isServer } from '@tanstack/query-core';
 import { type AccountsApi, createAccountsApi } from './accounts/accounts-api';
 import { configureAgicashDb, getAgicashDb } from './agicash-db';
@@ -44,6 +47,13 @@ export type WalletSdkConfig = {
   openSecret: {
     apiUrl: string;
     clientId: string;
+    /**
+     * Backs the auth tokens and session state. Host-provided so the SDK stays
+     * platform-agnostic: the web passes OpenSecret's `browserStorage` helper
+     * (window.localStorage/sessionStorage); a headless host (Node/MCP) passes
+     * its own StorageProvider implementation.
+     */
+    storage: StorageProvider;
   };
   /** Supabase connection (RLS-scoped via the OpenSecret session token). */
   supabase: {
@@ -104,6 +114,7 @@ export function configureWalletSdk(config: WalletSdkConfig): void {
   configureOpenSecret({
     apiUrl: config.openSecret.apiUrl,
     clientId: config.openSecret.clientId,
+    storage: config.openSecret.storage,
   });
   configureAgicashDb(config.supabase);
   configureSpark({ apiKey: config.breez.apiKey });
