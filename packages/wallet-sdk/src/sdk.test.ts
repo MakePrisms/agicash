@@ -63,14 +63,20 @@ describe('Sdk core shell', () => {
     expect(err).not.toBeInstanceOf(NotImplementedError);
     await sdk.destroy();
   });
-  it('unimplemented domains still throw NotImplementedError', async () => {
+  it('accounts, scan, and exchangeRate domains are wired (not NotImplemented)', async () => {
     const sdk = await Sdk.create(config);
-    expect(() => sdk.accounts.list()).toThrow(NotImplementedError);
+    expect(typeof sdk.accounts.list).toBe('function');
+    expect(typeof sdk.scan.parse).toBe('function');
+    expect(typeof sdk.exchangeRate.getRate).toBe('function');
+    await sdk.destroy();
+  });
+  it('still-unimplemented domains throw NotImplementedError', async () => {
+    const sdk = await Sdk.create(config);
     expect(() => sdk.cashu.send.failQuote({} as never, 'x')).toThrow(
       NotImplementedError,
     );
+    expect(() => sdk.transactions.countPendingAck()).toThrow(NotImplementedError);
     expect(() => sdk.background.state()).toThrow(NotImplementedError);
-    expect(() => sdk.spark.receive.get('id')).toThrow(NotImplementedError);
     await sdk.destroy();
   });
 });

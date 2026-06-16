@@ -1,8 +1,10 @@
 /**
  * The `Sdk` class — §1 of the contract.
  *
- * S3: `auth` + `user` are real (built from the connection bundle); the other 9
- * domains are stubbed (`NotImplementedError`) until their slices implement them.
+ * S4: `auth` + `user` + `accounts` + `scan` + `exchangeRate` are real; the
+ * remaining 6 domains (`cashu`, `spark`, `transactions`, `contacts`,
+ * `transfers`, `background`) are stubbed (`NotImplementedError`) until their
+ * slices implement them.
  */
 import type { SdkConfig } from './config';
 import type {
@@ -22,27 +24,32 @@ import type {
   TransfersDomain,
   UserDomain,
 } from './domains';
+import { createAccountsDomain } from './domains/accounts/accounts-domain';
 import { createAuthDomain } from './domains/auth/auth-domain';
 import type { DomainContext } from './domains/context';
+import { createExchangeRateDomain } from './domains/exchange-rate/exchange-rate-domain';
+import { createScanDomain } from './domains/scan/scan-domain';
 import { createUserDomain } from './domains/user/user-domain';
 import type { EventEmitter, SdkEventMap } from './events';
 import { type SdkConnections, buildConnections } from './internal/connections';
 import { SdkEventEmitter } from './internal/event-emitter';
 import { notImplementedDomain } from './internal/not-implemented';
+import { AccountRepository } from './internal/repositories/account-repository';
 
 /**
  * The Agicash wallet SDK. Construct with {@link Sdk.create}; reach functionality
  * through the domain accessors; subscribe via {@link Sdk.events}; tear down with
  * {@link Sdk.destroy}. Framework-free, no general domain cache.
  *
- * S3: `auth` + `user` are implemented; the remaining domains are stubbed
- * (`NotImplementedError`) until their slices land.
+ * S4: `auth`, `user`, `accounts`, `scan`, `exchangeRate` are implemented; the
+ * remaining 6 domains (`cashu`, `spark`, `transactions`, `contacts`,
+ * `transfers`, `background`) are stubbed (`NotImplementedError`) until their
+ * slices land.
  */
 export class Sdk {
   readonly auth: AuthDomain;
   readonly user: UserDomain;
-  readonly accounts: AccountsDomain =
-    notImplementedDomain<AccountsDomain>('accounts');
+  readonly accounts: AccountsDomain;
   readonly cashu: CashuDomain = {
     send: notImplementedDomain<CashuSendOps>('cashu.send'),
     receive: notImplementedDomain<CashuReceiveOps>('cashu.receive'),
@@ -57,9 +64,8 @@ export class Sdk {
     notImplementedDomain<ContactsDomain>('contacts');
   readonly transfers: TransfersDomain =
     notImplementedDomain<TransfersDomain>('transfers');
-  readonly scan: ScanDomain = notImplementedDomain<ScanDomain>('scan');
-  readonly exchangeRate: ExchangeRateDomain =
-    notImplementedDomain<ExchangeRateDomain>('exchangeRate');
+  readonly scan: ScanDomain;
+  readonly exchangeRate: ExchangeRateDomain;
   readonly background: BackgroundDomain =
     notImplementedDomain<BackgroundDomain>('background');
 
@@ -75,6 +81,17 @@ export class Sdk {
     const ctx: DomainContext = { config, connections, emitter: this.emitter };
     this.user = createUserDomain(ctx);
     this.auth = createAuthDomain(ctx);
+    const accountRepository = new AccountRepository(
+      connections.supabase,
+      connections.encryption,
+      connections.cashuWallets,
+      connections.sparkWallets,
+      connections.mintAuth,
+      connections.getCashuSeed,
+    );
+    this.accounts = createAccountsDomain(ctx, accountRepository);
+    this.scan = createScanDomain(ctx);
+    this.exchangeRate = createExchangeRateDomain();
   }
 
   /** Construct the SDK from `config`, wiring the full connection bundle. */

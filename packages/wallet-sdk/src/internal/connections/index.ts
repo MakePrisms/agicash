@@ -1,14 +1,23 @@
+import { Mint } from '@cashu/cashu-ts';
+import { mnemonicToSeedSync } from '@scure/bip39';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SdkConfig } from '../../config';
-import type { KeyProvider } from '../crypto/keys';
+import type { SparkNetwork } from '../../types/dependencies';
+import { EncryptionService } from '../crypto/encryption';
+import { CASHU_MNEMONIC_PATH, SPARK_MNEMONIC_PATH, type KeyProvider } from '../crypto/keys';
 import type { Database } from '../db/database';
+import { ExtendedMintInfo } from '../lib/cashu';
 import { SupabaseRealtimeManager } from '../realtime/supabase-realtime-manager';
+import { connectBreez } from './breez';
+import { CashuWalletService, type MintMetadata } from './cashu-wallet';
+import { MintAuthTokenProvider } from './mint-auth';
 import {
   configureOpenSecret,
   generateThirdPartyToken,
   isLoggedIn,
   openSecretKeyProvider,
 } from './open-secret';
+import { SparkWalletService } from './spark-wallet';
 import { createBrowserClient } from './supabase-client';
 import { SupabaseSessionTokenProvider } from './supabase-session';
 
@@ -18,13 +27,19 @@ export type SdkConnections = {
   session: SupabaseSessionTokenProvider;
   realtime: SupabaseRealtimeManager;
   keys: KeyProvider;
+  encryption: EncryptionService;
+  cashuWallets: CashuWalletService;
+  sparkWallets: SparkWalletService;
+  mintAuth: MintAuthTokenProvider;
+  /** Cashu BIP39 seed (memoized) for wallet init; derived from the cashu child mnemonic. */
+  getCashuSeed: () => Promise<Uint8Array>;
 };
 
 /**
  * Configure OpenSecret + build the client-mode connection bundle from config.
- * Breez is NOT connected here — spark accounts connect per-account in a later
- * slice. The session provider bridges the OpenSecret JWT to Supabase's
- * `accessToken`, gated on `isLoggedIn` (read from the configured storage).
+ * Wallet services (cashu/spark) are constructed here but connect lazily —
+ * no network calls at build time. The session provider bridges the OpenSecret
+ * JWT to Supabase's `accessToken`, gated on `isLoggedIn`.
  */
 export function buildConnections(config: SdkConfig): SdkConnections {
   configureOpenSecret(config);
@@ -35,5 +50,58 @@ export function buildConnections(config: SdkConfig): SdkConnections {
   const supabase = createBrowserClient(config, session.getToken);
   const realtime = new SupabaseRealtimeManager(supabase.realtime);
   const keys = openSecretKeyProvider();
-  return { supabase, session, realtime, keys };
+
+  const encryption = new EncryptionService(keys);
+
+  let cashuSeed: Promise<Uint8Array> | null = null;
+  const getCashuSeed = () => {
+    cashuSeed ??= keys
+      .getChildMnemonic(CASHU_MNEMONIC_PATH)
+      .then((mnemonic) => mnemonicToSeedSync(mnemonic));
+    return cashuSeed;
+  };
+
+  const cashuWallets = new CashuWalletService(async (mintUrl) => {
+    const mint = new Mint(mintUrl);
+    const [info, keysets, mintKeys] = await Promise.all([
+      mint.getInfo(),
+      mint.getKeySets(),
+      mint.getKeys(),
+    ]);
+    return {
+      mintInfo: new ExtendedMintInfo(info),
+      keysets,
+      keys: mintKeys,
+    } satisfies MintMetadata;
+  });
+
+  const sparkWallets = new SparkWalletService(async (network: SparkNetwork) => {
+    const mnemonic = await keys.getChildMnemonic(SPARK_MNEMONIC_PATH);
+    return connectBreez(
+      {
+        apiKey: config.breezApiKey ?? '',
+        network: network.toLowerCase() as 'mainnet' | 'regtest',
+        storageDir: config.sparkStorageDir ?? './.spark-data',
+        debugLogging: config.debugLoggingSpark ?? false,
+      },
+      mnemonic,
+    );
+  });
+
+  const mintAuth = new MintAuthTokenProvider(
+    async () => (await generateThirdPartyToken('agicash-mint')).token,
+    () => isLoggedIn(config.storage),
+  );
+
+  return {
+    supabase,
+    session,
+    realtime,
+    keys,
+    encryption,
+    cashuWallets,
+    sparkWallets,
+    mintAuth,
+    getCashuSeed,
+  };
 }
