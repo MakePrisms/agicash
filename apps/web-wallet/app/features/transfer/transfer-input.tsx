@@ -1,3 +1,4 @@
+import type { Money } from '@agicash/money';
 import { Clipboard, Scan } from 'lucide-react';
 import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
@@ -20,7 +21,6 @@ import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { extractCashuToken } from '~/lib/cashu';
-import type { Money } from '@agicash/money';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,

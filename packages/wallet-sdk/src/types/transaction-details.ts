@@ -1,3 +1,4 @@
+import type { DestinationDetails } from './cashu';
 /**
  * TransactionDetails — the 6-variant PUBLIC domain union (§7 of the contract).
  *
@@ -8,7 +9,6 @@
  * are NOT part of PR1.
  */
 import type { Money } from './money';
-import type { DestinationDetails } from './cashu';
 
 // --- Cashu token send ------------------------------------------------------
 /** Details of a CASHU_TOKEN SEND transaction. */

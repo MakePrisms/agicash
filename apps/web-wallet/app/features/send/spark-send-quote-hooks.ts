@@ -1,4 +1,5 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
+import type { Money } from '@agicash/money';
 import {
   type QueryClient,
   useMutation,
@@ -6,7 +7,6 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
-import type { Money } from '@agicash/money';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {

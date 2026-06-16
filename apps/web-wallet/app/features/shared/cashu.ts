@@ -1,3 +1,4 @@
+import { type Currency, type CurrencyUnit, Money } from '@agicash/money';
 import {
   getPrivateKey as getMnemonic,
   getPrivateKeyBytes,
@@ -36,7 +37,6 @@ import {
   buildMintValidator,
 } from '~/lib/cashu/mint-validation';
 import { encodeToken } from '~/lib/cashu/token';
-import { type Currency, type CurrencyUnit, Money } from '@agicash/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';

@@ -1,7 +1,7 @@
+import type { Network } from '@agicash/breez-sdk-spark';
 import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { getSparkIdentityPublicKey } from '../connections/breez';
-import type { Network } from '@agicash/breez-sdk-spark';
 import {
   CASHU_MNEMONIC_PATH,
   ENCRYPTION_KEY_PATH,
@@ -16,7 +16,9 @@ export const BASE_CASHU_LOCKING_DERIVATION_PATH = "m/129372'/0'/0'";
  * The extended public key the mint uses to lock cashu quotes to this user.
  * Derived from the cashu BIP-85 child mnemonic → seed → BIP-32 xpub.
  */
-export async function deriveCashuLockingXpub(keys: KeyProvider): Promise<string> {
+export async function deriveCashuLockingXpub(
+  keys: KeyProvider,
+): Promise<string> {
   const mnemonic = await keys.getChildMnemonic(CASHU_MNEMONIC_PATH);
   const seed = mnemonicToSeedSync(mnemonic);
   const node = HDKey.fromMasterSeed(seed).derive(

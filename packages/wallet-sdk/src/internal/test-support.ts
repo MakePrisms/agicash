@@ -7,7 +7,8 @@ type DbResult = { data: unknown; error: unknown };
 /**
  * A minimal fake Supabase client for repository/domain unit tests. `from(table)`
  * returns a chainable builder whose `single()`/`maybeSingle()` resolve to
- * `selectResult`; `rpc(name, args)` records the call and resolves to `rpcResult`.
+ * `selectResult` for `select` chains and to `updateResult` after `update()`;
+ * `rpc(name, args)` records the call and resolves to `rpcResult`.
  */
 export function makeFakeDb(opts: {
   selectResult?: DbResult;
@@ -25,12 +26,12 @@ export function makeFakeDb(opts: {
   function builder(terminal: () => Promise<DbResult>) {
     const b: Record<string, unknown> = {};
     for (const m of ['select', 'eq', 'order', 'limit']) b[m] = () => b;
-    b['update'] = (payload: unknown) => {
+    b.update = (payload: unknown) => {
       opts.calls?.update?.push(payload);
       return updateBuilder();
     };
-    b['single'] = terminal;
-    b['maybeSingle'] = terminal;
+    b.single = terminal;
+    b.maybeSingle = terminal;
     return b;
   }
   return {

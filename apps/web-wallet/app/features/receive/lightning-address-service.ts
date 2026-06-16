@@ -1,3 +1,4 @@
+import { Money } from '@agicash/money';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
@@ -11,7 +12,6 @@ import type {
   LNURLPayResult,
   LNURLVerifyResult,
 } from '~/lib/lnurl/types';
-import { Money } from '@agicash/money';
 import { measureOperation } from '~/lib/performance';
 import {
   decryptXChaCha20Poly1305,

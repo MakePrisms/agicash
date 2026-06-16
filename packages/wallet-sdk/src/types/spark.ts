@@ -1,3 +1,4 @@
+import type { CashuTokenMeltData } from './cashu';
 /**
  * Spark quote domain types — §6 of the contract.
  *
@@ -6,7 +7,6 @@
  *   - `app/features/receive/spark-receive-quote.ts` (SparkReceiveQuote)
  */
 import type { Money } from './money';
-import type { CashuTokenMeltData } from './cashu';
 
 // ---------------------------------------------------------------------------
 // Spark send — SparkSendQuote (UNPAID/PENDING/COMPLETED/FAILED)

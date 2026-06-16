@@ -1,3 +1,4 @@
+import type { CashuProof } from './account';
 /**
  * Cashu quote / swap domain types — §5 of the contract.
  *
@@ -13,7 +14,6 @@
  */
 import type { CashuProtocolProof } from './dependencies';
 import type { Money } from './money';
-import type { CashuProof } from './account';
 
 // ---------------------------------------------------------------------------
 // DestinationDetails (discriminated on `sendType`)

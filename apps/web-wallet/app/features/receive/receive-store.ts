@@ -1,5 +1,5 @@
-import { create } from 'zustand';
 import type { Currency, Money } from '@agicash/money';
+import { create } from 'zustand';
 import type { Account } from '../accounts/account';
 
 export type ReceiveState<T extends Currency = Currency> = {

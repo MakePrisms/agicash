@@ -23,7 +23,7 @@ import type {
   UserDomain,
 } from './domains';
 import type { EventEmitter, SdkEventMap } from './events';
-import { buildConnections, type SdkConnections } from './internal/connections';
+import { type SdkConnections, buildConnections } from './internal/connections';
 import { SdkEventEmitter } from './internal/event-emitter';
 import { notImplementedDomain } from './internal/not-implemented';
 

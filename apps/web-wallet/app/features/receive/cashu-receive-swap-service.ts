@@ -1,3 +1,4 @@
+import { Money } from '@agicash/money';
 import {
   MintOperationError,
   OutputData,
@@ -11,7 +12,6 @@ import {
   getCashuUnit,
   sumProofs,
 } from '~/lib/cashu';
-import { Money } from '@agicash/money';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
 import type { CashuReceiveSwap } from './cashu-receive-swap';

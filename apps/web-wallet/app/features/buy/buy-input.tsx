@@ -1,3 +1,4 @@
+import type { Money } from '@agicash/money';
 import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
@@ -23,7 +24,6 @@ import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import type { Money } from '@agicash/money';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { useAccount, useAccounts } from '../accounts/account-hooks';
 import { BuyFaqDrawer } from './buy-faq-drawer';

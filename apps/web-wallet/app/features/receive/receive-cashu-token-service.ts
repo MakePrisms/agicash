@@ -1,3 +1,4 @@
+import type { Currency } from '@agicash/money';
 import type { Token } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import {
@@ -7,7 +8,6 @@ import {
   getCashuProtocolUnit,
   getKeysetExpiry,
 } from '~/lib/cashu';
-import type { Currency } from '@agicash/money';
 import {
   type ExtendedAccount,
   type ExtendedCashuAccount,

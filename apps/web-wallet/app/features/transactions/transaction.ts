@@ -1,5 +1,5 @@
-import { z } from 'zod/mini';
 import { Money } from '@agicash/money';
+import { z } from 'zod/mini';
 import { AccountPurposeSchema, AccountTypeSchema } from '../accounts/account';
 import { CashuLightningReceiveTransactionDetailsSchema } from './transaction-details/cashu-lightning-receive-transaction-details';
 import {

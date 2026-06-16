@@ -1,3 +1,4 @@
+import type { Currency } from '@agicash/money';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -22,7 +23,6 @@ import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { encodeToken } from '~/lib/cashu/token';
-import type { Currency } from '@agicash/money';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,

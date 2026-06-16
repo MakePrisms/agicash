@@ -47,9 +47,9 @@ describe('UserRepository', () => {
         },
       }),
     );
-    await expect(repo.update('u1', { username: 'taken' })).rejects.toBeInstanceOf(
-      DomainError,
-    );
+    await expect(
+      repo.update('u1', { username: 'taken' }),
+    ).rejects.toBeInstanceOf(DomainError);
   });
 
   it('update() sends only the provided fields', async () => {
@@ -83,6 +83,7 @@ describe('UserRepository', () => {
     expect(calls.rpc[0]?.name).toBe('upsert_user_with_accounts');
     const args = calls.rpc[0]?.args as Record<string, unknown>;
     expect(args.p_user_id).toBe('u1');
+    expect(args.p_email).toBe('a@b.co');
     expect(args.p_cashu_locking_xpub).toBe('xpub');
     expect(args.p_spark_identity_public_key).toBe('spark');
     expect(args.p_terms_accepted_at).toBe('2026-06-16T00:00:00Z');

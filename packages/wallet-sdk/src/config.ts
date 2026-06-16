@@ -8,8 +8,8 @@
  */
 import type { StorageProvider } from '@agicash/opensecret';
 import type { AccountPurpose } from './types/account';
-import type { Currency } from './types/money';
 import type { SparkNetwork } from './types/dependencies';
+import type { Currency } from './types/money';
 
 /**
  * A default account created during user-row bootstrap (the consumer supplies the

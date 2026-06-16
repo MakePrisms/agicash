@@ -1,3 +1,4 @@
+import type { Money } from '@agicash/money';
 import type { Token } from '@cashu/cashu-ts';
 import { Banknote, Link, Share } from 'lucide-react';
 import { useState } from 'react';
@@ -24,7 +25,6 @@ import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { encodeToken } from '~/lib/cashu/token';
 import { normalizeMintUrl } from '~/lib/cashu/utils';
-import type { Money } from '@agicash/money';
 import { canShare, shareContent } from '~/lib/share';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';

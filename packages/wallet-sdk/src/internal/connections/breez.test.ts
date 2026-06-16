@@ -41,7 +41,12 @@ mock.module('@agicash/breez-sdk-spark', () => ({
   }),
 }));
 
-const { initBreezWasm, tryInitLogging, connectBreez, getSparkIdentityPublicKey } = await import('./breez');
+const {
+  initBreezWasm,
+  tryInitLogging,
+  connectBreez,
+  getSparkIdentityPublicKey,
+} = await import('./breez');
 
 // bun's mock.module is process-global; restore after this file so its mock and
 // other files' @agicash/breez-sdk-spark mocks stay isolated per file.

@@ -1,10 +1,10 @@
 import {
+  type StorageProvider,
   configure,
   generateThirdPartyToken,
   getPrivateKey,
   getPrivateKeyBytes,
   getPublicKey,
-  type StorageProvider,
 } from '@agicash/opensecret';
 import { hexToBytes } from '@noble/hashes/utils';
 import type { SdkConfig } from '../../config';

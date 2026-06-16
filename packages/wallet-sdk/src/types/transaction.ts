@@ -1,3 +1,4 @@
+import type { AccountPurpose, AccountType } from './account';
 /**
  * Transaction domain types — §7 of the contract.
  *
@@ -8,7 +9,6 @@
  * `purpose: 'PAYMENT' | 'BUY_CASHAPP'`.
  */
 import type { Money } from './money';
-import type { AccountPurpose, AccountType } from './account';
 import type {
   CashuLightningReceiveTransactionDetails,
   CashuTokenReceiveTransactionDetails,

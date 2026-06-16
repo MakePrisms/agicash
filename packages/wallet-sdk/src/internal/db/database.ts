@@ -1,6 +1,6 @@
 import type { createClient } from '@supabase/supabase-js';
-import type { Database as DatabaseGenerated } from './database.types';
 import type { MergeDeep } from 'type-fest';
+import type { Database as DatabaseGenerated } from './database.types';
 
 // These row types are defined from DatabaseGenerated (before Database) to
 // break a circular reference: result types → row types → Database → result types.

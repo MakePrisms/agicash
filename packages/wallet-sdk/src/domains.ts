@@ -1,3 +1,4 @@
+import type { BackgroundState } from './events';
 /**
  * Domain interfaces — §2-§10 of the contract. DECLARATIONS ONLY (no impl).
  *
@@ -23,7 +24,6 @@ import type { SparkReceiveQuote, SparkSendQuote } from './types/spark';
 import type { Transaction, TransactionCursor } from './types/transaction';
 import type { TransferQuote, TransferResult } from './types/transfer';
 import type { User } from './types/user';
-import type { BackgroundState } from './events';
 
 // --- §4 Auth + User --------------------------------------------------------
 
@@ -89,7 +89,10 @@ export interface UserDomain {
   /** Change the user's username. Throws `DomainError` if the username is taken. */
   updateUsername(username: string): Promise<User>;
   /** Record acceptance of the wallet and/or gift-card-mint terms (sets the timestamp(s) to now). */
-  acceptTerms(params: { wallet?: boolean; giftCardMint?: boolean }): Promise<User>;
+  acceptTerms(params: {
+    wallet?: boolean;
+    giftCardMint?: boolean;
+  }): Promise<User>;
   /** Set the user's preferred display currency. */
   setDefaultCurrency(currency: Currency): Promise<User>;
 }

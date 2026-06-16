@@ -1,5 +1,5 @@
-import { REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
 import { beforeEach, describe, expect, it } from 'bun:test';
+import { REALTIME_SUBSCRIBE_STATES } from '@supabase/supabase-js';
 import { SupabaseRealtimeManager } from './supabase-realtime-manager';
 
 // ---------------------------------------------------------------------------

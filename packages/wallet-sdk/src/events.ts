@@ -1,3 +1,4 @@
+import type { SdkError } from './errors';
 /**
  * Event layer — §11 of the contract. FULLY NET-NEW (no master EventEmitter).
  *
@@ -10,7 +11,6 @@ import type { Contact } from './types/contact';
 import type { Money } from './types/money';
 import type { Transaction } from './types/transaction';
 import type { User } from './types/user';
-import type { SdkError } from './errors';
 
 /**
  * Lifecycle state of the background processor (see {@link BackgroundDomain}).

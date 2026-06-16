@@ -70,7 +70,8 @@ export class UserRepository {
     if (data.termsAcceptedAt !== undefined)
       payload.terms_accepted_at = data.termsAcceptedAt;
     if (data.giftCardMintTermsAcceptedAt !== undefined)
-      payload.gift_card_mint_terms_accepted_at = data.giftCardMintTermsAcceptedAt;
+      payload.gift_card_mint_terms_accepted_at =
+        data.giftCardMintTermsAcceptedAt;
 
     const { data: row, error } = await this.db
       .from('users')
@@ -79,7 +80,8 @@ export class UserRepository {
       .select()
       .single();
     if (error) throw classify(error);
-    if (!row) throw new SdkError('User update returned no row', 'UPDATE_FAILED');
+    if (!row)
+      throw new SdkError('User update returned no row', 'UPDATE_FAILED');
     return toUser(row);
   }
 
@@ -98,9 +100,13 @@ export class UserRepository {
     if (params.termsAcceptedAt != null)
       args.p_terms_accepted_at = params.termsAcceptedAt;
     if (params.giftCardMintTermsAcceptedAt != null)
-      args.p_gift_card_mint_terms_accepted_at = params.giftCardMintTermsAcceptedAt;
+      args.p_gift_card_mint_terms_accepted_at =
+        params.giftCardMintTermsAcceptedAt;
 
-    const { data, error } = await this.db.rpc('upsert_user_with_accounts', args);
+    const { data, error } = await this.db.rpc(
+      'upsert_user_with_accounts',
+      args,
+    );
     if (error) throw classify(error);
     if (!data?.user)
       throw new SdkError(

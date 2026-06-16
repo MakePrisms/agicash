@@ -1,3 +1,4 @@
+import type { Currency, CurrencyUnit } from '@agicash/money';
 import {
   type Keyset,
   type MeltQuoteBolt11Response,
@@ -11,7 +12,6 @@ import {
 } from '@cashu/cashu-ts';
 import type { Token } from '@cashu/cashu-ts';
 import type { DistributedOmit } from 'type-fest';
-import type { Currency, CurrencyUnit } from '@agicash/money';
 import {
   ExtendedMintInfo,
   type ExtendedMintQuoteBolt11Response,
