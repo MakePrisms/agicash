@@ -51,3 +51,19 @@ export function createCashuCryptography(
     },
   };
 }
+
+/**
+ * Derives a public key from an xpub and a derivation path.
+ * @param xpub base58-check encoded xpub
+ * @param derivationPath path to derive from
+ * @returns the derived public key as a hex string ('' if the child key has no pubkey)
+ */
+export function derivePublicKey(xpub: string, derivationPath: string): string {
+  const hdKey = HDKey.fromExtendedKey(xpub);
+  const childKey = hdKey.derive(derivationPath);
+  return childKey.publicKey
+    ? Array.from(childKey.publicKey)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+    : '';
+}

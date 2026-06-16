@@ -18,7 +18,9 @@
     "./domains/transaction-details/transaction-details-types": "./src/domains/transaction-details/transaction-details-types.ts",
     "./domains/transaction-enums": "./src/domains/transaction-enums.ts",
     "./domains/user-types": "./src/domains/user-types.ts",
+    "./internal/cashu/cryptography": "./src/internal/cashu/cryptography.ts",
     "./internal/cashu/mint-validation": "./src/internal/cashu/mint-validation.ts",
+    "./internal/cashu/receive-quote-core": "./src/internal/cashu/receive-quote-core.ts",
     "./internal/cashu/token": "./src/internal/cashu/token.ts",
     "./internal/cashu/wallet": "./src/internal/cashu/wallet.ts",
     "./internal/crypto/encryption": "./src/internal/crypto/encryption.ts",
@@ -28,6 +30,7 @@
     "./internal/db/json-models/cashu-account-details-db-data": "./src/internal/db/json-models/cashu-account-details-db-data.ts",
     "./internal/db/json-models/spark-account-details-db-data": "./src/internal/db/json-models/spark-account-details-db-data.ts",
     "./internal/key-derivation": "./src/internal/key-derivation.ts",
+    "./internal/spark/receive-quote-core": "./src/internal/spark/receive-quote-core.ts",
     "./*": "./src/*"
   },
   "scripts": {
