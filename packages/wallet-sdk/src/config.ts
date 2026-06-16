@@ -11,6 +11,9 @@ export type SdkConfig = {
   openSecret: { url: string; clientId: string };
   supabase: { url: string; anonKey: string; serviceRoleKey?: string };
   breezApiKey?: string;
+  /** Writable directory for the Breez SDK's local state. Web/browser ignores it
+   * (in-memory/IndexedDB); headless node needs a real path. Default './.spark-data'. */
+  sparkStorageDir?: string;
   /** Durable store: auth tokens + guest credentials. Web = localStorage, node = fs/sqlite. */
   storage: StorageAdapter;
   /** Optional ephemeral store for Open Secret's enclave handshake material
