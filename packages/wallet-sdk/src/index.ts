@@ -45,6 +45,12 @@ export {
   getAccountHomePath,
 } from './domains/account-types';
 export type { CashuProof } from './domains/cashu-proof';
+export type {
+  TransactionDirection, TransactionType, TransactionState, TransactionPurpose,
+} from './domains/transaction-enums';
+export type { CashuSendQuote, DestinationDetails } from './domains/cashu-send-quote';
+export type { CashuSendSwap, PendingCashuSendSwap } from './domains/cashu-send-swap';
+export type { SparkSendQuote } from './domains/spark-send-quote';
 export {
   ExtendedCashuWallet,
   getCashuWallet,
