@@ -4,7 +4,7 @@ import {
   CashuLightningReceiveDbDataSchema,
   CashuSwapReceiveDbDataSchema,
   SparkLightningReceiveDbDataSchema,
-} from '~/features/agicash-db/json-models';
+} from '../../internal/db/json-models';
 import { TransactionStateSchema } from '../transaction-enums';
 import type { TransactionDetailsParserShape } from './transaction-details-types';
 
