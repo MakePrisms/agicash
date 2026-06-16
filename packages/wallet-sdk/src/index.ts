@@ -72,6 +72,9 @@ export type {
 // --- scan (§3) -------------------------------------------------------------
 export type { ParsedDestination, PaymentIntent } from './types/scan';
 
+// --- exchange rate (§6 delta) -----------------------------------------------
+export type { Ticker, Rates } from './types/exchange-rate';
+
 // --- user (§4) -------------------------------------------------------------
 export type { User, FullUser, GuestUser } from './types/user';
 

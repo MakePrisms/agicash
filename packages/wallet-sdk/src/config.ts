@@ -64,6 +64,15 @@ export type SdkConfig = {
   };
   /** API key for the Spark/Breez SDK (required for spark accounts). */
   breezApiKey?: string;
+  /** Storage directory for the Spark/Breez SDK (default `./.spark-data`; server uses `/tmp/.spark-data`). */
+  sparkStorageDir?: string;
+  /** Enable verbose Breez SDK logging (maps the web's `DEBUG_LOGGING_SPARK` flag). */
+  debugLoggingSpark?: boolean;
+  /**
+   * Allow `localhost` Lightning addresses when parsing scanned input (dev only;
+   * replaces the web's `import.meta.env.MODE === 'development'`). Default false.
+   */
+  allowLocalhostLightningAddress?: boolean;
   /**
    * Pluggable OpenSecret storage provider (`{ persistent, session }`). Browser
    * passes the exported `browserStorage`; MCP/Node implements it over fs/sqlite.

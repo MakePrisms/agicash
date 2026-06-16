@@ -18,6 +18,7 @@ import type {
   CashuSendSwap,
 } from './types/cashu';
 import type { Contact, UserProfile } from './types/contact';
+import type { Rates, Ticker } from './types/exchange-rate';
 import type { Currency, Money } from './types/money';
 import type { ParsedDestination, PaymentIntent } from './types/scan';
 import type { SparkReceiveQuote, SparkSendQuote } from './types/spark';
@@ -360,12 +361,12 @@ export interface TransfersDomain {
 
 /** Fiat/BTC exchange-rate conversion (multi-provider). */
 export interface ExchangeRateDomain {
-  /**
-   * Convert `amount` into `to` currency at the current rate.
-   * TODO(post-PR1): ground the method surface against
-   * `app/lib/exchange-rate/**` when the domain is implemented.
-   */
+  /** Convert `amount` into the `to` currency at the current rate. */
   convert(params: { amount: Money; to: Currency }): Promise<Money>;
+  /** Fetch the current rate(s) for the given ticker(s) (e.g. `'BTC-USD'`). */
+  getRates(params: { tickers: Ticker[] }): Promise<Rates>;
+  /** Fetch a single current rate string for `ticker`. */
+  getRate(ticker: Ticker): Promise<string>;
 }
 
 // --- §10 Background --------------------------------------------------------
