@@ -96,6 +96,7 @@ export class Sdk {
       isLoggedIn,
       breezApiKey: config.breezApiKey ?? '',
       sparkStorageDir: config.sparkStorageDir ?? './.spark-data',
+      domain: config.domain ?? '',
     });
     const writeUserRepo = new WriteUserRepository(db);
     const readUserRepo = new ReadUserRepository(db);

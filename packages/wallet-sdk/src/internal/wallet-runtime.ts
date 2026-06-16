@@ -13,6 +13,10 @@ import type { KeyService } from './keys';
 import type { OpenSecret } from './opensecret';
 import { AccountService } from './services/account-service';
 import { SparkWalletManager } from './spark/wallet-manager';
+import {
+  createProtocolServices,
+  type ProtocolServices,
+} from './protocol-services';
 
 export type WalletRuntime = {
   encryption: Encryption;
@@ -23,6 +27,7 @@ export type WalletRuntime = {
   accountRepository: AccountRepository;
   defaultAccountRepository: DefaultAccountRepository;
   accountService: AccountService;
+  protocols: ProtocolServices;
   dispose(): Promise<void>;
 };
 
@@ -33,6 +38,7 @@ type Deps = {
   isLoggedIn: () => Promise<boolean>;
   breezApiKey: string;
   sparkStorageDir: string;
+  domain: string;
 };
 
 /**
@@ -69,6 +75,11 @@ export function createWalletRuntime(deps: Deps): WalletRuntime {
   );
   const accountService = new AccountService(accountRepository, mintCache);
 
+  const protocols = createProtocolServices(
+    { db: deps.db, encryption, cashuCryptography, accountRepository },
+    { domain: deps.domain },
+  );
+
   return {
     encryption,
     cashuCryptography,
@@ -78,6 +89,7 @@ export function createWalletRuntime(deps: Deps): WalletRuntime {
     accountRepository,
     defaultAccountRepository,
     accountService,
+    protocols,
     dispose: async () => {
       mintAuth.clear();
       mintCache.clear();
