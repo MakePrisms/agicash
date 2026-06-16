@@ -33,7 +33,7 @@
 | 01 | S1 | `@agicash/money` shared package; app + SDK build on it | ✅ [done](2026-06-13-wallet-sdk-01-money-package.md) (2 commits) |
 | 02 | S2 | SDK core shell — config · events · errors+classify · connections · crypto (domains stubbed) | ✅ [done](2026-06-13-wallet-sdk-02-sdk-core-shell.md) (11 commits) — adopted `@agicash/opensecret@1.0.0-rc.0` (catalog bump + `StorageProvider`); framework-free, gate green |
 | 03 | S3 | auth + user (+ session resolver, ensure-on-resolve bootstrap) | ✅ [done](2026-06-13-wallet-sdk-03-auth-user.md) (19 commits) — auth + user domains live; gate green (248 tests) |
-| 04 | S4 | accounts + scan + exchangeRate (+ live wallet-handle resolution) | not written |
+| 04 | S4 | accounts + scan + exchangeRate (+ live wallet-handle resolution) | ✅ [done](2026-06-13-wallet-sdk-04-accounts-scan-exchange-rate.md) (18 commits) — domains live; protocol libs (bolt11/lnurl/cashu) extracted + `Account.wallet` real; gate green (196 tests) |
 | 05 | S5 | cashu ops (send / receive / token-claim) | not written |
 | 06 | S6 | spark ops (client + server spark wallet) | not written |
 | 07 | S7 | orchestrator (executeQuote + #788; receiveToken; balance listener incl. `synced`) | not written |
@@ -66,6 +66,35 @@ necessarily atomic** — see spec §9.
 - **Plan 03 (opensecret rc):** confirmed the rc persists `access_token` /
   `refresh_token` in `storage.persistent`, so the SDK's `isLoggedIn` assumption
   holds — the earlier Plan 11 token-key concern is resolved.
+
+- **Plan 04 → S5/S6/S7 (cashu/spark ops + orchestrator):**
+  - The **cashu-protocol lib** is extracted at `internal/lib/cashu` (the
+    non-orchestrator subset). Its barrel **excludes** `payment-request` +
+    `melt-quote-subscription(-manager)` + `mint-quote-subscription-manager` —
+    S5 vendors those (they still live only in `apps/web-wallet/app/lib/cashu`).
+    `mint-validation.ts` is vendored but **no validator instance is constructed**
+    (S5 wires `cashuMintBlocklist` config + builds `cashuMintValidator`).
+  - `Account.wallet` is now the **live** `ExtendedCashuWallet`/`BreezSdk`
+    (`types/dependencies.ts` placeholders all wired real). `CashuWalletService`
+    (mint-metadata memo) + `SparkWalletService` (connect-once memo) + the
+    `MintAuthTokenProvider`/`getMintAuthProvider` live in `internal/connections`
+    and are on `SdkConnections`. The spark balance **listener** (the §8 stale-
+    balance `synced` re-read) is **still deferred to S7** — only one-shot
+    `getInfo()` balance exists today.
+  - Domains are built in the `Sdk` constructor from a shared `DomainContext`
+    (`{config, connections, emitter}`); `AccountRepository` is constructed there
+    with `(supabase, encryption, cashuWallets, sparkWallets, mintAuth, getCashuSeed)`.
+    5 of 11 domains real (auth, user, accounts, scan, exchangeRate); cashu/spark/
+    transactions/contacts/transfers/background still `notImplementedDomain`.
+  - **Gotcha:** `SdkError`/`DomainError` require **`(message, code)`** — the web's
+    1-arg `new DomainError(msg)` does NOT compile; every ported throw needs a code.
+  - **Test infra:** `internal/test-support.ts` `makeFakeDb` now has an **awaitable
+    builder** (`then`) + `insert`/`abortSignal`, so non-`.single()` queries work.
+    The cashu/spark wallet services take **injected** connect/fetch fns (DI) — their
+    tests use fakes, **no `mock.module`** on cashu-ts/breez. Keep that pattern in S5/S6.
+  - **New deps (in `packages/wallet-sdk/package.json`):** `@cashu/cashu-ts@3.6.1`,
+    `light-bolt11-decoder@3.2.0`, `@scure/base@1.2.6`, `ky@1.14.3`, `big.js@7.0.1`,
+    `zod@4.3.6`, `@stablelib/base64` (catalog).
 
 ## Starting notes for Plan 01 (`@agicash/money`)
 
