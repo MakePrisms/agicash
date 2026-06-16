@@ -76,3 +76,51 @@ export function openSecretKeyProvider(): KeyProvider {
         .public_key,
   };
 }
+
+/** OpenSecret auth operations, re-exported `os*`-aliased so domains never import
+ * `@agicash/opensecret` directly (single seam; one module to mock in tests). */
+export {
+  signIn as osSignIn,
+  signUp as osSignUp,
+  signInGuest as osSignInGuest,
+  signUpGuest as osSignUpGuest,
+  signOut as osSignOut,
+  convertGuestToUserAccount as osConvertGuestToUserAccount,
+  initiateGoogleAuth as osInitiateGoogleAuth,
+  handleGoogleCallback as osHandleGoogleCallback,
+  requestPasswordReset as osRequestPasswordReset,
+  confirmPasswordReset as osConfirmPasswordReset,
+  verifyEmail as osVerifyEmail,
+  requestNewVerificationCode as osRequestNewVerificationCode,
+  changePassword as osChangePassword,
+  refreshAccessToken as osRefreshAccessToken,
+  fetchUser,
+} from '@agicash/opensecret';
+export type { LoginResponse, UserResponse } from '@agicash/opensecret';
+
+/** Extract a JWT's `sub` (user id) from its base64url payload, no deps. */
+function decodeJwtSub(jwt: string): string | undefined {
+  const segment = jwt.split('.')[1];
+  if (!segment) {
+    return undefined;
+  }
+  try {
+    const b64 = segment.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=');
+    const { sub } = JSON.parse(atob(padded)) as { sub?: string };
+    return sub;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The signed-in user's id, read from the persisted access token (no network). */
+export async function getCurrentUserId(
+  storage: StorageProvider,
+): Promise<string | null> {
+  const accessToken = await storage.persistent.getItem('access_token');
+  if (!accessToken) {
+    return null;
+  }
+  return decodeJwtSub(accessToken) ?? null;
+}
