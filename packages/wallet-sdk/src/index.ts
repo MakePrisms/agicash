@@ -46,14 +46,23 @@ export {
 } from './domains/account-types';
 export type { CashuProof } from './domains/cashu-proof';
 export type {
-  TransactionDirection, TransactionType, TransactionState, TransactionPurpose,
+  TransactionDirection,
+  TransactionType,
+  TransactionState,
+  TransactionPurpose,
 } from './domains/transaction-enums';
 export type { CashuTokenMeltData } from './domains/cashu-token-melt-data';
 export type { CashuReceiveQuote } from './domains/cashu-receive-quote';
 export type { CashuReceiveSwap } from './domains/cashu-receive-swap';
 export type { SparkReceiveQuote } from './domains/spark-receive-quote';
-export type { CashuSendQuote, DestinationDetails } from './domains/cashu-send-quote';
-export type { CashuSendSwap, PendingCashuSendSwap } from './domains/cashu-send-swap';
+export type {
+  CashuSendQuote,
+  DestinationDetails,
+} from './domains/cashu-send-quote';
+export type {
+  CashuSendSwap,
+  PendingCashuSendSwap,
+} from './domains/cashu-send-swap';
 export type { SparkSendQuote } from './domains/spark-send-quote';
 export {
   ExtendedCashuWallet,
@@ -67,3 +76,4 @@ export type { Contact } from './domains/contact';
 export { isContact } from './domains/contact';
 export type { Transaction } from './domains/transaction';
 export type { TransactionDetails } from './domains/transaction-details/transaction-details-types';
+export type { TransferQuote } from './internal/services/transfer-service';
