@@ -20,3 +20,7 @@ export {
 } from '../storage/browser';
 export { Sdk } from './sdk';
 export type { SdkCoreEventMap, BackgroundState } from './events';
+export {
+  type Encryption,
+  getEncryption,
+} from './internal/crypto/encryption';
