@@ -13,8 +13,17 @@ import { EventBus } from './internal/event-bus';
 import { KeyService } from './internal/keys';
 import { type OpenSecret, realOpenSecret } from './internal/opensecret';
 import { createOpenSecretStorage } from './internal/opensecret-storage';
+import {
+  type WalletRuntime,
+  createWalletRuntime,
+} from './internal/wallet-runtime';
 
 const REFRESH_TOKEN_KEY = 'refresh_token';
+
+/** Internal handle for Plan 3b to reach the wallet runtime without exposing it on
+ * the public Sdk surface. Importable only by SDK-internal code that knows the
+ * symbol; not re-exported from the package barrel. */
+export const walletRuntimeKey: unique symbol = Symbol('agicash.walletRuntime');
 
 /**
  * Entry point. `Sdk.create(config)` configures Open Secret (with a StorageProvider
@@ -28,18 +37,23 @@ export class Sdk {
   private readonly keys: KeyService;
   private readonly sessionToken: SessionTokenProvider;
 
+  /** Internal: Plan 3b reaches the wallet runtime via this symbol. Not public. */
+  readonly [walletRuntimeKey]: WalletRuntime;
+
   private constructor(parts: {
     auth: AuthDomain;
     user: UserDomain;
     events: EventBus<SdkCoreEventMap>;
     keys: KeyService;
     sessionToken: SessionTokenProvider;
+    walletRuntime: WalletRuntime;
   }) {
     this.auth = parts.auth;
     this.user = parts.user;
     this.events = parts.events;
     this.keys = parts.keys;
     this.sessionToken = parts.sessionToken;
+    this[walletRuntimeKey] = parts.walletRuntime;
   }
 
   static async create(
@@ -75,6 +89,14 @@ export class Sdk {
 
     const sessionToken = new SessionTokenProvider(os, isLoggedIn);
     const db = createAgicashDb(config.supabase, sessionToken.getToken);
+    const walletRuntime = createWalletRuntime({
+      db,
+      keys,
+      os,
+      isLoggedIn,
+      breezApiKey: config.breezApiKey ?? '',
+      sparkStorageDir: config.sparkStorageDir ?? './.spark-data',
+    });
     const writeUserRepo = new WriteUserRepository(db);
     const readUserRepo = new ReadUserRepository(db);
     const getCurrentUserId = async (): Promise<string | null> => {
@@ -108,7 +130,7 @@ export class Sdk {
     // Re-arm the session-expiry timer if a session is already present.
     await auth.initialize();
 
-    return new Sdk({ auth, user, events, keys, sessionToken });
+    return new Sdk({ auth, user, events, keys, sessionToken, walletRuntime });
   }
 
   /** Subscribe to a core event. Returns an unsubscribe function. */
@@ -122,9 +144,12 @@ export class Sdk {
   /** Coarse, idempotent catch-up hint. No realtime/processors yet (Plan 4) — no-op. */
   async resync(): Promise<void> {}
 
-  /** Close down: stop the expiry timer, drop all secret material, clear listeners. */
+  /** Close down: disconnect spark wallets + clear wallet caches, stop the expiry
+   * timer, drop all secret material, clear listeners. The runtime is torn down
+   * before keys.clear() so wallet teardown still has any key material it needs. */
   async dispose(): Promise<void> {
     this.auth.cancelSessionExpiry();
+    await this[walletRuntimeKey].dispose();
     this.keys.clear();
     this.sessionToken.clear();
     this.events.clear();
