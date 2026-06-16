@@ -32,7 +32,7 @@
 |---|---|---|---|
 | 01 | S1 | `@agicash/money` shared package; app + SDK build on it | ✅ [done](2026-06-13-wallet-sdk-01-money-package.md) (2 commits) |
 | 02 | S2 | SDK core shell — config · events · errors+classify · connections · crypto (domains stubbed) | ✅ [done](2026-06-13-wallet-sdk-02-sdk-core-shell.md) (11 commits) — adopted `@agicash/opensecret@1.0.0-rc.0` (catalog bump + `StorageProvider`); framework-free, gate green |
-| 03 | S3 | auth + user (+ session resolver, ensure-on-resolve bootstrap) | ✍️ [written](2026-06-13-wallet-sdk-03-auth-user.md), pending execution |
+| 03 | S3 | auth + user (+ session resolver, ensure-on-resolve bootstrap) | ✅ [done](2026-06-13-wallet-sdk-03-auth-user.md) (19 commits) — auth + user domains live; gate green (248 tests) |
 | 04 | S4 | accounts + scan + exchangeRate (+ live wallet-handle resolution) | not written |
 | 05 | S5 | cashu ops (send / receive / token-claim) | not written |
 | 06 | S6 | spark ops (client + server spark wallet) | not written |
@@ -45,6 +45,27 @@
 Dependency order is largely forced: 01 → 02 → 03 → {04} → {05, 06} → 07 → 08 →
 09 → 10 → 11. Reads (S12) subdivide freely; **S13 (the orchestration flip) is
 necessarily atomic** — see spec §9.
+
+## Carryover notes (from completed slices)
+
+- **Plan 03 → S9 / Plan 11:** the user-row bootstrap in `session-resolver.ts`
+  calls `repo.upsert(...)` directly — it does **not** wrap it in master's
+  `withRetry` (2 attempts, skip Zod errors). This is design-defensible (the web
+  wraps `getCurrentUser` in a TanStack query that retries, and `classify` maps
+  `23505`→`DomainError` / RPC-hint→`ConcurrencyError` for consumer-side retry),
+  but make an explicit decision at the cutover: either rely on the web query's
+  retry, or add a thin bootstrap retry when S9 wires the background lifecycle.
+- **Plan 03 (testing):** bun's `mock.module` is **process-global**. Every SDK
+  test file that calls `mock.module` MUST add `afterAll(() => mock.restore())`
+  (all-or-nothing — `mock.restore` is global). Modules with direct
+  `import { x }` bindings (`open-secret.ts`, `breez.ts`) need a **complete**
+  mock or load fails with "Export named X not found" — use the shared
+  `openSecretModuleMock` / `breezModuleMock` factories in `internal/test-support.ts`.
+  Real module singletons (e.g. breez `wasmInitPromise`) persist across files;
+  assertions on global-init behaviour must be pollution-immune.
+- **Plan 03 (opensecret rc):** confirmed the rc persists `access_token` /
+  `refresh_token` in `storage.persistent`, so the SDK's `isLoggedIn` assumption
+  holds — the earlier Plan 11 token-key concern is resolved.
 
 ## Starting notes for Plan 01 (`@agicash/money`)
 

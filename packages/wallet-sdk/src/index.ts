@@ -1,9 +1,10 @@
 /**
- * @agicash/wallet-sdk — public contract (PR1: types + interfaces, no impl).
+ * @agicash/wallet-sdk — the package's single public entry (`exports["."]`).
  *
- * This barrel is the package's single public entry (`exports["."]`). It re-exports
- * the public domain TYPES + domain INTERFACES + the `Sdk` class shape + `SdkConfig`
- * + the event layer + the error classes. No implementation lands in PR1.
+ * Re-exports the public domain types + domain interfaces + the `Sdk` class +
+ * `SdkConfig` + the event layer + the error classes. Implementation lands
+ * incrementally per migration slice: `auth` + `user` are live (S3); the other
+ * domains are stubbed (`NotImplementedError`) until their slices implement them.
  */
 
 // --- entry point + config --------------------------------------------------
