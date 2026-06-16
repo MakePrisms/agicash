@@ -48,10 +48,19 @@ describe('Sdk core shell', () => {
     expect(sdk).toBeInstanceOf(Sdk);
     await sdk.destroy();
   });
-  it('auth and user domains are wired (not NotImplemented)', async () => {
+  it('auth and user domains are real (not the NotImplemented stub)', async () => {
     const sdk = await Sdk.create(config);
-    expect(typeof sdk.auth.signIn).toBe('function');
-    expect(typeof sdk.user.getCurrentUser).toBe('function');
+    // The config fixture's storage has no tokens, so a REAL getCurrentUser
+    // resolves to null; the Proxy stub would throw NotImplementedError
+    // synchronously instead of returning a promise.
+    await expect(sdk.user.getCurrentUser()).resolves.toBeNull();
+    // A REAL signIn returns a promise that rejects with a non-NotImplemented
+    // error (no session after the mocked no-op auth); the stub would throw
+    // NotImplementedError synchronously.
+    const err = await sdk.auth
+      .signIn({ email: 'a', password: 'b' })
+      .catch((e) => e);
+    expect(err).not.toBeInstanceOf(NotImplementedError);
     await sdk.destroy();
   });
   it('unimplemented domains still throw NotImplementedError', async () => {
@@ -61,6 +70,7 @@ describe('Sdk core shell', () => {
       NotImplementedError,
     );
     expect(() => sdk.background.state()).toThrow(NotImplementedError);
+    expect(() => sdk.spark.receive.get('id')).toThrow(NotImplementedError);
     await sdk.destroy();
   });
 });
