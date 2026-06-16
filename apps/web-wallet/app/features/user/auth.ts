@@ -22,7 +22,7 @@ import { getQueryClient } from '@agicash/wallet-sdk/query-client';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import { getSdk } from '~/features/shared/sdk';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
@@ -302,16 +302,27 @@ export const useHandleSessionExpiry = ({
   onLogout,
 }: HandleSessionExpiryProps) => {
   const { signUpGuest: extendGuestSession, signOut } = useAuthActions();
-  const remainingSessionTime = getSdk().auth.getSessionExpiresInMs();
+  const [remainingSessionTime, setRemainingSessionTime] = useState<
+    number | null
+  >(null);
+
+  // getSessionExpiresInMs is async (the SDK reads the refresh token through the
+  // host's storage provider), so resolve it into state. Read on mount and again
+  // right after a guest extension so the timeout re-arms with the new expiry —
+  // the expiry isn't in the reactive auth state, so we re-read explicitly.
+  const refreshRemainingSessionTime = useCallback(async () => {
+    setRemainingSessionTime(await getSdk().auth.getSessionExpiresInMs());
+  }, []);
+
+  useEffect(() => {
+    refreshRemainingSessionTime();
+  }, [refreshRemainingSessionTime]);
 
   const handleSessionExpiry = async () => {
     try {
       if (isGuestAccount) {
-        // Extend guest session will get new extended access and refresh token from Open Secret. The OS code can be seen
-        // here https://github.com/OpenSecretCloud/OpenSecret-SDK/blob/master/src/lib/main.tsx#L441. Because setState is
-        // called after this method is executed the new render will be triggered and useHandleSessionExpiry will be
-        // executed again which will result in new session expiry timeout being set.
         await extendGuestSession();
+        await refreshRemainingSessionTime();
       } else {
         onLogout();
         // Open secret is already handling potential errors in signOut method and removes the keys from the storage so
@@ -321,7 +332,7 @@ export const useHandleSessionExpiry = ({
       }
     } catch (e) {
       console.error('Failed to handle session expiry', { cause: e });
-      getSdk().auth.clearTokens();
+      await getSdk().auth.clearTokens();
       sessionHintCookie.clear();
       window.location.reload();
     }

@@ -60,7 +60,7 @@
     "zod": "catalog:"
   },
   "dependencies:comments": {
-    "@agicash/opensecret": "1.0.0-rc.0 dropped the react peer-dep — the SDK is now framework-free with no tracked exception. Token storage is pluggable via configure({ storage }); the web passes the browserStorage helper. Remaining headless follow-up (not a framework issue): auth.ts still reads window.localStorage directly instead of through the configured StorageProvider — route those through the provider for a Node/MCP runtime."
+    "@agicash/opensecret": "1.0.0-rc.0 dropped the react peer-dep — the SDK is now framework-free with no tracked exception. Token storage is pluggable via configure({ storage }); the web passes the browserStorage helper and a headless host (Node/MCP) passes its own. auth.ts reads tokens through the configured provider (getConfig().storage.persistent), not window, and awaits getItem so sync (browser) and async (keychain/file/remote) stores both work."
   },
   "devDependencies": {
     "@noble/curves": "catalog:",

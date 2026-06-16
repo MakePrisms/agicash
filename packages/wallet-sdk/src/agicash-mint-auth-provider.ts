@@ -15,7 +15,7 @@ const queryClient = getQueryClient();
 const agicashMintAuthTokenQuery = (): FetchQueryOptions<string | null> => ({
   queryKey: ['agicash-mint-auth-token'],
   queryFn: async () => {
-    if (!isLoggedIn()) {
+    if (!(await isLoggedIn())) {
       return null;
     }
     const response = await generateThirdPartyToken('agicash-mint');

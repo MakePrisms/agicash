@@ -1,4 +1,4 @@
-import { type UserResponse, fetchUser } from '@agicash/opensecret';
+import { type UserResponse, fetchUser, getConfig } from '@agicash/opensecret';
 import type { QueryClient } from '@tanstack/query-core';
 import { jwtDecode } from 'jwt-decode';
 
@@ -56,14 +56,12 @@ const refreshTokenKey = 'refresh_token';
 
 export const authStateQueryKey = 'auth-state';
 
-// These reads hit the same token keys the OpenSecret client writes. OpenSecret
-// 1.0 made storage pluggable (configure({ storage })) and the web backs it with
-// window.localStorage, so the direct reads below still work in the browser. To
-// run headless (Node/MCP) they must go through the configured StorageProvider
-// instead of window.localStorage — tracked as the headless-auth follow-up.
+const readPersistentToken = async (key: string): Promise<string | null> => {
+  return getConfig().storage.persistent.getItem(key);
+};
 
-const getJwt = (key: string): OpenSecretJwt | null => {
-  const jwt = localStorage.getItem(key);
+const getJwt = async (key: string): Promise<OpenSecretJwt | null> => {
+  const jwt = await readPersistentToken(key);
   if (!jwt) {
     return null;
   }
@@ -84,11 +82,11 @@ const getRemainingSessionTimeInMs = (
 };
 
 /**
- * Check if the user is logged in by verifying localStorage tokens.
+ * Check if the user is logged in by verifying the stored session tokens.
  */
-export const isLoggedIn = (): boolean => {
-  const accessToken = window.localStorage.getItem(accessTokenKey);
-  const refreshToken = window.localStorage.getItem(refreshTokenKey);
+export const isLoggedIn = async (): Promise<boolean> => {
+  const accessToken = await readPersistentToken(accessTokenKey);
+  const refreshToken = await readPersistentToken(refreshTokenKey);
   if (!accessToken || !refreshToken) {
     return false;
   }
@@ -119,14 +117,14 @@ export type AuthApi = {
    */
   invalidate: () => Promise<void>;
   /** Token-presence/expiry check without fetching the auth user. */
-  isLoggedIn: () => boolean;
+  isLoggedIn: () => Promise<boolean>;
   /**
    * Milliseconds until the current refresh token expires (treated as expired
    * 5 seconds early), or null when there is no session.
    */
-  getSessionExpiresInMs: () => number | null;
+  getSessionExpiresInMs: () => Promise<number | null>;
   /** Removes the session tokens from storage. */
-  clearTokens: () => void;
+  clearTokens: () => Promise<void>;
 };
 
 export type AuthApiDeps = {
@@ -148,8 +146,8 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
     stateOptions: () => ({
       queryKey: [authStateQueryKey],
       queryFn: async (): Promise<AuthState> => {
-        const accessToken = window.localStorage.getItem(accessTokenKey);
-        const refreshToken = window.localStorage.getItem(refreshTokenKey);
+        const accessToken = await readPersistentToken(accessTokenKey);
+        const refreshToken = await readPersistentToken(refreshTokenKey);
         if (!accessToken || !refreshToken) {
           onAuthStateResolved?.({ isLoggedIn: false, reason: 'no-tokens' });
           return { isLoggedIn: false } as const;
@@ -190,11 +188,12 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
         refetchType: 'all',
       }),
     isLoggedIn,
-    getSessionExpiresInMs: () =>
-      getRemainingSessionTimeInMs(getJwt(refreshTokenKey)),
-    clearTokens: () => {
-      localStorage.removeItem(accessTokenKey);
-      localStorage.removeItem(refreshTokenKey);
+    getSessionExpiresInMs: async () =>
+      getRemainingSessionTimeInMs(await getJwt(refreshTokenKey)),
+    clearTokens: async () => {
+      const { persistent } = getConfig().storage;
+      await persistent.removeItem(accessTokenKey);
+      await persistent.removeItem(refreshTokenKey);
     },
   };
 }

@@ -11,7 +11,7 @@ export const supabaseSessionTokenQuery = (): FetchQueryOptions<
 > => ({
   queryKey: ['supabase-session-token'],
   queryFn: async () => {
-    if (!isLoggedIn()) {
+    if (!(await isLoggedIn())) {
       return null;
     }
     const response = await generateThirdPartyToken();
