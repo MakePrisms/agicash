@@ -21,6 +21,7 @@
     "@agicash/money": "workspace:*",
     "@agicash/opensecret": "catalog:",
     "@agicash/utils": "workspace:*",
+    "@cashu/cashu-ts": "catalog:",
     "@noble/hashes": "catalog:",
     "@scure/bip32": "catalog:",
     "@scure/bip39": "catalog:",
