@@ -22,6 +22,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@agicash/bolt11": "workspace:*",
     "@agicash/breez-sdk-spark": "catalog:",
     "@agicash/cashu": "workspace:*",
     "@agicash/ecies": "workspace:*",
