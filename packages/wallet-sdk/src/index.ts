@@ -8,7 +8,7 @@
 
 // --- entry point + config --------------------------------------------------
 export { Sdk } from './sdk';
-export type { SdkConfig } from './config';
+export type { SdkConfig, DefaultAccountConfig } from './config';
 
 // --- value types -----------------------------------------------------------
 // `Money` is a real class re-exported from the shared @agicash/money package, so

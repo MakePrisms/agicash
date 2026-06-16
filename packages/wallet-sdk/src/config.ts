@@ -7,6 +7,34 @@
  * (auto-generated if omitted) — distinct from `openSecret.clientId`.
  */
 import type { StorageProvider } from '@agicash/opensecret';
+import type { AccountPurpose } from './types/account';
+import type { Currency } from './types/money';
+import type { SparkNetwork } from './types/dependencies';
+
+/**
+ * A default account created during user-row bootstrap (the consumer supplies the
+ * set; the SDK reads no environment). Mirrors the web's `defaultAccounts`: at
+ * least one BTC Spark account is required. Mapped to the DB `account_input`
+ * composite by the bootstrap.
+ */
+export type DefaultAccountConfig =
+  | {
+      type: 'spark';
+      currency: 'BTC';
+      name: string;
+      network: SparkNetwork;
+      purpose: AccountPurpose;
+      isDefault: boolean;
+    }
+  | {
+      type: 'cashu';
+      currency: Currency;
+      name: string;
+      mintUrl: string;
+      isTestMint: boolean;
+      purpose: AccountPurpose;
+      isDefault: boolean;
+    };
 
 /**
  * Configuration passed to {@link Sdk.create}. The consumer supplies connection
@@ -41,6 +69,12 @@ export type SdkConfig = {
    * passes the exported `browserStorage`; MCP/Node implements it over fs/sqlite.
    */
   storage: StorageProvider;
+  /**
+   * Accounts created at first sign-in (user-row bootstrap). The consumer owns the
+   * set (the web gates dev test-mints via `import.meta.env` when assembling this).
+   * Required for client mode; bootstrap throws if it lacks a BTC Spark account.
+   */
+  defaultAccounts?: DefaultAccountConfig[];
   /**
    * Leader-election INSTANCE id for background processing; auto-generated if
    * omitted. Distinct from `openSecret.clientId`.

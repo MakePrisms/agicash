@@ -33,38 +33,65 @@ import type { BackgroundState } from './events';
  * token. Sign-in/out also drive the `auth:*` events.
  */
 export interface AuthDomain {
-  /** Sign in an existing user with email + password; resolves with the user. */
+  /** Sign in an existing user with email + password; resolves the wallet user. */
   signIn(params: { email: string; password: string }): Promise<User>;
-  /** Create a new full (email) account and sign it in. */
-  signUp(params: { email: string; password: string }): Promise<User>;
-  /** Create and sign in an anonymous guest user. */
-  signInGuest(): Promise<User>;
+  /** Create a new full (email) account, bootstrap the user row, and sign in. */
+  signUp(params: {
+    email: string;
+    password: string;
+    termsAcceptedAt?: string;
+    giftCardMintTermsAcceptedAt?: string;
+  }): Promise<User>;
+  /** Create or resume an anonymous guest user and sign in. */
+  signInGuest(params?: {
+    termsAcceptedAt?: string;
+    giftCardMintTermsAcceptedAt?: string;
+  }): Promise<User>;
   /** Sign out the current user and clear the session. */
   signOut(): Promise<void>;
   /** Refresh the current session/access token (extends the session). */
   refresh(): Promise<void>;
-  /** Send a password-reset email to the given address. */
-  resetPassword(email: string): Promise<void>;
+  /** Begin a password reset; the caller holds the returned `secret` for `confirmPasswordReset`. */
+  resetPassword(email: string): Promise<{ secret: string }>;
+  /** Complete a password reset using the emailed code + the held secret. */
+  confirmPasswordReset(params: {
+    email: string;
+    code: string;
+    secret: string;
+    newPassword: string;
+  }): Promise<void>;
   /** Change the signed-in user's password (requires the current password). */
   changePassword(params: { current: string; new: string }): Promise<void>;
-  /** Upgrade the current guest user into a full email account, preserving funds/history. */
+  /** Upgrade the current guest into a full email account, preserving funds/history. */
   upgradeGuest(params: { email: string; password: string }): Promise<User>;
   /**
    * Begin Google OAuth. Returns the URL to redirect the browser to — OAuth is a
-   * REDIRECT flow, not a synchronous session. Web-only; the MCP daemon cannot do
-   * Google auth.
+   * REDIRECT flow. Web-only; the redirect-state stashing stays consumer-side.
    */
   beginGoogleSignIn(): Promise<{ authUrl: string }>;
-  /** Complete OAuth from the redirect callback params; resolves with the user. */
-  completeOAuth(params: Record<string, unknown>): Promise<User>;
+  /** Complete OAuth from the redirect callback params; bootstraps + resolves the user. */
+  completeOAuth(params: {
+    code: string;
+    state: string;
+    termsAcceptedAt?: string;
+    giftCardMintTermsAcceptedAt?: string;
+  }): Promise<User>;
+  /** Verify the user's email with the emailed code; re-resolves (emailVerified flips). */
+  verifyEmail(code: string): Promise<User>;
+  /** Resend the email-verification code. */
+  requestEmailVerificationCode(): Promise<void>;
 }
 
 /** The current user and mutations on their profile. */
 export interface UserDomain {
-  /** The currently signed-in user, or null if none. */
+  /** The currently signed-in user, or null if none. Runs the ensure-on-resolve bootstrap. */
   getCurrentUser(): Promise<User | null>;
   /** Change the user's username. Throws `DomainError` if the username is taken. */
   updateUsername(username: string): Promise<User>;
+  /** Record acceptance of the wallet and/or gift-card-mint terms (sets the timestamp(s) to now). */
+  acceptTerms(params: { wallet?: boolean; giftCardMint?: boolean }): Promise<User>;
+  /** Set the user's preferred display currency. */
+  setDefaultCurrency(currency: Currency): Promise<User>;
 }
 
 // --- §2 Accounts -----------------------------------------------------------

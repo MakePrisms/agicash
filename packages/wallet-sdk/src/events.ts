@@ -85,6 +85,8 @@ export type SdkEventMap = {
   'auth:signed-out': Record<string, never>;
   /** The session expired and could not be refreshed; the consumer must re-auth. */
   'auth:session-expired': Record<string, never>;
+  /** The signed-in user's profile changed (username, terms, default currency, email verification). */
+  'user:updated': { user: User };
   /** The background processor changed lifecycle state. */
   'background:state': { state: BackgroundState };
 };
