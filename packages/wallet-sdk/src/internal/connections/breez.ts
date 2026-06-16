@@ -1,9 +1,12 @@
 import initWasm, {
   type BreezSdk,
+  type Network,
   connect,
   defaultConfig,
+  defaultExternalSigner,
   initLogging,
 } from '@agicash/breez-sdk-spark';
+import { bytesToHex } from '@noble/hashes/utils';
 
 export class WebAssemblyUnavailableError extends Error {
   constructor() {
@@ -96,4 +99,22 @@ export async function connectBreez(
     seed: { type: 'mnemonic', mnemonic },
     storageDir: cfg.storageDir,
   });
+}
+
+/**
+ * Derives the Spark identity public key (hex) for a BIP39 mnemonic. Initializes
+ * the Breez WASM module first (the signer is WASM-backed); `identityPublicKey()`
+ * itself is a synchronous, network-free key derivation — NO `connect()` needed.
+ *
+ * @param mnemonic - The Spark wallet BIP39 mnemonic (BIP-85 child).
+ * @param network - Breez network (`'mainnet'` | `'regtest'`).
+ * @returns The identity public key as a lowercase hex string.
+ */
+export async function getSparkIdentityPublicKey(
+  mnemonic: string,
+  network: Network,
+): Promise<string> {
+  await initBreezWasm();
+  const signer = defaultExternalSigner(mnemonic, null, network);
+  return bytesToHex(new Uint8Array(signer.identityPublicKey().bytes));
 }

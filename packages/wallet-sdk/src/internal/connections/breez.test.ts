@@ -32,9 +32,16 @@ mock.module('@agicash/breez-sdk-spark', () => ({
     optimizationConfig: { autoEnabled: false, multiplicity: 1 },
     maxConcurrentClaims: 4,
   }),
+  defaultExternalSigner: (
+    _mnemonic: string,
+    _passphrase: string | null | undefined,
+    _network: string,
+  ) => ({
+    identityPublicKey: () => ({ bytes: new Uint8Array([1, 2, 3, 4]) }),
+  }),
 }));
 
-const { initBreezWasm, tryInitLogging, connectBreez } = await import('./breez');
+const { initBreezWasm, tryInitLogging, connectBreez, getSparkIdentityPublicKey } = await import('./breez');
 
 describe('initBreezWasm — single-flight WASM init', () => {
   it('calls the WASM init function exactly once across two concurrent calls', async () => {
@@ -105,5 +112,15 @@ describe('connectBreez — connect call shape', () => {
       multiplicity: 2,
     });
     expect(request.config.lnurlDomain).toBeUndefined();
+  });
+});
+
+describe('getSparkIdentityPublicKey', () => {
+  it('returns the signer identity public key as hex (after WASM init)', async () => {
+    const hex = await getSparkIdentityPublicKey(
+      'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+      'mainnet',
+    );
+    expect(hex).toBe('01020304');
   });
 });
