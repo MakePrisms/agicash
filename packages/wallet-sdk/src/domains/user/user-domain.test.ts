@@ -18,8 +18,8 @@ mock.module('@agicash/breez-sdk-spark', () => breezModuleMock());
 afterAll(() => mock.restore());
 
 const { createUserDomain } = await import('./user-domain');
-import { DomainError } from '../../errors';
 import type { SdkConfig } from '../../config';
+import { DomainError, SdkError } from '../../errors';
 import type { SdkEventMap } from '../../events';
 import { SdkEventEmitter } from '../../internal/event-emitter';
 import type { DomainContext } from '../context';
@@ -108,5 +108,32 @@ describe('user domain', () => {
     );
     const user = await createUserDomain(ctx).getCurrentUser();
     expect(user?.id).toBe('u1');
+  });
+
+  it('mutations throw SdkError(NOT_AUTHENTICATED) when there is no session', async () => {
+    const emitter = new SdkEventEmitter<SdkEventMap>();
+    const ctx: DomainContext = {
+      config: { storage: inMemoryStorage() } as unknown as SdkConfig,
+      connections: {
+        supabase: makeFakeDb({}),
+      } as unknown as DomainContext['connections'],
+      emitter,
+    };
+    const err = await createUserDomain(ctx)
+      .updateUsername('x')
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(SdkError);
+    expect((err as SdkError).code).toBe('NOT_AUTHENTICATED');
+  });
+
+  it('acceptTerms({giftCardMint:true}) sets only gift_card_mint_terms_accepted_at', async () => {
+    const calls = { update: [] as unknown[] };
+    const { ctx } = setup(
+      makeFakeDb({ updateResult: { data: dbRow, error: null }, calls }),
+    );
+    await createUserDomain(ctx).acceptTerms({ giftCardMint: true });
+    const payload = calls.update[0] as Record<string, unknown>;
+    expect(typeof payload.gift_card_mint_terms_accepted_at).toBe('string');
+    expect('terms_accepted_at' in payload).toBe(false);
   });
 });
