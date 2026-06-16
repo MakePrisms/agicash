@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterAll, describe, expect, it, mock } from 'bun:test';
 
 mock.module('@agicash/breez-sdk-spark', () => ({
   default: async () => {},
@@ -9,6 +9,10 @@ mock.module('@agicash/breez-sdk-spark', () => ({
     identityPublicKey: () => ({ bytes: new Uint8Array([9, 9, 9]) }),
   }),
 }));
+
+// bun's mock.module is process-global; restore after this file so its
+// @agicash/breez-sdk-spark mock can't bleed into breez.test.ts (or vice versa).
+afterAll(() => mock.restore());
 
 const {
   BASE_CASHU_LOCKING_DERIVATION_PATH,

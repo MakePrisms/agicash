@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterAll, describe, expect, it, mock } from 'bun:test';
 import type { SdkConfig } from '../../config';
 
 const calls: unknown[][] = [];
@@ -12,6 +12,10 @@ mock.module('@supabase/supabase-js', () => ({
 const { createBrowserClient, createServerClient } = await import(
   './supabase-client'
 );
+
+// bun's mock.module is process-global; restore after this file so its
+// @supabase/supabase-js mock stays isolated from other files mocking it.
+afterAll(() => mock.restore());
 
 const baseConfig: SdkConfig = {
   openSecret: { url: 'https://os.test', clientId: 'cid' },

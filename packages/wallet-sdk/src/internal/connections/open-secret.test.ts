@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterAll, describe, expect, it, mock } from 'bun:test';
 import type { SdkConfig } from '../../config';
 
 const configureCalls: unknown[] = [];
@@ -19,6 +19,10 @@ mock.module('@agicash/opensecret', () => ({
 }));
 
 const { configureOpenSecret, isLoggedIn } = await import('./open-secret');
+
+// bun's mock.module is process-global; restore after this file so its
+// @agicash/opensecret mock stays isolated from other files mocking it.
+afterAll(() => mock.restore());
 
 function fakeStorage(tokens: Record<string, string>): SdkConfig['storage'] {
   const kv = {

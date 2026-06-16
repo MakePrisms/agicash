@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { afterAll, describe, expect, it, mock } from 'bun:test';
 import type { SdkConfig } from './config';
 import { NotImplementedError, Sdk } from './index';
 
@@ -16,6 +16,10 @@ mock.module('@supabase/supabase-js', () => ({
     removeAllChannels: async () => [],
   }),
 }));
+
+// bun's mock.module is process-global; restore after this file so these mocks
+// stay isolated from other files mocking the same modules.
+afterAll(() => mock.restore());
 
 function makeMem() {
   const m = new Map<string, string>();
