@@ -63,3 +63,57 @@ export function inMemoryStorage(
 export function jwtWith(claims: { sub?: string; exp?: number }): string {
   return `h.${btoa(JSON.stringify(claims)).replace(/=/g, '')}.s`;
 }
+
+/**
+ * A COMPLETE `@agicash/opensecret` mock module — every name `open-secret.ts`
+ * imports or re-exports — so importing the connection module never throws
+ * "Export named X not found". Merge `overrides` to customize specific functions.
+ */
+export function openSecretModuleMock(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const noop = async () => undefined;
+  return {
+    configure: () => {},
+    generateThirdPartyToken: async () => ({ token: 'tok' }),
+    getPrivateKey: async () => ({ mnemonic: 'm' }),
+    getPrivateKeyBytes: async () => ({ private_key: '00'.repeat(32) }),
+    getPublicKey: async () => ({ public_key: `02${'00'.repeat(32)}`, algorithm: 'schnorr' }),
+    signIn: noop,
+    signUp: noop,
+    signInGuest: noop,
+    signUpGuest: noop,
+    signOut: noop,
+    convertGuestToUserAccount: noop,
+    initiateGoogleAuth: noop,
+    handleGoogleCallback: noop,
+    requestPasswordReset: noop,
+    confirmPasswordReset: noop,
+    verifyEmail: noop,
+    requestNewVerificationCode: noop,
+    changePassword: noop,
+    refreshAccessToken: async () => ({ access_token: 'a', refresh_token: 'r' }),
+    fetchUser: async () => ({ user: { id: 'u1', email_verified: false } }),
+    ...overrides,
+  };
+}
+
+/**
+ * A COMPLETE `@agicash/breez-sdk-spark` mock module — every name `breez.ts`
+ * imports. `defaultExternalSigner().identityPublicKey().bytes` defaults to
+ * `[7]` (hex `07`). Merge `overrides` to customize.
+ */
+export function breezModuleMock(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    default: async () => {},
+    connect: async () => ({}),
+    defaultConfig: () => ({}),
+    initLogging: async () => {},
+    defaultExternalSigner: () => ({
+      identityPublicKey: () => ({ bytes: new Uint8Array([7]) }),
+    }),
+    ...overrides,
+  };
+}
