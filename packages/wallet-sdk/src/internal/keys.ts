@@ -4,7 +4,7 @@ import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import type { OpenSecret } from './opensecret';
 
-const CASHU_SEED_PATH = "m/83696968'/39'/0'/12'/0'";
+export const CASHU_SEED_PATH = "m/83696968'/39'/0'/12'/0'";
 const SPARK_MNEMONIC_PATH = "m/83696968'/39'/0'/12'/1'";
 const ENCRYPTION_KEY_PATH = "m/10111099'/0'";
 // 129372 = UTF-8 for the peanut emoji (NUT-13). DO NOT CHANGE without migrating
