@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { type LongTimeout, clearLongTimeout, setLongTimeout } from '../timeout';
 import { useLatest } from '../use-latest';
 import { MeltQuoteSubscriptionManager } from './melt-quote-subscription-manager';
-import type { ExtendedCashuWallet } from './utils';
+import type { ExtendedCashuWallet } from '@agicash/wallet-sdk/internal/cashu/wallet';
 
 type OnMeltQuoteStateChangeProps = {
   subscriptionManager?: MeltQuoteSubscriptionManager;

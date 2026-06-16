@@ -24,3 +24,32 @@ export {
   type Encryption,
   getEncryption,
 } from './internal/crypto/encryption';
+export type {
+  Account,
+  CashuAccount,
+  SparkAccount,
+  ExtendedAccount,
+  ExtendedCashuAccount,
+  ExtendedSparkAccount,
+  RedactedAccount,
+  RedactedCashuAccount,
+  AccountType,
+  AccountPurpose,
+  AccountState,
+} from './domains/account-types';
+export {
+  canSendToLightning,
+  canReceiveFromLightning,
+  getAccountBalance,
+  accountRequiresGiftCardTermsAcceptance,
+  getAccountHomePath,
+} from './domains/account-types';
+export type { CashuProof } from './domains/cashu-proof';
+export {
+  ExtendedCashuWallet,
+  getCashuWallet,
+} from './internal/cashu/wallet';
+export {
+  tokenToMoney,
+  getTokenHash,
+} from './internal/cashu/token';

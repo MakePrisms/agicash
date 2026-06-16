@@ -1,4 +1,4 @@
-import { type Currency, type CurrencyUnit, Money } from '@agicash/money';
+import { type Currency } from '@agicash/money';
 import {
   getPrivateKey as getMnemonic,
   getPrivateKeyBytes,
@@ -25,21 +25,23 @@ import { getQueryClient } from '~/features/shared/query-client';
 import {
   ExtendedMintInfo,
   type MintPurpose,
-  encodeToken,
   extractCashuToken,
   getCashuProtocolUnit,
   getCashuUnit,
-  sumProofs,
 } from '@agicash/cashu';
-import { type ExtendedCashuWallet, getCashuWallet } from '~/lib/cashu';
 import {
+  type ExtendedCashuWallet,
   MintBlocklistSchema,
   buildMintValidator,
-} from '~/lib/cashu/mint-validation';
+  getCashuWallet,
+} from '~/lib/cashu';
 import { measureOperation } from '~/lib/performance';
-import { computeSHA256 } from '@agicash/ecies';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
 import { getAgicashMintAuthProvider } from './agicash-mint-auth-provider';
+export {
+  tokenToMoney,
+  getTokenHash,
+} from '@agicash/wallet-sdk/internal/cashu/token';
 
 // Cashu-specific derivation path with hardnened indexes to derive public keys for
 // locking mint quotes and proofs. 129372 is UTF-8 for 🥜 (see NUT-13) and the other
@@ -49,30 +51,6 @@ import { getAgicashMintAuthProvider } from './agicash-mint-auth-provider';
 // DO NOT CHANGE THIS VALUE WITHOUT UPDATING USER'S XPUB IN THE DATABASE. IF THIS
 // IS NOT DONE, THEN WE WILL CREATE THE WRONG DERIVATION PATH WHEN GETTING PRIVATE KEYS.
 export const BASE_CASHU_LOCKING_DERIVATION_PATH = "m/129372'/0'/0'";
-
-function getCurrencyAndUnitFromToken(token: Token): {
-  currency: Currency;
-  unit: CurrencyUnit;
-  formatUnit: 'sat' | 'usd';
-} {
-  if (token.unit === 'sat') {
-    return { currency: 'BTC', unit: 'sat', formatUnit: 'sat' };
-  }
-  if (token.unit === 'usd') {
-    return { currency: 'USD', unit: 'cent', formatUnit: 'usd' };
-  }
-  throw new Error(`Invalid token unit ${token.unit}`);
-}
-
-export function tokenToMoney(token: Token): Money {
-  const { currency, unit } = getCurrencyAndUnitFromToken(token);
-  const amount = sumProofs(token.proofs);
-  return new Money<Currency>({
-    amount,
-    currency,
-    unit,
-  });
-}
 
 export type CashuCryptography = {
   getSeed: () => Promise<Uint8Array>;
@@ -154,13 +132,6 @@ export function useCashuCryptography(): CashuCryptography {
   const queryClient = useQueryClient();
 
   return useMemo(() => getCashuCryptography(queryClient), [queryClient]);
-}
-
-export function getTokenHash(token: Token | string): Promise<string> {
-  if (typeof token === 'string') {
-    return computeSHA256(token);
-  }
-  return computeSHA256(encodeToken(token));
 }
 
 const mintBlocklist = MintBlocklistSchema.parse(

@@ -4,11 +4,17 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./domains/account-types": "./src/domains/account-types.ts",
+    "./domains/cashu-proof": "./src/domains/cashu-proof.ts",
     "./domains/user-types": "./src/domains/user-types.ts",
+    "./internal/cashu/mint-validation": "./src/internal/cashu/mint-validation.ts",
+    "./internal/cashu/token": "./src/internal/cashu/token.ts",
+    "./internal/cashu/wallet": "./src/internal/cashu/wallet.ts",
     "./internal/crypto/encryption": "./src/internal/crypto/encryption.ts",
     "./internal/db/database": "./src/internal/db/database.ts",
     "./internal/db/json-models/cashu-account-details-db-data": "./src/internal/db/json-models/cashu-account-details-db-data.ts",
     "./internal/db/json-models/spark-account-details-db-data": "./src/internal/db/json-models/spark-account-details-db-data.ts",
+    "./internal/key-derivation": "./src/internal/key-derivation.ts",
     "./*": "./src/*"
   },
   "scripts": {
