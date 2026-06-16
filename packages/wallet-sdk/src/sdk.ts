@@ -26,7 +26,7 @@ import { createAuthDomain } from './domains/auth/auth-domain';
 import type { DomainContext } from './domains/context';
 import { createUserDomain } from './domains/user/user-domain';
 import type { EventEmitter, SdkEventMap } from './events';
-import { buildConnections, type SdkConnections } from './internal/connections';
+import { type SdkConnections, buildConnections } from './internal/connections';
 import { SdkEventEmitter } from './internal/event-emitter';
 import { notImplementedDomain } from './internal/not-implemented';
 

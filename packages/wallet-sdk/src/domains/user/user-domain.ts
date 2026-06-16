@@ -44,7 +44,9 @@ export function createUserDomain(ctx: DomainContext): UserDomain {
     },
     async setDefaultCurrency(currency: Currency) {
       const userId = await requireUserId();
-      return emitUpdated(await repo.update(userId, { defaultCurrency: currency }));
+      return emitUpdated(
+        await repo.update(userId, { defaultCurrency: currency }),
+      );
     },
   };
 }

@@ -40,7 +40,12 @@ export function createAuthDomain(ctx: DomainContext): AuthDomain {
       await osSignIn(email, password);
       return signedIn();
     },
-    async signUp({ email, password, termsAcceptedAt, giftCardMintTermsAcceptedAt }) {
+    async signUp({
+      email,
+      password,
+      termsAcceptedAt,
+      giftCardMintTermsAcceptedAt,
+    }) {
       await osSignUp(email, password, '');
       return signedIn({ termsAcceptedAt, giftCardMintTermsAcceptedAt });
     },
@@ -83,7 +88,12 @@ export function createAuthDomain(ctx: DomainContext): AuthDomain {
       const { auth_url } = await osInitiateGoogleAuth('');
       return { authUrl: auth_url };
     },
-    async completeOAuth({ code, state, termsAcceptedAt, giftCardMintTermsAcceptedAt }) {
+    async completeOAuth({
+      code,
+      state,
+      termsAcceptedAt,
+      giftCardMintTermsAcceptedAt,
+    }) {
       await osHandleGoogleCallback(code, state, '');
       return signedIn({ termsAcceptedAt, giftCardMintTermsAcceptedAt });
     },

@@ -20,7 +20,10 @@ export class GuestCredentialStore {
     }
     try {
       const parsed = JSON.parse(raw) as Partial<GuestCredentials>;
-      if (typeof parsed.id === 'string' && typeof parsed.password === 'string') {
+      if (
+        typeof parsed.id === 'string' &&
+        typeof parsed.password === 'string'
+      ) {
         return { id: parsed.id, password: parsed.password };
       }
     } catch {
@@ -30,7 +33,10 @@ export class GuestCredentialStore {
   }
 
   async store(credentials: GuestCredentials): Promise<void> {
-    await this.storage.persistent.setItem(GUEST_KEY, JSON.stringify(credentials));
+    await this.storage.persistent.setItem(
+      GUEST_KEY,
+      JSON.stringify(credentials),
+    );
   }
 
   async clear(): Promise<void> {

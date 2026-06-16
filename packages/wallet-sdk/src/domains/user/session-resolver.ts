@@ -33,7 +33,8 @@ export function hasUserChanged(
   const identityEmail = identity.email ?? null;
   const userEmail = user.isGuest ? null : user.email;
   return (
-    userEmail !== identityEmail || user.emailVerified !== identity.email_verified
+    userEmail !== identityEmail ||
+    user.emailVerified !== identity.email_verified
   );
 }
 
