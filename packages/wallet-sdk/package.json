@@ -21,6 +21,7 @@
     "./internal/crypto/encryption": "./src/internal/crypto/encryption.ts",
     "./internal/db/cashu-proof-decryption": "./src/internal/db/cashu-proof-decryption.ts",
     "./internal/db/database": "./src/internal/db/database.ts",
+    "./internal/db/json-models": "./src/internal/db/json-models/index.ts",
     "./internal/db/json-models/cashu-account-details-db-data": "./src/internal/db/json-models/cashu-account-details-db-data.ts",
     "./internal/db/json-models/spark-account-details-db-data": "./src/internal/db/json-models/spark-account-details-db-data.ts",
     "./internal/key-derivation": "./src/internal/key-derivation.ts",
