@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it, mock } from 'bun:test';
+import { sha256Hex } from '../../internal/crypto/sha256';
 import {
   breezModuleMock,
   inMemoryStorage,
@@ -14,6 +15,7 @@ const calls = {
   signInGuest: [] as unknown[],
   resetPassword: [] as unknown[],
   verifyEmail: [] as unknown[],
+  convertGuest: [] as unknown[],
 };
 
 mock.module('@agicash/opensecret', () =>
@@ -39,6 +41,9 @@ mock.module('@agicash/opensecret', () =>
     },
     verifyEmail: async (...a: unknown[]) => {
       calls.verifyEmail.push(a);
+    },
+    convertGuestToUserAccount: async (...a: unknown[]) => {
+      calls.convertGuest.push(a);
     },
     initiateGoogleAuth: async () => ({
       auth_url: 'https://accounts.google/x',
@@ -106,7 +111,10 @@ function setup(db: ReturnType<typeof makeFakeDb>) {
         refresh_token: jwtWith({ exp: Math.floor(Date.now() / 1000) + 3600 }),
       }),
     } as unknown as SdkConfig,
-    connections: { supabase: db, keys } as unknown as DomainContext['connections'],
+    connections: {
+      supabase: db,
+      keys,
+    } as unknown as DomainContext['connections'],
     emitter,
   };
   return { ctx, signedIn, signedOut, updated };
@@ -150,9 +158,9 @@ describe('auth domain', () => {
     );
     await createAuthDomain(ctx).signInGuest();
     expect(calls.signUpGuest).toHaveLength(1);
-    expect(await ctx.config.storage.persistent.getItem('guestAccount')).toContain(
-      'guest-1',
-    );
+    expect(
+      await ctx.config.storage.persistent.getItem('guestAccount'),
+    ).toContain('guest-1');
   });
 
   it('signInGuest with stored creds signs in with them', async () => {
@@ -182,6 +190,7 @@ describe('auth domain', () => {
     const [email, hash] = calls.resetPassword.at(-1) as [string, string];
     expect(email).toBe('a@b.co');
     expect(hash).not.toBe(secret);
+    expect(hash).toBe(await sha256Hex(secret));
   });
 
   it('verifyEmail re-resolves + emits user:updated', async () => {
@@ -199,5 +208,25 @@ describe('auth domain', () => {
     const { ctx } = setup(makeFakeDb({}));
     const { authUrl } = await createAuthDomain(ctx).beginGoogleSignIn();
     expect(authUrl).toBe('https://accounts.google/x');
+  });
+
+  it('upgradeGuest converts, clears stored creds, and emits auth:signed-in', async () => {
+    calls.convertGuest.length = 0;
+    const { ctx, signedIn } = setup(
+      makeFakeDb({ selectResult: { data: guestRow, error: null } }),
+    );
+    await ctx.config.storage.persistent.setItem(
+      'guestAccount',
+      JSON.stringify({ id: 'guest-1', password: 'pw' }),
+    );
+    await createAuthDomain(ctx).upgradeGuest({
+      email: 'a@b.co',
+      password: 'newpw',
+    });
+    expect(calls.convertGuest.at(-1)).toEqual(['a@b.co', 'newpw']);
+    expect(
+      await ctx.config.storage.persistent.getItem('guestAccount'),
+    ).toBeNull();
+    expect(signedIn).toHaveLength(1);
   });
 });
