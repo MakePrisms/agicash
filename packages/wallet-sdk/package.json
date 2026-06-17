@@ -31,6 +31,7 @@
     "./internal/db/json-models/cashu-account-details-db-data": "./src/internal/db/json-models/cashu-account-details-db-data.ts",
     "./internal/db/json-models/spark-account-details-db-data": "./src/internal/db/json-models/spark-account-details-db-data.ts",
     "./internal/key-derivation": "./src/internal/key-derivation.ts",
+    "./internal/lightning-address/lnurl-types": "./src/internal/lightning-address/lnurl-types.ts",
     "./internal/spark/receive-quote-core": "./src/internal/spark/receive-quote-core.ts",
     "./engine": "./src/engine.ts",
     "./internal/cashu/init-wallet": "./src/internal/cashu/init-wallet.ts",
