@@ -7,11 +7,10 @@ import type {
 import { ProofStateSubscriptionManager } from '../send/proof-state-subscription-manager';
 
 export type ProofStateTrackerOptions = {
-  /** Drives the retrying subscribe mutation (matches the web's `useMutation`). */
+  /** Drives the retrying subscribe mutation. */
   queryClient: QueryClient;
   /**
    * Resolves the cashu account (and thus its mint url) for a swap's accountId.
-   * Mirrors the web hook's `getCashuAccount(accountId)`.
    * @throws if the account is not a known cashu account.
    */
   getCashuAccount: (accountId: string) => CashuAccount;
@@ -23,17 +22,15 @@ export type ProofStateTrackerOptions = {
 };
 
 /**
- * Headless reproduction of the web's `useOnProofStateChange` hook. It holds a
- * single {@link ProofStateSubscriptionManager} (already framework-free), groups
- * the pending send swaps by their account's mint url, and subscribes per mint;
- * the manager handles one socket per mint, the subset-dedup, and the multi-proof
- * "all spent" aggregation that fires {@link ProofStateTrackerOptions.onSpent}.
+ * Tracks the pending send swaps' proofs. It holds a single
+ * {@link ProofStateSubscriptionManager}, groups the pending send swaps by their
+ * account's mint url, and subscribes per mint; the manager handles one socket
+ * per mint, the subset-dedup, and the multi-proof "all spent" aggregation that
+ * fires {@link ProofStateTrackerOptions.onSpent}.
  *
- * The subscribe is dispatched through a query-core `MutationObserver` with
- * `retry: 5`, matching the web hook's `useMutation({ retry: 5 })` (the observer
- * is the reactivity primitive `useMutation` wraps, so the retry is identical).
- * `setSwaps` replaces the hook's `swaps`-keyed effect (re-group, re-subscribe);
- * `stop` tears the tracker down on deactivate.
+ * The subscribe is dispatched through a `MutationObserver` with `retry: 5`.
+ * `setSwaps` re-groups and re-subscribes for the new swap set; `stop` tears the
+ * tracker down on deactivate.
  */
 export class ProofStateTracker {
   private readonly getCashuAccount: (accountId: string) => CashuAccount;
@@ -63,7 +60,7 @@ export class ProofStateTracker {
 
   /**
    * Updates the work-set: groups the pending swaps by mint url and (re)subscribes
-   * per mint. Mirrors the hook's `swaps` effect.
+   * per mint.
    */
   setSwaps(swaps: PendingCashuSendSwap[]): void {
     const swapsByMint = swaps.reduce<Record<string, PendingCashuSendSwap[]>>(
@@ -89,8 +86,7 @@ export class ProofStateTracker {
 
   /** No-op placeholder kept for lifecycle symmetry with the other trackers. */
   stop(): void {
-    // The subscription manager closes its sockets on mint `onClose`; the web
-    // hook had no explicit teardown either (the effect's deps drove
-    // re-subscription, not unsubscription). Nothing to actively tear down.
+    // The subscription manager closes its sockets on mint `onClose`; there is
+    // nothing to actively tear down here.
   }
 }

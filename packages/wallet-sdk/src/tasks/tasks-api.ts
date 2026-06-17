@@ -14,10 +14,9 @@ export type TasksStatus = 'stopped' | 'follower' | 'leader' | 'error';
 export type TasksStartOptions = {
   /**
    * The client identity used for leader election. Defaults to a random UUID
-   * minted once per engine instance, matching the web's per-session id (a
-   * reload mints a new one, so there is up to one lease-TTL of no-processing
-   * after a refresh until the old lease expires). A headless daemon can pass a
-   * stable per-daemon id.
+   * minted once per engine instance (a reload mints a new one, so there is up
+   * to one lease-TTL of no-processing after a refresh until the old lease
+   * expires). A headless daemon can pass a stable per-daemon id.
    */
   clientId?: string;
 };
@@ -32,16 +31,12 @@ export type TasksApi = {
   start: (opts?: TasksStartOptions) => void;
   /**
    * Stops leader election and resets the status to `stopped`. The DB lease is
-   * not actively released; it expires on its own (the same behavior the web
-   * had — closing a tab just lets the lease lapse). Idempotent.
+   * not actively released; it expires on its own. Idempotent.
    */
   stop: () => void;
   /** The current lifecycle status. */
   getStatus: () => TasksStatus;
-  /**
-   * Subscribes to status changes (useSyncExternalStore compatible). Returns the
-   * unsubscribe function.
-   */
+  /** Subscribes to status changes. Returns the unsubscribe function. */
   onStatusChange: (listener: () => void) => () => void;
   /** The last leader-election error, if the status is `error`. */
   getError: () => Error | null;
@@ -59,20 +54,16 @@ export type TasksApiDeps = {
   getCurrentUserId: () => string;
   /**
    * The saga-family processors. Each is activated while this client is the
-   * leader and deactivated otherwise — the headless equivalent of
-   * `{isLead && <TaskProcessor/>}`.
+   * leader and deactivated otherwise.
    */
   processors: SagaProcessor[];
 };
 
 /**
- * The background task-processing engine. It absorbs the `take_lead` poll the
- * web's `useTakeTaskProcessingLead` ran (exposing it as an imperative lifecycle
- * the web, and later a headless daemon, drives) and runs the registered saga
- * processors while this client holds the lease — the headless equivalent of
- * `{isLead && <TaskProcessor/>}`. Families not yet moved into the engine stay
- * in the web's `TaskProcessor`, now gated on this engine's leadership so there
- * is exactly one lock.
+ * The background task-processing engine. It runs leader election (the
+ * `take_lead` poll) and, while this client holds the lease, runs the registered
+ * saga processors. start/stop/status are exposed as an imperative lifecycle a
+ * host drives (the web app today, a headless daemon later).
  */
 export function createTasksApi(deps: TasksApiDeps): TasksApi {
   const {
@@ -132,10 +123,8 @@ export function createTasksApi(deps: TasksApiDeps): TasksApi {
 
       const clientId = opts?.clientId ?? crypto.randomUUID();
 
-      // The same options the web's useQuery used; the QueryObserver is the
-      // reactivity primitive useQuery wraps, so retry/refetch/interval behave
-      // identically. The 5s renew poll keeps the 6s DB lease alive; on expiry
-      // another client steals it.
+      // The 5s renew poll keeps the 6s DB lease alive; on expiry another client
+      // steals it.
       observer = new QueryObserver<boolean>(queryClient, {
         enabled: !!clientId,
         queryKey: ['take-lead', clientId],
@@ -155,7 +144,7 @@ export function createTasksApi(deps: TasksApiDeps): TasksApi {
           return;
         }
         // data === true => we hold the lease; false or undefined (not yet
-        // settled) => we do not, matching the web's `takeLeadResult ?? false`.
+        // settled) => we do not hold the lease.
         setState(result.data === true ? 'leader' : 'follower', null);
       });
 

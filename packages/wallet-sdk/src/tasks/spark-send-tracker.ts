@@ -16,14 +16,13 @@ export type SparkSendWorkItem = SparkSendQuote;
 export type SparkSendTrackerOptions = {
   /**
    * Resolves the spark account (and thus its Breez wallet) for a quote's
-   * accountId. Mirrors the web hook's `getSparkAccount(accountId)`.
+   * accountId.
    * @throws if the account is not a known spark account.
    */
   getSparkAccount: (accountId: string) => SparkAccount;
   /**
-   * Called for an UNPAID quote to drive its initiation. Fired immediately when
-   * the work-set is set (the web hook fires this synchronously in the
-   * `pendingQuotes` effect), deduped so a re-set of the same UNPAID quote does
+   * Called for an UNPAID quote to drive its initiation. Fired synchronously
+   * when the work-set is set, deduped so a re-set of the same UNPAID quote does
    * not re-fire.
    */
   onUnpaid: (quote: SparkSendQuote) => void;
@@ -45,8 +44,7 @@ export type SparkSendTrackerOptions = {
 };
 
 /**
- * Headless reproduction of the web's `useOnSparkSendStateChange` hook. It
- * watches a work-set of unresolved spark send quotes and:
+ * Tracks a work-set of unresolved spark send quotes and:
  *  - for UNPAID quotes, fires {@link SparkSendTrackerOptions.onUnpaid} once (to
  *    drive initiation);
  *  - for PENDING quotes, groups them by spark account and registers ONE Breez
@@ -64,13 +62,12 @@ export type SparkSendTrackerOptions = {
  * transition would dispatch twice. The per-scope MutationObserver serialization
  * and the cache re-read guard in the processor do NOT cover this (a duplicate
  * event arriving after the first mutation settled would re-dispatch), so the
- * dedup is reproduced here verbatim. Entries for quotes no longer present are
- * pruned on each `setQuotes`. The non-React detection logic is preserved
- * verbatim.
+ * dedup is handled here. Entries for quotes no longer present are pruned on each
+ * `setQuotes`.
  *
- * `setQuotes` replaces the hook's `sendQuotes`-keyed effect (prune dedup, fire
- * UNPAID, re-group, re-register, re-initial-check); `stop` removes the account
- * listeners, the headless equivalent of the effect's cleanup.
+ * `setQuotes` prunes the dedup, fires UNPAID, re-groups, re-registers the
+ * listeners, and re-runs the initial check for the new quote set; `stop`
+ * removes the account listeners.
  */
 export class SparkSendTracker {
   private readonly getSparkAccount: (accountId: string) => SparkAccount;
@@ -100,8 +97,7 @@ export class SparkSendTracker {
    * Updates the work-set: tears down the previous account listeners, prunes
    * dedup entries for quotes no longer present, fires onUnpaid for UNPAID
    * quotes, then for the PENDING quotes registers one listener per spark
-   * account and runs the initial settled-payment check per quote. Mirrors the
-   * hook's `sendQuotes` effect.
+   * account and runs the initial settled-payment check per quote.
    */
   setQuotes(quotes: SparkSendWorkItem[]): void {
     this.teardown();

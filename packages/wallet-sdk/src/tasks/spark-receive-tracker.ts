@@ -24,7 +24,7 @@ export type SparkReceiveWorkItem = {
 export type SparkReceiveTrackerOptions = {
   /**
    * Resolves the spark account (and thus its Breez wallet) for a work-item's
-   * accountId. Mirrors the web hook's `getSparkAccount(accountId)`.
+   * accountId.
    * @throws if the account is not a known spark account.
    */
   getSparkAccount: (accountId: string) => SparkAccount;
@@ -42,9 +42,8 @@ export type SparkReceiveTrackerOptions = {
 };
 
 /**
- * Headless reproduction of the web's `useOnSparkReceiveStateChange` hook. It
- * watches a work-set of pending spark receive quotes, groups them by spark
- * account, and registers ONE Breez listener per account's `wallet`
+ * Tracks a work-set of pending spark receive quotes: groups them by spark
+ * account and registers ONE Breez listener per account's `wallet`
  * (`addEventListener`, additive and independent of the always-on balance
  * listener `accounts.trackSparkBalances` attaches to the same shared `BreezSdk`).
  * On `paymentSucceeded` it matches the lightning payment by htlc payment hash,
@@ -52,12 +51,11 @@ export type SparkReceiveTrackerOptions = {
  * on `synced` it sweeps the account's quotes for any past their expiry and fires
  * {@link SparkReceiveTrackerOptions.onExpired}. The listener is registered BEFORE
  * the initial per-quote `getPaymentByInvoice` check so an already-completed
- * payment is not missed in the race window. The non-React detection logic is
- * preserved verbatim.
+ * payment is not missed in the race window.
  *
- * `setQuotes` replaces the hook's `pendingQuotes`-keyed effect (re-group,
- * re-register, re-initial-check); `stop` awaits each listener promise then
- * removes it, the headless equivalent of the effect's cleanup.
+ * `setQuotes` re-groups, re-registers the listeners, and re-runs the initial
+ * check for the new quote set; `stop` awaits each listener promise then
+ * removes it.
  */
 export class SparkReceiveTracker {
   private readonly getSparkAccount: (accountId: string) => SparkAccount;
@@ -79,7 +77,7 @@ export class SparkReceiveTracker {
   /**
    * Updates the work-set: tears down the previous account listeners, then for
    * the new set registers one listener per spark account and runs the initial
-   * completed-payment check per quote. Mirrors the hook's `pendingQuotes` effect.
+   * completed-payment check per quote.
    */
   setQuotes(quotes: SparkReceiveWorkItem[]): void {
     this.teardown();

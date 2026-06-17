@@ -52,21 +52,18 @@ export type SparkReceiveQuoteProcessorDeps = {
 };
 
 /**
- * The headless spark-receive-quote saga processor — a behavior-preserving lift
- * of the web's `useProcessSparkReceiveQuoteTasks`. While active (leader) it:
+ * The spark-receive-quote saga processor. While active (leader) it:
  *  - watches the current user's pending spark receive quotes that belong to an
- *    online account (the same `select` the web's
- *    `useSelectItemsWithOnlineAccount` applied);
+ *    online account (offline-account quotes are not processed);
  *  - drives a {@link SparkReceiveTracker} (one Breez listener per spark account
  *    + the initial getPaymentByInvoice check) to detect paid/expired;
  *  - drives a {@link MeltQuoteTracker} over the CASHU_TOKEN quotes' melt legs;
  *  - on each detected change dispatches the matching transition through a
- *    query-core `MutationObserver` with the SAME scope ids, retry policy, and
- *    onSuccess cache-write discipline the web mutations used.
+ *    `MutationObserver`, serialized per quote by scope id, with the retry policy
+ *    and onSuccess cache writes each transition needs.
  *
  * Every transition re-reads the live entity from the pending cache and
- * early-returns if it is gone ("updated in the meantime"), exactly as the web
- * mutationFns did.
+ * early-returns if it is gone (it was updated in the meantime).
  *
  * The Breez listener this attaches is the LEADER-ONLY saga listener and is
  * distinct from the always-on balance listener `accounts.trackSparkBalances`
@@ -109,9 +106,8 @@ export function createSparkReceiveQuoteProcessor(
           a.currency === currency,
       ) ?? null;
 
-  // Fire-and-forget dispatch matching react-query's `useMutation().mutate`,
-  // which is `observer.mutate(vars, opts).catch(noop)` — the rejection is
-  // swallowed (onError/throwOnError still run); the per-call scope rides in opts.
+  // Fire-and-forget dispatch: the rejection is swallowed (onError/throwOnError
+  // still run); the per-call scope rides in opts.
   function dispatch<TData, TVariables>(
     observer: MutationObserver<TData, Error, TVariables>,
     variables: TVariables,
@@ -265,10 +261,10 @@ export function createSparkReceiveQuoteProcessor(
             cause: error,
             receiveQuoteId: quoteId,
           });
-          // Preserved verbatim from the web hook: the initiate-melt cascade
-          // fails under the `cashu-receive-quote-${id}` scope (a copy-paste
-          // artifact from the cashu-receive family it was duplicated from). Not
-          // fixed here — the extraction is behavior-preserving.
+          // The initiate-melt cascade fails under the `cashu-receive-quote-${id}`
+          // scope rather than the spark one (a copy-paste artifact from the
+          // cashu-receive family). A latent bug, filed separately, not fixed
+          // here.
           dispatch(
             failReceiveQuoteObserver,
             {
@@ -353,10 +349,9 @@ export function createSparkReceiveQuoteProcessor(
       if (receiveQuote.tokenReceiveData.meltInitiated) {
         // If melt was initiated but the quote is again in the unpaid state, it means that the melt failed.
         // The melt-path scope `spark-receive-quote${id}` is MISSING the hyphen
-        // the spark-path scope `spark-receive-quote-${id}` has. Preserved
-        // verbatim from the web hook (so the current lack of cross-path
-        // serialization is reproduced exactly); a latent bug filed separately,
-        // not fixed in the extraction.
+        // the spark-path scope `spark-receive-quote-${id}` has, so the two paths
+        // are not serialized against each other. A latent bug, filed separately,
+        // not fixed here.
         dispatch(
           failReceiveQuoteObserver,
           { quoteId: receiveQuote.id, reason: 'Cashu token melt failed.' },
@@ -398,15 +393,15 @@ export function createSparkReceiveQuoteProcessor(
   let unsubscribeWorkSet: (() => void) | null = null;
   let lastWorkSet: SparkReceiveQuote[] | undefined;
 
-  // Mirrors the web's useSelectItemsWithOnlineAccount: keep only quotes whose
-  // account is currently online (offline-account quotes are not processed).
+  // Keep only quotes whose account is currently online (offline-account
+  // quotes are not processed).
   const selectOnline = (quotes: SparkReceiveQuote[]): SparkReceiveQuote[] =>
     quotes.filter((quote) => {
       const account = accountsCache.get(quote.accountId);
       return account?.isOnline;
     });
 
-  // Mirrors the web's usePendingMeltQuotes mapping (CASHU_TOKEN quotes only).
+  // Map to the melt-quote work set (CASHU_TOKEN quotes only).
   const toMeltQuoteWorkSet = (quotes: SparkReceiveQuote[]) =>
     quotes
       .filter(
@@ -421,9 +416,8 @@ export function createSparkReceiveQuoteProcessor(
         inputAmount: sumProofs(q.tokenReceiveData.tokenProofs),
       }));
 
-  // Mirrors the web hook's grouping inputs: every pending quote, mapped to the
-  // spark tracker's work item (invoice + payment hash for matching, expiry for
-  // the synced sweep).
+  // Map every pending quote to the spark tracker's work item (invoice + payment
+  // hash for matching, expiry for the synced sweep).
   const toSparkWorkSet = (quotes: SparkReceiveQuote[]) =>
     quotes.map((q) => ({
       id: q.id,
@@ -434,9 +428,9 @@ export function createSparkReceiveQuoteProcessor(
     }));
 
   const handleWorkSet = (quotes: SparkReceiveQuote[]) => {
-    // The web's effects re-ran only when the (memoized) quotes array changed
-    // reference; query-core's structural sharing keeps the data reference
-    // stable across unrelated observer notifications, so gate on that.
+    // Only re-run the trackers when the quotes array actually changed:
+    // query-core's structural sharing keeps the data reference stable across
+    // unrelated observer notifications, so gate on reference equality.
     if (quotes === lastWorkSet) {
       return;
     }
@@ -451,9 +445,8 @@ export function createSparkReceiveQuoteProcessor(
         return;
       }
 
-      // The same options the web's useQuery used (the QueryObserver is the
-      // reactivity primitive useQuery wraps): the pending-spark-receive-quotes
-      // work set, filtered to online accounts, refetched on focus/reconnect.
+      // The pending-spark-receive-quotes work set, filtered to online
+      // accounts, refetched on focus/reconnect.
       workSetObserver = new QueryObserver<SparkReceiveQuote[]>(queryClient, {
         ...pendingSparkQuotesOptions(),
         refetchOnWindowFocus: 'always',

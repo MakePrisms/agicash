@@ -24,10 +24,7 @@ export type MeltQuoteWorkItem = {
 };
 
 export type MeltQuoteTrackerOptions = {
-  /**
-   * The query-core client backing the retrying subscribe mutation (same
-   * machinery the web's useMutation wrapped).
-   */
+  /** The query-core client backing the retrying subscribe mutation. */
   queryClient: QueryClient;
   /**
    * The subscription manager the tracker drives. Injected by the family so the
@@ -47,15 +44,14 @@ export type MeltQuoteTrackerOptions = {
 };
 
 /**
- * Headless reproduction of the web's `useOnMeltQuoteStateChange` hook: watches a
- * work-set of in-flight melt quotes, subscribes one socket per mint via the
- * {@link MeltQuoteSubscriptionManager}, maps each `MeltQuoteState` to the right
- * callback, and arms a per-quote expiry timer (the mint sends no state change
- * on expiry). The non-React logic is preserved verbatim, including the
- * PAID-change-recovery workaround for nutshell #788.
+ * Tracks a work-set of in-flight melt quotes: subscribes one socket per mint
+ * via the {@link MeltQuoteSubscriptionManager}, maps each `MeltQuoteState` to
+ * the right callback, and arms a per-quote expiry timer (the mint sends no
+ * state change on expiry). Includes the PAID-change-recovery workaround for
+ * nutshell #788.
  *
- * `setQuotes` replaces the two `useEffect`s the hook ran on a `quotes` change
- * (re-subscribe + re-arm expiry timers). `stop` clears the timers.
+ * `setQuotes` re-subscribes and re-arms the expiry timers for the new quote
+ * set; `stop` clears the timers.
  */
 export class MeltQuoteTracker {
   private readonly queryClient: QueryClient;
@@ -86,8 +82,8 @@ export class MeltQuoteTracker {
     this.onPaid = options.onPaid;
     this.onExpired = options.onExpired;
 
-    // The same retry/onError config the hook's useMutation used; the
-    // MutationObserver is the primitive useMutation wraps.
+    // Retry/onError config for the subscribe, dispatched through a
+    // MutationObserver.
     this.subscribeObserver = new MutationObserver(this.queryClient, {
       mutationFn: (
         props: Parameters<MeltQuoteSubscriptionManager['subscribe']>[0],
@@ -104,7 +100,7 @@ export class MeltQuoteTracker {
 
   /**
    * Updates the work-set and (re)subscribes per-mint + (re)arms the per-quote
-   * expiry timers. Mirrors the hook's two `quotes`-keyed effects.
+   * expiry timers.
    */
   setQuotes(quotes: MeltQuoteWorkItem[]): void {
     this.quotes = quotes;
@@ -146,8 +142,7 @@ export class MeltQuoteTracker {
     );
 
     for (const [mintUrl, quoteIds] of Object.entries(quotesByMint)) {
-      // Fire-and-forget like react-query's useMutation().mutate
-      // (mutate(...).catch(noop)); the retry/onError config handles failures.
+      // Fire-and-forget; the retry/onError config handles failures.
       this.subscribeObserver
         .mutate({
           mintUrl,

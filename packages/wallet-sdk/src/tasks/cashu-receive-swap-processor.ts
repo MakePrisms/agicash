@@ -28,17 +28,16 @@ export type CashuReceiveSwapProcessorDeps = {
 };
 
 /**
- * The headless cashu-receive-swap saga processor — a behavior-preserving lift of
- * the web's `useProcessCashuReceiveSwapTasks`. The cleanest family: work-set
- * membership IS the trigger (the web's fire-once `useQueries` pattern). While
- * active (leader) it watches the current user's pending receive swaps that
- * belong to an online cashu account and fires `completeSwap` exactly once per
- * swap (a per-tokenHash `QueryObserver` with `staleTime: Infinity`, so it never
- * refetches), dispatched through a query-core `MutationObserver` with retry 3
- * and NO cache write (the realtime broadcast is the single write path).
+ * The cashu-receive-swap saga processor. The simplest family: work-set
+ * membership IS the trigger. While active (leader) it watches the current
+ * user's pending receive swaps that belong to an online cashu account and
+ * fires `completeSwap` exactly once per swap (a per-tokenHash `QueryObserver`
+ * with `staleTime: Infinity`, so it never refetches), dispatched through a
+ * `MutationObserver` with retry 3 and NO cache write (the realtime broadcast
+ * is the single write path).
  *
  * The transition re-reads the live entity from the pending cache and
- * early-returns if it is gone, exactly as the web mutationFn did.
+ * early-returns if it is gone.
  */
 export function createCashuReceiveSwapProcessor(
   deps: CashuReceiveSwapProcessorDeps,
@@ -62,7 +61,8 @@ export function createCashuReceiveSwapProcessor(
     return account;
   };
 
-  // Fire-and-forget dispatch matching react-query's `useMutation().mutate`.
+  // Fire-and-forget dispatch: the rejection is swallowed (onError/throwOnError
+  // still run); the per-call scope rides in opts.
   function dispatch<TData, TVariables>(
     observer: MutationObserver<TData, Error, TVariables>,
     variables: TVariables,
@@ -98,8 +98,7 @@ export function createCashuReceiveSwapProcessor(
 
   let workSetObserver: QueryObserver<CashuReceiveSwap[]> | null = null;
   let unsubscribeWorkSet: (() => void) | null = null;
-  // The fire-once trigger observers, one per swap in the work-set (the headless
-  // equivalent of the web's per-swap `useQueries` entries).
+  // The fire-once trigger observers, one per swap in the work-set.
   const triggerObservers = new Map<string, QueryObserver<boolean>>();
   const triggerUnsubscribes = new Map<string, () => void>();
 
@@ -126,9 +125,8 @@ export function createCashuReceiveSwapProcessor(
         continue;
       }
 
-      // The same options the web's per-swap useQueries entry used: fire once
-      // (staleTime Infinity → never refetch), the queryFn dispatches the
-      // completeSwap mutation and returns true.
+      // Fire once (staleTime Infinity → never refetch); the queryFn dispatches
+      // the completeSwap mutation and returns true.
       const observer = new QueryObserver<boolean>(queryClient, {
         queryKey: ['complete-cashu-receive-swap', swap.tokenHash],
         queryFn: () => {

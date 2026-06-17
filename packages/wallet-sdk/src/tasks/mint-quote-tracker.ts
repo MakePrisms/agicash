@@ -36,13 +36,12 @@ export type MintQuoteWorkItem = {
 export type MintQuoteTrackerOptions = {
   /**
    * The query-core client backing the retrying subscribe mutation and the
-   * per-quote polling observers (the same machinery the web hooks wrapped).
+   * per-quote polling observers.
    */
   queryClient: QueryClient;
   /**
    * Resolves the related pending receive quote for a mint-quote response. Used
    * to map a mint-quote state change onto the right receive-quote callback.
-   * Mirrors the web hook's `pendingCache.getByMintQuoteId`.
    */
   resolveQuote: (
     mintQuoteId: string,
@@ -55,7 +54,7 @@ export type MintQuoteTrackerOptions = {
 const RETRY_LIMIT = 5;
 
 /**
- * Reproduces the web's `checkIfMintSupportsWebSocketsForMintQuotes`: a pure
+ * Returns whether the mint supports websockets for mint quotes: a pure
  * predicate over the mint's NUT-17 info deciding whether the mint can stream
  * `bolt11_mint_quote` updates over a socket (else the quote is polled).
  */
@@ -77,18 +76,15 @@ const mintSupportsWebSocketsForMintQuotes = (
 };
 
 /**
- * Headless reproduction of the web's `useOnMintQuoteStateChange` family
- * (`useTrackMintQuotesWithWebSocket` + `useTrackMintQuotesWithPolling` +
- * `usePartitionQuotesByStateCheckType` + the expiry timers). Watches a work-set
- * of pending receive quotes and, per quote, either subscribes a socket (NUT-17
- * mints) or polls (`10s`, `60s` after a 429) and arms a per-unpaid-quote expiry
- * timer (the mint emits no socket event on expiry). The non-React detection
- * logic is preserved verbatim; `processMintQuote` maps a mint-quote response to
- * the right receive-quote callback.
+ * Tracks a work-set of pending receive quotes and, per quote, either subscribes
+ * a socket (NUT-17 mints) or polls (`10s`, `60s` after a 429) and arms a
+ * per-unpaid-quote expiry timer (the mint emits no socket event on expiry).
+ * `processMintQuote` maps a mint-quote response to the right receive-quote
+ * callback.
  *
- * `setQuotes` replaces the hook's `quotes`-keyed effects (re-partition,
- * re-subscribe, re-poll, re-arm timers); `stop` tears the per-mint pollers and
- * timers down.
+ * `setQuotes` re-partitions the quotes WS-vs-poll, re-subscribes, re-polls, and
+ * re-arms the timers for the new quote set; `stop` tears the per-mint pollers
+ * and timers down.
  */
 export class MintQuoteTracker {
   private readonly queryClient: QueryClient;
@@ -115,8 +111,8 @@ export class MintQuoteTracker {
     this.onIssued = options.onIssued;
     this.onExpired = options.onExpired;
 
-    // The same retry/onError config the hook's useMutation used; the
-    // MutationObserver is the primitive useMutation wraps.
+    // Retry/onError config for the subscribe, dispatched through a
+    // MutationObserver.
     this.subscribeObserver = new MutationObserver(this.queryClient, {
       mutationFn: (
         props: Parameters<MintQuoteSubscriptionManager['subscribe']>[0],
@@ -134,7 +130,7 @@ export class MintQuoteTracker {
   /**
    * Updates the work-set: re-partitions the quotes WS-vs-poll, (re)subscribes
    * the socket mints, (re)starts the poll observers, and (re)arms the per-unpaid
-   * expiry timers. Mirrors the hook's `quotes`-keyed effects.
+   * expiry timers.
    */
   setQuotes(quotes: MintQuoteWorkItem[]): void {
     this.quotes = quotes;
@@ -162,8 +158,8 @@ export class MintQuoteTracker {
   }
 
   /** Tears down the poll observers and expiry timers. The socket subscriptions
-   * are left to the mint's `onClose` / the next work-set reconcile, matching the
-   * web (the subscription manager has no caller-driven unsubscribe-all). */
+   * are left to the mint's `onClose` / the next work-set reconcile (the
+   * subscription manager has no caller-driven unsubscribe-all). */
   stop(): void {
     this.clearPollObservers();
     this.clearExpiryTimers();
@@ -176,8 +172,6 @@ export class MintQuoteTracker {
     // Gate on the current work-set: a socket the manager left open (it has no
     // caller-driven unsubscribe-all) must not drive a transition once the quote
     // has left the work-set or the tracker has been stopped (leader handoff).
-    // This is the headless equivalent of the web component unmounting and taking
-    // its `useMutation` dispatch path with it.
     const isTracked = this.quotes.some((q) => q.quoteId === mintQuote.quote);
     if (!isTracked) {
       return;
@@ -208,8 +202,7 @@ export class MintQuoteTracker {
 
   private resubscribe(quotesByMint: Record<string, MintQuoteWorkItem[]>): void {
     for (const [mintUrl, quotes] of Object.entries(quotesByMint)) {
-      // Fire-and-forget like react-query's useMutation().mutate
-      // (mutate(...).catch(noop)); the retry/onError config handles failures.
+      // Fire-and-forget; the retry/onError config handles failures.
       this.subscribeObserver
         .mutate({
           mintUrl,
@@ -282,7 +275,7 @@ export class MintQuoteTracker {
     // For unpaid receive quotes the mint sends no state change on expiry, so the
     // socket never notifies us; check the quote's state on the expiry deadline.
     // Polled quotes are covered by the poll loop, so only the WS quotes get a
-    // timer (faithful to the web, where the timers lived in the WS hook).
+    // timer.
     const unpaidQuotes = Object.values(quotesByMint)
       .flat()
       .filter((quote) => quote.state === 'UNPAID');
@@ -310,10 +303,8 @@ export class MintQuoteTracker {
     }
   }
 
-  // The web's `getMintQuote` wrapped the expiry re-fetch in `withRetry({ retry:
-  // 5 })`: up to 5 retries with exponential backoff (min(500 * 2^attempt,
-  // 30000)), then throw the last error. Reproduced verbatim (no AbortSignal —
-  // the web call passed none) rather than importing the web-only util.
+  // The expiry re-fetch retries up to 5 times with exponential backoff
+  // (min(500 * 2^attempt, 30000)), then throws the last error.
   private async getMintQuoteWithRetry(
     account: CashuAccount,
     quoteId: string,

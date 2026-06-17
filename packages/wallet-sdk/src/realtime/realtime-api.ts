@@ -25,8 +25,8 @@ export type RealtimeApi = {
   /** The wallet channel's last error, if any. */
   getError: () => Error | undefined;
   /**
-   * Subscribes to wallet channel status changes (useSyncExternalStore
-   * compatible). Returns the unsubscribe function.
+   * Subscribes to wallet channel status changes; returns the unsubscribe
+   * function.
    */
   onStatusChange: (listener: () => void) => () => void;
   /** Host binding for the app's online signal (resubscribes when back online). */
@@ -34,10 +34,10 @@ export type RealtimeApi = {
   /** Host binding for the app's active/foreground signal. */
   setActiveStatus: (isActive: boolean) => void;
   /**
-   * The raw realtime manager, for devtools inspection only (the web attaches it
-   * to `window` for debugging). NOT a supported API: it is unstable and may be
-   * removed. The `__` prefix marks it as a debug accessor, not part of the
-   * curated surface.
+   * The raw realtime manager, for devtools inspection only (e.g. a host can
+   * expose it on `window` for debugging). NOT a supported API: it is unstable
+   * and may be removed. The `__` prefix marks it as a debug accessor, not part
+   * of the curated surface.
    */
   __debugManager: SupabaseRealtimeManager;
 };

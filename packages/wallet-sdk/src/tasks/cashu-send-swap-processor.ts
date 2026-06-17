@@ -32,24 +32,20 @@ export type CashuSendSwapProcessorDeps = {
 };
 
 /**
- * The headless cashu-send-swap saga processor — a behavior-preserving lift of
- * the web's `useProcessCashuSendSwapTasks`. While active (leader) it watches the
+ * The cashu-send-swap saga processor. While active (leader) it watches the
  * current user's unresolved cashu send swaps that belong to an online cashu
- * account (the same `select` the web's `useSelectItemsWithOnlineAccount`
- * applied), partitioned into DRAFT and PENDING (the web's useMemo), and runs two
- * drivers:
- *  - DRAFT swaps fire `swapForProofsToSend` exactly once per swap (the web's
- *    fire-once `useQueries` pattern: a per-id `QueryObserver` with
- *    `staleTime: Infinity`, so it never refetches), dispatched through a
- *    query-core `MutationObserver` with retry 3 and NO cache write;
+ * account (offline-account swaps are not processed), partitioned into DRAFT and
+ * PENDING, and runs two drivers:
+ *  - DRAFT swaps fire `swapForProofsToSend` exactly once per swap (a per-id
+ *    `QueryObserver` with `staleTime: Infinity`, so it never refetches),
+ *    dispatched through a `MutationObserver` with retry 3 and NO cache write;
  *  - PENDING swaps are watched by a {@link ProofStateTracker}; when all of a
  *    swap's proofs are spent it dispatches `complete`, retry 3, whose onSuccess
- *    `cashuSendSwapCache.invalidate()`s (a full refetch, not a granular write —
- *    preserved).
+ *    `cashuSendSwapCache.invalidate()`s (a full refetch, not a granular write).
  *
- * The DRAFT mutationFn re-reads the live entity from the (DRAFT-partitioned)
- * work-set and the PENDING mutationFn from the (PENDING-partitioned) work-set,
- * each early-returning if the swap is gone, exactly as the web mutationFns did.
+ * The DRAFT mutationFn re-reads the live entity from the DRAFT-partitioned
+ * work-set and the PENDING mutationFn from the PENDING-partitioned work-set,
+ * each early-returning if the swap is gone.
  */
 export function createCashuSendSwapProcessor(
   deps: CashuSendSwapProcessorDeps,
@@ -73,7 +69,8 @@ export function createCashuSendSwapProcessor(
     return account;
   };
 
-  // Fire-and-forget dispatch matching react-query's `useMutation().mutate`.
+  // Fire-and-forget dispatch: the rejection is swallowed (onError/throwOnError
+  // still run); the per-call scope rides in opts.
   function dispatch<TData, TVariables>(
     observer: MutationObserver<TData, Error, TVariables>,
     variables: TVariables,
@@ -82,8 +79,7 @@ export function createCashuSendSwapProcessor(
     observer.mutate(variables, options).catch(() => undefined);
   }
 
-  // The current partitions, re-read by the mutationFns (the web's draft/pending
-  // arrays the closures captured).
+  // The current partitions, re-read by the mutationFns when they run.
   let draftSwaps: (CashuSendSwap & { state: 'DRAFT' })[] = [];
   let pendingSwaps: PendingCashuSendSwap[] = [];
 
@@ -153,8 +149,7 @@ export function createCashuSendSwapProcessor(
 
   let workSetObserver: QueryObserver<CashuSendSwap[]> | null = null;
   let unsubscribeWorkSet: (() => void) | null = null;
-  // The fire-once DRAFT trigger observers, one per swap (the headless
-  // equivalent of the web's per-swap `useQueries` entries).
+  // The fire-once DRAFT trigger observers, one per swap.
   const triggerObservers = new Map<string, QueryObserver<boolean>>();
   const triggerUnsubscribes = new Map<string, () => void>();
 
@@ -165,7 +160,7 @@ export function createCashuSendSwapProcessor(
     });
 
   const handleWorkSet = (swaps: CashuSendSwap[]) => {
-    // Mirrors the web's useMemo partition into draft/pending.
+    // Partition the work set into draft/pending.
     const draft: (CashuSendSwap & { state: 'DRAFT' })[] = [];
     const pending: PendingCashuSendSwap[] = [];
     for (const swap of swaps) {
@@ -198,9 +193,8 @@ export function createCashuSendSwapProcessor(
         continue;
       }
 
-      // The same options the web's per-swap useQueries entry used: fire once
-      // (staleTime Infinity → never refetch), the queryFn dispatches the
-      // swapForProofsToSend mutation and returns true.
+      // Fire once (staleTime Infinity → never refetch); the queryFn dispatches
+      // the swapForProofsToSend mutation and returns true.
       const observer = new QueryObserver<boolean>(queryClient, {
         queryKey: ['trigger-send-swap', swap.id],
         queryFn: () => {
@@ -237,9 +231,8 @@ export function createCashuSendSwapProcessor(
         return;
       }
 
-      // The same options the web's useQuery used (the QueryObserver is the
-      // reactivity primitive useQuery wraps): the unresolved-send-swaps work
-      // set, filtered to online cashu accounts, refetched on focus/reconnect.
+      // The unresolved-send-swaps work set, filtered to online cashu
+      // accounts, refetched on focus/reconnect.
       workSetObserver = new QueryObserver<CashuSendSwap[]>(queryClient, {
         ...unresolvedCashuSwapsOptions(),
         refetchOnWindowFocus: 'always',

@@ -51,21 +51,18 @@ export type CashuReceiveQuoteProcessorDeps = {
 };
 
 /**
- * The headless cashu-receive-quote saga processor — a behavior-preserving lift
- * of the web's `useProcessCashuReceiveQuoteTasks`. While active (leader) it:
+ * The cashu-receive-quote saga processor. While active (leader) it:
  *  - watches the current user's pending cashu receive quotes that belong to an
- *    online cashu account (the same `select` the web's
- *    `useSelectItemsWithOnlineAccount` applied);
+ *    online cashu account (offline-account quotes are not processed);
  *  - drives a {@link MintQuoteTracker} (WS for NUT-17 mints + polling fallback +
  *    expiry timers) over those quotes to detect mint-side paid/issued/expired;
  *  - drives a {@link MeltQuoteTracker} over the CASHU_TOKEN quotes' melt legs;
  *  - on each detected change dispatches the matching transition through a
- *    query-core `MutationObserver` with the SAME scope ids, retry policy, and
- *    onSuccess cache-write discipline the web mutations used.
+ *    `MutationObserver`, serialized per quote by scope id, with the retry policy
+ *    and onSuccess cache writes each transition needs.
  *
  * Every transition re-reads the live entity from the pending cache and
- * early-returns if it is gone ("updated in the meantime"), exactly as the web
- * mutationFns did.
+ * early-returns if it is gone (it was updated in the meantime).
  */
 export function createCashuReceiveQuoteProcessor(
   deps: CashuReceiveQuoteProcessorDeps,
@@ -104,9 +101,8 @@ export function createCashuReceiveQuoteProcessor(
           a.currency === currency,
       ) ?? null;
 
-  // Fire-and-forget dispatch matching react-query's `useMutation().mutate`,
-  // which is `observer.mutate(vars, opts).catch(noop)` — the rejection is
-  // swallowed (onError/throwOnError still run); the per-call scope rides in opts.
+  // Fire-and-forget dispatch: the rejection is swallowed (onError/throwOnError
+  // still run); the per-call scope rides in opts.
   function dispatch<TData, TVariables>(
     observer: MutationObserver<TData, Error, TVariables>,
     variables: TVariables,
@@ -382,15 +378,15 @@ export function createCashuReceiveQuoteProcessor(
   let unsubscribeWorkSet: (() => void) | null = null;
   let lastWorkSet: CashuReceiveQuote[] | undefined;
 
-  // Mirrors the web's useSelectItemsWithOnlineAccount: keep only quotes whose
-  // account is currently online (offline-account quotes are not processed).
+  // Keep only quotes whose account is currently online (offline-account
+  // quotes are not processed).
   const selectOnline = (quotes: CashuReceiveQuote[]): CashuReceiveQuote[] =>
     quotes.filter((quote) => {
       const account = accountsCache.get(quote.accountId);
       return account?.isOnline;
     });
 
-  // Mirrors the web's usePendingMeltQuotes mapping (CASHU_TOKEN quotes only).
+  // Map to the melt-quote work set (CASHU_TOKEN quotes only).
   const toMeltQuoteWorkSet = (quotes: CashuReceiveQuote[]) =>
     quotes
       .filter(
@@ -405,8 +401,8 @@ export function createCashuReceiveQuoteProcessor(
         inputAmount: sumProofs(q.tokenReceiveData.tokenProofs),
       }));
 
-  // Mirrors the web's mint-quote work-set (every pending quote, its receiving
-  // account resolved for the WS/poll/expiry partition).
+  // The mint-quote work set: every pending quote, its receiving account
+  // resolved for the WS/poll/expiry partition.
   const toMintQuoteWorkSet = (quotes: CashuReceiveQuote[]) =>
     quotes.map((q) => ({
       quoteId: q.quoteId,
@@ -416,9 +412,9 @@ export function createCashuReceiveQuoteProcessor(
     }));
 
   const handleWorkSet = (quotes: CashuReceiveQuote[]) => {
-    // The web's effects re-ran only when the (memoized) quotes array changed
-    // reference; query-core's structural sharing keeps the data reference
-    // stable across unrelated observer notifications, so gate on that.
+    // Only re-run the trackers when the quotes array actually changed:
+    // query-core's structural sharing keeps the data reference stable across
+    // unrelated observer notifications, so gate on reference equality.
     if (quotes === lastWorkSet) {
       return;
     }
@@ -433,9 +429,8 @@ export function createCashuReceiveQuoteProcessor(
         return;
       }
 
-      // The same options the web's useQuery used (the QueryObserver is the
-      // reactivity primitive useQuery wraps): the pending-receive-quotes work
-      // set, filtered to online cashu accounts, refetched on focus/reconnect.
+      // The pending-receive-quotes work set, filtered to online cashu
+      // accounts, refetched on focus/reconnect.
       workSetObserver = new QueryObserver<CashuReceiveQuote[]>(queryClient, {
         ...pendingCashuQuotesOptions(),
         refetchOnWindowFocus: 'always',
