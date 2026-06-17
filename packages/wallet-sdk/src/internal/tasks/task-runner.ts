@@ -11,6 +11,12 @@ import type { RetryPolicy } from './retry-policy';
  * honor `policy` (retry classification + backoff) and query-core's failureCount
  * semantics: call `policy.shouldRetry(failureCount, error)` with the current count
  * (0 on the first failure), then increment after the call.
+ *
+ * Implementations MUST support re-entrant enqueueing: a running task may call
+ * `runTask` again on its OWN lane (e.g. a failed initiate enqueues a fail on the
+ * same lane); the new task queues behind the current one and the current task
+ * completes without blocking on it. A runner that awaits the nested task inline
+ * would deadlock.
  */
 export type TaskRunner = {
   runTask<T>(lane: string, fn: () => Promise<T>, policy?: RetryPolicy): Promise<T>;
