@@ -1,6 +1,6 @@
-import type { BreezSdk } from '@agicash/breez-sdk-spark';
 import type { Currency } from '@agicash/money';
 import type { SdkConfig } from './config';
+import type { CashuAccount, SparkAccount } from './domains/account-types';
 import type { CashuReceiveQuote } from './domains/cashu-receive-quote';
 import type { CashuReceiveSwap } from './domains/cashu-receive-swap';
 import type { CashuSendQuote } from './domains/cashu-send-quote';
@@ -35,24 +35,22 @@ export type WorkSetSource = {
 };
 
 /**
- * Sync wallet resolution the 4a trackers need (they call `getWallet` synchronously).
+ * Resident account + wallet resolution the processors/trackers need synchronously.
  * The variant builds these from its resident accounts (which carry warm `.wallet`
- * handles). Mirrors the app's `getCashuAccount(id).wallet`,
- * `getCashuAccountByMintUrlAndCurrency(...)?.wallet ?? getCashuWallet(mintUrl)`,
- * `getSparkAccount(id).wallet`, and the `getInitializedCashuWallet` source fallback.
+ * handles) + the base mint cache. Mirrors the app's `getCashuAccount`,
+ * `getSparkAccount`, `getCashuAccountByMintUrlAndCurrency(...)?.wallet ?? getCashuWallet(mintUrl)`,
+ * and the `getInitializedCashuWallet` source fallback.
  */
 export type WalletAccess = {
-  /** accountId → the account's initialized cashu wallet (mint-quote + send/receive paths). */
-  getCashuWallet(accountId: string): ExtendedCashuWallet;
-  /** mintUrl+currency → a cashu wallet for checking melt quotes: a resident account's wallet if present, else a bare `getCashuWallet(mintUrl)`. */
+  /** accountId → resident cashu account (carries `.wallet`, `.mintUrl`, `.currency`, `.proofs`). */
+  getCashuAccount(accountId: string): CashuAccount;
+  /** accountId → resident spark account (carries `.wallet`). */
+  getSparkAccount(accountId: string): SparkAccount;
+  /** mintUrl+currency → a cashu wallet for CHECKING a melt quote: a resident account's wallet if present, else a bare `getCashuWallet(mintUrl)`. */
   getCashuWalletByMint(mintUrl: string, currency: Currency): ExtendedCashuWallet;
-  /** accountId → the account's mint URL (proof-state tracker). */
-  getMintUrl(accountId: string): string;
-  /** accountId → the account's Breez/Spark wallet (spark trackers). */
-  getSparkWallet(accountId: string): BreezSdk;
   /**
-   * Token-receive melt path: resolve a fully-initialized source wallet for an
-   * arbitrary mint+currency — a resident account at that mint if present, else
+   * Token-receive melt path: a fully-initialized source wallet for an arbitrary
+   * mint+currency — a resident account at that mint if present, else
    * `getInitializedCashuWallet(...)`. Rejects (NetworkError) if the mint is offline.
    */
   getSourceCashuWallet(mintUrl: string, currency: Currency): Promise<ExtendedCashuWallet>;
