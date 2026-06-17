@@ -35,7 +35,7 @@
 | 03 | S3 | auth + user (+ session resolver, ensure-on-resolve bootstrap) | ✅ [done](2026-06-13-wallet-sdk-03-auth-user.md) (19 commits) — auth + user domains live; gate green (248 tests) |
 | 04 | S4 | accounts + scan + exchangeRate (+ live wallet-handle resolution) | ✅ [done](2026-06-13-wallet-sdk-04-accounts-scan-exchange-rate.md) (18 commits) — domains live; protocol libs (bolt11/lnurl/cashu) extracted + `Account.wallet` real; gate green (196 tests) |
 | 05 | S5 | cashu ops (send / receive / token-claim) | ✅ [done](2026-06-13-wallet-sdk-05-cashu-ops.md) (18 commits) — 4 repos + 5 services + token-receive helpers + CashuCryptography + cashuMintValidator, wired via `createCashuDomain`; `executeQuote`/`receiveToken` deferred to S7 (`NotImplementedError`); gate green (386 SDK tests, 521 total) |
-| 06 | S6 | spark ops (client + server spark wallet) | not written |
+| 06 | S6 | spark ops (client; server receive *primitive* session-agnostic, server *wiring* → S10) | 📝 [written](2026-06-13-wallet-sdk-06-spark-ops.md) — forks locked: executeQuote→S7 (D6-1); client-only + server-readiness test, server config/wallet/repo/facade → S10 (D6-2) |
 | 07 | S7 | orchestrator (executeQuote + #788; receiveToken; balance listener incl. `synced`) | not written |
 | 08 | S8 | transactions + contacts + transfers | not written |
 | 09 | S9 | background (leader election) + realtime forwarder | not written |
