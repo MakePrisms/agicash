@@ -6,6 +6,7 @@ import { DefaultAccountRepository } from './internal/db/default-account-reposito
 import { ReadUserRepository } from './internal/db/user-repository';
 import { LightningAddressService } from './internal/lightning-address/lightning-address-service';
 import { ExchangeRateService } from './internal/rates/exchange-rate-service';
+import type { Ticker } from './internal/rates/providers/types';
 import {
   type SparkMnemonicSource,
   SparkWalletManager,
@@ -109,7 +110,7 @@ export async function createServerSdk(
     ),
     getExchangeRate:
       config.getExchangeRate ??
-      ((ticker) => new ExchangeRateService().getRate(ticker as never)),
+      ((ticker) => new ExchangeRateService().getRate(ticker as Ticker)),
   });
 
   return {
