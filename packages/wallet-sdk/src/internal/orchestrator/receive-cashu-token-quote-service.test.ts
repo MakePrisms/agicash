@@ -74,10 +74,20 @@ describe('ReceiveCashuTokenQuoteService.createCrossAccountReceiveQuotes (cashu d
       receiveType: string;
       meltQuoteId: string;
       sourceMintUrl: string;
+      cashuReceiveFee: Money;
+      lightningFeeReserve: Money;
+      tokenAmount: Money;
+      tokenProofs: unknown;
+      meltQuoteExpiresAt: string;
     };
     expect(createArg.receiveType).toBe('CASHU_TOKEN');
     expect(createArg.meltQuoteId).toBe('src-melt');
     expect(createArg.sourceMintUrl).toBe('https://source.mint');
+    expect(createArg.cashuReceiveFee.toNumber('sat')).toBe(1);
+    expect(createArg.lightningFeeReserve.toNumber('sat')).toBe(1);
+    expect(createArg.tokenAmount.toNumber('sat')).toBe(50);
+    expect(createArg.tokenProofs).toBe(token.proofs);
+    expect(createArg.meltQuoteExpiresAt).toBe(new Date(9_999_999_999 * 1000).toISOString());
   });
 
   it('throws when the token cannot cover the cashu fee', async () => {
@@ -99,6 +109,30 @@ describe('ReceiveCashuTokenQuoteService.createCrossAccountReceiveQuotes (cashu d
           mintUrl: 'https://dest.mint',
           wallet: {},
         } as unknown as CashuAccount,
+        exchangeRate: '1',
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('throws when source and destination are the same cashu account', async () => {
+    const sourceAccount = makeSourceAccount();
+    const sameAccountDestination = {
+      id: 'dst-same',
+      type: 'cashu',
+      currency: 'BTC',
+      mintUrl: 'https://source.mint',
+      wallet: {},
+    } as unknown as CashuAccount;
+    const service = new ReceiveCashuTokenQuoteService(
+      { getLightningQuote: mock(), createReceiveQuote: mock() } as never,
+      {} as never,
+    );
+    await expect(
+      service.createCrossAccountReceiveQuotes({
+        userId: 'u1',
+        token,
+        sourceAccount,
+        destinationAccount: sameAccountDestination,
         exchangeRate: '1',
       }),
     ).rejects.toThrow();

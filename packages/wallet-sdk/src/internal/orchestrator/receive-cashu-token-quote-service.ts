@@ -11,6 +11,7 @@ import {
   getLightningQuote as defaultGetSparkLightningQuote,
 } from '../../domains/spark/spark-receive-quote-core';
 import type { SparkReceiveQuoteService } from '../../domains/spark/spark-receive-quote-service';
+import { isClaimingToSameCashuAccount } from '../../domains/cashu/receive-cashu-token-models';
 import { getCashuUnit, tokenToMoney } from '../lib/cashu';
 
 export type CreateCrossAccountReceiveQuotesProps = {
@@ -57,6 +58,14 @@ export class ReceiveCashuTokenQuoteService {
     exchangeRate,
   }: CreateCrossAccountReceiveQuotesProps): Promise<CrossAccountReceiveQuotesResult> {
     const tokenAmount = tokenToMoney(token);
+
+    if (isClaimingToSameCashuAccount(sourceAccount, destinationAccount)) {
+      throw new DomainError(
+        'Cannot melt a token to the same account it is from.',
+        'same_account',
+      );
+    }
+
     const sourceCashuUnit = getCashuUnit(sourceAccount.currency);
 
     const feesForProofs = sourceAccount.wallet.getFeesForProofs(token.proofs);
