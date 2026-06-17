@@ -1,10 +1,11 @@
 # Wallet SDK extraction — record, design decisions, and final report
 
 Record of the `@agicash/wallet-sdk` extraction (restarted greenfield from master
-2026-06-08; **complete** as of 2026-06-12, Phases 0–10 + final report). The work is a
-stack of local branches, tip `sdk/phase10-import-cleanup` — no PRs/pushes, working tree
-clean, all gates green. The next effort (the MCP/agent wallet) builds on this and starts
-from the pickup list at the end of the *Final report*.
+2026-06-08; Phases 0–10 complete 2026-06-12). The work is a stack of local branches —
+no PRs/pushes, working tree clean, all gates green. The Phase-10 *Final report* below is
+a historical snapshot; the branch then continued (tip `sdk/phase12-tasks-engine`: the
+tasks engine + a surface-hardening pass), recorded in the **Post-Phase-10 addendum** after
+it — read that for the current state. The next effort (the MCP/agent wallet) builds on this.
 
 ## How to read this document
 
@@ -108,6 +109,114 @@ QueryObserver the SDK owns); the opensecret storage-pluggable bump + headless au
 the tracking/task-processing orchestration out of React hooks into the SDK (kills the
 remaining `internal` surfaces); a headless task processor. Known follow-up issue to file:
 `USER_UPDATED` realtime has no version guard (`wallet.users` has no version column).
+
+> The Phase-10 end state above is a historical snapshot. The branch continued past it
+> (tasks engine, then a surface-hardening pass); the **Post-Phase-10 addendum** below is the
+> authoritative current state and supersedes the forward-looking notes in this section
+> (the headless task processor and the task-processing `internal` surfaces are done).
+
+## Post-Phase-10 addendum — tasks engine + surface hardening (`sdk/phase12-tasks-engine`)
+
+Work after the Phase-10 tip. Same discipline (small chunks, gates green per commit:
+typecheck ×6, biome, full unit suite, SSR+prerender build). Test count is now **284**
+(utils 41, cashu 35, wallet-sdk 173, web 35); the wallet-sdk/web split shifted as
+behavior and tests moved down into the SDK.
+
+**Phase 11–12 — the tasks engine** (`sdk.tasks`). The web's `useProcess*Tasks` hooks and
+the `{isLead && <TaskProcessor/>}` mount were lifted into headless saga processors in
+`packages/wallet-sdk/src/tasks/`. `sdk.tasks` (`start / stop / getStatus / onStatusChange
+/ getError`) runs leader election (the `take_lead` poll, exactly one lock) and, while this
+client holds the lease, activates the six processors (cashu/spark × receive/send quote +
+the two swaps), each driving query-core `QueryObserver`/`MutationObserver`s over the
+domain caches. This **eliminated the receive/send task-processing `internal` surfaces** —
+they no longer exist. The processor saga logic is a behavior-preserving lift; two
+pre-existing scope-id quirks are carried over verbatim and flagged in-code (filed
+separately).
+
+**Surface hardening** (this is the reviewable delta most likely to matter to a future
+reader):
+
+- **`useSdk()` + host-agnostic `getSdk`**. The web added `useSdk()` (in
+  `features/shared/sdk.ts`) for SDK access in React render context; render-time `getSdk()`
+  call sites moved to it. `getSdk()` stays for non-render contexts (loaders,
+  query/mutation fns, effects, module scope — where a hook can't run). The **client-only
+  (`isServer`) guard moved out of the SDK into `useSdk()`**: whether a runtime may
+  construct the SDK is host policy, so the framework-free SDK no longer asserts it and a
+  headless host can build server-side.
+
+- **`WalletSdk` is a hard singleton.** The constructor is **private**; `WalletSdk.getInstance()`
+  is the sole accessor (reads the recorded config, throws if unconfigured, builds at most
+  one instance). `new WalletSdk()` is now a compile error. Reason: the QueryClient, the
+  Agicash DB client + its RLS session token, and the OpenSecret token store are
+  process-global, and the cache keys are **not** user-scoped (`'accounts'`/`'user'`/…), so
+  a second instance would silently share one user's cache/session with another — the
+  cross-user leak. One instance == one user, by design. The web's `getSdk` is now a
+  one-line wrapper over `getInstance()`.
+
+- **Curated surface is now structural, not conventional.** Services, repositories, and
+  caches are **no longer importable from outside the SDK** (value *or* type). The pure
+  derivations and the types the web consumed were relocated to leaf modules
+  (`getExtendedAccounts`/`isDefaultAccount` → `accounts/account`; `getDefaultReceiveAccount`
+  → `receive/receive-cashu-token-models`; the quote types `CashuLightningQuote`,
+  `SendQuoteRequest`, `CashuSwapQuote`, `SparkLightningQuote` → their `send/*` leaves;
+  `TransferQuote` → new `transfer/transfer`; `NewCashuAccount` → `accounts/account`). The
+  five `*-service` subpath exports were removed and the barrel no longer re-exports
+  repos/services/caches. The lone runtime exception: the server lnurl path keeps a
+  dedicated `./user/user-repository` subpath (it has no sdk instance). Net: app code reaches
+  domain logic only via `useSdk()`/`getSdk()` → `sdk.*`, or via pure leaf-module subpath
+  imports — the internals can't be named.
+
+- **Dead-code + docs cleanup.** Deleted three account hooks orphaned by the tasks-engine
+  extraction (`useGetCashuAccountByMintUrlAndCurrency`, `useGetSparkAccount`,
+  `useSelectItemsWithOnlineAccount`). Rewrote the tasks-engine JSDoc to describe behavior
+  on its own terms — it no longer references the web's React hooks or react-query (a
+  framework-free package must not), and the now-false `createTasksApi` note (claiming
+  families still run in a web `TaskProcessor`) was corrected.
+
+- **`classifyInput` → SDK** (`packages/wallet-sdk/src/scan/`, exported at `@agicash/wallet-sdk/scan`).
+  The scan front-door (raw string → cashu-token-receive / bolt11-send / ln-address-send)
+  is pure wallet-domain logic the MCP wallet will reuse, so it left the web. The
+  `import.meta.env.MODE` read became an `allowLocalhost` option (web passes
+  `import.meta.env.DEV`). Its one dependency, the pure LUD-16 format validator
+  `buildLightningAddressFormatValidator`, moved to `@agicash/wallet-sdk/lightning-address`;
+  web `~/lib/lnurl` re-exports it so the send-form validators are unchanged. Exposed as a
+  **pure subpath export, not an `sdk.*` method** (it needs no user/connection/cache) so any
+  caller — MCP tool, server route, test — can use it without bootstrapping the SDK.
+
+- **`validateBolt11` → SDK** (`@agicash/wallet-sdk/send/validation`), following `classifyInput`
+  for the same reason (pure bolt11 send-validation: network/expiry/amount). Its sibling
+  `validateLightningAddressFormat` stayed web — it is not new logic, just the SDK's
+  `buildLightningAddressFormatValidator` pre-bound with the app's error message + the
+  `import.meta.env` dev-localhost flag (web glue). Web `features/send/validation.ts`
+  re-exports `validateBolt11` so its consumers (`resolve-destination`, the scan route) are
+  unchanged.
+
+**Deferred — settled, do not relitigate:**
+
+- **`@agicash/wallet-core` extraction is deferred to the MCP phase.** The SDK already
+  contains a clean, separable pure-domain layer (entity types + predicates + derivations +
+  `classifyInput` + quote/schema leaves) that depends only on utils/cashu/db-types and
+  imports nothing stateful (verified: no leaf imports a service/repository/cache/query-client).
+  Pulling it into its own package would let a headless consumer depend on the domain without
+  the SDK's heavy runtime deps (breez WASM, supabase, opensecret, react-query) and make the
+  purity boundary structural. But a subpath import already gives the web/SDK ~90% of the
+  benefit, and the *install-graph* win only matters once a pure (non-monorepo-runtime)
+  consumer exists — i.e. the MCP phase. So new pure helpers land in the SDK now (e.g.
+  `classify-input`, `lightning-address`, `send/validation`) and move together when the
+  boundary is drawn against real MCP usage. The next candidates, once MCP needs full input
+  handling, are the **LNURL client** (`~/lib/lnurl`'s `getInvoiceFromLud16` /
+  `getLNURLPayParams` / `isValidLightningAddress` — framework-free LUD-16 resolution, needed
+  to send to lightning addresses; does network I/O so it fits the SDK, not a pure leaf) and
+  `resolve-destination` (which depends on it). The LNURL *server* path
+  (`lightning-address-service` + the `.well-known`/`api.lnurlp.*` routes) is web/server-only
+  and stays.
+
+- **`Money` stays in `@agicash/utils/money` for now.** It is the strongest standalone-package
+  candidate (domain primitive, ~1k LOC, 100 consumers, isolated `big.js` dep), but the
+  subpath export already delivers isolation/tree-shaking, and extraction is a ~100-file
+  relabel with no new capability until there's a driver (standalone publish / external
+  consumer). Revisit as part of the same "break up utils" pass as wallet-core (Money first,
+  then `ecies`/`bolt11`).
 
 ## Architecture decisions (settled — do not relitigate)
 
