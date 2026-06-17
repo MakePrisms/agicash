@@ -322,6 +322,42 @@ export type CashuTokenMeltData = {
 };
 
 // ---------------------------------------------------------------------------
+// Same-mint token receive — CashuReceiveSwap (PENDING|COMPLETED|FAILED)
+// ---------------------------------------------------------------------------
+
+type CashuReceiveSwapBase = {
+  tokenHash: string;
+  /**
+   * The token's input proofs. `tokenProofs` are the proofs from the
+   * received token; `outputAmounts` are the deterministic outputs.
+   */
+  tokenProofs: CashuProtocolProof[];
+  tokenDescription?: string;
+  userId: string;
+  accountId: string;
+  inputAmount: Money;
+  amountReceived: Money;
+  feeAmount: Money;
+  keysetId: string;
+  keysetCounter: number;
+  outputAmounts: number[];
+  transactionId: string;
+  createdAt: string;
+  version: number;
+};
+
+/**
+ * A same-mint cashu token claim (receive-swap). Returned by `receiveToken` when
+ * the token is claimed to its own mint (no Lightning round-trip). `tokenProofs`
+ * are the token's input proofs; `outputAmounts` the deterministic outputs.
+ */
+export type CashuReceiveSwap = CashuReceiveSwapBase &
+  (
+    | { state: 'PENDING' | 'COMPLETED' }
+    | { state: 'FAILED'; failureReason: string }
+  );
+
+// ---------------------------------------------------------------------------
 // Cashu receive — CashuReceiveQuote (type LIGHTNING|CASHU_TOKEN ∧ state)
 // ---------------------------------------------------------------------------
 

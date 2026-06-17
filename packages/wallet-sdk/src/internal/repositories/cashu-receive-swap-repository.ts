@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod/mini';
 import { DomainError } from '../../errors';
 import type { CashuAccount } from '../../types/account';
+import type { CashuReceiveSwap } from '../../types/cashu';
 import { classify } from '../classify';
 import type { EncryptionService } from '../crypto/encryption';
 import { toEncryptedProofData } from '../db/cashu-proofs';
@@ -14,8 +15,8 @@ import type { AccountRepository } from './account-repository';
 
 // ---------------------------------------------------------------------------
 // CashuReceiveSwapSchema — ported from app/features/receive/cashu-receive-swap.ts.
-// Internal type: no public CashuReceiveSwap in src/types/cashu.ts (same-mint
-// swaps are not exposed on the public receiveToken return).
+// The public type lives in src/types/cashu.ts; the conformance check below
+// ensures the schema output matches it exactly (bidirectional extends).
 // ---------------------------------------------------------------------------
 
 const CashuReceiveSwapBaseSchema = z.object({
@@ -57,7 +58,17 @@ export const CashuReceiveSwapSchema = z.intersection(
   ]),
 );
 
-export type CashuReceiveSwap = z.infer<typeof CashuReceiveSwapSchema>;
+// Re-export from the public contract so internal consumers keep working.
+export type { CashuReceiveSwap };
+
+// Bidirectional compile-time check: schema output ↔ public contract type.
+type _SchemaFitsContract = z.infer<typeof CashuReceiveSwapSchema> extends CashuReceiveSwap
+  ? CashuReceiveSwap extends z.infer<typeof CashuReceiveSwapSchema>
+    ? true
+    : never
+  : never;
+const _schemaFitsContract: _SchemaFitsContract = true;
+void _schemaFitsContract;
 
 // ---------------------------------------------------------------------------
 // Public input type + repository

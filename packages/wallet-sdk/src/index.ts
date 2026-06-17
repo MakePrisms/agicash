@@ -84,6 +84,7 @@ export type {
   CashuSendSwap,
   PendingCashuSendSwap,
   CashuReceiveQuote,
+  CashuReceiveSwap,
   CashuTokenMeltData,
   DestinationDetails,
 } from './types/cashu';

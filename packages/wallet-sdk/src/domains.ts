@@ -14,6 +14,7 @@ import type {
 } from './types/account-config';
 import type {
   CashuReceiveQuote,
+  CashuReceiveSwap,
   CashuSendQuote,
   CashuSendSwap,
 } from './types/cashu';
@@ -195,15 +196,16 @@ export interface CashuSendOps {
 /** Cashu receive operations: claim a token, or create a lightning receive quote. */
 export interface CashuReceiveOps {
   /**
-   * Claim a cashu token. By default it is received to the token's own mint; pass
-   * `destinationAccount` to receive cross-account — token → another cashu mint, or
-   * token → spark — which is done internally via melt-then-mint (hence the result
-   * may be a {@link SparkReceiveQuote}).
+   * Claim a cashu token. By default it is received to the token's own mint,
+   * which returns a {@link CashuReceiveSwap} (no Lightning round-trip). Pass
+   * `destinationAccount` to receive cross-account — token → another cashu mint
+   * returns a {@link CashuReceiveQuote}, token → spark returns a
+   * {@link SparkReceiveQuote} — both done internally via melt-then-mint.
    */
   receiveToken(params: {
     token: string;
     destinationAccount?: Account;
-  }): Promise<CashuReceiveQuote | SparkReceiveQuote>;
+  }): Promise<CashuReceiveQuote | SparkReceiveQuote | CashuReceiveSwap>;
   /**
    * Create a lightning receive quote (an invoice to be paid). `purpose` defaults
    * to `'PAYMENT'`; `'BUY_CASHAPP'` is the buy-bitcoin / Cash App flow (pairs with
