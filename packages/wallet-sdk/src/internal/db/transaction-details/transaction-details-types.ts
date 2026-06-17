@@ -1,0 +1,54 @@
+import type { Json } from '../database.types';
+import { z } from 'zod/mini';
+import { CashuLightningReceiveDbDataSchema } from '../cashu-receive-quote-db-data';
+import { CashuLightningSendDbDataSchema } from '../cashu-send-quote-db-data';
+import { CashuSwapReceiveDbDataSchema } from '../cashu-receive-swap-db-data';
+import { CashuSwapSendDbDataSchema } from '../cashu-send-swap-db-data';
+import { SparkLightningReceiveDbDataSchema } from '../spark-receive-quote-db-data';
+import { SparkLightningSendDbDataSchema } from '../spark-send-quote-db-data';
+import type {
+  TransactionDirection,
+  TransactionState,
+  TransactionType,
+} from '../transaction-enums';
+import { CashuLightningReceiveTransactionDetailsSchema } from './cashu-lightning-receive-transaction-details';
+import { CashuLightningSendTransactionDetailsSchema } from './cashu-lightning-send-transaction-details';
+import { CashuTokenReceiveTransactionDetailsSchema } from './cashu-token-receive-transaction-details';
+import { CashuTokenSendTransactionDetailsSchema } from './cashu-token-send-transaction-details';
+import { SparkLightningReceiveTransactionDetailsSchema } from './spark-lightning-receive-transaction-details';
+import { SparkLightningSendTransactionDetailsSchema } from './spark-lightning-send-transaction-details';
+
+export const TransactionDetailsDbDataSchema = z.union([
+  CashuLightningReceiveDbDataSchema,
+  CashuLightningSendDbDataSchema,
+  CashuSwapReceiveDbDataSchema,
+  CashuSwapSendDbDataSchema,
+  SparkLightningReceiveDbDataSchema,
+  SparkLightningSendDbDataSchema,
+]);
+
+export const TransactionDetailsSchema = z.union([
+  CashuTokenSendTransactionDetailsSchema,
+  CashuTokenReceiveTransactionDetailsSchema,
+  CashuLightningSendTransactionDetailsSchema,
+  CashuLightningReceiveTransactionDetailsSchema,
+  SparkLightningReceiveTransactionDetailsSchema,
+  SparkLightningSendTransactionDetailsSchema,
+]);
+
+export type TransactionDetails = z.infer<typeof TransactionDetailsSchema>;
+
+export type TransactionDetailsParserInput = {
+  type: TransactionType;
+  direction: TransactionDirection;
+  state: TransactionState;
+  transactionDetails?: Json;
+  decryptedTransactionDetails: z.input<typeof TransactionDetailsDbDataSchema>;
+};
+
+type TransactionDetailsParserOutput = TransactionDetails;
+
+export type TransactionDetailsParserShape = z.ZodMiniType<
+  TransactionDetailsParserOutput,
+  TransactionDetailsParserInput
+>;
