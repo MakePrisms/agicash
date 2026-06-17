@@ -4,7 +4,7 @@ import type {
   LNURLError,
   LNURLPayParams,
   LNURLPayResult,
-} from '@agicash/wallet-sdk/server';
+} from '@agicash/wallet-sdk/internal/lightning-address/lnurl-types';
 
 export const isLNURLError = (obj: unknown): obj is LNURLError => {
   return (

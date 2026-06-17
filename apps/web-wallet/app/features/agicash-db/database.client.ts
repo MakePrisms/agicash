@@ -33,7 +33,7 @@ if (!supabaseAnonKey) {
 
 /**
  * The client-side Supabase database client.
- * If you need to use a client on the server, which bypasses RLS, use `agicashDbServer` instead.
+ * Server-side code should use the server-mode SDK via `createServerSdk` from `@agicash/wallet-sdk/server` instead.
  */
 export const agicashDbClient = createClient<Database>(
   supabaseUrl,
