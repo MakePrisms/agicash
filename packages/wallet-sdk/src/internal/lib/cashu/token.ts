@@ -1,3 +1,4 @@
+import { type Currency, type CurrencyUnit, Money } from '@agicash/money';
 import {
   CheckStateEnum,
   type Proof,
@@ -7,7 +8,8 @@ import {
   getEncodedToken,
   getTokenMetadata,
 } from '@cashu/cashu-ts';
-import { proofToY } from './proof';
+import { sha256Hex } from '../../crypto/sha256';
+import { proofToY, sumProofs } from './proof';
 
 /**
  * A token consists of a set of proofs, and each proof can be in one of three states:
@@ -70,4 +72,24 @@ export function extractCashuToken(
   } catch {
     return null;
   }
+}
+
+function getCurrencyAndUnitFromToken(token: Token): {
+  currency: Currency;
+  unit: CurrencyUnit;
+} {
+  if (token.unit === 'sat') return { currency: 'BTC', unit: 'sat' };
+  if (token.unit === 'usd') return { currency: 'USD', unit: 'cent' };
+  throw new Error(`Invalid token unit ${token.unit}`);
+}
+
+/** The total value of a cashu token as {@link Money}, in the token's currency. */
+export function tokenToMoney(token: Token): Money {
+  const { currency, unit } = getCurrencyAndUnitFromToken(token);
+  return new Money<Currency>({ amount: sumProofs(token.proofs), currency, unit });
+}
+
+/** SHA-256 hash of an encoded token (or token object), used as the swap identity. */
+export function getTokenHash(token: Token | string): Promise<string> {
+  return typeof token === 'string' ? sha256Hex(token) : sha256Hex(encodeToken(token));
 }

@@ -1,5 +1,16 @@
 import { type Proof, hashToCurve } from '@cashu/cashu-ts';
+import type { CashuProof } from '../../../types/account';
 import { parseSecret } from './secret';
+
+/** Map a domain {@link CashuProof} to a cashu-ts protocol `Proof`. */
+export const toProof = (proof: CashuProof): Proof => ({
+  id: proof.keysetId,
+  amount: proof.amount,
+  secret: proof.secret,
+  C: proof.unblindedSignature,
+  ...(proof.dleq ? { dleq: proof.dleq } : {}),
+  ...(proof.witness ? { witness: proof.witness } : {}),
+});
 
 /** Sum the amounts from a list of proofs. */
 export const sumProofs = (proofs: Pick<Proof, 'amount'>[]): number => {

@@ -85,6 +85,12 @@ export type SdkConfig = {
    */
   defaultAccounts?: DefaultAccountConfig[];
   /**
+   * Cashu mint URLs to block (the SDK refuses to validate/claim from them).
+   * Replaces the web's `VITE_CASHU_MINT_BLOCKLIST` (the consumer parses the env
+   * JSON via `MintBlocklistSchema` and passes the array). Default `[]`.
+   */
+  cashuMintBlocklist?: string[];
+  /**
    * Leader-election INSTANCE id for background processing; auto-generated if
    * omitted. Distinct from `openSecret.clientId`.
    */

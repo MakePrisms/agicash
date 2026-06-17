@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { type Token, getDecodedToken, getEncodedToken } from '@cashu/cashu-ts';
-import { extractCashuToken } from './token';
+import { extractCashuToken, getTokenHash, tokenToMoney } from './token';
 
 // A real v1 cashuA token (v1 keyset ID starts with "00")
 const V1_TOKEN: Token = {
@@ -42,6 +42,72 @@ describe('extractCashuToken', () => {
 
   test('extracts token from URL with hash', () => {
     expect(extractCashuToken(`#${V1_ENCODED_B}`)?.encoded).toBe(V1_ENCODED_B);
+  });
+});
+
+const USD_TOKEN: Token = {
+  mint: 'https://mint.example.com',
+  proofs: [
+    {
+      id: '009a1f293253e41e',
+      amount: 100,
+      secret: 'usd-secret-1',
+      C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904',
+    },
+    {
+      id: '009a1f293253e41e',
+      amount: 50,
+      secret: 'usd-secret-2',
+      C: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda905',
+    },
+  ],
+  unit: 'usd',
+};
+
+describe('tokenToMoney', () => {
+  test('returns BTC Money in sat for a sat token', () => {
+    const money = tokenToMoney(V1_TOKEN);
+    expect(money.currency).toBe('BTC');
+    expect(money.amount('sat').toNumber()).toBe(1);
+  });
+
+  test('returns USD Money in cent for a usd token', () => {
+    const money = tokenToMoney(USD_TOKEN);
+    expect(money.currency).toBe('USD');
+    expect(money.amount('cent').toNumber()).toBe(150);
+  });
+
+  test('throws for an unrecognised token unit', () => {
+    const badToken = { ...V1_TOKEN, unit: 'eur' };
+    expect(() => tokenToMoney(badToken as Token)).toThrow(
+      'Invalid token unit eur',
+    );
+  });
+});
+
+describe('getTokenHash', () => {
+  test('returns a 64-char lowercase hex string for a token string', async () => {
+    const hash = await getTokenHash(V1_ENCODED_A);
+    expect(hash).toHaveLength(64);
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  test('same input produces same hash (deterministic)', async () => {
+    const hash1 = await getTokenHash(V1_ENCODED_A);
+    const hash2 = await getTokenHash(V1_ENCODED_A);
+    expect(hash1).toBe(hash2);
+  });
+
+  test('accepts a Token object and returns the same hash as the encoded string', async () => {
+    // encodeToken uses the cashu-ts default version; match it here
+    const encoded = getEncodedToken({
+      ...V1_TOKEN,
+      proofs: V1_TOKEN.proofs.map((p) => ({ ...p })),
+    });
+    const hashFromString = await getTokenHash(encoded);
+    const hashFromObject = await getTokenHash(V1_TOKEN);
+    expect(hashFromObject).toHaveLength(64);
+    expect(hashFromObject).toBe(hashFromString);
   });
 });
 
