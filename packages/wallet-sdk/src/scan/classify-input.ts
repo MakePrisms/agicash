@@ -1,11 +1,6 @@
 import { extractCashuToken } from '@agicash/cashu/token';
 import { type DecodedBolt11, parseBolt11Invoice } from '@agicash/utils/bolt11';
-import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
-
-const validateLnAddressFormat = buildLightningAddressFormatValidator({
-  message: 'invalid',
-  allowLocalhost: import.meta.env.MODE === 'development',
-});
+import { buildLightningAddressFormatValidator } from '../lightning-address';
 
 export type ClassifiedInput =
   | { direction: 'receive'; type: 'cashu-token'; encoded: string }
@@ -20,7 +15,27 @@ export type ClassifiedInput =
 export type SendInput = Extract<ClassifiedInput, { direction: 'send' }>;
 export type ReceiveInput = Extract<ClassifiedInput, { direction: 'receive' }>;
 
-export function classifyInput(raw: string): ClassifiedInput | null {
+export type ClassifyInputOptions = {
+  /**
+   * Accept `name@localhost[:port]` lightning addresses (local development).
+   * Hosts derive this from their environment (the web passes
+   * `import.meta.env.DEV`). Defaults to false.
+   */
+  allowLocalhost?: boolean;
+};
+
+/**
+ * Classifies a raw scanned/pasted/typed string into a wallet action: a cashu
+ * token to receive, or a bolt11 invoice / lightning address to send. Pure: no
+ * network lookup, no state. Returns null when the input matches nothing.
+ *
+ * A cashu token is detected first (it can be wrapped in a URL or `cashu:` URI),
+ * then a bolt11 invoice, then a LUD-16 lightning-address format.
+ */
+export function classifyInput(
+  raw: string,
+  options: ClassifyInputOptions = {},
+): ClassifiedInput | null {
   const trimmed = raw.trim();
 
   // 1. Cashu token (works on URLs, raw tokens, etc.)
@@ -46,6 +61,10 @@ export function classifyInput(raw: string): ClassifiedInput | null {
 
   // 3. Lightning address — lowercase before validation since the format
   // validator's local-part regex only accepts lowercase characters.
+  const validateLnAddressFormat = buildLightningAddressFormatValidator({
+    message: 'invalid',
+    allowLocalhost: options.allowLocalhost ?? false,
+  });
   const lowered = trimmed.toLowerCase();
   if (validateLnAddressFormat(lowered) === true) {
     return {

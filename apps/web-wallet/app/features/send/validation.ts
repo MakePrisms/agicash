@@ -1,69 +1,18 @@
-import type { DecodedBolt11 } from '@agicash/utils/bolt11';
-import { type Currency, Money } from '@agicash/utils/money';
 import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
 
-export type ValidateResult =
-  | {
-      valid: false;
-      error: string;
-    }
-  | {
-      valid: true;
-      amount: Money<Currency> | null;
-      currency: Currency;
-      unit: 'sat' | 'cent';
-    };
-
-/**
- * Deep validation for a decoded BOLT11 invoice: checks network, expiry, and
- * (optionally) amount. Returns a typed success/failure result.
- */
-export const validateBolt11 = (
-  { network, amountSat, expiryUnixMs }: DecodedBolt11,
-  { allowZeroAmount = false } = {},
-): ValidateResult => {
-  if (network !== 'bitcoin') {
-    return {
-      valid: false,
-      error: `Unsupported network: ${network}. Only Bitcoin mainnet is supported`,
-    };
-  }
-
-  if (expiryUnixMs) {
-    const expiresAt = new Date(expiryUnixMs);
-    const now = new Date();
-    if (expiresAt < now) {
-      return {
-        valid: false,
-        error: 'Invoice expired',
-      };
-    }
-  }
-
-  if (!amountSat && !allowZeroAmount) {
-    return {
-      valid: false,
-      error: 'Amount is required for Lightning invoices',
-    };
-  }
-
-  return {
-    valid: true,
-    amount: amountSat
-      ? new Money({
-          amount: amountSat,
-          currency: 'BTC' as Currency,
-          unit: 'sat',
-        })
-      : null,
-    unit: 'sat',
-    currency: 'BTC',
-  };
-};
+// validateBolt11 (pure bolt11 send-validation) lives in the SDK; re-exported
+// here so this feature's consumers keep a single validation import.
+export {
+  validateBolt11,
+  type ValidateResult,
+} from '@agicash/wallet-sdk/send/validation';
 
 /**
  * Format-level validator for Lightning addresses. Returns `true` if the input
  * parses as a well-formed address, or an error message string otherwise.
+ *
+ * Web-bound: the SDK exposes the generic `buildLightningAddressFormatValidator`;
+ * this pre-binds the app's error message and dev-localhost allowance.
  */
 export const validateLightningAddressFormat =
   buildLightningAddressFormatValidator({

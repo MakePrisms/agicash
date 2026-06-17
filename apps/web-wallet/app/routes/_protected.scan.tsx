@@ -1,3 +1,4 @@
+import { classifyInput } from '@agicash/wallet-sdk/scan';
 import { Clipboard } from 'lucide-react';
 import {
   ClosePageButton,
@@ -8,7 +9,6 @@ import {
 } from '~/components/page';
 import { QRScanner } from '~/components/qr-scanner';
 import { Button } from '~/components/ui/button';
-import { classifyInput } from '~/features/scan';
 import { validateBolt11 } from '~/features/send/validation';
 import useIsPwa from '~/hooks/use-is-pwa';
 import { useToast } from '~/hooks/use-toast';
@@ -22,7 +22,7 @@ export default function ScanPage() {
   const isPwa = useIsPwa();
 
   const handleInput = (raw: string) => {
-    const result = classifyInput(raw);
+    const result = classifyInput(raw, { allowLocalhost: import.meta.env.DEV });
 
     if (!result) {
       toast({
