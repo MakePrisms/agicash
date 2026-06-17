@@ -34,6 +34,7 @@
     "./internal/lightning-address/lnurl-types": "./src/internal/lightning-address/lnurl-types.ts",
     "./internal/spark/receive-quote-core": "./src/internal/spark/receive-quote-core.ts",
     "./engine": "./src/engine.ts",
+    "./server": "./src/server.ts",
     "./internal/cashu/init-wallet": "./src/internal/cashu/init-wallet.ts",
     "./*": "./src/*"
   },
