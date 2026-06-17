@@ -70,9 +70,28 @@ describe('Sdk core shell', () => {
     expect(typeof sdk.exchangeRate.getRate).toBe('function');
     await sdk.destroy();
   });
+  it('spark create/read methods are wired (not NotImplemented)', async () => {
+    const sdk = await Sdk.create(config);
+    expect(typeof sdk.spark.send.createLightningQuote).toBe('function');
+    expect(typeof sdk.spark.send.get).toBe('function');
+    expect(typeof sdk.spark.receive.createLightningQuote).toBe('function');
+    expect(typeof sdk.spark.receive.get).toBe('function');
+    await sdk.destroy();
+  });
+  it('spark executeQuote throws NotImplemented (S7)', async () => {
+    const sdk = await Sdk.create(config);
+    expect(() => sdk.spark.send.executeQuote({} as never)).toThrow(
+      NotImplementedError,
+    );
+    await sdk.destroy();
+  });
   it('still-unimplemented domains throw NotImplementedError', async () => {
     const sdk = await Sdk.create(config);
     expect(() => sdk.transactions.countPendingAck()).toThrow(
+      NotImplementedError,
+    );
+    expect(() => sdk.contacts.list()).toThrow(NotImplementedError);
+    expect(() => sdk.transfers.createQuote({} as never)).toThrow(
       NotImplementedError,
     );
     expect(() => sdk.background.state()).toThrow(NotImplementedError);
@@ -87,8 +106,12 @@ describe('Sdk core shell', () => {
   });
   it('cashu executeQuote/receiveToken throw NotImplemented (S7)', async () => {
     const sdk = await Sdk.create(config);
-    expect(() => sdk.cashu.send.executeQuote({} as never)).toThrow(NotImplementedError);
-    expect(() => sdk.cashu.receive.receiveToken({ token: 't' } as never)).toThrow(NotImplementedError);
+    expect(() => sdk.cashu.send.executeQuote({} as never)).toThrow(
+      NotImplementedError,
+    );
+    expect(() =>
+      sdk.cashu.receive.receiveToken({ token: 't' } as never),
+    ).toThrow(NotImplementedError);
     await sdk.destroy();
   });
 });

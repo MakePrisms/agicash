@@ -1,10 +1,11 @@
 /**
  * The `Sdk` class — §1 of the contract.
  *
- * S5: `auth` + `user` + `accounts` + `scan` + `exchangeRate` + `cashu` are real
- * (`cashu.send.executeQuote` and `cashu.receive.receiveToken` are S7 stubs); the
- * remaining 5 domains (`spark`, `transactions`, `contacts`, `transfers`,
- * `background`) are stubbed (`NotImplementedError`) until their slices implement them.
+ * S6: `auth` + `user` + `accounts` + `scan` + `exchangeRate` + `cashu` + `spark`
+ * are real (`cashu.send.executeQuote` and `cashu.receive.receiveToken` and
+ * `spark.send.executeQuote` are S7 stubs); the remaining 4 domains
+ * (`transactions`, `contacts`, `transfers`, `background`) are stubbed
+ * (`NotImplementedError`) until their slices implement them.
  */
 import type { SdkConfig } from './config';
 import type {
@@ -16,8 +17,6 @@ import type {
   ExchangeRateDomain,
   ScanDomain,
   SparkDomain,
-  SparkReceiveOps,
-  SparkSendOps,
   TransactionsDomain,
   TransfersDomain,
   UserDomain,
@@ -28,6 +27,7 @@ import { createCashuDomain } from './domains/cashu/cashu-domain';
 import type { DomainContext } from './domains/context';
 import { createExchangeRateDomain } from './domains/exchange-rate/exchange-rate-domain';
 import { createScanDomain } from './domains/scan/scan-domain';
+import { createSparkDomain } from './domains/spark/spark-domain';
 import { createUserDomain } from './domains/user/user-domain';
 import type { EventEmitter, SdkEventMap } from './events';
 import { type SdkConnections, buildConnections } from './internal/connections';
@@ -40,20 +40,18 @@ import { AccountRepository } from './internal/repositories/account-repository';
  * through the domain accessors; subscribe via {@link Sdk.events}; tear down with
  * {@link Sdk.destroy}. Framework-free, no general domain cache.
  *
- * S5: `auth`, `user`, `accounts`, `scan`, `exchangeRate`, `cashu` are implemented
- * (`cashu.send.executeQuote` + `cashu.receive.receiveToken` are S7 stubs); the
- * remaining 5 domains (`spark`, `transactions`, `contacts`, `transfers`,
- * `background`) are stubbed (`NotImplementedError`) until their slices land.
+ * S6: `auth`, `user`, `accounts`, `scan`, `exchangeRate`, `cashu`, `spark` are
+ * implemented (`cashu.send.executeQuote` + `cashu.receive.receiveToken` +
+ * `spark.send.executeQuote` are S7 stubs); the remaining 4 domains
+ * (`transactions`, `contacts`, `transfers`, `background`) are stubbed
+ * (`NotImplementedError`) until their slices land.
  */
 export class Sdk {
   readonly auth: AuthDomain;
   readonly user: UserDomain;
   readonly accounts: AccountsDomain;
   readonly cashu: CashuDomain;
-  readonly spark: SparkDomain = {
-    send: notImplementedDomain<SparkSendOps>('spark.send'),
-    receive: notImplementedDomain<SparkReceiveOps>('spark.receive'),
-  };
+  readonly spark: SparkDomain;
   readonly transactions: TransactionsDomain =
     notImplementedDomain<TransactionsDomain>('transactions');
   readonly contacts: ContactsDomain =
@@ -89,6 +87,7 @@ export class Sdk {
     this.scan = createScanDomain(ctx);
     this.exchangeRate = createExchangeRateDomain();
     this.cashu = createCashuDomain(ctx, accountRepository);
+    this.spark = createSparkDomain(ctx);
   }
 
   /** Construct the SDK from `config`, wiring the full connection bundle. */
