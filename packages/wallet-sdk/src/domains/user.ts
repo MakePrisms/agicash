@@ -1,4 +1,3 @@
-import type { Currency } from '@agicash/money';
 import type {
   ReadUserRepository,
   WriteUserRepository,
@@ -15,10 +14,13 @@ type Deps = {
 
 /**
  * The `user` domain. `get()` is the current-user hot read (Promise-based in both
- * variants). setDefaultAccount / setDefaultCurrency update the user's default
- * account/currency; a DB constraint requires a default account to exist for a
- * currency before it can be made the default, so setDefaultCurrency can reject
- * with UniqueConstraintError (surfaced from the repo unchanged).
+ * variants). `setDefaultAccount` sets the default account for the account's
+ * currency and, when `setDefaultCurrency` is passed, also makes that the
+ * default currency; a DB constraint requires a default account to exist for a
+ * currency before it can be made the default, so passing `setDefaultCurrency`
+ * can reject with UniqueConstraintError (surfaced from the repo unchanged).
+ * `acceptTerms` records acceptance timestamps for the wallet terms and/or the
+ * gift-card mint terms independently, depending on which flags are passed.
  */
 export class UserDomain {
   constructor(private readonly deps: Deps) {}
@@ -30,19 +32,21 @@ export class UserDomain {
     return this.deps.readUserRepo.get(id);
   }
 
-  async setDefaultAccount(account: Account): Promise<User> {
+  async setDefaultAccount(params: {
+    account: Account;
+    setDefaultCurrency?: boolean;
+  }): Promise<User> {
     const id = await this.requireUserId();
-    return this.deps.writeUserRepo.update(
-      id,
-      account.currency === 'BTC'
+    const { account, setDefaultCurrency } = params;
+    if (account.currency !== 'BTC' && account.currency !== 'USD') {
+      throw new Error('Unsupported currency');
+    }
+    return this.deps.writeUserRepo.update(id, {
+      ...(account.currency === 'BTC'
         ? { defaultBtcAccountId: account.id }
-        : { defaultUsdAccountId: account.id },
-    );
-  }
-
-  async setDefaultCurrency(currency: Currency): Promise<User> {
-    const id = await this.requireUserId();
-    return this.deps.writeUserRepo.update(id, { defaultCurrency: currency });
+        : { defaultUsdAccountId: account.id }),
+      ...(setDefaultCurrency ? { defaultCurrency: account.currency } : {}),
+    });
   }
 
   async updateUsername(username: string): Promise<User> {
@@ -50,10 +54,15 @@ export class UserDomain {
     return this.deps.writeUserRepo.update(id, { username });
   }
 
-  async acceptTerms(): Promise<User> {
+  async acceptTerms(params: {
+    walletTerms?: boolean;
+    giftCardTerms?: boolean;
+  }): Promise<User> {
     const id = await this.requireUserId();
+    const now = new Date().toISOString();
     return this.deps.writeUserRepo.update(id, {
-      termsAcceptedAt: new Date().toISOString(),
+      ...(params.walletTerms ? { termsAcceptedAt: now } : {}),
+      ...(params.giftCardTerms ? { giftCardMintTermsAcceptedAt: now } : {}),
     });
   }
 

@@ -34,19 +34,62 @@ describe('UserDomain', () => {
     expect(update).toHaveBeenCalledWith('u1', { username: 'bob' });
   });
 
-  test('acceptTerms sets termsAcceptedAt and requires a user', async () => {
+  test('acceptTerms sets only the requested terms columns', async () => {
     const update = mock(async () => USER);
     const domain = makeDomain({ update, userId: 'u1' });
-    await domain.acceptTerms();
-    const call = update.mock.calls[0] as unknown as [
+
+    await domain.acceptTerms({ walletTerms: true });
+    const wallet = update.mock.calls[0] as unknown as [
       string,
-      { termsAcceptedAt?: string },
+      { termsAcceptedAt?: string; giftCardMintTermsAcceptedAt?: string },
     ];
-    expect(call[0]).toBe('u1');
-    expect(typeof call[1].termsAcceptedAt).toBe('string');
-    // throws when signed out
+    expect(wallet[0]).toBe('u1');
+    expect(typeof wallet[1].termsAcceptedAt).toBe('string');
+    expect(wallet[1].giftCardMintTermsAcceptedAt).toBeUndefined();
+
+    await domain.acceptTerms({ giftCardTerms: true });
+    const gift = update.mock.calls[1] as unknown as [
+      string,
+      { termsAcceptedAt?: string; giftCardMintTermsAcceptedAt?: string },
+    ];
+    expect(gift[1].termsAcceptedAt).toBeUndefined();
+    expect(typeof gift[1].giftCardMintTermsAcceptedAt).toBe('string');
+  });
+
+  test('acceptTerms requires a user', async () => {
     await expect(
-      makeDomain({ update, userId: null }).updateUsername('x'),
+      makeDomain({ userId: null }).acceptTerms({ walletTerms: true }),
     ).rejects.toThrow();
+  });
+
+  test('setDefaultAccount writes the currency-matched id, currency only when asked', async () => {
+    const update = mock(async () => USER);
+    const domain = makeDomain({ update, userId: 'u1' });
+
+    await domain.setDefaultAccount({
+      account: { id: 'acc-btc', currency: 'BTC' } as never,
+    });
+    expect(update.mock.calls[0]).toEqual([
+      'u1',
+      { defaultBtcAccountId: 'acc-btc' },
+    ] as never);
+
+    await domain.setDefaultAccount({
+      account: { id: 'acc-usd', currency: 'USD' } as never,
+      setDefaultCurrency: true,
+    });
+    expect(update.mock.calls[1]).toEqual([
+      'u1',
+      { defaultUsdAccountId: 'acc-usd', defaultCurrency: 'USD' },
+    ] as never);
+  });
+
+  test('setDefaultAccount rejects unsupported currencies', async () => {
+    const domain = makeDomain({ userId: 'u1' });
+    await expect(
+      domain.setDefaultAccount({
+        account: { id: 'x', currency: 'EUR' } as never,
+      }),
+    ).rejects.toThrow('Unsupported currency');
   });
 });
