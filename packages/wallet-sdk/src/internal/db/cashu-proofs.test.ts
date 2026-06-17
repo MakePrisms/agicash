@@ -15,11 +15,19 @@ const encryption = new EncryptionService({
 describe('cashu-proofs mapping', () => {
   it('round-trips a proof through encrypt -> decrypt mapping', async () => {
     const enc = await encryption.get();
-    const proof = { id: 'ks1', amount: 21, secret: 's3cret', C: 'sig' } as never;
+    const proof = {
+      id: 'ks1',
+      amount: 21,
+      secret: 's3cret',
+      C: 'sig',
+    } as never;
     const encrypted = await toEncryptedProofData([proof], enc);
     expect(typeof encrypted[0]?.amount).toBe('string');
 
-    const decrypted = await enc.decryptBatch([encrypted[0]!.amount, encrypted[0]!.secret]);
+    const decrypted = await enc.decryptBatch([
+      encrypted[0]!.amount,
+      encrypted[0]!.secret,
+    ]);
     const dbRows = [
       {
         id: 'p1',

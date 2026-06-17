@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { Money } from '@agicash/money';
-import {
-  SparkWalletService,
-  createSparkWalletStub,
-} from './spark-wallet';
+import { SparkWalletService, createSparkWalletStub } from './spark-wallet';
 
 function fakeWallet(balanceSats: number) {
   return { getInfo: async () => ({ balanceSats }) } as never;

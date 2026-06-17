@@ -1,5 +1,5 @@
-import { HDKey } from '@scure/bip32';
 import { bytesToHex } from '@noble/hashes/utils';
+import { HDKey } from '@scure/bip32';
 import { SdkError } from '../../errors';
 
 /** Base derivation path for cashu NUT-20 locking keys (master verbatim). */
@@ -26,7 +26,8 @@ export function getCashuCryptography(
     getSeed: getCashuSeed,
     getXpub: async (derivationPath?: string) => {
       const hd = await root();
-      return (derivationPath ? hd.derive(derivationPath) : hd).publicExtendedKey;
+      return (derivationPath ? hd.derive(derivationPath) : hd)
+        .publicExtendedKey;
     },
     getPrivateKey: async (derivationPath?: string) => {
       const hd = await root();

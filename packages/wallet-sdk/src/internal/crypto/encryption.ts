@@ -52,7 +52,10 @@ function deserializeData<T = unknown>(serializedData: string): T {
   }) as T;
 }
 
-function encryptToPublicKey<T = unknown>(data: T, publicKeyHex: string): string {
+function encryptToPublicKey<T = unknown>(
+  data: T,
+  publicKeyHex: string,
+): string {
   const dataBytes = new TextEncoder().encode(serializeData(data));
   const encryptedBytes = eciesEncrypt(dataBytes, hexToBytes(publicKeyHex));
   return encode(encryptedBytes);

@@ -36,8 +36,12 @@ describe('CashuWalletService', () => {
     // builds a real ExtendedCashuWallet + loadMintFromCache; if the fake cache
     // shape is too thin for loadMintFromCache, wrap each call in try/catch and
     // assert on `calls` only (the memo is the unit under test here).
-    await svc.getInitialized('https://m.test', 'BTC', undefined, undefined).catch(() => {});
-    await svc.getInitialized('https://m.test', 'BTC', undefined, undefined).catch(() => {});
+    await svc
+      .getInitialized('https://m.test', 'BTC', undefined, undefined)
+      .catch(() => {});
+    await svc
+      .getInitialized('https://m.test', 'BTC', undefined, undefined)
+      .catch(() => {});
     expect(calls).toBe(1);
   });
 });

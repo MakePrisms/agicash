@@ -86,10 +86,16 @@ function getCurrencyAndUnitFromToken(token: Token): {
 /** The total value of a cashu token as {@link Money}, in the token's currency. */
 export function tokenToMoney(token: Token): Money {
   const { currency, unit } = getCurrencyAndUnitFromToken(token);
-  return new Money<Currency>({ amount: sumProofs(token.proofs), currency, unit });
+  return new Money<Currency>({
+    amount: sumProofs(token.proofs),
+    currency,
+    unit,
+  });
 }
 
 /** SHA-256 hash of an encoded token (or token object), used as the swap identity. */
 export function getTokenHash(token: Token | string): Promise<string> {
-  return typeof token === 'string' ? sha256Hex(token) : sha256Hex(encodeToken(token));
+  return typeof token === 'string'
+    ? sha256Hex(token)
+    : sha256Hex(encodeToken(token));
 }

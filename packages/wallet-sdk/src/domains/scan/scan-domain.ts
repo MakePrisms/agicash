@@ -1,9 +1,9 @@
 import type { ScanDomain } from '../../domains';
 import { DomainError } from '../../errors';
-import type { ParsedDestination } from '../../types/scan';
 import { parseBolt11Invoice } from '../../internal/lib/bolt11';
 import { extractCashuToken } from '../../internal/lib/cashu';
 import { buildLightningAddressFormatValidator } from '../../internal/lib/lnurl';
+import type { ParsedDestination } from '../../types/scan';
 import type { DomainContext } from '../context';
 
 /** Build the scan domain. `parse` classifies raw input into a ParsedDestination. */

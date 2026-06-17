@@ -1,9 +1,9 @@
-import { z } from 'zod/mini';
 import type { Proof } from '@cashu/cashu-ts';
+import { z } from 'zod/mini';
+import type { CashuProof } from '../../types/account';
 import type { Encryption } from '../crypto/encryption';
 import { ProofSchema, proofToY } from '../lib/cashu';
 import type { AgicashDbCashuProof } from './database';
-import type { CashuProof } from '../../types/account';
 
 /**
  * Decrypt + map DB proof rows (whose `amount`/`secret` are encrypted) to domain
@@ -43,8 +43,8 @@ export type EncryptedProofData = {
   secret: string;
   unblindedSignature: string;
   publicKeyY: string;
-  dleq: Proof['dleq'] | null;
-  witness: Proof['witness'] | null;
+  dleq: NonNullable<Proof['dleq']> | null;
+  witness: NonNullable<Proof['witness']> | null;
 };
 
 /**

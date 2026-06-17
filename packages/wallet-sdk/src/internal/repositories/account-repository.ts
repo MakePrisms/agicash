@@ -2,12 +2,12 @@ import type { Currency } from '@agicash/money';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod/mini';
 import { DomainError } from '../../errors';
-import type {
-  Account,
-  AccountPurpose,
-  CashuProof,
-} from '../../types/account';
+import type { Account, AccountPurpose, CashuProof } from '../../types/account';
 import { classify } from '../classify';
+import type { CashuWalletService } from '../connections/cashu-wallet';
+import type { MintAuthTokenProvider } from '../connections/mint-auth';
+import { getMintAuthProvider } from '../connections/mint-auth';
+import type { SparkWalletService } from '../connections/spark-wallet';
 import type { Encryption, EncryptionService } from '../crypto/encryption';
 import {
   CashuAccountDetailsDbDataSchema,
@@ -17,10 +17,6 @@ import {
 } from '../db/account-details';
 import type { AgicashDbAccountWithProofs, Database } from '../db/database';
 import { ProofSchema, normalizeMintUrl } from '../lib/cashu';
-import type { CashuWalletService } from '../connections/cashu-wallet';
-import type { MintAuthTokenProvider } from '../connections/mint-auth';
-import { getMintAuthProvider } from '../connections/mint-auth';
-import type { SparkWalletService } from '../connections/spark-wallet';
 
 type Options = { abortSignal?: AbortSignal };
 
@@ -103,7 +99,10 @@ export class AccountRepository {
     const { data, error, status } = await query.single();
     if (error) {
       if (error.hint === 'LIMIT_REACHED') {
-        throw new DomainError(`${error.message} ${error.details}`, 'LIMIT_REACHED');
+        throw new DomainError(
+          `${error.message} ${error.details}`,
+          'LIMIT_REACHED',
+        );
       }
       if (status === 409 && input.type === 'cashu') {
         throw new DomainError(

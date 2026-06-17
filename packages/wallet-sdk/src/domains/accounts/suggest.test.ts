@@ -8,7 +8,11 @@ import { suggestForAccounts } from './suggest';
 const btcMoney = (sats: number): Money =>
   new Money({ amount: sats, currency: 'BTC', unit: 'sat' }) as unknown as Money;
 
-const spark = (id: string, sats: number, over: Partial<Account> = {}): Account =>
+const spark = (
+  id: string,
+  sats: number,
+  over: Partial<Account> = {},
+): Account =>
   ({
     id,
     name: id,
@@ -64,14 +68,18 @@ describe('suggestForAccounts', () => {
   it('throws DomainError when no candidate can serve', () => {
     expect(() =>
       suggestForAccounts(sendIntent(100), [
-        spark('off', 1000, { isOnline: false, type: 'cashu', isTestMint: true } as never),
+        spark('off', 1000, {
+          isOnline: false,
+          type: 'cashu',
+          isTestMint: true,
+        } as never),
       ]),
     ).toThrow(DomainError);
   });
 
   it('throws DomainError when none has sufficient balance', () => {
-    expect(() => suggestForAccounts(sendIntent(5000), [spark('a', 1000)])).toThrow(
-      DomainError,
-    );
+    expect(() =>
+      suggestForAccounts(sendIntent(5000), [spark('a', 1000)]),
+    ).toThrow(DomainError);
   });
 });

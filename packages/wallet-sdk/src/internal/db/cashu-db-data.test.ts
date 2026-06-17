@@ -49,7 +49,10 @@ describe('cashu db-data schemas parse', () => {
       cashuSendFee: sat(1),
       meltQuoteId: 'quote-id-abc',
       amountReserved: sat(1011),
-      destinationDetails: { sendType: 'LN_ADDRESS', lnAddress: 'user@wallet.io' },
+      destinationDetails: {
+        sendType: 'LN_ADDRESS',
+        lnAddress: 'user@wallet.io',
+      },
       paymentPreimage: 'aabbccdd',
       amountSpent: sat(1008),
       lightningFee: sat(7),

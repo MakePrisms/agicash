@@ -34,8 +34,10 @@ export function canReceiveFromLightning(account: Account): boolean {
 
 /** True if `account` is the user's default for its currency. */
 export function isDefaultAccount(user: User, account: Account): boolean {
-  if (account.currency === 'BTC') return user.defaultBtcAccountId === account.id;
-  if (account.currency === 'USD') return user.defaultUsdAccountId === account.id;
+  if (account.currency === 'BTC')
+    return user.defaultBtcAccountId === account.id;
+  if (account.currency === 'USD')
+    return user.defaultUsdAccountId === account.id;
   return false;
 }
 
@@ -45,6 +47,9 @@ export function getExtendedAccounts(
   accounts: Account[],
 ): ExtendedAccount[] {
   return accounts
-    .map((account) => ({ ...account, isDefault: isDefaultAccount(user, account) }))
+    .map((account) => ({
+      ...account,
+      isDefault: isDefaultAccount(user, account),
+    }))
     .sort((_, b) => (b.isDefault ? 1 : -1)) as ExtendedAccount[];
 }

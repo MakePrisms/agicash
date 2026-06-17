@@ -20,7 +20,11 @@ describe('exchange-rate domain', () => {
 
   it('convert returns the same amount for same currency', async () => {
     const domain = createExchangeRateDomain(fakeService);
-    const usd = new Money({ amount: 100, currency: 'USD', unit: 'usd' }) as Money<Currency>;
+    const usd = new Money({
+      amount: 100,
+      currency: 'USD',
+      unit: 'usd',
+    }) as Money<Currency>;
     expect((await domain.convert({ amount: usd, to: 'USD' })).toString()).toBe(
       usd.toString(),
     );
@@ -28,7 +32,11 @@ describe('exchange-rate domain', () => {
 
   it('convert uses getRate(`${from}-${to}`) + Money.convert', async () => {
     const domain = createExchangeRateDomain(fakeService);
-    const usd = new Money({ amount: 100, currency: 'USD', unit: 'usd' }) as Money<Currency>;
+    const usd = new Money({
+      amount: 100,
+      currency: 'USD',
+      unit: 'usd',
+    }) as Money<Currency>;
     const btc = await domain.convert({ amount: usd, to: 'BTC' });
     expect(btc.currency).toBe('BTC');
   });

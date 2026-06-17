@@ -1,13 +1,13 @@
 import type { Currency, Money } from '@agicash/money';
 import type { AccountsDomain } from '../../domains';
 import { DomainError, SdkError } from '../../errors';
-import type { Account } from '../../types/account';
-import type { AddAccountConfig } from '../../types/account-config';
-import type { PaymentIntent } from '../../types/scan';
 import { getCurrentUserId } from '../../internal/connections/open-secret';
 import { checkIsTestMint } from '../../internal/lib/cashu';
 import type { AccountRepository } from '../../internal/repositories/account-repository';
 import { UserRepository } from '../../internal/repositories/user-repository';
+import type { Account } from '../../types/account';
+import type { AddAccountConfig } from '../../types/account-config';
+import type { PaymentIntent } from '../../types/scan';
 import type { DomainContext } from '../context';
 import { getAccountBalance } from './account-utils';
 import { suggestForAccounts } from './suggest';
@@ -49,7 +49,9 @@ export function createAccountsDomain(
       if (!user) return null;
       const currency = params?.currency ?? user.defaultCurrency;
       const defaultId =
-        currency === 'BTC' ? user.defaultBtcAccountId : user.defaultUsdAccountId;
+        currency === 'BTC'
+          ? user.defaultBtcAccountId
+          : user.defaultUsdAccountId;
       if (!defaultId) return null;
       return accounts.get(defaultId);
     },

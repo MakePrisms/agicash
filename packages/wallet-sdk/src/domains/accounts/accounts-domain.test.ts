@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'bun:test';
 import { Money } from '@agicash/money';
-import { createAccountsDomain } from './accounts-domain';
-import type { DomainContext } from '../context';
 import type { SdkConfig } from '../../config';
-import type { AccountRepository } from '../../internal/repositories/account-repository';
-import { SdkEventEmitter } from '../../internal/event-emitter';
 import type { SdkEventMap } from '../../events';
-import { inMemoryStorage, jwtWith, makeFakeDb } from '../../internal/test-support';
+import { SdkEventEmitter } from '../../internal/event-emitter';
+import type { AccountRepository } from '../../internal/repositories/account-repository';
+import {
+  inMemoryStorage,
+  jwtWith,
+  makeFakeDb,
+} from '../../internal/test-support';
+import type { DomainContext } from '../context';
+import { createAccountsDomain } from './accounts-domain';
 
 const userRow = {
   id: 'u1',

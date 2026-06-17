@@ -1,9 +1,9 @@
+import type { Currency } from '@agicash/money';
 import type { AuthProvider } from '@cashu/cashu-ts';
 import { KeyChain, NetworkError } from '@cashu/cashu-ts';
-import type { Currency } from '@agicash/money';
 import {
   type ExtendedCashuWallet,
-  ExtendedMintInfo,
+  type ExtendedMintInfo,
   getCashuProtocolUnit,
   getCashuUnit,
   getCashuWallet,

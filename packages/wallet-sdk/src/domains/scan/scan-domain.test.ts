@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import type { DomainContext } from '../context';
 import type { SdkConfig } from '../../config';
+import type { DomainContext } from '../context';
 import { createScanDomain } from './scan-domain';
 
 // Real BOLT11 test vector from apps/web-wallet/app/features/scan/classify-input.test.ts

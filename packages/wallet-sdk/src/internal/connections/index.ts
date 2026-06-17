@@ -4,13 +4,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SdkConfig } from '../../config';
 import type { SparkNetwork } from '../../types/dependencies';
 import { EncryptionService } from '../crypto/encryption';
-import { CASHU_MNEMONIC_PATH, SPARK_MNEMONIC_PATH, type KeyProvider } from '../crypto/keys';
+import {
+  CASHU_MNEMONIC_PATH,
+  type KeyProvider,
+  SPARK_MNEMONIC_PATH,
+} from '../crypto/keys';
 import type { Database } from '../db/database';
 import { ExtendedMintInfo } from '../lib/cashu';
-import { SupabaseRealtimeManager } from '../realtime/supabase-realtime-manager';
 import { buildMintValidator } from '../lib/cashu/mint-validation';
+import { SupabaseRealtimeManager } from '../realtime/supabase-realtime-manager';
 import { connectBreez } from './breez';
-import { getCashuCryptography, type CashuCryptography } from './cashu-crypto';
+import { type CashuCryptography, getCashuCryptography } from './cashu-crypto';
 import { CashuWalletService, type MintMetadata } from './cashu-wallet';
 import { MintAuthTokenProvider } from './mint-auth';
 import {

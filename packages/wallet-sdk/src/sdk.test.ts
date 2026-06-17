@@ -75,7 +75,9 @@ describe('Sdk core shell', () => {
     expect(() => sdk.cashu.send.failQuote({} as never, 'x')).toThrow(
       NotImplementedError,
     );
-    expect(() => sdk.transactions.countPendingAck()).toThrow(NotImplementedError);
+    expect(() => sdk.transactions.countPendingAck()).toThrow(
+      NotImplementedError,
+    );
     expect(() => sdk.background.state()).toThrow(NotImplementedError);
     await sdk.destroy();
   });

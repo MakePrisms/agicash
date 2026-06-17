@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { Money } from '@agicash/money';
+import type { Account } from '../../types/account';
+import type { User } from '../../types/user';
 import {
   canReceiveFromLightning,
   canSendToLightning,
@@ -7,8 +9,6 @@ import {
   getExtendedAccounts,
   isDefaultAccount,
 } from './account-utils';
-import type { Account } from '../../types/account';
-import type { User } from '../../types/user';
 
 const cashu = (over: Partial<Account> = {}): Account =>
   ({
@@ -68,7 +68,9 @@ describe('account-utils', () => {
 
   it('canSendToLightning: spark true; test mint false; offline false', () => {
     expect(canSendToLightning(spark)).toBe(true);
-    expect(canSendToLightning(cashu({ isTestMint: true } as never))).toBe(false);
+    expect(canSendToLightning(cashu({ isTestMint: true } as never))).toBe(
+      false,
+    );
     expect(canSendToLightning(cashu({ isOnline: false } as never))).toBe(false);
     expect(canSendToLightning(cashu())).toBe(true);
   });
@@ -88,7 +90,10 @@ describe('account-utils', () => {
 
   it('isDefaultAccount + getExtendedAccounts tag and sort defaults first', () => {
     expect(isDefaultAccount(user, spark)).toBe(true);
-    const ext = getExtendedAccounts(user, [cashu({ id: 'other' } as never), spark]);
+    const ext = getExtendedAccounts(user, [
+      cashu({ id: 'other' } as never),
+      spark,
+    ]);
     expect(ext[0]?.isDefault).toBe(true);
   });
 });

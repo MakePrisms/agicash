@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'bun:test';
-import { makeFakeDb } from '../test-support';
-import { AccountRepository } from './account-repository';
-import { EncryptionService } from '../crypto/encryption';
-import { MintAuthTokenProvider } from '../connections/mint-auth';
-import { CashuWalletService } from '../connections/cashu-wallet';
-import { SparkWalletService } from '../connections/spark-wallet';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { bytesToHex } from '@noble/hashes/utils';
+import { CashuWalletService } from '../connections/cashu-wallet';
+import { MintAuthTokenProvider } from '../connections/mint-auth';
+import { SparkWalletService } from '../connections/spark-wallet';
+import { EncryptionService } from '../crypto/encryption';
+import { makeFakeDb } from '../test-support';
+import { AccountRepository } from './account-repository';
 
 const priv = secp256k1.utils.randomPrivateKey();
 const pubHex = bytesToHex(secp256k1.getPublicKey(priv, true));

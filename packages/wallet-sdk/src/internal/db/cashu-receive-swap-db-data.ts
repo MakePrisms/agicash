@@ -41,4 +41,6 @@ export const CashuSwapReceiveDbDataSchema = z.object({
  * Cashu swap receive db data.
  * Defines the format of the data stored in the jsonb database column.
  */
-export type CashuSwapReceiveDbData = z.infer<typeof CashuSwapReceiveDbDataSchema>;
+export type CashuSwapReceiveDbData = z.infer<
+  typeof CashuSwapReceiveDbDataSchema
+>;

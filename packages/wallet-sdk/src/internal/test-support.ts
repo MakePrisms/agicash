@@ -25,7 +25,8 @@ export function makeFakeDb(opts: {
   const updateBuilder = () => builder(async () => update);
   function builder(terminal: () => Promise<DbResult>) {
     const b: Record<string, unknown> = {};
-    for (const m of ['select', 'eq', 'order', 'limit', 'abortSignal']) b[m] = () => b;
+    for (const m of ['select', 'eq', 'in', 'order', 'limit', 'abortSignal'])
+      b[m] = () => b;
     b.insert = () => builder(terminal);
     b.update = (payload: unknown) => {
       opts.calls?.update?.push(payload);
@@ -35,8 +36,10 @@ export function makeFakeDb(opts: {
     b.maybeSingle = terminal;
     // Allow `await query` without a terminal (.single/.maybeSingle) — needed by
     // getAllActive which awaits the builder directly.
-    b.then = (resolve: (v: DbResult) => unknown, reject: (e: unknown) => unknown) =>
-      terminal().then(resolve, reject);
+    b.then = (
+      resolve: (v: DbResult) => unknown,
+      reject: (e: unknown) => unknown,
+    ) => terminal().then(resolve, reject);
     return b;
   }
   return {

@@ -2,7 +2,7 @@ import { Money } from '@agicash/money';
 import { z } from 'zod/mini';
 
 /** Schema for additional details related to the transaction destination. */
-const DestinationDetailsSchema = z.discriminatedUnion('sendType', [
+export const DestinationDetailsSchema = z.discriminatedUnion('sendType', [
   z.object({
     sendType: z.literal('AGICASH_CONTACT'),
     /** The ID of the Agicash contact receiving the payment. */
