@@ -1,0 +1,213 @@
+import type { Money } from '@agicash/money';
+import type { CashuDomain } from '../../domains';
+import {
+  DomainError,
+  NotFoundError,
+  NotImplementedError,
+  SdkError,
+} from '../../errors';
+import { getCurrentUserId } from '../../internal/connections/open-secret';
+import {
+  buildLightningAddressFormatValidator,
+  getInvoiceFromLud16,
+  isLNURLError,
+} from '../../internal/lib/lnurl';
+import type { AccountRepository } from '../../internal/repositories/account-repository';
+import { CashuReceiveQuoteRepository } from '../../internal/repositories/cashu-receive-quote-repository';
+import { CashuReceiveSwapRepository } from '../../internal/repositories/cashu-receive-swap-repository';
+import { CashuSendQuoteRepository } from '../../internal/repositories/cashu-send-quote-repository';
+import { CashuSendSwapRepository } from '../../internal/repositories/cashu-send-swap-repository';
+import type { CashuAccount } from '../../types/account';
+import type { DestinationDetails } from '../../types/cashu';
+import type { DomainContext } from '../context';
+import { createExchangeRateDomain } from '../exchange-rate/exchange-rate-domain';
+import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
+import { CashuReceiveSwapService } from './cashu-receive-swap-service';
+import { CashuSendQuoteService } from './cashu-send-quote-service';
+import { CashuSendSwapService } from './cashu-send-swap-service';
+
+/**
+ * Build the cashu domain over the shared context + the account repository.
+ *
+ * `send.createLightningQuote`/`createTokenQuote`/`failQuote`/`reverse`/`get` and
+ * `receive.createLightningQuote`/`get` are implemented here. `send.executeQuote`
+ * (the WS-driven send orchestrator) and `receive.receiveToken` (the cross-account
+ * claim) are S7 and throw {@link NotImplementedError}.
+ */
+export function createCashuDomain(
+  ctx: DomainContext,
+  accountRepository: AccountRepository,
+): CashuDomain {
+  const { supabase, encryption, cashuCrypto } = ctx.connections;
+
+  const sendQuoteRepo = new CashuSendQuoteRepository(supabase, encryption);
+  const sendSwapRepo = new CashuSendSwapRepository(supabase, encryption);
+  const receiveQuoteRepo = new CashuReceiveQuoteRepository(
+    supabase,
+    encryption,
+    accountRepository,
+  );
+  const receiveSwapRepo = new CashuReceiveSwapRepository(
+    supabase,
+    encryption,
+    accountRepository,
+  );
+
+  const sendQuoteService = new CashuSendQuoteService(sendQuoteRepo);
+  const receiveQuoteService = new CashuReceiveQuoteService(
+    cashuCrypto,
+    receiveQuoteRepo,
+  );
+  const receiveSwapService = new CashuReceiveSwapService(receiveSwapRepo);
+  const sendSwapService = new CashuSendSwapService(
+    sendSwapRepo,
+    receiveSwapService,
+  );
+
+  const exchangeRate = createExchangeRateDomain();
+
+  const isLightningAddress = buildLightningAddressFormatValidator({
+    message: 'invalid',
+    allowLocalhost: ctx.config.allowLocalhostLightningAddress ?? false,
+  });
+
+  const requireUserId = async (): Promise<string> => {
+    const id = await getCurrentUserId(ctx.config.storage);
+    if (!id) throw new SdkError('No active session', 'NOT_AUTHENTICATED');
+    return id;
+  };
+
+  const requireCashuAccount = async (id: string): Promise<CashuAccount> => {
+    const account = await accountRepository.get(id);
+    if (!account || account.type !== 'cashu') {
+      throw new NotFoundError('Account not found', 'not_found');
+    }
+    return account;
+  };
+
+  /**
+   * Resolves `destination` to a bolt11 invoice. A Lightning address is resolved
+   * via LNURL-pay using `amount` (converted to BTC, since the resolver requires
+   * msat); a bolt11 invoice is used directly. The cashu lightning-send path
+   * always works against an amount-bearing invoice, so the melt quote derives
+   * the BTC amount from the invoice itself — no exchange rate is needed there.
+   */
+  const resolveDestination = async (
+    destination: string,
+    amount?: Money,
+  ): Promise<{
+    paymentRequest: string;
+    destinationDetails?: DestinationDetails;
+  }> => {
+    if (isLightningAddress(destination) !== true) {
+      return { paymentRequest: destination };
+    }
+
+    if (!amount) {
+      throw new DomainError(
+        'Amount is required to send to a lightning address',
+        'amount_required',
+      );
+    }
+
+    const amountInBtc = (await exchangeRate.convert({
+      amount,
+      to: 'BTC',
+    })) as Money<'BTC'>;
+
+    const result = await getInvoiceFromLud16(destination, amountInBtc);
+    if (isLNURLError(result)) {
+      throw new DomainError(result.reason, 'lnurl_error');
+    }
+
+    return {
+      paymentRequest: result.pr,
+      destinationDetails: { sendType: 'LN_ADDRESS', lnAddress: destination },
+    };
+  };
+
+  return {
+    send: {
+      async createLightningQuote({ account, destination, amount }) {
+        const userId = await requireUserId();
+        const { paymentRequest, destinationDetails } = await resolveDestination(
+          destination,
+          amount,
+        );
+
+        const lightningQuote = await sendQuoteService.getLightningQuote({
+          account,
+          paymentRequest,
+          amount,
+        });
+
+        return sendQuoteService.createSendQuote({
+          userId,
+          account,
+          sendQuote: {
+            paymentRequest: lightningQuote.paymentRequest,
+            amountRequested: lightningQuote.amountRequested,
+            amountRequestedInBtc: lightningQuote.amountRequestedInBtc,
+            meltQuote: lightningQuote.meltQuote,
+          },
+          destinationDetails,
+        });
+      },
+
+      async createTokenQuote({ account, amount }) {
+        const userId = await requireUserId();
+        return sendSwapService.create({
+          userId,
+          account,
+          amount,
+          senderPaysFee: true,
+        });
+      },
+
+      executeQuote() {
+        throw new NotImplementedError('cashu.send.executeQuote');
+      },
+
+      async failQuote(quote, reason) {
+        const account = await requireCashuAccount(quote.accountId);
+        await sendQuoteService.failSendQuote(account, quote, reason);
+      },
+
+      async reverse(swap) {
+        const account = await requireCashuAccount(swap.accountId);
+        await sendSwapService.reverse(swap, account);
+        return (await sendSwapRepo.get(swap.id)) ?? swap;
+      },
+
+      async get(id) {
+        return (await sendQuoteRepo.get(id)) ?? (await sendSwapRepo.get(id));
+      },
+    },
+
+    receive: {
+      receiveToken() {
+        throw new NotImplementedError('cashu.receive.receiveToken');
+      },
+
+      async createLightningQuote({ account, amount, purpose }) {
+        const userId = await requireUserId();
+        const lightningQuote = await receiveQuoteService.getLightningQuote({
+          wallet: account.wallet,
+          amount,
+        });
+
+        return receiveQuoteService.createReceiveQuote({
+          userId,
+          account,
+          receiveType: 'LIGHTNING',
+          lightningQuote,
+          purpose: purpose ?? 'PAYMENT',
+        });
+      },
+
+      async get(quoteId) {
+        return receiveQuoteRepo.get(quoteId);
+      },
+    },
+  };
+}
