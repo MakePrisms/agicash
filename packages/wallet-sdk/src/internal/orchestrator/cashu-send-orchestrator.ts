@@ -11,6 +11,7 @@ import type { CashuSendQuoteService } from '../../domains/cashu/cashu-send-quote
 import type { CashuSendQuoteRepository } from '../repositories/cashu-send-quote-repository';
 import type { SdkEventEmitter } from '../event-emitter';
 import type { MeltQuoteSubscriptionManager } from '../lib/cashu/melt-quote-subscription-manager';
+import { sumProofs } from '../lib/cashu';
 
 export type CashuSendOrchestratorDeps = {
   sendQuoteService: CashuSendQuoteService;
@@ -94,12 +95,23 @@ export class CashuSendOrchestrator {
     }
   }
 
-  // #788 refetch lands here in a later task.
+  /**
+   * nutshell #788: the melt PAID websocket payload sometimes omits `change`.
+   * When change is expected (input proofs exceed the melt amount) but absent,
+   * refetch the melt quote so `completeSendQuote` can derive the change proofs;
+   * otherwise the user's change ecash is silently lost.
+   * https://github.com/cashubtc/nutshell/pull/788
+   */
   protected async resolvePaidMeltQuote(
-    _account: CashuAccount,
-    _sendQuote: CashuSendQuote,
+    account: CashuAccount,
+    sendQuote: CashuSendQuote,
     meltQuote: MeltQuoteBolt11Response,
   ): Promise<MeltQuoteBolt11Response> {
+    const inputAmount = sumProofs(sendQuote.proofs);
+    const expectChange = inputAmount > meltQuote.amount;
+    if (expectChange && !(meltQuote.change && meltQuote.change.length > 0)) {
+      return account.wallet.checkMeltQuoteBolt11(sendQuote.quoteId);
+    }
     return meltQuote;
   }
 }

@@ -115,3 +115,64 @@ describe('CashuSendOrchestrator.applyMeltQuoteState', () => {
     expect(failed).toHaveLength(1);
   });
 });
+
+describe('CashuSendOrchestrator nutshell-#788 change refetch', () => {
+  function paidDeps(inputSats: number, meltAmount: number, change: unknown[] | undefined) {
+    const emitter = new SdkEventEmitter<SdkEventMap>();
+    const checkMeltQuoteBolt11 = mock(async () => ({
+      quote: 'mq-1',
+      state: MeltQuoteState.PAID,
+      amount: meltAmount,
+      change: [{ id: 'x' }],
+    }));
+    const acct = {
+      ...account,
+      wallet: { checkMeltQuoteBolt11 },
+    } as unknown as CashuAccount;
+    const sendQuoteService = {
+      completeSendQuote: mock(async (_a, q: CashuSendQuote) => ({ ...q, state: 'PAID' })),
+    } as unknown as CashuSendQuoteService;
+    const orchestrator = new CashuSendOrchestrator({
+      sendQuoteService,
+      sendQuoteRepository: {} as never,
+      getAccount: mock(async () => acct),
+      meltSubscriptionManager: {} as never,
+      emitter,
+    });
+    const quote = unpaidQuote({
+      state: 'PENDING',
+      proofs: Array.from({ length: inputSats }, () => ({ amount: 1 })) as never,
+    });
+    const meltQuote = {
+      quote: 'mq-1',
+      state: MeltQuoteState.PAID,
+      amount: meltAmount,
+      change,
+    } as unknown as MeltQuoteBolt11Response;
+    return { orchestrator, sendQuoteService, checkMeltQuoteBolt11, acct, quote, meltQuote };
+  }
+
+  it('change expected but absent → refetches and completes with the refetched quote', async () => {
+    const { orchestrator, sendQuoteService, checkMeltQuoteBolt11, acct, quote, meltQuote } =
+      paidDeps(110, 100, undefined);
+    await orchestrator.applyMeltQuoteState(acct, quote, meltQuote);
+    expect(checkMeltQuoteBolt11).toHaveBeenCalledWith('mq-1');
+    const passedMeltQuote = (sendQuoteService.completeSendQuote as ReturnType<typeof mock>).mock
+      .calls[0][2] as MeltQuoteBolt11Response;
+    expect(passedMeltQuote.change).toHaveLength(1); // refetched change reached completeSendQuote
+  });
+
+  it('change already present → no refetch', async () => {
+    const { orchestrator, checkMeltQuoteBolt11, acct, quote, meltQuote } = paidDeps(110, 100, [
+      { id: 'present' },
+    ]);
+    await orchestrator.applyMeltQuoteState(acct, quote, meltQuote);
+    expect(checkMeltQuoteBolt11).not.toHaveBeenCalled();
+  });
+
+  it('no change expected (inputAmount <= amount) → no refetch', async () => {
+    const { orchestrator, checkMeltQuoteBolt11, acct, quote, meltQuote } = paidDeps(100, 100, undefined);
+    await orchestrator.applyMeltQuoteState(acct, quote, meltQuote);
+    expect(checkMeltQuoteBolt11).not.toHaveBeenCalled();
+  });
+});
