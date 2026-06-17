@@ -6,7 +6,6 @@ import {
 } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
 import type { SparkNetwork } from '../db/json-models/spark-account-details-db-data';
-import type { KeyService } from '../keys';
 import { createSparkWalletStub } from './stub';
 
 // Breez's initLogging delegates to Rust's tracing crate, which enforces a single
@@ -26,6 +25,13 @@ function tryInitLogging() {
     });
 }
 
+/** The single capability SparkWalletManager needs from a key source: the BIP39
+ * mnemonic for the spark wallet. Client mode passes the user's KeyService (which
+ * satisfies this); server mode passes a fixed-mnemonic source. */
+export type SparkMnemonicSource = {
+  getSparkMnemonic(): Promise<string>;
+};
+
 /**
  * Owns the connected Breez SDK wallet per network — one connect() each, cached as
  * a Promise — replacing the app's sparkWalletQueryOptions singleton. getWallet()
@@ -36,7 +42,7 @@ export class SparkWalletManager {
   private readonly wallets = new Map<SparkNetwork, Promise<BreezSdk>>();
 
   constructor(
-    private readonly keys: KeyService,
+    private readonly keys: SparkMnemonicSource,
     private readonly apiKey: string,
     private readonly storageDir: string,
   ) {}
