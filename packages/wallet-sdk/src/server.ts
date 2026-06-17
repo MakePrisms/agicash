@@ -5,6 +5,7 @@ import { createAgicashDb } from './internal/db/client';
 import { DefaultAccountRepository } from './internal/db/default-account-repository';
 import { ReadUserRepository } from './internal/db/user-repository';
 import { LightningAddressService } from './internal/lightning-address/lightning-address-service';
+import { ExchangeRateService } from './internal/rates/exchange-rate-service';
 import {
   type SparkMnemonicSource,
   SparkWalletManager,
@@ -106,7 +107,9 @@ export async function createServerSdk(
     verifyEncryptionKey: hexToBytes(
       config.lightningAddress.verifyEncryptionKey,
     ),
-    getExchangeRate: config.getExchangeRate,
+    getExchangeRate:
+      config.getExchangeRate ??
+      ((ticker) => new ExchangeRateService().getRate(ticker as never)),
   });
 
   return {
