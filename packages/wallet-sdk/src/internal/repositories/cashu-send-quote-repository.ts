@@ -10,7 +10,10 @@ import type { TransactionPurpose } from '../../types/transaction';
 import { classify } from '../classify';
 import type { EncryptionService } from '../crypto/encryption';
 import { sha256Hex } from '../crypto/sha256';
-import { toDecryptedCashuProofs, toEncryptedProofData } from '../db/cashu-proofs';
+import {
+  toDecryptedCashuProofs,
+  toEncryptedProofData,
+} from '../db/cashu-proofs';
 import {
   CashuLightningSendDbDataSchema,
   DestinationDetailsSchema,
