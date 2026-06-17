@@ -36,7 +36,8 @@
 | 04 | S4 | accounts + scan + exchangeRate (+ live wallet-handle resolution) | ✅ [done](2026-06-13-wallet-sdk-04-accounts-scan-exchange-rate.md) (18 commits) — domains live; protocol libs (bolt11/lnurl/cashu) extracted + `Account.wallet` real; gate green (196 tests) |
 | 05 | S5 | cashu ops (send / receive / token-claim) | ✅ [done](2026-06-13-wallet-sdk-05-cashu-ops.md) (18 commits) — 4 repos + 5 services + token-receive helpers + CashuCryptography + cashuMintValidator, wired via `createCashuDomain`; `executeQuote`/`receiveToken` deferred to S7 (`NotImplementedError`); gate green (386 SDK tests, 521 total) |
 | 06 | S6 | spark ops (client; server receive *primitive* session-agnostic, server *wiring* → S10) | ✅ [done](2026-06-13-wallet-sdk-06-spark-ops.md) (8 commits) — 2 repos + 2 services + session-agnostic receive-core + `createSparkDomain`, wired via `createSparkDomain(ctx)`; `send.executeQuote` deferred to S7 (`NotImplementedError`); gate green (463 SDK tests, 598 total). 7 of 11 domains real. |
-| 07 | S7 | orchestrator (executeQuote + #788; receiveToken; balance listener incl. `synced`) | not written |
+| 07a | S7 (cashu) | cashu orchestrator **primitives** — 3 WS managers · send/receive/swap processors · #788 · cross-account quote + claim service · publish `CashuReceiveSwap` | [written](2026-06-13-wallet-sdk-07a-cashu-orchestrator.md) |
+| 07b | S7 (spark) | spark orchestrator **primitives** — send/receive Breez listeners · balance listener (§8 `synced`) · spark processors | not written |
 | 08 | S8 | transactions + contacts + transfers | not written |
 | 09 | S9 | background (leader election) + realtime forwarder | not written |
 | 10 | S10 | `ServerSdk` facade over shared internals | not written |
@@ -45,6 +46,19 @@
 Dependency order is largely forced: 01 → 02 → 03 → {04} → {05, 06} → 07 → 08 →
 09 → 10 → 11. Reads (S12) subdivide freely; **S13 (the orchestration flip) is
 necessarily atomic** — see spec §9.
+
+> **S7 scope decision (owner, during 07-planning):** S7 is split into **07a (cashu)**
+> and **07b (spark)**, and builds **primitives only** — the WS subscription managers,
+> the per-state transition handlers (incl. the two §8 regressions), the 6 task
+> processors, and the cross-account quote + claim services — each unit-tested OFFLINE
+> with injected fakes + synthetic events. The public `cashu.send.executeQuote` /
+> `cashu.receive.receiveToken` / `spark.send.executeQuote` stay `NotImplementedError`;
+> **S9 wires them** (plus the leader-elected 5s poll loop, subscription start/stop,
+> quote-expiry driving, and the `receiveToken` token-decode + account resolution).
+> This shifts executeQuote/receiveToken *wiring* from S7→S9 vs spec §9 (which assigned
+> them to S7); the regression coverage (#788 in 07a, spark `synced` in 07b) stays in S7.
+> Also decided: `receiveToken` returns `CashuReceiveQuote | SparkReceiveQuote |
+> CashuReceiveSwap` (the same-mint swap is published; minor §6-style contract amendment).
 
 ## Carryover notes (from completed slices)
 
