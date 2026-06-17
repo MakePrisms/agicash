@@ -36,6 +36,8 @@
     "./engine": "./src/engine.ts",
     "./server": "./src/server.ts",
     "./internal/cashu/init-wallet": "./src/internal/cashu/init-wallet.ts",
+    "./internal/rates/exchange-rate-service": "./src/internal/rates/exchange-rate-service.ts",
+    "./internal/rates/providers/types": "./src/internal/rates/providers/types.ts",
     "./*": "./src/*"
   },
   "scripts": {
