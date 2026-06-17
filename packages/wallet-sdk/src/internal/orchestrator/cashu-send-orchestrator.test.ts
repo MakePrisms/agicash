@@ -241,3 +241,43 @@ describe('CashuSendOrchestrator state-transition guards', () => {
     expect(failed).toHaveLength(0);
   });
 });
+
+describe('CashuSendOrchestrator.reconcile', () => {
+  it('subscribes the melt manager once per mint with the mint quote ids', async () => {
+    const subscribe = mock(async () => () => {});
+    const emitter = new SdkEventEmitter<SdkEventMap>();
+    const orchestrator = new CashuSendOrchestrator({
+      sendQuoteService: {} as never,
+      sendQuoteRepository: {} as never,
+      getAccount: mock(async () => account),
+      meltSubscriptionManager: { subscribe } as never,
+      emitter,
+    });
+    await orchestrator.reconcile([
+      unpaidQuote({ id: 'sq-1', quoteId: 'mq-1' }),
+      unpaidQuote({ id: 'sq-2', quoteId: 'mq-2' }),
+    ]);
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(((subscribe.mock.calls as unknown as [{ quoteIds: string[] }[]])[0][0]).quoteIds).toEqual(['mq-1', 'mq-2']);
+  });
+
+  it('routes a WS update back into applyMeltQuoteState', async () => {
+    let onUpdate: ((q: MeltQuoteBolt11Response) => void) | undefined;
+    const subscribe = mock(async (p: { onUpdate: (q: MeltQuoteBolt11Response) => void }) => {
+      onUpdate = p.onUpdate;
+      return () => {};
+    });
+    const markSendQuoteAsPending = mock(async (q: CashuSendQuote) => ({ ...q, state: 'PENDING' }));
+    const orchestrator = new CashuSendOrchestrator({
+      sendQuoteService: { markSendQuoteAsPending } as never,
+      sendQuoteRepository: {} as never,
+      getAccount: mock(async () => account),
+      meltSubscriptionManager: { subscribe } as never,
+      emitter: new SdkEventEmitter<SdkEventMap>(),
+    });
+    await orchestrator.reconcile([unpaidQuote({ id: 'sq-1', quoteId: 'mq-1', state: 'UNPAID' })]);
+    onUpdate?.({ quote: 'mq-1', state: MeltQuoteState.PENDING, amount: 100 } as MeltQuoteBolt11Response);
+    await new Promise((r) => setTimeout(r, 0)); // let the async handler settle
+    expect(markSendQuoteAsPending).toHaveBeenCalledTimes(1);
+  });
+});

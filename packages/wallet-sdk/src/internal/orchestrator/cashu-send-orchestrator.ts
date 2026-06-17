@@ -108,6 +108,50 @@ export class CashuSendOrchestrator {
   }
 
   /**
+   * One reconciliation pass over the given unresolved send quotes: subscribe the
+   * mint's melt-quote websocket (one per mint), routing each update through
+   * `applyMeltQuoteState`. Idempotent per tick (the manager dedupes via isSubset).
+   */
+  async reconcile(quotes: CashuSendQuote[]): Promise<void> {
+    if (quotes.length === 0) return;
+
+    const byQuoteId = new Map<string, CashuSendQuote>();
+    const idsByMint = new Map<string, string[]>();
+
+    for (const quote of quotes) {
+      const account = await this.deps.getAccount(quote.accountId);
+      if (!account) continue;
+      byQuoteId.set(quote.quoteId, quote);
+      const list = idsByMint.get(account.mintUrl) ?? [];
+      list.push(quote.quoteId);
+      idsByMint.set(account.mintUrl, list);
+    }
+
+    for (const [mintUrl, quoteIds] of idsByMint) {
+      await this.deps.meltSubscriptionManager.subscribe({
+        mintUrl,
+        quoteIds,
+        onUpdate: (meltQuote) => {
+          void this.onMeltUpdate(byQuoteId, meltQuote).catch((error) =>
+            console.error('cashu send melt update failed', { cause: error }),
+          );
+        },
+      });
+    }
+  }
+
+  private async onMeltUpdate(
+    byQuoteId: Map<string, CashuSendQuote>,
+    meltQuote: MeltQuoteBolt11Response,
+  ): Promise<void> {
+    const sendQuote = byQuoteId.get(meltQuote.quote);
+    if (!sendQuote) return;
+    const account = await this.deps.getAccount(sendQuote.accountId);
+    if (!account) return;
+    await this.applyMeltQuoteState(account, sendQuote, meltQuote);
+  }
+
+  /**
    * nutshell #788: the melt PAID websocket payload sometimes omits `change`.
    * When change is expected (input proofs exceed the melt amount) but absent,
    * refetch the melt quote so `completeSendQuote` can derive the change proofs;
