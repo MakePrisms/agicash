@@ -18,6 +18,7 @@ export type SparkBalanceListenerDeps = {
  */
 export class SparkBalanceListener {
   private readonly lastEmittedSats = new Map<string, number>();
+  private readonly refreshChains = new Map<string, Promise<void>>();
 
   constructor(private readonly deps: SparkBalanceListenerDeps) {}
 
@@ -36,12 +37,7 @@ export class SparkBalanceListener {
           event.type === 'paymentFailed' ||
           event.type === 'claimedDeposits'
         ) {
-          void this.refreshBalance(account).catch((error) =>
-            console.error('spark balance refresh failed', {
-              accountId: account.id,
-              cause: error,
-            }),
-          );
+          this.scheduleRefresh(account);
         }
       },
     });
@@ -55,6 +51,26 @@ export class SparkBalanceListener {
           }),
         );
     };
+  }
+
+  /**
+   * Serialize balance re-reads per account so the most-recently-delivered event
+   * (e.g. the post-settlement `synced`) is the last `getInfo()` and therefore the
+   * final emitted balance. Concurrent reads could otherwise let a stale (pre-
+   * settlement) read resolve last and stick — exactly the §8 stale-balance hazard.
+   */
+  private scheduleRefresh(account: SparkAccount): void {
+    const prev = this.refreshChains.get(account.id) ?? Promise.resolve();
+    const next = prev
+      .catch(() => {})
+      .then(() => this.refreshBalance(account))
+      .catch((error) =>
+        console.error('spark balance refresh failed', {
+          accountId: account.id,
+          cause: error,
+        }),
+      );
+    this.refreshChains.set(account.id, next);
   }
 
   private async refreshBalance(account: SparkAccount): Promise<void> {

@@ -114,4 +114,53 @@ describe('SparkBalanceListener', () => {
     await flush();
     expect(fake.removeEventListener).toHaveBeenCalledWith('listener-1');
   });
+
+  it("serializes re-reads so a later event's settled balance is the final emit (no stale overwrite)", async () => {
+    const emitter = new SdkEventEmitter<SdkEventMap>();
+    const emitted: number[] = [];
+    emitter.on('account:updated', (e) =>
+      emitted.push((e.account as SparkAccount).balance?.toNumber('sat') ?? -1),
+    );
+
+    let onEvent: ((e: SdkEvent) => void) | undefined;
+    const resolvers: Array<(v: { balanceSats: number }) => void> = [];
+    const getInfo = mock(
+      () =>
+        new Promise<{ balanceSats: number }>((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+    const wallet = {
+      addEventListener: mock(async (l: { onEvent: (e: SdkEvent) => void }) => {
+        onEvent = l.onEvent;
+        return 'l1';
+      }),
+      removeEventListener: mock(async () => true),
+      getInfo,
+    } as unknown as SparkAccount['wallet'];
+    const account = {
+      id: 'acc-1',
+      type: 'spark',
+      currency: 'BTC',
+      balance: sats(1000),
+      wallet,
+    } as unknown as SparkAccount;
+
+    const listener = new SparkBalanceListener({ emitter });
+    await listener.register(account);
+
+    onEvent?.({ type: 'paymentSucceeded' } as unknown as SdkEvent); // schedules refresh A
+    onEvent?.({ type: 'synced' }); // schedules refresh B (queued behind A)
+    await flush();
+    expect(getInfo).toHaveBeenCalledTimes(1); // serialized: B's getInfo not called until A completes
+
+    resolvers[0]?.({ balanceSats: 900 }); // A resolves a transient/stale read → emits 900
+    await flush();
+    expect(getInfo).toHaveBeenCalledTimes(2); // now B's getInfo runs
+
+    resolvers[1]?.({ balanceSats: 1500 }); // B resolves the settled balance → emits 1500
+    await flush();
+
+    expect(emitted).toEqual([900, 1500]); // ordered; the last/final emit is the settled balance
+  });
 });
