@@ -6,6 +6,7 @@ import { SdkEventEmitter } from '../event-emitter';
 import type { CashuAccount } from '../../types/account';
 import type { CashuSendQuote } from '../../types/cashu';
 import type { CashuSendQuoteService } from '../../domains/cashu/cashu-send-quote-service';
+import { DomainError } from '../../errors';
 import { CashuSendOrchestrator } from './cashu-send-orchestrator';
 
 const account = {
@@ -174,5 +175,69 @@ describe('CashuSendOrchestrator nutshell-#788 change refetch', () => {
     const { orchestrator, checkMeltQuoteBolt11, acct, quote, meltQuote } = paidDeps(100, 100, undefined);
     await orchestrator.applyMeltQuoteState(acct, quote, meltQuote);
     expect(checkMeltQuoteBolt11).not.toHaveBeenCalled();
+  });
+});
+
+describe('CashuSendOrchestrator state-transition guards', () => {
+  it('PENDING tick on already-PENDING quote → no markSendQuoteAsPending call, no send:pending emit', async () => {
+    const { orchestrator, sendQuoteService, emitter, quote } = makeDeps({ state: 'PENDING' });
+    const events: unknown[] = [];
+    emitter.on('send:pending', (e) => events.push(e));
+    await orchestrator.applyMeltQuoteState(account, quote, {
+      quote: 'mq-1',
+      state: MeltQuoteState.PENDING,
+      amount: 100,
+    } as MeltQuoteBolt11Response);
+    expect(sendQuoteService.markSendQuoteAsPending).not.toHaveBeenCalled();
+    expect(events).toHaveLength(0);
+  });
+
+  it('PAID tick on EXPIRED quote → completeSendQuote not called, no emit, no throw', async () => {
+    const { orchestrator, sendQuoteService, emitter, quote } = makeDeps({ state: 'EXPIRED' });
+    const events: unknown[] = [];
+    emitter.on('send:completed', (e) => events.push(e));
+    await expect(
+      orchestrator.applyMeltQuoteState(account, quote, {
+        quote: 'mq-1',
+        state: MeltQuoteState.PAID,
+        amount: 100,
+        change: [],
+      } as unknown as MeltQuoteBolt11Response),
+    ).resolves.toBeUndefined();
+    expect(sendQuoteService.completeSendQuote).not.toHaveBeenCalled();
+    expect(events).toHaveLength(0);
+  });
+
+  it('MintOperationError then failSendQuote throws DomainError → no send:failed emit, no crash', async () => {
+    const { MintOperationError } = await import('@cashu/cashu-ts');
+    const emitter = new SdkEventEmitter<SdkEventMap>();
+    const sendQuoteService = {
+      initiateSend: mock(async () => {
+        throw new MintOperationError(11000, 'spent');
+      }),
+      markSendQuoteAsPending: mock(async (q: CashuSendQuote) => ({ ...q, state: 'PENDING' })),
+      completeSendQuote: mock(async (_a: unknown, q: CashuSendQuote) => ({ ...q, state: 'PAID' })),
+      failSendQuote: mock(async () => {
+        throw new DomainError('not unpaid', 'invalid_state');
+      }),
+    } as unknown as CashuSendQuoteService;
+    const orchestrator = new CashuSendOrchestrator({
+      sendQuoteService,
+      sendQuoteRepository: {} as never,
+      getAccount: mock(async () => account),
+      meltSubscriptionManager: {} as never,
+      emitter,
+    });
+    const quote = unpaidQuote({ state: 'UNPAID' });
+    const failed: unknown[] = [];
+    emitter.on('send:failed', (e) => failed.push(e));
+    await expect(
+      orchestrator.applyMeltQuoteState(account, quote, {
+        quote: 'mq-1',
+        state: MeltQuoteState.UNPAID,
+        amount: 100,
+      } as MeltQuoteBolt11Response),
+    ).resolves.toBeUndefined();
+    expect(failed).toHaveLength(0);
   });
 });

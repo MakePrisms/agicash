@@ -44,16 +44,26 @@ export class CashuSendOrchestrator {
         await sendQuoteService.initiateSend(account, sendQuote, meltQuote);
       } catch (error) {
         if (error instanceof MintOperationError) {
-          const failed = await sendQuoteService.failSendQuote(
-            account,
-            sendQuote,
-            error.message,
-          );
-          emitter.emit('send:failed', {
-            quoteId: failed.id,
-            error: new SdkError(error.message, 'cashu_send_failed'),
-            protocol: 'cashu',
-          });
+          try {
+            const failed = await sendQuoteService.failSendQuote(
+              account,
+              sendQuote,
+              error.message,
+            );
+            emitter.emit('send:failed', {
+              quoteId: failed.id,
+              error: new SdkError(error.message, 'cashu_send_failed'),
+              protocol: 'cashu',
+            });
+          } catch (failError) {
+            // failSendQuote refuses to fail a melt quote that is not UNPAID (the melt
+            // is actually in-flight/paid). Don't suppress recovery — let the next
+            // melt-quote WS tick (PENDING/PAID) drive the quote forward.
+            console.error(
+              'cashu send: failSendQuote did not apply after MintOperationError',
+              { quoteId: sendQuote.id, cause: failError },
+            );
+          }
           return;
         }
         throw error;
@@ -62,6 +72,7 @@ export class CashuSendOrchestrator {
     }
 
     if (meltQuote.state === MeltQuoteState.PENDING) {
+      if (sendQuote.state !== 'UNPAID') return;
       const updated = await sendQuoteService.markSendQuoteAsPending(sendQuote);
       if (updated.state === 'PENDING') {
         emitter.emit('send:pending', {
@@ -74,6 +85,7 @@ export class CashuSendOrchestrator {
     }
 
     if (meltQuote.state === MeltQuoteState.PAID) {
+      if (sendQuote.state !== 'UNPAID' && sendQuote.state !== 'PENDING') return;
       const resolved = await this.resolvePaidMeltQuote(
         account,
         sendQuote,
