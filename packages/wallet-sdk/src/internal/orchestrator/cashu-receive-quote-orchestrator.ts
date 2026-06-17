@@ -1,7 +1,10 @@
 import {
+  type MeltQuoteBolt11Response,
+  MeltQuoteState,
   type MintQuoteBolt11Response,
   MintQuoteState,
 } from '@cashu/cashu-ts';
+import { SdkError } from '../../errors';
 import type { SdkEventMap } from '../../events';
 import type { CashuAccount } from '../../types/account';
 import type { CashuReceiveQuote } from '../../types/cashu';
@@ -85,5 +88,69 @@ export class CashuReceiveQuoteOrchestrator {
     await this.applyMintQuoteState(account, quote, mintQuote);
   }
 
-  // applyCrossMintMeltState + reconcileCrossMintMelts land in Task 10.
+  /**
+   * Cross-mint CASHU_TOKEN claim: react to the SOURCE-mint melt quote.
+   * - UNPAID + not yet initiated → (re)initiate the melt.
+   * - UNPAID + already initiated → the melt failed → fail the receive quote.
+   * - PENDING → record that the melt is in flight.
+   * Destination receive completion runs via the mint-quote path (applyMintQuoteState).
+   */
+  async applyCrossMintMeltState(
+    quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' },
+    meltQuote: MeltQuoteBolt11Response,
+    handlers: { initiateMelt: (quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' }) => Promise<void> },
+  ): Promise<void> {
+    if (meltQuote.state === MeltQuoteState.UNPAID) {
+      if (quote.tokenReceiveData.meltInitiated) {
+        await this.deps.receiveQuoteService.fail(quote, 'Cashu token melt failed.');
+        this.deps.emitter.emit('receive:failed', {
+          quoteId: quote.id,
+          error: new SdkError('Cashu token melt failed.', 'cashu_token_melt_failed'),
+          protocol: 'cashu',
+        });
+      } else {
+        await handlers.initiateMelt(quote);
+      }
+      return;
+    }
+    if (meltQuote.state === MeltQuoteState.PENDING) {
+      await this.deps.receiveQuoteService.markMeltInitiated(quote);
+    }
+  }
+
+  /**
+   * Subscribe the SOURCE-mint melt-quote websocket for pending CASHU_TOKEN receive
+   * quotes, routing each update through `applyCrossMintMeltState`. `initiateMelt`
+   * is injected because the actual melt runs on the source wallet, resolved by the
+   * caller (S9 wiring); the orchestrator only decides WHEN to melt.
+   */
+  async reconcileCrossMintMelts(
+    quotes: (CashuReceiveQuote & { type: 'CASHU_TOKEN' })[],
+    handlers: { initiateMelt: (quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' }) => Promise<void> },
+  ): Promise<void> {
+    if (quotes.length === 0) return;
+    const byMeltQuoteId = new Map<string, CashuReceiveQuote & { type: 'CASHU_TOKEN' }>();
+    const idsByMint = new Map<string, string[]>();
+    for (const quote of quotes) {
+      const mintUrl = quote.tokenReceiveData.sourceMintUrl;
+      const meltQuoteId = quote.tokenReceiveData.meltQuoteId;
+      byMeltQuoteId.set(meltQuoteId, quote);
+      const list = idsByMint.get(mintUrl) ?? [];
+      list.push(meltQuoteId);
+      idsByMint.set(mintUrl, list);
+    }
+    for (const [mintUrl, quoteIds] of idsByMint) {
+      await this.deps.meltSubscriptionManager.subscribe({
+        mintUrl,
+        quoteIds,
+        onUpdate: (meltQuote) => {
+          const quote = byMeltQuoteId.get(meltQuote.quote);
+          if (!quote) return;
+          void this.applyCrossMintMeltState(quote, meltQuote, handlers).catch((error) =>
+            console.error('cashu receive cross-mint melt update failed', { cause: error }),
+          );
+        },
+      });
+    }
+  }
 }
