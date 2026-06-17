@@ -35,7 +35,7 @@
 | 03 | S3 | auth + user (+ session resolver, ensure-on-resolve bootstrap) | ✅ [done](2026-06-13-wallet-sdk-03-auth-user.md) (19 commits) — auth + user domains live; gate green (248 tests) |
 | 04 | S4 | accounts + scan + exchangeRate (+ live wallet-handle resolution) | ✅ [done](2026-06-13-wallet-sdk-04-accounts-scan-exchange-rate.md) (18 commits) — domains live; protocol libs (bolt11/lnurl/cashu) extracted + `Account.wallet` real; gate green (196 tests) |
 | 05 | S5 | cashu ops (send / receive / token-claim) | ✅ [done](2026-06-13-wallet-sdk-05-cashu-ops.md) (18 commits) — 4 repos + 5 services + token-receive helpers + CashuCryptography + cashuMintValidator, wired via `createCashuDomain`; `executeQuote`/`receiveToken` deferred to S7 (`NotImplementedError`); gate green (386 SDK tests, 521 total) |
-| 06 | S6 | spark ops (client; server receive *primitive* session-agnostic, server *wiring* → S10) | 📝 [written](2026-06-13-wallet-sdk-06-spark-ops.md) — forks locked: executeQuote→S7 (D6-1); client-only + server-readiness test, server config/wallet/repo/facade → S10 (D6-2) |
+| 06 | S6 | spark ops (client; server receive *primitive* session-agnostic, server *wiring* → S10) | ✅ [done](2026-06-13-wallet-sdk-06-spark-ops.md) (8 commits) — 2 repos + 2 services + session-agnostic receive-core + `createSparkDomain`, wired via `createSparkDomain(ctx)`; `send.executeQuote` deferred to S7 (`NotImplementedError`); gate green (463 SDK tests, 598 total). 7 of 11 domains real. |
 | 07 | S7 | orchestrator (executeQuote + #788; receiveToken; balance listener incl. `synced`) | not written |
 | 08 | S8 | transactions + contacts + transfers | not written |
 | 09 | S9 | background (leader election) + realtime forwarder | not written |
@@ -137,6 +137,54 @@ necessarily atomic** — see spec §9.
     parsed `{ mintUrl; unit }[]` shape, **not** `string[]`); the cashu insufficient-balance
     error message formats USD in cents because `getDefaultUnit` isn't exported to the SDK
     money lib.
+
+- **Plan 06 → S7 / S10 (spark ops done; what S6 deliberately left for later):**
+  - **7 of 11 domains real** (auth, user, accounts, scan, exchangeRate, cashu, **spark**);
+    transactions/contacts/transfers/background still `notImplementedDomain`.
+    `spark.send.executeQuote` throws `NotImplementedError` (the only spark method stubbed) — **S7 owns** it.
+  - **S6 built every per-op primitive** the orchestrator needs (offline-tested with fake
+    wallets): `SparkSendQuoteService` (`getLightningSendQuote`, `createSendQuote`,
+    `initiateSend`→`prepareSendPayment`+`sendPayment`+`markAsPending`(PENDING), `complete`,
+    `fail`), `SparkReceiveQuoteService` (`createReceiveQuote` for LIGHTNING **and**
+    CASHU_TOKEN, `complete`, `expire`, `fail`, `markMeltInitiated`). Both repos
+    (`spark-{send,receive}-quote-repository.ts`) + the ported zod schemas
+    (`SparkSendQuoteSchema`/`SparkReceiveQuoteSchema`, co-located in the repos with a
+    `_SchemaFitsContract` check; the SDK has **no** `AllUnionFieldsRequired`) + the
+    session-agnostic `domains/spark/spark-receive-quote-core.ts` (`getLightningQuote`/
+    `computeQuoteExpiry`/`getAmountAndFee` + the create-quote param types).
+  - **S7 must build/wire (NOT in the SDK yet):** `executeQuote` = wire `initiateSend` +
+    register the per-account Breez event listener (`paymentSucceeded`→`complete`,
+    `paymentFailed`→`fail`) **and the balance listener with the §8 `synced` re-read** (the
+    named §10 regression — **owns its regression test**). Port from
+    `app/features/shared/spark.ts:180-230` (`useTrackAndUpdateSparkAccountBalances`) +
+    `spark-{send,receive}-quote-hooks.ts` (`useOnSparkSendStateChange`/
+    `useOnSparkReceiveStateChange`/`useProcessSpark*Tasks`). The receive `synced`→expiry
+    check + the CASHU_TOKEN melt path (`useOnMeltQuoteStateChange`→`initiateMelt`/
+    `markMeltInitiated`) are also S7 (the melt path needs the cashu wallet + the WS
+    melt-quote subscription manager S7 vendors). The cross-account cashu-token→spark claim
+    consumes `SparkReceiveQuoteService.createReceiveQuote({ receiveType:'CASHU_TOKEN', … })`
+    (built in S6). The `initLogging` single-global guard already lives in `breez.ts` (S4) —
+    nothing to add.
+  - **S10 must build (server spark, all deferred per D6-2):** `config.serverSparkMnemonic`;
+    a dedicated server `SparkWalletService` instance (`new SparkWalletService((network) =>
+    connectBreez({ apiKey, network, storageDir: <server dir>, debugLogging },
+    config.serverSparkMnemonic))` — own storageDir, distinct from the user wallet; the class
+    needs **no** change, confirmed S6); `SparkReceiveQuoteRepositoryServer` (`encryptToPublicKey`,
+    service-role, returns minimal `SparkReceiveQuoteCreated`) + `SparkReceiveQuoteServiceServer`
+    (reuses the S6 `getLightningQuote` core with `receiverIdentityPubkey =
+    user.sparkIdentityPublicKey`). `encryptToPublicKey` ports from
+    `app/features/shared/encryption.ts`. S6's core already has the `receiverIdentityPubkey`
+    param (server-readiness proven by a unit test).
+  - **Testing note (held):** the bolt11-dependent service paths (`getLightningSendQuote`
+    happy/insufficient, the receive core, the domain compose) use **`spyOn` on the SDK's
+    own `internal/lib/bolt11` / `internal/lib/lnurl` modules** (never `mock.module`) with a
+    far-future stubbed invoice, restored in `afterAll`/`afterEach` — bun's `spyOn` **does**
+    redirect direct named imports here (confirmed). All repo tests use real ECIES
+    encrypt/decrypt round-trips via `makeFakeDb` + a random-key `EncryptionService`.
+  - **DRY note:** the domain `CashuTokenMeltDataSchema` (the parsed `tokenReceiveData`
+    shape) was extracted from the cashu receive repo to `internal/db/cashu-token-melt-data.ts`
+    (distinct from the DB-shape `cashu-token-melt-db-data.ts`); both the cashu + spark
+    receive entity schemas import it.
 
 ## Starting notes for Plan 01 (`@agicash/money`)
 
