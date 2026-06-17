@@ -1,10 +1,8 @@
 import {
   type UserResponse,
   fetchUser,
-  confirmPasswordReset as osConfirmPasswordReset,
   convertGuestToUserAccount as osConvertGuestToFullAccount,
   initiateGoogleAuth as osInitiateGoogleAuth,
-  requestPasswordReset as osRequestPasswordReset,
   signIn as osSignIn,
   signInGuest as osSignInGuest,
   signOut as osSignOut,
@@ -25,7 +23,6 @@ import { useNavigate, useRevalidator } from 'react-router';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { generateRandomPassword } from '~/lib/password-generator';
-import { computeSHA256 } from '~/lib/sha256';
 import { guestAccountStorage } from './guest-account-storage';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 import { sessionHintCookie } from './session-hint-cookie';
@@ -141,28 +138,6 @@ type AuthActions = {
   signOut: (options?: SignOutOptions) => Promise<void>;
 
   /**
-   * Requests a password reset for the account
-   * @param email
-   */
-  requestPasswordReset: (
-    email: string,
-  ) => Promise<{ email: string; secret: string }>;
-
-  /**
-   * Confirms a password reset
-   * @param email Email address for which the reset is performed Code that was sent to the email provided to `requestPasswordReset`
-   * @param alphanumericCode Password reset code that was sent to the email address sent to `requestPasswordReset`
-   * @param plaintextSecret Secret that was returned by `requestPasswordReset`
-   * @param newPassword New password to set for the account
-   */
-  confirmPasswordReset: (
-    email: string,
-    alphanumericCode: string,
-    plaintextSecret: string,
-    newPassword: string,
-  ) => Promise<void>;
-
-  /**
    * Initiates a Google authentication flow
    * Returns the auth URL to redirect the user to
    */
@@ -189,7 +164,7 @@ type AuthActions = {
 
 /**
  * A hook that provides authentication actions by wrapping functionalities from the OpenSecret SDK.
- * The actions include user signing up, signing in, signing out, and handling password reset requests.
+ * The actions include user signing up, signing in, and signing out.
  * References for these actions are memoized to ensure consistent references across renders,
  * improving performance and preventing unnecessary re-renders or function evaluations.
  *
@@ -288,13 +263,6 @@ export const useAuthActions = (): AuthActions => {
     await createGuestAccount();
   }, [signInGuest, refreshSession]);
 
-  const requestPasswordReset = useCallback(async (email: string) => {
-    const secret = await generateRandomPassword(20);
-    const hash = await computeSHA256(secret);
-    await osRequestPasswordReset(email, hash);
-    return { email, secret };
-  }, []);
-
   const verifyEmail = useCallback(
     async (code: string) => {
       await osVerifyEmail(code);
@@ -316,8 +284,6 @@ export const useAuthActions = (): AuthActions => {
     signUpGuest,
     signIn,
     signOut,
-    requestPasswordReset,
-    confirmPasswordReset: osConfirmPasswordReset,
     initiateGoogleAuth,
     verifyEmail,
     convertGuestToFullAccount,
