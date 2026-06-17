@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { Money } from '@agicash/money';
-import type { Payment } from '@agicash/breez-sdk-spark';
+import type { Payment, SdkEvent } from '@agicash/breez-sdk-spark';
 import { SdkEventEmitter } from '../event-emitter';
 import type { SdkEventMap } from '../../events';
 import type { SparkAccount } from '../../types/account';
@@ -59,6 +59,7 @@ function lightningPayment(
 
 function makeDeps(
   serviceOver: Partial<Record<keyof SparkReceiveQuoteService, unknown>> = {},
+  acc: SparkAccount = account,
 ) {
   const emitter = new SdkEventEmitter<SdkEventMap>();
   const receiveQuoteService = {
@@ -70,7 +71,7 @@ function makeDeps(
   } as unknown as SparkReceiveQuoteService;
   const orchestrator = new SparkReceiveOrchestrator({
     receiveQuoteService,
-    getAccount: mock(async () => account),
+    getAccount: mock(async () => acc),
     meltSubscriptionManager: {} as never,
     emitter,
   });
@@ -137,5 +138,93 @@ describe('SparkReceiveOrchestrator transitions', () => {
     const { orchestrator, receiveQuoteService } = makeDeps();
     await orchestrator.applyExpiry(unpaidLightning({ state: 'PAID' } as never));
     expect(receiveQuoteService.expire).not.toHaveBeenCalled();
+  });
+});
+
+function makeFakeWallet(opts: { paymentByInvoice?: Payment } = {}) {
+  let onEvent: ((e: SdkEvent) => void) | undefined;
+  const removeEventListener = mock(async () => true);
+  const getPaymentByInvoice = mock(async () => ({
+    payment: opts.paymentByInvoice,
+  }));
+  const wallet = {
+    addEventListener: mock(async (l: { onEvent: (e: SdkEvent) => void }) => {
+      onEvent = l.onEvent;
+      return 'listener-1';
+    }),
+    removeEventListener,
+    getPaymentByInvoice,
+  } as unknown as SparkAccount['wallet'];
+  return {
+    wallet,
+    removeEventListener,
+    getPaymentByInvoice,
+    fire: (e: SdkEvent) => onEvent?.(e),
+  };
+}
+
+function withWallet(wallet: SparkAccount['wallet'], serviceOver = {}) {
+  const acc = { ...account, wallet } as unknown as SparkAccount;
+  return makeDeps(serviceOver, acc);
+}
+
+describe('SparkReceiveOrchestrator.reconcile', () => {
+  it('routes a Breez paymentSucceeded (matched by paymentHash) into receive:completed', async () => {
+    const fake = makeFakeWallet();
+    const { orchestrator, emitter } = withWallet(fake.wallet);
+    const done: unknown[] = [];
+    emitter.on('receive:completed', (e) => done.push(e));
+    await orchestrator.reconcile([unpaidLightning({ paymentHash: 'ph-7' })]);
+    fake.fire({
+      type: 'paymentSucceeded',
+      payment: lightningPayment({
+        id: 'pay-9',
+        paymentHash: 'ph-7',
+        preimage: 'pre-1',
+      }),
+    });
+    await flush();
+    expect(done).toHaveLength(1);
+  });
+
+  it('synced fired twice → expires + emits receive:expired exactly once (dedupe)', async () => {
+    const fake = makeFakeWallet();
+    const { orchestrator, receiveQuoteService, emitter } = withWallet(
+      fake.wallet,
+    );
+    const expired: unknown[] = [];
+    emitter.on('receive:expired', (e) => expired.push(e));
+    await orchestrator.reconcile([
+      unpaidLightning({ expiresAt: new Date(Date.now() - 1000).toISOString() }),
+    ]);
+    fake.fire({ type: 'synced' });
+    fake.fire({ type: 'synced' });
+    await flush();
+    expect(receiveQuoteService.expire).toHaveBeenCalledTimes(1);
+    expect(expired).toHaveLength(1);
+  });
+
+  it('initial getPaymentByInvoice recovery completes a quote whose success fired before registration', async () => {
+    const fake = makeFakeWallet({
+      paymentByInvoice: lightningPayment({
+        id: 'pay-9',
+        paymentHash: 'ph-1',
+        preimage: 'pre-1',
+        status: 'completed',
+      }),
+    });
+    const { orchestrator, receiveQuoteService } = withWallet(fake.wallet);
+    await orchestrator.reconcile([unpaidLightning()]);
+    await flush();
+    expect(receiveQuoteService.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleanup detaches listeners', async () => {
+    const fake = makeFakeWallet();
+    const { orchestrator } = withWallet(fake.wallet);
+    const cleanup = await orchestrator.reconcile([unpaidLightning()]);
+    cleanup();
+    await flush();
+    expect(fake.removeEventListener).toHaveBeenCalledWith('listener-1');
   });
 });

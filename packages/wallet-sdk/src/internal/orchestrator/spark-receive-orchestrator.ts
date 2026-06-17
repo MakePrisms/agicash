@@ -65,4 +65,90 @@ export class SparkReceiveOrchestrator {
       protocol: 'spark',
     });
   }
+
+  async reconcile(receiveQuotes: SparkReceiveQuote[]): Promise<() => void> {
+    const pending = receiveQuotes.filter((q) => q.state === 'UNPAID');
+    if (pending.length === 0) return () => {};
+    const triggered = new Set<string>();
+    const cleanups: Array<() => void> = [];
+
+    const byAccount = new Map<string, SparkReceiveQuote[]>();
+    for (const quote of pending) {
+      const list = byAccount.get(quote.accountId) ?? [];
+      list.push(quote);
+      byAccount.set(quote.accountId, list);
+    }
+
+    for (const [accountId, quotes] of byAccount) {
+      const account = await this.deps.getAccount(accountId);
+      if (!account) continue;
+      const quoteByPaymentHash = new Map(quotes.map((q) => [q.paymentHash, q]));
+
+      const handleSucceeded = (payment: Payment) => {
+        const details = payment.details;
+        if (details?.type !== 'lightning') return;
+        const quote = quoteByPaymentHash.get(details.htlcDetails.paymentHash);
+        if (!quote) return;
+        const key = `${quote.id}:completed`;
+        if (triggered.has(key)) return;
+        triggered.add(key);
+        void this.applyPaymentSucceeded(quote, payment).catch((error) =>
+          console.error('spark receive payment event failed', {
+            quoteId: quote.id,
+            cause: error,
+          }),
+        );
+      };
+
+      const listenerPromise = account.wallet.addEventListener({
+        onEvent: (event) => {
+          if (event.type === 'paymentSucceeded') {
+            handleSucceeded(event.payment);
+          } else if (event.type === 'synced') {
+            for (const quote of quotes) {
+              const key = `${quote.id}:expired`;
+              if (triggered.has(key)) continue;
+              if (new Date(quote.expiresAt) >= new Date()) continue;
+              triggered.add(key);
+              void this.applyExpiry(quote).catch((error) =>
+                console.error('spark receive expiry failed', {
+                  quoteId: quote.id,
+                  cause: error,
+                }),
+              );
+            }
+          }
+        },
+      });
+      cleanups.push(() => {
+        void listenerPromise
+          .then((id) => account.wallet.removeEventListener(id))
+          .catch(() =>
+            console.warn('Failed to remove Spark receive listener', {
+              accountId,
+            }),
+          );
+      });
+
+      for (const quote of quotes) {
+        void account.wallet
+          .getPaymentByInvoice({ invoice: quote.paymentRequest })
+          .then((response) => {
+            if (response.payment && response.payment.status === 'completed') {
+              handleSucceeded(response.payment);
+            }
+          })
+          .catch((error) =>
+            console.error('spark receive initial status check failed', {
+              quoteId: quote.id,
+              cause: error,
+            }),
+          );
+      }
+    }
+
+    return () => {
+      for (const cleanup of cleanups) cleanup();
+    };
+  }
 }
