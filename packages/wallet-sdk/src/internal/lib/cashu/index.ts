@@ -1,3 +1,4 @@
+export * from './blind-signature-matching';
 export * from './proof';
 export * from './secret';
 export * from './token';
