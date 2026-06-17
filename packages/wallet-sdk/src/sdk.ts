@@ -164,15 +164,7 @@ export class WalletSdk {
       onAuthUserIdDecoded: config.onAuthUserIdDecoded,
       onAuthStateResolved: config.onAuthStateResolved,
     });
-    // Close over this.user (assigned below) — safe because they are only
-    // invoked at query/call time, after the bootstrap upsert.
-    const getCurrentUser = () => {
-      const user = this.user.getCached();
-      if (!user) {
-        throw new Error('No user is loaded. Bootstrap the session first.');
-      }
-      return user;
-    };
+    const getCurrentUser = () => user.getCurrentUser();
     const getCurrentUserId = () => getCurrentUser().id;
 
     const accounts = createAccountsApi({

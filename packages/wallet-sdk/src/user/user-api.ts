@@ -75,6 +75,13 @@ export function createUserApi(deps: UserApiDeps): {
   service: UserService;
   cache: UserCache;
   changeHandlers: ReturnType<typeof createUserChangeHandlers>;
+  /**
+   * Resolves the current user from the in-memory user state. The user domain
+   * owns this (it owns the cache); the composition root distributes it as the
+   * shared identity thunk to the other domains.
+   * @throws if no user is loaded yet.
+   */
+  getCurrentUser: () => User;
 } {
   const { queryClient, db, accountRepository, accountsCache, getAuthUserId } =
     deps;
@@ -133,5 +140,6 @@ export function createUserApi(deps: UserApiDeps): {
     service,
     cache,
     changeHandlers: createUserChangeHandlers(cache),
+    getCurrentUser,
   };
 }
