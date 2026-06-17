@@ -6,3 +6,6 @@ export * from './utils';
 export * from './error-codes';
 export { ExtendedMintInfo, type MintPurpose } from './protocol-extensions';
 export { ProofSchema } from './types';
+export { MeltQuoteSubscriptionManager } from './melt-quote-subscription-manager';
+export { MintQuoteSubscriptionManager } from './mint-quote-subscription-manager';
+export { ProofStateSubscriptionManager } from './proof-state-subscription-manager';
