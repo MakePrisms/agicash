@@ -8,7 +8,9 @@ import { CASHU_MNEMONIC_PATH, SPARK_MNEMONIC_PATH, type KeyProvider } from '../c
 import type { Database } from '../db/database';
 import { ExtendedMintInfo } from '../lib/cashu';
 import { SupabaseRealtimeManager } from '../realtime/supabase-realtime-manager';
+import { buildMintValidator } from '../lib/cashu/mint-validation';
 import { connectBreez } from './breez';
+import { getCashuCryptography, type CashuCryptography } from './cashu-crypto';
 import { CashuWalletService, type MintMetadata } from './cashu-wallet';
 import { MintAuthTokenProvider } from './mint-auth';
 import {
@@ -33,6 +35,8 @@ export type SdkConnections = {
   mintAuth: MintAuthTokenProvider;
   /** Cashu BIP39 seed (memoized) for wallet init; derived from the cashu child mnemonic. */
   getCashuSeed: () => Promise<Uint8Array>;
+  cashuCrypto: CashuCryptography;
+  cashuMintValidator: ReturnType<typeof buildMintValidator>;
 };
 
 /**
@@ -60,6 +64,13 @@ export function buildConnections(config: SdkConfig): SdkConnections {
       .then((mnemonic) => mnemonicToSeedSync(mnemonic));
     return cashuSeed;
   };
+
+  const cashuCrypto = getCashuCryptography(getCashuSeed);
+  const cashuMintValidator = buildMintValidator({
+    requiredNuts: [4, 5, 7, 8, 9, 10, 11, 12, 17, 20] as const,
+    requiredWebSocketCommands: ['bolt11_melt_quote', 'proof_state'] as const,
+    blocklist: config.cashuMintBlocklist ?? [],
+  });
 
   const cashuWallets = new CashuWalletService(async (mintUrl) => {
     const mint = new Mint(mintUrl);
@@ -103,5 +114,7 @@ export function buildConnections(config: SdkConfig): SdkConnections {
     sparkWallets,
     mintAuth,
     getCashuSeed,
+    cashuCrypto,
+    cashuMintValidator,
   };
 }

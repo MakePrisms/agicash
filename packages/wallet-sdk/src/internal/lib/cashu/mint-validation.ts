@@ -25,7 +25,7 @@ export const MintBlocklistSchema = z.array(
   }),
 );
 
-type MintBlocklist = z.infer<typeof MintBlocklistSchema>;
+export type MintBlocklist = z.infer<typeof MintBlocklistSchema>;
 
 type BuildMintValidatorOptions = {
   /**

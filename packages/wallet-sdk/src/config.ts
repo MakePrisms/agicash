@@ -7,6 +7,7 @@
  * (auto-generated if omitted) — distinct from `openSecret.clientId`.
  */
 import type { StorageProvider } from '@agicash/opensecret';
+import type { MintBlocklist } from './internal/lib/cashu/mint-validation';
 import type { AccountPurpose } from './types/account';
 import type { SparkNetwork } from './types/dependencies';
 import type { Currency } from './types/money';
@@ -85,11 +86,11 @@ export type SdkConfig = {
    */
   defaultAccounts?: DefaultAccountConfig[];
   /**
-   * Cashu mint URLs to block (the SDK refuses to validate/claim from them).
-   * Replaces the web's `VITE_CASHU_MINT_BLOCKLIST` (the consumer parses the env
-   * JSON via `MintBlocklistSchema` and passes the array). Default `[]`.
+   * Cashu mints (or mint+unit pairs) to block; fed into `cashuMintValidator`.
+   * Parse the consumer's env JSON with `MintBlocklistSchema` before passing.
+   * Default `[]`.
    */
-  cashuMintBlocklist?: string[];
+  cashuMintBlocklist?: MintBlocklist;
   /**
    * Leader-election INSTANCE id for background processing; auto-generated if
    * omitted. Distinct from `openSecret.clientId`.
