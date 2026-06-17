@@ -2,6 +2,7 @@ import { jwtDecode } from 'jwt-decode';
 import type { SdkConfig } from './config';
 import { AuthDomain } from './domains/auth';
 import { BackgroundDomain } from './domains/background';
+import { RatesDomain } from './domains/rates';
 import { UserDomain } from './domains/user';
 import type { SdkCoreEventMap } from './events';
 import type { CreateEngine } from './engine';
@@ -45,6 +46,7 @@ export const walletRuntimeKey: unique symbol = Symbol('agicash.walletRuntime');
 export class Sdk {
   readonly auth: AuthDomain;
   readonly user: UserDomain;
+  readonly rates: RatesDomain;
   readonly background?: BackgroundDomain;
   private readonly events: EventBus<SdkCoreEventMap>;
   private readonly keys: KeyService;
@@ -56,6 +58,7 @@ export class Sdk {
   private constructor(parts: {
     auth: AuthDomain;
     user: UserDomain;
+    rates: RatesDomain;
     events: EventBus<SdkCoreEventMap>;
     keys: KeyService;
     sessionToken: SessionTokenProvider;
@@ -64,6 +67,7 @@ export class Sdk {
   }) {
     this.auth = parts.auth;
     this.user = parts.user;
+    this.rates = parts.rates;
     this.events = parts.events;
     this.keys = parts.keys;
     this.sessionToken = parts.sessionToken;
@@ -143,49 +147,61 @@ export class Sdk {
       getCurrentUserId,
     });
 
+    const rates = new RatesDomain();
+
     // Re-arm the session-expiry timer if a session is already present.
     await auth.initialize();
 
     let background: BackgroundDomain | undefined;
     if (deps.createEngine) {
-      const engine = deps.createEngine({ events, runtime: walletRuntime, config });
+      const engine = deps.createEngine({
+        events,
+        runtime: walletRuntime,
+        config,
+      });
       const p = walletRuntime.protocols;
       const registry = new ProcessorRegistry({
         cashuSendQuote: new CashuSendQuoteProcessor({
           service: p.cashuSendQuoteService,
           runner: engine.runner,
           wallets: engine.wallets,
-          fetchWorkSet: (userId) => engine.workSets.getUnresolvedCashuSendQuotes(userId),
+          fetchWorkSet: (userId) =>
+            engine.workSets.getUnresolvedCashuSendQuotes(userId),
         }),
         cashuSendSwap: new CashuSendSwapProcessor({
           service: p.cashuSendSwapService,
           runner: engine.runner,
           wallets: engine.wallets,
-          fetchWorkSet: (userId) => engine.workSets.getUnresolvedCashuSendSwaps(userId),
+          fetchWorkSet: (userId) =>
+            engine.workSets.getUnresolvedCashuSendSwaps(userId),
         }),
         sparkSendQuote: new SparkSendQuoteProcessor({
           service: p.sparkSendQuoteService,
           runner: engine.runner,
           wallets: engine.wallets,
-          fetchWorkSet: (userId) => engine.workSets.getUnresolvedSparkSendQuotes(userId),
+          fetchWorkSet: (userId) =>
+            engine.workSets.getUnresolvedSparkSendQuotes(userId),
         }),
         cashuReceiveQuote: new CashuReceiveQuoteProcessor({
           service: p.cashuReceiveQuoteService,
           runner: engine.runner,
           wallets: engine.wallets,
-          fetchWorkSet: (userId) => engine.workSets.getPendingCashuReceiveQuotes(userId),
+          fetchWorkSet: (userId) =>
+            engine.workSets.getPendingCashuReceiveQuotes(userId),
         }),
         cashuReceiveSwap: new CashuReceiveSwapProcessor({
           service: p.cashuReceiveSwapService,
           runner: engine.runner,
           wallets: engine.wallets,
-          fetchWorkSet: (userId) => engine.workSets.getPendingCashuReceiveSwaps(userId),
+          fetchWorkSet: (userId) =>
+            engine.workSets.getPendingCashuReceiveSwaps(userId),
         }),
         sparkReceiveQuote: new SparkReceiveQuoteProcessor({
           service: p.sparkReceiveQuoteService,
           runner: engine.runner,
           wallets: engine.wallets,
-          fetchWorkSet: (userId) => engine.workSets.getPendingSparkReceiveQuotes(userId),
+          fetchWorkSet: (userId) =>
+            engine.workSets.getPendingSparkReceiveQuotes(userId),
         }),
       });
       const manager = createRealtimeManager(db);
@@ -217,7 +233,16 @@ export class Sdk {
       });
     }
 
-    return new Sdk({ auth, user, events, keys, sessionToken, walletRuntime, background });
+    return new Sdk({
+      auth,
+      user,
+      rates,
+      events,
+      keys,
+      sessionToken,
+      walletRuntime,
+      background,
+    });
   }
 
   /** Subscribe to a core event. Returns an unsubscribe function. */

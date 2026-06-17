@@ -89,3 +89,5 @@ export type {
   ChangeFeedChange,
   WalletRuntime,
 } from './engine';
+export type { Rate } from './domains/rates';
+export type { Ticker } from './internal/rates/providers/types';
