@@ -3,6 +3,12 @@ import type { AgicashDb } from '@agicash/db-types';
 import { Money } from '@agicash/utils/money';
 import { NotFoundError } from '@agicash/wallet-sdk/error';
 import { ExchangeRateService } from '@agicash/wallet-sdk/exchange-rate';
+import type {
+  LNURLError,
+  LNURLPayParams,
+  LNURLPayResult,
+  LNURLVerifyResult,
+} from '@agicash/wallet-sdk/lnurl-types';
 import { getLightningQuote } from '@agicash/wallet-sdk/receive/cashu-receive-quote-core';
 import { sparkWalletQueryOptions } from '@agicash/wallet-sdk/spark';
 import {
@@ -14,12 +20,6 @@ import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import type { QueryClient } from '@tanstack/react-query';
 import { z } from 'zod/mini';
-import type {
-  LNURLError,
-  LNURLPayParams,
-  LNURLPayResult,
-  LNURLVerifyResult,
-} from '~/lib/lnurl/types';
 import { measureOperation } from '~/lib/performance';
 import {
   decryptXChaCha20Poly1305,

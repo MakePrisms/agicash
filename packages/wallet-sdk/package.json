@@ -17,6 +17,8 @@
     "./error": "./src/error.ts",
     "./exchange-rate": "./src/exchange-rate/index.ts",
     "./lightning-address": "./src/lightning-address.ts",
+    "./lnurl": "./src/lnurl.ts",
+    "./lnurl-types": "./src/lnurl-types.ts",
     "./query-client": "./src/query-client.ts",
     "./receive/cashu-receive-quote": "./src/receive/cashu-receive-quote.ts",
     "./receive/cashu-receive-quote-core": "./src/receive/cashu-receive-quote-core.ts",

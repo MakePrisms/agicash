@@ -2,6 +2,7 @@ import type { Money } from '@agicash/utils/money';
 import type { Contact } from '@agicash/wallet-sdk/contacts/contact';
 import { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
 import { DomainError, getErrorMessage } from '@agicash/wallet-sdk/error';
+import { buildLightningAddressFormatValidator } from '@agicash/wallet-sdk/lnurl';
 import {
   AtSign,
   Clipboard,
@@ -41,7 +42,6 @@ import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,

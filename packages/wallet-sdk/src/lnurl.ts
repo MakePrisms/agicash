@@ -1,7 +1,7 @@
 import type { Money } from '@agicash/utils/money';
-import { buildLightningAddressFormatValidator } from '@agicash/wallet-sdk/lightning-address';
 import ky from 'ky';
-import type { LNURLError, LNURLPayParams, LNURLPayResult } from './types';
+import { buildLightningAddressFormatValidator } from './lightning-address';
+import type { LNURLError, LNURLPayParams, LNURLPayResult } from './lnurl-types';
 
 export { buildLightningAddressFormatValidator };
 

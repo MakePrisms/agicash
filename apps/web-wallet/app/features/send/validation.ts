@@ -1,4 +1,4 @@
-import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
+import { buildLightningAddressFormatValidator } from '@agicash/wallet-sdk/lnurl';
 
 // validateBolt11 (pure bolt11 send-validation) lives in the SDK; re-exported
 // here so this feature's consumers keep a single validation import.
