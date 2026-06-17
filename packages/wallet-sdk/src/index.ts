@@ -76,6 +76,7 @@ export {
 export type { Contact } from './domains/contact';
 export { isContact } from './domains/contact';
 export type { Transaction } from './domains/transaction';
+export type { Cursor } from './internal/db/transaction-repository';
 export type { TransactionDetails } from './domains/transaction-details/transaction-details-types';
 export type { TransferQuote } from './internal/services/transfer-service';
 export type {
