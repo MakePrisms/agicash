@@ -44,6 +44,7 @@ export {
   accountRequiresGiftCardTermsAcceptance,
   getAccountHomePath,
 } from './domains/account-types';
+export type { AddCashuAccountInput } from './domains/accounts';
 export type { CashuProof } from './domains/cashu-proof';
 export type {
   TransactionDirection,
