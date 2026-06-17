@@ -21,7 +21,7 @@ const encryption = new EncryptionService({
 });
 
 const fakeAccountRepository = {
-  toAccount: async () => ({ type: 'cashu', id: 'a1' } as never),
+  toAccount: async () => ({ type: 'cashu', id: 'a1' }) as never,
 } as never as AccountRepository;
 
 async function enc(value: unknown) {

@@ -418,10 +418,7 @@ export class CashuReceiveQuoteRepository {
    * @returns The cashu receive quote, or null if not found.
    */
   async get(id: string, options?: Options): Promise<CashuReceiveQuote | null> {
-    const q = this.db
-      .from('cashu_receive_quotes')
-      .select()
-      .eq('id', id);
+    const q = this.db.from('cashu_receive_quotes').select().eq('id', id);
 
     if (options?.abortSignal) {
       q.abortSignal(options.abortSignal);

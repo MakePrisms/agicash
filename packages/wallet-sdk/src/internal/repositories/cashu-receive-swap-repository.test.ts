@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { type Currency, Money } from '@agicash/money';
+import type { Token } from '@cashu/cashu-ts';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { bytesToHex } from '@noble/hashes/utils';
-import type { Token } from '@cashu/cashu-ts';
 import { DomainError } from '../../errors';
 import { EncryptionService } from '../crypto/encryption';
 import { CashuSwapReceiveDbDataSchema } from '../db/cashu-receive-swap-db-data';
@@ -23,7 +23,7 @@ const encryption = new EncryptionService({
 });
 
 const fakeAccountRepository = {
-  toAccount: async () => ({ type: 'cashu', id: 'a1' } as never),
+  toAccount: async () => ({ type: 'cashu', id: 'a1' }) as never,
 } as never as AccountRepository;
 
 async function enc(value: unknown) {
@@ -94,7 +94,10 @@ describe('CashuReceiveSwapRepository', () => {
       const db = makeFakeDb({
         rpcResult: {
           data: null,
-          error: { message: 'duplicate key value violates unique constraint', code: '23505' },
+          error: {
+            message: 'duplicate key value violates unique constraint',
+            code: '23505',
+          },
         },
       });
 
@@ -199,7 +202,10 @@ describe('CashuReceiveSwapRepository', () => {
 
     it('throws a classified error on db failure', async () => {
       const db = makeFakeDb({
-        selectResult: { data: null, error: { message: 'db error', code: 'XX000' } },
+        selectResult: {
+          data: null,
+          error: { message: 'db error', code: 'XX000' },
+        },
       });
       await expect(repo(db).getByTransactionId('tx1')).rejects.toThrow();
     });
@@ -228,7 +234,9 @@ describe('CashuReceiveSwapRepository', () => {
     it('calls create_cashu_receive_swap with correct params', async () => {
       const swapRow = await makeReceiveSwapRow('PENDING');
       const accountRow = { type: 'cashu', id: 'a1' };
-      const calls: { rpc?: Array<{ name: string; args: unknown }> } = { rpc: [] };
+      const calls: { rpc?: Array<{ name: string; args: unknown }> } = {
+        rpc: [],
+      };
       const db = makeFakeDb({
         rpcResult: {
           data: { swap: swapRow, account: accountRow },

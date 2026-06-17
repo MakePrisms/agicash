@@ -588,7 +588,11 @@ describe('CashuSendQuoteService.createSendQuote', () => {
 
     const service = new CashuSendQuoteService(repo);
     // melt amount 250_000 sat (matches REAL_BOLT11 amount of 2500u = 250_000 sat)
-    const meltQuote = makeMeltQuote({ quote: 'melt-q', amount: 250_000, fee_reserve: 1_000 });
+    const meltQuote = makeMeltQuote({
+      quote: 'melt-q',
+      amount: 250_000,
+      fee_reserve: 1_000,
+    });
 
     await service.createSendQuote({
       userId: 'user-1',

@@ -27,7 +27,11 @@ function makeToken(proofs: Proof[], mint = 'https://mint.example.com'): Token {
 }
 
 function btcMoney(amount: number): Money<Currency> {
-  return new Money({ amount, currency: 'BTC', unit: 'sat' }) as unknown as Money<Currency>;
+  return new Money({
+    amount,
+    currency: 'BTC',
+    unit: 'sat',
+  }) as unknown as Money<Currency>;
 }
 
 const pendingSwap: CashuReceiveSwap = {
@@ -72,14 +76,19 @@ const fakeKeyset = {
   },
 };
 
-function makeFakeWallet(options: {
-  mintUrl?: string;
-  unit?: string;
-  getFeesResult?: number;
-  receiveResult?: Proof[] | 'throw' | { type: 'mintError'; code: number; message: string };
-  restoreResult?: Proof[];
-  keysetId?: string;
-} = {}) {
+function makeFakeWallet(
+  options: {
+    mintUrl?: string;
+    unit?: string;
+    getFeesResult?: number;
+    receiveResult?:
+      | Proof[]
+      | 'throw'
+      | { type: 'mintError'; code: number; message: string };
+    restoreResult?: Proof[];
+    keysetId?: string;
+  } = {},
+) {
   const {
     mintUrl = 'https://mint.example.com',
     unit = 'sat',
@@ -106,14 +115,21 @@ function makeFakeWallet(options: {
             if (receiveResult === 'throw') {
               throw new Error('receive failed');
             }
-            if (typeof receiveResult === 'object' && 'type' in receiveResult && receiveResult.type === 'mintError') {
+            if (
+              typeof receiveResult === 'object' &&
+              'type' in receiveResult &&
+              receiveResult.type === 'mintError'
+            ) {
               const err = Object.assign(new Error(receiveResult.message), {
                 code: receiveResult.code,
                 constructor: { name: 'MintOperationError' },
               });
               // Use the real MintOperationError from cashu-ts
               const { MintOperationError } = await import('@cashu/cashu-ts');
-              const mintErr = new MintOperationError(receiveResult.code, receiveResult.message);
+              const mintErr = new MintOperationError(
+                receiveResult.code,
+                receiveResult.message,
+              );
               throw mintErr;
             }
             return receiveResult as Proof[];
@@ -121,13 +137,19 @@ function makeFakeWallet(options: {
         }),
       }),
     },
-    restore: async (_start: number, _count: number, _config?: { keysetId?: string }) => ({
+    restore: async (
+      _start: number,
+      _count: number,
+      _config?: { keysetId?: string },
+    ) => ({
       proofs: restoreResult,
     }),
   };
 }
 
-function makeFakeAccount(wallet: ReturnType<typeof makeFakeWallet>): CashuAccount {
+function makeFakeAccount(
+  wallet: ReturnType<typeof makeFakeWallet>,
+): CashuAccount {
   return {
     id: 'acc-1',
     name: 'Test Account',
@@ -147,17 +169,30 @@ function makeFakeAccount(wallet: ReturnType<typeof makeFakeWallet>): CashuAccoun
   };
 }
 
-function makeFakeRepo(options: {
-  createResult?: { swap: CashuReceiveSwap; account: CashuAccount };
-  failResult?: CashuReceiveSwap;
-  completeResult?: { swap: CashuReceiveSwap; account: CashuAccount; addedProofs: string[] };
-} = {}): CashuReceiveSwapRepository {
+function makeFakeRepo(
+  options: {
+    createResult?: { swap: CashuReceiveSwap; account: CashuAccount };
+    failResult?: CashuReceiveSwap;
+    completeResult?: {
+      swap: CashuReceiveSwap;
+      account: CashuAccount;
+      addedProofs: string[];
+    };
+  } = {},
+): CashuReceiveSwapRepository {
   return {
     create: async () =>
-      options.createResult ?? { swap: pendingSwap, account: {} as CashuAccount },
+      options.createResult ?? {
+        swap: pendingSwap,
+        account: {} as CashuAccount,
+      },
     fail: async () => options.failResult ?? failedSwap,
     completeReceiveSwap: async () =>
-      options.completeResult ?? { swap: completedSwap, account: {} as CashuAccount, addedProofs: ['proof-id-1'] },
+      options.completeResult ?? {
+        swap: completedSwap,
+        account: {} as CashuAccount,
+        addedProofs: ['proof-id-1'],
+      },
     getByTransactionId: async () => null,
     getPending: async () => [],
     toReceiveSwap: async () => pendingSwap,
@@ -189,7 +224,11 @@ describe('CashuReceiveSwapService.create', () => {
     // USD token (unit='usd') into BTC account
     const wallet = makeFakeWallet();
     const account = makeFakeAccount(wallet);
-    const token: Token = { mint: 'https://mint.example.com', proofs: [makeProof(100)], unit: 'usd' };
+    const token: Token = {
+      mint: 'https://mint.example.com',
+      proofs: [makeProof(100)],
+      unit: 'usd',
+    };
     const repo = makeFakeRepo();
     const service = new CashuReceiveSwapService(repo);
 
@@ -216,7 +255,9 @@ describe('CashuReceiveSwapService.create', () => {
     const account = makeFakeAccount(wallet);
     const token = makeToken([makeProof(100)]);
 
-    let capturedArgs: Parameters<CashuReceiveSwapRepository['create']>[0] | undefined;
+    let capturedArgs:
+      | Parameters<CashuReceiveSwapRepository['create']>[0]
+      | undefined;
     const resultAccount = makeFakeAccount(wallet);
     const repo = makeFakeRepo({
       createResult: { swap: pendingSwap, account: resultAccount },
@@ -250,7 +291,9 @@ describe('CashuReceiveSwapService.create', () => {
     const account = makeFakeAccount(wallet);
     const token = makeToken([makeProof(100)]);
 
-    let capturedArgs: Parameters<CashuReceiveSwapRepository['create']>[0] | undefined;
+    let capturedArgs:
+      | Parameters<CashuReceiveSwapRepository['create']>[0]
+      | undefined;
     const repo = makeFakeRepo();
     repo.create = async (args) => {
       capturedArgs = args;
@@ -258,7 +301,12 @@ describe('CashuReceiveSwapService.create', () => {
     };
 
     const service = new CashuReceiveSwapService(repo);
-    await service.create({ userId: 'user-1', token, account, reversedTransactionId: 'txn-orig' });
+    await service.create({
+      userId: 'user-1',
+      token,
+      account,
+      reversedTransactionId: 'txn-orig',
+    });
 
     expect(capturedArgs!.reversedTransactionId).toBe('txn-orig');
   });
@@ -301,7 +349,9 @@ describe('CashuReceiveSwapService.fail', () => {
     };
     const repo = makeFakeRepo({ failResult: expectedFailed });
 
-    let capturedArgs: { tokenHash: string; userId: string; reason: string } | undefined;
+    let capturedArgs:
+      | { tokenHash: string; userId: string; reason: string }
+      | undefined;
     repo.fail = async (args) => {
       capturedArgs = args;
       return expectedFailed;
@@ -348,23 +398,33 @@ describe('CashuReceiveSwapService.completeSwap', () => {
     const repo = makeFakeRepo();
     const service = new CashuReceiveSwapService(repo);
 
-    await expect(service.completeSwap(account, failedSwap)).rejects.toMatchObject({
+    await expect(
+      service.completeSwap(account, failedSwap),
+    ).rejects.toMatchObject({
       code: 'invalid_state',
     });
   });
 
   it('happy path: calls repo.completeReceiveSwap and returns addedProofs', async () => {
-    const wallet = makeFakeWallet({ receiveResult: [makeProof(64), makeProof(32), makeProof(2), makeProof(1)] });
+    const wallet = makeFakeWallet({
+      receiveResult: [makeProof(64), makeProof(32), makeProof(2), makeProof(1)],
+    });
     const account = makeFakeAccount(wallet);
 
-    let capturedCompleteArgs: { tokenHash: string; userId: string; proofs: Proof[] } | undefined;
+    let capturedCompleteArgs:
+      | { tokenHash: string; userId: string; proofs: Proof[] }
+      | undefined;
     const resultAccount = makeFakeAccount(wallet);
     const resultSwap = { ...completedSwap };
 
     const repo = makeFakeRepo();
     repo.completeReceiveSwap = async (args) => {
       capturedCompleteArgs = args;
-      return { swap: resultSwap, account: resultAccount, addedProofs: ['proof-id-1', 'proof-id-2'] };
+      return {
+        swap: resultSwap,
+        account: resultAccount,
+        addedProofs: ['proof-id-1', 'proof-id-2'],
+      };
     };
 
     const service = new CashuReceiveSwapService(repo);
@@ -417,7 +477,12 @@ describe('CashuReceiveSwapService.completeSwap', () => {
     const { MintOperationError } = await import('@cashu/cashu-ts');
     // OUTPUT_ALREADY_SIGNED = 11003
     const mintError = new MintOperationError(11003, 'output already signed');
-    const restoredProofs = [makeProof(64), makeProof(32), makeProof(2), makeProof(1)];
+    const restoredProofs = [
+      makeProof(64),
+      makeProof(32),
+      makeProof(2),
+      makeProof(1),
+    ];
 
     const wallet = makeFakeWallet({ restoreResult: restoredProofs });
     wallet.ops.receive = (_token: Token) => ({
@@ -447,7 +512,12 @@ describe('CashuReceiveSwapService.completeSwap', () => {
     const { MintOperationError } = await import('@cashu/cashu-ts');
     // TOKEN_ALREADY_SPENT = 11001
     const mintError = new MintOperationError(11001, 'token already spent');
-    const restoredProofs = [makeProof(64), makeProof(32), makeProof(2), makeProof(1)];
+    const restoredProofs = [
+      makeProof(64),
+      makeProof(32),
+      makeProof(2),
+      makeProof(1),
+    ];
 
     const wallet = makeFakeWallet({ restoreResult: restoredProofs });
     wallet.ops.receive = (_token: Token) => ({
@@ -488,6 +558,8 @@ describe('CashuReceiveSwapService.completeSwap', () => {
     const repo = makeFakeRepo();
     const service = new CashuReceiveSwapService(repo);
 
-    await expect(service.completeSwap(account, pendingSwap)).rejects.toThrow('network timeout');
+    await expect(service.completeSwap(account, pendingSwap)).rejects.toThrow(
+      'network timeout',
+    );
   });
 });

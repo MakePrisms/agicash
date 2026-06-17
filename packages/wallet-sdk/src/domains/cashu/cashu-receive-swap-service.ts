@@ -48,14 +48,20 @@ export class CashuReceiveSwapService {
     account: CashuAccount;
   }> {
     if (!areMintUrlsEqual(account.mintUrl, token.mint)) {
-      throw new DomainError('Cannot swap a token to a different mint', 'mint_mismatch');
+      throw new DomainError(
+        'Cannot swap a token to a different mint',
+        'mint_mismatch',
+      );
     }
 
     const inputAmount = tokenToMoney(token);
     const currency = inputAmount.currency;
 
     if (currency !== account.currency) {
-      throw new DomainError('Cannot swap a token to a different currency.', 'currency_mismatch');
+      throw new DomainError(
+        'Cannot swap a token to a different currency.',
+        'currency_mismatch',
+      );
     }
 
     const wallet = account.wallet;
