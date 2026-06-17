@@ -143,7 +143,18 @@ export class WalletSdk {
   readonly realtime: RealtimeApi;
   readonly tasks: TasksApi;
 
-  constructor(config: WalletSdkConfig) {
+  private static instance: WalletSdk | undefined;
+
+  // Private so the SDK is constructed only through getInstance(): there can be
+  // exactly one instance. The QueryClient, the Agicash DB client (and its RLS
+  // session token), and the OpenSecret token store are process-global, so a
+  // second instance would silently share one user's cache and session with
+  // another — a cross-user leak. The SDK is single-user by design (RLS-scoped,
+  // derives the current user from its own state), so one instance == one user.
+  // Multi-instance (a multi-tenant headless host) becomes safe only once those
+  // resources are instance-owned (constructor-injected); that lands in the MCP
+  // phase, and this guard lifts together with it.
+  private constructor(config: WalletSdkConfig) {
     this.queryClient = getQueryClient();
     const db = getAgicashDb();
     const encryption = createLazyEncryption(this.queryClient);
@@ -316,27 +327,24 @@ export class WalletSdk {
       ],
     });
   }
-}
 
-let sdkSingleton: WalletSdk | undefined;
-
-/**
- * The configured SDK singleton, constructed lazily on first call. Host-agnostic:
- * the web reaches it through the `useSdk()` hook (which adds the client-only
- * guard), a headless host calls this directly. Whether a given runtime may
- * construct the SDK (e.g. browser-only vs. server) is the host's policy, not the
- * SDK's — this returns the instance wherever it is called.
- *
- * @throws if called before {@link configureWalletSdk}.
- */
-export function getSdk(): WalletSdk {
-  if (!sdkConfig) {
-    throw new Error(
-      'Wallet SDK is not configured. Call configureWalletSdk first.',
-    );
+  /**
+   * The SDK's sole accessor: returns the configured singleton, constructing it
+   * on first call. Idempotent — later calls return the same instance and never
+   * build another (see the constructor for why exactly one is the limit). Hosts
+   * wrap this (the web's `getSdk`/`useSdk`); a headless host calls it directly.
+   * Whether a given runtime may construct the SDK (browser vs. server) is host
+   * policy, not the SDK's.
+   *
+   * @throws if called before {@link configureWalletSdk}.
+   */
+  static getInstance(): WalletSdk {
+    if (!sdkConfig) {
+      throw new Error(
+        'Wallet SDK is not configured. Call configureWalletSdk first.',
+      );
+    }
+    WalletSdk.instance ??= new WalletSdk(sdkConfig);
+    return WalletSdk.instance;
   }
-  if (!sdkSingleton) {
-    sdkSingleton = new WalletSdk(sdkConfig);
-  }
-  return sdkSingleton;
 }

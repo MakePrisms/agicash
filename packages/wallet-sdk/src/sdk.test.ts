@@ -3,13 +3,13 @@ import { secp256k1 } from '@noble/curves/secp256k1';
 import { bytesToHex } from '@noble/hashes/utils';
 import { QueryClient } from '@tanstack/query-core';
 import { createLazyEncryption } from './encryption';
-import { getSdk } from './sdk';
+import { WalletSdk } from './sdk';
 
-describe('getSdk', () => {
-  // The client-only guard now lives in the web's useSdk() hook; getSdk itself
+describe('WalletSdk.getInstance', () => {
+  // The client-only guard lives in the web's useSdk() hook; the accessor itself
   // is host-agnostic and only requires prior configuration.
   it('throws when the SDK is not configured', () => {
-    expect(() => getSdk()).toThrow('not configured');
+    expect(() => WalletSdk.getInstance()).toThrow('not configured');
   });
 });
 

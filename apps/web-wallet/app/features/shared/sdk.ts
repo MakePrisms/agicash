@@ -5,10 +5,9 @@
 // that read from the DB (e.g. feature-flags) — they import database.client,
 // which configures through this module.
 import {
-  type WalletSdk,
+  WalletSdk,
   browserStorage,
   configureWalletSdk,
-  getSdk,
 } from '@agicash/wallet-sdk/sdk';
 import * as Sentry from '@sentry/react-router';
 import { sessionHintCookie } from '~/features/user/session-hint-cookie';
@@ -104,7 +103,12 @@ configureWalletSdk({
   },
 });
 
-export { getSdk };
+/**
+ * The wallet SDK singleton, for use outside React render context — loaders,
+ * query/mutation functions, effects, event handlers, and module scope. In
+ * component/hook render context use {@link useSdk} instead.
+ */
+export const getSdk = (): WalletSdk => WalletSdk.getInstance();
 
 /**
  * The React access point to the wallet SDK singleton. Use it in component and
