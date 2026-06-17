@@ -11,8 +11,8 @@ import type { EncryptionService } from '../crypto/encryption';
 import { sha256Hex } from '../crypto/sha256';
 import { toEncryptedProofData } from '../db/cashu-proofs';
 import { CashuLightningReceiveDbDataSchema } from '../db/cashu-receive-quote-db-data';
+import { CashuTokenMeltDataSchema } from '../db/cashu-token-melt-data';
 import type { AgicashDbCashuReceiveQuote, Database } from '../db/database';
-import { ProofSchema } from '../lib/cashu';
 import type { AccountRepository } from './account-repository';
 
 // ---------------------------------------------------------------------------
@@ -36,17 +36,6 @@ const CashuReceiveQuoteBaseSchema = z.object({
   mintingFee: z.optional(z.instanceof(Money)),
   totalFee: z.instanceof(Money),
   version: z.number(),
-});
-
-const CashuTokenMeltDataSchema = z.object({
-  sourceMintUrl: z.string(),
-  tokenAmount: z.instanceof(Money),
-  tokenProofs: z.array(ProofSchema),
-  meltQuoteId: z.string(),
-  meltInitiated: z.boolean(),
-  cashuReceiveFee: z.instanceof(Money),
-  lightningFeeReserve: z.instanceof(Money),
-  lightningFee: z.optional(z.instanceof(Money)),
 });
 
 const CashuReceiveQuoteLightningTypeSchema = z.object({
