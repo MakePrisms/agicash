@@ -1,17 +1,8 @@
-/**
- * This route implements the lnurlp callback endpoint
- * defined by LUD 06: https://github.com/lnurl/luds/blob/luds/06.md
- */
-
 import { Money } from '@agicash/money';
-import { agicashDbServer } from '~/features/agicash-db/database.server';
-import { LightningAddressService } from '~/features/receive/lightning-address-service';
-import { getQueryClient } from '~/features/shared/query-client';
+import { getServerSdk } from '~/features/receive/server-sdk.server';
 import type { Route } from './+types/api.lnurlp.callback.$userId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const userId = params.userId;
-
   const url = new URL(request.url);
   const amountMsat = url.searchParams.get('amount');
 
@@ -32,22 +23,16 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     currency: 'BTC',
     unit: 'msat',
   });
-
   const bypassAmountValidation =
     url.searchParams.get('bypassAmountValidation') === 'true';
 
-  const queryClient = getQueryClient();
-  const lightningAddressService = new LightningAddressService(
-    request,
-    agicashDbServer,
-    queryClient,
-    { bypassAmountValidation },
-  );
-
-  const response = await lightningAddressService.handleLnurlpCallback(
-    userId,
+  const sdk = await getServerSdk();
+  const response = await sdk.lightningAddress.handleLnurlpCallback({
+    userId: params.userId,
     amount,
-  );
+    baseUrl: url.origin,
+    bypassAmountValidation,
+  });
 
   return new Response(JSON.stringify(response), {
     headers: {

@@ -1,6 +1,10 @@
 import type { Money } from '@agicash/money';
 import ky from 'ky';
-import type { LNURLError, LNURLPayParams, LNURLPayResult } from './types';
+import type {
+  LNURLError,
+  LNURLPayParams,
+  LNURLPayResult,
+} from '@agicash/wallet-sdk/server';
 
 export const isLNURLError = (obj: unknown): obj is LNURLError => {
   return (

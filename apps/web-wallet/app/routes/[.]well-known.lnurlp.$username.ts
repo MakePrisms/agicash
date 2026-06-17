@@ -1,25 +1,13 @@
-/**
- * This route implements the `/.well-known/lnurlp/$username` endpoint
- * defined by LUD 16: https://github.com/lnurl/luds/blob/luds/16.md
- */
-
-import { agicashDbServer } from '~/features/agicash-db/database.server';
-import { LightningAddressService } from '~/features/receive/lightning-address-service';
-import { getQueryClient } from '~/features/shared/query-client';
+import { getServerSdk } from '~/features/receive/server-sdk.server';
 import type { Route } from './+types/[.]well-known.lnurlp.$username';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const queryClient = getQueryClient();
-  const lightningAddressService = new LightningAddressService(
-    request,
-    agicashDbServer,
-    queryClient,
-  );
-
-  const response = await lightningAddressService.handleLud16Request(
-    params.username,
-  );
-
+  const sdk = await getServerSdk();
+  const baseUrl = new URL(request.url).origin;
+  const response = await sdk.lightningAddress.handleLud16Request({
+    username: params.username,
+    baseUrl,
+  });
   return new Response(JSON.stringify(response), {
     headers: {
       'Content-Type': 'application/json',
