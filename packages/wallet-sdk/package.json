@@ -45,6 +45,7 @@
   "dependencies": {
     "@agicash/bolt11": "workspace:*",
     "@agicash/breez-sdk-spark": "catalog:",
+    "big.js": "catalog:",
     "@agicash/cashu": "workspace:*",
     "@agicash/ecies": "workspace:*",
     "@agicash/money": "workspace:*",
@@ -57,10 +58,12 @@
     "@stablelib/base64": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "jwt-decode": "catalog:",
+    "ky": "catalog:",
     "type-fest": "5.4.3",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/big.js": "catalog:",
     "@types/bun": "catalog:",
     "jwt-encode": "catalog:",
     "typescript": "catalog:"
