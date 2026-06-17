@@ -171,6 +171,7 @@ export class SparkSendOrchestrator {
         void account.wallet
           .getPayment({ paymentId: quote.sparkTransferId })
           .then(({ payment }) => {
+            if (!payment) return;
             if (payment.status === 'completed')
               handle(payment, 'paymentSucceeded');
             else if (payment.status === 'failed')
