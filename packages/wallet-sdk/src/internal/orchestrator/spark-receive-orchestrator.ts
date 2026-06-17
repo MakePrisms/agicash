@@ -151,4 +151,79 @@ export class SparkReceiveOrchestrator {
       for (const cleanup of cleanups) cleanup();
     };
   }
+
+  async applyCrossMintMeltState(
+    quote: CashuTokenSparkReceiveQuote,
+    meltQuote: MeltQuoteBolt11Response,
+    handlers: {
+      initiateMelt: (quote: CashuTokenSparkReceiveQuote) => Promise<void>;
+    },
+  ): Promise<void> {
+    if (meltQuote.state === MeltQuoteState.UNPAID) {
+      if (quote.tokenReceiveData.meltInitiated) {
+        await this.deps.receiveQuoteService.fail(
+          quote,
+          'Cashu token melt failed.',
+        );
+        this.deps.emitter.emit('receive:failed', {
+          quoteId: quote.id,
+          error: new SdkError(
+            'Cashu token melt failed.',
+            'spark_token_melt_failed',
+          ),
+          protocol: 'spark',
+        });
+      } else {
+        await handlers.initiateMelt(quote);
+      }
+      return;
+    }
+    if (meltQuote.state === MeltQuoteState.PENDING) {
+      await this.deps.receiveQuoteService.markMeltInitiated(quote);
+    }
+  }
+
+  async reconcileCrossMintMelts(
+    receiveQuotes: SparkReceiveQuote[],
+    handlers: {
+      initiateMelt: (quote: CashuTokenSparkReceiveQuote) => Promise<void>;
+    },
+  ): Promise<void> {
+    const tokenQuotes = receiveQuotes.filter(
+      (q): q is CashuTokenSparkReceiveQuote =>
+        q.type === 'CASHU_TOKEN' && q.state === 'UNPAID',
+    );
+    if (tokenQuotes.length === 0) return;
+    const triggered = new Set<string>();
+    const byMeltQuoteId = new Map<string, CashuTokenSparkReceiveQuote>();
+    const idsByMint = new Map<string, string[]>();
+    for (const quote of tokenQuotes) {
+      const mintUrl = quote.tokenReceiveData.sourceMintUrl;
+      const meltQuoteId = quote.tokenReceiveData.meltQuoteId;
+      byMeltQuoteId.set(meltQuoteId, quote);
+      const list = idsByMint.get(mintUrl) ?? [];
+      list.push(meltQuoteId);
+      idsByMint.set(mintUrl, list);
+    }
+    for (const [mintUrl, quoteIds] of idsByMint) {
+      await this.deps.meltSubscriptionManager.subscribe({
+        mintUrl,
+        quoteIds,
+        onUpdate: (meltQuote) => {
+          const quote = byMeltQuoteId.get(meltQuote.quote);
+          if (!quote) return;
+          const key = `${quote.id}:${meltQuote.state}`;
+          if (triggered.has(key)) return;
+          triggered.add(key);
+          void this.applyCrossMintMeltState(quote, meltQuote, handlers).catch(
+            (error) =>
+              console.error('spark receive cross-mint melt update failed', {
+                quoteId: quote.id,
+                cause: error,
+              }),
+          );
+        },
+      });
+    }
+  }
 }

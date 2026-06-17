@@ -1,4 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
+import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
 import { Money } from '@agicash/money';
 import type { Payment, SdkEvent } from '@agicash/breez-sdk-spark';
 import { SdkEventEmitter } from '../event-emitter';
@@ -60,6 +61,7 @@ function lightningPayment(
 function makeDeps(
   serviceOver: Partial<Record<keyof SparkReceiveQuoteService, unknown>> = {},
   acc: SparkAccount = account,
+  melt: unknown = {},
 ) {
   const emitter = new SdkEventEmitter<SdkEventMap>();
   const receiveQuoteService = {
@@ -72,7 +74,7 @@ function makeDeps(
   const orchestrator = new SparkReceiveOrchestrator({
     receiveQuoteService,
     getAccount: mock(async () => acc),
-    meltSubscriptionManager: {} as never,
+    meltSubscriptionManager: melt as never,
     emitter,
   });
   return { orchestrator, receiveQuoteService, emitter };
@@ -226,5 +228,92 @@ describe('SparkReceiveOrchestrator.reconcile', () => {
     cleanup();
     await flush();
     expect(fake.removeEventListener).toHaveBeenCalledWith('listener-1');
+  });
+});
+
+function tokenQuote(
+  over: Partial<{ meltInitiated: boolean }> = {},
+): SparkReceiveQuote {
+  return {
+    id: 'rq-2',
+    type: 'CASHU_TOKEN',
+    state: 'UNPAID',
+    amount: sats(100),
+    transactionId: 'tx-2',
+    accountId: 'acc-1',
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    paymentHash: 'ph-2',
+    paymentRequest: 'lnbc2',
+    tokenReceiveData: {
+      sourceMintUrl: 'https://mint.test',
+      meltQuoteId: 'mq-1',
+      meltInitiated: over.meltInitiated ?? false,
+    },
+  } as unknown as SparkReceiveQuote;
+}
+const meltResp = (state: MeltQuoteState): MeltQuoteBolt11Response =>
+  ({ quote: 'mq-1', state, amount: 100 }) as unknown as MeltQuoteBolt11Response;
+
+describe('SparkReceiveOrchestrator cross-mint melt', () => {
+  it('melt UNPAID + not initiated → handlers.initiateMelt', async () => {
+    const { orchestrator } = makeDeps();
+    const initiateMelt = mock(async () => {});
+    await orchestrator.applyCrossMintMeltState(
+      tokenQuote() as never,
+      meltResp(MeltQuoteState.UNPAID),
+      { initiateMelt },
+    );
+    expect(initiateMelt).toHaveBeenCalledTimes(1);
+  });
+
+  it('melt UNPAID + already initiated → fail + receive:failed', async () => {
+    const { orchestrator, receiveQuoteService, emitter } = makeDeps();
+    const failed: { error: { code: string } }[] = [];
+    emitter.on('receive:failed', (e) => failed.push(e as never));
+    await orchestrator.applyCrossMintMeltState(
+      tokenQuote({ meltInitiated: true }) as never,
+      meltResp(MeltQuoteState.UNPAID),
+      { initiateMelt: mock(async () => {}) },
+    );
+    expect(receiveQuoteService.fail).toHaveBeenCalledTimes(1);
+    expect(failed[0]?.error.code).toBe('spark_token_melt_failed');
+  });
+
+  it('melt PENDING → markMeltInitiated', async () => {
+    const { orchestrator, receiveQuoteService } = makeDeps();
+    await orchestrator.applyCrossMintMeltState(
+      tokenQuote() as never,
+      meltResp(MeltQuoteState.PENDING),
+      { initiateMelt: mock(async () => {}) },
+    );
+    expect(receiveQuoteService.markMeltInitiated).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconcileCrossMintMelts subscribes by sourceMintUrl and routes onUpdate (deduped per state)', async () => {
+    let onUpdate: ((q: MeltQuoteBolt11Response) => void) | undefined;
+    const subscribe = mock(
+      async (p: { onUpdate: (q: MeltQuoteBolt11Response) => void }) => {
+        onUpdate = p.onUpdate;
+        return () => {};
+      },
+    );
+    const { orchestrator, receiveQuoteService } = makeDeps({}, account, {
+      subscribe,
+    });
+    const initiateMelt = mock(async () => {});
+    await orchestrator.reconcileCrossMintMelts(
+      [tokenQuote({ meltInitiated: true })],
+      { initiateMelt },
+    );
+    expect(subscribe).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mintUrl: 'https://mint.test',
+        quoteIds: ['mq-1'],
+      }),
+    );
+    onUpdate?.(meltResp(MeltQuoteState.UNPAID));
+    onUpdate?.(meltResp(MeltQuoteState.UNPAID)); // duplicate delivery
+    await flush();
+    expect(receiveQuoteService.fail).toHaveBeenCalledTimes(1); // deduped (M1 fix)
   });
 });
