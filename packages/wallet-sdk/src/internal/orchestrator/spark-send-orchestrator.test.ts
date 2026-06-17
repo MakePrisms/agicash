@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { Money } from '@agicash/money';
-import type { Payment } from '@agicash/breez-sdk-spark';
+import type { Payment, SdkEvent } from '@agicash/breez-sdk-spark';
 import { DomainError } from '../../errors';
 import { SdkEventEmitter } from '../event-emitter';
 import type { SdkEventMap } from '../../events';
@@ -16,6 +16,10 @@ const account = {
   type: 'spark',
   currency: 'BTC',
 } as unknown as SparkAccount;
+
+function flush() {
+  return new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
 
 function unpaid(over: Partial<SparkSendQuote> = {}): SparkSendQuote {
   return {
@@ -59,6 +63,7 @@ function lightningPayment(
 
 function makeDeps(
   serviceOver: Partial<Record<keyof SparkSendQuoteService, unknown>> = {},
+  acc: SparkAccount = account,
 ) {
   const emitter = new SdkEventEmitter<SdkEventMap>();
   const sendQuoteService = {
@@ -75,7 +80,7 @@ function makeDeps(
   } as unknown as SparkSendQuoteService;
   const orchestrator = new SparkSendOrchestrator({
     sendQuoteService,
-    getAccount: mock(async () => account),
+    getAccount: mock(async () => acc),
     emitter,
   });
   return { orchestrator, sendQuoteService, emitter };
@@ -169,5 +174,81 @@ describe('SparkSendOrchestrator transitions', () => {
       'Lightning invoice expired.',
     );
     expect(failed[0]?.error.message).toBe('Lightning invoice expired.');
+  });
+});
+
+function makeFakeWallet(opts: { payment?: Payment } = {}) {
+  let onEvent: ((e: SdkEvent) => void) | undefined;
+  const removeEventListener = mock(async () => true);
+  const getPayment = mock(async () => ({ payment: opts.payment }));
+  const wallet = {
+    addEventListener: mock(async (l: { onEvent: (e: SdkEvent) => void }) => {
+      onEvent = l.onEvent;
+      return 'listener-1';
+    }),
+    removeEventListener,
+    getPayment,
+  } as unknown as SparkAccount['wallet'];
+  return {
+    wallet,
+    removeEventListener,
+    getPayment,
+    fire: (e: SdkEvent) => onEvent?.(e),
+  };
+}
+
+describe('SparkSendOrchestrator.reconcile', () => {
+  it('kicks UNPAID quotes via initiateSend', async () => {
+    const { orchestrator, sendQuoteService } = makeDeps();
+    await orchestrator.reconcile([unpaid()]);
+    await flush();
+    expect(sendQuoteService.initiateSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes a Breez paymentSucceeded for a PENDING quote into send:completed', async () => {
+    const fake = makeFakeWallet();
+    const acc = { ...account, wallet: fake.wallet } as unknown as SparkAccount;
+    const { orchestrator, emitter } = makeDeps({}, acc);
+    const done: unknown[] = [];
+    emitter.on('send:completed', (e) => done.push(e));
+    await orchestrator.reconcile([pending()]);
+    fake.fire({
+      type: 'paymentSucceeded',
+      payment: lightningPayment({ id: 'pay-1', preimage: 'pre-1' }),
+    });
+    await flush();
+    expect(done).toHaveLength(1);
+  });
+
+  it('initial getPayment recovery completes a quote whose success fired before registration; duplicate listener delivery is deduped', async () => {
+    const fake = makeFakeWallet({
+      payment: lightningPayment({
+        id: 'pay-1',
+        preimage: 'pre-1',
+        status: 'completed',
+      }),
+    });
+    const acc = { ...account, wallet: fake.wallet } as unknown as SparkAccount;
+    const { orchestrator, sendQuoteService, emitter } = makeDeps({}, acc);
+    const done: unknown[] = [];
+    emitter.on('send:completed', (e) => done.push(e));
+    await orchestrator.reconcile([pending()]);
+    fake.fire({
+      type: 'paymentSucceeded',
+      payment: lightningPayment({ id: 'pay-1', preimage: 'pre-1' }),
+    }); // also delivered live
+    await flush();
+    expect(sendQuoteService.complete).toHaveBeenCalledTimes(1); // deduped
+    expect(done).toHaveLength(1);
+  });
+
+  it('cleanup detaches listeners', async () => {
+    const fake = makeFakeWallet();
+    const acc = { ...account, wallet: fake.wallet } as unknown as SparkAccount;
+    const { orchestrator } = makeDeps({}, acc);
+    const cleanup = await orchestrator.reconcile([pending()]);
+    cleanup();
+    await flush();
+    expect(fake.removeEventListener).toHaveBeenCalledWith('listener-1');
   });
 });

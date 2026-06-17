@@ -1,4 +1,4 @@
-import type { Payment } from '@agicash/breez-sdk-spark';
+import type { Payment, SdkEvent } from '@agicash/breez-sdk-spark';
 import type { SparkSendQuoteService } from '../../domains/spark/spark-send-quote-service';
 import { DomainError, SdkError } from '../../errors';
 import type { SdkEventMap } from '../../events';
@@ -100,5 +100,93 @@ export class SparkSendOrchestrator {
         protocol: 'spark',
       });
     }
+  }
+
+  async reconcile(sendQuotes: SparkSendQuote[]): Promise<() => void> {
+    if (sendQuotes.length === 0) return () => {};
+    const triggered = new Set<string>();
+    const cleanups: Array<() => void> = [];
+
+    const pendingByAccount = new Map<
+      string,
+      Extract<SparkSendQuote, { state: 'PENDING' }>[]
+    >();
+    for (const quote of sendQuotes) {
+      if (quote.state === 'UNPAID') {
+        const account = await this.deps.getAccount(quote.accountId);
+        if (!account) continue;
+        void this.initiateSend(account, quote).catch((error) =>
+          console.error('spark send initiate failed', {
+            quoteId: quote.id,
+            cause: error,
+          }),
+        );
+      } else if (quote.state === 'PENDING') {
+        const list = pendingByAccount.get(quote.accountId) ?? [];
+        list.push(quote);
+        pendingByAccount.set(quote.accountId, list);
+      }
+    }
+
+    for (const [accountId, quotes] of pendingByAccount) {
+      const account = await this.deps.getAccount(accountId);
+      if (!account) continue;
+      const quoteByTransferId = new Map(
+        quotes.map((q) => [q.sparkTransferId, q]),
+      );
+
+      const handle = (payment: Payment, eventType: SparkPaymentEventType) => {
+        const quote = quoteByTransferId.get(payment.id);
+        if (!quote) return;
+        const key = `${quote.id}:${eventType}`;
+        if (triggered.has(key)) return;
+        triggered.add(key);
+        void this.applyPaymentEvent(quote, payment, eventType).catch((error) =>
+          console.error('spark send payment event failed', {
+            quoteId: quote.id,
+            cause: error,
+          }),
+        );
+      };
+
+      const listenerPromise = account.wallet.addEventListener({
+        onEvent: (event: SdkEvent) => {
+          if (
+            event.type === 'paymentSucceeded' ||
+            event.type === 'paymentFailed'
+          ) {
+            handle(event.payment, event.type);
+          }
+        },
+      });
+      cleanups.push(() => {
+        void listenerPromise
+          .then((id) => account.wallet.removeEventListener(id))
+          .catch(() =>
+            console.warn('Failed to remove Spark send listener', { accountId }),
+          );
+      });
+
+      for (const quote of quotes) {
+        void account.wallet
+          .getPayment({ paymentId: quote.sparkTransferId })
+          .then(({ payment }) => {
+            if (payment.status === 'completed')
+              handle(payment, 'paymentSucceeded');
+            else if (payment.status === 'failed')
+              handle(payment, 'paymentFailed');
+          })
+          .catch((error) =>
+            console.error('spark send initial status check failed', {
+              sparkTransferId: quote.sparkTransferId,
+              cause: error,
+            }),
+          );
+      }
+    }
+
+    return () => {
+      for (const cleanup of cleanups) cleanup();
+    };
   }
 }
