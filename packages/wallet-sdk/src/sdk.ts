@@ -1,10 +1,10 @@
 /**
  * The `Sdk` class — §1 of the contract.
  *
- * S4: `auth` + `user` + `accounts` + `scan` + `exchangeRate` are real; the
- * remaining 6 domains (`cashu`, `spark`, `transactions`, `contacts`,
- * `transfers`, `background`) are stubbed (`NotImplementedError`) until their
- * slices implement them.
+ * S5: `auth` + `user` + `accounts` + `scan` + `exchangeRate` + `cashu` are real
+ * (`cashu.send.executeQuote` and `cashu.receive.receiveToken` are S7 stubs); the
+ * remaining 5 domains (`spark`, `transactions`, `contacts`, `transfers`,
+ * `background`) are stubbed (`NotImplementedError`) until their slices implement them.
  */
 import type { SdkConfig } from './config';
 import type {
@@ -12,8 +12,6 @@ import type {
   AuthDomain,
   BackgroundDomain,
   CashuDomain,
-  CashuReceiveOps,
-  CashuSendOps,
   ContactsDomain,
   ExchangeRateDomain,
   ScanDomain,
@@ -26,6 +24,7 @@ import type {
 } from './domains';
 import { createAccountsDomain } from './domains/accounts/accounts-domain';
 import { createAuthDomain } from './domains/auth/auth-domain';
+import { createCashuDomain } from './domains/cashu/cashu-domain';
 import type { DomainContext } from './domains/context';
 import { createExchangeRateDomain } from './domains/exchange-rate/exchange-rate-domain';
 import { createScanDomain } from './domains/scan/scan-domain';
@@ -41,19 +40,16 @@ import { AccountRepository } from './internal/repositories/account-repository';
  * through the domain accessors; subscribe via {@link Sdk.events}; tear down with
  * {@link Sdk.destroy}. Framework-free, no general domain cache.
  *
- * S4: `auth`, `user`, `accounts`, `scan`, `exchangeRate` are implemented; the
- * remaining 6 domains (`cashu`, `spark`, `transactions`, `contacts`,
- * `transfers`, `background`) are stubbed (`NotImplementedError`) until their
- * slices land.
+ * S5: `auth`, `user`, `accounts`, `scan`, `exchangeRate`, `cashu` are implemented
+ * (`cashu.send.executeQuote` + `cashu.receive.receiveToken` are S7 stubs); the
+ * remaining 5 domains (`spark`, `transactions`, `contacts`, `transfers`,
+ * `background`) are stubbed (`NotImplementedError`) until their slices land.
  */
 export class Sdk {
   readonly auth: AuthDomain;
   readonly user: UserDomain;
   readonly accounts: AccountsDomain;
-  readonly cashu: CashuDomain = {
-    send: notImplementedDomain<CashuSendOps>('cashu.send'),
-    receive: notImplementedDomain<CashuReceiveOps>('cashu.receive'),
-  };
+  readonly cashu: CashuDomain;
   readonly spark: SparkDomain = {
     send: notImplementedDomain<SparkSendOps>('spark.send'),
     receive: notImplementedDomain<SparkReceiveOps>('spark.receive'),
@@ -92,6 +88,7 @@ export class Sdk {
     this.accounts = createAccountsDomain(ctx, accountRepository);
     this.scan = createScanDomain(ctx);
     this.exchangeRate = createExchangeRateDomain();
+    this.cashu = createCashuDomain(ctx, accountRepository);
   }
 
   /** Construct the SDK from `config`, wiring the full connection bundle. */

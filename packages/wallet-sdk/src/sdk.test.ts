@@ -72,13 +72,23 @@ describe('Sdk core shell', () => {
   });
   it('still-unimplemented domains throw NotImplementedError', async () => {
     const sdk = await Sdk.create(config);
-    expect(() => sdk.cashu.send.failQuote({} as never, 'x')).toThrow(
-      NotImplementedError,
-    );
     expect(() => sdk.transactions.countPendingAck()).toThrow(
       NotImplementedError,
     );
     expect(() => sdk.background.state()).toThrow(NotImplementedError);
+    await sdk.destroy();
+  });
+  it('cashu create/read methods are wired (not NotImplemented)', async () => {
+    const sdk = await Sdk.create(config);
+    expect(typeof sdk.cashu.send.createTokenQuote).toBe('function');
+    expect(typeof sdk.cashu.send.get).toBe('function');
+    expect(typeof sdk.cashu.receive.createLightningQuote).toBe('function');
+    await sdk.destroy();
+  });
+  it('cashu executeQuote/receiveToken throw NotImplemented (S7)', async () => {
+    const sdk = await Sdk.create(config);
+    expect(() => sdk.cashu.send.executeQuote({} as never)).toThrow(NotImplementedError);
+    expect(() => sdk.cashu.receive.receiveToken({ token: 't' } as never)).toThrow(NotImplementedError);
     await sdk.destroy();
   });
 });
