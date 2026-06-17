@@ -12,7 +12,7 @@ export type MeltQuoteTrackerQuote = {
   inputAmount: number;
 };
 
-export type MeltQuoteTrackerCallbacks = {
+export type MeltQuoteTrackerDeps = {
   getWallet: (mintUrl: string, currency: Currency) => ExtendedCashuWallet;
   onUnpaid?: (meltQuote: MeltQuoteBolt11Response) => void;
   onPending?: (meltQuote: MeltQuoteBolt11Response) => void;
@@ -31,15 +31,15 @@ export class MeltQuoteTracker {
   private readonly manager = new MeltQuoteSubscriptionManager();
   private timeouts: LongTimeout[] = [];
   private quotes: MeltQuoteTrackerQuote[] = [];
-  private callbacks: MeltQuoteTrackerCallbacks | null = null;
+  private deps: MeltQuoteTrackerDeps | null = null;
 
   /** Forwarded so the cashu-send-quote processor can drop a quote's melt sub without unsubscribing the mint. */
   removeQuoteFromSubscription(args: { mintUrl: string; quoteId: string }): void {
     this.manager.removeQuoteFromSubscription(args);
   }
 
-  update(quotes: MeltQuoteTrackerQuote[], callbacks: MeltQuoteTrackerCallbacks): void {
-    this.callbacks = callbacks;
+  update(quotes: MeltQuoteTrackerQuote[], deps: MeltQuoteTrackerDeps): void {
+    this.deps = deps;
     this.quotes = quotes;
 
     this.clearTimers();
@@ -61,7 +61,7 @@ export class MeltQuoteTracker {
       const msUntilExpiration = quote.expiryInMs - Date.now();
       const t = setLongTimeout(async () => {
         try {
-          const wallet = this.callbacks?.getWallet(quote.mintUrl, quote.currency);
+          const wallet = this.deps?.getWallet(quote.mintUrl, quote.currency);
           if (!wallet) return;
           const meltQuote = await wallet.checkMeltQuoteBolt11(quote.id);
           await this.handle(meltQuote, true);
@@ -75,7 +75,7 @@ export class MeltQuoteTracker {
 
   dispose(): void {
     this.clearTimers();
-    this.callbacks = null;
+    this.deps = null;
     this.quotes = [];
   }
 
@@ -85,7 +85,7 @@ export class MeltQuoteTracker {
   }
 
   private async handle(meltQuote: MeltQuoteBolt11Response, handleExpiry = false): Promise<void> {
-    const cb = this.callbacks;
+    const cb = this.deps;
     if (!cb) return;
     const quoteData = this.quotes.find((q) => q.id === meltQuote.quote);
     if (!quoteData) return;
