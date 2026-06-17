@@ -18,14 +18,14 @@ devenv.local.nix
 
 node_modules
 
-/.cache
-/build
+.cache/
+build/
 .env
 .vercel
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 .DS_Store
 

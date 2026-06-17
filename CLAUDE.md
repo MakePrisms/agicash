@@ -49,18 +49,32 @@
 
 ## File Structure
 
-See `docs/guidelines.md` for detailed directory structure and import hierarchy rules.
+Bun-workspace monorepo. The app lives under `apps/web-wallet/app/`; the `~/*` import alias maps there. See `docs/guidelines.md` for detailed structure and import-hierarchy rules.
 
 ```
-app/
-├── routes/           # Filesystem routes (_auth, _protected, _public layouts)
-├── features/         # Vertical slices (send/, receive/, accounts/, etc.)
-├── components/ui/    # shadcn base components
-├── lib/              # Utilities (money/, cashu/, spark/, bolt11/)
-└── hooks/            # Shared React hooks
+apps/
+├── web-wallet/            # React Router v7 web app (the product)
+│   └── app/
+│       ├── routes/        # Filesystem routes (_auth, _protected, _public layouts)
+│       ├── features/      # Vertical slices (send/, receive/, accounts/, …)
+│       ├── components/ui/ # shadcn base components
+│       ├── lib/           # Utilities (money/, cashu/, spark/, bolt11/)
+│       └── hooks/         # Shared React hooks
+└── web-wallet-e2e/        # Playwright e2e tests
+packages/
+└── wallet-sdk/            # @agicash/wallet-sdk — shared lib (empty placeholder)
+supabase/  docs/  tools/  certs/   # stay at the repo root
 ```
 
 **Import hierarchy** (never reverse): `lib/components` → `features` → `routes`
+
+### Dependencies (workspaces + catalog)
+
+- Each package owns its deps in its own `package.json`. Root `package.json` holds only workspace-wide tooling (biome, supabase, typescript, npm-run-all).
+- **Shared by ≥2 packages** → add to the root `workspaces.catalog` (exact version) and reference it as `"<name>": "catalog:"` in each consumer — one hoisted copy, versions stay in sync.
+- **Used by one package** → add it directly to that package's `package.json` (`bun add <name>@<version> --exact`, run from the package's dir).
+- Run `bun install` after editing the catalog or any package's deps.
+- Apps (`apps/*`) are private + bare-named (`web-wallet`); libraries (`packages/*`) are `@agicash/`-scoped (the scope is the import path).
 
 ## Key Patterns
 
@@ -101,7 +115,7 @@ Always use `Money` class (`~/lib/money`) — never raw arithmetic. Floating poin
 
 ### Error Handling
 
-**Error classes** (`app/features/shared/error.ts`): `DomainError` (user-friendly, never retry), `ConcurrencyError` (always retry), `NotFoundError`.
+**Error classes** (`apps/web-wallet/app/features/shared/error.ts`): `DomainError` (user-friendly, never retry), `ConcurrencyError` (always retry), `NotFoundError`.
 
 **Toasts** (Radix UI): One at a time, 3s. `DomainError` → show `error.message`. Unknown errors → `variant: 'destructive'` with generic message + `console.error`. Background tasks → log only, no toasts.
 
@@ -142,7 +156,7 @@ JSDoc goes on public surfaces: exported `lib/` utilities, methods on services an
 bun run dev          # Dev server (http://127.0.0.1:3000)
 bun run dev --https  # Dev server with HTTPS (https://localhost:3000)
 bun run fix:all      # Lint + format + typecheck
-bun test             # Unit tests (ask first)
+bun run test         # Unit tests (ask first; not bare 'bun test' — that's Bun's unscoped built-in runner)
 bun run test:e2e     # E2E tests (ask first)
 ```
 
