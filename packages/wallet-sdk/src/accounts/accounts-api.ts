@@ -6,7 +6,12 @@ import { seedQueryOptions } from '../cashu';
 import type { Encryption } from '../encryption';
 import { sparkMnemonicQueryOptions } from '../spark';
 import { sparkDebugLog } from '../spark-config';
-import type { Account, CashuAccount, SparkAccount } from './account';
+import type {
+  Account,
+  CashuAccount,
+  NewCashuAccount,
+  SparkAccount,
+} from './account';
 import { AccountRepository } from './account-repository';
 import { AccountService } from './account-service';
 import {
@@ -37,9 +42,7 @@ export type AccountsApi = {
    * accounts state.
    * @throws if no user is loaded yet.
    */
-  add: (
-    account: Parameters<AccountService['addCashuAccount']>[0]['account'],
-  ) => Promise<CashuAccount>;
+  add: (account: NewCashuAccount) => Promise<CashuAccount>;
   /**
    * Registers Breez event listeners on the given spark accounts and records
    * balance changes in the accounts state. The host binds this to its

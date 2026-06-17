@@ -1,5 +1,5 @@
 import { Money } from '@agicash/utils/money';
-import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
+import type { Account } from '../accounts/account';
 import {
   canReceiveFromLightning,
   canSendToLightning,
@@ -12,39 +12,15 @@ import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 import { getLightningQuote as getSparkLightningQuote } from '../receive/spark-receive-quote-core';
 import type { SparkReceiveLightningQuote } from '../receive/spark-receive-quote-core';
 import type { SparkReceiveQuoteService } from '../receive/spark-receive-quote-service';
+import type { CashuLightningQuote } from '../send/cashu-send-quote';
+import type { CashuSendQuoteService } from '../send/cashu-send-quote-service';
+import type { SparkLightningQuote } from '../send/spark-send-quote';
+import type { SparkSendQuoteService } from '../send/spark-send-quote-service';
 import type {
-  CashuLightningQuote,
-  CashuSendQuoteService,
-} from '../send/cashu-send-quote-service';
-import type {
-  SparkLightningQuote,
-  SparkSendQuoteService,
-} from '../send/spark-send-quote-service';
-
-export type TransferReceiveSide =
-  | {
-      account: CashuAccount;
-      fee: Money;
-      lightningQuote: CashuReceiveLightningQuote;
-    }
-  | {
-      account: SparkAccount;
-      fee: Money;
-      lightningQuote: SparkReceiveLightningQuote;
-    };
-
-export type TransferSendSide =
-  | { account: CashuAccount; lightningQuote: CashuLightningQuote }
-  | { account: SparkAccount; lightningQuote: SparkLightningQuote };
-
-export type TransferQuote = {
-  amount: Money;
-  amountToReceive: Money;
-  totalFees: Money;
-  totalCost: Money;
-  receive: TransferReceiveSide;
-  send: TransferSendSide;
-};
+  TransferQuote,
+  TransferReceiveSide,
+  TransferSendSide,
+} from './transfer';
 
 function extractPaymentRequest(receive: TransferReceiveSide): string {
   if (receive.account.type === 'cashu') {

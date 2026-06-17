@@ -6,9 +6,10 @@ import { createLazyEncryption } from './encryption';
 import { getSdk } from './sdk';
 
 describe('getSdk', () => {
-  // bun test runs with no `window`, so isServer is true.
-  it('throws in a server context', () => {
-    expect(() => getSdk()).toThrow('client-only');
+  // The client-only guard now lives in the web's useSdk() hook; getSdk itself
+  // is host-agnostic and only requires prior configuration.
+  it('throws when the SDK is not configured', () => {
+    expect(() => getSdk()).toThrow('not configured');
   });
 });
 

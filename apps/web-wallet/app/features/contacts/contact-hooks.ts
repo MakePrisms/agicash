@@ -1,15 +1,14 @@
 import type { Contact } from '@agicash/wallet-sdk/contacts/contact';
 import { useMutation, useQuery, useSuspenseQuery } from '@tanstack/react-query';
-import { getSdk } from '~/features/shared/sdk';
-
-export { ContactsCache } from '@agicash/wallet-sdk';
+import { useSdk } from '~/features/shared/sdk';
 
 /**
  * Hook for listing contacts for the current user with optional filtering
  */
 export function useContacts(select?: (contacts: Contact[]) => Contact[]) {
+  const sdk = useSdk();
   const { data: contacts } = useSuspenseQuery({
-    ...getSdk().contacts.listOptions(),
+    ...sdk.contacts.listOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select,
@@ -28,19 +27,21 @@ export function useContact(contactId: string) {
 }
 
 export function useCreateContact() {
+  const sdk = useSdk();
   const { mutateAsync: createContact } = useMutation({
     mutationKey: ['create-contact'],
     mutationFn: ({ username }: { username: string }) =>
-      getSdk().contacts.create({ username }),
+      sdk.contacts.create({ username }),
   });
 
   return createContact;
 }
 
 export function useDeleteContact() {
+  const sdk = useSdk();
   const { mutateAsync: deleteContact } = useMutation({
     mutationKey: ['delete-contact'],
-    mutationFn: (contactId: string) => getSdk().contacts.delete(contactId),
+    mutationFn: (contactId: string) => sdk.contacts.delete(contactId),
   });
 
   return deleteContact;
@@ -51,8 +52,9 @@ export function useDeleteContact() {
  * @return the query response containing any user profiles that match the query
  */
 export function useFindContactCandidates(query: string) {
+  const sdk = useSdk();
   return useQuery({
-    ...getSdk().contacts.findCandidatesOptions(query),
+    ...sdk.contacts.findCandidatesOptions(query),
     initialData: [],
     initialDataUpdatedAt: () => Date.now() - 1000 * 6,
     staleTime: 1000 * 5,

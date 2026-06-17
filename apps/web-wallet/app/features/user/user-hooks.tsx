@@ -1,15 +1,12 @@
 import type { Currency } from '@agicash/utils/money';
-import { UserCache } from '@agicash/wallet-sdk';
 import type { UpdateUser, User } from '@agicash/wallet-sdk';
 import type { Account } from '@agicash/wallet-sdk/accounts/account';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useCallback } from 'react';
-import { getSdk } from '~/features/shared/sdk';
+import { getSdk, useSdk } from '~/features/shared/sdk';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import { useLatest } from '~/lib/use-latest';
 import { guestAccountStorage } from './guest-account-storage';
-
-export { UserCache };
 
 /**
  * The cached user for contexts where a missing user is a bug (routes under
@@ -34,13 +31,14 @@ export const useUser = <TData = User>(
   select?: (data: User) => TData,
 ): TData => {
   const authState = useAuthState();
+  const sdk = useSdk();
   const authUser = authState.user;
   if (!authUser) {
     throw new Error('Cannot use useUser hook in anonymous context');
   }
 
   const { data } = useSuspenseQuery({
-    ...getSdk().user.queryOptions(),
+    ...sdk.user.queryOptions(),
     select,
   });
 
@@ -124,6 +122,7 @@ export const useUpgradeGuestToFullAccount = (): ((
 
 export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
   const userRef = useUserRef();
+  const sdk = useSdk();
 
   const { mutateAsync } = useMutation({
     mutationKey: ['request-new-email-verification-code'],
@@ -135,7 +134,7 @@ export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
         throw new Error('Email is already verified');
       }
 
-      return getSdk().auth.requestNewVerificationCode();
+      return sdk.auth.requestNewVerificationCode();
     },
     scope: {
       id: 'request-new-email-verification-code',
@@ -169,8 +168,9 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
 };
 
 const useUpdateUser = () => {
+  const sdk = useSdk();
   return useMutation({
-    mutationFn: (updates: UpdateUser) => getSdk().user.update(updates),
+    mutationFn: (updates: UpdateUser) => sdk.user.update(updates),
   });
 };
 
@@ -184,8 +184,9 @@ export const useSetDefaultCurrency = () => {
 };
 
 export const useSetDefaultAccount = () => {
+  const sdk = useSdk();
   const { mutateAsync } = useMutation({
-    mutationFn: (account: Account) => getSdk().user.setDefaultAccount(account),
+    mutationFn: (account: Account) => sdk.user.setDefaultAccount(account),
   });
 
   return mutateAsync;

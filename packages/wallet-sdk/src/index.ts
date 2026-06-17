@@ -18,13 +18,11 @@ export * from './cashu';
 export * from './spark';
 export * from './spark-utils';
 export * from './user/user';
-export * from './user/user-repository';
-export * from './user/user-service';
-export * from './user/user-cache';
 export * from './transactions/transaction';
 export * from './transactions/transaction-enums';
-export * from './transactions/transaction-repository';
-export * from './transactions/transactions-cache';
 export * from './contacts/contact';
-export * from './contacts/contact-repository';
-export * from './contacts/contacts-cache';
+// Repositories, services, and caches are deliberately NOT exported: they are SDK
+// internals reached only through the curated sdk.* surface, so they must not be
+// importable (as a value or a type) from outside. The one exception is the
+// server lnurl path, which has no sdk instance and imports the user repositories
+// as values via the explicit ./user/user-repository subpath.

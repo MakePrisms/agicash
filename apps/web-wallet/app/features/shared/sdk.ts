@@ -4,7 +4,12 @@
 // only records state; connections are lazy). Must NOT import feature modules
 // that read from the DB (e.g. feature-flags) — they import database.client,
 // which configures through this module.
-import { browserStorage, configureWalletSdk } from '@agicash/wallet-sdk/sdk';
+import {
+  type WalletSdk,
+  browserStorage,
+  configureWalletSdk,
+  getSdk,
+} from '@agicash/wallet-sdk/sdk';
 import * as Sentry from '@sentry/react-router';
 import { sessionHintCookie } from '~/features/user/session-hint-cookie';
 import { measureOperation } from '~/lib/performance';
@@ -99,4 +104,26 @@ configureWalletSdk({
   },
 });
 
-export { getSdk } from '@agicash/wallet-sdk/sdk';
+export { getSdk };
+
+/**
+ * The React access point to the wallet SDK singleton. Use it in component and
+ * hook render context; for loaders, query/mutation functions, effects, event
+ * handlers, and module scope use {@link getSdk} directly (a hook can't be
+ * called there).
+ *
+ * Client-only: the SDK binds to browser connections and the browser
+ * QueryClient, and every SDK-consuming route renders client-side (the public,
+ * prerendered pages never reach the SDK during render). Touching it during
+ * SSR/prerender is a bug, so this throws there rather than silently
+ * constructing a server-side instance — the guard that previously lived in the
+ * framework-agnostic `getSdk()`.
+ */
+export function useSdk(): WalletSdk {
+  if (typeof window === 'undefined') {
+    throw new Error(
+      'useSdk is client-only. Use getSdk() outside of React render (loaders, query/mutation functions, module scope).',
+    );
+  }
+  return getSdk();
+}

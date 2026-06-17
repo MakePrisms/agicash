@@ -1,6 +1,6 @@
 import { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
 import { DomainError } from '@agicash/wallet-sdk/error';
-import type { TransferQuote } from '@agicash/wallet-sdk/transfer/transfer-service';
+import type { TransferQuote } from '@agicash/wallet-sdk/transfer/transfer';
 import { MoneyDisplay } from '~/components/money-display';
 import {
   PageBackButton,

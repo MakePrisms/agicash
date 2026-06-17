@@ -1,7 +1,7 @@
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { useGetCashuAccount } from '../accounts/account-hooks';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 
 type CreateProps = {
   token: Token;
@@ -10,6 +10,7 @@ type CreateProps = {
 
 export function useCreateCashuReceiveSwap() {
   const getCashuAccount = useGetCashuAccount();
+  const sdk = useSdk();
 
   return useMutation({
     mutationKey: ['create-cashu-receive-swap'],
@@ -18,7 +19,7 @@ export function useCreateCashuReceiveSwap() {
     },
     mutationFn: ({ token, accountId }: CreateProps) => {
       const account = getCashuAccount(accountId);
-      return getSdk().receive.createCashuReceiveSwap({ token, account });
+      return sdk.receive.createCashuReceiveSwap({ token, account });
     },
   });
 }

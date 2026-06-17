@@ -6,10 +6,12 @@ import type {
 } from '@agicash/wallet-sdk/accounts/account';
 import { getDefaultUnit } from '@agicash/wallet-sdk/currencies';
 import { DomainError } from '@agicash/wallet-sdk/error';
-import type { DestinationDetails } from '@agicash/wallet-sdk/send/cashu-send-quote';
-import type { CashuLightningQuote } from '@agicash/wallet-sdk/send/cashu-send-quote-service';
-import type { CashuSwapQuote } from '@agicash/wallet-sdk/send/cashu-send-swap-service';
-import type { SparkLightningQuote } from '@agicash/wallet-sdk/send/spark-send-quote-service';
+import type {
+  CashuLightningQuote,
+  DestinationDetails,
+} from '@agicash/wallet-sdk/send/cashu-send-quote';
+import type { CashuSwapQuote } from '@agicash/wallet-sdk/send/cashu-send-swap';
+import type { SparkLightningQuote } from '@agicash/wallet-sdk/send/spark-send-quote';
 import { AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';
 import { PageFooter, PageHeaderTitle } from '~/components/page';

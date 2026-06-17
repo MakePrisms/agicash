@@ -6,8 +6,8 @@ import type { CashuReceiveQuoteService } from '../receive/cashu-receive-quote-se
 import type { SparkReceiveQuoteService } from '../receive/spark-receive-quote-service';
 import type { CashuSendQuoteService } from '../send/cashu-send-quote-service';
 import type { SparkSendQuoteService } from '../send/spark-send-quote-service';
+import type { TransferQuote } from './transfer';
 import { createTransferApi } from './transfer-api';
-import type { TransferQuote } from './transfer-service';
 
 const cashuAccount = {
   id: 'acc-1',

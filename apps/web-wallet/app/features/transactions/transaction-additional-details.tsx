@@ -16,7 +16,7 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { useAccountOrNull } from '../accounts/account-hooks';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 import { useTransaction } from './transaction-hooks';
 
 const augmentProofsWithState = (
@@ -65,7 +65,8 @@ function LightningSendDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const options = getSdk().send.quoteByTransactionIdOptions(transaction.id);
+  const sdk = useSdk();
+  const options = sdk.send.quoteByTransactionIdOptions(transaction.id);
 
   const { data: sendQuote } = useSuspenseQuery({
     ...options,
@@ -93,7 +94,8 @@ function LightningSendDetails({
 function LightningReceiveDetails({
   transaction,
 }: { transaction: Transaction }) {
-  const options = getSdk().receive.quoteByTransactionIdOptions(transaction.id);
+  const sdk = useSdk();
+  const options = sdk.receive.quoteByTransactionIdOptions(transaction.id);
 
   const { data } = useSuspenseQuery({
     ...options,
@@ -113,7 +115,8 @@ function CashuTokenSendDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const options = getSdk().send.swapByTransactionIdOptions(transaction.id);
+  const sdk = useSdk();
+  const options = sdk.send.swapByTransactionIdOptions(transaction.id);
 
   const { data: swap } = useSuspenseQuery({
     ...options,
@@ -148,7 +151,8 @@ function CashuTokenReceiveDetails({
   account,
   transaction,
 }: { account: CashuAccount; transaction: Transaction }) {
-  const options = getSdk().receive.swapByTransactionIdOptions(transaction.id);
+  const sdk = useSdk();
+  const options = sdk.receive.swapByTransactionIdOptions(transaction.id);
 
   const { data: swap } = useSuspenseQuery({
     ...options,

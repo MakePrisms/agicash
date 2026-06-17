@@ -6,9 +6,10 @@ import { useMutation, useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useLatest } from '~/lib/use-latest';
 import { useAccount, useGetCashuAccount } from '../accounts/account-hooks';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 
 export function useCreateCashuSendSwapQuote() {
+  const sdk = useSdk();
   return useMutation({
     mutationFn: ({
       amount,
@@ -19,7 +20,7 @@ export function useCreateCashuSendSwapQuote() {
       account: CashuAccount;
       senderPaysFee?: boolean;
     }) => {
-      return getSdk().send.getCashuSendSwapQuote({
+      return sdk.send.getCashuSendSwapQuote({
         amount,
         account,
         senderPaysFee,
@@ -36,6 +37,7 @@ export function useCreateCashuSendSwap({
   onError: (error: Error) => void;
 }) {
   const getCashuAccount = useGetCashuAccount();
+  const sdk = useSdk();
 
   return useMutation({
     mutationFn: ({
@@ -48,7 +50,7 @@ export function useCreateCashuSendSwap({
       senderPaysFee?: boolean;
     }) => {
       const account = getCashuAccount(accountId);
-      return getSdk().send.createCashuSendSwap({
+      return sdk.send.createCashuSendSwap({
         amount,
         account,
         senderPaysFee,
@@ -71,8 +73,9 @@ export function useCreateCashuSendSwap({
 }
 
 export function useCashuSendSwap(id: string) {
+  const sdk = useSdk();
   const result = useSuspenseQuery({
-    ...getSdk().send.cashuSwapOptions(id),
+    ...sdk.send.cashuSwapOptions(id),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
   });
@@ -115,9 +118,10 @@ export function useTrackCashuSendSwap({
   const onPendingRef = useLatest(onPending);
   const onCompletedRef = useLatest(onCompleted);
   const onFailedRef = useLatest(onFailed);
+  const sdk = useSdk();
 
   const { data } = useQuery({
-    ...getSdk().send.trackCashuSwapOptions(id),
+    ...sdk.send.trackCashuSwapOptions(id),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     enabled,

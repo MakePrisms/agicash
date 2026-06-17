@@ -4,14 +4,15 @@ import { ConcurrencyError, DomainError } from '@agicash/wallet-sdk/error';
 import type {
   CashuSendQuote,
   DestinationDetails,
+  SendQuoteRequest,
 } from '@agicash/wallet-sdk/send/cashu-send-quote';
-import type { SendQuoteRequest } from '@agicash/wallet-sdk/send/cashu-send-quote-service';
 import { useMutation } from '@tanstack/react-query';
 import type Big from 'big.js';
 import { useGetCashuAccount } from '../accounts/account-hooks';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 
 export function useCreateCashuLightningSendQuote() {
+  const sdk = useSdk();
   return useMutation({
     scope: {
       id: 'create-cashu-lightning-send-quote',
@@ -21,7 +22,7 @@ export function useCreateCashuLightningSendQuote() {
       paymentRequest: string;
       amount?: Money;
       exchangeRate?: Big;
-    }) => getSdk().send.getCashuLightningQuote(props),
+    }) => sdk.send.getCashuLightningQuote(props),
     retry: (failureCount, error) => {
       if (error instanceof DomainError) {
         return false;
@@ -39,6 +40,7 @@ export function useInitiateCashuSendQuote({
   onError: (error: Error) => void;
 }) {
   const getCashuAccount = useGetCashuAccount();
+  const sdk = useSdk();
 
   return useMutation({
     mutationKey: ['initiate-cashu-send-quote'],
@@ -55,7 +57,7 @@ export function useInitiateCashuSendQuote({
       destinationDetails?: DestinationDetails;
     }) => {
       const account = getCashuAccount(accountId);
-      return getSdk().send.createCashuSendQuote({
+      return sdk.send.createCashuSendQuote({
         account,
         sendQuote,
         destinationDetails,

@@ -8,6 +8,7 @@ import type { SparkNetwork } from '@agicash/db-types/json-models/spark-account-d
 import { type Currency, Money } from '@agicash/utils/money';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
+import type { User } from '../user/user';
 import type { CashuProof } from './cashu-account';
 
 export const AccountTypeSchema = z.enum(['cashu', 'spark']);
@@ -89,6 +90,23 @@ export type RedactedAccount = DistributedOmit<Account, 'proofs'>;
 export type RedactedCashuAccount = Extract<RedactedAccount, { type: 'cashu' }>;
 
 /**
+ * The fields needed to add a new cashu account; the rest are derived by the SDK.
+ */
+export type NewCashuAccount = DistributedOmit<
+  CashuAccount,
+  | 'id'
+  | 'createdAt'
+  | 'expiresAt'
+  | 'isTestMint'
+  | 'keysetCounters'
+  | 'proofs'
+  | 'version'
+  | 'wallet'
+  | 'isOnline'
+  | 'state'
+>;
+
+/**
  * Returns true if adding this account requires the user to accept gift-card
  * mint terms. Mirrors the DB trigger `enforce_gift_card_mint_terms_on_account_create`.
  */
@@ -135,3 +153,31 @@ export const getAccountBalance = (account: Account) => {
   }
   return account.balance;
 };
+
+/**
+ * Returns true if the account is the user's default account for its currency.
+ */
+export const isDefaultAccount = (user: User, account: Account): boolean => {
+  if (account.currency === 'BTC') {
+    return user.defaultBtcAccountId === account.id;
+  }
+  if (account.currency === 'USD') {
+    return user.defaultUsdAccountId === account.id;
+  }
+  return false;
+};
+
+/**
+ * Maps accounts to {@link ExtendedAccount}s, flagging each as the user's default
+ * for its currency, and sorts the default account to the top.
+ */
+export const getExtendedAccounts = (
+  user: User,
+  accounts: Account[],
+): ExtendedAccount[] =>
+  accounts
+    .map((account) => ({
+      ...account,
+      isDefault: isDefaultAccount(user, account),
+    }))
+    .sort((_, b) => (b.isDefault ? 1 : -1));

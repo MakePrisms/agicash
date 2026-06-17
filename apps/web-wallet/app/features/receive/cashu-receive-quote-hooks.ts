@@ -5,7 +5,7 @@ import type { TransactionPurpose } from '@agicash/wallet-sdk/transactions/transa
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useLatest } from '~/lib/use-latest';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 
 type CreateProps = {
   account: CashuAccount;
@@ -16,12 +16,13 @@ type CreateProps = {
 };
 
 export function useCreateCashuReceiveQuote() {
+  const sdk = useSdk();
   return useMutation({
     scope: {
       id: 'create-cashu-receive-quote',
     },
     mutationFn: (props: CreateProps) =>
-      getSdk().receive.createCashuReceiveQuote(props),
+      sdk.receive.createCashuReceiveQuote(props),
     retry: 1,
   });
 }
@@ -50,9 +51,10 @@ export function useTrackCashuReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
+  const sdk = useSdk();
 
   const { data } = useQuery({
-    ...getSdk().receive.cashuQuoteOptions(quoteId),
+    ...sdk.receive.cashuQuoteOptions(quoteId),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     enabled,

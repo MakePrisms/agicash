@@ -1,10 +1,12 @@
 import type { Money } from '@agicash/utils/money';
 import type { SparkAccount } from '@agicash/wallet-sdk/accounts/account';
 import { DomainError } from '@agicash/wallet-sdk/error';
-import type { SparkSendQuote } from '@agicash/wallet-sdk/send/spark-send-quote';
-import type { SparkLightningQuote } from '@agicash/wallet-sdk/send/spark-send-quote-service';
+import type {
+  SparkLightningQuote,
+  SparkSendQuote,
+} from '@agicash/wallet-sdk/send/spark-send-quote';
 import { useMutation } from '@tanstack/react-query';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 
 type CreateSparkLightningSendQuoteParams = {
   /**
@@ -25,13 +27,14 @@ type CreateSparkLightningSendQuoteParams = {
  * Returns a mutation for creating a Spark Lightning send quote.
  */
 export function useCreateSparkLightningSendQuote() {
+  const sdk = useSdk();
   return useMutation({
     mutationFn: async ({
       account,
       paymentRequest,
       amount,
     }: CreateSparkLightningSendQuoteParams) => {
-      return getSdk().send.getSparkLightningSendQuote({
+      return sdk.send.getSparkLightningSendQuote({
         account,
         paymentRequest,
         amount: amount as Money<'BTC'>,
@@ -69,12 +72,13 @@ export function useInitiateSparkSendQuote({
   onSuccess: (data: SparkSendQuote) => void;
   onError: (error: Error) => void;
 }) {
+  const sdk = useSdk();
   return useMutation({
     scope: {
       id: 'create-spark-send-quote',
     },
     mutationFn: ({ account, quote }: CreateSparkSendQuoteParams) => {
-      return getSdk().send.createSparkSendQuote({ account, quote });
+      return sdk.send.createSparkSendQuote({ account, quote });
     },
     onSuccess: (data) => {
       onSuccess(data);

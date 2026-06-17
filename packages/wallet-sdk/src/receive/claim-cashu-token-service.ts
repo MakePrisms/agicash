@@ -1,9 +1,15 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
 import type { QueryClient } from '@tanstack/query-core';
-import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
+import {
+  type Account,
+  type CashuAccount,
+  type SparkAccount,
+  getExtendedAccounts,
+  isDefaultAccount,
+} from '../accounts/account';
 import type { AccountRepository } from '../accounts/account-repository';
-import { AccountService } from '../accounts/account-service';
+import type { AccountService } from '../accounts/account-service';
 import {
   AccountsCache,
   accountsQueryOptions,
@@ -17,12 +23,15 @@ import type { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import type { CashuReceiveSwapService } from './cashu-receive-swap-service';
-import { isClaimingToSameCashuAccount } from './receive-cashu-token-models';
+import {
+  getDefaultReceiveAccount,
+  isClaimingToSameCashuAccount,
+} from './receive-cashu-token-models';
 import type {
   CrossAccountReceiveQuotesResult,
   ReceiveCashuTokenQuoteService,
 } from './receive-cashu-token-quote-service';
-import { ReceiveCashuTokenService } from './receive-cashu-token-service';
+import type { ReceiveCashuTokenService } from './receive-cashu-token-service';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import type { SparkReceiveQuoteService } from './spark-receive-quote-service';
 
@@ -95,7 +104,7 @@ export class ClaimCashuTokenService {
         accountRepository: this.accountRepository,
       }),
     );
-    const extendedAccounts = AccountService.getExtendedAccounts(user, accounts);
+    const extendedAccounts = getExtendedAccounts(user, accounts);
     const preferredReceiveAccountId =
       claimTo === 'spark'
         ? extendedAccounts.find((a) => a.type === 'spark')?.id
@@ -107,7 +116,7 @@ export class ClaimCashuTokenService {
         extendedAccounts,
       );
 
-    let receiveAccount = ReceiveCashuTokenService.getDefaultReceiveAccount(
+    let receiveAccount = getDefaultReceiveAccount(
       sourceAccount,
       possibleDestinationAccounts,
       preferredReceiveAccountId,
@@ -131,7 +140,7 @@ export class ClaimCashuTokenService {
 
     if (
       receiveAccount.currency !== user.defaultCurrency ||
-      !AccountService.isDefaultAccount(user, receiveAccount)
+      !isDefaultAccount(user, receiveAccount)
     ) {
       // We don't want to fail the entire claim flow if setting the default account fails because it's not
       // critical and the user can still claim the token, it just won't be as nice UX because the balance

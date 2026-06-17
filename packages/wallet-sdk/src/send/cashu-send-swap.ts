@@ -166,3 +166,13 @@ export const CashuSendSwapSchema = z.intersection(
 export type CashuSendSwap = z.infer<typeof CashuSendSwapSchema>;
 
 export type PendingCashuSendSwap = CashuSendSwap & { state: 'PENDING' };
+
+export type CashuSwapQuote = {
+  amountRequested: Money;
+  senderPaysFee: boolean;
+  cashuReceiveFee: Money;
+  cashuSendFee: Money;
+  totalAmount: Money;
+  totalFee: Money;
+  amountToSend: Money;
+};

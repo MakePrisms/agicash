@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/react-router';
 import { type PropsWithChildren, useEffect } from 'react';
 import { useToast } from '~/hooks/use-toast';
 import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 import { useTrackAndUpdateSparkAccountBalances } from '../shared/spark';
 import { useTheme } from '../theme';
 import { useHandleSessionExpiry } from '../user/auth';
@@ -25,6 +25,7 @@ const useSyncThemeWithDefaultCurrency = () => {
 export const Wallet = ({ children }: PropsWithChildren) => {
   const { toast } = useToast();
   const user = useUser();
+  const sdk = useSdk();
 
   useEffect(() => {
     Sentry.setUser({
@@ -51,14 +52,14 @@ export const Wallet = ({ children }: PropsWithChildren) => {
   useSyncThemeWithDefaultCurrency();
 
   useTrackWalletChanges();
-  useSupabaseRealtimeActivityTracking(getSdk().realtime);
+  useSupabaseRealtimeActivityTracking(sdk.realtime);
   useTrackAndUpdateSparkAccountBalances();
 
   useEffect(() => {
-    const tasks = getSdk().tasks;
+    const tasks = sdk.tasks;
     tasks.start();
     return () => tasks.stop();
-  }, []);
+  }, [sdk]);
 
   return <>{children}</>;
 };

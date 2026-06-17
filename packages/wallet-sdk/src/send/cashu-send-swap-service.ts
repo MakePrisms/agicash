@@ -19,18 +19,8 @@ import { getTokenHash } from '../cashu';
 import { getDefaultUnit } from '../currencies';
 import { DomainError } from '../error';
 import type { CashuReceiveSwapService } from '../receive/cashu-receive-swap-service';
-import type { CashuSendSwap } from './cashu-send-swap';
+import type { CashuSendSwap, CashuSwapQuote } from './cashu-send-swap';
 import type { CashuSendSwapRepository } from './cashu-send-swap-repository';
-
-export type CashuSwapQuote = {
-  amountRequested: Money;
-  senderPaysFee: boolean;
-  cashuReceiveFee: Money;
-  cashuSendFee: Money;
-  totalAmount: Money;
-  totalFee: Money;
-  amountToSend: Money;
-};
 
 export class CashuSendSwapService {
   constructor(

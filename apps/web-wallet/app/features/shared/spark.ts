@@ -7,7 +7,7 @@ import { useAccounts } from '../accounts/account-hooks';
 import { getFeatureFlag } from './feature-flags';
 // Configures the SDK (incl. the spark/Breez API key) for every import path
 // that reaches spark — including the server-side lightning-address flow.
-import { getSdk } from './sdk';
+import { useSdk } from './sdk';
 
 // Wired here rather than in shared/sdk.ts: the feature-flag module reads from
 // the DB client, which configures through shared/sdk.ts — importing it there
@@ -19,9 +19,10 @@ export function useTrackAndUpdateSparkAccountBalances() {
     type: 'spark',
     isOnline: true,
   });
+  const sdk = useSdk();
 
   useEffect(
-    () => getSdk().accounts.trackSparkBalances(sparkOnlineAccounts),
-    [sparkOnlineAccounts],
+    () => sdk.accounts.trackSparkBalances(sparkOnlineAccounts),
+    [sparkOnlineAccounts, sdk],
   );
 }

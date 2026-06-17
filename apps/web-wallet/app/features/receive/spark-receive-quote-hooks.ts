@@ -5,7 +5,7 @@ import type { TransactionPurpose } from '@agicash/wallet-sdk/transactions/transa
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useLatest } from '~/lib/use-latest';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 
 type UseTrackSparkReceiveQuoteProps = {
   quoteId?: string;
@@ -31,9 +31,10 @@ export function useTrackSparkReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
+  const sdk = useSdk();
 
   const { data } = useQuery({
-    ...getSdk().receive.sparkQuoteOptions(quoteId),
+    ...sdk.receive.sparkQuoteOptions(quoteId),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     enabled,
@@ -87,12 +88,13 @@ type CreateProps = {
  * The quote is stored in the database and will be tracked by the background task processor.
  */
 export function useCreateSparkReceiveQuote() {
+  const sdk = useSdk();
   return useMutation({
     scope: {
       id: 'create-spark-receive-quote',
     },
     mutationFn: (props: CreateProps) =>
-      getSdk().receive.createSparkReceiveQuote(props),
+      sdk.receive.createSparkReceiveQuote(props),
     retry: 1,
   });
 }

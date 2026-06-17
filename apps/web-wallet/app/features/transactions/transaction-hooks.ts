@@ -8,22 +8,24 @@ import {
   useQuery,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { getSdk } from '~/features/shared/sdk';
+import { useSdk } from '~/features/shared/sdk';
 import { useLatest } from '~/lib/use-latest';
 
 export { isTransactionReversable };
 
 export function useTransaction(id: string) {
+  const sdk = useSdk();
   return useSuspenseQuery({
-    ...getSdk().transactions.queryOptions(id),
+    ...sdk.transactions.queryOptions(id),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
   });
 }
 
 export function useTransactions(accountId?: string) {
+  const sdk = useSdk();
   return useInfiniteQuery({
-    ...getSdk().transactions.listOptions(accountId),
+    ...sdk.transactions.listOptions(accountId),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     retry: 1,
@@ -31,8 +33,9 @@ export function useTransactions(accountId?: string) {
 }
 
 export function useHasTransactionsPendingAck() {
+  const sdk = useSdk();
   const result = useQuery({
-    ...getSdk().transactions.pendingAckCountOptions(),
+    ...sdk.transactions.pendingAckCountOptions(),
     select: (data) => data > 0,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -43,9 +46,10 @@ export function useHasTransactionsPendingAck() {
 }
 
 export function useAcknowledgeTransaction() {
+  const sdk = useSdk();
   return useMutation({
     mutationFn: ({ transaction }: { transaction: Transaction }) =>
-      getSdk().transactions.acknowledge(transaction),
+      sdk.transactions.acknowledge(transaction),
     retry: 1,
   });
 }
@@ -66,10 +70,11 @@ export function useReverseTransaction({
 }) {
   const onSuccessRef = useLatest(onSuccess);
   const onErrorRef = useLatest(onError);
+  const sdk = useSdk();
 
   return useMutation({
     mutationFn: ({ transaction }: { transaction: Transaction }) =>
-      getSdk().send.reverseTransaction(transaction),
+      sdk.send.reverseTransaction(transaction),
     onSuccess: () => {
       onSuccessRef.current?.();
     },

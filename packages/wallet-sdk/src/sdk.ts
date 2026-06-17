@@ -3,7 +3,7 @@ import {
   type StorageProvider,
   configure as configureOpenSecret,
 } from '@agicash/opensecret';
-import { type QueryClient, isServer } from '@tanstack/query-core';
+import type { QueryClient } from '@tanstack/query-core';
 import { type AccountsApi, createAccountsApi } from './accounts/accounts-api';
 import { configureAgicashDb, getAgicashDb } from './agicash-db';
 import { type AuthApi, type ResolvedAuthState, createAuthApi } from './auth';
@@ -321,16 +321,15 @@ export class WalletSdk {
 let sdkSingleton: WalletSdk | undefined;
 
 /**
- * The SDK instance (client-only browser singleton — it wraps the browser
- * QueryClient and per-user connections; server code uses the per-request
- * primitives directly).
+ * The configured SDK singleton, constructed lazily on first call. Host-agnostic:
+ * the web reaches it through the `useSdk()` hook (which adds the client-only
+ * guard), a headless host calls this directly. Whether a given runtime may
+ * construct the SDK (e.g. browser-only vs. server) is the host's policy, not the
+ * SDK's — this returns the instance wherever it is called.
  *
- * @throws if called on the server or before {@link configureWalletSdk}.
+ * @throws if called before {@link configureWalletSdk}.
  */
 export function getSdk(): WalletSdk {
-  if (isServer) {
-    throw new Error('getSdk is client-only');
-  }
   if (!sdkConfig) {
     throw new Error(
       'Wallet SDK is not configured. Call configureWalletSdk first.',

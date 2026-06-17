@@ -6,10 +6,11 @@ import {
   type AccountType,
   type CashuAccount,
   type ExtendedAccount,
+  type NewCashuAccount,
   type SparkAccount,
   getAccountBalance,
+  getExtendedAccounts,
 } from '@agicash/wallet-sdk/accounts/account';
-import { AccountService } from '@agicash/wallet-sdk/accounts/account-service';
 // React hooks over the SDK accounts domain (sdk.accounts).
 import {
   type UseSuspenseQueryResult,
@@ -17,7 +18,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useRef } from 'react';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 import { useUser } from '../user/user-hooks';
 
 /**
@@ -113,17 +114,18 @@ export function useAccounts<
   select?: UseAccountsSelect<T, P>,
 ): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
+  const sdk = useSdk();
 
   const { currency, type, isOnline, purpose, state = 'active' } = select ?? {};
 
   return useSuspenseQuery({
-    ...getSdk().accounts.listOptions(),
+    ...sdk.accounts.listOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select: useCallback(
       (data: Account[]) => {
         const allowedStates = Array.isArray(state) ? state : [state];
-        const extendedData = AccountService.getExtendedAccounts(user, data);
+        const extendedData = getExtendedAccounts(user, data);
 
         const filteredData = extendedData.filter((account) => {
           if (!allowedStates.includes(account.state)) {
@@ -189,11 +191,12 @@ const ALL_ACCOUNT_STATES: AccountState[] = ['active', 'expired'];
  */
 export function useAccountOrNull(id: string | null): Account | null {
   const { data: accounts } = useAccounts({ state: ALL_ACCOUNT_STATES });
+  const sdk = useSdk();
 
   useSuspenseQuery({
     queryKey: ['fetch-account-by-id', id],
     queryFn: async () => {
-      const sdkAccounts = getSdk().accounts;
+      const sdkAccounts = sdk.accounts;
       if (!id || sdkAccounts.getCached(id)) return null;
       await sdkAccounts.get(id);
       return null;
@@ -221,9 +224,10 @@ export function useGetAccount<T extends keyof AccountTypeMap>(
 ): (id: string) => AccountTypeMap[T];
 export function useGetAccount(type?: undefined): (id: string) => Account;
 export function useGetAccount(type?: keyof AccountTypeMap) {
+  const sdk = useSdk();
   return useCallback(
     (id: string) => {
-      const account = getSdk().accounts.getCached(id);
+      const account = sdk.accounts.getCached(id);
       if (!account) {
         throw new Error(`Account not found for id: ${id}`);
       }
@@ -232,7 +236,7 @@ export function useGetAccount(type?: keyof AccountTypeMap) {
       }
       return account;
     },
-    [type],
+    [type, sdk],
   );
 }
 
@@ -242,33 +246,6 @@ export function useGetAccount(type?: keyof AccountTypeMap) {
  */
 export function useGetCashuAccount() {
   return useGetAccount('cashu');
-}
-
-/**
- * Hook to get the method which returns the cashu account matching a mint URL and currency, or null if not found.
- * @returns A function that takes a mint URL and currency and returns the matching cashu account or null.
- */
-export function useGetCashuAccountByMintUrlAndCurrency() {
-  return useCallback(
-    (mintUrl: string, currency: Currency) =>
-      getSdk()
-        .accounts.listCached()
-        .find(
-          (a): a is CashuAccount =>
-            a.type === 'cashu' &&
-            a.mintUrl === mintUrl &&
-            a.currency === currency,
-        ) ?? null,
-    [],
-  );
-}
-
-/**
- * Hook to get the method which returns the spark account from the cache or throws an error if not found.
- * @returns The method which returns the spark account or throws an error if the account is not found or if the account type is not spark.
- */
-export function useGetSparkAccount() {
-  return useGetAccount('spark');
 }
 
 export function useDefaultAccount() {
@@ -321,10 +298,9 @@ export function useAccountOrDefault(accountId: string | null) {
 }
 
 export function useAddCashuAccount() {
+  const sdk = useSdk();
   const { mutateAsync } = useMutation({
-    mutationFn: async (
-      account: Parameters<AccountService['addCashuAccount']>[0]['account'],
-    ) => getSdk().accounts.add(account),
+    mutationFn: async (account: NewCashuAccount) => sdk.accounts.add(account),
   });
 
   return mutateAsync;
@@ -344,16 +320,4 @@ export function useBalance(currency: Currency) {
     return accountBalance !== null ? acc.add(accountBalance) : acc;
   }, Money.zero(currency));
   return balance;
-}
-
-/**
- * Hook that returns a selector function to filter out items with offline accounts.
- */
-export function useSelectItemsWithOnlineAccount() {
-  return useCallback(<T extends { accountId: string }>(items: T[]): T[] => {
-    return items.filter((item) => {
-      const account = getSdk().accounts.getCached(item.accountId);
-      return account?.isOnline;
-    });
-  }, []);
 }

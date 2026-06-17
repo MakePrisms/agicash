@@ -1,14 +1,14 @@
 import { getCashuWallet } from '@agicash/cashu';
 import type { AgicashDb } from '@agicash/db-types';
 import { Money } from '@agicash/utils/money';
-import {
-  ReadUserDefaultAccountRepository,
-  ReadUserRepository,
-} from '@agicash/wallet-sdk';
 import { NotFoundError } from '@agicash/wallet-sdk/error';
 import { ExchangeRateService } from '@agicash/wallet-sdk/exchange-rate';
 import { getLightningQuote } from '@agicash/wallet-sdk/receive/cashu-receive-quote-core';
 import { sparkWalletQueryOptions } from '@agicash/wallet-sdk/spark';
+import {
+  ReadUserDefaultAccountRepository,
+  ReadUserRepository,
+} from '@agicash/wallet-sdk/user/user-repository';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';

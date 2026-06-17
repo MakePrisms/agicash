@@ -8,8 +8,10 @@ import {
 } from '@agicash/wallet-sdk/accounts/account';
 import { tokenToMoney } from '@agicash/wallet-sdk/cashu';
 import { DomainError } from '@agicash/wallet-sdk/error';
-import type { ReceiveCashuTokenAccount } from '@agicash/wallet-sdk/receive/receive-cashu-token-models';
-import { ReceiveCashuTokenService } from '@agicash/wallet-sdk/receive/receive-cashu-token-service';
+import {
+  type ReceiveCashuTokenAccount,
+  getDefaultReceiveAccount,
+} from '@agicash/wallet-sdk/receive/receive-cashu-token-models';
 import { createSparkWalletStub } from '@agicash/wallet-sdk/spark-utils';
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
@@ -23,7 +25,7 @@ import {
   type AccountSelectorOption,
   toAccountSelectorOption,
 } from '../accounts/account-selector';
-import { getSdk } from '../shared/sdk';
+import { useSdk } from '../shared/sdk';
 
 type UseGetClaimableTokenProps = {
   token: Token;
@@ -51,8 +53,9 @@ export function useCashuTokenSourceAccountQuery(
   token: Token,
   existingAccounts: ExtendedAccount[] = [],
 ) {
+  const sdk = useSdk();
   return useSuspenseQuery({
-    ...getSdk().receive.tokenReceiveAccountsOptions(token, existingAccounts),
+    ...sdk.receive.tokenReceiveAccountsOptions(token, existingAccounts),
     retry: 1,
   });
 }
@@ -174,12 +177,11 @@ export function useReceiveCashuTokenAccounts(
   const { sourceAccount, possibleDestinationAccounts } =
     useCashuTokenSourceAccount(token);
 
-  const defaultReceiveAccount =
-    ReceiveCashuTokenService.getDefaultReceiveAccount(
-      sourceAccount,
-      possibleDestinationAccounts,
-      preferredReceiveAccountId,
-    );
+  const defaultReceiveAccount = getDefaultReceiveAccount(
+    sourceAccount,
+    possibleDestinationAccounts,
+    preferredReceiveAccountId,
+  );
 
   const [receiveAccountId, setReceiveAccountId] = useState<string | null>(
     defaultReceiveAccount?.id ?? null,
@@ -238,6 +240,7 @@ type CreateCrossAccountReceiveQuotesProps = {
  */
 export function useCreateCrossAccountReceiveQuotes() {
   const getExchangeRate = useGetExchangeRate();
+  const sdk = useSdk();
 
   return useMutation({
     mutationFn: async ({
@@ -251,7 +254,7 @@ export function useCreateCrossAccountReceiveQuotes() {
         `${tokenCurrency}-${accountCurrency}`,
       );
 
-      return await getSdk().receive.createCrossAccountReceiveQuotes({
+      return await sdk.receive.createCrossAccountReceiveQuotes({
         token,
         sourceAccount,
         destinationAccount,
@@ -268,10 +271,10 @@ export function useCreateCrossAccountReceiveQuotes() {
 }
 
 function useBuildCashuAccountPlaceholder(mintUrl: string, currency: Currency) {
+  const sdk = useSdk();
   const { data } = useSuspenseQuery({
     queryKey: ['build-cashu-account-for-mint', mintUrl, currency],
-    queryFn: () =>
-      getSdk().receive.buildCashuAccountPlaceholder(mintUrl, currency),
+    queryFn: () => sdk.receive.buildCashuAccountPlaceholder(mintUrl, currency),
     staleTime: 0,
     gcTime: 0,
     retry: 1,

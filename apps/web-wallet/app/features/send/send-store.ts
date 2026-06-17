@@ -6,9 +6,9 @@ import type {
 } from '@agicash/wallet-sdk/accounts/account';
 import type { Contact } from '@agicash/wallet-sdk/contacts/contact';
 import { DomainError } from '@agicash/wallet-sdk/error';
-import type { CashuLightningQuote } from '@agicash/wallet-sdk/send/cashu-send-quote-service';
-import type { CashuSwapQuote } from '@agicash/wallet-sdk/send/cashu-send-swap-service';
-import type { SparkLightningQuote } from '@agicash/wallet-sdk/send/spark-send-quote-service';
+import type { CashuLightningQuote } from '@agicash/wallet-sdk/send/cashu-send-quote';
+import type { CashuSwapQuote } from '@agicash/wallet-sdk/send/cashu-send-swap';
+import type { SparkLightningQuote } from '@agicash/wallet-sdk/send/spark-send-quote';
 import { create } from 'zustand';
 import type { GiftCardInfo } from '../gift-cards/gift-card-config';
 import { findMatchingOfferOrGiftCardAccount } from './find-matching-offer-or-gift-card-account';

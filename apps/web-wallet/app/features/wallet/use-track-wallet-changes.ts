@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { getSdk } from '~/features/shared/sdk';
+import { useSdk } from '~/features/shared/sdk';
 import { SupabaseRealtimeError } from '~/lib/supabase';
 
 /**
@@ -10,7 +10,8 @@ import { SupabaseRealtimeError } from '~/lib/supabase';
  * error boundary.
  */
 export const useTrackWalletChanges = () => {
-  const realtime = getSdk().realtime;
+  const sdk = useSdk();
+  const realtime = sdk.realtime;
 
   const status = useSyncExternalStore(realtime.onStatusChange, () =>
     realtime.getStatus(),
