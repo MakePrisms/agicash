@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 import { type Currency, Money } from '@agicash/money';
 import { MintQuoteState, type Proof } from '@cashu/cashu-ts';
-import { DomainError } from '../../errors';
+import type { CashuCryptography } from '../../internal/connections/cashu-crypto';
 import type { CashuReceiveQuoteRepository } from '../../internal/repositories/cashu-receive-quote-repository';
 import type { CashuAccount } from '../../types/account';
 import type { CashuReceiveQuote } from '../../types/cashu';
-import type { CashuCryptography } from '../../internal/connections/cashu-crypto';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 
 // ---------------------------------------------------------------------------
@@ -60,11 +59,13 @@ function makeFakeCryptography(): CashuCryptography {
   };
 }
 
-function makeFakeWallet(options: {
-  mintBolt11Result?: Proof[] | (() => Promise<Proof[]>);
-  restoreResult?: Proof[];
-  keysetId?: string;
-} = {}) {
+function makeFakeWallet(
+  options: {
+    mintBolt11Result?: Proof[] | (() => Promise<Proof[]>);
+    restoreResult?: Proof[];
+    keysetId?: string;
+  } = {},
+) {
   const {
     mintBolt11Result = [makeProof(100)],
     restoreResult = [makeProof(100)],
@@ -205,18 +206,20 @@ const unpaidCashuTokenQuoteMeltInitiated: CashuReceiveQuote = {
 };
 
 // Fake repo that records calls
-function makeFakeRepo(options: {
-  createResult?: CashuReceiveQuote;
-  expireResult?: void;
-  failResult?: void;
-  markMeltInitiatedResult?: CashuReceiveQuote & { type: 'CASHU_TOKEN' };
-  processPaymentResult?: { quote: CashuReceiveQuote; account: CashuAccount };
-  completeReceiveResult?: {
-    quote: CashuReceiveQuote;
-    account: CashuAccount;
-    addedProofs: string[];
-  };
-} = {}): CashuReceiveQuoteRepository {
+function makeFakeRepo(
+  options: {
+    createResult?: CashuReceiveQuote;
+    expireResult?: void;
+    failResult?: void;
+    markMeltInitiatedResult?: CashuReceiveQuote & { type: 'CASHU_TOKEN' };
+    processPaymentResult?: { quote: CashuReceiveQuote; account: CashuAccount };
+    completeReceiveResult?: {
+      quote: CashuReceiveQuote;
+      account: CashuAccount;
+      addedProofs: string[];
+    };
+  } = {},
+): CashuReceiveQuoteRepository {
   const fakeWallet = makeFakeWallet();
   const fakeAccount = makeFakeAccount(fakeWallet);
 
@@ -269,13 +272,13 @@ describe('CashuReceiveQuoteService.expire', () => {
     const repo = makeFakeRepo();
     const service = new CashuReceiveQuoteService(makeFakeCryptography(), repo);
 
-    await expect(
-      service.expire(failedLightningQuote),
-    ).rejects.toMatchObject({ code: 'invalid_state' });
+    await expect(service.expire(failedLightningQuote)).rejects.toMatchObject({
+      code: 'invalid_state',
+    });
 
-    await expect(
-      service.expire(paidLightningQuote),
-    ).rejects.toMatchObject({ code: 'invalid_state' });
+    await expect(service.expire(paidLightningQuote)).rejects.toMatchObject({
+      code: 'invalid_state',
+    });
   });
 
   it('throws DomainError(not_expired) when quote has not expired yet', async () => {
@@ -286,9 +289,9 @@ describe('CashuReceiveQuoteService.expire', () => {
     const repo = makeFakeRepo();
     const service = new CashuReceiveQuoteService(makeFakeCryptography(), repo);
 
-    await expect(
-      service.expire(notExpiredQuote),
-    ).rejects.toMatchObject({ code: 'not_expired' });
+    await expect(service.expire(notExpiredQuote)).rejects.toMatchObject({
+      code: 'not_expired',
+    });
   });
 
   it('calls repo.expire when UNPAID and past expiry', async () => {
@@ -411,10 +414,13 @@ describe('CashuReceiveQuoteService.markMeltInitiated', () => {
   });
 
   it('calls repo.markMeltInitiated and returns updated quote', async () => {
-    let capturedQuote: (CashuReceiveQuote & { type: 'CASHU_TOKEN' }) | undefined;
-    const expectedResult = unpaidCashuTokenQuoteMeltInitiated as CashuReceiveQuote & {
-      type: 'CASHU_TOKEN';
-    };
+    let capturedQuote:
+      | (CashuReceiveQuote & { type: 'CASHU_TOKEN' })
+      | undefined;
+    const expectedResult =
+      unpaidCashuTokenQuoteMeltInitiated as CashuReceiveQuote & {
+        type: 'CASHU_TOKEN';
+      };
     const repo = makeFakeRepo();
     (
       repo as unknown as {
@@ -492,7 +498,9 @@ describe('CashuReceiveQuoteService.createReceiveQuote', () => {
       paymentHash: 'ph-abc',
     };
 
-    let capturedArgs: Parameters<CashuReceiveQuoteRepository['create']>[0] | undefined;
+    let capturedArgs:
+      | Parameters<CashuReceiveQuoteRepository['create']>[0]
+      | undefined;
     const repo = makeFakeRepo();
     repo.create = async (args) => {
       capturedArgs = args;
@@ -574,7 +582,10 @@ describe('CashuReceiveQuoteService.completeReceive', () => {
     const fakeWallet = makeFakeWallet();
     const account = makeFakeAccount(fakeWallet);
 
-    const result = await service.completeReceive(account, completedLightningQuote);
+    const result = await service.completeReceive(
+      account,
+      completedLightningQuote,
+    );
 
     expect(result.quote).toBe(completedLightningQuote);
     expect(result.addedProofs).toEqual([]);

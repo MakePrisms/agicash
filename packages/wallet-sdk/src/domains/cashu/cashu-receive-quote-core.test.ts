@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'bun:test';
 import { type Currency, Money } from '@agicash/money';
 import {
-  getCashuCryptography,
   BASE_CASHU_LOCKING_DERIVATION_PATH,
+  getCashuCryptography,
 } from '../../internal/connections/cashu-crypto';
 import {
+  type CashuReceiveLightningQuote,
+  type CreateQuoteBaseParams,
   computeQuoteExpiry,
   computeTotalFee,
   deriveNut20LockingPublicKey,
-  type CreateQuoteBaseParams,
-  type CashuReceiveLightningQuote,
 } from './cashu-receive-quote-core';
 
 // ---------------------------------------------------------------------------
@@ -68,12 +68,10 @@ describe('deriveNut20LockingPublicKey', () => {
     expect(lockingPublicKey).toMatch(/^[0-9a-f]+$/);
   });
 
-  it('returns a derivation path of the form m/129372\'/0\'/0\'/<index>', async () => {
+  it("returns a derivation path of the form m/129372'/0'/0'/<index>", async () => {
     const xPub = await getFixedXpub();
     const { fullLockingDerivationPath } = deriveNut20LockingPublicKey(xPub);
-    expect(fullLockingDerivationPath).toMatch(
-      /^m\/129372'\/0'\/0'\/\d+$/,
-    );
+    expect(fullLockingDerivationPath).toMatch(/^m\/129372'\/0'\/0'\/\d+$/);
   });
 
   it('produces different keys on successive calls (random index)', async () => {

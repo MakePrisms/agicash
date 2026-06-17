@@ -1,7 +1,16 @@
-import { MintOperationError, MintQuoteState, OutputData, type Proof, splitAmount } from '@cashu/cashu-ts';
+import {
+  MintOperationError,
+  MintQuoteState,
+  OutputData,
+  type Proof,
+  splitAmount,
+} from '@cashu/cashu-ts';
 import { HDKey } from '@scure/bip32';
 import { DomainError } from '../../errors';
-import { BASE_CASHU_LOCKING_DERIVATION_PATH, type CashuCryptography } from '../../internal/connections/cashu-crypto';
+import {
+  BASE_CASHU_LOCKING_DERIVATION_PATH,
+  type CashuCryptography,
+} from '../../internal/connections/cashu-crypto';
 import { CashuErrorCodes, getCashuUnit } from '../../internal/lib/cashu';
 import type { CashuReceiveQuoteRepository } from '../../internal/repositories/cashu-receive-quote-repository';
 import type { CashuAccount } from '../../types/account';
@@ -199,7 +208,10 @@ export class CashuReceiveQuoteService {
     addedProofs: string[];
   }> {
     if (quote.accountId !== account.id) {
-      throw new DomainError('Quote does not belong to account', 'invalid_state');
+      throw new DomainError(
+        'Quote does not belong to account',
+        'invalid_state',
+      );
     }
 
     if (quote.state === 'EXPIRED' || quote.state === 'FAILED') {
@@ -302,7 +314,9 @@ export class CashuReceiveQuoteService {
       );
       const segments = quote.lockingDerivationPath.split('/');
       const unhardenedIndex = segments[segments.length - 1];
-      const childKey = HDKey.fromExtendedKey(xPub).derive(`m/${unhardenedIndex}`);
+      const childKey = HDKey.fromExtendedKey(xPub).derive(
+        `m/${unhardenedIndex}`,
+      );
       const lockingPublicKey = childKey.publicKey
         ? Array.from(childKey.publicKey)
             .map((b) => b.toString(16).padStart(2, '0'))
