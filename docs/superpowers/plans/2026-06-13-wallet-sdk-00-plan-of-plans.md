@@ -34,7 +34,7 @@
 | 02 | S2 | SDK core shell — config · events · errors+classify · connections · crypto (domains stubbed) | ✅ [done](2026-06-13-wallet-sdk-02-sdk-core-shell.md) (11 commits) — adopted `@agicash/opensecret@1.0.0-rc.0` (catalog bump + `StorageProvider`); framework-free, gate green |
 | 03 | S3 | auth + user (+ session resolver, ensure-on-resolve bootstrap) | ✅ [done](2026-06-13-wallet-sdk-03-auth-user.md) (19 commits) — auth + user domains live; gate green (248 tests) |
 | 04 | S4 | accounts + scan + exchangeRate (+ live wallet-handle resolution) | ✅ [done](2026-06-13-wallet-sdk-04-accounts-scan-exchange-rate.md) (18 commits) — domains live; protocol libs (bolt11/lnurl/cashu) extracted + `Account.wallet` real; gate green (196 tests) |
-| 05 | S5 | cashu ops (send / receive / token-claim) | not written |
+| 05 | S5 | cashu ops (send / receive / token-claim) | ✅ [done](2026-06-13-wallet-sdk-05-cashu-ops.md) (18 commits) — 4 repos + 5 services + token-receive helpers + CashuCryptography + cashuMintValidator, wired via `createCashuDomain`; `executeQuote`/`receiveToken` deferred to S7 (`NotImplementedError`); gate green (386 SDK tests, 521 total) |
 | 06 | S6 | spark ops (client + server spark wallet) | not written |
 | 07 | S7 | orchestrator (executeQuote + #788; receiveToken; balance listener incl. `synced`) | not written |
 | 08 | S8 | transactions + contacts + transfers | not written |
@@ -95,6 +95,48 @@ necessarily atomic** — see spec §9.
   - **New deps (in `packages/wallet-sdk/package.json`):** `@cashu/cashu-ts@3.6.1`,
     `light-bolt11-decoder@3.2.0`, `@scure/base@1.2.6`, `ky@1.14.3`, `big.js@7.0.1`,
     `zod@4.3.6`, `@stablelib/base64` (catalog).
+
+- **Plan 05 → S7 / S8 / S11 (cashu ops done; what S5 deliberately left for later):**
+  - **6 of 11 domains real** (auth, user, accounts, scan, exchangeRate, **cashu**);
+    spark/transactions/contacts/transfers/background still `notImplementedDomain`.
+    `cashu.send.executeQuote` + `cashu.receive.receiveToken` throw `NotImplementedError`
+    (the only two cashu methods stubbed) — **S7 owns** them.
+  - **S5 built every per-op primitive** the orchestrator needs (offline-tested with
+    fake wallets): `CashuSendQuoteService` (`initiateSend`→`meltProofsIdempotent`,
+    `markSendQuoteAsPending`, `completeSendQuote`→deterministic change derivation +
+    `matchBlindSignaturesToOutputData`, `failSendQuote`→`checkMeltQuoteBolt11` guard),
+    `CashuSendSwapService` (`swapForProofsToSend`, `complete`, `fail`, **`reverse`**),
+    `CashuReceiveQuoteService` (`completeReceive`/`processUnpaid`/`processPaid`/
+    `mintProofs`→`mintBolt11`), `CashuReceiveSwapService` (`create`/`completeSwap`
+    same-mint claim). All 4 repos + the 5 DB-data schemas + shared proof mappers
+    (`internal/db/cashu-proofs.ts` `toEncryptedProofData`/`toDecryptedCashuProofs`).
+  - **S7 must vendor (NOT yet in the SDK):** the 3 WS subscription managers
+    (`melt-quote-subscription[-manager]`, `mint-quote-subscription-manager`,
+    `proof-state-subscription-manager`) — still only in `apps/web-wallet/app`. The
+    **nutshell-#788 change-refetch** lives in `melt-quote-subscription.ts` and is
+    deliberately **absent** from S5 (S7 owns its regression test). The task loop +
+    leader election are S9. `payment-request.ts` (NUT-18) not vendored (unused so far).
+  - **S7 token-claim:** S5 shipped the same-mint receive-swap primitive +
+    `ReceiveCashuTokenService` (source/dest account selection + `buildAccountForMint`
+    + the `cashuMintValidator` instance, on `SdkConnections`). **S7 adds** the
+    cross-account quote (`createCrossAccountReceiveQuotes` — needs `SparkReceiveQuoteService`
+    from S6) + the `ClaimCashuTokenService` melt-then-mint orchestration + the public
+    `receiveToken`. `CashuReceiveSwap` is an **internal** type (no public contract type).
+  - **S8 transfers:** `CashuSendQuoteService.createSendQuote` + `cashu.send.createLightningQuote`
+    thread `purpose?: TransactionPurpose` + `transferId?` (the transfer-service pattern).
+  - **`CashuCryptography`** (`internal/connections/cashu-crypto.ts`, on `SdkConnections`
+    as `cashuCrypto`): `getSeed`/`getXpub`/`getPrivateKey` derived **locally** from the
+    cashu seed via `@scure/bip32` `HDKey` (D3). A unit test asserts xpub-derived pubkey ==
+    privkey-derived pubkey at the same NUT-20 index (so locking verifies).
+  - **Testing gotcha (bit Task 17):** bun's `mock.module` is process-global and **leaks
+    into sibling test files** (it broke 111 sibling tests once). Use **`spyOn` + per-spy
+    `mockRestore()`** (the `cashu-domain.test.ts` pattern) or DI'd fakes; never a bare
+    `mock.module`. (Reinforces the Plan 03 carryover.)
+  - **S11 cut-over polish (small, non-blocking):** re-export `MintBlocklist` +
+    `MintBlocklistSchema` from the public barrel (`SdkConfig.cashuMintBlocklist` is the
+    parsed `{ mintUrl; unit }[]` shape, **not** `string[]`); the cashu insufficient-balance
+    error message formats USD in cents because `getDefaultUnit` isn't exported to the SDK
+    money lib.
 
 ## Starting notes for Plan 01 (`@agicash/money`)
 
