@@ -1,8 +1,12 @@
 import { jwtDecode } from 'jwt-decode';
 import type { SdkConfig } from './config';
+import { AccountsDomain } from './domains/accounts';
 import { AuthDomain } from './domains/auth';
 import { BackgroundDomain } from './domains/background';
+import { ContactsDomain } from './domains/contacts';
 import { RatesDomain } from './domains/rates';
+import { TransactionsDomain } from './domains/transactions';
+import { TransfersDomain } from './domains/transfers';
 import { UserDomain } from './domains/user';
 import type { SdkCoreEventMap } from './events';
 import type { CreateEngine } from './engine';
@@ -47,6 +51,10 @@ export class Sdk {
   readonly auth: AuthDomain;
   readonly user: UserDomain;
   readonly rates: RatesDomain;
+  readonly accounts: AccountsDomain;
+  readonly contacts: ContactsDomain;
+  readonly transactions: TransactionsDomain;
+  readonly transfers: TransfersDomain;
   readonly background?: BackgroundDomain;
   private readonly events: EventBus<SdkCoreEventMap>;
   private readonly keys: KeyService;
@@ -59,6 +67,10 @@ export class Sdk {
     auth: AuthDomain;
     user: UserDomain;
     rates: RatesDomain;
+    accounts: AccountsDomain;
+    contacts: ContactsDomain;
+    transactions: TransactionsDomain;
+    transfers: TransfersDomain;
     events: EventBus<SdkCoreEventMap>;
     keys: KeyService;
     sessionToken: SessionTokenProvider;
@@ -68,6 +80,10 @@ export class Sdk {
     this.auth = parts.auth;
     this.user = parts.user;
     this.rates = parts.rates;
+    this.accounts = parts.accounts;
+    this.contacts = parts.contacts;
+    this.transactions = parts.transactions;
+    this.transfers = parts.transfers;
     this.events = parts.events;
     this.keys = parts.keys;
     this.sessionToken = parts.sessionToken;
@@ -148,6 +164,24 @@ export class Sdk {
     });
 
     const rates = new RatesDomain();
+    const accounts = new AccountsDomain({
+      accountRepository: walletRuntime.accountRepository,
+      accountService: walletRuntime.accountService,
+      readUserRepo,
+      getCurrentUserId,
+    });
+    const contacts = new ContactsDomain({
+      contactRepository: walletRuntime.protocols.contactRepository,
+      getCurrentUserId,
+    });
+    const transactions = new TransactionsDomain({
+      transactionRepository: walletRuntime.protocols.transactionRepository,
+      getCurrentUserId,
+    });
+    const transfers = new TransfersDomain({
+      transferService: walletRuntime.protocols.transferService,
+      getCurrentUserId,
+    });
 
     // Re-arm the session-expiry timer if a session is already present.
     await auth.initialize();
@@ -237,6 +271,10 @@ export class Sdk {
       auth,
       user,
       rates,
+      accounts,
+      contacts,
+      transactions,
+      transfers,
       events,
       keys,
       sessionToken,

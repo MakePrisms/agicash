@@ -26,6 +26,10 @@ describe('Sdk.create', () => {
     const sdk = await Sdk.create(baseConfig(), { openSecret: os });
     expect(os.configure).toHaveBeenCalledTimes(1);
     expect(sdk.auth).toBeDefined();
+    expect(sdk.accounts).toBeDefined();
+    expect(sdk.contacts).toBeDefined();
+    expect(sdk.transactions).toBeDefined();
+    expect(sdk.transfers).toBeDefined();
     await sdk.dispose();
   });
 
