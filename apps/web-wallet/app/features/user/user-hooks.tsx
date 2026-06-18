@@ -1,5 +1,6 @@
 import type { Currency } from '@agicash/money';
 import { requestNewVerificationCode } from '@agicash/opensecret';
+import type { Sdk } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
   useMutation,
@@ -8,6 +9,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
+import { useSdk } from '~/features/shared/use-sdk';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
@@ -17,7 +19,6 @@ import type { User } from './user';
 import {
   ReadUserRepository,
   type UpdateUser,
-  useReadUserRepository,
   useWriteUserRepository,
 } from './user-repository';
 import { useUserService } from './user-service';
@@ -73,16 +74,20 @@ export const getUserFromCacheOrThrow = () => {
 };
 
 const userQueryOptions = <TData = User>({
-  userId,
-  userRepository,
+  sdk,
   select,
 }: {
-  userId: string;
-  userRepository: ReadUserRepository;
+  sdk: Promise<Sdk>;
   select?: (data: User) => TData;
 }) => ({
   queryKey: [UserCache.Key],
-  queryFn: () => userRepository.get(userId),
+  queryFn: async () => {
+    const user = await (await sdk).user.getCurrentUser();
+    if (!user) {
+      throw new Error('Cannot use useUser hook in anonymous context');
+    }
+    return user;
+  },
   select,
 });
 
@@ -95,16 +100,13 @@ export const useUser = <TData = User>(
   select?: (data: User) => TData,
 ): TData => {
   const authState = useAuthState();
-  const authUser = authState.user;
-  if (!authUser) {
+  if (!authState.user) {
     throw new Error('Cannot use useUser hook in anonymous context');
   }
 
-  const userRepository = useReadUserRepository();
+  const sdk = useSdk();
 
-  const { data } = useSuspenseQuery(
-    userQueryOptions({ userId: authUser.id, userRepository, select }),
-  );
+  const { data } = useSuspenseQuery(userQueryOptions({ sdk, select }));
 
   return data;
 };
