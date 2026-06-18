@@ -18,6 +18,7 @@
     "./exchange-rate": "./src/exchange-rate/index.ts",
     "./feature-flags": "./src/feature-flags.ts",
     "./lightning-address": "./src/lightning-address.ts",
+    "./lightning-address-service": "./src/lnurl-server/lightning-address-service.ts",
     "./lnurl": "./src/lnurl.ts",
     "./lnurl-types": "./src/lnurl-types.ts",
     "./query-client": "./src/query-client.ts",

@@ -1,10 +1,10 @@
 import type { AgicashDb } from '@agicash/db-types';
 import { SparkLightningReceiveDbDataSchema } from '@agicash/db-types/json-models/spark-lightning-receive-db-data';
 import type { Money } from '@agicash/utils/money';
-import { encryptToPublicKey } from '@agicash/wallet-sdk/encryption';
-import type { SparkReceiveQuote } from '@agicash/wallet-sdk/receive/spark-receive-quote';
-import type { RepositoryCreateQuoteParams } from '@agicash/wallet-sdk/receive/spark-receive-quote-core';
 import type { z } from 'zod/mini';
+import { encryptToPublicKey } from '../encryption';
+import type { SparkReceiveQuote } from './spark-receive-quote';
+import type { RepositoryCreateQuoteParams } from './spark-receive-quote-core';
 
 type Options = {
   abortSignal?: AbortSignal;

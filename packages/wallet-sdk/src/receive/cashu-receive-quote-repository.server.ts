@@ -2,10 +2,10 @@ import type { AgicashDb } from '@agicash/db-types';
 import { CashuLightningReceiveDbDataSchema } from '@agicash/db-types/json-models/cashu-lightning-receive-db-data';
 import type { Money } from '@agicash/utils/money';
 import { computeSHA256 } from '@agicash/utils/sha256';
-import { encryptToPublicKey } from '@agicash/wallet-sdk/encryption';
-import type { CashuReceiveQuote } from '@agicash/wallet-sdk/receive/cashu-receive-quote';
-import type { RepositoryCreateQuoteParams } from '@agicash/wallet-sdk/receive/cashu-receive-quote-core';
 import type { z } from 'zod/mini';
+import { encryptToPublicKey } from '../encryption';
+import type { CashuReceiveQuote } from './cashu-receive-quote';
+import type { RepositoryCreateQuoteParams } from './cashu-receive-quote-core';
 
 /**
  * Minimal data returned by the server-side repository after creating a quote.

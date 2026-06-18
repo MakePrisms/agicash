@@ -13,6 +13,7 @@
     "./sha256": "./src/sha256.ts",
     "./timeout": "./src/timeout.ts",
     "./type-utils": "./src/type-utils.ts",
+    "./xchacha20poly1305": "./src/xchacha20poly1305.ts",
     "./zod": "./src/zod.ts"
   },
   "scripts": {

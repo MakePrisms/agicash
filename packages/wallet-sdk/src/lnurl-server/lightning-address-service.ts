@@ -1,49 +1,34 @@
 import { getCashuWallet } from '@agicash/cashu';
 import type { AgicashDb } from '@agicash/db-types';
 import { Money } from '@agicash/utils/money';
-import { NotFoundError } from '@agicash/wallet-sdk/error';
-import { ExchangeRateService } from '@agicash/wallet-sdk/exchange-rate';
+import {
+  decryptXChaCha20Poly1305,
+  encryptXChaCha20Poly1305,
+} from '@agicash/utils/xchacha20poly1305';
+import { sha256 } from '@noble/hashes/sha2';
+import { bytesToHex } from '@noble/hashes/utils';
+import { base64url } from '@scure/base';
+import type { QueryClient } from '@tanstack/query-core';
+import { z } from 'zod/mini';
+import { NotFoundError } from '../error';
+import { ExchangeRateService } from '../exchange-rate';
 import type {
   LNURLError,
   LNURLPayParams,
   LNURLPayResult,
   LNURLVerifyResult,
-} from '@agicash/wallet-sdk/lnurl-types';
-import { getLightningQuote } from '@agicash/wallet-sdk/receive/cashu-receive-quote-core';
-import { sparkWalletQueryOptions } from '@agicash/wallet-sdk/spark';
+} from '../lnurl-types';
+import { measureOperation } from '../performance';
+import { getLightningQuote } from '../receive/cashu-receive-quote-core';
+import { CashuReceiveQuoteRepositoryServer } from '../receive/cashu-receive-quote-repository.server';
+import { CashuReceiveQuoteServiceServer } from '../receive/cashu-receive-quote-service.server';
+import { SparkReceiveQuoteRepositoryServer } from '../receive/spark-receive-quote-repository.server';
+import { SparkReceiveQuoteServiceServer } from '../receive/spark-receive-quote-service.server';
+import { sparkWalletQueryOptions } from '../spark';
 import {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,
-} from '@agicash/wallet-sdk/user/user-repository';
-import { sha256 } from '@noble/hashes/sha2';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
-import { base64url } from '@scure/base';
-import type { QueryClient } from '@tanstack/react-query';
-import { z } from 'zod/mini';
-import { measureOperation } from '~/lib/performance';
-import {
-  decryptXChaCha20Poly1305,
-  encryptXChaCha20Poly1305,
-} from '~/lib/xchacha20poly1305';
-import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-repository.server';
-import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
-import { SparkReceiveQuoteRepositoryServer } from './spark-receive-quote-repository.server';
-import { SparkReceiveQuoteServiceServer } from './spark-receive-quote-service.server';
-
-const sparkMnemonic = process.env.LNURL_SERVER_SPARK_MNEMONIC || '';
-if (!sparkMnemonic) {
-  throw new Error('LNURL_SERVER_SPARK_MNEMONIC is not set');
-}
-
-const getSparkWalletMnemonic = (): Promise<string> => {
-  return Promise.resolve(sparkMnemonic);
-};
-
-const encryptionKey = process.env.LNURL_SERVER_ENCRYPTION_KEY || '';
-if (!encryptionKey) {
-  throw new Error('LNURL_SERVER_ENCRYPTION_KEY is not set');
-}
-const encryptionKeyBytes = hexToBytes(encryptionKey);
+} from '../user/user-repository';
 
 /**
  * This data needed to verify the status of lnurl-pay request is encrypted
@@ -60,6 +45,35 @@ const LnurlVerifyQuoteDataSchema = z.discriminatedUnion('type', [
 
 type LnurlVerifyQuoteData = z.infer<typeof LnurlVerifyQuoteDataSchema>;
 
+export type LightningAddressServiceConfig = {
+  /** Service-role Supabase client (host provides; bypasses RLS to act on the
+   * recipient user). */
+  db: AgicashDb;
+  /** Per-request query client (host provides). */
+  queryClient: QueryClient;
+  /** Origin used to build the lnurlp callback/verify URLs, e.g. https://agi.cash. */
+  baseUrl: string;
+  /** The server spark wallet mnemonic (host reads from its environment). */
+  sparkMnemonic: string;
+  /** 32-byte key for the verify-quote-data cipher (host reads from its
+   * environment, hex-decoded). */
+  encryptionKey: Uint8Array;
+  /** Storage directory for the server spark wallet. */
+  sparkStorageDir: string;
+  /**
+   * When set, the invoice-amount range check is skipped so the receiver can be
+   * paid into their default currency — used for agicash <-> agicash payments to
+   * avoid exchange-rate mismatches.
+   */
+  bypassAmountValidation?: boolean;
+};
+
+/**
+ * Server-side LNURL-pay (lud16 / lud21) handler for a user's lightning address.
+ * Constructed per request with host-injected config (service-role db, the
+ * server spark mnemonic, the verify-data cipher key); framework-free so the web
+ * routes and a headless host can share it.
+ */
 export class LightningAddressService {
   private baseUrl: string;
   private db: AgicashDb;
@@ -68,27 +82,21 @@ export class LightningAddressService {
   private maxSendable: Money<'BTC'>;
   private exchangeRateService: ExchangeRateService;
   private queryClient: QueryClient;
-  /**
-   * A client can flag that they will not validate the invoice amount.
-   * This is useful for agicash <-> agicash payments so that the receiver can receive into their default currency
-   * and we do not have to worry about exchange rate mismatches.
-   */
+  private sparkMnemonic: string;
+  private encryptionKeyBytes: Uint8Array;
+  private sparkStorageDir: string;
   private bypassAmountValidation: boolean;
 
-  constructor(
-    request: Request,
-    db: AgicashDb,
-    queryClient: QueryClient,
-    options?: {
-      bypassAmountValidation?: boolean;
-    },
-  ) {
-    this.queryClient = queryClient;
+  constructor(config: LightningAddressServiceConfig) {
+    this.db = config.db;
+    this.queryClient = config.queryClient;
+    this.baseUrl = config.baseUrl;
+    this.sparkMnemonic = config.sparkMnemonic;
+    this.encryptionKeyBytes = config.encryptionKey;
+    this.sparkStorageDir = config.sparkStorageDir;
+    this.bypassAmountValidation = config.bypassAmountValidation ?? false;
     this.exchangeRateService = new ExchangeRateService();
-    this.db = db;
-    this.userRepository = new ReadUserRepository(db);
-    this.bypassAmountValidation = options?.bypassAmountValidation ?? false;
-    this.baseUrl = new URL(request.url).origin;
+    this.userRepository = new ReadUserRepository(config.db);
     this.minSendable = new Money({
       amount: 1,
       currency: 'BTC',
@@ -168,8 +176,8 @@ export class LightningAddressService {
       const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
         this.db,
         this.queryClient,
-        getSparkWalletMnemonic,
-        '/tmp/.spark-data',
+        () => Promise.resolve(this.sparkMnemonic),
+        this.sparkStorageDir,
       );
 
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
@@ -324,8 +332,8 @@ export class LightningAddressService {
     const wallet = await this.queryClient.fetchQuery(
       sparkWalletQueryOptions({
         network: 'MAINNET',
-        mnemonic: sparkMnemonic,
-        storageDir: '/tmp/.spark-data',
+        mnemonic: this.sparkMnemonic,
+        storageDir: this.sparkStorageDir,
       }),
     );
 
@@ -361,7 +369,7 @@ export class LightningAddressService {
 
   private encryptLnurlVerifyQuoteData(payload: LnurlVerifyQuoteData): string {
     const data = new TextEncoder().encode(JSON.stringify(payload));
-    const encrypted = encryptXChaCha20Poly1305(data, encryptionKeyBytes);
+    const encrypted = encryptXChaCha20Poly1305(data, this.encryptionKeyBytes);
     return base64url.encode(encrypted);
   }
 
@@ -369,7 +377,10 @@ export class LightningAddressService {
     encryptedQuoteData: string,
   ): LnurlVerifyQuoteData {
     const encrypted = base64url.decode(encryptedQuoteData);
-    const decrypted = decryptXChaCha20Poly1305(encrypted, encryptionKeyBytes);
+    const decrypted = decryptXChaCha20Poly1305(
+      encrypted,
+      this.encryptionKeyBytes,
+    );
     return LnurlVerifyQuoteDataSchema.parse(
       JSON.parse(new TextDecoder().decode(decrypted)),
     );

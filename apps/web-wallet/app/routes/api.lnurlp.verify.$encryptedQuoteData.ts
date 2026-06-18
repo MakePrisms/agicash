@@ -3,19 +3,15 @@
  * defined by LUD21: https://github.com/lnurl/luds/blob/luds/21.md
  */
 
-import { getQueryClient } from '@agicash/wallet-sdk/query-client';
-import { agicashDbServer } from '~/features/agicash-db/database.server';
-import { LightningAddressService } from '~/features/receive/lightning-address-service';
+import { LightningAddressService } from '@agicash/wallet-sdk/lightning-address-service';
+import { buildLightningAddressServiceConfig } from '~/features/receive/lightning-address-config.server';
 import type { Route } from './+types/api.lnurlp.verify.$encryptedQuoteData';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { encryptedQuoteData } = params;
 
-  const queryClient = getQueryClient();
   const lightningAddressService = new LightningAddressService(
-    request,
-    agicashDbServer,
-    queryClient,
+    buildLightningAddressServiceConfig(request),
   );
 
   const response =

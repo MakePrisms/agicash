@@ -4,9 +4,8 @@
  */
 
 import { Money } from '@agicash/utils/money';
-import { getQueryClient } from '@agicash/wallet-sdk/query-client';
-import { agicashDbServer } from '~/features/agicash-db/database.server';
-import { LightningAddressService } from '~/features/receive/lightning-address-service';
+import { LightningAddressService } from '@agicash/wallet-sdk/lightning-address-service';
+import { buildLightningAddressServiceConfig } from '~/features/receive/lightning-address-config.server';
 import type { Route } from './+types/api.lnurlp.callback.$userId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -36,12 +35,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const bypassAmountValidation =
     url.searchParams.get('bypassAmountValidation') === 'true';
 
-  const queryClient = getQueryClient();
   const lightningAddressService = new LightningAddressService(
-    request,
-    agicashDbServer,
-    queryClient,
-    { bypassAmountValidation },
+    buildLightningAddressServiceConfig(request, { bypassAmountValidation }),
   );
 
   const response = await lightningAddressService.handleLnurlpCallback(
