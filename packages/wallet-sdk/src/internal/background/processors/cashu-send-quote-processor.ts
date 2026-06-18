@@ -1,5 +1,8 @@
 import { sumProofs } from '@agicash/cashu';
-import { type MeltQuoteBolt11Response, MintOperationError } from '@cashu/cashu-ts';
+import {
+  type MeltQuoteBolt11Response,
+  MintOperationError,
+} from '@cashu/cashu-ts';
 import type { CashuSendQuote } from '../../../domains/cashu-send-quote';
 import type { WalletAccess } from '../../../engine';
 import { MeltQuoteTracker } from '../../cashu/melt-quote-tracker';
@@ -28,8 +31,9 @@ export class CashuSendQuoteProcessor implements Processor {
 
   constructor(private readonly deps: CashuSendQuoteProcessorDeps) {}
 
-  async reload(userId: string): Promise<void> {
+  async reload(userId: string, isCurrent?: () => boolean): Promise<void> {
     this.workSet = await this.deps.fetchWorkSet(userId);
+    if (isCurrent && !isCurrent()) return;
     this.tracker.update(
       this.workSet.map((quote) => {
         const account = this.deps.wallets.getCashuAccount(quote.accountId);
@@ -70,7 +74,9 @@ export class CashuSendQuoteProcessor implements Processor {
     this.workSet = [];
   }
 
-  private resolve(meltQuote: MeltQuoteBolt11Response): CashuSendQuote | undefined {
+  private resolve(
+    meltQuote: MeltQuoteBolt11Response,
+  ): CashuSendQuote | undefined {
     return this.workSet.find((quote) => quote.quoteId === meltQuote.quote);
   }
 
@@ -108,7 +114,11 @@ export class CashuSendQuoteProcessor implements Processor {
         `cashu-send-quote-${quote.id}`,
         async () => {
           const account = this.deps.wallets.getCashuAccount(quote.accountId);
-          const failed = await this.deps.service.failSendQuote(account, quote, reason);
+          const failed = await this.deps.service.failSendQuote(
+            account,
+            quote,
+            reason,
+          );
           // Drop the melt sub so a re-initiated send (new quote, same melt) resubscribes.
           this.tracker.removeQuoteFromSubscription({
             mintUrl: account.mintUrl,
@@ -132,7 +142,11 @@ export class CashuSendQuoteProcessor implements Processor {
     const quote = this.resolve(meltQuote);
     if (!quote) return;
     void this.deps.runner
-      .runTask(`cashu-send-quote-${quote.id}`, () => op(quote), defaultRetryPolicy)
+      .runTask(
+        `cashu-send-quote-${quote.id}`,
+        () => op(quote),
+        defaultRetryPolicy,
+      )
       .catch((error) =>
         console.error('Cashu send quote transition failed', {
           cause: error,

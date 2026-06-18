@@ -38,8 +38,9 @@ export class CashuReceiveQuoteProcessor implements Processor {
 
   constructor(private readonly deps: CashuReceiveQuoteProcessorDeps) {}
 
-  async reload(userId: string): Promise<void> {
+  async reload(userId: string, isCurrent?: () => boolean): Promise<void> {
     this.workSet = await this.deps.fetchWorkSet(userId);
+    if (isCurrent && !isCurrent()) return;
 
     this.mintTracker.update(
       this.workSet.map((quote) => {
@@ -112,7 +113,9 @@ export class CashuReceiveQuoteProcessor implements Processor {
     const quote = this.resolveToken(meltQuote);
     if (!quote) return;
     if (quote.tokenReceiveData.meltInitiated) {
-      this.run(quote, (q) => this.deps.service.fail(q, 'Cashu token melt failed.'));
+      this.run(quote, (q) =>
+        this.deps.service.fail(q, 'Cashu token melt failed.'),
+      );
     } else {
       this.initiateMelt(quote);
     }
@@ -130,7 +133,9 @@ export class CashuReceiveQuoteProcessor implements Processor {
           await wallet.meltProofsIdempotent(
             {
               quote: quote.tokenReceiveData.meltQuoteId,
-              amount: quote.amount.toNumber(getCashuUnit(quote.amount.currency)),
+              amount: quote.amount.toNumber(
+                getCashuUnit(quote.amount.currency),
+              ),
             },
             quote.tokenReceiveData.tokenProofs,
             undefined,
@@ -167,7 +172,11 @@ export class CashuReceiveQuoteProcessor implements Processor {
     op: (quote: CashuReceiveQuote) => Promise<unknown>,
   ): void {
     void this.deps.runner
-      .runTask(`cashu-receive-quote-${quote.id}`, () => op(quote), defaultRetryPolicy)
+      .runTask(
+        `cashu-receive-quote-${quote.id}`,
+        () => op(quote),
+        defaultRetryPolicy,
+      )
       .catch((error) =>
         console.error('Cashu receive quote transition failed', {
           cause: error,
@@ -183,7 +192,11 @@ export class CashuReceiveQuoteProcessor implements Processor {
     const quote = this.resolveToken(meltQuote);
     if (!quote) return;
     void this.deps.runner
-      .runTask(`cashu-receive-quote-${quote.id}`, () => op(quote), defaultRetryPolicy)
+      .runTask(
+        `cashu-receive-quote-${quote.id}`,
+        () => op(quote),
+        defaultRetryPolicy,
+      )
       .catch((error) =>
         console.error('Cashu receive quote melt transition failed', {
           cause: error,

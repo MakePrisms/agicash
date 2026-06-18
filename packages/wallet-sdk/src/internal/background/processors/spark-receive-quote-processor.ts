@@ -1,5 +1,8 @@
 import { getCashuUnit, sumProofs } from '@agicash/cashu';
-import { type MeltQuoteBolt11Response, MintOperationError } from '@cashu/cashu-ts';
+import {
+  type MeltQuoteBolt11Response,
+  MintOperationError,
+} from '@cashu/cashu-ts';
 import type { SparkReceiveQuote } from '../../../domains/spark-receive-quote';
 import type { WalletAccess } from '../../../engine';
 import { MeltQuoteTracker } from '../../cashu/melt-quote-tracker';
@@ -34,11 +37,13 @@ export class SparkReceiveQuoteProcessor implements Processor {
 
   constructor(private readonly deps: SparkReceiveQuoteProcessorDeps) {}
 
-  async reload(userId: string): Promise<void> {
+  async reload(userId: string, isCurrent?: () => boolean): Promise<void> {
     this.workSet = await this.deps.fetchWorkSet(userId);
+    if (isCurrent && !isCurrent()) return;
 
     this.sparkTracker.update(this.workSet, {
-      getWallet: (accountId) => this.deps.wallets.getSparkAccount(accountId).wallet,
+      getWallet: (accountId) =>
+        this.deps.wallets.getSparkAccount(accountId).wallet,
       onCompleted: (quoteId, { sparkTransferId, paymentPreimage }) =>
         this.complete(quoteId, paymentPreimage, sparkTransferId),
       onExpired: (quoteId) => this.expire(quoteId),
@@ -60,7 +65,9 @@ export class SparkReceiveQuoteProcessor implements Processor {
           this.deps.wallets.getCashuWalletByMint(mintUrl, currency),
         onUnpaid: (meltQuote) => this.onMeltUnpaid(meltQuote),
         onPending: (meltQuote) =>
-          this.runToken(meltQuote, (quote) => this.deps.service.markMeltInitiated(quote)),
+          this.runToken(meltQuote, (quote) =>
+            this.deps.service.markMeltInitiated(quote),
+          ),
         onExpired: (meltQuote) =>
           this.runToken(meltQuote, (quote) => this.deps.service.expire(quote)),
       },
@@ -73,10 +80,16 @@ export class SparkReceiveQuoteProcessor implements Processor {
     this.workSet = [];
   }
 
-  private complete(quoteId: string, paymentPreimage: string, sparkTransferId: string): void {
+  private complete(
+    quoteId: string,
+    paymentPreimage: string,
+    sparkTransferId: string,
+  ): void {
     const quote = this.workSet.find((q) => q.id === quoteId);
     if (!quote) return;
-    this.run(quote, (q) => this.deps.service.complete(q, paymentPreimage, sparkTransferId));
+    this.run(quote, (q) =>
+      this.deps.service.complete(q, paymentPreimage, sparkTransferId),
+    );
   }
 
   private expire(quoteId: string): void {
@@ -89,7 +102,9 @@ export class SparkReceiveQuoteProcessor implements Processor {
     const quote = this.resolveToken(meltQuote);
     if (!quote) return;
     if (quote.tokenReceiveData.meltInitiated) {
-      this.run(quote, (q) => this.deps.service.fail(q, 'Cashu token melt failed.'));
+      this.run(quote, (q) =>
+        this.deps.service.fail(q, 'Cashu token melt failed.'),
+      );
     } else {
       this.initiateMelt(quote);
     }
@@ -107,7 +122,9 @@ export class SparkReceiveQuoteProcessor implements Processor {
           await wallet.meltProofsIdempotent(
             {
               quote: quote.tokenReceiveData.meltQuoteId,
-              amount: quote.amount.toNumber(getCashuUnit(quote.amount.currency)),
+              amount: quote.amount.toNumber(
+                getCashuUnit(quote.amount.currency),
+              ),
             },
             quote.tokenReceiveData.tokenProofs,
             undefined,
@@ -121,7 +138,10 @@ export class SparkReceiveQuoteProcessor implements Processor {
         if (error instanceof MintOperationError) {
           this.run(quote, (q) => this.deps.service.fail(q, error.message));
         } else {
-          console.error('Initiate melt error', { cause: error, receiveQuoteId: quote.id });
+          console.error('Initiate melt error', {
+            cause: error,
+            receiveQuoteId: quote.id,
+          });
         }
       });
   }
@@ -131,7 +151,8 @@ export class SparkReceiveQuoteProcessor implements Processor {
   ): SparkTokenReceiveQuote | undefined {
     return this.workSet.find(
       (q): q is SparkTokenReceiveQuote =>
-        q.type === 'CASHU_TOKEN' && q.tokenReceiveData.meltQuoteId === meltQuote.quote,
+        q.type === 'CASHU_TOKEN' &&
+        q.tokenReceiveData.meltQuoteId === meltQuote.quote,
     );
   }
 
@@ -140,7 +161,11 @@ export class SparkReceiveQuoteProcessor implements Processor {
     op: (quote: SparkReceiveQuote) => Promise<unknown>,
   ): void {
     void this.deps.runner
-      .runTask(`spark-receive-quote-${quote.id}`, () => op(quote), defaultRetryPolicy)
+      .runTask(
+        `spark-receive-quote-${quote.id}`,
+        () => op(quote),
+        defaultRetryPolicy,
+      )
       .catch((error) =>
         console.error('Spark receive quote transition failed', {
           cause: error,
@@ -156,7 +181,11 @@ export class SparkReceiveQuoteProcessor implements Processor {
     const quote = this.resolveToken(meltQuote);
     if (!quote) return;
     void this.deps.runner
-      .runTask(`spark-receive-quote-${quote.id}`, () => op(quote), defaultRetryPolicy)
+      .runTask(
+        `spark-receive-quote-${quote.id}`,
+        () => op(quote),
+        defaultRetryPolicy,
+      )
       .catch((error) =>
         console.error('Spark receive quote melt transition failed', {
           cause: error,
