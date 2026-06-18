@@ -12,7 +12,7 @@ import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import { getSdk } from '~/features/shared/sdk';
-import { useLongTimeout } from '~/hooks/use-long-timeout';
+import { useLatest } from '~/lib/use-latest';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 import { sessionHintCookie } from './session-hint-cookie';
 
@@ -252,50 +252,34 @@ export const useSignOut = () => {
 };
 
 type HandleSessionExpiryProps = {
-  isGuestAccount: boolean;
   onLogout: () => void;
 };
 
 export const useHandleSessionExpiry = ({
-  isGuestAccount,
   onLogout,
 }: HandleSessionExpiryProps) => {
-  const { signUpGuest: extendGuestSession, signOut } = useAuthActions();
-  const [remainingSessionTime, setRemainingSessionTime] = useState<
-    number | null
-  >(null);
+  const { signOut } = useAuthActions();
+  // Refs so the watcher is armed once (on mount) instead of re-armed on every
+  // render when the caller passes inline callbacks.
+  const onLogoutRef = useLatest(onLogout);
+  const signOutRef = useLatest(signOut);
 
-  // getSessionExpiresInMs is async (the SDK reads the refresh token through the
-  // host's storage provider), so resolve it into state. Read on mount and again
-  // right after a guest extension so the timeout re-arms with the new expiry —
-  // the expiry isn't in the reactive auth state, so we re-read explicitly.
-  const refreshRemainingSessionTime = useCallback(async () => {
-    setRemainingSessionTime(await getSdk().auth.getSessionExpiresInMs());
-  }, []);
-
-  useEffect(() => {
-    refreshRemainingSessionTime();
-  }, [refreshRemainingSessionTime]);
-
-  const handleSessionExpiry = async () => {
-    try {
-      if (isGuestAccount) {
-        await extendGuestSession();
-        await refreshRemainingSessionTime();
-      } else {
-        onLogout();
-        // Open secret is already handling potential errors in signOut method and removes the keys from the storage so
-        // in that case our catch should never be triggered, which is fine. We are leaving it there for the guest use
-        // case and just in case.
-        await signOut();
-      }
-    } catch (e) {
-      console.error('Failed to handle session expiry', { cause: e });
-      await getSdk().auth.clearTokens();
-      sessionHintCookie.clear();
-      window.location.reload();
-    }
-  };
-
-  useLongTimeout(handleSessionExpiry, remainingSessionTime);
+  useEffect(
+    () =>
+      getSdk().auth.watchSessionExpiry({
+        // A full account's session expired: notify, then sign out (which
+        // revalidates and redirects to login). Guest sessions are resumed by
+        // the SDK and never reach here.
+        onExpire: () => {
+          onLogoutRef.current();
+          return signOutRef.current();
+        },
+        onRecover: () => {
+          sessionHintCookie.clear();
+          window.location.reload();
+        },
+      }),
+    // Refs are stable; the watcher arms once on mount and stops on unmount.
+    [],
+  );
 };

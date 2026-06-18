@@ -18,6 +18,11 @@ import {
 import { safeJsonParse } from '@agicash/utils/json';
 import { generateRandomPassword } from '@agicash/utils/password';
 import { computeSHA256 } from '@agicash/utils/sha256';
+import {
+  type LongTimeout,
+  clearLongTimeout,
+  setLongTimeout,
+} from '@agicash/utils/timeout';
 import type { QueryClient } from '@tanstack/query-core';
 import { jwtDecode } from 'jwt-decode';
 import { z } from 'zod/mini';
@@ -48,6 +53,25 @@ export type ResolvedAuthState =
       isLoggedIn: false;
       reason: 'no-tokens' | 'fetch-failed';
     };
+
+/**
+ * Host side-effects for the session-expiry watcher. The SDK owns the mechanics
+ * (timer, guest-session resume, token clearing); the host supplies the UI and
+ * navigation reactions.
+ */
+export type SessionExpiryHandlers = {
+  /**
+   * A full account's session expired and cannot be silently extended — the
+   * host signs the user out and navigates. (Guest sessions are resumed
+   * automatically and never reach this.)
+   */
+  onExpire?: () => void | Promise<void>;
+  /**
+   * Recovery side-effects after the SDK clears the tokens on an unrecoverable
+   * error (the web clears its SSR session-hint cookie and reloads).
+   */
+  onRecover?: () => void | Promise<void>;
+};
 
 type OpenSecretJwt = {
   /**
@@ -206,6 +230,14 @@ export type AuthApi = {
   /** Signs out the current user (clears the session tokens). */
   signOut: () => Promise<void>;
   /**
+   * Watches the current session's refresh-token expiry and acts on it: a guest
+   * session is silently resumed (extended) and re-armed; a full account fires
+   * `onExpire` so the host can sign out and navigate. On an unrecoverable error
+   * the SDK clears the tokens and fires `onRecover`. Returns a stop function.
+   * Client-only (arms a timer); call once the session is bootstrapped.
+   */
+  watchSessionExpiry: (handlers?: SessionExpiryHandlers) => () => void;
+  /**
    * Starts an email password reset. The plaintext `secret` is hashed here
    * before it leaves the device; the caller keeps the plaintext to complete
    * the reset with {@link AuthApi.confirmPasswordReset}.
@@ -273,6 +305,32 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
     await onSessionChange?.();
   };
 
+  const restoreOrCreateGuest = async (): Promise<void> => {
+    // Resume the persisted guest session if there is one; otherwise create a
+    // fresh guest and persist its recovery credentials so it can be resumed.
+    const stored = await getStoredGuestAccount();
+    if (stored) {
+      await osSignInGuest(stored.id, stored.password);
+    } else {
+      const password = await generateRandomPassword(32);
+      const { id } = await osSignUpGuest(password, '');
+      await storeGuestAccount({ id, password });
+    }
+    await invalidateAuthState();
+  };
+
+  const clearStoredTokens = async (): Promise<void> => {
+    const { persistent } = getConfig().storage;
+    await persistent.removeItem(accessTokenKey);
+    await persistent.removeItem(refreshTokenKey);
+  };
+
+  // Guest accounts have no email; a full account does.
+  const isCurrentUserGuest = (): boolean => {
+    const state = queryClient.getQueryData<AuthState>([authStateQueryKey]);
+    return !!state?.isLoggedIn && !state.user.email;
+  };
+
   return {
     stateOptions: () => ({
       queryKey: [authStateQueryKey],
@@ -317,11 +375,7 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
     isLoggedIn,
     getSessionExpiresInMs: async () =>
       getRemainingSessionTimeInMs(await getJwt(refreshTokenKey)),
-    clearTokens: async () => {
-      const { persistent } = getConfig().storage;
-      await persistent.removeItem(accessTokenKey);
-      await persistent.removeItem(refreshTokenKey);
-    },
+    clearTokens: clearStoredTokens,
     signUp: async (email, password) => {
       await osSignUp(email, password, '');
       await invalidateAuthState();
@@ -334,22 +388,53 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
       await osSignInGuest(id, password);
       await invalidateAuthState();
     },
-    signUpGuest: async () => {
-      // Resume the persisted guest session if there is one; otherwise create a
-      // fresh guest and persist its recovery credentials so it can be resumed.
-      const stored = await getStoredGuestAccount();
-      if (stored) {
-        await osSignInGuest(stored.id, stored.password);
-      } else {
-        const password = await generateRandomPassword(32);
-        const { id } = await osSignUpGuest(password, '');
-        await storeGuestAccount({ id, password });
-      }
-      await invalidateAuthState();
-    },
+    signUpGuest: restoreOrCreateGuest,
     signOut: async () => {
       await osSignOut();
       await invalidateAuthState();
+    },
+    watchSessionExpiry: (handlers = {}) => {
+      let timer: LongTimeout | null = null;
+      let stopped = false;
+
+      const stop = () => {
+        stopped = true;
+        if (timer) {
+          clearLongTimeout(timer);
+          timer = null;
+        }
+      };
+
+      const arm = async (): Promise<void> => {
+        if (stopped) {
+          return;
+        }
+        const remainingMs = getRemainingSessionTimeInMs(
+          await getJwt(refreshTokenKey),
+        );
+        if (remainingMs === null) {
+          return;
+        }
+        timer = setLongTimeout(async () => {
+          try {
+            if (isCurrentUserGuest()) {
+              // Silently resume the guest session and re-arm with the new
+              // expiry.
+              await restoreOrCreateGuest();
+              await arm();
+            } else {
+              await handlers.onExpire?.();
+            }
+          } catch (error) {
+            console.error('Failed to handle session expiry', { cause: error });
+            await clearStoredTokens();
+            await handlers.onRecover?.();
+          }
+        }, remainingMs);
+      };
+
+      void arm();
+      return stop;
     },
     requestPasswordReset: async (email, secret) => {
       const hashedSecret = await computeSHA256(secret);

@@ -39,7 +39,6 @@ export const Wallet = ({ children }: PropsWithChildren) => {
   }, [user]);
 
   useHandleSessionExpiry({
-    isGuestAccount: user.isGuest,
     onLogout: () => {
       toast({
         title: 'Session expired',
