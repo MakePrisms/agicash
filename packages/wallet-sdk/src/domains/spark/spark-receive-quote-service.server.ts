@@ -1,3 +1,7 @@
+import type {
+  SparkReceiveQuoteCreated,
+  SparkReceiveQuoteRepositoryServer,
+} from '../../internal/repositories/spark-receive-quote-repository.server';
 import {
   type CreateQuoteBaseParams,
   type GetLightningQuoteParams,
@@ -6,10 +10,6 @@ import {
   getAmountAndFee,
   getLightningQuote,
 } from './spark-receive-quote-core';
-import type {
-  SparkReceiveQuoteCreated,
-  SparkReceiveQuoteRepositoryServer,
-} from '../../internal/repositories/spark-receive-quote-repository.server';
 
 type CreateQuoteParams = CreateQuoteBaseParams & {
   userEncryptionPublicKey: string;

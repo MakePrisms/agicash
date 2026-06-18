@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { z } from 'zod/mini';
-import type { EncryptionService } from '../crypto/encryption';
+import type { Transaction, TransactionCursor } from '../../types/transaction';
 import { classify } from '../classify';
+import type { EncryptionService } from '../crypto/encryption';
 import type { Database } from '../db/database';
 import {
   type BaseTransactionSchema,
@@ -12,7 +13,6 @@ import {
   TransactionDetailsDbDataSchema,
   type TransactionDetailsParserInput,
 } from '../db/transaction-details/transaction-details-types';
-import type { Transaction, TransactionCursor } from '../../types/transaction';
 
 type TransactionRow =
   Database['wallet']['Functions']['list_transactions']['Returns'][number];

@@ -1,7 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 import type { MeltQuoteBolt11Response } from '@cashu/cashu-ts';
-import type { ExtendedCashuWallet } from './utils';
 import { MeltQuoteSubscriptionManager } from './melt-quote-subscription-manager';
+import type { ExtendedCashuWallet } from './utils';
 
 type Captured = {
   ids: string[];
@@ -10,7 +10,7 @@ type Captured = {
 
 function fakeWallet() {
   const captured: Captured[] = [];
-  const unsubscribe = mock(() => {});
+  const unsubscribe = mock(() => undefined);
   const wallet = {
     on: {
       meltQuoteUpdates: mock(
@@ -24,7 +24,7 @@ function fakeWallet() {
         },
       ),
     },
-    mint: { webSocketConnection: { onClose: mock(() => {}) } },
+    mint: { webSocketConnection: { onClose: mock(() => undefined) } },
   } as unknown as ExtendedCashuWallet;
   return { wallet, captured, unsubscribe };
 }
@@ -57,7 +57,7 @@ describe('MeltQuoteSubscriptionManager', () => {
     await manager.subscribe({
       mintUrl: 'm',
       quoteIds: ['q1', 'q2'],
-      onUpdate: () => {},
+      onUpdate: () => undefined,
     });
     const seen: string[] = [];
     await manager.subscribe({
@@ -77,7 +77,7 @@ describe('MeltQuoteSubscriptionManager', () => {
     await manager.subscribe({
       mintUrl: 'm',
       quoteIds: ['q1', 'q2'],
-      onUpdate: () => {},
+      onUpdate: () => undefined,
     });
     manager.removeQuoteFromSubscription({ mintUrl: 'm', quoteId: 'q1' });
     expect(unsubscribe).not.toHaveBeenCalled();

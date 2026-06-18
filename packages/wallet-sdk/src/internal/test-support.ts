@@ -37,6 +37,7 @@ export function makeFakeDb(opts: {
     b.maybeSingle = terminal;
     // Allow `await query` without a terminal (.single/.maybeSingle) — needed by
     // getAllActive which awaits the builder directly.
+    // biome-ignore lint/suspicious/noThenProperty: fake DB query builder is intentionally awaitable (mirrors PostgrestBuilder)
     b.then = (
       resolve: (v: DbResult) => unknown,
       reject: (e: unknown) => unknown,
@@ -83,7 +84,7 @@ export function openSecretModuleMock(
 ): Record<string, unknown> {
   const noop = async () => undefined;
   return {
-    configure: () => {},
+    configure: () => undefined,
     generateThirdPartyToken: async () => ({ token: 'tok' }),
     getPrivateKey: async () => ({ mnemonic: 'm' }),
     getPrivateKeyBytes: async () => ({ private_key: '00'.repeat(32) }),
@@ -119,10 +120,10 @@ export function breezModuleMock(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {
-    default: async () => {},
+    default: async () => undefined,
     connect: async () => ({}),
     defaultConfig: () => ({}),
-    initLogging: async () => {},
+    initLogging: async () => undefined,
     defaultExternalSigner: () => ({
       identityPublicKey: () => ({ bytes: new Uint8Array([7]) }),
     }),

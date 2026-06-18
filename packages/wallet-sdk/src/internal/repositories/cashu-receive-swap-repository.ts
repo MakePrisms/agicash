@@ -62,7 +62,9 @@ export const CashuReceiveSwapSchema = z.intersection(
 export type { CashuReceiveSwap };
 
 // Bidirectional compile-time check: schema output ↔ public contract type.
-type _SchemaFitsContract = z.infer<typeof CashuReceiveSwapSchema> extends CashuReceiveSwap
+type _SchemaFitsContract = z.infer<
+  typeof CashuReceiveSwapSchema
+> extends CashuReceiveSwap
   ? CashuReceiveSwap extends z.infer<typeof CashuReceiveSwapSchema>
     ? true
     : never

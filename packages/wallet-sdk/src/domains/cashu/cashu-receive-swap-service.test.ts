@@ -104,7 +104,7 @@ function makeFakeWallet(
     keysetId,
     seed: new Uint8Array(64),
     keyChain: {
-      ensureKeysetKeys: async (_id: string) => {},
+      ensureKeysetKeys: async (_id: string) => undefined,
     },
     getKeyset: (_id?: string) => fakeKeyset,
     getFeesForProofs: (_proofs: Proof[]) => getFeesResult,
@@ -120,7 +120,7 @@ function makeFakeWallet(
               'type' in receiveResult &&
               receiveResult.type === 'mintError'
             ) {
-              const err = Object.assign(new Error(receiveResult.message), {
+              const _err = Object.assign(new Error(receiveResult.message), {
                 code: receiveResult.code,
                 constructor: { name: 'MintOperationError' },
               });
@@ -276,14 +276,14 @@ describe('CashuReceiveSwapService.create', () => {
     expect(result.account).toBe(resultAccount);
 
     expect(capturedArgs).toBeDefined();
-    expect(capturedArgs!.userId).toBe('user-1');
-    expect(capturedArgs!.accountId).toBe('acc-1');
-    expect(capturedArgs!.inputAmount.toNumber('sat')).toBe(100);
+    expect(capturedArgs?.userId).toBe('user-1');
+    expect(capturedArgs?.accountId).toBe('acc-1');
+    expect(capturedArgs?.inputAmount.toNumber('sat')).toBe(100);
     // fee = 1, so receiveAmount = 99
-    expect(capturedArgs!.receiveAmount.toNumber('sat')).toBe(99);
-    expect(capturedArgs!.cashuReceiveFee.toNumber('sat')).toBe(1);
+    expect(capturedArgs?.receiveAmount.toNumber('sat')).toBe(99);
+    expect(capturedArgs?.cashuReceiveFee.toNumber('sat')).toBe(1);
     // outputAmounts must be an array of numbers summing to 99
-    expect(capturedArgs!.outputAmounts.reduce((a, b) => a + b, 0)).toBe(99);
+    expect(capturedArgs?.outputAmounts.reduce((a, b) => a + b, 0)).toBe(99);
   });
 
   it('passes reversedTransactionId when provided', async () => {
@@ -308,7 +308,7 @@ describe('CashuReceiveSwapService.create', () => {
       reversedTransactionId: 'txn-orig',
     });
 
-    expect(capturedArgs!.reversedTransactionId).toBe('txn-orig');
+    expect(capturedArgs?.reversedTransactionId).toBe('txn-orig');
   });
 });
 
@@ -434,9 +434,9 @@ describe('CashuReceiveSwapService.completeSwap', () => {
     expect(result.account).toBe(resultAccount);
     expect(result.addedProofs).toEqual(['proof-id-1', 'proof-id-2']);
 
-    expect(capturedCompleteArgs!.tokenHash).toBe(pendingSwap.tokenHash);
-    expect(capturedCompleteArgs!.userId).toBe(pendingSwap.userId);
-    expect(capturedCompleteArgs!.proofs).toHaveLength(4);
+    expect(capturedCompleteArgs?.tokenHash).toBe(pendingSwap.tokenHash);
+    expect(capturedCompleteArgs?.userId).toBe(pendingSwap.userId);
+    expect(capturedCompleteArgs?.proofs).toHaveLength(4);
   });
 
   it('fails swap and returns empty addedProofs when token is already claimed (TOKEN_ALREADY_SPENT + 0 restored proofs)', async () => {

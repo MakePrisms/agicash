@@ -1,8 +1,8 @@
 import { describe, expect, it, mock } from 'bun:test';
 import type { Proof, ProofState } from '@cashu/cashu-ts';
 import type { PendingCashuSendSwap } from '../../../types/cashu';
-import type { ExtendedCashuWallet } from './utils';
 import { ProofStateSubscriptionManager } from './proof-state-subscription-manager';
+import type { ExtendedCashuWallet } from './utils';
 
 function fakeWallet() {
   let cb: ((u: ProofState & { proof: Proof }) => void) | undefined;
@@ -15,11 +15,11 @@ function fakeWallet() {
           _onErr: (e: unknown) => void,
         ) => {
           cb = onUpdate;
-          return mock(() => {});
+          return mock(() => undefined);
         },
       ),
     },
-    mint: { webSocketConnection: { onClose: mock(() => {}) } },
+    mint: { webSocketConnection: { onClose: mock(() => undefined) } },
   } as unknown as ExtendedCashuWallet;
   return { wallet, fire: (u: ProofState & { proof: Proof }) => cb?.(u) };
 }
@@ -27,10 +27,7 @@ function fakeWallet() {
 const swap = {
   id: 'swap-1',
   state: 'PENDING',
-  proofsToSend: [
-    { unblindedSignature: 'C1' },
-    { unblindedSignature: 'C2' },
-  ],
+  proofsToSend: [{ unblindedSignature: 'C1' }, { unblindedSignature: 'C2' }],
 } as unknown as PendingCashuSendSwap;
 
 describe('ProofStateSubscriptionManager', () => {
@@ -44,9 +41,13 @@ describe('ProofStateSubscriptionManager', () => {
       onSpent: (s) => spent.push(s.id),
     });
 
-    fire({ state: 'SPENT', proof: { C: 'C1' } } as ProofState & { proof: Proof });
+    fire({ state: 'SPENT', proof: { C: 'C1' } } as ProofState & {
+      proof: Proof;
+    });
     expect(spent).toEqual([]); // one of two proofs spent
-    fire({ state: 'SPENT', proof: { C: 'C2' } } as ProofState & { proof: Proof });
+    fire({ state: 'SPENT', proof: { C: 'C2' } } as ProofState & {
+      proof: Proof;
+    });
     expect(spent).toEqual(['swap-1']); // all spent
   });
 });

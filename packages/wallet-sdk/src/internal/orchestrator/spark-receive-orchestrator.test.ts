@@ -1,12 +1,12 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
-import { Money } from '@agicash/money';
 import type { Payment, SdkEvent } from '@agicash/breez-sdk-spark';
-import { SdkEventEmitter } from '../event-emitter';
+import { Money } from '@agicash/money';
+import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
+import type { SparkReceiveQuoteService } from '../../domains/spark/spark-receive-quote-service';
 import type { SdkEventMap } from '../../events';
 import type { SparkAccount } from '../../types/account';
 import type { SparkReceiveQuote } from '../../types/spark';
-import type { SparkReceiveQuoteService } from '../../domains/spark/spark-receive-quote-service';
+import { SdkEventEmitter } from '../event-emitter';
 import { SparkReceiveOrchestrator } from './spark-receive-orchestrator';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -66,8 +66,8 @@ function makeDeps(
   const emitter = new SdkEventEmitter<SdkEventMap>();
   const receiveQuoteService = {
     complete: mock(async (q: SparkReceiveQuote) => ({ ...q, state: 'PAID' })),
-    expire: mock(async () => {}),
-    fail: mock(async () => {}),
+    expire: mock(async () => undefined),
+    fail: mock(async () => undefined),
     markMeltInitiated: mock(async (q: SparkReceiveQuote) => q),
     ...serviceOver,
   } as unknown as SparkReceiveQuoteService;
@@ -257,7 +257,7 @@ const meltResp = (state: MeltQuoteState): MeltQuoteBolt11Response =>
 describe('SparkReceiveOrchestrator cross-mint melt', () => {
   it('melt UNPAID + not initiated → handlers.initiateMelt', async () => {
     const { orchestrator } = makeDeps();
-    const initiateMelt = mock(async () => {});
+    const initiateMelt = mock(async () => undefined);
     await orchestrator.applyCrossMintMeltState(
       tokenQuote() as never,
       meltResp(MeltQuoteState.UNPAID),
@@ -273,7 +273,7 @@ describe('SparkReceiveOrchestrator cross-mint melt', () => {
     await orchestrator.applyCrossMintMeltState(
       tokenQuote({ meltInitiated: true }) as never,
       meltResp(MeltQuoteState.UNPAID),
-      { initiateMelt: mock(async () => {}) },
+      { initiateMelt: mock(async () => undefined) },
     );
     expect(receiveQuoteService.fail).toHaveBeenCalledTimes(1);
     expect(failed[0]?.error.code).toBe('spark_token_melt_failed');
@@ -284,7 +284,7 @@ describe('SparkReceiveOrchestrator cross-mint melt', () => {
     await orchestrator.applyCrossMintMeltState(
       tokenQuote() as never,
       meltResp(MeltQuoteState.PENDING),
-      { initiateMelt: mock(async () => {}) },
+      { initiateMelt: mock(async () => undefined) },
     );
     expect(receiveQuoteService.markMeltInitiated).toHaveBeenCalledTimes(1);
   });
@@ -294,13 +294,13 @@ describe('SparkReceiveOrchestrator cross-mint melt', () => {
     const subscribe = mock(
       async (p: { onUpdate: (q: MeltQuoteBolt11Response) => void }) => {
         onUpdate = p.onUpdate;
-        return () => {};
+        return () => undefined;
       },
     );
     const { orchestrator, receiveQuoteService } = makeDeps({}, account, {
       subscribe,
     });
-    const initiateMelt = mock(async () => {});
+    const initiateMelt = mock(async () => undefined);
     await orchestrator.reconcileCrossMintMelts(
       [tokenQuote({ meltInitiated: true })],
       { initiateMelt },

@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SdkConfig } from '../../config';
 import type { Database } from '../db/database';
 import { connectBreez } from './breez';
-import { CashuWalletService } from './cashu-wallet';
+import type { CashuWalletService } from './cashu-wallet';
 import { buildCashuWalletService } from './index';
 import { SparkWalletService } from './spark-wallet';
 import { createServerClient } from './supabase-client';

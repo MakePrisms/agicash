@@ -62,7 +62,7 @@ export class SparkBalanceListener {
   private scheduleRefresh(account: SparkAccount): void {
     const prev = this.refreshChains.get(account.id) ?? Promise.resolve();
     const next = prev
-      .catch(() => {})
+      .catch(() => undefined)
       .then(() => this.refreshBalance(account))
       .catch((error) =>
         console.error('spark balance refresh failed', {

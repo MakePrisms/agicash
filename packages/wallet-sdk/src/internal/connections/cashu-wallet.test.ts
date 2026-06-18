@@ -38,10 +38,10 @@ describe('CashuWalletService', () => {
     // assert on `calls` only (the memo is the unit under test here).
     await svc
       .getInitialized('https://m.test', 'BTC', undefined, undefined)
-      .catch(() => {});
+      .catch(() => undefined);
     await svc
       .getInitialized('https://m.test', 'BTC', undefined, undefined)
-      .catch(() => {});
+      .catch(() => undefined);
     expect(calls).toBe(1);
   });
 });

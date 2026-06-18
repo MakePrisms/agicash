@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DomainError } from '../../errors';
+import type { Contact, UserProfile } from '../../types/contact';
 import { classify } from '../classify';
 import type { Database } from '../db/database';
-import type { Contact, UserProfile } from '../../types/contact';
 
 type ContactRow = Database['wallet']['Tables']['contacts']['Row'];
 

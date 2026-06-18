@@ -77,7 +77,7 @@ function makeFakeWallet(
     keysetId,
     seed: new Uint8Array(64),
     keyChain: {
-      ensureKeysetKeys: async (_id: string) => {},
+      ensureKeysetKeys: async (_id: string) => undefined,
     },
     getKeyset: (_id?: string) => fakeKeyset,
     ops: {
@@ -209,8 +209,8 @@ const unpaidCashuTokenQuoteMeltInitiated: CashuReceiveQuote = {
 function makeFakeRepo(
   options: {
     createResult?: CashuReceiveQuote;
-    expireResult?: void;
-    failResult?: void;
+    expireResult?: undefined;
+    failResult?: undefined;
     markMeltInitiatedResult?: CashuReceiveQuote & { type: 'CASHU_TOKEN' };
     processPaymentResult?: { quote: CashuReceiveQuote; account: CashuAccount };
     completeReceiveResult?: {
@@ -519,10 +519,10 @@ describe('CashuReceiveQuoteService.createReceiveQuote', () => {
 
     expect(result).toBe(unpaidLightningQuote);
     expect(capturedArgs).toBeDefined();
-    expect(capturedArgs!.receiveType).toBe('LIGHTNING');
-    expect(capturedArgs!.userId).toBe('user-1');
-    expect(capturedArgs!.accountId).toBe('acc-1');
-    expect(capturedArgs!.quoteId).toBe('mint-quote-id');
+    expect(capturedArgs?.receiveType).toBe('LIGHTNING');
+    expect(capturedArgs?.userId).toBe('user-1');
+    expect(capturedArgs?.accountId).toBe('acc-1');
+    expect(capturedArgs?.quoteId).toBe('mint-quote-id');
   });
 });
 
@@ -628,8 +628,8 @@ describe('CashuReceiveQuoteService.completeReceive', () => {
       'proof-id-2',
       'proof-id-3',
     ]);
-    expect(capturedCompleteArgs!.quoteId).toBe('quote-1');
-    expect(capturedCompleteArgs!.proofs).toHaveLength(3);
+    expect(capturedCompleteArgs?.quoteId).toBe('quote-1');
+    expect(capturedCompleteArgs?.proofs).toHaveLength(3);
   });
 
   it('UNPAID path: calls processPayment then processPaidQuote and returns addedProofs', async () => {

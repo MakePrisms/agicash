@@ -50,10 +50,10 @@ export function classify(error: unknown): SdkError {
   if (error !== null && typeof error === 'object') {
     const e = error as Record<string, unknown>;
 
-    if (e['code'] === '23505') return new DomainError(msg, 'UNIQUE_CONSTRAINT');
-    if (e['hint'] === 'CONCURRENCY_ERROR')
+    if (e.code === '23505') return new DomainError(msg, 'UNIQUE_CONSTRAINT');
+    if (e.hint === 'CONCURRENCY_ERROR')
       return new ConcurrencyError(msg, 'CONCURRENCY_ERROR');
-    if (e['code'] === 'PGRST116') return new NotFoundError(msg, 'NOT_FOUND');
+    if (e.code === 'PGRST116') return new NotFoundError(msg, 'NOT_FOUND');
   }
 
   if (isNetworkError(error)) return new SdkError(msg, 'NETWORK_ERROR');

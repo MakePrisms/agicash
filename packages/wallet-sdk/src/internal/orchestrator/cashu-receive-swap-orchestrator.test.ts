@@ -1,10 +1,10 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { Money } from '@agicash/money';
+import type { CashuReceiveSwapService } from '../../domains/cashu/cashu-receive-swap-service';
 import type { SdkEventMap } from '../../events';
-import { SdkEventEmitter } from '../event-emitter';
 import type { CashuAccount } from '../../types/account';
 import type { CashuReceiveSwap } from '../../types/cashu';
-import type { CashuReceiveSwapService } from '../../domains/cashu/cashu-receive-swap-service';
+import { SdkEventEmitter } from '../event-emitter';
 import { CashuReceiveSwapOrchestrator } from './cashu-receive-swap-orchestrator';
 
 const account = { id: 'acc-1' } as unknown as CashuAccount;
@@ -25,7 +25,9 @@ describe('CashuReceiveSwapOrchestrator.processPending', () => {
       addedProofs: ['p'],
     }));
     const orchestrator = new CashuReceiveSwapOrchestrator({
-      receiveSwapService: { completeSwap } as unknown as CashuReceiveSwapService,
+      receiveSwapService: {
+        completeSwap,
+      } as unknown as CashuReceiveSwapService,
       getAccount: mock(async () => account),
       emitter,
     });

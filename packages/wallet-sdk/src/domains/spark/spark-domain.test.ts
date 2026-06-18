@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { Money } from '@agicash/money';
 import type { SdkConfig } from '../../config';
-import { DomainError, NotImplementedError } from '../../errors';
+import { DomainError } from '../../errors';
 import type { SdkEventMap } from '../../events';
 import { SdkEventEmitter } from '../../internal/event-emitter';
 import * as lnurl from '../../internal/lib/lnurl';

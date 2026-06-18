@@ -1,7 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { type Currency, Money } from '@agicash/money';
-import { SdkEventEmitter } from '../../internal/event-emitter';
 import type { SdkEventMap } from '../../events';
+import { SdkEventEmitter } from '../../internal/event-emitter';
 import { inMemoryStorage, jwtWith } from '../../internal/test-support';
 import type { DomainContext } from '../context';
 import { createTransfersDomain } from './transfers-domain';

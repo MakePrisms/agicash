@@ -1,8 +1,8 @@
 import { describe, expect, it, mock } from 'bun:test';
-import type { Transaction } from '../../types/transaction';
-import { SdkEventEmitter } from '../../internal/event-emitter';
 import type { SdkEventMap } from '../../events';
+import { SdkEventEmitter } from '../../internal/event-emitter';
 import { inMemoryStorage, jwtWith } from '../../internal/test-support';
+import type { Transaction } from '../../types/transaction';
 import type { DomainContext } from '../context';
 import { createTransactionsDomain } from './transactions-domain';
 

@@ -1,12 +1,12 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { Money } from '@agicash/money';
 import type { Payment, SdkEvent } from '@agicash/breez-sdk-spark';
+import { Money } from '@agicash/money';
+import type { SparkSendQuoteService } from '../../domains/spark/spark-send-quote-service';
 import { DomainError } from '../../errors';
-import { SdkEventEmitter } from '../event-emitter';
 import type { SdkEventMap } from '../../events';
 import type { SparkAccount } from '../../types/account';
 import type { SparkSendQuote } from '../../types/spark';
-import type { SparkSendQuoteService } from '../../domains/spark/spark-send-quote-service';
+import { SdkEventEmitter } from '../event-emitter';
 import { SparkSendOrchestrator } from './spark-send-orchestrator';
 
 const sats = (n: number) =>

@@ -1,13 +1,13 @@
-import type { User } from '../../types/user';
 import type { SdkEventMap } from '../../events';
+import type { User } from '../../types/user';
 import type {
   AgicashDbAccountWithProofs,
   AgicashDbUser,
   Database,
 } from '../db/database';
+import type { SdkEventEmitter } from '../event-emitter';
 import type { AccountRepository } from '../repositories/account-repository';
 import type { TransactionRepository } from '../repositories/transaction-repository';
-import type { SdkEventEmitter } from '../event-emitter';
 import type { SupabaseRealtimeManager } from './supabase-realtime-manager';
 
 type TransactionRow =

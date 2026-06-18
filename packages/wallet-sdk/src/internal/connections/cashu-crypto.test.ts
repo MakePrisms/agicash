@@ -30,9 +30,10 @@ describe('CashuCryptography', () => {
     const baseXpub = await crypto.getXpub(BASE_CASHU_LOCKING_DERIVATION_PATH);
     const pubFromXpub =
       HDKey.fromExtendedKey(baseXpub).deriveChild(index).publicKey;
+    if (!pubFromXpub) throw new Error('xpub-derived public key missing');
 
     expect(Buffer.from(pubFromPriv).toString('hex')).toBe(
-      Buffer.from(pubFromXpub!).toString('hex'),
+      Buffer.from(pubFromXpub).toString('hex'),
     );
   });
 });

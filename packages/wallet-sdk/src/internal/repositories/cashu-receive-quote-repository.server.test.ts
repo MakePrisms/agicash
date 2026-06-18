@@ -47,19 +47,21 @@ describe('CashuReceiveQuoteRepositoryServer', () => {
       (c) => c.name === 'create_cashu_receive_quote',
     ) as { name: string; args: Record<string, unknown> } | undefined;
     expect(rpcCall).toBeDefined();
-    expect(rpcCall!.args).toMatchObject({
+    if (!rpcCall)
+      throw new Error('expected create_cashu_receive_quote RPC call');
+    expect(rpcCall.args).toMatchObject({
       p_user_id: 'user-1',
       p_account_id: 'acc-1',
       p_locking_derivation_path: "m/129372'/0'/0/7",
       p_receive_type: 'LIGHTNING',
       p_payment_hash: 'ph-1',
     });
-    expect(typeof rpcCall!.args.p_encrypted_data).toBe('string');
-    expect((rpcCall!.args.p_encrypted_data as string).length).toBeGreaterThan(
+    expect(typeof rpcCall?.args.p_encrypted_data).toBe('string');
+    expect((rpcCall?.args.p_encrypted_data as string).length).toBeGreaterThan(
       0,
     );
-    expect(typeof rpcCall!.args.p_quote_id_hash).toBe('string');
-    expect('p_purpose' in rpcCall!.args).toBe(false);
+    expect(typeof rpcCall?.args.p_quote_id_hash).toBe('string');
+    expect('p_purpose' in rpcCall.args).toBe(false);
   });
 
   it('routes RPC errors through classify', async () => {

@@ -1,7 +1,7 @@
+import type { CashuSendSwapService } from '../../domains/cashu/cashu-send-swap-service';
 import type { SdkEventMap } from '../../events';
 import type { CashuAccount } from '../../types/account';
 import type { CashuSendSwap, PendingCashuSendSwap } from '../../types/cashu';
-import type { CashuSendSwapService } from '../../domains/cashu/cashu-send-swap-service';
 import type { SdkEventEmitter } from '../event-emitter';
 import type { ProofStateSubscriptionManager } from '../lib/cashu/proof-state-subscription-manager';
 

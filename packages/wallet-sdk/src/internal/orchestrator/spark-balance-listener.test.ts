@@ -1,9 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { Money } from '@agicash/money';
 import type { SdkEvent } from '@agicash/breez-sdk-spark';
-import { SdkEventEmitter } from '../event-emitter';
+import { Money } from '@agicash/money';
 import type { SdkEventMap } from '../../events';
 import type { Account, SparkAccount } from '../../types/account';
+import { SdkEventEmitter } from '../event-emitter';
 import { SparkBalanceListener } from './spark-balance-listener';
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

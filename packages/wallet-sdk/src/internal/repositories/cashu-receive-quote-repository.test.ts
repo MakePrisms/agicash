@@ -181,9 +181,9 @@ describe('CashuReceiveQuoteRepository', () => {
       const call = calls.rpc?.[0];
       expect(call?.name).toBe('create_cashu_receive_quote');
       const args = call?.args as Record<string, unknown>;
-      expect(args['p_user_id']).toBe('u1');
-      expect(args['p_account_id']).toBe('acc1');
-      expect(args['p_receive_type']).toBe('LIGHTNING');
+      expect(args.p_user_id).toBe('u1');
+      expect(args.p_account_id).toBe('acc1');
+      expect(args.p_receive_type).toBe('LIGHTNING');
 
       expect(result.id).toBe('rq1');
       expect(result.state).toBe('UNPAID');

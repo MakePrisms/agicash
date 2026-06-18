@@ -13,7 +13,8 @@ type Subscription = {
 /** Subscribes to proof-state updates per mint; fires `onSpent` once a swap's proofs are all SPENT. */
 export class ProofStateSubscriptionManager {
   private subscriptions = new Map<string, Subscription>();
-  private proofUpdates: Record<string, Record<string, ProofState['state']>> = {};
+  private proofUpdates: Record<string, Record<string, ProofState['state']>> =
+    {};
 
   constructor(
     private readonly getWallet: (
@@ -48,7 +49,9 @@ export class ProofStateSubscriptionManager {
 
     const wallet = await this.getWallet(mintUrl);
 
-    const subscriptionCallback = (proofUpdate: ProofState & { proof: Proof }) => {
+    const subscriptionCallback = (
+      proofUpdate: ProofState & { proof: Proof },
+    ) => {
       const current = this.subscriptions.get(mintUrl);
       if (current) {
         this.handleProofStateUpdate(proofUpdate, swaps, current.onSpent);
@@ -59,10 +62,17 @@ export class ProofStateSubscriptionManager {
       swaps.flatMap((x) => x.proofsToSend).map((p) => toProof(p)),
       subscriptionCallback,
       (error) =>
-        console.error('Proof state updates socket error', { mintUrl, cause: error }),
+        console.error('Proof state updates socket error', {
+          mintUrl,
+          cause: error,
+        }),
     );
 
-    this.subscriptions.set(mintUrl, { ids: idsSet, subscriptionPromise, onSpent });
+    this.subscriptions.set(mintUrl, {
+      ids: idsSet,
+      subscriptionPromise,
+      onSpent,
+    });
 
     try {
       const unsubscribe = await subscriptionPromise;
@@ -93,7 +103,8 @@ export class ProofStateSubscriptionManager {
     this.proofUpdates[swap.id][proofUpdate.proof.C] = proofUpdate.state;
 
     const allProofsSpent = swap.proofsToSend.every(
-      (proof) => this.proofUpdates[swap.id][proof.unblindedSignature] === 'SPENT',
+      (proof) =>
+        this.proofUpdates[swap.id][proof.unblindedSignature] === 'SPENT',
     );
 
     if (allProofsSpent) {

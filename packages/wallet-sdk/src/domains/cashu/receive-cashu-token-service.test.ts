@@ -517,9 +517,9 @@ describe('ReceiveCashuTokenService.buildAccountForMint', () => {
     await service.buildAccountForMint('https://mint.example.com', 'BTC');
 
     expect(capturedArgs).toBeDefined();
-    expect(capturedArgs![0]).toBe('https://mint.example.com');
-    expect(capturedArgs![1]).toBe('sat'); // getCashuProtocolUnit('BTC') → 'sat'
+    expect(capturedArgs?.[0]).toBe('https://mint.example.com');
+    expect(capturedArgs?.[1]).toBe('sat'); // getCashuProtocolUnit('BTC') → 'sat'
     // mintInfo and keysets (as MintKeyset[]) are also passed
-    expect(capturedArgs![3]).toHaveLength(1);
+    expect(capturedArgs?.[3]).toHaveLength(1);
   });
 });

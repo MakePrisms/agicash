@@ -103,7 +103,7 @@ export class SparkSendOrchestrator {
   }
 
   async reconcile(sendQuotes: SparkSendQuote[]): Promise<() => void> {
-    if (sendQuotes.length === 0) return () => {};
+    if (sendQuotes.length === 0) return () => undefined;
     const triggered = new Set<string>();
     const cleanups: Array<() => void> = [];
 

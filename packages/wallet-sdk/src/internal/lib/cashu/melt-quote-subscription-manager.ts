@@ -56,7 +56,10 @@ export class MeltQuoteSubscriptionManager {
       Array.from(ids),
       subscriptionCallback,
       (error) =>
-        console.error('Melt quote updates socket error', { mintUrl, cause: error }),
+        console.error('Melt quote updates socket error', {
+          mintUrl,
+          cause: error,
+        }),
     );
 
     this.subscriptions.set(mintUrl, { ids, subscriptionPromise, onUpdate });

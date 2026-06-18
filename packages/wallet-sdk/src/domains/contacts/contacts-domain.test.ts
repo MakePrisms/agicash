@@ -1,8 +1,8 @@
 import { describe, expect, it, mock } from 'bun:test';
-import type { Contact } from '../../types/contact';
-import { SdkEventEmitter } from '../../internal/event-emitter';
 import type { SdkEventMap } from '../../events';
+import { SdkEventEmitter } from '../../internal/event-emitter';
 import { inMemoryStorage, jwtWith } from '../../internal/test-support';
+import type { Contact } from '../../types/contact';
 import type { DomainContext } from '../context';
 import { createContactsDomain } from './contacts-domain';
 
@@ -15,7 +15,7 @@ const contact = (over: Partial<Contact> = {}): Contact => ({
   ...over,
 });
 
-function setup(repo: Record<string, unknown>) {
+function setup(_repo: Record<string, unknown>) {
   // Fake repo injected directly — no mock.module needed.
   const emitter = new SdkEventEmitter<SdkEventMap>();
   const created: Contact[] = [];

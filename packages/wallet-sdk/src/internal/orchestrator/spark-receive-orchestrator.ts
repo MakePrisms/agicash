@@ -1,5 +1,5 @@
-import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
 import type { Payment } from '@agicash/breez-sdk-spark';
+import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
 import type { SparkReceiveQuoteService } from '../../domains/spark/spark-receive-quote-service';
 import { SdkError } from '../../errors';
 import type { SdkEventMap } from '../../events';
@@ -68,7 +68,7 @@ export class SparkReceiveOrchestrator {
 
   async reconcile(receiveQuotes: SparkReceiveQuote[]): Promise<() => void> {
     const pending = receiveQuotes.filter((q) => q.state === 'UNPAID');
-    if (pending.length === 0) return () => {};
+    if (pending.length === 0) return () => undefined;
     const triggered = new Set<string>();
     const cleanups: Array<() => void> = [];
 

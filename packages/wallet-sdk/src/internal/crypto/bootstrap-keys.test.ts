@@ -1,10 +1,10 @@
 import { afterAll, describe, expect, it, mock } from 'bun:test';
 
 mock.module('@agicash/breez-sdk-spark', () => ({
-  default: async () => {},
+  default: async () => undefined,
   connect: async () => ({}),
   defaultConfig: () => ({}),
-  initLogging: async () => {},
+  initLogging: async () => undefined,
   defaultExternalSigner: () => ({
     identityPublicKey: () => ({ bytes: new Uint8Array([9, 9, 9]) }),
   }),

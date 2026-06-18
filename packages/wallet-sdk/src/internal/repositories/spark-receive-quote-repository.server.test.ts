@@ -51,7 +51,9 @@ describe('SparkReceiveQuoteRepositoryServer', () => {
       (c) => c.name === 'create_spark_receive_quote',
     ) as { name: string; args: Record<string, unknown> } | undefined;
     expect(rpcCall).toBeDefined();
-    expect(rpcCall!.args).toMatchObject({
+    if (!rpcCall)
+      throw new Error('expected create_spark_receive_quote RPC call');
+    expect(rpcCall.args).toMatchObject({
       p_user_id: 'user-1',
       p_account_id: 'acc-1',
       p_payment_hash: 'ph-1',
@@ -59,9 +61,9 @@ describe('SparkReceiveQuoteRepositoryServer', () => {
       p_receiver_identity_pubkey: 'deadbeef',
       p_receive_type: 'LIGHTNING',
     });
-    expect(typeof rpcCall!.args.p_encrypted_data).toBe('string');
-    expect('p_purpose' in rpcCall!.args).toBe(false);
-    expect('p_transfer_id' in rpcCall!.args).toBe(false);
+    expect(typeof rpcCall?.args.p_encrypted_data).toBe('string');
+    expect('p_purpose' in rpcCall.args).toBe(false);
+    expect('p_transfer_id' in rpcCall.args).toBe(false);
   });
 
   it('routes RPC errors through classify', async () => {

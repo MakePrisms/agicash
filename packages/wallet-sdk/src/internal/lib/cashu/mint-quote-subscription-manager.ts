@@ -52,7 +52,10 @@ export class MintQuoteSubscriptionManager {
       Array.from(ids),
       subscriptionCallback,
       (error) =>
-        console.error('Mint quote updates socket error', { mintUrl, cause: error }),
+        console.error('Mint quote updates socket error', {
+          mintUrl,
+          cause: error,
+        }),
     );
 
     this.subscriptions.set(mintUrl, { ids, subscriptionPromise, onUpdate });

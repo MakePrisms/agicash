@@ -107,7 +107,7 @@ function makeFakeWallet(proofs: CashuProof[], options: FakeWalletOptions = {}) {
     keysetId,
     seed: new Uint8Array(64),
     keyChain: {
-      ensureKeysetKeys: async (_id: string) => {},
+      ensureKeysetKeys: async (_id: string) => undefined,
       getCheapestKeyset: () => ({ fee: 1000, keys: fakeKeyset.keys }),
     },
     getKeyset: (_id?: string) => fakeKeyset,
@@ -237,9 +237,9 @@ function makeFakeRepo(createResult?: CashuSendSwap): CashuSendSwapRepository {
   const defaultPending = makePendingSwap(100);
   return {
     create: async () => createResult ?? defaultPending,
-    commitProofsToSend: async () => {},
-    complete: async () => {},
-    fail: async () => {},
+    commitProofsToSend: async () => undefined,
+    complete: async () => undefined,
+    fail: async () => undefined,
     getUnresolved: async () => [],
     get: async () => null,
     getByTransactionId: async () => null,
@@ -345,13 +345,13 @@ describe('CashuSendSwapService.create', () => {
 
     expect(capturedCreateArgs).toBeDefined();
     // tokenHash should be set (exact proofs path)
-    expect(capturedCreateArgs!.tokenHash).toBeDefined();
-    expect(typeof capturedCreateArgs!.tokenHash).toBe('string');
+    expect(capturedCreateArgs?.tokenHash).toBeDefined();
+    expect(typeof capturedCreateArgs?.tokenHash).toBe('string');
     // No keyset/outputAmounts needed for exact swap
-    expect(capturedCreateArgs!.keysetId).toBeUndefined();
-    expect(capturedCreateArgs!.outputAmounts).toBeUndefined();
-    expect(capturedCreateArgs!.userId).toBe('user-1');
-    expect(capturedCreateArgs!.accountId).toBe('acc-1');
+    expect(capturedCreateArgs?.keysetId).toBeUndefined();
+    expect(capturedCreateArgs?.outputAmounts).toBeUndefined();
+    expect(capturedCreateArgs?.userId).toBe('user-1');
+    expect(capturedCreateArgs?.accountId).toBe('acc-1');
   });
 
   it('inexact proofs → creates DRAFT swap (keysetId + outputAmounts set, no tokenHash)', async () => {
@@ -386,12 +386,12 @@ describe('CashuSendSwapService.create', () => {
 
     expect(capturedCreateArgs).toBeDefined();
     // No tokenHash for DRAFT swaps
-    expect(capturedCreateArgs!.tokenHash).toBeUndefined();
+    expect(capturedCreateArgs?.tokenHash).toBeUndefined();
     // keysetId and outputAmounts should be set
-    expect(capturedCreateArgs!.keysetId).toBe('009a1f293253e41e');
-    expect(capturedCreateArgs!.outputAmounts).toBeDefined();
-    expect(Array.isArray(capturedCreateArgs!.outputAmounts!.send)).toBe(true);
-    expect(Array.isArray(capturedCreateArgs!.outputAmounts!.change)).toBe(true);
+    expect(capturedCreateArgs?.keysetId).toBe('009a1f293253e41e');
+    expect(capturedCreateArgs?.outputAmounts).toBeDefined();
+    expect(Array.isArray(capturedCreateArgs?.outputAmounts?.send)).toBe(true);
+    expect(Array.isArray(capturedCreateArgs?.outputAmounts?.change)).toBe(true);
   });
 });
 
@@ -604,16 +604,16 @@ describe('CashuSendSwapService.reverse', () => {
     await service.reverse(pending, account);
 
     expect(capturedArgs).toBeDefined();
-    expect(capturedArgs!.reversedTransactionId).toBe(pending.transactionId);
-    expect(capturedArgs!.userId).toBe(pending.userId);
+    expect(capturedArgs?.reversedTransactionId).toBe(pending.transactionId);
+    expect(capturedArgs?.userId).toBe(pending.userId);
     // Token should use the account's mintUrl
-    expect(capturedArgs!.token.mint).toBe(account.mintUrl);
+    expect(capturedArgs?.token.mint).toBe(account.mintUrl);
     // Token proofs should come from swap.proofsToSend
-    expect(capturedArgs!.token.proofs).toHaveLength(
+    expect(capturedArgs?.token.proofs).toHaveLength(
       (pending as CashuSendSwap & { state: 'PENDING' }).proofsToSend.length,
     );
     // Token unit for BTC should be 'sat'
-    expect(capturedArgs!.token.unit).toBe('sat');
+    expect(capturedArgs?.token.unit).toBe('sat');
   });
 });
 
@@ -664,10 +664,10 @@ describe('CashuSendSwapService.swapForProofsToSend', () => {
     await service.swapForProofsToSend({ account, swap: draft });
 
     expect(capturedCommitArgs).toBeDefined();
-    expect(typeof capturedCommitArgs!.tokenHash).toBe('string');
-    expect(capturedCommitArgs!.proofsToSend).toEqual([sendProof]);
-    expect(capturedCommitArgs!.changeProofs).toEqual([keepProof]);
-    expect(capturedCommitArgs!.swap).toBe(draft);
+    expect(typeof capturedCommitArgs?.tokenHash).toBe('string');
+    expect(capturedCommitArgs?.proofsToSend).toEqual([sendProof]);
+    expect(capturedCommitArgs?.changeProofs).toEqual([keepProof]);
+    expect(capturedCommitArgs?.swap).toBe(draft);
   });
 
   it('throws when swap is not DRAFT', async () => {
@@ -744,8 +744,8 @@ describe('CashuSendSwapService.swapForProofsToSend (recovery)', () => {
     wallet.ops.send = (_amount: number, _proofs: Proof[]) =>
       ({
         keyset: (_keysetId: string) => ({
-          asCustom: (sendData: { secret: Uint8Array }[]) => ({
-            keepAsCustom: (keepData: { secret: Uint8Array }[]) => ({
+          asCustom: (_sendData: { secret: Uint8Array }[]) => ({
+            keepAsCustom: (_keepData: { secret: Uint8Array }[]) => ({
               run: async () => {
                 throw mintError;
               },
@@ -774,7 +774,7 @@ describe('CashuSendSwapService.swapForProofsToSend (recovery)', () => {
     });
 
     const repo = makeFakeRepo();
-    repo.commitProofsToSend = async () => {};
+    repo.commitProofsToSend = async () => undefined;
 
     const service = new CashuSendSwapService(
       repo,

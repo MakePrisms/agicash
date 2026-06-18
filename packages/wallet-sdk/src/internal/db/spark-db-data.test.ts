@@ -3,7 +3,8 @@ import { Money } from '@agicash/money';
 import { SparkLightningReceiveDbDataSchema } from './spark-receive-quote-db-data';
 import { SparkLightningSendDbDataSchema } from './spark-send-quote-db-data';
 
-const btc = (amount: number) => new Money({ amount, currency: 'BTC', unit: 'sat' });
+const btc = (amount: number) =>
+  new Money({ amount, currency: 'BTC', unit: 'sat' });
 
 describe('spark db-data schemas parse', () => {
   it('parses lightning-send db data (Money fields survive)', () => {

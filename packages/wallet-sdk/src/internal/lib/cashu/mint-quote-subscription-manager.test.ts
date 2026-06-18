@@ -1,10 +1,13 @@
 import { describe, expect, it, mock } from 'bun:test';
 import type { MintQuoteBolt11Response } from '@cashu/cashu-ts';
-import type { ExtendedCashuWallet } from './utils';
 import { MintQuoteSubscriptionManager } from './mint-quote-subscription-manager';
+import type { ExtendedCashuWallet } from './utils';
 
 function fakeWallet() {
-  const captured: { ids: string[]; cb: (q: MintQuoteBolt11Response) => void }[] = [];
+  const captured: {
+    ids: string[];
+    cb: (q: MintQuoteBolt11Response) => void;
+  }[] = [];
   const wallet = {
     on: {
       mintQuoteUpdates: mock(
@@ -14,11 +17,11 @@ function fakeWallet() {
           _onErr: (e: unknown) => void,
         ) => {
           captured.push({ ids, cb });
-          return mock(() => {});
+          return mock(() => undefined);
         },
       ),
     },
-    mint: { webSocketConnection: { onClose: mock(() => {}) } },
+    mint: { webSocketConnection: { onClose: mock(() => undefined) } },
   } as unknown as ExtendedCashuWallet;
   return { wallet, captured };
 }
@@ -40,8 +43,16 @@ describe('MintQuoteSubscriptionManager', () => {
   it('reuses the socket when the new ids are a subset', async () => {
     const { wallet } = fakeWallet();
     const manager = new MintQuoteSubscriptionManager(async () => wallet);
-    await manager.subscribe({ mintUrl: 'm', quoteIds: ['q1', 'q2'], onUpdate: () => {} });
-    await manager.subscribe({ mintUrl: 'm', quoteIds: ['q1'], onUpdate: () => {} });
+    await manager.subscribe({
+      mintUrl: 'm',
+      quoteIds: ['q1', 'q2'],
+      onUpdate: () => undefined,
+    });
+    await manager.subscribe({
+      mintUrl: 'm',
+      quoteIds: ['q1'],
+      onUpdate: () => undefined,
+    });
     expect(wallet.on.mintQuoteUpdates).toHaveBeenCalledTimes(1);
   });
 });

@@ -108,7 +108,7 @@ function makeFakeWallet(options: FakeWalletOptions = {}) {
     keysetId,
     seed: new Uint8Array(64),
     keyChain: {
-      ensureKeysetKeys: async (_id: string) => {},
+      ensureKeysetKeys: async (_id: string) => undefined,
     },
     getKeyset: (_id?: string) => fakeKeyset,
     getFeesForProofs: (_proofs: Proof[]) => getFeesForProofsResult,
@@ -230,7 +230,7 @@ function makeExpiredQuote(
 function makeFakeRepo(
   options: {
     markAsPendingResult?: CashuSendQuote;
-    expireResult?: void;
+    expireResult?: undefined;
     failResult?: CashuSendQuote;
     completeResult?: CashuSendQuote;
     createResult?: CashuSendQuote;
@@ -607,7 +607,7 @@ describe('CashuSendQuoteService.createSendQuote', () => {
     });
 
     expect(capturedCreate).toBeDefined();
-    expect(capturedCreate!.purpose).toBe('TRANSFER');
+    expect(capturedCreate?.purpose).toBe('TRANSFER');
   });
 });
 
@@ -705,14 +705,14 @@ describe('CashuSendQuoteService.initiateSend', () => {
 
     expect(result).toBe(expectedResponse);
     expect(capturedArgs).toBeDefined();
-    expect((capturedArgs!.config as { keysetId: string }).keysetId).toBe(
+    expect((capturedArgs?.config as { keysetId: string }).keysetId).toBe(
       '009a1f293253e41e',
     );
     expect(
-      (capturedArgs!.outputType as { type: string; counter: number }).type,
+      (capturedArgs?.outputType as { type: string; counter: number }).type,
     ).toBe('deterministic');
     expect(
-      (capturedArgs!.outputType as { type: string; counter: number }).counter,
+      (capturedArgs?.outputType as { type: string; counter: number }).counter,
     ).toBe(5);
   });
 });
@@ -854,9 +854,9 @@ describe('CashuSendQuoteService.completeSendQuote', () => {
 
     expect(result).toBe(expectedPaid);
     expect(capturedComplete).toBeDefined();
-    expect(capturedComplete!.paymentPreimage).toBe('my-preimage');
+    expect(capturedComplete?.paymentPreimage).toBe('my-preimage');
     // amountSpent = sum(proofs) - sum(changeProofs) = 110 - 0 = 110
-    expect(capturedComplete!.amountSpent.toNumber('sat')).toBe(110);
-    expect(capturedComplete!.changeProofs).toEqual([]);
+    expect(capturedComplete?.amountSpent.toNumber('sat')).toBe(110);
+    expect(capturedComplete?.changeProofs).toEqual([]);
   });
 });

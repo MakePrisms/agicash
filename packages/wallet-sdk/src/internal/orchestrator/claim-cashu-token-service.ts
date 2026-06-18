@@ -1,9 +1,9 @@
 import type { Token } from '@cashu/cashu-ts';
+import type { CashuReceiveSwapService } from '../../domains/cashu/cashu-receive-swap-service';
+import { isClaimingToSameCashuAccount } from '../../domains/cashu/receive-cashu-token-models';
 import type { Account, CashuAccount } from '../../types/account';
 import type { CashuReceiveQuote, CashuReceiveSwap } from '../../types/cashu';
 import type { SparkReceiveQuote } from '../../types/spark';
-import type { CashuReceiveSwapService } from '../../domains/cashu/cashu-receive-swap-service';
-import { isClaimingToSameCashuAccount } from '../../domains/cashu/receive-cashu-token-models';
 import type { ReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
 
 export type ClaimCashuTokenServiceDeps = {
@@ -44,13 +44,16 @@ export class ClaimCashuTokenService {
     const exchangeRate = await this.deps.getRate(
       `${sourceAccount.currency}-${destinationAccount.currency}`,
     );
-    const quotes = await this.deps.receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes({
-      userId,
-      token,
-      sourceAccount,
-      destinationAccount,
-      exchangeRate,
-    });
+    const quotes =
+      await this.deps.receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(
+        {
+          userId,
+          token,
+          sourceAccount,
+          destinationAccount,
+          exchangeRate,
+        },
+      );
 
     // Kick off the source-mint melt. Random change outputs (change is discarded
     // here, see CashuTokenMeltData) avoid counter collisions with the source

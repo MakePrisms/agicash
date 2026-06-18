@@ -25,8 +25,8 @@ describe('cashu-proofs mapping', () => {
     expect(typeof encrypted[0]?.amount).toBe('string');
 
     const decrypted = await enc.decryptBatch([
-      encrypted[0]!.amount,
-      encrypted[0]!.secret,
+      encrypted[0]?.amount,
+      encrypted[0]?.secret,
     ]);
     const dbRows = [
       {
@@ -58,10 +58,10 @@ describe('cashu-proofs mapping', () => {
     const encrypted = await toEncryptedProofData(proofs, enc);
 
     const decrypted = await enc.decryptBatch([
-      encrypted[0]!.amount,
-      encrypted[0]!.secret,
-      encrypted[1]!.amount,
-      encrypted[1]!.secret,
+      encrypted[0]?.amount,
+      encrypted[0]?.secret,
+      encrypted[1]?.amount,
+      encrypted[1]?.secret,
     ]);
     const dbRows = [
       {

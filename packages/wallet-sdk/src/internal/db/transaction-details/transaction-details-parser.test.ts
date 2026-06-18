@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import { type Currency, Money } from '@agicash/money';
 import { CashuLightningReceiveDbDataSchema } from '../cashu-receive-quote-db-data';
 import { CashuLightningSendDbDataSchema } from '../cashu-send-quote-db-data';
-import { CashuSwapReceiveDbDataSchema } from '../cashu-receive-swap-db-data';
 import { CashuSwapSendDbDataSchema } from '../cashu-send-swap-db-data';
 import { SparkLightningReceiveDbDataSchema } from '../spark-receive-quote-db-data';
 import { SparkLightningSendDbDataSchema } from '../spark-send-quote-db-data';

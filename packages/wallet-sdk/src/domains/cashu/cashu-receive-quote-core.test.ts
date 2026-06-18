@@ -24,20 +24,12 @@ function btcMoney(amount: number): Money<Currency> {
   }) as unknown as Money<Currency>;
 }
 
-function usdMoney(amount: number): Money<Currency> {
-  return new Money({
-    amount,
-    currency: 'USD',
-    unit: 'cent',
-  }) as unknown as Money<Currency>;
-}
-
 function makeLightningQuote(
   overrides: Partial<CashuReceiveLightningQuote> = {},
 ): CashuReceiveLightningQuote {
   return {
     mintQuote: {} as CashuReceiveLightningQuote['mintQuote'],
-    lockingPublicKey: '02' + 'ab'.repeat(32),
+    lockingPublicKey: `02${'ab'.repeat(32)}`,
     fullLockingDerivationPath: `${BASE_CASHU_LOCKING_DERIVATION_PATH}/42`,
     expiresAt: '2030-01-01T12:00:00.000Z',
     amount: btcMoney(1000),

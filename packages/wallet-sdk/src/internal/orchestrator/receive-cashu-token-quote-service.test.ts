@@ -1,10 +1,10 @@
 import { describe, expect, it, mock } from 'bun:test';
-import type { MeltQuoteBolt11Response, Token } from '@cashu/cashu-ts';
 import { Money } from '@agicash/money';
-import type { CashuAccount, SparkAccount } from '../../types/account';
+import type { MeltQuoteBolt11Response, Token } from '@cashu/cashu-ts';
 import type { CashuReceiveQuoteService } from '../../domains/cashu/cashu-receive-quote-service';
-import type { SparkReceiveQuoteService } from '../../domains/spark/spark-receive-quote-service';
 import type { SparkReceiveLightningQuote } from '../../domains/spark/spark-receive-quote-core';
+import type { SparkReceiveQuoteService } from '../../domains/spark/spark-receive-quote-service';
+import type { CashuAccount, SparkAccount } from '../../types/account';
 import { ReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
 
 const token = {
@@ -23,7 +23,12 @@ function makeSourceAccount() {
       getFeesForProofs: mock(() => 1),
       createMeltQuoteBolt11: mock(
         async (): Promise<MeltQuoteBolt11Response> =>
-          ({ quote: 'src-melt', amount: 45, fee_reserve: 1, expiry: 9_999_999_999 }) as MeltQuoteBolt11Response,
+          ({
+            quote: 'src-melt',
+            amount: 45,
+            fee_reserve: 1,
+            expiry: 9_999_999_999,
+          }) as MeltQuoteBolt11Response,
       ),
     },
   } as unknown as CashuAccount;
@@ -87,12 +92,16 @@ describe('ReceiveCashuTokenQuoteService.createCrossAccountReceiveQuotes (cashu d
     expect(createArg.lightningFeeReserve.toNumber('sat')).toBe(1);
     expect(createArg.tokenAmount.toNumber('sat')).toBe(50);
     expect(createArg.tokenProofs).toBe(token.proofs);
-    expect(createArg.meltQuoteExpiresAt).toBe(new Date(9_999_999_999 * 1000).toISOString());
+    expect(createArg.meltQuoteExpiresAt).toBe(
+      new Date(9_999_999_999 * 1000).toISOString(),
+    );
   });
 
   it('throws when the token cannot cover the cashu fee', async () => {
     const sourceAccount = makeSourceAccount();
-    (sourceAccount.wallet.getFeesForProofs as ReturnType<typeof mock>).mockReturnValue(1000);
+    (
+      sourceAccount.wallet.getFeesForProofs as ReturnType<typeof mock>
+    ).mockReturnValue(1000);
     const service = new ReceiveCashuTokenQuoteService(
       { getLightningQuote: mock(), createReceiveQuote: mock() } as never,
       {} as never,

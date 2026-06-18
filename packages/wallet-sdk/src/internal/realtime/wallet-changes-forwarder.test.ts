@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { SdkEventEmitter } from '../event-emitter';
 import type { SdkEventMap } from '../../events';
+import { SdkEventEmitter } from '../event-emitter';
 import { WalletChangesForwarder } from './wallet-changes-forwarder';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -9,8 +9,8 @@ function fakeRealtime() {
   let broadcastCb:
     | ((m: { type: 'broadcast'; event: string; payload: unknown }) => void)
     | undefined;
-  const subscribe = mock(async () => {});
-  const removeChannel = mock(async () => {});
+  const subscribe = mock(async () => undefined);
+  const removeChannel = mock(async () => undefined);
   const builder = {
     topic: 'realtime:wallet:user-1',
     on: mock(

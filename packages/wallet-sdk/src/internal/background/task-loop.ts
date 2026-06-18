@@ -1,12 +1,12 @@
+import type { SdkEventMap } from '../../events';
 import type { CashuTokenMeltData } from '../../types/cashu';
 import type {
   CashuReceiveQuote,
+  CashuReceiveSwap,
   CashuSendQuote,
   CashuSendSwap,
-  CashuReceiveSwap,
 } from '../../types/cashu';
 import type { SparkReceiveQuote, SparkSendQuote } from '../../types/spark';
-import type { SdkEventMap } from '../../events';
 import type { SdkEventEmitter } from '../event-emitter';
 
 export type InitiateMelt = (quote: {

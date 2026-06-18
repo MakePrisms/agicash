@@ -23,18 +23,18 @@ import type {
 } from './domains';
 import { createAccountsDomain } from './domains/accounts/accounts-domain';
 import { createAuthDomain } from './domains/auth/auth-domain';
-import { createCashuDomain } from './domains/cashu/cashu-domain';
 import { createBackgroundDomain } from './domains/background/background-domain';
+import { createCashuDomain } from './domains/cashu/cashu-domain';
 import { createContactsDomain } from './domains/contacts/contacts-domain';
 import type { DomainContext } from './domains/context';
 import { createExchangeRateDomain } from './domains/exchange-rate/exchange-rate-domain';
 import { createScanDomain } from './domains/scan/scan-domain';
 import { createSparkDomain } from './domains/spark/spark-domain';
+import { createTransactionsDomain } from './domains/transactions/transactions-domain';
 import {
   buildTransferService,
   createTransfersDomain,
 } from './domains/transfers/transfers-domain';
-import { createTransactionsDomain } from './domains/transactions/transactions-domain';
 import { createUserDomain } from './domains/user/user-domain';
 import type { EventEmitter, SdkEventMap } from './events';
 import { type SdkConnections, buildConnections } from './internal/connections';

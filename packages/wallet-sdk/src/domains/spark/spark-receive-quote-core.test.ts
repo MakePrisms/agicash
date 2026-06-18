@@ -2,11 +2,11 @@ import { describe, expect, it } from 'bun:test';
 import { type Currency, Money } from '@agicash/money';
 import { SdkError } from '../../errors';
 import {
+  type CreateQuoteBaseParams,
+  type SparkReceiveLightningQuote,
   computeQuoteExpiry,
   getAmountAndFee,
   getLightningQuote,
-  type CreateQuoteBaseParams,
-  type SparkReceiveLightningQuote,
 } from './spark-receive-quote-core';
 
 // Real, decodable bolt11 invoice from internal/lib/bolt11/index.test.ts
@@ -45,7 +45,11 @@ function fakeWallet(captured: { method?: CapturedPaymentMethod }) {
 }
 
 const btcSat = (amount: number): Money<Currency> =>
-  new Money({ amount, currency: 'BTC', unit: 'sat' }) as unknown as Money<Currency>;
+  new Money({
+    amount,
+    currency: 'BTC',
+    unit: 'sat',
+  }) as unknown as Money<Currency>;
 
 /** Build a minimal SparkReceiveLightningQuote fixture for pure-function tests. */
 function makeQuote(expiresAt: string): SparkReceiveLightningQuote {

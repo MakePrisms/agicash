@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { SdkEventEmitter } from '../event-emitter';
 import type { SdkEventMap } from '../../events';
+import { SdkEventEmitter } from '../event-emitter';
 import { TaskLoop } from './task-loop';
 
 const unresolvedCashuSend = [{ id: 'cs-1', state: 'UNPAID', accountId: 'a' }];
@@ -29,8 +29,8 @@ function setup() {
     sparkReceiveQuote: { getPending: mock(async () => pendingSparkReceive) },
   };
 
-  const sparkSendCleanup = mock(() => {});
-  const sparkReceiveCleanup = mock(() => {});
+  const sparkSendCleanup = mock(() => undefined);
+  const sparkReceiveCleanup = mock(() => undefined);
   const orchestrators = {
     cashuSend: {
       reconcile: mock(async () => {
@@ -61,17 +61,19 @@ function setup() {
     sparkSend: { reconcile: mock(async () => sparkSendCleanup) },
     sparkReceive: {
       reconcile: mock(async () => sparkReceiveCleanup),
-      reconcileCrossMintMelts: mock(async () => {}),
-      applyExpiry: mock(async () => {}),
+      reconcileCrossMintMelts: mock(async () => undefined),
+      applyExpiry: mock(async () => undefined),
     },
   };
 
   const loop = new TaskLoop({
     repos: repos as never,
     orchestrators: orchestrators as never,
-    cashuReceiveQuoteService: { expire: mock(async () => {}) } as never,
-    cashuSendQuoteService: { expireSendQuote: mock(async () => {}) } as never,
-    initiateMelt: mock(async () => {}),
+    cashuReceiveQuoteService: { expire: mock(async () => undefined) } as never,
+    cashuSendQuoteService: {
+      expireSendQuote: mock(async () => undefined),
+    } as never,
+    initiateMelt: mock(async () => undefined),
     getUserId: mock(async () => 'user-1'),
     emitter: new SdkEventEmitter<SdkEventMap>(),
   });

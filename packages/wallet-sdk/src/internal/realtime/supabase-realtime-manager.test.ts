@@ -94,8 +94,7 @@ describe('SupabaseRealtimeManager', () => {
   describe('construction', () => {
     it('exposes the passed realtimeClient', () => {
       const manager = new SupabaseRealtimeManager(client as never);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(manager.realtimeClient as any).toBe(client);
+      expect(manager.realtimeClient as unknown).toBe(client);
     });
 
     it('starts with no channels tracked', () => {

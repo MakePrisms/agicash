@@ -90,13 +90,13 @@ describe('Sdk core shell', () => {
     // Suppress unhandled rejections with .catch — we only test the return type here.
     const txResult = sdk.transactions.countPendingAck();
     expect(txResult).toBeInstanceOf(Promise);
-    txResult.catch(() => {});
+    txResult.catch(() => undefined);
     const ctResult = sdk.contacts.list();
     expect(ctResult).toBeInstanceOf(Promise);
-    ctResult.catch(() => {});
+    ctResult.catch(() => undefined);
     const trResult = sdk.transfers.createQuote({} as never);
     expect(trResult).toBeInstanceOf(Promise);
-    trResult.catch(() => {});
+    trResult.catch(() => undefined);
     await sdk.destroy();
   });
   it('cashu create/read methods are wired (not NotImplemented)', async () => {

@@ -2,8 +2,8 @@ import type {
   BreezSdk,
   LightningReceiveStatus,
 } from '@agicash/breez-sdk-spark';
-import type { Proof } from '@cashu/cashu-ts';
 import { Money } from '@agicash/money';
+import type { Proof } from '@cashu/cashu-ts';
 import { SdkError } from '../../errors';
 import { parseBolt11Invoice } from '../../internal/lib/bolt11';
 import type { SparkAccount } from '../../types/account';

@@ -19,8 +19,8 @@ function fakeRealtime() {
   return {
     channel: () => builder,
     addChannel: () => ({ topic: builder.topic }),
-    subscribe: async () => {},
-    removeChannel: async () => {},
+    subscribe: async () => undefined,
+    removeChannel: async () => undefined,
   } as never;
 }
 
@@ -42,7 +42,7 @@ function makeBackgroundTestCtx(): {
     sparkWallets: {} as never,
     mintAuth: {} as never,
     getCashuSeed: async () => new Uint8Array(),
-    cashuMintValidator: (() => {}) as never,
+    cashuMintValidator: (() => undefined) as never,
   } as unknown as DomainContext['connections'];
 
   const accountRepository = {

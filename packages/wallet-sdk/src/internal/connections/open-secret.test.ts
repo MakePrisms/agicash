@@ -13,7 +13,7 @@ mock.module('@agicash/opensecret', () => ({
     private_key: '00'.repeat(32),
   }),
   getPublicKey: async () => ({
-    public_key: '02' + '00'.repeat(32),
+    public_key: `02${'00'.repeat(32)}`,
     algorithm: 'ecdsa',
   }),
 }));
@@ -27,8 +27,8 @@ afterAll(() => mock.restore());
 function fakeStorage(tokens: Record<string, string>): SdkConfig['storage'] {
   const kv = {
     getItem: (k: string) => tokens[k] ?? null,
-    setItem: () => {},
-    removeItem: () => {},
+    setItem: () => undefined,
+    removeItem: () => undefined,
   };
   return { persistent: kv, session: kv } as unknown as SdkConfig['storage'];
 }

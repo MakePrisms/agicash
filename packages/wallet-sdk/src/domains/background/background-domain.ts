@@ -1,8 +1,8 @@
 import type { BackgroundDomain } from '../../domains';
 import { SdkError } from '../../errors';
+import { BackgroundRunner } from '../../internal/background/background-runner';
 import { TaskLoop } from '../../internal/background/task-loop';
 import { TaskProcessingLockRepository } from '../../internal/background/task-processing-lock-repository';
-import { BackgroundRunner } from '../../internal/background/background-runner';
 import { getCurrentUserId } from '../../internal/connections/open-secret';
 import { toUser } from '../../internal/db/user-mapper';
 import {

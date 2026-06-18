@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { SdkEventEmitter } from '../event-emitter';
 import type { SdkEventMap } from '../../events';
+import { SdkEventEmitter } from '../event-emitter';
 import { BackgroundRunner } from './background-runner';
 
 function setup(opts: { takeLead?: (n: number) => boolean } = {}) {
@@ -8,15 +8,21 @@ function setup(opts: { takeLead?: (n: number) => boolean } = {}) {
   const emitter = new SdkEventEmitter<SdkEventMap>();
   const states: string[] = [];
   emitter.on('background:state', (e) => states.push(e.state));
-  const balanceCleanup = mock(() => {});
+  const balanceCleanup = mock(() => undefined);
   const deps = {
     lockRepository: {
       takeLead: mock(async () =>
         opts.takeLead ? opts.takeLead(tick++) : true,
       ),
     },
-    taskLoop: { runOnce: mock(async () => {}), dispose: mock(() => {}) },
-    forwarder: { start: mock(async () => {}), stop: mock(async () => {}) },
+    taskLoop: {
+      runOnce: mock(async () => undefined),
+      dispose: mock(() => undefined),
+    },
+    forwarder: {
+      start: mock(async () => undefined),
+      stop: mock(async () => undefined),
+    },
     registerBalanceListeners: mock(async () => balanceCleanup),
     getUserId: mock(async () => 'user-1'),
     clientId: 'client-1',
@@ -51,7 +57,7 @@ describe('BackgroundRunner', () => {
   });
 
   it('start() with no user stays starting and runs no tick body', async () => {
-    const { runner, deps } = setup();
+    const { deps } = setup();
     deps.getUserId = mock(async () => null) as never;
     const r = new BackgroundRunner({ ...deps });
     await r.start();
@@ -61,7 +67,7 @@ describe('BackgroundRunner', () => {
   });
 
   it('a take_lead error is swallowed (stays follower, retries next tick)', async () => {
-    const { runner, deps } = setup();
+    const { deps } = setup();
     deps.lockRepository.takeLead = mock(async () => {
       throw new Error('rpc down');
     }) as never;
