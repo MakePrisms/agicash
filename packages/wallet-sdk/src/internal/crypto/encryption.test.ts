@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test';
+import { Money } from '@agicash/money';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { bytesToHex } from '@noble/hashes/utils';
-import { EncryptionService, getEncryption } from './encryption';
+import {
+  EncryptionService,
+  encryptToPublicKey,
+  getEncryption,
+} from './encryption';
 import type { KeyProvider } from './keys';
 
 const priv = secp256k1.utils.randomPrivateKey();
@@ -46,5 +51,26 @@ describe('EncryptionService', () => {
     expect(a).toBe(b);
     expect(privCalls).toBe(1);
     expect(await a.decrypt<string>(await a.encrypt('hi'))).toBe('hi');
+  });
+});
+
+describe('encryptToPublicKey (exported, server-mode)', () => {
+  it('produces a blob the holder of the private key can decrypt (Money survives)', async () => {
+    const priv = secp256k1.utils.randomPrivateKey();
+    const pubHex = bytesToHex(secp256k1.getPublicKey(priv, true)); // 33-byte compressed
+    const payload = {
+      hello: 'world',
+      fee: new Money({ amount: 3, currency: 'BTC', unit: 'sat' }),
+    };
+
+    const blob = encryptToPublicKey(payload, pubHex);
+    expect(typeof blob).toBe('string');
+
+    const decrypted = await getEncryption(priv, pubHex).decrypt<typeof payload>(
+      blob,
+    );
+    expect(decrypted.hello).toBe('world');
+    expect(decrypted.fee).toBeInstanceOf(Money);
+    expect(decrypted.fee.toNumber('sat')).toBe(3);
   });
 });

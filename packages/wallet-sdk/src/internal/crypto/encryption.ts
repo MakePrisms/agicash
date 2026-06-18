@@ -52,7 +52,7 @@ function deserializeData<T = unknown>(serializedData: string): T {
   }) as T;
 }
 
-function encryptToPublicKey<T = unknown>(
+export function encryptToPublicKey<T = unknown>(
   data: T,
   publicKeyHex: string,
 ): string {
