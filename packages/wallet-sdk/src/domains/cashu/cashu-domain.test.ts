@@ -1,7 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { type Currency, Money } from '@agicash/money';
+import { getEncodedToken } from '@cashu/cashu-ts';
 import type { SdkConfig } from '../../config';
-import { DomainError, NotImplementedError } from '../../errors';
+import { DomainError } from '../../errors';
 import type { SdkEventMap } from '../../events';
 import { SdkEventEmitter } from '../../internal/event-emitter';
 import * as lnurl from '../../internal/lib/lnurl';
@@ -9,14 +10,16 @@ import type { AccountRepository } from '../../internal/repositories/account-repo
 import { CashuReceiveQuoteRepository } from '../../internal/repositories/cashu-receive-quote-repository';
 import { CashuSendQuoteRepository } from '../../internal/repositories/cashu-send-quote-repository';
 import { CashuSendSwapRepository } from '../../internal/repositories/cashu-send-swap-repository';
+import { ClaimCashuTokenService } from '../../internal/orchestrator/claim-cashu-token-service';
 import { inMemoryStorage, jwtWith } from '../../internal/test-support';
-import type { CashuAccount } from '../../types/account';
+import type { Account, CashuAccount } from '../../types/account';
 import type { CashuSendQuote } from '../../types/cashu';
 import type { DomainContext } from '../context';
 import { createCashuDomain } from './cashu-domain';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import { CashuSendQuoteService } from './cashu-send-quote-service';
 import { CashuSendSwapService } from './cashu-send-swap-service';
+import { ReceiveCashuTokenService } from './receive-cashu-token-service';
 
 // ---------------------------------------------------------------------------
 // The domain constructs its repos/services internally, so we spy on the real
@@ -46,6 +49,22 @@ function cashuAccountWithWallet(wallet: Record<string, unknown>): CashuAccount {
   return { ...cashuAccount, wallet } as unknown as CashuAccount;
 }
 
+/** A real encoded cashu token string (round-trips through getDecodedToken). */
+function encodedTestToken(): string {
+  return getEncodedToken({
+    mint: 'https://mint.test',
+    unit: 'sat',
+    proofs: [
+      {
+        id: '009a1f293253e41e',
+        amount: 10,
+        secret: 'test-secret',
+        C: `02${'00'.repeat(32)}`,
+      },
+    ],
+  });
+}
+
 function makeCtx(): DomainContext {
   return {
     config: {
@@ -55,6 +74,8 @@ function makeCtx(): DomainContext {
       supabase: {} as unknown,
       encryption: {} as unknown,
       cashuCrypto: {} as unknown,
+      cashuWallets: {} as unknown,
+      cashuMintValidator: {} as unknown,
     } as unknown as DomainContext['connections'],
     emitter: new SdkEventEmitter<SdkEventMap>(),
   };
@@ -98,6 +119,11 @@ const sendQuoteRepoGet = spyOn(CashuSendQuoteRepository.prototype, 'get');
 const sendSwapRepoGet = spyOn(CashuSendSwapRepository.prototype, 'get');
 const receiveQuoteRepoGet = spyOn(CashuReceiveQuoteRepository.prototype, 'get');
 const getInvoiceFromLud16 = spyOn(lnurl, 'getInvoiceFromLud16');
+const buildAccountForMint = spyOn(
+  ReceiveCashuTokenService.prototype,
+  'buildAccountForMint',
+);
+const claimToken = spyOn(ClaimCashuTokenService.prototype, 'claimToken');
 
 afterAll(() => {
   for (const s of [
@@ -112,6 +138,8 @@ afterAll(() => {
     sendSwapRepoGet,
     receiveQuoteRepoGet,
     getInvoiceFromLud16,
+    buildAccountForMint,
+    claimToken,
   ]) {
     s.mockRestore();
   }
@@ -130,6 +158,8 @@ beforeEach(() => {
     sendSwapRepoGet,
     receiveQuoteRepoGet,
     getInvoiceFromLud16,
+    buildAccountForMint,
+    claimToken,
   ]) {
     s.mockReset();
   }
@@ -140,11 +170,61 @@ beforeEach(() => {
 });
 
 describe('cashu domain', () => {
-  it('receiveToken throws NotImplementedError', () => {
+  it('receiveToken decodes the token, resolves the source mint account, and delegates to claimToken (same-mint default)', async () => {
+    const sourceAccount = {
+      id: 'src',
+      type: 'cashu',
+      currency: 'BTC',
+      mintUrl: 'https://mint.test',
+    } as unknown as CashuAccount;
+    const swap = { tokenHash: 'h', state: 'PENDING' };
+    buildAccountForMint.mockResolvedValue(sourceAccount as never);
+    claimToken.mockResolvedValue(swap as never);
     const domain = createCashuDomain(makeCtx(), fakeAccountRepo());
-    expect(() => domain.receive.receiveToken({} as never)).toThrow(
-      NotImplementedError,
-    );
+
+    const result = await domain.receive.receiveToken({
+      token: encodedTestToken(),
+    });
+
+    expect(buildAccountForMint).toHaveBeenCalledTimes(1);
+    expect(claimToken).toHaveBeenCalledTimes(1);
+    const arg = claimToken.mock.calls[0][0] as {
+      userId: string;
+      sourceAccount: unknown;
+      destinationAccount: unknown;
+    };
+    expect(arg.userId).toBe('u1');
+    expect(arg.sourceAccount).toBe(sourceAccount);
+    // destinationAccount defaults to the resolved source when omitted
+    expect(arg.destinationAccount).toBe(sourceAccount);
+    expect(result as unknown).toBe(swap);
+  });
+
+  it('receiveToken uses the provided destinationAccount for a cross-account claim', async () => {
+    const sourceAccount = {
+      id: 'src',
+      type: 'cashu',
+      currency: 'BTC',
+      mintUrl: 'https://mint.test',
+    } as unknown as CashuAccount;
+    const dest = {
+      id: 'spark-1',
+      type: 'spark',
+      currency: 'BTC',
+    } as unknown as Account;
+    const quote = { id: 'dest-rq' };
+    buildAccountForMint.mockResolvedValue(sourceAccount as never);
+    claimToken.mockResolvedValue(quote as never);
+    const domain = createCashuDomain(makeCtx(), fakeAccountRepo());
+
+    const result = await domain.receive.receiveToken({
+      token: encodedTestToken(),
+      destinationAccount: dest,
+    });
+
+    const arg = claimToken.mock.calls[0][0] as { destinationAccount: unknown };
+    expect(arg.destinationAccount).toBe(dest);
+    expect(result as unknown).toBe(quote);
   });
 
   it('createTokenQuote calls through to the swap service with senderPaysFee', async () => {

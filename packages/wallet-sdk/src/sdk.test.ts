@@ -106,11 +106,4 @@ describe('Sdk core shell', () => {
     expect(typeof sdk.cashu.receive.createLightningQuote).toBe('function');
     await sdk.destroy();
   });
-  it('still-dark S7 entry points throw NotImplemented', async () => {
-    const sdk = await Sdk.create(config);
-    expect(() =>
-      sdk.cashu.receive.receiveToken({ token: 't' } as never),
-    ).toThrow(NotImplementedError);
-    await sdk.destroy();
-  });
 });
