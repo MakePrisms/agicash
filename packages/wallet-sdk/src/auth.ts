@@ -412,10 +412,16 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
         const remainingMs = getRemainingSessionTimeInMs(
           await getJwt(refreshTokenKey),
         );
-        if (remainingMs === null) {
+        // stop() may have run during the await (e.g. a StrictMode unmount) while
+        // `timer` was still null, so it cleared nothing — bail before arming so
+        // we never leave a stranded timer behind a stopped watcher.
+        if (stopped || remainingMs === null) {
           return;
         }
         timer = setLongTimeout(async () => {
+          if (stopped) {
+            return;
+          }
           try {
             if (isCurrentUserGuest()) {
               // Silently resume the guest session and re-arm with the new
