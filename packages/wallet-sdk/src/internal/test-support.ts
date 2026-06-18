@@ -28,6 +28,7 @@ export function makeFakeDb(opts: {
     for (const m of ['select', 'eq', 'in', 'order', 'limit', 'abortSignal'])
       b[m] = () => b;
     b.insert = () => builder(terminal);
+    b.delete = () => builder(terminal);
     b.update = (payload: unknown) => {
       opts.calls?.update?.push(payload);
       return updateBuilder();

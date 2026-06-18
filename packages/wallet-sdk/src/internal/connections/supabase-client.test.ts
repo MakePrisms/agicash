@@ -25,6 +25,7 @@ const baseConfig: SdkConfig = {
     serviceRoleKey: 'service-role-key',
   },
   storage: {} as SdkConfig['storage'],
+  lud16Domain: 'agi.cash',
 };
 
 describe('createBrowserClient', () => {

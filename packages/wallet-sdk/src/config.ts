@@ -96,4 +96,9 @@ export type SdkConfig = {
    * omitted. Distinct from `openSecret.clientId`.
    */
   clientId?: string;
+  /**
+   * The Lightning-Address domain used to derive `Contact.lud16` / `UserProfile.lud16`
+   * (`${username}@${domain}`). Supplied by the consumer (web: the request origin host).
+   */
+  lud16Domain: string;
 };
