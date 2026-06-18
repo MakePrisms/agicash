@@ -4,12 +4,25 @@ interface PasswordOptions {
   special?: boolean;
 }
 
+/**
+ * Generates a cryptographically random password from the selected character
+ * sets. Length defaults to 24; pass options to restrict the charset.
+ *
+ * @throws if all character sets are disabled.
+ */
 export async function generateRandomPassword(
   length = 24,
   options: PasswordOptions = { letters: true, numbers: true, special: true },
 ): Promise<string> {
-  if (window.getMockPassword) {
-    const password = await window.getMockPassword();
+  // e2e test seam: a fixture may expose globalThis.getMockPassword to make
+  // generated passwords deterministic. window === globalThis in the browser,
+  // so the Playwright `page.exposeFunction('getMockPassword', ...)` is seen
+  // here.
+  const getMockPassword = (
+    globalThis as { getMockPassword?: () => Promise<string | null> }
+  ).getMockPassword;
+  if (getMockPassword) {
+    const password = await getMockPassword();
     if (password) {
       return password;
     }
@@ -32,7 +45,7 @@ export async function generateRandomPassword(
 
   for (let i = 0; i < length; i++) {
     const randomIndex =
-      window.crypto.getRandomValues(new Uint32Array(1))[0] % charset.length;
+      crypto.getRandomValues(new Uint32Array(1))[0] % charset.length;
     password.push(charset[randomIndex]);
   }
 

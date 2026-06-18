@@ -15,9 +15,12 @@ import {
   signUpGuest as osSignUpGuest,
   verifyEmail as osVerifyEmail,
 } from '@agicash/opensecret';
+import { safeJsonParse } from '@agicash/utils/json';
+import { generateRandomPassword } from '@agicash/utils/password';
 import { computeSHA256 } from '@agicash/utils/sha256';
 import type { QueryClient } from '@tanstack/query-core';
 import { jwtDecode } from 'jwt-decode';
+import { z } from 'zod/mini';
 
 export type AuthUser = UserResponse['user'];
 
@@ -83,6 +86,50 @@ const getJwt = async (key: string): Promise<OpenSecretJwt | null> => {
     return null;
   }
   return jwtDecode<OpenSecretJwt>(jwt);
+};
+
+// Guest accounts persist their recovery credentials (id + password) in the
+// host's persistent storage so the session can be resumed/extended later. Same
+// 'guestAccount' key and shape the web used before this moved into the SDK, so
+// existing guest sessions carry over.
+const guestAccountKey = 'guestAccount';
+
+const GuestAccountDetailsSchema = z.object({
+  id: z.string(),
+  password: z.string(),
+});
+
+type GuestAccountDetails = z.infer<typeof GuestAccountDetailsSchema>;
+
+const getStoredGuestAccount = async (): Promise<GuestAccountDetails | null> => {
+  const dataString =
+    await getConfig().storage.persistent.getItem(guestAccountKey);
+  if (!dataString) {
+    return null;
+  }
+  const parseResult = safeJsonParse(dataString);
+  if (!parseResult.success) {
+    return null;
+  }
+  const validationResult = GuestAccountDetailsSchema.safeParse(
+    parseResult.data,
+  );
+  if (!validationResult.success) {
+    console.warn('Invalid guest account data found in the storage');
+    return null;
+  }
+  return validationResult.data;
+};
+
+const storeGuestAccount = async (data: GuestAccountDetails): Promise<void> => {
+  await getConfig().storage.persistent.setItem(
+    guestAccountKey,
+    JSON.stringify(data),
+  );
+};
+
+const clearStoredGuestAccount = async (): Promise<void> => {
+  await getConfig().storage.persistent.removeItem(guestAccountKey);
 };
 
 const getRemainingSessionTimeInMs = (
@@ -151,10 +198,11 @@ export type AuthApi = {
   /** Signs in a previously created guest account by its id + password. */
   signInGuest: (id: string, password: string) => Promise<void>;
   /**
-   * Creates a guest account and signs in. Returns the new account's id; the
-   * caller persists it (with the password) to sign back into the same guest.
+   * Resumes the persisted guest session if one exists; otherwise creates a new
+   * guest account and persists its recovery credentials. The credentials live
+   * in the host's persistent storage and are cleared on guest -> full upgrade.
    */
-  signUpGuest: (password: string) => Promise<{ id: string }>;
+  signUpGuest: () => Promise<void>;
   /** Signs out the current user (clears the session tokens). */
   signOut: () => Promise<void>;
   /**
@@ -286,10 +334,18 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
       await osSignInGuest(id, password);
       await invalidateAuthState();
     },
-    signUpGuest: async (password) => {
-      const { id } = await osSignUpGuest(password, '');
+    signUpGuest: async () => {
+      // Resume the persisted guest session if there is one; otherwise create a
+      // fresh guest and persist its recovery credentials so it can be resumed.
+      const stored = await getStoredGuestAccount();
+      if (stored) {
+        await osSignInGuest(stored.id, stored.password);
+      } else {
+        const password = await generateRandomPassword(32);
+        const { id } = await osSignUpGuest(password, '');
+        await storeGuestAccount({ id, password });
+      }
       await invalidateAuthState();
-      return { id };
     },
     signOut: async () => {
       await osSignOut();
@@ -318,6 +374,9 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
     requestNewVerificationCode: () => osRequestNewVerificationCode(),
     convertGuestToFullAccount: async (email, password) => {
       await osConvertGuestToUserAccount(email, password);
+      // The guest recovery credentials are useless once this is a full
+      // email/password account; drop them.
+      await clearStoredGuestAccount();
       await invalidateAuthState();
     },
     initiateGoogleAuth: async () => {

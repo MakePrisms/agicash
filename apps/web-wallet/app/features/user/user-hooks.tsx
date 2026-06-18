@@ -6,7 +6,6 @@ import { useCallback } from 'react';
 import { getSdk, useSdk } from '~/features/shared/sdk';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import { useLatest } from '~/lib/use-latest';
-import { guestAccountStorage } from './guest-account-storage';
 
 /**
  * The cached user for contexts where a missing user is a bug (routes under
@@ -102,12 +101,7 @@ export const useUpgradeGuestToFullAccount = (): ((
         throw new Error('User already has a full account');
       }
 
-      return convertGuestToFullAccount(
-        variables.email,
-        variables.password,
-      ).then(() => {
-        guestAccountStorage.clear();
-      });
+      return convertGuestToFullAccount(variables.email, variables.password);
     },
     scope: {
       id: 'upgrade-guest-to-full-account',

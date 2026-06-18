@@ -1,3 +1,4 @@
+import { generateRandomPassword } from '@agicash/utils/password';
 // The web auth feature: React hooks and OAuth/guest login flows over the SDK
 // auth domain (sdk.auth).
 import {
@@ -12,8 +13,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import { getSdk } from '~/features/shared/sdk';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
-import { generateRandomPassword } from '~/lib/password-generator';
-import { guestAccountStorage } from './guest-account-storage';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 import { sessionHintCookie } from './session-hint-cookie';
 
@@ -151,14 +150,6 @@ export const useAuthActions = (): AuthActions => {
     [refreshSession],
   );
 
-  const signInGuest = useCallback(
-    async (id: string, password: string) => {
-      await getSdk().auth.signInGuest(id, password);
-      await refreshSession();
-    },
-    [refreshSession],
-  );
-
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
       await getSdk().auth.signOut();
@@ -193,19 +184,9 @@ export const useAuthActions = (): AuthActions => {
   }, []);
 
   const signUpGuest = useCallback(async () => {
-    const existingGuestAccount = guestAccountStorage.get();
-    if (existingGuestAccount) {
-      return signInGuest(
-        existingGuestAccount.id,
-        existingGuestAccount.password,
-      );
-    }
-
-    const password = await generateRandomPassword(32);
-    const { id } = await getSdk().auth.signUpGuest(password);
-    guestAccountStorage.store({ id, password });
+    await getSdk().auth.signUpGuest();
     await refreshSession();
-  }, [signInGuest, refreshSession]);
+  }, [refreshSession]);
 
   const requestPasswordReset = useCallback(async (email: string) => {
     const secret = await generateRandomPassword(20);
