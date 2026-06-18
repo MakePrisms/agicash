@@ -21,6 +21,9 @@ export function createFanout(
         return;
       }
       if (change.kind === 'account') {
+        // Refresh the resident map BEFORE emitting: the base ChangeFeed calls
+        // fanout.emit before trigger.onEntityChange, so a processor's reload
+        // (which reads WalletAccess synchronously) sees the new/updated account.
         accounts.upsert(change.entity);
       }
       const event = `${change.kind}:${change.operation}` as keyof SdkEventMapA;
