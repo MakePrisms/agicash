@@ -406,3 +406,39 @@ describe('CashuReceiveOps.getClaimableToken', () => {
     );
   });
 });
+
+describe('CashuReceiveOps.getTokenAccounts', () => {
+  const TOKEN = { mint: 'https://mint.a/', proofs: [] } as any;
+
+  it('returns source, possible destinations, and the default receive account', async () => {
+    const source = cashuAcct(); // isDefault:true, canReceive:true, mint.a
+    const { ops, deps } = makeOps({
+      receiveTokenService: {
+        getSourceAndDestinationAccounts: mock(async () => ({
+          sourceAccount: source,
+          possibleDestinationAccounts: [source],
+        })),
+      },
+    });
+    const result = await ops.getTokenAccounts({ token: TOKEN });
+    expect(result.sourceAccount).toBe(source);
+    expect(result.possibleDestinationAccounts).toEqual([source]);
+    expect(result.defaultReceiveAccount?.id).toBe('acc-cashu');
+    expect(deps.accountRepository.getAllActive).toHaveBeenCalledWith('user-1');
+  });
+
+  it('returns a null default when the token cannot be claimed', async () => {
+    const { ops } = makeOps({
+      receiveTokenService: {
+        getSourceAndDestinationAccounts: mock(async () => ({
+          sourceAccount: cashuAcct({ canReceive: false }),
+          possibleDestinationAccounts: [],
+        })),
+      },
+    });
+    const result = await ops.getTokenAccounts({
+      token: { mint: 'https://x/', proofs: [] } as any,
+    });
+    expect(result.defaultReceiveAccount).toBeNull();
+  });
+});

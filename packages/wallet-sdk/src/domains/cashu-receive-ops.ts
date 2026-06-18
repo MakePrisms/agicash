@@ -13,6 +13,10 @@ import { AccountService } from '../internal/services/account-service';
 import type { CashuReceiveQuoteService } from '../internal/services/cashu-receive-quote-service';
 import type { CashuReceiveSwapService } from '../internal/services/cashu-receive-swap-service';
 import { isClaimingToSameCashuAccount } from '../internal/services/receive-cashu-token-models';
+import type {
+  CashuAccountWithTokenFlags,
+  ReceiveCashuTokenAccount,
+} from '../internal/services/receive-cashu-token-models';
 import { ReceiveCashuTokenService } from '../internal/services/receive-cashu-token-service';
 import type {
   CrossAccountReceiveQuotesResult,
@@ -60,6 +64,12 @@ export type ReceiveTokenResult = {
 export type ClaimableTokenResult =
   | { claimableToken: Token; cannotClaimReason: null }
   | { claimableToken: null; cannotClaimReason: string };
+
+export type GetTokenAccountsResult = {
+  sourceAccount: CashuAccountWithTokenFlags;
+  possibleDestinationAccounts: ReceiveCashuTokenAccount[];
+  defaultReceiveAccount: ReceiveCashuTokenAccount | null;
+};
 
 /** Receiving Lightning into a cashu account. `execute` persists the quote so the
  * background processor mints on payment; `awaitTerminal` resolves on COMPLETED. */
@@ -170,6 +180,40 @@ export class CashuReceiveOps {
           cannotClaimReason: null,
         }
       : { claimableToken: null, cannotClaimReason };
+  }
+
+  /**
+   * Selects the token's source account, the accounts it can be received into, and
+   * the default selection — the read behind an interactive token-receive screen.
+   * Reads the user's accounts internally. `defaultReceiveAccount` is null when the
+   * token cannot be claimed into any account.
+   */
+  async getTokenAccounts(p: {
+    token: Token;
+    preferredReceiveAccountId?: string;
+  }): Promise<GetTokenAccountsResult> {
+    const user = await this.requireUser();
+    const accounts = await this.deps.accountRepository.getAllActive(user.id);
+    const extendedAccounts = AccountService.getExtendedAccounts(user, accounts);
+
+    const { sourceAccount, possibleDestinationAccounts } =
+      await this.deps.receiveTokenService.getSourceAndDestinationAccounts(
+        p.token,
+        extendedAccounts,
+      );
+
+    const defaultReceiveAccount =
+      ReceiveCashuTokenService.getDefaultReceiveAccount(
+        sourceAccount,
+        possibleDestinationAccounts,
+        p.preferredReceiveAccountId,
+      );
+
+    return {
+      sourceAccount,
+      possibleDestinationAccounts,
+      defaultReceiveAccount,
+    };
   }
 
   /**
