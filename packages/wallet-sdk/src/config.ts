@@ -1,3 +1,5 @@
+import type { MintBlocklist } from './internal/cashu/mint-validation';
+
 /** Minimal async key/value store the host provides. Web = localStorage-backed,
  * node = fs/sqlite-backed. Holds session tokens (and guest credentials) only —
  * never seeds or derived keys. */
@@ -29,4 +31,10 @@ export type SdkConfig = {
   domain?: string;
   /** Seed dev/test default accounts (testnut mints) on user creation. */
   includeTestAccounts?: boolean;
+  /**
+   * Mint URL + unit combinations to block when validating an unknown source
+   * mint during a token claim. The host parses this (e.g. from
+   * `VITE_CASHU_MINT_BLOCKLIST`); the SDK reads no env. Defaults to `[]`.
+   */
+  cashuMintBlocklist?: MintBlocklist;
 };

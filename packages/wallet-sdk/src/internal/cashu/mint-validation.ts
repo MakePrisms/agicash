@@ -25,7 +25,7 @@ export const MintBlocklistSchema = z.array(
   }),
 );
 
-type MintBlocklist = z.infer<typeof MintBlocklistSchema>;
+export type MintBlocklist = z.infer<typeof MintBlocklistSchema>;
 
 type BuildMintValidatorOptions = {
   /**
@@ -265,3 +265,20 @@ const validateMintFeatures = (
     };
   }
 };
+
+/** The validator returned by {@link buildMintValidator}. */
+export type MintValidator = ReturnType<typeof buildMintValidator>;
+
+/**
+ * Builds the Agicash Cashu mint validator with the protocol-required NUTs and
+ * WebSocket commands. `blocklist` is supplied by the host (the SDK reads no env;
+ * the web app parses `VITE_CASHU_MINT_BLOCKLIST` and passes it via SdkConfig).
+ */
+export const buildCashuMintValidator = (
+  blocklist: MintBlocklist = [],
+): MintValidator =>
+  buildMintValidator({
+    requiredNuts: [4, 5, 7, 8, 9, 10, 11, 12, 17, 20],
+    requiredWebSocketCommands: ['bolt11_melt_quote', 'proof_state'],
+    blocklist,
+  });
