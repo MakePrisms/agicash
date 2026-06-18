@@ -30,6 +30,7 @@ const config = {
   openSecret: { url: 'https://os.test', clientId: 'c' },
   supabase: { url: 'https://sb.test', anonKey: 'anon' },
   storage: { persistent: makeMem(), session: makeMem() },
+  lud16Domain: 'test.example',
   defaultAccounts: [
     {
       type: 'spark',
@@ -87,14 +88,22 @@ describe('Sdk core shell', () => {
   });
   it('still-unimplemented domains throw NotImplementedError', async () => {
     const sdk = await Sdk.create(config);
-    expect(() => sdk.transactions.countPendingAck()).toThrow(
-      NotImplementedError,
-    );
-    expect(() => sdk.contacts.list()).toThrow(NotImplementedError);
-    expect(() => sdk.transfers.createQuote({} as never)).toThrow(
-      NotImplementedError,
-    );
     expect(() => sdk.background.state()).toThrow(NotImplementedError);
+    await sdk.destroy();
+  });
+  it('S8: transactions/contacts/transfers are real domains (not NotImplemented stubs)', async () => {
+    const sdk = await Sdk.create(config);
+    // Real async methods return a Promise (not throw synchronously like the stub does).
+    // Suppress unhandled rejections with .catch — we only test the return type here.
+    const txResult = sdk.transactions.countPendingAck();
+    expect(txResult).toBeInstanceOf(Promise);
+    txResult.catch(() => {});
+    const ctResult = sdk.contacts.list();
+    expect(ctResult).toBeInstanceOf(Promise);
+    ctResult.catch(() => {});
+    const trResult = sdk.transfers.createQuote({} as never);
+    expect(trResult).toBeInstanceOf(Promise);
+    trResult.catch(() => {});
     await sdk.destroy();
   });
   it('cashu create/read methods are wired (not NotImplemented)', async () => {
