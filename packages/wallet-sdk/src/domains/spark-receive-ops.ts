@@ -89,6 +89,7 @@ export class SparkReceiveOps {
   private async classify(quoteId: string): Promise<TerminalStatus> {
     const quote = await this.deps.service.get(quoteId);
     if (!quote) return { status: 'pending' };
+    // Terminal sets must stay in lockstep with internal/realtime/lifecycle-events.ts.
     switch (quote.state) {
       case 'PAID':
         return {

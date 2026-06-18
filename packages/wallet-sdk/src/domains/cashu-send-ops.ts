@@ -168,6 +168,7 @@ export class CashuSendOps {
    * both emit `send:*` keyed by their entity `id`. */
   private async classify(quoteId: string): Promise<TerminalStatus> {
     const quote = await this.deps.quoteRepository.get(quoteId);
+    // Terminal sets (both branches) must stay in lockstep with internal/realtime/lifecycle-events.ts.
     if (quote) {
       switch (quote.state) {
         case 'PAID':
