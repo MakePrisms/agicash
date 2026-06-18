@@ -164,8 +164,21 @@ export function createCashuDomain(
         });
       },
 
-      executeQuote() {
-        throw new NotImplementedError('cashu.send.executeQuote');
+      async executeQuote(quote) {
+        const account = await requireCashuAccount(quote.accountId);
+        const meltQuote = await account.wallet.checkMeltQuoteBolt11(
+          quote.quoteId,
+        );
+        await sendQuoteService.initiateSend(account, quote, meltQuote);
+        const updated = await sendQuoteService.markSendQuoteAsPending(quote);
+        if (updated.state === 'PENDING') {
+          ctx.emitter.emit('send:pending', {
+            quoteId: updated.id,
+            transactionId: updated.transactionId,
+            protocol: 'cashu',
+          });
+        }
+        return updated;
       },
 
       async failQuote(quote, reason) {

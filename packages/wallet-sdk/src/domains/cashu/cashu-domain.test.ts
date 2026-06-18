@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { type Currency, Money } from '@agicash/money';
 import type { SdkConfig } from '../../config';
-import { NotImplementedError } from '../../errors';
+import { DomainError, NotImplementedError } from '../../errors';
 import type { SdkEventMap } from '../../events';
 import { SdkEventEmitter } from '../../internal/event-emitter';
 import * as lnurl from '../../internal/lib/lnurl';
@@ -11,6 +11,7 @@ import { CashuSendQuoteRepository } from '../../internal/repositories/cashu-send
 import { CashuSendSwapRepository } from '../../internal/repositories/cashu-send-swap-repository';
 import { inMemoryStorage, jwtWith } from '../../internal/test-support';
 import type { CashuAccount } from '../../types/account';
+import type { CashuSendQuote } from '../../types/cashu';
 import type { DomainContext } from '../context';
 import { createCashuDomain } from './cashu-domain';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
@@ -39,6 +40,11 @@ const cashuAccount = {
   mintUrl: 'https://mint.test',
   wallet: { id: 'fake-wallet' },
 } as unknown as CashuAccount;
+
+/** Build a cashu account with a custom wallet for tests that exercise wallet methods. */
+function cashuAccountWithWallet(wallet: Record<string, unknown>): CashuAccount {
+  return { ...cashuAccount, wallet } as unknown as CashuAccount;
+}
 
 function makeCtx(): DomainContext {
   return {
@@ -71,6 +77,14 @@ const sendQuoteCreate = spyOn(
   CashuSendQuoteService.prototype,
   'createSendQuote',
 );
+const sendQuoteInitiateSend = spyOn(
+  CashuSendQuoteService.prototype,
+  'initiateSend',
+);
+const sendQuoteMarkPending = spyOn(
+  CashuSendQuoteService.prototype,
+  'markSendQuoteAsPending',
+);
 const swapCreate = spyOn(CashuSendSwapService.prototype, 'create');
 const receiveGetLightning = spyOn(
   CashuReceiveQuoteService.prototype,
@@ -89,6 +103,8 @@ afterAll(() => {
   for (const s of [
     sendQuoteGetLightning,
     sendQuoteCreate,
+    sendQuoteInitiateSend,
+    sendQuoteMarkPending,
     swapCreate,
     receiveGetLightning,
     receiveCreate,
@@ -105,6 +121,8 @@ beforeEach(() => {
   for (const s of [
     sendQuoteGetLightning,
     sendQuoteCreate,
+    sendQuoteInitiateSend,
+    sendQuoteMarkPending,
     swapCreate,
     receiveGetLightning,
     receiveCreate,
@@ -122,11 +140,8 @@ beforeEach(() => {
 });
 
 describe('cashu domain', () => {
-  it('executeQuote + receiveToken throw NotImplementedError', () => {
+  it('receiveToken throws NotImplementedError', () => {
     const domain = createCashuDomain(makeCtx(), fakeAccountRepo());
-    expect(() => domain.send.executeQuote({} as never)).toThrow(
-      NotImplementedError,
-    );
     expect(() => domain.receive.receiveToken({} as never)).toThrow(
       NotImplementedError,
     );
@@ -325,5 +340,74 @@ describe('cashu domain', () => {
         destination: 'alice@example.com',
       }),
     ).rejects.toThrow('Amount is required');
+  });
+
+  describe('cashu.send.executeQuote', () => {
+    it('initiates the send and marks it pending, emitting send:pending', async () => {
+      const account = cashuAccountWithWallet({
+        checkMeltQuoteBolt11: async () => ({ quote: 'mq-1', amount: 100 }),
+      });
+      const pendingQuote = {
+        id: 'sq-1',
+        state: 'PENDING',
+        transactionId: 'tx-1',
+      } as unknown as CashuSendQuote;
+      sendQuoteInitiateSend.mockResolvedValue(undefined as never);
+      sendQuoteMarkPending.mockResolvedValue(pendingQuote as never);
+
+      const ctx = makeCtx();
+      const domain = createCashuDomain(
+        ctx,
+        fakeAccountRepo({
+          get: async (id) => (id === 'acc-1' ? account : null),
+        }),
+      );
+      const pendingEvents: unknown[] = [];
+      ctx.emitter.on('send:pending', (e) => pendingEvents.push(e));
+
+      const quote = {
+        id: 'sq-1',
+        state: 'UNPAID',
+        accountId: 'acc-1',
+        quoteId: 'mq-1',
+      } as unknown as CashuSendQuote;
+      const result = await domain.send.executeQuote(quote);
+
+      expect(sendQuoteInitiateSend).toHaveBeenCalledTimes(1);
+      expect(sendQuoteMarkPending).toHaveBeenCalledTimes(1);
+      expect(result.state).toBe('PENDING');
+      expect(pendingEvents).toEqual([
+        { quoteId: 'sq-1', transactionId: 'tx-1', protocol: 'cashu' },
+      ]);
+    });
+
+    it('propagates a DomainError from initiateSend (foreground surfaces fee/balance errors)', async () => {
+      const account = cashuAccountWithWallet({
+        checkMeltQuoteBolt11: async () => ({ quote: 'mq-1', amount: 100 }),
+      });
+      sendQuoteInitiateSend.mockRejectedValue(
+        new DomainError(
+          'Insufficient balance',
+          'insufficient_balance',
+        ) as never,
+      );
+
+      const domain = createCashuDomain(
+        makeCtx(),
+        fakeAccountRepo({
+          get: async (id) => (id === 'acc-1' ? account : null),
+        }),
+      );
+      const quote = {
+        id: 'sq-1',
+        state: 'UNPAID',
+        accountId: 'acc-1',
+        quoteId: 'mq-1',
+      } as unknown as CashuSendQuote;
+
+      await expect(domain.send.executeQuote(quote)).rejects.toMatchObject({
+        code: 'insufficient_balance',
+      });
+    });
   });
 });

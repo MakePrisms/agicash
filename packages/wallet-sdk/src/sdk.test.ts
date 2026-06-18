@@ -113,14 +113,14 @@ describe('Sdk core shell', () => {
     expect(typeof sdk.cashu.receive.createLightningQuote).toBe('function');
     await sdk.destroy();
   });
-  it('cashu executeQuote/receiveToken throw NotImplemented (S7)', async () => {
+  it('still-dark S7 entry points throw NotImplemented', async () => {
     const sdk = await Sdk.create(config);
-    expect(() => sdk.cashu.send.executeQuote({} as never)).toThrow(
-      NotImplementedError,
-    );
     expect(() =>
       sdk.cashu.receive.receiveToken({ token: 't' } as never),
     ).toThrow(NotImplementedError);
+    expect(() => sdk.spark.send.executeQuote({} as never)).toThrow(
+      NotImplementedError,
+    );
     await sdk.destroy();
   });
 });
