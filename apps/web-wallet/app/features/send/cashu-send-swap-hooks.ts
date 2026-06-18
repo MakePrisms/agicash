@@ -411,8 +411,13 @@ export function useProcessCashuSendSwapTasks() {
         account,
       });
     },
-    retry: 3,
-    throwOnError: true,
+    retry: (failureCount, error) => {
+      if (error instanceof ConcurrencyError) {
+        return true;
+      }
+      return failureCount < 3;
+    },
+    throwOnError: (error) => !(error instanceof ConcurrencyError),
     onError: (error, swapId) => {
       console.error('Error swapping for proofs to send', {
         cause: error,
