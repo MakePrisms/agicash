@@ -104,17 +104,20 @@ configureWalletSdk({
 });
 
 /**
- * The wallet SDK singleton, for use outside React render context — loaders,
- * query/mutation functions, effects, event handlers, and module scope. In
- * component/hook render context use {@link useSdk} instead.
+ * The wallet SDK singleton, for use outside React — loaders, actions,
+ * query/mutation functions, plain (non-hook) functions, and module scope.
+ * Inside a component or hook prefer {@link useSdk}: capture it once at the top
+ * and use that instance everywhere in the hook, including its handlers and
+ * effects (you can't call a hook inside those, but you can use a captured one).
  */
 export const getSdk = (): WalletSdk => WalletSdk.getInstance();
 
 /**
- * The React access point to the wallet SDK singleton. Use it in component and
- * hook render context; for loaders, query/mutation functions, effects, event
- * handlers, and module scope use {@link getSdk} directly (a hook can't be
- * called there).
+ * The preferred way to reach the wallet SDK inside React. Call it at the top of
+ * a component or hook and use the returned instance throughout — including in
+ * its event handlers and effects (capture it; don't call this hook inside
+ * them). Only non-React code — loaders, actions, query/mutation functions,
+ * plain functions, and module scope — should reach for {@link getSdk} directly.
  *
  * Client-only: the SDK binds to browser connections and the browser
  * QueryClient, and every SDK-consuming route renders client-side (the public,

@@ -11,7 +11,7 @@ import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
-import { getSdk } from '~/features/shared/sdk';
+import { getSdk, useSdk } from '~/features/shared/sdk';
 import { useLatest } from '~/lib/use-latest';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 import { sessionHintCookie } from './session-hint-cookie';
@@ -119,6 +119,7 @@ type AuthActions = {
  * @returns {AuthActions}
  */
 export const useAuthActions = (): AuthActions => {
+  const sdk = useSdk();
   const queryClient = useQueryClient();
   const { revalidate } = useRevalidator();
   const navigate = useNavigate();
@@ -139,32 +140,32 @@ export const useAuthActions = (): AuthActions => {
 
   const signUp = useCallback(
     async (email: string, password: string) => {
-      await getSdk().auth.signUp(email, password);
+      await sdk.auth.signUp(email, password);
       await revalidateRoute();
     },
-    [revalidateRoute],
+    [revalidateRoute, sdk],
   );
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      await getSdk().auth.signIn(email, password);
+      await sdk.auth.signIn(email, password);
       await revalidateRoute();
     },
-    [revalidateRoute],
+    [revalidateRoute, sdk],
   );
 
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
-      await getSdk().auth.signOut();
+      await sdk.auth.signOut();
       await revalidateRoute(options.redirectTo);
       Sentry.setUser(null);
       queryClient.clear();
     },
-    [revalidateRoute, queryClient],
+    [revalidateRoute, queryClient, sdk],
   );
 
   const initiateGoogleAuth = useCallback(async () => {
-    const { authUrl } = await getSdk().auth.initiateGoogleAuth();
+    const { authUrl } = await sdk.auth.initiateGoogleAuth();
 
     const authLocation = new URL(authUrl);
     const stateParam = authLocation.searchParams.get('state');
@@ -184,33 +185,36 @@ export const useAuthActions = (): AuthActions => {
     authLocation.searchParams.set('state', stateEncoded);
 
     return { authUrl: authLocation.href };
-  }, []);
+  }, [sdk]);
 
   const signUpGuest = useCallback(async () => {
-    await getSdk().auth.signUpGuest();
+    await sdk.auth.signUpGuest();
     await revalidateRoute();
-  }, [revalidateRoute]);
+  }, [revalidateRoute, sdk]);
 
-  const requestPasswordReset = useCallback(async (email: string) => {
-    const secret = await generateRandomPassword(20);
-    await getSdk().auth.requestPasswordReset(email, secret);
-    return { email, secret };
-  }, []);
+  const requestPasswordReset = useCallback(
+    async (email: string) => {
+      const secret = await generateRandomPassword(20);
+      await sdk.auth.requestPasswordReset(email, secret);
+      return { email, secret };
+    },
+    [sdk],
+  );
 
   const verifyEmail = useCallback(
     async (code: string) => {
-      await getSdk().auth.verifyEmail(code);
+      await sdk.auth.verifyEmail(code);
       await revalidateRoute();
     },
-    [revalidateRoute],
+    [revalidateRoute, sdk],
   );
 
   const convertGuestToFullAccount = useCallback(
     async (email: string, password: string) => {
-      await getSdk().auth.convertGuestToFullAccount(email, password);
+      await sdk.auth.convertGuestToFullAccount(email, password);
       await revalidateRoute();
     },
-    [revalidateRoute],
+    [revalidateRoute, sdk],
   );
 
   const confirmPasswordReset = useCallback(
@@ -220,13 +224,13 @@ export const useAuthActions = (): AuthActions => {
       plaintextSecret: string,
       newPassword: string,
     ) =>
-      getSdk().auth.confirmPasswordReset(
+      sdk.auth.confirmPasswordReset(
         email,
         alphanumericCode,
         plaintextSecret,
         newPassword,
       ),
-    [],
+    [sdk],
   );
 
   return {
@@ -261,6 +265,7 @@ type HandleSessionExpiryProps = {
 export const useHandleSessionExpiry = ({
   onLogout,
 }: HandleSessionExpiryProps) => {
+  const sdk = useSdk();
   const { signOut } = useAuthActions();
   // Refs so the watcher is armed once (on mount) instead of re-armed on every
   // render when the caller passes inline callbacks.
@@ -269,7 +274,7 @@ export const useHandleSessionExpiry = ({
 
   useEffect(
     () =>
-      getSdk().auth.watchSessionExpiry({
+      sdk.auth.watchSessionExpiry({
         // A full account's session expired: notify, then sign out (which
         // revalidates and redirects to login). Guest sessions are resumed by
         // the SDK and never reach here.
@@ -282,7 +287,7 @@ export const useHandleSessionExpiry = ({
           window.location.reload();
         },
       }),
-    // Refs are stable; the watcher arms once on mount and stops on unmount.
-    [],
+    // sdk + refs are stable; the watcher arms once on mount and stops on unmount.
+    [sdk],
   );
 };
