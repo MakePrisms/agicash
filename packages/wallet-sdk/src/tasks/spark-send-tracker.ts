@@ -49,7 +49,7 @@ export type SparkSendTrackerOptions = {
  *    drive initiation);
  *  - for PENDING quotes, groups them by spark account and registers ONE Breez
  *    listener per account's `wallet` (`addEventListener`, additive and
- *    independent of the always-on balance listener `accounts.trackSparkBalances`
+ *    independent of the always-on balance listener `accounts.startSparkBalanceTracking`
  *    attaches to the same shared `BreezSdk`). On `paymentSucceeded` it matches
  *    the payment by spark transfer id, extracts the preimage, and fires
  *    {@link SparkSendTrackerOptions.onCompleted}; on `paymentFailed` it fires

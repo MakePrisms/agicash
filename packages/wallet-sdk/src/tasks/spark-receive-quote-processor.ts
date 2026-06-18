@@ -66,7 +66,7 @@ export type SparkReceiveQuoteProcessorDeps = {
  * early-returns if it is gone (it was updated in the meantime).
  *
  * The Breez listener this attaches is the LEADER-ONLY saga listener and is
- * distinct from the always-on balance listener `accounts.trackSparkBalances`
+ * distinct from the always-on balance listener `accounts.startSparkBalanceTracking`
  * attaches to the same shared `BreezSdk`; balance tracking is untouched.
  */
 export function createSparkReceiveQuoteProcessor(

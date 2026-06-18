@@ -1,7 +1,7 @@
 import type { SdkEvent } from '@agicash/breez-sdk-spark';
 import type { AgicashDb } from '@agicash/db-types';
 import { Money } from '@agicash/utils/money';
-import type { QueryClient } from '@tanstack/query-core';
+import { type QueryClient, QueryObserver } from '@tanstack/query-core';
 import { seedQueryOptions } from '../cashu';
 import type { Encryption } from '../encryption';
 import { sparkMnemonicQueryOptions } from '../spark';
@@ -44,12 +44,12 @@ export type AccountsApi = {
    */
   add: (account: NewCashuAccount) => Promise<CashuAccount>;
   /**
-   * Registers Breez event listeners on the given spark accounts and records
-   * balance changes in the accounts state. The host binds this to its
-   * reactive accounts list lifecycle.
-   * @returns a cleanup function removing the listeners.
+   * Starts the always-on Spark balance tracker: observes the current user's
+   * online, active spark accounts and registers Breez event listeners that
+   * record balance changes in the accounts state, re-tracking as that set
+   * changes. Returns a stop function. Client-only (observes the query cache).
    */
-  trackSparkBalances: (accounts: SparkAccount[]) => () => void;
+  startSparkBalanceTracking: () => () => void;
 };
 
 export type AccountsApiDeps = {
@@ -96,6 +96,103 @@ export function createAccountsApi(deps: AccountsApiDeps): {
   });
   const cache = new AccountsCache(queryClient);
 
+  const trackSparkBalances = (sparkAccounts: SparkAccount[]): (() => void) => {
+    const registrations = sparkAccounts.map((account) => {
+      const listenerPromise = account.wallet.addEventListener({
+        onEvent(event: SdkEvent) {
+          sparkDebugLog('Breez event', {
+            accountId: account.id,
+            type: event.type,
+          });
+
+          if (
+            event.type === 'paymentSucceeded' ||
+            event.type === 'paymentPending' ||
+            event.type === 'paymentFailed' ||
+            event.type === 'claimedDeposits' ||
+            event.type === 'synced'
+          ) {
+            account.wallet.getInfo({}).then((info) => {
+              const balance = new Money({
+                amount: info.balanceSats,
+                currency: 'BTC',
+                unit: 'sat',
+              }) as Money;
+              cache.updateSparkAccountBalance({
+                accountId: account.id,
+                balance,
+              });
+            });
+          }
+        },
+      });
+      return { wallet: account.wallet, listenerPromise };
+    });
+
+    return () => {
+      for (const { wallet, listenerPromise } of registrations) {
+        listenerPromise
+          .then((id) => wallet.removeEventListener(id))
+          .catch(() => {
+            console.warn('Failed to remove Spark event listener');
+          });
+      }
+    };
+  };
+
+  // Mirrors the web's useAccounts({ type: 'spark', isOnline: true }) (active by
+  // default): the spark accounts whose balances are live-tracked.
+  const selectTrackableSparkAccounts = (accounts: Account[]): SparkAccount[] =>
+    accounts.filter(
+      (account): account is SparkAccount =>
+        account.type === 'spark' &&
+        account.isOnline &&
+        account.state === 'active',
+    );
+
+  const startSparkBalanceTracking = (): (() => void) => {
+    let stopTracking: (() => void) | null = null;
+    let lastAccounts: SparkAccount[] | undefined;
+
+    const reconcile = (accounts: SparkAccount[]) => {
+      // query-core structural sharing keeps the selected reference stable
+      // across unrelated changes, so gate on it: re-track only when the set
+      // actually changes.
+      if (accounts === lastAccounts) {
+        return;
+      }
+      lastAccounts = accounts;
+      stopTracking?.();
+      stopTracking = trackSparkBalances(accounts);
+    };
+
+    const observer = new QueryObserver<Account[], Error, SparkAccount[]>(
+      queryClient,
+      {
+        ...accountsQueryOptions({
+          getUserId: getCurrentUserId,
+          accountRepository: repository,
+        }),
+        refetchOnWindowFocus: 'always',
+        refetchOnReconnect: 'always',
+        select: selectTrackableSparkAccounts,
+      },
+    );
+
+    const unsubscribe = observer.subscribe((result) => {
+      reconcile(result.data ?? []);
+    });
+    reconcile(observer.getCurrentResult().data ?? []);
+
+    return () => {
+      unsubscribe();
+      observer.destroy();
+      stopTracking?.();
+      stopTracking = null;
+      lastAccounts = undefined;
+    };
+  };
+
   const api: AccountsApi = {
     listOptions: () =>
       accountsQueryOptions({
@@ -121,49 +218,7 @@ export function createAccountsApi(deps: AccountsApiDeps): {
       cache.upsert(created);
       return created;
     },
-    trackSparkBalances: (sparkAccounts) => {
-      const registrations = sparkAccounts.map((account) => {
-        const listenerPromise = account.wallet.addEventListener({
-          onEvent(event: SdkEvent) {
-            sparkDebugLog('Breez event', {
-              accountId: account.id,
-              type: event.type,
-            });
-
-            if (
-              event.type === 'paymentSucceeded' ||
-              event.type === 'paymentPending' ||
-              event.type === 'paymentFailed' ||
-              event.type === 'claimedDeposits' ||
-              event.type === 'synced'
-            ) {
-              account.wallet.getInfo({}).then((info) => {
-                const balance = new Money({
-                  amount: info.balanceSats,
-                  currency: 'BTC',
-                  unit: 'sat',
-                }) as Money;
-                cache.updateSparkAccountBalance({
-                  accountId: account.id,
-                  balance,
-                });
-              });
-            }
-          },
-        });
-        return { wallet: account.wallet, listenerPromise };
-      });
-
-      return () => {
-        for (const { wallet, listenerPromise } of registrations) {
-          listenerPromise
-            .then((id) => wallet.removeEventListener(id))
-            .catch(() => {
-              console.warn('Failed to remove Spark event listener');
-            });
-        }
-      };
-    },
+    startSparkBalanceTracking,
   };
 
   return {

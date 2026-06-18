@@ -48,7 +48,7 @@ export type SparkSendQuoteProcessorDeps = {
  * serialization does not cover) is handled in {@link SparkSendTracker}.
  *
  * The Breez listener this attaches is the LEADER-ONLY saga listener and is
- * distinct from the always-on balance listener `accounts.trackSparkBalances`
+ * distinct from the always-on balance listener `accounts.startSparkBalanceTracking`
  * attaches to the same shared `BreezSdk`; balance tracking is untouched.
  */
 export function createSparkSendQuoteProcessor(

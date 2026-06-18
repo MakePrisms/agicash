@@ -45,7 +45,7 @@ export type SparkReceiveTrackerOptions = {
  * Tracks a work-set of pending spark receive quotes: groups them by spark
  * account and registers ONE Breez listener per account's `wallet`
  * (`addEventListener`, additive and independent of the always-on balance
- * listener `accounts.trackSparkBalances` attaches to the same shared `BreezSdk`).
+ * listener `accounts.startSparkBalanceTracking` attaches to the same shared `BreezSdk`).
  * On `paymentSucceeded` it matches the lightning payment by htlc payment hash,
  * extracts the preimage, and fires {@link SparkReceiveTrackerOptions.onCompleted};
  * on `synced` it sweeps the account's quotes for any past their expiry and fires
