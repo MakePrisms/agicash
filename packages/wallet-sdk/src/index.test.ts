@@ -6,3 +6,15 @@ describe('public barrel — server surface', () => {
     expect(typeof sdk.createServer).toBe('function');
   });
 });
+
+describe('public barrel — cashu mint blocklist', () => {
+  it('re-exports MintBlocklistSchema (value) so consumers can parse their env JSON', () => {
+    expect(typeof sdk.MintBlocklistSchema).toBe('object'); // a zod/mini schema object
+    const parsed = sdk.MintBlocklistSchema.parse([
+      { mintUrl: 'https://mint.example.com', unit: null },
+    ]);
+    expect(parsed).toEqual([
+      { mintUrl: 'https://mint.example.com', unit: null },
+    ]);
+  });
+});

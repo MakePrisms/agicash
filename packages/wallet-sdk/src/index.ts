@@ -99,6 +99,12 @@ export type {
   DestinationDetails,
 } from './types/cashu';
 
+// --- cashu mint blocklist (config helper) ----------------------------------
+// Re-exported so the consumer can Zod-parse its env JSON before assembling
+// `SdkConfig.cashuMintBlocklist` (the SdkConfig JSDoc points the consumer here).
+export { MintBlocklistSchema } from './internal/lib/cashu/mint-validation';
+export type { MintBlocklist } from './internal/lib/cashu/mint-validation';
+
 // --- spark (§6) ------------------------------------------------------------
 export type { SparkSendQuote, SparkReceiveQuote } from './types/spark';
 
