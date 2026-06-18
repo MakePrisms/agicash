@@ -153,7 +153,7 @@ describe('TransactionDetailsParser', () => {
         estimatedLightningFee: btc(10),
       }),
     });
-    expect(sendDetails.amount.toNumber('sat')).toBeGreaterThan(0);
+    expect(sendDetails.amount.toNumber('sat')).toBe(510);
 
     const receiveDetails = TransactionDetailsParser.parse({
       type: 'SPARK_LIGHTNING',

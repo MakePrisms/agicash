@@ -58,9 +58,11 @@ describe('ContactRepository', () => {
       }),
       DOMAIN,
     );
-    await expect(
-      repo.create({ ownerId: 'u1', username: 'bob' }),
-    ).rejects.toBeInstanceOf(DomainError);
+    const err = await repo
+      .create({ ownerId: 'u1', username: 'bob' })
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(DomainError);
+    expect((err as DomainError).code).toBe('CONTACTS_LIMIT_REACHED');
   });
 
   it('create returns the created contact on success', async () => {

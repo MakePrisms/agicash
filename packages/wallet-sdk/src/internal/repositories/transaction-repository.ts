@@ -122,7 +122,7 @@ export class TransactionRepository {
       decryptedTransactionDetails,
     } satisfies TransactionDetailsParserInput);
 
-    // runtime-validated by TransactionSchema.parse; cast bridges the structurally-equal internal z.infer to the public Transaction (TS can't prove the union×intersection assignability).
+    // runtime-validated by TransactionSchema.parse; cast bridges the structurally-compatible internal z.infer to the public Transaction (TS can't prove the union×intersection assignability).
     return TransactionSchema.parse({
       id: data.id,
       userId: data.user_id,

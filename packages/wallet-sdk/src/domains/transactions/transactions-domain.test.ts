@@ -25,9 +25,7 @@ function setup(repo: Record<string, unknown>) {
     connections: { supabase: {} },
     emitter,
   } as unknown as DomainContext;
-  // inject the fake repo by spying on the repo ctor is avoided; instead the domain
-  // accepts the repo via a thin seam: see Step 3 (createTransactionsDomain builds
-  // `new TransactionRepository(...)`). For the test we override via the connections.
+  // Fake repo injected directly as the 2nd arg — no mock.module needed.
   return { emitter, events, ctx, repo };
 }
 

@@ -6,7 +6,7 @@ import { TransferService } from './transfer-service';
 const btc = (sats: number) =>
   new Money({ amount: sats, currency: 'BTC', unit: 'sat' }) as Money<Currency>;
 
-const cashuAccount = (over = {}) =>
+const cashuAccount = () =>
   ({
     id: 'src',
     type: 'cashu',
@@ -14,7 +14,7 @@ const cashuAccount = (over = {}) =>
     currency: 'BTC',
     wallet: {},
   }) as never;
-const sparkAccount = (over = {}) =>
+const sparkAccount = () =>
   ({
     id: 'dst',
     type: 'spark',
@@ -35,7 +35,7 @@ const cashuSendQuote = {
 // spark receive lightning quote carries the invoice we quote against
 const sparkReceiveQuote = { invoice: { paymentRequest: 'lnbc-x' } };
 
-function services(overrides: Record<string, ReturnType<typeof mock>> = {}) {
+function services() {
   return {
     cashuReceive: {
       getLightningQuote: mock(async () => ({})),
@@ -51,7 +51,6 @@ function services(overrides: Record<string, ReturnType<typeof mock>> = {}) {
       createSendQuote: mock(async () => ({ transactionId: 'sx-tx' })),
     },
     sparkSend: { getLightningSendQuote: mock(), createSendQuote: mock() },
-    ...overrides,
   };
 }
 
