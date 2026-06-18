@@ -1,5 +1,9 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { type MintQuoteBolt11Response, MeltQuoteState, MintQuoteState } from '@cashu/cashu-ts';
+import {
+  type MintQuoteBolt11Response,
+  MeltQuoteState,
+  MintQuoteState,
+} from '@cashu/cashu-ts';
 import { Money } from '@agicash/money';
 import type { SdkEventMap } from '../../events';
 import { SdkEventEmitter } from '../event-emitter';
@@ -8,7 +12,12 @@ import type { CashuReceiveQuote } from '../../types/cashu';
 import type { CashuReceiveQuoteService } from '../../domains/cashu/cashu-receive-quote-service';
 import { CashuReceiveQuoteOrchestrator } from './cashu-receive-quote-orchestrator';
 
-const account = { id: 'acc-1', mintUrl: 'm', currency: 'BTC', wallet: {} } as unknown as CashuAccount;
+const account = {
+  id: 'acc-1',
+  mintUrl: 'm',
+  currency: 'BTC',
+  wallet: {},
+} as unknown as CashuAccount;
 const quote = {
   id: 'rq-1',
   quoteId: 'mintq-1',
@@ -26,7 +35,9 @@ function makeDeps() {
     account,
     addedProofs: ['p1'],
   }));
-  const receiveQuoteService = { completeReceive } as unknown as CashuReceiveQuoteService;
+  const receiveQuoteService = {
+    completeReceive,
+  } as unknown as CashuReceiveQuoteService;
   const orchestrator = new CashuReceiveQuoteOrchestrator({
     receiveQuoteService,
     getAccount: mock(async () => account),
@@ -96,13 +107,18 @@ describe('CashuReceiveQuoteOrchestrator.applyCrossMintMeltState', () => {
       receiveQuoteService: { markMeltInitiated, fail } as never,
       getAccount: mock(async () => account),
       mintSubscriptionManager: {} as never,
-      meltSubscriptionManager: { subscribe: mock(async () => () => {}) } as never,
+      meltSubscriptionManager: {
+        subscribe: mock(async () => () => {}),
+      } as never,
       emitter,
     });
     const tq = tokenQuote as CashuReceiveQuote & { type: 'CASHU_TOKEN' };
     const q = {
       ...tq,
-      tokenReceiveData: { ...tq.tokenReceiveData, meltInitiated: over.meltInitiated ?? false },
+      tokenReceiveData: {
+        ...tq.tokenReceiveData,
+        meltInitiated: over.meltInitiated ?? false,
+      },
     } as CashuReceiveQuote;
     return { orchestrator, q, markMeltInitiated, fail, emitter };
   }
@@ -110,21 +126,47 @@ describe('CashuReceiveQuoteOrchestrator.applyCrossMintMeltState', () => {
   it('UNPAID + not initiated → initiateMelt callback fired', async () => {
     const { orchestrator, q } = makeMeltDeps({ meltInitiated: false });
     const initiateMelt = mock(async () => {});
-    await orchestrator.applyCrossMintMeltState(q as never, { quote: 'src-melt-1', state: MeltQuoteState.UNPAID, amount: 40 } as never, { initiateMelt });
+    await orchestrator.applyCrossMintMeltState(
+      q as never,
+      {
+        quote: 'src-melt-1',
+        state: MeltQuoteState.UNPAID,
+        amount: 40,
+      } as never,
+      { initiateMelt },
+    );
     expect(initiateMelt).toHaveBeenCalledWith(q);
   });
 
   it('PENDING → markMeltInitiated', async () => {
     const { orchestrator, q, markMeltInitiated } = makeMeltDeps();
-    await orchestrator.applyCrossMintMeltState(q as never, { quote: 'src-melt-1', state: MeltQuoteState.PENDING, amount: 40 } as never, { initiateMelt: mock(async () => {}) });
+    await orchestrator.applyCrossMintMeltState(
+      q as never,
+      {
+        quote: 'src-melt-1',
+        state: MeltQuoteState.PENDING,
+        amount: 40,
+      } as never,
+      { initiateMelt: mock(async () => {}) },
+    );
     expect(markMeltInitiated).toHaveBeenCalledTimes(1);
   });
 
   it('UNPAID + already initiated → fail + emits receive:failed', async () => {
-    const { orchestrator, q, fail, emitter } = makeMeltDeps({ meltInitiated: true });
+    const { orchestrator, q, fail, emitter } = makeMeltDeps({
+      meltInitiated: true,
+    });
     const failed: unknown[] = [];
     emitter.on('receive:failed', (e) => failed.push(e));
-    await orchestrator.applyCrossMintMeltState(q as never, { quote: 'src-melt-1', state: MeltQuoteState.UNPAID, amount: 40 } as never, { initiateMelt: mock(async () => {}) });
+    await orchestrator.applyCrossMintMeltState(
+      q as never,
+      {
+        quote: 'src-melt-1',
+        state: MeltQuoteState.UNPAID,
+        amount: 40,
+      } as never,
+      { initiateMelt: mock(async () => {}) },
+    );
     expect(fail).toHaveBeenCalledTimes(1);
     expect(failed).toHaveLength(1);
   });
@@ -145,8 +187,82 @@ describe('CashuReceiveQuoteOrchestrator.reconcileCrossMintMelts', () => {
       { initiateMelt: mock(async () => {}) },
     );
     expect(subscribe).toHaveBeenCalledTimes(1);
-    const call = (subscribe.mock.calls as unknown as [{ mintUrl: string; quoteIds: string[] }[]])[0][0];
+    const call = (
+      subscribe.mock.calls as unknown as [
+        { mintUrl: string; quoteIds: string[] }[],
+      ]
+    )[0][0];
     expect(call.mintUrl).toBe('https://source.mint');
     expect(call.quoteIds).toEqual(['src-melt-1']);
+  });
+});
+
+describe('CashuReceiveQuoteOrchestrator M1 dedupe (repeated source-melt UNPAID)', () => {
+  it('emits receive:failed exactly once when the melt WS delivers UNPAID twice for an already-initiated quote', async () => {
+    const emitter = new SdkEventEmitter<SdkEventMap>();
+    const failedEvents: unknown[] = [];
+    emitter.on('receive:failed', (e) => failedEvents.push(e));
+
+    const receiveQuoteService = {
+      fail: mock(async () => {}), // void; no-op when already FAILED
+    } as unknown as CashuReceiveQuoteService;
+
+    let onUpdate:
+      | ((meltQuote: {
+          quote: string;
+          state: MeltQuoteState;
+          amount: number;
+        }) => void)
+      | undefined;
+    const meltSubscriptionManager = {
+      subscribe: mock(
+        async (p: {
+          onUpdate: (q: {
+            quote: string;
+            state: MeltQuoteState;
+            amount: number;
+          }) => void;
+        }) => {
+          onUpdate = p.onUpdate;
+          return () => {};
+        },
+      ),
+    } as never;
+
+    const orchestrator = new CashuReceiveQuoteOrchestrator({
+      receiveQuoteService,
+      getAccount: mock(
+        async () =>
+          ({
+            id: 'acc-1',
+            type: 'cashu',
+            mintUrl: 'https://mint.test',
+          }) as never,
+      ),
+      mintSubscriptionManager: {} as never,
+      meltSubscriptionManager,
+      emitter,
+    });
+
+    const quote = {
+      id: 'rq-1',
+      type: 'CASHU_TOKEN',
+      state: 'UNPAID',
+      tokenReceiveData: {
+        sourceMintUrl: 'https://mint.test',
+        meltQuoteId: 'mq-1',
+        meltInitiated: true,
+      },
+    } as never;
+
+    await orchestrator.reconcileCrossMintMelts([quote], {
+      initiateMelt: mock(async () => {}),
+    });
+    onUpdate?.({ quote: 'mq-1', state: MeltQuoteState.UNPAID, amount: 40 });
+    onUpdate?.({ quote: 'mq-1', state: MeltQuoteState.UNPAID, amount: 40 }); // duplicate delivery
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(receiveQuoteService.fail).toHaveBeenCalledTimes(1);
+    expect(failedEvents).toHaveLength(1); // M1: was 2 before the fix
   });
 });

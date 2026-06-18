@@ -40,7 +40,10 @@ export class CashuReceiveQuoteOrchestrator {
     ) {
       return;
     }
-    const result = await this.deps.receiveQuoteService.completeReceive(account, quote);
+    const result = await this.deps.receiveQuoteService.completeReceive(
+      account,
+      quote,
+    );
     if (result.quote.state === 'COMPLETED') {
       this.deps.emitter.emit('receive:completed', {
         quoteId: result.quote.id,
@@ -98,14 +101,24 @@ export class CashuReceiveQuoteOrchestrator {
   async applyCrossMintMeltState(
     quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' },
     meltQuote: MeltQuoteBolt11Response,
-    handlers: { initiateMelt: (quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' }) => Promise<void> },
+    handlers: {
+      initiateMelt: (
+        quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' },
+      ) => Promise<void>;
+    },
   ): Promise<void> {
     if (meltQuote.state === MeltQuoteState.UNPAID) {
       if (quote.tokenReceiveData.meltInitiated) {
-        await this.deps.receiveQuoteService.fail(quote, 'Cashu token melt failed.');
+        await this.deps.receiveQuoteService.fail(
+          quote,
+          'Cashu token melt failed.',
+        );
         this.deps.emitter.emit('receive:failed', {
           quoteId: quote.id,
-          error: new SdkError('Cashu token melt failed.', 'cashu_token_melt_failed'),
+          error: new SdkError(
+            'Cashu token melt failed.',
+            'cashu_token_melt_failed',
+          ),
           protocol: 'cashu',
         });
       } else {
@@ -126,10 +139,18 @@ export class CashuReceiveQuoteOrchestrator {
    */
   async reconcileCrossMintMelts(
     quotes: (CashuReceiveQuote & { type: 'CASHU_TOKEN' })[],
-    handlers: { initiateMelt: (quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' }) => Promise<void> },
+    handlers: {
+      initiateMelt: (
+        quote: CashuReceiveQuote & { type: 'CASHU_TOKEN' },
+      ) => Promise<void>;
+    },
   ): Promise<void> {
     if (quotes.length === 0) return;
-    const byMeltQuoteId = new Map<string, CashuReceiveQuote & { type: 'CASHU_TOKEN' }>();
+    const triggered = new Set<string>();
+    const byMeltQuoteId = new Map<
+      string,
+      CashuReceiveQuote & { type: 'CASHU_TOKEN' }
+    >();
     const idsByMint = new Map<string, string[]>();
     for (const quote of quotes) {
       const mintUrl = quote.tokenReceiveData.sourceMintUrl;
@@ -146,8 +167,15 @@ export class CashuReceiveQuoteOrchestrator {
         onUpdate: (meltQuote) => {
           const quote = byMeltQuoteId.get(meltQuote.quote);
           if (!quote) return;
-          void this.applyCrossMintMeltState(quote, meltQuote, handlers).catch((error) =>
-            console.error('cashu receive cross-mint melt update failed', { cause: error }),
+          const key = `${quote.id}:${meltQuote.state}`;
+          if (triggered.has(key)) return;
+          triggered.add(key);
+          void this.applyCrossMintMeltState(quote, meltQuote, handlers).catch(
+            (error) =>
+              console.error('cashu receive cross-mint melt update failed', {
+                quoteId: quote.id,
+                cause: error,
+              }),
           );
         },
       });
