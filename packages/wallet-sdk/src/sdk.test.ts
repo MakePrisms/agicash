@@ -30,6 +30,10 @@ describe('Sdk.create', () => {
     expect(sdk.contacts).toBeDefined();
     expect(sdk.transactions).toBeDefined();
     expect(sdk.transfers).toBeDefined();
+    expect(sdk.cashu.send).toBeDefined();
+    expect(sdk.cashu.receive).toBeDefined();
+    expect(sdk.spark.send).toBeDefined();
+    expect(sdk.spark.receive).toBeDefined();
     await sdk.dispose();
   });
 

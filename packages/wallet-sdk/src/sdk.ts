@@ -3,8 +3,12 @@ import type { SdkConfig } from './config';
 import { AccountsDomain } from './domains/accounts';
 import { AuthDomain } from './domains/auth';
 import { BackgroundDomain } from './domains/background';
+import { CashuReceiveOps } from './domains/cashu-receive-ops';
+import { CashuSendOps } from './domains/cashu-send-ops';
 import { ContactsDomain } from './domains/contacts';
 import { RatesDomain } from './domains/rates';
+import { SparkReceiveOps } from './domains/spark-receive-ops';
+import { SparkSendOps } from './domains/spark-send-ops';
 import { TransactionsDomain } from './domains/transactions';
 import { TransfersDomain } from './domains/transfers';
 import { UserDomain } from './domains/user';
@@ -55,6 +59,8 @@ export class Sdk {
   readonly contacts: ContactsDomain;
   readonly transactions: TransactionsDomain;
   readonly transfers: TransfersDomain;
+  readonly cashu: { send: CashuSendOps; receive: CashuReceiveOps };
+  readonly spark: { send: SparkSendOps; receive: SparkReceiveOps };
   readonly background?: BackgroundDomain;
   private readonly events: EventBus<SdkCoreEventMap>;
   private readonly keys: KeyService;
@@ -71,6 +77,8 @@ export class Sdk {
     contacts: ContactsDomain;
     transactions: TransactionsDomain;
     transfers: TransfersDomain;
+    cashu: { send: CashuSendOps; receive: CashuReceiveOps };
+    spark: { send: SparkSendOps; receive: SparkReceiveOps };
     events: EventBus<SdkCoreEventMap>;
     keys: KeyService;
     sessionToken: SessionTokenProvider;
@@ -84,6 +92,8 @@ export class Sdk {
     this.contacts = parts.contacts;
     this.transactions = parts.transactions;
     this.transfers = parts.transfers;
+    this.cashu = parts.cashu;
+    this.spark = parts.spark;
     this.events = parts.events;
     this.keys = parts.keys;
     this.sessionToken = parts.sessionToken;
@@ -183,6 +193,36 @@ export class Sdk {
       getCurrentUserId,
     });
 
+    const p = walletRuntime.protocols;
+    const cashu = {
+      send: new CashuSendOps({
+        quoteService: p.cashuSendQuoteService,
+        swapService: p.cashuSendSwapService,
+        quoteRepository: p.cashuSendQuoteRepository,
+        swapRepository: p.cashuSendSwapRepository,
+        events,
+        getCurrentUserId,
+      }),
+      receive: new CashuReceiveOps({
+        service: p.cashuReceiveQuoteService,
+        repository: p.cashuReceiveQuoteRepository,
+        events,
+        getCurrentUserId,
+      }),
+    };
+    const spark = {
+      send: new SparkSendOps({
+        service: p.sparkSendQuoteService,
+        events,
+        getCurrentUserId,
+      }),
+      receive: new SparkReceiveOps({
+        service: p.sparkReceiveQuoteService,
+        events,
+        getCurrentUserId,
+      }),
+    };
+
     // Re-arm the session-expiry timer if a session is already present.
     await auth.initialize();
 
@@ -193,7 +233,6 @@ export class Sdk {
         runtime: walletRuntime,
         config,
       });
-      const p = walletRuntime.protocols;
       const registry = new ProcessorRegistry({
         cashuSendQuote: new CashuSendQuoteProcessor({
           service: p.cashuSendQuoteService,
@@ -275,6 +314,8 @@ export class Sdk {
       contacts,
       transactions,
       transfers,
+      cashu,
+      spark,
       events,
       keys,
       sessionToken,
