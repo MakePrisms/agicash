@@ -34,7 +34,10 @@ export class MeltQuoteTracker {
   private deps: MeltQuoteTrackerDeps | null = null;
 
   /** Forwarded so the cashu-send-quote processor can drop a quote's melt sub without unsubscribing the mint. */
-  removeQuoteFromSubscription(args: { mintUrl: string; quoteId: string }): void {
+  removeQuoteFromSubscription(args: {
+    mintUrl: string;
+    quoteId: string;
+  }): void {
     this.manager.removeQuoteFromSubscription(args);
   }
 
@@ -53,7 +56,10 @@ export class MeltQuoteTracker {
       void this.manager
         .subscribe({ mintUrl, quoteIds, onUpdate: (mq) => this.handle(mq) })
         .catch((cause) =>
-          console.error('Error subscribing to melt quote updates', { mintUrl, cause }),
+          console.error('Error subscribing to melt quote updates', {
+            mintUrl,
+            cause,
+          }),
         );
     }
 
@@ -77,6 +83,11 @@ export class MeltQuoteTracker {
     this.clearTimers();
     this.deps = null;
     this.quotes = [];
+    void this.manager
+      .disposeAll()
+      .catch((error) =>
+        console.error('subscription teardown failed', { cause: error }),
+      );
   }
 
   private clearTimers(): void {
@@ -84,7 +95,10 @@ export class MeltQuoteTracker {
     this.timeouts = [];
   }
 
-  private async handle(meltQuote: MeltQuoteBolt11Response, handleExpiry = false): Promise<void> {
+  private async handle(
+    meltQuote: MeltQuoteBolt11Response,
+    handleExpiry = false,
+  ): Promise<void> {
     const cb = this.deps;
     if (!cb) return;
     const quoteData = this.quotes.find((q) => q.id === meltQuote.quote);
@@ -104,7 +118,9 @@ export class MeltQuoteTracker {
       const expectChange = quoteData.inputAmount > meltQuote.amount;
       if (expectChange && !(meltQuote.change && meltQuote.change.length > 0)) {
         const wallet = cb.getWallet(quoteData.mintUrl, quoteData.currency);
-        const meltQuoteWithChange = await wallet.checkMeltQuoteBolt11(quoteData.id);
+        const meltQuoteWithChange = await wallet.checkMeltQuoteBolt11(
+          quoteData.id,
+        );
         cb.onPaid?.(meltQuoteWithChange);
       } else {
         cb.onPaid?.(meltQuote);
