@@ -1,10 +1,11 @@
 /**
  * The `Sdk` class — §1 of the contract.
  *
- * S9: all 11 domains are live. `auth` + `user` + `accounts` + `scan` +
- * `exchangeRate` + `cashu` + `spark` + `transactions` + `contacts` +
- * `transfers` + `background` are real (`cashu.send.executeQuote`,
- * `cashu.receive.receiveToken`, and `spark.send.executeQuote` are S7 stubs).
+ * S9: all 11 domains are live and fully implemented — `auth` + `user` +
+ * `accounts` + `scan` + `exchangeRate` + `cashu` + `spark` + `transactions` +
+ * `contacts` + `transfers` + `background`. The previously-dark
+ * `cashu.send.executeQuote`, `cashu.receive.receiveToken`, and
+ * `spark.send.executeQuote` are now wired (background drives completion).
  */
 import type { SdkConfig } from './config';
 import type {
@@ -47,10 +48,11 @@ import { TransactionRepository } from './internal/repositories/transaction-repos
  * through the domain accessors; subscribe via {@link Sdk.events}; tear down with
  * {@link Sdk.destroy}. Framework-free, no general domain cache.
  *
- * S9: all 11 domains live. `auth`, `user`, `accounts`, `scan`, `exchangeRate`,
- * `cashu`, `spark`, `transactions`, `contacts`, `transfers`, `background` are
- * implemented (`cashu.send.executeQuote` + `cashu.receive.receiveToken` +
- * `spark.send.executeQuote` are S7 stubs).
+ * S9: all 11 domains live and fully implemented — `auth`, `user`, `accounts`,
+ * `scan`, `exchangeRate`, `cashu`, `spark`, `transactions`, `contacts`,
+ * `transfers`, `background`. `cashu.send.executeQuote`,
+ * `cashu.receive.receiveToken`, and `spark.send.executeQuote` are wired
+ * (foreground kick; the background loop drives completion).
  */
 export class Sdk {
   readonly auth: AuthDomain;
