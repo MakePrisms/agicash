@@ -43,6 +43,23 @@ export type SdkConnections = {
   cashuMintValidator: ReturnType<typeof buildMintValidator>;
 };
 
+/** Builds a {@link CashuWalletService} with the standard mint metadata fetcher. */
+export function buildCashuWalletService(): CashuWalletService {
+  return new CashuWalletService(async (mintUrl) => {
+    const mint = new Mint(mintUrl);
+    const [info, keysets, mintKeys] = await Promise.all([
+      mint.getInfo(),
+      mint.getKeySets(),
+      mint.getKeys(),
+    ]);
+    return {
+      mintInfo: new ExtendedMintInfo(info),
+      keysets,
+      keys: mintKeys,
+    } satisfies MintMetadata;
+  });
+}
+
 /**
  * Configure OpenSecret + build the client-mode connection bundle from config.
  * Wallet services (cashu/spark) are constructed here but connect lazily —
@@ -76,19 +93,7 @@ export function buildConnections(config: SdkConfig): SdkConnections {
     blocklist: config.cashuMintBlocklist ?? [],
   });
 
-  const cashuWallets = new CashuWalletService(async (mintUrl) => {
-    const mint = new Mint(mintUrl);
-    const [info, keysets, mintKeys] = await Promise.all([
-      mint.getInfo(),
-      mint.getKeySets(),
-      mint.getKeys(),
-    ]);
-    return {
-      mintInfo: new ExtendedMintInfo(info),
-      keysets,
-      keys: mintKeys,
-    } satisfies MintMetadata;
-  });
+  const cashuWallets = buildCashuWalletService();
 
   const sparkWallets = new SparkWalletService(async (network: SparkNetwork) => {
     const mnemonic = await keys.getChildMnemonic(SPARK_MNEMONIC_PATH);

@@ -101,4 +101,10 @@ export type SdkConfig = {
    * (`${username}@${domain}`). Supplied by the consumer (web: the request origin host).
    */
   lud16Domain: string;
+  /**
+   * BIP39 mnemonic for the dedicated SERVER Spark wallet used to mint
+   * Lightning-Address invoices on behalf of users. Server-mode only —
+   * `createServer` throws if it is missing; omit in the browser.
+   */
+  serverSparkMnemonic?: string;
 };
