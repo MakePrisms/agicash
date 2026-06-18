@@ -79,9 +79,9 @@ describe('Sdk core shell', () => {
     expect(typeof sdk.spark.receive.get).toBe('function');
     await sdk.destroy();
   });
-  it('still-unimplemented domains throw NotImplementedError', async () => {
+  it('background is a live domain (stopped before start)', async () => {
     const sdk = await Sdk.create(config);
-    expect(() => sdk.background.state()).toThrow(NotImplementedError);
+    expect(sdk.background.state()).toBe('stopped');
     await sdk.destroy();
   });
   it('S8: transactions/contacts/transfers are real domains (not NotImplemented stubs)', async () => {
