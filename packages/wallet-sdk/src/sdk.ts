@@ -113,8 +113,12 @@ export class Sdk {
     return new Sdk(config, connections);
   }
 
-  /** Tear down realtime channels and clear event handlers. */
+  /** Stop the background loop, tear down realtime channels, and clear event handlers. */
   async destroy(): Promise<void> {
+    // Idempotent when never started (stop() short-circuits on 'stopped'); when
+    // running it clears the poll interval, balance listeners, and forwarder so
+    // destroy() cannot leak a timer.
+    await this.background.stop();
     await this.connections.supabase.removeAllChannels();
     this.emitter.removeAll();
   }
