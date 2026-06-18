@@ -32,10 +32,9 @@ ensureBreezWasm().catch(() => {
   // Surfaced via _protected middleware → route ErrorBoundary.
 });
 
-// Prefetch feature flags as early as possible.
-// Before login the DB client uses the anon key (no access token),
-// so we get global flags. After login, refreshSession invalidates
-// this query and re-fetches with the user's JWT for user-targeted flags.
+// Prefetch feature flags as early as possible. Before login they're evaluated
+// for the anon session; after login the SDK re-evaluates them (its auth
+// mutations invalidate the flags) so they reflect the user's JWT.
 getQueryClient()
   .prefetchQuery(getSdk().featureFlags.options())
   .then(() => {

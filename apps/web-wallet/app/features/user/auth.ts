@@ -123,7 +123,10 @@ export const useAuthActions = (): AuthActions => {
   const { revalidate } = useRevalidator();
   const navigate = useNavigate();
 
-  const refreshSession = useCallback(
+  // Re-runs the current route (or navigates away) so React Router's
+  // loaders/guards re-evaluate against the auth state the SDK mutation just
+  // refreshed — e.g. _protected sees the now-logged-out state and redirects.
+  const revalidateRoute = useCallback(
     async (redirectTo?: string) => {
       if (redirectTo) {
         await navigate(redirectTo);
@@ -137,27 +140,27 @@ export const useAuthActions = (): AuthActions => {
   const signUp = useCallback(
     async (email: string, password: string) => {
       await getSdk().auth.signUp(email, password);
-      await refreshSession();
+      await revalidateRoute();
     },
-    [refreshSession],
+    [revalidateRoute],
   );
 
   const signIn = useCallback(
     async (email: string, password: string) => {
       await getSdk().auth.signIn(email, password);
-      await refreshSession();
+      await revalidateRoute();
     },
-    [refreshSession],
+    [revalidateRoute],
   );
 
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
       await getSdk().auth.signOut();
-      await refreshSession(options.redirectTo);
+      await revalidateRoute(options.redirectTo);
       Sentry.setUser(null);
       queryClient.clear();
     },
-    [refreshSession, queryClient],
+    [revalidateRoute, queryClient],
   );
 
   const initiateGoogleAuth = useCallback(async () => {
@@ -185,8 +188,8 @@ export const useAuthActions = (): AuthActions => {
 
   const signUpGuest = useCallback(async () => {
     await getSdk().auth.signUpGuest();
-    await refreshSession();
-  }, [refreshSession]);
+    await revalidateRoute();
+  }, [revalidateRoute]);
 
   const requestPasswordReset = useCallback(async (email: string) => {
     const secret = await generateRandomPassword(20);
@@ -197,17 +200,17 @@ export const useAuthActions = (): AuthActions => {
   const verifyEmail = useCallback(
     async (code: string) => {
       await getSdk().auth.verifyEmail(code);
-      await refreshSession();
+      await revalidateRoute();
     },
-    [refreshSession],
+    [revalidateRoute],
   );
 
   const convertGuestToFullAccount = useCallback(
     async (email: string, password: string) => {
       await getSdk().auth.convertGuestToFullAccount(email, password);
-      await refreshSession();
+      await revalidateRoute();
     },
-    [refreshSession],
+    [revalidateRoute],
   );
 
   const confirmPasswordReset = useCallback(
