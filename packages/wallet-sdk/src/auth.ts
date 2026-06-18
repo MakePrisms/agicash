@@ -129,8 +129,10 @@ export type AuthApi = {
    */
   getUserId: () => string;
   /**
-   * Invalidates the auth state query. Call after any auth state change
-   * (login, logout, email verification, ...).
+   * Forces a re-fetch of the auth state. The state-changing mutations
+   * (signIn/signOut/verifyEmail/...) already do this themselves; call this
+   * only to refresh outside a mutation (e.g. after an out-of-band token
+   * change).
    */
   invalidate: () => Promise<void>;
   /** Token-presence/expiry check without fetching the auth user. */
@@ -198,6 +200,15 @@ export type AuthApiDeps = {
 export function createAuthApi(deps: AuthApiDeps): AuthApi {
   const { queryClient, onAuthUserIdDecoded, onAuthStateResolved } = deps;
 
+  // The auth-state query is the SDK's own cache. The state-changing mutations
+  // below refresh it themselves so no caller has to remember to — `refetchType:
+  // 'all'` means the awaited mutation also waits for the refetch to settle.
+  const invalidateAuthState = () =>
+    queryClient.invalidateQueries({
+      queryKey: [authStateQueryKey],
+      refetchType: 'all',
+    });
+
   return {
     stateOptions: () => ({
       queryKey: [authStateQueryKey],
@@ -238,11 +249,7 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
       }
       return state.user.id;
     },
-    invalidate: () =>
-      queryClient.invalidateQueries({
-        queryKey: [authStateQueryKey],
-        refetchType: 'all',
-      }),
+    invalidate: invalidateAuthState,
     isLoggedIn,
     getSessionExpiresInMs: async () =>
       getRemainingSessionTimeInMs(await getJwt(refreshTokenKey)),
@@ -253,18 +260,25 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
     },
     signUp: async (email, password) => {
       await osSignUp(email, password, '');
+      await invalidateAuthState();
     },
     signIn: async (email, password) => {
       await osSignIn(email, password);
+      await invalidateAuthState();
     },
     signInGuest: async (id, password) => {
       await osSignInGuest(id, password);
+      await invalidateAuthState();
     },
     signUpGuest: async (password) => {
       const { id } = await osSignUpGuest(password, '');
+      await invalidateAuthState();
       return { id };
     },
-    signOut: () => osSignOut(),
+    signOut: async () => {
+      await osSignOut();
+      await invalidateAuthState();
+    },
     requestPasswordReset: async (email, secret) => {
       const hashedSecret = await computeSHA256(secret);
       await osRequestPasswordReset(email, hashedSecret);
@@ -281,16 +295,22 @@ export function createAuthApi(deps: AuthApiDeps): AuthApi {
         plaintextSecret,
         newPassword,
       ),
-    verifyEmail: (code) => osVerifyEmail(code),
+    verifyEmail: async (code) => {
+      await osVerifyEmail(code);
+      await invalidateAuthState();
+    },
     requestNewVerificationCode: () => osRequestNewVerificationCode(),
-    convertGuestToFullAccount: (email, password) =>
-      osConvertGuestToUserAccount(email, password),
+    convertGuestToFullAccount: async (email, password) => {
+      await osConvertGuestToUserAccount(email, password);
+      await invalidateAuthState();
+    },
     initiateGoogleAuth: async () => {
       const { auth_url } = await osInitiateGoogleAuth('');
       return { authUrl: auth_url };
     },
     handleGoogleCallback: async (code, state) => {
       await osHandleGoogleCallback(code, state, '');
+      await invalidateAuthState();
     },
   };
 }

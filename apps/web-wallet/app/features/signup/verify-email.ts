@@ -4,7 +4,7 @@ import { createContext, redirect } from 'react-router';
 import { getSdk } from '~/features/shared/sdk';
 import { useToast } from '~/hooks/use-toast';
 import type { Route } from '../../routes/+types/_protected.verify-email.($code)';
-import { invalidateAuthQueries } from '../user/auth';
+import { invalidateFeatureFlags } from '../user/auth';
 import {
   getUserFromCacheOrThrow,
   useRequestNewEmailVerificationCode,
@@ -39,7 +39,7 @@ export const verifyEmail = async (
 ): Promise<{ verified: true } | { verified: false; error: Error }> => {
   try {
     await getSdk().auth.verifyEmail(code);
-    await invalidateAuthQueries();
+    await invalidateFeatureFlags();
     return { verified: true };
   } catch (e) {
     const error = new Error('Failed to verify email', { cause: e });

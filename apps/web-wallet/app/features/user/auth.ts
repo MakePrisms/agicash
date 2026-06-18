@@ -20,9 +20,6 @@ import { sessionHintCookie } from './session-hint-cookie';
 
 export type { AuthState, AuthUser };
 
-// Server-safe wrapper over sdk.auth.stateOptions: public pages build these
-// options during SSR/prerender, where getSdk() throws — so the sdk is only
-// touched inside the queryFn, which never runs on the server.
 export const authQueryOptions = () => ({
   queryKey: [authStateQueryKey],
   queryFn: () => getSdk().auth.stateOptions().queryFn(),
@@ -30,18 +27,16 @@ export const authQueryOptions = () => ({
 });
 
 /**
- * Invalidates all queries that depend on the current auth session.
- * Call after any auth state change (login, logout, email verification, etc.)
+ * Re-evaluates the web-owned feature flags after an auth-state change (the
+ * flags are user-targeted, so login/logout/verification can change them). The
+ * SDK's auth mutations refresh the auth-state query themselves, so this no
+ * longer touches it. Transitional — folds into the SDK when feature flags move.
  */
-export const invalidateAuthQueries = async () => {
-  const queryClient = getQueryClient();
-  await Promise.all([
-    getSdk().auth.invalidate(),
-    queryClient.invalidateQueries({
-      queryKey: ['feature-flags'],
-      refetchType: 'all',
-    }),
-  ]);
+export const invalidateFeatureFlags = async () => {
+  await getQueryClient().invalidateQueries({
+    queryKey: ['feature-flags'],
+    refetchType: 'all',
+  });
 };
 
 export const useAuthState = (): AuthState => {
@@ -145,7 +140,7 @@ export const useAuthActions = (): AuthActions => {
 
   const refreshSession = useCallback(
     async (redirectTo?: string) => {
-      await invalidateAuthQueries();
+      await invalidateFeatureFlags();
       if (redirectTo) {
         await navigate(redirectTo);
       } else {
