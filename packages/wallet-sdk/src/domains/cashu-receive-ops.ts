@@ -71,6 +71,11 @@ export type GetTokenAccountsResult = {
   defaultReceiveAccount: ReceiveCashuTokenAccount | null;
 };
 
+export type CreateTokenClaimResult = {
+  transactionId: string;
+  account: Account;
+};
+
 /** Receiving Lightning into a cashu account. `execute` persists the quote so the
  * background processor mints on payment; `awaitTerminal` resolves on COMPLETED. */
 export class CashuReceiveOps {
@@ -213,6 +218,57 @@ export class CashuReceiveOps {
       sourceAccount,
       possibleDestinationAccounts,
       defaultReceiveAccount,
+    };
+  }
+
+  /**
+   * Create-only token claim: adds the destination account if unknown, then persists
+   * either a same-account swap or cross-account receive quotes and returns the
+   * transaction id. Does NOT melt or complete — the background processors finalize.
+   * Does NOT set a default account (matches the interactive app path). Inputs are the
+   * already-selected accounts from `getTokenAccounts`.
+   */
+  async createTokenClaim(p: {
+    token: Token;
+    sourceAccount: CashuAccountWithTokenFlags;
+    destinationAccount: ReceiveCashuTokenAccount;
+  }): Promise<CreateTokenClaimResult> {
+    const user = await this.requireUser();
+
+    let account: Account = p.destinationAccount;
+    if (
+      p.destinationAccount.isUnknown &&
+      p.destinationAccount.type === 'cashu'
+    ) {
+      account = await this.deps.accountService.addCashuAccount({
+        userId: user.id,
+        account: p.destinationAccount,
+      });
+    }
+
+    if (isClaimingToSameCashuAccount(account, p.sourceAccount)) {
+      const { swap } = await this.deps.swapService.create({
+        userId: user.id,
+        token: p.token,
+        account: account as CashuAccount,
+      });
+      return { transactionId: swap.transactionId, account };
+    }
+
+    const exchangeRate = await this.deps.getExchangeRate(
+      `${p.sourceAccount.currency}-${account.currency}` as Ticker,
+    );
+    const quotes =
+      await this.deps.receiveTokenQuoteService.createCrossAccountReceiveQuotes({
+        userId: user.id,
+        token: p.token,
+        sourceAccount: p.sourceAccount,
+        destinationAccount: account,
+        exchangeRate,
+      });
+    return {
+      transactionId: quotes.lightningReceiveQuote.transactionId,
+      account,
     };
   }
 

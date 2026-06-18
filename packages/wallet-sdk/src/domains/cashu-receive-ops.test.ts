@@ -407,6 +407,74 @@ describe('CashuReceiveOps.getClaimableToken', () => {
   });
 });
 
+describe('CashuReceiveOps.createTokenClaim', () => {
+  const TOKEN = { mint: 'https://mint.a/', proofs: [] } as any;
+
+  it('same-account: creates the swap and returns its transactionId, without completing', async () => {
+    const source = cashuAcct({ mintUrl: 'https://mint.a/' });
+    const dest = cashuAcct({
+      id: 'acc-cashu',
+      mintUrl: 'https://mint.a/',
+      isUnknown: false,
+    });
+    const { ops, deps } = makeOps();
+    const result = await ops.createTokenClaim({
+      token: TOKEN,
+      sourceAccount: source,
+      destinationAccount: dest as any,
+    });
+    expect(result.transactionId).toBe('tx-swap');
+    expect(result.account).toBe(dest);
+    expect(deps.swapService.create).toHaveBeenCalledTimes(1);
+    // create-only: no completion, no melt, no setDefault.
+    expect(deps.swapService.completeSwap).not.toHaveBeenCalled();
+    expect(source.wallet.meltProofsIdempotent).not.toHaveBeenCalled();
+    expect(deps.setDefaultAccount).not.toHaveBeenCalled();
+  });
+
+  it('cross-account: creates the quotes and returns the quote transactionId, without melting', async () => {
+    const source = cashuAcct({ mintUrl: 'https://mint.a/' });
+    const dest = cashuAcct({
+      id: 'acc-dest',
+      mintUrl: 'https://mint.b/',
+      isUnknown: false,
+    });
+    const { ops, deps } = makeOps();
+    const result = await ops.createTokenClaim({
+      token: TOKEN,
+      sourceAccount: source,
+      destinationAccount: dest as any,
+    });
+    expect(result.transactionId).toBe('tx-cross');
+    expect(result.account).toBe(dest);
+    expect(
+      deps.receiveTokenQuoteService.createCrossAccountReceiveQuotes,
+    ).toHaveBeenCalledTimes(1);
+    expect(source.wallet.meltProofsIdempotent).not.toHaveBeenCalled();
+    expect(deps.service.completeReceive).not.toHaveBeenCalled();
+  });
+
+  it('adds an unknown destination account first, then claims to it', async () => {
+    const source = cashuAcct({ mintUrl: 'https://mint.a/' });
+    // unknown cashu account on the SAME mint -> after add, same-account branch.
+    const dest = cashuAcct({
+      id: 'acc-placeholder',
+      mintUrl: 'https://mint.a/',
+      isUnknown: true,
+    });
+    const { ops, deps } = makeOps(); // addCashuAccount mock returns cashuAcct({ id: 'acc-added' }) (mint.a)
+    const result = await ops.createTokenClaim({
+      token: TOKEN,
+      sourceAccount: source,
+      destinationAccount: dest as any,
+    });
+    expect(deps.accountService.addCashuAccount).toHaveBeenCalledTimes(1);
+    expect(result.account.id).toBe('acc-added');
+    expect(result.transactionId).toBe('tx-swap');
+    expect(deps.setDefaultAccount).not.toHaveBeenCalled();
+  });
+});
+
 describe('CashuReceiveOps.getTokenAccounts', () => {
   const TOKEN = { mint: 'https://mint.a/', proofs: [] } as any;
 
