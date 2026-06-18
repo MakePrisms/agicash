@@ -49,6 +49,9 @@ describe('Sdk.create', () => {
   test('exposes sdk.cashu.receive.receiveToken', async () => {
     const sdk = await Sdk.create(baseConfig(), { openSecret: fakeOs() });
     expect(typeof sdk.cashu.receive.receiveToken).toBe('function');
+    expect(typeof sdk.cashu.receive.getClaimableToken).toBe('function');
+    expect(typeof sdk.cashu.receive.getTokenAccounts).toBe('function');
+    expect(typeof sdk.cashu.receive.createTokenClaim).toBe('function');
     await sdk.dispose();
   });
 });

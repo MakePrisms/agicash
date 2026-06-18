@@ -94,7 +94,17 @@ export type {
 export type { Rate } from './domains/rates';
 export type { Ticker } from './internal/rates/providers/types';
 export type { TerminalResult } from './domains/await-terminal';
-export type { ReceiveTokenResult } from './domains/cashu-receive-ops';
+export type {
+  ReceiveTokenResult,
+  GetTokenAccountsResult,
+  CreateTokenClaimResult,
+  ClaimableTokenResult,
+} from './domains/cashu-receive-ops';
+export type {
+  TokenFlags,
+  CashuAccountWithTokenFlags,
+  ReceiveCashuTokenAccount,
+} from './internal/services/receive-cashu-token-models';
 export type { CreateTokenSendResult } from './domains/cashu-send-ops';
 export type { CashuLightningQuote } from './internal/services/cashu-send-quote-service';
 export type { SparkLightningQuote } from './internal/services/spark-send-quote-service';
