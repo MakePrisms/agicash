@@ -1,14 +1,16 @@
 import type { Money } from '@agicash/money';
 import type { SparkDomain } from '../../domains';
-import { DomainError, NotImplementedError, SdkError } from '../../errors';
+import { DomainError, SdkError } from '../../errors';
 import { getCurrentUserId } from '../../internal/connections/open-secret';
 import {
   buildLightningAddressFormatValidator,
   getInvoiceFromLud16,
   isLNURLError,
 } from '../../internal/lib/lnurl';
+import type { AccountRepository } from '../../internal/repositories/account-repository';
 import { SparkReceiveQuoteRepository } from '../../internal/repositories/spark-receive-quote-repository';
 import { SparkSendQuoteRepository } from '../../internal/repositories/spark-send-quote-repository';
+import type { SparkAccount } from '../../types/account';
 import type { DomainContext } from '../context';
 import { createExchangeRateDomain } from '../exchange-rate/exchange-rate-domain';
 import { getLightningQuote as getReceiveLightningQuote } from './spark-receive-quote-core';
@@ -19,10 +21,13 @@ import { SparkSendQuoteService } from './spark-send-quote-service';
  * Build the spark domain over the shared context.
  *
  * `send.createLightningQuote`/`failQuote`/`get` and `receive.createLightningQuote`/`get`
- * are implemented here. `send.executeQuote` (the Breez-event-driven send orchestrator)
- * throws {@link NotImplementedError}.
+ * are implemented here. `send.executeQuote` initiates the Lightning payment and emits
+ * `send:pending` once the quote transitions to PENDING.
  */
-export function createSparkDomain(ctx: DomainContext): SparkDomain {
+export function createSparkDomain(
+  ctx: DomainContext,
+  accountRepository: AccountRepository,
+): SparkDomain {
   const { supabase, encryption } = ctx.connections;
 
   const sendQuoteRepo = new SparkSendQuoteRepository(supabase, encryption);
@@ -40,6 +45,19 @@ export function createSparkDomain(ctx: DomainContext): SparkDomain {
     message: 'invalid',
     allowLocalhost: ctx.config.allowLocalhostLightningAddress ?? false,
   });
+
+  const requireSparkAccount = async (id: string): Promise<SparkAccount> => {
+    const account = await accountRepository.get(id);
+    if (!account)
+      throw new DomainError('Account not found', 'account_not_found');
+    if (account.type !== 'spark') {
+      throw new DomainError(
+        'Account is not a spark account',
+        'invalid_account_type',
+      );
+    }
+    return account;
+  };
 
   const requireUserId = async (): Promise<string> => {
     const id = await getCurrentUserId(ctx.config.storage);
@@ -90,8 +108,20 @@ export function createSparkDomain(ctx: DomainContext): SparkDomain {
         return sendQuoteService.createSendQuote({ userId, account, quote });
       },
 
-      executeQuote() {
-        throw new NotImplementedError('spark.send.executeQuote');
+      async executeQuote(quote) {
+        const account = await requireSparkAccount(quote.accountId);
+        const updated = await sendQuoteService.initiateSend({
+          account,
+          sendQuote: quote,
+        });
+        if (updated.state === 'PENDING') {
+          ctx.emitter.emit('send:pending', {
+            quoteId: updated.id,
+            transactionId: updated.transactionId,
+            protocol: 'spark',
+          });
+        }
+        return updated;
       },
 
       async failQuote(quote, reason) {

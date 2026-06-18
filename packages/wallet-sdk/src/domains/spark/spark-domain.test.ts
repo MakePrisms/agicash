@@ -1,10 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { Money } from '@agicash/money';
 import type { SdkConfig } from '../../config';
-import { NotImplementedError } from '../../errors';
+import { DomainError, NotImplementedError } from '../../errors';
 import type { SdkEventMap } from '../../events';
 import { SdkEventEmitter } from '../../internal/event-emitter';
 import * as lnurl from '../../internal/lib/lnurl';
+import type { AccountRepository } from '../../internal/repositories/account-repository';
 import { SparkReceiveQuoteRepository } from '../../internal/repositories/spark-receive-quote-repository';
 import { SparkSendQuoteRepository } from '../../internal/repositories/spark-send-quote-repository';
 import {
@@ -57,6 +58,12 @@ function makeCtx(): DomainContext {
   };
 }
 
+function fakeAccountRepo(
+  account: SparkAccount | null = sparkAccount,
+): AccountRepository {
+  return { get: async () => account } as unknown as AccountRepository;
+}
+
 // Spies on real class prototypes + the lnurl module.
 const sendServiceFail = spyOn(SparkSendQuoteService.prototype, 'fail');
 const sendServiceGetLightning = spyOn(
@@ -66,6 +73,10 @@ const sendServiceGetLightning = spyOn(
 const sendServiceCreate = spyOn(
   SparkSendQuoteService.prototype,
   'createSendQuote',
+);
+const sendServiceInitiateSend = spyOn(
+  SparkSendQuoteService.prototype,
+  'initiateSend',
 );
 const receiveServiceCreateQuote = spyOn(
   SparkReceiveQuoteService.prototype,
@@ -80,6 +91,7 @@ afterAll(() => {
     sendServiceFail,
     sendServiceGetLightning,
     sendServiceCreate,
+    sendServiceInitiateSend,
     receiveServiceCreateQuote,
     sendRepoGet,
     receiveRepoGet,
@@ -94,6 +106,7 @@ beforeEach(() => {
     sendServiceFail,
     sendServiceGetLightning,
     sendServiceCreate,
+    sendServiceInitiateSend,
     receiveServiceCreateQuote,
     sendRepoGet,
     receiveRepoGet,
@@ -106,16 +119,60 @@ beforeEach(() => {
 });
 
 describe('spark domain', () => {
-  it('executeQuote throws NotImplementedError', () => {
-    const domain = createSparkDomain(makeCtx());
-    expect(() => domain.send.executeQuote({} as never)).toThrow(
-      NotImplementedError,
-    );
+  describe('spark.send.executeQuote', () => {
+    it('initiates the send (returns PENDING) and emits send:pending', async () => {
+      const ctx = makeCtx();
+      const pending: unknown[] = [];
+      ctx.emitter.on('send:pending', (e) => pending.push(e));
+
+      sendServiceInitiateSend.mockResolvedValue({
+        id: 'sq-1',
+        state: 'PENDING',
+        transactionId: 'tx-1',
+      } as never);
+
+      const domain = createSparkDomain(ctx, fakeAccountRepo());
+      const quote = {
+        id: 'sq-1',
+        state: 'UNPAID',
+        accountId: 'acc-1',
+        transactionId: 'tx-1',
+      } as unknown as SparkSendQuote;
+      const result = await domain.send.executeQuote(quote);
+
+      expect(sendServiceInitiateSend).toHaveBeenCalledWith({
+        account: expect.objectContaining({ id: 'acc-1' }),
+        sendQuote: quote,
+      });
+      expect(result.state).toBe('PENDING');
+      expect(pending).toEqual([
+        { quoteId: 'sq-1', transactionId: 'tx-1', protocol: 'spark' },
+      ] as never);
+    });
+
+    it('propagates a DomainError from initiateSend (fee_changed surfaces to the UI)', async () => {
+      sendServiceInitiateSend.mockImplementation(async () => {
+        throw new DomainError(
+          'Lightning network fee has changed',
+          'fee_changed',
+        );
+      });
+
+      const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
+      const quote = {
+        id: 'sq-1',
+        state: 'UNPAID',
+        accountId: 'acc-1',
+      } as unknown as SparkSendQuote;
+      await expect(domain.send.executeQuote(quote)).rejects.toMatchObject({
+        code: 'fee_changed',
+      });
+    });
   });
 
   it('failQuote calls through to the send service', async () => {
     sendServiceFail.mockResolvedValue({ id: 'q1', state: 'FAILED' } as never);
-    const domain = createSparkDomain(makeCtx());
+    const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
     const quote = { id: 'q1', state: 'UNPAID' } as SparkSendQuote;
     await domain.send.failQuote(quote, 'test reason');
     expect(sendServiceFail).toHaveBeenCalledTimes(1);
@@ -141,7 +198,7 @@ describe('spark domain', () => {
       sendServiceGetLightning.mockResolvedValue(lightningQuoteStub as never);
       sendServiceCreate.mockResolvedValue(unpaidQuoteStub as never);
 
-      const domain = createSparkDomain(makeCtx());
+      const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
       const result = await domain.send.createLightningQuote({
         account: sparkAccount,
         destination: VALID_INVOICE,
@@ -188,7 +245,7 @@ describe('spark domain', () => {
       sendServiceGetLightning.mockResolvedValue(lightningQuoteStub as never);
       sendServiceCreate.mockResolvedValue(unpaidQuoteStub as never);
 
-      const domain = createSparkDomain(makeCtx());
+      const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
       await domain.send.createLightningQuote({
         account: sparkAccount,
         destination: 'someuser@example.com',
@@ -233,7 +290,7 @@ describe('spark domain', () => {
       },
     } as unknown as SparkAccount;
 
-    const domain = createSparkDomain(makeCtx());
+    const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
     const amount = btc(500);
     const result = await domain.receive.createLightningQuote({
       account: accountWithWallet,
@@ -270,7 +327,7 @@ describe('spark domain', () => {
       },
     } as unknown as SparkAccount;
 
-    const domain = createSparkDomain(makeCtx());
+    const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
     await domain.receive.createLightningQuote({
       account: accountWithWallet,
       amount: btc(200),
@@ -286,7 +343,7 @@ describe('spark domain', () => {
   it('send.get delegates to the send repo', async () => {
     const quote = { id: 'sq-1', state: 'UNPAID' };
     sendRepoGet.mockResolvedValue(quote as never);
-    const domain = createSparkDomain(makeCtx());
+    const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
 
     const result = await domain.send.get('sq-1');
     expect(result as unknown).toBe(quote);
@@ -294,7 +351,7 @@ describe('spark domain', () => {
   });
 
   it('send.get returns null when not found', async () => {
-    const domain = createSparkDomain(makeCtx());
+    const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
     const result = await domain.send.get('missing');
     expect(result).toBeNull();
   });
@@ -302,7 +359,7 @@ describe('spark domain', () => {
   it('receive.get delegates to the receive repo', async () => {
     const quote = { id: 'rq-1', state: 'UNPAID', type: 'LIGHTNING' };
     receiveRepoGet.mockResolvedValue(quote as never);
-    const domain = createSparkDomain(makeCtx());
+    const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
 
     const result = await domain.receive.get('rq-1');
     expect(result as unknown).toBe(quote);
@@ -310,7 +367,7 @@ describe('spark domain', () => {
   });
 
   it('receive.get returns null when not found', async () => {
-    const domain = createSparkDomain(makeCtx());
+    const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
     const result = await domain.receive.get('missing');
     expect(result).toBeNull();
   });

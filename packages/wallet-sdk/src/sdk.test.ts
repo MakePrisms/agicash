@@ -79,13 +79,6 @@ describe('Sdk core shell', () => {
     expect(typeof sdk.spark.receive.get).toBe('function');
     await sdk.destroy();
   });
-  it('spark executeQuote throws NotImplemented (S7)', async () => {
-    const sdk = await Sdk.create(config);
-    expect(() => sdk.spark.send.executeQuote({} as never)).toThrow(
-      NotImplementedError,
-    );
-    await sdk.destroy();
-  });
   it('still-unimplemented domains throw NotImplementedError', async () => {
     const sdk = await Sdk.create(config);
     expect(() => sdk.background.state()).toThrow(NotImplementedError);
@@ -118,9 +111,6 @@ describe('Sdk core shell', () => {
     expect(() =>
       sdk.cashu.receive.receiveToken({ token: 't' } as never),
     ).toThrow(NotImplementedError);
-    expect(() => sdk.spark.send.executeQuote({} as never)).toThrow(
-      NotImplementedError,
-    );
     await sdk.destroy();
   });
 });

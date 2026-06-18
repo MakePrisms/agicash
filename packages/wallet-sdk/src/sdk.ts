@@ -90,7 +90,7 @@ export class Sdk {
     this.scan = createScanDomain(ctx);
     this.exchangeRate = createExchangeRateDomain();
     this.cashu = createCashuDomain(ctx, accountRepository);
-    this.spark = createSparkDomain(ctx);
+    this.spark = createSparkDomain(ctx, accountRepository);
     this.transactions = createTransactionsDomain(
       ctx,
       new TransactionRepository(connections.supabase, connections.encryption),
