@@ -1,3 +1,4 @@
+import { Money } from '@agicash/utils/money';
 import { getQueryClient } from '@agicash/wallet-sdk/query-client';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
@@ -9,11 +10,9 @@ import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
-import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 // Configures the wallet SDK (opensecret, supabase, spark, instrumentation)
 // before anything below touches it.
-import './features/shared/sdk';
-import { Money } from '@agicash/utils/money';
+import { getSdk } from './features/shared/sdk';
 import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
@@ -38,14 +37,15 @@ ensureBreezWasm().catch(() => {
 // so we get global flags. After login, refreshSession invalidates
 // this query and re-fetches with the user's JWT for user-targeted flags.
 getQueryClient()
-  .prefetchQuery(featureFlagsQueryOptions)
+  .prefetchQuery(getSdk().featureFlags.options())
   .then(() => {
-    const flags = getQueryClient().getQueryData(
-      featureFlagsQueryOptions.queryKey,
-    );
     (globalThis as Record<string, unknown>).__SPARK_SDK_DEBUG__ =
-      flags?.DEBUG_LOGGING_SPARK ?? false;
+      getSdk().featureFlags.get('DEBUG_LOGGING_SPARK');
   });
+
+// Debug handle for the SDK-owned realtime manager.
+// biome-ignore lint/suspicious/noExplicitAny: attaching to window for debugging
+(window as any).agicashRealtime = getSdk().realtime.__debugManager;
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {

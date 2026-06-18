@@ -16,6 +16,7 @@
     "./encryption": "./src/encryption.ts",
     "./error": "./src/error.ts",
     "./exchange-rate": "./src/exchange-rate/index.ts",
+    "./feature-flags": "./src/feature-flags.ts",
     "./lightning-address": "./src/lightning-address.ts",
     "./lnurl": "./src/lnurl.ts",
     "./lnurl-types": "./src/lnurl-types.ts",

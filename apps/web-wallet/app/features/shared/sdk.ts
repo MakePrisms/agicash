@@ -2,8 +2,8 @@
 // configure calls (opensecret, agicash-db, spark, operation measurer) into one
 // env-derived WalletSdkConfig. Evaluated on both server and client (configure
 // only records state; connections are lazy). Must NOT import feature modules
-// that read from the DB (e.g. feature-flags) — they import database.client,
-// which configures through this module.
+// that call getSdk() (e.g. feature-flags) — they import this module, so the
+// reverse import would cycle.
 import {
   WalletSdk,
   browserStorage,

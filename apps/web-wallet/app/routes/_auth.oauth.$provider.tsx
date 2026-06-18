@@ -3,7 +3,6 @@ import { decodeURLSafe } from '@stablelib/base64';
 import { redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { getSdk } from '~/features/shared/sdk';
-import { invalidateFeatureFlags } from '~/features/user/auth';
 import { oauthLoginSessionStorage } from '~/features/user/oauth-login-session-storage';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_auth.oauth.$provider';
@@ -61,8 +60,6 @@ export async function clientLoader({
     });
     throw redirect('/login');
   }
-
-  await invalidateFeatureFlags();
 
   const stateValue = JSON.parse(new TextDecoder().decode(decodeURLSafe(state)));
   const oauthLoginSession = oauthLoginSessionStorage.get(

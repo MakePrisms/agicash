@@ -13,7 +13,7 @@ if (!supabaseServiceRoleKey) {
 
 /**
  * The server-side Supabase database client.
- * Cannot be used on the client. Use `agicashDbClient` instead.
+ * Cannot be used on the client. Use the SDK's client-side database instead.
  */
 export const agicashDbServer = createClient<Database>(
   supabaseUrl,

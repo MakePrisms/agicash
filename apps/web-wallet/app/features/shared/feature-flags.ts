@@ -1,60 +1,17 @@
-import { getQueryClient } from '@agicash/wallet-sdk/query-client';
-import * as Sentry from '@sentry/react-router';
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
-import { agicashDbClient } from '~/features/agicash-db/database.client';
+import type { FeatureFlag } from '@agicash/wallet-sdk/feature-flags';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { getSdk } from './sdk';
 
-export type FeatureFlag = 'GUEST_SIGNUP' | 'DEBUG_LOGGING_SPARK';
-
-type FeatureFlags = Record<FeatureFlag, boolean>;
-
-const FEATURE_FLAG_DEFAULTS: FeatureFlags = {
-  GUEST_SIGNUP: false,
-  DEBUG_LOGGING_SPARK: false,
-};
-
-const MAX_RETRIES = 3;
-
-async function fetchFeatureFlags(): Promise<FeatureFlags> {
-  const { data, error } = await agicashDbClient.rpc('evaluate_feature_flags');
-  if (error) {
-    throw new Error('Failed to fetch feature flags', { cause: error });
-  }
-  return data as FeatureFlags;
-}
-
-export const featureFlagsQueryOptions = queryOptions({
-  queryKey: ['feature-flags'],
-  queryFn: async (): Promise<FeatureFlags> => {
-    let lastError: unknown;
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        return await fetchFeatureFlags();
-      } catch (error) {
-        lastError = error;
-        if (attempt < MAX_RETRIES) {
-          await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
-        }
-      }
-    }
-    Sentry.captureException(lastError);
-    return FEATURE_FLAG_DEFAULTS;
-  },
-  retry: false,
-  staleTime: 5 * 60 * 1000,
-});
-
-export function useFeatureFlag(flag: FeatureFlag): boolean {
-  const { data } = useSuspenseQuery(featureFlagsQueryOptions);
-  return data[flag];
-}
+export type { FeatureFlag };
 
 /**
- * Reads a feature flag from the query cache.
- * Returns the default value if flags haven't been fetched yet.
+ * Calling getSdk() (client-only) directly is safe here — every flag consumer
+ * (the auth routes and the cashu-token route) forces client rendering via
+ * `clientLoader.hydrate`, so this never runs during SSR/prerender. This is
+ * unlike useAuthState, whose authQueryOptions defers getSdk() into the queryFn
+ * because public pages build it server-side.
  */
-export function getFeatureFlag(flag: FeatureFlag): boolean {
-  const data = getQueryClient().getQueryData<FeatureFlags>(
-    featureFlagsQueryOptions.queryKey,
-  );
-  return data?.[flag] ?? FEATURE_FLAG_DEFAULTS[flag];
+export function useFeatureFlag(flag: FeatureFlag): boolean {
+  const { data } = useSuspenseQuery(getSdk().featureFlags.options());
+  return data[flag];
 }

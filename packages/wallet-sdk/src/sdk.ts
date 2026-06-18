@@ -10,12 +10,13 @@ import { type AuthApi, type ResolvedAuthState, createAuthApi } from './auth';
 import { type ContactsApi, createContactsApi } from './contacts/contacts-api';
 import { createLazyEncryption } from './encryption';
 import { type CaptureException, setErrorReporter } from './error-reporting';
+import { type FeatureFlagsApi, createFeatureFlagsApi } from './feature-flags';
 import { type MeasureOperation, setOperationMeasurer } from './performance';
 import { getQueryClient } from './query-client';
 import { type RealtimeApi, createRealtimeApi } from './realtime/realtime-api';
 import { type ReceiveApi, createReceiveApi } from './receive/receive-api';
 import { type SendApi, createSendApi } from './send/send-api';
-import { configureSpark } from './spark-config';
+import { configureSpark, setSparkDebugLogging } from './spark-config';
 import { TaskProcessingLockRepository } from './task-processing-lock-repository';
 import { createCashuReceiveQuoteProcessor } from './tasks/cashu-receive-quote-processor';
 import { createCashuReceiveSwapProcessor } from './tasks/cashu-receive-swap-processor';
@@ -38,6 +39,7 @@ export { browserStorage } from '@agicash/opensecret';
 export type { AccountsApi } from './accounts/accounts-api';
 export type { AuthApi } from './auth';
 export type { ContactsApi } from './contacts/contacts-api';
+export type { FeatureFlagsApi } from './feature-flags';
 export type { RealtimeApi } from './realtime/realtime-api';
 export type { ReceiveApi } from './receive/receive-api';
 export type { SendApi } from './send/send-api';
@@ -133,6 +135,7 @@ export function configureWalletSdk(config: WalletSdkConfig): void {
 export class WalletSdk {
   readonly queryClient: QueryClient;
   readonly auth: AuthApi;
+  readonly featureFlags: FeatureFlagsApi;
   readonly accounts: AccountsApi;
   readonly user: UserApi;
   readonly transactions: TransactionsApi;
@@ -159,10 +162,22 @@ export class WalletSdk {
     const db = getAgicashDb();
     const encryption = createLazyEncryption(this.queryClient);
 
+    const featureFlags = createFeatureFlagsApi({
+      queryClient: this.queryClient,
+      db,
+    });
+    this.featureFlags = featureFlags;
+    // The Breez SDK's debug logging follows the DEBUG_LOGGING_SPARK flag; wired
+    // here now that feature flags live in the SDK (was a web-side seam before).
+    setSparkDebugLogging(() => featureFlags.get('DEBUG_LOGGING_SPARK'));
+
     this.auth = createAuthApi({
       queryClient: this.queryClient,
       onAuthUserIdDecoded: config.onAuthUserIdDecoded,
       onAuthStateResolved: config.onAuthStateResolved,
+      // Re-evaluate the session-scoped feature flags whenever an auth mutation
+      // changes the session (login / logout / verify / ...).
+      onSessionChange: () => featureFlags.invalidate(),
     });
     const getCurrentUser = () => user.getCurrentUser();
     const getCurrentUserId = () => getCurrentUser().id;

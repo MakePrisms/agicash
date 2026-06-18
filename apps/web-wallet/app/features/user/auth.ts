@@ -5,7 +5,6 @@ import {
   type AuthUser,
   authStateQueryKey,
 } from '@agicash/wallet-sdk/auth';
-import { getQueryClient } from '@agicash/wallet-sdk/query-client';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
@@ -25,19 +24,6 @@ export const authQueryOptions = () => ({
   queryFn: () => getSdk().auth.stateOptions().queryFn(),
   staleTime: Number.POSITIVE_INFINITY,
 });
-
-/**
- * Re-evaluates the web-owned feature flags after an auth-state change (the
- * flags are user-targeted, so login/logout/verification can change them). The
- * SDK's auth mutations refresh the auth-state query themselves, so this no
- * longer touches it. Transitional — folds into the SDK when feature flags move.
- */
-export const invalidateFeatureFlags = async () => {
-  await getQueryClient().invalidateQueries({
-    queryKey: ['feature-flags'],
-    refetchType: 'all',
-  });
-};
 
 export const useAuthState = (): AuthState => {
   const { data } = useSuspenseQuery(authQueryOptions());
@@ -140,7 +126,6 @@ export const useAuthActions = (): AuthActions => {
 
   const refreshSession = useCallback(
     async (redirectTo?: string) => {
-      await invalidateFeatureFlags();
       if (redirectTo) {
         await navigate(redirectTo);
       } else {

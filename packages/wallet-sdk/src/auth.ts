@@ -129,10 +129,10 @@ export type AuthApi = {
    */
   getUserId: () => string;
   /**
-   * Forces a re-fetch of the auth state. The state-changing mutations
-   * (signIn/signOut/verifyEmail/...) already do this themselves; call this
-   * only to refresh outside a mutation (e.g. after an out-of-band token
-   * change).
+   * Forces a re-fetch of the auth state (and the session-scoped caches the
+   * root wires to it). The state-changing mutations
+   * (signIn/signOut/verifyEmail/...) already do this themselves; call this only
+   * to refresh outside a mutation (e.g. after an out-of-band token change).
    */
   invalidate: () => Promise<void>;
   /** Token-presence/expiry check without fetching the auth user. */
@@ -195,19 +195,35 @@ export type AuthApiDeps = {
   onAuthUserIdDecoded?: (userId: string | undefined) => void;
   /** Host hook invoked when the auth state query resolves. */
   onAuthStateResolved?: (state: ResolvedAuthState) => void;
+  /**
+   * Invoked by the SDK root after a mutation changes the auth state (and the
+   * auth-state query is invalidated), so other domains' session-scoped caches
+   * (e.g. feature flags) refresh on the same edge. Auth stays unaware of those
+   * domains — it just fires the callback.
+   */
+  onSessionChange?: () => Promise<void> | void;
 };
 
 export function createAuthApi(deps: AuthApiDeps): AuthApi {
-  const { queryClient, onAuthUserIdDecoded, onAuthStateResolved } = deps;
+  const {
+    queryClient,
+    onAuthUserIdDecoded,
+    onAuthStateResolved,
+    onSessionChange,
+  } = deps;
 
   // The auth-state query is the SDK's own cache. The state-changing mutations
   // below refresh it themselves so no caller has to remember to — `refetchType:
   // 'all'` means the awaited mutation also waits for the refetch to settle.
-  const invalidateAuthState = () =>
-    queryClient.invalidateQueries({
+  // onSessionChange lets the root refresh other session-scoped caches (feature
+  // flags) on the same edge, without auth knowing about those domains.
+  const invalidateAuthState = async () => {
+    await queryClient.invalidateQueries({
       queryKey: [authStateQueryKey],
       refetchType: 'all',
     });
+    await onSessionChange?.();
+  };
 
   return {
     stateOptions: () => ({
