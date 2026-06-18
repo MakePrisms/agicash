@@ -1,6 +1,8 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
+import { getClaimableProofs, getUnspentProofsFromToken } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
-import type { Token } from '@cashu/cashu-ts';
+import { NetworkError } from '@cashu/cashu-ts';
+import type { Proof, Token } from '@cashu/cashu-ts';
 import { DomainError } from '../errors';
 import type { SdkCoreEventMap } from '../events';
 import type { EventBus } from '../internal/event-bus';
@@ -54,6 +56,10 @@ export type ReceiveTokenResult = {
   transactionId: string;
   destinationAccount: Pick<Account, 'id' | 'purpose'>;
 };
+
+export type ClaimableTokenResult =
+  | { claimableToken: Token; cannotClaimReason: null }
+  | { claimableToken: null; cannotClaimReason: string };
 
 /** Receiving Lightning into a cashu account. `execute` persists the quote so the
  * background processor mints on payment; `awaitTerminal` resolves on COMPLETED. */
@@ -118,6 +124,52 @@ export class CashuReceiveOps {
 
   get(quoteId: string): Promise<CashuReceiveQuote | null> {
     return this.deps.repository.get(quoteId);
+  }
+
+  /**
+   * Checks which proofs in a token are unspent at the mint and claimable by this
+   * user, returning the token narrowed to claimable proofs — or a reason it cannot
+   * be claimed. Does not throw on a mint/offline error; the reason is returned.
+   * @param p.cashuPubKey - The user's cashu locking pubkey, for P2PK-locked proofs.
+   */
+  async getClaimableToken(p: {
+    token: Token;
+    cashuPubKey?: string;
+  }): Promise<ClaimableTokenResult> {
+    let unspentProofs: Proof[];
+    try {
+      unspentProofs = await getUnspentProofsFromToken(p.token);
+    } catch (error) {
+      if (error instanceof NetworkError) {
+        return {
+          claimableToken: null,
+          cannotClaimReason: 'The mint that issued this ecash is offline',
+        };
+      }
+      return {
+        claimableToken: null,
+        cannotClaimReason: 'An error occurred while checking the token',
+      };
+    }
+
+    if (unspentProofs.length === 0) {
+      return {
+        claimableToken: null,
+        cannotClaimReason: 'This ecash has already been spent',
+      };
+    }
+
+    const { claimableProofs, cannotClaimReason } = getClaimableProofs(
+      unspentProofs,
+      p.cashuPubKey ? [p.cashuPubKey] : [],
+    );
+
+    return claimableProofs
+      ? {
+          claimableToken: { ...p.token, proofs: claimableProofs },
+          cannotClaimReason: null,
+        }
+      : { claimableToken: null, cannotClaimReason };
   }
 
   /**

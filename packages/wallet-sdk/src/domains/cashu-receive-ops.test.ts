@@ -1,8 +1,38 @@
 import { describe, expect, it, mock } from 'bun:test';
+import * as actualCashu from '@agicash/cashu';
+import { NetworkError } from '@cashu/cashu-ts';
 import { DomainError } from '../errors';
 import { EventBus } from '../internal/event-bus';
 import type { SdkCoreEventMap } from '../events';
 import { CashuReceiveOps } from './cashu-receive-ops';
+
+// getClaimableToken (Task 1) calls these two @agicash/cashu helpers; swap their
+// impls per test. Spread the real module so areMintUrlsEqual etc. stay real for
+// the receiveToken tests below.
+const cashuStub: {
+  getUnspentProofsFromToken: (t: unknown) => Promise<unknown[]>;
+  getClaimableProofs: (
+    proofs: unknown[],
+    keys: string[],
+  ) =>
+    | { claimableProofs: unknown[]; cannotClaimReason: null }
+    | { claimableProofs: null; cannotClaimReason: string };
+} = {
+  getUnspentProofsFromToken: mock(
+    async (_t: unknown): Promise<unknown[]> => [],
+  ),
+  getClaimableProofs: mock((proofs: unknown[], _keys: string[]) => ({
+    claimableProofs: proofs,
+    cannotClaimReason: null,
+  })),
+};
+mock.module('@agicash/cashu', () => ({
+  ...actualCashu,
+  getUnspentProofsFromToken: (...a: unknown[]) =>
+    (cashuStub.getUnspentProofsFromToken as (...x: unknown[]) => unknown)(...a),
+  getClaimableProofs: (...a: unknown[]) =>
+    (cashuStub.getClaimableProofs as (...x: unknown[]) => unknown)(...a),
+}));
 
 // --- fakes -----------------------------------------------------------------
 const USER = { id: 'user-1', defaultCurrency: 'BTC' } as any;
@@ -306,5 +336,73 @@ describe('CashuReceiveOps.receiveToken', () => {
       claimTo: 'cashu',
     });
     expect(result.transactionId).toBe('tx-swap');
+  });
+});
+
+describe('CashuReceiveOps.getClaimableToken', () => {
+  const TOKEN = {
+    mint: 'https://mint.a/',
+    unit: 'sat',
+    proofs: [{ id: 'p1' }],
+  } as any;
+
+  it('returns the token narrowed to claimable proofs', async () => {
+    cashuStub.getUnspentProofsFromToken = mock(
+      async () => [{ id: 'p1' }] as any,
+    );
+    cashuStub.getClaimableProofs = mock(() => ({
+      claimableProofs: [{ id: 'p1' }] as any,
+      cannotClaimReason: null,
+    }));
+    const { ops } = makeOps();
+    const result = await ops.getClaimableToken({ token: TOKEN });
+    expect(result.cannotClaimReason).toBeNull();
+    expect(result.claimableToken).toEqual({ ...TOKEN, proofs: [{ id: 'p1' }] });
+  });
+
+  it('returns a reason (no throw) when the mint is offline', async () => {
+    cashuStub.getUnspentProofsFromToken = mock(async () => {
+      throw new NetworkError('down');
+    });
+    const { ops } = makeOps();
+    const result = await ops.getClaimableToken({ token: TOKEN });
+    expect(result.claimableToken).toBeNull();
+    expect(result.cannotClaimReason).toBe(
+      'The mint that issued this ecash is offline',
+    );
+  });
+
+  it('returns "already been spent" when no proofs are unspent', async () => {
+    cashuStub.getUnspentProofsFromToken = mock(async () => []);
+    const { ops } = makeOps();
+    const result = await ops.getClaimableToken({ token: TOKEN });
+    expect(result.cannotClaimReason).toBe('This ecash has already been spent');
+  });
+
+  it('returns the not-claimable reason from getClaimableProofs', async () => {
+    cashuStub.getUnspentProofsFromToken = mock(
+      async () => [{ id: 'p1' }] as any,
+    );
+    cashuStub.getClaimableProofs = mock(() => ({
+      claimableProofs: null,
+      cannotClaimReason: 'You do not have permission to claim this ecash',
+    }));
+    const { ops } = makeOps();
+    const result = await ops.getClaimableToken({ token: TOKEN });
+    expect(result.claimableToken).toBeNull();
+    expect(result.cannotClaimReason).toBe(
+      'You do not have permission to claim this ecash',
+    );
+  });
+
+  it('maps an unknown error to a generic reason', async () => {
+    cashuStub.getUnspentProofsFromToken = mock(async () => {
+      throw new Error('boom');
+    });
+    const { ops } = makeOps();
+    const result = await ops.getClaimableToken({ token: TOKEN });
+    expect(result.cannotClaimReason).toBe(
+      'An error occurred while checking the token',
+    );
   });
 });
