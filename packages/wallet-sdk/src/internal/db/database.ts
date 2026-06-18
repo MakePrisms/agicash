@@ -192,6 +192,13 @@ export type Database = MergeDeep<
             p_receiver_identity_pubkey: string | null;
           };
         };
+        take_lead: {
+          Args: {
+            p_user_id: string;
+            p_client_id: string;
+          };
+          Returns: boolean;
+        };
       };
       CompositeTypes: {
         cashu_receive_quote_payment_result: CashuReceiveQuotePaymentResult;
