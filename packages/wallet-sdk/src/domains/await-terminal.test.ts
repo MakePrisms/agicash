@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { Money } from '@agicash/money';
 import { DomainError } from '../errors';
 import { EventBus } from '../internal/event-bus';
@@ -120,18 +120,53 @@ describe('awaitTerminal', () => {
     await expect(p).rejects.toThrow('Aborted');
   });
 
-  test('unsubscribes after settling (no further delivery)', async () => {
+  test('rejects immediately when the signal is already aborted', async () => {
     const events = new EventBus<SdkCoreEventMap>();
-    const cb = mock(() => {});
+    const ctrl = new AbortController();
+    ctrl.abort();
+    await expect(
+      awaitTerminal({
+        events,
+        kind: 'send',
+        quoteId: 'q1',
+        backstop: pending,
+        signal: ctrl.signal,
+      }),
+    ).rejects.toThrow('Aborted');
+  });
+
+  test('rejects when the backstop read throws', async () => {
+    const events = new EventBus<SdkCoreEventMap>();
+    const boom = new DomainError('db down');
+    await expect(
+      awaitTerminal({
+        events,
+        kind: 'send',
+        quoteId: 'q1',
+        backstop: async () => {
+          throw boom;
+        },
+      }),
+    ).rejects.toBe(boom);
+  });
+
+  test('does not re-settle after the first terminal event', async () => {
+    const events = new EventBus<SdkCoreEventMap>();
     const p = awaitTerminal({
       events,
       kind: 'send',
       quoteId: 'q1',
-      backstop: async () => ({ status: 'completed', result: completedResult }),
+      backstop: pending,
     });
-    await p;
-    // A second emit must not throw or re-settle; the listener is gone.
     events.emit('send:completed', completedResult);
-    expect(cb).not.toHaveBeenCalled();
+    expect(await p).toEqual(completedResult);
+    // A late, contradictory event must be inert (listeners already removed).
+    expect(() =>
+      events.emit('send:failed', {
+        protocol: 'cashu',
+        quoteId: 'q1',
+        error: new DomainError('late'),
+      }),
+    ).not.toThrow();
   });
 });
