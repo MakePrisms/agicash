@@ -11,6 +11,16 @@
 export { Sdk } from './sdk';
 export type { SdkConfig, DefaultAccountConfig } from './config';
 
+// --- server-mode entry point ----------------------------------------------
+export { createServer, ServerSdk } from './server-sdk';
+export type {
+  ServerSdkApi,
+  LnurlVerifyRef,
+  LightningAddressReceiveInfo,
+  LightningReceiveQuoteResult,
+  LightningReceiveStatusResult,
+} from './server-sdk';
+
 // --- value types -----------------------------------------------------------
 // `Money` is a real class re-exported from the shared @agicash/money package, so
 // `instanceof` holds across the SDK↔web boundary (see ./types/money).
