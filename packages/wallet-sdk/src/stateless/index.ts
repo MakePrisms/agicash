@@ -4,6 +4,8 @@ import type { SdkEventMapA } from './event-map';
 
 export { createStatelessEngine } from './engine';
 export type { SdkEventMapA } from './event-map';
+export { createStatelessAccounts } from './accounts-surface';
+export type { StatelessAccounts } from './accounts-surface';
 
 type CreateConfig = Parameters<typeof Sdk.create>[0];
 /** The injectable deps, minus `createEngine` (the entry supplies the A engine). */
