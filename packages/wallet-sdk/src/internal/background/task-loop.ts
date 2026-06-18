@@ -106,6 +106,7 @@ export class TaskLoop {
 
     // Cashu — manager-owned, idempotent subscriptions (reconcile returns void).
     await orchestrators.cashuSend.reconcile(cashuSend);
+    await this.sweepCashuSendExpiry(cashuSend);
     await orchestrators.cashuSendSwap.processDrafts(cashuSwap);
     await orchestrators.cashuSendSwap.reconcile(
       cashuSwap.filter((s) => s.state === 'PENDING'),
@@ -119,6 +120,7 @@ export class TaskLoop {
       { initiateMelt },
     );
     await orchestrators.cashuReceiveSwap.processPending(cashuReceiveSwap);
+    await this.sweepCashuReceiveExpiry(cashuReceive);
 
     // Spark — caller-owned cleanup thunks (raw Breez listeners).
     this.sparkSendCleanup = await orchestrators.sparkSend.reconcile(sparkSend);
@@ -127,12 +129,66 @@ export class TaskLoop {
     await orchestrators.sparkReceive.reconcileCrossMintMelts(sparkReceive, {
       initiateMelt,
     });
-
-    // Expiry sweep is added in Task 8.
+    await this.sweepSparkReceiveExpiry(sparkReceive);
   }
 
   dispose(): void {
     this.disposeSparkThunks();
+  }
+
+  private isExpired(expiresAt: string | null | undefined): boolean {
+    return expiresAt != null && new Date(expiresAt) < new Date();
+  }
+
+  private async sweepCashuSendExpiry(quotes: CashuSendQuote[]): Promise<void> {
+    for (const quote of quotes) {
+      if (quote.state !== 'UNPAID' || !this.isExpired(quote.expiresAt))
+        continue;
+      await this.deps.cashuSendQuoteService
+        .expireSendQuote(quote)
+        .catch((error) =>
+          console.error('cashu send expiry failed', {
+            quoteId: quote.id,
+            cause: error,
+          }),
+        );
+    }
+  }
+
+  private async sweepCashuReceiveExpiry(
+    quotes: CashuReceiveQuote[],
+  ): Promise<void> {
+    for (const quote of quotes) {
+      if (quote.state !== 'UNPAID' || !this.isExpired(quote.expiresAt))
+        continue;
+      try {
+        await this.deps.cashuReceiveQuoteService.expire(quote);
+        this.deps.emitter.emit('receive:expired', {
+          quoteId: quote.id,
+          protocol: 'cashu',
+        });
+      } catch (error) {
+        console.error('cashu receive expiry failed', {
+          quoteId: quote.id,
+          cause: error,
+        });
+      }
+    }
+  }
+
+  private async sweepSparkReceiveExpiry(
+    quotes: SparkReceiveQuote[],
+  ): Promise<void> {
+    for (const quote of quotes) {
+      await this.deps.orchestrators.sparkReceive
+        .applyExpiry(quote)
+        .catch((error) =>
+          console.error('spark receive expiry failed', {
+            quoteId: quote.id,
+            cause: error,
+          }),
+        );
+    }
   }
 
   private disposeSparkThunks(): void {

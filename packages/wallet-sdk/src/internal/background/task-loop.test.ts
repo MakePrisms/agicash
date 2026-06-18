@@ -162,3 +162,73 @@ describe('TaskLoop.runOnce', () => {
     expect(sparkReceiveCleanup).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('TaskLoop.runOnce expiry sweep', () => {
+  const past = new Date(Date.now() - 60_000).toISOString();
+  const future = new Date(Date.now() + 60_000).toISOString();
+
+  it('expires an UNPAID+expired cashu send quote (no event)', async () => {
+    const { loop, repos, orchestrators } = setup();
+    (
+      repos.cashuSendQuote.getUnresolved as unknown as {
+        mockImplementation: (f: () => Promise<unknown>) => void;
+      }
+    ).mockImplementation(async () => [
+      { id: 'cs-x', state: 'UNPAID', accountId: 'a', expiresAt: past },
+    ]);
+    const expireSendQuote = (
+      loop as unknown as {
+        deps: {
+          cashuSendQuoteService: { expireSendQuote: ReturnType<typeof mock> };
+        };
+      }
+    ).deps.cashuSendQuoteService.expireSendQuote;
+    await loop.runOnce();
+    expect(expireSendQuote).toHaveBeenCalledTimes(1);
+    expect(orchestrators.cashuSend.reconcile).toHaveBeenCalled(); // reconcile still runs
+  });
+
+  it('expires an UNPAID+expired cashu receive quote and emits receive:expired', async () => {
+    const { loop, repos } = setup();
+    const emitter = (
+      loop as unknown as { deps: { emitter: SdkEventEmitter<SdkEventMap> } }
+    ).deps.emitter;
+    const expired: unknown[] = [];
+    emitter.on('receive:expired', (e) => expired.push(e));
+    (
+      repos.cashuReceiveQuote.getPending as unknown as {
+        mockImplementation: (f: () => Promise<unknown>) => void;
+      }
+    ).mockImplementation(async () => [
+      { id: 'crq-x', type: 'LIGHTNING', state: 'UNPAID', expiresAt: past },
+    ]);
+    await loop.runOnce();
+    expect(expired).toEqual([{ quoteId: 'crq-x', protocol: 'cashu' }] as never);
+  });
+
+  it('does NOT expire a not-yet-expired cashu receive quote', async () => {
+    const { loop, repos } = setup();
+    const emitter = (
+      loop as unknown as { deps: { emitter: SdkEventEmitter<SdkEventMap> } }
+    ).deps.emitter;
+    const expired: unknown[] = [];
+    emitter.on('receive:expired', (e) => expired.push(e));
+    (
+      repos.cashuReceiveQuote.getPending as unknown as {
+        mockImplementation: (f: () => Promise<unknown>) => void;
+      }
+    ).mockImplementation(async () => [
+      { id: 'crq-y', type: 'LIGHTNING', state: 'UNPAID', expiresAt: future },
+    ]);
+    await loop.runOnce();
+    expect(expired).toHaveLength(0);
+  });
+
+  it('runs spark applyExpiry for each pending spark receive quote', async () => {
+    const { loop, orchestrators } = setup();
+    await loop.runOnce();
+    expect(orchestrators.sparkReceive.applyExpiry).toHaveBeenCalledTimes(
+      pendingSparkReceive.length,
+    );
+  });
+});
