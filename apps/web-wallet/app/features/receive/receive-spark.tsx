@@ -56,7 +56,10 @@ const useCreateQuote = ({
 
   useEffectNoStrictMode(() => {
     if (!quote && createQuoteStatus === 'idle') {
-      createQuote({ account, amount });
+      createQuote({
+        account,
+        amount,
+      });
     }
   }, [quote, createQuoteStatus, createQuote, amount, account]);
 

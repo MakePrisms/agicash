@@ -4,6 +4,7 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '~/features/accounts/account';
+import { getCashuProtocolUnit } from '~/lib/cashu';
 import type { Currency, Money } from '~/lib/money';
 import type { Contact } from '../contacts/contact';
 import type { GiftCardInfo } from '../gift-cards/gift-card-config';
@@ -16,6 +17,23 @@ import {
   resolveSendDestination,
 } from './resolve-destination';
 import type { SparkLightningQuote } from './spark-send-quote-service';
+
+/**
+ * Returns true when the source account can pay an amountless BOLT11 invoice
+ * with a user-supplied amount. Spark always supports it; cashu requires the
+ * mint to advertise NUT-05 amountless support for the account's unit.
+ */
+export const canAccountPayAmountlessBolt11 = (account: Account): boolean => {
+  if (account.type === 'spark') return true;
+  const mintInfo = account.wallet.getMintInfo();
+  // cashu-ts MintInfo.supportsAmountless does not check the NUT-05 disabled
+  // flag, so guard it here.
+  if (mintInfo.nuts['5']?.disabled) return false;
+  return mintInfo.supportsAmountless(
+    'bolt11',
+    getCashuProtocolUnit(account.currency),
+  );
+};
 
 /**
  * Returns the default send type based on account type.
@@ -259,7 +277,7 @@ export const createSendStore = ({
       selectDestination: async (input) => {
         const account = get().getSourceAccount();
         const result = await resolveSendDestination(input, {
-          allowZeroAmountBolt11: account.type === 'spark',
+          allowZeroAmountBolt11: canAccountPayAmountlessBolt11(account),
         });
         if (!result.success) {
           return result;
