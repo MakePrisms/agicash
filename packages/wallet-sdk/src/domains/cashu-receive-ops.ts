@@ -1,13 +1,30 @@
+import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Money } from '@agicash/money';
+import type { Token } from '@cashu/cashu-ts';
 import { DomainError } from '../errors';
 import type { SdkCoreEventMap } from '../events';
 import type { EventBus } from '../internal/event-bus';
 import type { CashuReceiveLightningQuote } from '../internal/cashu/receive-quote-core';
 import type { CashuReceiveQuoteRepository } from '../internal/db/cashu-receive-quote-repository';
+import type { AccountRepository } from '../internal/db/account-repository';
+import { AccountService } from '../internal/services/account-service';
 import type { CashuReceiveQuoteService } from '../internal/services/cashu-receive-quote-service';
-import type { CashuAccount } from './account-types';
+import type { CashuReceiveSwapService } from '../internal/services/cashu-receive-swap-service';
+import { isClaimingToSameCashuAccount } from '../internal/services/receive-cashu-token-models';
+import { ReceiveCashuTokenService } from '../internal/services/receive-cashu-token-service';
+import type {
+  CrossAccountReceiveQuotesResult,
+  ReceiveCashuTokenQuoteService,
+} from '../internal/services/receive-cashu-token-quote-service';
+import type { SparkReceiveQuoteService } from '../internal/services/spark-receive-quote-service';
+import type { Ticker } from '../internal/rates/providers/types';
+import type { Account, CashuAccount, SparkAccount } from './account-types';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
+import type { CashuReceiveSwap } from './cashu-receive-swap';
+import type { Rate } from './rates';
+import type { SparkReceiveQuote } from './spark-receive-quote';
 import type { TransactionPurpose } from './transaction-enums';
+import type { User } from './user-types';
 import {
   type TerminalResult,
   type TerminalStatus,
@@ -19,6 +36,23 @@ type Deps = {
   repository: CashuReceiveQuoteRepository;
   events: EventBus<SdkCoreEventMap>;
   getCurrentUserId: () => Promise<string | null>;
+  swapService: CashuReceiveSwapService;
+  sparkReceiveQuoteService: SparkReceiveQuoteService;
+  accountRepository: AccountRepository;
+  accountService: AccountService;
+  receiveTokenService: ReceiveCashuTokenService;
+  receiveTokenQuoteService: ReceiveCashuTokenQuoteService;
+  getUser: () => Promise<User | null>;
+  setDefaultAccount: (params: {
+    account: Account;
+    setDefaultCurrency?: boolean;
+  }) => Promise<User>;
+  getExchangeRate: (ticker: Ticker) => Promise<Rate>;
+};
+
+export type ReceiveTokenResult = {
+  transactionId: string;
+  destinationAccount: Pick<Account, 'id' | 'purpose'>;
 };
 
 /** Receiving Lightning into a cashu account. `execute` persists the quote so the
@@ -84,6 +118,292 @@ export class CashuReceiveOps {
 
   get(quoteId: string): Promise<CashuReceiveQuote | null> {
     return this.deps.repository.get(quoteId);
+  }
+
+  /**
+   * Claims a cashu token: selects source + destination accounts, opportunistically
+   * adds + defaults the destination, then completes inline (same-account swap, or
+   * cross-account melt+receive). Best-effort completion — anything left is finalized
+   * by the background processors. Throws `DomainError` on a non-recoverable failure.
+   */
+  async receiveToken(p: {
+    token: Token;
+    claimTo: 'cashu' | 'spark';
+  }): Promise<ReceiveTokenResult> {
+    const { token, claimTo } = p;
+    const user = await this.requireUser();
+
+    const accounts = await this.deps.accountRepository.getAllActive(user.id);
+    const extendedAccounts = AccountService.getExtendedAccounts(user, accounts);
+    const preferredReceiveAccountId =
+      claimTo === 'spark'
+        ? extendedAccounts.find((a) => a.type === 'spark')?.id
+        : undefined;
+
+    const { sourceAccount, possibleDestinationAccounts } =
+      await this.deps.receiveTokenService.getSourceAndDestinationAccounts(
+        token,
+        extendedAccounts,
+      );
+
+    let receiveAccount = ReceiveCashuTokenService.getDefaultReceiveAccount(
+      sourceAccount,
+      possibleDestinationAccounts,
+      preferredReceiveAccountId,
+    );
+
+    if (!receiveAccount) {
+      throw new DomainError('Token from this mint cannot be claimed');
+    }
+
+    if (receiveAccount.isUnknown && receiveAccount.type === 'cashu') {
+      const addedAccount = await this.deps.accountService.addCashuAccount({
+        userId: user.id,
+        account: receiveAccount,
+      });
+      receiveAccount = { ...receiveAccount, ...addedAccount };
+    }
+
+    if (
+      receiveAccount.currency !== user.defaultCurrency ||
+      !AccountService.isDefaultAccount(user, receiveAccount)
+    ) {
+      // Best-effort: failing to set the default account must not fail the claim.
+      await this.trySetDefaultAccount(receiveAccount);
+    }
+
+    let transactionId: string;
+
+    if (isClaimingToSameCashuAccount(receiveAccount, sourceAccount)) {
+      const { swap, account } = await this.deps.swapService.create({
+        userId: user.id,
+        token,
+        account: receiveAccount as CashuAccount,
+      });
+      transactionId = swap.transactionId;
+
+      // Fail the claim only on a terminal FAILED swap state; a thrown (recoverable)
+      // completion error is swallowed so the background processor can retry.
+      const result = await this.tryCompleteSwap(account, swap);
+      if (!result.success && result.swap?.state === 'FAILED') {
+        throw new DomainError(result.swap.failureReason);
+      }
+    } else {
+      const exchangeRate = await this.deps.getExchangeRate(
+        `${sourceAccount.currency}-${receiveAccount.currency}` as Ticker,
+      );
+      const quotes =
+        await this.deps.receiveTokenQuoteService.createCrossAccountReceiveQuotes(
+          {
+            userId: user.id,
+            token,
+            sourceAccount,
+            destinationAccount: receiveAccount,
+            exchangeRate,
+          },
+        );
+      transactionId = quotes.lightningReceiveQuote.transactionId;
+
+      await sourceAccount.wallet.meltProofsIdempotent(
+        quotes.cashuMeltQuote,
+        token.proofs,
+        undefined,
+        // Use random outputs for change to avoid counter collisions with the
+        // source account's persisted keyset counter. The change is currently
+        // discarded (see CashuTokenMeltData), so deterministic recovery is
+        // unused. If we ever start keeping change here, switch to a reserved
+        // deterministic counter persisted on the receive quote.
+        { type: 'random' },
+      );
+
+      // Best-effort: failure here is left for the background processor to retry.
+      await this.tryCompleteReceive(quotes);
+    }
+
+    return {
+      transactionId,
+      destinationAccount: {
+        id: receiveAccount.id,
+        purpose: receiveAccount.purpose,
+      },
+    };
+  }
+
+  private async requireUser(): Promise<User> {
+    const user = await this.deps.getUser();
+    if (!user) throw new Error('No authenticated user');
+    return user;
+  }
+
+  private async trySetDefaultAccount(account: Account): Promise<void> {
+    try {
+      await this.deps.setDefaultAccount({ account, setDefaultCurrency: true });
+    } catch (error) {
+      console.error('Failed to set default account while claiming the token', {
+        cause: error,
+        accountId: account.id,
+      });
+    }
+  }
+
+  private async tryCompleteSwap(
+    account: CashuAccount,
+    receiveSwap: CashuReceiveSwap,
+  ): Promise<
+    | { success: true; swap: CashuReceiveSwap; account: CashuAccount }
+    | { success: false; swap?: CashuReceiveSwap }
+  > {
+    try {
+      const { swap: updatedSwap, account: updatedAccount } =
+        await this.deps.swapService.completeSwap(account, receiveSwap);
+
+      if (updatedSwap.state === 'FAILED') {
+        return { success: false, swap: updatedSwap };
+      }
+
+      return { success: true, swap: updatedSwap, account: updatedAccount };
+    } catch (error) {
+      console.error('Failed to complete the swap while claiming the token', {
+        cause: error,
+        tokenHash: receiveSwap.tokenHash,
+        accountId: account.id,
+      });
+      return { success: false };
+    }
+  }
+
+  private async tryCompleteReceive(
+    quotes: CrossAccountReceiveQuotesResult,
+  ): Promise<{ success: true; account?: CashuAccount } | { success: false }> {
+    try {
+      if (quotes.destinationType === 'cashu') {
+        const { account: updatedAccount } =
+          await this.deps.service.completeReceive(
+            quotes.destinationAccount,
+            quotes.cashuReceiveQuote,
+          );
+        return { success: true, account: updatedAccount };
+      }
+
+      if (quotes.destinationType === 'spark') {
+        const { sparkTransferId, paymentPreimage } =
+          await this.waitForSparkReceiveToComplete(
+            quotes.destinationAccount,
+            quotes.sparkReceiveQuote,
+          );
+        await this.deps.sparkReceiveQuoteService.complete(
+          quotes.sparkReceiveQuote,
+          paymentPreimage,
+          sparkTransferId,
+        );
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('Failed to complete the receive while claiming the token', {
+        cause: error,
+        destinationType: quotes.destinationType,
+        accountId: quotes.destinationAccount.id,
+        receiveQuoteId:
+          quotes.destinationType === 'cashu'
+            ? quotes.cashuReceiveQuote.id
+            : quotes.sparkReceiveQuote.id,
+      });
+    }
+
+    return { success: false };
+  }
+
+  /**
+   * Waits for a Spark lightning receive to complete using event-driven detection.
+   * Registers a Breez SDK event listener and does an initial status check to
+   * catch payments that arrived before the listener was registered.
+   * @throws Error if the payment does not complete within the timeout.
+   */
+  private waitForSparkReceiveToComplete(
+    account: SparkAccount,
+    quote: SparkReceiveQuote,
+  ): Promise<{ sparkTransferId: string; paymentPreimage: string }> {
+    const timeoutMs = 10_000;
+
+    return new Promise((resolve, reject) => {
+      let listenerId: string | undefined;
+      let resolved = false;
+
+      const cleanup = () => {
+        if (listenerId)
+          account.wallet.removeEventListener(listenerId).catch(() => {
+            console.warn('Failed to remove Spark event listener', {
+              listenerId,
+            });
+          });
+      };
+
+      const timeoutId = setTimeout(() => {
+        resolved = true;
+        cleanup();
+        reject(
+          new Error(
+            `Spark receive request ${quote.sparkId} timed out after ${timeoutMs / 1000} seconds`,
+          ),
+        );
+      }, timeoutMs);
+
+      const handlePayment = (payment: Payment) => {
+        if (resolved) return;
+        const details = payment.details;
+        if (details?.type !== 'lightning') return;
+        if (details.htlcDetails.paymentHash !== quote.paymentHash) return;
+
+        resolved = true;
+        clearTimeout(timeoutId);
+        cleanup();
+
+        const preimage = details.htlcDetails.preimage;
+        if (!preimage) {
+          reject(new Error('Payment preimage missing'));
+          return;
+        }
+
+        resolve({
+          sparkTransferId: payment.id,
+          paymentPreimage: preimage,
+        });
+      };
+
+      // Register event listener before initial check to avoid race conditions
+      account.wallet
+        .addEventListener({
+          onEvent(event) {
+            if (event.type === 'paymentSucceeded') {
+              handlePayment(event.payment);
+            }
+          },
+        })
+        .then((id) => {
+          listenerId = id;
+          if (resolved) {
+            account.wallet.removeEventListener(id).catch(() => {
+              console.warn('Failed to remove Spark event listener', {
+                listenerId,
+              });
+            });
+          }
+        });
+
+      // Initial status check — local lookup, no network call
+      account.wallet
+        .getPaymentByInvoice({ invoice: quote.paymentRequest })
+        .then((response) => {
+          if (response.payment && response.payment.status === 'completed') {
+            handlePayment(response.payment);
+          }
+        })
+        .catch((error) => {
+          console.error('Error checking initial receive payment', {
+            cause: error,
+          });
+        });
+    });
   }
 
   private async classify(quoteId: string): Promise<TerminalStatus> {

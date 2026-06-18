@@ -45,4 +45,10 @@ describe('Sdk.create', () => {
     await sdk.resync();
     await sdk.dispose();
   });
+
+  test('exposes sdk.cashu.receive.receiveToken', async () => {
+    const sdk = await Sdk.create(baseConfig(), { openSecret: fakeOs() });
+    expect(typeof sdk.cashu.receive.receiveToken).toBe('function');
+    await sdk.dispose();
+  });
 });

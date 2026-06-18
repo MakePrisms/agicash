@@ -34,6 +34,9 @@ import { EventBus } from './internal/event-bus';
 import { KeyService } from './internal/keys';
 import { type OpenSecret, realOpenSecret } from './internal/opensecret';
 import { createOpenSecretStorage } from './internal/opensecret-storage';
+import { buildCashuMintValidator } from './internal/cashu/mint-validation';
+import { ReceiveCashuTokenService } from './internal/services/receive-cashu-token-service';
+import { ReceiveCashuTokenQuoteService } from './internal/services/receive-cashu-token-quote-service';
 import {
   type WalletRuntime,
   createWalletRuntime,
@@ -194,6 +197,14 @@ export class Sdk {
     });
 
     const p = walletRuntime.protocols;
+    const receiveTokenService = new ReceiveCashuTokenService({
+      mintCache: walletRuntime.mintCache,
+      mintValidator: buildCashuMintValidator(config.cashuMintBlocklist),
+    });
+    const receiveTokenQuoteService = new ReceiveCashuTokenQuoteService(
+      p.cashuReceiveQuoteService,
+      p.sparkReceiveQuoteService,
+    );
     const cashu = {
       send: new CashuSendOps({
         quoteService: p.cashuSendQuoteService,
@@ -208,6 +219,15 @@ export class Sdk {
         repository: p.cashuReceiveQuoteRepository,
         events,
         getCurrentUserId,
+        swapService: p.cashuReceiveSwapService,
+        sparkReceiveQuoteService: p.sparkReceiveQuoteService,
+        accountRepository: walletRuntime.accountRepository,
+        accountService: walletRuntime.accountService,
+        receiveTokenService,
+        receiveTokenQuoteService,
+        getUser: () => user.get(),
+        setDefaultAccount: (params) => user.setDefaultAccount(params),
+        getExchangeRate: (ticker) => rates.get(ticker),
       }),
     };
     const spark = {
