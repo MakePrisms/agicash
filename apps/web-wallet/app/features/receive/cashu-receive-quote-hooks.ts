@@ -63,12 +63,18 @@ export function useCreateCashuReceiveQuote() {
     scope: {
       id: 'create-cashu-receive-quote',
     },
-    mutationFn: async ({ account, amount, purpose }: CreateProps) => {
+    mutationFn: async ({
+      account,
+      amount,
+      purpose,
+      description,
+    }: CreateProps) => {
       const sdk = await sdkPromise;
       return sdk.cashu.receive.createLightningQuote({
         account,
         amount,
         purpose: purpose === 'BUY_CASHAPP' ? 'BUY_CASHAPP' : 'PAYMENT',
+        description,
       });
     },
     onSuccess: (data) => {

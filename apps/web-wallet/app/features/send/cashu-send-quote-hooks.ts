@@ -1,5 +1,10 @@
 import type { Money } from '@agicash/money';
-import { ConcurrencyError, DomainError, SdkError } from '@agicash/wallet-sdk';
+import {
+  ConcurrencyError,
+  type DestinationDetails,
+  DomainError,
+  SdkError,
+} from '@agicash/wallet-sdk';
 import { useMutation } from '@tanstack/react-query';
 import type { CashuAccount } from '../accounts/account';
 import { useSdk } from '../shared/use-sdk';
@@ -55,15 +60,18 @@ export function useInitiateCashuSendQuote({
     mutationFn: async ({
       account,
       sendQuote,
+      destinationDetails,
     }: {
       account: CashuAccount;
       sendQuote: CashuLightningQuote;
+      destinationDetails?: DestinationDetails;
     }) => {
       const sdk = await sdkPromise;
       const quote = await sdk.cashu.send.createLightningQuote({
         account,
         destination: sendQuote.paymentRequest,
         amount: sendQuote.amountRequested,
+        destinationDetails,
       });
       return sdk.cashu.send.executeQuote(quote);
     },

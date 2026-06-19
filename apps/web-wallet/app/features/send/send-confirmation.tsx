@@ -1,5 +1,5 @@
 import type { Money } from '@agicash/money';
-import { DomainError } from '@agicash/wallet-sdk';
+import { type DestinationDetails, DomainError } from '@agicash/wallet-sdk';
 import { AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';
 import { PageFooter, PageHeaderTitle } from '~/components/page';
@@ -101,15 +101,22 @@ type UsePayBolt11Props = {
   account: CashuAccount | SparkAccount;
   /** The quote to pay. */
   quote: CashuLightningQuote | SparkLightningQuote;
+  /** Additional details about the destination to include in the Agicash DB record. Cashu-only. */
+  destinationDetails?: DestinationDetails;
 };
 
 /**
  * A hook that is used to pay bolt11 invoices from a Cashu account or a Spark account.
  * @param account - The account to send from.
- * @param quote - The quote to pay
+ * @param quote - The quote to pay.
+ * @param destinationDetails - Additional details about the destination to include in the Agicash DB record. Cashu-only.
  * @returns A function to handle the confirmation of the payment and a boolean indicating if the payment is pending.
  */
-const usePayBolt11 = ({ account, quote }: UsePayBolt11Props) => {
+const usePayBolt11 = ({
+  account,
+  quote,
+  destinationDetails,
+}: UsePayBolt11Props) => {
   const { toast } = useToast();
   const navigate = useNavigateWithViewTransition();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
@@ -176,6 +183,7 @@ const usePayBolt11 = ({ account, quote }: UsePayBolt11Props) => {
       initiateCashuSend({
         account,
         sendQuote: quote as CashuLightningQuote,
+        destinationDetails,
       });
     } else if (account.type === 'spark') {
       initiateSparkSend({
@@ -200,6 +208,7 @@ type PayBolt11ConfirmationProps = {
   destination: string;
   /** The destination to display in the UI. For sends to bolt11 this will be the same as the bolt11, for ln addresses it will be the ln address. */
   destinationDisplay: string;
+  destinationDetails?: DestinationDetails;
   /** The quote to display in the UI. */
   quote: CashuLightningQuote | SparkLightningQuote;
 };
@@ -217,10 +226,12 @@ export const PayBolt11Confirmation = ({
   quote: bolt11Quote,
   destination,
   destinationDisplay,
+  destinationDetails,
 }: PayBolt11ConfirmationProps) => {
   const { handleConfirm, isPending } = usePayBolt11({
     account,
     quote: bolt11Quote,
+    destinationDetails,
   });
 
   const {

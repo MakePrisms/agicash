@@ -172,12 +172,17 @@ export function createCashuDomain(
         });
       },
 
-      async createLightningQuote({ account, destination, amount }) {
+      async createLightningQuote({
+        account,
+        destination,
+        amount,
+        destinationDetails: callerDestinationDetails,
+      }) {
         const userId = await requireUserId();
-        const { paymentRequest, destinationDetails } = await resolveDestination(
-          destination,
-          amount,
-        );
+        const {
+          paymentRequest,
+          destinationDetails: resolvedDestinationDetails,
+        } = await resolveDestination(destination, amount);
 
         const lightningQuote = await sendQuoteService.getLightningQuote({
           account,
@@ -194,7 +199,8 @@ export function createCashuDomain(
             amountRequestedInBtc: lightningQuote.amountRequestedInBtc,
             meltQuote: lightningQuote.meltQuote,
           },
-          destinationDetails,
+          destinationDetails:
+            callerDestinationDetails ?? resolvedDestinationDetails,
         });
       },
 
@@ -264,11 +270,12 @@ export function createCashuDomain(
         });
       },
 
-      async createLightningQuote({ account, amount, purpose }) {
+      async createLightningQuote({ account, amount, purpose, description }) {
         const userId = await requireUserId();
         const lightningQuote = await receiveQuoteService.getLightningQuote({
           wallet: account.wallet,
           amount,
+          description,
         });
 
         return receiveQuoteService.createReceiveQuote({

@@ -19,6 +19,7 @@ import type {
   CashuReceiveSwap,
   CashuSendQuote,
   CashuSendSwap,
+  DestinationDetails,
 } from './types/cashu';
 import type { Contact, UserProfile } from './types/contact';
 import type { Rates, Ticker } from './types/exchange-rate';
@@ -167,12 +168,16 @@ export interface CashuSendOps {
    * Create a LIGHTNING send quote. `destination` is a bolt11 invoice OR a
    * Lightning address — an ln-address is resolved internally via LNURL-pay using
    * the amount (no separate scan step). `amount` is required for amountless
-   * invoices / ln-addresses.
+   * invoices / ln-addresses. `destinationDetails` overrides the internally
+   * resolved destination tag — pass it when the caller already knows the send
+   * type (e.g. LN_ADDRESS or AGICASH_CONTACT) and supplies a pre-resolved bolt11
+   * as `destination`.
    */
   createLightningQuote(params: {
     account: CashuAccount;
     destination: string;
     amount?: Money;
+    destinationDetails?: DestinationDetails;
   }): Promise<CashuSendQuote>;
   /**
    * Create a TOKEN send — returns a separate {@link CashuSendSwap} (not a
@@ -221,12 +226,14 @@ export interface CashuReceiveOps {
   /**
    * Create a lightning receive quote (an invoice to be paid). `purpose` defaults
    * to `'PAYMENT'`; `'BUY_CASHAPP'` is the buy-bitcoin / Cash App flow (pairs with
-   * the `cashAppDeepLink` helper).
+   * the `cashAppDeepLink` helper). `description` is threaded to the mint invoice
+   * as the bolt11 memo.
    */
   createLightningQuote(params: {
     account: CashuAccount;
     amount: Money;
     purpose?: 'PAYMENT' | 'BUY_CASHAPP';
+    description?: string;
   }): Promise<CashuReceiveQuote>;
   /** Fetch a receive quote by id, or null if not found. */
   get(quoteId: string): Promise<CashuReceiveQuote | null>;

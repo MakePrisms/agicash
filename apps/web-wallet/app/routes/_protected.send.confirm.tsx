@@ -1,3 +1,4 @@
+import type { DestinationDetails } from '@agicash/wallet-sdk';
 import { Redirect } from '~/components/redirect';
 import {
   CreateCashuTokenConfirmation,
@@ -12,6 +13,7 @@ export default function SendConfirmationPage() {
     amount: sendAmount,
     destination,
     destinationDisplay,
+    destinationDetails,
     quote,
   } = useSendStore();
   const sendAccount = getSourceAccount();
@@ -33,12 +35,20 @@ export default function SendConfirmationPage() {
       return <Redirect to="/send" logMessage="Missing destination data" />;
     }
 
+    const details: DestinationDetails | undefined =
+      sendType === 'LN_ADDRESS'
+        ? { sendType, lnAddress: destinationDetails.lnAddress }
+        : sendType === 'AGICASH_CONTACT'
+          ? { sendType, contactId: destinationDetails.id }
+          : undefined;
+
     return (
       <PayBolt11Confirmation
         account={sendAccount}
         quote={quote}
         destination={destination}
         destinationDisplay={destinationDisplay}
+        destinationDetails={details}
       />
     );
   }

@@ -306,6 +306,25 @@ describe('cashu domain', () => {
     });
   });
 
+  it('receive.createLightningQuote forwards description to getLightningQuote', async () => {
+    receiveGetLightning.mockResolvedValue({ mintQuote: {} } as never);
+    receiveCreate.mockResolvedValue({ id: 'rq-desc' } as never);
+    const domain = createCashuDomain(makeCtx(), fakeAccountRepo());
+
+    const amount = btc(100);
+    await domain.receive.createLightningQuote({
+      account: cashuAccount,
+      amount,
+      description: 'Pay to Agicash',
+    });
+
+    expect(receiveGetLightning.mock.calls[0][0] as unknown).toEqual({
+      wallet: cashuAccount.wallet,
+      amount,
+      description: 'Pay to Agicash',
+    });
+  });
+
   it('receive.createLightningQuote forwards a non-default purpose', async () => {
     receiveGetLightning.mockResolvedValue({ mintQuote: {} } as never);
     receiveCreate.mockResolvedValue({ id: 'rq-2' } as never);
@@ -422,6 +441,37 @@ describe('cashu domain', () => {
     });
   });
 
+  it('send.createLightningQuote without a passed destinationDetails keeps the resolved LN_ADDRESS tag (backward-compat)', async () => {
+    getInvoiceFromLud16.mockResolvedValue({
+      pr: 'lnbc-resolved',
+      routes: [],
+    } as never);
+    const lightningQuote = {
+      paymentRequest: 'lnbc-resolved',
+      amountRequested: btc(100),
+      amountRequestedInBtc: btc(100),
+      meltQuote: { quote: 'melt-2', amount: 100, fee_reserve: 1 },
+    };
+    sendQuoteGetLightning.mockResolvedValue(lightningQuote as never);
+    sendQuoteCreate.mockResolvedValue({ id: 'sq-2' } as never);
+    const domain = createCashuDomain(makeCtx(), fakeAccountRepo());
+
+    await domain.send.createLightningQuote({
+      account: cashuAccount,
+      destination: 'alice@example.com',
+      amount: btc(100),
+      // Note: no destinationDetails passed
+    });
+
+    const createArg = sendQuoteCreate.mock.calls[0][0] as {
+      destinationDetails?: { sendType: string; lnAddress: string };
+    };
+    expect(createArg.destinationDetails).toEqual({
+      sendType: 'LN_ADDRESS',
+      lnAddress: 'alice@example.com',
+    });
+  });
+
   it('send.createLightningQuote (ln-address) surfaces an LNURL error', async () => {
     getInvoiceFromLud16.mockResolvedValue({
       status: 'ERROR',
@@ -446,6 +496,55 @@ describe('cashu domain', () => {
         destination: 'alice@example.com',
       }),
     ).rejects.toThrow('Amount is required');
+  });
+
+  it('send.createLightningQuote caller-supplied destinationDetails wins over the absent resolved one (bolt11 destination)', async () => {
+    const lightningQuote = {
+      paymentRequest: 'lnbc-bolt11',
+      amountRequested: btc(200),
+      amountRequestedInBtc: btc(200),
+      meltQuote: { quote: 'melt-dd', amount: 200, fee_reserve: 2 },
+    };
+    sendQuoteGetLightning.mockResolvedValue(lightningQuote as never);
+    sendQuoteCreate.mockResolvedValue({ id: 'sq-dd' } as never);
+    const domain = createCashuDomain(makeCtx(), fakeAccountRepo());
+
+    const callerDetails = {
+      sendType: 'AGICASH_CONTACT' as const,
+      contactId: 'c1',
+    };
+    await domain.send.createLightningQuote({
+      account: cashuAccount,
+      destination: 'lnbc-bolt11',
+      destinationDetails: callerDetails,
+    });
+
+    const createArg = sendQuoteCreate.mock.calls[0][0] as {
+      destinationDetails?: unknown;
+    };
+    expect(createArg.destinationDetails).toEqual(callerDetails);
+  });
+
+  it('send.createLightningQuote backward-compat: no caller details + bolt11 destination → destinationDetails undefined', async () => {
+    const lightningQuote = {
+      paymentRequest: 'lnbc-plain',
+      amountRequested: btc(50),
+      amountRequestedInBtc: btc(50),
+      meltQuote: { quote: 'melt-plain', amount: 50, fee_reserve: 1 },
+    };
+    sendQuoteGetLightning.mockResolvedValue(lightningQuote as never);
+    sendQuoteCreate.mockResolvedValue({ id: 'sq-plain' } as never);
+    const domain = createCashuDomain(makeCtx(), fakeAccountRepo());
+
+    await domain.send.createLightningQuote({
+      account: cashuAccount,
+      destination: 'lnbc-plain',
+    });
+
+    const createArg = sendQuoteCreate.mock.calls[0][0] as {
+      destinationDetails?: unknown;
+    };
+    expect(createArg.destinationDetails).toBeUndefined();
   });
 
   describe('cashu.send.executeQuote', () => {
