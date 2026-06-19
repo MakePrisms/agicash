@@ -2,6 +2,7 @@ import type {
   ReadUserRepository,
   WriteUserRepository,
 } from '../internal/db/user-repository';
+import type { Currency } from '@agicash/money';
 import type { Account } from './account-types';
 import type { User } from './user-types';
 
@@ -47,6 +48,11 @@ export class UserDomain {
         : { defaultUsdAccountId: account.id }),
       ...(setDefaultCurrency ? { defaultCurrency: account.currency } : {}),
     });
+  }
+
+  async setDefaultCurrency(currency: Currency): Promise<User> {
+    const id = await this.requireUserId();
+    return this.deps.writeUserRepo.update(id, { defaultCurrency: currency });
   }
 
   async updateUsername(username: string): Promise<User> {
