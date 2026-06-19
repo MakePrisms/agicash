@@ -1,5 +1,4 @@
 import type { Currency } from '@agicash/money';
-import { requestNewVerificationCode } from '@agicash/opensecret';
 import {
   type QueryClient,
   useMutation,
@@ -9,15 +8,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
+import { getSdk } from '~/lib/sdk';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
 import type { AgicashDbUser } from '../agicash-db/database';
-import { guestAccountStorage } from './guest-account-storage';
 import type { User } from './user';
 import {
   ReadUserRepository,
   type UpdateUser,
-  useReadUserRepository,
   useWriteUserRepository,
 } from './user-repository';
 import { useUserService } from './user-service';
@@ -73,16 +71,18 @@ export const getUserFromCacheOrThrow = () => {
 };
 
 const userQueryOptions = <TData = User>({
-  userId,
-  userRepository,
   select,
 }: {
-  userId: string;
-  userRepository: ReadUserRepository;
   select?: (data: User) => TData;
-}) => ({
+} = {}) => ({
   queryKey: [UserCache.Key],
-  queryFn: () => userRepository.get(userId),
+  queryFn: async (): Promise<User> => {
+    const user = await getSdk().user.get();
+    if (!user) {
+      throw new Error('Cannot read user in anonymous context');
+    }
+    return user;
+  },
   select,
 });
 
@@ -95,16 +95,11 @@ export const useUser = <TData = User>(
   select?: (data: User) => TData,
 ): TData => {
   const authState = useAuthState();
-  const authUser = authState.user;
-  if (!authUser) {
+  if (!authState.user) {
     throw new Error('Cannot use useUser hook in anonymous context');
   }
 
-  const userRepository = useReadUserRepository();
-
-  const { data } = useSuspenseQuery(
-    userQueryOptions({ userId: authUser.id, userRepository, select }),
-  );
+  const { data } = useSuspenseQuery(userQueryOptions({ select }));
 
   return data;
 };
@@ -166,12 +161,7 @@ export const useUpgradeGuestToFullAccount = (): ((
         throw new Error('User already has a full account');
       }
 
-      return convertGuestToFullAccount(
-        variables.email,
-        variables.password,
-      ).then(() => {
-        guestAccountStorage.clear();
-      });
+      return convertGuestToFullAccount(variables.email, variables.password);
     },
     scope: {
       id: 'upgrade-guest-to-full-account',
@@ -197,7 +187,7 @@ export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
         throw new Error('Email is already verified');
       }
 
-      return requestNewVerificationCode();
+      return getSdk().auth.requestEmailVerification();
     },
     scope: {
       id: 'request-new-email-verification-code',

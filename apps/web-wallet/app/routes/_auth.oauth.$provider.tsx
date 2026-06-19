@@ -1,4 +1,3 @@
-import { handleGoogleCallback } from '@agicash/opensecret';
 import { decodeURLSafe } from '@stablelib/base64';
 import { redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
@@ -6,6 +5,7 @@ import { getErrorMessage } from '~/features/shared/error';
 import { invalidateAuthQueries } from '~/features/user/auth';
 import { oauthLoginSessionStorage } from '~/features/user/oauth-login-session-storage';
 import { toast } from '~/hooks/use-toast';
+import { initSdk } from '~/lib/sdk';
 import type { Route } from './+types/_auth.oauth.$provider';
 
 class UnsupportedOAuthProviderError extends Error {
@@ -37,9 +37,11 @@ export async function clientLoader({
 
   try {
     switch (provider) {
-      case 'google':
-        await handleGoogleCallback(code, state, '');
+      case 'google': {
+        const sdk = await initSdk(location.host);
+        await sdk.auth.completeOAuth({ code, state });
         break;
+      }
       default: {
         throw new UnsupportedOAuthProviderError(
           `Unsupported OAuth provider: ${provider}`,
