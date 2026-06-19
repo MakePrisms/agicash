@@ -3,40 +3,20 @@ import { useSdk } from '~/features/shared/sdk';
 import { SupabaseRealtimeError } from '~/lib/supabase';
 
 /**
- * Subscribes the SDK's wallet realtime channel for the lifetime of the
- * component. The SDK dispatches database change events to its domain state
- * and refetches on connect/reconnect; this hook only binds the channel to
- * the React lifecycle and surfaces a terminal channel error to the nearest
- * error boundary.
+ * Drives the SDK's realtime wallet channel for the lifetime of the component
+ * and surfaces a terminal channel error to the nearest error boundary. The SDK
+ * owns the subscription itself — subscribing the current user's channel and
+ * re-subscribing as the session changes — and dispatches DB change events to
+ * its domain state; this hook just binds start/stop to the React lifecycle.
  */
 export const useTrackWalletChanges = () => {
-  const sdk = useSdk();
-  const realtime = sdk.realtime;
+  const realtime = useSdk().realtime;
 
   const status = useSyncExternalStore(realtime.onStatusChange, () =>
     realtime.getStatus(),
   );
 
-  useEffect(() => {
-    const subscribePromise = realtime.subscribe().catch((error) => {
-      console.error('Error subscribing to realtime channel', {
-        cause: error,
-      });
-    });
-
-    return () => {
-      const cleanup = async () => {
-        await subscribePromise;
-        await realtime.unsubscribe();
-      };
-
-      cleanup().catch((error) => {
-        console.error('Error cleaning up realtime channel', {
-          cause: error,
-        });
-      });
-    };
-  }, [realtime]);
+  useEffect(() => realtime.start(), [realtime]);
 
   if (status === 'error') {
     throw new SupabaseRealtimeError(

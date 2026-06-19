@@ -12,14 +12,14 @@ export type DatabaseChangeHandler = {
 
 export type RealtimeApi = {
   /**
-   * Subscribes the current user's wallet broadcast channel and dispatches
-   * database change events to the SDK's domain state. Ref-counted — matching
-   * subscribe/unsubscribe pairs share one channel.
-   * @throws if no user is loaded yet.
+   * Starts auto-managing the wallet broadcast channel for the SDK's lifetime:
+   * subscribes the current user's `wallet:{userId}` channel and re-subscribes
+   * as the session changes (login / logout / user switch), dispatching DB
+   * change events to the SDK's domain state and refetching on (re)connect.
+   * Returns a stop function. Client-only; call once per host (app mount /
+   * daemon boot).
    */
-  subscribe: () => Promise<void>;
-  /** Releases one subscription to the wallet channel. */
-  unsubscribe: () => Promise<void>;
+  start: () => () => void;
   /** Current status of the wallet channel. */
   getStatus: () => ChannelStatus;
   /** The wallet channel's last error, if any. */
@@ -57,22 +57,32 @@ export type RealtimeApiDeps = {
    * realtime connection was down.
    */
   onConnected: () => void;
+  /**
+   * Observes the current wallet user id (null when logged out), invoking the
+   * listener on every change. The SDK root wires this from the auth state;
+   * `start()` uses it to (re)subscribe the channel as the session changes.
+   */
+  subscribeToUserId: (listener: (userId: string | null) => void) => () => void;
 };
 
 export function createRealtimeApi(deps: RealtimeApiDeps): RealtimeApi {
-  const { realtimeClient, getCurrentUserId, changeHandlers, onConnected } =
-    deps;
+  const {
+    realtimeClient,
+    getCurrentUserId,
+    changeHandlers,
+    onConnected,
+    subscribeToUserId,
+  } = deps;
 
   const manager = new SupabaseRealtimeManager(realtimeClient);
 
-  const getTopic = () =>
-    // RealtimeClient adds the "realtime:" prefix to the topic name; the
-    // manager keys its state by the prefixed form.
-    `realtime:wallet:${getCurrentUserId()}`;
+  // RealtimeClient adds the "realtime:" prefix to the topic name; the manager
+  // keys its state by the prefixed form.
+  const topicFor = (userId: string) => `realtime:wallet:${userId}`;
 
-  const buildChannel = () =>
+  const buildChannelFor = (userId: string) =>
     manager
-      .channel(`wallet:${getCurrentUserId()}`, { private: true })
+      .channel(`wallet:${userId}`, { private: true })
       .on('broadcast', { event: '*' }, ({ event, payload }) => {
         const handler = changeHandlers.find(
           (handler) => handler.event === event,
@@ -80,18 +90,61 @@ export function createRealtimeApi(deps: RealtimeApiDeps): RealtimeApi {
         handler?.handleEvent(payload);
       });
 
+  // Status reads target the current user's channel (the one start() manages).
+  const currentTopic = () => topicFor(getCurrentUserId());
+
   return {
-    subscribe: async () => {
-      const channel = manager.addChannel(buildChannel());
-      await channel.subscribe(onConnected);
+    start: () => {
+      let subscribedUserId: string | null = null;
+
+      const subscribeFor = (userId: string) => {
+        const channel = manager.addChannel(buildChannelFor(userId));
+        channel.subscribe(onConnected).catch((error) => {
+          console.error('Error subscribing to realtime channel', {
+            cause: error,
+          });
+        });
+      };
+
+      const unsubscribeFor = (userId: string) => {
+        manager
+          .removeChannel(topicFor(userId), { onConnected })
+          .catch((error) => {
+            console.error('Error unsubscribing from realtime channel', {
+              cause: error,
+            });
+          });
+      };
+
+      // Subscribe the current user's channel; re-subscribe when the user
+      // changes (login / logout / switch), tearing down the previous one.
+      const reconcile = (userId: string | null) => {
+        if (userId === subscribedUserId) {
+          return;
+        }
+        if (subscribedUserId) {
+          unsubscribeFor(subscribedUserId);
+        }
+        subscribedUserId = userId;
+        if (userId) {
+          subscribeFor(userId);
+        }
+      };
+
+      const stopObserving = subscribeToUserId(reconcile);
+
+      return () => {
+        stopObserving();
+        if (subscribedUserId) {
+          unsubscribeFor(subscribedUserId);
+          subscribedUserId = null;
+        }
+      };
     },
-    unsubscribe: async () => {
-      await manager.removeChannel(getTopic(), { onConnected });
-    },
-    getStatus: () => manager.getChannelStatus(getTopic()) ?? 'idle',
-    getError: () => manager.getChannelError(getTopic()),
+    getStatus: () => manager.getChannelStatus(currentTopic()) ?? 'idle',
+    getError: () => manager.getChannelError(currentTopic()),
     onStatusChange: (listener) =>
-      manager.subscribeToChannelStatusChange(getTopic(), listener),
+      manager.subscribeToChannelStatusChange(currentTopic(), listener),
     setOnlineStatus: (isOnline) => manager.setOnlineStatus(isOnline),
     setActiveStatus: (isActive) => manager.setActiveStatus(isActive),
     __debugManager: manager,

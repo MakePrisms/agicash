@@ -3,10 +3,15 @@ import {
   type StorageProvider,
   configure as configureOpenSecret,
 } from '@agicash/opensecret';
-import type { QueryClient } from '@tanstack/query-core';
+import { type QueryClient, QueryObserver } from '@tanstack/query-core';
 import { type AccountsApi, createAccountsApi } from './accounts/accounts-api';
 import { configureAgicashDb, getAgicashDb } from './agicash-db';
-import { type AuthApi, type ResolvedAuthState, createAuthApi } from './auth';
+import {
+  type AuthApi,
+  type AuthState,
+  type ResolvedAuthState,
+  createAuthApi,
+} from './auth';
 import { type ContactsApi, createContactsApi } from './contacts/contacts-api';
 import { createLazyEncryption } from './encryption';
 import { type CaptureException, setErrorReporter } from './error-reporting';
@@ -275,6 +280,31 @@ export class WalletSdk {
         for (const cache of invalidateOnReconnect) {
           cache.invalidate();
         }
+      },
+      // Observe the auth state so realtime (re)subscribes the right
+      // wallet:{userId} channel as the session changes. The auth user id is the
+      // wallet user id, and the channel's RLS is JWT-based, so this is valid
+      // even before the user row is bootstrapped.
+      subscribeToUserId: (listener) => {
+        const observer = new QueryObserver<AuthState>(
+          this.queryClient,
+          this.auth.stateOptions(),
+        );
+        let lastUserId: string | null | undefined;
+        const emit = (state: AuthState | undefined) => {
+          const userId = state?.isLoggedIn ? state.user.id : null;
+          if (userId === lastUserId) {
+            return;
+          }
+          lastUserId = userId;
+          listener(userId);
+        };
+        const stopObserving = observer.subscribe((result) => emit(result.data));
+        emit(observer.getCurrentResult().data);
+        return () => {
+          stopObserving();
+          observer.destroy();
+        };
       },
     });
 
