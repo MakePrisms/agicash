@@ -322,6 +322,32 @@ describe('cashu domain', () => {
     ).toBe('BUY_CASHAPP');
   });
 
+  it('send.previewLightningQuote quotes fees without persisting', async () => {
+    const lightningQuote = {
+      paymentRequest: 'lnbc-direct',
+      amountRequested: btc(100),
+      amountRequestedInBtc: btc(100),
+      meltQuote: { quote: 'melt-preview', amount: 100, fee_reserve: 1 },
+      amountToReceive: btc(100),
+      lightningFeeReserve: btc(1),
+      estimatedCashuFee: btc(0),
+      estimatedTotalFee: btc(1),
+      estimatedTotalAmount: btc(101),
+      expiresAt: null,
+    };
+    sendQuoteGetLightning.mockResolvedValue(lightningQuote as never);
+    const domain = createCashuDomain(makeCtx(), fakeAccountRepo());
+
+    const preview = await domain.send.previewLightningQuote({
+      account: cashuAccount,
+      destination: 'lnbc-direct',
+    });
+
+    expect(preview.estimatedTotalFee).toBeInstanceOf(Money);
+    expect(sendQuoteCreate).not.toHaveBeenCalled();
+    expect(preview as unknown).toBe(lightningQuote);
+  });
+
   it('send.createLightningQuote (bolt11) previews then persists the quote', async () => {
     const lightningQuote = {
       paymentRequest: 'lnbc-direct',

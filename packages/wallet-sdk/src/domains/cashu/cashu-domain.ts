@@ -160,6 +160,18 @@ export function createCashuDomain(
 
   return {
     send: {
+      async previewLightningQuote({ account, destination, amount }) {
+        const { paymentRequest } = await resolveDestination(
+          destination,
+          amount,
+        );
+        return sendQuoteService.getLightningQuote({
+          account,
+          paymentRequest,
+          amount,
+        });
+      },
+
       async createLightningQuote({ account, destination, amount }) {
         const userId = await requireUserId();
         const { paymentRequest, destinationDetails } = await resolveDestination(

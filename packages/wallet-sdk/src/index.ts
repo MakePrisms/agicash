@@ -107,6 +107,7 @@ export type {
   CashuTokenMeltData,
   DestinationDetails,
 } from './types/cashu';
+export type { CashuLightningQuote } from './domains/cashu/cashu-send-quote-service';
 
 // --- cashu mint blocklist (config helper) ----------------------------------
 // Re-exported so the consumer can Zod-parse its env JSON before assembling
@@ -116,6 +117,7 @@ export type { MintBlocklist } from './internal/lib/cashu/mint-validation';
 
 // --- spark (§6) ------------------------------------------------------------
 export type { SparkSendQuote, SparkReceiveQuote } from './types/spark';
+export type { SparkLightningQuote } from './domains/spark/spark-send-quote-service';
 
 // --- transactions (§7) -----------------------------------------------------
 export type {

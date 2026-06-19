@@ -83,28 +83,48 @@ export function createSparkDomain(
     return result.pr;
   };
 
+  /** Shared pre-persist steps: amount conversion + destination resolution + fee quote. */
+  const getLightningSendPreview = async ({
+    account,
+    destination,
+    amount,
+  }: {
+    account: SparkAccount;
+    destination: string;
+    amount?: Money;
+  }) => {
+    const amountBtc =
+      amount === undefined
+        ? undefined
+        : amount.currency === 'BTC'
+          ? (amount as Money<'BTC'>)
+          : ((await exchangeRate.convert({
+              amount,
+              to: 'BTC',
+            })) as Money<'BTC'>);
+
+    const paymentRequest = await resolveDestination(destination, amountBtc);
+
+    return sendQuoteService.getLightningSendQuote({
+      account,
+      paymentRequest,
+      amount: amountBtc,
+    });
+  };
+
   return {
     send: {
+      async previewLightningQuote({ account, destination, amount }) {
+        return getLightningSendPreview({ account, destination, amount });
+      },
+
       async createLightningQuote({ account, destination, amount }) {
         const userId = await requireUserId();
-        const amountBtc =
-          amount === undefined
-            ? undefined
-            : amount.currency === 'BTC'
-              ? (amount as Money<'BTC'>)
-              : ((await exchangeRate.convert({
-                  amount,
-                  to: 'BTC',
-                })) as Money<'BTC'>);
-
-        const paymentRequest = await resolveDestination(destination, amountBtc);
-
-        const quote = await sendQuoteService.getLightningSendQuote({
+        const quote = await getLightningSendPreview({
           account,
-          paymentRequest,
-          amount: amountBtc,
+          destination,
+          amount,
         });
-
         return sendQuoteService.createSendQuote({ userId, account, quote });
       },
 

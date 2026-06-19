@@ -1,3 +1,5 @@
+import type { CashuLightningQuote } from './domains/cashu/cashu-send-quote-service';
+import type { SparkLightningQuote } from './domains/spark/spark-send-quote-service';
 import type { BackgroundState } from './events';
 /**
  * Domain interfaces — §2-§10 of the contract. DECLARATIONS ONLY (no impl).
@@ -152,6 +154,16 @@ export interface ScanDomain {
 /** Cashu send operations: lightning sends, token sends, and reclaiming a pending token send. */
 export interface CashuSendOps {
   /**
+   * Preview a LIGHTNING send (fees + amounts) WITHOUT persisting or reserving
+   * proofs — for the confirmation screen. `createLightningQuote` + `executeQuote`
+   * run on confirm. Same params as `createLightningQuote`.
+   */
+  previewLightningQuote(params: {
+    account: CashuAccount;
+    destination: string;
+    amount?: Money;
+  }): Promise<CashuLightningQuote>;
+  /**
    * Create a LIGHTNING send quote. `destination` is a bolt11 invoice OR a
    * Lightning address — an ln-address is resolved internally via LNURL-pay using
    * the amount (no separate scan step). `amount` is required for amountless
@@ -236,6 +248,16 @@ export interface CashuDomain {
 
 /** Spark (Breez) send operations. */
 export interface SparkSendOps {
+  /**
+   * Preview a Spark LIGHTNING send (fees + amounts) WITHOUT persisting — for the
+   * confirmation screen. `createLightningQuote` + `executeQuote` run on confirm.
+   * Same params as `createLightningQuote`.
+   */
+  previewLightningQuote(params: {
+    account: SparkAccount;
+    destination: string;
+    amount?: Money;
+  }): Promise<SparkLightningQuote>;
   /**
    * Create a Spark lightning send quote. `destination` is a bolt11 invoice OR a
    * Lightning address (resolved internally via LNURL-pay using the amount);

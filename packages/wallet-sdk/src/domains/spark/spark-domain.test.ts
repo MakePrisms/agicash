@@ -179,6 +179,34 @@ describe('spark domain', () => {
     expect(sendServiceFail.mock.calls[0]).toEqual([quote, 'test reason']);
   });
 
+  describe('send.previewLightningQuote', () => {
+    it('quotes fees without persisting', async () => {
+      const lightningQuoteStub: SparkLightningQuote = {
+        paymentRequest: VALID_INVOICE,
+        paymentHash: 'abc123',
+        amountRequested: btc(2500),
+        amountRequestedInBtc: btc(2500) as Money<'BTC'>,
+        amountToReceive: btc(2500),
+        estimatedLightningFee: btc(1) as Money<'BTC'>,
+        estimatedTotalFee: btc(1),
+        estimatedTotalAmount: btc(2501),
+        paymentRequestIsAmountless: false,
+        expiresAt: null,
+      };
+      sendServiceGetLightning.mockResolvedValue(lightningQuoteStub as never);
+
+      const domain = createSparkDomain(makeCtx(), fakeAccountRepo());
+      const preview = await domain.send.previewLightningQuote({
+        account: sparkAccount,
+        destination: VALID_INVOICE,
+      });
+
+      expect(preview.estimatedTotalFee).toBeInstanceOf(Money);
+      expect(sendServiceCreate).not.toHaveBeenCalled();
+      expect(preview).toBe(lightningQuoteStub);
+    });
+  });
+
   describe('send.createLightningQuote', () => {
     it('bolt11 path: resolves invoice unchanged and wires getLightningSendQuote + createSendQuote', async () => {
       const lightningQuoteStub: SparkLightningQuote = {
