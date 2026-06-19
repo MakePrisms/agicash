@@ -7,7 +7,7 @@ import { SupabaseRealtimeError } from '~/lib/supabase';
  * SDK owns the channel subscription (started by sdk.start()); this hook only
  * reads its status and escalates a channel error to React.
  */
-export const useTrackWalletChanges = () => {
+export const useSurfaceRealtimeError = () => {
   const realtime = useSdk().realtime;
 
   const status = useSyncExternalStore(realtime.onStatusChange, () =>

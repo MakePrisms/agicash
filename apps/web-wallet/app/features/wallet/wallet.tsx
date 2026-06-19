@@ -6,7 +6,7 @@ import { useSdk } from '../shared/sdk';
 import { useTheme } from '../theme';
 import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
-import { useTrackWalletChanges } from './use-track-wallet-changes';
+import { useSurfaceRealtimeError } from './use-surface-realtime-error';
 
 /**
  * Syncs the theme settings stored in cookies to match the default currency
@@ -49,7 +49,7 @@ export const Wallet = ({ children }: PropsWithChildren) => {
 
   useSyncThemeWithDefaultCurrency();
 
-  useTrackWalletChanges();
+  useSurfaceRealtimeError();
   useSupabaseRealtimeActivityTracking(sdk.realtime);
 
   // Start the SDK's background engines (realtime channel, task processing,
