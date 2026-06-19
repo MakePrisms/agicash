@@ -1,10 +1,12 @@
+import type { Sdk } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
   queryOptions,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { type Ticker, exchangeRateService } from '~/lib/exchange-rate';
+import { useSdk } from '~/features/shared/use-sdk';
+import type { Ticker } from '~/lib/exchange-rate';
 
 /**
  * Gets the normalized set of tickers to fetch.
@@ -25,31 +27,20 @@ const getNormalizedTickers = (tickers: Ticker[]): Ticker[] => {
   return Array.from(tickerSet).sort();
 };
 
-/**
- * Query options for fetching multiple exchange rates.
- * The query key is normalized by sorting tickers to ensure cache sharing.
- * Always fetches both directions of each ticker pair (e.g., BTC-USD and USD-BTC).
- */
-export const exchangeRatesQueryOptions = (tickers: Ticker[]) => {
+export const exchangeRatesQueryOptions = (
+  tickers: Ticker[],
+  sdk: Promise<Sdk>,
+) => {
   const normalizedTickers = getNormalizedTickers(tickers);
   return queryOptions({
     queryKey: ['exchangeRate', normalizedTickers],
-    queryFn: async ({ signal }) => {
-      return exchangeRateService.getRates({
-        tickers: normalizedTickers,
-        signal,
-      });
-    },
+    queryFn: async () =>
+      (await sdk).exchangeRate.getRates({ tickers: normalizedTickers }),
   });
 };
 
-/**
- * Query options for fetching a single exchange rate.
- * Internally uses exchangeRatesQueryOptions to ensure cache sharing.
- * Note: This returns the full Rates object. Use with select or extract the ticker manually.
- */
-const exchangeRateQueryOptions = (ticker: Ticker) => {
-  return exchangeRatesQueryOptions([ticker]);
+const exchangeRateQueryOptions = (ticker: Ticker, sdk: Promise<Sdk>) => {
+  return exchangeRatesQueryOptions([ticker], sdk);
 };
 
 /**
@@ -59,22 +50,27 @@ const exchangeRateQueryOptions = (ticker: Ticker) => {
 export const getExchangeRate = async (
   queryClient: QueryClient,
   ticker: Ticker,
+  sdk: Promise<Sdk>,
 ) => {
-  const rates = await queryClient.fetchQuery(exchangeRateQueryOptions(ticker));
+  const rates = await queryClient.fetchQuery(
+    exchangeRateQueryOptions(ticker, sdk),
+  );
   return rates[ticker];
 };
 
 export const useExchangeRate = (ticker: Ticker) => {
+  const sdk = useSdk();
   return useQuery({
-    ...exchangeRateQueryOptions(ticker),
+    ...exchangeRateQueryOptions(ticker, sdk),
     select: (data) => data[ticker],
     refetchInterval: 15_000,
   });
 };
 
 export const useExchangeRates = (tickers: Ticker[]) => {
+  const sdk = useSdk();
   return useQuery({
-    ...exchangeRatesQueryOptions(tickers),
+    ...exchangeRatesQueryOptions(tickers, sdk),
     refetchInterval: 15_000,
   });
 };
@@ -85,5 +81,6 @@ export const useExchangeRates = (tickers: Ticker[]) => {
  */
 export const useGetExchangeRate = () => {
   const queryClient = useQueryClient();
-  return (ticker: Ticker) => getExchangeRate(queryClient, ticker);
+  const sdk = useSdk();
+  return (ticker: Ticker) => getExchangeRate(queryClient, ticker, sdk);
 };

@@ -2,7 +2,7 @@ import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
-import { getExchangeRate } from '~/hooks/use-exchange-rate';
+import { type Ticker, exchangeRateService } from '~/lib/exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
@@ -167,10 +167,10 @@ export class ClaimCashuTokenService {
         };
       }
     } else {
-      const exchangeRate = await getExchangeRate(
-        this.queryClient,
-        `${sourceAccount.currency}-${receiveAccount.currency}`,
-      );
+      const ticker =
+        `${sourceAccount.currency}-${receiveAccount.currency}` as Ticker;
+      const rates = await exchangeRateService.getRates({ tickers: [ticker] });
+      const exchangeRate = rates[ticker];
       const quotes =
         await this.receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(
           {
