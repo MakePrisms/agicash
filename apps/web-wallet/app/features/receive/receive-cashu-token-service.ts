@@ -22,7 +22,7 @@ import {
 import type {
   CashuAccountWithTokenFlags,
   ReceiveCashuTokenAccount,
-} from './receive-cashu-token-models';
+} from '@agicash/wallet-sdk';
 
 export class ReceiveCashuTokenService {
   constructor(private readonly queryClient: QueryClient) {}
