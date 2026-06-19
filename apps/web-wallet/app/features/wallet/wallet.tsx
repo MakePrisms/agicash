@@ -3,7 +3,6 @@ import { type PropsWithChildren, useEffect } from 'react';
 import { useToast } from '~/hooks/use-toast';
 import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
 import { useSdk } from '../shared/sdk';
-import { useTrackAndUpdateSparkAccountBalances } from '../shared/spark';
 import { useTheme } from '../theme';
 import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
@@ -52,13 +51,10 @@ export const Wallet = ({ children }: PropsWithChildren) => {
 
   useTrackWalletChanges();
   useSupabaseRealtimeActivityTracking(sdk.realtime);
-  useTrackAndUpdateSparkAccountBalances();
 
-  useEffect(() => {
-    const tasks = sdk.tasks;
-    tasks.start();
-    return () => tasks.stop();
-  }, [sdk]);
+  // Start the SDK's background engines (realtime channel, task processing,
+  // spark balance tracking) for the authenticated app's lifetime.
+  useEffect(() => sdk.start(), [sdk]);
 
   return <>{children}</>;
 };

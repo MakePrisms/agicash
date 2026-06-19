@@ -366,6 +366,30 @@ export class WalletSdk {
   }
 
   /**
+   * Starts the background engines that keep the SDK's cache correct — the
+   * realtime wallet channel, the leader-elected task processor, and spark
+   * balance tracking — and returns a function that stops them all. The host
+   * calls this once after a session is established (e.g. when the authenticated
+   * app mounts, or a daemon boots after login), so it can't forget to turn on a
+   * cog the cache depends on.
+   *
+   * Could instead be invoked from the constructor to auto-start (zero host
+   * ceremony). Deferred for now: tasks and spark balance read the current user
+   * eagerly, so they would first need the session-gating realtime already has
+   * before they're safe to start before login.
+   */
+  start(): () => void {
+    this.tasks.start();
+    const stopRealtime = this.realtime.start();
+    const stopSparkBalanceTracking = this.accounts.startSparkBalanceTracking();
+    return () => {
+      this.tasks.stop();
+      stopRealtime();
+      stopSparkBalanceTracking();
+    };
+  }
+
+  /**
    * The SDK's sole accessor: returns the configured singleton, constructing it
    * on first call. Idempotent — later calls return the same instance and never
    * build another (see the constructor for why exactly one is the limit). Hosts
