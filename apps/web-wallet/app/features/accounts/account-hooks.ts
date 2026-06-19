@@ -7,8 +7,8 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef } from 'react';
-import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { getSdk } from '~/lib/sdk';
 import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import {
@@ -110,29 +110,23 @@ export function useAccountsCache() {
   return useMemo(() => new AccountsCache(queryClient), [queryClient]);
 }
 
-/**
- * Hook that returns an account change handlers.
- */
-export function useAccountChangeHandlers() {
-  const accountRepository = useAccountRepository();
+export function useWireAccountEvents() {
   const accountCache = useAccountsCache();
 
-  return [
-    {
-      event: 'ACCOUNT_CREATED',
-      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const addedAccount = await accountRepository.toAccount(payload);
-        accountCache.upsert(addedAccount);
-      },
-    },
-    {
-      event: 'ACCOUNT_UPDATED',
-      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const updatedAccount = await accountRepository.toAccount(payload);
-        accountCache.upsert(updatedAccount);
-      },
-    },
-  ];
+  useEffect(() => {
+    const sdk = getSdk();
+    const unsubscribers = [
+      sdk.on('account:created', ({ entity }) => {
+        accountCache.upsert(entity);
+      }),
+      sdk.on('account:updated', ({ entity }) => {
+        accountCache.upsert(entity);
+      }),
+    ];
+    return () => {
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [accountCache]);
 }
 
 export const accountsQueryOptions = ({

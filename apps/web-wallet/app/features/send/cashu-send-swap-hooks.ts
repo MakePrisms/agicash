@@ -8,6 +8,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { getSdk } from '~/lib/sdk';
 import { useLatest } from '~/lib/use-latest';
 import type { CashuAccount } from '../accounts/account';
 import {
@@ -15,10 +16,6 @@ import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendSwap,
-} from '../agicash-db/database';
 import { ConcurrencyError, DomainError, NotFoundError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
@@ -349,45 +346,30 @@ function useOnProofStateChange({ swaps, onSpent }: OnProofStateChangeProps) {
   }, [subscribe, swaps, getCashuAccount]);
 }
 
-/**
- * Hook that returns a cashu send quote change handler.
- */
-export function useCashuSendSwapChangeHandlers() {
+export function useWireCashuSendSwapEvents() {
   const cashuSendSwapCache = useCashuSendSwapCache();
   const unresolvedSwapsCache = useUnresolvedCashuSendSwapsCache();
-  const cashuSendSwapRepository = useCashuSendSwapRepository();
 
-  return [
-    {
-      event: 'CASHU_SEND_SWAP_CREATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendSwap & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const swap = await cashuSendSwapRepository.toSwap(payload);
-        unresolvedSwapsCache.add(swap);
-      },
-    },
-    {
-      event: 'CASHU_SEND_SWAP_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendSwap & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const swap = await cashuSendSwapRepository.toSwap(payload);
+  useEffect(() => {
+    const sdk = getSdk();
+    const unsubscribers = [
+      sdk.on('cashu-send-swap:created', ({ entity }) => {
+        unresolvedSwapsCache.add(entity);
+      }),
+      sdk.on('cashu-send-swap:updated', ({ entity }) => {
+        cashuSendSwapCache.updateIfExists(entity);
 
-        cashuSendSwapCache.updateIfExists(swap);
-
-        if (['DRAFT', 'PENDING'].includes(swap.state)) {
-          unresolvedSwapsCache.update(swap);
+        if (['DRAFT', 'PENDING'].includes(entity.state)) {
+          unresolvedSwapsCache.update(entity);
         } else {
-          unresolvedSwapsCache.remove(swap);
+          unresolvedSwapsCache.remove(entity);
         }
-      },
-    },
-  ];
+      }),
+    ];
+    return () => {
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [cashuSendSwapCache, unresolvedSwapsCache]);
 }
 
 export function useProcessCashuSendSwapTasks() {

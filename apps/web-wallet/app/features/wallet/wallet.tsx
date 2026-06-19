@@ -7,7 +7,7 @@ import { useTheme } from '../theme';
 import { useAuthActions } from '../user/auth';
 import { useUser } from '../user/user-hooks';
 import { useSDKActivityTracking } from './use-sdk-activity-tracking';
-import { useTrackWalletChanges } from './use-track-wallet-changes';
+import { useWalletEvents } from './use-track-wallet-changes';
 
 /**
  * Syncs the theme settings stored in cookies to match the default currency
@@ -85,7 +85,7 @@ export const Wallet = ({ children }: PropsWithChildren) => {
 
   useSyncThemeWithDefaultCurrency();
 
-  useTrackWalletChanges();
+  useWalletEvents();
   useTrackAndUpdateSparkAccountBalances();
 
   return <>{children}</>;

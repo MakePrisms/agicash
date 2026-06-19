@@ -7,8 +7,8 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import type { AgicashDbTransaction } from '~/features/agicash-db/database';
+import { useEffect, useMemo } from 'react';
+import { getSdk } from '~/lib/sdk';
 import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
@@ -273,42 +273,29 @@ export function useReverseTransaction({
   });
 }
 
-/**
- * Hook that returns a transaction change handler.
- */
-export function useTransactionChangeHandlers() {
-  const transactionRepository = useTransactionRepository();
+export function useWireTransactionEvents() {
   const transactionsCache = useTransactionsCache();
 
-  return [
-    {
-      event: 'TRANSACTION_CREATED',
-      handleEvent: async (payload: AgicashDbTransaction) => {
-        const transaction = await transactionRepository.toTransaction(payload);
-        transactionsCache.upsert(transaction);
+  useEffect(() => {
+    const sdk = getSdk();
+    const unsubscribers = [
+      sdk.on('transaction:created', ({ entity }) => {
+        transactionsCache.upsert(entity);
 
-        if (transaction.acknowledgmentStatus === 'pending') {
+        if (entity.acknowledgmentStatus === 'pending') {
           transactionsCache.invalidateUnacknowledgedCount();
         }
-      },
-    },
-    {
-      event: 'TRANSACTION_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbTransaction & {
-          previous_acknowledgment_status: Transaction['acknowledgmentStatus'];
-        },
-      ) => {
-        const transaction = await transactionRepository.toTransaction(payload);
-        transactionsCache.upsert(transaction);
-
-        if (
-          payload.previous_acknowledgment_status !==
-          transaction.acknowledgmentStatus
-        ) {
-          transactionsCache.invalidateUnacknowledgedCount();
-        }
-      },
-    },
-  ];
+      }),
+      // The decrypted entity carries no `previous_acknowledgment_status`, so we
+      // can't gate on a change in ack status as the broadcast handler did;
+      // invalidate unconditionally and let the count query refetch.
+      sdk.on('transaction:updated', ({ entity }) => {
+        transactionsCache.upsert(entity);
+        transactionsCache.invalidateUnacknowledgedCount();
+      }),
+    ];
+    return () => {
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [transactionsCache]);
 }

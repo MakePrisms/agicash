@@ -22,6 +22,7 @@ import {
   getCashuWallet,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
+import { getSdk } from '~/lib/sdk';
 import {
   type LongTimeout,
   clearLongTimeout,
@@ -35,7 +36,6 @@ import {
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
@@ -251,38 +251,31 @@ export function useTrackCashuReceiveQuote({
   };
 }
 
-/**
- * Hook that returns a cashu receive quote change handler.
- */
-export function useCashuReceiveQuoteChangeHandlers() {
+export function useWireCashuReceiveQuoteEvents() {
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
 
-  return [
-    {
-      event: 'CASHU_RECEIVE_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
-        const addedQuote = await cashuReceiveQuoteRepository.toQuote(payload);
-        pendingQuotesCache.add(addedQuote);
-      },
-    },
-    {
-      event: 'CASHU_RECEIVE_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveQuote) => {
-        const quote = await cashuReceiveQuoteRepository.toQuote(payload);
+  useEffect(() => {
+    const sdk = getSdk();
+    const unsubscribers = [
+      sdk.on('cashu-receive-quote:created', ({ entity }) => {
+        pendingQuotesCache.add(entity);
+      }),
+      sdk.on('cashu-receive-quote:updated', ({ entity }) => {
+        cashuReceiveQuoteCache.updateIfExists(entity);
 
-        cashuReceiveQuoteCache.updateIfExists(quote);
-
-        const isQuoteStillPending = ['UNPAID', 'PAID'].includes(quote.state);
+        const isQuoteStillPending = ['UNPAID', 'PAID'].includes(entity.state);
         if (isQuoteStillPending) {
-          pendingQuotesCache.update(quote);
+          pendingQuotesCache.update(entity);
         } else {
-          pendingQuotesCache.remove(quote);
+          pendingQuotesCache.remove(entity);
         }
-      },
-    },
-  ];
+      }),
+    ];
+    return () => {
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [pendingQuotesCache, cashuReceiveQuoteCache]);
 }
 
 const usePendingCashuReceiveQuotes = () => {

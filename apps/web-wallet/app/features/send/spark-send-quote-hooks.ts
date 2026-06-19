@@ -7,13 +7,13 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
+import { getSdk } from '~/lib/sdk';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbSparkSendQuote } from '../agicash-db/database';
 import { DomainError } from '../shared/error';
 import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
@@ -77,36 +77,29 @@ export function useUnresolvedSparkSendQuotesCache() {
   );
 }
 
-/**
- * Hook that returns spark send quote change handlers.
- */
-export function useSparkSendQuoteChangeHandlers() {
+export function useWireSparkSendQuoteEvents() {
   const unresolvedQuotesCache = useUnresolvedSparkSendQuotesCache();
-  const sparkSendQuoteRepository = useSparkSendQuoteRepository();
 
-  return [
-    {
-      event: 'SPARK_SEND_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const addedQuote = await sparkSendQuoteRepository.toQuote(payload);
-        unresolvedQuotesCache.add(addedQuote);
-      },
-    },
-    {
-      event: 'SPARK_SEND_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbSparkSendQuote) => {
-        const quote = await sparkSendQuoteRepository.toQuote(payload);
-
+  useEffect(() => {
+    const sdk = getSdk();
+    const unsubscribers = [
+      sdk.on('spark-send-quote:created', ({ entity }) => {
+        unresolvedQuotesCache.add(entity);
+      }),
+      sdk.on('spark-send-quote:updated', ({ entity }) => {
         const isQuoteStillUnresolved =
-          quote.state === 'UNPAID' || quote.state === 'PENDING';
+          entity.state === 'UNPAID' || entity.state === 'PENDING';
         if (isQuoteStillUnresolved) {
-          unresolvedQuotesCache.update(quote);
+          unresolvedQuotesCache.update(entity);
         } else {
-          unresolvedQuotesCache.remove(quote);
+          unresolvedQuotesCache.remove(entity);
         }
-      },
-    },
-  ];
+      }),
+    ];
+    return () => {
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [unresolvedQuotesCache]);
 }
 
 const useUnresolvedSparkSendQuotes = () => {

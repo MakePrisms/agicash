@@ -1,105 +1,62 @@
-import { agicashRealtimeClient } from '~/features/agicash-db/database.client';
-import { useSupabaseRealtime } from '~/lib/supabase';
-import { useLatest } from '~/lib/use-latest';
+import { useEffect } from 'react';
+import { getSdk } from '~/lib/sdk';
 import {
-  useAccountChangeHandlers,
   useAccountsCache,
+  useWireAccountEvents,
 } from '../accounts/account-hooks';
 import {
-  useContactChangeHandlers,
   useContactsCache,
+  useWireContactEvents,
 } from '../contacts/contact-hooks';
 import {
   useCashuReceiveQuoteCache,
-  useCashuReceiveQuoteChangeHandlers,
   usePendingCashuReceiveQuotesCache,
+  useWireCashuReceiveQuoteEvents,
 } from '../receive/cashu-receive-quote-hooks';
 import {
-  useCashuReceiveSwapChangeHandlers,
   usePendingCashuReceiveSwapsCache,
+  useWireCashuReceiveSwapEvents,
 } from '../receive/cashu-receive-swap-hooks';
 import {
   usePendingSparkReceiveQuotesCache,
   useSparkReceiveQuoteCache,
-  useSparkReceiveQuoteChangeHandlers,
+  useWireSparkReceiveQuoteEvents,
 } from '../receive/spark-receive-quote-hooks';
 import {
-  useCashuSendQuoteChangeHandlers,
   useUnresolvedCashuSendQuotesCache,
+  useWireCashuSendQuoteEvents,
 } from '../send/cashu-send-quote-hooks';
 import {
   useCashuSendSwapCache,
-  useCashuSendSwapChangeHandlers,
   useUnresolvedCashuSendSwapsCache,
+  useWireCashuSendSwapEvents,
 } from '../send/cashu-send-swap-hooks';
 import {
-  useSparkSendQuoteChangeHandlers,
   useUnresolvedSparkSendQuotesCache,
+  useWireSparkSendQuoteEvents,
 } from '../send/spark-send-quote-hooks';
 import {
-  useTransactionChangeHandlers,
   useTransactionsCache,
+  useWireTransactionEvents,
 } from '../transactions/transaction-hooks';
-import {
-  useUser,
-  useUserCache,
-  useUserChangeHandlers,
-} from '../user/user-hooks';
-
-type DatabaseChangeHandler = {
-  event: string;
-  // biome-ignore lint/suspicious/noExplicitAny: we are not sure what the payload is here. Each table handler defines the payload type.
-  handleEvent: (payload: any) => void | Promise<void>;
-};
+import { useUserCache, useWireUserEvents } from '../user/user-hooks';
 
 /**
- * Options for the track database changes hook.
+ * Subscribes every feature's cache to the SDK's decrypted-entity events and
+ * refreshes all caches on `connection:resync`. Replaces the former single
+ * Supabase broadcast channel.
  */
-interface Props {
-  /**
-   * The handlers for the database changes.
-   * Each handler is responsible for handling the changes for a specific table.
-   */
-  handlers: DatabaseChangeHandler[];
-  /**
-   * A callback that is called when the channel is initially connected or reconnected.
-   */
-  onConnected?: () => void;
-}
-
-/**
- * Hook that subscribes to all database changes for the wallet using a single broadcast channel.
- * This centralizes all realtime subscriptions into one channel for better scalability.
- */
-function useTrackDatabaseChanges({ handlers, onConnected }: Props) {
-  const onConnectedRef = useLatest(onConnected);
-
-  const userId = useUser((user) => user.id);
-
-  useSupabaseRealtime({
-    channel: agicashRealtimeClient
-      .channel(`wallet:${userId}`, { private: true })
-      .on('broadcast', { event: '*' }, ({ event, payload }) => {
-        const handler = handlers.find((handler) => handler.event === event);
-        handler?.handleEvent(payload);
-      }),
-    onConnected: () => {
-      onConnectedRef.current?.();
-    },
-  });
-}
-
-export const useTrackWalletChanges = () => {
-  const accountChangeHandlers = useAccountChangeHandlers();
-  const transactionChangeHandlers = useTransactionChangeHandlers();
-  const cashuReceiveQuoteChangeHandlers = useCashuReceiveQuoteChangeHandlers();
-  const cashuReceiveSwapChangeHandlers = useCashuReceiveSwapChangeHandlers();
-  const cashuSendQuoteChangeHandlers = useCashuSendQuoteChangeHandlers();
-  const cashuSendSwapChangeHandlers = useCashuSendSwapChangeHandlers();
-  const contactChangeHandlers = useContactChangeHandlers();
-  const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
-  const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
-  const userChangeHandlers = useUserChangeHandlers();
+export const useWalletEvents = () => {
+  useWireAccountEvents();
+  useWireTransactionEvents();
+  useWireCashuReceiveQuoteEvents();
+  useWireCashuReceiveSwapEvents();
+  useWireCashuSendQuoteEvents();
+  useWireCashuSendSwapEvents();
+  useWireContactEvents();
+  useWireSparkReceiveQuoteEvents();
+  useWireSparkSendQuoteEvents();
+  useWireUserEvents();
 
   const accountsCache = useAccountsCache();
   const transactionsCache = useTransactionsCache();
@@ -115,23 +72,11 @@ export const useTrackWalletChanges = () => {
   const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
   const userCache = useUserCache();
 
-  useTrackDatabaseChanges({
-    handlers: [
-      ...accountChangeHandlers,
-      ...transactionChangeHandlers,
-      ...cashuReceiveQuoteChangeHandlers,
-      ...cashuReceiveSwapChangeHandlers,
-      ...cashuSendQuoteChangeHandlers,
-      ...cashuSendSwapChangeHandlers,
-      ...contactChangeHandlers,
-      ...sparkReceiveQuoteChangeHandlers,
-      ...sparkSendQuoteChangeHandlers,
-      ...userChangeHandlers,
-    ],
-    onConnected: () => {
-      // Makes sure that data is refetched to get the latest updates from the database.
-      // This handles possibly missed updates while the realtime was not connected yet
-      // or while it was reconnecting.
+  useEffect(() => {
+    const sdk = getSdk();
+    // Refetch everything to catch up on changes missed while the connection was
+    // down or reconnecting (the old broadcast channel's `onConnected`).
+    return sdk.on('connection:resync', () => {
       accountsCache.invalidate();
       transactionsCache.invalidate();
       cashuReceiveQuoteCache.invalidate();
@@ -145,6 +90,20 @@ export const useTrackWalletChanges = () => {
       pendingSparkReceiveQuotesCache.invalidate();
       unresolvedSparkSendQuotesCache.invalidate();
       userCache.invalidate();
-    },
-  });
+    });
+  }, [
+    accountsCache,
+    transactionsCache,
+    cashuReceiveQuoteCache,
+    pendingCashuReceiveQuotesCache,
+    pendingCashuReceiveSwapsCache,
+    unresolvedCashuSendQuotesCache,
+    cashuSendSwapCache,
+    unresolvedCashuSendSwapsCache,
+    contactsCache,
+    sparkReceiveQuoteCache,
+    pendingSparkReceiveQuotesCache,
+    unresolvedSparkSendQuotesCache,
+    userCache,
+  ]);
 };

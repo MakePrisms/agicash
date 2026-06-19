@@ -5,12 +5,11 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import useLocationData from '~/hooks/use-location';
-import type { AgicashDbContact } from '../agicash-db/database';
+import { useEffect, useMemo } from 'react';
+import { getSdk } from '~/lib/sdk';
 import { useUser } from '../user/user-hooks';
 import type { Contact } from './contact';
-import { ContactRepository, useContactRepository } from './contact-repository';
+import { useContactRepository } from './contact-repository';
 export class ContactsCache {
   public static Key = 'contacts';
 
@@ -143,26 +142,21 @@ export function useFindContactCandidates(query: string) {
   });
 }
 
-/**
- * Hook that returns a contact change handler.
- */
-export function useContactChangeHandlers() {
+export function useWireContactEvents() {
   const contactsCache = useContactsCache();
-  const { domain } = useLocationData();
 
-  return [
-    {
-      event: 'CONTACT_CREATED',
-      handleEvent: async (payload: AgicashDbContact) => {
-        const contact = ContactRepository.toContact(payload, domain);
-        contactsCache.add(contact);
-      },
-    },
-    {
-      event: 'CONTACT_DELETED',
-      handleEvent: async (payload: AgicashDbContact) => {
-        contactsCache.remove(payload.id);
-      },
-    },
-  ];
+  useEffect(() => {
+    const sdk = getSdk();
+    const unsubscribers = [
+      sdk.on('contact:created', ({ entity }) => {
+        contactsCache.add(entity);
+      }),
+      sdk.on('contact:deleted', ({ id }) => {
+        contactsCache.remove(id);
+      }),
+    ];
+    return () => {
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [contactsCache]);
 }

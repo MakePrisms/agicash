@@ -5,19 +5,14 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import { getSdk } from '~/lib/sdk';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
-import type { AgicashDbUser } from '../agicash-db/database';
 import type { User } from './user';
-import {
-  ReadUserRepository,
-  type UpdateUser,
-  useWriteUserRepository,
-} from './user-repository';
+import { type UpdateUser, useWriteUserRepository } from './user-repository';
 import { useUserService } from './user-service';
 
 export class UserCache {
@@ -43,17 +38,15 @@ export function useUserCache() {
   return useMemo(() => new UserCache(queryClient), [queryClient]);
 }
 
-export function useUserChangeHandlers() {
+export function useWireUserEvents() {
   const userCache = useUserCache();
 
-  return [
-    {
-      event: 'USER_UPDATED',
-      handleEvent: async (payload: AgicashDbUser) => {
-        userCache.set(ReadUserRepository.toUser(payload));
-      },
-    },
-  ];
+  useEffect(() => {
+    const sdk = getSdk();
+    return sdk.on('user:updated', ({ entity }) => {
+      userCache.set(entity);
+    });
+  }, [userCache]);
 }
 
 export const getUserFromCache = (

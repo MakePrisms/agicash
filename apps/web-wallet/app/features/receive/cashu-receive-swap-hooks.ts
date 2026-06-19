@@ -6,12 +6,12 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { getSdk } from '~/lib/sdk';
 import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuReceiveSwap } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import { useCashuReceiveSwapRepository } from './cashu-receive-swap-repository';
@@ -114,35 +114,28 @@ function usePendingCashuReceiveSwaps() {
   return data ?? [];
 }
 
-/**
- * Hook that returns a cashu receive swap change handler.
- */
-export function useCashuReceiveSwapChangeHandlers() {
+export function useWireCashuReceiveSwapEvents() {
   const pendingSwapsCache = usePendingCashuReceiveSwapsCache();
-  const cashuReceiveSwapRepository = useCashuReceiveSwapRepository();
 
-  return [
-    {
-      event: 'CASHU_RECEIVE_SWAP_CREATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveSwap) => {
-        const swap = await cashuReceiveSwapRepository.toReceiveSwap(payload);
-        pendingSwapsCache.add(swap);
-      },
-    },
-    {
-      event: 'CASHU_RECEIVE_SWAP_UPDATED',
-      handleEvent: async (payload: AgicashDbCashuReceiveSwap) => {
-        const swap = await cashuReceiveSwapRepository.toReceiveSwap(payload);
-
-        const isSwapStillPending = swap.state === 'PENDING';
+  useEffect(() => {
+    const sdk = getSdk();
+    const unsubscribers = [
+      sdk.on('cashu-receive-swap:created', ({ entity }) => {
+        pendingSwapsCache.add(entity);
+      }),
+      sdk.on('cashu-receive-swap:updated', ({ entity }) => {
+        const isSwapStillPending = entity.state === 'PENDING';
         if (isSwapStillPending) {
-          pendingSwapsCache.update(swap);
+          pendingSwapsCache.update(entity);
         } else {
-          pendingSwapsCache.remove(swap);
+          pendingSwapsCache.remove(entity);
         }
-      },
-    },
-  ];
+      }),
+    ];
+    return () => {
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [pendingSwapsCache]);
 }
 
 export function useProcessCashuReceiveSwapTasks() {

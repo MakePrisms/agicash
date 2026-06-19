@@ -14,6 +14,7 @@ import {
   getCashuWallet,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
+import { getSdk } from '~/lib/sdk';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
@@ -21,7 +22,6 @@ import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import { sparkDebugLog } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
@@ -186,38 +186,31 @@ export function usePendingSparkReceiveQuotesCache() {
   );
 }
 
-/**
- * Hook that returns spark receive quote change handlers.
- */
-export function useSparkReceiveQuoteChangeHandlers() {
+export function useWireSparkReceiveQuoteEvents() {
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
 
-  return [
-    {
-      event: 'SPARK_RECEIVE_QUOTE_CREATED',
-      handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const addedQuote = await sparkReceiveQuoteRepository.toQuote(payload);
-        pendingQuotesCache.add(addedQuote);
-      },
-    },
-    {
-      event: 'SPARK_RECEIVE_QUOTE_UPDATED',
-      handleEvent: async (payload: AgicashDbSparkReceiveQuote) => {
-        const quote = await sparkReceiveQuoteRepository.toQuote(payload);
+  useEffect(() => {
+    const sdk = getSdk();
+    const unsubscribers = [
+      sdk.on('spark-receive-quote:created', ({ entity }) => {
+        pendingQuotesCache.add(entity);
+      }),
+      sdk.on('spark-receive-quote:updated', ({ entity }) => {
+        sparkReceiveQuoteCache.updateIfExists(entity);
 
-        sparkReceiveQuoteCache.updateIfExists(quote);
-
-        const isQuoteStillPending = quote.state === 'UNPAID';
+        const isQuoteStillPending = entity.state === 'UNPAID';
         if (isQuoteStillPending) {
-          pendingQuotesCache.update(quote);
+          pendingQuotesCache.update(entity);
         } else {
-          pendingQuotesCache.remove(quote);
+          pendingQuotesCache.remove(entity);
         }
-      },
-    },
-  ];
+      }),
+    ];
+    return () => {
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [pendingQuotesCache, sparkReceiveQuoteCache]);
 }
 
 const usePendingSparkReceiveQuotes = () => {

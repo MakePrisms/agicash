@@ -10,13 +10,14 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import type Big from 'big.js';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { sumProofs } from '@agicash/cashu';
 import {
   MeltQuoteSubscriptionManager,
   getCashuWallet,
   useOnMeltQuoteStateChange,
 } from '~/lib/cashu';
+import { getSdk } from '~/lib/sdk';
 import type { CashuAccount } from '../accounts/account';
 import {
   useAccountsCache,
@@ -24,10 +25,6 @@ import {
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendQuote,
-} from '../agicash-db/database';
 import { ConcurrencyError, DomainError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
@@ -215,42 +212,27 @@ function usePendingMeltQuotes() {
     });
   }, [unresolvedCashuSendQuotes, accountsCache]);
 }
-/**
- * Hook that returns a cashu send quote change handler.
- */
-export function useCashuSendQuoteChangeHandlers() {
+export function useWireCashuSendQuoteEvents() {
   const unresolvedSendQuotesCache = useUnresolvedCashuSendQuotesCache();
-  const cashuSendQuoteRepository = useCashuSendQuoteRepository();
 
-  return [
-    {
-      event: 'CASHU_SEND_QUOTE_CREATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const quote = await cashuSendQuoteRepository.toQuote(payload);
-        unresolvedSendQuotesCache.add(quote);
-      },
-    },
-    {
-      event: 'CASHU_SEND_QUOTE_UPDATED',
-      handleEvent: async (
-        payload: AgicashDbCashuSendQuote & {
-          cashu_proofs: AgicashDbCashuProof[];
-        },
-      ) => {
-        const quote = await cashuSendQuoteRepository.toQuote(payload);
-
-        if (['UNPAID', 'PENDING'].includes(quote.state)) {
-          unresolvedSendQuotesCache.update(quote);
+  useEffect(() => {
+    const sdk = getSdk();
+    const unsubscribers = [
+      sdk.on('cashu-send-quote:created', ({ entity }) => {
+        unresolvedSendQuotesCache.add(entity);
+      }),
+      sdk.on('cashu-send-quote:updated', ({ entity }) => {
+        if (['UNPAID', 'PENDING'].includes(entity.state)) {
+          unresolvedSendQuotesCache.update(entity);
         } else {
-          unresolvedSendQuotesCache.remove(quote);
+          unresolvedSendQuotesCache.remove(entity);
         }
-      },
-    },
-  ];
+      }),
+    ];
+    return () => {
+      for (const unsubscribe of unsubscribers) unsubscribe();
+    };
+  }, [unresolvedSendQuotesCache]);
 }
 
 export function useProcessCashuSendQuoteTasks() {
