@@ -1,28 +1,13 @@
 import type { Currency } from '@agicash/money';
-import type { Token } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import {
-  areMintUrlsEqual,
   checkIsTestMint,
   findFirstActiveKeyset,
   getCashuProtocolUnit,
   getKeysetExpiry,
 } from '@agicash/cashu';
-import {
-  type ExtendedAccount,
-  type ExtendedCashuAccount,
-  canReceiveFromLightning,
-  canSendToLightning,
-} from '../accounts/account';
-import {
-  cashuMintValidator,
-  getInitializedCashuWallet,
-  tokenToMoney,
-} from '../shared/cashu';
-import type {
-  CashuAccountWithTokenFlags,
-  ReceiveCashuTokenAccount,
-} from '@agicash/wallet-sdk';
+import { cashuMintValidator, getInitializedCashuWallet } from '../shared/cashu';
+import type { CashuAccountWithTokenFlags } from '@agicash/wallet-sdk';
 
 export class ReceiveCashuTokenService {
   constructor(private readonly queryClient: QueryClient) {}
@@ -106,133 +91,6 @@ export class ReceiveCashuTokenService {
       canReceive: isValid,
       isOnline,
     };
-  }
-
-  /**
-   * Gets the source account of the token and possible destination accounts that can receive the token.
-   * @param token - The token to get the source and destination accounts for.
-   * @param accounts - User's existing accounts.
-   * @returns The source account and the possible destination accounts.
-   */
-  async getSourceAndDestinationAccounts(
-    token: Token,
-    accounts: ExtendedAccount[] = [],
-  ): Promise<{
-    sourceAccount: CashuAccountWithTokenFlags;
-    possibleDestinationAccounts: ReceiveCashuTokenAccount[];
-  }> {
-    const tokenCurrency = tokenToMoney(token).currency;
-    const existingCashuAccount = accounts.find(
-      (a): a is ExtendedCashuAccount =>
-        a.type === 'cashu' &&
-        areMintUrlsEqual(a.mintUrl, token.mint) &&
-        a.currency === tokenCurrency,
-    );
-
-    if (existingCashuAccount) {
-      const sourceAccount = {
-        ...existingCashuAccount,
-        isSource: true,
-        isUnknown: false,
-        canReceive: true,
-      };
-      return {
-        sourceAccount,
-        possibleDestinationAccounts: this.getPossibleDestinationAccounts(
-          sourceAccount,
-          this.augmentNonSourceAccountsWithTokenFlags(
-            accounts.filter((account) => account.id !== sourceAccount.id),
-          ),
-        ),
-      };
-    }
-
-    const sourceAccount = await this.buildAccountForMint(
-      token.mint,
-      tokenCurrency,
-    );
-
-    return {
-      sourceAccount,
-      possibleDestinationAccounts: this.getPossibleDestinationAccounts(
-        sourceAccount,
-        this.augmentNonSourceAccountsWithTokenFlags(accounts),
-      ),
-    };
-  }
-
-  /**
-   * Returns the default receive account, or null if the token cannot be received.
-   * If the token is from a test mint or gift card, the source account will be returned if it is selectable.
-   * If the token is not from a test mint or gift card, the preferred receive account will be returned if it is selectable.
-   * If the preferred receive account is not selectable, the default account will be returned.
-   * @param sourceAccount The source account of the token
-   * @param possibleDestinationAccounts The possible destination accounts (cashu and spark)
-   * @param preferredReceiveAccountId The preferred receive account id
-   * @returns The default account to receive the token, or null if none available
-   */
-  static getDefaultReceiveAccount(
-    sourceAccount: CashuAccountWithTokenFlags,
-    possibleDestinationAccounts: ReceiveCashuTokenAccount[],
-    preferredReceiveAccountId?: string,
-  ): ReceiveCashuTokenAccount | null {
-    if (!canSendToLightning(sourceAccount)) {
-      return sourceAccount.canReceive ? sourceAccount : null;
-    }
-
-    const preferredReceiveAccount = possibleDestinationAccounts.find(
-      (account) => account.id === preferredReceiveAccountId,
-    );
-
-    if (preferredReceiveAccount?.canReceive) {
-      return preferredReceiveAccount;
-    }
-
-    const defaultAccount = possibleDestinationAccounts.find(
-      (account) =>
-        account.isDefault && account.currency === sourceAccount.currency,
-    );
-
-    if (defaultAccount?.canReceive) {
-      return defaultAccount;
-    }
-
-    if (sourceAccount.canReceive) {
-      return sourceAccount;
-    }
-
-    return null;
-  }
-
-  private augmentNonSourceAccountsWithTokenFlags(
-    accounts: ExtendedAccount[],
-  ): ReceiveCashuTokenAccount[] {
-    return accounts.map((account) => ({
-      ...account,
-      isSource: false,
-      isUnknown: false,
-      canReceive: canReceiveFromLightning(account),
-    }));
-  }
-
-  /**
-   * Returns the possible destination accounts that can receive the token from the source account.
-   * If the source account is from a test mint or is a gift card account, the only account that
-   * can receive the token is the same source account.
-   * @param sourceAccount The source account of the token
-   * @param otherAccounts The other user's accounts
-   * @returns The possible destination accounts
-   */
-  private getPossibleDestinationAccounts(
-    sourceAccount: CashuAccountWithTokenFlags,
-    otherAccounts: ReceiveCashuTokenAccount[],
-  ): ReceiveCashuTokenAccount[] {
-    if (!canSendToLightning(sourceAccount)) {
-      return sourceAccount.canReceive ? [sourceAccount] : [];
-    }
-    return [sourceAccount, ...otherAccounts].filter(
-      (account) => account.canReceive,
-    );
   }
 }
 
