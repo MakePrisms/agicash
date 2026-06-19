@@ -1,14 +1,11 @@
 import type { Money } from '@agicash/money';
+import type { TransferQuote } from '@agicash/wallet-sdk';
 import { useMutation } from '@tanstack/react-query';
+import { getSdk } from '~/lib/sdk';
 import type { Account } from '../accounts/account';
 import { ConcurrencyError, DomainError } from '../shared/error';
-import { useUser } from '../user/user-hooks';
-import type { TransferQuote } from './transfer-service';
-import { useTransferService } from './transfer-service';
 
 export function useGetTransferQuote() {
-  const transferService = useTransferService();
-
   return useMutation({
     mutationFn: ({
       sourceAccount,
@@ -19,7 +16,7 @@ export function useGetTransferQuote() {
       destinationAccount: Account;
       amount: Money;
     }) => {
-      return transferService.getTransferQuote({
+      return getSdk().transfers.createQuote({
         sourceAccount,
         destinationAccount,
         amount,
@@ -36,12 +33,9 @@ export function useGetTransferQuote() {
 }
 
 export function useInitiateTransfer() {
-  const userId = useUser((user) => user.id);
-  const transferService = useTransferService();
-
   return useMutation({
     mutationFn: ({ quote }: { quote: TransferQuote }) => {
-      return transferService.initiateTransfer({ userId, quote });
+      return getSdk().transfers.execute(quote);
     },
     retry: (failureCount, error) => {
       if (error instanceof ConcurrencyError) {
