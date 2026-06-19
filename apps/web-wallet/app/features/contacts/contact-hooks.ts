@@ -7,9 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { getSdk } from '~/lib/sdk';
-import { useUser } from '../user/user-hooks';
 import type { Contact } from './contact';
-import { useContactRepository } from './contact-repository';
 export class ContactsCache {
   public static Key = 'contacts';
 
@@ -74,12 +72,9 @@ export function useContactsCache() {
  * Hook for listing contacts for the current user with optional filtering
  */
 export function useContacts(select?: (contacts: Contact[]) => Contact[]) {
-  const userId = useUser((user) => user.id);
-  const contactRepository = useContactRepository();
-
   const { data: contacts } = useSuspenseQuery({
     queryKey: [ContactsCache.Key],
-    queryFn: async () => contactRepository.getAll(userId),
+    queryFn: () => getSdk().contacts.list(),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -99,27 +94,19 @@ export function useContact(contactId: string) {
 }
 
 export function useCreateContact() {
-  const userId = useUser((user) => user.id);
-  const contactRepository = useContactRepository();
-
   const { mutateAsync: createContact } = useMutation({
     mutationKey: ['create-contact'],
     mutationFn: ({ username }: { username: string }) =>
-      contactRepository.create({
-        ownerId: userId,
-        username,
-      }),
+      getSdk().contacts.add({ username }),
   });
 
   return createContact;
 }
 
 export function useDeleteContact() {
-  const contactRepository = useContactRepository();
-
   const { mutateAsync: deleteContact } = useMutation({
     mutationKey: ['delete-contact'],
-    mutationFn: (contactId: string) => contactRepository.delete(contactId),
+    mutationFn: (contactId: string) => getSdk().contacts.remove(contactId),
   });
 
   return deleteContact;
@@ -130,12 +117,9 @@ export function useDeleteContact() {
  * @return the query response containing any user profiles that match the query
  */
 export function useFindContactCandidates(query: string) {
-  const contactRepository = useContactRepository();
-  const userId = useUser((user) => user.id);
-
   return useQuery({
     queryKey: ['search-user-profiles', query],
-    queryFn: async () => contactRepository.findContactCandidates(query, userId),
+    queryFn: () => getSdk().contacts.search(query),
     initialData: [],
     initialDataUpdatedAt: () => Date.now() - 1000 * 6,
     staleTime: 1000 * 5,
