@@ -48,7 +48,6 @@ export type { FeatureFlagsApi } from './feature-flags';
 export type { RealtimeApi } from './realtime/realtime-api';
 export type { ReceiveApi } from './receive/receive-api';
 export type { SendApi } from './send/send-api';
-export type { TasksApi } from './tasks/tasks-api';
 export type { TransactionsApi } from './transactions/transactions-api';
 export type { TransferApi } from './transfer/transfer-api';
 export type { UserApi } from './user/user-api';
@@ -149,7 +148,12 @@ export class WalletSdk {
   readonly send: SendApi;
   readonly transfer: TransferApi;
   readonly realtime: RealtimeApi;
-  readonly tasks: TasksApi;
+  // The background engines below are not on the public surface: they're driven
+  // solely through start(), so a host can't start a duplicate (or forget one)
+  // by reaching for them directly.
+  private readonly tasks: TasksApi;
+  private readonly startRealtime: () => () => void;
+  private readonly startSparkBalanceTracking: () => () => void;
 
   private static instance: WalletSdk | undefined;
 
@@ -195,6 +199,7 @@ export class WalletSdk {
       getCurrentUserId,
     });
     this.accounts = accounts.api;
+    this.startSparkBalanceTracking = accounts.startSparkBalanceTracking;
 
     const user = createUserApi({
       queryClient: this.queryClient,
@@ -263,7 +268,7 @@ export class WalletSdk {
       contacts.cache,
       user.cache,
     ];
-    this.realtime = createRealtimeApi({
+    const realtime = createRealtimeApi({
       realtimeClient: db.realtime,
       getCurrentUserId,
       changeHandlers: [
@@ -307,6 +312,8 @@ export class WalletSdk {
         };
       },
     });
+    this.realtime = realtime.api;
+    this.startRealtime = realtime.start;
 
     this.tasks = createTasksApi({
       queryClient: this.queryClient,
@@ -380,8 +387,8 @@ export class WalletSdk {
    */
   start(): () => void {
     this.tasks.start();
-    const stopRealtime = this.realtime.start();
-    const stopSparkBalanceTracking = this.accounts.startSparkBalanceTracking();
+    const stopRealtime = this.startRealtime();
+    const stopSparkBalanceTracking = this.startSparkBalanceTracking();
     return () => {
       this.tasks.stop();
       stopRealtime();

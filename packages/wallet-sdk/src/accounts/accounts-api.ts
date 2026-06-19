@@ -43,13 +43,6 @@ export type AccountsApi = {
    * @throws if no user is loaded yet.
    */
   add: (account: NewCashuAccount) => Promise<CashuAccount>;
-  /**
-   * Starts the always-on Spark balance tracker: observes the current user's
-   * online, active spark accounts and registers Breez event listeners that
-   * record balance changes in the accounts state, re-tracking as that set
-   * changes. Returns a stop function. Client-only (observes the query cache).
-   */
-  startSparkBalanceTracking: () => () => void;
 };
 
 export type AccountsApiDeps = {
@@ -77,6 +70,12 @@ export function createAccountsApi(deps: AccountsApiDeps): {
   service: AccountService;
   cache: AccountsCache;
   changeHandlers: ReturnType<typeof createAccountChangeHandlers>;
+  /**
+   * The always-on Spark balance tracker's start fn. Returned alongside `api`
+   * (not on it) so the SDK root can wire it into sdk.start() as the single
+   * entry point; see its definition for behavior.
+   */
+  startSparkBalanceTracking: () => () => void;
 } {
   const { queryClient, db, encryption, sparkStorageDir, getCurrentUserId } =
     deps;
@@ -150,6 +149,12 @@ export function createAccountsApi(deps: AccountsApiDeps): {
         account.state === 'active',
     );
 
+  /**
+   * Starts the always-on Spark balance tracker: observes the current user's
+   * online, active spark accounts and registers Breez event listeners that
+   * record balance changes in the accounts state, re-tracking as that set
+   * changes. Returns a stop function. Client-only (observes the query cache).
+   */
   const startSparkBalanceTracking = (): (() => void) => {
     let stopTracking: (() => void) | null = null;
     let lastAccounts: SparkAccount[] | undefined;
@@ -218,7 +223,6 @@ export function createAccountsApi(deps: AccountsApiDeps): {
       cache.upsert(created);
       return created;
     },
-    startSparkBalanceTracking,
   };
 
   return {
@@ -227,5 +231,9 @@ export function createAccountsApi(deps: AccountsApiDeps): {
     service,
     cache,
     changeHandlers: createAccountChangeHandlers(repository, cache),
+    // Returned alongside `api` (not on it): the SDK root wires this into
+    // sdk.start() so the tracker is driven through that single entry point and a
+    // host can't start a duplicate by reaching for it directly.
+    startSparkBalanceTracking,
   };
 }
