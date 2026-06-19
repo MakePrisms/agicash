@@ -17,6 +17,12 @@ describe('public barrel — account value helpers', () => {
   });
 });
 
+describe('public barrel — cashu wallet', () => {
+  it('re-exports ExtendedCashuWallet as a value (the class)', () => {
+    expect(typeof sdk.ExtendedCashuWallet).toBe('function');
+  });
+});
+
 describe('public barrel — cashu mint blocklist', () => {
   it('re-exports MintBlocklistSchema (value) so consumers can parse their env JSON', () => {
     expect(typeof sdk.MintBlocklistSchema).toBe('object'); // a zod/mini schema object

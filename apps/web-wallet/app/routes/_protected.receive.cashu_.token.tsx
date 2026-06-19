@@ -27,6 +27,7 @@ import {
   getEncryption,
 } from '~/features/shared/encryption';
 import { getQueryClient } from '~/features/shared/query-client';
+import { getSdk } from '~/features/shared/sdk';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
 import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
@@ -85,9 +86,12 @@ const getClaimCashuTokenService = async () => {
   );
   const userService = new UserService(userRepository);
 
+  // The claim flow (melt/mint + exchange-rate) doesn't use lud16Domain, so the
+  // client-available host is fine; getSdk memoizes the promise per session.
+  const sdk = getSdk(new URL(window.location.origin).host);
+
   return new ClaimCashuTokenService(
     queryClient,
-    accountRepository,
     accountService,
     receiveSwapService,
     cashuReceiveQuoteService,
@@ -95,6 +99,7 @@ const getClaimCashuTokenService = async () => {
     receiveCashuTokenService,
     receiveCashuTokenQuoteService,
     userService,
+    sdk,
   );
 };
 

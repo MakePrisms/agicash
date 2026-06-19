@@ -1,4 +1,5 @@
 import { type Currency, Money } from '@agicash/money';
+import type { Sdk } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
@@ -8,6 +9,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
+import { useSdk } from '~/features/shared/use-sdk';
 import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
 import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
@@ -21,10 +23,7 @@ import {
   type SparkAccount,
   getAccountBalance,
 } from './account';
-import {
-  type AccountRepository,
-  useAccountRepository,
-} from './account-repository';
+import { useAccountRepository } from './account-repository';
 import { AccountService, useAccountService } from './account-service';
 
 export class AccountsCache {
@@ -135,13 +134,10 @@ export function useAccountChangeHandlers() {
   ];
 }
 
-export const accountsQueryOptions = ({
-  userId,
-  accountRepository,
-}: { userId: string; accountRepository: AccountRepository }) => {
+export const accountsQueryOptions = ({ sdk }: { sdk: Promise<Sdk> }) => {
   return queryOptions({
     queryKey: [AccountsCache.Key],
-    queryFn: () => accountRepository.getAllActive(userId),
+    queryFn: async () => (await sdk).accounts.list(),
     staleTime: Number.POSITIVE_INFINITY,
     // Refetches use `getAllActive`, so any expired account previously in the
     // cache (lazy-fetched via useAccountOrNull, or just expired before the
@@ -250,12 +246,12 @@ export function useAccounts<
   select?: UseAccountsSelect<T, P>,
 ): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
-  const accountRepository = useAccountRepository();
+  const sdk = useSdk();
 
   const { currency, type, isOnline, purpose, state = 'active' } = select ?? {};
 
   return useSuspenseQuery({
-    ...accountsQueryOptions({ userId: user.id, accountRepository }),
+    ...accountsQueryOptions({ sdk }),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select: useCallback(
@@ -327,14 +323,14 @@ const ALL_ACCOUNT_STATES: AccountState[] = ['active', 'expired'];
  */
 export function useAccountOrNull(id: string | null): Account | null {
   const accountsCache = useAccountsCache();
-  const accountRepository = useAccountRepository();
+  const sdk = useSdk();
   const { data: accounts } = useAccounts({ state: ALL_ACCOUNT_STATES });
 
   useSuspenseQuery({
     queryKey: ['fetch-account-by-id', id],
     queryFn: async () => {
       if (!id || accountsCache.get(id)) return null;
-      const fetched = await accountRepository.get(id);
+      const fetched = await (await sdk).accounts.get(id);
       if (fetched) accountsCache.upsert(fetched);
       return null;
     },

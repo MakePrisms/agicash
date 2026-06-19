@@ -1,11 +1,11 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
+import type { Sdk } from '@agicash/wallet-sdk';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
-import { type Ticker, exchangeRateService } from '~/lib/exchange-rate';
+import type { Ticker } from '~/lib/exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
-import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
 import type { User } from '../user/user';
@@ -35,7 +35,6 @@ export class ClaimCashuTokenService {
 
   constructor(
     private readonly queryClient: QueryClient,
-    private readonly accountRepository: AccountRepository,
     private readonly accountService: AccountService,
     private readonly receiveSwapService: CashuReceiveSwapService,
     private readonly cashuReceiveQuoteService: CashuReceiveQuoteService,
@@ -43,6 +42,7 @@ export class ClaimCashuTokenService {
     private readonly receiveCashuTokenService: ReceiveCashuTokenService,
     private readonly receiveCashuTokenQuoteService: ReceiveCashuTokenQuoteService,
     private readonly userService: UserService,
+    private readonly sdk: Promise<Sdk>,
   ) {
     this.accountsCache = new AccountsCache(queryClient);
   }
@@ -87,10 +87,7 @@ export class ClaimCashuTokenService {
     claimTo: 'cashu' | 'spark',
   ): Promise<ClaimTokenResult> {
     const accounts = await this.queryClient.fetchQuery(
-      accountsQueryOptions({
-        userId: user.id,
-        accountRepository: this.accountRepository,
-      }),
+      accountsQueryOptions({ sdk: this.sdk }),
     );
     const extendedAccounts = AccountService.getExtendedAccounts(user, accounts);
     const preferredReceiveAccountId =
@@ -169,7 +166,9 @@ export class ClaimCashuTokenService {
     } else {
       const ticker =
         `${sourceAccount.currency}-${receiveAccount.currency}` as Ticker;
-      const rates = await exchangeRateService.getRates({ tickers: [ticker] });
+      const rates = await (await this.sdk).exchangeRate.getRates({
+        tickers: [ticker],
+      });
       const exchangeRate = rates[ticker];
       const quotes =
         await this.receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(

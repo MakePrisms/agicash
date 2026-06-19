@@ -115,6 +115,12 @@ export type { CashuLightningQuote } from './domains/cashu/cashu-send-quote-servi
 export { MintBlocklistSchema } from './internal/lib/cashu/mint-validation';
 export type { MintBlocklist } from './internal/lib/cashu/mint-validation';
 
+// --- cashu wallet (value+type) ---------------------------------------------
+// The agicash-extended cashu wallet class. Re-exported as a value so the web
+// wallet can unify its own `ExtendedCashuWallet` on this single class, keeping
+// `account.wallet` and `getCashuWallet(...)` nominally identical types.
+export { ExtendedCashuWallet } from './internal/lib/cashu';
+
 // --- spark (§6) ------------------------------------------------------------
 export type { SparkSendQuote, SparkReceiveQuote } from './types/spark';
 export type { SparkLightningQuote } from './domains/spark/spark-send-quote-service';
