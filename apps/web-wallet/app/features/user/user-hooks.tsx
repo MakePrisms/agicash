@@ -13,15 +13,8 @@ import { useSdk } from '~/features/shared/use-sdk';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
-import type { AgicashDbUser } from '../agicash-db/database';
 import { guestAccountStorage } from './guest-account-storage';
 import type { User } from './user';
-import {
-  ReadUserRepository,
-  type UpdateUser,
-  useWriteUserRepository,
-} from './user-repository';
-import { useUserService } from './user-service';
 
 export class UserCache {
   public static Key = 'user';
@@ -44,19 +37,6 @@ export class UserCache {
 export function useUserCache() {
   const queryClient = useQueryClient();
   return useMemo(() => new UserCache(queryClient), [queryClient]);
-}
-
-export function useUserChangeHandlers() {
-  const userCache = useUserCache();
-
-  return [
-    {
-      event: 'USER_UPDATED',
-      handleEvent: async (payload: AgicashDbUser) => {
-        userCache.set(ReadUserRepository.toUser(payload));
-      },
-    },
-  ];
 }
 
 export const getUserFromCache = (
@@ -232,67 +212,62 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
   return mutateAsync;
 };
 
-const useUpdateUser = () => {
-  const queryClient = useQueryClient();
-  const userId = useUser((user) => user.id);
-  const userRepository = useWriteUserRepository();
-
-  return useMutation({
-    mutationFn: (updates: UpdateUser) => userRepository.update(userId, updates),
-    onSuccess: (data) => {
-      queryClient.setQueryData([UserCache.Key], data);
-    },
-  });
-};
-
 export const useSetDefaultCurrency = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const sdkPromise = useSdk();
+
+  const { mutateAsync } = useMutation({
+    mutationFn: async (currency: Currency) =>
+      (await sdkPromise).user.setDefaultCurrency(currency),
+  });
 
   return useCallback(
-    (currency: Currency) => updateUser({ defaultCurrency: currency }),
-    [updateUser],
+    (currency: Currency) => mutateAsync(currency),
+    [mutateAsync],
   );
 };
 
 export const useSetDefaultAccount = () => {
-  const userService = useUserService();
-  const user = useUserRef();
-  const queryClient = useQueryClient();
+  const sdkPromise = useSdk();
 
   const { mutateAsync } = useMutation({
-    mutationFn: (account: Account) =>
-      userService.setDefaultAccount(user.current, account),
-    onSuccess: (data) => {
-      queryClient.setQueryData([UserCache.Key], data);
-    },
+    mutationFn: async (account: Account) =>
+      (await sdkPromise).accounts.setDefault(account),
   });
 
   return mutateAsync;
 };
 
 export const useUpdateUsername = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const sdkPromise = useSdk();
+
+  const { mutateAsync } = useMutation({
+    mutationFn: async (username: string) =>
+      (await sdkPromise).user.updateUsername(username),
+  });
 
   return useCallback(
-    (username: string) => updateUser({ username }),
-    [updateUser],
+    (username: string) => mutateAsync(username),
+    [mutateAsync],
   );
 };
 
 export const useAcceptTerms = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const sdkPromise = useSdk();
 
-  return useCallback(
-    ({
+  const { mutateAsync } = useMutation({
+    mutationFn: async ({
       walletTerms,
       giftCardTerms,
-    }: { walletTerms?: boolean; giftCardTerms?: boolean }) => {
-      const now = new Date().toISOString();
-      const updates: UpdateUser = {};
-      if (walletTerms) updates.termsAcceptedAt = now;
-      if (giftCardTerms) updates.giftCardMintTermsAcceptedAt = now;
-      return updateUser(updates);
-    },
-    [updateUser],
+    }: { walletTerms?: boolean; giftCardTerms?: boolean }) =>
+      (await sdkPromise).user.acceptTerms({
+        wallet: walletTerms,
+        giftCardMint: giftCardTerms,
+      }),
+  });
+
+  return useCallback(
+    (params: { walletTerms?: boolean; giftCardTerms?: boolean }) =>
+      mutateAsync(params),
+    [mutateAsync],
   );
 };

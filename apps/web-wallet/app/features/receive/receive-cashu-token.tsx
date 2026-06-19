@@ -20,6 +20,7 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
+import { useSdk } from '~/features/shared/use-sdk';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { encodeToken } from '~/lib/cashu/token';
@@ -46,18 +47,12 @@ import {
 } from '../user/pending-terms-storage';
 import { shouldAcceptGiftCardMintTerms } from '../user/user';
 import { useAcceptTerms, useUser } from '../user/user-hooks';
-import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
   useCashuTokenWithClaimableProofs,
-  useCreateCrossAccountReceiveQuotes,
   useReceiveCashuTokenAccountPlaceholders,
   useReceiveCashuTokenAccounts,
 } from './receive-cashu-token-hooks';
-import {
-  type CashuAccountWithTokenFlags,
-  type ReceiveCashuTokenAccount,
-  isClaimingToSameCashuAccount,
-} from './receive-cashu-token-models';
+import type { ReceiveCashuTokenAccount } from './receive-cashu-token-models';
 
 type Props = {
   token: Token;
@@ -140,48 +135,26 @@ export default function ReceiveToken({
 
   const isReceiveAccountKnown = receiveAccount?.isUnknown === false;
 
-  const { mutateAsync: createCashuReceiveSwap } = useCreateCashuReceiveSwap();
-  const { mutateAsync: createCrossAccountReceiveQuotes } =
-    useCreateCrossAccountReceiveQuotes();
+  const sdkPromise = useSdk();
 
   const { mutate: claimTokenMutation, status: claimTokenStatus } = useMutation({
     mutationFn: async ({
       token,
-      sourceAccount,
       receiveAccount,
     }: {
       token: Token;
-      sourceAccount: CashuAccountWithTokenFlags;
       receiveAccount: ReceiveCashuTokenAccount;
     }) => {
       const account = receiveAccount.isUnknown
         ? await addAndSetReceiveAccount(receiveAccount)
         : receiveAccount;
 
-      const isSameAccountClaim = isClaimingToSameCashuAccount(
-        account,
-        sourceAccount,
-      );
-
-      if (isSameAccountClaim) {
-        const {
-          swap: { transactionId },
-        } = await createCashuReceiveSwap({
-          token,
-          accountId: account.id,
-        });
-        return { transactionId, account };
-      }
-
-      const result = await createCrossAccountReceiveQuotes({
-        token,
+      const sdk = await sdkPromise;
+      const result = await sdk.cashu.receive.receiveToken({
+        token: encodeToken(token, { removeDleq: true }),
         destinationAccount: account,
-        sourceAccount,
       });
-      return {
-        transactionId: result.lightningReceiveQuote.transactionId,
-        account,
-      };
+      return { transactionId: result.transactionId, account };
     },
     onSuccess: ({ transactionId, account }) => {
       const redirectTo = getAccountHomePath(account);
@@ -214,7 +187,6 @@ export default function ReceiveToken({
     if (!claimableToken || !receiveAccount) return;
     claimTokenMutation({
       token: claimableToken,
-      sourceAccount,
       receiveAccount,
     });
   };

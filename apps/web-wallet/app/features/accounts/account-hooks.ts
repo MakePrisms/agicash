@@ -9,8 +9,10 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
+import type { DistributedOmit } from 'type-fest';
 import { useSdk } from '~/features/shared/use-sdk';
-import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
+import { findFirstActiveKeyset, getKeysetExpiry } from '~/lib/cashu';
+import { allMintKeysetsQueryOptions } from '../shared/cashu';
 import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import {
@@ -23,8 +25,7 @@ import {
   type SparkAccount,
   getAccountBalance,
 } from './account';
-import { useAccountRepository } from './account-repository';
-import { AccountService, useAccountService } from './account-service';
+import { AccountService } from './account-service';
 
 export class AccountsCache {
   public static Key = 'accounts';
@@ -107,31 +108,6 @@ export function useAccountsCache() {
   const queryClient = useQueryClient();
   // The query client is a singleton created in the root of the app (see App component in root.tsx).
   return useMemo(() => new AccountsCache(queryClient), [queryClient]);
-}
-
-/**
- * Hook that returns an account change handlers.
- */
-export function useAccountChangeHandlers() {
-  const accountRepository = useAccountRepository();
-  const accountCache = useAccountsCache();
-
-  return [
-    {
-      event: 'ACCOUNT_CREATED',
-      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const addedAccount = await accountRepository.toAccount(payload);
-        accountCache.upsert(addedAccount);
-      },
-    },
-    {
-      event: 'ACCOUNT_UPDATED',
-      handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const updatedAccount = await accountRepository.toAccount(payload);
-        accountCache.upsert(updatedAccount);
-      },
-    },
-  ];
 }
 
 export const accountsQueryOptions = ({ sdk }: { sdk: Promise<Sdk> }) => {
@@ -460,16 +436,50 @@ export function useAccountOrDefault(accountId: string | null) {
     : defaultAccount;
 }
 
+export type AddCashuAccountInput = DistributedOmit<
+  CashuAccount,
+  | 'id'
+  | 'createdAt'
+  | 'expiresAt'
+  | 'isTestMint'
+  | 'keysetCounters'
+  | 'proofs'
+  | 'version'
+  | 'wallet'
+  | 'isOnline'
+  | 'state'
+>;
+
 export function useAddCashuAccount() {
-  const userId = useUser((x) => x.id);
   const accountCache = useAccountsCache();
   const queryClient = useQueryClient();
-  const accountService = useAccountService(queryClient);
+  const sdkPromise = useSdk();
 
   const { mutateAsync } = useMutation({
-    mutationFn: async (
-      account: Parameters<typeof accountService.addCashuAccount>[0]['account'],
-    ) => accountService.addCashuAccount({ userId, account }),
+    mutationFn: async (account: AddCashuAccountInput) => {
+      // Offer accounts expire at the active keyset's expiry; the SDK takes the
+      // pre-computed expiresAt (it does not derive it).
+      let expiresAt: string | null = null;
+      if (account.purpose === 'offer') {
+        const { keysets } = await queryClient.fetchQuery(
+          allMintKeysetsQueryOptions(account.mintUrl),
+        );
+        const activeKeyset = findFirstActiveKeyset(keysets, account.currency);
+        if (activeKeyset) {
+          expiresAt = getKeysetExpiry(activeKeyset)?.toISOString() ?? null;
+        }
+      }
+
+      const sdk = await sdkPromise;
+      return sdk.accounts.add({
+        type: 'cashu',
+        mintUrl: account.mintUrl,
+        currency: account.currency,
+        name: account.name,
+        purpose: account.purpose,
+        expiresAt,
+      });
+    },
     onSuccess: (account) => {
       // We add the account as soon as it is created so that it is available in the cache immediately.
       // This is important when using other hooks that are trying to use the account immediately after it is created.

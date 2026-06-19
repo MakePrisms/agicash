@@ -1,14 +1,12 @@
 import * as Sentry from '@sentry/react-router';
 import { type PropsWithChildren, useEffect } from 'react';
 import { useToast } from '~/hooks/use-toast';
-import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
-import { agicashRealtimeClient } from '../agicash-db/database.client';
-import { useTrackAndUpdateSparkAccountBalances } from '../shared/spark';
+import { useSdk } from '../shared/use-sdk';
 import { useTheme } from '../theme';
 import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
-import { TaskProcessor, useTakeTaskProcessingLead } from './task-processing';
-import { useTrackWalletChanges } from './use-track-wallet-changes';
+import { useRealtimeConnectivity } from './use-realtime-connectivity';
+import { useSdkEventBridge } from './use-sdk-event-bridge';
 
 /**
  * Syncs the theme settings stored in cookies to match the default currency
@@ -26,6 +24,7 @@ const useSyncThemeWithDefaultCurrency = () => {
 export const Wallet = ({ children }: PropsWithChildren) => {
   const { toast } = useToast();
   const user = useUser();
+  const sdkPromise = useSdk();
 
   useEffect(() => {
     Sentry.setUser({
@@ -51,16 +50,22 @@ export const Wallet = ({ children }: PropsWithChildren) => {
 
   useSyncThemeWithDefaultCurrency();
 
-  useTrackWalletChanges();
-  useSupabaseRealtimeActivityTracking(agicashRealtimeClient);
-  useTrackAndUpdateSparkAccountBalances();
+  useSdkEventBridge();
+  useRealtimeConnectivity();
 
-  const isLead = useTakeTaskProcessingLead();
+  // start() parks in 'starting' if there is no session and does not auto-recover,
+  // so re-issue stop()->start() keyed on the authed user.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: user.id is a deliberate re-run key (re-elect the leader on user change), not read in the body
+  useEffect(() => {
+    let sdkRef: Awaited<typeof sdkPromise> | undefined;
+    void sdkPromise.then((sdk) => {
+      sdkRef = sdk;
+      sdk.background.start();
+    });
+    return () => {
+      sdkRef?.background.stop();
+    };
+  }, [sdkPromise, user.id]);
 
-  return (
-    <>
-      {isLead && <TaskProcessor />}
-      {children}
-    </>
-  );
+  return <>{children}</>;
 };

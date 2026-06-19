@@ -31,7 +31,6 @@ import { getThemeCookies } from '~/features/theme/theme-cookies.server';
 import { getThemeScript } from '~/features/theme/theme-script';
 import { getCanonicalOrigin } from '~/lib/canonical-origin.server';
 import { WebAssemblyUnavailableError } from '~/lib/spark';
-import { SupabaseRealtimeError } from '~/lib/supabase/supabase-realtime-hooks';
 import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
 import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
@@ -255,22 +254,6 @@ const useErrorDetails = (error: unknown) => {
       footer: (
         <Button variant="default" type="button" onClick={reload}>
           Reload Page
-        </Button>
-      ),
-    };
-  }
-
-  if (error instanceof SupabaseRealtimeError) {
-    return {
-      title: 'Connection lost',
-      additionalInfo: (
-        <p className="overflow-auto rounded-lg bg-muted">
-          Whoops, you lost your connection.
-        </p>
-      ),
-      footer: (
-        <Button variant="default" type="button" onClick={reload}>
-          Reload
         </Button>
       ),
     };

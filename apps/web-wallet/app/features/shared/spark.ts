@@ -1,6 +1,5 @@
 import {
   type BreezSdk,
-  type SdkEvent,
   connect,
   defaultConfig,
   initLogging,
@@ -8,7 +7,6 @@ import {
 import { Money } from '@agicash/money';
 import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
 import {
@@ -16,7 +14,6 @@ import {
   getSparkIdentityPublicKeyFromMnemonic,
 } from '~/lib/spark';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
-import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { getFeatureFlag } from './feature-flags';
 
@@ -175,56 +172,4 @@ export async function getInitializedSparkWallet(
     },
     { sparkNetwork: network },
   );
-}
-
-export function useTrackAndUpdateSparkAccountBalances() {
-  const { data: sparkOnlineAccounts } = useAccounts({
-    type: 'spark',
-    isOnline: true,
-  });
-  const accountCache = useAccountsCache();
-
-  useEffect(() => {
-    const registrations = sparkOnlineAccounts.map((account) => {
-      const listenerPromise = account.wallet.addEventListener({
-        onEvent(event: SdkEvent) {
-          sparkDebugLog('Breez event', {
-            accountId: account.id,
-            type: event.type,
-          });
-
-          if (
-            event.type === 'paymentSucceeded' ||
-            event.type === 'paymentPending' ||
-            event.type === 'paymentFailed' ||
-            event.type === 'claimedDeposits' ||
-            event.type === 'synced'
-          ) {
-            account.wallet.getInfo({}).then((info) => {
-              const balance = new Money({
-                amount: info.balanceSats,
-                currency: 'BTC',
-                unit: 'sat',
-              }) as Money;
-              accountCache.updateSparkAccountBalance({
-                accountId: account.id,
-                balance,
-              });
-            });
-          }
-        },
-      });
-      return { wallet: account.wallet, listenerPromise };
-    });
-
-    return () => {
-      for (const { wallet, listenerPromise } of registrations) {
-        listenerPromise
-          .then((id) => wallet.removeEventListener(id))
-          .catch(() => {
-            console.warn('Failed to remove Spark event listener');
-          });
-      }
-    };
-  }, [sparkOnlineAccounts, accountCache]);
 }

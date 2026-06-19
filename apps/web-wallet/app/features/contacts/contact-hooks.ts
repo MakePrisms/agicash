@@ -7,11 +7,8 @@ import {
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useSdk } from '~/features/shared/use-sdk';
-import useLocationData from '~/hooks/use-location';
-import type { AgicashDbContact } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import type { Contact } from './contact';
-import { ContactRepository, useContactRepository } from './contact-repository';
 export class ContactsCache {
   public static Key = 'contacts';
 
@@ -101,27 +98,24 @@ export function useContact(contactId: string) {
 }
 
 export function useCreateContact() {
-  const userId = useUser((user) => user.id);
-  const contactRepository = useContactRepository();
+  const sdkPromise = useSdk();
 
   const { mutateAsync: createContact } = useMutation({
     mutationKey: ['create-contact'],
-    mutationFn: ({ username }: { username: string }) =>
-      contactRepository.create({
-        ownerId: userId,
-        username,
-      }),
+    mutationFn: async ({ username }: { username: string }) =>
+      (await sdkPromise).contacts.add({ username }),
   });
 
   return createContact;
 }
 
 export function useDeleteContact() {
-  const contactRepository = useContactRepository();
+  const sdkPromise = useSdk();
 
   const { mutateAsync: deleteContact } = useMutation({
     mutationKey: ['delete-contact'],
-    mutationFn: (contactId: string) => contactRepository.delete(contactId),
+    mutationFn: async (contact: Contact) =>
+      (await sdkPromise).contacts.remove(contact),
   });
 
   return deleteContact;
@@ -142,28 +136,4 @@ export function useFindContactCandidates(query: string) {
     initialDataUpdatedAt: () => Date.now() - 1000 * 6,
     staleTime: 1000 * 5,
   });
-}
-
-/**
- * Hook that returns a contact change handler.
- */
-export function useContactChangeHandlers() {
-  const contactsCache = useContactsCache();
-  const { domain } = useLocationData();
-
-  return [
-    {
-      event: 'CONTACT_CREATED',
-      handleEvent: async (payload: AgicashDbContact) => {
-        const contact = ContactRepository.toContact(payload, domain);
-        contactsCache.add(contact);
-      },
-    },
-    {
-      event: 'CONTACT_DELETED',
-      handleEvent: async (payload: AgicashDbContact) => {
-        contactsCache.remove(payload.id);
-      },
-    },
-  ];
 }
