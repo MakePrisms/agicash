@@ -8,6 +8,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
+import { useSdk } from '~/features/shared/use-sdk';
 import {
   type ExtendedCashuWallet,
   getCashuUnit,
@@ -92,12 +93,12 @@ export function useTrackSparkReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
+  const sdk = useSdk();
 
   const { data } = useQuery({
     queryKey: [SparkReceiveQuoteCache.Key, quoteId],
     // biome-ignore lint/style/noNonNullAssertion: quoteId is guaranteed by enabled
-    queryFn: () => sparkReceiveQuoteRepository.get(quoteId!),
+    queryFn: async () => (await sdk).spark.receive.get(quoteId!),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',

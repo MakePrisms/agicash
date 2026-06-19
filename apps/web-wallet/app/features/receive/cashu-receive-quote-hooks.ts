@@ -15,6 +15,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSdk } from '~/features/shared/use-sdk';
 import {
   type ExtendedCashuWallet,
   MintQuoteSubscriptionManager,
@@ -220,12 +221,12 @@ export function useTrackCashuReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
+  const sdk = useSdk();
 
   const { data } = useQuery({
     queryKey: [CashuReceiveQuoteCache.Key, quoteId],
     // biome-ignore lint/style/noNonNullAssertion: quoteId is guaranteed by enabled
-    queryFn: () => cashuReceiveQuoteRepository.get(quoteId!),
+    queryFn: async () => (await sdk).cashu.receive.get(quoteId!),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
