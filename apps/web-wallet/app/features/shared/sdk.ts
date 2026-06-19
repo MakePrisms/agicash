@@ -132,5 +132,8 @@ export function useSdk(): WalletSdk {
       'useSdk is client-only. Use getSdk() outside of React render (loaders, query/mutation functions, module scope).',
     );
   }
+  // Returns the process singleton directly. If we ever want injectable-for-tests
+  // DI, this is the seam to turn into a real context provider (mounted at the
+  // app root) — call sites that already use useSdk() wouldn't change.
   return getSdk();
 }
