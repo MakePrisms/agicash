@@ -12,7 +12,6 @@ import { getSdk } from '~/lib/sdk';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
 import type { User } from './user';
-import { useWriteUserRepository } from './user-repository';
 
 export class UserCache {
   public static Key = 'user';
@@ -214,12 +213,10 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
 
 export const useSetDefaultCurrency = () => {
   const queryClient = useQueryClient();
-  const userId = useUser((user) => user.id);
-  const userRepository = useWriteUserRepository();
 
   const { mutateAsync } = useMutation({
     mutationFn: (currency: Currency) =>
-      userRepository.update(userId, { defaultCurrency: currency }),
+      getSdk().user.setDefaultCurrency(currency),
     onSuccess: (data) => {
       queryClient.setQueryData([UserCache.Key], data);
     },
