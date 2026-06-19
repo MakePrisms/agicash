@@ -13,7 +13,11 @@ import {
   type SparkAccount,
   getAccountHomePath,
 } from '~/features/accounts/account';
-import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
+import type {
+  CashuLightningQuote,
+  DestinationDetails,
+  SparkLightningQuote,
+} from '@agicash/wallet-sdk';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
@@ -22,12 +26,10 @@ import { decodeBolt11 } from '@agicash/bolt11';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
-import type { DestinationDetails } from './cashu-send-quote';
 import { useInitiateCashuSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwap } from './cashu-send-swap-hooks';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
 import { useInitiateSparkSendQuote } from './spark-send-quote-hooks';
-import type { SparkLightningQuote } from './spark-send-quote-service';
 
 const ConfirmationRow = ({
   label,
@@ -331,7 +333,7 @@ export const CreateCashuTokenConfirmation = ({
       amount={quote.totalAmount}
       onConfirm={() =>
         createCashuSendSwap({
-          accountId: account.id,
+          account,
           amount: quote.amountRequested,
         })
       }
