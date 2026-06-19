@@ -14,6 +14,7 @@ import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
 import { NotFoundError } from '../shared/error';
+import { useSdk } from '../shared/use-sdk';
 import { useUser } from '../user/user-hooks';
 import type { Transaction } from './transaction';
 import {
@@ -87,12 +88,12 @@ export function useTransactionsCache() {
 }
 
 export function useTransaction(id: string) {
-  const transactionRepository = useTransactionRepository();
+  const sdk = useSdk();
 
   return useSuspenseQuery({
     queryKey: [TransactionsCache.Key, id],
     queryFn: async () => {
-      const transaction = await transactionRepository.get(id);
+      const transaction = await (await sdk).transactions.get(id);
 
       if (!transaction) {
         throw new NotFoundError(`Transaction not found for id: ${id}`);
@@ -115,19 +116,18 @@ export function useTransaction(id: string) {
 const PAGE_SIZE = 25;
 
 export function useTransactions(accountId?: string) {
-  const userId = useUser((user) => user.id);
-  const transactionRepository = useTransactionRepository();
+  useUser(); // gate: suspend until the session resolves (SDK self-resolves the userId)
+  const sdk = useSdk();
   const transactionsCache = useTransactionsCache();
 
   const result = useInfiniteQuery({
     queryKey: [TransactionsCache.AllTransactionsKey, accountId],
     initialPageParam: null,
     queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
-      const result = await transactionRepository.list({
-        userId,
-        cursor: pageParam,
-        pageSize: PAGE_SIZE,
+      const result = await (await sdk).transactions.list({
         accountId,
+        cursor: pageParam ?? undefined,
+        pageSize: PAGE_SIZE,
       });
 
       for (const transaction of result.transactions) {
@@ -136,8 +136,7 @@ export function useTransactions(accountId?: string) {
 
       return {
         transactions: result.transactions,
-        nextCursor:
-          result.transactions.length === PAGE_SIZE ? result.nextCursor : null,
+        nextCursor: result.nextCursor,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
@@ -150,13 +149,12 @@ export function useTransactions(accountId?: string) {
 }
 
 export function useHasTransactionsPendingAck() {
-  const transactionRepository = useTransactionRepository();
-  const userId = useUser((user) => user.id);
+  useUser(); // gate: suspend until the session resolves (SDK self-resolves the userId)
+  const sdk = useSdk();
 
   const result = useQuery({
     queryKey: [TransactionsCache.UnacknowledgedCountKey],
-    queryFn: () =>
-      transactionRepository.countTransactionsPendingAck({ userId }),
+    queryFn: async () => (await sdk).transactions.countPendingAck(),
     select: (data) => data > 0,
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
