@@ -148,7 +148,11 @@ export class ContactRepository {
       throw new Error('Failed to search users', error);
     }
 
-    return data;
+    return (data ?? []).map((u) => ({
+      id: u.id,
+      username: u.username,
+      lud16: `${u.username}@${this.domain}`,
+    }));
   }
 
   /**
@@ -157,7 +161,7 @@ export class ContactRepository {
   static toContact(dbContact: AgicashDbContact, domain: string): Contact {
     return {
       id: dbContact.id,
-      createdAt: dbContact.created_at,
+      createdAt: new Date(dbContact.created_at),
       ownerId: dbContact.owner_id,
       username: dbContact.username ?? '',
       lud16: `${dbContact.username}@${domain}`,

@@ -1,23 +1,22 @@
 import { z } from 'zod/mini';
 
+export type { Contact } from '@agicash/wallet-sdk';
+
+/** The runtime shape of a contact — `createdAt` is a `Date`. */
 const ContactSchema = z.object({
   id: z.string(),
-  createdAt: z.string(),
-  /** Id of the user that this contact belongs to */
+  createdAt: z.instanceof(Date),
   ownerId: z.string(),
-  /** Username of the user within this app that this contact references */
   username: z.string(),
-  /** Lightning Address of the user that this contact references */
   lud16: z.string(),
 });
 
-export type Contact = z.infer<typeof ContactSchema>;
-
 /**
- * Type guard to check if a value is a valid Contact
- * @param value - The value to check
- * @returns True if the value is a valid Contact, false otherwise
+ * Type guard over the runtime contact shape, used to distinguish a Contact from
+ * a plain string in send-flow resolution.
  */
-export const isContact = (value: unknown): value is Contact => {
+export const isContact = (
+  value: unknown,
+): value is import('@agicash/wallet-sdk').Contact => {
   return ContactSchema.safeParse(value).success;
 };
