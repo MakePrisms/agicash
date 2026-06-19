@@ -80,8 +80,12 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   // Resolve the stateless SDK before the rest of the layout runs: it owns the
   // user row + default accounts (upserted at sign-in via auth.ensureUser) and is
   // the source for the user identity below, plus child-route loaders
-  // (verify-email) read getSdk(). The domain is the request host, matching the
-  // root loader's canonical-origin host for these non-prerendered routes.
+  // (verify-email) read getSdk(). The domain is the request host (location.host),
+  // which equals the root loader's canonical-origin host on direct production/dev
+  // access but can diverge on a Vercel alias/preview URL, where
+  // getCanonicalOrigin() (server-only, VERCEL_*-aware) overrides the request host.
+  // Only contact lud16 composition reads config.domain, so the impact is bounded;
+  // sourcing the canonical domain here is verification-owed (see SDD T15 checklist).
   // Breez WASM init overlaps; both are idempotent and typically already in-flight.
   const [sdk] = await Promise.all([initSdk(location.host), ensureBreezWasm()]);
 
