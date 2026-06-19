@@ -12,8 +12,7 @@ import { getSdk } from '~/lib/sdk';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
 import type { User } from './user';
-import { type UpdateUser, useWriteUserRepository } from './user-repository';
-import { useUserService } from './user-service';
+import { useWriteUserRepository } from './user-repository';
 
 export class UserCache {
   public static Key = 'user';
@@ -213,36 +212,31 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
   return mutateAsync;
 };
 
-const useUpdateUser = () => {
+export const useSetDefaultCurrency = () => {
   const queryClient = useQueryClient();
   const userId = useUser((user) => user.id);
   const userRepository = useWriteUserRepository();
 
-  return useMutation({
-    mutationFn: (updates: UpdateUser) => userRepository.update(userId, updates),
+  const { mutateAsync } = useMutation({
+    mutationFn: (currency: Currency) =>
+      userRepository.update(userId, { defaultCurrency: currency }),
     onSuccess: (data) => {
       queryClient.setQueryData([UserCache.Key], data);
     },
   });
-};
-
-export const useSetDefaultCurrency = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
 
   return useCallback(
-    (currency: Currency) => updateUser({ defaultCurrency: currency }),
-    [updateUser],
+    (currency: Currency) => mutateAsync(currency),
+    [mutateAsync],
   );
 };
 
 export const useSetDefaultAccount = () => {
-  const userService = useUserService();
-  const user = useUserRef();
   const queryClient = useQueryClient();
 
   const { mutateAsync } = useMutation({
     mutationFn: (account: Account) =>
-      userService.setDefaultAccount(user.current, account),
+      getSdk().user.setDefaultAccount({ account }),
     onSuccess: (data) => {
       queryClient.setQueryData([UserCache.Key], data);
     },
@@ -252,28 +246,34 @@ export const useSetDefaultAccount = () => {
 };
 
 export const useUpdateUsername = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const queryClient = useQueryClient();
+
+  const { mutateAsync } = useMutation({
+    mutationFn: (username: string) => getSdk().user.updateUsername(username),
+    onSuccess: (data) => {
+      queryClient.setQueryData([UserCache.Key], data);
+    },
+  });
 
   return useCallback(
-    (username: string) => updateUser({ username }),
-    [updateUser],
+    (username: string) => mutateAsync(username),
+    [mutateAsync],
   );
 };
 
 export const useAcceptTerms = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
+  const queryClient = useQueryClient();
 
-  return useCallback(
-    ({
+  const { mutateAsync } = useMutation({
+    mutationFn: ({
       walletTerms,
       giftCardTerms,
-    }: { walletTerms?: boolean; giftCardTerms?: boolean }) => {
-      const now = new Date().toISOString();
-      const updates: UpdateUser = {};
-      if (walletTerms) updates.termsAcceptedAt = now;
-      if (giftCardTerms) updates.giftCardMintTermsAcceptedAt = now;
-      return updateUser(updates);
+    }: { walletTerms?: boolean; giftCardTerms?: boolean }) =>
+      getSdk().user.acceptTerms({ walletTerms, giftCardTerms }),
+    onSuccess: (data) => {
+      queryClient.setQueryData([UserCache.Key], data);
     },
-    [updateUser],
-  );
+  });
+
+  return mutateAsync;
 };
