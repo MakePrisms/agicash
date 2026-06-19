@@ -6,7 +6,11 @@ export type BackgroundRunnerDeps = {
     takeLead(userId: string, clientId: string): Promise<boolean>;
   };
   taskLoop: { runOnce(): Promise<void>; dispose(): void };
-  forwarder: { start(userId: string): Promise<void>; stop(): Promise<void> };
+  forwarder: {
+    start(userId: string): Promise<void>;
+    stop(): Promise<void>;
+    setConnectivity(params: { online: boolean; active: boolean }): void;
+  };
   registerBalanceListeners: (userId: string) => Promise<() => void>;
   getUserId: () => Promise<string | null>;
   clientId: string;
@@ -31,6 +35,10 @@ export class BackgroundRunner {
 
   state(): BackgroundState {
     return this.currentState;
+  }
+
+  setConnectivity(params: { online: boolean; active: boolean }): void {
+    this.deps.forwarder.setConnectivity(params);
   }
 
   async start(): Promise<void> {

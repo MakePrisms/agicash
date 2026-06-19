@@ -57,7 +57,17 @@ export class WalletChangesForwarder {
       });
     this.deps.realtime.addChannel(builder);
     this.topic = builder.topic;
-    await this.deps.realtime.subscribe(this.topic);
+    await this.deps.realtime.subscribe(this.topic, () => {
+      this.deps.emitter.emit('realtime:connected', {});
+    });
+  }
+
+  setConnectivity({
+    online,
+    active,
+  }: { online: boolean; active: boolean }): void {
+    this.deps.realtime.setOnlineStatus(online);
+    this.deps.realtime.setActiveStatus(active);
   }
 
   async stop(): Promise<void> {

@@ -9,8 +9,14 @@ function fakeRealtime() {
   let broadcastCb:
     | ((m: { type: 'broadcast'; event: string; payload: unknown }) => void)
     | undefined;
-  const subscribe = mock(async () => undefined);
+  let onConnectedCb: (() => void) | undefined;
+  const subscribe = mock(async (_topic: string, onConnected?: () => void) => {
+    onConnectedCb = onConnected;
+    onConnected?.();
+  });
   const removeChannel = mock(async () => undefined);
+  const setOnlineStatus = mock((_online: boolean) => undefined);
+  const setActiveStatus = mock((_active: boolean) => undefined);
   const builder = {
     topic: 'realtime:wallet:user-1',
     on: mock(
@@ -26,13 +32,23 @@ function fakeRealtime() {
   };
   const channel = mock(() => builder);
   const addChannel = mock(() => ({ topic: builder.topic }));
-  const realtime = { channel, addChannel, subscribe, removeChannel } as never;
+  const realtime = {
+    channel,
+    addChannel,
+    subscribe,
+    removeChannel,
+    setOnlineStatus,
+    setActiveStatus,
+  } as never;
   return {
     realtime,
     subscribe,
     removeChannel,
+    setOnlineStatus,
+    setActiveStatus,
     fire: (event: string, payload: unknown) =>
       broadcastCb?.({ type: 'broadcast', event, payload }),
+    fireConnected: () => onConnectedCb?.(),
   };
 }
 
@@ -132,5 +148,22 @@ describe('WalletChangesForwarder', () => {
     await forwarder.start('user-1');
     await forwarder.stop();
     expect(rt.removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits realtime:connected when the channel connects', async () => {
+    const { forwarder, emitter } = setup();
+    let fired = false;
+    emitter.on('realtime:connected', () => {
+      fired = true;
+    });
+    await forwarder.start('user-1');
+    expect(fired).toBe(true);
+  });
+
+  it('setConnectivity forwards online/active to the realtime manager', () => {
+    const { forwarder, rt } = setup();
+    forwarder.setConnectivity({ online: true, active: false });
+    expect(rt.setOnlineStatus).toHaveBeenCalledWith(true);
+    expect(rt.setActiveStatus).toHaveBeenCalledWith(false);
   });
 });

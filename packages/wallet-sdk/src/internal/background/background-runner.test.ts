@@ -22,6 +22,9 @@ function setup(opts: { takeLead?: (n: number) => boolean } = {}) {
     forwarder: {
       start: mock(async () => undefined),
       stop: mock(async () => undefined),
+      setConnectivity: mock(
+        (_params: { online: boolean; active: boolean }) => undefined,
+      ),
     },
     registerBalanceListeners: mock(async () => balanceCleanup),
     getUserId: mock(async () => 'user-1'),

@@ -92,6 +92,8 @@ export type SdkEventMap = {
   'user:updated': { user: User };
   /** The background processor changed lifecycle state. */
   'background:state': { state: BackgroundState };
+  /** The realtime channel (re)connected; consumers should refetch to recover any updates missed while disconnected. */
+  'realtime:connected': Record<string, never>;
 };
 
 /**

@@ -265,5 +265,6 @@ export function createBackgroundDomain(
     start: () => runner.start(),
     stop: () => runner.stop(),
     state: () => runner.state(),
+    setConnectivity: (c) => runner.setConnectivity(c),
   };
 }

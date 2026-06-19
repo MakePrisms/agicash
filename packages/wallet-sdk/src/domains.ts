@@ -408,4 +408,6 @@ export interface BackgroundDomain {
   stop(): Promise<void>;
   /** The current background-processing lifecycle state (synchronous). */
   state(): BackgroundState;
+  /** Forward browser online/active status to the SDK's realtime manager (catch-up resilience). */
+  setConnectivity(params: { online: boolean; active: boolean }): void;
 }
