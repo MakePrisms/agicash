@@ -1,24 +1,7 @@
-import type { QueryClient } from '@tanstack/react-query';
-import type { DistributedOmit } from 'type-fest';
-import { allMintKeysetsQueryOptions } from '~/features/shared/cashu';
-import {
-  checkIsTestMint,
-  findFirstActiveKeyset,
-  getKeysetExpiry,
-} from '@agicash/cashu';
 import type { User } from '../user/user';
-import type { Account, CashuAccount, ExtendedAccount } from './account';
-import {
-  type AccountRepository,
-  useAccountRepository,
-} from './account-repository';
+import type { Account, ExtendedAccount } from './account';
 
 export class AccountService {
-  constructor(
-    private readonly accountRepository: AccountRepository,
-    private readonly queryClient: QueryClient,
-  ) {}
-
   /**
    * Returns true if the account is the user's default account for the respective currency.
    */
@@ -47,50 +30,4 @@ export class AccountService {
       }))
       .sort((_, b) => (b.isDefault ? 1 : -1)); // Sort the default account to the top;
   }
-
-  async addCashuAccount({
-    userId,
-    account,
-  }: {
-    userId: string;
-    account: DistributedOmit<
-      CashuAccount,
-      | 'id'
-      | 'createdAt'
-      | 'expiresAt'
-      | 'isTestMint'
-      | 'keysetCounters'
-      | 'proofs'
-      | 'version'
-      | 'wallet'
-      | 'isOnline'
-      | 'state'
-    >;
-  }) {
-    const isTestMint = checkIsTestMint(account.mintUrl);
-
-    let expiresAt: string | null = null;
-    if (account.purpose === 'offer') {
-      const { keysets } = await this.queryClient.fetchQuery(
-        allMintKeysetsQueryOptions(account.mintUrl),
-      );
-      const activeKeyset = findFirstActiveKeyset(keysets, account.currency);
-      if (activeKeyset) {
-        expiresAt = getKeysetExpiry(activeKeyset)?.toISOString() ?? null;
-      }
-    }
-
-    return this.accountRepository.create<CashuAccount>({
-      ...account,
-      userId,
-      isTestMint,
-      expiresAt,
-      keysetCounters: {},
-    });
-  }
-}
-
-export function useAccountService(queryClient: QueryClient) {
-  const accountRepository = useAccountRepository();
-  return new AccountService(accountRepository, queryClient);
 }

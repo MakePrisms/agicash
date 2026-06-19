@@ -21,11 +21,8 @@ import {
   type SparkAccount,
   getAccountBalance,
 } from './account';
-import {
-  type AccountRepository,
-  useAccountRepository,
-} from './account-repository';
-import { AccountService, useAccountService } from './account-service';
+import type { AddCashuAccountInput } from '@agicash/wallet-sdk';
+import { AccountService } from './account-service';
 
 export class AccountsCache {
   public static Key = 'accounts';
@@ -129,13 +126,10 @@ export function useWireAccountEvents() {
   }, [accountCache]);
 }
 
-export const accountsQueryOptions = ({
-  userId,
-  accountRepository,
-}: { userId: string; accountRepository: AccountRepository }) => {
+export const accountsQueryOptions = () => {
   return queryOptions({
     queryKey: [AccountsCache.Key],
-    queryFn: () => accountRepository.getAllActive(userId),
+    queryFn: () => getSdk().accounts.list(),
     staleTime: Number.POSITIVE_INFINITY,
     // Refetches use `getAllActive`, so any expired account previously in the
     // cache (lazy-fetched via useAccountOrNull, or just expired before the
@@ -244,12 +238,11 @@ export function useAccounts<
   select?: UseAccountsSelect<T, P>,
 ): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
-  const accountRepository = useAccountRepository();
 
   const { currency, type, isOnline, purpose, state = 'active' } = select ?? {};
 
   return useSuspenseQuery({
-    ...accountsQueryOptions({ userId: user.id, accountRepository }),
+    ...accountsQueryOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select: useCallback(
@@ -321,14 +314,13 @@ const ALL_ACCOUNT_STATES: AccountState[] = ['active', 'expired'];
  */
 export function useAccountOrNull(id: string | null): Account | null {
   const accountsCache = useAccountsCache();
-  const accountRepository = useAccountRepository();
   const { data: accounts } = useAccounts({ state: ALL_ACCOUNT_STATES });
 
   useSuspenseQuery({
     queryKey: ['fetch-account-by-id', id],
     queryFn: async () => {
       if (!id || accountsCache.get(id)) return null;
-      const fetched = await accountRepository.get(id);
+      const fetched = await getSdk().accounts.get(id);
       if (fetched) accountsCache.upsert(fetched);
       return null;
     },
@@ -459,15 +451,11 @@ export function useAccountOrDefault(accountId: string | null) {
 }
 
 export function useAddCashuAccount() {
-  const userId = useUser((x) => x.id);
   const accountCache = useAccountsCache();
-  const queryClient = useQueryClient();
-  const accountService = useAccountService(queryClient);
 
   const { mutateAsync } = useMutation({
-    mutationFn: async (
-      account: Parameters<typeof accountService.addCashuAccount>[0]['account'],
-    ) => accountService.addCashuAccount({ userId, account }),
+    mutationFn: (account: AddCashuAccountInput) =>
+      getSdk().accounts.add(account),
     onSuccess: (account) => {
       // We add the account as soon as it is created so that it is available in the cache immediately.
       // This is important when using other hooks that are trying to use the account immediately after it is created.

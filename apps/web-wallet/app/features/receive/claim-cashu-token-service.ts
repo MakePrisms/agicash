@@ -3,9 +3,9 @@ import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
+import { getSdk } from '~/lib/sdk';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
-import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
 import type { User } from '../user/user';
@@ -35,8 +35,6 @@ export class ClaimCashuTokenService {
 
   constructor(
     private readonly queryClient: QueryClient,
-    private readonly accountRepository: AccountRepository,
-    private readonly accountService: AccountService,
     private readonly receiveSwapService: CashuReceiveSwapService,
     private readonly cashuReceiveQuoteService: CashuReceiveQuoteService,
     private readonly sparkReceiveQuoteService: SparkReceiveQuoteService,
@@ -86,12 +84,7 @@ export class ClaimCashuTokenService {
     token: Token,
     claimTo: 'cashu' | 'spark',
   ): Promise<ClaimTokenResult> {
-    const accounts = await this.queryClient.fetchQuery(
-      accountsQueryOptions({
-        userId: user.id,
-        accountRepository: this.accountRepository,
-      }),
-    );
+    const accounts = await this.queryClient.fetchQuery(accountsQueryOptions());
     const extendedAccounts = AccountService.getExtendedAccounts(user, accounts);
     const preferredReceiveAccountId =
       claimTo === 'spark'
@@ -118,10 +111,7 @@ export class ClaimCashuTokenService {
     }
 
     if (receiveAccount.isUnknown && receiveAccount.type === 'cashu') {
-      const addedAccount = await this.accountService.addCashuAccount({
-        userId: user.id,
-        account: receiveAccount,
-      });
+      const addedAccount = await getSdk().accounts.add(receiveAccount);
       this.accountsCache.upsert(addedAccount);
       receiveAccount = { ...receiveAccount, ...addedAccount };
     }
