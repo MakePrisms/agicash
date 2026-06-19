@@ -9,12 +9,16 @@ type Deps = {
 };
 
 /**
- * The `contacts` domain: add/remove a contact, fetch one by id, and search for
- * candidate users to add. The resident `list()` of all contacts is a per-variant
- * hot read, so it is not here.
+ * The `contacts` domain: add/remove a contact, fetch one by id, search for
+ * candidate users to add, and list all contacts.
  */
 export class ContactsDomain {
   constructor(private readonly deps: Deps) {}
+
+  /** All contacts for the current user. */
+  async list(): Promise<Contact[]> {
+    return this.deps.contactRepository.getAll(await this.requireUserId());
+  }
 
   /** A single contact by id. Throws if not found. */
   get(contactId: string): Promise<Contact> {
