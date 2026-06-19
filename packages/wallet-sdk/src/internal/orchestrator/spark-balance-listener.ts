@@ -85,7 +85,7 @@ export class SparkBalanceListener {
     const updated: Account = { ...account, balance };
     this.deps.emitter.emit('account:updated', {
       account: updated,
-      op: 'updated',
+      op: 'balance',
     });
   }
 }

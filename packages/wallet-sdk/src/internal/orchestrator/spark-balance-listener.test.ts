@@ -71,7 +71,7 @@ describe('SparkBalanceListener', () => {
     fake.fire({ type: 'synced' });
     await flush();
     expect(events).toHaveLength(1);
-    expect(events[0]?.op).toBe('updated');
+    expect(events[0]?.op).toBe('balance');
     expect((events[0]?.account as SparkAccount).balance?.toNumber('sat')).toBe(
       1500,
     );

@@ -69,8 +69,11 @@ export type SdkEventMap = {
   };
   // NO transfer:* events (decision 5): a transfer is TWO transactions (debit + credit),
   // reconstructed consumer-side from the two transaction:* events, linked by `transferId`.
-  /** An account was created or updated; `op` distinguishes which. */
-  'account:updated': { account: Account; op: 'created' | 'updated' };
+  /** An account was created, updated (full row), or had a balance-only refresh. */
+  'account:updated': {
+    account: Account;
+    op: 'created' | 'updated' | 'balance';
+  };
   /** A new transaction appeared in history. */
   'transaction:created': { transaction: Transaction };
   /** An existing transaction changed state (apply by `transaction.version`). */
