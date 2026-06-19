@@ -79,6 +79,15 @@ export type {
   AccountSuggestion,
 } from './types/account-config';
 
+// --- accounts value helpers (pure; consumed by the thin web read-model) ------
+export {
+  getAccountBalance,
+  getExtendedAccounts,
+  isDefaultAccount,
+  canSendToLightning,
+  canReceiveFromLightning,
+} from './domains/accounts/account-utils';
+
 // --- scan (§3) -------------------------------------------------------------
 export type { ParsedDestination, PaymentIntent } from './types/scan';
 

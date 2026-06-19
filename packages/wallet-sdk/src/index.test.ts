@@ -7,6 +7,16 @@ describe('public barrel — server surface', () => {
   });
 });
 
+describe('public barrel — account value helpers', () => {
+  it('barrel exports the account value helpers', () => {
+    expect(typeof sdk.getAccountBalance).toBe('function');
+    expect(typeof sdk.getExtendedAccounts).toBe('function');
+    expect(typeof sdk.isDefaultAccount).toBe('function');
+    expect(typeof sdk.canSendToLightning).toBe('function');
+    expect(typeof sdk.canReceiveFromLightning).toBe('function');
+  });
+});
+
 describe('public barrel — cashu mint blocklist', () => {
   it('re-exports MintBlocklistSchema (value) so consumers can parse their env JSON', () => {
     expect(typeof sdk.MintBlocklistSchema).toBe('object'); // a zod/mini schema object
