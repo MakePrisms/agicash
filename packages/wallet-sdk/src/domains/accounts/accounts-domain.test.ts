@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
 import { Money } from '@agicash/money';
 import type { SdkConfig } from '../../config';
 import type { SdkEventMap } from '../../events';
@@ -120,6 +120,52 @@ describe('accounts domain', () => {
     );
     expect(balance.toString()).toBe(
       new Money({ amount: 500, currency: 'BTC', unit: 'sat' }).toString(),
+    );
+  });
+
+  it('add persists a non-transactional cashu purpose + expiresAt', async () => {
+    const createSpy = mock(async (input: unknown) => ({
+      ...sparkAccount,
+      ...(input as object),
+      id: 'new',
+    }));
+    const { ctx: c } = ctx(makeFakeDb({}));
+    const created = await createAccountsDomain(
+      c,
+      fakeRepo({ create: createSpy as unknown as AccountRepository['create'] }),
+    ).add({
+      type: 'cashu',
+      mintUrl: 'https://mint.example',
+      currency: 'BTC',
+      purpose: 'gift-card',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+    });
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: 'gift-card',
+        expiresAt: '2030-01-01T00:00:00.000Z',
+      }),
+    );
+    expect(created.purpose).toBe('gift-card');
+  });
+
+  it('add defaults cashu purpose to transactional / expiresAt null', async () => {
+    const createSpy = mock(async (input: unknown) => ({
+      ...sparkAccount,
+      ...(input as object),
+      id: 'new',
+    }));
+    const { ctx: c } = ctx(makeFakeDb({}));
+    await createAccountsDomain(
+      c,
+      fakeRepo({ create: createSpy as unknown as AccountRepository['create'] }),
+    ).add({
+      type: 'cashu',
+      mintUrl: 'https://mint.example',
+      currency: 'BTC',
+    });
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ purpose: 'transactional', expiresAt: null }),
     );
   });
 });

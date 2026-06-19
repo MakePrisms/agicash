@@ -6,7 +6,7 @@
  * `findMatchingOfferOrGiftCardAccount` + online-filter + default fallback);
  * the SHAPES are defined by the contract, not lifted from a single master type.
  */
-import type { Account } from './account';
+import type { Account, AccountPurpose } from './account';
 import type { Currency } from './money';
 
 /**
@@ -15,7 +15,16 @@ import type { Currency } from './money';
  * defaults to a generated label when omitted.
  */
 export type AddAccountConfig =
-  | { type: 'cashu'; mintUrl: string; currency: Currency; name?: string }
+  | {
+      type: 'cashu';
+      mintUrl: string;
+      currency: Currency;
+      name?: string;
+      /** Defaults to 'transactional'. 'gift-card'/'offer' for special-purpose mints. */
+      purpose?: AccountPurpose;
+      /** Offer accounts expire at the keyset expiry; null/omitted = never. */
+      expiresAt?: string | null;
+    }
   | { type: 'spark'; currency: Currency; name?: string }; // seed-derived internally
 
 /**

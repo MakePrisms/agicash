@@ -65,8 +65,8 @@ export function createAccountsDomain(
           type: 'cashu',
           name: config.name ?? 'Cashu',
           currency: config.currency,
-          purpose: 'transactional',
-          expiresAt: null,
+          purpose: config.purpose ?? 'transactional',
+          expiresAt: config.expiresAt ?? null,
           mintUrl: config.mintUrl,
           isTestMint: checkIsTestMint(config.mintUrl),
         });
