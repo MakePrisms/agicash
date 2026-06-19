@@ -39,6 +39,7 @@ import {
 } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
+import { initSdk } from '~/lib/sdk';
 import { ensureBreezWasm } from '~/lib/spark';
 import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
@@ -191,6 +192,17 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
 
     throw redirect(`/home${search}${hash}`);
   }
+
+  // Kick off the stateless SDK as soon as the protected area is entered, so its
+  // Open Secret handshake + Breez connect overlap with the work below instead of
+  // blocking a later first read. Idempotent and fire-and-forget — no consumer
+  // reads getSdk() yet (strangler step). The domain is the request host, which
+  // matches the root loader's canonical-origin host for these non-prerendered
+  // routes (Vercel-preview parity is verification owed in a later task).
+  initSdk(location.host).catch(() => {
+    // Surfaced once consumers await getSdk(); swallow here to avoid an
+    // unhandled rejection during this dark wiring.
+  });
 
   const pendingTermsAcceptedAt = pendingWalletTermsStorage.get();
   if (pendingTermsAcceptedAt) {
