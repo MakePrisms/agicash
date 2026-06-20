@@ -1,4 +1,3 @@
-import { type UserResponse, fetchUser } from '@agicash/opensecret';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
@@ -14,15 +13,16 @@ import {
   pendingWalletTermsStorage,
 } from './pending-terms-storage';
 import { sessionHintCookie } from './session-hint-cookie';
+import type { User } from './user';
 
 const getClientSdk = () => getSdk(new URL(window.location.origin).host);
 
-export type AuthUser = UserResponse['user'];
+export type AuthUser = User;
 
 type AuthState =
   | {
       isLoggedIn: true;
-      user: AuthUser;
+      user: User;
     }
   | {
       isLoggedIn: false;
@@ -35,37 +35,20 @@ export const authQueryOptions = () =>
   queryOptions({
     queryKey: [authStateQueryKey],
     queryFn: async () => {
-      const access_token = window.localStorage.getItem('access_token');
-      const refresh_token = window.localStorage.getItem('refresh_token');
-      if (!access_token || !refresh_token) {
+      const sdk = await getSdk(new URL(window.location.origin).host);
+      const user = await sdk.user.getCurrentUser();
+      if (!user) {
         sessionHintCookie.clear();
-        return { isLoggedIn: false } as const;
-      }
-
-      try {
-        // We want to set Sentry user id here to make sure that Sentry events are associated with the user as soon as possible.
-        const { sub } = jwtDecode(access_token);
-        Sentry.setUser({ id: sub });
-
-        const response = await fetchUser();
-
-        // Set Sentry user again to include the isGuest flag
-        Sentry.setUser({ id: response.user.id, isGuest: !response.user.email });
-
-        // Mirror auth state into a hint cookie so the server can short-circuit
-        // SSR for unauthenticated visits. Lifetime matches the refresh token
-        // so we don't leave a stale "logged in" hint after the session
-        // genuinely expires.
-        const { exp } = jwtDecode<OpenSecretJwt>(refresh_token);
-        sessionHintCookie.set(exp - Math.floor(Date.now() / 1000));
-
-        return { isLoggedIn: true, user: response.user } as const;
-      } catch (error) {
-        console.error('Failed to fetch user', { cause: error });
         Sentry.setUser(null);
-        sessionHintCookie.clear();
         return { isLoggedIn: false } as const;
       }
+      Sentry.setUser({ id: user.id, isGuest: user.isGuest });
+      const refreshToken = window.localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        const { exp } = jwtDecode<OpenSecretJwt>(refreshToken);
+        sessionHintCookie.set(exp - Math.floor(Date.now() / 1000));
+      }
+      return { isLoggedIn: true, user } as const;
     },
     staleTime: Number.POSITIVE_INFINITY,
   });
