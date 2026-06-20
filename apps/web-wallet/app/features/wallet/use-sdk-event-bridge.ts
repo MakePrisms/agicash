@@ -1,12 +1,17 @@
 import type { Sdk } from '@agicash/wallet-sdk';
+import * as Sentry from '@sentry/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useAccountsCache } from '~/features/accounts/account-hooks';
 import { useContactsCache } from '~/features/contacts/contact-hooks';
+import { featureFlagsQueryOptions } from '~/features/shared/feature-flags';
+import { getSdk } from '~/features/shared/sdk';
 import { useSdk } from '~/features/shared/use-sdk';
 import { useTransactionsCache } from '~/features/transactions/transaction-hooks';
+import { authStateQueryKey } from '~/features/user/auth';
 import { useUserCache } from '~/features/user/user-hooks';
+import { useToast } from '~/hooks/use-toast';
 
 /**
  * The single SDK-events → TanStack-cache bridge (spec §5). Replaces every web
@@ -21,6 +26,7 @@ export function useSdkEventBridge(): void {
   const transactionsCache = useTransactionsCache();
   const contactsCache = useContactsCache();
   const userCache = useUserCache();
+  const { toast } = useToast();
 
   useEffect(() => {
     let teardowns: Array<() => void> = [];
@@ -100,15 +106,34 @@ export function useSdkEventBridge(): void {
           queryClient.invalidateQueries({ queryKey: ['all-transactions'] });
         }),
 
-        // auth events — STUB through S13 (auth stays on OpenSecret, D13-1)
+        // auth events (the SDK now owns the auth state machine + expiry timer)
         on('auth:signed-in', () => {
-          /* auth-slice */
+          queryClient.invalidateQueries({
+            queryKey: [authStateQueryKey],
+            refetchType: 'all',
+          });
+          queryClient.invalidateQueries({
+            queryKey: featureFlagsQueryOptions.queryKey,
+            refetchType: 'all',
+          });
         }),
         on('auth:signed-out', () => {
-          /* auth-slice */
+          queryClient.clear();
+          Sentry.setUser(null);
         }),
         on('auth:session-expired', () => {
-          /* no SDK producer yet; auth-slice */
+          // Terminal full-account expiry only — guests self-heal silently in the
+          // SDK and never emit this. The bridge runs on every tab (not leader-gated,
+          // D13-8), so each tab toasts + calls signOut; both are idempotent and this
+          // only fires on involuntary expiry, so N is acceptable (no single-owner gate).
+          toast({
+            title: 'Session expired',
+            description:
+              'Your session has expired. You will be redirected to the login page.',
+          });
+          void getSdk(new URL(window.location.origin).host).then((sdk) =>
+            sdk.auth.signOut(),
+          );
         }),
       );
     });
@@ -125,6 +150,7 @@ export function useSdkEventBridge(): void {
     transactionsCache,
     contactsCache,
     userCache,
+    toast,
   ]);
 }
 

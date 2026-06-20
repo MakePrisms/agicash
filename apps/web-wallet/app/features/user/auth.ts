@@ -6,7 +6,6 @@ import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import { getQueryClient } from '~/features/shared/query-client';
 import { getSdk } from '~/features/shared/sdk';
-import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 import {
   pendingGiftCardMintTermsStorage,
@@ -337,74 +336,4 @@ type OpenSecretJwt = {
    * Audience
    */
   aud: 'access' | 'refresh';
-};
-
-const accessTokenKey = 'access_token';
-const refreshTokenKey = 'refresh_token';
-
-const getJwt = (key: string): OpenSecretJwt | null => {
-  const jwt = localStorage.getItem(key);
-  if (!jwt) {
-    return null;
-  }
-  return jwtDecode<OpenSecretJwt>(jwt);
-};
-
-const removeKeys = () => {
-  localStorage.removeItem(accessTokenKey);
-  localStorage.removeItem(refreshTokenKey);
-  sessionHintCookie.clear();
-};
-
-const getRefreshToken = () => getJwt(refreshTokenKey);
-
-const getRemainingSessionTimeInMs = (
-  token: OpenSecretJwt | null,
-): number | null => {
-  if (!token) {
-    return null;
-  }
-  // We are treating the session as expired 5 seconds before the actual expiry just in case
-  const fiveSecondsBeforeExpiry = token.exp - 5;
-  const fiveSecondsBeforeExpiryInMs = fiveSecondsBeforeExpiry * 1000;
-  const remainingTime = fiveSecondsBeforeExpiryInMs - Date.now();
-  return Math.max(remainingTime, 0);
-};
-
-type HandleSessionExpiryProps = {
-  isGuestAccount: boolean;
-  onLogout: () => void;
-};
-
-export const useHandleSessionExpiry = ({
-  isGuestAccount,
-  onLogout,
-}: HandleSessionExpiryProps) => {
-  const { signUpGuest: extendGuestSession, signOut } = useAuthActions();
-  const refreshToken = getRefreshToken();
-  const remainingSessionTime = getRemainingSessionTimeInMs(refreshToken);
-
-  const handleSessionExpiry = async () => {
-    try {
-      if (isGuestAccount) {
-        // Extend guest session will get new extended access and refresh token from Open Secret. The OS code can be seen
-        // here https://github.com/OpenSecretCloud/OpenSecret-SDK/blob/master/src/lib/main.tsx#L441. Because setState is
-        // called after this method is executed the new render will be triggered and useHandleSessionExpiry will be
-        // executed again which will result in new session expiry timeout being set.
-        await extendGuestSession();
-      } else {
-        onLogout();
-        // Open secret is already handling potential errors in signOut method and removes the keys from the storage so
-        // in that case our catch should never be triggered, which is fine. We are leaving it there for the guest use
-        // case and just in case.
-        await signOut();
-      }
-    } catch (e) {
-      console.error('Failed to handle session expiry', { cause: e });
-      removeKeys();
-      window.location.reload();
-    }
-  };
-
-  useLongTimeout(handleSessionExpiry, remainingSessionTime);
 };

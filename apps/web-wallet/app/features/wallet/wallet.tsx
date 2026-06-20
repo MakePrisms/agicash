@@ -1,9 +1,7 @@
 import * as Sentry from '@sentry/react-router';
 import { type PropsWithChildren, useEffect } from 'react';
-import { useToast } from '~/hooks/use-toast';
 import { useSdk } from '../shared/use-sdk';
 import { useTheme } from '../theme';
-import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
 import { useRealtimeConnectivity } from './use-realtime-connectivity';
 import { useSdkEventBridge } from './use-sdk-event-bridge';
@@ -22,7 +20,6 @@ const useSyncThemeWithDefaultCurrency = () => {
 };
 
 export const Wallet = ({ children }: PropsWithChildren) => {
-  const { toast } = useToast();
   const user = useUser();
   const sdkPromise = useSdk();
 
@@ -36,17 +33,6 @@ export const Wallet = ({ children }: PropsWithChildren) => {
     // No cleanup — unmounting Wallet doesn't mean the user logged out.
     // Logout handles clearing Sentry user on actual logout.
   }, [user]);
-
-  useHandleSessionExpiry({
-    isGuestAccount: user.isGuest,
-    onLogout: () => {
-      toast({
-        title: 'Session expired',
-        description:
-          'The session has expired. You will be redirected to the login page.',
-      });
-    },
-  });
 
   useSyncThemeWithDefaultCurrency();
 

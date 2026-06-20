@@ -83,10 +83,16 @@ export function buildClientSdkConfig({
   env?: ClientSdkEnv;
 }): SdkConfig {
   const isDevelopment = env.MODE === 'development';
+  if (!env.VITE_OPEN_SECRET_API_URL) {
+    throw new Error('VITE_OPEN_SECRET_API_URL is not set');
+  }
+  if (!env.VITE_OPEN_SECRET_CLIENT_ID) {
+    throw new Error('VITE_OPEN_SECRET_CLIENT_ID is not set');
+  }
   return {
     openSecret: {
-      url: env.VITE_OPEN_SECRET_API_URL ?? '',
-      clientId: env.VITE_OPEN_SECRET_CLIENT_ID ?? '',
+      url: env.VITE_OPEN_SECRET_API_URL,
+      clientId: env.VITE_OPEN_SECRET_CLIENT_ID,
     },
     supabase: {
       url: env.VITE_SUPABASE_URL ?? '',
