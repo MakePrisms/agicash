@@ -85,6 +85,10 @@ export interface AuthDomain {
   verifyEmail(code: string): Promise<User>;
   /** Resend the email-verification code. */
   requestEmailVerificationCode(): Promise<void>;
+  /** Network-free session-presence check (token presence + refresh-token exp). For route guards. */
+  isLoggedIn(): Promise<boolean>;
+  /** Network-free current user id from the access-token `sub` claim (no fetch). For early attribution. */
+  getCurrentUserId(): Promise<string | null>;
 }
 
 /** The current user and mutations on their profile. */

@@ -230,3 +230,46 @@ describe('auth domain', () => {
     expect(signedIn).toHaveLength(1);
   });
 });
+
+describe('AuthDomain session-presence surface', () => {
+  function makePresenceCtx(seed: Record<string, string>) {
+    const emitter = new SdkEventEmitter<SdkEventMap>();
+    const ctx: DomainContext = {
+      config: {
+        defaultAccounts: [],
+        storage: inMemoryStorage(seed),
+      } as unknown as SdkConfig,
+      connections: {} as unknown as DomainContext['connections'],
+      emitter,
+    };
+    return ctx;
+  }
+
+  it('isLoggedIn() is true when both tokens present and refresh exp is future', async () => {
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    const ctx = makePresenceCtx({
+      access_token: jwtWith({ sub: 'user-1', exp: future }),
+      refresh_token: jwtWith({ sub: 'user-1', exp: future }),
+    });
+    const auth = createAuthDomain(ctx);
+    expect(await auth.isLoggedIn()).toBe(true);
+    expect(await auth.getCurrentUserId()).toBe('user-1');
+  });
+
+  it('isLoggedIn() is false and getCurrentUserId() null when tokens absent', async () => {
+    const ctx = makePresenceCtx({});
+    const auth = createAuthDomain(ctx);
+    expect(await auth.isLoggedIn()).toBe(false);
+    expect(await auth.getCurrentUserId()).toBeNull();
+  });
+
+  it('isLoggedIn() is false when the refresh token is expired', async () => {
+    const past = Math.floor(Date.now() / 1000) - 10;
+    const ctx = makePresenceCtx({
+      access_token: jwtWith({ sub: 'user-1', exp: past }),
+      refresh_token: jwtWith({ sub: 'user-1', exp: past }),
+    });
+    const auth = createAuthDomain(ctx);
+    expect(await auth.isLoggedIn()).toBe(false);
+  });
+});

@@ -1,5 +1,7 @@
 import type { AuthDomain } from '../../domains';
 import {
+  getCurrentUserId as osGetCurrentUserId,
+  isLoggedIn as osIsLoggedIn,
   osChangePassword,
   osConfirmPasswordReset,
   osConvertGuestToUserAccount,
@@ -105,6 +107,12 @@ export function createAuthDomain(ctx: DomainContext): AuthDomain {
     },
     async requestEmailVerificationCode() {
       await osRequestNewVerificationCode();
+    },
+    isLoggedIn() {
+      return osIsLoggedIn(ctx.config.storage);
+    },
+    getCurrentUserId() {
+      return osGetCurrentUserId(ctx.config.storage);
     },
   };
 }
