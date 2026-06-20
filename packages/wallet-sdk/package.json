@@ -35,6 +35,7 @@
     "./internal/lightning-address/lnurl-types": "./src/internal/lightning-address/lnurl-types.ts",
     "./internal/spark/receive-quote-core": "./src/internal/spark/receive-quote-core.ts",
     "./engine": "./src/engine.ts",
+    "./store": "./src/store/index.ts",
     "./server": "./src/server.ts",
     "./internal/cashu/init-wallet": "./src/internal/cashu/init-wallet.ts",
     "./internal/rates/exchange-rate-service": "./src/internal/rates/exchange-rate-service.ts",
