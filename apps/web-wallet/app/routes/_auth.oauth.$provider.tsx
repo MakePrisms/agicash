@@ -1,10 +1,14 @@
-import { handleGoogleCallback } from '@agicash/opensecret';
 import { decodeURLSafe } from '@stablelib/base64';
 import { redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { getErrorMessage } from '~/features/shared/error';
+import { getSdk } from '~/features/shared/sdk';
 import { invalidateAuthQueries } from '~/features/user/auth';
 import { oauthLoginSessionStorage } from '~/features/user/oauth-login-session-storage';
+import {
+  pendingGiftCardMintTermsStorage,
+  pendingWalletTermsStorage,
+} from '~/features/user/pending-terms-storage';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_auth.oauth.$provider';
 
@@ -37,9 +41,18 @@ export async function clientLoader({
 
   try {
     switch (provider) {
-      case 'google':
-        await handleGoogleCallback(code, state, '');
+      case 'google': {
+        const sdk = await getSdk(new URL(window.location.origin).host);
+        await sdk.auth.completeOAuth({
+          code,
+          state,
+          termsAcceptedAt: pendingWalletTermsStorage.get(),
+          giftCardMintTermsAcceptedAt: pendingGiftCardMintTermsStorage.get(),
+        });
+        pendingWalletTermsStorage.remove();
+        pendingGiftCardMintTermsStorage.remove();
         break;
+      }
       default: {
         throw new UnsupportedOAuthProviderError(
           `Unsupported OAuth provider: ${provider}`,
