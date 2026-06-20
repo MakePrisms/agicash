@@ -55,7 +55,7 @@ mock.module('@agicash/opensecret', () =>
 mock.module('@agicash/breez-sdk-spark', () => breezModuleMock());
 afterAll(() => mock.restore());
 
-const { createAuthDomain } = await import('./auth-domain');
+const { createAuthDomain, handleSessionExpiry } = await import('./auth-domain');
 import type { SdkConfig } from '../../config';
 import type { SdkEventMap } from '../../events';
 import type { KeyProvider } from '../../internal/crypto/keys';
@@ -271,5 +271,139 @@ describe('AuthDomain session-presence surface', () => {
     });
     const auth = createAuthDomain(ctx);
     expect(await auth.isLoggedIn()).toBe(false);
+  });
+});
+
+describe('handleSessionExpiry (decision seam)', () => {
+  it('full account: disarms and emits exactly once (no re-extend attempt)', async () => {
+    const emitted: number[] = [];
+    let disarmed = 0;
+    let reExtendCalls = 0;
+    await handleSessionExpiry({
+      isGuest: async () => false,
+      reExtendGuest: async () => {
+        reExtendCalls++;
+      },
+      emitExpired: () => emitted.push(1),
+      disarm: () => {
+        disarmed++;
+      },
+    });
+    expect(reExtendCalls).toBe(0);
+    expect(disarmed).toBe(1);
+    expect(emitted).toEqual([1]);
+  });
+
+  it('guest account: re-extends and does NOT emit (silent self-heal)', async () => {
+    const emitted: number[] = [];
+    let disarmed = 0;
+    let reExtendCalls = 0;
+    await handleSessionExpiry({
+      isGuest: async () => true,
+      reExtendGuest: async () => {
+        reExtendCalls++;
+      },
+      emitExpired: () => emitted.push(1),
+      disarm: () => {
+        disarmed++;
+      },
+    });
+    expect(reExtendCalls).toBe(1);
+    expect(emitted).toEqual([]);
+    expect(disarmed).toBe(0);
+  });
+
+  it('guest re-extend throws: falls through to disarm + emit exactly once', async () => {
+    const emitted: number[] = [];
+    let disarmed = 0;
+    await handleSessionExpiry({
+      isGuest: async () => true,
+      reExtendGuest: async () => {
+        throw new Error('re-extend failed');
+      },
+      emitExpired: () => emitted.push(1),
+      disarm: () => {
+        disarmed++;
+      },
+    });
+    expect(disarmed).toBe(1);
+    expect(emitted).toEqual([1]);
+  });
+});
+
+describe('AuthDomain session-expiry wiring', () => {
+  type CapturedTimer = { fn: () => void; delay: number } | null;
+
+  function makeWiringCtx(seed: Record<string, string>) {
+    const emitter = new SdkEventEmitter<SdkEventMap>();
+    let scheduled: CapturedTimer = null;
+    const timers = {
+      setTimer: (fn: () => void, delay: number) => {
+        scheduled = { fn, delay };
+        return scheduled as unknown as ReturnType<typeof setTimeout>;
+      },
+      clearTimer: () => {
+        scheduled = null;
+      },
+      now: () => Date.now(),
+      get armed() {
+        return scheduled !== null;
+      },
+    };
+    const ctx: DomainContext = {
+      config: {
+        defaultAccounts: [],
+        storage: inMemoryStorage(seed),
+        sessionExpiry: {
+          setTimer: timers.setTimer,
+          clearTimer: timers.clearTimer,
+          now: timers.now,
+        },
+      } as unknown as SdkConfig,
+      connections: {} as unknown as DomainContext['connections'],
+      emitter,
+    };
+    return { ctx, emitter, timers };
+  }
+
+  it('arms at construction when a session is already present (cold reload)', async () => {
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    const { ctx, timers } = makeWiringCtx({
+      access_token: jwtWith({ sub: 'u', exp: future }),
+      refresh_token: jwtWith({ sub: 'u', exp: future }),
+    });
+    createAuthDomain(ctx);
+    // the construction-time arm is `void armIfLoggedIn()` (reads storage async)
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(timers.armed).toBe(true);
+  });
+
+  it('does NOT arm at construction when no session is present', async () => {
+    const { ctx, timers } = makeWiringCtx({});
+    createAuthDomain(ctx);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(timers.armed).toBe(false);
+  });
+
+  it('auth:signed-in arms the scheduler; auth:signed-out disarms it', async () => {
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    const { ctx, emitter, timers } = makeWiringCtx({});
+    createAuthDomain(ctx);
+    expect(timers.armed).toBe(false);
+
+    await ctx.config.storage.persistent.setItem(
+      'refresh_token',
+      jwtWith({ sub: 'u', exp: future }),
+    );
+    emitter.emit('auth:signed-in', { user: { id: 'u' } as never });
+    // armIfLoggedIn is async; let the microtask drain
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(timers.armed).toBe(true);
+
+    emitter.emit('auth:signed-out', {});
+    expect(timers.armed).toBe(false);
   });
 });

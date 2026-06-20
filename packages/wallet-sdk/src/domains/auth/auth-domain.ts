@@ -1,12 +1,13 @@
 import type { AuthDomain } from '../../domains';
+import { SessionExpiryScheduler } from '../../internal/auth/session-expiry-scheduler';
 import {
-  getCurrentUserId as osGetCurrentUserId,
-  isLoggedIn as osIsLoggedIn,
   osChangePassword,
   osConfirmPasswordReset,
   osConvertGuestToUserAccount,
+  getCurrentUserId as osGetCurrentUserId,
   osHandleGoogleCallback,
   osInitiateGoogleAuth,
+  isLoggedIn as osIsLoggedIn,
   osRefreshAccessToken,
   osRequestNewVerificationCode,
   osRequestPasswordReset,
@@ -27,6 +28,40 @@ import {
 } from '../user/session-resolver';
 import { GuestCredentialStore } from './guest-storage';
 
+type SessionExpiryDecisionDeps = {
+  /** Whether the current session belongs to a guest (silently re-extendable). */
+  isGuest: () => Promise<boolean>;
+  /** Silently re-extend the guest session (re-runs the guest sign-in flow). */
+  reExtendGuest: () => Promise<void>;
+  /** Emit `auth:session-expired` (terminal — only on a real expiry). */
+  emitExpired: () => void;
+  /** Stop the expiry timer. */
+  disarm: () => void;
+};
+
+/**
+ * Decide what to do when the refresh token is about to expire.
+ *
+ * Guests are silently re-extended (success re-arms the scheduler via the
+ * `auth:signed-in` the re-extend emits, so we do NOT emit here). Full accounts
+ * — and guests whose re-extend fails — disarm and emit `auth:session-expired`
+ * exactly once. Pure/DI'd so both branches are unit-testable without OpenSecret.
+ */
+export async function handleSessionExpiry(
+  deps: SessionExpiryDecisionDeps,
+): Promise<void> {
+  if (await deps.isGuest()) {
+    try {
+      await deps.reExtendGuest();
+      return;
+    } catch (error) {
+      console.error('guest session re-extend failed', { cause: error });
+    }
+  }
+  deps.disarm();
+  deps.emitExpired();
+}
+
 /** Build the auth domain over the shared context. */
 export function createAuthDomain(ctx: DomainContext): AuthDomain {
   const guest = new GuestCredentialStore(ctx.config.storage);
@@ -37,7 +72,30 @@ export function createAuthDomain(ctx: DomainContext): AuthDomain {
     return user;
   };
 
-  return {
+  const sessionExpiry = ctx.config.sessionExpiry;
+  const scheduler = new SessionExpiryScheduler({
+    storage: ctx.config.storage,
+    onExpiry: () => {
+      void handleSessionExpiry({
+        isGuest: async () => (await guest.get()) !== null,
+        reExtendGuest: () => domain.signInGuest().then(() => undefined),
+        emitExpired: () => ctx.emitter.emit('auth:session-expired', {}),
+        disarm: () => scheduler.disarm(),
+      });
+    },
+    now: sessionExpiry?.now,
+    setTimer: sessionExpiry?.setTimer,
+    clearTimer: sessionExpiry?.clearTimer,
+  });
+
+  ctx.emitter.on('auth:signed-in', () => {
+    void scheduler.armIfLoggedIn();
+  });
+  ctx.emitter.on('auth:signed-out', () => {
+    scheduler.disarm();
+  });
+
+  const domain: AuthDomain = {
     async signIn({ email, password }) {
       await osSignIn(email, password);
       return signedIn();
@@ -115,4 +173,8 @@ export function createAuthDomain(ctx: DomainContext): AuthDomain {
       return osGetCurrentUserId(ctx.config.storage);
     },
   };
+
+  void scheduler.armIfLoggedIn();
+
+  return domain;
 }

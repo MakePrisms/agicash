@@ -107,4 +107,17 @@ export type SdkConfig = {
    * `createServer` throws if it is missing; omit in the browser.
    */
   serverSparkMnemonic?: string;
+  /**
+   * Override the session-expiry scheduler's timer/clock primitives. Defaults to
+   * the platform `setTimeout`/`clearTimeout`/`Date.now`; supply for hosts with
+   * custom timer semantics or to make the expiry timing deterministic in tests.
+   */
+  sessionExpiry?: {
+    now?: () => number;
+    setTimer?: (
+      fn: () => void,
+      delayMs: number,
+    ) => ReturnType<typeof setTimeout>;
+    clearTimer?: (handle: ReturnType<typeof setTimeout>) => void;
+  };
 };
