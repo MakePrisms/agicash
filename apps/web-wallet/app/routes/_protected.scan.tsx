@@ -1,4 +1,5 @@
 import { classifyInput } from '@agicash/wallet-sdk/scan';
+import { validateBolt11 } from '@agicash/wallet-sdk/send/validation';
 import { Clipboard } from 'lucide-react';
 import {
   ClosePageButton,
@@ -9,7 +10,6 @@ import {
 } from '~/components/page';
 import { QRScanner } from '~/components/qr-scanner';
 import { Button } from '~/components/ui/button';
-import { validateBolt11 } from '~/features/send/validation';
 import useIsPwa from '~/hooks/use-is-pwa';
 import { useToast } from '~/hooks/use-toast';
 import { readClipboard } from '~/lib/read-clipboard';

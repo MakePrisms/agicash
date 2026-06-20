@@ -30,6 +30,7 @@
     "./scan": "./src/scan/index.ts",
     "./send/cashu-send-quote": "./src/send/cashu-send-quote.ts",
     "./send/cashu-send-swap": "./src/send/cashu-send-swap.ts",
+    "./send/resolve-destination": "./src/send/resolve-destination.ts",
     "./send/spark-send-quote": "./src/send/spark-send-quote.ts",
     "./send/validation": "./src/send/validation.ts",
     "./spark": "./src/spark.ts",
