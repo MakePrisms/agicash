@@ -1,5 +1,4 @@
 import type { Currency } from '@agicash/money';
-import { requestNewVerificationCode } from '@agicash/opensecret';
 import type { Sdk } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
@@ -168,10 +167,11 @@ export const useUpgradeGuestToFullAccount = (): ((
 
 export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
   const userRef = useUserRef();
+  const sdkPromise = useSdk();
 
   const { mutateAsync } = useMutation({
     mutationKey: ['request-new-email-verification-code'],
-    mutationFn: () => {
+    mutationFn: async () => {
       if (userRef.current.isGuest) {
         throw new Error('Cannot request email verification for guest account');
       }
@@ -179,7 +179,7 @@ export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
         throw new Error('Email is already verified');
       }
 
-      return requestNewVerificationCode();
+      return (await sdkPromise).auth.requestEmailVerificationCode();
     },
     scope: {
       id: 'request-new-email-verification-code',

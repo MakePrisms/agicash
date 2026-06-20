@@ -1,34 +1,21 @@
-import {
-  type UserResponse,
-  fetchUser,
-  confirmPasswordReset as osConfirmPasswordReset,
-  convertGuestToUserAccount as osConvertGuestToFullAccount,
-  initiateGoogleAuth as osInitiateGoogleAuth,
-  requestPasswordReset as osRequestPasswordReset,
-  signIn as osSignIn,
-  signInGuest as osSignInGuest,
-  signOut as osSignOut,
-  signUp as osSignUp,
-  signUpGuest as osSignUpGuest,
-  verifyEmail as osVerifyEmail,
-} from '@agicash/opensecret';
+import { type UserResponse, fetchUser } from '@agicash/opensecret';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
-import {
-  queryOptions,
-  useQueryClient,
-  useSuspenseQuery,
-} from '@tanstack/react-query';
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import { getQueryClient } from '~/features/shared/query-client';
+import { getSdk } from '~/features/shared/sdk';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
-import { generateRandomPassword } from '~/lib/password-generator';
-import { computeSHA256 } from '~/lib/sha256';
-import { guestAccountStorage } from './guest-account-storage';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
+import {
+  pendingGiftCardMintTermsStorage,
+  pendingWalletTermsStorage,
+} from './pending-terms-storage';
 import { sessionHintCookie } from './session-hint-cookie';
+
+const getClientSdk = () => getSdk(new URL(window.location.origin).host);
 
 export type AuthUser = UserResponse['user'];
 
@@ -196,7 +183,6 @@ type AuthActions = {
  * @returns {AuthActions}
  */
 export const useAuthActions = (): AuthActions => {
-  const queryClient = useQueryClient();
   const { revalidate } = useRevalidator();
   const navigate = useNavigate();
 
@@ -214,7 +200,15 @@ export const useAuthActions = (): AuthActions => {
 
   const signUp = useCallback(
     async (email: string, password: string) => {
-      await osSignUp(email, password, '');
+      const sdk = await getClientSdk();
+      await sdk.auth.signUp({
+        email,
+        password,
+        termsAcceptedAt: pendingWalletTermsStorage.get(),
+        giftCardMintTermsAcceptedAt: pendingGiftCardMintTermsStorage.get(),
+      });
+      pendingWalletTermsStorage.remove();
+      pendingGiftCardMintTermsStorage.remove();
       await refreshSession();
     },
     [refreshSession],
@@ -222,15 +216,8 @@ export const useAuthActions = (): AuthActions => {
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      await osSignIn(email, password);
-      await refreshSession();
-    },
-    [refreshSession],
-  );
-
-  const signInGuest = useCallback(
-    async (id: string, password: string) => {
-      await osSignInGuest(id, password);
+      const sdk = await getClientSdk();
+      await sdk.auth.signIn({ email, password });
       await refreshSession();
     },
     [refreshSession],
@@ -238,18 +225,18 @@ export const useAuthActions = (): AuthActions => {
 
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
-      await osSignOut();
+      const sdk = await getClientSdk();
+      await sdk.auth.signOut();
       await refreshSession(options.redirectTo);
-      Sentry.setUser(null);
-      queryClient.clear();
     },
-    [refreshSession, queryClient],
+    [refreshSession],
   );
 
   const initiateGoogleAuth = useCallback(async () => {
-    const response = await osInitiateGoogleAuth('');
+    const sdk = await getClientSdk();
+    const { authUrl } = await sdk.auth.beginGoogleSignIn();
 
-    const authLocation = new URL(response.auth_url);
+    const authLocation = new URL(authUrl);
     const stateParam = authLocation.searchParams.get('state');
     const state = stateParam
       ? JSON.parse(new TextDecoder().decode(decodeURLSafe(stateParam)))
@@ -270,34 +257,44 @@ export const useAuthActions = (): AuthActions => {
   }, []);
 
   const signUpGuest = useCallback(async () => {
-    const existingGuestAccount = guestAccountStorage.get();
-    if (existingGuestAccount) {
-      return signInGuest(
-        existingGuestAccount.id,
-        existingGuestAccount.password,
-      );
-    }
-
-    const createGuestAccount = async () => {
-      const password = await generateRandomPassword(32);
-      const guestAccount = await osSignUpGuest(password, '');
-      guestAccountStorage.store({ id: guestAccount.id, password });
-      await refreshSession();
-    };
-
-    await createGuestAccount();
-  }, [signInGuest, refreshSession]);
+    const sdk = await getClientSdk();
+    await sdk.auth.signInGuest({
+      termsAcceptedAt: pendingWalletTermsStorage.get(),
+      giftCardMintTermsAcceptedAt: pendingGiftCardMintTermsStorage.get(),
+    });
+    pendingWalletTermsStorage.remove();
+    pendingGiftCardMintTermsStorage.remove();
+    await refreshSession();
+  }, [refreshSession]);
 
   const requestPasswordReset = useCallback(async (email: string) => {
-    const secret = await generateRandomPassword(20);
-    const hash = await computeSHA256(secret);
-    await osRequestPasswordReset(email, hash);
+    const sdk = await getClientSdk();
+    const { secret } = await sdk.auth.resetPassword(email);
     return { email, secret };
   }, []);
 
+  const confirmPasswordReset = useCallback(
+    async (
+      email: string,
+      alphanumericCode: string,
+      plaintextSecret: string,
+      newPassword: string,
+    ) => {
+      const sdk = await getClientSdk();
+      await sdk.auth.confirmPasswordReset({
+        email,
+        code: alphanumericCode,
+        secret: plaintextSecret,
+        newPassword,
+      });
+    },
+    [],
+  );
+
   const verifyEmail = useCallback(
     async (code: string) => {
-      await osVerifyEmail(code);
+      const sdk = await getClientSdk();
+      await sdk.auth.verifyEmail(code);
       await refreshSession();
     },
     [refreshSession],
@@ -305,7 +302,8 @@ export const useAuthActions = (): AuthActions => {
 
   const convertGuestToFullAccount = useCallback(
     async (email: string, password: string) => {
-      await osConvertGuestToFullAccount(email, password);
+      const sdk = await getClientSdk();
+      await sdk.auth.upgradeGuest({ email, password });
       await refreshSession();
     },
     [refreshSession],
@@ -317,7 +315,7 @@ export const useAuthActions = (): AuthActions => {
     signIn,
     signOut,
     requestPasswordReset,
-    confirmPasswordReset: osConfirmPasswordReset,
+    confirmPasswordReset,
     initiateGoogleAuth,
     verifyEmail,
     convertGuestToFullAccount,
