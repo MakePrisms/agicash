@@ -24,8 +24,9 @@ export class CashuReceiveSwapProcessor implements Processor {
 
   constructor(private readonly deps: CashuReceiveSwapProcessorDeps) {}
 
-  async reload(userId: string): Promise<void> {
+  async reload(userId: string, isCurrent?: () => boolean): Promise<void> {
     this.pending = await this.deps.fetchWorkSet(userId);
+    if (isCurrent && !isCurrent()) return;
     this.dispatcher.run(
       this.pending.map((swap) => swap.tokenHash),
       (tokenHash) => this.complete(tokenHash),
@@ -51,7 +52,10 @@ export class CashuReceiveSwapProcessor implements Processor {
         defaultRetryPolicy,
       )
       .catch((error) =>
-        console.error('Error finalizing receive swap', { cause: error, tokenHash }),
+        console.error('Error finalizing receive swap', {
+          cause: error,
+          tokenHash,
+        }),
       );
   }
 }

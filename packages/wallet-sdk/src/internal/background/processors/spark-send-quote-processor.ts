@@ -27,12 +27,15 @@ export class SparkSendQuoteProcessor implements Processor {
 
   constructor(private readonly deps: SparkSendQuoteProcessorDeps) {}
 
-  async reload(userId: string): Promise<void> {
+  async reload(userId: string, isCurrent?: () => boolean): Promise<void> {
     this.workSet = await this.deps.fetchWorkSet(userId);
+    if (isCurrent && !isCurrent()) return;
     this.tracker.update(this.workSet, {
-      getWallet: (accountId) => this.deps.wallets.getSparkAccount(accountId).wallet,
+      getWallet: (accountId) =>
+        this.deps.wallets.getSparkAccount(accountId).wallet,
       onUnpaid: (quote) => this.initiate(quote),
-      onCompleted: (quote, { paymentPreimage }) => this.complete(quote, paymentPreimage),
+      onCompleted: (quote, { paymentPreimage }) =>
+        this.complete(quote, paymentPreimage),
       onFailed: (quote, reason) => this.fail(quote.id, reason),
     });
   }

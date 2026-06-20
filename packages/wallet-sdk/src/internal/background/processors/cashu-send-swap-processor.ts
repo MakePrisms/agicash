@@ -1,4 +1,7 @@
-import type { CashuSendSwap, PendingCashuSendSwap } from '../../../domains/cashu-send-swap';
+import type {
+  CashuSendSwap,
+  PendingCashuSendSwap,
+} from '../../../domains/cashu-send-swap';
 import type { WalletAccess } from '../../../engine';
 import { ProofStateTracker } from '../../cashu/proof-state-tracker';
 import { defaultRetryPolicy } from '../../tasks/retry-policy';
@@ -28,15 +31,17 @@ export class CashuSendSwapProcessor implements Processor {
 
   constructor(private readonly deps: CashuSendSwapProcessorDeps) {}
 
-  async reload(userId: string): Promise<void> {
+  async reload(userId: string, isCurrent?: () => boolean): Promise<void> {
     const workSet = await this.deps.fetchWorkSet(userId);
+    if (isCurrent && !isCurrent()) return;
     this.draft = workSet.filter((swap) => swap.state === 'DRAFT');
     this.pending = workSet.filter(
       (swap): swap is PendingCashuSendSwap => swap.state === 'PENDING',
     );
 
     this.proofTracker.update(this.pending, {
-      getMintUrl: (accountId) => this.deps.wallets.getCashuAccount(accountId).mintUrl,
+      getMintUrl: (accountId) =>
+        this.deps.wallets.getCashuAccount(accountId).mintUrl,
       onSpent: (swap) => this.complete(swap.id),
     });
 
@@ -67,7 +72,10 @@ export class CashuSendSwapProcessor implements Processor {
         defaultRetryPolicy,
       )
       .catch((error) =>
-        console.error('Error swapping for proofs to send', { cause: error, swapId }),
+        console.error('Error swapping for proofs to send', {
+          cause: error,
+          swapId,
+        }),
       );
   }
 
@@ -75,7 +83,11 @@ export class CashuSendSwapProcessor implements Processor {
     const swap = this.pending.find((s) => s.id === swapId);
     if (!swap) return;
     void this.deps.runner
-      .runTask(`send-swap-${swap.id}`, () => this.deps.service.complete(swap), defaultRetryPolicy)
+      .runTask(
+        `send-swap-${swap.id}`,
+        () => this.deps.service.complete(swap),
+        defaultRetryPolicy,
+      )
       .catch((error) =>
         console.error('Error completing send swap', { cause: error, swapId }),
       );

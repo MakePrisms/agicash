@@ -21,16 +21,25 @@ export type Processors = {
 export class ProcessorRegistry implements ProcessorTrigger {
   private leader = false;
   private userId: string | null = null;
+  /**
+   * Bumped on every leadership flip (`activate`/`deactivate`). A fire-and-forget
+   * `reload` captures the epoch at dispatch; if it moved by the time its async
+   * work-set fetch resolves, the reload drops its result instead of re-arming
+   * trackers on a now-deactivated instance.
+   */
+  private epoch = 0;
 
   constructor(private readonly processors: Processors) {}
 
   activate(userId: string): void {
+    this.epoch += 1;
     this.leader = true;
     this.userId = userId;
     this.reloadAll();
   }
 
   deactivate(): void {
+    this.epoch += 1;
     this.leader = false;
     for (const processor of Object.values(this.processors)) {
       processor.dispose();
@@ -56,9 +65,11 @@ export class ProcessorRegistry implements ProcessorTrigger {
 
   private reload(processor: Processor): void {
     if (!this.userId) return;
-    void processor.reload(this.userId).catch((cause) =>
-      console.error('Processor reload failed', { cause }),
-    );
+    const epoch = this.epoch;
+    const isCurrent = () => epoch === this.epoch;
+    void processor
+      .reload(this.userId, isCurrent)
+      .catch((cause) => console.error('Processor reload failed', { cause }));
   }
 
   private processorFor(kind: ChangeFeedChange['kind']): Processor | undefined {
