@@ -11,6 +11,20 @@ type SubscriptionData = {
 export class MintQuoteSubscriptionManager {
   private subscriptions: Map<string, SubscriptionData> = new Map();
 
+  get activeMintCount(): number {
+    return this.subscriptions.size;
+  }
+
+  async disposeAll(): Promise<void> {
+    const entries = [...this.subscriptions.values()];
+    this.subscriptions.clear();
+    await Promise.allSettled(
+      entries.map((s) =>
+        s.subscriptionPromise.then((unsubscribe) => unsubscribe()),
+      ),
+    );
+  }
+
   /**
    * Subscribes to mint quote updates for the given mint URL and quotes.
    * @param mintUrl - The mint URL to subscribe to.

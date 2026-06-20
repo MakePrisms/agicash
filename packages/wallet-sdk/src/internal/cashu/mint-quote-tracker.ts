@@ -25,14 +25,17 @@ export type MintQuoteTrackerDeps = {
 };
 
 /** NUT-17: does this mint support bolt11 mint-quote websocket updates? */
-const mintSupportsWebSocketsForMintQuotes = (wallet: ExtendedCashuWallet): boolean => {
+const mintSupportsWebSocketsForMintQuotes = (
+  wallet: ExtendedCashuWallet,
+): boolean => {
   const nut17Info = wallet.getMintInfo().isSupported(17);
   const params = nut17Info.params ?? [];
   return (
     nut17Info.supported &&
     params.some(
       (support: WebSocketSupport) =>
-        support.method === 'bolt11' && support.commands.includes('bolt11_mint_quote'),
+        support.method === 'bolt11' &&
+        support.commands.includes('bolt11_mint_quote'),
     )
   );
 };
@@ -74,20 +77,29 @@ export class MintQuoteTracker {
           onUpdate: deps.onUpdate,
         })
         .catch((cause) =>
-          console.error('Error subscribing to mint quote updates', { mintUrl, cause }),
+          console.error('Error subscribing to mint quote updates', {
+            mintUrl,
+            cause,
+          }),
         );
 
       for (const quote of mintQuotes.filter((q) => q.state === 'UNPAID')) {
-        const msUntilExpiration = new Date(quote.expiresAt).getTime() - Date.now();
+        const msUntilExpiration =
+          new Date(quote.expiresAt).getTime() - Date.now();
         const t = setLongTimeout(async () => {
           try {
             const mintQuote = await withRetry({
-              fn: () => deps.getWallet(quote.accountId).checkMintQuoteBolt11(quote.quoteId),
+              fn: () =>
+                deps
+                  .getWallet(quote.accountId)
+                  .checkMintQuoteBolt11(quote.quoteId),
               retry: 5,
             });
             deps.onUpdate(mintQuote);
           } catch (cause) {
-            console.error('Error checking mint quote upon expiration', { cause });
+            console.error('Error checking mint quote upon expiration', {
+              cause,
+            });
           }
         }, msUntilExpiration);
         this.timeouts.push(t);
@@ -102,17 +114,31 @@ export class MintQuoteTracker {
   dispose(): void {
     ++this.generation;
     this.clearTimers();
+    void this.manager
+      .disposeAll()
+      .catch((error) =>
+        console.error('subscription teardown failed', { cause: error }),
+      );
   }
 
   /** Self-scheduling poll loop: immediate fetch (matches useQuery mount), then every 10s (60s after a 429). */
-  private startPolling(quote: MintQuoteTrackerQuote, deps: MintQuoteTrackerDeps, generation: number): void {
+  private startPolling(
+    quote: MintQuoteTrackerQuote,
+    deps: MintQuoteTrackerDeps,
+    generation: number,
+  ): void {
     const tick = async (): Promise<void> => {
       let nextDelay = 10 * 1000;
       try {
-        const mintQuote = await deps.getWallet(quote.accountId).checkMintQuoteBolt11(quote.quoteId);
+        const mintQuote = await deps
+          .getWallet(quote.accountId)
+          .checkMintQuoteBolt11(quote.quoteId);
         deps.onUpdate(mintQuote);
       } catch (error) {
-        console.warn('Error checking mint quote', { cause: error, quoteId: quote.quoteId });
+        console.warn('Error checking mint quote', {
+          cause: error,
+          quoteId: quote.quoteId,
+        });
         if (error instanceof HttpResponseError && error.status === 429) {
           nextDelay = 60 * 1000;
         }

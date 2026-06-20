@@ -2,7 +2,10 @@ import type { Proof, ProofState } from '@cashu/cashu-ts';
 import { getCashuWallet } from './wallet';
 import { isSubset } from '../set-utils';
 import { toProof } from '../../domains/cashu-proof';
-import type { CashuSendSwap, PendingCashuSendSwap } from '../../domains/cashu-send-swap';
+import type {
+  CashuSendSwap,
+  PendingCashuSendSwap,
+} from '../../domains/cashu-send-swap';
 
 type Subscription = {
   ids: Set<string>;
@@ -14,6 +17,20 @@ export class ProofStateSubscriptionManager {
   private subscriptions: Map<string, Subscription> = new Map();
   private proofUpdates: Record<string, Record<string, ProofState['state']>> =
     {};
+
+  get activeMintCount(): number {
+    return this.subscriptions.size;
+  }
+
+  async disposeAll(): Promise<void> {
+    const entries = [...this.subscriptions.values()];
+    this.subscriptions.clear();
+    await Promise.allSettled(
+      entries.map((s) =>
+        s.subscriptionPromise.then((unsubscribe) => unsubscribe()),
+      ),
+    );
+  }
 
   /**
    * Subscribes to proof state updates for the given mint URL and swaps.

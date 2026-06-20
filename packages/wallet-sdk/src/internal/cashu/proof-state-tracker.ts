@@ -1,4 +1,7 @@
-import type { CashuSendSwap, PendingCashuSendSwap } from '../../domains/cashu-send-swap';
+import type {
+  CashuSendSwap,
+  PendingCashuSendSwap,
+} from '../../domains/cashu-send-swap';
 import { ProofStateSubscriptionManager } from './proof-state-subscription-manager';
 
 export type ProofStateTrackerDeps = {
@@ -20,24 +23,31 @@ export class ProofStateTracker {
   update(swaps: PendingCashuSendSwap[], deps: ProofStateTrackerDeps): void {
     if (swaps.length === 0) return;
 
-    const swapsByMint = swaps.reduce<Record<string, PendingCashuSendSwap[]>>((acc, swap) => {
-      (acc[deps.getMintUrl(swap.accountId)] ??= []).push(swap);
-      return acc;
-    }, {});
+    const swapsByMint = swaps.reduce<Record<string, PendingCashuSendSwap[]>>(
+      (acc, swap) => {
+        (acc[deps.getMintUrl(swap.accountId)] ??= []).push(swap);
+        return acc;
+      },
+      {},
+    );
 
     for (const [mintUrl, mintSwaps] of Object.entries(swapsByMint)) {
       void this.manager
         .subscribe({ mintUrl, swaps: mintSwaps, onSpent: deps.onSpent })
         .catch((cause) =>
-          console.error('Failed to subscribe to proof state updates', { mintUrl, cause }),
+          console.error('Failed to subscribe to proof state updates', {
+            mintUrl,
+            cause,
+          }),
         );
     }
   }
 
-  /**
-   * No-op: the tracker holds no local timers, and WS teardown is owned by the cashu wallet
-   * (matches the app, which never unsubscribed, and the melt/mint trackers). 4c decides any
-   * explicit WS teardown on background.stop().
-   */
-  dispose(): void {}
+  dispose(): void {
+    void this.manager
+      .disposeAll()
+      .catch((error) =>
+        console.error('subscription teardown failed', { cause: error }),
+      );
+  }
 }
