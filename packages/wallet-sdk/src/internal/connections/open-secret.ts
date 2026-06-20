@@ -43,7 +43,7 @@ export async function isLoggedIn(storage: StorageProvider): Promise<boolean> {
 }
 
 /** Extract a JWT's `exp` (epoch seconds) from its base64url payload, no deps. */
-function decodeJwtExp(jwt: string): number | undefined {
+export function decodeJwtExp(jwt: string): number | undefined {
   const segment = jwt.split('.')[1];
   if (!segment) {
     return undefined;
