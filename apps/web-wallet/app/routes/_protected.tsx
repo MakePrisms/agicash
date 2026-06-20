@@ -39,6 +39,7 @@ import {
 } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
+import { initSdk } from '~/lib/sdk';
 import { ensureBreezWasm } from '~/lib/spark';
 import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
@@ -191,6 +192,9 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
 
     throw redirect(`/home${search}${hash}`);
   }
+
+  // Kick off SDK init (fire-and-forget; strangler pattern — B-Task-4/5 will await).
+  initSdk(location.host).catch(() => {});
 
   const pendingTermsAcceptedAt = pendingWalletTermsStorage.get();
   if (pendingTermsAcceptedAt) {
