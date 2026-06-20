@@ -139,7 +139,6 @@ export function createCashuSendSwapProcessor(
   );
 
   const tracker = new ProofStateTracker({
-    queryClient,
     getCashuAccount,
     onSpent: (swap) =>
       dispatch(completeSwapObserver, swap.id, {

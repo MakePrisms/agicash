@@ -106,7 +106,6 @@ export function createCashuSendQuoteProcessor(
   const subscriptionManager = new MeltQuoteSubscriptionManager();
 
   const tracker = new MeltQuoteTracker({
-    queryClient,
     subscriptionManager,
     getWallet: (mintUrl, currency): ExtendedCashuWallet => {
       const sourceAccount = getCashuAccountByMintUrlAndCurrency(

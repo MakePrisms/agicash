@@ -1,4 +1,5 @@
 import { MintQuoteSubscriptionManager } from '@agicash/cashu';
+import { retryWithBackoff } from '@agicash/utils/retry';
 import {
   type LongTimeout,
   clearLongTimeout,
@@ -10,7 +11,6 @@ import {
   type WebSocketSupport,
 } from '@cashu/cashu-ts';
 import {
-  MutationObserver,
   type Query,
   type QueryClient,
   QueryObserver,
@@ -34,10 +34,7 @@ export type MintQuoteWorkItem = {
 };
 
 export type MintQuoteTrackerOptions = {
-  /**
-   * The query-core client backing the retrying subscribe mutation and the
-   * per-quote polling observers.
-   */
+  /** The query-core client backing the per-quote polling observers. */
   queryClient: QueryClient;
   /**
    * Resolves the related pending receive quote for a mint-quote response. Used
@@ -94,16 +91,11 @@ export class MintQuoteTracker {
   private readonly onExpired?: (receiveQuoteId: string) => void;
 
   private quotes: MintQuoteWorkItem[] = [];
-  private stopped = false;
+  private abortController = new AbortController();
   private expiryTimers: LongTimeout[] = [];
   private pollObservers = new Map<string, QueryObserver<unknown>>();
   private pollUnsubscribes = new Map<string, () => void>();
   private readonly subscriptionManager = new MintQuoteSubscriptionManager();
-  private readonly subscribeObserver: MutationObserver<
-    () => void,
-    Error,
-    Parameters<MintQuoteSubscriptionManager['subscribe']>[0]
-  >;
 
   constructor(options: MintQuoteTrackerOptions) {
     this.queryClient = options.queryClient;
@@ -111,27 +103,6 @@ export class MintQuoteTracker {
     this.onPaid = options.onPaid;
     this.onIssued = options.onIssued;
     this.onExpired = options.onExpired;
-
-    // Retry/onError config for the subscribe, dispatched through a
-    // MutationObserver.
-    this.subscribeObserver = new MutationObserver(this.queryClient, {
-      mutationFn: (
-        props: Parameters<MintQuoteSubscriptionManager['subscribe']>[0],
-      ) => {
-        // A retry that resolves after stop() must not re-open a socket.
-        if (this.stopped) {
-          return Promise.resolve<() => void>(() => undefined);
-        }
-        return this.subscriptionManager.subscribe(props);
-      },
-      retry: RETRY_LIMIT,
-      onError: (error, variables) => {
-        console.error('Error subscribing to mint quote updates', {
-          mintUrl: variables.mintUrl,
-          cause: error,
-        });
-      },
-    });
   }
 
   /**
@@ -140,7 +111,9 @@ export class MintQuoteTracker {
    * expiry timers.
    */
   setQuotes(quotes: MintQuoteWorkItem[]): void {
-    this.stopped = false;
+    if (this.abortController.signal.aborted) {
+      this.abortController = new AbortController();
+    }
     this.quotes = quotes;
 
     const quotesToSubscribeTo: Record<string, MintQuoteWorkItem[]> = {};
@@ -172,7 +145,7 @@ export class MintQuoteTracker {
    * this from re-opening a socket.
    */
   stop(): void {
-    this.stopped = true;
+    this.abortController.abort();
     this.clearPollObservers();
     this.clearExpiryTimers();
     this.quotes = [];
@@ -182,9 +155,9 @@ export class MintQuoteTracker {
   private async processMintQuote(
     mintQuote: MintQuoteBolt11Response,
   ): Promise<void> {
-    // Gate on the current work-set: a socket the manager left open (it has no
-    // caller-driven unsubscribe-all) must not drive a transition once the quote
-    // has left the work-set or the tracker has been stopped (leader handoff).
+    // Gate on the current work-set: a shared mint socket (one socket can serve
+    // several quotes) must not drive a transition for a quote that has left the
+    // work-set or after the tracker has been stopped (leader handoff).
     const isTracked = this.quotes.some((q) => q.quoteId === mintQuote.quote);
     if (!isTracked) {
       return;
@@ -215,14 +188,24 @@ export class MintQuoteTracker {
 
   private resubscribe(quotesByMint: Record<string, MintQuoteWorkItem[]>): void {
     for (const [mintUrl, quotes] of Object.entries(quotesByMint)) {
-      // Fire-and-forget; the retry/onError config handles failures.
-      this.subscribeObserver
-        .mutate({
-          mintUrl,
-          quoteIds: quotes.map((q) => q.quoteId),
-          onUpdate: (mintQuote) => this.processMintQuote(mintQuote),
-        })
-        .catch(() => undefined);
+      // Fire-and-forget; retryWithBackoff retries failures, abort tears down.
+      retryWithBackoff(
+        () =>
+          this.subscriptionManager.subscribe({
+            mintUrl,
+            quoteIds: quotes.map((q) => q.quoteId),
+            onUpdate: (mintQuote) => this.processMintQuote(mintQuote),
+          }),
+        {
+          retries: RETRY_LIMIT,
+          signal: this.abortController.signal,
+          onError: (error) =>
+            console.error('Error subscribing to mint quote updates', {
+              mintUrl,
+              cause: error,
+            }),
+        },
+      ).catch(() => undefined);
     }
   }
 

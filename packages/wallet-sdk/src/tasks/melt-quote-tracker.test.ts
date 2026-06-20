@@ -1,6 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
 import type { MeltQuoteSubscriptionManager } from '@agicash/cashu';
-import { QueryClient } from '@tanstack/query-core';
 import {
   MeltQuoteTracker,
   type MeltQuoteTrackerOptions,
@@ -26,10 +25,6 @@ const workItem = (): MeltQuoteWorkItem => ({
 });
 
 const setup = (subscribe?: ReturnType<typeof mock>) => {
-  // retryDelay 0 so a failed subscribe's retry fires on the next tick.
-  const queryClient = new QueryClient({
-    defaultOptions: { mutations: { retryDelay: 0 } },
-  });
   const subscribeSpy = subscribe ?? mock(async () => () => undefined);
   const unsubscribeAll = mock(() => undefined);
   const subscriptionManager = {
@@ -39,9 +34,10 @@ const setup = (subscribe?: ReturnType<typeof mock>) => {
   } as unknown as MeltQuoteSubscriptionManager;
 
   const tracker = new MeltQuoteTracker({
-    queryClient,
     subscriptionManager,
     getWallet: (() => ({})) as unknown as MeltQuoteTrackerOptions['getWallet'],
+    // 0ms backoff so a failed subscribe's retry fires on the next tick.
+    retryDelayMs: () => 0,
   });
 
   return { tracker, subscribe: subscribeSpy, unsubscribeAll };
@@ -58,16 +54,14 @@ describe('MeltQuoteTracker', () => {
     expect(unsubscribeAll).toHaveBeenCalledTimes(1);
   });
 
-  it('does not re-subscribe after stop() even if a subscribe was retrying (item 2)', async () => {
-    let rejectFirst: ((error: Error) => void) | undefined;
+  it('does not re-subscribe after stop() aborts a retrying subscribe (item 2)', async () => {
     let calls = 0;
     const subscribe = mock(() => {
       calls++;
+      // First attempt fails so retryWithBackoff schedules a retry (0ms delay);
+      // stop() must abort it before that retry fires.
       if (calls === 1) {
-        // Keep the first attempt pending until we reject it post-stop.
-        return new Promise<() => void>((_, reject) => {
-          rejectFirst = reject;
-        });
+        return Promise.reject(new Error('socket flaky'));
       }
       return Promise.resolve(() => undefined);
     });
@@ -78,15 +72,13 @@ describe('MeltQuoteTracker', () => {
     expect(subscribe).toHaveBeenCalledTimes(1);
 
     tracker.stop();
-    // Now fail the in-flight attempt: query-core schedules a retry (delay 0).
-    rejectFirst?.(new Error('socket flaky'));
     await settle();
 
-    // The retry's mutationFn sees `stopped` and short-circuits — no new socket.
+    // The retry sees the aborted signal and short-circuits — no new socket.
     expect(subscribe).toHaveBeenCalledTimes(1);
   });
 
-  it('re-subscribes after a stop()/setQuotes cycle (stopped resets)', async () => {
+  it('re-subscribes after a stop()/setQuotes cycle (controller resets)', async () => {
     const { tracker, subscribe } = setup();
     tracker.setQuotes([workItem()]);
     await flush();

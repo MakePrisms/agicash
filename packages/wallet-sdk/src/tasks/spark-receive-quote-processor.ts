@@ -329,7 +329,6 @@ export function createSparkReceiveQuoteProcessor(
   const meltSubscriptionManager = new MeltQuoteSubscriptionManager();
 
   const meltQuoteTracker = new MeltQuoteTracker({
-    queryClient,
     subscriptionManager: meltSubscriptionManager,
     getWallet: (mintUrl, currency): ExtendedCashuWallet => {
       const sourceAccount = getCashuAccountByMintUrlAndCurrency(

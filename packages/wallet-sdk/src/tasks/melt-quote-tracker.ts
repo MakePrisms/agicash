@@ -3,13 +3,13 @@ import type {
   MeltQuoteSubscriptionManager,
 } from '@agicash/cashu';
 import type { Currency } from '@agicash/utils/money';
+import { defaultRetryDelayMs, retryWithBackoff } from '@agicash/utils/retry';
 import {
   type LongTimeout,
   clearLongTimeout,
   setLongTimeout,
 } from '@agicash/utils/timeout';
 import { type MeltQuoteBolt11Response, MeltQuoteState } from '@cashu/cashu-ts';
-import { MutationObserver, type QueryClient } from '@tanstack/query-core';
 
 /**
  * The work-set entry the tracker watches: one in-flight melt quote, its mint,
@@ -24,8 +24,6 @@ export type MeltQuoteWorkItem = {
 };
 
 export type MeltQuoteTrackerOptions = {
-  /** The query-core client backing the retrying subscribe mutation. */
-  queryClient: QueryClient;
   /**
    * The subscription manager the tracker drives. Injected by the family so the
    * family's transitions can call removeQuoteFromSubscription on the same
@@ -37,11 +35,18 @@ export type MeltQuoteTrackerOptions = {
    * refetch and the expiry check.
    */
   getWallet: (mintUrl: string, currency: Currency) => ExtendedCashuWallet;
+  /**
+   * Backoff (ms) before each subscribe retry; injectable for tests. Defaults to
+   * the standard exponential backoff.
+   */
+  retryDelayMs?: (attempt: number) => number;
   onUnpaid?: (meltQuote: MeltQuoteBolt11Response) => void;
   onPending?: (meltQuote: MeltQuoteBolt11Response) => void;
   onPaid?: (meltQuote: MeltQuoteBolt11Response) => void;
   onExpired?: (meltQuote: MeltQuoteBolt11Response) => void;
 };
+
+const SUBSCRIBE_RETRIES = 5;
 
 /**
  * Tracks a work-set of in-flight melt quotes: subscribes one socket per mint
@@ -51,58 +56,32 @@ export type MeltQuoteTrackerOptions = {
  * nutshell #788.
  *
  * `setQuotes` re-subscribes and re-arms the expiry timers for the new quote
- * set; `stop` clears the timers.
+ * set; `stop` aborts the in-flight subscribe retries and clears the timers.
  */
 export class MeltQuoteTracker {
-  private readonly queryClient: QueryClient;
   private readonly subscriptionManager: MeltQuoteSubscriptionManager;
   private readonly getWallet: (
     mintUrl: string,
     currency: Currency,
   ) => ExtendedCashuWallet;
+  private readonly retryDelayMs: (attempt: number) => number;
   private readonly onUnpaid?: (meltQuote: MeltQuoteBolt11Response) => void;
   private readonly onPending?: (meltQuote: MeltQuoteBolt11Response) => void;
   private readonly onPaid?: (meltQuote: MeltQuoteBolt11Response) => void;
   private readonly onExpired?: (meltQuote: MeltQuoteBolt11Response) => void;
 
   private quotes: MeltQuoteWorkItem[] = [];
-  private stopped = false;
+  private abortController = new AbortController();
   private expiryTimers: LongTimeout[] = [];
-  private subscribeObserver: MutationObserver<
-    () => void,
-    Error,
-    Parameters<MeltQuoteSubscriptionManager['subscribe']>[0]
-  >;
 
   constructor(options: MeltQuoteTrackerOptions) {
-    this.queryClient = options.queryClient;
     this.subscriptionManager = options.subscriptionManager;
     this.getWallet = options.getWallet;
+    this.retryDelayMs = options.retryDelayMs ?? defaultRetryDelayMs;
     this.onUnpaid = options.onUnpaid;
     this.onPending = options.onPending;
     this.onPaid = options.onPaid;
     this.onExpired = options.onExpired;
-
-    // Retry/onError config for the subscribe, dispatched through a
-    // MutationObserver.
-    this.subscribeObserver = new MutationObserver(this.queryClient, {
-      mutationFn: (
-        props: Parameters<MeltQuoteSubscriptionManager['subscribe']>[0],
-      ) => {
-        // A retry that resolves after stop() must not re-open a socket.
-        if (this.stopped) {
-          return Promise.resolve<() => void>(() => undefined);
-        }
-        return this.subscriptionManager.subscribe(props);
-      },
-      retry: 5,
-      onError: (error, variables) => {
-        console.error('Error subscribing to melt quote updates', {
-          mintUrl: variables.mintUrl,
-          cause: error,
-        });
-      },
-    });
   }
 
   /**
@@ -110,20 +89,21 @@ export class MeltQuoteTracker {
    * expiry timers.
    */
   setQuotes(quotes: MeltQuoteWorkItem[]): void {
-    this.stopped = false;
+    if (this.abortController.signal.aborted) {
+      this.abortController = new AbortController();
+    }
     this.quotes = quotes;
     this.resubscribe();
     this.rearmExpiryTimers();
   }
 
   /**
-   * Tears the tracker down on deactivate: clears the expiry timers and
-   * unsubscribes the per-mint sockets so a later reactivation re-subscribes
-   * fresh. `stopped` blocks a subscribe retry that resolves after this from
-   * re-opening a socket.
+   * Tears the tracker down on deactivate: aborts the in-flight subscribe
+   * retries, clears the expiry timers, and unsubscribes the per-mint sockets so
+   * a later reactivation re-subscribes fresh.
    */
   stop(): void {
-    this.stopped = true;
+    this.abortController.abort();
     this.clearExpiryTimers();
     this.quotes = [];
     this.subscriptionManager.unsubscribeAll();
@@ -156,14 +136,25 @@ export class MeltQuoteTracker {
     );
 
     for (const [mintUrl, quoteIds] of Object.entries(quotesByMint)) {
-      // Fire-and-forget; the retry/onError config handles failures.
-      this.subscribeObserver
-        .mutate({
-          mintUrl,
-          quoteIds,
-          onUpdate: (meltQuote) => this.handleMeltQuoteUpdate(meltQuote),
-        })
-        .catch(() => undefined);
+      // Fire-and-forget; retryWithBackoff retries failures, abort tears down.
+      retryWithBackoff(
+        () =>
+          this.subscriptionManager.subscribe({
+            mintUrl,
+            quoteIds,
+            onUpdate: (meltQuote) => this.handleMeltQuoteUpdate(meltQuote),
+          }),
+        {
+          retries: SUBSCRIBE_RETRIES,
+          signal: this.abortController.signal,
+          delayMs: this.retryDelayMs,
+          onError: (error) =>
+            console.error('Error subscribing to melt quote updates', {
+              mintUrl,
+              cause: error,
+            }),
+        },
+      ).catch(() => undefined);
     }
   }
 

@@ -7,6 +7,7 @@
     "./money": "./src/money/index.ts",
     "./money/types": "./src/money/types.ts",
     "./password": "./src/password.ts",
+    "./retry": "./src/retry.ts",
     "./ecies": "./src/ecies/index.ts",
     "./bolt11": "./src/bolt11/index.ts",
     "./json": "./src/json.ts",
