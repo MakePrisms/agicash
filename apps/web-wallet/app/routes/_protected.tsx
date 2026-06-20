@@ -1,52 +1,11 @@
-import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
-import { core } from 'zod/mini';
-import { AccountsCache } from '~/features/accounts/account-hooks';
-import { AccountRepository } from '~/features/accounts/account-repository';
-import { agicashDbClient } from '~/features/agicash-db/database.client';
-import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
-import {
-  BASE_CASHU_LOCKING_DERIVATION_PATH,
-  seedQueryOptions as cashuSeedQueryOptions,
-  xpubQueryOptions,
-} from '~/features/shared/cashu';
-import {
-  encryptionPrivateKeyQueryOptions,
-  encryptionPublicKeyQueryOptions,
-  getEncryption,
-} from '~/features/shared/encryption';
-import { getQueryClient } from '~/features/shared/query-client';
-import {
-  sparkIdentityPublicKeyQueryOptions,
-  sparkMnemonicQueryOptions,
-} from '~/features/shared/spark';
-import {
-  type AuthUser,
-  authQueryOptions,
-  useAuthState,
-} from '~/features/user/auth';
-import {
-  pendingGiftCardMintTermsStorage,
-  pendingWalletTermsStorage,
-} from '~/features/user/pending-terms-storage';
+import { getSdk } from '~/features/shared/sdk';
+import { useAuthState } from '~/features/user/auth';
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
-import { type User, shouldAcceptTerms } from '~/features/user/user';
-import {
-  UserCache,
-  defaultAccounts,
-  getUserFromCache,
-} from '~/features/user/user-hooks';
-import { WriteUserRepository } from '~/features/user/user-repository';
+import { shouldAcceptTerms, shouldVerifyEmail } from '~/features/user/user';
 import { Wallet } from '~/features/wallet/wallet';
-import { ensureBreezWasm } from '~/lib/spark';
-import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
-
-const shouldUserVerifyEmail = (user: AuthUser) => {
-  const isGuest = !user.email;
-  return !isGuest && !user.email_verified;
-};
 
 const buildRedirectWithReturnUrl = (
   destinationRoute: string,
@@ -61,96 +20,6 @@ const buildRedirectWithReturnUrl = (
   return redirect(`${destinationRoute}${search}${hash}`);
 };
 
-const hasUserChanged = (user: User, authUser: AuthUser) => {
-  const currentAuthUserEmail = authUser.email ?? null;
-  const currentUserEmail = user.isGuest ? null : user.email;
-
-  return (
-    currentUserEmail !== currentAuthUserEmail ||
-    user.emailVerified !== authUser.email_verified
-  );
-};
-
-const ensureUserData = async (
-  queryClient: QueryClient,
-  authUser: AuthUser,
-  termsAcceptedAt?: string,
-  giftCardMintTermsAcceptedAt?: string,
-): Promise<User> => {
-  let user = getUserFromCache(queryClient);
-
-  if (!user) {
-    queryClient.prefetchQuery(supabaseSessionTokenQuery());
-  }
-
-  if (!user || hasUserChanged(user, authUser)) {
-    const [
-      encryptionPrivateKey,
-      encryptionPublicKey,
-      cashuLockingXpub,
-      sparkIdentityPublicKey,
-    ] = await Promise.all([
-      queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-      queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-      queryClient.ensureQueryData(
-        xpubQueryOptions({
-          queryClient,
-          derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
-        }),
-      ),
-      // TODO: how to handle this network? We specify the network on the account creation.
-      queryClient.ensureQueryData(
-        sparkIdentityPublicKeyQueryOptions({ queryClient, network: 'MAINNET' }),
-      ),
-      queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
-      queryClient.ensureQueryData(cashuSeedQueryOptions()),
-    ]);
-    const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-    const getCashuWalletSeed = () =>
-      queryClient.fetchQuery(cashuSeedQueryOptions());
-    const getSparkWalletMnemonic = () =>
-      queryClient.fetchQuery(sparkMnemonicQueryOptions());
-    const accountRepository = new AccountRepository(
-      agicashDbClient,
-      encryption,
-      queryClient,
-      getCashuWalletSeed,
-      getSparkWalletMnemonic,
-      './.spark-data',
-    );
-    const writeUserRepository = new WriteUserRepository(
-      agicashDbClient,
-      accountRepository,
-    );
-
-    const { user: upsertedUser, accounts } = await withRetry({
-      fn: () =>
-        writeUserRepository.upsert({
-          id: authUser.id,
-          email: authUser.email,
-          emailVerified: authUser.email_verified,
-          accounts: [...defaultAccounts],
-          cashuLockingXpub,
-          encryptionPublicKey,
-          sparkIdentityPublicKey,
-          termsAcceptedAt,
-          giftCardMintTermsAcceptedAt,
-        }),
-      retry: (attemptIndex, error) => {
-        if (error instanceof core.$ZodError) {
-          return false;
-        }
-        return attemptIndex < 2;
-      },
-    });
-    user = upsertedUser;
-    queryClient.setQueryData([UserCache.Key], user);
-    queryClient.setQueryData([AccountsCache.Key], accounts);
-  }
-
-  return user;
-};
-
 const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   { request },
   next,
@@ -158,30 +27,9 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   const location = new URL(request.url);
   // We have to use window.location.hash because location that comes from the request does not have the hash
   const hash = window.location.hash;
-  const queryClient = getQueryClient();
-  const { isLoggedIn, user: authUser } = await queryClient.ensureQueryData(
-    authQueryOptions(),
-  );
-  const shouldRedirectToSignup = !isLoggedIn;
-  const shouldVerifyEmail = authUser ? shouldUserVerifyEmail(authUser) : false;
-  const isAcceptTermsRoute = location.pathname.startsWith('/accept-terms');
-  const isVerifyEmailRoute = location.pathname.startsWith('/verify-email');
-  const shouldRedirectToVerifyEmail =
-    shouldVerifyEmail && !isVerifyEmailRoute && !isAcceptTermsRoute;
+  const sdk = await getSdk(new URL(window.location.origin).host);
 
-  console.debug('Rendering protected layout', {
-    time: new Date().toISOString(),
-    location: location.pathname,
-    isLoggedIn,
-    shouldRedirectToSignup,
-    userId: authUser?.id,
-    shouldVerifyEmail,
-    isAcceptTermsRoute,
-    isVerifyEmailRoute,
-    shouldRedirectToVerifyEmail,
-  });
-
-  if (shouldRedirectToSignup) {
+  if (!(await sdk.auth.isLoggedIn())) {
     let search = location.search;
     if (location.pathname !== '/') {
       const searchParams = new URLSearchParams(location.search);
@@ -192,36 +40,22 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     throw redirect(`/home${search}${hash}`);
   }
 
-  const pendingTermsAcceptedAt = pendingWalletTermsStorage.get();
-  if (pendingTermsAcceptedAt) {
-    pendingWalletTermsStorage.remove();
+  // getCurrentUser -> resolveSession bootstraps the wallet.users row on
+  // missing/drift internally (derives keys + default accounts + upsert).
+  const user = await sdk.user.getCurrentUser();
+  if (!user) {
+    // token present but the server rejected it mid-resolve -> treat as logged out
+    throw redirect('/home');
   }
 
-  const pendingGiftCardMintTermsAcceptedAt =
-    pendingGiftCardMintTermsStorage.get();
-  if (pendingGiftCardMintTermsAcceptedAt) {
-    pendingGiftCardMintTermsStorage.remove();
-  }
+  const isAcceptTermsRoute = location.pathname.startsWith('/accept-terms');
+  const isVerifyEmailRoute = location.pathname.startsWith('/verify-email');
 
-  // ensureUserData derives the Spark identity public key via defaultExternalSigner(),
-  // which requires WASM to be initialized. Shared with entry.client.tsx so the init
-  // is typically already in-flight (or complete) by the time we await here.
-  await ensureBreezWasm();
-  const user = await ensureUserData(
-    queryClient,
-    authUser,
-    pendingTermsAcceptedAt,
-    pendingGiftCardMintTermsAcceptedAt,
-  );
-
-  const shouldRedirectToAcceptTerms =
-    shouldAcceptTerms(user) && !isAcceptTermsRoute;
-
-  if (shouldRedirectToAcceptTerms) {
+  if (shouldAcceptTerms(user) && !isAcceptTermsRoute) {
     throw buildRedirectWithReturnUrl('/accept-terms', location, hash);
   }
 
-  if (shouldRedirectToVerifyEmail) {
+  if (shouldVerifyEmail(user) && !isVerifyEmailRoute && !isAcceptTermsRoute) {
     throw buildRedirectWithReturnUrl('/verify-email', location, hash);
   }
 
