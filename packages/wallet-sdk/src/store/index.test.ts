@@ -44,4 +44,31 @@ describe('createStoreSdk', () => {
     expect(isStore(sdk.spark.receive.pending)).toBe(true);
     await sdk.dispose();
   });
+
+  // Regression: the entry must NOT seed the stores to a placeholder. `getUser`
+  // is deferred to `sdkReady`, so the mount-fetch fired during createEngine
+  // stays pending until Sdk.create resolves and then reads the REAL wired
+  // source (`sdk.user.get()` / the repos), never the old `async () => null`
+  // placeholder. With the placeholder bug, `sdk.user.current.get()` was already
+  // `null` (a stale seed) the instant createStoreSdk returned; here it must be
+  // `undefined` (still loading), and only the real values resolve via toPromise.
+  test('user store loads the REAL wired source, never a placeholder seed', async () => {
+    const sdk = await createStoreSdk(baseConfig(), { openSecret: fakeOs() });
+
+    // No synchronous placeholder seed: the mount-fetch is still pending. The
+    // probe (against both old + fixed code, signed-out fixture) confirmed this
+    // is deterministic — old code seeds `null` here, the fix leaves `undefined`.
+    expect(sdk.user.current.get()).toBeUndefined();
+
+    // The real wired source resolves. The fixture has no refresh token, so the
+    // SDK is signed out: `sdk.user.get()` -> null and each list repo is skipped
+    // -> []. These are the REAL values for this state (not a stray placeholder).
+    // A logged-in non-null user would require a live DB (no injection seam on
+    // Sdk.create), so that path is covered by stores.test.ts in isolation.
+    expect(await sdk.user.current.toPromise()).toBeNull();
+    expect(await sdk.accounts.all.toPromise()).toEqual([]);
+    expect(await sdk.contacts.all.toPromise()).toEqual([]);
+
+    await sdk.dispose();
+  });
 });

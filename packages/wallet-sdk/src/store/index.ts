@@ -38,18 +38,38 @@ export async function createStoreSdk(
   deps?: Omit<NonNullable<Parameters<typeof Sdk.create>[1]>, 'createEngine'>,
 ): Promise<StoreSdk> {
   // getUser is injected into the engine via this closure. createEngine runs
-  // synchronously inside Sdk.create (before `sdk` exists); the placeholder is
-  // replaced before any store is fetched (seeding/first read happen after create).
-  let getUser: () => Promise<User | null> = async () => null;
+  // synchronously inside Sdk.create (before `sdk` exists), and the store
+  // mount-fetches fire during createEngine. getUser awaits `sdkReady`, so those
+  // mount-fetches stay pending until Sdk.create resolves and then read the REAL
+  // user — no placeholder value is ever served. A store can only be `undefined`
+  // (loading) or the real value, never a stale seed.
+  let resolveSdk!: (sdk: Sdk) => void;
+  let rejectSdk!: (err: unknown) => void;
+  const sdkReady = new Promise<Sdk>((res, rej) => {
+    resolveSdk = res;
+    rejectSdk = rej;
+  });
+  // Swallow the settle on the error path: the real store consumers await via
+  // toPromise() and surface their own rejections, so nothing else awaits
+  // sdkReady directly — without this a rejectSdk would be an unhandled rejection.
+  sdkReady.catch(() => {});
+  const getUser: () => Promise<User | null> = async () =>
+    (await sdkReady).user.get();
   let stores: StoreRegistry | undefined;
   const createEngine: CreateEngine = (ctx) => {
-    const engine = createStoreEngine(ctx, () => getUser());
+    const engine = createStoreEngine(ctx, getUser);
     stores = engine.stores;
     return engine;
   };
-  const sdk = await Sdk.create(config, { ...deps, createEngine });
+  let sdk: Sdk;
+  try {
+    sdk = await Sdk.create(config, { ...deps, createEngine });
+  } catch (err) {
+    rejectSdk(err);
+    throw err;
+  }
+  resolveSdk(sdk);
   if (!stores) throw new Error('store engine did not initialise stores');
-  getUser = () => sdk.user.get();
 
   // Augment the domains with the public Store hot reads + the accounts surface.
   const accounts = createStoreAccounts({
