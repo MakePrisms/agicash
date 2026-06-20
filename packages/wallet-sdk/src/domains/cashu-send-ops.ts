@@ -164,6 +164,12 @@ export class CashuSendOps {
     return this.deps.quoteRepository.get(quoteId);
   }
 
+  /** Reads a token send-swap by its id (distinct from {@link get}, which reads
+   * the lightning send-quote). Used by the share route to render the token. */
+  getSwap(swapId: string): Promise<CashuSendSwap | null> {
+    return this.deps.swapRepository.get(swapId);
+  }
+
   /** Backstop reads BOTH paths — a lightning send-quote and a token send-swap
    * both emit `send:*` keyed by their entity `id`. */
   private async classify(quoteId: string): Promise<TerminalStatus> {

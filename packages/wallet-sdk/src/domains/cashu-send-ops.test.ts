@@ -88,3 +88,20 @@ describe('CashuSendOps.createTokenSend', () => {
     ).rejects.toThrow('No authenticated user');
   });
 });
+
+describe('CashuSendOps.getSwap', () => {
+  test('passes through to swapRepository.get', async () => {
+    const swapGet = mock(async () => pendingSwap);
+    const ops = makeOps({ swapGet, userId: 'u1' });
+    const result = await ops.getSwap('s1');
+    expect(swapGet).toHaveBeenCalledWith('s1');
+    expect(result).toBe(pendingSwap as never);
+  });
+
+  test('returns null when swap not found', async () => {
+    const swapGet = mock(async () => null);
+    const ops = makeOps({ swapGet, userId: 'u1' });
+    const result = await ops.getSwap('missing');
+    expect(result).toBeNull();
+  });
+});

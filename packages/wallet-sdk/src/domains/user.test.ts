@@ -92,4 +92,18 @@ describe('UserDomain', () => {
       }),
     ).rejects.toThrow('Unsupported currency');
   });
+
+  test('setDefaultCurrency calls writeUserRepo.update with defaultCurrency and returns updated user', async () => {
+    const update = mock(async () => ({ ...USER, defaultCurrency: 'USD' }));
+    const domain = makeDomain({ update, userId: 'u1' });
+    const result = await domain.setDefaultCurrency('USD');
+    expect(update).toHaveBeenCalledWith('u1', { defaultCurrency: 'USD' });
+    expect(result.id).toBe('u1');
+  });
+
+  test('setDefaultCurrency throws when signed out', async () => {
+    await expect(
+      makeDomain({ userId: null }).setDefaultCurrency('USD'),
+    ).rejects.toThrow('No authenticated user');
+  });
 });
