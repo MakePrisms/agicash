@@ -29,20 +29,20 @@ const storageWith = (refreshExpSec: number | null) => ({
       k === 'refresh_token' && refreshExpSec !== null
         ? jwt(refreshExpSec)
         : null,
-    setItem: async () => {},
-    removeItem: async () => {},
+    setItem: async () => undefined,
+    removeItem: async () => undefined,
   },
   session: {
     getItem: async () => null,
-    setItem: async () => {},
-    removeItem: async () => {},
+    setItem: async () => undefined,
+    removeItem: async () => undefined,
   },
 });
 
 describe('SessionExpiryScheduler', () => {
   it('arms a timer for (exp - margin) and calls onExpiry when it fires', async () => {
     const timers = makeFakeTimers();
-    const onExpiry = mock(() => {});
+    const onExpiry = mock(() => undefined);
     const nowMs = 1_000_000;
     const expSec = Math.floor(nowMs / 1000) + 100; // 100s out
     const sched = new SessionExpiryScheduler({
@@ -64,7 +64,7 @@ describe('SessionExpiryScheduler', () => {
     const timers = makeFakeTimers();
     const sched = new SessionExpiryScheduler({
       storage: storageWith(null),
-      onExpiry: () => {},
+      onExpiry: () => undefined,
       now: () => 1_000_000,
       setTimer: timers.setTimer,
       clearTimer: timers.clearTimer,
@@ -75,7 +75,7 @@ describe('SessionExpiryScheduler', () => {
 
   it('chains timers for delays beyond the 2^31-1 ms ceiling', async () => {
     const timers = makeFakeTimers();
-    const onExpiry = mock(() => {});
+    const onExpiry = mock(() => undefined);
     const nowMs = 0;
     const expSec = 40 * 24 * 60 * 60; // 40 days out, > 24.8d ceiling
     const sched = new SessionExpiryScheduler({
@@ -95,7 +95,7 @@ describe('SessionExpiryScheduler', () => {
 
   it('disarm() clears the pending timer', async () => {
     const timers = makeFakeTimers();
-    const onExpiry = mock(() => {});
+    const onExpiry = mock(() => undefined);
     const expSec = Math.floor(Date.now() / 1000) + 100;
     const sched = new SessionExpiryScheduler({
       storage: storageWith(expSec),
