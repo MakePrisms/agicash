@@ -187,6 +187,7 @@
         "@scure/bip39": "catalog:",
         "@stablelib/base64": "catalog:",
         "@supabase/supabase-js": "catalog:",
+        "@tanstack/query-core": "5.90.20",
         "big.js": "catalog:",
         "jwt-decode": "catalog:",
         "ky": "catalog:",

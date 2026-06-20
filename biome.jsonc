@@ -101,11 +101,29 @@
           },
           "level": "error",
           "fix": "safe"
+        },
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "@tanstack/query-core": "TanStack is the hidden Variant-B engine; import it only inside packages/wallet-sdk/src/internal/engine/."
+            }
+          }
         }
       }
     }
   },
   "overrides": [
+    {
+      "include": ["packages/wallet-sdk/src/internal/engine/**"],
+      "linter": {
+        "rules": {
+          "nursery": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    },
     {
       "include": ["app/components/markdown.tsx"],
       "linter": {
