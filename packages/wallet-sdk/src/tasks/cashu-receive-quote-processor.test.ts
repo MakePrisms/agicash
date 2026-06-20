@@ -231,8 +231,12 @@ const setup = (
 
 let mintSubscribeSpy: ReturnType<typeof mock>;
 let meltSubscribeSpy: ReturnType<typeof mock>;
+let mintUnsubscribeAllSpy: ReturnType<typeof mock>;
+let meltUnsubscribeAllSpy: ReturnType<typeof mock>;
 let originalMintSubscribe: MintQuoteSubscriptionManager['subscribe'];
 let originalMeltSubscribe: MeltQuoteSubscriptionManager['subscribe'];
+let originalMintUnsubscribeAll: MintQuoteSubscriptionManager['unsubscribeAll'];
+let originalMeltUnsubscribeAll: MeltQuoteSubscriptionManager['unsubscribeAll'];
 
 beforeEach(() => {
   originalMintSubscribe = MintQuoteSubscriptionManager.prototype.subscribe;
@@ -243,11 +247,26 @@ beforeEach(() => {
     mintSubscribeSpy as unknown as MintQuoteSubscriptionManager['subscribe'];
   MeltQuoteSubscriptionManager.prototype.subscribe =
     meltSubscribeSpy as unknown as MeltQuoteSubscriptionManager['subscribe'];
+
+  originalMintUnsubscribeAll =
+    MintQuoteSubscriptionManager.prototype.unsubscribeAll;
+  originalMeltUnsubscribeAll =
+    MeltQuoteSubscriptionManager.prototype.unsubscribeAll;
+  mintUnsubscribeAllSpy = mock(() => undefined);
+  meltUnsubscribeAllSpy = mock(() => undefined);
+  MintQuoteSubscriptionManager.prototype.unsubscribeAll =
+    mintUnsubscribeAllSpy as unknown as MintQuoteSubscriptionManager['unsubscribeAll'];
+  MeltQuoteSubscriptionManager.prototype.unsubscribeAll =
+    meltUnsubscribeAllSpy as unknown as MeltQuoteSubscriptionManager['unsubscribeAll'];
 });
 
 afterEach(() => {
   MintQuoteSubscriptionManager.prototype.subscribe = originalMintSubscribe;
   MeltQuoteSubscriptionManager.prototype.subscribe = originalMeltSubscribe;
+  MintQuoteSubscriptionManager.prototype.unsubscribeAll =
+    originalMintUnsubscribeAll;
+  MeltQuoteSubscriptionManager.prototype.unsubscribeAll =
+    originalMeltUnsubscribeAll;
 });
 
 describe('createCashuReceiveQuoteProcessor', () => {
@@ -280,6 +299,17 @@ describe('createCashuReceiveQuoteProcessor', () => {
 
       // resolveQuote returns nothing once the work-set cleared, so nothing fires.
       expect(service.completeReceive).not.toHaveBeenCalled();
+    });
+
+    it('unsubscribes the mint and melt sockets on deactivate', async () => {
+      const { processor } = setup();
+      processor.activate();
+      await settle();
+
+      processor.deactivate();
+
+      expect(mintUnsubscribeAllSpy).toHaveBeenCalledTimes(1);
+      expect(meltUnsubscribeAllSpy).toHaveBeenCalledTimes(1);
     });
   });
 

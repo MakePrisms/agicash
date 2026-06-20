@@ -35,6 +35,7 @@ export type ProofStateTrackerOptions = {
 export class ProofStateTracker {
   private readonly getCashuAccount: (accountId: string) => CashuAccount;
   private readonly onSpent: ProofStateTrackerOptions['onSpent'];
+  private stopped = false;
   private readonly subscriptionManager = new ProofStateSubscriptionManager();
   private readonly subscribeObserver: MutationObserver<
     () => void,
@@ -47,7 +48,13 @@ export class ProofStateTracker {
     this.onSpent = options.onSpent;
 
     this.subscribeObserver = new MutationObserver(options.queryClient, {
-      mutationFn: (props) => this.subscriptionManager.subscribe(props),
+      mutationFn: (props) => {
+        // A retry that resolves after stop() must not re-open a socket.
+        if (this.stopped) {
+          return Promise.resolve<() => void>(() => undefined);
+        }
+        return this.subscriptionManager.subscribe(props);
+      },
       retry: 5,
       onError: (error, variables) => {
         console.error('Failed to subscribe to proof state updates', {
@@ -63,6 +70,7 @@ export class ProofStateTracker {
    * per mint.
    */
   setSwaps(swaps: PendingCashuSendSwap[]): void {
+    this.stopped = false;
     const swapsByMint = swaps.reduce<Record<string, PendingCashuSendSwap[]>>(
       (acc, swap) => {
         const account = this.getCashuAccount(swap.accountId);
@@ -84,9 +92,16 @@ export class ProofStateTracker {
     }
   }
 
-  /** No-op placeholder kept for lifecycle symmetry with the other trackers. */
+  /**
+   * Tears the tracker down on deactivate: unsubscribes the per-mint proof-state
+   * sockets and clears the accumulated proof state. Without this a deactivated
+   * (non-leader) tab keeps its sockets open and can consume a swap's "all spent"
+   * event — dropping the completion and orphaning the swap, because on
+   * reactivation the manager would reuse the socket instead of re-subscribing
+   * and the mint never re-delivers the now-spent state.
+   */
   stop(): void {
-    // The subscription manager closes its sockets on mint `onClose`; there is
-    // nothing to actively tear down here.
+    this.stopped = true;
+    this.subscriptionManager.unsubscribeAll();
   }
 }

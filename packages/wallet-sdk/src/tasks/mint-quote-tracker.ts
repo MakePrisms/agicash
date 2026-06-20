@@ -94,6 +94,7 @@ export class MintQuoteTracker {
   private readonly onExpired?: (receiveQuoteId: string) => void;
 
   private quotes: MintQuoteWorkItem[] = [];
+  private stopped = false;
   private expiryTimers: LongTimeout[] = [];
   private pollObservers = new Map<string, QueryObserver<unknown>>();
   private pollUnsubscribes = new Map<string, () => void>();
@@ -116,7 +117,13 @@ export class MintQuoteTracker {
     this.subscribeObserver = new MutationObserver(this.queryClient, {
       mutationFn: (
         props: Parameters<MintQuoteSubscriptionManager['subscribe']>[0],
-      ) => this.subscriptionManager.subscribe(props),
+      ) => {
+        // A retry that resolves after stop() must not re-open a socket.
+        if (this.stopped) {
+          return Promise.resolve<() => void>(() => undefined);
+        }
+        return this.subscriptionManager.subscribe(props);
+      },
       retry: RETRY_LIMIT,
       onError: (error, variables) => {
         console.error('Error subscribing to mint quote updates', {
@@ -133,6 +140,7 @@ export class MintQuoteTracker {
    * expiry timers.
    */
   setQuotes(quotes: MintQuoteWorkItem[]): void {
+    this.stopped = false;
     this.quotes = quotes;
 
     const quotesToSubscribeTo: Record<string, MintQuoteWorkItem[]> = {};
@@ -157,13 +165,18 @@ export class MintQuoteTracker {
     this.rearmExpiryTimers(quotesToSubscribeTo);
   }
 
-  /** Tears down the poll observers and expiry timers. The socket subscriptions
-   * are left to the mint's `onClose` / the next work-set reconcile (the
-   * subscription manager has no caller-driven unsubscribe-all). */
+  /**
+   * Tears the tracker down on deactivate: stops the poll observers and expiry
+   * timers and unsubscribes the per-mint sockets so a later reactivation
+   * re-subscribes fresh. `stopped` blocks a subscribe retry that resolves after
+   * this from re-opening a socket.
+   */
   stop(): void {
+    this.stopped = true;
     this.clearPollObservers();
     this.clearExpiryTimers();
     this.quotes = [];
+    this.subscriptionManager.unsubscribeAll();
   }
 
   private async processMintQuote(

@@ -10,6 +10,12 @@ type SubscriptionData = {
 
 export class MeltQuoteSubscriptionManager {
   private subscriptions: Map<string, SubscriptionData> = new Map();
+  private readonly getWallet: typeof getCashuWallet;
+
+  // getWallet is injectable so tests can drive the socket without a real mint.
+  constructor(getWallet: typeof getCashuWallet = getCashuWallet) {
+    this.getWallet = getWallet;
+  }
 
   /**
    * Subscribes to melt quote updates for the given mint URL and quotes.
@@ -53,7 +59,7 @@ export class MeltQuoteSubscriptionManager {
       unsubscribe();
     }
 
-    const wallet = getCashuWallet(mintUrl);
+    const wallet = this.getWallet(mintUrl);
 
     console.debug('Subscribing to melt quote updates for mint', {
       mintUrl,
@@ -97,6 +103,24 @@ export class MeltQuoteSubscriptionManager {
     } catch (error) {
       this.subscriptions.delete(mintUrl);
       throw error;
+    }
+  }
+
+  /**
+   * Tears down every active mint subscription so a later {@link subscribe}
+   * re-subscribes fresh (letting the mint re-deliver the current quote state)
+   * instead of reusing a socket. Call this when the consumer stops caring about
+   * updates (e.g. a task leader losing its lease).
+   */
+  unsubscribeAll(): void {
+    const pending = [...this.subscriptions.values()];
+    // Clear synchronously so an in-flight socket callback no-ops at once (it
+    // reads this.subscriptions); the actual socket close is fire-and-forget.
+    this.subscriptions.clear();
+    for (const subscription of pending) {
+      subscription.subscriptionPromise
+        .then((unsubscribe) => unsubscribe())
+        .catch(() => undefined);
     }
   }
 

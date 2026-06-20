@@ -137,6 +137,8 @@ const setup = (
 
 let subscribeSpy: ReturnType<typeof mock>;
 let originalSubscribe: ProofStateSubscriptionManager['subscribe'];
+let unsubscribeAllSpy: ReturnType<typeof mock>;
+let originalUnsubscribeAll: ProofStateSubscriptionManager['unsubscribeAll'];
 let spentCallbacks: Map<string, (swap: CashuSendSwap) => void>;
 
 beforeEach(() => {
@@ -148,10 +150,18 @@ beforeEach(() => {
   });
   ProofStateSubscriptionManager.prototype.subscribe =
     subscribeSpy as unknown as ProofStateSubscriptionManager['subscribe'];
+
+  originalUnsubscribeAll =
+    ProofStateSubscriptionManager.prototype.unsubscribeAll;
+  unsubscribeAllSpy = mock(() => undefined);
+  ProofStateSubscriptionManager.prototype.unsubscribeAll =
+    unsubscribeAllSpy as unknown as ProofStateSubscriptionManager['unsubscribeAll'];
 });
 
 afterEach(() => {
   ProofStateSubscriptionManager.prototype.subscribe = originalSubscribe;
+  ProofStateSubscriptionManager.prototype.unsubscribeAll =
+    originalUnsubscribeAll;
 });
 
 describe('createCashuSendSwapProcessor', () => {
@@ -195,6 +205,19 @@ describe('createCashuSendSwapProcessor', () => {
       processor.deactivate();
       await settle();
       expect(swapForProofsToSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('unsubscribes the proof-state sockets on deactivate', async () => {
+      // Without teardown, a deactivated tab keeps its proof-state sockets open
+      // and can consume a swap's "all spent" event, orphaning the swap on
+      // reactivation (the reused socket never re-delivers the spent state).
+      const { processor } = setup({ initialSwaps: [pendingSwap()] });
+      processor.activate();
+      await settle();
+      expect(subscribeSpy).toHaveBeenCalledTimes(1);
+
+      processor.deactivate();
+      expect(unsubscribeAllSpy).toHaveBeenCalledTimes(1);
     });
   });
 

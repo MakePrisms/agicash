@@ -18,6 +18,11 @@ export class ProofStateSubscriptionManager {
   private subscriptions: Map<string, Subscription> = new Map();
   private proofUpdates: Record<string, Record<string, ProofState['state']>> =
     {};
+  private readonly getWallet: typeof getCashuWallet;
+
+  constructor(getWallet: typeof getCashuWallet = getCashuWallet) {
+    this.getWallet = getWallet;
+  }
 
   /**
    * Subscribes to proof state updates for the given mint URL and swaps.
@@ -65,7 +70,7 @@ export class ProofStateSubscriptionManager {
       unsubscribe();
     }
 
-    const wallet = getCashuWallet(mintUrl);
+    const wallet = this.getWallet(mintUrl);
 
     console.debug('Subscribing to proof state updates for mint', {
       mintUrl,
@@ -115,6 +120,28 @@ export class ProofStateSubscriptionManager {
     } catch (error) {
       this.subscriptions.delete(mintUrl);
       throw error;
+    }
+  }
+
+  /**
+   * Tears down every active mint subscription and clears the accumulated proof
+   * state. Call this when the consumer stops caring about updates (e.g. a task
+   * leader losing its lease): it closes the open sockets and resets state so a
+   * later {@link subscribe} re-subscribes fresh — letting the mint re-deliver
+   * the current proof state — instead of reusing a socket that has already
+   * consumed (and discarded) the "all spent" event.
+   */
+  unsubscribeAll(): void {
+    const pending = [...this.subscriptions.values()];
+    // Clear synchronously so an in-flight socket callback no-ops at once (it
+    // reads this.subscriptions) and the next subscribe is a fresh one; the
+    // actual socket close is fire-and-forget.
+    this.subscriptions.clear();
+    this.proofUpdates = {};
+    for (const subscription of pending) {
+      subscription.subscriptionPromise
+        .then((unsubscribe) => unsubscribe())
+        .catch(() => undefined);
     }
   }
 

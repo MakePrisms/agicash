@@ -66,6 +66,7 @@ export class MeltQuoteTracker {
   private readonly onExpired?: (meltQuote: MeltQuoteBolt11Response) => void;
 
   private quotes: MeltQuoteWorkItem[] = [];
+  private stopped = false;
   private expiryTimers: LongTimeout[] = [];
   private subscribeObserver: MutationObserver<
     () => void,
@@ -87,7 +88,13 @@ export class MeltQuoteTracker {
     this.subscribeObserver = new MutationObserver(this.queryClient, {
       mutationFn: (
         props: Parameters<MeltQuoteSubscriptionManager['subscribe']>[0],
-      ) => this.subscriptionManager.subscribe(props),
+      ) => {
+        // A retry that resolves after stop() must not re-open a socket.
+        if (this.stopped) {
+          return Promise.resolve<() => void>(() => undefined);
+        }
+        return this.subscriptionManager.subscribe(props);
+      },
       retry: 5,
       onError: (error, variables) => {
         console.error('Error subscribing to melt quote updates', {
@@ -103,16 +110,23 @@ export class MeltQuoteTracker {
    * expiry timers.
    */
   setQuotes(quotes: MeltQuoteWorkItem[]): void {
+    this.stopped = false;
     this.quotes = quotes;
     this.resubscribe();
     this.rearmExpiryTimers();
   }
 
-  /** Clears the expiry timers (the subscription manager's sockets are left to
-   * the family's removeQuoteFromSubscription / work-set transitions). */
+  /**
+   * Tears the tracker down on deactivate: clears the expiry timers and
+   * unsubscribes the per-mint sockets so a later reactivation re-subscribes
+   * fresh. `stopped` blocks a subscribe retry that resolves after this from
+   * re-opening a socket.
+   */
   stop(): void {
+    this.stopped = true;
     this.clearExpiryTimers();
     this.quotes = [];
+    this.subscriptionManager.unsubscribeAll();
   }
 
   /**
