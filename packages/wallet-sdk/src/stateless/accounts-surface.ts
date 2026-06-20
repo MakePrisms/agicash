@@ -19,13 +19,22 @@ export type StatelessAccounts = AccountsDomain & {
  * 6b carry: getDefault falls back to the first (earliest-created) account of the
  * target currency before throwing, matching the app's useDefaultAccount. */
 export function createStatelessAccounts(deps: Deps): StatelessAccounts {
-  const list = async (): Promise<Account[]> => deps.accounts.all();
+  // The read surface must be self-sufficient: load the resident map on demand
+  // (idempotent — no-ops once loaded) rather than relying on background.start /
+  // leader-activate having populated it. Otherwise the first wallet render reads
+  // an empty map and useDefaultAccount throws "No default account found".
+  const list = async (): Promise<Account[]> => {
+    const user = await deps.getUser();
+    if (user) await deps.accounts.ensureLoaded(user.id);
+    return deps.accounts.all();
+  };
 
   const getDefault = async (currency?: Currency): Promise<Account> => {
     try {
       return await deps.base.getDefault(currency);
     } catch (error) {
       const user = await deps.getUser();
+      if (user) await deps.accounts.ensureLoaded(user.id);
       const target = currency ?? user?.defaultCurrency;
       const candidates = deps.accounts
         .all()
