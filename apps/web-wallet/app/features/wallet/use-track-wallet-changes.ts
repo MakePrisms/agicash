@@ -15,19 +15,6 @@ import {
   useSparkReceiveQuoteCache,
   useSparkReceiveQuoteChangeHandlers,
 } from '../receive/spark-receive-quote-hooks';
-import {
-  useCashuSendQuoteChangeHandlers,
-  useUnresolvedCashuSendQuotesCache,
-} from '../send/cashu-send-quote-hooks';
-import {
-  useCashuSendSwapCache,
-  useCashuSendSwapChangeHandlers,
-  useUnresolvedCashuSendSwapsCache,
-} from '../send/cashu-send-swap-hooks';
-import {
-  useSparkSendQuoteChangeHandlers,
-  useUnresolvedSparkSendQuotesCache,
-} from '../send/spark-send-quote-hooks';
 import { useUser } from '../user/user-hooks';
 
 type DatabaseChangeHandler = {
@@ -76,29 +63,19 @@ function useTrackDatabaseChanges({ handlers, onConnected }: Props) {
 export const useTrackWalletChanges = () => {
   const cashuReceiveQuoteChangeHandlers = useCashuReceiveQuoteChangeHandlers();
   const cashuReceiveSwapChangeHandlers = useCashuReceiveSwapChangeHandlers();
-  const cashuSendQuoteChangeHandlers = useCashuSendQuoteChangeHandlers();
-  const cashuSendSwapChangeHandlers = useCashuSendSwapChangeHandlers();
   const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
-  const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
 
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
   const pendingCashuReceiveQuotesCache = usePendingCashuReceiveQuotesCache();
   const pendingCashuReceiveSwapsCache = usePendingCashuReceiveSwapsCache();
-  const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
-  const cashuSendSwapCache = useCashuSendSwapCache();
-  const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
-  const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
 
   useTrackDatabaseChanges({
     handlers: [
       ...cashuReceiveQuoteChangeHandlers,
       ...cashuReceiveSwapChangeHandlers,
-      ...cashuSendQuoteChangeHandlers,
-      ...cashuSendSwapChangeHandlers,
       ...sparkReceiveQuoteChangeHandlers,
-      ...sparkSendQuoteChangeHandlers,
     ],
     onConnected: () => {
       // Makes sure that data is refetched to get the latest updates from the database.
@@ -107,12 +84,8 @@ export const useTrackWalletChanges = () => {
       cashuReceiveQuoteCache.invalidate();
       pendingCashuReceiveQuotesCache.invalidate();
       pendingCashuReceiveSwapsCache.invalidate();
-      unresolvedCashuSendQuotesCache.invalidate();
-      cashuSendSwapCache.invalidate();
-      unresolvedCashuSendSwapsCache.invalidate();
       sparkReceiveQuoteCache.invalidate();
       pendingSparkReceiveQuotesCache.invalidate();
-      unresolvedSparkSendQuotesCache.invalidate();
     },
   });
 };
