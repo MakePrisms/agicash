@@ -25,7 +25,7 @@ import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import { sparkDebugLog } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
-import { useTransactionsCache } from '../transactions/transaction-hooks';
+import { TransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import { getLightningQuote } from './spark-receive-quote-core';
@@ -460,7 +460,6 @@ export function useProcessSparkReceiveQuoteTasks() {
     useGetCashuAccountByMintUrlAndCurrency();
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
-  const transactionsCache = useTransactionsCache();
   const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
@@ -500,7 +499,9 @@ export function useProcessSparkReceiveQuoteTasks() {
         // transaction cache here so that it starts refetching the transaction as soon as possible
         // without relying on realtime notification which might be delayed when reconnecting due to
         // the app being in background.
-        transactionsCache.invalidateTransaction(updatedQuote.transactionId);
+        queryClient.invalidateQueries({
+          queryKey: [TransactionsCache.Key, updatedQuote.transactionId],
+        });
         sparkReceiveQuoteCache.updateIfExists(updatedQuote);
         pendingQuotesCache.remove(updatedQuote);
       }

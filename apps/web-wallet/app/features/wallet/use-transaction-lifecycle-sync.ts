@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { getSdk } from '~/lib/sdk';
+import { TransactionsCache } from '../transactions/transaction-hooks';
 
 /**
  * Variant B has no transaction row events. The SDK's core lifecycle events fire
@@ -8,10 +9,6 @@ import { getSdk } from '~/lib/sdk';
  * so we invalidate the kept transaction queries on them. This gives the detail
  * page + list + unacknowledged count terminal-transition liveness without a tx
  * store or row events.
- *
- * The query keys are the literals from `TransactionsCache` in
- * `~/features/transactions/transaction-hooks` (Key / AllTransactionsKey /
- * UnacknowledgedCountKey). BW-T9 exports a key-holder and reconciles this import.
  */
 export function useTransactionLifecycleSync(): void {
   const queryClient = useQueryClient();
@@ -22,12 +19,14 @@ export function useTransactionLifecycleSync(): void {
     const invalidate = (transactionId?: string) => {
       if (transactionId) {
         queryClient.invalidateQueries({
-          queryKey: ['transactions', transactionId],
+          queryKey: [TransactionsCache.Key, transactionId],
         });
       }
-      queryClient.invalidateQueries({ queryKey: ['all-transactions'] });
       queryClient.invalidateQueries({
-        queryKey: ['unacknowledged-transactions-count'],
+        queryKey: [TransactionsCache.AllTransactionsKey],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [TransactionsCache.UnacknowledgedCountKey],
       });
     };
 

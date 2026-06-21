@@ -38,7 +38,7 @@ import {
 import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
-import { useTransactionsCache } from '../transactions/transaction-hooks';
+import { TransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
@@ -582,7 +582,6 @@ export function useProcessCashuReceiveQuoteTasks() {
     useGetCashuAccountByMintUrlAndCurrency();
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
-  const transactionsCache = useTransactionsCache();
   const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
@@ -606,7 +605,9 @@ export function useProcessCashuReceiveQuoteTasks() {
         // transaction cache here so that it starts refetching the transaction as soon as possible
         // without relying on realtime notification which might be delayed when reconnecting due to
         // the app being in background.
-        transactionsCache.invalidateTransaction(data.quote.transactionId);
+        queryClient.invalidateQueries({
+          queryKey: [TransactionsCache.Key, data.quote.transactionId],
+        });
         cashuReceiveQuoteCache.updateIfExists(data.quote);
         pendingQuotesCache.update(data.quote);
       }
