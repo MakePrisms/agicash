@@ -55,15 +55,17 @@ The verify URL contains an XChaCha20-Poly1305 encrypted blob (server-side `LNURL
 ## Files
 
 ```
-app/features/receive/
-├── lightning-address-service.ts                 # Central orchestrator (all 3 LNURL steps)
-├── cashu-receive-quote-service.server.ts        # Server-side Cashu quote creation
-├── cashu-receive-quote-repository.server.ts     # Server-side Cashu DB persistence
-├── spark-receive-quote-service.server.ts        # Server-side Spark quote creation
-├── spark-receive-quote-repository.server.ts     # Server-side Spark DB persistence
-
 app/routes/
 ├── [.]well-known.lnurlp.$username.ts            # LUD-16 discovery
 ├── api.lnurlp.callback.$userId.ts               # LUD-06 callback (invoice creation)
 └── api.lnurlp.verify.$encryptedQuoteData.ts     # LUD-21 verification
+
+app/features/receive/
+└── lnurl-verify-token.server.ts                 # XChaCha20-Poly1305 verify-token codec (encode/decode LnurlVerifyRef)
+
+app/features/shared/
+└── sdk.server.ts                                # getServerSdk — server-mode SDK singleton
+
+packages/wallet-sdk/src/
+└── server-sdk.ts                                # ServerSdk — resolveLightningAddress / createLightningReceiveQuote / getLightningReceiveStatus
 ```

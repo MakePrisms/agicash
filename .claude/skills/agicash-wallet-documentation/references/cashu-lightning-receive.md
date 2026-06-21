@@ -125,7 +125,7 @@ app/features/receive/
 ├── cashu-receive-quote-service.ts            # Lifecycle management
 ├── cashu-receive-quote-repository.ts
 ├── cashu-receive-quote-hooks.ts
-├── cashu-receive-quote-service.server.ts     # Server-side service (Lightning Address)
-├── cashu-receive-quote-repository.server.ts  # Server-side repo (create-only, no decrypt)
 └── cashu-token-melt-data.ts                  # CashuTokenMeltData schema (shared with SparkReceiveQuote)
 ```
+
+Server-side Lightning Address receive (formerly `cashu-receive-quote-{service,repository}.server.ts`) is now handled by `ServerSdk` in `packages/wallet-sdk/src/server-sdk.ts`, called via `getServerSdk` in `app/features/shared/sdk.server.ts`.

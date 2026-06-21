@@ -1,6 +1,6 @@
 ---
 name: lnurl-test
-description: Validation tool for Lightning Address endpoints. Use after modifying Lightning Address routes (app/routes/[.]well-known.*, app/routes/api.lnurlp.*) or lightning-address-service.ts to verify LUD-16, LUD-06, and LUD-21 endpoints still work.
+description: Validation tool for Lightning Address endpoints. Use after modifying Lightning Address routes (app/routes/[.]well-known.*, app/routes/api.lnurlp.*), the verify-token codec (app/features/receive/lnurl-verify-token.server.ts), or the ServerSdk server ops (packages/wallet-sdk/src/server-sdk.ts) to verify LUD-16, LUD-06, and LUD-21 endpoints still work.
 argument-hint: [username] or [on <url> with username <name>]
 ---
 
@@ -132,7 +132,9 @@ TEST: SPARK Account
 | `app/routes/[.]well-known.lnurlp.$username.ts` | LUD-16 endpoint |
 | `app/routes/api.lnurlp.callback.$userId.ts` | LUD-06 callback |
 | `app/routes/api.lnurlp.verify.$encryptedQuoteData.ts` | LUD-21 verify |
-| `app/features/receive/lightning-address-service.tsx` | Core LNURL service |
+| `app/features/receive/lnurl-verify-token.server.ts` | XChaCha20-Poly1305 verify-token codec (encode/decode `LnurlVerifyRef`) |
+| `app/features/shared/sdk.server.ts` | `getServerSdk` — server-mode SDK singleton |
+| `packages/wallet-sdk/src/server-sdk.ts` | `ServerSdk` — three server ops: `resolveLightningAddress` / `createLightningReceiveQuote` / `getLightningReceiveStatus` |
 
 ## Notes
 
