@@ -15,7 +15,7 @@ import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { getDefaultUnit } from '../shared/currencies';
 import { DomainError } from '../shared/error';
 import { useInitiateTransfer } from './transfer-hooks';
-import type { TransferQuote } from './transfer-service';
+import type { TransferQuote } from '@agicash/wallet-sdk';
 
 type Props = {
   quote: TransferQuote;

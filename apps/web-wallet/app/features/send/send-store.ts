@@ -8,14 +8,16 @@ import type {
 import type { Contact } from '../contacts/contact';
 import type { GiftCardInfo } from '../gift-cards/gift-card-config';
 import { DomainError } from '../shared/error';
-import type { CashuLightningQuote } from './cashu-send-quote-service';
+import type {
+  CashuLightningQuote,
+  SparkLightningQuote,
+} from '@agicash/wallet-sdk';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
 import { findMatchingOfferOrGiftCardAccount } from './find-matching-offer-or-gift-card-account';
 import {
   type SendDestination,
   resolveSendDestination,
 } from './resolve-destination';
-import type { SparkLightningQuote } from './spark-send-quote-service';
 
 /**
  * Returns the default send type based on account type.
