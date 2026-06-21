@@ -19,7 +19,6 @@ import {
 } from '~/lib/cashu';
 import type { CashuAccount } from '../accounts/account';
 import {
-  useAccountsCache,
   useGetCashuAccount,
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
@@ -197,14 +196,11 @@ function useUnresolvedCashuSendQuotes() {
 
 function usePendingMeltQuotes() {
   const unresolvedCashuSendQuotes = useUnresolvedCashuSendQuotes();
-  const accountsCache = useAccountsCache();
+  const getCashuAccount = useGetCashuAccount();
 
   return useMemo(() => {
     return unresolvedCashuSendQuotes.map((q) => {
-      const account = accountsCache.get(q.accountId);
-      if (!account || account.type !== 'cashu') {
-        throw new Error(`Cashu account not found for send quote: ${q.id}`);
-      }
+      const account = getCashuAccount(q.accountId);
       return {
         id: q.quoteId,
         mintUrl: account.mintUrl,
@@ -213,7 +209,7 @@ function usePendingMeltQuotes() {
         inputAmount: sumProofs(q.proofs),
       };
     });
-  }, [unresolvedCashuSendQuotes, accountsCache]);
+  }, [unresolvedCashuSendQuotes, getCashuAccount]);
 }
 /**
  * Hook that returns a cashu send quote change handler.

@@ -2,7 +2,6 @@ import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { AccountRepository } from '~/features/accounts/account-repository';
-import { AccountService } from '~/features/accounts/account-service';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
@@ -54,7 +53,6 @@ const getClaimCashuTokenService = async () => {
     getSparkWalletMnemonic,
     './.spark-data',
   );
-  const accountService = new AccountService(accountRepository, queryClient);
   const receiveSwapRepository = new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,
@@ -88,7 +86,6 @@ const getClaimCashuTokenService = async () => {
   return new ClaimCashuTokenService(
     queryClient,
     accountRepository,
-    accountService,
     receiveSwapService,
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,

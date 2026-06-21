@@ -2,10 +2,6 @@ import { agicashRealtimeClient } from '~/features/agicash-db/database.client';
 import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
 import {
-  useAccountChangeHandlers,
-  useAccountsCache,
-} from '../accounts/account-hooks';
-import {
   useContactChangeHandlers,
   useContactsCache,
 } from '../contacts/contact-hooks';
@@ -90,7 +86,6 @@ function useTrackDatabaseChanges({ handlers, onConnected }: Props) {
 }
 
 export const useTrackWalletChanges = () => {
-  const accountChangeHandlers = useAccountChangeHandlers();
   const transactionChangeHandlers = useTransactionChangeHandlers();
   const cashuReceiveQuoteChangeHandlers = useCashuReceiveQuoteChangeHandlers();
   const cashuReceiveSwapChangeHandlers = useCashuReceiveSwapChangeHandlers();
@@ -101,7 +96,6 @@ export const useTrackWalletChanges = () => {
   const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
   const userChangeHandlers = useUserChangeHandlers();
 
-  const accountsCache = useAccountsCache();
   const transactionsCache = useTransactionsCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
   const pendingCashuReceiveQuotesCache = usePendingCashuReceiveQuotesCache();
@@ -117,7 +111,6 @@ export const useTrackWalletChanges = () => {
 
   useTrackDatabaseChanges({
     handlers: [
-      ...accountChangeHandlers,
       ...transactionChangeHandlers,
       ...cashuReceiveQuoteChangeHandlers,
       ...cashuReceiveSwapChangeHandlers,
@@ -132,7 +125,6 @@ export const useTrackWalletChanges = () => {
       // Makes sure that data is refetched to get the latest updates from the database.
       // This handles possibly missed updates while the realtime was not connected yet
       // or while it was reconnecting.
-      accountsCache.invalidate();
       transactionsCache.invalidate();
       cashuReceiveQuoteCache.invalidate();
       pendingCashuReceiveQuotesCache.invalidate();

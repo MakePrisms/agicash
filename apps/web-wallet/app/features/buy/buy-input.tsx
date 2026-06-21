@@ -46,7 +46,7 @@ export default function BuyInput() {
   const setBuyAccount = useBuyStore((s) => s.setAccount);
   const getBuyQuote = useBuyStore((s) => s.getBuyQuote);
   const status = useBuyStore((s) => s.status);
-  const { data: accounts } = useAccounts();
+  const accounts = useAccounts();
 
   const {
     rawInputValue,

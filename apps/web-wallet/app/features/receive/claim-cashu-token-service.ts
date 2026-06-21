@@ -2,9 +2,9 @@ import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
+import { getSdk } from '~/lib/sdk';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
-import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
@@ -31,21 +31,16 @@ type ClaimTokenResult =
   | { success: false; message: string };
 
 export class ClaimCashuTokenService {
-  private readonly accountsCache: AccountsCache;
-
   constructor(
     private readonly queryClient: QueryClient,
     private readonly accountRepository: AccountRepository,
-    private readonly accountService: AccountService,
     private readonly receiveSwapService: CashuReceiveSwapService,
     private readonly cashuReceiveQuoteService: CashuReceiveQuoteService,
     private readonly sparkReceiveQuoteService: SparkReceiveQuoteService,
     private readonly receiveCashuTokenService: ReceiveCashuTokenService,
     private readonly receiveCashuTokenQuoteService: ReceiveCashuTokenQuoteService,
     private readonly userService: UserService,
-  ) {
-    this.accountsCache = new AccountsCache(queryClient);
-  }
+  ) {}
 
   /**
    * Claims the cashu token for the user.
@@ -86,12 +81,7 @@ export class ClaimCashuTokenService {
     token: Token,
     claimTo: 'cashu' | 'spark',
   ): Promise<ClaimTokenResult> {
-    const accounts = await this.queryClient.fetchQuery(
-      accountsQueryOptions({
-        userId: user.id,
-        accountRepository: this.accountRepository,
-      }),
-    );
+    const accounts = await this.accountRepository.getAllActive(user.id);
     const extendedAccounts = AccountService.getExtendedAccounts(user, accounts);
     const preferredReceiveAccountId =
       claimTo === 'spark'
@@ -118,11 +108,7 @@ export class ClaimCashuTokenService {
     }
 
     if (receiveAccount.isUnknown && receiveAccount.type === 'cashu') {
-      const addedAccount = await this.accountService.addCashuAccount({
-        userId: user.id,
-        account: receiveAccount,
-      });
-      this.accountsCache.upsert(addedAccount);
+      const addedAccount = await getSdk().accounts.add(receiveAccount);
       receiveAccount = { ...receiveAccount, ...addedAccount };
     }
 
@@ -150,7 +136,6 @@ export class ClaimCashuTokenService {
         token,
         account: receiveAccount as CashuAccount,
       });
-      this.accountsCache.upsert(account);
 
       // We want to fail the entire claim flow if completing the swap fails only if the swap is in failed state (non
       // recoverable error). Otherwise, the background processing can pick it up and retry when the app loads. If the
@@ -158,9 +143,7 @@ export class ClaimCashuTokenService {
       // credited with some delay. If the background processing fails to complete it, the app already has a way to
       // handle the failed swap.
       const result = await this.tryCompleteSwap(account, swap);
-      if (result.success) {
-        this.accountsCache.upsert(result.account);
-      } else if (result.swap?.state === 'FAILED') {
+      if (!result.success && result.swap?.state === 'FAILED') {
         return {
           success: false,
           message: result.swap.failureReason,
@@ -198,10 +181,7 @@ export class ClaimCashuTokenService {
       // can pick it up and retry when the app loads. If the background processing manages to complete it, it would just
       // be a minor UX issue because the balance would be credited with some delay. If the background processing fails to
       // complete it, the app already has a way to handle the failed receive.
-      const result = await this.tryCompleteReceive(quotes);
-      if (result.success && result.account) {
-        this.accountsCache.upsert(result.account);
-      }
+      await this.tryCompleteReceive(quotes);
     }
 
     return {

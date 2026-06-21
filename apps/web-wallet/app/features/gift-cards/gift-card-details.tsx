@@ -30,7 +30,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
   const isTransitioning = useViewTransitionState('/gift-cards');
 
-  const { data: giftCardAccounts } = useAccounts({
+  const giftCardAccounts = useAccounts({
     purpose: 'gift-card',
   });
 

@@ -16,7 +16,8 @@ import {
   getSparkIdentityPublicKeyFromMnemonic,
 } from '~/lib/spark';
 import { getSeedPhraseDerivationPath } from '../accounts/account-cryptography';
-import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
+import { useAccounts } from '../accounts/account-hooks';
+import { setLiveSparkBalance } from '../accounts/live-spark-balances';
 import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { getFeatureFlag } from './feature-flags';
 
@@ -178,11 +179,10 @@ export async function getInitializedSparkWallet(
 }
 
 export function useTrackAndUpdateSparkAccountBalances() {
-  const { data: sparkOnlineAccounts } = useAccounts({
+  const sparkOnlineAccounts = useAccounts({
     type: 'spark',
     isOnline: true,
   });
-  const accountCache = useAccountsCache();
 
   useEffect(() => {
     const registrations = sparkOnlineAccounts.map((account) => {
@@ -206,10 +206,7 @@ export function useTrackAndUpdateSparkAccountBalances() {
                 currency: 'BTC',
                 unit: 'sat',
               }) as Money;
-              accountCache.updateSparkAccountBalance({
-                accountId: account.id,
-                balance,
-              });
+              setLiveSparkBalance(account.id, balance);
             });
           }
         },
@@ -226,5 +223,5 @@ export function useTrackAndUpdateSparkAccountBalances() {
           });
       }
     };
-  }, [sparkOnlineAccounts, accountCache]);
+  }, [sparkOnlineAccounts]);
 }
