@@ -4,52 +4,59 @@
  */
 
 import { Money } from '@agicash/money';
-import { agicashDbServer } from '~/features/agicash-db/database.server';
-import { LightningAddressService } from '~/features/receive/lightning-address-service';
-import { getQueryClient } from '~/features/shared/query-client';
+import { DomainError, NotFoundError } from '@agicash/wallet-sdk';
+import { getLnurlVerifyTokenCodec } from '~/features/receive/lnurl-verify-token.server';
+import { getServerSdk } from '~/features/shared/sdk.server';
+import { getCanonicalOrigin } from '~/lib/canonical-origin.server';
+import type { LNURLError, LNURLPayResult } from '~/lib/lnurl/types';
 import type { Route } from './+types/api.lnurlp.callback.$userId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const userId = params.userId;
-
   const url = new URL(request.url);
   const amountMsat = url.searchParams.get('amount');
+  const origin = getCanonicalOrigin(url.origin);
+
+  let body: LNURLPayResult | LNURLError;
 
   if (!amountMsat || Number.isNaN(Number(amountMsat))) {
-    return new Response(
-      JSON.stringify({ status: 'ERROR', reason: 'Invalid amount' }),
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      },
-    );
+    body = { status: 'ERROR', reason: 'Invalid amount' };
+  } else {
+    try {
+      const result = await getServerSdk(
+        new URL(origin).host,
+      ).createLightningReceiveQuote({
+        userId: params.userId,
+        amount: new Money({
+          amount: amountMsat,
+          currency: 'BTC',
+          unit: 'msat',
+        }),
+        bypassAmountValidation:
+          url.searchParams.get('bypassAmountValidation') === 'true',
+      });
+
+      const token = getLnurlVerifyTokenCodec().encode(result.verify);
+      body = {
+        pr: result.paymentRequest,
+        verify: `${origin}/api/lnurlp/verify/${token}`,
+        routes: [],
+      };
+    } catch (error) {
+      if (
+        error instanceof DomainError &&
+        error.code === 'amount_out_of_range'
+      ) {
+        body = { status: 'ERROR', reason: error.message };
+      } else if (error instanceof NotFoundError) {
+        body = { status: 'ERROR', reason: 'not found' };
+      } else {
+        console.error('Error processing LNURL-pay callback', { cause: error });
+        body = { status: 'ERROR', reason: 'Internal server error' };
+      }
+    }
   }
 
-  const amount = new Money({
-    amount: amountMsat,
-    currency: 'BTC',
-    unit: 'msat',
-  });
-
-  const bypassAmountValidation =
-    url.searchParams.get('bypassAmountValidation') === 'true';
-
-  const queryClient = getQueryClient();
-  const lightningAddressService = new LightningAddressService(
-    request,
-    agicashDbServer,
-    queryClient,
-    { bypassAmountValidation },
-  );
-
-  const response = await lightningAddressService.handleLnurlpCallback(
-    userId,
-    amount,
-  );
-
-  return new Response(JSON.stringify(response), {
+  return new Response(JSON.stringify(body), {
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
