@@ -2,10 +2,6 @@ import { agicashRealtimeClient } from '~/features/agicash-db/database.client';
 import { useSupabaseRealtime } from '~/lib/supabase';
 import { useLatest } from '~/lib/use-latest';
 import {
-  useContactChangeHandlers,
-  useContactsCache,
-} from '../contacts/contact-hooks';
-import {
   useCashuReceiveQuoteCache,
   useCashuReceiveQuoteChangeHandlers,
   usePendingCashuReceiveQuotesCache,
@@ -87,7 +83,6 @@ export const useTrackWalletChanges = () => {
   const cashuReceiveSwapChangeHandlers = useCashuReceiveSwapChangeHandlers();
   const cashuSendQuoteChangeHandlers = useCashuSendQuoteChangeHandlers();
   const cashuSendSwapChangeHandlers = useCashuSendSwapChangeHandlers();
-  const contactChangeHandlers = useContactChangeHandlers();
   const sparkReceiveQuoteChangeHandlers = useSparkReceiveQuoteChangeHandlers();
   const sparkSendQuoteChangeHandlers = useSparkSendQuoteChangeHandlers();
 
@@ -98,7 +93,6 @@ export const useTrackWalletChanges = () => {
   const unresolvedCashuSendQuotesCache = useUnresolvedCashuSendQuotesCache();
   const cashuSendSwapCache = useCashuSendSwapCache();
   const unresolvedCashuSendSwapsCache = useUnresolvedCashuSendSwapsCache();
-  const contactsCache = useContactsCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const pendingSparkReceiveQuotesCache = usePendingSparkReceiveQuotesCache();
   const unresolvedSparkSendQuotesCache = useUnresolvedSparkSendQuotesCache();
@@ -110,7 +104,6 @@ export const useTrackWalletChanges = () => {
       ...cashuReceiveSwapChangeHandlers,
       ...cashuSendQuoteChangeHandlers,
       ...cashuSendSwapChangeHandlers,
-      ...contactChangeHandlers,
       ...sparkReceiveQuoteChangeHandlers,
       ...sparkSendQuoteChangeHandlers,
     ],
@@ -125,7 +118,6 @@ export const useTrackWalletChanges = () => {
       unresolvedCashuSendQuotesCache.invalidate();
       cashuSendSwapCache.invalidate();
       unresolvedCashuSendSwapsCache.invalidate();
-      contactsCache.invalidate();
       sparkReceiveQuoteCache.invalidate();
       pendingSparkReceiveQuotesCache.invalidate();
       unresolvedSparkSendQuotesCache.invalidate();
