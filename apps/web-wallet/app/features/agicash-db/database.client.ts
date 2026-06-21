@@ -32,7 +32,8 @@ if (!supabaseAnonKey) {
 
 /**
  * The client-side Supabase database client.
- * If you need to use a client on the server, which bypasses RLS, use `agicashDbServer` instead.
+ * For server-side DB access (bypassing RLS) use the server-mode SDK via
+ * `getServerSdk` (`~/features/shared/sdk.server`).
  */
 export const agicashDbClient = createClient<Database>(
   supabaseUrl,
