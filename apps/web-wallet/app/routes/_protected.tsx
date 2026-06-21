@@ -12,7 +12,6 @@ import {
 } from '~/features/user/pending-terms-storage';
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
 import { shouldAcceptTerms } from '~/features/user/user';
-import { UserCache } from '~/features/user/user-hooks';
 import { Wallet } from '~/features/wallet/wallet';
 import { initSdk } from '~/lib/sdk';
 import { ensureBreezWasm } from '~/lib/spark';
@@ -111,7 +110,12 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     });
   }
 
-  queryClient.setQueryData([UserCache.Key], user);
+  // Prime the user store synchronously so the child route guards
+  // (accept-terms / verify-email) — which run in this middleware chain BEFORE
+  // any component renders — can read it via getUserFromCacheOrThrow()
+  // (sdk.user.current.get()). The render path self-seeds via
+  // useStoreSelect → toPromise(); this covers the pre-render guard reads.
+  sdk.user.current.set(() => user);
 
   const shouldRedirectToAcceptTerms =
     shouldAcceptTerms(user) && !isAcceptTermsRoute;

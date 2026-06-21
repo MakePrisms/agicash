@@ -1,69 +1,31 @@
 import type { Currency } from '@agicash/money';
-import {
-  type QueryClient,
-  useMutation,
-  useSuspenseQuery,
-} from '@tanstack/react-query';
-import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
-import { getQueryClient } from '~/features/shared/query-client';
-import { useAuthActions, useAuthState } from '~/features/user/auth';
+import { useMutation } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useAuthActions } from '~/features/user/auth';
 import { getSdk } from '~/lib/sdk';
+import { useStoreSelect } from '~/lib/store-hooks';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
-import type { AgicashDbUser } from '../agicash-db/database';
 import type { User } from './user';
-import {
-  ReadUserRepository,
-  type UpdateUser,
-  useReadUserRepository,
-  useWriteUserRepository,
-} from './user-repository';
-import { useUserService } from './user-service';
 
-export class UserCache {
-  public static Key = 'user';
-
-  constructor(private readonly queryClient: QueryClient) {}
-
-  set(user: User) {
-    this.queryClient.setQueryData([UserCache.Key], user);
+/**
+ * Reads the current user from the `sdk.user.current` store, throwing when the
+ * store value is null. The store is `User | null` (null when signed out), but
+ * every consumer of these readers runs under `<Wallet>` where the user is
+ * always present — matching the base behavior of throwing in an anonymous
+ * context.
+ */
+const requireUser = (user: User | null): User => {
+  if (!user) {
+    throw new Error('Cannot use useUser hook in anonymous context');
   }
-
-  get() {
-    return this.queryClient.getQueryData<User>([UserCache.Key]);
-  }
-
-  invalidate() {
-    return this.queryClient.invalidateQueries({ queryKey: [UserCache.Key] });
-  }
-}
-
-export function useUserCache() {
-  const queryClient = useQueryClient();
-  return useMemo(() => new UserCache(queryClient), [queryClient]);
-}
-
-export function useUserChangeHandlers() {
-  const userCache = useUserCache();
-
-  return [
-    {
-      event: 'USER_UPDATED',
-      handleEvent: async (payload: AgicashDbUser) => {
-        userCache.set(ReadUserRepository.toUser(payload));
-      },
-    },
-  ];
-}
-
-export const getUserFromCache = (
-  queryClient: QueryClient = getQueryClient(),
-) => {
-  return queryClient.getQueryData<User>([UserCache.Key]) ?? null;
+  return user;
 };
 
-export const getUserFromCacheOrThrow = () => {
+export const getUserFromCache = (): User | null =>
+  getSdk().user.current.get() ?? null;
+
+export const getUserFromCacheOrThrow = (): User => {
   const user = getUserFromCache();
   if (!user) {
     throw new Error('User not found');
@@ -71,42 +33,15 @@ export const getUserFromCacheOrThrow = () => {
   return user;
 };
 
-const userQueryOptions = <TData = User>({
-  userId,
-  userRepository,
-  select,
-}: {
-  userId: string;
-  userRepository: ReadUserRepository;
-  select?: (data: User) => TData;
-}) => ({
-  queryKey: [UserCache.Key],
-  queryFn: () => userRepository.get(userId),
-  select,
-});
-
 /**
  * This hook returns the logged in user data.
- * @param select - This option can be used to transform or select a part of the data returned by the query function. If not provided, the user data will be returned as is.
+ * @param select - This option can be used to transform or select a part of the data returned by the store. If not provided, the user data will be returned as is.
  * @returns The selected user data.
  */
-export const useUser = <TData = User>(
-  select?: (data: User) => TData,
-): TData => {
-  const authState = useAuthState();
-  const authUser = authState.user;
-  if (!authUser) {
-    throw new Error('Cannot use useUser hook in anonymous context');
-  }
-
-  const userRepository = useReadUserRepository();
-
-  const { data } = useSuspenseQuery(
-    userQueryOptions({ userId: authUser.id, userRepository, select }),
+export const useUser = <TData = User>(select?: (data: User) => TData): TData =>
+  useStoreSelect(getSdk().user.current, (user) =>
+    select ? select(requireUser(user)) : (requireUser(user) as TData),
   );
-
-  return data;
-};
 
 const isDevelopmentMode = import.meta.env.MODE === 'development';
 
@@ -224,67 +159,24 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
   return mutateAsync;
 };
 
-const useUpdateUser = () => {
-  const queryClient = useQueryClient();
-  const userId = useUser((user) => user.id);
-  const userRepository = useWriteUserRepository();
-
-  return useMutation({
-    mutationFn: (updates: UpdateUser) => userRepository.update(userId, updates),
-    onSuccess: (data) => {
-      queryClient.setQueryData([UserCache.Key], data);
-    },
-  });
-};
-
-export const useSetDefaultCurrency = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
-
-  return useCallback(
-    (currency: Currency) => updateUser({ defaultCurrency: currency }),
-    [updateUser],
+export const useSetDefaultCurrency = () =>
+  useCallback(
+    (currency: Currency) => getSdk().user.setDefaultCurrency(currency),
+    [],
   );
-};
 
-export const useSetDefaultAccount = () => {
-  const userService = useUserService();
-  const user = useUserRef();
-  const queryClient = useQueryClient();
-
-  const { mutateAsync } = useMutation({
-    mutationFn: (account: Account) =>
-      userService.setDefaultAccount(user.current, account),
-    onSuccess: (data) => {
-      queryClient.setQueryData([UserCache.Key], data);
-    },
-  });
-
-  return mutateAsync;
-};
-
-export const useUpdateUsername = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
-
-  return useCallback(
-    (username: string) => updateUser({ username }),
-    [updateUser],
+export const useSetDefaultAccount = () =>
+  useCallback(
+    (account: Account) => getSdk().user.setDefaultAccount({ account }),
+    [],
   );
-};
 
-export const useAcceptTerms = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
+export const useUpdateUsername = () =>
+  useCallback((username: string) => getSdk().user.updateUsername(username), []);
 
-  return useCallback(
-    ({
-      walletTerms,
-      giftCardTerms,
-    }: { walletTerms?: boolean; giftCardTerms?: boolean }) => {
-      const now = new Date().toISOString();
-      const updates: UpdateUser = {};
-      if (walletTerms) updates.termsAcceptedAt = now;
-      if (giftCardTerms) updates.giftCardMintTermsAcceptedAt = now;
-      return updateUser(updates);
-    },
-    [updateUser],
+export const useAcceptTerms = () =>
+  useCallback(
+    (params: { walletTerms?: boolean; giftCardTerms?: boolean }) =>
+      getSdk().user.acceptTerms(params),
+    [],
   );
-};

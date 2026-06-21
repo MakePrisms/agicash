@@ -9,7 +9,6 @@ import type { AccountRepository } from '../accounts/account-repository';
 import { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
 import type { User } from '../user/user';
-import { UserCache } from '../user/user-hooks';
 import type { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
@@ -119,10 +118,9 @@ export class ClaimCashuTokenService {
       // We don't want to fail the entire claim flow if setting the default account fails because it's not
       // critical and the user can still claim the token, it just won't be as nice UX because the balance
       // when home page loads might not show the correct currency.
-      const result = await this.trySetDefaultAccount(user, receiveAccount);
-      if (result.success) {
-        this.queryClient.setQueryData([UserCache.Key], result.user);
-      }
+      // The user store is owned by the SDK's setDefaultAccount/fanout, so no
+      // explicit cache write is needed here.
+      await this.trySetDefaultAccount(user, receiveAccount);
     }
 
     const isSameAccountClaim = isClaimingToSameCashuAccount(
