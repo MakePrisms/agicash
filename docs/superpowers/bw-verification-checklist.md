@@ -1,4 +1,23 @@
-# Variant B (store-based) — browser/live verification checklist (OWED)
+# Variant B (store-based) — browser/live verification checklist
+
+## ✅ VERIFIED 2026-06-21 (local stack: Docker + `bun supabase start` + dev server over http://localhost:3000, fresh isolated browser context, Chrome DevTools)
+The highest-value B-specific risks are cleared:
+1. **App boots + hydrates** — public `/home`, `/login`, `/signup` render clean (only cosmetic Google-font preload warnings, zero errors).
+2. **Guest sign-in works end-to-end** — OpenSecret guest creation + attestation + enclave key-exchange + Supabase session + `auth.ensureUser` → advanced to the terms gate.
+3. **BW-T7 sync-route-guard fix CONFIRMED** — the `_protected.accept-terms` route (which calls `getUserFromCacheOrThrow()` → `sdk.user.current.get()` synchronously in middleware) rendered WITHOUT a `'User not found'` throw → the `sdk.user.current.set()` middleware seed works in the browser.
+4. **NO empty-store flash (the #1 B risk / load-before-serve guarantee)** — after terms acceptance the wallet home loads with the accounts store POPULATED: balance ₿0/$0.00 renders, default account resolved (BTC checked in the currency dialog), and `/settings/accounts` lists the real account entities (Bitcoin/Spark **Default** + Testnut BTC, with ids + balances). `useBalance`/`useDefaultAccount`/`useStoreSelect` list derivations all work — the exact code path that was Variant A's `ensureLoaded` bug, clean in B. Equivalent in depth to A's local run that surfaced that bug.
+5. **Zero console errors** on the wallet home, `/settings/accounts`, and `/transactions`.
+6. **App-QueryClient reads work** — USD rate conversion (`~$0.00`) renders; the transactions infinite list (`sdk.transactions.list`) renders its empty state ("No transactions yet").
+
+## STILL OWED (needs funded wallets / a 2nd instance / Lightning infra — not achievable in a quick local guest session)
+- Lightning send/receive terminal transitions + **pay→live-balance** (needs a funded source / Breez regtest funds); cashu receive via Testnut.
+- The 4 active trackers' terminal callbacks via lifecycle events (verified precise *at source*; confirm in a live money flow) + the intermediate-PENDING-liveness UX judgment.
+- 2-tab leader election + ≤10s failover; kill-leader-mid-flow (shared base behavior — B didn't change it).
+- reconnect → `onCatchUp` store refetch (airplane-mode).
+- deep-link `?claimTo` + interactive token claim with real tokens (incl. the BW-T6 claim-to-new-mint cross-feature repoint).
+- Google OAuth; password-reset; `/lnurl-test`; LAN dev / Vercel-preview `location.host`.
+
+---
 
 > Built headless + gate-green + per-task/whole-branch reviewed clean on `sdkx/store` (B-engine tip `8f06fab7`, B-web tip `f0de923a`). This checklist is the **owed browser/live verification** — it cannot run in-loop (needs a live stack: Docker + `bun supabase start` + dev server + `VITE_BREEZ_API_KEY` + Breez regtest). Run via Chrome DevTools MCP + the `verify`/`run` skills, exactly as Variant A's `aw-verification-checklist.md` was run. Do NOT mark B "done" or push until these pass.
 
