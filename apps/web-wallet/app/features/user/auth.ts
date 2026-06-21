@@ -1,17 +1,4 @@
-import {
-  type UserResponse,
-  fetchUser,
-  confirmPasswordReset as osConfirmPasswordReset,
-  convertGuestToUserAccount as osConvertGuestToFullAccount,
-  initiateGoogleAuth as osInitiateGoogleAuth,
-  requestPasswordReset as osRequestPasswordReset,
-  signIn as osSignIn,
-  signInGuest as osSignInGuest,
-  signOut as osSignOut,
-  signUp as osSignUp,
-  signUpGuest as osSignUpGuest,
-  verifyEmail as osVerifyEmail,
-} from '@agicash/opensecret';
+import { type UserResponse, fetchUser } from '@agicash/opensecret';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import {
@@ -23,14 +10,22 @@ import { jwtDecode } from 'jwt-decode';
 import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import { getQueryClient } from '~/features/shared/query-client';
-import { useLongTimeout } from '~/hooks/use-long-timeout';
-import { generateRandomPassword } from '~/lib/password-generator';
-import { computeSHA256 } from '@agicash/ecies';
-import { guestAccountStorage } from './guest-account-storage';
+import { disposeSdk, initSdk } from '~/lib/sdk';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 import { sessionHintCookie } from './session-hint-cookie';
 
 export type AuthUser = UserResponse['user'];
+
+/**
+ * Resolve the SDK for an auth action. Auth actions run on both `_auth`
+ * (login/signup) and `_protected` routes; only `_protected` kicks off `initSdk`,
+ * and `signOut` disposes the singleton. `initSdk` is idempotent and re-creatable
+ * after disposal, so awaiting it here guarantees a live instance regardless of
+ * route or prior sign-out. The host matches the source `_protected` uses for
+ * `domain` (read at call time, never at module top level, so SSR never touches
+ * `window`).
+ */
+const getAuthSdk = () => initSdk(location.host);
 
 type AuthState =
   | {
@@ -214,7 +209,8 @@ export const useAuthActions = (): AuthActions => {
 
   const signUp = useCallback(
     async (email: string, password: string) => {
-      await osSignUp(email, password, '');
+      const sdk = await getAuthSdk();
+      await sdk.auth.signUp({ email, password });
       await refreshSession();
     },
     [refreshSession],
@@ -222,15 +218,8 @@ export const useAuthActions = (): AuthActions => {
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      await osSignIn(email, password);
-      await refreshSession();
-    },
-    [refreshSession],
-  );
-
-  const signInGuest = useCallback(
-    async (id: string, password: string) => {
-      await osSignInGuest(id, password);
+      const sdk = await getAuthSdk();
+      await sdk.auth.signIn({ email, password });
       await refreshSession();
     },
     [refreshSession],
@@ -238,7 +227,11 @@ export const useAuthActions = (): AuthActions => {
 
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
-      await osSignOut();
+      const sdk = await getAuthSdk();
+      await sdk.auth.signOut();
+      // Dispose AFTER signOut so the auth domain (which owns the session-expiry
+      // timer + enclave teardown) runs its sign-out path on a live instance.
+      await disposeSdk();
       await refreshSession(options.redirectTo);
       Sentry.setUser(null);
       queryClient.clear();
@@ -247,9 +240,10 @@ export const useAuthActions = (): AuthActions => {
   );
 
   const initiateGoogleAuth = useCallback(async () => {
-    const response = await osInitiateGoogleAuth('');
+    const sdk = await getAuthSdk();
+    const { authUrl } = await sdk.auth.beginGoogle();
 
-    const authLocation = new URL(response.auth_url);
+    const authLocation = new URL(authUrl);
     const stateParam = authLocation.searchParams.get('state');
     const state = stateParam
       ? JSON.parse(new TextDecoder().decode(decodeURLSafe(stateParam)))
@@ -270,34 +264,38 @@ export const useAuthActions = (): AuthActions => {
   }, []);
 
   const signUpGuest = useCallback(async () => {
-    const existingGuestAccount = guestAccountStorage.get();
-    if (existingGuestAccount) {
-      return signInGuest(
-        existingGuestAccount.id,
-        existingGuestAccount.password,
-      );
-    }
-
-    const createGuestAccount = async () => {
-      const password = await generateRandomPassword(32);
-      const guestAccount = await osSignUpGuest(password, '');
-      guestAccountStorage.store({ id: guestAccount.id, password });
-      await refreshSession();
-    };
-
-    await createGuestAccount();
-  }, [signInGuest, refreshSession]);
+    const sdk = await getAuthSdk();
+    await sdk.auth.signInGuest();
+    await refreshSession();
+  }, [refreshSession]);
 
   const requestPasswordReset = useCallback(async (email: string) => {
-    const secret = await generateRandomPassword(20);
-    const hash = await computeSHA256(secret);
-    await osRequestPasswordReset(email, hash);
-    return { email, secret };
+    const sdk = await getAuthSdk();
+    return sdk.auth.requestPasswordReset({ email });
   }, []);
+
+  const confirmPasswordReset = useCallback(
+    async (
+      email: string,
+      alphanumericCode: string,
+      plaintextSecret: string,
+      newPassword: string,
+    ) => {
+      const sdk = await getAuthSdk();
+      await sdk.auth.confirmPasswordReset({
+        email,
+        code: alphanumericCode,
+        secret: plaintextSecret,
+        newPassword,
+      });
+    },
+    [],
+  );
 
   const verifyEmail = useCallback(
     async (code: string) => {
-      await osVerifyEmail(code);
+      const sdk = await getAuthSdk();
+      await sdk.auth.verifyEmail({ code });
       await refreshSession();
     },
     [refreshSession],
@@ -305,7 +303,8 @@ export const useAuthActions = (): AuthActions => {
 
   const convertGuestToFullAccount = useCallback(
     async (email: string, password: string) => {
-      await osConvertGuestToFullAccount(email, password);
+      const sdk = await getAuthSdk();
+      await sdk.auth.upgradeGuest({ email, password });
       await refreshSession();
     },
     [refreshSession],
@@ -317,7 +316,7 @@ export const useAuthActions = (): AuthActions => {
     signIn,
     signOut,
     requestPasswordReset,
-    confirmPasswordReset: osConfirmPasswordReset,
+    confirmPasswordReset,
     initiateGoogleAuth,
     verifyEmail,
     convertGuestToFullAccount,
@@ -356,74 +355,4 @@ type OpenSecretJwt = {
    * Audience
    */
   aud: 'access' | 'refresh';
-};
-
-const accessTokenKey = 'access_token';
-const refreshTokenKey = 'refresh_token';
-
-const getJwt = (key: string): OpenSecretJwt | null => {
-  const jwt = localStorage.getItem(key);
-  if (!jwt) {
-    return null;
-  }
-  return jwtDecode<OpenSecretJwt>(jwt);
-};
-
-const removeKeys = () => {
-  localStorage.removeItem(accessTokenKey);
-  localStorage.removeItem(refreshTokenKey);
-  sessionHintCookie.clear();
-};
-
-const getRefreshToken = () => getJwt(refreshTokenKey);
-
-const getRemainingSessionTimeInMs = (
-  token: OpenSecretJwt | null,
-): number | null => {
-  if (!token) {
-    return null;
-  }
-  // We are treating the session as expired 5 seconds before the actual expiry just in case
-  const fiveSecondsBeforeExpiry = token.exp - 5;
-  const fiveSecondsBeforeExpiryInMs = fiveSecondsBeforeExpiry * 1000;
-  const remainingTime = fiveSecondsBeforeExpiryInMs - Date.now();
-  return Math.max(remainingTime, 0);
-};
-
-type HandleSessionExpiryProps = {
-  isGuestAccount: boolean;
-  onLogout: () => void;
-};
-
-export const useHandleSessionExpiry = ({
-  isGuestAccount,
-  onLogout,
-}: HandleSessionExpiryProps) => {
-  const { signUpGuest: extendGuestSession, signOut } = useAuthActions();
-  const refreshToken = getRefreshToken();
-  const remainingSessionTime = getRemainingSessionTimeInMs(refreshToken);
-
-  const handleSessionExpiry = async () => {
-    try {
-      if (isGuestAccount) {
-        // Extend guest session will get new extended access and refresh token from Open Secret. The OS code can be seen
-        // here https://github.com/OpenSecretCloud/OpenSecret-SDK/blob/master/src/lib/main.tsx#L441. Because setState is
-        // called after this method is executed the new render will be triggered and useHandleSessionExpiry will be
-        // executed again which will result in new session expiry timeout being set.
-        await extendGuestSession();
-      } else {
-        onLogout();
-        // Open secret is already handling potential errors in signOut method and removes the keys from the storage so
-        // in that case our catch should never be triggered, which is fine. We are leaving it there for the guest use
-        // case and just in case.
-        await signOut();
-      }
-    } catch (e) {
-      console.error('Failed to handle session expiry', { cause: e });
-      removeKeys();
-      window.location.reload();
-    }
-  };
-
-  useLongTimeout(handleSessionExpiry, remainingSessionTime);
 };

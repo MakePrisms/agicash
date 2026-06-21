@@ -1,5 +1,4 @@
 import type { Currency } from '@agicash/money';
-import { requestNewVerificationCode } from '@agicash/opensecret';
 import {
   type QueryClient,
   useMutation,
@@ -9,10 +8,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
+import { getSdk } from '~/lib/sdk';
 import { useLatest } from '~/lib/use-latest';
 import type { Account } from '../accounts/account';
 import type { AgicashDbUser } from '../agicash-db/database';
-import { guestAccountStorage } from './guest-account-storage';
 import type { User } from './user';
 import {
   ReadUserRepository,
@@ -166,12 +165,7 @@ export const useUpgradeGuestToFullAccount = (): ((
         throw new Error('User already has a full account');
       }
 
-      return convertGuestToFullAccount(
-        variables.email,
-        variables.password,
-      ).then(() => {
-        guestAccountStorage.clear();
-      });
+      return convertGuestToFullAccount(variables.email, variables.password);
     },
     scope: {
       id: 'upgrade-guest-to-full-account',
@@ -197,7 +191,7 @@ export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
         throw new Error('Email is already verified');
       }
 
-      return requestNewVerificationCode();
+      return getSdk().auth.requestEmailVerification();
     },
     scope: {
       id: 'request-new-email-verification-code',

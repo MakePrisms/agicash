@@ -1,11 +1,9 @@
 import * as Sentry from '@sentry/react-router';
 import { type PropsWithChildren, useEffect } from 'react';
-import { useToast } from '~/hooks/use-toast';
 import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
 import { agicashRealtimeClient } from '../agicash-db/database.client';
 import { useTrackAndUpdateSparkAccountBalances } from '../shared/spark';
 import { useTheme } from '../theme';
-import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
 import { TaskProcessor, useTakeTaskProcessingLead } from './task-processing';
 import { useTrackWalletChanges } from './use-track-wallet-changes';
@@ -24,7 +22,6 @@ const useSyncThemeWithDefaultCurrency = () => {
 };
 
 export const Wallet = ({ children }: PropsWithChildren) => {
-  const { toast } = useToast();
   const user = useUser();
 
   useEffect(() => {
@@ -38,16 +35,7 @@ export const Wallet = ({ children }: PropsWithChildren) => {
     // Logout handles clearing Sentry user on actual logout.
   }, [user]);
 
-  useHandleSessionExpiry({
-    isGuestAccount: user.isGuest,
-    onLogout: () => {
-      toast({
-        title: 'Session expired',
-        description:
-          'The session has expired. You will be redirected to the login page.',
-      });
-    },
-  });
+  // Session-expiry host effect moves here in BW-T5 (sdk.on('auth:session-expired',...)).
 
   useSyncThemeWithDefaultCurrency();
 
