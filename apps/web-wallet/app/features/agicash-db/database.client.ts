@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { SupabaseRealtimeManager } from '~/lib/supabase';
 import type { Database } from './database';
 import { getSupabaseSessionToken } from './supabase-session';
 
@@ -70,13 +69,3 @@ export const agicashDbClient = createClient<Database>(
     },
   },
 );
-
-/**
- * The client-side Supabase realtime client.
- * Cannot be used on the server.
- */
-export const agicashRealtimeClient = new SupabaseRealtimeManager(
-  agicashDbClient.realtime,
-);
-// biome-ignore lint/suspicious/noExplicitAny: attaching to window for debugging
-(window as any).agicashRealtime = agicashRealtimeClient;

@@ -31,8 +31,23 @@ import { getThemeCookies } from '~/features/theme/theme-cookies.server';
 import { getThemeScript } from '~/features/theme/theme-script';
 import { getCanonicalOrigin } from '~/lib/canonical-origin.server';
 import { WebAssemblyUnavailableError } from '~/lib/spark';
-import { SupabaseRealtimeError } from '~/lib/supabase/supabase-realtime-hooks';
 import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
+
+/**
+ * Error thrown when a Supabase Realtime channel fails to connect.
+ * Defined here because the app-level realtime transport was removed (SDK owns realtime);
+ * the error boundary case is kept so existing errors surface a user-friendly message
+ * rather than the generic fallback. BW-T14 can remove this once the error path is gone.
+ */
+class SupabaseRealtimeError extends Error {
+  constructor(
+    message: string,
+    public readonly originalError?: Error,
+  ) {
+    super(message);
+    this.name = 'SupabaseRealtimeError';
+  }
+}
 import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
 import { LoadingScreen } from './features/loading/LoadingScreen';
