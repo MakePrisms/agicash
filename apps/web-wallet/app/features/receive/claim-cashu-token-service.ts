@@ -1,9 +1,9 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Sdk } from '@agicash/wallet-sdk';
+import type { Ticker } from '@agicash/wallet-sdk';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
-import type { Ticker } from '~/lib/exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import { AccountService } from '../accounts/account-service';

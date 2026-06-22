@@ -1,4 +1,5 @@
 import type { Sdk } from '@agicash/wallet-sdk';
+import type { Ticker } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
   queryOptions,
@@ -6,7 +7,6 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useSdk } from '~/features/shared/use-sdk';
-import type { Ticker } from '~/lib/exchange-rate';
 
 /**
  * Gets the normalized set of tickers to fetch.
