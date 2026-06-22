@@ -1,6 +1,7 @@
+import type { Contact } from '@agicash/wallet-sdk';
 import { z } from 'zod/mini';
 
-export type { Contact } from '@agicash/wallet-sdk';
+export type { Contact };
 
 /** The runtime shape of a contact — `createdAt` is a `Date`. */
 const ContactSchema = z.object({
@@ -15,8 +16,6 @@ const ContactSchema = z.object({
  * Type guard over the runtime contact shape, used to distinguish a Contact from
  * a plain string in send-flow resolution.
  */
-export const isContact = (
-  value: unknown,
-): value is import('@agicash/wallet-sdk').Contact => {
+export const isContact = (value: unknown): value is Contact => {
   return ContactSchema.safeParse(value).success;
 };

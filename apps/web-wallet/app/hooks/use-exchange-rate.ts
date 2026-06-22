@@ -27,6 +27,12 @@ const getNormalizedTickers = (tickers: Ticker[]): Ticker[] => {
   return Array.from(tickerSet).sort();
 };
 
+/**
+ * Query options for fetching exchange rates.
+ * Tickers are normalized before keying the query: each pair's reverse is added
+ * and the list is sorted (via {@link getNormalizedTickers}), so `['BTC-USD']`
+ * and `['USD-BTC']` share the same cache entry.
+ */
 export const exchangeRatesQueryOptions = (
   tickers: Ticker[],
   sdk: Promise<Sdk>,

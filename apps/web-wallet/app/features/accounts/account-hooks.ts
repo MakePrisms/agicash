@@ -115,10 +115,11 @@ export const accountsQueryOptions = ({ sdk }: { sdk: Promise<Sdk> }) => {
     queryKey: [AccountsCache.Key],
     queryFn: async () => (await sdk).accounts.list(),
     staleTime: Number.POSITIVE_INFINITY,
-    // Refetches use `getAllActive`, so any expired account previously in the
-    // cache (lazy-fetched via useAccountOrNull, or just expired before the
-    // realtime ACCOUNT_UPDATED has arrived) would otherwise be wiped. Preserve
-    // anything in oldData that the new fetch didn't return.
+    // Refetches go through `sdk.accounts.list()`, so any expired account
+    // previously in the cache (lazy-fetched via useAccountOrNull, or just
+    // expired before the realtime `account:updated` event has arrived) would
+    // otherwise be wiped. Preserve anything in oldData that the new fetch
+    // didn't return.
     structuralSharing: (oldData, newData) => {
       const oldAccounts = oldData as Account[] | undefined;
       const newAccounts = newData as Account[];
@@ -187,9 +188,9 @@ type UseAccountsSelect<
  * Hook to get the user's accounts, sorted by creation date (oldest first).
  *
  * Note: this hook does not fetch expired accounts from the database — the
- * cache is initially populated by `getAllActive`. Expired accounts only enter
- * the cache when (a) realtime ACCOUNT_UPDATED transitions an account from
- * active to expired during the session, or (b) {@link useAccountOrNull} lazy-fetches
+ * cache is initially populated by `sdk.accounts.list()`. Expired accounts only
+ * enter the cache when (a) a realtime `account:updated` event transitions an
+ * account from active to expired during the session, or (b) {@link useAccountOrNull} lazy-fetches
  * a specific one. Passing `state: 'expired'` (or `['active', 'expired']`)
  * returns only those cached expired accounts, not the user's full expired
  * history.

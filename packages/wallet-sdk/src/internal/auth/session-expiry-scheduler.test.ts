@@ -96,11 +96,12 @@ describe('SessionExpiryScheduler', () => {
   it('disarm() clears the pending timer', async () => {
     const timers = makeFakeTimers();
     const onExpiry = mock(() => undefined);
-    const expSec = Math.floor(Date.now() / 1000) + 100;
+    const nowMs = 1_000_000;
+    const expSec = Math.floor(nowMs / 1000) + 100;
     const sched = new SessionExpiryScheduler({
       storage: storageWith(expSec),
       onExpiry,
-      now: () => Date.now(),
+      now: () => nowMs,
       setTimer: timers.setTimer,
       clearTimer: timers.clearTimer,
     });

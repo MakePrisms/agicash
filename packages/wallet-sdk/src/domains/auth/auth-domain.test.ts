@@ -62,6 +62,9 @@ import type { KeyProvider } from '../../internal/crypto/keys';
 import { SdkEventEmitter } from '../../internal/event-emitter';
 import type { DomainContext } from '../context';
 
+const NOW = 1_700_000_000_000;
+const NOW_S = Math.floor(NOW / 1000);
+
 const guestRow = {
   id: 'u1',
   username: 'alice',
@@ -345,7 +348,7 @@ describe('AuthDomain session-expiry wiring', () => {
       clearTimer: () => {
         scheduled = null;
       },
-      now: () => Date.now(),
+      now: () => NOW,
       get armed() {
         return scheduled !== null;
       },
@@ -369,7 +372,7 @@ describe('AuthDomain session-expiry wiring', () => {
   }
 
   it('arms at construction when a session is already present (cold reload)', async () => {
-    const future = Math.floor(Date.now() / 1000) + 3600;
+    const future = NOW_S + 3600;
     const { ctx, seam, timers } = makeWiringCtx({
       access_token: jwtWith({ sub: 'u', exp: future }),
       refresh_token: jwtWith({ sub: 'u', exp: future }),
@@ -390,7 +393,7 @@ describe('AuthDomain session-expiry wiring', () => {
   });
 
   it('auth:signed-in arms the scheduler; auth:signed-out disarms it', async () => {
-    const future = Math.floor(Date.now() / 1000) + 3600;
+    const future = NOW_S + 3600;
     const { ctx, seam, emitter, timers } = makeWiringCtx({});
     createAuthDomain(ctx, seam);
     expect(timers.armed).toBe(false);
