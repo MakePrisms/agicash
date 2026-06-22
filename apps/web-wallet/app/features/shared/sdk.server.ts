@@ -61,14 +61,17 @@ export function buildServerSdkConfig({
   env?: ServerSdkEnv;
   processEnv?: Record<string, string | undefined>;
 }): SdkConfig {
+  if (!env.VITE_SUPABASE_URL) throw new Error('VITE_SUPABASE_URL is not set');
+  if (!env.VITE_SUPABASE_ANON_KEY)
+    throw new Error('VITE_SUPABASE_ANON_KEY is not set');
   return {
     openSecret: {
       url: env.VITE_OPEN_SECRET_API_URL ?? '',
       clientId: env.VITE_OPEN_SECRET_CLIENT_ID ?? '',
     },
     supabase: {
-      url: env.VITE_SUPABASE_URL ?? '',
-      anonKey: env.VITE_SUPABASE_ANON_KEY ?? '',
+      url: env.VITE_SUPABASE_URL,
+      anonKey: env.VITE_SUPABASE_ANON_KEY,
       serviceRoleKey: processEnv.SUPABASE_SERVICE_ROLE_KEY,
     },
     breezApiKey: env.VITE_BREEZ_API_KEY,

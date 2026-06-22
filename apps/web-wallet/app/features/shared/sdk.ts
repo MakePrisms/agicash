@@ -89,14 +89,17 @@ export function buildClientSdkConfig({
   if (!env.VITE_OPEN_SECRET_CLIENT_ID) {
     throw new Error('VITE_OPEN_SECRET_CLIENT_ID is not set');
   }
+  if (!env.VITE_SUPABASE_URL) throw new Error('VITE_SUPABASE_URL is not set');
+  if (!env.VITE_SUPABASE_ANON_KEY)
+    throw new Error('VITE_SUPABASE_ANON_KEY is not set');
   return {
     openSecret: {
       url: env.VITE_OPEN_SECRET_API_URL,
       clientId: env.VITE_OPEN_SECRET_CLIENT_ID,
     },
     supabase: {
-      url: env.VITE_SUPABASE_URL ?? '',
-      anonKey: env.VITE_SUPABASE_ANON_KEY ?? '',
+      url: env.VITE_SUPABASE_URL,
+      anonKey: env.VITE_SUPABASE_ANON_KEY,
     },
     breezApiKey: env.VITE_BREEZ_API_KEY,
     sparkStorageDir: './.spark-data',

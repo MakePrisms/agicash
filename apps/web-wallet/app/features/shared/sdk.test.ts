@@ -13,6 +13,24 @@ const baseEnv: ClientSdkEnv = {
 };
 
 describe('buildClientSdkConfig', () => {
+  test('throws without VITE_SUPABASE_URL', () => {
+    expect(() =>
+      buildClientSdkConfig({
+        lud16Domain: 'agi.cash',
+        env: { ...baseEnv, VITE_SUPABASE_URL: '' },
+      }),
+    ).toThrow('VITE_SUPABASE_URL is not set');
+  });
+
+  test('throws without VITE_SUPABASE_ANON_KEY', () => {
+    expect(() =>
+      buildClientSdkConfig({
+        lud16Domain: 'agi.cash',
+        env: { ...baseEnv, VITE_SUPABASE_ANON_KEY: '' },
+      }),
+    ).toThrow('VITE_SUPABASE_ANON_KEY is not set');
+  });
+
   test('maps the browser env into a client SdkConfig (no service-role, no server mnemonic)', () => {
     const cfg = buildClientSdkConfig({ lud16Domain: 'agi.cash', env: baseEnv });
 

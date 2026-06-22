@@ -18,6 +18,24 @@ const serverSecrets = {
 };
 
 describe('buildServerSdkConfig', () => {
+  test('throws without VITE_SUPABASE_URL', () => {
+    expect(() =>
+      buildServerSdkConfig({
+        lud16Domain: 'agi.cash',
+        env: { ...baseEnv, VITE_SUPABASE_URL: '' },
+      }),
+    ).toThrow('VITE_SUPABASE_URL is not set');
+  });
+
+  test('throws without VITE_SUPABASE_ANON_KEY', () => {
+    expect(() =>
+      buildServerSdkConfig({
+        lud16Domain: 'agi.cash',
+        env: { ...baseEnv, VITE_SUPABASE_ANON_KEY: '' },
+      }),
+    ).toThrow('VITE_SUPABASE_ANON_KEY is not set');
+  });
+
   test('maps VITE env + process secrets into a server SdkConfig', () => {
     const cfg = buildServerSdkConfig({
       lud16Domain: 'agi.cash',
