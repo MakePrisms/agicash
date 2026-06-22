@@ -3,23 +3,7 @@
  * See PROTOCOL_EXTENSIONS.md for detailed documentation.
  */
 
-import {
-  type GetInfoResponse,
-  MintInfo,
-  type MintQuoteBolt11Response,
-} from '@cashu/cashu-ts';
-
-/**
- * Extension type for mint quote responses that include a deposit fee.
- */
-type MintQuoteFee = {
-  /**
-   * Optional deposit fee charged by the mint for this quote, in the quote's unit.
-   *
-   * NOTE: This is not part of the NUT-23 spec, but is added by the Agicash CDK fork.
-   */
-  fee?: number;
-};
+import { type GetInfoResponse, MintInfo } from '@cashu/cashu-ts';
 
 /**
  * The purpose of a Cashu mint as advertised in its info response.
@@ -55,6 +39,3 @@ export class ExtendedMintInfo extends MintInfo {
     return (this.cache as ExtendedGetInfoResponse).agicash;
   }
 }
-
-export type ExtendedMintQuoteBolt11Response = MintQuoteBolt11Response &
-  MintQuoteFee;

@@ -164,5 +164,3 @@ export const CashuSendSwapSchema = z.intersection(
 );
 
 export type CashuSendSwap = z.infer<typeof CashuSendSwapSchema>;
-
-export type PendingCashuSendSwap = CashuSendSwap & { state: 'PENDING' };
