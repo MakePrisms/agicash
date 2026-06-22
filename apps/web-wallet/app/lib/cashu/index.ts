@@ -6,6 +6,3 @@ export * from './error-codes';
 export { ExtendedMintInfo, type MintPurpose } from './protocol-extensions';
 export { ProofSchema } from './types';
 export * from './payment-request';
-export * from './melt-quote-subscription';
-export * from './melt-quote-subscription-manager';
-export * from './mint-quote-subscription-manager';
