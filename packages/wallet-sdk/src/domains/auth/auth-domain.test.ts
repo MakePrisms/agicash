@@ -354,25 +354,27 @@ describe('AuthDomain session-expiry wiring', () => {
       config: {
         defaultAccounts: [],
         storage: inMemoryStorage(seed),
-        sessionExpiry: {
-          setTimer: timers.setTimer,
-          clearTimer: timers.clearTimer,
-          now: timers.now,
-        },
       } as unknown as SdkConfig,
       connections: {} as unknown as DomainContext['connections'],
       emitter,
     };
-    return { ctx, emitter, timers };
+    const seam = {
+      sessionExpiry: {
+        setTimer: timers.setTimer,
+        clearTimer: timers.clearTimer,
+        now: timers.now,
+      },
+    };
+    return { ctx, seam, emitter, timers };
   }
 
   it('arms at construction when a session is already present (cold reload)', async () => {
     const future = Math.floor(Date.now() / 1000) + 3600;
-    const { ctx, timers } = makeWiringCtx({
+    const { ctx, seam, timers } = makeWiringCtx({
       access_token: jwtWith({ sub: 'u', exp: future }),
       refresh_token: jwtWith({ sub: 'u', exp: future }),
     });
-    createAuthDomain(ctx);
+    createAuthDomain(ctx, seam);
     // the construction-time arm is `void armIfLoggedIn()` (reads storage async)
     await Promise.resolve();
     await Promise.resolve();
@@ -380,8 +382,8 @@ describe('AuthDomain session-expiry wiring', () => {
   });
 
   it('does NOT arm at construction when no session is present', async () => {
-    const { ctx, timers } = makeWiringCtx({});
-    createAuthDomain(ctx);
+    const { ctx, seam, timers } = makeWiringCtx({});
+    createAuthDomain(ctx, seam);
     await Promise.resolve();
     await Promise.resolve();
     expect(timers.armed).toBe(false);
@@ -389,8 +391,8 @@ describe('AuthDomain session-expiry wiring', () => {
 
   it('auth:signed-in arms the scheduler; auth:signed-out disarms it', async () => {
     const future = Math.floor(Date.now() / 1000) + 3600;
-    const { ctx, emitter, timers } = makeWiringCtx({});
-    createAuthDomain(ctx);
+    const { ctx, seam, emitter, timers } = makeWiringCtx({});
+    createAuthDomain(ctx, seam);
     expect(timers.armed).toBe(false);
 
     await ctx.config.storage.persistent.setItem(

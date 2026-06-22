@@ -1,5 +1,8 @@
 import type { AuthDomain } from '../../domains';
-import { SessionExpiryScheduler } from '../../internal/auth/session-expiry-scheduler';
+import {
+  SessionExpiryScheduler,
+  type SessionExpirySchedulerDeps,
+} from '../../internal/auth/session-expiry-scheduler';
 import {
   osChangePassword,
   osConfirmPasswordReset,
@@ -62,8 +65,19 @@ export async function handleSessionExpiry(
   deps.emitExpired();
 }
 
+/** Internal test seam: deterministic timers for the session-expiry scheduler. Not part of the public SdkConfig. */
+type AuthDomainTestSeam = {
+  sessionExpiry?: Pick<
+    SessionExpirySchedulerDeps,
+    'now' | 'setTimer' | 'clearTimer'
+  >;
+};
+
 /** Build the auth domain over the shared context. */
-export function createAuthDomain(ctx: DomainContext): AuthDomain {
+export function createAuthDomain(
+  ctx: DomainContext,
+  seam: AuthDomainTestSeam = {},
+): AuthDomain {
   const guest = new GuestCredentialStore(ctx.config.storage);
 
   const signedIn = async (options?: ResolveSessionOptions): Promise<User> => {
@@ -72,7 +86,6 @@ export function createAuthDomain(ctx: DomainContext): AuthDomain {
     return user;
   };
 
-  const sessionExpiry = ctx.config.sessionExpiry;
   const scheduler = new SessionExpiryScheduler({
     storage: ctx.config.storage,
     onExpiry: () => {
@@ -83,9 +96,9 @@ export function createAuthDomain(ctx: DomainContext): AuthDomain {
         disarm: () => scheduler.disarm(),
       });
     },
-    now: sessionExpiry?.now,
-    setTimer: sessionExpiry?.setTimer,
-    clearTimer: sessionExpiry?.clearTimer,
+    now: seam.sessionExpiry?.now,
+    setTimer: seam.sessionExpiry?.setTimer,
+    clearTimer: seam.sessionExpiry?.clearTimer,
   });
 
   ctx.emitter.on('auth:signed-in', () => {
