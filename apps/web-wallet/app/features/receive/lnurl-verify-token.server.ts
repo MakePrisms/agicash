@@ -35,6 +35,11 @@ export type LnurlVerifyTokenCodec = {
 export function createLnurlVerifyTokenCodec(
   keyHex: string,
 ): LnurlVerifyTokenCodec {
+  if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+    throw new Error(
+      'LNURL_SERVER_ENCRYPTION_KEY must be 64 hex characters (a 32-byte key)',
+    );
+  }
   const key = hexToBytes(keyHex);
   return {
     encode(ref: LnurlVerifyRef): string {

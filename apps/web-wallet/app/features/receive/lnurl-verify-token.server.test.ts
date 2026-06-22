@@ -42,3 +42,24 @@ describe('lnurl verify-token codec', () => {
     expect(() => codec.decode('not-a-valid-token')).toThrow();
   });
 });
+
+describe('createLnurlVerifyTokenCodec key validation', () => {
+  it('throws on a wrong-but-even-length hex key', () => {
+    expect(() => createLnurlVerifyTokenCodec('abcd')).toThrow(
+      /64 hex characters/,
+    );
+  });
+  it('throws on non-hex characters', () => {
+    expect(() => createLnurlVerifyTokenCodec('z'.repeat(64))).toThrow(
+      /64 hex characters/,
+    );
+  });
+  it('throws on 63/65 hex chars', () => {
+    expect(() => createLnurlVerifyTokenCodec('a'.repeat(63))).toThrow(
+      /64 hex characters/,
+    );
+    expect(() => createLnurlVerifyTokenCodec('a'.repeat(65))).toThrow(
+      /64 hex characters/,
+    );
+  });
+});
