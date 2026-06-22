@@ -1,3 +1,4 @@
+import type { Transaction } from '@agicash/wallet-sdk';
 import { CheckStateEnum, type Proof } from '@cashu/cashu-ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -16,7 +17,6 @@ import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-r
 import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
 import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
-import type { Transaction } from './transaction';
 import { useTransaction } from './transaction-hooks';
 
 const augmentProofsWithState = (

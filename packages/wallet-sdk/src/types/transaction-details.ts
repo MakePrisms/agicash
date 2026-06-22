@@ -244,13 +244,15 @@ export type IncompleteSparkLightningSendTransactionDetails = {
   transferId?: string;
 };
 /** Details of a completed SPARK_LIGHTNING SEND transaction. */
-export type CompletedSparkLightningSendTransactionDetails =
-  Required<IncompleteSparkLightningSendTransactionDetails> & {
-    /** The preimage of the lightning payment. */
-    paymentPreimage: string;
-    /** transferId remains optional — only present for TRANSFER transactions. */
-    transferId?: string;
-  };
+export type CompletedSparkLightningSendTransactionDetails = Omit<
+  Required<IncompleteSparkLightningSendTransactionDetails>,
+  'transferId'
+> & {
+  /** The preimage of the lightning payment. */
+  paymentPreimage: string;
+  /** Present only for TRANSFER transactions. */
+  transferId?: string;
+};
 /** Details of a SPARK_LIGHTNING SEND transaction (incomplete or completed). */
 export type SparkLightningSendTransactionDetails =
   | IncompleteSparkLightningSendTransactionDetails

@@ -1,4 +1,4 @@
-import type { Transaction as SdkTransaction } from '@agicash/wallet-sdk';
+import type { Transaction } from '@agicash/wallet-sdk';
 import {
   type InfiniteData,
   type QueryClient,
@@ -16,7 +16,6 @@ import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
 import { NotFoundError } from '../shared/error';
 import { useSdk } from '../shared/use-sdk';
 import { useUser } from '../user/user-hooks';
-import type { Transaction } from './transaction';
 import type { Cursor } from './transaction-repository';
 
 /**
@@ -197,7 +196,7 @@ export function useAcknowledgeTransaction() {
   const transactionsCache = useTransactionsCache();
 
   return useMutation({
-    mutationFn: async ({ transaction }: { transaction: SdkTransaction }) => {
+    mutationFn: async ({ transaction }: { transaction: Transaction }) => {
       await (await sdkPromise).transactions.acknowledge(transaction);
     },
     onSuccess: (_, { transaction }) => {
