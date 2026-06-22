@@ -8,12 +8,15 @@ type DbResult = { data: unknown; error: unknown };
  * A minimal fake Supabase client for repository/domain unit tests. `from(table)`
  * returns a chainable builder whose `single()`/`maybeSingle()` resolve to
  * `selectResult` for `select` chains and to `updateResult` after `update()`;
- * `rpc(name, args)` records the call and resolves to `rpcResult`.
+ * `rpc(name, args)` records the call and resolves to `rpcResult` (or invokes
+ * the `rpc` function override if supplied, which may throw for error simulation).
  */
 export function makeFakeDb(opts: {
   selectResult?: DbResult;
   updateResult?: DbResult;
   rpcResult?: DbResult;
+  /** Per-call override: called instead of returning `rpcResult`. May throw. */
+  rpc?: (name: string, args: unknown) => DbResult | Promise<DbResult>;
   calls?: {
     from?: string[];
     update?: unknown[];
@@ -51,6 +54,7 @@ export function makeFakeDb(opts: {
     },
     rpc: async (name: string, args: unknown) => {
       opts.calls?.rpc?.push({ name, args });
+      if (opts.rpc) return opts.rpc(name, args);
       return opts.rpcResult ?? { data: null, error: null };
     },
   } as unknown as SupabaseClient<Database>;

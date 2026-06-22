@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, mock } from 'bun:test';
+import { afterAll, describe, expect, it, mock, test } from 'bun:test';
 import {
   breezModuleMock,
   inMemoryStorage,
@@ -19,6 +19,7 @@ const { resolveSession, resolveSessionRequired, hasUserChanged } = await import(
   './session-resolver'
 );
 import type { SdkConfig } from '../../config';
+import { DomainError, SdkError } from '../../errors';
 import type { KeyProvider } from '../../internal/crypto/keys';
 import { SdkEventEmitter } from '../../internal/event-emitter';
 import type { DomainContext } from '../context';
@@ -47,11 +48,25 @@ const keys: KeyProvider = {
   getPublicKeyHex: async () => 'enc-pub',
 };
 
+type CtxOpts = {
+  db: ReturnType<typeof makeFakeDb>;
+  loggedIn?: boolean;
+  sleep?: (ms: number) => Promise<void>;
+};
+
 function ctx(
-  db: ReturnType<typeof makeFakeDb>,
+  opts: CtxOpts | ReturnType<typeof makeFakeDb>,
   loggedIn = true,
 ): DomainContext {
-  const storage = loggedIn
+  // Allow legacy call style: ctx(db) or ctx(db, loggedIn)
+  const isOpts = opts !== null && typeof opts === 'object' && 'db' in opts;
+  const db = isOpts
+    ? (opts as CtxOpts).db
+    : (opts as ReturnType<typeof makeFakeDb>);
+  const isLoggedIn = isOpts ? ((opts as CtxOpts).loggedIn ?? true) : loggedIn;
+  const sleep = isOpts ? (opts as CtxOpts).sleep : undefined;
+
+  const storage = isLoggedIn
     ? inMemoryStorage({
         access_token: jwtWith({ sub: 'u1' }),
         refresh_token: jwtWith({ exp: Math.floor(Date.now() / 1000) + 3600 }),
@@ -76,6 +91,7 @@ function ctx(
       keys,
     } as unknown as DomainContext['connections'],
     emitter: new SdkEventEmitter(),
+    _sleep: sleep,
   };
 }
 
@@ -166,5 +182,82 @@ describe('resolveSessionRequired', () => {
     await expect(resolveSessionRequired(ctx(db, false))).rejects.toMatchObject({
       code: 'SESSION_RESOLUTION_FAILED',
     });
+  });
+});
+
+describe('bootstrapUser retry', () => {
+  test('retries the upsert on a transient failure then succeeds', async () => {
+    const sleeps: number[] = [];
+    let calls = 0;
+    const db = makeFakeDb({
+      selectResult: { data: null, error: null },
+      rpc: () => {
+        calls += 1;
+        if (calls === 1) throw new SdkError('boom', 'UNKNOWN');
+        return { data: { user: guestRow, accounts: [] }, error: null };
+      },
+    });
+    const user = await resolveSession(
+      ctx({
+        db,
+        sleep: (ms) => {
+          sleeps.push(ms);
+          return Promise.resolve();
+        },
+      }),
+    );
+    expect(user?.id).toBe('u1');
+    expect(calls).toBe(2);
+    expect(sleeps).toEqual([500]);
+  });
+
+  test('exhausts retries and throws after 3 attempts', async () => {
+    const sleeps: number[] = [];
+    let calls = 0;
+    const db = makeFakeDb({
+      selectResult: { data: null, error: null },
+      rpc: () => {
+        calls += 1;
+        throw new SdkError('always fails', 'UNKNOWN');
+      },
+    });
+    await expect(
+      resolveSession(
+        ctx({
+          db,
+          sleep: (ms) => {
+            sleeps.push(ms);
+            return Promise.resolve();
+          },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(SdkError);
+    expect(calls).toBe(3);
+    expect(sleeps).toEqual([500, 1000]);
+  });
+
+  test('does NOT retry on a DomainError (e.g. 23505)', async () => {
+    let calls = 0;
+    const sleeps: number[] = [];
+    const db = makeFakeDb({
+      selectResult: { data: null, error: null },
+      rpc: () => {
+        calls += 1;
+        throw new DomainError('dup', 'UNIQUE_CONSTRAINT');
+      },
+    });
+    await expect(
+      resolveSession(
+        ctx({
+          db,
+          sleep: (ms) => {
+            sleeps.push(ms);
+            return Promise.resolve();
+          },
+        }),
+      ),
+    ).rejects.toBeInstanceOf(DomainError);
+    expect(calls).toBe(1);
+    expect(sleeps).toHaveLength(0);
   });
 });

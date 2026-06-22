@@ -1,11 +1,14 @@
-import { SdkError } from '../../errors';
+import { DomainError, SdkError } from '../../errors';
 import { fetchUser, isLoggedIn } from '../../internal/connections/open-secret';
 import {
   deriveCashuLockingXpub,
   deriveEncryptionPublicKey,
   deriveSparkIdentityPublicKey,
 } from '../../internal/crypto/bootstrap-keys';
-import { UserRepository } from '../../internal/repositories/user-repository';
+import {
+  type UpsertUserParams,
+  UserRepository,
+} from '../../internal/repositories/user-repository';
 import type { User } from '../../types/user';
 import type { DomainContext } from '../context';
 import {
@@ -24,6 +27,28 @@ type OpenSecretIdentity = {
   email?: string;
   email_verified: boolean;
 };
+
+type Sleep = (ms: number) => Promise<void>;
+const realSleep: Sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function upsertWithRetry(
+  repo: UserRepository,
+  params: UpsertUserParams,
+  sleep: Sleep = realSleep,
+): Promise<User> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await repo.upsert(params);
+    } catch (error) {
+      lastError = error;
+      if (error instanceof DomainError) throw error;
+      if (attempt === 2) break;
+      await sleep(Math.min(500 * 2 ** attempt, 30_000));
+    }
+  }
+  throw lastError;
+}
 
 /** True if the wallet user drifted from the OpenSecret identity (email / verified). */
 export function hasUserChanged(
@@ -55,17 +80,21 @@ async function bootstrapUser(
         sparkNetworkForBootstrap(defaults),
       ),
     ]);
-  return repo.upsert({
-    id: identity.id,
-    email: identity.email ?? null,
-    emailVerified: identity.email_verified,
-    accounts,
-    cashuLockingXpub,
-    encryptionPublicKey,
-    sparkIdentityPublicKey,
-    termsAcceptedAt: options.termsAcceptedAt,
-    giftCardMintTermsAcceptedAt: options.giftCardMintTermsAcceptedAt,
-  });
+  return upsertWithRetry(
+    repo,
+    {
+      id: identity.id,
+      email: identity.email ?? null,
+      emailVerified: identity.email_verified,
+      accounts,
+      cashuLockingXpub,
+      encryptionPublicKey,
+      sparkIdentityPublicKey,
+      termsAcceptedAt: options.termsAcceptedAt,
+      giftCardMintTermsAcceptedAt: options.giftCardMintTermsAcceptedAt,
+    },
+    ctx._sleep,
+  );
 }
 
 /**
