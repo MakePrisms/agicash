@@ -1,10 +1,9 @@
 import { type Currency, Money } from '@agicash/money';
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
-import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   type Account,
-  type CashuAccount,
   type ExtendedAccount,
   canSendToLightning,
 } from '~/features/accounts/account';
@@ -13,17 +12,13 @@ import {
   useAddCashuAccount,
 } from '~/features/accounts/account-hooks';
 import { tokenToMoney } from '~/features/shared/cashu';
-import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
 import { getClaimableProofs, getUnspentProofsFromToken } from '~/lib/cashu';
 import { createSparkWalletStub } from '~/lib/spark';
 import {
   type AccountSelectorOption,
   toAccountSelectorOption,
 } from '../accounts/account-selector';
-import { DomainError } from '../shared/error';
-import { useUser } from '../user/user-hooks';
 import type { ReceiveCashuTokenAccount } from './receive-cashu-token-models';
-import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
 import {
   ReceiveCashuTokenService,
   useReceiveCashuTokenService,
@@ -235,59 +230,6 @@ export function useReceiveCashuTokenAccounts(
     setReceiveAccount,
     addAndSetReceiveAccount,
   };
-}
-
-type CreateCrossAccountReceiveQuotesProps = {
-  /** The token to claim */
-  token: Token;
-  /** The account to claim the token to */
-  destinationAccount: Account;
-  /**
-   * The account to claim the token from.
-   * This may be a placeholder account if the token is from a mint that we do not have an account for.
-   */
-  sourceAccount: CashuAccount;
-};
-
-/**
- * Hook for creating cross-account receive quotes for cashu tokens.
- * Creates the necessary quotes and wallet for claiming tokens to a different mint or currency account.
- * The actual melting of proofs should be done by the caller.
- */
-export function useCreateCrossAccountReceiveQuotes() {
-  const userId = useUser((user) => user.id);
-  const getExchangeRate = useGetExchangeRate();
-  const receiveCashuTokenQuoteService = useReceiveCashuTokenQuoteService();
-
-  return useMutation({
-    mutationFn: async ({
-      token,
-      destinationAccount,
-      sourceAccount,
-    }: CreateCrossAccountReceiveQuotesProps) => {
-      const tokenCurrency = tokenToMoney(token).currency;
-      const accountCurrency = destinationAccount.currency;
-      const exchangeRate = await getExchangeRate(
-        `${tokenCurrency}-${accountCurrency}`,
-      );
-
-      return await receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(
-        {
-          userId,
-          token,
-          sourceAccount,
-          destinationAccount,
-          exchangeRate,
-        },
-      );
-    },
-    retry: (failureCount, error) => {
-      if (error instanceof DomainError) {
-        return false;
-      }
-      return failureCount < 1;
-    },
-  });
 }
 
 function useBuildCashuAccountPlaceholder(mintUrl: string, currency: Currency) {

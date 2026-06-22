@@ -86,7 +86,7 @@ export const sparkIdentityPublicKeyQueryOptions = ({
     },
   });
 
-export const sparkWalletQueryOptions = ({
+const sparkWalletQueryOptions = ({
   network,
   mnemonic,
   storageDir,

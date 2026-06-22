@@ -90,44 +90,6 @@ export const useUser = <TData = User>(
   return data;
 };
 
-const isDevelopmentMode = import.meta.env.MODE === 'development';
-
-export const defaultAccounts = [
-  {
-    type: 'spark',
-    currency: 'BTC',
-    name: 'Bitcoin',
-    network: 'MAINNET',
-    isDefault: true,
-    purpose: 'transactional',
-    expiresAt: null,
-  },
-  ...(isDevelopmentMode
-    ? ([
-        {
-          type: 'cashu',
-          currency: 'BTC',
-          name: 'Testnut BTC',
-          mintUrl: 'https://testnut.cashu.space',
-          isTestMint: true,
-          isDefault: false,
-          purpose: 'transactional',
-          expiresAt: null,
-        },
-        {
-          type: 'cashu',
-          currency: 'USD',
-          name: 'Testnut USD',
-          mintUrl: 'https://testnut.cashu.space',
-          isTestMint: true,
-          isDefault: true,
-          purpose: 'transactional',
-          expiresAt: null,
-        },
-      ] as const)
-    : []),
-] as const;
-
 export const useUserRef = () => {
   const user = useUser();
   return useLatest(user);

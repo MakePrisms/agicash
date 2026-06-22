@@ -1,30 +1,13 @@
 import type { Currency } from '@agicash/money';
-import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod/mini';
 import { normalizeMintUrl } from '~/lib/cashu';
-import type { Account, RedactedAccount } from '../accounts/account';
-import {
-  type AccountRepository,
-  useAccountRepository,
-} from '../accounts/account-repository';
-import {
-  type AgicashDb,
-  type AgicashDbAccount,
-  type AgicashDbUser,
-  isCashuAccount,
-  isSparkAccount,
-} from '../agicash-db/database';
-import { agicashDbClient } from '../agicash-db/database.client';
+import type { Account } from '../accounts/account';
+import type { AccountRepository } from '../accounts/account-repository';
+import type { AgicashDb, AgicashDbUser } from '../agicash-db/database';
 import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
-import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
-import {
-  getInitializedCashuWallet,
-  getMintAuthProvider,
-} from '../shared/cashu';
 import { UniqueConstraintError } from '../shared/error';
-import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
 
 export type UpdateUser = {
@@ -98,7 +81,7 @@ export class WriteUserRepository {
       throw new Error('Failed to update user', { cause: error });
     }
 
-    return ReadUserRepository.toUser(updatedUser);
+    return toUser(updatedUser);
   }
 
   /**
@@ -195,7 +178,7 @@ export class WriteUserRepository {
 
     const { accounts, user: upsertedUser } = data;
     return {
-      user: ReadUserRepository.toUser(upsertedUser),
+      user: toUser(upsertedUser),
       accounts: await Promise.all(
         accounts.map((account) => this.accountRepository.toAccount(account)),
       ),
@@ -203,192 +186,26 @@ export class WriteUserRepository {
   }
 }
 
-export class ReadUserDefaultAccountRepository {
-  constructor(
-    private readonly db: AgicashDb,
-    private readonly queryClient: QueryClient,
-    private readonly getSparkWalletMnemonic: () => Promise<string>,
-    private readonly sparkStorageDir: string,
-  ) {}
+function toUser(dbUser: AgicashDbUser): User {
+  const commonData = {
+    id: dbUser.id,
+    username: dbUser.username,
+    emailVerified: dbUser.email_verified,
+    createdAt: dbUser.created_at,
+    updatedAt: dbUser.updated_at,
+    cashuLockingXpub: dbUser.cashu_locking_xpub,
+    encryptionPublicKey: dbUser.encryption_public_key,
+    sparkIdentityPublicKey: dbUser.spark_identity_public_key,
+    defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
+    defaultUsdAccountId: dbUser.default_usd_account_id,
+    defaultCurrency: dbUser.default_currency,
+    termsAcceptedAt: dbUser.terms_accepted_at,
+    giftCardMintTermsAcceptedAt: dbUser.gift_card_mint_terms_accepted_at,
+  };
 
-  /**
-   * Gets the user's default account. If currency is not provided, the default currency of the user is used.
-   * @returns The user's default account.
-   */
-  async getDefaultAccount(userId: string, currency?: Currency) {
-    const { data, error } = await this.db
-      .from('users')
-      .select(`
-        *,
-        accounts:accounts!user_id(
-          *,
-          cashu_proofs(*)
-        )
-      `)
-      .eq('id', userId)
-      .eq('accounts.cashu_proofs.state', 'UNSPENT')
-      .single();
-
-    if (error) {
-      throw new Error('Failed to get user default account IDs', error);
-    }
-
-    const defaultBtcAccountId = data.default_btc_account_id;
-    const defaultUsdAccountId = data.default_usd_account_id;
-
-    const accountCurrency = currency ?? data.default_currency;
-
-    const defaultAccountId =
-      accountCurrency === 'BTC' ? defaultBtcAccountId : defaultUsdAccountId;
-
-    const account = data.accounts.find(
-      (account) => account.id === defaultAccountId,
-    );
-
-    if (!account) {
-      throw new Error('No default account found for user');
-    }
-
-    return await this.toAccount(account);
+  if (dbUser.email) {
+    return { ...commonData, email: dbUser.email, isGuest: false };
   }
 
-  private async toAccount(data: AgicashDbAccount): Promise<RedactedAccount> {
-    const commonData = {
-      id: data.id,
-      name: data.name,
-      currency: data.currency,
-      purpose: data.purpose,
-      state: data.state,
-      createdAt: data.created_at,
-      version: data.version,
-      expiresAt: data.expires_at,
-    };
-
-    if (isCashuAccount(data)) {
-      const details = data.details;
-
-      const { wallet, isOnline } = await getInitializedCashuWallet({
-        queryClient: this.queryClient,
-        mintUrl: details.mint_url,
-        currency: data.currency,
-        authProvider: getMintAuthProvider(data.purpose),
-      });
-
-      return {
-        ...commonData,
-        isOnline,
-        type: 'cashu',
-        mintUrl: details.mint_url,
-        isTestMint: details.is_test_mint,
-        keysetCounters: details.keyset_counters,
-        wallet,
-      };
-    }
-
-    if (isSparkAccount(data)) {
-      const { network } = data.details;
-      const { wallet, balance, isOnline } =
-        await this.getInitializedSparkWallet(network);
-      return {
-        ...commonData,
-        type: 'spark',
-        balance,
-        network,
-        isOnline,
-        wallet,
-      };
-    }
-
-    throw new Error('Invalid account type');
-  }
-
-  private async getInitializedSparkWallet(network: SparkNetwork) {
-    const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(
-      this.queryClient,
-      mnemonic,
-      network,
-      this.sparkStorageDir,
-    );
-  }
-}
-
-export class ReadUserRepository {
-  constructor(private readonly db: AgicashDb) {}
-
-  /**
-   * Gets a user from the database.
-   * @param userId - The id of the user to get.
-   * @returns The user.
-   */
-  async get(
-    userId: string,
-    options?: { abortSignal?: AbortSignal },
-  ): Promise<User> {
-    const query = this.db.from('users').select().eq('id', userId);
-
-    if (options?.abortSignal) {
-      query.abortSignal(options.abortSignal);
-    }
-
-    const { data, error } = await query.single();
-
-    if (error) {
-      throw new Error('Failed to get user', { cause: error });
-    }
-
-    return ReadUserRepository.toUser(data);
-  }
-
-  async getByUsername(
-    username: string,
-    options?: { abortSignal?: AbortSignal },
-  ): Promise<User | null> {
-    const query = this.db.from('users').select().eq('username', username);
-
-    if (options?.abortSignal) {
-      query.abortSignal(options.abortSignal);
-    }
-
-    const { data, error } = await query.maybeSingle();
-
-    if (error) {
-      throw new Error('Failed to get user by username', { cause: error });
-    }
-
-    return data ? ReadUserRepository.toUser(data) : null;
-  }
-
-  static toUser(dbUser: AgicashDbUser): User {
-    const commonData = {
-      id: dbUser.id,
-      username: dbUser.username,
-      emailVerified: dbUser.email_verified,
-      createdAt: dbUser.created_at,
-      updatedAt: dbUser.updated_at,
-      cashuLockingXpub: dbUser.cashu_locking_xpub,
-      encryptionPublicKey: dbUser.encryption_public_key,
-      sparkIdentityPublicKey: dbUser.spark_identity_public_key,
-      defaultBtcAccountId: dbUser.default_btc_account_id ?? '',
-      defaultUsdAccountId: dbUser.default_usd_account_id,
-      defaultCurrency: dbUser.default_currency,
-      termsAcceptedAt: dbUser.terms_accepted_at,
-      giftCardMintTermsAcceptedAt: dbUser.gift_card_mint_terms_accepted_at,
-    };
-
-    if (dbUser.email) {
-      return { ...commonData, email: dbUser.email, isGuest: false };
-    }
-
-    return { ...commonData, isGuest: true };
-  }
-}
-
-export function useReadUserRepository() {
-  return new ReadUserRepository(agicashDbClient);
-}
-
-export function useWriteUserRepository() {
-  const accountRepository = useAccountRepository();
-  return new WriteUserRepository(agicashDbClient, accountRepository);
+  return { ...commonData, isGuest: true };
 }
