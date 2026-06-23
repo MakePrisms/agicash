@@ -1,15 +1,15 @@
-import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
-import { hexToBytes } from '@noble/hashes/utils';
-import { decode, encode } from '@stablelib/base64';
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
 import {
   eciesDecrypt,
   eciesDecryptBatch,
   eciesEncrypt,
   eciesEncryptBatch,
-} from '~/lib/ecies';
-import { Money } from '~/lib/money';
+} from '@agicash/ecies';
+import { Money } from '@agicash/money';
+import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
+import { hexToBytes } from '@noble/hashes/utils';
+import { decode, encode } from '@stablelib/base64';
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 // 10111099 is 'enc' (for encryption) in ascii
 const encryptionKeyDerivationPath = `m/10111099'/0'`;

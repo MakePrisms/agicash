@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { type DecodedBolt11, decodeBolt11 } from '@agicash/bolt11';
 import type { CashuAccount } from '~/features/accounts/account';
 import type { GiftCardInfo } from '~/features/gift-cards/gift-card-config';
-import { type DecodedBolt11, decodeBolt11 } from '~/lib/bolt11';
 import { findMatchingOfferOrGiftCardAccount } from './find-matching-offer-or-gift-card-account';
 
 const PINK_OWL_URL = 'https://pinkowl.agi.cash';

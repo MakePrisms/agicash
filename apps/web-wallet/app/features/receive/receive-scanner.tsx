@@ -1,3 +1,4 @@
+import { extractCashuToken } from '@agicash/cashu';
 import {
   ClosePageButton,
   PageContent,
@@ -7,7 +8,6 @@ import {
 import { QRScanner } from '~/components/qr-scanner';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { extractCashuToken } from '~/lib/cashu';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import { useReceiveStore } from './receive-provider';
 

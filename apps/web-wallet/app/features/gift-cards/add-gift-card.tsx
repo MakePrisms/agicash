@@ -1,3 +1,4 @@
+import type { Currency } from '@agicash/money';
 import { useState } from 'react';
 import {
   Link,
@@ -22,7 +23,6 @@ import { AcceptTerms } from '~/features/user/accept-terms';
 import { shouldAcceptGiftCardMintTerms } from '~/features/user/user';
 import { useAcceptTerms, useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
-import type { Currency } from '~/lib/money';
 import type { GiftCardInfo } from './gift-card-config';
 
 type AddGiftCardParams = {

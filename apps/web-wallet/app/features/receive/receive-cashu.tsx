@@ -1,3 +1,4 @@
+import type { Money } from '@agicash/money';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';
 import { MoneyDisplay } from '~/components/money-display';
@@ -19,7 +20,6 @@ import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import type { Money } from '~/lib/money';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,

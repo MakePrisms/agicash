@@ -1,3 +1,5 @@
+import { getClaimableProofs, getUnspentProofsFromToken } from '@agicash/cashu';
+import { type Currency, Money } from '@agicash/money';
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -13,8 +15,6 @@ import {
 } from '~/features/accounts/account-hooks';
 import { tokenToMoney } from '~/features/shared/cashu';
 import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
-import { getClaimableProofs, getUnspentProofsFromToken } from '~/lib/cashu';
-import { type Currency, Money } from '~/lib/money';
 import { createSparkWalletStub } from '~/lib/spark';
 import {
   type AccountSelectorOption,

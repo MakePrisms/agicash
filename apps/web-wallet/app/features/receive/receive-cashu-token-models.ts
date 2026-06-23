@@ -1,4 +1,4 @@
-import { areMintUrlsEqual } from '~/lib/cashu';
+import { areMintUrlsEqual } from '@agicash/cashu';
 import type {
   Account,
   ExtendedCashuAccount,

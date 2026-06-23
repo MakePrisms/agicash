@@ -1,3 +1,5 @@
+import { encodeToken } from '@agicash/cashu/token';
+import type { Currency } from '@agicash/money';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -21,8 +23,6 @@ import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { encodeToken } from '~/lib/cashu/token';
-import type { Currency } from '~/lib/money';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,

@@ -1,3 +1,4 @@
+import type { Money } from '@agicash/money';
 import {
   type QueryClient,
   useMutation,
@@ -7,7 +8,6 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import type { Money } from '~/lib/money';
 import { useLatest } from '~/lib/use-latest';
 import type { CashuAccount } from '../accounts/account';
 import {

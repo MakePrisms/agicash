@@ -1,11 +1,11 @@
-import type { QueryClient } from '@tanstack/react-query';
-import type { DistributedOmit } from 'type-fest';
-import { allMintKeysetsQueryOptions } from '~/features/shared/cashu';
 import {
   checkIsTestMint,
   findFirstActiveKeyset,
   getKeysetExpiry,
-} from '~/lib/cashu';
+} from '@agicash/cashu';
+import type { QueryClient } from '@tanstack/react-query';
+import type { DistributedOmit } from 'type-fest';
+import { allMintKeysetsQueryOptions } from '~/features/shared/cashu';
 import type { User } from '../user/user';
 import type { Account, CashuAccount, ExtendedAccount } from './account';
 import {
