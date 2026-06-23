@@ -1,18 +1,16 @@
 import {
   type ExtendedCashuWallet,
   ExtendedMintInfo,
+  MintBlocklistSchema,
   type MintPurpose,
+  buildMintValidator,
+  encodeToken,
   extractCashuToken,
   getCashuProtocolUnit,
   getCashuUnit,
   getCashuWallet,
   sumProofs,
 } from '@agicash/cashu';
-import {
-  MintBlocklistSchema,
-  buildMintValidator,
-} from '@agicash/cashu/mint-validation';
-import { encodeToken } from '@agicash/cashu/token';
 import { type Currency, type CurrencyUnit, Money } from '@agicash/money';
 import {
   getPrivateKey as getMnemonic,

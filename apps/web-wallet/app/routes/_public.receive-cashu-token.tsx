@@ -1,5 +1,4 @@
-import { validateCashuToken } from '@agicash/cashu';
-import { normalizeMintUrl } from '@agicash/cashu/utils';
+import { normalizeMintUrl, validateCashuToken } from '@agicash/cashu';
 import { type MetaDescriptor, redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { getGiftCardByUrl } from '~/features/gift-cards/use-discover-cards';

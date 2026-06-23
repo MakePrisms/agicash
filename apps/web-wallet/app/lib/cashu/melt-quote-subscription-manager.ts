@@ -1,5 +1,5 @@
 import { getCashuWallet } from '@agicash/cashu';
-import { isSubset } from '@agicash/utils/collections';
+import { isSubset } from '@agicash/utils';
 import type { MeltQuoteBolt11Response } from '@cashu/cashu-ts';
 
 type SubscriptionData = {

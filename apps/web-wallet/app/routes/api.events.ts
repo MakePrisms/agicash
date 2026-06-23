@@ -1,5 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
-import { safeJsonParse } from '@agicash/utils/json';
+import { safeJsonParse } from '@agicash/utils';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex } from '@noble/hashes/utils';

@@ -1,4 +1,4 @@
-import type { Currency } from '@agicash/money/types';
+import type { Currency } from '@agicash/money';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import {

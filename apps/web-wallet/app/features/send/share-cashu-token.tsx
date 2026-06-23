@@ -1,5 +1,4 @@
-import { encodeToken } from '@agicash/cashu/token';
-import { normalizeMintUrl } from '@agicash/cashu/utils';
+import { encodeToken, normalizeMintUrl } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type { Token } from '@cashu/cashu-ts';
 import { Banknote, Link, Share } from 'lucide-react';

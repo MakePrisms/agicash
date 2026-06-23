@@ -4,7 +4,7 @@ import type {
   LNURLPayParams,
   LNURLPayResult,
   LNURLVerifyResult,
-} from '@agicash/lnurl/types';
+} from '@agicash/lnurl';
 import { Money } from '@agicash/money';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';

@@ -1,4 +1,4 @@
-import { encodeToken } from '@agicash/cashu/token';
+import { encodeToken } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';

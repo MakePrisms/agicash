@@ -6,3 +6,5 @@ export * from './error-codes';
 export { ExtendedMintInfo, type MintPurpose } from './protocol-extensions';
 export { ProofSchema } from './types';
 export * from './payment-request';
+export * from './blind-signature-matching';
+export * from './mint-validation';

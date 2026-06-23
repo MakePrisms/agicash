@@ -1,5 +1,4 @@
-import { normalizeMintUrl } from '@agicash/cashu';
-import { ProofSchema } from '@agicash/cashu/types';
+import { ProofSchema, normalizeMintUrl } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';

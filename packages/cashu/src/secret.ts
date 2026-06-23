@@ -1,4 +1,4 @@
-import { safeJsonParse } from '@agicash/utils/json';
+import { safeJsonParse } from '@agicash/utils';
 import {
   type Secret,
   type SecretKind,

@@ -1,4 +1,4 @@
-import { ProofSchema } from '@agicash/cashu/types';
+import { ProofSchema } from '@agicash/cashu';
 import type { Proof } from '@cashu/cashu-ts';
 import { z } from 'zod/mini';
 

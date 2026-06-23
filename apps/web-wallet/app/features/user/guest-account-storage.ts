@@ -1,4 +1,4 @@
-import { safeJsonParse } from '@agicash/utils/json';
+import { safeJsonParse } from '@agicash/utils';
 import { z } from 'zod/mini';
 
 const storageKey = 'guestAccount';

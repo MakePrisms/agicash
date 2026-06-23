@@ -1,6 +1,9 @@
 import { decodeBolt11, parseBolt11Invoice } from '@agicash/bolt11';
-import { getCashuUnit, sumProofs } from '@agicash/cashu';
-import { matchBlindSignaturesToOutputData } from '@agicash/cashu/blind-signature-matching';
+import {
+  getCashuUnit,
+  matchBlindSignaturesToOutputData,
+  sumProofs,
+} from '@agicash/cashu';
 import { type Currency, Money } from '@agicash/money';
 import {
   type MeltQuoteBolt11Response,
