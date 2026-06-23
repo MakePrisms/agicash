@@ -1,5 +1,5 @@
+import { getCashuWallet } from '@agicash/cashu';
 import type { MintQuoteBolt11Response } from '@cashu/cashu-ts';
-import { getCashuWallet } from '~/lib/cashu';
 import { isSubset } from '~/lib/utils';
 
 type SubscriptionData = {
