@@ -1,4 +1,11 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
+import {
+  type ExtendedCashuWallet,
+  getCashuUnit,
+  getCashuWallet,
+  sumProofs,
+} from '@agicash/cashu';
+import type { Money } from '@agicash/money';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -7,14 +14,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
-import {
-  type ExtendedCashuWallet,
-  getCashuUnit,
-  getCashuWallet,
-  sumProofs,
-  useOnMeltQuoteStateChange,
-} from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {

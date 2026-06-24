@@ -1,3 +1,5 @@
+import { buildLightningAddressFormatValidator } from '@agicash/lnurl';
+import type { Money } from '@agicash/money';
 import {
   AtSign,
   Clipboard,
@@ -37,8 +39,6 @@ import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
-import { buildLightningAddressFormatValidator } from '~/lib/lnurl';
-import type { Money } from '~/lib/money';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,

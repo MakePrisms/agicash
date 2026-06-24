@@ -1,17 +1,17 @@
 import {
+  CashuErrorCodes,
+  areMintUrlsEqual,
+  getCashuUnit,
+  sumProofs,
+} from '@agicash/cashu';
+import { Money } from '@agicash/money';
+import {
   MintOperationError,
   OutputData,
   type Token,
   type Wallet,
   splitAmount,
 } from '@cashu/cashu-ts';
-import {
-  CashuErrorCodes,
-  areMintUrlsEqual,
-  getCashuUnit,
-  sumProofs,
-} from '~/lib/cashu';
-import { Money } from '~/lib/money';
 import type { CashuAccount } from '../accounts/account';
 import { tokenToMoney } from '../shared/cashu';
 import type { CashuReceiveSwap } from './cashu-receive-swap';

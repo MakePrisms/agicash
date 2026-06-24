@@ -1,5 +1,5 @@
+import type { Money } from '@agicash/money';
 import type { z } from 'zod/mini';
-import type { Money } from '~/lib/money';
 import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type {
   AgicashDb,

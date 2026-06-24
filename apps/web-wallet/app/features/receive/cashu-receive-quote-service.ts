@@ -1,15 +1,15 @@
 import {
+  CashuErrorCodes,
+  type ExtendedCashuWallet,
+  getCashuUnit,
+} from '@agicash/cashu';
+import {
   MintOperationError,
   MintQuoteState,
   OutputData,
   type Proof,
   splitAmount,
 } from '@cashu/cashu-ts';
-import {
-  CashuErrorCodes,
-  type ExtendedCashuWallet,
-  getCashuUnit,
-} from '~/lib/cashu';
 import type { CashuAccount } from '../accounts/account';
 import {
   BASE_CASHU_LOCKING_DERIVATION_PATH,

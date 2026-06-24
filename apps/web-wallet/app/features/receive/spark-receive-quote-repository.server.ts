@@ -1,5 +1,5 @@
+import type { Money } from '@agicash/money';
 import type { z } from 'zod/mini';
-import type { Money } from '~/lib/money';
 import type { AgicashDb } from '../agicash-db/database';
 import { SparkLightningReceiveDbDataSchema } from '../agicash-db/json-models';
 import { encryptToPublicKey } from '../shared/encryption';

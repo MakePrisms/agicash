@@ -1,3 +1,8 @@
+import {
+  type ExtendedMintInfo,
+  getCashuProtocolUnit,
+  getMintPurpose,
+} from '@agicash/cashu';
 import type { MintKeyset } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -12,11 +17,6 @@ import {
   mintInfoQueryOptions,
 } from '~/features/shared/cashu';
 import { useToast } from '~/hooks/use-toast';
-import {
-  type ExtendedMintInfo,
-  getCashuProtocolUnit,
-  getMintPurpose,
-} from '~/lib/cashu';
 import { LinkWithViewTransition } from '~/lib/transitions';
 
 type FormValues = {

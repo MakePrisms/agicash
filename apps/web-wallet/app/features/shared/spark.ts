@@ -5,10 +5,10 @@ import {
   defaultConfig,
   initLogging,
 } from '@agicash/breez-sdk-spark';
+import { Money } from '@agicash/money';
 import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Money } from '~/lib/money';
 import { measureOperation } from '~/lib/performance';
 import { computeSHA256 } from '~/lib/sha256';
 import {

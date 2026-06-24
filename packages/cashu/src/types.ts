@@ -1,5 +1,5 @@
+import { nullToUndefined } from '@agicash/utils';
 import { z } from 'zod/mini';
-import { nullToUndefined } from '../zod';
 
 const SerializedDLEQSchema = z.object({
   s: z.string(),

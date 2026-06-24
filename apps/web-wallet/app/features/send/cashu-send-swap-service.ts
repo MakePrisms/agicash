@@ -1,4 +1,12 @@
 import {
+  CashuErrorCodes,
+  type ExtendedCashuWallet,
+  getCashuProtocolUnit,
+  getCashuUnit,
+  sumProofs,
+} from '@agicash/cashu';
+import { Money } from '@agicash/money';
+import {
   MintOperationError,
   OutputData,
   type Proof,
@@ -7,14 +15,6 @@ import {
 } from '@cashu/cashu-ts';
 import type { CashuAccount } from '~/features/accounts/account';
 import { type CashuProof, toProof } from '~/features/accounts/cashu-account';
-import {
-  CashuErrorCodes,
-  type ExtendedCashuWallet,
-  getCashuProtocolUnit,
-  getCashuUnit,
-  sumProofs,
-} from '~/lib/cashu';
-import { Money } from '~/lib/money';
 import {
   type CashuReceiveSwapService,
   useCashuReceiveSwapService,

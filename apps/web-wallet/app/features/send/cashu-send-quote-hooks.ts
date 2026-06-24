@@ -1,3 +1,5 @@
+import { getCashuWallet, sumProofs } from '@agicash/cashu';
+import type { Money } from '@agicash/money';
 import {
   type MeltQuoteBolt11Response,
   MintOperationError,
@@ -10,13 +12,8 @@ import {
 } from '@tanstack/react-query';
 import type Big from 'big.js';
 import { useMemo, useState } from 'react';
-import {
-  MeltQuoteSubscriptionManager,
-  getCashuWallet,
-  sumProofs,
-  useOnMeltQuoteStateChange,
-} from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
+import { MeltQuoteSubscriptionManager } from '~/lib/cashu/melt-quote-subscription-manager';
 import type { CashuAccount } from '../accounts/account';
 import {
   useAccountsCache,

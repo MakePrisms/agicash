@@ -1,4 +1,11 @@
 import {
+  type ExtendedCashuWallet,
+  getCashuUnit,
+  getCashuWallet,
+  sumProofs,
+} from '@agicash/cashu';
+import type { Money } from '@agicash/money';
+import {
   HttpResponseError,
   MintOperationError,
   type MintQuoteBolt11Response,
@@ -14,15 +21,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  type ExtendedCashuWallet,
-  MintQuoteSubscriptionManager,
-  getCashuUnit,
-  getCashuWallet,
-  sumProofs,
-  useOnMeltQuoteStateChange,
-} from '~/lib/cashu';
-import type { Money } from '~/lib/money';
+import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
+import { MintQuoteSubscriptionManager } from '~/lib/cashu/mint-quote-subscription-manager';
 import {
   type LongTimeout,
   clearLongTimeout,

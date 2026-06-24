@@ -1,13 +1,13 @@
-import type { Token } from '@cashu/cashu-ts';
-import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import {
   areMintUrlsEqual,
   checkIsTestMint,
   findFirstActiveKeyset,
   getCashuProtocolUnit,
   getKeysetExpiry,
-} from '~/lib/cashu';
-import type { Currency } from '~/lib/money';
+} from '@agicash/cashu';
+import type { Currency } from '@agicash/money';
+import type { Token } from '@cashu/cashu-ts';
+import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import {
   type ExtendedAccount,
   type ExtendedCashuAccount,

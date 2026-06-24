@@ -1,9 +1,9 @@
+import { safeJsonParse } from '@agicash/utils';
 import {
   type Secret,
   type SecretKind,
   parseSecret as parseNut10Secret,
 } from '@cashu/cashu-ts';
-import { safeJsonParse } from '../json';
 
 const isValidHexString = (str: string): boolean => {
   return /^[0-9a-fA-F]+$/.test(str);

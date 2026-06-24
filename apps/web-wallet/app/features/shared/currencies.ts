@@ -1,4 +1,4 @@
-import type { Currency, CurrencyUnit } from '~/lib/money';
+import type { Currency, CurrencyUnit } from '@agicash/money';
 
 const currencyToDefaultUnit: {
   [K in Currency]: CurrencyUnit<K>;

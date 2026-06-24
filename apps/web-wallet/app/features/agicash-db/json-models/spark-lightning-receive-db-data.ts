@@ -1,5 +1,5 @@
+import { Money } from '@agicash/money';
 import { z } from 'zod/mini';
-import { Money } from '~/lib/money';
 import { CashuTokenMeltDbDataSchema } from './cashu-token-melt-db-data';
 
 /**

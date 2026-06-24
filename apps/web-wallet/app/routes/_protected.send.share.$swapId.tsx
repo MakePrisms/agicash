@@ -1,3 +1,4 @@
+import { getCashuProtocolUnit } from '@agicash/cashu';
 import { toProof } from '~/features/accounts/cashu-account';
 import {
   useCashuSendSwap,
@@ -5,7 +6,6 @@ import {
 } from '~/features/send/cashu-send-swap-hooks';
 import { ShareCashuToken } from '~/features/send/share-cashu-token';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
-import { getCashuProtocolUnit } from '~/lib/cashu';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
 import type { Route } from './+types/_protected.send.share.$swapId';
 
