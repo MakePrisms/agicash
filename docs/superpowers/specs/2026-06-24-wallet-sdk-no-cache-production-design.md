@@ -1,7 +1,7 @@
 # Wallet SDK — no-cache production migration design
 
 - **Date:** 2026-06-24
-- **Status:** Design approved; pending spec review → implementation planning
+- **Status:** Design + open items resolved; pending final spec review → implementation planning
 - **Supersedes:** the explore-and-compare track (PRs #1155–#1158) and the earlier "variant B for now" lean. Those are closed as exploration.
 
 ## Problem & goal
@@ -82,13 +82,26 @@ switch the web app's imports for that domain from `/temporary` to `sdk.*`.
   domain-layer cycle — see Dependency facts.)
 - `P0b` **Mechanical move** — all domain files → `packages/wallet-sdk`; web imports
   via `/temporary`; `index.ts` exports types only. Reviewed as a pure move
-  (paths only, no logic change). Foundations (`agicash-db` types + `shared`) move
-  first / with it.
+  (paths only, no logic change). Includes:
+    - the `agicash-db` module (Supabase client `database.client.ts`/`.server.ts`,
+      `supabase-session.ts`, `json-models/`) + `shared` — the foundational layers
+      nearly everything imports;
+    - the **entire `supabase/` project** → `packages/wallet-sdk/supabase/`
+      (migrations, `config.toml`, `seed.sql`, `snippets`, generated
+      `database.types.ts`). No edge functions exist; `config.toml` paths are
+      relative to the folder so they survive the move; the `db:generate-types`
+      script and the three `supabase/` path references in
+      `.github/workflows/ci.yml` get repointed;
+    - **infra sub-step (owner = maintainer):** repoint Supabase's hosted
+      git-integration watched directory to `packages/wallet-sdk/supabase`,
+      verifying auto-deploys still trigger on `next` → `alpha` before `live`.
 
 **Contract foundation**
-- `P1` Define the contract — `Sdk` + `create`, the per-domain namespaces, the
-  separate `ServerSdk`, and the *shape* of the background-processing contract
-  (`start`/`stop`, leader election). Background *implementation* is deferred to
+- `P1` Define the contract — `Sdk` + `create(config)`, the per-domain namespaces,
+  the separate `ServerSdk`, and the *shape* of the background-processing contract
+  (`start`/`stop`, leader election). `create(config)` receives the **host ports**:
+  the Supabase connection (browser / server / node) and an auth **storage/session
+  adapter** (see Resolved design notes). Background *implementation* is deferred to
   the background step.
 
 **Domain contract slices** (order below is dependency-sensible, but flexible —
@@ -143,13 +156,24 @@ concurrency-sensitive chunk):
   self-contained (wrap + switch) and can be reordered if priorities change. The
   only *hard* ordering constraint is `P0a` (cycle-break) before the move.
 
-## Open items to confirm during implementation
+## Resolved design notes
 
-- **Supabase migrations** likely must stay in `supabase/` (CLI requirement); the
-  SDK owns the *generated* db types + repository SQL. Confirm before `P0b`.
-- **`auth` location** — not under `features/`; confirm where it lives for the
-  auth & user slice.
-- **The single event→cache bridge** shape — designed/built at the background step.
+- **Supabase ownership:** the entire `supabase/` project moves into the SDK package
+  (decided — see `P0b`). No edge functions exist; the only non-code cost is the
+  Supabase git-integration directory setting, which the maintainer accepts.
+- **Auth:** logic lives in `features/user/auth.ts` + `features/shared/auth.ts`
+  (moves to SDK); UI stays in `features/login/*`. The browser-bound persistence —
+  guest creds (`localStorage`) and the session-hint cookie — does **not** move
+  as-is; the host provides it through `create(config)` (web: `localStorage`/cookie
+  adapters; future MCP: file/keychain). Exact port shape is finalized in the
+  **auth & user slice** — decided at the right altitude, not now.
+- **Event→cache bridge:** default is a **single generic bridge** (one
+  `useSdkEventBridge` routing all SDK domain events to TanStack caches via one
+  mapping), over per-entity wire hooks. Finalized at the **background step**, where
+  it is built.
+- **Open Secret headless support** is a *future MCP* concern, out of scope here;
+  this work only requires the SDK to be React-agnostic and free of hardcoded
+  browser storage.
 
 ## Decisions log
 
@@ -163,3 +187,10 @@ concurrency-sensitive chunk):
    constraint is the cycle-break before the move.
 5. Verification: smoke per PR; periodic manual money-path checks by the
    maintainer; full live verification at the background step.
+6. The entire `supabase/` project (incl. migrations) moves into the SDK package;
+   the Supabase git-integration directory is reconfigured as a sequenced sub-step
+   (`next` → `alpha` → `live`).
+7. Auth's host-specific persistence is provided via `create(config)` ports, not
+   moved into the SDK as-is; the exact adapter shape is settled in the auth slice.
+8. Event→cache bridge defaults to a single generic bridge, finalized at the
+   background step.
