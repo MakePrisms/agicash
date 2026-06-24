@@ -14,11 +14,13 @@
     "@agicash/money": "workspace:*",
     "@agicash/utils": "workspace:*",
     "@cashu/cashu-ts": "catalog:",
-    "type-fest": "catalog:",
+    "@noble/hashes": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@noble/curves": "catalog:",
     "@types/bun": "catalog:",
+    "type-fest": "catalog:",
     "typescript": "catalog:"
   }
 }

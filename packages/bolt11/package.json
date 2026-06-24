@@ -13,7 +13,7 @@
   "dependencies": {
     "@noble/curves": "catalog:",
     "@noble/hashes": "catalog:",
-    "@scure/base": "2.0.0",
+    "@scure/base": "catalog:",
     "light-bolt11-decoder": "3.2.0"
   },
   "devDependencies": {

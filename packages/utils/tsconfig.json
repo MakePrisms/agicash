@@ -3,8 +3,8 @@
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"],
   "compilerOptions": {
-    "lib": ["ES2022", "DOM"],
-    "types": ["bun"],
+    "lib": ["ES2022"],
+    "types": [],
     "noEmit": true
   }
 }

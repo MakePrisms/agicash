@@ -1,4 +1,3 @@
-import { Money } from '@agicash/money';
 import { configure } from '@agicash/opensecret';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
@@ -12,12 +11,13 @@ import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
+import { registerMoneyDevToolsFormatter } from './lib/money-devtools-formatter';
 import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
 if (process.env.NODE_ENV === 'development') {
-  Money.registerDevToolsFormatter();
+  registerMoneyDevToolsFormatter();
 }
 
 const openSecretApiUrl = import.meta.env.VITE_OPEN_SECRET_API_URL ?? '';
