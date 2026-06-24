@@ -65,7 +65,7 @@ is dependency-sensible but flexible — `/temporary` and in-package calls resolv
 every cross-domain reference, so each slice is self-contained. The one hard rule
 is **step 2 (cycle-break) before step 3 (move)**.
 
-0. **Extract `@agicash/*` libs** (money, ecies, bolt11, lnurl, cashu, utils). *Open as #1159.*
+0. **Extract `@agicash/*` libs** (money, ecies, bolt11, lnurl, cashu, utils). *Merged in #1159.*
 1. **Remove the query-client dependency** from repos/services — they become plain async, cache-free.
 2. **Break the `accounts ↔ user` cycle** — dedicated PR whose description states the cycle-break as the reason. (Only domain-layer cycle; see Dependency facts.)
 3. **Mechanical move** — all domain files, the `agicash-db` module (Supabase client `database.client.ts`/`.server.ts`, `supabase-session.ts`, `json-models/`), `shared`, and the **entire `supabase/` project** → `packages/wallet-sdk`. Web imports via `/temporary`; `index.ts` exports types only. Reviewed as a pure move (paths only, no logic change).
