@@ -6,11 +6,11 @@ import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
-import { AccountService } from '../accounts/account-service';
+import type { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
 import type { User } from '../user/user';
 import { UserCache } from '../user/user-hooks';
-import type { UserService } from '../user/user-service';
+import { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import type { CashuReceiveSwapService } from './cashu-receive-swap-service';
@@ -92,7 +92,7 @@ export class ClaimCashuTokenService {
         accountRepository: this.accountRepository,
       }),
     );
-    const extendedAccounts = AccountService.getExtendedAccounts(user, accounts);
+    const extendedAccounts = UserService.getExtendedAccounts(user, accounts);
     const preferredReceiveAccountId =
       claimTo === 'spark'
         ? extendedAccounts.find((a) => a.type === 'spark')?.id
@@ -128,7 +128,7 @@ export class ClaimCashuTokenService {
 
     if (
       receiveAccount.currency !== user.defaultCurrency ||
-      !AccountService.isDefaultAccount(user, receiveAccount)
+      !UserService.isDefaultAccount(user, receiveAccount)
     ) {
       // We don't want to fail the entire claim flow if setting the default account fails because it's not
       // critical and the user can still claim the token, it just won't be as nice UX because the balance
