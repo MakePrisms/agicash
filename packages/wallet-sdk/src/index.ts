@@ -48,3 +48,10 @@ export type {
 export type { CashuProof } from './accounts/cashu-account';
 export type { AccountRepository } from './accounts/account-repository';
 export type { AccountService } from './accounts/account-service';
+export type {
+  FullUser,
+  GuestUser,
+  User,
+  UserProfile,
+} from './user/user';
+export type { UpdateUser } from './user/user-repository';

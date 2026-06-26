@@ -1,34 +1,26 @@
 import { normalizeMintUrl } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
-import type {
-  AgicashDb,
-  AgicashDbAccount,
-  AgicashDbUser,
-  SparkNetwork,
-} from '@agicash/wallet-sdk';
-import type {
-  Account,
-  AccountRepository,
-  RedactedAccount,
-} from '@agicash/wallet-sdk';
-import { UniqueConstraintError } from '@agicash/wallet-sdk/temporary';
-import {
-  CashuAccountDetailsDbDataSchema,
-  SparkAccountDetailsDbDataSchema,
-  isCashuAccount,
-  isSparkAccount,
-} from '@agicash/wallet-sdk/temporary';
-import {
-  getInitializedCashuWallet,
-  getInitializedSparkWallet,
-  getMintAuthProvider,
-} from '@agicash/wallet-sdk/temporary';
+import type { QueryClient } from '@tanstack/query-core';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod/mini';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
-import { useAccountRepository } from '../accounts/account-repository-hooks';
-import { agicashDbClient } from '../agicash-db/database.client';
-import { isLoggedIn } from '../shared/auth';
+import type { Account, RedactedAccount } from '../accounts/account';
+import type { AccountRepository } from '../accounts/account-repository';
+import {
+  type AgicashDb,
+  type AgicashDbAccount,
+  type AgicashDbUser,
+  isCashuAccount,
+  isSparkAccount,
+} from '../agicash-db/database';
+import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
+import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
+import {
+  getInitializedCashuWallet,
+  getMintAuthProvider,
+} from '../shared/cashu';
+import { UniqueConstraintError } from '../shared/error';
+import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
 
 export type UpdateUser = {
@@ -210,8 +202,11 @@ export class WriteUserRepository {
 export class ReadUserDefaultAccountRepository {
   constructor(
     private readonly db: AgicashDb,
+    private readonly queryClient: QueryClient,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
     private readonly sparkStorageDir: string,
+    private readonly isLoggedIn: () => boolean,
+    private readonly getDebugLogging: () => boolean,
   ) {}
 
   /**
@@ -271,12 +266,13 @@ export class ReadUserDefaultAccountRepository {
       const details = data.details;
 
       const { wallet, isOnline } = await getInitializedCashuWallet({
+        queryClient: this.queryClient,
         mintUrl: details.mint_url,
         currency: data.currency,
         authProvider: getMintAuthProvider(
           data.purpose,
           this.queryClient,
-          isLoggedIn,
+          this.isLoggedIn,
         ),
       });
 
@@ -310,7 +306,13 @@ export class ReadUserDefaultAccountRepository {
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(mnemonic, network, this.sparkStorageDir);
+    return getInitializedSparkWallet(
+      this.queryClient,
+      mnemonic,
+      network,
+      this.sparkStorageDir,
+      this.getDebugLogging(),
+    );
   }
 }
 
@@ -383,13 +385,4 @@ export class ReadUserRepository {
 
     return { ...commonData, isGuest: true };
   }
-}
-
-export function useReadUserRepository() {
-  return new ReadUserRepository(agicashDbClient);
-}
-
-export function useWriteUserRepository() {
-  const accountRepository = useAccountRepository();
-  return new WriteUserRepository(agicashDbClient, accountRepository);
 }

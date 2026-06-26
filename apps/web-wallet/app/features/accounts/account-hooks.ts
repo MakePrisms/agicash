@@ -12,6 +12,7 @@ import type {
 } from '@agicash/wallet-sdk';
 import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
+import { UserService } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
@@ -23,7 +24,6 @@ import {
 import { useCallback, useMemo, useRef } from 'react';
 import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useUser } from '../user/user-hooks';
-import { UserService } from '../user/user-service';
 import { useAccountRepository } from './account-repository-hooks';
 import { useAccountService } from './account-service-hooks';
 

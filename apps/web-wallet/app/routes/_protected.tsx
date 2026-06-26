@@ -1,3 +1,4 @@
+import type { User } from '@agicash/wallet-sdk';
 import { AccountRepository } from '@agicash/wallet-sdk/temporary';
 import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
 import { getEncryption } from '@agicash/wallet-sdk/temporary';
@@ -10,6 +11,8 @@ import {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
 } from '@agicash/wallet-sdk/temporary';
+import { shouldAcceptTerms } from '@agicash/wallet-sdk/temporary';
+import { WriteUserRepository } from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
@@ -34,13 +37,11 @@ import {
   pendingWalletTermsStorage,
 } from '~/features/user/pending-terms-storage';
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
-import { type User, shouldAcceptTerms } from '~/features/user/user';
 import {
   UserCache,
   defaultAccounts,
   getUserFromCache,
 } from '~/features/user/user-hooks';
-import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
 import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';

@@ -6,12 +6,12 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '@agicash/wallet-sdk';
+import type { User } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
+import { UserService } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
 import type { Ticker } from '@agicash/wallet-sdk/temporary';
-import type { User } from '../user/user';
-import { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import type { CashuReceiveSwapService } from './cashu-receive-swap-service';

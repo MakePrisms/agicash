@@ -10,6 +10,10 @@ import {
   AccountRepository,
   AccountService,
 } from '@agicash/wallet-sdk/temporary';
+import {
+  UserService,
+  WriteUserRepository,
+} from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
@@ -39,10 +43,8 @@ import {
 } from '~/features/shared/encryption-hooks';
 import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
-import type { User } from '~/features/user/user';
+import type { User } from '@agicash/wallet-sdk';
 import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
-import { WriteUserRepository } from '~/features/user/user-repository';
-import { UserService } from '~/features/user/user-service';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.receive.cashu_.token';

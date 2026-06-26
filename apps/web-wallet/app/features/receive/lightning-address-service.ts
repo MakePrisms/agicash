@@ -14,17 +14,18 @@ import type { AgicashDb } from '@agicash/wallet-sdk';
 import { ExchangeRateService } from '@agicash/wallet-sdk/temporary';
 import { NotFoundError } from '@agicash/wallet-sdk/temporary';
 import { sparkWalletQueryOptions } from '@agicash/wallet-sdk/temporary';
+import {
+  ReadUserDefaultAccountRepository,
+  ReadUserRepository,
+} from '@agicash/wallet-sdk/temporary';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import { z } from 'zod/mini';
+import { isLoggedIn } from '~/features/shared/auth';
 import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { measureOperation } from '~/lib/performance';
 import { getSparkWallet } from '@agicash/wallet-sdk/temporary';
-import {
-  ReadUserDefaultAccountRepository,
-  ReadUserRepository,
-} from '../user/user-repository';
 import { getLightningQuote } from './cashu-receive-quote-core';
 import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-repository.server';
 import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
@@ -167,6 +168,8 @@ export class LightningAddressService {
         this.db,
         getSparkWalletMnemonic,
         '/tmp/.spark-data',
+        isLoggedIn,
+        () => getFeatureFlag('DEBUG_LOGGING_SPARK'),
       );
 
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.

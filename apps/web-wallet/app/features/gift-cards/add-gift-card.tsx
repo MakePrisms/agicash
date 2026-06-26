@@ -1,4 +1,5 @@
 import type { Currency } from '@agicash/money';
+import { shouldAcceptGiftCardMintTerms } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
 import {
   Link,
@@ -20,7 +21,6 @@ import {
 } from '~/components/wallet-card';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
 import { AcceptTerms } from '~/features/user/accept-terms';
-import { shouldAcceptGiftCardMintTerms } from '~/features/user/user';
 import { useAcceptTerms, useUser } from '~/features/user/user-hooks';
 import { useToast } from '~/hooks/use-toast';
 import type { GiftCardInfo } from './gift-card-config';

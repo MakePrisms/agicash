@@ -75,3 +75,14 @@ export {
 export { CashuProofSchema, toProof } from './accounts/cashu-account';
 export { AccountRepository } from './accounts/account-repository';
 export { AccountService } from './accounts/account-service';
+export {
+  shouldAcceptGiftCardMintTerms,
+  shouldAcceptTerms,
+  shouldVerifyEmail,
+} from './user/user';
+export {
+  ReadUserDefaultAccountRepository,
+  ReadUserRepository,
+  WriteUserRepository,
+} from './user/user-repository';
+export { UserService } from './user/user-service';

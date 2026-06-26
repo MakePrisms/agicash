@@ -1,8 +1,8 @@
 import type { AgicashDb, AgicashDbContact } from '@agicash/wallet-sdk';
+import type { UserProfile } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import useLocationData from '~/hooks/use-location';
 import { agicashDbClient } from '../agicash-db/database.client';
-import type { UserProfile } from '../user/user';
 import type { Contact } from './contact';
 
 type CreateContact = {

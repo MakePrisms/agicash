@@ -1,9 +1,6 @@
-import type { Account, ExtendedAccount } from '@agicash/wallet-sdk';
+import type { Account, ExtendedAccount } from '../accounts/account';
 import type { User } from './user';
-import {
-  type WriteUserRepository,
-  useWriteUserRepository,
-} from './user-repository';
+import type { WriteUserRepository } from './user-repository';
 
 type SetDefaultAccountOptions = {
   /**
@@ -74,9 +71,4 @@ export class UserService {
       { abortSignal: options.abortSignal },
     );
   }
-}
-
-export function useUserService() {
-  const userRepository = useWriteUserRepository();
-  return new UserService(userRepository);
 }

@@ -6,6 +6,7 @@ import {
   accountRequiresGiftCardTermsAcceptance,
   getAccountHomePath,
 } from '@agicash/wallet-sdk/temporary';
+import { shouldAcceptGiftCardMintTerms } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -44,7 +45,6 @@ import {
   pendingGiftCardMintTermsStorage,
   pendingWalletTermsStorage,
 } from '../user/pending-terms-storage';
-import { shouldAcceptGiftCardMintTerms } from '../user/user';
 import { useAcceptTerms, useUser } from '../user/user-hooks';
 import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
 import {
