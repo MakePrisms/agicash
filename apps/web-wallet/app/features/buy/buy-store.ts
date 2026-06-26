@@ -1,9 +1,13 @@
 import type { Currency, Money } from '@agicash/money';
-import type { Account, CashuAccount, SparkAccount } from '@agicash/wallet-sdk';
+import type {
+  Account,
+  CashuAccount,
+  SparkAccount,
+  SparkReceiveQuote,
+} from '@agicash/wallet-sdk';
 import type { TransactionPurpose } from '@agicash/wallet-sdk';
 import { create } from 'zustand';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
-import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 
 export type BuyQuote = {
   id: string;

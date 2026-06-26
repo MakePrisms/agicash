@@ -4,10 +4,9 @@ import type {
   LightningReceiveStatus,
 } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
-import type { SparkAccount } from '@agicash/wallet-sdk';
-import type { TransactionPurpose } from '@agicash/wallet-sdk';
 import type { Proof } from '@cashu/cashu-ts';
-import { measureOperation } from '~/lib/performance';
+import type { SparkAccount } from '../accounts/account';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 
 export type SparkReceiveLightningQuote = {
   /**
@@ -235,17 +234,15 @@ export async function getLightningQuote({
   description,
   descriptionHash,
 }: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
-  const response = await measureOperation('BreezSdk.receivePayment', () =>
-    wallet.receivePayment({
-      paymentMethod: {
-        type: 'bolt11Invoice',
-        description: description ?? '',
-        amountSats: amount.toNumber('sat'),
-        receiverIdentityPubkey,
-        descriptionHash,
-      },
-    }),
-  );
+  const response = await wallet.receivePayment({
+    paymentMethod: {
+      type: 'bolt11Invoice',
+      description: description ?? '',
+      amountSats: amount.toNumber('sat'),
+      receiverIdentityPubkey,
+      descriptionHash,
+    },
+  });
 
   const bolt11 = parseBolt11Invoice(response.paymentRequest);
   if (!bolt11.valid) {

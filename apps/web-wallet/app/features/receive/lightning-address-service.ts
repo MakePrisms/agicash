@@ -18,6 +18,10 @@ import {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,
 } from '@agicash/wallet-sdk/temporary';
+import {
+  SparkReceiveQuoteRepositoryServer,
+  SparkReceiveQuoteServiceServer,
+} from '@agicash/wallet-sdk/temporary';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
@@ -29,8 +33,6 @@ import { getSparkWallet } from '@agicash/wallet-sdk/temporary';
 import { getLightningQuote } from './cashu-receive-quote-core';
 import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-repository.server';
 import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
-import { SparkReceiveQuoteRepositoryServer } from './spark-receive-quote-repository.server';
-import { SparkReceiveQuoteServiceServer } from './spark-receive-quote-service.server';
 
 const sparkMnemonic = process.env.LNURL_SERVER_SPARK_MNEMONIC || '';
 if (!sparkMnemonic) {

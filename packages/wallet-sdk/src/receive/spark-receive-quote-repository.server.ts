@@ -1,8 +1,8 @@
 import type { Money } from '@agicash/money';
-import type { AgicashDb } from '@agicash/wallet-sdk';
-import { SparkLightningReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
-import { encryptToPublicKey } from '@agicash/wallet-sdk/temporary';
 import type { z } from 'zod/mini';
+import type { AgicashDb } from '../agicash-db/database';
+import { SparkLightningReceiveDbDataSchema } from '../agicash-db/json-models/spark-lightning-receive-db-data';
+import { encryptToPublicKey } from '../shared/encryption';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import type { RepositoryCreateQuoteParams } from './spark-receive-quote-core';
 

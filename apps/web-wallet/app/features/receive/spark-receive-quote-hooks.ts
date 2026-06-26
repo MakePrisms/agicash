@@ -6,10 +6,18 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
-import type { AgicashDbSparkReceiveQuote } from '@agicash/wallet-sdk';
+import type {
+  AgicashDbSparkReceiveQuote,
+  SparkReceiveQuote,
+} from '@agicash/wallet-sdk';
 import type { SparkAccount } from '@agicash/wallet-sdk';
 import type { TransactionPurpose } from '@agicash/wallet-sdk';
 import { getInitializedCashuWallet } from '@agicash/wallet-sdk/temporary';
+import { getLightningQuote } from '@agicash/wallet-sdk/temporary';
+import {
+  SparkReceiveQuoteRepository,
+  SparkReceiveQuoteService,
+} from '@agicash/wallet-sdk/temporary';
 import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
@@ -27,12 +35,20 @@ import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { useEncryption } from '../shared/encryption-hooks';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
-import type { SparkReceiveQuote } from './spark-receive-quote';
-import { getLightningQuote } from './spark-receive-quote-core';
-import { useSparkReceiveQuoteRepository } from './spark-receive-quote-repository';
-import { useSparkReceiveQuoteService } from './spark-receive-quote-service';
+
+function useSparkReceiveQuoteRepository() {
+  const encryption = useEncryption();
+  return new SparkReceiveQuoteRepository(agicashDbClient, encryption);
+}
+
+export function useSparkReceiveQuoteService() {
+  const repository = useSparkReceiveQuoteRepository();
+  return new SparkReceiveQuoteService(repository);
+}
 
 class SparkReceiveQuoteCache {
   // Query that tracks the "active" spark receive quote. Active one is the one that user created in current browser session.

@@ -1,19 +1,23 @@
 import { Money } from '@agicash/money';
-import type { Account, CashuAccount, SparkAccount } from '@agicash/wallet-sdk';
+import type {
+  Account,
+  CashuAccount,
+  SparkAccount,
+  SparkReceiveLightningQuote,
+  SparkReceiveQuote,
+  SparkReceiveQuoteService,
+} from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   canReceiveFromLightning,
   canSendToLightning,
 } from '@agicash/wallet-sdk/temporary';
+import { getLightningQuote as getSparkLightningQuote } from '@agicash/wallet-sdk/temporary';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from '../receive/cashu-receive-quote-core';
 import type { CashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';
 import { useCashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';
-import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
-import { getLightningQuote as getSparkLightningQuote } from '../receive/spark-receive-quote-core';
-import type { SparkReceiveLightningQuote } from '../receive/spark-receive-quote-core';
-import type { SparkReceiveQuoteService } from '../receive/spark-receive-quote-service';
-import { useSparkReceiveQuoteService } from '../receive/spark-receive-quote-service';
+import { useSparkReceiveQuoteService } from '../receive/spark-receive-quote-hooks';
 import type {
   CashuLightningQuote,
   CashuSendQuoteService,

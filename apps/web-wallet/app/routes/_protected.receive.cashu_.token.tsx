@@ -11,6 +11,10 @@ import {
   AccountService,
 } from '@agicash/wallet-sdk/temporary';
 import {
+  SparkReceiveQuoteRepository,
+  SparkReceiveQuoteService,
+} from '@agicash/wallet-sdk/temporary';
+import {
   UserService,
   WriteUserRepository,
 } from '@agicash/wallet-sdk/temporary';
@@ -33,8 +37,6 @@ import { CashuReceiveSwapService } from '~/features/receive/cashu-receive-swap-s
 import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
 import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
-import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
-import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
 import { isLoggedIn } from '~/features/shared/auth';
 import {

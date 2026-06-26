@@ -134,3 +134,14 @@ export {
 } from './transactions/transaction-details/transaction-details-types';
 export { TransactionDetailsParser } from './transactions/transaction-details/transaction-details-parser';
 export { TransactionRepository } from './transactions/transaction-repository';
+export { CashuTokenMeltDataSchema } from './receive/cashu-token-melt-data';
+export { SparkReceiveQuoteSchema } from './receive/spark-receive-quote';
+export {
+  computeQuoteExpiry,
+  getAmountAndFee,
+  getLightningQuote,
+} from './receive/spark-receive-quote-core';
+export { SparkReceiveQuoteRepository } from './receive/spark-receive-quote-repository';
+export { SparkReceiveQuoteRepositoryServer } from './receive/spark-receive-quote-repository.server';
+export { SparkReceiveQuoteService } from './receive/spark-receive-quote-service';
+export { SparkReceiveQuoteServiceServer } from './receive/spark-receive-quote-service.server';

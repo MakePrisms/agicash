@@ -1,5 +1,5 @@
 import type { Money } from '@agicash/money';
-import type { SparkAccount } from '@agicash/wallet-sdk';
+import type { SparkAccount, SparkReceiveQuote } from '@agicash/wallet-sdk';
 import { getAccountHomePath } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';
@@ -21,7 +21,6 @@ import {
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import type { SparkReceiveQuote } from './spark-receive-quote';
 import {
   useCreateSparkReceiveQuote,
   useTrackSparkReceiveQuote,

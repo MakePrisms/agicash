@@ -4,10 +4,7 @@ import {
   computeQuoteExpiry,
   getAmountAndFee,
 } from './spark-receive-quote-core';
-import {
-  type SparkReceiveQuoteRepository,
-  useSparkReceiveQuoteRepository,
-} from './spark-receive-quote-repository';
+import type { SparkReceiveQuoteRepository } from './spark-receive-quote-repository';
 
 type CreateQuoteParams = CreateQuoteBaseParams;
 
@@ -172,9 +169,4 @@ export class SparkReceiveQuoteService {
 
     return this.repository.markMeltInitiated(quote);
   }
-}
-
-export function useSparkReceiveQuoteService() {
-  const repository = useSparkReceiveQuoteRepository();
-  return new SparkReceiveQuoteService(repository);
 }

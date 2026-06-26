@@ -5,6 +5,8 @@ import type {
   AccountService,
   CashuAccount,
   SparkAccount,
+  SparkReceiveQuote,
+  SparkReceiveQuoteService,
 } from '@agicash/wallet-sdk';
 import type { User } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
@@ -21,8 +23,6 @@ import type {
   ReceiveCashuTokenQuoteService,
 } from './receive-cashu-token-quote-service';
 import { ReceiveCashuTokenService } from './receive-cashu-token-service';
-import type { SparkReceiveQuote } from './spark-receive-quote';
-import type { SparkReceiveQuoteService } from './spark-receive-quote-service';
 
 type ClaimTokenResult =
   | {

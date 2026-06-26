@@ -1,13 +1,11 @@
 import type { AllUnionFieldsRequired } from '@agicash/utils';
+import type { z } from 'zod/mini';
 import type {
   AgicashDb,
   AgicashDbSparkReceiveQuote,
-} from '@agicash/wallet-sdk';
-import type { Encryption } from '@agicash/wallet-sdk';
-import { SparkLightningReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
-import type { z } from 'zod/mini';
-import { agicashDbClient } from '../agicash-db/database.client';
-import { useEncryption } from '../shared/encryption-hooks';
+} from '../agicash-db/database';
+import { SparkLightningReceiveDbDataSchema } from '../agicash-db/json-models/spark-lightning-receive-db-data';
+import type { Encryption } from '../shared/encryption';
 import {
   type SparkReceiveQuote,
   SparkReceiveQuoteSchema,
@@ -338,9 +336,4 @@ export class SparkReceiveQuoteRepository {
       z.output<typeof SparkReceiveQuoteSchema>
     >);
   }
-}
-
-export function useSparkReceiveQuoteRepository() {
-  const encryption = useEncryption();
-  return new SparkReceiveQuoteRepository(agicashDbClient, encryption);
 }

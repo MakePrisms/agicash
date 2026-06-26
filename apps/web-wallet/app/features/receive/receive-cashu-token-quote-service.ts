@@ -5,8 +5,12 @@ import type {
   AccountType,
   CashuAccount,
   SparkAccount,
+  SparkReceiveLightningQuote,
+  SparkReceiveQuote,
+  SparkReceiveQuoteService,
 } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
+import { getLightningQuote as getSparkLightningQuote } from '@agicash/wallet-sdk/temporary';
 import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
 import type { MeltQuoteBolt11Response, Token } from '@cashu/cashu-ts';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
@@ -16,13 +20,7 @@ import {
   useCashuReceiveQuoteService,
 } from './cashu-receive-quote-service';
 import { isClaimingToSameCashuAccount } from './receive-cashu-token-models';
-import type { SparkReceiveQuote } from './spark-receive-quote';
-import type { SparkReceiveLightningQuote } from './spark-receive-quote-core';
-import { getLightningQuote as getSparkLightningQuote } from './spark-receive-quote-core';
-import {
-  type SparkReceiveQuoteService,
-  useSparkReceiveQuoteService,
-} from './spark-receive-quote-service';
+import { useSparkReceiveQuoteService } from './spark-receive-quote-hooks';
 
 /**
  * Common interface for lightning receive quotes across different account types.

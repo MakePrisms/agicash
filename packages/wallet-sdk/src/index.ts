@@ -87,3 +87,16 @@ export type {
   TransactionDetailsParserShape,
 } from './transactions/transaction-details/transaction-details-types';
 export type { Cursor } from './transactions/transaction-repository';
+export type { CashuTokenMeltData } from './receive/cashu-token-melt-data';
+export type { SparkReceiveQuote } from './receive/spark-receive-quote';
+export type {
+  SparkReceiveLightningQuote,
+  GetLightningQuoteParams,
+  CreateQuoteBaseParams,
+  RepositoryCreateQuoteParams,
+} from './receive/spark-receive-quote-core';
+export type { SparkReceiveQuoteRepository } from './receive/spark-receive-quote-repository';
+export type { SparkReceiveQuoteRepositoryServer } from './receive/spark-receive-quote-repository.server';
+export type { SparkReceiveQuoteCreated } from './receive/spark-receive-quote-repository.server';
+export type { SparkReceiveQuoteService } from './receive/spark-receive-quote-service';
+export type { SparkReceiveQuoteServiceServer } from './receive/spark-receive-quote-service.server';
