@@ -462,7 +462,6 @@ export function useProcessSparkReceiveQuoteTasks() {
   const pendingQuotesCache = usePendingSparkReceiveQuotesCache();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
   const transactionsCache = useTransactionsCache();
-  const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
     mutationFn: async ({
@@ -576,7 +575,6 @@ export function useProcessSparkReceiveQuoteTasks() {
         sourceWallet = sourceAccount.wallet;
       } else {
         const { wallet, isOnline } = await getInitializedCashuWallet({
-          queryClient,
           mintUrl: sourceMintUrl,
           currency: quote.tokenReceiveData.tokenAmount.currency,
         });

@@ -1,15 +1,12 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
-import type { QueryClient } from '@tanstack/react-query';
-import { getExchangeRate } from '~/hooks/use-exchange-rate';
+import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
-import { AccountsCache, accountsQueryOptions } from '../accounts/account-hooks';
 import type { AccountRepository } from '../accounts/account-repository';
 import type { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
 import type { User } from '../user/user';
-import { UserCache } from '../user/user-hooks';
 import { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
@@ -27,14 +24,21 @@ type ClaimTokenResult =
   | {
       success: true;
       destinationAccount: Pick<Account, 'id' | 'purpose'>;
+      /**
+       * Accounts created or updated while claiming, for the caller to write into
+       * its cache (the service no longer owns one).
+       */
+      changedAccounts: Account[];
+      /**
+       * The updated user when the claim changed the default account, else null,
+       * for the caller to write into its cache.
+       */
+      updatedUser: User | null;
     }
   | { success: false; message: string };
 
 export class ClaimCashuTokenService {
-  private readonly accountsCache: AccountsCache;
-
   constructor(
-    private readonly queryClient: QueryClient,
     private readonly accountRepository: AccountRepository,
     private readonly accountService: AccountService,
     private readonly receiveSwapService: CashuReceiveSwapService,
@@ -43,9 +47,7 @@ export class ClaimCashuTokenService {
     private readonly receiveCashuTokenService: ReceiveCashuTokenService,
     private readonly receiveCashuTokenQuoteService: ReceiveCashuTokenQuoteService,
     private readonly userService: UserService,
-  ) {
-    this.accountsCache = new AccountsCache(queryClient);
-  }
+  ) {}
 
   /**
    * Claims the cashu token for the user.
@@ -86,12 +88,10 @@ export class ClaimCashuTokenService {
     token: Token,
     claimTo: 'cashu' | 'spark',
   ): Promise<ClaimTokenResult> {
-    const accounts = await this.queryClient.fetchQuery(
-      accountsQueryOptions({
-        userId: user.id,
-        accountRepository: this.accountRepository,
-      }),
-    );
+    const changedAccounts = new Map<string, Account>();
+    let updatedUser: User | null = null;
+
+    const accounts = await this.accountRepository.getAllActive(user.id);
     const extendedAccounts = UserService.getExtendedAccounts(user, accounts);
     const preferredReceiveAccountId =
       claimTo === 'spark'
@@ -122,7 +122,7 @@ export class ClaimCashuTokenService {
         userId: user.id,
         account: receiveAccount,
       });
-      this.accountsCache.upsert(addedAccount);
+      changedAccounts.set(addedAccount.id, addedAccount);
       receiveAccount = { ...receiveAccount, ...addedAccount };
     }
 
@@ -135,7 +135,7 @@ export class ClaimCashuTokenService {
       // when home page loads might not show the correct currency.
       const result = await this.trySetDefaultAccount(user, receiveAccount);
       if (result.success) {
-        this.queryClient.setQueryData([UserCache.Key], result.user);
+        updatedUser = result.user;
       }
     }
 
@@ -150,7 +150,7 @@ export class ClaimCashuTokenService {
         token,
         account: receiveAccount as CashuAccount,
       });
-      this.accountsCache.upsert(account);
+      changedAccounts.set(account.id, account);
 
       // We want to fail the entire claim flow if completing the swap fails only if the swap is in failed state (non
       // recoverable error). Otherwise, the background processing can pick it up and retry when the app loads. If the
@@ -159,7 +159,7 @@ export class ClaimCashuTokenService {
       // handle the failed swap.
       const result = await this.tryCompleteSwap(account, swap);
       if (result.success) {
-        this.accountsCache.upsert(result.account);
+        changedAccounts.set(result.account.id, result.account);
       } else if (result.swap?.state === 'FAILED') {
         return {
           success: false,
@@ -167,8 +167,7 @@ export class ClaimCashuTokenService {
         };
       }
     } else {
-      const exchangeRate = await getExchangeRate(
-        this.queryClient,
+      const exchangeRate = await new ExchangeRateService().getRate(
         `${sourceAccount.currency}-${receiveAccount.currency}`,
       );
       const quotes =
@@ -200,7 +199,7 @@ export class ClaimCashuTokenService {
       // complete it, the app already has a way to handle the failed receive.
       const result = await this.tryCompleteReceive(quotes);
       if (result.success && result.account) {
-        this.accountsCache.upsert(result.account);
+        changedAccounts.set(result.account.id, result.account);
       }
     }
 
@@ -210,6 +209,8 @@ export class ClaimCashuTokenService {
         id: receiveAccount.id,
         purpose: receiveAccount.purpose,
       },
+      changedAccounts: [...changedAccounts.values()],
+      updatedUser,
     };
   }
 

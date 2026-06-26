@@ -2,6 +2,7 @@ import { validateCashuToken } from '@agicash/cashu';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
+import { AccountsCache } from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
 import { AccountService } from '~/features/accounts/account-service';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
@@ -29,7 +30,7 @@ import {
 } from '~/features/shared/encryption';
 import { getQueryClient } from '~/features/shared/query-client';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
-import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
+import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
 import { toast } from '~/hooks/use-toast';
@@ -49,12 +50,11 @@ const getClaimCashuTokenService = async () => {
   const accountRepository = new AccountRepository(
     agicashDbClient,
     encryption,
-    queryClient,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
     './.spark-data',
   );
-  const accountService = new AccountService(accountRepository, queryClient);
+  const accountService = new AccountService(accountRepository);
   const receiveSwapRepository = new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,
@@ -74,7 +74,7 @@ const getClaimCashuTokenService = async () => {
   const sparkReceiveQuoteService = new SparkReceiveQuoteService(
     new SparkReceiveQuoteRepository(agicashDbClient, encryption),
   );
-  const receiveCashuTokenService = new ReceiveCashuTokenService(queryClient);
+  const receiveCashuTokenService = new ReceiveCashuTokenService();
   const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
@@ -86,7 +86,6 @@ const getClaimCashuTokenService = async () => {
   const userService = new UserService(userRepository);
 
   return new ClaimCashuTokenService(
-    queryClient,
     accountRepository,
     accountService,
     receiveSwapService,
@@ -139,7 +138,20 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
       token,
       claimTo,
     );
-    if (!result.success) {
+
+    if (result.success) {
+      // The claim service no longer writes to the cache directly; apply its
+      // account/user changes here so the destination screen renders them
+      // immediately after the redirect.
+      const queryClient = getQueryClient();
+      const accountsCache = new AccountsCache(queryClient);
+      for (const account of result.changedAccounts) {
+        accountsCache.upsert(account);
+      }
+      if (result.updatedUser) {
+        new UserCache(queryClient).set(result.updatedUser);
+      }
+    } else {
       toast({
         title: 'Failed to claim the token',
         description: result.message,

@@ -1,6 +1,5 @@
 import { normalizeMintUrl } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
-import type { QueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod/mini';
 import type { Account, RedactedAccount } from '../accounts/account';
@@ -206,7 +205,6 @@ export class WriteUserRepository {
 export class ReadUserDefaultAccountRepository {
   constructor(
     private readonly db: AgicashDb,
-    private readonly queryClient: QueryClient,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
     private readonly sparkStorageDir: string,
   ) {}
@@ -268,7 +266,6 @@ export class ReadUserDefaultAccountRepository {
       const details = data.details;
 
       const { wallet, isOnline } = await getInitializedCashuWallet({
-        queryClient: this.queryClient,
         mintUrl: details.mint_url,
         currency: data.currency,
         authProvider: getMintAuthProvider(data.purpose),
@@ -304,12 +301,7 @@ export class ReadUserDefaultAccountRepository {
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(
-      this.queryClient,
-      mnemonic,
-      network,
-      this.sparkStorageDir,
-    );
+    return getInitializedSparkWallet(mnemonic, network, this.sparkStorageDir);
   }
 }
 

@@ -6,7 +6,6 @@
 import { Money } from '@agicash/money';
 import { agicashDbServer } from '~/features/agicash-db/database.server';
 import { LightningAddressService } from '~/features/receive/lightning-address-service';
-import { getQueryClient } from '~/features/shared/query-client';
 import type { Route } from './+types/api.lnurlp.callback.$userId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -36,11 +35,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const bypassAmountValidation =
     url.searchParams.get('bypassAmountValidation') === 'true';
 
-  const queryClient = getQueryClient();
   const lightningAddressService = new LightningAddressService(
     request,
     agicashDbServer,
-    queryClient,
     { bypassAmountValidation },
   );
 

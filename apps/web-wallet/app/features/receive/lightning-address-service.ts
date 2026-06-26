@@ -9,7 +9,6 @@ import { Money } from '@agicash/money';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
-import type { QueryClient } from '@tanstack/react-query';
 import { z } from 'zod/mini';
 import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
 import { measureOperation } from '~/lib/performance';
@@ -19,7 +18,7 @@ import {
 } from '~/lib/xchacha20poly1305';
 import type { AgicashDb } from '../agicash-db/database';
 import { NotFoundError } from '../shared/error';
-import { sparkWalletQueryOptions } from '../shared/spark';
+import { getSparkWallet } from '../shared/spark';
 import {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,
@@ -67,7 +66,6 @@ export class LightningAddressService {
   private minSendable: Money<'BTC'>;
   private maxSendable: Money<'BTC'>;
   private exchangeRateService: ExchangeRateService;
-  private queryClient: QueryClient;
   /**
    * A client can flag that they will not validate the invoice amount.
    * This is useful for agicash <-> agicash payments so that the receiver can receive into their default currency
@@ -78,12 +76,10 @@ export class LightningAddressService {
   constructor(
     request: Request,
     db: AgicashDb,
-    queryClient: QueryClient,
     options?: {
       bypassAmountValidation?: boolean;
     },
   ) {
-    this.queryClient = queryClient;
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
     this.userRepository = new ReadUserRepository(db);
@@ -167,7 +163,6 @@ export class LightningAddressService {
 
       const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
         this.db,
-        this.queryClient,
         getSparkWalletMnemonic,
         '/tmp/.spark-data',
       );
@@ -321,13 +316,11 @@ export class LightningAddressService {
   private async handleSparkLnurlpVerify(
     receiveRequestId: string,
   ): Promise<LNURLVerifyResult> {
-    const wallet = await this.queryClient.fetchQuery(
-      sparkWalletQueryOptions({
-        network: 'MAINNET',
-        mnemonic: sparkMnemonic,
-        storageDir: '/tmp/.spark-data',
-      }),
-    );
+    const wallet = await getSparkWallet({
+      network: 'MAINNET',
+      mnemonic: sparkMnemonic,
+      storageDir: '/tmp/.spark-data',
+    });
 
     const receiveRequest = await measureOperation(
       'BreezSdk.getLightningReceiveRequest',

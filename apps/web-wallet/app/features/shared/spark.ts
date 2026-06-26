@@ -86,54 +86,74 @@ export const sparkIdentityPublicKeyQueryOptions = ({
     },
   });
 
-export const sparkWalletQueryOptions = ({
+const sparkWalletPromises = new Map<string, Promise<BreezSdk>>();
+
+/**
+ * Returns the process-wide Breez wallet for a mnemonic, connecting on first
+ * request and memoizing the connection. A Breez `connect()` opens a stateful
+ * session, so it must run at most once per mnemonic/network/storageDir —
+ * re-connecting would leak duplicate sessions. A failed connect is evicted so
+ * the next call retries.
+ */
+export function getSparkWallet({
   network,
   mnemonic,
   storageDir,
-}: { network: SparkNetwork; mnemonic: string; storageDir: string }) =>
-  queryOptions({
-    queryKey: ['spark-wallet', computeSHA256(mnemonic), network, storageDir],
-    queryFn: async () => {
-      const breezNetwork = network.toLowerCase() as 'mainnet' | 'regtest';
+}: {
+  network: SparkNetwork;
+  mnemonic: string;
+  storageDir: string;
+}): Promise<BreezSdk> {
+  const key = `${computeSHA256(mnemonic)}:${network}:${storageDir}`;
+  const existing = sparkWalletPromises.get(key);
+  if (existing) return existing;
 
-      tryInitLogging();
-
-      const sdk = await measureOperation(
-        'BreezSdk.connect',
-        () =>
-          connect({
-            config: {
-              ...defaultConfig(breezNetwork),
-              apiKey,
-              lnurlDomain: undefined, // Disables Breez's built-in lightning address recovery — we use our own ln address system
-              privateEnabledDefault: true,
-              optimizationConfig: {
-                autoEnabled: true,
-                multiplicity: 2,
-              },
-            },
-            seed: { type: 'mnemonic', mnemonic },
-            storageDir,
-          }),
-        { 'spark.network': network },
-      );
-
-      return sdk;
-    },
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: Number.POSITIVE_INFINITY,
+  const breezNetwork = network.toLowerCase() as 'mainnet' | 'regtest';
+  tryInitLogging();
+  const walletPromise = measureOperation(
+    'BreezSdk.connect',
+    () =>
+      connect({
+        config: {
+          ...defaultConfig(breezNetwork),
+          apiKey,
+          lnurlDomain: undefined, // Disables Breez's built-in lightning address recovery — we use our own ln address system
+          privateEnabledDefault: true,
+          optimizationConfig: {
+            autoEnabled: true,
+            multiplicity: 2,
+          },
+        },
+        seed: { type: 'mnemonic', mnemonic },
+        storageDir,
+      }),
+    { 'spark.network': network },
+  );
+  sparkWalletPromises.set(key, walletPromise);
+  void walletPromise.catch(() => {
+    if (sparkWalletPromises.get(key) === walletPromise) {
+      sparkWalletPromises.delete(key);
+    }
   });
+  return walletPromise;
+}
+
+/**
+ * Drops all memoized Breez wallet connections so a subsequent session
+ * reconnects fresh. Called on sign-out (mirrors the old `queryClient.clear()`).
+ */
+export function clearSparkWallets(): void {
+  sparkWalletPromises.clear();
+}
 
 /**
  * Initializes a Spark wallet with offline handling.
  * If Spark is offline or times out, returns a minimal wallet with isOnline: false.
- * @param queryClient - The query client to use for async queries and caching.
  * @param mnemonic - The Spark wallet mnemonic.
  * @param network - The Spark network that the wallet is on.
  * @returns The wallet, balance and online status.
  */
 export async function getInitializedSparkWallet(
-  queryClient: QueryClient,
   mnemonic: string,
   network: SparkNetwork,
   storageDir: string,
@@ -146,9 +166,7 @@ export async function getInitializedSparkWallet(
     'getInitializedSparkWallet',
     async () => {
       try {
-        const wallet = await queryClient.fetchQuery(
-          sparkWalletQueryOptions({ network, mnemonic, storageDir }),
-        );
+        const wallet = await getSparkWallet({ network, mnemonic, storageDir });
         const info = await measureOperation('BreezSdk.getInfo', () =>
           wallet.getInfo({}),
         );

@@ -584,7 +584,6 @@ export function useProcessCashuReceiveQuoteTasks() {
   const pendingQuotesCache = usePendingCashuReceiveQuotesCache();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
   const transactionsCache = useTransactionsCache();
-  const queryClient = useQueryClient();
 
   const { mutate: completeReceiveQuote } = useMutation({
     mutationFn: async (quoteId: string) => {
@@ -682,7 +681,6 @@ export function useProcessCashuReceiveQuoteTasks() {
         sourceWallet = sourceAccount.wallet;
       } else {
         const { wallet, isOnline } = await getInitializedCashuWallet({
-          queryClient,
           mintUrl: sourceMintUrl,
           currency: quote.tokenReceiveData.tokenAmount.currency,
         });
