@@ -1,6 +1,7 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Money } from '@agicash/money';
 import type { AgicashDbSparkSendQuote } from '@agicash/wallet-sdk';
+import type { SparkAccount } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import {
@@ -12,7 +13,6 @@ import {
 import { useEffect, useMemo, useRef } from 'react';
 import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useLatest } from '~/lib/use-latest';
-import type { SparkAccount } from '../accounts/account';
 import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,

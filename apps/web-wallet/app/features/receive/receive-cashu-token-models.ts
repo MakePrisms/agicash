@@ -3,7 +3,7 @@ import type {
   Account,
   ExtendedCashuAccount,
   ExtendedSparkAccount,
-} from '../accounts/account';
+} from '@agicash/wallet-sdk';
 
 type TokenFlags = {
   /** Whether the account is the source account of the cashu token. */

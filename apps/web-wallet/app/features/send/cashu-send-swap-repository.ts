@@ -7,11 +7,11 @@ import type {
   AgicashDbCashuSendSwap,
 } from '@agicash/wallet-sdk';
 import type { Encryption } from '@agicash/wallet-sdk';
+import type { CashuProof } from '@agicash/wallet-sdk';
 import { ConcurrencyError } from '@agicash/wallet-sdk/temporary';
 import { CashuSwapSendDbDataSchema } from '@agicash/wallet-sdk/temporary';
 import type { Proof } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
-import type { CashuProof } from '../accounts/cashu-account';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption-hooks';
 import { type CashuSendSwap, CashuSendSwapSchema } from './cashu-send-swap';

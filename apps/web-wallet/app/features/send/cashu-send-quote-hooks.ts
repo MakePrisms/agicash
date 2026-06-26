@@ -4,6 +4,7 @@ import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendQuote,
 } from '@agicash/wallet-sdk';
+import type { CashuAccount } from '@agicash/wallet-sdk';
 import { ConcurrencyError, DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   type MeltQuoteBolt11Response,
@@ -19,7 +20,6 @@ import type Big from 'big.js';
 import { useMemo, useState } from 'react';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { MeltQuoteSubscriptionManager } from '~/lib/cashu/melt-quote-subscription-manager';
-import type { CashuAccount } from '../accounts/account';
 import {
   useAccountsCache,
   useGetCashuAccount,

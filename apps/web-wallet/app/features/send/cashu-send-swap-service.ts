@@ -6,9 +6,12 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import { Money } from '@agicash/money';
+import type { CashuAccount } from '@agicash/wallet-sdk';
+import type { CashuProof } from '@agicash/wallet-sdk';
 import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { getTokenHash } from '@agicash/wallet-sdk/temporary';
+import { toProof } from '@agicash/wallet-sdk/temporary';
 import {
   MintOperationError,
   OutputData,
@@ -16,8 +19,6 @@ import {
   type Wallet,
   splitAmount,
 } from '@cashu/cashu-ts';
-import type { CashuAccount } from '~/features/accounts/account';
-import { type CashuProof, toProof } from '~/features/accounts/cashu-account';
 import {
   type CashuReceiveSwapService,
   useCashuReceiveSwapService,

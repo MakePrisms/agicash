@@ -6,17 +6,19 @@ import {
   seedQueryOptions,
 } from '@agicash/wallet-sdk/temporary';
 import { sparkMnemonicQueryOptions } from '@agicash/wallet-sdk/temporary';
+import {
+  AccountRepository,
+  AccountService,
+} from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
-import type { Account } from '~/features/accounts/account';
+import type { Account } from '@agicash/wallet-sdk';
 import {
   AccountsCache,
   accountsQueryOptions,
 } from '~/features/accounts/account-hooks';
-import { AccountRepository } from '~/features/accounts/account-repository';
-import { AccountService } from '~/features/accounts/account-service';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
@@ -30,10 +32,12 @@ import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
+import { isLoggedIn } from '~/features/shared/auth';
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
 } from '~/features/shared/encryption-hooks';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
 import type { User } from '~/features/user/user';
 import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
@@ -60,6 +64,8 @@ const getServices = async () => {
     getCashuWalletSeed,
     getSparkWalletMnemonic,
     './.spark-data',
+    isLoggedIn,
+    () => getFeatureFlag('DEBUG_LOGGING_SPARK'),
   );
   const accountService = new AccountService(accountRepository);
   const receiveSwapRepository = new CashuReceiveSwapRepository(

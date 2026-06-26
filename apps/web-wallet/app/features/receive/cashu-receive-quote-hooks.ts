@@ -6,6 +6,7 @@ import {
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type { AgicashDbCashuReceiveQuote } from '@agicash/wallet-sdk';
+import type { CashuAccount } from '@agicash/wallet-sdk';
 import { getInitializedCashuWallet } from '@agicash/wallet-sdk/temporary';
 import {
   HttpResponseError,
@@ -32,7 +33,6 @@ import {
 } from '~/lib/timeout';
 import { useLatest } from '~/lib/use-latest';
 import { withRetry } from '~/lib/with-retry';
-import type { CashuAccount } from '../accounts/account';
 import {
   useGetCashuAccount,
   useGetCashuAccountByMintUrlAndCurrency,

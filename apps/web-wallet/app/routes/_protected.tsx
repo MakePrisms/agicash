@@ -1,3 +1,4 @@
+import { AccountRepository } from '@agicash/wallet-sdk/temporary';
 import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
 import { getEncryption } from '@agicash/wallet-sdk/temporary';
 import {
@@ -13,14 +14,15 @@ import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
 import { AccountsCache } from '~/features/accounts/account-hooks';
-import { AccountRepository } from '~/features/accounts/account-repository';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
+import { isLoggedIn as isUserLoggedIn } from '~/features/shared/auth';
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
 } from '~/features/shared/encryption-hooks';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
 import {
   type AuthUser,
@@ -116,6 +118,8 @@ const ensureUserData = async (
       getCashuWalletSeed,
       getSparkWalletMnemonic,
       './.spark-data',
+      isUserLoggedIn,
+      () => getFeatureFlag('DEBUG_LOGGING_SPARK'),
     );
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,

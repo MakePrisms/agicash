@@ -1,10 +1,10 @@
 import { Money } from '@agicash/money';
+import type { Account, CashuAccount, SparkAccount } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
-import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import {
   canReceiveFromLightning,
   canSendToLightning,
-} from '../accounts/account';
+} from '@agicash/wallet-sdk/temporary';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from '../receive/cashu-receive-quote-core';
 import type { CashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';

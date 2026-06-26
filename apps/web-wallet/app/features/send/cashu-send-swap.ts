@@ -1,6 +1,6 @@
 import { Money } from '@agicash/money';
+import { CashuProofSchema } from '@agicash/wallet-sdk/temporary';
 import { z } from 'zod/mini';
-import { CashuProofSchema } from '../accounts/cashu-account';
 
 /**
  * Base schema for cashu send swap.

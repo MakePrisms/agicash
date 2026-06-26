@@ -5,14 +5,11 @@ import type {
   AgicashDbCashuReceiveQuote,
 } from '@agicash/wallet-sdk';
 import type { Encryption } from '@agicash/wallet-sdk';
+import type { AccountRepository, CashuAccount } from '@agicash/wallet-sdk';
 import { CashuLightningReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
 import type { Proof } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
-import type { CashuAccount } from '../accounts/account';
-import {
-  type AccountRepository,
-  useAccountRepository,
-} from '../accounts/account-repository';
+import { useAccountRepository } from '../accounts/account-repository-hooks';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption-hooks';
 import {

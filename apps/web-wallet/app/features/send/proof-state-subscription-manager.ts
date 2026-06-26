@@ -1,7 +1,7 @@
 import { getCashuWallet } from '@agicash/cashu';
 import { isSubset } from '@agicash/utils';
+import { toProof } from '@agicash/wallet-sdk/temporary';
 import type { Proof, ProofState } from '@cashu/cashu-ts';
-import { toProof } from '../accounts/cashu-account';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 
 type Subscription = {

@@ -1,3 +1,4 @@
+import type { Account } from '@agicash/wallet-sdk';
 import {
   type PropsWithChildren,
   createContext,
@@ -5,7 +6,6 @@ import {
   useState,
 } from 'react';
 import { useStore } from 'zustand';
-import type { Account } from '~/features/accounts/account';
 import { useAccountsCache, useGetAccount } from '../accounts/account-hooks';
 import { GIFT_CARDS } from '../gift-cards/use-discover-cards';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';

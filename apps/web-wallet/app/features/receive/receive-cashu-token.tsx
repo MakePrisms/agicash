@@ -2,6 +2,10 @@ import { encodeToken } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
 import { getErrorMessage } from '@agicash/wallet-sdk/temporary';
 import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
+import {
+  accountRequiresGiftCardTermsAcceptance,
+  getAccountHomePath,
+} from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -29,10 +33,6 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import {
-  accountRequiresGiftCardTermsAcceptance,
-  getAccountHomePath,
-} from '../accounts/account';
 import { AccountSelector } from '../accounts/account-selector';
 import { GiftCardItem } from '../gift-cards/gift-card-item';
 import { OfferItem } from '../gift-cards/offer-item';

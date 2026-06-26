@@ -32,3 +32,19 @@ export type {
 export type { SparkLightningReceiveDbData } from './agicash-db/json-models/spark-lightning-receive-db-data';
 export type { SparkLightningSendDbData } from './agicash-db/json-models/spark-lightning-send-db-data';
 export type { FeatureFlag, FeatureFlags } from './shared/feature-flag-service';
+export type {
+  AccountType,
+  AccountState,
+  AccountPurpose,
+  Account,
+  ExtendedAccount,
+  CashuAccount,
+  SparkAccount,
+  ExtendedCashuAccount,
+  ExtendedSparkAccount,
+  RedactedAccount,
+  RedactedCashuAccount,
+} from './accounts/account';
+export type { CashuProof } from './accounts/cashu-account';
+export type { AccountRepository } from './accounts/account-repository';
+export type { AccountService } from './accounts/account-service';

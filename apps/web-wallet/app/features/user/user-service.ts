@@ -1,4 +1,4 @@
-import type { Account, ExtendedAccount } from '../accounts/account';
+import type { Account, ExtendedAccount } from '@agicash/wallet-sdk';
 import type { User } from './user';
 import {
   type WriteUserRepository,

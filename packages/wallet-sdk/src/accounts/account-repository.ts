@@ -1,32 +1,26 @@
 import { ProofSchema, normalizeMintUrl } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
-import type {
-  AgicashDb,
-  AgicashDbAccountWithProofs,
-} from '@agicash/wallet-sdk';
-import type { SparkNetwork } from '@agicash/wallet-sdk';
-import type { Encryption } from '@agicash/wallet-sdk';
-import { DomainError } from '@agicash/wallet-sdk/temporary';
-import {
-  CashuAccountDetailsDbDataSchema,
-  SparkAccountDetailsDbDataSchema,
-  isCashuAccount,
-  isSparkAccount,
-} from '@agicash/wallet-sdk/temporary';
-import {
-  getInitializedCashuWallet,
-  getInitializedSparkWallet,
-  getMintAuthProvider,
-  sparkMnemonicQueryOptions,
-} from '@agicash/wallet-sdk/temporary';
-import { useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/query-core';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
-import { agicashDbClient } from '../agicash-db/database.client';
-import { isLoggedIn } from '../shared/auth';
-import { useCashuCryptography } from '../shared/cashu-hooks';
-import { useEncryption } from '../shared/encryption-hooks';
+import {
+  type AgicashDb,
+  type AgicashDbAccountWithProofs,
+  isCashuAccount,
+  isSparkAccount,
+} from '../agicash-db/database';
+import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
+import {
+  SparkAccountDetailsDbDataSchema,
+  type SparkNetwork,
+} from '../agicash-db/json-models/spark-account-details-db-data';
+import {
+  getInitializedCashuWallet,
+  getMintAuthProvider,
+} from '../shared/cashu';
+import type { Encryption } from '../shared/encryption';
+import { DomainError } from '../shared/error';
+import { getInitializedSparkWallet } from '../shared/spark';
 import type { Account, AccountPurpose, CashuAccount } from './account';
 import type { CashuProof } from './cashu-account';
 
@@ -52,9 +46,12 @@ export class AccountRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly encryption: Encryption,
+    private readonly queryClient: QueryClient,
     private readonly getCashuWalletSeed: () => Promise<Uint8Array>,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
     private readonly sparkStorageDir: string,
+    private readonly isLoggedIn: () => boolean,
+    private readonly getDebugLogging: () => boolean,
   ) {}
 
   /**
@@ -234,16 +231,27 @@ export class AccountRepository {
   ) {
     const seed = await this.getCashuWalletSeed();
     return getInitializedCashuWallet({
+      queryClient: this.queryClient,
       mintUrl,
       currency,
       bip39seed: seed ?? undefined,
-      authProvider: getMintAuthProvider(purpose, this.queryClient, isLoggedIn),
+      authProvider: getMintAuthProvider(
+        purpose,
+        this.queryClient,
+        this.isLoggedIn,
+      ),
     });
   }
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(mnemonic, network, this.sparkStorageDir);
+    return getInitializedSparkWallet(
+      this.queryClient,
+      mnemonic,
+      network,
+      this.sparkStorageDir,
+      this.getDebugLogging(),
+    );
   }
 
   private async decryptCashuProofs(
@@ -281,19 +289,4 @@ export class AccountRepository {
       };
     });
   }
-}
-
-export function useAccountRepository() {
-  const encryption = useEncryption();
-  const queryClient = useQueryClient();
-  const { getSeed: getCashuWalletSeed } = useCashuCryptography();
-  const getSparkWalletMnemonic = () =>
-    queryClient.fetchQuery(sparkMnemonicQueryOptions());
-  return new AccountRepository(
-    agicashDbClient,
-    encryption,
-    getCashuWalletSeed,
-    getSparkWalletMnemonic,
-    './.spark-data',
-  );
 }

@@ -1,6 +1,7 @@
 import type { Currency } from '@agicash/money';
 import { requestNewVerificationCode } from '@agicash/opensecret';
 import type { AgicashDbUser } from '@agicash/wallet-sdk';
+import type { Account } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
   useMutation,
@@ -11,7 +12,6 @@ import { useCallback, useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import { useLatest } from '~/lib/use-latest';
-import type { Account } from '../accounts/account';
 import { guestAccountStorage } from './guest-account-storage';
 import type { User } from './user';
 import {

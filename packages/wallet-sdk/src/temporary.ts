@@ -63,3 +63,15 @@ export {
   FEATURE_FLAG_DEFAULTS,
   FeatureFlagService,
 } from './shared/feature-flag-service';
+export {
+  AccountPurposeSchema,
+  AccountTypeSchema,
+  accountRequiresGiftCardTermsAcceptance,
+  canReceiveFromLightning,
+  canSendToLightning,
+  getAccountBalance,
+  getAccountHomePath,
+} from './accounts/account';
+export { CashuProofSchema, toProof } from './accounts/cashu-account';
+export { AccountRepository } from './accounts/account-repository';
+export { AccountService } from './accounts/account-service';

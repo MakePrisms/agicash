@@ -1,7 +1,7 @@
 import { Money } from '@agicash/money';
 import { DestinationDetailsSchema } from '@agicash/wallet-sdk/temporary';
+import { CashuProofSchema } from '@agicash/wallet-sdk/temporary';
 import { z } from 'zod/mini';
-import { CashuProofSchema } from '../accounts/cashu-account';
 
 export type { DestinationDetails } from '@agicash/wallet-sdk';
 

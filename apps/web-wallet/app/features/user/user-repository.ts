@@ -6,6 +6,11 @@ import type {
   AgicashDbUser,
   SparkNetwork,
 } from '@agicash/wallet-sdk';
+import type {
+  Account,
+  AccountRepository,
+  RedactedAccount,
+} from '@agicash/wallet-sdk';
 import { UniqueConstraintError } from '@agicash/wallet-sdk/temporary';
 import {
   CashuAccountDetailsDbDataSchema,
@@ -21,11 +26,7 @@ import {
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod/mini';
 import { getFeatureFlag } from '~/features/shared/feature-flags';
-import type { Account, RedactedAccount } from '../accounts/account';
-import {
-  type AccountRepository,
-  useAccountRepository,
-} from '../accounts/account-repository';
+import { useAccountRepository } from '../accounts/account-repository-hooks';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { isLoggedIn } from '../shared/auth';
 import type { User } from './user';

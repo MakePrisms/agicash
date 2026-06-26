@@ -4,9 +4,9 @@ import type {
   LightningReceiveStatus,
 } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
+import type { SparkAccount } from '@agicash/wallet-sdk';
 import type { Proof } from '@cashu/cashu-ts';
 import { measureOperation } from '~/lib/performance';
-import type { SparkAccount } from '../accounts/account';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 
 export type SparkReceiveLightningQuote = {

@@ -1,10 +1,15 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
+import type {
+  Account,
+  AccountRepository,
+  AccountService,
+  CashuAccount,
+  SparkAccount,
+} from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
-import type { Ticker } from '~/lib/exchange-rate';
-import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
-import type { AccountService } from '../accounts/account-service';
+import type { Ticker } from '@agicash/wallet-sdk/temporary';
 import type { User } from '../user/user';
 import { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';

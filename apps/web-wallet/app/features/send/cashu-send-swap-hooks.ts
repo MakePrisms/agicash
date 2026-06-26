@@ -3,6 +3,7 @@ import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendSwap,
 } from '@agicash/wallet-sdk';
+import type { CashuAccount } from '@agicash/wallet-sdk';
 import {
   ConcurrencyError,
   DomainError,
@@ -18,7 +19,6 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useLatest } from '~/lib/use-latest';
-import type { CashuAccount } from '../accounts/account';
 import {
   useAccount,
   useGetCashuAccount,

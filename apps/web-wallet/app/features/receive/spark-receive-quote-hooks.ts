@@ -7,6 +7,7 @@ import {
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type { AgicashDbSparkReceiveQuote } from '@agicash/wallet-sdk';
+import type { SparkAccount } from '@agicash/wallet-sdk';
 import { getInitializedCashuWallet } from '@agicash/wallet-sdk/temporary';
 import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
@@ -20,7 +21,6 @@ import { useEffect, useMemo } from 'react';
 import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { useLatest } from '~/lib/use-latest';
-import type { SparkAccount } from '../accounts/account';
 import {
   useGetCashuAccountByMintUrlAndCurrency,
   useGetSparkAccount,

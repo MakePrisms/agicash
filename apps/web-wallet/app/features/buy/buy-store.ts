@@ -1,6 +1,6 @@
 import type { Currency, Money } from '@agicash/money';
+import type { Account, CashuAccount, SparkAccount } from '@agicash/wallet-sdk';
 import { create } from 'zustand';
-import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 import type { TransactionPurpose } from '../transactions/transaction-enums';

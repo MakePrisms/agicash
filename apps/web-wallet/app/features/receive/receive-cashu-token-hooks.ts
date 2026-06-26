@@ -1,17 +1,17 @@
 import { getClaimableProofs, getUnspentProofsFromToken } from '@agicash/cashu';
 import { type Currency, Money } from '@agicash/money';
+import type {
+  Account,
+  CashuAccount,
+  ExtendedAccount,
+} from '@agicash/wallet-sdk';
 import { createSparkWalletStub } from '@agicash/wallet-sdk/temporary';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
+import { canSendToLightning } from '@agicash/wallet-sdk/temporary';
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import {
-  type Account,
-  type CashuAccount,
-  type ExtendedAccount,
-  canSendToLightning,
-} from '~/features/accounts/account';
 import {
   useAccounts,
   useAddCashuAccount,

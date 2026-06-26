@@ -1,6 +1,17 @@
 import { type Currency, Money } from '@agicash/money';
 import type { AgicashDbAccountWithProofs } from '@agicash/wallet-sdk';
+import type {
+  Account,
+  AccountPurpose,
+  AccountRepository,
+  AccountState,
+  AccountType,
+  CashuAccount,
+  ExtendedAccount,
+  SparkAccount,
+} from '@agicash/wallet-sdk';
 import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
+import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
@@ -13,21 +24,8 @@ import { useCallback, useMemo, useRef } from 'react';
 import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useUser } from '../user/user-hooks';
 import { UserService } from '../user/user-service';
-import {
-  type Account,
-  type AccountPurpose,
-  type AccountState,
-  type AccountType,
-  type CashuAccount,
-  type ExtendedAccount,
-  type SparkAccount,
-  getAccountBalance,
-} from './account';
-import {
-  type AccountRepository,
-  useAccountRepository,
-} from './account-repository';
-import { useAccountService } from './account-service';
+import { useAccountRepository } from './account-repository-hooks';
+import { useAccountService } from './account-service-hooks';
 
 export class AccountsCache {
   public static Key = 'accounts';

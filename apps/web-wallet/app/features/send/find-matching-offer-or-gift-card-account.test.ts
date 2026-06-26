@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { type DecodedBolt11, decodeBolt11 } from '@agicash/bolt11';
-import type { CashuAccount } from '~/features/accounts/account';
+import type { CashuAccount } from '@agicash/wallet-sdk';
 import type { GiftCardInfo } from '~/features/gift-cards/gift-card-config';
 import { findMatchingOfferOrGiftCardAccount } from './find-matching-offer-or-gift-card-account';
 
