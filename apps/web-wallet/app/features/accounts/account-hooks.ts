@@ -11,6 +11,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
 import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
+import { UserService } from '../user/user-service';
 import {
   type Account,
   type AccountPurpose,
@@ -25,7 +26,7 @@ import {
   type AccountRepository,
   useAccountRepository,
 } from './account-repository';
-import { AccountService, useAccountService } from './account-service';
+import { useAccountService } from './account-service';
 
 export class AccountsCache {
   public static Key = 'accounts';
@@ -261,7 +262,7 @@ export function useAccounts<
     select: useCallback(
       (data: Account[]) => {
         const allowedStates = Array.isArray(state) ? state : [state];
-        const extendedData = AccountService.getExtendedAccounts(user, data);
+        const extendedData = UserService.getExtendedAccounts(user, data);
 
         const filteredData = extendedData.filter((account) => {
           if (!allowedStates.includes(account.state)) {

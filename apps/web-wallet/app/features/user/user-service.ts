@@ -1,4 +1,4 @@
-import type { Account } from '../accounts/account';
+import type { Account, ExtendedAccount } from '../accounts/account';
 import type { User } from './user';
 import {
   type WriteUserRepository,
@@ -15,6 +15,35 @@ type SetDefaultAccountOptions = {
 
 export class UserService {
   constructor(private readonly userRepository: WriteUserRepository) {}
+
+  /**
+   * Returns true if the account is the user's default account for the respective currency.
+   */
+  static isDefaultAccount(user: User, account: Account) {
+    if (account.currency === 'BTC') {
+      return user.defaultBtcAccountId === account.id;
+    }
+    if (account.currency === 'USD') {
+      return user.defaultUsdAccountId === account.id;
+    }
+    return false;
+  }
+
+  /**
+   * Returns the accounts with the isDefault flag set to true if the account is the user's
+   * default account for the respective currency. Sorts the default account to the top.
+   */
+  static getExtendedAccounts(
+    user: User,
+    accounts: Account[],
+  ): ExtendedAccount[] {
+    return accounts
+      .map((account) => ({
+        ...account,
+        isDefault: UserService.isDefaultAccount(user, account),
+      }))
+      .sort((_, b) => (b.isDefault ? 1 : -1)); // Sort the default account to the top;
+  }
 
   /**
    * Sets the account as the user's default account for the respective currency.

@@ -1,38 +1,9 @@
 import { Money } from '@agicash/money';
 import { z } from 'zod/mini';
+import { DestinationDetailsSchema } from '~/features/shared/send-destination';
 import { CashuProofSchema } from '../accounts/cashu-account';
 
-/**
- * Schema for Agicash contact destination.
- */
-const AgicashContactDestinationSchema = z.object({
-  sendType: z.literal('AGICASH_CONTACT'),
-  /**
-   * The ID of the Agicash contact receiving the payment.
-   */
-  contactId: z.string(),
-});
-
-/**
- * Schema for Lightning address destination.
- */
-const LnAddressDestinationSchema = z.object({
-  sendType: z.literal('LN_ADDRESS'),
-  /**
-   * The lightning address that the invoice was fetched from.
-   */
-  lnAddress: z.string(),
-});
-
-/**
- * Schema for additional details related to the transaction destination.
- */
-export const DestinationDetailsSchema = z.discriminatedUnion('sendType', [
-  AgicashContactDestinationSchema,
-  LnAddressDestinationSchema,
-]);
-
-export type DestinationDetails = z.infer<typeof DestinationDetailsSchema>;
+export type { DestinationDetails } from '~/features/shared/send-destination';
 
 /**
  * Base schema for cashu send quote.

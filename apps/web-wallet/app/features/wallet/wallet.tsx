@@ -3,11 +3,11 @@ import { type PropsWithChildren, useEffect } from 'react';
 import { useToast } from '~/hooks/use-toast';
 import { useSupabaseRealtimeActivityTracking } from '~/lib/supabase';
 import { agicashRealtimeClient } from '../agicash-db/database.client';
-import { useTrackAndUpdateSparkAccountBalances } from '../shared/spark';
 import { useTheme } from '../theme';
 import { useHandleSessionExpiry } from '../user/auth';
 import { useUser } from '../user/user-hooks';
 import { TaskProcessor, useTakeTaskProcessingLead } from './task-processing';
+import { useTrackAndUpdateSparkAccountBalances } from './use-track-spark-account-balances';
 import { useTrackWalletChanges } from './use-track-wallet-changes';
 
 /**
