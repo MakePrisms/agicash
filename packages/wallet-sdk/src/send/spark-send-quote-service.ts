@@ -1,18 +1,14 @@
 import { parseBolt11Invoice } from '@agicash/bolt11';
 import { Money } from '@agicash/money';
-import type { SparkAccount } from '@agicash/wallet-sdk';
-import type { TransactionPurpose } from '@agicash/wallet-sdk';
+import type { SparkAccount } from '../accounts/account';
 import {
   isInsufficentBalanceError,
   isInvoiceAlreadyPaidError,
-} from '@agicash/wallet-sdk/temporary';
-import { DomainError } from '@agicash/wallet-sdk/temporary';
-import { measureOperation } from '~/lib/performance';
+} from '../lib/spark';
+import { DomainError } from '../shared/error';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 import type { SparkSendQuote } from './spark-send-quote';
-import {
-  type SparkSendQuoteRepository,
-  useSparkSendQuoteRepository,
-} from './spark-send-quote-repository';
+import type { SparkSendQuoteRepository } from './spark-send-quote-repository';
 
 export type SparkLightningQuote = {
   /**
@@ -148,14 +144,10 @@ export class SparkSendQuoteService {
       throw new Error('Unknown send amount');
     }
 
-    const prepareResponse = await measureOperation(
-      'BreezSdk.prepareSendPayment',
-      () =>
-        account.wallet.prepareSendPayment({
-          paymentRequest,
-          amount: BigInt(amountRequestedInBtc.toNumber('sat')),
-        }),
-    );
+    const prepareResponse = await account.wallet.prepareSendPayment({
+      paymentRequest,
+      amount: BigInt(amountRequestedInBtc.toNumber('sat')),
+    });
 
     const paymentMethod = prepareResponse.paymentMethod;
     if (paymentMethod.type !== 'bolt11Invoice') {
@@ -283,15 +275,12 @@ export class SparkSendQuoteService {
     }
 
     try {
-      const { payment, lightningSendDetails } = await measureOperation(
-        'BreezSdk.sendPayment',
-        () =>
-          account.wallet.sendPayment({
-            prepareResponse,
-            idempotencyKey: sendQuote.id,
-            options: { type: 'bolt11Invoice', preferSpark: false },
-          }),
-      );
+      const { payment, lightningSendDetails } =
+        await account.wallet.sendPayment({
+          prepareResponse,
+          idempotencyKey: sendQuote.id,
+          options: { type: 'bolt11Invoice', preferSpark: false },
+        });
 
       if (!lightningSendDetails) {
         throw new Error(
@@ -388,9 +377,4 @@ export class SparkSendQuoteService {
 
     return this.repository.fail(quote.id, reason);
   }
-}
-
-export function useSparkSendQuoteService() {
-  const repository = useSparkSendQuoteRepository();
-  return new SparkSendQuoteService(repository);
 }

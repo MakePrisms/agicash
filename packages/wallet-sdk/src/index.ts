@@ -114,3 +114,28 @@ export type {
   GiftCardConfig,
   GiftCardInfo,
 } from './gift-cards/gift-card-config';
+export type { CashuSendQuote } from './send/cashu-send-quote';
+export type { CashuSendQuoteRepository } from './send/cashu-send-quote-repository';
+export type {
+  GetCashuLightningQuoteOptions,
+  CashuLightningQuote,
+  SendQuoteRequest,
+  CashuSendQuoteService,
+} from './send/cashu-send-quote-service';
+export type {
+  CashuSendSwap,
+  PendingCashuSendSwap,
+} from './send/cashu-send-swap';
+export type { CashuSendSwapRepository } from './send/cashu-send-swap-repository';
+export type {
+  CashuSwapQuote,
+  CashuSendSwapService,
+} from './send/cashu-send-swap-service';
+export type { SparkSendQuote } from './send/spark-send-quote';
+export type { SparkSendQuoteRepository } from './send/spark-send-quote-repository';
+export type {
+  SparkLightningQuote,
+  SparkSendQuoteService,
+} from './send/spark-send-quote-service';
+export type { SendDestination } from './send/resolve-destination';
+export type { ValidateResult } from './send/validation';

@@ -5,7 +5,14 @@ import type {
   AgicashDbCashuSendQuote,
 } from '@agicash/wallet-sdk';
 import type { CashuAccount } from '@agicash/wallet-sdk';
-import { ConcurrencyError, DomainError } from '@agicash/wallet-sdk/temporary';
+import type { CashuSendQuote, DestinationDetails } from '@agicash/wallet-sdk';
+import type { SendQuoteRequest } from '@agicash/wallet-sdk';
+import {
+  CashuSendQuoteRepository,
+  CashuSendQuoteService,
+  ConcurrencyError,
+  DomainError,
+} from '@agicash/wallet-sdk/temporary';
 import {
   type MeltQuoteBolt11Response,
   MintOperationError,
@@ -26,13 +33,19 @@ import {
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
-import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
-import { useCashuSendQuoteRepository } from './cashu-send-quote-repository';
-import {
-  type SendQuoteRequest,
-  useCashuSendQuoteService,
-} from './cashu-send-quote-service';
+
+export function useCashuSendQuoteRepository() {
+  const encryption = useEncryption();
+  return new CashuSendQuoteRepository(agicashDbClient, encryption);
+}
+
+export function useCashuSendQuoteService() {
+  const cashuSendQuoteRepository = useCashuSendQuoteRepository();
+  return new CashuSendQuoteService(cashuSendQuoteRepository);
+}
 
 class UnresolvedCashuSendQuotesCache {
   // Query that tracks all unresolved cashu send quotes (active and background ones).

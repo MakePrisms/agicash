@@ -6,13 +6,6 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import { Money } from '@agicash/money';
-import type { CashuAccount } from '@agicash/wallet-sdk';
-import type { CashuProof } from '@agicash/wallet-sdk';
-import type { CashuReceiveSwapService } from '@agicash/wallet-sdk';
-import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
-import { DomainError } from '@agicash/wallet-sdk/temporary';
-import { getTokenHash } from '@agicash/wallet-sdk/temporary';
-import { toProof } from '@agicash/wallet-sdk/temporary';
 import {
   MintOperationError,
   OutputData,
@@ -20,12 +13,14 @@ import {
   type Wallet,
   splitAmount,
 } from '@cashu/cashu-ts';
-import { useCashuReceiveSwapService } from '../receive/cashu-receive-swap-hooks';
+import type { CashuAccount } from '../accounts/account';
+import { type CashuProof, toProof } from '../accounts/cashu-account';
+import type { CashuReceiveSwapService } from '../receive/cashu-receive-swap-service';
+import { getTokenHash } from '../shared/cashu';
+import { getDefaultUnit } from '../shared/currencies';
+import { DomainError } from '../shared/error';
 import type { CashuSendSwap } from './cashu-send-swap';
-import {
-  type CashuSendSwapRepository,
-  useCashuSendSwapRepository,
-} from './cashu-send-swap-repository';
+import type { CashuSendSwapRepository } from './cashu-send-swap-repository';
 
 export type CashuSwapQuote = {
   amountRequested: Money;
@@ -459,13 +454,4 @@ export class CashuSendSwapService {
       throw error;
     }
   }
-}
-
-export function useCashuSendSwapService() {
-  const cashuSendSwapRepository = useCashuSendSwapRepository();
-  const cashuReceiveSwapService = useCashuReceiveSwapService();
-  return new CashuSendSwapService(
-    cashuSendSwapRepository,
-    cashuReceiveSwapService,
-  );
 }

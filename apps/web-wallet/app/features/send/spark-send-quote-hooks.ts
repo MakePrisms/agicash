@@ -2,8 +2,13 @@ import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Money } from '@agicash/money';
 import type { AgicashDbSparkSendQuote } from '@agicash/wallet-sdk';
 import type { SparkAccount } from '@agicash/wallet-sdk';
-import { DomainError } from '@agicash/wallet-sdk/temporary';
-import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
+import type { SparkLightningQuote, SparkSendQuote } from '@agicash/wallet-sdk';
+import {
+  DomainError,
+  SparkSendQuoteRepository,
+  SparkSendQuoteService,
+  sparkDebugLog,
+} from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   useMutation,
@@ -17,13 +22,19 @@ import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
-import type { SparkSendQuote } from './spark-send-quote';
-import { useSparkSendQuoteRepository } from './spark-send-quote-repository';
-import {
-  type SparkLightningQuote,
-  useSparkSendQuoteService,
-} from './spark-send-quote-service';
+
+export function useSparkSendQuoteRepository() {
+  const encryption = useEncryption();
+  return new SparkSendQuoteRepository(agicashDbClient, encryption);
+}
+
+export function useSparkSendQuoteService() {
+  const repository = useSparkSendQuoteRepository();
+  return new SparkSendQuoteService(repository);
+}
 
 /**
  * Cache for unresolved (UNPAID or PENDING) spark send quotes.

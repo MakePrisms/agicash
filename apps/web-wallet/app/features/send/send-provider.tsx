@@ -1,4 +1,4 @@
-import type { Account } from '@agicash/wallet-sdk';
+import type { Account, SendDestination } from '@agicash/wallet-sdk';
 import {
   type PropsWithChildren,
   createContext,
@@ -10,7 +10,6 @@ import { useAccountsCache, useGetAccount } from '../accounts/account-hooks';
 import { GIFT_CARDS } from '../gift-cards/use-discover-cards';
 import { useCreateCashuLightningSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwapQuote } from './cashu-send-swap-hooks';
-import type { SendDestination } from './resolve-destination';
 import { type SendState, type SendStore, createSendStore } from './send-store';
 import { useCreateSparkLightningSendQuote } from './spark-send-quote-hooks';
 import { useGetInvoiceFromLud16 } from './use-get-invoice-from-lud16';

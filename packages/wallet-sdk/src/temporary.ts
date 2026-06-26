@@ -160,3 +160,20 @@ export {
   GiftCardConfigSchema,
   JsonGiftCardConfigSchema,
 } from './gift-cards/gift-card-config';
+export { CashuSendQuoteSchema } from './send/cashu-send-quote';
+export { CashuSendQuoteRepository } from './send/cashu-send-quote-repository';
+export { CashuSendQuoteService } from './send/cashu-send-quote-service';
+export { CashuSendSwapSchema } from './send/cashu-send-swap';
+export { CashuSendSwapRepository } from './send/cashu-send-swap-repository';
+export { CashuSendSwapService } from './send/cashu-send-swap-service';
+export { SparkSendQuoteSchema } from './send/spark-send-quote';
+export { SparkSendQuoteRepository } from './send/spark-send-quote-repository';
+export { SparkSendQuoteService } from './send/spark-send-quote-service';
+export { toDecryptedCashuProofs } from './send/utils';
+export { ProofStateSubscriptionManager } from './send/proof-state-subscription-manager';
+export { resolveSendDestination } from './send/resolve-destination';
+export {
+  validateBolt11,
+  validateLightningAddressFormat,
+} from './send/validation';
+export { findMatchingOfferOrGiftCardAccount } from './send/find-matching-offer-or-gift-card-account';

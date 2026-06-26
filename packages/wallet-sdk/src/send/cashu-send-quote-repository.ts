@@ -1,20 +1,18 @@
 import { proofToY } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import { type AllUnionFieldsRequired, computeSHA256 } from '@agicash/utils';
+import type { Proof } from '@cashu/cashu-ts';
+import type { z } from 'zod/mini';
+import type { CashuProof } from '../accounts/cashu-account';
 import type {
   AgicashDb,
   AgicashDbCashuProof,
   AgicashDbCashuSendQuote,
-} from '@agicash/wallet-sdk';
-import type { Encryption } from '@agicash/wallet-sdk';
-import type { CashuProof } from '@agicash/wallet-sdk';
-import type { TransactionPurpose } from '@agicash/wallet-sdk';
-import { ConcurrencyError } from '@agicash/wallet-sdk/temporary';
-import { CashuLightningSendDbDataSchema } from '@agicash/wallet-sdk/temporary';
-import type { Proof } from '@cashu/cashu-ts';
-import type { z } from 'zod/mini';
-import { agicashDbClient } from '../agicash-db/database.client';
-import { useEncryption } from '../shared/encryption-hooks';
+} from '../agicash-db/database';
+import { CashuLightningSendDbDataSchema } from '../agicash-db/json-models/cashu-lightning-send-db-data';
+import type { Encryption } from '../shared/encryption';
+import { ConcurrencyError } from '../shared/error';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 import {
   type CashuSendQuote,
   CashuSendQuoteSchema,
@@ -500,9 +498,4 @@ export class CashuSendQuoteRepository {
       totalFee: sendData.totalFee,
     } satisfies AllUnionFieldsRequired<z.output<typeof CashuSendQuoteSchema>>);
   }
-}
-
-export function useCashuSendQuoteRepository() {
-  const encryption = useEncryption();
-  return new CashuSendQuoteRepository(agicashDbClient, encryption);
 }

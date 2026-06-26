@@ -10,6 +10,12 @@ import type {
   SparkReceiveQuote,
   SparkReceiveQuoteService,
 } from '@agicash/wallet-sdk';
+import type {
+  CashuLightningQuote,
+  CashuSendQuoteService,
+  SparkLightningQuote,
+  SparkSendQuoteService,
+} from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   canReceiveFromLightning,
@@ -18,16 +24,8 @@ import {
 import { getLightningQuote as getSparkLightningQuote } from '@agicash/wallet-sdk/temporary';
 import { useCashuReceiveQuoteService } from '../receive/cashu-receive-quote-hooks';
 import { useSparkReceiveQuoteService } from '../receive/spark-receive-quote-hooks';
-import type {
-  CashuLightningQuote,
-  CashuSendQuoteService,
-} from '../send/cashu-send-quote-service';
-import { useCashuSendQuoteService } from '../send/cashu-send-quote-service';
-import type {
-  SparkLightningQuote,
-  SparkSendQuoteService,
-} from '../send/spark-send-quote-service';
-import { useSparkSendQuoteService } from '../send/spark-send-quote-service';
+import { useCashuSendQuoteService } from '../send/cashu-send-quote-hooks';
+import { useSparkSendQuoteService } from '../send/spark-send-quote-hooks';
 
 export type TransferReceiveSide =
   | {

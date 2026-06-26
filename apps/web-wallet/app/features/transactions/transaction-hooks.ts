@@ -13,8 +13,10 @@ import {
 import { useMemo } from 'react';
 import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
-import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
-import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
+import {
+  useCashuSendSwapRepository,
+  useCashuSendSwapService,
+} from '../send/cashu-send-swap-hooks';
 import { useUser } from '../user/user-hooks';
 import { useTransactionRepository } from './transaction-repository-hooks';
 

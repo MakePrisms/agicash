@@ -16,8 +16,8 @@ import {
 import { useAccountOrNull } from '../accounts/account-hooks';
 import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-hooks';
 import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-hooks';
-import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
-import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
+import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-hooks';
+import { useCashuSendSwapRepository } from '../send/cashu-send-swap-hooks';
 import { useTransaction } from './transaction-hooks';
 
 const augmentProofsWithState = (

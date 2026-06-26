@@ -1,19 +1,17 @@
 import { proofToY } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type { AllUnionFieldsRequired } from '@agicash/utils';
+import type { Proof } from '@cashu/cashu-ts';
+import type { z } from 'zod/mini';
+import type { CashuProof } from '../accounts/cashu-account';
 import type {
   AgicashDb,
   AgicashDbCashuProof,
   AgicashDbCashuSendSwap,
-} from '@agicash/wallet-sdk';
-import type { Encryption } from '@agicash/wallet-sdk';
-import type { CashuProof } from '@agicash/wallet-sdk';
-import { ConcurrencyError } from '@agicash/wallet-sdk/temporary';
-import { CashuSwapSendDbDataSchema } from '@agicash/wallet-sdk/temporary';
-import type { Proof } from '@cashu/cashu-ts';
-import type { z } from 'zod/mini';
-import { agicashDbClient } from '../agicash-db/database.client';
-import { useEncryption } from '../shared/encryption-hooks';
+} from '../agicash-db/database';
+import { CashuSwapSendDbDataSchema } from '../agicash-db/json-models/cashu-swap-send-db-data';
+import type { Encryption } from '../shared/encryption';
+import { ConcurrencyError } from '../shared/error';
 import { type CashuSendSwap, CashuSendSwapSchema } from './cashu-send-swap';
 import { toDecryptedCashuProofs } from './utils';
 
@@ -384,9 +382,4 @@ export class CashuSendSwapRepository {
       failureReason: data.failure_reason ?? undefined,
     } satisfies AllUnionFieldsRequired<z.output<typeof CashuSendSwapSchema>>);
   }
-}
-
-export function useCashuSendSwapRepository() {
-  const encryption = useEncryption();
-  return new CashuSendSwapRepository(agicashDbClient, encryption);
 }

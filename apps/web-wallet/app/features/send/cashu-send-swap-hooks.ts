@@ -4,10 +4,14 @@ import type {
   AgicashDbCashuSendSwap,
 } from '@agicash/wallet-sdk';
 import type { CashuAccount } from '@agicash/wallet-sdk';
+import type { CashuSendSwap, PendingCashuSendSwap } from '@agicash/wallet-sdk';
 import {
+  CashuSendSwapRepository,
+  CashuSendSwapService,
   ConcurrencyError,
   DomainError,
   NotFoundError,
+  ProofStateSubscriptionManager,
 } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
@@ -24,11 +28,24 @@ import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { useCashuReceiveSwapService } from '../receive/cashu-receive-swap-hooks';
+import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
-import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
-import { useCashuSendSwapRepository } from './cashu-send-swap-repository';
-import { useCashuSendSwapService } from './cashu-send-swap-service';
-import { ProofStateSubscriptionManager } from './proof-state-subscription-manager';
+
+export function useCashuSendSwapRepository() {
+  const encryption = useEncryption();
+  return new CashuSendSwapRepository(agicashDbClient, encryption);
+}
+
+export function useCashuSendSwapService() {
+  const cashuSendSwapRepository = useCashuSendSwapRepository();
+  const cashuReceiveSwapService = useCashuReceiveSwapService();
+  return new CashuSendSwapService(
+    cashuSendSwapRepository,
+    cashuReceiveSwapService,
+  );
+}
 
 class CashuSendSwapCache {
   // Query that tracks the "active" cashu send swap. Active one is the one that user created in current browser session.
