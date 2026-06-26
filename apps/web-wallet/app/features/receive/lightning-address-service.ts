@@ -6,16 +6,16 @@ import type {
   LNURLVerifyResult,
 } from '@agicash/lnurl';
 import { Money } from '@agicash/money';
+import {
+  decryptXChaCha20Poly1305,
+  encryptXChaCha20Poly1305,
+} from '@agicash/utils';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import { z } from 'zod/mini';
 import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
 import { measureOperation } from '~/lib/performance';
-import {
-  decryptXChaCha20Poly1305,
-  encryptXChaCha20Poly1305,
-} from '~/lib/xchacha20poly1305';
 import type { AgicashDb } from '../agicash-db/database';
 import { NotFoundError } from '../shared/error';
 import { getSparkWallet } from '../shared/spark';

@@ -6,9 +6,9 @@ import {
 } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
 import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
+import { computeSHA256 } from '@agicash/utils';
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
 import { measureOperation } from '~/lib/performance';
-import { computeSHA256 } from '~/lib/sha256';
 import {
   createSparkWalletStub,
   getSparkIdentityPublicKeyFromMnemonic,

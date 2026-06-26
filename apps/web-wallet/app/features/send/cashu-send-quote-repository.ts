@@ -1,9 +1,8 @@
 import { proofToY } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
+import { type AllUnionFieldsRequired, computeSHA256 } from '@agicash/utils';
 import type { Proof } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
-import { computeSHA256 } from '~/lib/sha256';
-import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type { CashuProof } from '../accounts/cashu-account';
 import type {
   AgicashDb,

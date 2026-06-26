@@ -1,6 +1,6 @@
 import type { Money } from '@agicash/money';
+import type { AllUnionFieldsRequired } from '@agicash/utils';
 import type { z } from 'zod/mini';
-import type { AllUnionFieldsRequired } from '~/lib/type-utils';
 import type {
   AgicashDb,
   AgicashDbSparkSendQuote,

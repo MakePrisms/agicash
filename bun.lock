@@ -178,6 +178,9 @@
     "packages/utils": {
       "name": "@agicash/utils",
       "dependencies": {
+        "@noble/ciphers": "catalog:",
+        "@noble/hashes": "catalog:",
+        "type-fest": "catalog:",
         "zod": "catalog:",
       },
       "devDependencies": {

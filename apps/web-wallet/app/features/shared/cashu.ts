@@ -16,6 +16,7 @@ import {
   getPrivateKey as getMnemonic,
   getPrivateKeyBytes,
 } from '@agicash/opensecret';
+import { computeSHA256 } from '@agicash/utils';
 import {
   type AuthProvider,
   type GetKeysResponse,
@@ -36,7 +37,6 @@ import {
 import { useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { measureOperation } from '~/lib/performance';
-import { computeSHA256 } from '~/lib/sha256';
 import { getAgicashMintAuthProvider } from './agicash-mint-auth-provider';
 import { getSeedPhraseDerivationPath } from './cryptography';
 

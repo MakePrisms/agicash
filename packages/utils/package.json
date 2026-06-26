@@ -10,6 +10,9 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@noble/ciphers": "catalog:",
+    "@noble/hashes": "catalog:",
+    "type-fest": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
