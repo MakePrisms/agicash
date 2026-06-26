@@ -3,10 +3,11 @@ import type {
   AgicashDb,
   AgicashDbSparkReceiveQuote,
 } from '@agicash/wallet-sdk';
+import type { Encryption } from '@agicash/wallet-sdk';
 import { SparkLightningReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
 import type { z } from 'zod/mini';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { type Encryption, useEncryption } from '../shared/encryption';
+import { useEncryption } from '../shared/encryption-hooks';
 import {
   type SparkReceiveQuote,
   SparkReceiveQuoteSchema,

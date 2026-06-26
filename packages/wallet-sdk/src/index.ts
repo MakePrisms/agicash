@@ -1,5 +1,6 @@
 // @agicash/wallet-sdk
 export type { DestinationDetails } from './shared/send-destination';
+export type { Encryption } from './shared/encryption';
 export type {
   AgicashDbUser,
   AgicashDbAccount,

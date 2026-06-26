@@ -1,4 +1,5 @@
 import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
+import { getEncryption } from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
@@ -15,8 +16,7 @@ import {
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
-  getEncryption,
-} from '~/features/shared/encryption';
+} from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
 import {
   sparkIdentityPublicKeyQueryOptions,

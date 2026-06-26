@@ -5,6 +5,7 @@ import type {
   AgicashDbAccountWithProofs,
 } from '@agicash/wallet-sdk';
 import type { SparkNetwork } from '@agicash/wallet-sdk';
+import type { Encryption } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   CashuAccountDetailsDbDataSchema,
@@ -21,7 +22,7 @@ import {
   getMintAuthProvider,
   useCashuCryptography,
 } from '../shared/cashu';
-import { type Encryption, useEncryption } from '../shared/encryption';
+import { useEncryption } from '../shared/encryption-hooks';
 import {
   getInitializedSparkWallet,
   sparkMnemonicQueryOptions,

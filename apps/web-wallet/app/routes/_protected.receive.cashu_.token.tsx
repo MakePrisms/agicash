@@ -1,4 +1,5 @@
 import { validateCashuToken } from '@agicash/cashu';
+import { getEncryption } from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
@@ -31,8 +32,7 @@ import {
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
-  getEncryption,
-} from '~/features/shared/encryption';
+} from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
 import type { User } from '~/features/user/user';

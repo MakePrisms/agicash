@@ -2,8 +2,8 @@ import type { Money } from '@agicash/money';
 import { computeSHA256 } from '@agicash/utils';
 import type { AgicashDb } from '@agicash/wallet-sdk';
 import { CashuLightningReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
+import { encryptToPublicKey } from '@agicash/wallet-sdk/temporary';
 import type { z } from 'zod/mini';
-import { encryptToPublicKey } from '../shared/encryption';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import type { RepositoryCreateQuoteParams } from './cashu-receive-quote-core';
 

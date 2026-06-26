@@ -1,3 +1,10 @@
+export {
+  decryptBatchWithPrivateKey,
+  decryptWithPrivateKey,
+  encryptBatchToPublicKey,
+  encryptToPublicKey,
+  getEncryption,
+} from './shared/encryption';
 export * from './lib/spark';
 export * from './lib/exchange-rate';
 export {

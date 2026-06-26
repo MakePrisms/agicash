@@ -1,7 +1,7 @@
 import type { AgicashDb, AgicashDbTransaction } from '@agicash/wallet-sdk';
 import type { z } from 'zod/mini';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { useEncryption } from '../shared/encryption';
+import { useEncryption } from '../shared/encryption-hooks';
 import {
   type BaseTransactionSchema,
   type Transaction,

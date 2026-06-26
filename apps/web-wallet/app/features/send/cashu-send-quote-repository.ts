@@ -6,13 +6,14 @@ import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendQuote,
 } from '@agicash/wallet-sdk';
+import type { Encryption } from '@agicash/wallet-sdk';
 import { ConcurrencyError } from '@agicash/wallet-sdk/temporary';
 import { CashuLightningSendDbDataSchema } from '@agicash/wallet-sdk/temporary';
 import type { Proof } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
 import type { CashuProof } from '../accounts/cashu-account';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { type Encryption, useEncryption } from '../shared/encryption';
+import { useEncryption } from '../shared/encryption-hooks';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import {
   type CashuSendQuote,
