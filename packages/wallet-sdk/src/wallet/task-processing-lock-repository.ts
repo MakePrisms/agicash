@@ -1,4 +1,4 @@
-import type { AgicashDb } from '@agicash/wallet-sdk';
+import type { AgicashDb } from '../agicash-db/database';
 
 type Options = {
   abortSignal?: AbortSignal;

@@ -1,3 +1,4 @@
+import { TaskProcessingLockRepository } from '@agicash/wallet-sdk/temporary';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { agicashDbClient } from '../agicash-db/database.client';
@@ -8,7 +9,6 @@ import { useProcessCashuSendQuoteTasks } from '../send/cashu-send-quote-hooks';
 import { useProcessCashuSendSwapTasks } from '../send/cashu-send-swap-hooks';
 import { useProcessSparkSendQuoteTasks } from '../send/spark-send-quote-hooks';
 import { useUser } from '../user/user-hooks';
-import { TaskProcessingLockRepository } from './task-processing-lock-repository';
 
 const taskProcessingLockRepository = new TaskProcessingLockRepository(
   agicashDbClient,

@@ -178,3 +178,4 @@ export {
 } from './send/validation';
 export { findMatchingOfferOrGiftCardAccount } from './send/find-matching-offer-or-gift-card-account';
 export { TransferService } from './transfer/transfer-service';
+export { TaskProcessingLockRepository } from './wallet/task-processing-lock-repository';
