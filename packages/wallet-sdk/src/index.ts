@@ -55,3 +55,4 @@ export type {
   UserProfile,
 } from './user/user';
 export type { UpdateUser } from './user/user-repository';
+export type { Contact } from './contacts/contact';

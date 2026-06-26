@@ -1,8 +1,6 @@
-import type { AgicashDb, AgicashDbContact } from '@agicash/wallet-sdk';
-import type { UserProfile } from '@agicash/wallet-sdk';
-import { DomainError } from '@agicash/wallet-sdk/temporary';
-import useLocationData from '~/hooks/use-location';
-import { agicashDbClient } from '../agicash-db/database.client';
+import type { AgicashDb, AgicashDbContact } from '../agicash-db/database';
+import { DomainError } from '../shared/error';
+import type { UserProfile } from '../user/user';
 import type { Contact } from './contact';
 
 type CreateContact = {
@@ -163,9 +161,4 @@ export class ContactRepository {
       lud16: `${dbContact.username}@${domain}`,
     };
   }
-}
-
-export function useContactRepository() {
-  const { domain } = useLocationData();
-  return new ContactRepository(agicashDbClient, domain);
 }

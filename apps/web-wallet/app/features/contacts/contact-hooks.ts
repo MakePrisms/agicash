@@ -1,4 +1,6 @@
 import type { AgicashDbContact } from '@agicash/wallet-sdk';
+import type { Contact } from '@agicash/wallet-sdk';
+import { ContactRepository } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   useMutation,
@@ -9,8 +11,7 @@ import {
 import { useMemo } from 'react';
 import useLocationData from '~/hooks/use-location';
 import { useUser } from '../user/user-hooks';
-import type { Contact } from './contact';
-import { ContactRepository, useContactRepository } from './contact-repository';
+import { useContactRepository } from './contact-repository-hooks';
 export class ContactsCache {
   public static Key = 'contacts';
 

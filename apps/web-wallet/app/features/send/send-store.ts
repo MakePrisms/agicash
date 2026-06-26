@@ -1,8 +1,8 @@
 import type { Currency, Money } from '@agicash/money';
 import type { Account, CashuAccount, SparkAccount } from '@agicash/wallet-sdk';
+import type { Contact } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { create } from 'zustand';
-import type { Contact } from '../contacts/contact';
 import type { GiftCardInfo } from '../gift-cards/gift-card-config';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';

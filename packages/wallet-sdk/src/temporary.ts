@@ -86,3 +86,5 @@ export {
   WriteUserRepository,
 } from './user/user-repository';
 export { UserService } from './user/user-service';
+export { isContact } from './contacts/contact';
+export { ContactRepository } from './contacts/contact-repository';
