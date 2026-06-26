@@ -59,3 +59,7 @@ export { CashuTokenMeltDbDataSchema } from './agicash-db/json-models/cashu-token
 export { SparkAccountDetailsDbDataSchema } from './agicash-db/json-models/spark-account-details-db-data';
 export { SparkLightningReceiveDbDataSchema } from './agicash-db/json-models/spark-lightning-receive-db-data';
 export { SparkLightningSendDbDataSchema } from './agicash-db/json-models/spark-lightning-send-db-data';
+export {
+  FEATURE_FLAG_DEFAULTS,
+  FeatureFlagService,
+} from './shared/feature-flag-service';

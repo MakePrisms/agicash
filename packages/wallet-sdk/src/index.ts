@@ -31,3 +31,4 @@ export type {
 } from './agicash-db/json-models/spark-account-details-db-data';
 export type { SparkLightningReceiveDbData } from './agicash-db/json-models/spark-lightning-receive-db-data';
 export type { SparkLightningSendDbData } from './agicash-db/json-models/spark-lightning-send-db-data';
+export type { FeatureFlag, FeatureFlags } from './shared/feature-flag-service';
