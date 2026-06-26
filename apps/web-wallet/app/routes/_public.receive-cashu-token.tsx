@@ -1,11 +1,11 @@
 import { normalizeMintUrl, validateCashuToken } from '@agicash/cashu';
+import { decodeCashuToken } from '@agicash/wallet-sdk/temporary';
 import { type MetaDescriptor, redirect } from 'react-router';
 import { Page } from '~/components/page';
 import { getGiftCardByUrl } from '~/features/gift-cards/use-discover-cards';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { PublicReceiveCashuToken } from '~/features/receive/receive-cashu-token';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
-import { decodeCashuToken } from '~/features/shared/cashu';
 import { getQueryClient } from '~/features/shared/query-client';
 import { authQueryOptions } from '~/features/user/auth';
 import type { Route } from './+types/_public.receive-cashu-token';
@@ -84,7 +84,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(`/receive/cashu/token${location.search}${hash}`);
   }
 
-  const token = await decodeCashuToken(hash);
+  const token = await decodeCashuToken(hash, queryClient);
 
   if (!token) {
     throw redirect('/home');

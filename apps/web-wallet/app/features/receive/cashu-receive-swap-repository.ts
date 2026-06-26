@@ -5,6 +5,7 @@ import type { AgicashDb, AgicashDbCashuReceiveSwap } from '@agicash/wallet-sdk';
 import type { Encryption } from '@agicash/wallet-sdk';
 import { UniqueConstraintError } from '@agicash/wallet-sdk/temporary';
 import { CashuSwapReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
+import { getTokenHash } from '@agicash/wallet-sdk/temporary';
 import type { Proof, Token } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
 import type { CashuAccount } from '../accounts/account';
@@ -13,7 +14,6 @@ import {
   useAccountRepository,
 } from '../accounts/account-repository';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { getTokenHash } from '../shared/cashu';
 import { useEncryption } from '../shared/encryption-hooks';
 import {
   type CashuReceiveSwap,

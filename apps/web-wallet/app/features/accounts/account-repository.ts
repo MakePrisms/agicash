@@ -13,15 +13,16 @@ import {
   isCashuAccount,
   isSparkAccount,
 } from '@agicash/wallet-sdk/temporary';
+import {
+  getInitializedCashuWallet,
+  getMintAuthProvider,
+} from '@agicash/wallet-sdk/temporary';
 import { useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
 import { agicashDbClient } from '../agicash-db/database.client';
-import {
-  getInitializedCashuWallet,
-  getMintAuthProvider,
-  useCashuCryptography,
-} from '../shared/cashu';
+import { isLoggedIn } from '../shared/auth';
+import { useCashuCryptography } from '../shared/cashu-hooks';
 import { useEncryption } from '../shared/encryption-hooks';
 import {
   getInitializedSparkWallet,
@@ -237,7 +238,7 @@ export class AccountRepository {
       mintUrl,
       currency,
       bip39seed: seed ?? undefined,
-      authProvider: getMintAuthProvider(purpose),
+      authProvider: getMintAuthProvider(purpose, this.queryClient, isLoggedIn),
     });
   }
 

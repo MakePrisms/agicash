@@ -6,6 +6,11 @@ import {
   getKeysetExpiry,
 } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
+import {
+  cashuMintValidator,
+  getInitializedCashuWallet,
+  tokenToMoney,
+} from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import {
   type ExtendedAccount,
@@ -13,11 +18,6 @@ import {
   canReceiveFromLightning,
   canSendToLightning,
 } from '../accounts/account';
-import {
-  cashuMintValidator,
-  getInitializedCashuWallet,
-  tokenToMoney,
-} from '../shared/cashu';
 import type {
   CashuAccountWithTokenFlags,
   ReceiveCashuTokenAccount,

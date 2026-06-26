@@ -1,4 +1,5 @@
 // @agicash/wallet-sdk
+export type { CashuCryptography } from './shared/cashu';
 export type { DestinationDetails } from './shared/send-destination';
 export type { Encryption } from './shared/encryption';
 export type {

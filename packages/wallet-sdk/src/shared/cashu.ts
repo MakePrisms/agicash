@@ -17,7 +17,7 @@ import {
   getPrivateKeyBytes,
 } from '@agicash/opensecret';
 import { computeSHA256 } from '@agicash/utils';
-import { getSeedPhraseDerivationPath } from '@agicash/wallet-sdk/temporary';
+import { queryOptions } from '@agicash/utils';
 import {
   type AuthProvider,
   type GetKeysResponse,
@@ -30,15 +30,9 @@ import {
 } from '@cashu/cashu-ts';
 import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
-import {
-  type QueryClient,
-  queryOptions,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { useMemo } from 'react';
-import { getQueryClient } from '~/features/shared/query-client';
-import { measureOperation } from '~/lib/performance';
+import type { QueryClient } from '@tanstack/query-core';
 import { getAgicashMintAuthProvider } from './agicash-mint-auth-provider';
+import { getSeedPhraseDerivationPath } from './cryptography';
 
 // Cashu-specific derivation path with hardnened indexes to derive public keys for
 // locking mint quotes and proofs. 129372 is UTF-8 for 🥜 (see NUT-13) and the other
@@ -144,17 +138,6 @@ export function getCashuCryptography(
   };
 }
 
-/**
- * Hook that provides the Cashu cryptography functions.
- * Reference of the returned data is stable and doesn't change between renders.
- * @returns The Cashu cryptography functions.
- */
-export function useCashuCryptography(): CashuCryptography {
-  const queryClient = useQueryClient();
-
-  return useMemo(() => getCashuCryptography(queryClient), [queryClient]);
-}
-
 export function getTokenHash(token: Token | string): Promise<string> {
   if (typeof token === 'string') {
     return computeSHA256(token);
@@ -172,9 +155,13 @@ export const cashuMintValidator = buildMintValidator({
   blocklist: mintBlocklist,
 });
 
-export function getMintAuthProvider(purpose: MintPurpose | undefined) {
+export function getMintAuthProvider(
+  purpose: MintPurpose | undefined,
+  queryClient: QueryClient,
+  isLoggedIn: () => boolean,
+) {
   return purpose === 'gift-card' || purpose === 'offer'
-    ? getAgicashMintAuthProvider()
+    ? getAgicashMintAuthProvider(queryClient, isLoggedIn)
     : undefined;
 }
 
@@ -182,6 +169,11 @@ export const mintInfoQueryKey = (mintUrl: string) => ['mint-info', mintUrl];
 export const allMintKeysetsQueryKey = (mintUrl: string) => [
   'all-mint-keysets',
   mintUrl,
+];
+export const mintKeysQueryKey = (mintUrl: string, keysetId?: string) => [
+  'mint-keys',
+  mintUrl,
+  keysetId,
 ];
 
 /**
@@ -215,12 +207,14 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
  * Extract and decode a cashu token from arbitrary content.
  * Fetches keyset IDs from the token's mint for v2 keyset resolution.
  */
-export async function decodeCashuToken(content: string): Promise<Token | null> {
+export async function decodeCashuToken(
+  content: string,
+  queryClient: QueryClient,
+): Promise<Token | null> {
   const result = extractCashuToken(content);
   if (!result) return null;
 
   try {
-    const queryClient = getQueryClient();
     const data = await queryClient.fetchQuery(
       allMintKeysetsQueryOptions(result.metadata.mint),
     );
@@ -233,91 +227,111 @@ export async function decodeCashuToken(content: string): Promise<Token | null> {
 }
 
 /**
+ * Get the mints public keys.
+ *
+ * @param mintUrl
+ * @param keysetId Optional param to get the keys for a specific keyset. If not specified, the
+ *   keys from all active keysets are fetched.
+ * @returns An object with an array of the fetched keysets.
+ */
+export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
+  queryOptions({
+    queryKey: mintKeysQueryKey(mintUrl, keysetId),
+    queryFn: async () => new Mint(mintUrl).getKeys(keysetId),
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+
+/**
  * Initializes a Cashu wallet with offline handling.
  * If the mint is offline or times out, returns a minimal wallet with isOnline: false.
+ * @param queryClient - The query client to use for fetching mint data.
  * @param mintUrl - The mint URL.
  * @param currency - The currency.
  * @param bip39seed - Optional BIP39 seed for wallet initialization.
  * @returns The wallet and online status.
  */
 export async function getInitializedCashuWallet({
+  queryClient,
   mintUrl,
   currency,
   bip39seed,
   authProvider,
 }: {
+  queryClient: QueryClient;
   mintUrl: string;
   currency: Currency;
   bip39seed?: Uint8Array;
   authProvider?: AuthProvider;
 }): Promise<{ wallet: ExtendedCashuWallet; isOnline: boolean }> {
-  return measureOperation(
-    'getInitializedCashuWallet',
-    async () => {
-      let mintInfo: ExtendedMintInfo;
-      let allMintKeysets: GetKeysetsResponse;
-      let mintActiveKeys: GetKeysResponse;
+  let mintInfo: ExtendedMintInfo;
+  let allMintKeysets: GetKeysetsResponse;
+  let mintActiveKeys: GetKeysResponse;
 
-      try {
-        const mint = new Mint(mintUrl);
-        [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
-          Promise.all([
-            mint.getInfo().then((info) => new ExtendedMintInfo(info)),
-            mint.getKeySets(),
-            mint.getKeys(),
-          ]),
-          new Promise<never>((_, reject) => {
-            setTimeout(() => {
-              reject(new NetworkError('Mint request timed out'));
-            }, 10_000);
-          }),
-        ]);
-      } catch (error) {
-        if (error instanceof NetworkError) {
-          const wallet = getCashuWallet(mintUrl, {
-            unit: getCashuUnit(currency),
-            bip39seed: bip39seed ?? undefined,
-            authProvider,
+  try {
+    [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
+      Promise.all([
+        queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
+        queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
+        queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
+      ]),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          queryClient.cancelQueries({
+            queryKey: mintInfoQueryKey(mintUrl),
           });
-          return { wallet, isOnline: false };
-        }
-        throw error;
-      }
-
-      const unitKeysets = allMintKeysets.keysets.filter(
-        (ks) => ks.unit === getCashuProtocolUnit(currency),
-      );
-      const activeKeyset = unitKeysets.find((ks) => ks.active);
-
-      if (!activeKeyset) {
-        throw new Error(`No active keyset found for ${currency} on ${mintUrl}`);
-      }
-
-      const activeKeysForUnit = mintActiveKeys.keysets.find(
-        (ks) => ks.id === activeKeyset.id,
-      );
-
-      if (!activeKeysForUnit) {
-        throw new Error(
-          `Got active keyset ${activeKeyset.id} from ${mintUrl} but could not find keys for it`,
-        );
-      }
-
+          queryClient.cancelQueries({
+            queryKey: allMintKeysetsQueryKey(mintUrl),
+          });
+          queryClient.cancelQueries({
+            queryKey: mintKeysQueryKey(mintUrl),
+          });
+          reject(new NetworkError('Mint request timed out'));
+        }, 10_000);
+      }),
+    ]);
+  } catch (error) {
+    if (error instanceof NetworkError) {
       const wallet = getCashuWallet(mintUrl, {
         unit: getCashuUnit(currency),
         bip39seed: bip39seed ?? undefined,
         authProvider,
       });
-      const keyChainCache = KeyChain.mintToCacheDTO(
-        wallet.unit,
-        mintUrl,
-        unitKeysets,
-        [activeKeysForUnit],
-      );
-      wallet.loadMintFromCache(mintInfo.cache, keyChainCache);
+      return { wallet, isOnline: false };
+    }
+    throw error;
+  }
 
-      return { wallet, isOnline: true };
-    },
-    { mintUrl, currency },
+  const unitKeysets = allMintKeysets.keysets.filter(
+    (ks) => ks.unit === getCashuProtocolUnit(currency),
   );
+  const activeKeyset = unitKeysets.find((ks) => ks.active);
+
+  if (!activeKeyset) {
+    throw new Error(`No active keyset found for ${currency} on ${mintUrl}`);
+  }
+
+  const activeKeysForUnit = mintActiveKeys.keysets.find(
+    (ks) => ks.id === activeKeyset.id,
+  );
+
+  if (!activeKeysForUnit) {
+    throw new Error(
+      `Got active keyset ${activeKeyset.id} from ${mintUrl} but could not find keys for it`,
+    );
+  }
+
+  const wallet = getCashuWallet(mintUrl, {
+    unit: getCashuUnit(currency),
+    bip39seed: bip39seed ?? undefined,
+    authProvider,
+  });
+  const keyChainCache = KeyChain.mintToCacheDTO(
+    wallet.unit,
+    mintUrl,
+    unitKeysets,
+    [activeKeysForUnit],
+  );
+  wallet.loadMintFromCache(mintInfo.cache, keyChainCache);
+
+  return { wallet, isOnline: true };
 }

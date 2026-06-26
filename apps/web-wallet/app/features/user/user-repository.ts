@@ -13,6 +13,10 @@ import {
   isCashuAccount,
   isSparkAccount,
 } from '@agicash/wallet-sdk/temporary';
+import {
+  getInitializedCashuWallet,
+  getMintAuthProvider,
+} from '@agicash/wallet-sdk/temporary';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod/mini';
 import type { Account, RedactedAccount } from '../accounts/account';
@@ -21,10 +25,7 @@ import {
   useAccountRepository,
 } from '../accounts/account-repository';
 import { agicashDbClient } from '../agicash-db/database.client';
-import {
-  getInitializedCashuWallet,
-  getMintAuthProvider,
-} from '../shared/cashu';
+import { isLoggedIn } from '../shared/auth';
 import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
 
@@ -270,7 +271,11 @@ export class ReadUserDefaultAccountRepository {
       const { wallet, isOnline } = await getInitializedCashuWallet({
         mintUrl: details.mint_url,
         currency: data.currency,
-        authProvider: getMintAuthProvider(data.purpose),
+        authProvider: getMintAuthProvider(
+          data.purpose,
+          this.queryClient,
+          isLoggedIn,
+        ),
       });
 
       return {

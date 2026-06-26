@@ -3,7 +3,9 @@ import {
   type ExtendedCashuWallet,
   getCashuUnit,
 } from '@agicash/cashu';
+import type { CashuCryptography } from '@agicash/wallet-sdk';
 import { derivePublicKey } from '@agicash/wallet-sdk/temporary';
+import { BASE_CASHU_LOCKING_DERIVATION_PATH } from '@agicash/wallet-sdk/temporary';
 import {
   MintOperationError,
   MintQuoteState,
@@ -12,11 +14,7 @@ import {
   splitAmount,
 } from '@cashu/cashu-ts';
 import type { CashuAccount } from '../accounts/account';
-import {
-  BASE_CASHU_LOCKING_DERIVATION_PATH,
-  type CashuCryptography,
-  useCashuCryptography,
-} from '../shared/cashu';
+import { useCashuCryptography } from '../shared/cashu-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
   type CashuReceiveLightningQuote,

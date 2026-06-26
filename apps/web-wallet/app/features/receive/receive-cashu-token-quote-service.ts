@@ -1,6 +1,7 @@
 import { getCashuUnit } from '@agicash/cashu';
 import { Money } from '@agicash/money';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
+import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
 import type { MeltQuoteBolt11Response, Token } from '@cashu/cashu-ts';
 import type {
   Account,
@@ -8,7 +9,6 @@ import type {
   CashuAccount,
   SparkAccount,
 } from '../accounts/account';
-import { tokenToMoney } from '../shared/cashu';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from './cashu-receive-quote-core';
 import {

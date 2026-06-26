@@ -5,6 +5,7 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import { Money } from '@agicash/money';
+import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
 import {
   MintOperationError,
   OutputData,
@@ -13,7 +14,6 @@ import {
   splitAmount,
 } from '@cashu/cashu-ts';
 import type { CashuAccount } from '../accounts/account';
-import { tokenToMoney } from '../shared/cashu';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import {
   type CashuReceiveSwapRepository,

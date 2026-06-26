@@ -1,5 +1,10 @@
 import { validateCashuToken } from '@agicash/cashu';
 import { getEncryption } from '@agicash/wallet-sdk/temporary';
+import {
+  decodeCashuToken,
+  getCashuCryptography,
+  seedQueryOptions,
+} from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
@@ -24,11 +29,6 @@ import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token
 import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
-import {
-  decodeCashuToken,
-  getCashuCryptography,
-  seedQueryOptions,
-} from '~/features/shared/cashu';
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
@@ -148,7 +148,7 @@ const getClaimTo = (
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // Request url doesn't include hash so we need to read it from the window location instead
-  const token = await decodeCashuToken(window.location.hash);
+  const token = await decodeCashuToken(window.location.hash, getQueryClient());
 
   if (!token) {
     throw redirect('/receive');

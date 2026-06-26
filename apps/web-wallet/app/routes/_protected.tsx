@@ -1,5 +1,10 @@
 import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
 import { getEncryption } from '@agicash/wallet-sdk/temporary';
+import {
+  BASE_CASHU_LOCKING_DERIVATION_PATH,
+  seedQueryOptions as cashuSeedQueryOptions,
+  xpubQueryOptions,
+} from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
@@ -8,11 +13,6 @@ import { AccountRepository } from '~/features/accounts/account-repository';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
-import {
-  BASE_CASHU_LOCKING_DERIVATION_PATH,
-  seedQueryOptions as cashuSeedQueryOptions,
-  xpubQueryOptions,
-} from '~/features/shared/cashu';
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,

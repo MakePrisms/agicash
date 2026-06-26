@@ -7,6 +7,7 @@ import {
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type { AgicashDbSparkReceiveQuote } from '@agicash/wallet-sdk';
+import { getInitializedCashuWallet } from '@agicash/wallet-sdk/temporary';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -23,7 +24,6 @@ import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { getInitializedCashuWallet } from '../shared/cashu';
 import { sparkDebugLog } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';

@@ -21,6 +21,24 @@ export {
   getSeedPhraseDerivationPath,
 } from './shared/cryptography';
 export {
+  BASE_CASHU_LOCKING_DERIVATION_PATH,
+  allMintKeysetsQueryKey,
+  allMintKeysetsQueryOptions,
+  cashuMintValidator,
+  decodeCashuToken,
+  getCashuCryptography,
+  getInitializedCashuWallet,
+  getMintAuthProvider,
+  getTokenHash,
+  mintInfoQueryKey,
+  mintInfoQueryOptions,
+  mintKeysQueryKey,
+  mintKeysQueryOptions,
+  seedQueryOptions,
+  tokenToMoney,
+  xpubQueryOptions,
+} from './shared/cashu';
+export {
   isCashuAccount,
   isSparkAccount,
 } from './agicash-db/database';

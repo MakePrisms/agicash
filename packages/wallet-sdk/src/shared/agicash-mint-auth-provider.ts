@@ -1,18 +1,16 @@
 import { generateThirdPartyToken } from '@agicash/opensecret';
 import type { AuthProvider } from '@cashu/cashu-ts';
-import type { FetchQueryOptions } from '@tanstack/react-query';
+import type { FetchQueryOptions, QueryClient } from '@tanstack/query-core';
 import { jwtDecode } from 'jwt-decode';
-import { isLoggedIn } from '~/features/shared/auth';
-import { getQueryClient } from '~/features/shared/query-client';
-
-const queryClient = getQueryClient();
 
 /**
  * React Query options for the agicash mint auth token (CAT).
  * Calls generateThirdPartyToken with audience "agicash-mint".
  * Token is refreshed 5 seconds before expiry, matching the Supabase token pattern.
  */
-const agicashMintAuthTokenQuery = (): FetchQueryOptions<string | null> => ({
+const agicashMintAuthTokenQuery = (
+  isLoggedIn: () => boolean,
+): FetchQueryOptions<string | null> => ({
   queryKey: ['agicash-mint-auth-token'],
   queryFn: async () => {
     if (!isLoggedIn()) {
@@ -34,7 +32,10 @@ const agicashMintAuthTokenQuery = (): FetchQueryOptions<string | null> => ({
  * Returns a cashu-ts AuthProvider for NUT-21 Clear Auth on agicash gift card mints.
  * Token lifecycle is managed by React Query with automatic refresh before expiry.
  */
-export function getAgicashMintAuthProvider(): AuthProvider {
+export function getAgicashMintAuthProvider(
+  queryClient: QueryClient,
+  isLoggedIn: () => boolean,
+): AuthProvider {
   return {
     getCAT: () => {
       throw new Error('Not implemented: use ensureCAT');
@@ -43,7 +44,9 @@ export function getAgicashMintAuthProvider(): AuthProvider {
       throw new Error('Not implemented: use ensureCAT');
     },
     ensureCAT: async () => {
-      const token = await queryClient.fetchQuery(agicashMintAuthTokenQuery());
+      const token = await queryClient.fetchQuery(
+        agicashMintAuthTokenQuery(isLoggedIn),
+      );
       return token ?? undefined;
     },
     getBlindAuthToken: async () => {
