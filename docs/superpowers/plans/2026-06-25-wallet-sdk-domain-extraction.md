@@ -11,6 +11,7 @@
 ## Global Constraints
 
 - **SDK is React-agnostic.** No file under `packages/wallet-sdk/src` may import `react` or `@tanstack/react-query`. Use `@tanstack/query-core` for `QueryClient`/`FetchQueryOptions`; use the `@agicash/utils` `queryOptions` shim for the `queryOptions` helper.
+- **SDK is headless-safe — no DOM / Web-Crypto.** No file under `packages/wallet-sdk/src` may rely on `window`/`document`/`localStorage`/`sessionStorage` or `crypto.subtle` (they fail or behave differently under the MCP node/bun runtime). Use isomorphic APIs: `@noble/hashes` for SHA-256 (not `crypto.subtle`); `TextEncoder`/`crypto.getRandomValues` only via package internals or `@types/bun` globals. Browser-storage/host-state access stays in web behind the `create(config)` storage adapter.
 - **Import direction is one-way:** `packages/*` may never import from `apps/web-wallet` (no `~/...`). The compiler enforces it once `/temporary` is deleted (final cleanup, out of scope here).
 - **Layout is preserved on move:** `apps/web-wallet/app/features/<x>/` → `packages/wallet-sdk/src/<x>/`. Relative cross-module imports (`../agicash-db/database`, `./account`) survive unchanged; only `~/features/...` alias imports get rewritten to relative.
 - **Web imports of moved code:** values → `@agicash/wallet-sdk/temporary`; type-only → `@agicash/wallet-sdk`.
@@ -33,10 +34,10 @@
 | D9 | `feature-flags.ts`: a new `FeatureFlagService` (the RPC fetch) + the `FeatureFlag` type → SDK; `featureFlagsQueryOptions`/`useFeatureFlag`/`getFeatureFlag` stay in web. `shared/query-client.ts` (`getQueryClient` singleton) **stays in web**. |
 | D10 | `getQueryClient()` singleton callers that move (`getAgicashMintAuthProvider`, `decodeCashuToken`, `getMintAuthProvider`) take `queryClient` as an explicit parameter (the caller already has one). |
 | D11 | PR strategy: **stacked slice-PRs** — slice 1 branches off `sdk/break-feature-cycles`; each subsequent slice branches off the prior; rebase onto `master` as parents merge. *(Confirm at sign-off; alternative is one long-lived branch.)* |
-| D12 | Browser-storage/host-state access in `shared/auth.ts` (`isLoggedIn` → `window.localStorage` `access_token`/`refresh_token`) and the four `user/` storages (`localStorage`/`sessionStorage`/`document.cookie`) **moves with the domain now** with transient direct browser-global access (typechecks via the SDK `lib:["DOM"]`, works in the web runtime), flagged **Deferred** — replaced by the `create(config)` storage adapter in the auth slice (spec step 5). |
+| D12 | **Browser-storage/host-state access stays in web** (the SDK is headless-safe — no DOM): `shared/auth.ts` (`isLoggedIn`→`window.localStorage`) and the four `user/` storages (`localStorage`/`sessionStorage`/`document.cookie`). The one SDK consumer of `isLoggedIn` (`agicash-mint-auth-provider`) receives it via DI; the storages have no SDK consumer. They move into the SDK behind the `create(config)` storage adapter in the auth slice (spec step 5). *(Revised per PR review — was "move now with transient DOM".)* |
 | D13 | This Decision Record **supersedes the raw mapping JSON** where they differ: `query-client.ts` and the `feature-flags.ts` file are **kept in web** (mapping tagged them MOVE); `gift-card-config.ts`, `find-matching-offer-or-gift-card-account.ts`, and `send/validation.ts` **move** (per D7 + reconciliation) though the mapping had them absent/UNSURE. See "Files kept in web" below. |
 
-**Files the mapping marked MOVE but that are kept in web** (not relocated into the SDK by this plan): `database.client.ts`, `database.server.ts`, `supabase-session.ts` (D6), `query-client.ts` (D9 — `getQueryClient` singleton), the `feature-flags.ts` *file* (D9 — only `FeatureFlagService` is extracted), and `claim-cashu-token-service.ts` (D8, Deferred).
+**Files the mapping marked MOVE but that are kept in web** (not relocated into the SDK by this plan): `database.client.ts`, `database.server.ts`, `supabase-session.ts` (D6), `query-client.ts` (D9 — `getQueryClient` singleton), the `feature-flags.ts` *file* (D9 — only `FeatureFlagService` is extracted), `shared/auth.ts` + the four `user/` storages (D12 — host-state), and `claim-cashu-token-service.ts` (D8, Deferred).
 
 ---
 
@@ -158,10 +159,11 @@ import { getQueryClient } from '~/features/shared/query-client';
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",            // domain TYPES only
-    "./temporary": "./src/temporary.ts", // migration value/repo/service re-exports (deleted at the end)
-    "./*": "./src/*"
+    ".": "./src/index.ts",             // domain TYPES only
+    "./temporary": "./src/temporary.ts" // migration value/repo/service re-exports (deleted at the end → boundary then compiler-enforced)
   },
+  // No "./*" wildcard: everything must go through "." (types) or "./temporary" (values),
+  // so deleting /temporary at the end makes the compiler enforce the boundary. (PR review: pmilic021)
   "scripts": { "typecheck": "tsc", "test": "bun test" },
   "dependencies": {
     "@agicash/bolt11": "workspace:*",
@@ -198,7 +200,7 @@ import { getQueryClient } from '~/features/shared/query-client';
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"],
   "compilerOptions": {
-    "lib": ["DOM", "DOM.Iterable", "ES2022"], // sha256/crypto.subtle live in @agicash/utils; SDK still uses crypto/TextEncoder/AbortSignal
+    "lib": ["ES2022"], // NO DOM — SDK runs headless under MCP (node/bun). sha256 uses @noble/hashes (not crypto.subtle); TextEncoder/crypto.getRandomValues come from @types/bun (and the node/bun runtime). If a stricter config is wanted, add "WebWorker" (provides TextEncoder/crypto WITHOUT window/document/localStorage, so any host-state leak still fails to compile).
     "types": ["bun"],
     "baseUrl": ".",
     "paths": { "supabase/database.types": ["./supabase/database.types.ts"] },
@@ -238,15 +240,23 @@ Both start empty in slice 0c and grow per slice. `index.ts` uses `export type { 
 - Create: `packages/utils/src/query-options.ts`
 - Modify: `packages/utils/src/index.ts`, `packages/utils/package.json`, `packages/utils/tsconfig.json`, and importers
 
-- [ ] **Step 1:** `git mv` the three files into `packages/utils/src/`. Their imports are external-only (`type-fest`, `@noble/ciphers/*`, Web Crypto) — no rewrites needed.
+- [ ] **Step 1:** `git mv` the three files into `packages/utils/src/`. `type-utils.ts` (only `type-fest`) and `xchacha20poly1305.ts` (only `@noble/ciphers/*` — `randomBytes` works headless via the node/bun global `crypto.getRandomValues`) move as-is.
+- [ ] **Step 1b (PR review — headless-safe SHA-256):** rewrite `sha256.ts` to drop `crypto.subtle`/`TextEncoder` (Web-Crypto/DOM, would misbehave under MCP node/bun) in favor of `@noble/hashes` (isomorphic). Keep the async signature so call sites (`await computeSHA256(...)`) are unchanged:
+  ```ts
+  import { sha256 } from '@noble/hashes/sha2';
+  import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
+  export async function computeSHA256(message: string): Promise<string> {
+    return bytesToHex(sha256(utf8ToBytes(message)));
+  }
+  ```
 - [ ] **Step 2:** Create `packages/utils/src/query-options.ts`:
   ```ts
   // query-core has no queryOptions() helper; this is the identity helper for type inference.
   export const queryOptions = <T>(options: T): T => options;
   ```
 - [ ] **Step 3:** `packages/utils/src/index.ts` — add `export * from './type-utils'; export * from './sha256'; export * from './xchacha20poly1305'; export * from './query-options';`
-- [ ] **Step 4:** `packages/utils/package.json` — add `"type-fest": "catalog:"`, `"@noble/ciphers": "catalog:"` to dependencies.
-- [ ] **Step 5:** `packages/utils/tsconfig.json` — add `"lib": ["DOM", "ES2022"]` (sha256 uses `crypto.subtle`/`TextEncoder`).
+- [ ] **Step 4:** `packages/utils/package.json` — add `"type-fest": "catalog:"`, `"@noble/ciphers": "catalog:"`, `"@noble/hashes": "catalog:"` to dependencies.
+- [ ] **Step 5:** `packages/utils/tsconfig.json` — **no DOM needed** (sha256 now uses `@noble/hashes`; xchacha's `randomBytes` comes from `@noble/ciphers`). Keep `lib: ["ES2022"]`.
 - [ ] **Step 6:** Repoint the web importers (all currently moving domain files, but edit them in place now while still in web): `~/lib/type-utils` (6 files), `~/lib/sha256` (5 files), `~/lib/xchacha20poly1305` (1 file) → `@agicash/utils`. Delete the now-empty old `~/lib` files.
 - [ ] **Verify:** `bun install`; web + utils typecheck.
 
@@ -274,9 +284,9 @@ Both start empty in slice 0c and grow per slice. `index.ts` uses `export type { 
 > Each Phase 1/2 slice ends with: add SDK files, extract web hooks, update `src/index.ts` (types) + `src/temporary.ts` (values), repoint web importers, then **Verify** = symlink `@agicash/*`, `cd apps/web-wallet && ../../node_modules/.bin/react-router typegen && ../../node_modules/.bin/tsc --noEmit` AND `cd packages/wallet-sdk && ../../node_modules/.bin/tsc --noEmit` AND `./node_modules/.bin/biome check --write <changed>` + smoke the touched path. Steps below list only the slice-specific specifics.
 
 ### Task 1a: shared foundational leaves → SDK *(must precede agicash-db)*
-- Move whole (Archetype A), no React: `error.ts` (`getErrorMessage, UniqueConstraintError, NotFoundError, DomainError, ConcurrencyError` → temporary; **23** web importers to repoint), `currencies.ts` (`getDefaultUnit`; 13 importers), `send-destination.ts` (`DestinationDetails` type → index; `DestinationDetailsSchema` → temporary — **must land in this slice, before agicash-db**: `json-models/cashu-lightning-send-db-data.ts` imports `DestinationDetailsSchema`), `auth.ts` (`isLoggedIn` → temporary; imports only `@agicash/opensecret` + `jwt-decode`).
+- Move whole (Archetype A), no React: `error.ts` (`getErrorMessage, UniqueConstraintError, NotFoundError, DomainError, ConcurrencyError` → temporary; **23** web importers to repoint), `currencies.ts` (`getDefaultUnit`; 13 importers), `send-destination.ts` (`DestinationDetails` type → index; `DestinationDetailsSchema` → temporary — **must land in this slice, before agicash-db**: `json-models/cashu-lightning-send-db-data.ts` imports `DestinationDetailsSchema`).
 - `cryptography.ts` split (Archetype B-ish): `derivePublicKey`, `getSeedPhraseDerivationPath` → SDK/temporary; `useCryptography` → web `shared/cryptography-hooks.ts`.
-- ⚠️ **Deferred host-wiring (D12):** `auth.ts` `isLoggedIn` reads `window.localStorage` (`access_token`/`refresh_token`) at lines 5–6. It typechecks under the SDK `lib:["DOM"]` and works in the web runtime; flagged **Deferred** — the auth slice (spec step 5) replaces it with the `create(config)` storage adapter. Do NOT add Sentry/React.
+- **`auth.ts` stays in web (D12 — PR review):** `isLoggedIn` reads `window.localStorage` (host-state, fails headless). Keep it in web; its only SDK consumer (`agicash-mint-auth-provider`, slice 1d) receives `isLoggedIn` via DI. It moves to the SDK behind the `create(config)` storage adapter in the auth slice (spec step 5).
 
 ### Task 1b: agicash-db types + json-models → SDK (D6)
 - Move to `src/agicash-db/`: `database.ts`, `json-models/*` (11 files). **Keep in web:** `database.client.ts`, `database.server.ts`, `supabase-session.ts` (host wiring, D6).
@@ -292,7 +302,7 @@ Both start empty in slice 0c and grow per slice. `index.ts` uses `export type { 
 
 ### Task 1d: `shared/cashu` + `shared/agicash-mint-auth-provider` split ⚠️ MONEY-PATH
 - SDK `src/shared/cashu.ts`: `CashuCryptography` type (→index); values → temporary: `BASE_CASHU_LOCKING_DERIVATION_PATH, tokenToMoney, getCashuCryptography, getTokenHash, cashuMintValidator, getMintAuthProvider, mintInfoQueryKey, allMintKeysetsQueryKey, mintKeysQueryKey, decodeCashuToken, getInitializedCashuWallet`; queryOptions (SDK-consumed by `getInitializedCashuWallet`/`getCashuCryptography`) → SDK/temporary: `seedQueryOptions, xpubQueryOptions, mintInfoQueryOptions, allMintKeysetsQueryOptions, mintKeysQueryOptions`. Retarget `QueryClient`→`query-core`, `queryOptions`→`@agicash/utils`. **D10:** `decodeCashuToken` and `getMintAuthProvider` take `queryClient: QueryClient` param (drop `getQueryClient()`); strip `measureOperation` from `getInitializedCashuWallet`.
-- SDK `src/shared/agicash-mint-auth-provider.ts`: `getAgicashMintAuthProvider(queryClient)` (D10), imports `isLoggedIn` from `./auth`.
+- SDK `src/shared/agicash-mint-auth-provider.ts`: `getAgicashMintAuthProvider(queryClient, isLoggedIn)` (D10) — `isLoggedIn` is **injected** (it stays in web per D12), not imported; the web construction site passes it from `~/features/shared/auth`.
 - Web `shared/cashu-hooks.ts`: `useCashuCryptography`. Repoint all `decodeCashuToken`/`getMintAuthProvider` call sites to pass `queryClient`.
 - **Live-verify** (cashu wallet init, token decode) before stacking 1e.
 
@@ -316,7 +326,7 @@ Both start empty in slice 0c and grow per slice. `index.ts` uses `export type { 
 - Web hooks: `useAccountRepository`, `useAccountService` → `accounts/*-hooks.ts`. `account.ts` has **37 web importers** (largest repoint) — bulk `~/features/accounts/account` → `@agicash/wallet-sdk`(types)/`/temporary`(values).
 
 ### Task 2b: user
-- SDK: `user.ts` (`FullUser, GuestUser, User, UserProfile`; `shouldVerifyEmail, shouldAcceptTerms, shouldAcceptGiftCardMintTerms`), storages `guest-account-storage.ts`/`oauth-login-session-storage.ts`/`pending-terms-storage.ts`/`session-hint-cookie.ts` (**D12:** these use `localStorage`/`sessionStorage`/`document.cookie` — they move with transient direct browser-global access, typecheck via `lib:["DOM"]`, flagged **Deferred** for storage-adapter rework in the auth slice; do NOT add React/Sentry), `UserRepository` (`UpdateUser` type; `WriteUserRepository, ReadUserRepository, ReadUserDefaultAccountRepository`; queryClient→core), `UserService`.
+- SDK: `user.ts` (`FullUser, GuestUser, User, UserProfile`; `shouldVerifyEmail, shouldAcceptTerms, shouldAcceptGiftCardMintTerms`), **(the four storages `guest-account-storage`/`oauth-login-session-storage`/`pending-terms-storage`/`session-hint-cookie` STAY in web — D12, PR review:** they use `localStorage`/`sessionStorage`/`document.cookie` (host-state, fail headless) and are imported only by web files — `user-hooks`, `user/auth.ts`, routes, signup/receive UI — so no moving SDK file needs them and no DI is required**)**, `UserRepository` (`UpdateUser` type; `WriteUserRepository, ReadUserRepository, ReadUserDefaultAccountRepository`; queryClient→core), `UserService`.
 - Web hooks: `useReadUserRepository, useWriteUserRepository, useUserService`.
 
 ### Task 2c: contacts (D8 dissolved by C)
@@ -361,7 +371,7 @@ Both start empty in slice 0c and grow per slice. `index.ts` uses `export type { 
 | `claim-cashu-token-service.ts` | Reads/writes `AccountsCache`/`UserCache`/`accountsQueryOptions` mid-orchestration (web cache) | receive-cashu-token domain slice, **after** the de-cache step. Add a `// Deferred from wallet-sdk extraction — see this plan` comment at its class. |
 | Removing `queryClient` from SDK classes (true de-cache; reads → Promises) | Out of scope; this plan only makes the SDK React-agnostic via `query-core` | the dedicated de-cache step (spec step 1, reframed) |
 | `database.client.ts`/`.server.ts`/`supabase-session.ts` + `~/lib/supabase` realtime manager → SDK | Host-connection wiring; belongs behind `create(config)` | the `create(config)`/contract step (spec step 4) |
-| Browser-global/host-state access (D12) — `shared/auth.ts` `isLoggedIn`→`window.localStorage` + the four `user/` storages (`localStorage`/`sessionStorage`/`document.cookie`) | Moved now with transient direct browser access (typechecks via `lib:["DOM"]`, works in web); host-state belongs behind the `create(config)` storage adapter | the auth slice (spec step 5) |
+| `shared/auth.ts` + the four `user/` storages → SDK (D12) | Host-state (`window.localStorage`/`sessionStorage`/`cookie`) fails headless; **kept in web** now, `isLoggedIn` injected into its one SDK consumer (`agicash-mint-auth-provider`) | the auth slice via the `create(config)` storage adapter (spec step 5) |
 | `Sdk`/`ServerSdk` contract + namespaces | This plan moves code via `/temporary`; the contract is later | spec step 4 + per-domain wrapping |
 | Background processing (task runner, leader election, change-feed, processors) | Most concurrency-sensitive; needs live failover verification | spec step 18 |
 | Delete `/temporary` | Boundary enforcement is the final cleanup | spec step 19 |
