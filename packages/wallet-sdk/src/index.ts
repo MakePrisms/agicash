@@ -139,3 +139,9 @@ export type {
 } from './send/spark-send-quote-service';
 export type { SendDestination } from './send/resolve-destination';
 export type { ValidateResult } from './send/validation';
+export type {
+  TransferReceiveSide,
+  TransferSendSide,
+  TransferQuote,
+} from './transfer/transfer-service';
+export type { TransferService } from './transfer/transfer-service';

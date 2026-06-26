@@ -1,31 +1,25 @@
 import { Money } from '@agicash/money';
-import type {
-  Account,
-  CashuAccount,
-  CashuReceiveLightningQuote,
-  CashuReceiveQuote,
-  CashuReceiveQuoteService,
-  SparkAccount,
-  SparkReceiveLightningQuote,
-  SparkReceiveQuote,
-  SparkReceiveQuoteService,
-} from '@agicash/wallet-sdk';
-import type {
-  CashuLightningQuote,
-  CashuSendQuoteService,
-  SparkLightningQuote,
-  SparkSendQuoteService,
-} from '@agicash/wallet-sdk';
-import { DomainError } from '@agicash/wallet-sdk/temporary';
+import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import {
   canReceiveFromLightning,
   canSendToLightning,
-} from '@agicash/wallet-sdk/temporary';
-import { getLightningQuote as getSparkLightningQuote } from '@agicash/wallet-sdk/temporary';
-import { useCashuReceiveQuoteService } from '../receive/cashu-receive-quote-hooks';
-import { useSparkReceiveQuoteService } from '../receive/spark-receive-quote-hooks';
-import { useCashuSendQuoteService } from '../send/cashu-send-quote-hooks';
-import { useSparkSendQuoteService } from '../send/spark-send-quote-hooks';
+} from '../accounts/account';
+import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
+import type { CashuReceiveLightningQuote } from '../receive/cashu-receive-quote-core';
+import type { CashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';
+import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
+import type { SparkReceiveLightningQuote } from '../receive/spark-receive-quote-core';
+import { getLightningQuote as getSparkLightningQuote } from '../receive/spark-receive-quote-core';
+import type { SparkReceiveQuoteService } from '../receive/spark-receive-quote-service';
+import type {
+  CashuLightningQuote,
+  CashuSendQuoteService,
+} from '../send/cashu-send-quote-service';
+import type {
+  SparkLightningQuote,
+  SparkSendQuoteService,
+} from '../send/spark-send-quote-service';
+import { DomainError } from '../shared/error';
 
 export type TransferReceiveSide =
   | {
@@ -277,17 +271,4 @@ export class TransferService {
       transferId,
     });
   }
-}
-
-export function useTransferService() {
-  const cashuReceiveQuoteService = useCashuReceiveQuoteService();
-  const sparkReceiveQuoteService = useSparkReceiveQuoteService();
-  const cashuSendQuoteService = useCashuSendQuoteService();
-  const sparkSendQuoteService = useSparkSendQuoteService();
-  return new TransferService(
-    cashuReceiveQuoteService,
-    sparkReceiveQuoteService,
-    cashuSendQuoteService,
-    sparkSendQuoteService,
-  );
 }
