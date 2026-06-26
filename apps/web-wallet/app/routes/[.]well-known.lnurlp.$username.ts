@@ -3,7 +3,7 @@
  * defined by LUD 16: https://github.com/lnurl/luds/blob/luds/16.md
  */
 
-import { LightningAddressService } from '@agicash/wallet-sdk/temporary';
+import { LightningAddressService } from '@agicash/wallet-sdk/temporary.server';
 import { agicashDbServer } from '~/features/agicash-db/database.server';
 import { isLoggedIn } from '~/features/shared/auth';
 import { getFeatureFlag } from '~/features/shared/feature-flags';

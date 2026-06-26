@@ -142,25 +142,20 @@ export {
   getLightningQuote,
 } from './receive/spark-receive-quote-core';
 export { SparkReceiveQuoteRepository } from './receive/spark-receive-quote-repository';
-export { SparkReceiveQuoteRepositoryServer } from './receive/spark-receive-quote-repository.server';
 export { SparkReceiveQuoteService } from './receive/spark-receive-quote-service';
-export { SparkReceiveQuoteServiceServer } from './receive/spark-receive-quote-service.server';
 export { CashuReceiveQuoteSchema } from './receive/cashu-receive-quote';
 export {
   computeTotalFee,
   deriveNut20LockingPublicKey,
 } from './receive/cashu-receive-quote-core';
 export { CashuReceiveQuoteRepository } from './receive/cashu-receive-quote-repository';
-export { CashuReceiveQuoteRepositoryServer } from './receive/cashu-receive-quote-repository.server';
 export { CashuReceiveQuoteService } from './receive/cashu-receive-quote-service';
-export { CashuReceiveQuoteServiceServer } from './receive/cashu-receive-quote-service.server';
 export { CashuReceiveSwapSchema } from './receive/cashu-receive-swap';
 export { CashuReceiveSwapRepository } from './receive/cashu-receive-swap-repository';
 export { CashuReceiveSwapService } from './receive/cashu-receive-swap-service';
 export { isClaimingToSameCashuAccount } from './receive/receive-cashu-token-models';
 export { ReceiveCashuTokenQuoteService } from './receive/receive-cashu-token-quote-service';
 export { ReceiveCashuTokenService } from './receive/receive-cashu-token-service';
-export { LightningAddressService } from './receive/lightning-address-service';
 export {
   GiftCardConfigSchema,
   JsonGiftCardConfigSchema,
