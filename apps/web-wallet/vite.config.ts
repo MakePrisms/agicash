@@ -1,3 +1,4 @@
+import { JsonGiftCardConfigSchema } from '@agicash/wallet-sdk/gift-cards/gift-card-config';
 import { reactRouter } from '@react-router/dev/vite';
 import {
   type SentryReactRouterBuildOptions,
@@ -7,7 +8,6 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig, loadEnv } from 'vite';
 import devtoolsJson from 'vite-plugin-devtools-json';
 import tsconfigPaths from 'vite-tsconfig-paths';
-import { JsonGiftCardConfigSchema } from './app/features/gift-cards/gift-card-config';
 
 const sentryConfig: SentryReactRouterBuildOptions = {
   org: 'make-prisms',

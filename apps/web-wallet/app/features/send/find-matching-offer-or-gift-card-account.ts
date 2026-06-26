@@ -1,8 +1,8 @@
 import type { DecodedBolt11 } from '@agicash/bolt11';
 import { type Currency, Money } from '@agicash/money';
 import type { Account, CashuAccount } from '@agicash/wallet-sdk';
+import type { GiftCardInfo } from '@agicash/wallet-sdk';
 import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
-import type { GiftCardInfo } from '~/features/gift-cards/gift-card-config';
 
 type FindMatchingOfferOrGiftCardAccountInput = {
   decodedBolt11: DecodedBolt11;

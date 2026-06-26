@@ -114,3 +114,7 @@ export type {
   CrossAccountReceiveQuotesResult,
   ReceiveCashuTokenQuoteService,
 } from './receive/receive-cashu-token-quote-service';
+export type {
+  GiftCardConfig,
+  GiftCardInfo,
+} from './gift-cards/gift-card-config';

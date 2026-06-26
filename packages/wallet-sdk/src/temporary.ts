@@ -161,3 +161,7 @@ export { isClaimingToSameCashuAccount } from './receive/receive-cashu-token-mode
 export { ReceiveCashuTokenQuoteService } from './receive/receive-cashu-token-quote-service';
 export { ReceiveCashuTokenService } from './receive/receive-cashu-token-service';
 export { LightningAddressService } from './receive/lightning-address-service';
+export {
+  GiftCardConfigSchema,
+  JsonGiftCardConfigSchema,
+} from './gift-cards/gift-card-config';

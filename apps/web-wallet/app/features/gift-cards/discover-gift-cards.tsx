@@ -1,3 +1,4 @@
+import type { GiftCardInfo } from '@agicash/wallet-sdk';
 import { Link, useNavigate, useViewTransitionState } from 'react-router';
 import {
   WalletCard,
@@ -5,7 +6,6 @@ import {
 } from '~/components/wallet-card';
 import useUserAgent from '~/hooks/use-user-agent';
 import { cn } from '~/lib/utils';
-import type { GiftCardInfo } from './gift-card-config';
 import { useRestoreScrollPosition } from './use-restore-scroll-position';
 
 type DiscoverCardLinkProps = {

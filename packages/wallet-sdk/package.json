@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./temporary": "./src/temporary.ts"
+    "./temporary": "./src/temporary.ts",
+    "./gift-cards/gift-card-config": "./src/gift-cards/gift-card-config.ts"
   },
   "scripts": {
     "typecheck": "tsc",
