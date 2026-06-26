@@ -1,12 +1,12 @@
-import { Coinbase } from '~/lib/exchange-rate/providers/coinbase';
-import { Coingecko } from '~/lib/exchange-rate/providers/coingecko';
-import { MempoolSpace } from '~/lib/exchange-rate/providers/mempool-space';
+import { Coinbase } from './providers/coinbase';
+import { Coingecko } from './providers/coingecko';
+import { MempoolSpace } from './providers/mempool-space';
 import type {
   ExchangeRateProvider,
   GetRatesParams,
   Rates,
   Ticker,
-} from '~/lib/exchange-rate/providers/types';
+} from './providers/types';
 
 export class ExchangeRateService {
   private providers: ExchangeRateProvider[];

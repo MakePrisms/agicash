@@ -1,4 +1,5 @@
 import { configure } from '@agicash/opensecret';
+import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -12,7 +13,6 @@ import { getEnvironment, isServedLocally } from './environment';
 import { featureFlagsQueryOptions } from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
 import { registerMoneyDevToolsFormatter } from './lib/money-devtools-formatter';
-import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)

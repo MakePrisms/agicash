@@ -1,10 +1,10 @@
 import { parseBolt11Invoice } from '@agicash/bolt11';
 import { Money } from '@agicash/money';
-import { measureOperation } from '~/lib/performance';
 import {
   isInsufficentBalanceError,
   isInvoiceAlreadyPaidError,
-} from '~/lib/spark';
+} from '@agicash/wallet-sdk/temporary';
+import { measureOperation } from '~/lib/performance';
 import type { SparkAccount } from '../accounts/account';
 import { DomainError } from '../shared/error';
 import type { TransactionPurpose } from '../transactions/transaction-enums';

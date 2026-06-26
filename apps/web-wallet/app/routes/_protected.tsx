@@ -1,3 +1,4 @@
+import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
@@ -39,7 +40,6 @@ import {
 } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
-import { ensureBreezWasm } from '~/lib/spark';
 import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
 

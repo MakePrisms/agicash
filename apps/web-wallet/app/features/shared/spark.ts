@@ -7,12 +7,12 @@ import {
 import { Money } from '@agicash/money';
 import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import { computeSHA256 } from '@agicash/utils';
-import { type QueryClient, queryOptions } from '@tanstack/react-query';
-import { measureOperation } from '~/lib/performance';
 import {
   createSparkWalletStub,
   getSparkIdentityPublicKeyFromMnemonic,
-} from '~/lib/spark';
+} from '@agicash/wallet-sdk/temporary';
+import { type QueryClient, queryOptions } from '@tanstack/react-query';
+import { measureOperation } from '~/lib/performance';
 import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import { getSeedPhraseDerivationPath } from './cryptography';
 import { getFeatureFlag } from './feature-flags';
