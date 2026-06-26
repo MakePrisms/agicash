@@ -6,6 +6,7 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
+import type { AgicashDbSparkReceiveQuote } from '@agicash/wallet-sdk';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -22,7 +23,6 @@ import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import { sparkDebugLog } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';

@@ -1,10 +1,10 @@
 import { Money } from '@agicash/money';
-import { z } from 'zod/mini';
 import {
   CashuLightningReceiveDbDataSchema,
   CashuSwapReceiveDbDataSchema,
   SparkLightningReceiveDbDataSchema,
-} from '~/features/agicash-db/json-models';
+} from '@agicash/wallet-sdk/temporary';
+import { z } from 'zod/mini';
 import { TransactionStateSchema } from '../transaction-enums';
 import type { TransactionDetailsParserShape } from './transaction-details-types';
 

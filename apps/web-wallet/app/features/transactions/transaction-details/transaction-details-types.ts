@@ -1,5 +1,3 @@
-import type { Json } from 'supabase/database.types';
-import { z } from 'zod/mini';
 import {
   CashuLightningReceiveDbDataSchema,
   CashuLightningSendDbDataSchema,
@@ -7,7 +5,9 @@ import {
   CashuSwapSendDbDataSchema,
   SparkLightningReceiveDbDataSchema,
   SparkLightningSendDbDataSchema,
-} from '~/features/agicash-db/json-models';
+} from '@agicash/wallet-sdk/temporary';
+import type { Json } from 'supabase/database.types';
+import { z } from 'zod/mini';
 import type {
   TransactionDirection,
   TransactionState,

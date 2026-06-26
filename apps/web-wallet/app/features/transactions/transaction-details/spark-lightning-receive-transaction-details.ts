@@ -1,6 +1,6 @@
 import { Money } from '@agicash/money';
+import { SparkLightningReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
 import { z } from 'zod/mini';
-import { SparkLightningReceiveDbDataSchema } from '~/features/agicash-db/json-models';
 import { TransactionStateSchema } from '../transaction-enums';
 import type { TransactionDetailsParserShape } from './transaction-details-types';
 

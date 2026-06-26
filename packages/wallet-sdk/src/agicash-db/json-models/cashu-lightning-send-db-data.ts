@@ -1,6 +1,6 @@
 import { Money } from '@agicash/money';
-import { DestinationDetailsSchema } from '@agicash/wallet-sdk/temporary';
 import { z } from 'zod/mini';
+import { DestinationDetailsSchema } from '../../shared/send-destination';
 
 /**
  * Schema for cashu lightning send db data.

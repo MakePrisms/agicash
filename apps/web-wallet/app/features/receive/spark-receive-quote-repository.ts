@@ -1,11 +1,11 @@
 import type { AllUnionFieldsRequired } from '@agicash/utils';
-import type { z } from 'zod/mini';
 import type {
   AgicashDb,
   AgicashDbSparkReceiveQuote,
-} from '../agicash-db/database';
+} from '@agicash/wallet-sdk';
+import { SparkLightningReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
+import type { z } from 'zod/mini';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { SparkLightningReceiveDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import {
   type SparkReceiveQuote,

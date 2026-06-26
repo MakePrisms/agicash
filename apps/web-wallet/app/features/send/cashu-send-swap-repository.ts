@@ -1,17 +1,17 @@
 import { proofToY } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type { AllUnionFieldsRequired } from '@agicash/utils';
-import { ConcurrencyError } from '@agicash/wallet-sdk/temporary';
-import type { Proof } from '@cashu/cashu-ts';
-import type { z } from 'zod/mini';
-import type { CashuProof } from '../accounts/cashu-account';
 import type {
   AgicashDb,
   AgicashDbCashuProof,
   AgicashDbCashuSendSwap,
-} from '../agicash-db/database';
+} from '@agicash/wallet-sdk';
+import { ConcurrencyError } from '@agicash/wallet-sdk/temporary';
+import { CashuSwapSendDbDataSchema } from '@agicash/wallet-sdk/temporary';
+import type { Proof } from '@cashu/cashu-ts';
+import type { z } from 'zod/mini';
+import type { CashuProof } from '../accounts/cashu-account';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { CashuSwapSendDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import { type CashuSendSwap, CashuSendSwapSchema } from './cashu-send-swap';
 import { toDecryptedCashuProofs } from './utils';

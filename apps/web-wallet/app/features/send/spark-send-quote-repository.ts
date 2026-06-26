@@ -1,13 +1,10 @@
 import type { Money } from '@agicash/money';
 import type { AllUnionFieldsRequired } from '@agicash/utils';
+import type { AgicashDb, AgicashDbSparkSendQuote } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
+import { SparkLightningSendDbDataSchema } from '@agicash/wallet-sdk/temporary';
 import type { z } from 'zod/mini';
-import type {
-  AgicashDb,
-  AgicashDbSparkSendQuote,
-} from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { SparkLightningSendDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { type SparkSendQuote, SparkSendQuoteSchema } from './spark-send-quote';

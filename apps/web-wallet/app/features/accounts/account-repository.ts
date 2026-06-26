@@ -1,19 +1,21 @@
 import { ProofSchema, normalizeMintUrl } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
+import type {
+  AgicashDb,
+  AgicashDbAccountWithProofs,
+} from '@agicash/wallet-sdk';
+import type { SparkNetwork } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
+import {
+  CashuAccountDetailsDbDataSchema,
+  SparkAccountDetailsDbDataSchema,
+  isCashuAccount,
+  isSparkAccount,
+} from '@agicash/wallet-sdk/temporary';
 import { useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
-import {
-  type AgicashDb,
-  type AgicashDbAccountWithProofs,
-  isCashuAccount,
-  isSparkAccount,
-} from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
-import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
-import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
   getMintAuthProvider,

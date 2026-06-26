@@ -1,6 +1,18 @@
 import { normalizeMintUrl } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
+import type {
+  AgicashDb,
+  AgicashDbAccount,
+  AgicashDbUser,
+  SparkNetwork,
+} from '@agicash/wallet-sdk';
 import { UniqueConstraintError } from '@agicash/wallet-sdk/temporary';
+import {
+  CashuAccountDetailsDbDataSchema,
+  SparkAccountDetailsDbDataSchema,
+  isCashuAccount,
+  isSparkAccount,
+} from '@agicash/wallet-sdk/temporary';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod/mini';
 import type { Account, RedactedAccount } from '../accounts/account';
@@ -8,17 +20,7 @@ import {
   type AccountRepository,
   useAccountRepository,
 } from '../accounts/account-repository';
-import {
-  type AgicashDb,
-  type AgicashDbAccount,
-  type AgicashDbUser,
-  isCashuAccount,
-  isSparkAccount,
-} from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { CashuAccountDetailsDbDataSchema } from '../agicash-db/json-models/cashu-account-details-db-data';
-import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
-import { SparkAccountDetailsDbDataSchema } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   getInitializedCashuWallet,
   getMintAuthProvider,

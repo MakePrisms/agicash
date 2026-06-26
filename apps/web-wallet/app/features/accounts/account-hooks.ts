@@ -1,4 +1,5 @@
 import { type Currency, Money } from '@agicash/money';
+import type { AgicashDbAccountWithProofs } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
@@ -8,7 +9,6 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
-import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
 import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import { UserService } from '../user/user-service';

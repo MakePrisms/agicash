@@ -5,6 +5,7 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
+import type { AgicashDbCashuReceiveQuote } from '@agicash/wallet-sdk';
 import {
   HttpResponseError,
   MintOperationError,
@@ -36,7 +37,6 @@ import {
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
 import { getInitializedCashuWallet } from '../shared/cashu';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';

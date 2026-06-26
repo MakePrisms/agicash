@@ -1,3 +1,4 @@
+import type { AgicashDbContact } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
   useMutation,
@@ -7,7 +8,6 @@ import {
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import useLocationData from '~/hooks/use-location';
-import type { AgicashDbContact } from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import type { Contact } from './contact';
 import { ContactRepository, useContactRepository } from './contact-repository';

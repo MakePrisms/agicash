@@ -5,9 +5,9 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import { type Currency, Money } from '@agicash/money';
+import type { SparkNetwork } from '@agicash/wallet-sdk';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
-import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import type { CashuProof } from './cashu-account';
 
 export const AccountTypeSchema = z.enum(['cashu', 'spark']);

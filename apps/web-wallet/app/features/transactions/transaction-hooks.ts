@@ -1,3 +1,4 @@
+import type { AgicashDbTransaction } from '@agicash/wallet-sdk';
 import { NotFoundError } from '@agicash/wallet-sdk/temporary';
 import {
   type InfiniteData,
@@ -9,7 +10,6 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import type { AgicashDbTransaction } from '~/features/agicash-db/database';
 import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';

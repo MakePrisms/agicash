@@ -1,5 +1,10 @@
 import { proofToY } from '@agicash/cashu';
 import { type AllUnionFieldsRequired, computeSHA256 } from '@agicash/utils';
+import type {
+  AgicashDb,
+  AgicashDbCashuReceiveQuote,
+} from '@agicash/wallet-sdk';
+import { CashuLightningReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
 import type { Proof } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
 import type { CashuAccount } from '../accounts/account';
@@ -7,12 +12,7 @@ import {
   type AccountRepository,
   useAccountRepository,
 } from '../accounts/account-repository';
-import type {
-  AgicashDb,
-  AgicashDbCashuReceiveQuote,
-} from '../agicash-db/database';
 import { agicashDbClient } from '../agicash-db/database.client';
-import { CashuLightningReceiveDbDataSchema } from '../agicash-db/json-models';
 import { type Encryption, useEncryption } from '../shared/encryption';
 import {
   type CashuReceiveQuote,

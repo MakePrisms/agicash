@@ -1,4 +1,8 @@
 import type { Money } from '@agicash/money';
+import type {
+  AgicashDbCashuProof,
+  AgicashDbCashuSendSwap,
+} from '@agicash/wallet-sdk';
 import {
   ConcurrencyError,
   DomainError,
@@ -20,10 +24,6 @@ import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendSwap,
-} from '../agicash-db/database';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 import { useCashuSendSwapRepository } from './cashu-send-swap-repository';
