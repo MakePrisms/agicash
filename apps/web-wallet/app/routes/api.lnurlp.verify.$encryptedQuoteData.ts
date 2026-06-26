@@ -3,16 +3,23 @@
  * defined by LUD21: https://github.com/lnurl/luds/blob/luds/21.md
  */
 
+import { LightningAddressService } from '@agicash/wallet-sdk/temporary';
 import { agicashDbServer } from '~/features/agicash-db/database.server';
-import { LightningAddressService } from '~/features/receive/lightning-address-service';
+import { isLoggedIn } from '~/features/shared/auth';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
+import { getQueryClient } from '~/features/shared/query-client';
 import type { Route } from './+types/api.lnurlp.verify.$encryptedQuoteData';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { encryptedQuoteData } = params;
 
+  const queryClient = getQueryClient();
   const lightningAddressService = new LightningAddressService(
     request,
     agicashDbServer,
+    queryClient,
+    isLoggedIn,
+    () => getFeatureFlag('DEBUG_LOGGING_SPARK'),
   );
 
   const response =

@@ -4,25 +4,23 @@ import type {
   AccountRepository,
   AccountService,
   CashuAccount,
+  CashuReceiveQuoteService,
+  CashuReceiveSwap,
+  CashuReceiveSwapService,
+  CrossAccountReceiveQuotesResult,
+  ReceiveCashuTokenQuoteService,
   SparkAccount,
   SparkReceiveQuote,
   SparkReceiveQuoteService,
 } from '@agicash/wallet-sdk';
 import type { User } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
+import { ReceiveCashuTokenService } from '@agicash/wallet-sdk/temporary';
 import { UserService } from '@agicash/wallet-sdk/temporary';
+import { isClaimingToSameCashuAccount } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
 import type { Ticker } from '@agicash/wallet-sdk/temporary';
-import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
-import type { CashuReceiveSwap } from './cashu-receive-swap';
-import type { CashuReceiveSwapService } from './cashu-receive-swap-service';
-import { isClaimingToSameCashuAccount } from './receive-cashu-token-models';
-import type {
-  CrossAccountReceiveQuotesResult,
-  ReceiveCashuTokenQuoteService,
-} from './receive-cashu-token-quote-service';
-import { ReceiveCashuTokenService } from './receive-cashu-token-service';
 
 type ClaimTokenResult =
   | {
@@ -34,6 +32,7 @@ type ClaimTokenResult =
     }
   | { success: false; message: string };
 
+// Deferred from wallet-sdk extraction — see docs/superpowers/plans/2026-06-25-wallet-sdk-domain-extraction.md
 export class ClaimCashuTokenService {
   constructor(
     private readonly accountService: AccountService,

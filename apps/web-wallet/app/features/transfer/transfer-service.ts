@@ -2,6 +2,9 @@ import { Money } from '@agicash/money';
 import type {
   Account,
   CashuAccount,
+  CashuReceiveLightningQuote,
+  CashuReceiveQuote,
+  CashuReceiveQuoteService,
   SparkAccount,
   SparkReceiveLightningQuote,
   SparkReceiveQuote,
@@ -13,10 +16,7 @@ import {
   canSendToLightning,
 } from '@agicash/wallet-sdk/temporary';
 import { getLightningQuote as getSparkLightningQuote } from '@agicash/wallet-sdk/temporary';
-import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
-import type { CashuReceiveLightningQuote } from '../receive/cashu-receive-quote-core';
-import type { CashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';
-import { useCashuReceiveQuoteService } from '../receive/cashu-receive-quote-service';
+import { useCashuReceiveQuoteService } from '../receive/cashu-receive-quote-hooks';
 import { useSparkReceiveQuoteService } from '../receive/spark-receive-quote-hooks';
 import type {
   CashuLightningQuote,

@@ -6,28 +6,29 @@ import {
   getKeysetExpiry,
 } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
+import type { Token } from '@cashu/cashu-ts';
+import type { QueryClient } from '@tanstack/query-core';
 import type {
   ExtendedAccount,
   ExtendedCashuAccount,
-} from '@agicash/wallet-sdk';
+} from '../accounts/account';
+import {
+  canReceiveFromLightning,
+  canSendToLightning,
+} from '../accounts/account';
 import {
   cashuMintValidator,
   getInitializedCashuWallet,
   tokenToMoney,
-} from '@agicash/wallet-sdk/temporary';
-import type { Token } from '@cashu/cashu-ts';
-import {
-  canReceiveFromLightning,
-  canSendToLightning,
-} from '@agicash/wallet-sdk/temporary';
-import type { Token } from '@cashu/cashu-ts';
-import { type QueryClient, useQueryClient } from '@tanstack/react-query';
+} from '../shared/cashu';
 import type {
   CashuAccountWithTokenFlags,
   ReceiveCashuTokenAccount,
 } from './receive-cashu-token-models';
 
 export class ReceiveCashuTokenService {
+  constructor(private readonly queryClient: QueryClient) {}
+
   /**
    * Builds a cashu account object for a given mint and currency.
    * This account is not stored in the database, and has placeholder values for the id and createdAt.
@@ -40,6 +41,7 @@ export class ReceiveCashuTokenService {
     currency: Currency,
   ): Promise<CashuAccountWithTokenFlags> {
     const { wallet, isOnline } = await getInitializedCashuWallet({
+      queryClient: this.queryClient,
       mintUrl,
       currency,
     });
@@ -234,8 +236,4 @@ export class ReceiveCashuTokenService {
       (account) => account.canReceive,
     );
   }
-}
-
-export function useReceiveCashuTokenService() {
-  return new ReceiveCashuTokenService();
 }

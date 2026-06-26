@@ -1,17 +1,15 @@
 import { proofToY } from '@agicash/cashu';
 import { type AllUnionFieldsRequired, computeSHA256 } from '@agicash/utils';
+import type { Proof } from '@cashu/cashu-ts';
+import type { z } from 'zod/mini';
+import type { CashuAccount } from '../accounts/account';
+import type { AccountRepository } from '../accounts/account-repository';
 import type {
   AgicashDb,
   AgicashDbCashuReceiveQuote,
-} from '@agicash/wallet-sdk';
-import type { Encryption } from '@agicash/wallet-sdk';
-import type { AccountRepository, CashuAccount } from '@agicash/wallet-sdk';
-import { CashuLightningReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
-import type { Proof } from '@cashu/cashu-ts';
-import type { z } from 'zod/mini';
-import { useAccountRepository } from '../accounts/account-repository-hooks';
-import { agicashDbClient } from '../agicash-db/database.client';
-import { useEncryption } from '../shared/encryption-hooks';
+} from '../agicash-db/database';
+import { CashuLightningReceiveDbDataSchema } from '../agicash-db/json-models/cashu-lightning-receive-db-data';
+import type { Encryption } from '../shared/encryption';
 import {
   type CashuReceiveQuote,
   CashuReceiveQuoteSchema,
@@ -475,14 +473,4 @@ export class CashuReceiveQuoteRepository {
       z.output<typeof CashuReceiveQuoteSchema>
     >);
   }
-}
-
-export function useCashuReceiveQuoteRepository() {
-  const encryption = useEncryption();
-  const accountRepository = useAccountRepository();
-  return new CashuReceiveQuoteRepository(
-    agicashDbClient,
-    encryption,
-    accountRepository,
-  );
 }

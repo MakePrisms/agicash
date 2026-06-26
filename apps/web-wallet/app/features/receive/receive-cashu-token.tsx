@@ -1,5 +1,9 @@
 import { encodeToken } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
+import type {
+  CashuAccountWithTokenFlags,
+  ReceiveCashuTokenAccount,
+} from '@agicash/wallet-sdk';
 import { getErrorMessage } from '@agicash/wallet-sdk/temporary';
 import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
 import {
@@ -7,6 +11,7 @@ import {
   getAccountHomePath,
 } from '@agicash/wallet-sdk/temporary';
 import { shouldAcceptGiftCardMintTerms } from '@agicash/wallet-sdk/temporary';
+import { isClaimingToSameCashuAccount } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -53,11 +58,6 @@ import {
   useReceiveCashuTokenAccountPlaceholders,
   useReceiveCashuTokenAccounts,
 } from './receive-cashu-token-hooks';
-import {
-  type CashuAccountWithTokenFlags,
-  type ReceiveCashuTokenAccount,
-  isClaimingToSameCashuAccount,
-} from './receive-cashu-token-models';
 
 type Props = {
   token: Token;

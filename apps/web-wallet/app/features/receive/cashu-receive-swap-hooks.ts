@@ -1,4 +1,11 @@
-import type { AgicashDbCashuReceiveSwap } from '@agicash/wallet-sdk';
+import type {
+  AgicashDbCashuReceiveSwap,
+  CashuReceiveSwap,
+} from '@agicash/wallet-sdk';
+import {
+  CashuReceiveSwapRepository,
+  CashuReceiveSwapService,
+} from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -12,15 +19,31 @@ import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
+import { useAccountRepository } from '../accounts/account-repository-hooks';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
-import type { CashuReceiveSwap } from './cashu-receive-swap';
-import { useCashuReceiveSwapRepository } from './cashu-receive-swap-repository';
-import { useCashuReceiveSwapService } from './cashu-receive-swap-service';
 
 type CreateProps = {
   token: Token;
   accountId: string;
 };
+
+export function useCashuReceiveSwapRepository() {
+  const encryption = useEncryption();
+  const accountRepository = useAccountRepository();
+  return new CashuReceiveSwapRepository(
+    agicashDbClient,
+    encryption,
+    accountRepository,
+  );
+}
+
+export function useCashuReceiveSwapService() {
+  const receiveSwapRepository = useCashuReceiveSwapRepository();
+  return new CashuReceiveSwapService(receiveSwapRepository);
+}
+
 class PendingCashuReceiveSwapsCache {
   // Query to track all pending receive swaps for a given user (active and ones where recovery is being attempted).
   public static Key = 'pending-cashu-receive-swaps';

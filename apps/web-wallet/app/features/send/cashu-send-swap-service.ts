@@ -8,6 +8,7 @@ import {
 import { Money } from '@agicash/money';
 import type { CashuAccount } from '@agicash/wallet-sdk';
 import type { CashuProof } from '@agicash/wallet-sdk';
+import type { CashuReceiveSwapService } from '@agicash/wallet-sdk';
 import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { getTokenHash } from '@agicash/wallet-sdk/temporary';
@@ -19,10 +20,7 @@ import {
   type Wallet,
   splitAmount,
 } from '@cashu/cashu-ts';
-import {
-  type CashuReceiveSwapService,
-  useCashuReceiveSwapService,
-} from '../receive/cashu-receive-swap-service';
+import { useCashuReceiveSwapService } from '../receive/cashu-receive-swap-hooks';
 import type { CashuSendSwap } from './cashu-send-swap';
 import {
   type CashuSendSwapRepository,

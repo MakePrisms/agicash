@@ -3,10 +3,6 @@ import {
   type ExtendedCashuWallet,
   getCashuUnit,
 } from '@agicash/cashu';
-import type { CashuCryptography } from '@agicash/wallet-sdk';
-import type { CashuAccount } from '@agicash/wallet-sdk';
-import { derivePublicKey } from '@agicash/wallet-sdk/temporary';
-import { BASE_CASHU_LOCKING_DERIVATION_PATH } from '@agicash/wallet-sdk/temporary';
 import {
   MintOperationError,
   MintQuoteState,
@@ -14,7 +10,12 @@ import {
   type Proof,
   splitAmount,
 } from '@cashu/cashu-ts';
-import { useCashuCryptography } from '../shared/cashu-hooks';
+import type { CashuAccount } from '../accounts/account';
+import {
+  BASE_CASHU_LOCKING_DERIVATION_PATH,
+  type CashuCryptography,
+} from '../shared/cashu';
+import { derivePublicKey } from '../shared/cryptography';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
   type CashuReceiveLightningQuote,
@@ -24,10 +25,7 @@ import {
   computeTotalFee,
   getLightningQuote,
 } from './cashu-receive-quote-core';
-import {
-  type CashuReceiveQuoteRepository,
-  useCashuReceiveQuoteRepository,
-} from './cashu-receive-quote-repository';
+import type { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 
 type CreateQuoteParams = CreateQuoteBaseParams;
 
@@ -353,13 +351,4 @@ export class CashuReceiveQuoteService {
       throw error;
     }
   }
-}
-
-export function useCashuReceiveQuoteService() {
-  const cryptography = useCashuCryptography();
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
-  return new CashuReceiveQuoteService(
-    cryptography,
-    cashuReceiveQuoteRepository,
-  );
 }

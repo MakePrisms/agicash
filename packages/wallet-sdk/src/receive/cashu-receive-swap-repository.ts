@@ -1,17 +1,18 @@
 import { proofToY } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type { AllUnionFieldsRequired } from '@agicash/utils';
-import type { AgicashDb, AgicashDbCashuReceiveSwap } from '@agicash/wallet-sdk';
-import type { Encryption } from '@agicash/wallet-sdk';
-import type { AccountRepository, CashuAccount } from '@agicash/wallet-sdk';
-import { UniqueConstraintError } from '@agicash/wallet-sdk/temporary';
-import { CashuSwapReceiveDbDataSchema } from '@agicash/wallet-sdk/temporary';
-import { getTokenHash } from '@agicash/wallet-sdk/temporary';
 import type { Proof, Token } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
-import { useAccountRepository } from '../accounts/account-repository-hooks';
-import { agicashDbClient } from '../agicash-db/database.client';
-import { useEncryption } from '../shared/encryption-hooks';
+import type { CashuAccount } from '../accounts/account';
+import type { AccountRepository } from '../accounts/account-repository';
+import type {
+  AgicashDb,
+  AgicashDbCashuReceiveSwap,
+} from '../agicash-db/database';
+import { CashuSwapReceiveDbDataSchema } from '../agicash-db/json-models/cashu-swap-receive-db-data';
+import { getTokenHash } from '../shared/cashu';
+import type { Encryption } from '../shared/encryption';
+import { UniqueConstraintError } from '../shared/error';
 import {
   type CashuReceiveSwap,
   CashuReceiveSwapSchema,
@@ -338,14 +339,4 @@ export class CashuReceiveSwapRepository {
       z.output<typeof CashuReceiveSwapSchema>
     >);
   }
-}
-
-export function useCashuReceiveSwapRepository() {
-  const encryption = useEncryption();
-  const accountRepository = useAccountRepository();
-  return new CashuReceiveSwapRepository(
-    agicashDbClient,
-    encryption,
-    accountRepository,
-  );
 }

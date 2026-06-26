@@ -5,8 +5,6 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import { Money } from '@agicash/money';
-import type { CashuAccount } from '@agicash/wallet-sdk';
-import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
 import {
   MintOperationError,
   OutputData,
@@ -14,11 +12,10 @@ import {
   type Wallet,
   splitAmount,
 } from '@cashu/cashu-ts';
+import type { CashuAccount } from '../accounts/account';
+import { tokenToMoney } from '../shared/cashu';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
-import {
-  type CashuReceiveSwapRepository,
-  useCashuReceiveSwapRepository,
-} from './cashu-receive-swap-repository';
+import type { CashuReceiveSwapRepository } from './cashu-receive-swap-repository';
 
 export class CashuReceiveSwapService {
   constructor(
@@ -247,9 +244,4 @@ export class CashuReceiveSwapService {
       throw error;
     }
   }
-}
-
-export function useCashuReceiveSwapService() {
-  const receiveSwapRepository = useCashuReceiveSwapRepository();
-  return new CashuReceiveSwapService(receiveSwapRepository);
 }

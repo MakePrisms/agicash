@@ -1,5 +1,5 @@
 import type { Money } from '@agicash/money';
-import type { CashuAccount } from '@agicash/wallet-sdk';
+import type { CashuAccount, CashuReceiveQuote } from '@agicash/wallet-sdk';
 import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
 import { getAccountHomePath } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
@@ -24,7 +24,6 @@ import {
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
   useCreateCashuReceiveQuote,
   useTrackCashuReceiveQuote,

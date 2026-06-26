@@ -1,26 +1,24 @@
 import { getCashuUnit } from '@agicash/cashu';
 import { Money } from '@agicash/money';
+import type { MeltQuoteBolt11Response, Token } from '@cashu/cashu-ts';
 import type {
   Account,
   AccountType,
   CashuAccount,
   SparkAccount,
-  SparkReceiveLightningQuote,
-  SparkReceiveQuote,
-  SparkReceiveQuoteService,
-} from '@agicash/wallet-sdk';
-import { DomainError } from '@agicash/wallet-sdk/temporary';
-import { getLightningQuote as getSparkLightningQuote } from '@agicash/wallet-sdk/temporary';
-import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
-import type { MeltQuoteBolt11Response, Token } from '@cashu/cashu-ts';
+} from '../accounts/account';
+import { tokenToMoney } from '../shared/cashu';
+import { DomainError } from '../shared/error';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from './cashu-receive-quote-core';
-import {
-  type CashuReceiveQuoteService,
-  useCashuReceiveQuoteService,
-} from './cashu-receive-quote-service';
+import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import { isClaimingToSameCashuAccount } from './receive-cashu-token-models';
-import { useSparkReceiveQuoteService } from './spark-receive-quote-hooks';
+import type { SparkReceiveQuote } from './spark-receive-quote';
+import {
+  type SparkReceiveLightningQuote,
+  getLightningQuote as getSparkLightningQuote,
+} from './spark-receive-quote-core';
+import type { SparkReceiveQuoteService } from './spark-receive-quote-service';
 
 /**
  * Common interface for lightning receive quotes across different account types.
@@ -306,13 +304,4 @@ export class ReceiveCashuTokenQuoteService {
       paymentRequest: lightningQuote.mintQuote.request,
     };
   }
-}
-
-export function useReceiveCashuTokenQuoteService() {
-  const cashuReceiveQuoteService = useCashuReceiveQuoteService();
-  const sparkLightningReceiveService = useSparkReceiveQuoteService();
-  return new ReceiveCashuTokenQuoteService(
-    cashuReceiveQuoteService,
-    sparkLightningReceiveService,
-  );
 }

@@ -10,29 +10,24 @@ import {
   decryptXChaCha20Poly1305,
   encryptXChaCha20Poly1305,
 } from '@agicash/utils';
-import type { AgicashDb } from '@agicash/wallet-sdk';
-import { ExchangeRateService } from '@agicash/wallet-sdk/temporary';
-import { NotFoundError } from '@agicash/wallet-sdk/temporary';
-import { sparkWalletQueryOptions } from '@agicash/wallet-sdk/temporary';
-import {
-  ReadUserDefaultAccountRepository,
-  ReadUserRepository,
-} from '@agicash/wallet-sdk/temporary';
-import {
-  SparkReceiveQuoteRepositoryServer,
-  SparkReceiveQuoteServiceServer,
-} from '@agicash/wallet-sdk/temporary';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
+import type { QueryClient } from '@tanstack/query-core';
 import { z } from 'zod/mini';
-import { isLoggedIn } from '~/features/shared/auth';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
-import { measureOperation } from '~/lib/performance';
-import { getSparkWallet } from '@agicash/wallet-sdk/temporary';
+import type { AgicashDb } from '../agicash-db/database';
+import { ExchangeRateService } from '../lib/exchange-rate';
+import { NotFoundError } from '../shared/error';
+import { sparkWalletQueryOptions } from '../shared/spark';
+import {
+  ReadUserDefaultAccountRepository,
+  ReadUserRepository,
+} from '../user/user-repository';
 import { getLightningQuote } from './cashu-receive-quote-core';
 import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-repository.server';
 import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
+import { SparkReceiveQuoteRepositoryServer } from './spark-receive-quote-repository.server';
+import { SparkReceiveQuoteServiceServer } from './spark-receive-quote-service.server';
 
 const sparkMnemonic = process.env.LNURL_SERVER_SPARK_MNEMONIC || '';
 if (!sparkMnemonic) {
@@ -71,6 +66,9 @@ export class LightningAddressService {
   private minSendable: Money<'BTC'>;
   private maxSendable: Money<'BTC'>;
   private exchangeRateService: ExchangeRateService;
+  private queryClient: QueryClient;
+  private isLoggedIn: () => boolean;
+  private getDebugLogging: () => boolean;
   /**
    * A client can flag that they will not validate the invoice amount.
    * This is useful for agicash <-> agicash payments so that the receiver can receive into their default currency
@@ -81,10 +79,16 @@ export class LightningAddressService {
   constructor(
     request: Request,
     db: AgicashDb,
+    queryClient: QueryClient,
+    isLoggedIn: () => boolean,
+    getDebugLogging: () => boolean,
     options?: {
       bypassAmountValidation?: boolean;
     },
   ) {
+    this.queryClient = queryClient;
+    this.isLoggedIn = isLoggedIn;
+    this.getDebugLogging = getDebugLogging;
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
     this.userRepository = new ReadUserRepository(db);
@@ -168,10 +172,11 @@ export class LightningAddressService {
 
       const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
         this.db,
+        this.queryClient,
         getSparkWalletMnemonic,
         '/tmp/.spark-data',
-        isLoggedIn,
-        () => getFeatureFlag('DEBUG_LOGGING_SPARK'),
+        this.isLoggedIn,
+        this.getDebugLogging,
       );
 
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
@@ -323,17 +328,18 @@ export class LightningAddressService {
   private async handleSparkLnurlpVerify(
     receiveRequestId: string,
   ): Promise<LNURLVerifyResult> {
-    const wallet = await getSparkWallet({
-      network: 'MAINNET',
-      mnemonic: sparkMnemonic,
-      storageDir: '/tmp/.spark-data',
-    });
-
-    const receiveRequest = await measureOperation(
-      'BreezSdk.getLightningReceiveRequest',
-      () => wallet.getLightningReceiveRequest({ requestId: receiveRequestId }),
-      { receiveRequestId },
+    const wallet = await this.queryClient.fetchQuery(
+      sparkWalletQueryOptions({
+        network: 'MAINNET',
+        mnemonic: sparkMnemonic,
+        storageDir: '/tmp/.spark-data',
+        debugLogging: this.getDebugLogging(),
+      }),
     );
+
+    const receiveRequest = await wallet.getLightningReceiveRequest({
+      requestId: receiveRequestId,
+    });
 
     if (!receiveRequest) {
       throw new NotFoundError(

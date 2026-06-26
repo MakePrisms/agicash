@@ -1,6 +1,6 @@
 import { Money } from '@agicash/money';
-import { CashuTokenMeltDataSchema } from '@agicash/wallet-sdk/temporary';
 import { z } from 'zod/mini';
+import { CashuTokenMeltDataSchema } from './cashu-token-melt-data';
 
 const CashuReceiveQuoteBaseSchema = z.object({
   /**

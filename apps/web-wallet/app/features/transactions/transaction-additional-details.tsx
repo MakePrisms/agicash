@@ -14,8 +14,8 @@ import {
   PageHeaderTitle,
 } from '~/components/page';
 import { useAccountOrNull } from '../accounts/account-hooks';
-import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
-import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
+import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-hooks';
+import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-hooks';
 import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useTransaction } from './transaction-hooks';

@@ -4,13 +4,22 @@ import type {
   Account,
   CashuAccount,
   ExtendedAccount,
+  ReceiveCashuTokenAccount,
 } from '@agicash/wallet-sdk';
 import { createSparkWalletStub } from '@agicash/wallet-sdk/temporary';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
 import { canSendToLightning } from '@agicash/wallet-sdk/temporary';
+import {
+  ReceiveCashuTokenQuoteService,
+  ReceiveCashuTokenService,
+} from '@agicash/wallet-sdk/temporary';
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
-import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   useAccounts,
@@ -22,12 +31,22 @@ import {
   toAccountSelectorOption,
 } from '../accounts/account-selector';
 import { useUser } from '../user/user-hooks';
-import type { ReceiveCashuTokenAccount } from './receive-cashu-token-models';
-import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
-import {
-  ReceiveCashuTokenService,
-  useReceiveCashuTokenService,
-} from './receive-cashu-token-service';
+import { useCashuReceiveQuoteService } from './cashu-receive-quote-hooks';
+import { useSparkReceiveQuoteService } from './spark-receive-quote-hooks';
+
+export function useReceiveCashuTokenService() {
+  const queryClient = useQueryClient();
+  return new ReceiveCashuTokenService(queryClient);
+}
+
+export function useReceiveCashuTokenQuoteService() {
+  const cashuReceiveQuoteService = useCashuReceiveQuoteService();
+  const sparkLightningReceiveService = useSparkReceiveQuoteService();
+  return new ReceiveCashuTokenQuoteService(
+    cashuReceiveQuoteService,
+    sparkLightningReceiveService,
+  );
+}
 
 type UseGetClaimableTokenProps = {
   token: Token;
