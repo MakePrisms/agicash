@@ -8,6 +8,7 @@ import {
 import type { Money } from '@agicash/money';
 import type { AgicashDbSparkReceiveQuote } from '@agicash/wallet-sdk';
 import { getInitializedCashuWallet } from '@agicash/wallet-sdk/temporary';
+import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -16,6 +17,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
@@ -24,7 +26,6 @@ import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { sparkDebugLog } from '../shared/spark';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
@@ -390,11 +391,15 @@ export function useOnSparkReceiveStateChange({
           return;
         }
 
-        sparkDebugLog('Receive payment detected as completed', {
-          quoteId: quote.id,
-          accountId,
-          sparkTransferId: payment.id,
-        });
+        sparkDebugLog(
+          'Receive payment detected as completed',
+          {
+            quoteId: quote.id,
+            accountId,
+            sparkTransferId: payment.id,
+          },
+          getFeatureFlag('DEBUG_LOGGING_SPARK'),
+        );
         onCompletedRef.current(quote.id, {
           sparkTransferId: payment.id,
           paymentPreimage: preimage,
@@ -488,11 +493,15 @@ export function useProcessSparkReceiveQuoteTasks() {
     throwOnError: true,
     onSuccess: (updatedQuote) => {
       if (updatedQuote) {
-        sparkDebugLog('Receive quote completed', {
-          quoteId: updatedQuote.id,
-          accountId: updatedQuote.accountId,
-          transactionId: updatedQuote.transactionId,
-        });
+        sparkDebugLog(
+          'Receive quote completed',
+          {
+            quoteId: updatedQuote.id,
+            accountId: updatedQuote.accountId,
+            transactionId: updatedQuote.transactionId,
+          },
+          getFeatureFlag('DEBUG_LOGGING_SPARK'),
+        );
         // Updating the quote cache triggers navigation to the transaction details page.
         // Completing the quote also completes the transaction and if navigation to transaction
         // page happens before transaction updated realtime notification is processed, the

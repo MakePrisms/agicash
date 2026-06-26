@@ -15,19 +15,18 @@ import {
 } from '@agicash/wallet-sdk/temporary';
 import {
   getInitializedCashuWallet,
+  getInitializedSparkWallet,
   getMintAuthProvider,
+  sparkMnemonicQueryOptions,
 } from '@agicash/wallet-sdk/temporary';
 import { useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { isLoggedIn } from '../shared/auth';
 import { useCashuCryptography } from '../shared/cashu-hooks';
 import { useEncryption } from '../shared/encryption-hooks';
-import {
-  getInitializedSparkWallet,
-  sparkMnemonicQueryOptions,
-} from '../shared/spark';
 import type { Account, AccountPurpose, CashuAccount } from './account';
 import type { CashuProof } from './cashu-account';
 

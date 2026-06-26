@@ -42,6 +42,13 @@ export {
   isCashuAccount,
   isSparkAccount,
 } from './agicash-db/database';
+export {
+  getInitializedSparkWallet,
+  sparkDebugLog,
+  sparkIdentityPublicKeyQueryOptions,
+  sparkMnemonicQueryOptions,
+  sparkWalletQueryOptions,
+} from './shared/spark';
 export { AccountDetailsDbDataSchema } from './agicash-db/json-models/account-details-db-data';
 export { CashuAccountDetailsDbDataSchema } from './agicash-db/json-models/cashu-account-details-db-data';
 export { CashuLightningReceiveDbDataSchema } from './agicash-db/json-models/cashu-lightning-receive-db-data';

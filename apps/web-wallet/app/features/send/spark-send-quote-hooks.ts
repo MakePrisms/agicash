@@ -2,6 +2,7 @@ import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Money } from '@agicash/money';
 import type { AgicashDbSparkSendQuote } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
+import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   useMutation,
@@ -9,13 +10,13 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useLatest } from '~/lib/use-latest';
 import type { SparkAccount } from '../accounts/account';
 import {
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import type { SparkSendQuote } from './spark-send-quote';
 import { useSparkSendQuoteRepository } from './spark-send-quote-repository';
@@ -221,10 +222,14 @@ export function useOnSparkSendStateChange({
             return;
           }
           lastTriggeredStateRef.current.set(quote.id, 'COMPLETED');
-          sparkDebugLog('Send payment detected as completed', {
-            quoteId: quote.id,
-            accountId,
-          });
+          sparkDebugLog(
+            'Send payment detected as completed',
+            {
+              quoteId: quote.id,
+              accountId,
+            },
+            getFeatureFlag('DEBUG_LOGGING_SPARK'),
+          );
           onCompletedRef.current(quote, { paymentPreimage: preimage });
         } else if (
           eventType === 'paymentFailed' &&
@@ -484,10 +489,14 @@ export function useProcessSparkSendQuoteTasks() {
       throwOnError: true,
       onSuccess: (updatedQuote) => {
         if (updatedQuote) {
-          sparkDebugLog('Send quote completed', {
-            quoteId: updatedQuote.id,
-            accountId: updatedQuote.accountId,
-          });
+          sparkDebugLog(
+            'Send quote completed',
+            {
+              quoteId: updatedQuote.id,
+              accountId: updatedQuote.accountId,
+            },
+            getFeatureFlag('DEBUG_LOGGING_SPARK'),
+          );
           unresolvedQuotesCache.remove(updatedQuote);
         }
       },

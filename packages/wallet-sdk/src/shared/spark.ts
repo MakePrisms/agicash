@@ -6,24 +6,26 @@ import {
 } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
 import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
-import { computeSHA256 } from '@agicash/utils';
-import type { SparkNetwork } from '@agicash/wallet-sdk';
+import { computeSHA256, queryOptions } from '@agicash/utils';
+import type { QueryClient } from '@tanstack/query-core';
+import type { SparkNetwork } from '../agicash-db/json-models/spark-account-details-db-data';
 import {
   createSparkWalletStub,
   getSparkIdentityPublicKeyFromMnemonic,
-} from '@agicash/wallet-sdk/temporary';
-import { getSeedPhraseDerivationPath } from '@agicash/wallet-sdk/temporary';
-import { type QueryClient, queryOptions } from '@tanstack/react-query';
-import { measureOperation } from '~/lib/performance';
-import { getFeatureFlag } from './feature-flags';
+} from '../lib/spark';
+import { getSeedPhraseDerivationPath } from './cryptography';
 
 const apiKey = import.meta.env.VITE_BREEZ_API_KEY;
 if (!apiKey) {
   throw new Error('VITE_BREEZ_API_KEY is not set');
 }
 
-export function sparkDebugLog(message: string, data?: Record<string, unknown>) {
-  if (getFeatureFlag('DEBUG_LOGGING_SPARK')) {
+export function sparkDebugLog(
+  message: string,
+  data: Record<string, unknown> | undefined,
+  debugLogging: boolean,
+) {
+  if (debugLogging) {
     console.debug(`[Spark] ${message}`, data ?? '');
   }
 }
@@ -33,12 +35,12 @@ export function sparkDebugLog(message: string, data?: Record<string, unknown>) {
 // status so we only attempt init once, regardless of outcome.
 let loggingStatus: 'initializing' | 'initialized' | 'failed' | undefined;
 
-function tryInitLogging() {
+function tryInitLogging(debugLogging: boolean) {
   if (loggingStatus !== undefined) return;
   loggingStatus = 'initializing';
   initLogging({
     log(logEntry) {
-      if (getFeatureFlag('DEBUG_LOGGING_SPARK')) {
+      if (debugLogging) {
         console.debug(`[Breez ${logEntry.level}] ${logEntry.line}`);
       }
     },
@@ -86,34 +88,25 @@ export const sparkIdentityPublicKeyQueryOptions = ({
     },
   });
 
-const sparkWalletPromises = new Map<string, Promise<BreezSdk>>();
-
-/**
- * Returns the process-wide Breez wallet for a mnemonic, connecting on first
- * request and memoizing the connection. A Breez `connect()` opens a stateful
- * session, so it must run at most once per mnemonic/network/storageDir —
- * re-connecting would leak duplicate sessions. A failed connect is evicted so
- * the next call retries.
- */
-export function getSparkWallet({
+export const sparkWalletQueryOptions = ({
   network,
   mnemonic,
   storageDir,
+  debugLogging,
 }: {
   network: SparkNetwork;
   mnemonic: string;
   storageDir: string;
-}): Promise<BreezSdk> {
-  const key = `${computeSHA256(mnemonic)}:${network}:${storageDir}`;
-  const existing = sparkWalletPromises.get(key);
-  if (existing) return existing;
+  debugLogging: boolean;
+}) =>
+  queryOptions({
+    queryKey: ['spark-wallet', computeSHA256(mnemonic), network, storageDir],
+    queryFn: async () => {
+      const breezNetwork = network.toLowerCase() as 'mainnet' | 'regtest';
 
-  const breezNetwork = network.toLowerCase() as 'mainnet' | 'regtest';
-  tryInitLogging();
-  const walletPromise = measureOperation(
-    'BreezSdk.connect',
-    () =>
-      connect({
+      tryInitLogging(debugLogging);
+
+      const sdk = await connect({
         config: {
           ...defaultConfig(breezNetwork),
           apiKey,
@@ -126,66 +119,53 @@ export function getSparkWallet({
         },
         seed: { type: 'mnemonic', mnemonic },
         storageDir,
-      }),
-    { 'spark.network': network },
-  );
-  sparkWalletPromises.set(key, walletPromise);
-  walletPromise.catch(() => {
-    sparkWalletPromises.delete(key);
-  });
-  return walletPromise;
-}
+      });
 
-/**
- * Drops all memoized Breez wallet connections so a subsequent session
- * reconnects fresh. Called on sign-out (mirrors the old `queryClient.clear()`).
- */
-export function clearSparkWallets(): void {
-  sparkWalletPromises.clear();
-}
+      return sdk;
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+  });
 
 /**
  * Initializes a Spark wallet with offline handling.
  * If Spark is offline or times out, returns a minimal wallet with isOnline: false.
+ * @param queryClient - The query client to use for async queries and caching.
  * @param mnemonic - The Spark wallet mnemonic.
  * @param network - The Spark network that the wallet is on.
  * @returns The wallet, balance and online status.
  */
 export async function getInitializedSparkWallet(
+  queryClient: QueryClient,
   mnemonic: string,
   network: SparkNetwork,
   storageDir: string,
+  debugLogging: boolean,
 ): Promise<{
   wallet: BreezSdk;
   balance: Money | null;
   isOnline: boolean;
 }> {
-  return measureOperation(
-    'getInitializedSparkWallet',
-    async () => {
-      try {
-        const wallet = await getSparkWallet({ network, mnemonic, storageDir });
-        const info = await measureOperation('BreezSdk.getInfo', () =>
-          wallet.getInfo({}),
-        );
+  try {
+    const wallet = await queryClient.fetchQuery(
+      sparkWalletQueryOptions({ network, mnemonic, storageDir, debugLogging }),
+    );
+    const info = await wallet.getInfo({});
 
-        const balance = new Money({
-          amount: info.balanceSats,
-          currency: 'BTC',
-          unit: 'sat',
-        }) as Money;
-        return { wallet, balance, isOnline: true };
-      } catch (error) {
-        console.error('Failed to initialize spark wallet', { cause: error });
-        return {
-          wallet: createSparkWalletStub(
-            'Spark is offline, please try again later.',
-          ),
-          balance: null,
-          isOnline: false,
-        };
-      }
-    },
-    { sparkNetwork: network },
-  );
+    const balance = new Money({
+      amount: info.balanceSats,
+      currency: 'BTC',
+      unit: 'sat',
+    }) as Money;
+    return { wallet, balance, isOnline: true };
+  } catch (error) {
+    console.error('Failed to initialize spark wallet', { cause: error });
+    return {
+      wallet: createSparkWalletStub(
+        'Spark is offline, please try again later.',
+      ),
+      balance: null,
+      isOnline: false,
+    };
+  }
 }

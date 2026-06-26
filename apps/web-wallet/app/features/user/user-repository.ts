@@ -15,10 +15,12 @@ import {
 } from '@agicash/wallet-sdk/temporary';
 import {
   getInitializedCashuWallet,
+  getInitializedSparkWallet,
   getMintAuthProvider,
 } from '@agicash/wallet-sdk/temporary';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod/mini';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
 import type { Account, RedactedAccount } from '../accounts/account';
 import {
   type AccountRepository,
@@ -26,7 +28,6 @@ import {
 } from '../accounts/account-repository';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { isLoggedIn } from '../shared/auth';
-import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
 
 export type UpdateUser = {

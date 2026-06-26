@@ -5,6 +5,7 @@ import {
   getCashuCryptography,
   seedQueryOptions,
 } from '@agicash/wallet-sdk/temporary';
+import { sparkMnemonicQueryOptions } from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
@@ -34,7 +35,6 @@ import {
   encryptionPublicKeyQueryOptions,
 } from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
-import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
 import type { User } from '~/features/user/user';
 import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';

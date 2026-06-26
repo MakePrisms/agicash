@@ -1,5 +1,6 @@
 import { type Currency, Money } from '@agicash/money';
 import type { AgicashDbAccountWithProofs } from '@agicash/wallet-sdk';
+import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
@@ -9,7 +10,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
-import { sparkDebugLog } from '../shared/spark';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useUser } from '../user/user-hooks';
 import { UserService } from '../user/user-service';
 import {
@@ -59,11 +60,15 @@ export class AccountsCache {
         const currentBalance = x.balance ?? Money.zero(x.currency);
         if (currentBalance.equals(balance)) return x;
 
-        sparkDebugLog('Balance updated', {
-          accountId,
-          prev: currentBalance.toString(),
-          new: balance.toString(),
-        });
+        sparkDebugLog(
+          'Balance updated',
+          {
+            accountId,
+            prev: currentBalance.toString(),
+            new: balance.toString(),
+          },
+          getFeatureFlag('DEBUG_LOGGING_SPARK'),
+        );
 
         return { ...x, balance };
       }),

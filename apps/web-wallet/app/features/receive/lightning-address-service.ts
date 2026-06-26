@@ -13,12 +13,14 @@ import {
 import type { AgicashDb } from '@agicash/wallet-sdk';
 import { ExchangeRateService } from '@agicash/wallet-sdk/temporary';
 import { NotFoundError } from '@agicash/wallet-sdk/temporary';
+import { sparkWalletQueryOptions } from '@agicash/wallet-sdk/temporary';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import { z } from 'zod/mini';
+import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { measureOperation } from '~/lib/performance';
-import { getSparkWallet } from '../shared/spark';
+import { getSparkWallet } from '@agicash/wallet-sdk/temporary';
 import {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,

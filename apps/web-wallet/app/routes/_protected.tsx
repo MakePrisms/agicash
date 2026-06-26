@@ -5,6 +5,10 @@ import {
   seedQueryOptions as cashuSeedQueryOptions,
   xpubQueryOptions,
 } from '@agicash/wallet-sdk/temporary';
+import {
+  sparkIdentityPublicKeyQueryOptions,
+  sparkMnemonicQueryOptions,
+} from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
@@ -18,10 +22,6 @@ import {
   encryptionPublicKeyQueryOptions,
 } from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
-import {
-  sparkIdentityPublicKeyQueryOptions,
-  sparkMnemonicQueryOptions,
-} from '~/features/shared/spark';
 import {
   type AuthUser,
   authQueryOptions,
