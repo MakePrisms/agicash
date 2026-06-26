@@ -56,3 +56,34 @@ export type {
 } from './user/user';
 export type { UpdateUser } from './user/user-repository';
 export type { Contact } from './contacts/contact';
+export type {
+  TransactionDirection,
+  TransactionType,
+  TransactionState,
+  TransactionPurpose,
+} from './transactions/transaction-enums';
+export type { Transaction } from './transactions/transaction';
+export type { CashuLightningReceiveTransactionDetails } from './transactions/transaction-details/cashu-lightning-receive-transaction-details';
+export type {
+  IncompleteCashuLightningSendTransactionDetails,
+  CompletedCashuLightningSendTransactionDetails,
+  CashuLightningSendTransactionDetails,
+} from './transactions/transaction-details/cashu-lightning-send-transaction-details';
+export type { CashuTokenReceiveTransactionDetails } from './transactions/transaction-details/cashu-token-receive-transaction-details';
+export type { CashuTokenSendTransactionDetails } from './transactions/transaction-details/cashu-token-send-transaction-details';
+export type {
+  IncompleteSparkLightningReceiveTransactionDetails,
+  CompletedSparkLightningReceiveTransactionDetails,
+  SparkLightningReceiveTransactionDetails,
+} from './transactions/transaction-details/spark-lightning-receive-transaction-details';
+export type {
+  IncompleteSparkLightningSendTransactionDetails,
+  CompletedSparkLightningSendTransactionDetails,
+  SparkLightningSendTransactionDetails,
+} from './transactions/transaction-details/spark-lightning-send-transaction-details';
+export type {
+  TransactionDetails,
+  TransactionDetailsParserInput,
+  TransactionDetailsParserShape,
+} from './transactions/transaction-details/transaction-details-types';
+export type { Cursor } from './transactions/transaction-repository';

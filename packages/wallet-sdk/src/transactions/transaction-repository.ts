@@ -1,7 +1,5 @@
-import type { AgicashDb, AgicashDbTransaction } from '@agicash/wallet-sdk';
 import type { z } from 'zod/mini';
-import { agicashDbClient } from '../agicash-db/database.client';
-import { useEncryption } from '../shared/encryption-hooks';
+import type { AgicashDb, AgicashDbTransaction } from '../agicash-db/database';
 import {
   type BaseTransactionSchema,
   type Transaction,
@@ -203,9 +201,4 @@ export class TransactionRepository {
       details,
     } satisfies z.input<typeof BaseTransactionSchema>);
   }
-}
-
-export function useTransactionRepository() {
-  const encryption = useEncryption();
-  return new TransactionRepository(agicashDbClient, encryption);
 }

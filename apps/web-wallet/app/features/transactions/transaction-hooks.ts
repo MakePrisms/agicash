@@ -1,4 +1,5 @@
 import type { AgicashDbTransaction } from '@agicash/wallet-sdk';
+import type { Cursor, Transaction } from '@agicash/wallet-sdk';
 import { NotFoundError } from '@agicash/wallet-sdk/temporary';
 import {
   type InfiniteData,
@@ -15,11 +16,7 @@ import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
 import { useUser } from '../user/user-hooks';
-import type { Transaction } from './transaction';
-import {
-  type Cursor,
-  useTransactionRepository,
-} from './transaction-repository';
+import { useTransactionRepository } from './transaction-repository-hooks';
 
 /**
  * Cache that manages transaction data and acknowledgment counts.

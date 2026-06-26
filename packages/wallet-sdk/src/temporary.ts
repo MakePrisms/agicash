@@ -88,3 +88,49 @@ export {
 export { UserService } from './user/user-service';
 export { isContact } from './contacts/contact';
 export { ContactRepository } from './contacts/contact-repository';
+export {
+  TransactionDirectionSchema,
+  TransactionTypeSchema,
+  TransactionStateSchema,
+  TransactionPurposeSchema,
+} from './transactions/transaction-enums';
+export {
+  BaseTransactionSchema,
+  TransactionSchema,
+} from './transactions/transaction';
+export {
+  CashuLightningReceiveTransactionDetailsSchema,
+  CashuLightningReceiveTransactionDetailsParser,
+} from './transactions/transaction-details/cashu-lightning-receive-transaction-details';
+export {
+  IncompleteCashuLightningSendTransactionDetailsSchema,
+  CompletedCashuLightningSendTransactionDetailsSchema,
+  CashuLightningSendTransactionDetailsSchema,
+  CashuLightningSendTransactionDetailsParser,
+} from './transactions/transaction-details/cashu-lightning-send-transaction-details';
+export {
+  CashuTokenReceiveTransactionDetailsSchema,
+  CashuTokenReceiveTransactionDetailsParser,
+} from './transactions/transaction-details/cashu-token-receive-transaction-details';
+export {
+  CashuTokenSendTransactionDetailsSchema,
+  CashuTokenSendTransactionDetailsParser,
+} from './transactions/transaction-details/cashu-token-send-transaction-details';
+export {
+  IncompleteSparkLightningReceiveTransactionDetailsSchema,
+  CompletedSparkLightningReceiveTransactionDetailsSchema,
+  SparkLightningReceiveTransactionDetailsSchema,
+  SparkLightningReceiveTransactionDetailsParser,
+} from './transactions/transaction-details/spark-lightning-receive-transaction-details';
+export {
+  IncompleteSparkLightningSendTransactionDetailsSchema,
+  CompletedSparkLightningSendTransactionDetailsSchema,
+  SparkLightningSendTransactionDetailsSchema,
+  SparkLightningSendTransactionDetailsParser,
+} from './transactions/transaction-details/spark-lightning-send-transaction-details';
+export {
+  TransactionDetailsDbDataSchema,
+  TransactionDetailsSchema,
+} from './transactions/transaction-details/transaction-details-types';
+export { TransactionDetailsParser } from './transactions/transaction-details/transaction-details-parser';
+export { TransactionRepository } from './transactions/transaction-repository';

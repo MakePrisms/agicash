@@ -7,6 +7,7 @@ import {
 import type { Money } from '@agicash/money';
 import type { AgicashDbCashuReceiveQuote } from '@agicash/wallet-sdk';
 import type { CashuAccount } from '@agicash/wallet-sdk';
+import type { TransactionPurpose } from '@agicash/wallet-sdk';
 import { getInitializedCashuWallet } from '@agicash/wallet-sdk/temporary';
 import {
   HttpResponseError,
@@ -38,7 +39,6 @@ import {
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { TransactionPurpose } from '../transactions/transaction-enums';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
 import type { CashuReceiveQuote } from './cashu-receive-quote';

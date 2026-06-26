@@ -1,6 +1,6 @@
 import { Money } from '@agicash/money';
-import { CashuSwapSendDbDataSchema } from '@agicash/wallet-sdk/temporary';
 import { z } from 'zod/mini';
+import { CashuSwapSendDbDataSchema } from '../../agicash-db/json-models/cashu-swap-send-db-data';
 import { TransactionStateSchema } from '../transaction-enums';
 import type { TransactionDetailsParserShape } from './transaction-details-types';
 

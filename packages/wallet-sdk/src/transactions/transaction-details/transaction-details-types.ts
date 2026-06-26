@@ -1,13 +1,11 @@
-import {
-  CashuLightningReceiveDbDataSchema,
-  CashuLightningSendDbDataSchema,
-  CashuSwapReceiveDbDataSchema,
-  CashuSwapSendDbDataSchema,
-  SparkLightningReceiveDbDataSchema,
-  SparkLightningSendDbDataSchema,
-} from '@agicash/wallet-sdk/temporary';
 import type { Json } from 'supabase/database.types';
 import { z } from 'zod/mini';
+import { CashuLightningReceiveDbDataSchema } from '../../agicash-db/json-models/cashu-lightning-receive-db-data';
+import { CashuLightningSendDbDataSchema } from '../../agicash-db/json-models/cashu-lightning-send-db-data';
+import { CashuSwapReceiveDbDataSchema } from '../../agicash-db/json-models/cashu-swap-receive-db-data';
+import { CashuSwapSendDbDataSchema } from '../../agicash-db/json-models/cashu-swap-send-db-data';
+import { SparkLightningReceiveDbDataSchema } from '../../agicash-db/json-models/spark-lightning-receive-db-data';
+import { SparkLightningSendDbDataSchema } from '../../agicash-db/json-models/spark-lightning-send-db-data';
 import type {
   TransactionDirection,
   TransactionState,

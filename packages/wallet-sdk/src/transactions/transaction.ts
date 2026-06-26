@@ -1,9 +1,6 @@
 import { Money } from '@agicash/money';
-import {
-  AccountPurposeSchema,
-  AccountTypeSchema,
-} from '@agicash/wallet-sdk/temporary';
 import { z } from 'zod/mini';
+import { AccountPurposeSchema, AccountTypeSchema } from '../accounts/account';
 import { CashuLightningReceiveTransactionDetailsSchema } from './transaction-details/cashu-lightning-receive-transaction-details';
 import {
   CompletedCashuLightningSendTransactionDetailsSchema,
