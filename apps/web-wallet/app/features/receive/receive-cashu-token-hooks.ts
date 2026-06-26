@@ -1,6 +1,7 @@
 import { getClaimableProofs, getUnspentProofsFromToken } from '@agicash/cashu';
 import { type Currency, Money } from '@agicash/money';
 import { createSparkWalletStub } from '@agicash/wallet-sdk/temporary';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -20,7 +21,6 @@ import {
   type AccountSelectorOption,
   toAccountSelectorOption,
 } from '../accounts/account-selector';
-import { DomainError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { ReceiveCashuTokenAccount } from './receive-cashu-token-models';
 import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';

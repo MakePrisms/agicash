@@ -11,13 +11,13 @@ import {
   encryptXChaCha20Poly1305,
 } from '@agicash/utils';
 import { ExchangeRateService } from '@agicash/wallet-sdk/temporary';
+import { NotFoundError } from '@agicash/wallet-sdk/temporary';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
 import { z } from 'zod/mini';
 import { measureOperation } from '~/lib/performance';
 import type { AgicashDb } from '../agicash-db/database';
-import { NotFoundError } from '../shared/error';
 import { getSparkWallet } from '../shared/spark';
 import {
   ReadUserDefaultAccountRepository,

@@ -1,4 +1,5 @@
 import type { Money } from '@agicash/money';
+import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';
 import { MoneyDisplay } from '~/components/money-display';
@@ -24,7 +25,6 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {

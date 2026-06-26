@@ -1,9 +1,9 @@
 import { Money } from '@agicash/money';
+import { DestinationDetailsSchema } from '@agicash/wallet-sdk/temporary';
 import { z } from 'zod/mini';
-import { DestinationDetailsSchema } from '~/features/shared/send-destination';
 import { CashuProofSchema } from '../accounts/cashu-account';
 
-export type { DestinationDetails } from '~/features/shared/send-destination';
+export type { DestinationDetails } from '@agicash/wallet-sdk';
 
 /**
  * Base schema for cashu send quote.

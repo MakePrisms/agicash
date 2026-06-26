@@ -1,4 +1,5 @@
 import { Money } from '@agicash/money';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import {
   canReceiveFromLightning,
@@ -23,7 +24,6 @@ import type {
   SparkSendQuoteService,
 } from '../send/spark-send-quote-service';
 import { useSparkSendQuoteService } from '../send/spark-send-quote-service';
-import { DomainError } from '../shared/error';
 
 export type TransferReceiveSide =
   | {

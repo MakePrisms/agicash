@@ -1,4 +1,5 @@
 import type { Money } from '@agicash/money';
+import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
 import { AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';
 import {
@@ -22,7 +23,6 @@ import {
 } from '../accounts/account';
 import { useTrackCashuReceiveQuote } from '../receive/cashu-receive-quote-hooks';
 import { useTrackSparkReceiveQuote } from '../receive/spark-receive-quote-hooks';
-import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import type { BuyQuote } from './buy-store';
 import { buildCashAppDeepLink } from './cash-app';

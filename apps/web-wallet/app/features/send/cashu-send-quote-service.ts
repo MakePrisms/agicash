@@ -5,6 +5,8 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import { type Currency, Money } from '@agicash/money';
+import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   type MeltQuoteBolt11Response,
   MeltQuoteState,
@@ -13,8 +15,6 @@ import {
 import type { Big } from 'big.js';
 import type { CashuAccount } from '../accounts/account';
 import { type CashuProof, toProof } from '../accounts/cashu-account';
-import { getDefaultUnit } from '../shared/currencies';
-import { DomainError } from '../shared/error';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
 import {

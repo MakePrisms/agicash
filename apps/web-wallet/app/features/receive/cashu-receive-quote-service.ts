@@ -3,6 +3,7 @@ import {
   type ExtendedCashuWallet,
   getCashuUnit,
 } from '@agicash/cashu';
+import { derivePublicKey } from '@agicash/wallet-sdk/temporary';
 import {
   MintOperationError,
   MintQuoteState,
@@ -16,7 +17,6 @@ import {
   type CashuCryptography,
   useCashuCryptography,
 } from '../shared/cashu';
-import { derivePublicKey } from '../shared/cryptography';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
   type CashuReceiveLightningQuote,

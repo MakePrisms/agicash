@@ -1,5 +1,6 @@
 import { normalizeMintUrl } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
+import { UniqueConstraintError } from '@agicash/wallet-sdk/temporary';
 import type { DistributedOmit } from 'type-fest';
 import type { z } from 'zod/mini';
 import type { Account, RedactedAccount } from '../accounts/account';
@@ -22,7 +23,6 @@ import {
   getInitializedCashuWallet,
   getMintAuthProvider,
 } from '../shared/cashu';
-import { UniqueConstraintError } from '../shared/error';
 import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
 

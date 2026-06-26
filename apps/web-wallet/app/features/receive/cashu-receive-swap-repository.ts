@@ -1,6 +1,7 @@
 import { proofToY } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type { AllUnionFieldsRequired } from '@agicash/utils';
+import { UniqueConstraintError } from '@agicash/wallet-sdk/temporary';
 import type { Proof, Token } from '@cashu/cashu-ts';
 import type { z } from 'zod/mini';
 import type { CashuAccount } from '../accounts/account';
@@ -16,7 +17,6 @@ import { agicashDbClient } from '../agicash-db/database.client';
 import { CashuSwapReceiveDbDataSchema } from '../agicash-db/json-models';
 import { getTokenHash } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
-import { UniqueConstraintError } from '../shared/error';
 import {
   type CashuReceiveSwap,
   CashuReceiveSwapSchema,

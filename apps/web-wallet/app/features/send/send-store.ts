@@ -1,4 +1,5 @@
 import type { Currency, Money } from '@agicash/money';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { create } from 'zustand';
 import type {
   Account,
@@ -7,7 +8,6 @@ import type {
 } from '~/features/accounts/account';
 import type { Contact } from '../contacts/contact';
 import type { GiftCardInfo } from '../gift-cards/gift-card-config';
-import { DomainError } from '../shared/error';
 import type { CashuLightningQuote } from './cashu-send-quote-service';
 import type { CashuSwapQuote } from './cashu-send-swap-service';
 import { findMatchingOfferOrGiftCardAccount } from './find-matching-offer-or-gift-card-account';

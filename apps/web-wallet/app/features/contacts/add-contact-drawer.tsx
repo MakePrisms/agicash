@@ -9,9 +9,9 @@ import {
   DrawerTrigger,
 } from '~/components/ui/drawer';
 
+import { getErrorMessage } from '@agicash/wallet-sdk/temporary';
 import { useToast } from '~/hooks/use-toast';
 import { SearchBar } from '../../components/search-bar';
-import { getErrorMessage } from '../shared/error';
 import type { UserProfile } from '../user/user';
 import { ContactAvatar } from './contact-avatar';
 import { useCreateContact, useFindContactCandidates } from './contact-hooks';

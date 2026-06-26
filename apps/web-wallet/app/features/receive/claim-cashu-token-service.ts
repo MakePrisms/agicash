@@ -1,10 +1,10 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
 import type { Ticker } from '~/lib/exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import type { AccountService } from '../accounts/account-service';
-import { DomainError } from '../shared/error';
 import type { User } from '../user/user';
 import { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';

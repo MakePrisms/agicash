@@ -1,5 +1,10 @@
 import type { Money } from '@agicash/money';
 import {
+  ConcurrencyError,
+  DomainError,
+  NotFoundError,
+} from '@agicash/wallet-sdk/temporary';
+import {
   type QueryClient,
   useMutation,
   useQueries,
@@ -19,7 +24,6 @@ import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendSwap,
 } from '../agicash-db/database';
-import { ConcurrencyError, DomainError, NotFoundError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendSwap, PendingCashuSendSwap } from './cashu-send-swap';
 import { useCashuSendSwapRepository } from './cashu-send-swap-repository';

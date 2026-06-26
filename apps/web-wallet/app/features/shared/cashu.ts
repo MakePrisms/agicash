@@ -17,6 +17,7 @@ import {
   getPrivateKeyBytes,
 } from '@agicash/opensecret';
 import { computeSHA256 } from '@agicash/utils';
+import { getSeedPhraseDerivationPath } from '@agicash/wallet-sdk/temporary';
 import {
   type AuthProvider,
   type GetKeysResponse,
@@ -38,7 +39,6 @@ import { useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { measureOperation } from '~/lib/performance';
 import { getAgicashMintAuthProvider } from './agicash-mint-auth-provider';
-import { getSeedPhraseDerivationPath } from './cryptography';
 
 // Cashu-specific derivation path with hardnened indexes to derive public keys for
 // locking mint quotes and proofs. 129372 is UTF-8 for 🥜 (see NUT-13) and the other

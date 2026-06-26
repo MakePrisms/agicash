@@ -1,5 +1,7 @@
 import { extractCashuToken } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
+import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { Clipboard, Scan } from 'lucide-react';
 import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
@@ -14,8 +16,6 @@ import {
 import { Button } from '~/components/ui/button';
 import { accountOfflineToast } from '~/features/accounts/utils';
 import { ConvertedMoneySwitcher } from '~/features/shared/converted-money-switcher';
-import { getDefaultUnit } from '~/features/shared/currencies';
-import { DomainError } from '~/features/shared/error';
 import useAnimation from '~/hooks/use-animation';
 import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';

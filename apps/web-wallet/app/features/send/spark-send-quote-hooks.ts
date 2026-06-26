@@ -1,5 +1,6 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Money } from '@agicash/money';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   useMutation,
@@ -14,7 +15,6 @@ import {
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
 import type { AgicashDbSparkSendQuote } from '../agicash-db/database';
-import { DomainError } from '../shared/error';
 import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
 import type { SparkSendQuote } from './spark-send-quote';

@@ -1,5 +1,6 @@
 import { getCashuWallet, sumProofs } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
+import { ConcurrencyError, DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   type MeltQuoteBolt11Response,
   MintOperationError,
@@ -25,7 +26,6 @@ import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendQuote,
 } from '../agicash-db/database';
-import { ConcurrencyError, DomainError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
 import { useCashuSendQuoteRepository } from './cashu-send-quote-repository';

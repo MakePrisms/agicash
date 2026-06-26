@@ -1,7 +1,7 @@
 import type { Money } from '@agicash/money';
+import { ConcurrencyError, DomainError } from '@agicash/wallet-sdk/temporary';
 import { useMutation } from '@tanstack/react-query';
 import type { Account } from '../accounts/account';
-import { ConcurrencyError, DomainError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { TransferQuote } from './transfer-service';
 import { useTransferService } from './transfer-service';

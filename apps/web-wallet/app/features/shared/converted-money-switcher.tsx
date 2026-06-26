@@ -2,7 +2,7 @@ import type { Money } from '@agicash/money';
 import { ArrowUpDown } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';
 import { Skeleton } from '~/components/ui/skeleton';
-import { getDefaultUnit } from './currencies';
+import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
 
 type ConvertedMoneySwitcherProps = {
   onSwitch: () => void;

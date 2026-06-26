@@ -1,5 +1,7 @@
 import { buildLightningAddressFormatValidator } from '@agicash/lnurl';
 import type { Money } from '@agicash/money';
+import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { DomainError, getErrorMessage } from '@agicash/wallet-sdk/temporary';
 import {
   AtSign,
   Clipboard,
@@ -46,8 +48,6 @@ import {
 } from '~/lib/transitions';
 import { AddContactDrawer, ContactsList } from '../contacts';
 import type { Contact } from '../contacts/contact';
-import { getDefaultUnit } from '../shared/currencies';
-import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
 
 export function SendInput() {

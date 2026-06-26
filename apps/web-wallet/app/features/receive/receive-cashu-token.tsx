@@ -1,5 +1,6 @@
 import { encodeToken } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
+import { getErrorMessage } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -36,7 +37,6 @@ import { GiftCardItem } from '../gift-cards/gift-card-item';
 import { OfferItem } from '../gift-cards/offer-item';
 import { getGiftCardByUrl } from '../gift-cards/use-discover-cards';
 import { tokenToMoney } from '../shared/cashu';
-import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { AcceptTerms } from '../user/accept-terms';
 import { useAuthActions } from '../user/auth';

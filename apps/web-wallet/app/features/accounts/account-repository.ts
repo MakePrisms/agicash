@@ -1,5 +1,6 @@
 import { ProofSchema, normalizeMintUrl } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { useQueryClient } from '@tanstack/react-query';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
@@ -19,7 +20,6 @@ import {
   useCashuCryptography,
 } from '../shared/cashu';
 import { type Encryption, useEncryption } from '../shared/encryption';
-import { DomainError } from '../shared/error';
 import {
   getInitializedSparkWallet,
   sparkMnemonicQueryOptions,

@@ -1,5 +1,7 @@
 import { decodeBolt11 } from '@agicash/bolt11';
 import type { Money } from '@agicash/money';
+import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';
 import { PageFooter, PageHeaderTitle } from '~/components/page';
@@ -20,8 +22,6 @@ import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
-import { getDefaultUnit } from '../shared/currencies';
-import { DomainError } from '../shared/error';
 import type { DestinationDetails } from './cashu-send-quote';
 import { useInitiateCashuSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwap } from './cashu-send-swap-hooks';

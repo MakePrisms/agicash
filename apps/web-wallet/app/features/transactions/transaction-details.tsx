@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@agicash/wallet-sdk/temporary';
 import { BanIcon, CheckIcon, ClockIcon, UndoIcon, XIcon } from 'lucide-react';
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
@@ -18,7 +19,6 @@ import { getStartOfDayNDaysAgo, isToday, isYesterday } from '~/lib/date';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccountOrNull } from '../accounts/account-hooks';
 import { AccountIcon } from '../accounts/account-icons';
-import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import {
   isTransactionReversable,

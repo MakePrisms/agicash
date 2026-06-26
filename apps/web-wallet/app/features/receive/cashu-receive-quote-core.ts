@@ -1,11 +1,11 @@
 import { decodeBolt11 } from '@agicash/bolt11';
 import { type ExtendedCashuWallet, getCashuUnit } from '@agicash/cashu';
 import { Money } from '@agicash/money';
+import { derivePublicKey } from '@agicash/wallet-sdk/temporary';
 import type { MintQuoteBolt11Response, Proof } from '@cashu/cashu-ts';
 import { HARDENED_OFFSET } from '@scure/bip32';
 import type { RedactedCashuAccount } from '../accounts/account';
 import { BASE_CASHU_LOCKING_DERIVATION_PATH } from '../shared/cashu';
-import { derivePublicKey } from '../shared/cryptography';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 

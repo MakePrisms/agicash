@@ -1,3 +1,4 @@
+import { NotFoundError } from '@agicash/wallet-sdk/temporary';
 import {
   type InfiniteData,
   type QueryClient,
@@ -13,7 +14,6 @@ import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
 import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
 import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
-import { NotFoundError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
 import type { Transaction } from './transaction';
 import {

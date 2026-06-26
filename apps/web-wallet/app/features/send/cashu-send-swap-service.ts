@@ -6,6 +6,8 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import { Money } from '@agicash/money';
+import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   MintOperationError,
   OutputData,
@@ -20,8 +22,6 @@ import {
   useCashuReceiveSwapService,
 } from '../receive/cashu-receive-swap-service';
 import { getTokenHash } from '../shared/cashu';
-import { getDefaultUnit } from '../shared/currencies';
-import { DomainError } from '../shared/error';
 import type { CashuSendSwap } from './cashu-send-swap';
 import {
   type CashuSendSwapRepository,

@@ -1,6 +1,6 @@
+import { NotFoundError } from '@agicash/wallet-sdk/temporary';
 import { useAccountOrNull } from '~/features/accounts/account-hooks';
 import OfferDetails from '~/features/gift-cards/offer-details';
-import { NotFoundError } from '~/features/shared/error';
 import type { Route } from './+types/_protected.gift-cards.offers.$accountId';
 
 export default function OfferDetailsRoute({ params }: Route.ComponentProps) {

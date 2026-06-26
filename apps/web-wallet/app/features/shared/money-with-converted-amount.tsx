@@ -2,7 +2,7 @@ import type { Currency, Money } from '@agicash/money';
 import { MoneyDisplay } from '~/components/money-display';
 import { Skeleton } from '~/components/ui/skeleton';
 import { useExchangeRate } from '~/hooks/use-exchange-rate';
-import { getDefaultUnit } from './currencies';
+import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
 
 const defaultFiatCurrency = 'USD';
 
