@@ -1,9 +1,8 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
-import { ExchangeRateService } from '~/lib/exchange-rate/exchange-rate-service';
+import type { Ticker } from '~/lib/exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
-import type { AccountRepository } from '../accounts/account-repository';
 import type { AccountService } from '../accounts/account-service';
 import { DomainError } from '../shared/error';
 import type { User } from '../user/user';
@@ -23,30 +22,22 @@ import type { SparkReceiveQuoteService } from './spark-receive-quote-service';
 type ClaimTokenResult =
   | {
       success: true;
-      destinationAccount: Pick<Account, 'id' | 'purpose'>;
-      /**
-       * Accounts created or updated while claiming, for the caller to write into
-       * its cache (the service no longer owns one).
-       */
+      /** The account the token was claimed into. */
+      receiveAccount: Account;
+      /** Accounts created or updated while claiming, for the caller to write into its cache. */
       changedAccounts: Account[];
-      /**
-       * The updated user when the claim changed the default account, else null,
-       * for the caller to write into its cache.
-       */
-      updatedUser: User | null;
     }
   | { success: false; message: string };
 
 export class ClaimCashuTokenService {
   constructor(
-    private readonly accountRepository: AccountRepository,
     private readonly accountService: AccountService,
     private readonly receiveSwapService: CashuReceiveSwapService,
     private readonly cashuReceiveQuoteService: CashuReceiveQuoteService,
     private readonly sparkReceiveQuoteService: SparkReceiveQuoteService,
     private readonly receiveCashuTokenService: ReceiveCashuTokenService,
     private readonly receiveCashuTokenQuoteService: ReceiveCashuTokenQuoteService,
-    private readonly userService: UserService,
+    private readonly getExchangeRate: (ticker: Ticker) => Promise<string>,
   ) {}
 
   /**
@@ -63,9 +54,10 @@ export class ClaimCashuTokenService {
     user: User,
     token: Token,
     claimTo: 'cashu' | 'spark',
+    accounts: Account[],
   ): Promise<ClaimTokenResult> {
     try {
-      return await this.handleClaim(user, token, claimTo);
+      return await this.handleClaim(user, token, claimTo, accounts);
     } catch (error) {
       if (error instanceof DomainError) {
         return {
@@ -87,11 +79,10 @@ export class ClaimCashuTokenService {
     user: User,
     token: Token,
     claimTo: 'cashu' | 'spark',
+    accounts: Account[],
   ): Promise<ClaimTokenResult> {
-    const changedAccounts = new Map<string, Account>();
-    let updatedUser: User | null = null;
+    const changedAccounts: Account[] = [];
 
-    const accounts = await this.accountRepository.getAllActive(user.id);
     const extendedAccounts = UserService.getExtendedAccounts(user, accounts);
     const preferredReceiveAccountId =
       claimTo === 'spark'
@@ -122,21 +113,8 @@ export class ClaimCashuTokenService {
         userId: user.id,
         account: receiveAccount,
       });
-      changedAccounts.set(addedAccount.id, addedAccount);
+      changedAccounts.push(addedAccount);
       receiveAccount = { ...receiveAccount, ...addedAccount };
-    }
-
-    if (
-      receiveAccount.currency !== user.defaultCurrency ||
-      !UserService.isDefaultAccount(user, receiveAccount)
-    ) {
-      // We don't want to fail the entire claim flow if setting the default account fails because it's not
-      // critical and the user can still claim the token, it just won't be as nice UX because the balance
-      // when home page loads might not show the correct currency.
-      const result = await this.trySetDefaultAccount(user, receiveAccount);
-      if (result.success) {
-        updatedUser = result.user;
-      }
     }
 
     const isSameAccountClaim = isClaimingToSameCashuAccount(
@@ -150,7 +128,7 @@ export class ClaimCashuTokenService {
         token,
         account: receiveAccount as CashuAccount,
       });
-      changedAccounts.set(account.id, account);
+      changedAccounts.push(account);
 
       // We want to fail the entire claim flow if completing the swap fails only if the swap is in failed state (non
       // recoverable error). Otherwise, the background processing can pick it up and retry when the app loads. If the
@@ -159,7 +137,7 @@ export class ClaimCashuTokenService {
       // handle the failed swap.
       const result = await this.tryCompleteSwap(account, swap);
       if (result.success) {
-        changedAccounts.set(result.account.id, result.account);
+        changedAccounts.push(result.account);
       } else if (result.swap?.state === 'FAILED') {
         return {
           success: false,
@@ -167,7 +145,7 @@ export class ClaimCashuTokenService {
         };
       }
     } else {
-      const exchangeRate = await new ExchangeRateService().getRate(
+      const exchangeRate = await this.getExchangeRate(
         `${sourceAccount.currency}-${receiveAccount.currency}`,
       );
       const quotes =
@@ -199,41 +177,15 @@ export class ClaimCashuTokenService {
       // complete it, the app already has a way to handle the failed receive.
       const result = await this.tryCompleteReceive(quotes);
       if (result.success && result.account) {
-        changedAccounts.set(result.account.id, result.account);
+        changedAccounts.push(result.account);
       }
     }
 
     return {
       success: true,
-      destinationAccount: {
-        id: receiveAccount.id,
-        purpose: receiveAccount.purpose,
-      },
-      changedAccounts: [...changedAccounts.values()],
-      updatedUser,
+      receiveAccount,
+      changedAccounts,
     };
-  }
-
-  private async trySetDefaultAccount(
-    user: User,
-    account: Account,
-  ): Promise<{ success: true; user: User } | { success: false }> {
-    try {
-      const updatedUser = await this.userService.setDefaultAccount(
-        user,
-        account,
-        {
-          setDefaultCurrency: true,
-        },
-      );
-      return { success: true, user: updatedUser };
-    } catch (error) {
-      console.error('Failed to set default account while claiming the token', {
-        cause: error,
-        accountId: account.id,
-      });
-      return { success: false };
-    }
   }
 
   private async tryCompleteSwap(
