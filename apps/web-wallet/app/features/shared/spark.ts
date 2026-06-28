@@ -130,10 +130,8 @@ export function getSparkWallet({
     { 'spark.network': network },
   );
   sparkWalletPromises.set(key, walletPromise);
-  void walletPromise.catch(() => {
-    if (sparkWalletPromises.get(key) === walletPromise) {
-      sparkWalletPromises.delete(key);
-    }
+  walletPromise.catch(() => {
+    sparkWalletPromises.delete(key);
   });
   return walletPromise;
 }
