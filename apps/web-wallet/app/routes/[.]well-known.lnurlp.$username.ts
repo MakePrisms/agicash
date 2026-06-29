@@ -5,15 +5,12 @@
 
 import { agicashDbServer } from '~/features/agicash-db/database.server';
 import { LightningAddressService } from '~/features/receive/lightning-address-service';
-import { getQueryClient } from '~/features/shared/query-client';
 import type { Route } from './+types/[.]well-known.lnurlp.$username';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const queryClient = getQueryClient();
   const lightningAddressService = new LightningAddressService(
     request,
     agicashDbServer,
-    queryClient,
   );
 
   const response = await lightningAddressService.handleLud16Request(

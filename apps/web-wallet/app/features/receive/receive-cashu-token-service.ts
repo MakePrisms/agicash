@@ -7,7 +7,6 @@ import {
 } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
 import type { Token } from '@cashu/cashu-ts';
-import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import {
   type ExtendedAccount,
   type ExtendedCashuAccount,
@@ -25,8 +24,6 @@ import type {
 } from './receive-cashu-token-models';
 
 export class ReceiveCashuTokenService {
-  constructor(private readonly queryClient: QueryClient) {}
-
   /**
    * Builds a cashu account object for a given mint and currency.
    * This account is not stored in the database, and has placeholder values for the id and createdAt.
@@ -39,7 +36,6 @@ export class ReceiveCashuTokenService {
     currency: Currency,
   ): Promise<CashuAccountWithTokenFlags> {
     const { wallet, isOnline } = await getInitializedCashuWallet({
-      queryClient: this.queryClient,
       mintUrl,
       currency,
     });
@@ -237,6 +233,5 @@ export class ReceiveCashuTokenService {
 }
 
 export function useReceiveCashuTokenService() {
-  const queryClient = useQueryClient();
-  return new ReceiveCashuTokenService(queryClient);
+  return new ReceiveCashuTokenService();
 }

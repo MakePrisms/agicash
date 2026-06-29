@@ -113,7 +113,6 @@ const ensureUserData = async (
     const accountRepository = new AccountRepository(
       agicashDbClient,
       encryption,
-      queryClient,
       getCashuWalletSeed,
       getSparkWalletMnemonic,
       './.spark-data',

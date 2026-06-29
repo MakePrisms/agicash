@@ -21,6 +21,7 @@ import { jwtDecode } from 'jwt-decode';
 import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import { getQueryClient } from '~/features/shared/query-client';
+import { clearSparkWallets } from '~/features/shared/spark';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { generateRandomPassword } from '~/lib/password-generator';
 import { guestAccountStorage } from './guest-account-storage';
@@ -217,6 +218,9 @@ export const useAuthActions = (): AuthActions => {
       await refreshSession(options.redirectTo);
       Sentry.setUser(null);
       queryClient.clear();
+      // The spark wallet connection memo is framework-free (not in the query
+      // cache), so clear it alongside so a next session reconnects fresh.
+      clearSparkWallets();
     },
     [refreshSession, queryClient],
   );

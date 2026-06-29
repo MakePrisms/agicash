@@ -1,7 +1,13 @@
 import { validateCashuToken } from '@agicash/cashu';
+import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
+import type { Account } from '~/features/accounts/account';
+import {
+  AccountsCache,
+  accountsQueryOptions,
+} from '~/features/accounts/account-hooks';
 import { AccountRepository } from '~/features/accounts/account-repository';
 import { AccountService } from '~/features/accounts/account-service';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
@@ -29,14 +35,16 @@ import {
 } from '~/features/shared/encryption';
 import { getQueryClient } from '~/features/shared/query-client';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
-import { getUserFromCacheOrThrow } from '~/features/user/user-hooks';
+import type { User } from '~/features/user/user';
+import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { UserService } from '~/features/user/user-service';
+import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
-const getClaimCashuTokenService = async () => {
+const getServices = async () => {
   const queryClient = getQueryClient();
   const [encryptionPrivateKey, encryptionPublicKey] = await Promise.all([
     queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
@@ -49,12 +57,11 @@ const getClaimCashuTokenService = async () => {
   const accountRepository = new AccountRepository(
     agicashDbClient,
     encryption,
-    queryClient,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
     './.spark-data',
   );
-  const accountService = new AccountService(accountRepository, queryClient);
+  const accountService = new AccountService(accountRepository);
   const receiveSwapRepository = new CashuReceiveSwapRepository(
     agicashDbClient,
     encryption,
@@ -74,7 +81,7 @@ const getClaimCashuTokenService = async () => {
   const sparkReceiveQuoteService = new SparkReceiveQuoteService(
     new SparkReceiveQuoteRepository(agicashDbClient, encryption),
   );
-  const receiveCashuTokenService = new ReceiveCashuTokenService(queryClient);
+  const receiveCashuTokenService = new ReceiveCashuTokenService();
   const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
@@ -85,18 +92,49 @@ const getClaimCashuTokenService = async () => {
   );
   const userService = new UserService(userRepository);
 
-  return new ClaimCashuTokenService(
-    queryClient,
-    accountRepository,
+  const claimCashuTokenService = new ClaimCashuTokenService(
     accountService,
     receiveSwapService,
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
     receiveCashuTokenService,
     receiveCashuTokenQuoteService,
-    userService,
+    (ticker) => getExchangeRate(queryClient, ticker),
   );
+
+  return { claimCashuTokenService, accountRepository, userService };
 };
+
+/**
+ * Sets the just-received account as the user's default when it isn't already —
+ * a UI nicety so a first-time user receiving to a non-default account sees the
+ * right balance on the home page. Best-effort: never fails the claim. Web-only
+ * UX, so it lives here rather than in the claim service.
+ */
+async function trySetReceiveAccountAsDefault(
+  userService: UserService,
+  queryClient: QueryClient,
+  user: User,
+  account: Account,
+): Promise<void> {
+  if (
+    account.currency === user.defaultCurrency &&
+    UserService.isDefaultAccount(user, account)
+  ) {
+    return;
+  }
+  try {
+    const updatedUser = await userService.setDefaultAccount(user, account, {
+      setDefaultCurrency: true,
+    });
+    new UserCache(queryClient).set(updatedUser);
+  } catch (error) {
+    console.error('Failed to set default account while claiming the token', {
+      cause: error,
+      accountId: account.id,
+    });
+  }
+}
 
 const getClaimTo = (
   searchParams: URLSearchParams,
@@ -132,14 +170,34 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   if (claimTo) {
     const user = getUserFromCacheOrThrow();
-    const claimCashuTokenService = await getClaimCashuTokenService();
+    const { claimCashuTokenService, accountRepository, userService } =
+      await getServices();
+    const queryClient = getQueryClient();
+    const accounts = await queryClient.fetchQuery(
+      accountsQueryOptions({ userId: user.id, accountRepository }),
+    );
 
     const result = await claimCashuTokenService.claimToken(
       user,
       token,
       claimTo,
+      accounts,
     );
-    if (!result.success) {
+
+    if (result.success) {
+      // Apply the claim's account changes to the cache so the destination
+      // screen renders them immediately after the redirect.
+      const accountsCache = new AccountsCache(queryClient);
+      for (const account of result.changedAccounts) {
+        accountsCache.upsert(account);
+      }
+      await trySetReceiveAccountAsDefault(
+        userService,
+        queryClient,
+        user,
+        result.receiveAccount,
+      );
+    } else {
       toast({
         title: 'Failed to claim the token',
         description: result.message,
@@ -154,9 +212,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     if (
       !explicitRedirectTo &&
       result.success &&
-      result.destinationAccount.purpose === 'gift-card'
+      result.receiveAccount.purpose === 'gift-card'
     ) {
-      redirectTo = `/gift-cards/${result.destinationAccount.id}`;
+      redirectTo = `/gift-cards/${result.receiveAccount.id}`;
     }
 
     throw redirect(redirectTo);
