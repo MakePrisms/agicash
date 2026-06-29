@@ -48,6 +48,7 @@ export class ClaimCashuTokenService {
    * @param user - The user to claim the token for.
    * @param token - The token to claim.
    * @param claimTo - Whether to claim the token to a cashu or spark account.
+   * @param accounts - The user's accounts used to resolve the token's source and possible destination accounts.
    * @returns The result of the claim.
    */
   async claimToken(

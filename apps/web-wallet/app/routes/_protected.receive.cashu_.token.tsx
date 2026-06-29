@@ -44,7 +44,7 @@ import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
-const getClaimCashuTokenService = async () => {
+const getServices = async () => {
   const queryClient = getQueryClient();
   const [encryptionPrivateKey, encryptionPublicKey] = await Promise.all([
     queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
@@ -111,7 +111,7 @@ const getClaimCashuTokenService = async () => {
  * right balance on the home page. Best-effort: never fails the claim. Web-only
  * UX, so it lives here rather than in the claim service.
  */
-async function setReceiveAccountAsDefault(
+async function trySetReceiveAccountAsDefault(
   userService: UserService,
   queryClient: QueryClient,
   user: User,
@@ -171,7 +171,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   if (claimTo) {
     const user = getUserFromCacheOrThrow();
     const { claimCashuTokenService, accountRepository, userService } =
-      await getClaimCashuTokenService();
+      await getServices();
     const queryClient = getQueryClient();
     const accounts = await queryClient.fetchQuery(
       accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -191,7 +191,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
       for (const account of result.changedAccounts) {
         accountsCache.upsert(account);
       }
-      await setReceiveAccountAsDefault(
+      await trySetReceiveAccountAsDefault(
         userService,
         queryClient,
         user,
