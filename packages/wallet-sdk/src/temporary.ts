@@ -86,6 +86,7 @@ export {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
 } from './shared/spark';
+export { clearAgicashMintAuthToken } from './shared/agicash-mint-auth-provider';
 export { AccountDetailsDbDataSchema } from './agicash-db/json-models/account-details-db-data';
 export { CashuAccountDetailsDbDataSchema } from './agicash-db/json-models/cashu-account-details-db-data';
 export { CashuLightningReceiveDbDataSchema } from './agicash-db/json-models/cashu-lightning-receive-db-data';

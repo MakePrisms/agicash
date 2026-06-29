@@ -3,6 +3,7 @@ import {
   FEATURE_FLAG_DEFAULTS,
   FeatureFlagService,
 } from '@agicash/wallet-sdk/temporary';
+import * as Sentry from '@sentry/react-router';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { getQueryClient } from '~/features/shared/query-client';
@@ -25,7 +26,7 @@ export const featureFlagsQueryOptions = queryOptions({
         }
       }
     }
-    console.error('Failed to fetch feature flags', lastError);
+    Sentry.captureException(lastError);
     return FEATURE_FLAG_DEFAULTS;
   },
   retry: false,

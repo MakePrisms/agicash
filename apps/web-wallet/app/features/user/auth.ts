@@ -10,7 +10,10 @@ import {
   signUpGuest as osSignUpGuest,
   verifyEmail as osVerifyEmail,
 } from '@agicash/opensecret';
-import { clearSparkWallets } from '@agicash/wallet-sdk/temporary';
+import {
+  clearAgicashMintAuthToken,
+  clearSparkWallets,
+} from '@agicash/wallet-sdk/temporary';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import {
@@ -218,9 +221,11 @@ export const useAuthActions = (): AuthActions => {
       await refreshSession(options.redirectTo);
       Sentry.setUser(null);
       queryClient.clear();
-      // The spark wallet connection memo is framework-free (not in the query
-      // cache), so clear it alongside so a next session reconnects fresh.
+      // The SDK's module-level memos (spark wallet connections, agicash-mint
+      // CAT) live outside the query cache, so clear them alongside it so the
+      // next session starts fresh.
       clearSparkWallets();
+      clearAgicashMintAuthToken();
     },
     [refreshSession, queryClient],
   );

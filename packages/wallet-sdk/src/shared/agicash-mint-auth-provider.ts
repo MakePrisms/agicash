@@ -32,7 +32,7 @@ async function fetchCAT(): Promise<string> {
 /**
  * Returns a valid agicash-mint CAT, reusing the cached one until 5 seconds
  * before expiry and deduping concurrent refreshes behind a single in-flight
- * promise. This is the framework-free equivalent of the old React Query cache.
+ * promise.
  */
 async function ensureCAT(): Promise<string> {
   if (cachedCAT && Date.now() < cachedCAT.refreshAt) {
@@ -71,4 +71,14 @@ export function getAgicashMintAuthProvider(
       throw new Error('Blind auth is not supported');
     },
   };
+}
+
+/**
+ * Clears the cached CAT and any in-flight refresh. Must be called on sign-out:
+ * the CAT is minted from the logged-in user's session, so without this a token
+ * from one user could be served to another after a same-tab re-login.
+ */
+export function clearAgicashMintAuthToken(): void {
+  cachedCAT = undefined;
+  inflight = undefined;
 }

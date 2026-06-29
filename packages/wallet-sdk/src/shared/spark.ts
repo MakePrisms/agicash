@@ -136,7 +136,7 @@ export function getSparkWallet({
 
 /**
  * Drops all memoized Breez wallet connections so a subsequent session
- * reconnects fresh. Called on sign-out (mirrors the old `queryClient.clear()`).
+ * reconnects fresh. Called on sign-out.
  */
 export function clearSparkWallets(): void {
   sparkWalletPromises.clear();
