@@ -7,7 +7,6 @@ import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { isLoggedIn } from '~/features/shared/auth';
 import { useCashuCryptography } from '~/features/shared/cashu-hooks';
 import { useEncryption } from '~/features/shared/encryption-hooks';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
 
 export function useAccountRepository() {
   const encryption = useEncryption();
@@ -18,11 +17,9 @@ export function useAccountRepository() {
   return new AccountRepository(
     agicashDbClient,
     encryption,
-    queryClient,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
     './.spark-data',
     isLoggedIn,
-    () => getFeatureFlag('DEBUG_LOGGING_SPARK'),
   );
 }

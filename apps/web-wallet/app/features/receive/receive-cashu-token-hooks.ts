@@ -15,11 +15,7 @@ import {
   ReceiveCashuTokenService,
 } from '@agicash/wallet-sdk/temporary';
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from '@tanstack/react-query';
+import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   useAccounts,
@@ -35,8 +31,7 @@ import { useCashuReceiveQuoteService } from './cashu-receive-quote-hooks';
 import { useSparkReceiveQuoteService } from './spark-receive-quote-hooks';
 
 export function useReceiveCashuTokenService() {
-  const queryClient = useQueryClient();
-  return new ReceiveCashuTokenService(queryClient);
+  return new ReceiveCashuTokenService();
 }
 
 export function useReceiveCashuTokenQuoteService() {

@@ -1,6 +1,5 @@
 import { ProofSchema, normalizeMintUrl } from '@agicash/cashu';
 import type { Currency } from '@agicash/money';
-import type { QueryClient } from '@tanstack/query-core';
 import type { DistributedOmit } from 'type-fest';
 import { z } from 'zod/mini';
 import {
@@ -46,12 +45,10 @@ export class AccountRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly encryption: Encryption,
-    private readonly queryClient: QueryClient,
     private readonly getCashuWalletSeed: () => Promise<Uint8Array>,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
     private readonly sparkStorageDir: string,
     private readonly isLoggedIn: () => boolean,
-    private readonly getDebugLogging: () => boolean,
   ) {}
 
   /**
@@ -231,27 +228,16 @@ export class AccountRepository {
   ) {
     const seed = await this.getCashuWalletSeed();
     return getInitializedCashuWallet({
-      queryClient: this.queryClient,
       mintUrl,
       currency,
       bip39seed: seed ?? undefined,
-      authProvider: getMintAuthProvider(
-        purpose,
-        this.queryClient,
-        this.isLoggedIn,
-      ),
+      authProvider: getMintAuthProvider(purpose, this.isLoggedIn),
     });
   }
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(
-      this.queryClient,
-      mnemonic,
-      network,
-      this.sparkStorageDir,
-      this.getDebugLogging(),
-    );
+    return getInitializedSparkWallet(mnemonic, network, this.sparkStorageDir);
   }
 
   private async decryptCashuProofs(

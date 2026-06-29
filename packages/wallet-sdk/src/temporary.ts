@@ -32,8 +32,6 @@ export {
   getTokenHash,
   mintInfoQueryKey,
   mintInfoQueryOptions,
-  mintKeysQueryKey,
-  mintKeysQueryOptions,
   seedQueryOptions,
   tokenToMoney,
   xpubQueryOptions,
@@ -43,11 +41,12 @@ export {
   isSparkAccount,
 } from './agicash-db/database';
 export {
+  clearSparkWallets,
   getInitializedSparkWallet,
+  getSparkWallet,
   sparkDebugLog,
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
-  sparkWalletQueryOptions,
 } from './shared/spark';
 export { AccountDetailsDbDataSchema } from './agicash-db/json-models/account-details-db-data';
 export { CashuAccountDetailsDbDataSchema } from './agicash-db/json-models/cashu-account-details-db-data';

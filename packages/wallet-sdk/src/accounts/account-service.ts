@@ -3,17 +3,13 @@ import {
   findFirstActiveKeyset,
   getKeysetExpiry,
 } from '@agicash/cashu';
-import type { QueryClient } from '@tanstack/query-core';
+import { Mint } from '@cashu/cashu-ts';
 import type { DistributedOmit } from 'type-fest';
-import { allMintKeysetsQueryOptions } from '../shared/cashu';
 import type { CashuAccount } from './account';
 import type { AccountRepository } from './account-repository';
 
 export class AccountService {
-  constructor(
-    private readonly accountRepository: AccountRepository,
-    private readonly queryClient: QueryClient,
-  ) {}
+  constructor(private readonly accountRepository: AccountRepository) {}
 
   async addCashuAccount({
     userId,
@@ -38,9 +34,7 @@ export class AccountService {
 
     let expiresAt: string | null = null;
     if (account.purpose === 'offer') {
-      const { keysets } = await this.queryClient.fetchQuery(
-        allMintKeysetsQueryOptions(account.mintUrl),
-      );
+      const { keysets } = await new Mint(account.mintUrl).getKeySets();
       const activeKeyset = findFirstActiveKeyset(keysets, account.currency);
       if (activeKeyset) {
         expiresAt = getKeysetExpiry(activeKeyset)?.toISOString() ?? null;

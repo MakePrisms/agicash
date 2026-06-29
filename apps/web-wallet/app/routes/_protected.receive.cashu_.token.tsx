@@ -1,4 +1,6 @@
 import { validateCashuToken } from '@agicash/cashu';
+import type { Account } from '@agicash/wallet-sdk';
+import type { User } from '@agicash/wallet-sdk';
 import { getEncryption } from '@agicash/wallet-sdk/temporary';
 import {
   decodeCashuToken,
@@ -30,7 +32,6 @@ import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
-import type { Account } from '@agicash/wallet-sdk';
 import {
   AccountsCache,
   accountsQueryOptions,
@@ -45,9 +46,7 @@ import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
 } from '~/features/shared/encryption-hooks';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
-import type { User } from '@agicash/wallet-sdk';
 import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import { toast } from '~/hooks/use-toast';
@@ -71,7 +70,6 @@ const getServices = async () => {
     getSparkWalletMnemonic,
     './.spark-data',
     isLoggedIn,
-    () => getFeatureFlag('DEBUG_LOGGING_SPARK'),
   );
   const accountService = new AccountService(accountRepository);
   const receiveSwapRepository = new CashuReceiveSwapRepository(

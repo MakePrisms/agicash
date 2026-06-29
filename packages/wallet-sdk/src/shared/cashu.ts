@@ -157,11 +157,10 @@ export const cashuMintValidator = buildMintValidator({
 
 export function getMintAuthProvider(
   purpose: MintPurpose | undefined,
-  queryClient: QueryClient,
   isLoggedIn: () => boolean,
 ) {
   return purpose === 'gift-card' || purpose === 'offer'
-    ? getAgicashMintAuthProvider(queryClient, isLoggedIn)
+    ? getAgicashMintAuthProvider(isLoggedIn)
     : undefined;
 }
 
@@ -169,11 +168,6 @@ export const mintInfoQueryKey = (mintUrl: string) => ['mint-info', mintUrl];
 export const allMintKeysetsQueryKey = (mintUrl: string) => [
   'all-mint-keysets',
   mintUrl,
-];
-export const mintKeysQueryKey = (mintUrl: string, keysetId?: string) => [
-  'mint-keys',
-  mintUrl,
-  keysetId,
 ];
 
 /**
@@ -227,37 +221,19 @@ export async function decodeCashuToken(
 }
 
 /**
- * Get the mints public keys.
- *
- * @param mintUrl
- * @param keysetId Optional param to get the keys for a specific keyset. If not specified, the
- *   keys from all active keysets are fetched.
- * @returns An object with an array of the fetched keysets.
- */
-export const mintKeysQueryOptions = (mintUrl: string, keysetId?: string) =>
-  queryOptions({
-    queryKey: mintKeysQueryKey(mintUrl, keysetId),
-    queryFn: async () => new Mint(mintUrl).getKeys(keysetId),
-    staleTime: 1000 * 60 * 60, // 1 hour
-  });
-
-/**
  * Initializes a Cashu wallet with offline handling.
  * If the mint is offline or times out, returns a minimal wallet with isOnline: false.
- * @param queryClient - The query client to use for fetching mint data.
  * @param mintUrl - The mint URL.
  * @param currency - The currency.
  * @param bip39seed - Optional BIP39 seed for wallet initialization.
  * @returns The wallet and online status.
  */
 export async function getInitializedCashuWallet({
-  queryClient,
   mintUrl,
   currency,
   bip39seed,
   authProvider,
 }: {
-  queryClient: QueryClient;
   mintUrl: string;
   currency: Currency;
   bip39seed?: Uint8Array;
@@ -268,23 +244,15 @@ export async function getInitializedCashuWallet({
   let mintActiveKeys: GetKeysResponse;
 
   try {
+    const mint = new Mint(mintUrl);
     [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
       Promise.all([
-        queryClient.fetchQuery(mintInfoQueryOptions(mintUrl)),
-        queryClient.fetchQuery(allMintKeysetsQueryOptions(mintUrl)),
-        queryClient.fetchQuery(mintKeysQueryOptions(mintUrl)),
+        mint.getInfo().then((info) => new ExtendedMintInfo(info)),
+        mint.getKeySets(),
+        mint.getKeys(),
       ]),
       new Promise<never>((_, reject) => {
         setTimeout(() => {
-          queryClient.cancelQueries({
-            queryKey: mintInfoQueryKey(mintUrl),
-          });
-          queryClient.cancelQueries({
-            queryKey: allMintKeysetsQueryKey(mintUrl),
-          });
-          queryClient.cancelQueries({
-            queryKey: mintKeysQueryKey(mintUrl),
-          });
           reject(new NetworkError('Mint request timed out'));
         }, 10_000);
       }),

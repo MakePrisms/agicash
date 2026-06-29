@@ -13,12 +13,11 @@ import {
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
 import { base64url } from '@scure/base';
-import type { QueryClient } from '@tanstack/query-core';
 import { z } from 'zod/mini';
 import type { AgicashDb } from '../agicash-db/database';
 import { ExchangeRateService } from '../lib/exchange-rate';
 import { NotFoundError } from '../shared/error';
-import { sparkWalletQueryOptions } from '../shared/spark';
+import { getSparkWallet } from '../shared/spark';
 import {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,
@@ -66,9 +65,6 @@ export class LightningAddressService {
   private minSendable: Money<'BTC'>;
   private maxSendable: Money<'BTC'>;
   private exchangeRateService: ExchangeRateService;
-  private queryClient: QueryClient;
-  private isLoggedIn: () => boolean;
-  private getDebugLogging: () => boolean;
   /**
    * A client can flag that they will not validate the invoice amount.
    * This is useful for agicash <-> agicash payments so that the receiver can receive into their default currency
@@ -79,16 +75,10 @@ export class LightningAddressService {
   constructor(
     request: Request,
     db: AgicashDb,
-    queryClient: QueryClient,
-    isLoggedIn: () => boolean,
-    getDebugLogging: () => boolean,
     options?: {
       bypassAmountValidation?: boolean;
     },
   ) {
-    this.queryClient = queryClient;
-    this.isLoggedIn = isLoggedIn;
-    this.getDebugLogging = getDebugLogging;
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
     this.userRepository = new ReadUserRepository(db);
@@ -172,11 +162,9 @@ export class LightningAddressService {
 
       const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
         this.db,
-        this.queryClient,
         getSparkWalletMnemonic,
         '/tmp/.spark-data',
-        this.isLoggedIn,
-        this.getDebugLogging,
+        () => false,
       );
 
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
@@ -328,14 +316,11 @@ export class LightningAddressService {
   private async handleSparkLnurlpVerify(
     receiveRequestId: string,
   ): Promise<LNURLVerifyResult> {
-    const wallet = await this.queryClient.fetchQuery(
-      sparkWalletQueryOptions({
-        network: 'MAINNET',
-        mnemonic: sparkMnemonic,
-        storageDir: '/tmp/.spark-data',
-        debugLogging: this.getDebugLogging(),
-      }),
-    );
+    const wallet = await getSparkWallet({
+      network: 'MAINNET',
+      mnemonic: sparkMnemonic,
+      storageDir: '/tmp/.spark-data',
+    });
 
     const receiveRequest = await wallet.getLightningReceiveRequest({
       requestId: receiveRequestId,

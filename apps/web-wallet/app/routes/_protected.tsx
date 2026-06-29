@@ -25,7 +25,6 @@ import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
 } from '~/features/shared/encryption-hooks';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
 import {
   type AuthUser,
@@ -120,7 +119,6 @@ const ensureUserData = async (
       getSparkWalletMnemonic,
       './.spark-data',
       isUserLoggedIn,
-      () => getFeatureFlag('DEBUG_LOGGING_SPARK'),
     );
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,

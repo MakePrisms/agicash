@@ -1,7 +1,6 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type {
   Account,
-  AccountRepository,
   AccountService,
   CashuAccount,
   CashuReceiveQuoteService,
@@ -18,9 +17,9 @@ import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { ReceiveCashuTokenService } from '@agicash/wallet-sdk/temporary';
 import { UserService } from '@agicash/wallet-sdk/temporary';
 import { isClaimingToSameCashuAccount } from '@agicash/wallet-sdk/temporary';
+import type { Ticker } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import * as Sentry from '@sentry/react-router';
-import type { Ticker } from '@agicash/wallet-sdk/temporary';
 
 type ClaimTokenResult =
   | {
