@@ -1,12 +1,12 @@
 import { getCashuWallet, sumProofs } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendQuote,
-} from '@agicash/wallet-sdk';
 import type { CashuAccount } from '@agicash/wallet-sdk';
 import type { CashuSendQuote, DestinationDetails } from '@agicash/wallet-sdk';
 import type { SendQuoteRequest } from '@agicash/wallet-sdk';
+import type {
+  AgicashDbCashuProof,
+  AgicashDbCashuSendQuote,
+} from '@agicash/wallet-sdk/temporary';
 import {
   CashuSendQuoteRepository,
   CashuSendQuoteService,

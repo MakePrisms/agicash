@@ -1,7 +1,5 @@
-import type {
-  AgicashDbCashuReceiveSwap,
-  CashuReceiveSwap,
-} from '@agicash/wallet-sdk';
+import type { CashuReceiveSwap } from '@agicash/wallet-sdk';
+import type { AgicashDbCashuReceiveSwap } from '@agicash/wallet-sdk/temporary';
 import {
   CashuReceiveSwapRepository,
   CashuReceiveSwapService,

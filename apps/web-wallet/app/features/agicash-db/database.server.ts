@@ -1,4 +1,4 @@
-import type { Database } from '@agicash/wallet-sdk';
+import type { Database } from '@agicash/wallet-sdk/temporary';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? '';

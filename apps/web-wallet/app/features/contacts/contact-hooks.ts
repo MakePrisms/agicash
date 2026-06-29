@@ -1,5 +1,5 @@
-import type { AgicashDbContact } from '@agicash/wallet-sdk';
 import type { Contact } from '@agicash/wallet-sdk';
+import type { AgicashDbContact } from '@agicash/wallet-sdk/temporary';
 import { ContactRepository } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,

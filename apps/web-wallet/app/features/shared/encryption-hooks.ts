@@ -1,5 +1,5 @@
 import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
-import type { Encryption } from '@agicash/wallet-sdk';
+import type { Encryption } from '@agicash/wallet-sdk/temporary';
 import { getEncryption } from '@agicash/wallet-sdk/temporary';
 import { hexToBytes } from '@noble/hashes/utils';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';

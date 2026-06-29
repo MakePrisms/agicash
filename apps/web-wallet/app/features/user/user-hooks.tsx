@@ -1,8 +1,8 @@
 import type { Currency } from '@agicash/money';
 import { requestNewVerificationCode } from '@agicash/opensecret';
-import type { AgicashDbUser } from '@agicash/wallet-sdk';
 import type { Account } from '@agicash/wallet-sdk';
-import type { UpdateUser, User } from '@agicash/wallet-sdk';
+import type { User } from '@agicash/wallet-sdk';
+import type { AgicashDbUser, UpdateUser } from '@agicash/wallet-sdk/temporary';
 import { ReadUserRepository } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,

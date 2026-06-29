@@ -1,4 +1,4 @@
-import type { CashuCryptography } from '@agicash/wallet-sdk';
+import type { CashuCryptography } from '@agicash/wallet-sdk/temporary';
 import { getCashuCryptography } from '@agicash/wallet-sdk/temporary';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';

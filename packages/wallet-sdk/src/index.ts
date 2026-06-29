@@ -1,36 +1,9 @@
-// @agicash/wallet-sdk
-export type { CashuCryptography } from './shared/cashu';
+// @agicash/wallet-sdk — public surface: domain types only.
+// Repositories, services, and the wallet DB layer are SDK-internal; during the
+// migration they're re-exported from '@agicash/wallet-sdk/temporary' instead,
+// so that deleting /temporary at the end compiler-enforces the boundary.
 export type { DestinationDetails } from './shared/send-destination';
-export type { Encryption } from './shared/encryption';
-export type {
-  AgicashDbUser,
-  AgicashDbAccount,
-  AgicashDbCashuProof,
-  AgicashDbAccountWithProofs,
-  AgicashDbCashuReceiveQuote,
-  AgicashDbCashuReceiveSwap,
-  AgicashDbCashuSendQuote,
-  AgicashDbCashuSendSwap,
-  AgicashDbTransaction,
-  AgicashDbContact,
-  AgicashDbSparkReceiveQuote,
-  AgicashDbSparkSendQuote,
-  Database,
-  AgicashDb,
-} from './agicash-db/database';
-export type { AccountDetailsDbData } from './agicash-db/json-models/account-details-db-data';
-export type { CashuAccountDetailsDbData } from './agicash-db/json-models/cashu-account-details-db-data';
-export type { CashuLightningReceiveDbData } from './agicash-db/json-models/cashu-lightning-receive-db-data';
-export type { CashuLightningSendDbData } from './agicash-db/json-models/cashu-lightning-send-db-data';
-export type { CashuSwapReceiveDbData } from './agicash-db/json-models/cashu-swap-receive-db-data';
-export type { CashuSwapSendDbData } from './agicash-db/json-models/cashu-swap-send-db-data';
-export type { CashuTokenMeltDbData } from './agicash-db/json-models/cashu-token-melt-db-data';
-export type {
-  SparkAccountDetailsDbData,
-  SparkNetwork,
-} from './agicash-db/json-models/spark-account-details-db-data';
-export type { SparkLightningReceiveDbData } from './agicash-db/json-models/spark-lightning-receive-db-data';
-export type { SparkLightningSendDbData } from './agicash-db/json-models/spark-lightning-send-db-data';
+export type { SparkNetwork } from './agicash-db/json-models/spark-account-details-db-data';
 export type { FeatureFlag, FeatureFlags } from './shared/feature-flag-service';
 export type {
   AccountType,
@@ -46,15 +19,12 @@ export type {
   RedactedCashuAccount,
 } from './accounts/account';
 export type { CashuProof } from './accounts/cashu-account';
-export type { AccountRepository } from './accounts/account-repository';
-export type { AccountService } from './accounts/account-service';
 export type {
   FullUser,
   GuestUser,
   User,
   UserProfile,
 } from './user/user';
-export type { UpdateUser } from './user/user-repository';
 export type { Contact } from './contacts/contact';
 export type {
   TransactionDirection,
@@ -81,62 +51,39 @@ export type {
   CompletedSparkLightningSendTransactionDetails,
   SparkLightningSendTransactionDetails,
 } from './transactions/transaction-details/spark-lightning-send-transaction-details';
-export type {
-  TransactionDetails,
-  TransactionDetailsParserInput,
-  TransactionDetailsParserShape,
-} from './transactions/transaction-details/transaction-details-types';
-export type { Cursor } from './transactions/transaction-repository';
+export type { TransactionDetails } from './transactions/transaction-details/transaction-details-types';
 export type { CashuTokenMeltData } from './receive/cashu-token-melt-data';
 export type { SparkReceiveQuote } from './receive/spark-receive-quote';
 export type {
   SparkReceiveLightningQuote,
   GetLightningQuoteParams,
   CreateQuoteBaseParams,
-  RepositoryCreateQuoteParams,
 } from './receive/spark-receive-quote-core';
-export type { SparkReceiveQuoteRepository } from './receive/spark-receive-quote-repository';
-export type { SparkReceiveQuoteService } from './receive/spark-receive-quote-service';
 export type { CashuReceiveQuote } from './receive/cashu-receive-quote';
 export type { CashuReceiveLightningQuote } from './receive/cashu-receive-quote-core';
-export type { CashuReceiveQuoteService } from './receive/cashu-receive-quote-service';
 export type { CashuReceiveSwap } from './receive/cashu-receive-swap';
-export type { CashuReceiveSwapService } from './receive/cashu-receive-swap-service';
 export type {
   CashuAccountWithTokenFlags,
   ReceiveCashuTokenAccount,
 } from './receive/receive-cashu-token-models';
-export type {
-  CrossAccountReceiveQuotesResult,
-  ReceiveCashuTokenQuoteService,
-} from './receive/receive-cashu-token-quote-service';
+export type { CrossAccountReceiveQuotesResult } from './receive/receive-cashu-token-quote-service';
 export type {
   GiftCardConfig,
   GiftCardInfo,
 } from './gift-cards/gift-card-config';
 export type { CashuSendQuote } from './send/cashu-send-quote';
-export type { CashuSendQuoteRepository } from './send/cashu-send-quote-repository';
 export type {
   GetCashuLightningQuoteOptions,
   CashuLightningQuote,
   SendQuoteRequest,
-  CashuSendQuoteService,
 } from './send/cashu-send-quote-service';
 export type {
   CashuSendSwap,
   PendingCashuSendSwap,
 } from './send/cashu-send-swap';
-export type { CashuSendSwapRepository } from './send/cashu-send-swap-repository';
-export type {
-  CashuSwapQuote,
-  CashuSendSwapService,
-} from './send/cashu-send-swap-service';
+export type { CashuSwapQuote } from './send/cashu-send-swap-service';
 export type { SparkSendQuote } from './send/spark-send-quote';
-export type { SparkSendQuoteRepository } from './send/spark-send-quote-repository';
-export type {
-  SparkLightningQuote,
-  SparkSendQuoteService,
-} from './send/spark-send-quote-service';
+export type { SparkLightningQuote } from './send/spark-send-quote-service';
 export type { SendDestination } from './send/resolve-destination';
 export type { ValidateResult } from './send/validation';
 export type {
@@ -144,4 +91,3 @@ export type {
   TransferSendSide,
   TransferQuote,
 } from './transfer/transfer-service';
-export type { TransferService } from './transfer/transfer-service';

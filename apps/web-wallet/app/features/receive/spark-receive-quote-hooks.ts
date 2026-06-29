@@ -6,12 +6,10 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
-import type {
-  AgicashDbSparkReceiveQuote,
-  SparkReceiveQuote,
-} from '@agicash/wallet-sdk';
+import type { SparkReceiveQuote } from '@agicash/wallet-sdk';
 import type { SparkAccount } from '@agicash/wallet-sdk';
 import type { TransactionPurpose } from '@agicash/wallet-sdk';
+import type { AgicashDbSparkReceiveQuote } from '@agicash/wallet-sdk/temporary';
 import { getInitializedCashuWallet } from '@agicash/wallet-sdk/temporary';
 import { getLightningQuote } from '@agicash/wallet-sdk/temporary';
 import {

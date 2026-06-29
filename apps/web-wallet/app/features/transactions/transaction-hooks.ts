@@ -1,5 +1,8 @@
-import type { AgicashDbTransaction } from '@agicash/wallet-sdk';
-import type { Cursor, Transaction } from '@agicash/wallet-sdk';
+import type { Transaction } from '@agicash/wallet-sdk';
+import type {
+  AgicashDbTransaction,
+  Cursor,
+} from '@agicash/wallet-sdk/temporary';
 import { NotFoundError } from '@agicash/wallet-sdk/temporary';
 import {
   type InfiniteData,

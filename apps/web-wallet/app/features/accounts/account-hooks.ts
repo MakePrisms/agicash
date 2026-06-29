@@ -1,15 +1,17 @@
 import { type Currency, Money } from '@agicash/money';
-import type { AgicashDbAccountWithProofs } from '@agicash/wallet-sdk';
 import type {
   Account,
   AccountPurpose,
-  AccountRepository,
   AccountState,
   AccountType,
   CashuAccount,
   ExtendedAccount,
   SparkAccount,
 } from '@agicash/wallet-sdk';
+import type {
+  AccountRepository,
+  AgicashDbAccountWithProofs,
+} from '@agicash/wallet-sdk/temporary';
 import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import { UserService } from '@agicash/wallet-sdk/temporary';

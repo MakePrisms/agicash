@@ -1,4 +1,4 @@
-import type { Database } from '@agicash/wallet-sdk';
+import type { Database } from '@agicash/wallet-sdk/temporary';
 import { createClient } from '@supabase/supabase-js';
 import { SupabaseRealtimeManager } from '~/lib/supabase';
 import { getSupabaseSessionToken } from './supabase-session';
