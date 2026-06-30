@@ -149,7 +149,7 @@ const getClaimTo = (
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   // Request url doesn't include hash so we need to read it from the window location instead
-  const token = await decodeCashuToken(window.location.hash, getQueryClient());
+  const token = await decodeCashuToken(window.location.hash);
 
   if (!token) {
     throw redirect('/receive');

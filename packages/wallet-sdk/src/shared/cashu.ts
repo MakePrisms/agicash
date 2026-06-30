@@ -201,18 +201,13 @@ export const allMintKeysetsQueryOptions = (mintUrl: string) =>
  * Extract and decode a cashu token from arbitrary content.
  * Fetches keyset IDs from the token's mint for v2 keyset resolution.
  */
-export async function decodeCashuToken(
-  content: string,
-  queryClient: QueryClient,
-): Promise<Token | null> {
+export async function decodeCashuToken(content: string): Promise<Token | null> {
   const result = extractCashuToken(content);
   if (!result) return null;
 
   try {
-    const data = await queryClient.fetchQuery(
-      allMintKeysetsQueryOptions(result.metadata.mint),
-    );
-    const keysetIds = data.keysets.map((k) => k.id);
+    const { keysets } = await new Mint(result.metadata.mint).getKeySets();
+    const keysetIds = keysets.map((k) => k.id);
     return getDecodedToken(result.encoded, keysetIds);
   } catch (error) {
     console.error('Failed to decode cashu token', error);

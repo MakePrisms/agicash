@@ -84,7 +84,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(`/receive/cashu/token${location.search}${hash}`);
   }
 
-  const token = await decodeCashuToken(hash, queryClient);
+  const token = await decodeCashuToken(hash);
 
   if (!token) {
     throw redirect('/home');
