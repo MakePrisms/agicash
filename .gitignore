@@ -2,9 +2,6 @@
 .devenv*
 devenv.local.nix
 
-# Agent worktrees / scratch (local tooling)
-.claire/
-
 # direnv
 .direnv
 
