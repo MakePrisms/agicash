@@ -1,5 +1,4 @@
 import type { Transaction } from '@agicash/wallet-sdk';
-import { getErrorMessage } from '@agicash/wallet-sdk/temporary';
 import { BanIcon, CheckIcon, ClockIcon, UndoIcon, XIcon } from 'lucide-react';
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
@@ -16,6 +15,7 @@ import { accountOfflineToast } from '~/features/accounts/utils';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useToast } from '~/hooks/use-toast';
 import { getStartOfDayNDaysAgo, isToday, isYesterday } from '~/lib/date';
+import { getErrorMessage } from '~/lib/error';
 import { LinkWithViewTransition } from '~/lib/transitions';
 import { useAccountOrNull } from '../accounts/account-hooks';
 import { AccountIcon } from '../accounts/account-icons';

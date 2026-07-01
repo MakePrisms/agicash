@@ -5,8 +5,8 @@ import type {
   CashuReceiveQuote,
   SparkAccount,
   SparkReceiveQuote,
+  TransactionPurpose,
 } from '@agicash/wallet-sdk';
-import type { TransactionPurpose } from '@agicash/wallet-sdk';
 import { create } from 'zustand';
 
 export type BuyQuote = {

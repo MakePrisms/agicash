@@ -72,6 +72,7 @@ export type {
   GiftCardInfo,
 } from './domain/gift-cards/gift-card-config';
 export { GiftCardConfigSchema } from './domain/gift-cards/gift-card-config';
+export { getDefaultUnit } from './lib/currencies';
 export type { CashuSendQuote } from './domain/send/cashu-send-quote';
 export type {
   GetCashuLightningQuoteOptions,

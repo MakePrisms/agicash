@@ -1,6 +1,8 @@
 import breezWasmUrl from '@agicash/breez-sdk-spark/web/wasm?url';
-import { WebAssemblyUnavailableError } from '@agicash/wallet-sdk/temporary';
-import { NotFoundError } from '@agicash/wallet-sdk/temporary';
+import {
+  NotFoundError,
+  WebAssemblyUnavailableError,
+} from '@agicash/wallet-sdk/temporary';
 import * as Sentry from '@sentry/react-router';
 import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';

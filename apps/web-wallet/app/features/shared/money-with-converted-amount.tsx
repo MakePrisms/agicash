@@ -1,5 +1,5 @@
 import type { Currency, Money } from '@agicash/money';
-import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
 import { MoneyDisplay } from '~/components/money-display';
 import { Skeleton } from '~/components/ui/skeleton';
 import { useExchangeRate } from '~/hooks/use-exchange-rate';

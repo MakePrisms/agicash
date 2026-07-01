@@ -4,14 +4,13 @@ import type {
   CashuAccountWithTokenFlags,
   ReceiveCashuTokenAccount,
 } from '@agicash/wallet-sdk';
-import { getErrorMessage } from '@agicash/wallet-sdk/temporary';
-import { tokenToMoney } from '@agicash/wallet-sdk/temporary';
 import {
   accountRequiresGiftCardTermsAcceptance,
   getAccountHomePath,
+  isClaimingToSameCashuAccount,
+  shouldAcceptGiftCardMintTerms,
+  tokenToMoney,
 } from '@agicash/wallet-sdk/temporary';
-import { shouldAcceptGiftCardMintTerms } from '@agicash/wallet-sdk/temporary';
-import { isClaimingToSameCashuAccount } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
@@ -35,6 +34,7 @@ import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
+import { getErrorMessage } from '~/lib/error';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,

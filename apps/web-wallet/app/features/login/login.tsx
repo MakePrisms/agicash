@@ -1,8 +1,8 @@
-import { getErrorMessage } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
 import { LoginForm } from '~/features/login/login-form';
 import { LoginOptions } from '~/features/login/login-options';
 import { useToast } from '~/hooks/use-toast';
+import { getErrorMessage } from '~/lib/error';
 import { useAuthActions } from '../user/auth';
 
 type LoginStep = 'pick-option' | 'login-with-email';

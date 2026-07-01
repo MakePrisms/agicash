@@ -1,5 +1,5 @@
 import type { TransferQuote } from '@agicash/wallet-sdk';
-import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { MoneyDisplay } from '~/components/money-display';
 import {

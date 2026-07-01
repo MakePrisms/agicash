@@ -1,11 +1,11 @@
 import { handleGoogleCallback } from '@agicash/opensecret';
-import { getErrorMessage } from '@agicash/wallet-sdk/temporary';
 import { decodeURLSafe } from '@stablelib/base64';
 import { redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { invalidateAuthQueries } from '~/features/user/auth';
 import { oauthLoginSessionStorage } from '~/features/user/oauth-login-session-storage';
 import { toast } from '~/hooks/use-toast';
+import { getErrorMessage } from '~/lib/error';
 import type { Route } from './+types/_auth.oauth.$provider';
 
 class UnsupportedOAuthProviderError extends Error {

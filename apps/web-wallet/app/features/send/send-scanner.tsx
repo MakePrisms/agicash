@@ -1,6 +1,6 @@
 import type { Money } from '@agicash/money';
 import type { Account } from '@agicash/wallet-sdk';
-import { DomainError, getErrorMessage } from '@agicash/wallet-sdk/temporary';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   ClosePageButton,
   PageContent,
@@ -11,6 +11,7 @@ import { QRScanner } from '~/components/qr-scanner';
 import { useExchangeRate } from '~/hooks/use-exchange-rate';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
+import { getErrorMessage } from '~/lib/error';
 import { useNavigateWithViewTransition } from '~/lib/transitions/view-transition';
 import { useSendStore } from './send-provider';
 

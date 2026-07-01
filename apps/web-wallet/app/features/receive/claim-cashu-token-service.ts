@@ -6,22 +6,23 @@ import type {
   CrossAccountReceiveQuotesResult,
   SparkAccount,
   SparkReceiveQuote,
+  User,
 } from '@agicash/wallet-sdk';
-import type { User } from '@agicash/wallet-sdk';
 import type {
   AccountService,
   CashuReceiveQuoteService,
   CashuReceiveSwapService,
   ReceiveCashuTokenQuoteService,
   SparkReceiveQuoteService,
+  Ticker,
 } from '@agicash/wallet-sdk/temporary';
-import { DomainError } from '@agicash/wallet-sdk/temporary';
-import { ReceiveCashuTokenService } from '@agicash/wallet-sdk/temporary';
-import { UserService } from '@agicash/wallet-sdk/temporary';
-import { isClaimingToSameCashuAccount } from '@agicash/wallet-sdk/temporary';
-import type { Ticker } from '@agicash/wallet-sdk/temporary';
+import {
+  DomainError,
+  ReceiveCashuTokenService,
+  UserService,
+  isClaimingToSameCashuAccount,
+} from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
-import * as Sentry from '@sentry/react-router';
 
 type ClaimTokenResult =
   | {
@@ -31,7 +32,7 @@ type ClaimTokenResult =
       /** Accounts created or updated while claiming, for the caller to write into its cache. */
       changedAccounts: Account[];
     }
-  | { success: false; message: string };
+  | { success: false; message: string; error?: unknown };
 
 // Deferred from wallet-sdk extraction — see docs/superpowers/plans/2026-06-25-wallet-sdk-domain-extraction.md
 export class ClaimCashuTokenService {
@@ -72,11 +73,10 @@ export class ClaimCashuTokenService {
         };
       }
 
-      const message = 'Unexpected error while claiming the token';
-      Sentry.captureException(new Error(message, { cause: error }));
       return {
         success: false,
-        message,
+        message: 'Unexpected error while claiming the token',
+        error,
       };
     }
   }

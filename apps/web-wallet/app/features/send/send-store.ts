@@ -1,11 +1,13 @@
 import type { Currency, Money } from '@agicash/money';
-import type { Account, CashuAccount, SparkAccount } from '@agicash/wallet-sdk';
-import type { Contact } from '@agicash/wallet-sdk';
-import type { GiftCardInfo } from '@agicash/wallet-sdk';
 import type {
+  Account,
+  CashuAccount,
   CashuLightningQuote,
   CashuSwapQuote,
+  Contact,
+  GiftCardInfo,
   SendDestination,
+  SparkAccount,
   SparkLightningQuote,
 } from '@agicash/wallet-sdk';
 import {

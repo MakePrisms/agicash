@@ -19,6 +19,7 @@ import {
   seedQueryOptions,
   sparkMnemonicQueryOptions,
 } from '@agicash/wallet-sdk/temporary';
+import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
@@ -205,6 +206,11 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
         variant: 'destructive',
         duration: 8000,
       });
+      if (result.error) {
+        Sentry.captureException(
+          new Error(result.message, { cause: result.error }),
+        );
+      }
     }
 
     const explicitRedirectTo = location.searchParams.get('redirectTo');

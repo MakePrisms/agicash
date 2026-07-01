@@ -1,5 +1,5 @@
 import type { CashuAccount } from '@agicash/wallet-sdk';
-import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
 import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import { MoneyDisplay } from '~/components/money-display';
 import {

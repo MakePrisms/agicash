@@ -8,8 +8,7 @@ import { Button } from '~/components/ui/button';
 import { getCashuUnit, sumProofs } from '@agicash/cashu';
 import { Money } from '@agicash/money';
 import type { Currency } from '@agicash/money';
-import type { CashuAccount } from '@agicash/wallet-sdk';
-import type { CashuProof } from '@agicash/wallet-sdk';
+import type { CashuAccount, CashuProof } from '@agicash/wallet-sdk';
 import { useAccount } from '~/features/accounts/account-hooks';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 

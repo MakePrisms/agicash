@@ -1,6 +1,9 @@
 import type { Money } from '@agicash/money';
-import type { CashuAccount } from '@agicash/wallet-sdk';
-import type { CashuSendSwap, PendingCashuSendSwap } from '@agicash/wallet-sdk';
+import type {
+  CashuAccount,
+  CashuSendSwap,
+  PendingCashuSendSwap,
+} from '@agicash/wallet-sdk';
 import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendSwap,

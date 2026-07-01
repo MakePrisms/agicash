@@ -50,9 +50,7 @@ export {
   DomainError,
   NotFoundError,
   UniqueConstraintError,
-  getErrorMessage,
 } from './lib/error';
-export { getDefaultUnit } from './lib/currencies';
 export { DestinationDetailsSchema } from './lib/send-destination';
 export {
   derivePublicKey,

@@ -1,5 +1,5 @@
 import type { Transaction } from '@agicash/wallet-sdk';
-import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
 import { AlertCircle, BanknoteIcon, UserIcon, ZapIcon } from 'lucide-react';
 import {
   type Ref,

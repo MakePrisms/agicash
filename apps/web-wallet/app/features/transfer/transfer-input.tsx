@@ -1,6 +1,6 @@
 import { extractCashuToken } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
-import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { Clipboard, Scan } from 'lucide-react';
 import { useState } from 'react';

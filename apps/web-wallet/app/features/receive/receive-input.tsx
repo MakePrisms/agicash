@@ -1,5 +1,5 @@
 import { extractCashuToken } from '@agicash/cashu';
-import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
 import { Clipboard, Scan } from 'lucide-react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';

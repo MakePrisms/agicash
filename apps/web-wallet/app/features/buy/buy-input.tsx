@@ -1,5 +1,5 @@
 import type { Money } from '@agicash/money';
-import { getDefaultUnit } from '@agicash/wallet-sdk/temporary';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';

@@ -1,7 +1,10 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Money } from '@agicash/money';
-import type { SparkAccount } from '@agicash/wallet-sdk';
-import type { SparkLightningQuote, SparkSendQuote } from '@agicash/wallet-sdk';
+import type {
+  SparkAccount,
+  SparkLightningQuote,
+  SparkSendQuote,
+} from '@agicash/wallet-sdk';
 import type { AgicashDbSparkSendQuote } from '@agicash/wallet-sdk/temporary';
 import {
   DomainError,

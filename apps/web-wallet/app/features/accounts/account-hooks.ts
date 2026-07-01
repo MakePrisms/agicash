@@ -12,9 +12,11 @@ import type {
   AccountRepository,
   AgicashDbAccountWithProofs,
 } from '@agicash/wallet-sdk/temporary';
-import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
-import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
-import { UserService } from '@agicash/wallet-sdk/temporary';
+import {
+  UserService,
+  getAccountBalance,
+  sparkDebugLog,
+} from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
