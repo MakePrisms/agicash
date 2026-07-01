@@ -1,0 +1,368 @@
+import { getCashuWallet } from '@agicash/cashu';
+import type {
+  LNURLError,
+  LNURLPayParams,
+  LNURLPayResult,
+  LNURLVerifyResult,
+} from '@agicash/lnurl';
+import { Money } from '@agicash/money';
+import {
+  decryptXChaCha20Poly1305,
+  encryptXChaCha20Poly1305,
+} from '@agicash/utils';
+import { sha256 } from '@noble/hashes/sha2';
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils';
+import { base64url } from '@scure/base';
+import { z } from 'zod/mini';
+import type { AgicashDb } from '../../db/database';
+import { NotFoundError } from '../../lib/error';
+import { ExchangeRateService } from '../../lib/exchange-rate';
+import { getSparkWallet } from '../../lib/spark/wallet';
+import {
+  ReadUserDefaultAccountRepository,
+  ReadUserRepository,
+} from '../user/user-repository';
+import { getLightningQuote } from './cashu-receive-quote-core';
+import { CashuReceiveQuoteRepositoryServer } from './cashu-receive-quote-repository.server';
+import { CashuReceiveQuoteServiceServer } from './cashu-receive-quote-service.server';
+import { SparkReceiveQuoteRepositoryServer } from './spark-receive-quote-repository.server';
+import { SparkReceiveQuoteServiceServer } from './spark-receive-quote-service.server';
+
+const sparkMnemonic = process.env.LNURL_SERVER_SPARK_MNEMONIC || '';
+if (!sparkMnemonic) {
+  throw new Error('LNURL_SERVER_SPARK_MNEMONIC is not set');
+}
+
+const getSparkWalletMnemonic = (): Promise<string> => {
+  return Promise.resolve(sparkMnemonic);
+};
+
+const encryptionKey = process.env.LNURL_SERVER_ENCRYPTION_KEY || '';
+if (!encryptionKey) {
+  throw new Error('LNURL_SERVER_ENCRYPTION_KEY is not set');
+}
+const encryptionKeyBytes = hexToBytes(encryptionKey);
+
+/**
+ * This data needed to verify the status of lnurl-pay request is encrypted
+ * to improve user privacy by obfuscating the quote data from the LNURL client
+ */
+const LnurlVerifyQuoteDataSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('spark'), quoteId: z.string() }),
+  z.object({
+    type: z.literal('cashu'),
+    quoteId: z.string(),
+    mintUrl: z.string(),
+  }),
+]);
+
+type LnurlVerifyQuoteData = z.infer<typeof LnurlVerifyQuoteDataSchema>;
+
+export class LightningAddressService {
+  private baseUrl: string;
+  private db: AgicashDb;
+  private userRepository: ReadUserRepository;
+  private minSendable: Money<'BTC'>;
+  private maxSendable: Money<'BTC'>;
+  private exchangeRateService: ExchangeRateService;
+  /**
+   * A client can flag that they will not validate the invoice amount.
+   * This is useful for agicash <-> agicash payments so that the receiver can receive into their default currency
+   * and we do not have to worry about exchange rate mismatches.
+   */
+  private bypassAmountValidation: boolean;
+
+  constructor(
+    request: Request,
+    db: AgicashDb,
+    options?: {
+      bypassAmountValidation?: boolean;
+    },
+  ) {
+    this.exchangeRateService = new ExchangeRateService();
+    this.db = db;
+    this.userRepository = new ReadUserRepository(db);
+    this.bypassAmountValidation = options?.bypassAmountValidation ?? false;
+    this.baseUrl = new URL(request.url).origin;
+    this.minSendable = new Money({
+      amount: 1,
+      currency: 'BTC',
+      unit: 'sat',
+    });
+    this.maxSendable = new Money({
+      amount: 1_000_000,
+      currency: 'BTC',
+      unit: 'sat',
+    });
+  }
+
+  /**
+   * Returns the LNURL-p params for the given username or
+   * returns an error if the user is not found.
+   */
+  async handleLud16Request(
+    username: string,
+  ): Promise<LNURLPayParams | LNURLError> {
+    try {
+      const user = await this.userRepository.getByUsername(username);
+
+      if (!user) {
+        return {
+          status: 'ERROR',
+          reason: 'not found',
+        };
+      }
+
+      const callback = `${this.baseUrl}/api/lnurlp/callback/${user.id}`;
+      const metadata = this.buildLnurlpMetadata(user.username);
+
+      return {
+        callback,
+        maxSendable: this.maxSendable.toNumber('msat'),
+        minSendable: this.minSendable.toNumber('msat'),
+        metadata,
+        tag: 'payRequest',
+      };
+    } catch (error) {
+      console.error('Error processing LNURL-pay request', { cause: error });
+      return {
+        status: 'ERROR',
+        reason: 'Internal server error',
+      };
+    }
+  }
+
+  /**
+   * Creates a new cashu receive quote for the given user and amount.
+   * @returns the bolt11 invoice from the receive quote and the verify callback url.
+   */
+  async handleLnurlpCallback(
+    userId: string,
+    amount: Money<'BTC'>,
+  ): Promise<LNURLPayResult | LNURLError> {
+    if (
+      amount.lessThan(this.minSendable) ||
+      amount.greaterThan(this.maxSendable)
+    ) {
+      return {
+        status: 'ERROR',
+        reason: `Amount out of range. Min: ${this.minSendable.toNumber('sat')} sats, Max: ${this.maxSendable.toNumber('sat').toLocaleString()} sats.`,
+      };
+    }
+
+    try {
+      const user = await this.userRepository.get(userId);
+
+      if (!user) {
+        return {
+          status: 'ERROR',
+          reason: 'not found',
+        };
+      }
+
+      const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
+        this.db,
+        getSparkWalletMnemonic,
+        '/tmp/.spark-data',
+        () => false,
+      );
+
+      // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.
+      // However, if bypassAmountValidation is enabled, we can use the user's default currency
+      // and perform exchange rate conversion to create an invoice in their preferred currency.
+      const account = await userDefaultAccountRepository.getDefaultAccount(
+        userId,
+        this.bypassAmountValidation ? undefined : 'BTC',
+      );
+
+      let amountToReceive = amount as Money;
+      if (amount.currency !== account.currency) {
+        const rate = await this.exchangeRateService.getRate(
+          `${amount.currency}-${account.currency}`,
+        );
+        amountToReceive = amount.convert(account.currency, rate) as Money;
+      }
+
+      if (account.type === 'cashu') {
+        // cashu does not support setting the description_hash of an invoice.
+        // Read more here: https://github.com/cashubtc/nuts/issues/110#issuecomment-2062898765
+        const lightningQuote = await getLightningQuote({
+          wallet: account.wallet,
+          amount: amountToReceive,
+          xPub: user.cashuLockingXpub,
+        });
+
+        const cashuReceiveQuoteService = new CashuReceiveQuoteServiceServer(
+          new CashuReceiveQuoteRepositoryServer(this.db),
+        );
+
+        await cashuReceiveQuoteService.createReceiveQuote({
+          userId,
+          userEncryptionPublicKey: user.encryptionPublicKey,
+          account,
+          receiveType: 'LIGHTNING',
+          lightningQuote,
+        });
+
+        const encryptedQuoteData = this.encryptLnurlVerifyQuoteData({
+          type: 'cashu',
+          quoteId: lightningQuote.mintQuote.quote,
+          mintUrl: account.mintUrl,
+        });
+
+        return {
+          pr: lightningQuote.mintQuote.request,
+          verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
+          routes: [],
+        };
+      }
+
+      const sparkReceiveQuoteService = new SparkReceiveQuoteServiceServer(
+        new SparkReceiveQuoteRepositoryServer(this.db),
+      );
+
+      const metadata = this.buildLnurlpMetadata(user.username);
+      const descriptionHash = bytesToHex(
+        sha256(new TextEncoder().encode(metadata)),
+      );
+
+      const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
+        wallet: account.wallet,
+        amount: amountToReceive,
+        receiverIdentityPubkey: user.sparkIdentityPublicKey,
+        descriptionHash,
+      });
+
+      await sparkReceiveQuoteService.createReceiveQuote({
+        userId,
+        userEncryptionPublicKey: user.encryptionPublicKey,
+        account,
+        lightningQuote,
+        receiveType: 'LIGHTNING',
+      });
+
+      const encryptedQuoteData = this.encryptLnurlVerifyQuoteData({
+        type: 'spark',
+        quoteId: lightningQuote.id,
+      });
+
+      return {
+        pr: lightningQuote.invoice.paymentRequest,
+        verify: `${this.baseUrl}/api/lnurlp/verify/${encryptedQuoteData}`,
+        routes: [],
+      };
+    } catch (error) {
+      console.error('Error processing LNURL-pay callback', { cause: error });
+      return {
+        status: 'ERROR',
+        reason: 'Internal server error',
+      };
+    }
+  }
+
+  /**
+   * Checks if an LNURL-pay request has been settled.
+   * @param encryptedQuoteData the encrypted data containing quote info
+   * @return the lnurl-verify result or error
+   */
+  async handleLnurlpVerify(
+    encryptedQuoteData: string,
+  ): Promise<LNURLVerifyResult | LNURLError> {
+    try {
+      const payload = this.decryptLnurlVerifyQuoteData(encryptedQuoteData);
+
+      if (payload.type === 'cashu') {
+        return await this.handleCashuLnurlpVerify(
+          payload.quoteId,
+          payload.mintUrl,
+        );
+      }
+      return await this.handleSparkLnurlpVerify(payload.quoteId);
+    } catch (error) {
+      console.error('Error processing LNURL-pay verify', { cause: error });
+      const errorMessage =
+        error instanceof NotFoundError ? 'Not found' : 'Internal server error';
+      return {
+        status: 'ERROR',
+        reason: errorMessage,
+      };
+    }
+  }
+
+  private async handleCashuLnurlpVerify(
+    mintQuoteId: string,
+    mintUrl: string,
+  ): Promise<LNURLVerifyResult> {
+    const wallet = getCashuWallet(mintUrl);
+    const mintQuote = await wallet.checkMintQuoteBolt11(mintQuoteId);
+
+    if (['PAID', 'ISSUED'].includes(mintQuote.state)) {
+      return {
+        status: 'OK',
+        settled: true,
+        preimage: '',
+        pr: mintQuote.request,
+      };
+    }
+
+    return {
+      status: 'OK',
+      settled: false,
+      preimage: null,
+      pr: mintQuote.request,
+    };
+  }
+
+  private async handleSparkLnurlpVerify(
+    receiveRequestId: string,
+  ): Promise<LNURLVerifyResult> {
+    const wallet = await getSparkWallet({
+      network: 'MAINNET',
+      mnemonic: sparkMnemonic,
+      storageDir: '/tmp/.spark-data',
+    });
+
+    const receiveRequest = await wallet.getLightningReceiveRequest({
+      requestId: receiveRequestId,
+    });
+
+    if (!receiveRequest) {
+      throw new NotFoundError(
+        `Spark lightning receive request ${receiveRequestId} not found`,
+      );
+    }
+
+    const settled = receiveRequest.status === 'transferCompleted';
+
+    return {
+      status: 'OK',
+      settled,
+      preimage: receiveRequest.paymentPreimage ?? null,
+      pr: receiveRequest.invoice,
+    };
+  }
+
+  private buildLnurlpMetadata(username: string): string {
+    const address = `${username}@${new URL(this.baseUrl).host}`;
+    return JSON.stringify([
+      ['text/plain', `Pay to ${address}`],
+      ['text/identifier', address],
+    ]);
+  }
+
+  private encryptLnurlVerifyQuoteData(payload: LnurlVerifyQuoteData): string {
+    const data = new TextEncoder().encode(JSON.stringify(payload));
+    const encrypted = encryptXChaCha20Poly1305(data, encryptionKeyBytes);
+    return base64url.encode(encrypted);
+  }
+
+  private decryptLnurlVerifyQuoteData(
+    encryptedQuoteData: string,
+  ): LnurlVerifyQuoteData {
+    const encrypted = base64url.decode(encryptedQuoteData);
+    const decrypted = decryptXChaCha20Poly1305(encrypted, encryptionKeyBytes);
+    return LnurlVerifyQuoteDataSchema.parse(
+      JSON.parse(new TextDecoder().decode(decrypted)),
+    );
+  }
+}

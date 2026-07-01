@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./temporary": "./src/temporary.ts",
-    "./temporary.server": "./src/temporary.server.ts"
+    ".": "./index.ts",
+    "./temporary": "./temporary.ts",
+    "./temporary.server": "./temporary.server.ts"
   },
   "scripts": {
     "typecheck": "tsc",
