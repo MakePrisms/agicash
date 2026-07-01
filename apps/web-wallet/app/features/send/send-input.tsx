@@ -1,5 +1,8 @@
 import { buildLightningAddressFormatValidator } from '@agicash/lnurl';
 import type { Money } from '@agicash/money';
+import type { Contact } from '@agicash/wallet-sdk';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
+import { DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   AtSign,
   Clipboard,
@@ -39,15 +42,13 @@ import { useMoneyInput } from '~/hooks/use-money-input';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
+import { getErrorMessage } from '~/lib/error';
 import { readClipboard } from '~/lib/read-clipboard';
 import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
 import { AddContactDrawer, ContactsList } from '../contacts';
-import type { Contact } from '../contacts/contact';
-import { getDefaultUnit } from '../shared/currencies';
-import { DomainError, getErrorMessage } from '../shared/error';
 import { useSendStore } from './send-provider';
 
 export function SendInput() {

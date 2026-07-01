@@ -5,6 +5,17 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
+import type {
+  CashuAccount,
+  CashuReceiveQuote,
+  TransactionPurpose,
+} from '@agicash/wallet-sdk';
+import type { AgicashDbCashuReceiveQuote } from '@agicash/wallet-sdk/temporary';
+import {
+  CashuReceiveQuoteRepository,
+  CashuReceiveQuoteService,
+  getInitializedCashuWallet,
+} from '@agicash/wallet-sdk/temporary';
 import {
   HttpResponseError,
   MintOperationError,
@@ -30,20 +41,17 @@ import {
 } from '~/lib/timeout';
 import { useLatest } from '~/lib/use-latest';
 import { withRetry } from '~/lib/with-retry';
-import type { CashuAccount } from '../accounts/account';
 import {
   useGetCashuAccount,
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbCashuReceiveQuote } from '../agicash-db/database';
-import { getInitializedCashuWallet } from '../shared/cashu';
-import type { TransactionPurpose } from '../transactions/transaction-enums';
+import { useAccountRepository } from '../accounts/account-repository-hooks';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { useCashuCryptography } from '../shared/cashu-hooks';
+import { useEncryption } from '../shared/encryption-hooks';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
-import { useCashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
-import { useCashuReceiveQuoteService } from './cashu-receive-quote-service';
 
 type CreateProps = {
   account: CashuAccount;
@@ -52,6 +60,26 @@ type CreateProps = {
   purpose?: TransactionPurpose;
   transferId?: string;
 };
+
+export function useCashuReceiveQuoteRepository() {
+  const encryption = useEncryption();
+  const accountRepository = useAccountRepository();
+  return new CashuReceiveQuoteRepository(
+    agicashDbClient,
+    encryption,
+    accountRepository,
+  );
+}
+
+export function useCashuReceiveQuoteService() {
+  const cryptography = useCashuCryptography();
+  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
+  return new CashuReceiveQuoteService(
+    cryptography,
+    cashuReceiveQuoteRepository,
+  );
+}
+
 class CashuReceiveQuoteCache {
   // Query that tracks the "active" cashu receive quote. Active one is the one that user created in current browser session.
   // We want to track active quote even after it is expired and completed which is why we can't use pending quotes query.

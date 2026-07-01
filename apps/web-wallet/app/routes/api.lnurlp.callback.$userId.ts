@@ -4,8 +4,9 @@
  */
 
 import { Money } from '@agicash/money';
+import { LightningAddressService } from '@agicash/wallet-sdk/temporary.server';
 import { agicashDbServer } from '~/features/agicash-db/database.server';
-import { LightningAddressService } from '~/features/receive/lightning-address-service';
+import { breezApiKey } from '~/lib/breez';
 import type { Route } from './+types/api.lnurlp.callback.$userId';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -38,6 +39,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const lightningAddressService = new LightningAddressService(
     request,
     agicashDbServer,
+    { storageDir: '/tmp/.spark-data', apiKey: breezApiKey },
     { bypassAmountValidation },
   );
 

@@ -3,13 +3,39 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*"
+    ".": "./index.ts",
+    "./temporary": "./temporary.ts",
+    "./temporary.server": "./temporary.server.ts"
   },
   "scripts": {
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agicash/bolt11": "workspace:*",
+    "@agicash/breez-sdk-spark": "0.13.5-1",
+    "@agicash/cashu": "workspace:*",
+    "@agicash/ecies": "workspace:*",
+    "@agicash/lnurl": "workspace:*",
+    "@agicash/money": "workspace:*",
+    "@agicash/opensecret": "catalog:",
+    "@agicash/utils": "workspace:*",
+    "@cashu/cashu-ts": "catalog:",
+    "@noble/hashes": "catalog:",
+    "@scure/base": "catalog:",
+    "@scure/bip32": "1.7.0",
+    "@scure/bip39": "1.6.0",
+    "@stablelib/base64": "catalog:",
+    "@supabase/supabase-js": "2.95.2",
+    "big.js": "catalog:",
+    "jwt-decode": "4.0.0",
+    "ky": "catalog:",
+    "type-fest": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/big.js": "catalog:",
+    "@types/bun": "catalog:",
     "typescript": "catalog:"
   }
 }

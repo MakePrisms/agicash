@@ -1,3 +1,8 @@
+import type { SendDestination } from '@agicash/wallet-sdk';
+import {
+  findMatchingOfferOrGiftCardAccount,
+  resolveSendDestination,
+} from '@agicash/wallet-sdk/temporary';
 import { Outlet, useSearchParams } from 'react-router';
 import {
   AccountsCache,
@@ -5,11 +10,6 @@ import {
 } from '~/features/accounts/account-hooks';
 import { GIFT_CARDS } from '~/features/gift-cards/use-discover-cards';
 import { SendProvider } from '~/features/send';
-import { findMatchingOfferOrGiftCardAccount } from '~/features/send/find-matching-offer-or-gift-card-account';
-import {
-  type SendDestination,
-  resolveSendDestination,
-} from '~/features/send/resolve-destination';
 import { getQueryClient } from '~/features/shared/query-client';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.send';

@@ -1,4 +1,7 @@
 import type { Money } from '@agicash/money';
+import type { CashuAccount, SparkAccount } from '@agicash/wallet-sdk';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
+import { getAccountHomePath } from '@agicash/wallet-sdk/temporary';
 import { AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';
 import {
@@ -15,14 +18,8 @@ import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import useUserAgent from '~/hooks/use-user-agent';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
-import {
-  type CashuAccount,
-  type SparkAccount,
-  getAccountHomePath,
-} from '../accounts/account';
 import { useTrackCashuReceiveQuote } from '../receive/cashu-receive-quote-hooks';
 import { useTrackSparkReceiveQuote } from '../receive/spark-receive-quote-hooks';
-import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import type { BuyQuote } from './buy-store';
 import { buildCashAppDeepLink } from './cash-app';

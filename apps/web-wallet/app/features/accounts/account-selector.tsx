@@ -9,9 +9,10 @@ import {
   DrawerTrigger,
 } from '~/components/ui/drawer';
 
+import type { Account } from '@agicash/wallet-sdk';
+import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import { cn } from '~/lib/utils';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import { type Account, getAccountBalance } from './account';
 import { AccountIcon } from './account-icons';
 import { BalanceOfflineHoverCard } from './balance-offline-hover-card';
 

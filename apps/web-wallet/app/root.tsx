@@ -1,4 +1,8 @@
 import breezWasmUrl from '@agicash/breez-sdk-spark/web/wasm?url';
+import {
+  NotFoundError,
+  WebAssemblyUnavailableError,
+} from '@agicash/wallet-sdk/temporary';
 import * as Sentry from '@sentry/react-router';
 import { HydrationBoundary, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -30,13 +34,11 @@ import { getBgColorForTheme } from '~/features/theme/colors';
 import { getThemeCookies } from '~/features/theme/theme-cookies.server';
 import { getThemeScript } from '~/features/theme/theme-script';
 import { getCanonicalOrigin } from '~/lib/canonical-origin.server';
-import { WebAssemblyUnavailableError } from '~/lib/spark';
 import { SupabaseRealtimeError } from '~/lib/supabase/supabase-realtime-hooks';
 import { transitionStyles, useViewTransitionEffect } from '~/lib/transitions';
 import stylesheet from '~/tailwind.css?url';
 import type { Route } from './+types/root';
 import { LoadingScreen } from './features/loading/LoadingScreen';
-import { NotFoundError } from './features/shared/error';
 import { getQueryClient } from './features/shared/query-client';
 import { useDehydratedState } from './hooks/use-dehydrated-state';
 import { sanitizeUrl } from './tracing-utils';

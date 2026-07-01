@@ -1,3 +1,9 @@
+import type { Transaction } from '@agicash/wallet-sdk';
+import type {
+  AgicashDbTransaction,
+  Cursor,
+} from '@agicash/wallet-sdk/temporary';
+import { NotFoundError } from '@agicash/wallet-sdk/temporary';
 import {
   type InfiniteData,
   type QueryClient,
@@ -8,18 +14,14 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import type { AgicashDbTransaction } from '~/features/agicash-db/database';
 import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
-import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
-import { useCashuSendSwapService } from '../send/cashu-send-swap-service';
-import { NotFoundError } from '../shared/error';
-import { useUser } from '../user/user-hooks';
-import type { Transaction } from './transaction';
 import {
-  type Cursor,
-  useTransactionRepository,
-} from './transaction-repository';
+  useCashuSendSwapRepository,
+  useCashuSendSwapService,
+} from '../send/cashu-send-swap-hooks';
+import { useUser } from '../user/user-hooks';
+import { useTransactionRepository } from './transaction-repository-hooks';
 
 /**
  * Cache that manages transaction data and acknowledgment counts.

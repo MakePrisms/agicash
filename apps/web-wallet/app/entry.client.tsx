@@ -1,4 +1,8 @@
 import { configure } from '@agicash/opensecret';
+import {
+  configureSparkLogging,
+  ensureBreezWasm,
+} from '@agicash/wallet-sdk/temporary';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -9,10 +13,12 @@ import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
-import { featureFlagsQueryOptions } from './features/shared/feature-flags';
+import {
+  featureFlagsQueryOptions,
+  getFeatureFlag,
+} from './features/shared/feature-flags';
 import { getQueryClient } from './features/shared/query-client';
 import { registerMoneyDevToolsFormatter } from './lib/money-devtools-formatter';
-import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
@@ -46,19 +52,17 @@ ensureBreezWasm().catch(() => {
   // Surfaced via _protected middleware → route ErrorBoundary.
 });
 
+// Route spark logging (the Breez trace sink and sparkDebugLog) through the live
+// feature-flag reader so it tracks the anon → user-targeted flag switch after
+// login. getFeatureFlag reads the query cache per call, falling back to
+// defaults until the prefetch below resolves.
+configureSparkLogging(getFeatureFlag);
+
 // Prefetch feature flags as early as possible.
 // Before login the DB client uses the anon key (no access token),
 // so we get global flags. After login, refreshSession invalidates
 // this query and re-fetches with the user's JWT for user-targeted flags.
-getQueryClient()
-  .prefetchQuery(featureFlagsQueryOptions)
-  .then(() => {
-    const flags = getQueryClient().getQueryData(
-      featureFlagsQueryOptions.queryKey,
-    );
-    (globalThis as Record<string, unknown>).__SPARK_SDK_DEBUG__ =
-      flags?.DEBUG_LOGGING_SPARK ?? false;
-  });
+getQueryClient().prefetchQuery(featureFlagsQueryOptions);
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {

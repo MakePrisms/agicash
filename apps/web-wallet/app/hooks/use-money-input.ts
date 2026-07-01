@@ -1,9 +1,9 @@
 import type { Currency } from '@agicash/money';
 import { Money } from '@agicash/money';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
+import type { Ticker } from '@agicash/wallet-sdk/temporary';
 import { useEffect, useState } from 'react';
 import type { NumpadButton } from '~/components/numpad';
-import { getDefaultUnit } from '~/features/shared/currencies';
-import type { Ticker } from '~/lib/exchange-rate';
 import { getLocaleDecimalSeparator } from '~/lib/locale';
 import { useExchangeRates } from './use-exchange-rate';
 

@@ -1,4 +1,22 @@
 import { type Currency, Money } from '@agicash/money';
+import type {
+  Account,
+  AccountPurpose,
+  AccountState,
+  AccountType,
+  CashuAccount,
+  ExtendedAccount,
+  SparkAccount,
+} from '@agicash/wallet-sdk';
+import type {
+  AccountRepository,
+  AgicashDbAccountWithProofs,
+} from '@agicash/wallet-sdk/temporary';
+import {
+  UserService,
+  getAccountBalance,
+  sparkDebugLog,
+} from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   type UseSuspenseQueryResult,
@@ -8,25 +26,9 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
-import type { AgicashDbAccountWithProofs } from '../agicash-db/database';
-import { sparkDebugLog } from '../shared/spark';
 import { useUser } from '../user/user-hooks';
-import { UserService } from '../user/user-service';
-import {
-  type Account,
-  type AccountPurpose,
-  type AccountState,
-  type AccountType,
-  type CashuAccount,
-  type ExtendedAccount,
-  type SparkAccount,
-  getAccountBalance,
-} from './account';
-import {
-  type AccountRepository,
-  useAccountRepository,
-} from './account-repository';
-import { useAccountService } from './account-service';
+import { useAccountRepository } from './account-repository-hooks';
+import { useAccountService } from './account-service-hooks';
 
 export class AccountsCache {
   public static Key = 'accounts';

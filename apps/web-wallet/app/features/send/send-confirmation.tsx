@@ -1,5 +1,15 @@
 import { decodeBolt11 } from '@agicash/bolt11';
 import type { Money } from '@agicash/money';
+import type {
+  CashuAccount,
+  CashuLightningQuote,
+  CashuSwapQuote,
+  DestinationDetails,
+  SparkAccount,
+  SparkLightningQuote,
+} from '@agicash/wallet-sdk';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
+import { DomainError, getAccountHomePath } from '@agicash/wallet-sdk/temporary';
 import { AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';
 import { PageFooter, PageHeaderTitle } from '~/components/page';
@@ -9,25 +19,14 @@ import { Page } from '~/components/page';
 import { PageContent } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
-import {
-  type CashuAccount,
-  type SparkAccount,
-  getAccountHomePath,
-} from '~/features/accounts/account';
-import type { CashuLightningQuote } from '~/features/send/cashu-send-quote-service';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { useNavigateWithViewTransition } from '~/lib/transitions';
-import { getDefaultUnit } from '../shared/currencies';
-import { DomainError } from '../shared/error';
-import type { DestinationDetails } from './cashu-send-quote';
 import { useInitiateCashuSendQuote } from './cashu-send-quote-hooks';
 import { useCreateCashuSendSwap } from './cashu-send-swap-hooks';
-import type { CashuSwapQuote } from './cashu-send-swap-service';
 import { useInitiateSparkSendQuote } from './spark-send-quote-hooks';
-import type { SparkLightningQuote } from './spark-send-quote-service';
 
 const ConfirmationRow = ({
   label,

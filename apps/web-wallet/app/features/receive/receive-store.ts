@@ -1,6 +1,6 @@
 import type { Currency, Money } from '@agicash/money';
+import type { Account } from '@agicash/wallet-sdk';
 import { create } from 'zustand';
-import type { Account } from '../accounts/account';
 
 export type ReceiveState<T extends Currency = Currency> = {
   /** The ID of the account to receive funds in */

@@ -3,14 +3,16 @@
  * defined by LUD 16: https://github.com/lnurl/luds/blob/luds/16.md
  */
 
+import { LightningAddressService } from '@agicash/wallet-sdk/temporary.server';
 import { agicashDbServer } from '~/features/agicash-db/database.server';
-import { LightningAddressService } from '~/features/receive/lightning-address-service';
+import { breezApiKey } from '~/lib/breez';
 import type { Route } from './+types/[.]well-known.lnurlp.$username';
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const lightningAddressService = new LightningAddressService(
     request,
     agicashDbServer,
+    { storageDir: '/tmp/.spark-data', apiKey: breezApiKey },
   );
 
   const response = await lightningAddressService.handleLud16Request(

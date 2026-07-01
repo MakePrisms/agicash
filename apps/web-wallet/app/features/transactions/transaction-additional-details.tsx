@@ -1,4 +1,10 @@
 import { proofToY } from '@agicash/cashu';
+import type {
+  CashuAccount,
+  CashuProof,
+  Transaction,
+} from '@agicash/wallet-sdk';
+import { toProof } from '@agicash/wallet-sdk/temporary';
 import { CheckStateEnum, type Proof } from '@cashu/cashu-ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -9,14 +15,11 @@ import {
   PageHeader,
   PageHeaderTitle,
 } from '~/components/page';
-import type { CashuAccount } from '../accounts/account';
 import { useAccountOrNull } from '../accounts/account-hooks';
-import { type CashuProof, toProof } from '../accounts/cashu-account';
-import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-repository';
-import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
-import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-repository';
-import { useCashuSendSwapRepository } from '../send/cashu-send-swap-repository';
-import type { Transaction } from './transaction';
+import { useCashuReceiveQuoteRepository } from '../receive/cashu-receive-quote-hooks';
+import { useCashuReceiveSwapRepository } from '../receive/cashu-receive-swap-hooks';
+import { useCashuSendQuoteRepository } from '../send/cashu-send-quote-hooks';
+import { useCashuSendSwapRepository } from '../send/cashu-send-swap-hooks';
 import { useTransaction } from './transaction-hooks';
 
 const augmentProofsWithState = (

@@ -1,26 +1,16 @@
+import type { FeatureFlag, FeatureFlags } from '@agicash/wallet-sdk';
+import {
+  FEATURE_FLAG_DEFAULTS,
+  FeatureFlagService,
+} from '@agicash/wallet-sdk/temporary';
 import * as Sentry from '@sentry/react-router';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { getQueryClient } from '~/features/shared/query-client';
 
-export type FeatureFlag = 'GUEST_SIGNUP' | 'DEBUG_LOGGING_SPARK';
-
-type FeatureFlags = Record<FeatureFlag, boolean>;
-
-const FEATURE_FLAG_DEFAULTS: FeatureFlags = {
-  GUEST_SIGNUP: false,
-  DEBUG_LOGGING_SPARK: false,
-};
+const featureFlagService = new FeatureFlagService(agicashDbClient);
 
 const MAX_RETRIES = 3;
-
-async function fetchFeatureFlags(): Promise<FeatureFlags> {
-  const { data, error } = await agicashDbClient.rpc('evaluate_feature_flags');
-  if (error) {
-    throw new Error('Failed to fetch feature flags', { cause: error });
-  }
-  return data as FeatureFlags;
-}
 
 export const featureFlagsQueryOptions = queryOptions({
   queryKey: ['feature-flags'],
@@ -28,7 +18,7 @@ export const featureFlagsQueryOptions = queryOptions({
     let lastError: unknown;
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        return await fetchFeatureFlags();
+        return await featureFlagService.fetchAll();
       } catch (error) {
         lastError = error;
         if (attempt < MAX_RETRIES) {
