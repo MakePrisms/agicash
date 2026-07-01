@@ -1,6 +1,6 @@
 import type { Currency } from '@agicash/money';
 import type { GiftCardInfo } from '@agicash/wallet-sdk';
-import { shouldAcceptGiftCardMintTerms } from '@agicash/wallet-sdk/temporary';
+import { shouldAcceptGiftCardMintTerms } from '@agicash/wallet-sdk';
 import { useState } from 'react';
 import {
   Link,

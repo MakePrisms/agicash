@@ -7,6 +7,7 @@ import {
   CashuReceiveQuoteService,
   CashuReceiveSwapRepository,
   CashuReceiveSwapService,
+  ClaimCashuTokenService,
   ReceiveCashuTokenQuoteService,
   ReceiveCashuTokenService,
   SparkReceiveQuoteRepository,
@@ -31,7 +32,6 @@ import {
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
-import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
 import { isLoggedIn } from '~/features/shared/auth';
 import {

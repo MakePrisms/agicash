@@ -1,28 +1,22 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
-import type {
-  Account,
-  CashuAccount,
-  CashuReceiveSwap,
-  CrossAccountReceiveQuotesResult,
-  SparkAccount,
-  SparkReceiveQuote,
-  User,
-} from '@agicash/wallet-sdk';
-import type {
-  AccountService,
-  CashuReceiveQuoteService,
-  CashuReceiveSwapService,
-  ReceiveCashuTokenQuoteService,
-  SparkReceiveQuoteService,
-  Ticker,
-} from '@agicash/wallet-sdk/temporary';
-import {
-  DomainError,
-  ReceiveCashuTokenService,
-  UserService,
-  isClaimingToSameCashuAccount,
-} from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
+import { DomainError } from '../../lib/error';
+import type { Ticker } from '../../lib/exchange-rate';
+import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
+import type { AccountService } from '../accounts/account-service';
+import type { User } from '../user/user';
+import { UserService } from '../user/user-service';
+import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
+import type { CashuReceiveSwap } from './cashu-receive-swap';
+import type { CashuReceiveSwapService } from './cashu-receive-swap-service';
+import { isClaimingToSameCashuAccount } from './receive-cashu-token-models';
+import type {
+  CrossAccountReceiveQuotesResult,
+  ReceiveCashuTokenQuoteService,
+} from './receive-cashu-token-quote-service';
+import { ReceiveCashuTokenService } from './receive-cashu-token-service';
+import type { SparkReceiveQuote } from './spark-receive-quote';
+import type { SparkReceiveQuoteService } from './spark-receive-quote-service';
 
 type ClaimTokenResult =
   | {
@@ -34,7 +28,6 @@ type ClaimTokenResult =
     }
   | { success: false; message: string; error?: unknown };
 
-// Deferred from wallet-sdk extraction — see docs/superpowers/plans/2026-06-25-wallet-sdk-domain-extraction.md
 export class ClaimCashuTokenService {
   constructor(
     private readonly accountService: AccountService,

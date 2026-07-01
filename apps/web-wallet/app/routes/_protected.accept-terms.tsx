@@ -1,4 +1,4 @@
-import { shouldAcceptTerms } from '@agicash/wallet-sdk/temporary';
+import { shouldAcceptTerms } from '@agicash/wallet-sdk';
 import { useState } from 'react';
 import { redirect, useNavigate } from 'react-router';
 import { Page, PageContent } from '~/components/page';

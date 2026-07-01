@@ -25,6 +25,11 @@ export type {
   User,
   UserProfile,
 } from './domain/user/user';
+export {
+  shouldAcceptGiftCardMintTerms,
+  shouldAcceptTerms,
+  shouldVerifyEmail,
+} from './domain/user/user';
 export type { Contact } from './domain/contacts/contact';
 export type {
   TransactionDirection,

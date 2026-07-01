@@ -1,4 +1,5 @@
 import type { User } from '@agicash/wallet-sdk';
+import { shouldAcceptTerms } from '@agicash/wallet-sdk';
 import {
   AccountRepository,
   BASE_CASHU_LOCKING_DERIVATION_PATH,
@@ -6,7 +7,6 @@ import {
   seedQueryOptions as cashuSeedQueryOptions,
   ensureBreezWasm,
   getEncryption,
-  shouldAcceptTerms,
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
   xpubQueryOptions,

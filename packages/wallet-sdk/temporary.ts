@@ -112,11 +112,6 @@ export { CashuProofSchema, toProof } from './domain/accounts/cashu-account';
 export { AccountRepository } from './domain/accounts/account-repository';
 export { AccountService } from './domain/accounts/account-service';
 export {
-  shouldAcceptGiftCardMintTerms,
-  shouldAcceptTerms,
-  shouldVerifyEmail,
-} from './domain/user/user';
-export {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,
   WriteUserRepository,
@@ -191,6 +186,7 @@ export { CashuReceiveSwapRepository } from './domain/receive/cashu-receive-swap-
 export { CashuReceiveSwapService } from './domain/receive/cashu-receive-swap-service';
 export { isClaimingToSameCashuAccount } from './domain/receive/receive-cashu-token-models';
 export { ReceiveCashuTokenQuoteService } from './domain/receive/receive-cashu-token-quote-service';
+export { ClaimCashuTokenService } from './domain/receive/claim-cashu-token-service';
 export { ReceiveCashuTokenService } from './domain/receive/receive-cashu-token-service';
 export { CashuSendQuoteSchema } from './domain/send/cashu-send-quote';
 export { CashuSendQuoteRepository } from './domain/send/cashu-send-quote-repository';

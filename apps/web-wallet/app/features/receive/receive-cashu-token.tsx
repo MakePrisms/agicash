@@ -4,11 +4,11 @@ import type {
   CashuAccountWithTokenFlags,
   ReceiveCashuTokenAccount,
 } from '@agicash/wallet-sdk';
+import { shouldAcceptGiftCardMintTerms } from '@agicash/wallet-sdk';
 import {
   accountRequiresGiftCardTermsAcceptance,
   getAccountHomePath,
   isClaimingToSameCashuAccount,
-  shouldAcceptGiftCardMintTerms,
   tokenToMoney,
 } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';

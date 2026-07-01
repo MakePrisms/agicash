@@ -1,6 +1,6 @@
 import { verifyEmail as osVerifyEmail } from '@agicash/opensecret';
 import type { FullUser } from '@agicash/wallet-sdk';
-import { shouldVerifyEmail } from '@agicash/wallet-sdk/temporary';
+import { shouldVerifyEmail } from '@agicash/wallet-sdk';
 import { useState } from 'react';
 import { createContext, redirect } from 'react-router';
 import { useToast } from '~/hooks/use-toast';
