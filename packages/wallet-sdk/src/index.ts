@@ -71,6 +71,7 @@ export type {
   GiftCardConfig,
   GiftCardInfo,
 } from './gift-cards/gift-card-config';
+export { GiftCardConfigSchema } from './gift-cards/gift-card-config';
 export type { CashuSendQuote } from './send/cashu-send-quote';
 export type {
   GetCashuLightningQuoteOptions,

@@ -1,7 +1,7 @@
 import type { GiftCardInfo } from '@agicash/wallet-sdk';
-import { JsonGiftCardConfigSchema } from '@agicash/wallet-sdk/temporary';
 import { useMemo } from 'react';
 import { useAccounts } from '../accounts/account-hooks';
+import { JsonGiftCardConfigSchema } from './gift-card-config';
 import {
   getGiftCardImageByUrl,
   getGiftCardOgImageByUrl,

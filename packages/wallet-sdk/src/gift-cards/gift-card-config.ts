@@ -17,14 +17,6 @@ export const GiftCardConfigSchema = z.array(
   }),
 );
 
-export const JsonGiftCardConfigSchema = z.pipe(
-  z.pipe(
-    z.string(),
-    z.transform((str) => JSON.parse(str)),
-  ),
-  GiftCardConfigSchema,
-);
-
 export type GiftCardConfig = z.infer<typeof GiftCardConfigSchema>[number];
 
 export type GiftCardInfo = GiftCardConfig & {

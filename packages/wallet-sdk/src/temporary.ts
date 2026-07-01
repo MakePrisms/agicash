@@ -194,10 +194,6 @@ export { CashuReceiveSwapService } from './receive/cashu-receive-swap-service';
 export { isClaimingToSameCashuAccount } from './receive/receive-cashu-token-models';
 export { ReceiveCashuTokenQuoteService } from './receive/receive-cashu-token-quote-service';
 export { ReceiveCashuTokenService } from './receive/receive-cashu-token-service';
-export {
-  GiftCardConfigSchema,
-  JsonGiftCardConfigSchema,
-} from './gift-cards/gift-card-config';
 export { CashuSendQuoteSchema } from './send/cashu-send-quote';
 export { CashuSendQuoteRepository } from './send/cashu-send-quote-repository';
 export { CashuSendQuoteService } from './send/cashu-send-quote-service';

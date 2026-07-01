@@ -5,8 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./temporary": "./src/temporary.ts",
-    "./temporary.server": "./src/temporary.server.ts",
-    "./gift-cards/gift-card-config": "./src/gift-cards/gift-card-config.ts"
+    "./temporary.server": "./src/temporary.server.ts"
   },
   "scripts": {
     "typecheck": "tsc",
