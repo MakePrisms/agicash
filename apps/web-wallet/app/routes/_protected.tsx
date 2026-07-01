@@ -14,7 +14,6 @@ import { AccountsCache } from '~/features/accounts/account-hooks';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
-import { isLoggedIn as isUserLoggedIn } from '~/features/shared/auth';
 import {
   seedQueryOptions as cashuSeedQueryOptions,
   xpubQueryOptions,
@@ -121,7 +120,6 @@ const ensureUserData = async (
       getCashuWalletSeed,
       getSparkWalletMnemonic,
       { storageDir: './.spark-data', apiKey: breezApiKey },
-      isUserLoggedIn,
     );
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,

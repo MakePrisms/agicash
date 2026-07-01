@@ -167,7 +167,6 @@ export class LightningAddressService {
         this.db,
         getSparkWalletMnemonic,
         this.sparkConfig,
-        () => false,
       );
 
       // For external lightning address requests, we only support BTC to avoid exchange rate mismatches.

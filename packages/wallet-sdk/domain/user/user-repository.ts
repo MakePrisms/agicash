@@ -206,7 +206,6 @@ export class ReadUserDefaultAccountRepository {
     private readonly db: AgicashDb,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
     private readonly sparkConfig: SparkWalletConfig,
-    private readonly isLoggedIn: () => boolean,
   ) {}
 
   /**
@@ -268,7 +267,7 @@ export class ReadUserDefaultAccountRepository {
       const { wallet, isOnline } = await getInitializedCashuWallet({
         mintUrl: details.mint_url,
         currency: data.currency,
-        authProvider: getMintAuthProvider(data.purpose, this.isLoggedIn),
+        authProvider: getMintAuthProvider(data.purpose),
       });
 
       return {

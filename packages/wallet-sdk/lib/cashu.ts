@@ -114,12 +114,9 @@ export const cashuMintValidator = buildMintValidator({
   blocklist: mintBlocklist,
 });
 
-export function getMintAuthProvider(
-  purpose: MintPurpose | undefined,
-  isLoggedIn: () => boolean,
-) {
+export function getMintAuthProvider(purpose: MintPurpose | undefined) {
   return purpose === 'gift-card' || purpose === 'offer'
-    ? getAgicashMintAuthProvider(isLoggedIn)
+    ? getAgicashMintAuthProvider()
     : undefined;
 }
 

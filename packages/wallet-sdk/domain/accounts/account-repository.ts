@@ -51,7 +51,6 @@ export class AccountRepository {
     private readonly getCashuWalletSeed: () => Promise<Uint8Array>,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
     private readonly sparkConfig: SparkWalletConfig,
-    private readonly isLoggedIn: () => boolean,
   ) {}
 
   /**
@@ -234,7 +233,7 @@ export class AccountRepository {
       mintUrl,
       currency,
       bip39seed: seed ?? undefined,
-      authProvider: getMintAuthProvider(purpose, this.isLoggedIn),
+      authProvider: getMintAuthProvider(purpose),
     });
   }
 

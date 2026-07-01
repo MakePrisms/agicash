@@ -49,11 +49,9 @@ async function ensureCAT(): Promise<string> {
 /**
  * Returns a cashu-ts AuthProvider for NUT-21 Clear Auth on agicash gift card
  * mints. The token is cached in a module-level memo and refreshed automatically
- * 5 seconds before expiry. Returns `undefined` (no auth) when not logged in.
+ * 5 seconds before expiry.
  */
-export function getAgicashMintAuthProvider(
-  isLoggedIn: () => boolean,
-): AuthProvider {
+export function getAgicashMintAuthProvider(): AuthProvider {
   return {
     getCAT: () => {
       throw new Error('Not implemented: use ensureCAT');
@@ -61,12 +59,7 @@ export function getAgicashMintAuthProvider(
     setCAT: () => {
       throw new Error('Not implemented: use ensureCAT');
     },
-    ensureCAT: async () => {
-      if (!isLoggedIn()) {
-        return undefined;
-      }
-      return ensureCAT();
-    },
+    ensureCAT: () => ensureCAT(),
     getBlindAuthToken: async () => {
       throw new Error('Blind auth is not supported');
     },

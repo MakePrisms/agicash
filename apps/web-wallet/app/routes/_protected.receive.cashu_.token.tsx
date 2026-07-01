@@ -30,7 +30,6 @@ import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
-import { isLoggedIn } from '~/features/shared/auth';
 import {
   getCashuCryptography,
   seedQueryOptions,
@@ -64,7 +63,6 @@ const getServices = async () => {
     getCashuWalletSeed,
     getSparkWalletMnemonic,
     { storageDir: './.spark-data', apiKey: breezApiKey },
-    isLoggedIn,
   );
   const accountService = new AccountService(accountRepository);
   const receiveSwapRepository = new CashuReceiveSwapRepository(
