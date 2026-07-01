@@ -17,7 +17,10 @@ import {
   getMintAuthProvider,
 } from '../../lib/cashu';
 import { UniqueConstraintError } from '../../lib/error';
-import { getInitializedSparkWallet } from '../../lib/spark/wallet';
+import {
+  type SparkWalletConfig,
+  getInitializedSparkWallet,
+} from '../../lib/spark/wallet';
 import type { Account, RedactedAccount } from '../accounts/account';
 import type { AccountRepository } from '../accounts/account-repository';
 import type { User } from './user';
@@ -202,7 +205,7 @@ export class ReadUserDefaultAccountRepository {
   constructor(
     private readonly db: AgicashDb,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
-    private readonly sparkStorageDir: string,
+    private readonly sparkConfig: SparkWalletConfig,
     private readonly isLoggedIn: () => boolean,
   ) {}
 
@@ -298,7 +301,7 @@ export class ReadUserDefaultAccountRepository {
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(mnemonic, network, this.sparkStorageDir);
+    return getInitializedSparkWallet(mnemonic, network, this.sparkConfig);
   }
 }
 

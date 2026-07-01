@@ -42,6 +42,7 @@ import { getQueryClient } from '~/features/shared/query-client';
 import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import { toast } from '~/hooks/use-toast';
+import { breezApiKey } from '~/lib/breez';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
@@ -60,7 +61,7 @@ const getServices = async () => {
     encryption,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
-    './.spark-data',
+    { storageDir: './.spark-data', apiKey: breezApiKey },
     isLoggedIn,
   );
   const accountService = new AccountService(accountRepository);

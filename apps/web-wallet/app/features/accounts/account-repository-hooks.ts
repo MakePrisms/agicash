@@ -7,6 +7,7 @@ import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { isLoggedIn } from '~/features/shared/auth';
 import { useCashuCryptography } from '~/features/shared/cashu-hooks';
 import { useEncryption } from '~/features/shared/encryption-hooks';
+import { breezApiKey } from '~/lib/breez';
 
 export function useAccountRepository() {
   const encryption = useEncryption();
@@ -19,7 +20,7 @@ export function useAccountRepository() {
     encryption,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
-    './.spark-data',
+    { storageDir: './.spark-data', apiKey: breezApiKey },
     isLoggedIn,
   );
 }

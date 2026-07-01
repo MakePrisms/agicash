@@ -76,14 +76,6 @@ export {
   isCashuAccount,
   isSparkAccount,
 } from './db/database';
-export {
-  clearSparkWallets,
-  getInitializedSparkWallet,
-  getSparkWallet,
-  sparkDebugLog,
-  sparkIdentityPublicKeyQueryOptions,
-  sparkMnemonicQueryOptions,
-} from './lib/spark/wallet';
 export { clearAgicashMintAuthToken } from './lib/agicash-mint-auth-provider';
 export { AccountDetailsDbDataSchema } from './db/json-models/account-details-db-data';
 export { CashuAccountDetailsDbDataSchema } from './db/json-models/cashu-account-details-db-data';

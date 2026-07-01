@@ -2,22 +2,52 @@ import {
   type BreezSdk,
   connect,
   defaultConfig,
+  defaultExternalSigner,
   initLogging,
 } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
 import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import { computeSHA256, queryOptions } from '@agicash/utils';
+import { bytesToHex } from '@noble/hashes/utils';
 import type { QueryClient } from '@tanstack/query-core';
-import {
-  createSparkWalletStub,
-  getSparkIdentityPublicKeyFromMnemonic,
-} from '.';
 import type { SparkNetwork } from '../../db/json-models/spark-account-details-db-data';
 import { getSeedPhraseDerivationPath } from '../cryptography';
 
-const apiKey = import.meta.env.VITE_BREEZ_API_KEY;
-if (!apiKey) {
-  throw new Error('VITE_BREEZ_API_KEY is not set');
+/** Host-provided Spark/Breez configuration. */
+export type SparkWalletConfig = {
+  /** Local directory where Breez persists wallet state. */
+  storageDir: string;
+  /** Breez SDK API key. */
+  apiKey: string;
+};
+
+/**
+ * Gets the Spark identity public key from a mnemonic using the Breez SDK signer.
+ * @param mnemonic - BIP39 mnemonic phrase.
+ * @param network - The Breez SDK network ('mainnet' or 'regtest').
+ * @returns Hex-encoded compressed public key.
+ */
+export function getSparkIdentityPublicKeyFromMnemonic(
+  mnemonic: string,
+  network: 'mainnet' | 'regtest',
+): string {
+  const signer = defaultExternalSigner(mnemonic, null, network);
+  const publicKey = signer.identityPublicKey();
+  return bytesToHex(new Uint8Array(publicKey.bytes));
+}
+
+export function createSparkWalletStub(reason: string): BreezSdk {
+  return new Proxy({} as BreezSdk, {
+    get(_target, prop) {
+      if (typeof prop === 'string') {
+        return () => {
+          console.error(`Cannot call ${prop} on Spark wallet stub`);
+          throw new Error(reason);
+        };
+      }
+      return undefined;
+    },
+  });
 }
 
 export function sparkDebugLog(
@@ -102,10 +132,12 @@ export function getSparkWallet({
   network,
   mnemonic,
   storageDir,
+  apiKey,
 }: {
   network: SparkNetwork;
   mnemonic: string;
   storageDir: string;
+  apiKey: string;
 }): Promise<BreezSdk> {
   const key = `${computeSHA256(mnemonic)}:${network}:${storageDir}`;
   const existing = sparkWalletPromises.get(key);
@@ -152,14 +184,19 @@ export function clearSparkWallets(): void {
 export async function getInitializedSparkWallet(
   mnemonic: string,
   network: SparkNetwork,
-  storageDir: string,
+  config: SparkWalletConfig,
 ): Promise<{
   wallet: BreezSdk;
   balance: Money | null;
   isOnline: boolean;
 }> {
   try {
-    const wallet = await getSparkWallet({ network, mnemonic, storageDir });
+    const wallet = await getSparkWallet({
+      network,
+      mnemonic,
+      storageDir: config.storageDir,
+      apiKey: config.apiKey,
+    });
     const info = await wallet.getInfo({});
 
     const balance = new Money({

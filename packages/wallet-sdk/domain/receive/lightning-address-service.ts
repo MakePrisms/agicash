@@ -17,7 +17,7 @@ import { z } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import { NotFoundError } from '../../lib/error';
 import { ExchangeRateService } from '../../lib/exchange-rate';
-import { getSparkWallet } from '../../lib/spark/wallet';
+import { type SparkWalletConfig, getSparkWallet } from '../../lib/spark/wallet';
 import {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,
@@ -71,10 +71,12 @@ export class LightningAddressService {
    * and we do not have to worry about exchange rate mismatches.
    */
   private bypassAmountValidation: boolean;
+  private sparkConfig: SparkWalletConfig;
 
   constructor(
     request: Request,
     db: AgicashDb,
+    sparkConfig: SparkWalletConfig,
     options?: {
       bypassAmountValidation?: boolean;
     },
@@ -82,6 +84,7 @@ export class LightningAddressService {
     this.exchangeRateService = new ExchangeRateService();
     this.db = db;
     this.userRepository = new ReadUserRepository(db);
+    this.sparkConfig = sparkConfig;
     this.bypassAmountValidation = options?.bypassAmountValidation ?? false;
     this.baseUrl = new URL(request.url).origin;
     this.minSendable = new Money({
@@ -163,7 +166,7 @@ export class LightningAddressService {
       const userDefaultAccountRepository = new ReadUserDefaultAccountRepository(
         this.db,
         getSparkWalletMnemonic,
-        '/tmp/.spark-data',
+        this.sparkConfig,
         () => false,
       );
 
@@ -319,7 +322,8 @@ export class LightningAddressService {
     const wallet = await getSparkWallet({
       network: 'MAINNET',
       mnemonic: sparkMnemonic,
-      storageDir: '/tmp/.spark-data',
+      storageDir: this.sparkConfig.storageDir,
+      apiKey: this.sparkConfig.apiKey,
     });
 
     const receiveRequest = await wallet.getLightningReceiveRequest({

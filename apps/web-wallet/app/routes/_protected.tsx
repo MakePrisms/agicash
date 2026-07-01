@@ -40,6 +40,7 @@ import {
   getUserFromCache,
 } from '~/features/user/user-hooks';
 import { Wallet } from '~/features/wallet/wallet';
+import { breezApiKey } from '~/lib/breez';
 import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
 
@@ -115,7 +116,7 @@ const ensureUserData = async (
       encryption,
       getCashuWalletSeed,
       getSparkWalletMnemonic,
-      './.spark-data',
+      { storageDir: './.spark-data', apiKey: breezApiKey },
       isUserLoggedIn,
     );
     const writeUserRepository = new WriteUserRepository(

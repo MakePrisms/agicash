@@ -19,7 +19,10 @@ import {
 } from '../../lib/cashu';
 import type { Encryption } from '../../lib/encryption';
 import { DomainError } from '../../lib/error';
-import { getInitializedSparkWallet } from '../../lib/spark/wallet';
+import {
+  type SparkWalletConfig,
+  getInitializedSparkWallet,
+} from '../../lib/spark/wallet';
 import type { Account, AccountPurpose, CashuAccount } from './account';
 import type { CashuProof } from './cashu-account';
 
@@ -47,7 +50,7 @@ export class AccountRepository {
     private readonly encryption: Encryption,
     private readonly getCashuWalletSeed: () => Promise<Uint8Array>,
     private readonly getSparkWalletMnemonic: () => Promise<string>,
-    private readonly sparkStorageDir: string,
+    private readonly sparkConfig: SparkWalletConfig,
     private readonly isLoggedIn: () => boolean,
   ) {}
 
@@ -237,7 +240,7 @@ export class AccountRepository {
 
   private async getInitializedSparkWallet(network: SparkNetwork) {
     const mnemonic = await this.getSparkWalletMnemonic();
-    return getInitializedSparkWallet(mnemonic, network, this.sparkStorageDir);
+    return getInitializedSparkWallet(mnemonic, network, this.sparkConfig);
   }
 
   private async decryptCashuProofs(

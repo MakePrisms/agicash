@@ -1,3 +1,3 @@
 export * from './errors';
-export * from './utils';
+export * from './wallet';
 export * from './wasm';
