@@ -4,8 +4,8 @@ on:
   pull_request:
 
 env:
-  SELF_SIGNED_CERT_PATH: "../certs/ci-localhost-cert.pem"
-  SELF_SIGNED_CERT_KEY_PATH: "../certs/ci-localhost-key.pem"
+  SELF_SIGNED_CERT_PATH: "../../../certs/ci-localhost-cert.pem"
+  SELF_SIGNED_CERT_KEY_PATH: "../../../certs/ci-localhost-key.pem"
 
 jobs:
   code-checks:
