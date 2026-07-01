@@ -7,9 +7,8 @@ import {
 } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
 import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
-import { computeSHA256, queryOptions } from '@agicash/utils';
+import { computeSHA256 } from '@agicash/utils';
 import { bytesToHex } from '@noble/hashes/utils';
-import type { QueryClient } from '@tanstack/query-core';
 import type { SparkNetwork } from '../../db/json-models/spark-account-details-db-data';
 import { getSeedPhraseDerivationPath } from '../cryptography';
 
@@ -87,37 +86,16 @@ function tryInitLogging() {
 
 const seedDerivationPath = getSeedPhraseDerivationPath('spark', 12);
 
-export const sparkMnemonicQueryOptions = () =>
-  queryOptions({
-    queryKey: ['spark-mnemonic'],
-    queryFn: async () => {
-      const response = await getMnemonic({
-        seed_phrase_derivation_path: seedDerivationPath,
-      });
-      return response.mnemonic;
-    },
-    staleTime: Number.POSITIVE_INFINITY,
+/**
+ * Reads the Spark BIP39 mnemonic from Open Secret.
+ * Network leaf: the caller memoizes (the web wraps this in its TanStack cache).
+ */
+export const getSparkMnemonic = async (): Promise<string> => {
+  const response = await getMnemonic({
+    seed_phrase_derivation_path: seedDerivationPath,
   });
-
-export const sparkIdentityPublicKeyQueryOptions = ({
-  queryClient,
-  network,
-}: {
-  queryClient: QueryClient;
-  network: SparkNetwork;
-}) =>
-  queryOptions({
-    queryKey: ['spark-identity-public-key'],
-    queryFn: async () => {
-      const mnemonic = await queryClient.fetchQuery(
-        sparkMnemonicQueryOptions(),
-      );
-      return getSparkIdentityPublicKeyFromMnemonic(
-        mnemonic,
-        network.toLowerCase() as 'mainnet' | 'regtest',
-      );
-    },
-  });
+  return response.mnemonic;
+};
 
 const sparkWalletPromises = new Map<string, Promise<BreezSdk>>();
 

@@ -27,7 +27,6 @@
     "@scure/bip39": "1.6.0",
     "@stablelib/base64": "catalog:",
     "@supabase/supabase-js": "2.95.2",
-    "@tanstack/query-core": "5.90.20",
     "big.js": "catalog:",
     "jwt-decode": "4.0.0",
     "ky": "catalog:",

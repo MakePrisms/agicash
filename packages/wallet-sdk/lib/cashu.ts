@@ -17,7 +17,6 @@ import {
   getPrivateKeyBytes,
 } from '@agicash/opensecret';
 import { computeSHA256 } from '@agicash/utils';
-import { queryOptions } from '@agicash/utils';
 import {
   type AuthProvider,
   type GetKeysResponse,
@@ -28,9 +27,7 @@ import {
   type Token,
   getDecodedToken,
 } from '@cashu/cashu-ts';
-import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
-import type { QueryClient } from '@tanstack/query-core';
 import { getAgicashMintAuthProvider } from './agicash-mint-auth-provider';
 import { getSeedPhraseDerivationPath } from './cryptography';
 
@@ -75,68 +72,30 @@ export type CashuCryptography = {
 
 const seedDerivationPath = getSeedPhraseDerivationPath('cashu', 12);
 
-export const seedQueryOptions = () =>
-  queryOptions({
-    queryKey: ['cashu-seed'],
-    queryFn: async () => {
-      const response = await getMnemonic({
-        seed_phrase_derivation_path: seedDerivationPath,
-      });
-      return mnemonicToSeedSync(response.mnemonic);
-    },
-    staleTime: Number.POSITIVE_INFINITY,
+/**
+ * Reads the Cashu BIP39 mnemonic from Open Secret and derives the master seed.
+ * Network leaf: the caller memoizes (the web wraps this in its TanStack cache).
+ */
+export const getCashuSeed = async (): Promise<Uint8Array> => {
+  const response = await getMnemonic({
+    seed_phrase_derivation_path: seedDerivationPath,
   });
-
-export const xpubQueryOptions = ({
-  queryClient,
-  derivationPath,
-}: { queryClient: QueryClient; derivationPath?: string }) =>
-  queryOptions({
-    queryKey: ['cashu-xpub', derivationPath],
-    queryFn: async () => {
-      const seed = await queryClient.fetchQuery(seedQueryOptions());
-      const hdKey = HDKey.fromMasterSeed(seed);
-
-      if (derivationPath) {
-        const childKey = hdKey.derive(derivationPath);
-        return childKey.publicExtendedKey;
-      }
-
-      return hdKey.publicExtendedKey;
-    },
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-
-const privateKeyQueryOptions = ({
-  derivationPath,
-}: { derivationPath?: string } = {}) =>
-  queryOptions({
-    queryKey: ['cashu-private-key', derivationPath],
-    queryFn: async () => {
-      const response = await getPrivateKeyBytes({
-        seed_phrase_derivation_path: seedDerivationPath,
-        private_key_derivation_path: derivationPath,
-      });
-      return response.private_key;
-    },
-    staleTime: Number.POSITIVE_INFINITY,
-  });
+  return mnemonicToSeedSync(response.mnemonic);
+};
 
 /**
- * Gets Cashu cryptography functions.
- * @returns The Cashu cryptography functions.
+ * Reads a Cashu private key from Open Secret for the given derivation path.
+ * Network leaf: the caller memoizes.
  */
-export function getCashuCryptography(
-  queryClient: QueryClient,
-): CashuCryptography {
-  return {
-    getSeed: () => queryClient.fetchQuery(seedQueryOptions()),
-    getXpub: (derivationPath?: string) =>
-      queryClient.fetchQuery(xpubQueryOptions({ queryClient, derivationPath })),
-    getPrivateKey: (derivationPath?: string) =>
-      queryClient.fetchQuery(privateKeyQueryOptions({ derivationPath })),
-  };
-}
+export const getCashuPrivateKey = async (
+  derivationPath?: string,
+): Promise<string> => {
+  const response = await getPrivateKeyBytes({
+    seed_phrase_derivation_path: seedDerivationPath,
+    private_key_derivation_path: derivationPath,
+  });
+  return response.private_key;
+};
 
 export function getTokenHash(token: Token | string): Promise<string> {
   if (typeof token === 'string') {
@@ -164,38 +123,21 @@ export function getMintAuthProvider(
     : undefined;
 }
 
-export const mintInfoQueryKey = (mintUrl: string) => ['mint-info', mintUrl];
-export const allMintKeysetsQueryKey = (mintUrl: string) => [
-  'all-mint-keysets',
-  mintUrl,
-];
-
 /**
- * Get the mint info.
- *
+ * Fetches a mint's info (NUT-06). Network leaf: the caller memoizes.
  * @param mintUrl
  * @returns The mint info.
  */
-export const mintInfoQueryOptions = (mintUrl: string) =>
-  queryOptions({
-    queryKey: mintInfoQueryKey(mintUrl),
-    queryFn: async () =>
-      new ExtendedMintInfo(await new Mint(mintUrl).getInfo()),
-    staleTime: 1000 * 60 * 60, // 1 hour
-  });
+export const getMintInfo = async (mintUrl: string): Promise<ExtendedMintInfo> =>
+  new ExtendedMintInfo(await new Mint(mintUrl).getInfo());
 
 /**
- * Get the mints keysets in no specific order.
- *
+ * Fetches all of a mint's keysets in no specific order. Network leaf: the caller memoizes.
  * @param mintUrl
- * @returns All the mints past and current keysets.
+ * @returns All the mint's past and current keysets.
  */
-export const allMintKeysetsQueryOptions = (mintUrl: string) =>
-  queryOptions({
-    queryKey: allMintKeysetsQueryKey(mintUrl),
-    queryFn: async () => new Mint(mintUrl).getKeySets(),
-    staleTime: 1000 * 60 * 60, // 1 hour
-  });
+export const getAllMintKeysets = (mintUrl: string) =>
+  new Mint(mintUrl).getKeySets();
 
 /**
  * Extract and decode a cashu token from arbitrary content.

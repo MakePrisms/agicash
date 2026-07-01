@@ -4,12 +4,8 @@ import {
   AccountRepository,
   BASE_CASHU_LOCKING_DERIVATION_PATH,
   WriteUserRepository,
-  seedQueryOptions as cashuSeedQueryOptions,
   ensureBreezWasm,
   getEncryption,
-  sparkIdentityPublicKeyQueryOptions,
-  sparkMnemonicQueryOptions,
-  xpubQueryOptions,
 } from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
@@ -20,10 +16,18 @@ import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-sessio
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { isLoggedIn as isUserLoggedIn } from '~/features/shared/auth';
 import {
+  seedQueryOptions as cashuSeedQueryOptions,
+  xpubQueryOptions,
+} from '~/features/shared/cashu-query-options';
+import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
 } from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
+import {
+  sparkIdentityPublicKeyQueryOptions,
+  sparkMnemonicQueryOptions,
+} from '~/features/shared/spark-query-options';
 import {
   type AuthUser,
   authQueryOptions,

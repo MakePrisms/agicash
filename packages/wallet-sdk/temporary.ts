@@ -53,24 +53,22 @@ export {
 } from './lib/error';
 export { DestinationDetailsSchema } from './lib/send-destination';
 export {
+  deriveCashuXpub,
   derivePublicKey,
   getSeedPhraseDerivationPath,
 } from './lib/cryptography';
 export {
   BASE_CASHU_LOCKING_DERIVATION_PATH,
-  allMintKeysetsQueryKey,
-  allMintKeysetsQueryOptions,
   cashuMintValidator,
   decodeCashuToken,
-  getCashuCryptography,
+  getAllMintKeysets,
+  getCashuPrivateKey,
+  getCashuSeed,
   getInitializedCashuWallet,
   getMintAuthProvider,
+  getMintInfo,
   getTokenHash,
-  mintInfoQueryKey,
-  mintInfoQueryOptions,
-  seedQueryOptions,
   tokenToMoney,
-  xpubQueryOptions,
 } from './lib/cashu';
 export {
   isCashuAccount,

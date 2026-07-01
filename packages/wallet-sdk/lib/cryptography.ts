@@ -1,6 +1,22 @@
 import { HDKey } from '@scure/bip32';
 
 /**
+ * Derives the Cashu extended public key (xpub) from a BIP39 seed.
+ * @param seed - The master seed bytes.
+ * @param derivationPath - Optional path; when omitted the master xpub is returned.
+ * @returns The base58-check encoded extended public key.
+ */
+export const deriveCashuXpub = (
+  seed: Uint8Array,
+  derivationPath?: string,
+): string => {
+  const hdKey = HDKey.fromMasterSeed(seed);
+  return derivationPath
+    ? hdKey.derive(derivationPath).publicExtendedKey
+    : hdKey.publicExtendedKey;
+};
+
+/**
  * Derives a public key from an xpub and a derivation path.
  * @param xpub - The base58-check encoded xpub.
  * @param derivationPath - The derivation path to derive the public key from.

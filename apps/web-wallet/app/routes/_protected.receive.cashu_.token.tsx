@@ -15,10 +15,7 @@ import {
   UserService,
   WriteUserRepository,
   decodeCashuToken,
-  getCashuCryptography,
   getEncryption,
-  seedQueryOptions,
-  sparkMnemonicQueryOptions,
 } from '@agicash/wallet-sdk/temporary';
 import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
@@ -35,10 +32,15 @@ import { ReceiveCashuToken } from '~/features/receive';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
 import { isLoggedIn } from '~/features/shared/auth';
 import {
+  getCashuCryptography,
+  seedQueryOptions,
+} from '~/features/shared/cashu-query-options';
+import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
 } from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
+import { sparkMnemonicQueryOptions } from '~/features/shared/spark-query-options';
 import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import { toast } from '~/hooks/use-toast';
