@@ -8,7 +8,7 @@
     "build:server": "cross-env NODE_ENV=production bun build ./app/server.ts --target=node --format=esm --outdir=./build --external=build/server/index.js",
     "dev": "cross-env NODE_OPTIONS='--max-old-space-size=8192' tsx watch --exclude '../../node_modules/**' ./app/server.ts",
     "start": "cross-env NODE_ENV=production node -r dotenv/config ./build/server.js",
-    "typecheck": "react-router typegen && tsc",
+    "typecheck": "bun --bun react-router typegen && tsc",
     "test": "bun test"
   },
   "scripts:comments": {
