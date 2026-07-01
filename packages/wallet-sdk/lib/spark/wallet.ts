@@ -11,6 +11,7 @@ import { computeSHA256 } from '@agicash/utils';
 import { bytesToHex } from '@noble/hashes/utils';
 import type { SparkNetwork } from '../../db/json-models/spark-account-details-db-data';
 import { getSeedPhraseDerivationPath } from '../cryptography';
+import type { FeatureFlagReader } from '../feature-flag-service';
 
 /** Host-provided Spark/Breez configuration. */
 export type SparkWalletConfig = {
@@ -49,12 +50,28 @@ export function createSparkWalletStub(reason: string): BreezSdk {
   });
 }
 
+/**
+ * Host-injected reader for spark logging feature flags. Defaults to off so the
+ * SDK is safe before configuration and on paths that never configure it (e.g.
+ * server routes, which don't emit spark debug logs).
+ */
+let getFeatureFlag: FeatureFlagReader = () => false;
+
+/**
+ * Wires spark logging (the Breez trace sink and {@link sparkDebugLog}) to the
+ * host's feature-flag source. Call once per process at startup. The reader is a
+ * live getter, so logging tracks flag changes at runtime — e.g. the switch from
+ * anon to user-targeted flags after login.
+ */
+export function configureSparkLogging(reader: FeatureFlagReader): void {
+  getFeatureFlag = reader;
+}
+
 export function sparkDebugLog(
   message: string,
-  data: Record<string, unknown> | undefined,
-  debugLogging: boolean,
-) {
-  if (debugLogging) {
+  data?: Record<string, unknown>,
+): void {
+  if (getFeatureFlag('DEBUG_LOGGING_SPARK')) {
     console.debug(`[Spark] ${message}`, data ?? '');
   }
 }
@@ -68,11 +85,10 @@ function tryInitLogging() {
   if (loggingStatus !== undefined) return;
   loggingStatus = 'initializing';
   initLogging({
-    // initLogging must run once to satisfy Breez's single-subscriber
-    // constraint, but the headless SDK has no feature-flag access to gate
-    // per-line debug output, so the log sink is intentionally a no-op.
-    log() {
-      return;
+    log(logEntry) {
+      if (getFeatureFlag('DEBUG_LOGGING_SPARK')) {
+        console.debug(`[Breez ${logEntry.level}] ${logEntry.line}`);
+      }
     },
   })
     .then(() => {

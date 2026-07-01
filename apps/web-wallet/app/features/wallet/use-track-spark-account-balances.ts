@@ -2,7 +2,6 @@ import type { SdkEvent } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
 import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import { useEffect } from 'react';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 
 export function useTrackAndUpdateSparkAccountBalances() {
@@ -16,14 +15,10 @@ export function useTrackAndUpdateSparkAccountBalances() {
     const registrations = sparkOnlineAccounts.map((account) => {
       const listenerPromise = account.wallet.addEventListener({
         onEvent(event: SdkEvent) {
-          sparkDebugLog(
-            'Breez event',
-            {
-              accountId: account.id,
-              type: event.type,
-            },
-            getFeatureFlag('DEBUG_LOGGING_SPARK'),
-          );
+          sparkDebugLog('Breez event', {
+            accountId: account.id,
+            type: event.type,
+          });
 
           if (
             event.type === 'paymentSucceeded' ||

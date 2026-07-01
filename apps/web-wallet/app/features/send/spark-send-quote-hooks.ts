@@ -19,7 +19,6 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useLatest } from '~/lib/use-latest';
 import {
   useGetSparkAccount,
@@ -236,14 +235,10 @@ export function useOnSparkSendStateChange({
             return;
           }
           lastTriggeredStateRef.current.set(quote.id, 'COMPLETED');
-          sparkDebugLog(
-            'Send payment detected as completed',
-            {
-              quoteId: quote.id,
-              accountId,
-            },
-            getFeatureFlag('DEBUG_LOGGING_SPARK'),
-          );
+          sparkDebugLog('Send payment detected as completed', {
+            quoteId: quote.id,
+            accountId,
+          });
           onCompletedRef.current(quote, { paymentPreimage: preimage });
         } else if (
           eventType === 'paymentFailed' &&
@@ -503,14 +498,10 @@ export function useProcessSparkSendQuoteTasks() {
       throwOnError: true,
       onSuccess: (updatedQuote) => {
         if (updatedQuote) {
-          sparkDebugLog(
-            'Send quote completed',
-            {
-              quoteId: updatedQuote.id,
-              accountId: updatedQuote.accountId,
-            },
-            getFeatureFlag('DEBUG_LOGGING_SPARK'),
-          );
+          sparkDebugLog('Send quote completed', {
+            quoteId: updatedQuote.id,
+            accountId: updatedQuote.accountId,
+          });
           unresolvedQuotesCache.remove(updatedQuote);
         }
       },

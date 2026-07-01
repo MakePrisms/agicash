@@ -4,7 +4,11 @@
 // so that deleting /temporary at the end compiler-enforces the boundary.
 export type { DestinationDetails } from './lib/send-destination';
 export type { SparkNetwork } from './db/json-models/spark-account-details-db-data';
-export type { FeatureFlag, FeatureFlags } from './lib/feature-flag-service';
+export type {
+  FeatureFlag,
+  FeatureFlags,
+  FeatureFlagReader,
+} from './lib/feature-flag-service';
 export type {
   AccountType,
   AccountState,

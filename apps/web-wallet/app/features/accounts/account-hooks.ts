@@ -26,7 +26,6 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useUser } from '../user/user-hooks';
 import { useAccountRepository } from './account-repository-hooks';
 import { useAccountService } from './account-service-hooks';
@@ -62,15 +61,11 @@ export class AccountsCache {
         const currentBalance = x.balance ?? Money.zero(x.currency);
         if (currentBalance.equals(balance)) return x;
 
-        sparkDebugLog(
-          'Balance updated',
-          {
-            accountId,
-            prev: currentBalance.toString(),
-            new: balance.toString(),
-          },
-          getFeatureFlag('DEBUG_LOGGING_SPARK'),
-        );
+        sparkDebugLog('Balance updated', {
+          accountId,
+          prev: currentBalance.toString(),
+          new: balance.toString(),
+        });
 
         return { ...x, balance };
       }),

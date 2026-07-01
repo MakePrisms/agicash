@@ -27,7 +27,6 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
-import { getFeatureFlag } from '~/features/shared/feature-flags';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { useLatest } from '~/lib/use-latest';
 import {
@@ -407,15 +406,11 @@ export function useOnSparkReceiveStateChange({
           return;
         }
 
-        sparkDebugLog(
-          'Receive payment detected as completed',
-          {
-            quoteId: quote.id,
-            accountId,
-            sparkTransferId: payment.id,
-          },
-          getFeatureFlag('DEBUG_LOGGING_SPARK'),
-        );
+        sparkDebugLog('Receive payment detected as completed', {
+          quoteId: quote.id,
+          accountId,
+          sparkTransferId: payment.id,
+        });
         onCompletedRef.current(quote.id, {
           sparkTransferId: payment.id,
           paymentPreimage: preimage,
@@ -509,15 +504,11 @@ export function useProcessSparkReceiveQuoteTasks() {
     throwOnError: true,
     onSuccess: (updatedQuote) => {
       if (updatedQuote) {
-        sparkDebugLog(
-          'Receive quote completed',
-          {
-            quoteId: updatedQuote.id,
-            accountId: updatedQuote.accountId,
-            transactionId: updatedQuote.transactionId,
-          },
-          getFeatureFlag('DEBUG_LOGGING_SPARK'),
-        );
+        sparkDebugLog('Receive quote completed', {
+          quoteId: updatedQuote.id,
+          accountId: updatedQuote.accountId,
+          transactionId: updatedQuote.transactionId,
+        });
         // Updating the quote cache triggers navigation to the transaction details page.
         // Completing the quote also completes the transaction and if navigation to transaction
         // page happens before transaction updated realtime notification is processed, the
