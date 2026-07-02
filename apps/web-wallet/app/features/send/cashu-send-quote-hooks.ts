@@ -347,7 +347,7 @@ export function useProcessCashuSendQuoteTasks() {
       }
       return failureCount < 3;
     },
-    throwOnError: true,
+    throwOnError: (error) => !(error instanceof MintOperationError),
     onError: (error, variables) => {
       if (error instanceof MintOperationError) {
         console.warn('Failed to initiate send.', {
