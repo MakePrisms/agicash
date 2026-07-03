@@ -139,9 +139,19 @@ each slice PR, per the parent spec):
 type AccountsApi = {
   get(id: string): Promise<Account | null>;
   list(): Promise<Account[]>;                 // active accounts, current user
-  add(params: AddAccountParams): Promise<CashuAccount>; // input discriminated on type; only 'cashu' addable today
+  cashu: {
+    add(params): Promise<CashuAccount>;
+  };
 };
+```
 
+Rail-agnostic reads stay at the namespace top (`get`/`list` return the
+`Account` union); rail-specific operations nest per rail — the same rule
+`receive`/`send` follow. A future addable rail lands as `accounts.spark.add`
+with exact input and return types, instead of widening a shared `add`
+signature into unions or overloads.
+
+```ts
 type TransactionsApi = {
   get(id: string): Promise<Transaction | null>;
   list(params: { cursor?: Cursor; pageSize?: number; accountId?: string }):
