@@ -139,7 +139,7 @@ each slice PR, per the parent spec):
 type AccountsApi = {
   get(id: string): Promise<Account | null>;
   list(): Promise<Account[]>;                 // active accounts, current user
-  addCashuAccount(params): Promise<CashuAccount>;
+  add(params: AddAccountParams): Promise<CashuAccount>; // input discriminated on type; only 'cashu' addable today
 };
 
 type TransactionsApi = {
@@ -175,12 +175,12 @@ type WalletEventMap = {
   'account.created' | 'account.updated': { account: Account };
   'contact.created' | 'contact.deleted': { contact: Contact };
   'transaction.created' | 'transaction.updated': { transaction: Transaction };
-  'receive.cashu-quote.updated': { quote: CashuReceiveQuote };
-  'receive.cashu-swap.updated': { swap: CashuReceiveSwap };
-  'receive.spark-quote.updated': { quote: SparkReceiveQuote };
-  'send.cashu-quote.updated': { quote: CashuSendQuote };
-  'send.cashu-swap.updated': { swap: CashuSendSwap };
-  'send.spark-quote.updated': { quote: SparkSendQuote };
+  'cashu-receive-quote.created' | 'cashu-receive-quote.updated': { quote: CashuReceiveQuote };
+  'cashu-receive-swap.created' | 'cashu-receive-swap.updated': { swap: CashuReceiveSwap };
+  'spark-receive-quote.created' | 'spark-receive-quote.updated': { quote: SparkReceiveQuote };
+  'cashu-send-quote.created' | 'cashu-send-quote.updated': { quote: CashuSendQuote };
+  'cashu-send-swap.created' | 'cashu-send-swap.updated': { swap: CashuSendSwap };
+  'spark-send-quote.created' | 'spark-send-quote.updated': { quote: SparkSendQuote };
   'connection.changed': { state: 'connected' | 'reconnecting' };
 };
 
@@ -195,6 +195,11 @@ type WalletEvents = {
 - Payloads are **decrypted domain objects** — from step 18 the SDK owns the
   realtime change feed + row decryption (today's `use-track-wallet-changes`
   handler set maps 1:1 onto this event map).
+- Naming invariant: `<entity>.<verb>`, entity = the domain type name in
+  kebab-case. Every persisted entity emits `created` and `updated` — `created`
+  matters cross-device: a quote initiated on one device must reach the user's
+  other sessions. Terminal transitions (completed/expired/failed) arrive as
+  `updated` with the new state on the payload, not as separate event names.
 - `connection.changed → 'connected'` is the web's invalidate-all signal on
   reconnect, replacing today's `onConnected` cache sweep.
 - Event names are stable contract; adding events is non-breaking, renaming is
@@ -237,8 +242,11 @@ helpers the web consumes that need no instance state:
 - codecs/inspection: `decodeCashuToken`, `tokenToMoney`, `getTokenHash`
 - validation: `validateBolt11`, `validateLightningAddressFormat`,
   `cashuMintValidator`
-- errors: `DomainError`, `ConcurrencyError`, `NotFoundError`,
-  `UniqueConstraintError`
+- errors: `SdkError` (abstract base — everything the SDK throws extends it,
+  giving hosts one `instanceof` check at the boundary) with `DomainError`,
+  `ConcurrencyError`, `NotFoundError`, `UniqueConstraintError`. Subclass
+  semantics are contract: `DomainError.message` is the only user-displayable
+  message; `ConcurrencyError` always means retry.
 
 Anything touching the DB, keys, or accounts lives on the instance. The Zod
 row schemas + transaction-details parsers the web imports today are
