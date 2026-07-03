@@ -1,1 +1,0 @@
-// @agicash/wallet-sdk

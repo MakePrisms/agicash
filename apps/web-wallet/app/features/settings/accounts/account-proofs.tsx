@@ -8,9 +8,8 @@ import { Button } from '~/components/ui/button';
 import { getCashuUnit, sumProofs } from '@agicash/cashu';
 import { Money } from '@agicash/money';
 import type { Currency } from '@agicash/money';
-import type { CashuAccount } from '~/features/accounts/account';
+import type { CashuAccount, CashuProof } from '@agicash/wallet-sdk';
 import { useAccount } from '~/features/accounts/account-hooks';
-import type { CashuProof } from '~/features/accounts/cashu-account';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 
 function ProofRow({

@@ -1,9 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*.ts"],
+  "include": ["**/*.ts"],
   "exclude": ["node_modules"],
   "compilerOptions": {
     "lib": ["ES2022"],
+    "types": ["bun"],
+    "baseUrl": ".",
+    "paths": { "supabase/database.types": ["./supabase/database.types.ts"] },
     "noEmit": true
   }
 }

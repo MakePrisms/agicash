@@ -1,10 +1,13 @@
 import {
+  type Ticker,
+  exchangeRateService,
+} from '@agicash/wallet-sdk/temporary';
+import {
   type QueryClient,
   queryOptions,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { type Ticker, exchangeRateService } from '~/lib/exchange-rate';
 
 /**
  * Gets the normalized set of tickers to fetch.

@@ -6,6 +6,19 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
+import type {
+  SparkAccount,
+  SparkReceiveQuote,
+  TransactionPurpose,
+} from '@agicash/wallet-sdk';
+import type { AgicashDbSparkReceiveQuote } from '@agicash/wallet-sdk/temporary';
+import {
+  SparkReceiveQuoteRepository,
+  SparkReceiveQuoteService,
+  getInitializedCashuWallet,
+  getLightningQuote,
+  sparkDebugLog,
+} from '@agicash/wallet-sdk/temporary';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
 import {
   type QueryClient,
@@ -16,22 +29,25 @@ import {
 import { useEffect, useMemo } from 'react';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { useLatest } from '~/lib/use-latest';
-import type { SparkAccount } from '../accounts/account';
 import {
   useGetCashuAccountByMintUrlAndCurrency,
   useGetSparkAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type { AgicashDbSparkReceiveQuote } from '../agicash-db/database';
-import { getInitializedCashuWallet } from '../shared/cashu';
-import { sparkDebugLog } from '../shared/spark';
-import type { TransactionPurpose } from '../transactions/transaction-enums';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { useEncryption } from '../shared/encryption-hooks';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
-import type { SparkReceiveQuote } from './spark-receive-quote';
-import { getLightningQuote } from './spark-receive-quote-core';
-import { useSparkReceiveQuoteRepository } from './spark-receive-quote-repository';
-import { useSparkReceiveQuoteService } from './spark-receive-quote-service';
+
+function useSparkReceiveQuoteRepository() {
+  const encryption = useEncryption();
+  return new SparkReceiveQuoteRepository(agicashDbClient, encryption);
+}
+
+export function useSparkReceiveQuoteService() {
+  const repository = useSparkReceiveQuoteRepository();
+  return new SparkReceiveQuoteService(repository);
+}
 
 class SparkReceiveQuoteCache {
   // Query that tracks the "active" spark receive quote. Active one is the one that user created in current browser session.

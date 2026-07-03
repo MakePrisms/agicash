@@ -1,33 +1,47 @@
 import { getClaimableProofs, getUnspentProofsFromToken } from '@agicash/cashu';
 import { type Currency, Money } from '@agicash/money';
+import type {
+  Account,
+  CashuAccount,
+  ExtendedAccount,
+  ReceiveCashuTokenAccount,
+} from '@agicash/wallet-sdk';
+import {
+  DomainError,
+  ReceiveCashuTokenQuoteService,
+  ReceiveCashuTokenService,
+  canSendToLightning,
+  createSparkWalletStub,
+  tokenToMoney,
+} from '@agicash/wallet-sdk/temporary';
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
 import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
-  type Account,
-  type CashuAccount,
-  type ExtendedAccount,
-  canSendToLightning,
-} from '~/features/accounts/account';
-import {
   useAccounts,
   useAddCashuAccount,
 } from '~/features/accounts/account-hooks';
-import { tokenToMoney } from '~/features/shared/cashu';
 import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
-import { createSparkWalletStub } from '~/lib/spark';
 import {
   type AccountSelectorOption,
   toAccountSelectorOption,
 } from '../accounts/account-selector';
-import { DomainError } from '../shared/error';
 import { useUser } from '../user/user-hooks';
-import type { ReceiveCashuTokenAccount } from './receive-cashu-token-models';
-import { useReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
-import {
-  ReceiveCashuTokenService,
-  useReceiveCashuTokenService,
-} from './receive-cashu-token-service';
+import { useCashuReceiveQuoteService } from './cashu-receive-quote-hooks';
+import { useSparkReceiveQuoteService } from './spark-receive-quote-hooks';
+
+export function useReceiveCashuTokenService() {
+  return new ReceiveCashuTokenService();
+}
+
+export function useReceiveCashuTokenQuoteService() {
+  const cashuReceiveQuoteService = useCashuReceiveQuoteService();
+  const sparkLightningReceiveService = useSparkReceiveQuoteService();
+  return new ReceiveCashuTokenQuoteService(
+    cashuReceiveQuoteService,
+    sparkLightningReceiveService,
+  );
+}
 
 type UseGetClaimableTokenProps = {
   token: Token;

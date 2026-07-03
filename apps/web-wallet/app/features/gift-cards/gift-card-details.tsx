@@ -1,5 +1,6 @@
 import { useNavigate, useViewTransitionState } from 'react-router';
 
+import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import {
   ClosePageButton,
   Page,
@@ -7,7 +8,6 @@ import {
   PageHeader,
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
-import { getAccountBalance } from '~/features/accounts/account';
 import { useAccounts } from '~/features/accounts/account-hooks';
 import { getGiftCardImageByUrl } from '~/features/gift-cards/gift-card-images';
 import { GiftCardItem } from '~/features/gift-cards/gift-card-item';

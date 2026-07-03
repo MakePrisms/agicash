@@ -1,10 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import { safeJsonParse } from '@agicash/utils';
+import type { AgicashDbUser } from '@agicash/wallet-sdk/temporary';
 import { hmac } from '@noble/hashes/hmac';
 import { sha256 } from '@noble/hashes/sha2';
 import { bytesToHex } from '@noble/hashes/utils';
 import { z } from 'zod/mini';
-import type { AgicashDbUser } from '~/features/agicash-db/database';
 import { sendWelcomeEmail } from '~/features/email/welcome-email-service';
 import type { Route } from './+types/api.events';
 

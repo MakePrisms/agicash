@@ -1,26 +1,32 @@
+import type { User } from '@agicash/wallet-sdk';
+import { shouldAcceptTerms } from '@agicash/wallet-sdk';
+import {
+  AccountRepository,
+  BASE_CASHU_LOCKING_DERIVATION_PATH,
+  WriteUserRepository,
+  ensureBreezWasm,
+  getEncryption,
+} from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
 import { AccountsCache } from '~/features/accounts/account-hooks';
-import { AccountRepository } from '~/features/accounts/account-repository';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import {
-  BASE_CASHU_LOCKING_DERIVATION_PATH,
   seedQueryOptions as cashuSeedQueryOptions,
   xpubQueryOptions,
-} from '~/features/shared/cashu';
+} from '~/features/shared/cashu-query-options';
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
-  getEncryption,
-} from '~/features/shared/encryption';
+} from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
 import {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
-} from '~/features/shared/spark';
+} from '~/features/shared/spark-query-options';
 import {
   type AuthUser,
   authQueryOptions,
@@ -31,15 +37,13 @@ import {
   pendingWalletTermsStorage,
 } from '~/features/user/pending-terms-storage';
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
-import { type User, shouldAcceptTerms } from '~/features/user/user';
 import {
   UserCache,
   defaultAccounts,
   getUserFromCache,
 } from '~/features/user/user-hooks';
-import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
-import { ensureBreezWasm } from '~/lib/spark';
+import { breezApiKey } from '~/lib/breez';
 import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
 
@@ -115,7 +119,7 @@ const ensureUserData = async (
       encryption,
       getCashuWalletSeed,
       getSparkWalletMnemonic,
-      './.spark-data',
+      { storageDir: './.spark-data', apiKey: breezApiKey },
     );
     const writeUserRepository = new WriteUserRepository(
       agicashDbClient,

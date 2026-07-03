@@ -1,8 +1,8 @@
 import type { SdkEvent } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
+import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
 import { useEffect } from 'react';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
-import { sparkDebugLog } from '../shared/spark';
 
 export function useTrackAndUpdateSparkAccountBalances() {
   const { data: sparkOnlineAccounts } = useAccounts({

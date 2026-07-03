@@ -1,4 +1,8 @@
 import { configure } from '@agicash/opensecret';
+import {
+  configureFeatureFlags,
+  ensureBreezWasm,
+} from '@agicash/wallet-sdk/temporary';
 /**
  * By default, React Router  will handle hydrating your app on the client for you.
  * You are free to delete this file if you'd like to, but if you ever want it revealed again, you can run `npx react-router reveal` ✨
@@ -9,10 +13,9 @@ import { StrictMode, startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
-import { featureFlagsQueryOptions } from './features/shared/feature-flags';
-import { getQueryClient } from './features/shared/query-client';
+import { agicashDbClient } from './features/agicash-db/database.client';
+import { loadFeatureFlags } from './features/shared/feature-flags';
 import { registerMoneyDevToolsFormatter } from './lib/money-devtools-formatter';
-import { ensureBreezWasm } from './lib/spark';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
 // Register Chrome DevTools custom formatter for Money class (dev only)
@@ -46,19 +49,13 @@ ensureBreezWasm().catch(() => {
   // Surfaced via _protected middleware → route ErrorBoundary.
 });
 
-// Prefetch feature flags as early as possible.
-// Before login the DB client uses the anon key (no access token),
-// so we get global flags. After login, refreshSession invalidates
-// this query and re-fetches with the user's JWT for user-targeted flags.
-getQueryClient()
-  .prefetchQuery(featureFlagsQueryOptions)
-  .then(() => {
-    const flags = getQueryClient().getQueryData(
-      featureFlagsQueryOptions.queryKey,
-    );
-    (globalThis as Record<string, unknown>).__SPARK_SDK_DEBUG__ =
-      flags?.DEBUG_LOGGING_SPARK ?? false;
-  });
+// Feature flags live in the SDK's in-memory store — the single source for
+// both the web hooks and SDK-internal readers like spark logging. Load as
+// early as possible; before login the DB client uses the anon key so this
+// gets global flags, and invalidateAuthQueries re-loads with the user's JWT
+// for user-targeted flags after login.
+configureFeatureFlags(agicashDbClient);
+void loadFeatureFlags();
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {

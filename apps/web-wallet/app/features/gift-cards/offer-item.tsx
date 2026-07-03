@@ -1,10 +1,10 @@
+import type { CashuAccount } from '@agicash/wallet-sdk';
 import {
   WalletCard,
   WalletCardBackgroundImage,
   WalletCardBlank,
   WalletCardOverlay,
 } from '~/components/wallet-card';
-import type { CashuAccount } from '~/features/accounts/account';
 
 type OfferItemProps = {
   account: CashuAccount;

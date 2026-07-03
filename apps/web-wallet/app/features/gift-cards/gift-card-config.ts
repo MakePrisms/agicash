@@ -1,22 +1,14 @@
+// vite.config.ts imports this module, so plain Node evaluates it (and its
+// imports) at config load, where the SDK's extensionless relative imports
+// don't resolve. The subpath entry is Node-loadable — the main entry is not.
+import { GiftCardConfigSchema } from '@agicash/wallet-sdk/gift-card-config';
 import { z } from 'zod/mini';
 
-export const GiftCardConfigSchema = z.array(
-  z.object({
-    url: z.url(),
-    name: z.string().check(z.minLength(1)),
-    currency: z.enum(['USD', 'BTC']),
-    purpose: z.enum(['gift-card', 'offer']),
-    isDiscoverable: z.boolean(),
-    addCardDisclaimer: z.optional(z.string()),
-    validPaymentDestinations: z.optional(
-      z.object({
-        descriptions: z.array(z.string()),
-        nodePubkeys: z.array(z.string().check(z.toLowerCase())),
-      }),
-    ),
-  }),
-);
-
+/**
+ * Parses the `VITE_GIFT_CARDS` env var, a JSON string, into validated gift card
+ * configs. Lives in the web app rather than the SDK because sourcing gift card
+ * configs from an env var is a web deployment concern, not wallet domain logic.
+ */
 export const JsonGiftCardConfigSchema = z.pipe(
   z.pipe(
     z.string(),
@@ -24,10 +16,3 @@ export const JsonGiftCardConfigSchema = z.pipe(
   ),
   GiftCardConfigSchema,
 );
-
-export type GiftCardConfig = z.infer<typeof GiftCardConfigSchema>[number];
-
-export type GiftCardInfo = GiftCardConfig & {
-  image: string;
-  ogImage: string | undefined;
-};

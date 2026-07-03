@@ -10,6 +10,10 @@ import {
   signUpGuest as osSignUpGuest,
   verifyEmail as osVerifyEmail,
 } from '@agicash/opensecret';
+import {
+  clearAgicashMintAuthToken,
+  clearSparkWallets,
+} from '@agicash/wallet-sdk/temporary';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import {
@@ -20,8 +24,11 @@ import {
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
+import {
+  loadFeatureFlags,
+  resetFeatureFlags,
+} from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
-import { clearSparkWallets } from '~/features/shared/spark';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { generateRandomPassword } from '~/lib/password-generator';
 import { guestAccountStorage } from './guest-account-storage';
@@ -92,10 +99,7 @@ export const invalidateAuthQueries = async () => {
       queryKey: [authStateQueryKey],
       refetchType: 'all',
     }),
-    queryClient.invalidateQueries({
-      queryKey: ['feature-flags'],
-      refetchType: 'all',
-    }),
+    loadFeatureFlags(),
   ]);
 };
 
@@ -215,12 +219,17 @@ export const useAuthActions = (): AuthActions => {
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
       await osSignOut();
+      // Before the refresh below so the previous user's flags are gone even if
+      // the anon re-fetch fails, and so its result isn't clobbered afterwards.
+      resetFeatureFlags();
       await refreshSession(options.redirectTo);
       Sentry.setUser(null);
       queryClient.clear();
-      // The spark wallet connection memo is framework-free (not in the query
-      // cache), so clear it alongside so a next session reconnects fresh.
+      // The SDK's module-level memos (spark wallet connections, agicash-mint
+      // CAT) live outside the query cache, so clear them alongside it so the
+      // next session starts fresh.
       clearSparkWallets();
+      clearAgicashMintAuthToken();
     },
     [refreshSession, queryClient],
   );

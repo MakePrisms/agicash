@@ -1,60 +1,49 @@
+import type { FeatureFlag } from '@agicash/wallet-sdk';
+import {
+  FEATURE_FLAG_DEFAULTS,
+  getFeatureFlag,
+  refreshFeatureFlags,
+  resetFeatureFlags as resetFeatureFlagStore,
+  subscribeToFeatureFlags,
+} from '@agicash/wallet-sdk/temporary';
 import * as Sentry from '@sentry/react-router';
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
-import { agicashDbClient } from '~/features/agicash-db/database.client';
-import { getQueryClient } from '~/features/shared/query-client';
+import { use, useSyncExternalStore } from 'react';
 
-export type FeatureFlag = 'GUEST_SIGNUP' | 'DEBUG_LOGGING_SPARK';
+let initialLoad: Promise<void> | undefined;
 
-type FeatureFlags = Record<FeatureFlag, boolean>;
-
-const FEATURE_FLAG_DEFAULTS: FeatureFlags = {
-  GUEST_SIGNUP: false,
-  DEBUG_LOGGING_SPARK: false,
-};
-
-const MAX_RETRIES = 3;
-
-async function fetchFeatureFlags(): Promise<FeatureFlags> {
-  const { data, error } = await agicashDbClient.rpc('evaluate_feature_flags');
-  if (error) {
-    throw new Error('Failed to fetch feature flags', { cause: error });
-  }
-  return data as FeatureFlags;
-}
-
-export const featureFlagsQueryOptions = queryOptions({
-  queryKey: ['feature-flags'],
-  queryFn: async (): Promise<FeatureFlags> => {
-    let lastError: unknown;
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        return await fetchFeatureFlags();
-      } catch (error) {
-        lastError = error;
-        if (attempt < MAX_RETRIES) {
-          await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
-        }
-      }
-    }
-    Sentry.captureException(lastError);
-    return FEATURE_FLAG_DEFAULTS;
-  },
-  retry: false,
-  staleTime: 5 * 60 * 1000,
-});
-
-export function useFeatureFlag(flag: FeatureFlag): boolean {
-  const { data } = useSuspenseQuery(featureFlagsQueryOptions);
-  return data[flag];
+/**
+ * Loads feature flags into the SDK store. Call at boot and after auth changes
+ * (the database evaluates flags against the caller's JWT, so login swaps
+ * global flags for user-targeted ones). Never rejects: a terminal fetch
+ * failure is reported to Sentry and reads keep the last loaded values —
+ * defaults before the first successful load.
+ */
+export function loadFeatureFlags(): Promise<void> {
+  const load = refreshFeatureFlags().then(
+    () => undefined,
+    (error) => {
+      Sentry.captureException(error);
+    },
+  );
+  initialLoad ??= load;
+  return load;
 }
 
 /**
- * Reads a feature flag from the query cache.
- * Returns the default value if flags haven't been fetched yet.
+ * Drops the session's flags on sign-out: resets the SDK store to defaults and
+ * re-arms the initial-load gate, so the next flag consumer suspends until
+ * fresh flags arrive instead of rendering the previous session's values.
  */
-export function getFeatureFlag(flag: FeatureFlag): boolean {
-  const data = getQueryClient().getQueryData<FeatureFlags>(
-    featureFlagsQueryOptions.queryKey,
+export function resetFeatureFlags(): void {
+  initialLoad = undefined;
+  resetFeatureFlagStore();
+}
+
+export function useFeatureFlag(flag: FeatureFlag): boolean {
+  use(initialLoad ?? loadFeatureFlags());
+  return useSyncExternalStore(
+    subscribeToFeatureFlags,
+    () => getFeatureFlag(flag),
+    () => FEATURE_FLAG_DEFAULTS[flag],
   );
-  return data?.[flag] ?? FEATURE_FLAG_DEFAULTS[flag];
 }
