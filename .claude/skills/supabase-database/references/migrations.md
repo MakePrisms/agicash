@@ -4,7 +4,7 @@ This project uses the migrations provided by the Supabase CLI.
 
 ## Creating a migration file
 
-Create migration files inside `supabase/migrations/`.
+Create migration files inside `packages/wallet-sdk/supabase/migrations/`.
 
 The file MUST be named in the format `YYYYMMDDHHmmss_short_description.sql` with proper casing for months, minutes, and seconds in UTC time:
 

@@ -1,0 +1,239 @@
+import {
+  type ExtendedCashuWallet,
+  ExtendedMintInfo,
+  MintBlocklistSchema,
+  type MintPurpose,
+  buildMintValidator,
+  encodeToken,
+  extractCashuToken,
+  getCashuProtocolUnit,
+  getCashuUnit,
+  getCashuWallet,
+  sumProofs,
+} from '@agicash/cashu';
+import { type Currency, type CurrencyUnit, Money } from '@agicash/money';
+import {
+  getPrivateKey as getMnemonic,
+  getPrivateKeyBytes,
+} from '@agicash/opensecret';
+import { computeSHA256 } from '@agicash/utils';
+import {
+  type AuthProvider,
+  type GetKeysResponse,
+  type GetKeysetsResponse,
+  KeyChain,
+  Mint,
+  NetworkError,
+  type Token,
+  getDecodedToken,
+} from '@cashu/cashu-ts';
+import { mnemonicToSeedSync } from '@scure/bip39';
+import { getAgicashMintAuthProvider } from './agicash-mint-auth-provider';
+import { getSeedPhraseDerivationPath } from './cryptography';
+
+// Cashu-specific derivation path with hardnened indexes to derive public keys for
+// locking mint quotes and proofs. 129372 is UTF-8 for 🥜 (see NUT-13) and the other
+// 2 indexes are the coin type (0) and account (0) which can be changed to derive
+// different keys if needed. This path is "proprietary" and not part of any standard.
+// The index values are unimportant as long as they are hardened and remain constant.
+// DO NOT CHANGE THIS VALUE WITHOUT UPDATING USER'S XPUB IN THE DATABASE. IF THIS
+// IS NOT DONE, THEN WE WILL CREATE THE WRONG DERIVATION PATH WHEN GETTING PRIVATE KEYS.
+export const BASE_CASHU_LOCKING_DERIVATION_PATH = "m/129372'/0'/0'";
+
+function getCurrencyAndUnitFromToken(token: Token): {
+  currency: Currency;
+  unit: CurrencyUnit;
+  formatUnit: 'sat' | 'usd';
+} {
+  if (token.unit === 'sat') {
+    return { currency: 'BTC', unit: 'sat', formatUnit: 'sat' };
+  }
+  if (token.unit === 'usd') {
+    return { currency: 'USD', unit: 'cent', formatUnit: 'usd' };
+  }
+  throw new Error(`Invalid token unit ${token.unit}`);
+}
+
+export function tokenToMoney(token: Token): Money {
+  const { currency, unit } = getCurrencyAndUnitFromToken(token);
+  const amount = sumProofs(token.proofs);
+  return new Money<Currency>({
+    amount,
+    currency,
+    unit,
+  });
+}
+
+export type CashuCryptography = {
+  getSeed: () => Promise<Uint8Array>;
+  getXpub: (derivationPath?: string) => Promise<string>;
+  getPrivateKey: (derivationPath?: string) => Promise<string>;
+};
+
+const seedDerivationPath = getSeedPhraseDerivationPath('cashu', 12);
+
+/**
+ * Reads the Cashu BIP39 mnemonic from Open Secret and derives the master seed.
+ * Network leaf: the caller memoizes (the web wraps this in its TanStack cache).
+ */
+export const getCashuSeed = async (): Promise<Uint8Array> => {
+  const response = await getMnemonic({
+    seed_phrase_derivation_path: seedDerivationPath,
+  });
+  return mnemonicToSeedSync(response.mnemonic);
+};
+
+/**
+ * Reads a Cashu private key from Open Secret for the given derivation path.
+ * Network leaf: the caller memoizes.
+ */
+export const getCashuPrivateKey = async (
+  derivationPath?: string,
+): Promise<string> => {
+  const response = await getPrivateKeyBytes({
+    seed_phrase_derivation_path: seedDerivationPath,
+    private_key_derivation_path: derivationPath,
+  });
+  return response.private_key;
+};
+
+export function getTokenHash(token: Token | string): Promise<string> {
+  if (typeof token === 'string') {
+    return computeSHA256(token);
+  }
+  return computeSHA256(encodeToken(token));
+}
+
+const mintBlocklist = MintBlocklistSchema.parse(
+  JSON.parse(import.meta.env.VITE_CASHU_MINT_BLOCKLIST ?? '[]'),
+);
+
+export const cashuMintValidator = buildMintValidator({
+  requiredNuts: [4, 5, 7, 8, 9, 10, 11, 12, 17, 20] as const,
+  requiredWebSocketCommands: ['bolt11_melt_quote', 'proof_state'] as const,
+  blocklist: mintBlocklist,
+});
+
+export function getMintAuthProvider(purpose: MintPurpose | undefined) {
+  return purpose === 'gift-card' || purpose === 'offer'
+    ? getAgicashMintAuthProvider()
+    : undefined;
+}
+
+/**
+ * Fetches a mint's info (NUT-06). Network leaf: the caller memoizes.
+ * @param mintUrl
+ * @returns The mint info.
+ */
+export const getMintInfo = async (mintUrl: string): Promise<ExtendedMintInfo> =>
+  new ExtendedMintInfo(await new Mint(mintUrl).getInfo());
+
+/**
+ * Fetches all of a mint's keysets in no specific order. Network leaf: the caller memoizes.
+ * @param mintUrl
+ * @returns All the mint's past and current keysets.
+ */
+export const getAllMintKeysets = (mintUrl: string) =>
+  new Mint(mintUrl).getKeySets();
+
+/**
+ * Extract and decode a cashu token from arbitrary content.
+ * Fetches keyset IDs from the token's mint for v2 keyset resolution.
+ */
+export async function decodeCashuToken(content: string): Promise<Token | null> {
+  const result = extractCashuToken(content);
+  if (!result) return null;
+
+  try {
+    const { keysets } = await new Mint(result.metadata.mint).getKeySets();
+    const keysetIds = keysets.map((k) => k.id);
+    return getDecodedToken(result.encoded, keysetIds);
+  } catch (error) {
+    console.error('Failed to decode cashu token', error);
+    return null;
+  }
+}
+
+/**
+ * Initializes a Cashu wallet with offline handling.
+ * If the mint is offline or times out, returns a minimal wallet with isOnline: false.
+ * @param mintUrl - The mint URL.
+ * @param currency - The currency.
+ * @param bip39seed - Optional BIP39 seed for wallet initialization.
+ * @returns The wallet and online status.
+ */
+export async function getInitializedCashuWallet({
+  mintUrl,
+  currency,
+  bip39seed,
+  authProvider,
+}: {
+  mintUrl: string;
+  currency: Currency;
+  bip39seed?: Uint8Array;
+  authProvider?: AuthProvider;
+}): Promise<{ wallet: ExtendedCashuWallet; isOnline: boolean }> {
+  let mintInfo: ExtendedMintInfo;
+  let allMintKeysets: GetKeysetsResponse;
+  let mintActiveKeys: GetKeysResponse;
+
+  try {
+    const mint = new Mint(mintUrl);
+    [mintInfo, allMintKeysets, mintActiveKeys] = await Promise.race([
+      Promise.all([
+        mint.getInfo().then((info) => new ExtendedMintInfo(info)),
+        mint.getKeySets(),
+        mint.getKeys(),
+      ]),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new NetworkError('Mint request timed out'));
+        }, 10_000);
+      }),
+    ]);
+  } catch (error) {
+    if (error instanceof NetworkError) {
+      const wallet = getCashuWallet(mintUrl, {
+        unit: getCashuUnit(currency),
+        bip39seed: bip39seed ?? undefined,
+        authProvider,
+      });
+      return { wallet, isOnline: false };
+    }
+    throw error;
+  }
+
+  const unitKeysets = allMintKeysets.keysets.filter(
+    (ks) => ks.unit === getCashuProtocolUnit(currency),
+  );
+  const activeKeyset = unitKeysets.find((ks) => ks.active);
+
+  if (!activeKeyset) {
+    throw new Error(`No active keyset found for ${currency} on ${mintUrl}`);
+  }
+
+  const activeKeysForUnit = mintActiveKeys.keysets.find(
+    (ks) => ks.id === activeKeyset.id,
+  );
+
+  if (!activeKeysForUnit) {
+    throw new Error(
+      `Got active keyset ${activeKeyset.id} from ${mintUrl} but could not find keys for it`,
+    );
+  }
+
+  const wallet = getCashuWallet(mintUrl, {
+    unit: getCashuUnit(currency),
+    bip39seed: bip39seed ?? undefined,
+    authProvider,
+  });
+  const keyChainCache = KeyChain.mintToCacheDTO(
+    wallet.unit,
+    mintUrl,
+    unitKeysets,
+    [activeKeysForUnit],
+  );
+  wallet.loadMintFromCache(mintInfo.cache, keyChainCache);
+
+  return { wallet, isOnline: true };
+}

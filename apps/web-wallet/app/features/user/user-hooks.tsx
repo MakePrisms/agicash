@@ -1,5 +1,8 @@
 import type { Currency } from '@agicash/money';
 import { requestNewVerificationCode } from '@agicash/opensecret';
+import type { Account, User } from '@agicash/wallet-sdk';
+import type { AgicashDbUser, UpdateUser } from '@agicash/wallet-sdk/temporary';
+import { ReadUserRepository } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
   useMutation,
@@ -10,17 +13,12 @@ import { useCallback, useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import { useLatest } from '~/lib/use-latest';
-import type { Account } from '../accounts/account';
-import type { AgicashDbUser } from '../agicash-db/database';
 import { guestAccountStorage } from './guest-account-storage';
-import type { User } from './user';
 import {
-  ReadUserRepository,
-  type UpdateUser,
   useReadUserRepository,
   useWriteUserRepository,
-} from './user-repository';
-import { useUserService } from './user-service';
+} from './user-repository-hooks';
+import { useUserService } from './user-service-hooks';
 
 export class UserCache {
   public static Key = 'user';

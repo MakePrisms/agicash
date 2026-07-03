@@ -147,6 +147,7 @@ Don't write comments that explain things the code or its surroundings already sh
 - **Where** something is used or called from ("used by X", "comes from Y") — IDE references handle this
 - **Why** a refactor happened or what task it was for ("we changed this to…", "added for X") — that belongs in the commit message, not the code
 - **What** the code does step by step — let well-named identifiers carry the meaning
+- **Comparisons to removed or prior code** ("the old React Query cache", "mirrors the old X", "used to be Y") — describe what the code does now; deleted code isn't a reference a future reader can follow
 
 JSDoc goes on public surfaces: exported `lib/` utilities, methods on services and repositories, exported types and their option fields. Skip it on React components, routes, trivial getters, and private helpers. Use `@param` / `@returns` / `@throws` only when they document a real contract.
 

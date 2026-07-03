@@ -3,6 +3,7 @@ import {
   getCashuProtocolUnit,
   getMintPurpose,
 } from '@agicash/cashu';
+import { cashuMintValidator } from '@agicash/wallet-sdk/temporary';
 import type { MintKeyset } from '@cashu/cashu-ts';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -13,9 +14,8 @@ import { Label } from '~/components/ui/label';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
 import {
   allMintKeysetsQueryOptions,
-  cashuMintValidator,
   mintInfoQueryOptions,
-} from '~/features/shared/cashu';
+} from '~/features/shared/cashu-query-options';
 import { useToast } from '~/hooks/use-toast';
 import { LinkWithViewTransition } from '~/lib/transitions';
 

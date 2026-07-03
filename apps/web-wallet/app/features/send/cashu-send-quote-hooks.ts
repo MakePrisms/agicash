@@ -1,5 +1,21 @@
 import { getCashuWallet, sumProofs } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
+import type {
+  CashuAccount,
+  CashuSendQuote,
+  DestinationDetails,
+  SendQuoteRequest,
+} from '@agicash/wallet-sdk';
+import type {
+  AgicashDbCashuProof,
+  AgicashDbCashuSendQuote,
+} from '@agicash/wallet-sdk/temporary';
+import {
+  CashuSendQuoteRepository,
+  CashuSendQuoteService,
+  ConcurrencyError,
+  DomainError,
+} from '@agicash/wallet-sdk/temporary';
 import {
   type MeltQuoteBolt11Response,
   MintOperationError,
@@ -14,25 +30,25 @@ import type Big from 'big.js';
 import { useMemo, useState } from 'react';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { MeltQuoteSubscriptionManager } from '~/lib/cashu/melt-quote-subscription-manager';
-import type { CashuAccount } from '../accounts/account';
 import {
   useAccountsCache,
   useGetCashuAccount,
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import type {
-  AgicashDbCashuProof,
-  AgicashDbCashuSendQuote,
-} from '../agicash-db/database';
-import { ConcurrencyError, DomainError } from '../shared/error';
+import { agicashDbClient } from '../agicash-db/database.client';
+import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
-import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
-import { useCashuSendQuoteRepository } from './cashu-send-quote-repository';
-import {
-  type SendQuoteRequest,
-  useCashuSendQuoteService,
-} from './cashu-send-quote-service';
+
+export function useCashuSendQuoteRepository() {
+  const encryption = useEncryption();
+  return new CashuSendQuoteRepository(agicashDbClient, encryption);
+}
+
+export function useCashuSendQuoteService() {
+  const cashuSendQuoteRepository = useCashuSendQuoteRepository();
+  return new CashuSendQuoteService(cashuSendQuoteRepository);
+}
 
 class UnresolvedCashuSendQuotesCache {
   // Query that tracks all unresolved cashu send quotes (active and background ones).

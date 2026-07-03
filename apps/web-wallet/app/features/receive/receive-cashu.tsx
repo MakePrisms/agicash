@@ -1,4 +1,7 @@
 import type { Money } from '@agicash/money';
+import type { CashuAccount, CashuReceiveQuote } from '@agicash/wallet-sdk';
+import { getDefaultUnit } from '@agicash/wallet-sdk';
+import { getAccountHomePath } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';
 import { MoneyDisplay } from '~/components/money-display';
@@ -12,10 +15,6 @@ import {
 import { QRCode } from '~/components/qr-code';
 import { Button } from '~/components/ui/button';
 import { Card, CardContent } from '~/components/ui/card';
-import {
-  type CashuAccount,
-  getAccountHomePath,
-} from '~/features/accounts/account';
 import { useEffectNoStrictMode } from '~/hooks/use-effect-no-strict-mode';
 import { useRedirectTo } from '~/hooks/use-redirect-to';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
@@ -24,9 +23,7 @@ import {
   LinkWithViewTransition,
   useNavigateWithViewTransition,
 } from '~/lib/transitions';
-import { getDefaultUnit } from '../shared/currencies';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
-import type { CashuReceiveQuote } from './cashu-receive-quote';
 import {
   useCreateCashuReceiveQuote,
   useTrackCashuReceiveQuote,

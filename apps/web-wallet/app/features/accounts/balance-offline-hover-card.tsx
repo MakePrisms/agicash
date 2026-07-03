@@ -1,3 +1,4 @@
+import type { AccountType } from '@agicash/wallet-sdk';
 import { TriangleAlertIcon } from 'lucide-react';
 import {
   HoverCard,
@@ -5,7 +6,6 @@ import {
   HoverCardTrigger,
 } from '~/components/ui/hover-card';
 import { cn } from '~/lib/utils';
-import type { AccountType } from './account';
 
 export function BalanceOfflineHoverCard({
   accountType,

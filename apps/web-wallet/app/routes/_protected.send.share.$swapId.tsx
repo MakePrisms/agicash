@@ -1,5 +1,5 @@
 import { getCashuProtocolUnit } from '@agicash/cashu';
-import { toProof } from '~/features/accounts/cashu-account';
+import { toProof } from '@agicash/wallet-sdk/temporary';
 import {
   useCashuSendSwap,
   useTrackCashuSendSwap,

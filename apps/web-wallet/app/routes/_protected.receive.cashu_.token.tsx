@@ -1,46 +1,49 @@
 import { validateCashuToken } from '@agicash/cashu';
+import type { Account, User } from '@agicash/wallet-sdk';
+import {
+  AccountRepository,
+  AccountService,
+  CashuReceiveQuoteRepository,
+  CashuReceiveQuoteService,
+  CashuReceiveSwapRepository,
+  CashuReceiveSwapService,
+  ClaimCashuTokenService,
+  ReceiveCashuTokenQuoteService,
+  ReceiveCashuTokenService,
+  SparkReceiveQuoteRepository,
+  SparkReceiveQuoteService,
+  UserService,
+  WriteUserRepository,
+  decodeCashuToken,
+  getEncryption,
+} from '@agicash/wallet-sdk/temporary';
+import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
 import { redirect } from 'react-router';
 import { Page } from '~/components/page';
-import type { Account } from '~/features/accounts/account';
 import {
   AccountsCache,
   accountsQueryOptions,
 } from '~/features/accounts/account-hooks';
-import { AccountRepository } from '~/features/accounts/account-repository';
-import { AccountService } from '~/features/accounts/account-service';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
-import { CashuReceiveQuoteRepository } from '~/features/receive/cashu-receive-quote-repository';
-import { CashuReceiveQuoteService } from '~/features/receive/cashu-receive-quote-service';
-import { CashuReceiveSwapRepository } from '~/features/receive/cashu-receive-swap-repository';
-import { CashuReceiveSwapService } from '~/features/receive/cashu-receive-swap-service';
-import { ClaimCashuTokenService } from '~/features/receive/claim-cashu-token-service';
-import { ReceiveCashuTokenQuoteService } from '~/features/receive/receive-cashu-token-quote-service';
-import { ReceiveCashuTokenService } from '~/features/receive/receive-cashu-token-service';
-import { SparkReceiveQuoteRepository } from '~/features/receive/spark-receive-quote-repository';
-import { SparkReceiveQuoteService } from '~/features/receive/spark-receive-quote-service';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
 import {
-  decodeCashuToken,
   getCashuCryptography,
   seedQueryOptions,
-} from '~/features/shared/cashu';
+} from '~/features/shared/cashu-query-options';
 import {
   encryptionPrivateKeyQueryOptions,
   encryptionPublicKeyQueryOptions,
-  getEncryption,
-} from '~/features/shared/encryption';
+} from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
-import { sparkMnemonicQueryOptions } from '~/features/shared/spark';
-import type { User } from '~/features/user/user';
+import { sparkMnemonicQueryOptions } from '~/features/shared/spark-query-options';
 import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
-import { WriteUserRepository } from '~/features/user/user-repository';
-import { UserService } from '~/features/user/user-service';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import { toast } from '~/hooks/use-toast';
+import { breezApiKey } from '~/lib/breez';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
@@ -59,7 +62,7 @@ const getServices = async () => {
     encryption,
     getCashuWalletSeed,
     getSparkWalletMnemonic,
-    './.spark-data',
+    { storageDir: './.spark-data', apiKey: breezApiKey },
   );
   const accountService = new AccountService(accountRepository);
   const receiveSwapRepository = new CashuReceiveSwapRepository(
@@ -204,6 +207,11 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
         variant: 'destructive',
         duration: 8000,
       });
+      if (result.error) {
+        Sentry.captureException(
+          new Error(result.message, { cause: result.error }),
+        );
+      }
     }
 
     const explicitRedirectTo = location.searchParams.get('redirectTo');
