@@ -1,7 +1,62 @@
-// @agicash/wallet-sdk — public surface: domain types only.
-// Repositories, services, and the wallet DB layer are SDK-internal; during the
-// migration they're re-exported from '@agicash/wallet-sdk/temporary' instead,
-// so that deleting /temporary at the end compiler-enforces the boundary.
+// @agicash/wallet-sdk — public surface: the SDK contract (sdk.ts) + domain
+// types + typed errors. Repositories, services, and the wallet DB layer are
+// SDK-internal; during the migration they're re-exported from
+// '@agicash/wallet-sdk/temporary' instead, so that deleting /temporary at the
+// end compiler-enforces the boundary.
+export type {
+  AcceptTermsParams,
+  AccountsApi,
+  AddCashuAccountParams,
+  AuthApi,
+  AuthSession,
+  AuthStorage,
+  AuthUser,
+  BackgroundApi,
+  BackgroundState,
+  ClaimCashuTokenParams,
+  ClaimCashuTokenResult,
+  ContactsApi,
+  CreateCashuReceiveQuoteParams,
+  CreateCashuSendQuoteParams,
+  CreateCashuSwapParams,
+  CreateCashuSwapResult,
+  CreateContactParams,
+  CreateSparkReceiveQuoteParams,
+  CreateSparkSendQuoteParams,
+  Cursor,
+  FeatureFlagsApi,
+  GetCashuReceiveLightningQuoteParams,
+  GetCashuSendLightningQuoteParams,
+  GetCashuSwapQuoteParams,
+  GetReceiveCashuTokenQuoteParams,
+  GetSparkReceiveLightningQuoteParams,
+  GetSparkSendLightningQuoteParams,
+  GetTransferQuoteParams,
+  InitiateTransferParams,
+  Logger,
+  ReceiveApi,
+  ReceiveCashuTokenQuote,
+  Sdk,
+  SdkConfig,
+  SdkConstructor,
+  SendApi,
+  ServerSdk,
+  ServerSdkConfig,
+  ServerSdkConstructor,
+  TransactionsApi,
+  TransferApi,
+  UserApi,
+  WalletEventMap,
+  WalletEvents,
+} from './sdk';
+export {
+  ConcurrencyError,
+  DomainError,
+  NotFoundError,
+  SdkError,
+  UniqueConstraintError,
+  WebAssemblyUnavailableError,
+} from './lib/error';
 export type { DestinationDetails } from './lib/send-destination';
 export type { SparkNetwork } from './db/json-models/spark-account-details-db-data';
 export type { FeatureFlag, FeatureFlags } from './lib/feature-flag-service';
