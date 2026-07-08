@@ -91,11 +91,15 @@ Notes:
   can *fail* — session restore and the Breez WASM probe — and rejects with the
   typed error (e.g. `WebAssemblyUnavailableError`, when WebAssembly is
   unavailable as under iOS Lockdown Mode), so the host keeps its boot-time
-  fallback path. If the host never calls `init()`, first use lazy-initializes
-  exactly as today. This preserves master's split verbatim — **what is lazy
-  stays lazy, what is eager stays eager**: eager = session restore + WASM probe
-  (`init()`) and the realtime subscription (driven by `events.on()`); lazy =
-  per-account Spark connect, cashu wallet init, and all reads (first use).
+  fallback path. **`init()` resolves when no session exists** — absence of a
+  session is a normal state (the login pages construct the SDK too), not a
+  boot failure; it rejects only on actual failures: WASM unavailable, storage
+  unreadable, refresh errors. If the host never calls `init()`, first use
+  lazy-initializes exactly as today. This preserves master's split verbatim —
+  **what is lazy stays lazy, what is eager stays eager**: eager = session
+  restore + WASM probe (`init()`) and the realtime subscription (established
+  with the authenticated session — see Events); lazy = per-account Spark
+  connect, cashu wallet init, and all reads (first use).
 - **`dispose()`** awaits in-flight background state transitions to their next
   checkpoint, then tears down realtime + background; still-pending namespace
   promises reject with a typed `SdkError`.
@@ -182,6 +186,23 @@ with exact input and return types, instead of widening a shared `add`
 signature into unions or overloads.
 
 ```ts
+type AuthApi = {
+  signUp(email: string, password: string): Promise<void>;  // auto-signs-in
+  signUpGuest(): Promise<void>;  // re-signs-in this device's prior guest account if one exists
+  signIn(email: string, password: string): Promise<void>;
+  signOut(): Promise<void>;      // stops background, tears down realtime, clears the stored session
+  verifyEmail(code: string): Promise<void>;
+  requestNewVerificationCode(): Promise<void>;
+  convertGuestToFullAccount(email: string, password: string): Promise<void>;
+  initiateGoogleAuth(): Promise<{ authUrl: string }>;  // host redirects to authUrl
+  completeGoogleAuth(params: { code: string; state: string }): Promise<void>;  // OAuth callback leg
+  getSession(): AuthSession;     // sync snapshot for route guards; no I/O
+};
+
+type AuthSession =
+  | { isLoggedIn: true; user: AuthUser }  // exact AuthUser shape settles in step 5
+  | { isLoggedIn: false };
+
 type UserApi = {
   get(): Promise<User>;
   updateUsername(username: string): Promise<User>;
@@ -211,12 +232,25 @@ type TransactionsApi = {
   acknowledge(transactionId: string): Promise<void>;
 };
 
+type FeatureFlagsApi = {
+  get(flag: FeatureFlag): boolean;              // sync read from the process-local flag cache
+  subscribe(listener: () => void): () => void;  // cache-change signal (web: useSyncExternalStore)
+};
+
 type BackgroundApi = {
-  start(): void;            // leader election + change feed + processors
+  start(): void;            // leader election + processors; throws with no session
   stop(): Promise<void>;    // see stop() semantics below
   readonly state: 'stopped' | 'follower' | 'leader' | 'error';
 };
 ```
+
+Auth keeps master's verb set verbatim (`signIn`/`signOut`/`signUpGuest`…, from
+today's `useAuthActions`); web-only concerns stay host-side (`redirectTo`
+after sign-out is routing, not contract). `signOut()` ends the session but
+leaves the instance alive in anonymous state — `dispose()` is instance
+teardown, not logout. `featureFlags` is the documented process-local cache
+exception (Principles, rule 1), hence the sync `get` + `subscribe` pair
+instead of promises.
 
 ### Execution model
 
@@ -234,15 +268,22 @@ consumers depend on it:
   poll interval (~6s lease, renewed every 5s), not instant — accepted contract,
   not a stall.
 
+`start()` throws a typed `SdkError` when no authenticated session exists —
+background work is per-user by construction (the leader lock and every
+processor queue are user-scoped), so an anonymous instance has nothing to run.
+
 **Error handling** keeps master's two tiers:
 
 - **Per-task errors are isolated** — a single poisoned quote logs via the
   `logger` port and the loop keeps processing the rest; the failed entity
   surfaces through its own `*.updated` event on transition to FAILED.
-- **Systemic failures** — change feed dead after retries, leader lock
-  unrenewable — transition `state → 'error'` and emit `background.state-changed`.
-  A host wires that to recovery: web throws from a subscribed hook into its
-  global error boundary; an MCP host drives its exit/restart policy.
+- **Systemic failures** — the leader lock unrenewable after retries and the
+  like — transition `state → 'error'` and emit `background.state-changed` with
+  the `error` payload set. A host wires that to recovery: web throws from a
+  subscribed hook into its global error boundary; an MCP host drives its
+  exit/restart policy. Change-feed death is **not** a background failure: the
+  realtime channel belongs to `events`, and its death surfaces as
+  `connection.changed: 'error'` alone.
 
 **`stop()` returns a Promise** because callers (logout, process exit, the SDK's
 own `dispose()`) must await cleanup: it stops claiming new work immediately,
@@ -289,9 +330,10 @@ only an id — the asymmetry is intentional, not an oversight.
 
 ```ts
 type WalletEventMap = {
+  'auth.session-expired': Record<string, never>; // session died without signOut() (expiry / failed refresh)
   'user.updated': { user: User };
   'account.created' | 'account.updated': { account: Account };
-  'account.balance-changed': { accountId: string; balance: Money }; // spark only; no version
+  'account.balance-changed': { accountId: string; balance: Money }; // both rails; no version
   'contact.created' | 'contact.deleted': { contact: Contact };
   'transaction.created' | 'transaction.updated': { transaction: Transaction };
   'cashu-receive-quote.created' | 'cashu-receive-quote.updated': { quote: CashuReceiveQuote };
@@ -325,20 +367,38 @@ type WalletEvents = {
   as `updated` with the new state on the payload, not as separate event names.
 - **`account.updated` vs `account.balance-changed` are two kinds of change.**
   `account.updated` = a persisted row changed; its payload carries a `version`
-  and consumers version-gate on it. `account.balance-changed` = a live rail-side
-  balance signal with no version semantics. Cashu accounts only ever emit
-  `account.updated` (balance is row-derived); **spark accounts emit
-  `account.balance-changed`** from the SDK's internal Breez listeners (replacing
-  today's raw-handle listeners). The contract `Account` carries `balance` and
-  does **not** expose a raw wallet handle.
+  and consumers version-gate on it. `account.balance-changed` = a versionless
+  balance signal **both rails emit**: cashu fires it whenever a row change
+  moves the balance (alongside the versioned `account.updated` for that same
+  change), spark fires it from the SDK's internal Breez listeners (replacing
+  today's raw-handle listeners) — spark's only balance path, since spark
+  balances are rail-side state, not rows. A balance consumer subscribes to one
+  event regardless of rail; version-gated row consumers keep `account.updated`.
+  The contract `Account` carries `balance` and does **not** expose a raw
+  wallet handle.
 - **`connection.changed`** emits on every transition into `connected` —
-  including the first subscribe, not only reconnects — so the invalidate-all
-  sweep also covers changes that land between first render and subscription
-  (replacing today's `onConnected`). `error` is terminal: the channel is dead
-  after retries exhaust (today's `SupabaseRealtimeError` → error boundary),
-  distinct from a long `reconnecting`.
-- **`background.state-changed`** fires only on systemic background failures
-  (see Execution model); per-task errors never fire it.
+  including the initial connection, not only reconnects — so the
+  invalidate-all sweep also covers changes that land before the channel came
+  up (replacing today's `onConnected`). `error` is terminal: the channel is
+  dead after retries exhaust (today's `SupabaseRealtimeError` → error
+  boundary), distinct from a long `reconnecting`.
+- **`events.on()` never initiates the realtime connection** — it only
+  registers a handler, and is callable with no session (login pages construct
+  the SDK; `auth.session-expired` and `background.state-changed` are not
+  realtime-backed). The per-user channel is established by the session coming
+  into existence — login, or `init()`'s session restore — and establishment
+  emits `connection.changed: 'connected'`: the host's invalidate-all signal,
+  exactly master's `onConnected` role.
+- **`auth.session-expired`** is the session-death path the host didn't
+  initiate: the SDK keeps master's refresh-or-expire machinery internal and
+  emits this when refresh fails or expiry hits, so the web renders its
+  "session expired" toast + redirect from one subscription. A host-initiated
+  `signOut()` never fires it.
+- **`background.state-changed`** fires on **every** `state` transition
+  (`stopped ↔ follower ↔ leader`, and into `'error'`), payload
+  `{ state, error? }` with `error` set on transitions into `'error'`. One
+  rule, no exceptions — and per-task errors don't change state, so they still
+  never fire it (see Execution model).
 - Event names are stable contract; adding events is non-breaking, renaming is
   breaking.
 
@@ -414,6 +474,10 @@ parsing rows once events deliver domain objects).
 | db row types + `*DbDataSchema` | internal (step 18 removes web's need) |
 | `getEncryption`, encrypt/decrypt fns | internal (auth slice) |
 | cashu wallet plumbing (`getInitializedCashuWallet`, mint auth…) | internal |
+| `lib/spark` key/wallet plumbing (`getSparkMnemonic`, `getSparkIdentityPublicKeyFromMnemonic`, `clearSparkWallets`, `createSparkWalletStub`) | internal (absorbed by the auth/accounts/token-claim slices) |
+| `sparkDebugLog` | internal (logger port) |
+| `ensureBreezWasm` | replaced by `init()` |
+| `WebAssemblyUnavailableError` | root error export (listed above) |
 | pure codecs/validators/errors | root exports |
 | feature-flag fns | `sdk.featureFlags` |
 | exchange-rate | root export (stateless) |
