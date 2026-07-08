@@ -67,7 +67,7 @@ type Logger = {
 
 class Sdk {
   static create(config: SdkConfig): Sdk; // sync; no I/O
-  init(): Promise<void>;                 // optional async second phase (see notes)
+  init(): Promise<void>;                 // async second phase; required before Spark use (see notes)
   dispose(): Promise<void>;              // tears down realtime + background
 }
 ```
@@ -86,20 +86,21 @@ Notes:
   Spark mnemonic derive on demand from the authenticated Open Secret session
   (constructors already take `() => Promise<…>` getters today — the internal
   wiring keeps that shape).
-- **`create` is synchronous; `init()` is the optional async second phase.**
+- **`create` is synchronous; `init()` is the async second phase.**
   Constructing an `Sdk` does no I/O. `init()` front-loads the async inits that
-  can *fail* — session restore and the Breez WASM probe — and rejects with the
+  can *fail* — session restore and the Breez WASM load — and rejects with the
   typed error (e.g. `WebAssemblyUnavailableError`, when WebAssembly is
   unavailable as under iOS Lockdown Mode), so the host keeps its boot-time
   fallback path. **`init()` resolves when no session exists** — absence of a
   session is a normal state (the login pages construct the SDK too), not a
   boot failure; it rejects only on actual failures: WASM unavailable, storage
-  unreadable, refresh errors. If the host never calls `init()`, first use
-  lazy-initializes exactly as today. This preserves master's split verbatim —
-  **what is lazy stays lazy, what is eager stays eager**: eager = session
-  restore + WASM probe (`init()`) and the realtime subscription (established
-  with the authenticated session — see Events); lazy = per-account Spark
-  connect, cashu wallet init, and all reads (first use).
+  unreadable, refresh errors. **`init()` is required before any Spark
+  operation** — the SDK does not lazy-load the WASM; Spark calls without a
+  completed `init()` throw a typed `SdkError`. Everything else keeps master's
+  split — **what is lazy stays lazy, what is eager stays eager**: eager =
+  session restore + WASM load (`init()`) and the realtime subscription
+  (established with the authenticated session — see Events); lazy =
+  per-account Spark connect, cashu wallet init, and all reads (first use).
 - **`dispose()`** awaits in-flight background state transitions to their next
   checkpoint, then tears down realtime + background; still-pending namespace
   promises reject with a typed `SdkError`.

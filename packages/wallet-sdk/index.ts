@@ -3,74 +3,19 @@
 // SDK-internal; during the migration they're re-exported from
 // '@agicash/wallet-sdk/temporary' instead, so that deleting /temporary at the
 // end compiler-enforces the boundary.
-export type {
-  AcceptTermsParams,
-  AccountsApi,
-  AddCashuAccountParams,
-  AuthApi,
-  AuthSession,
-  AuthStorage,
-  AuthUser,
-  BackgroundApi,
-  BackgroundState,
-  ClaimCashuTokenParams,
-  ClaimCashuTokenResult,
-  ContactsApi,
-  CreateCashuReceiveQuoteParams,
-  CreateCashuSendQuoteParams,
-  CreateCashuSwapParams,
-  CreateCashuSwapResult,
-  CreateContactParams,
-  CreateSparkReceiveQuoteParams,
-  CreateSparkSendQuoteParams,
-  Cursor,
-  FeatureFlagsApi,
-  GetCashuReceiveLightningQuoteParams,
-  GetCashuSendLightningQuoteParams,
-  GetCashuSwapQuoteParams,
-  GetReceiveCashuTokenQuoteParams,
-  GetSparkReceiveLightningQuoteParams,
-  GetSparkSendLightningQuoteParams,
-  GetTransferQuoteParams,
-  InitiateTransferParams,
-  Logger,
-  ReceiveApi,
-  ReceiveCashuTokenQuote,
-  Sdk,
-  SdkAccount,
-  SdkCashuAccount,
-  SdkCashuReceiveQuote,
-  SdkCashuReceiveSwap,
-  SdkCashuSendQuote,
-  SdkCashuSendSwap,
-  SdkConfig,
-  SdkConstructor,
-  SdkContact,
-  SdkSparkAccount,
-  SdkSparkReceiveQuote,
-  SdkSparkSendQuote,
-  SdkTransaction,
-  SdkTransferQuote,
-  SendApi,
-  ServerSdk,
-  ServerSdkConfig,
-  ServerSdkConstructor,
-  SetDefaultAccountParams,
-  SetDefaultCurrencyParams,
-  TransactionsApi,
-  TransferApi,
-  UserApi,
-  WalletEventMap,
-  WalletEvents,
-} from './sdk';
+// The explicit domain-type exports below SHADOW the same-named contract
+// projections from './sdk' (an explicit export beats `export *`); each slice
+// deletes its names here when it flips the web imports, surfacing the
+// projections.
+export * from './sdk';
 export {
   ConcurrencyError,
   DomainError,
   NotFoundError,
   SdkError,
   UniqueConstraintError,
-  WebAssemblyUnavailableError,
 } from './lib/error';
+export { WebAssemblyUnavailableError } from './lib/spark/errors';
 export type { DestinationDetails } from './lib/send-destination';
 export type { SparkNetwork } from './db/json-models/spark-account-details-db-data';
 export type { FeatureFlag, FeatureFlags } from './lib/feature-flag-service';

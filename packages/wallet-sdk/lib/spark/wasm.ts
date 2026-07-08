@@ -1,7 +1,5 @@
 import initBreezWasm from '@agicash/breez-sdk-spark';
-import { WebAssemblyUnavailableError } from '../error';
-
-export { WebAssemblyUnavailableError };
+import { WebAssemblyUnavailableError } from './errors';
 
 let wasmInitPromise: ReturnType<typeof initBreezWasm> | null = null;
 
