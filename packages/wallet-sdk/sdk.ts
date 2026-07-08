@@ -15,7 +15,7 @@ import type {
 } from '@agicash/lnurl';
 import type { Money } from '@agicash/money';
 import type { SparkNetwork } from './db/json-models/spark-account-details-db-data';
-import type { Account, CashuAccount } from './domain/accounts/account';
+import type { CashuAccount, SparkAccount } from './domain/accounts/account';
 import type { Contact } from './domain/contacts/contact';
 import type { CashuReceiveQuote } from './domain/receive/cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from './domain/receive/cashu-receive-quote-core';
@@ -30,13 +30,39 @@ import type { SparkSendQuote } from './domain/send/spark-send-quote';
 import type { SparkLightningQuote } from './domain/send/spark-send-quote-service';
 import type { Transaction } from './domain/transactions/transaction';
 import type { Cursor } from './domain/transactions/transaction-repository';
-import type { TransferQuote } from './domain/transfer/transfer-service';
 import type { User } from './domain/user/user';
 import type { SdkError } from './lib/error';
 import type { FeatureFlag } from './lib/feature-flag-service';
 import type { DestinationDetails } from './lib/send-destination';
 
 export type { Cursor };
+
+// --- Public entity projections ---------------------------------------------
+// The contract returns and emits public projections of the domain entities:
+// `userId`/`ownerId` are implicit from the session, and raw wallet handles /
+// proof material never appear on the public surface. Each projection takes
+// the bare domain name once its slice flips the web imports off /temporary.
+
+/**
+ * The contract account: carries `balance` on every rail, never a raw wallet
+ * handle or proof material. The exact cashu field set (e.g. whether
+ * `keysetCounters` stays internal) settles in the accounts slice (step 6).
+ */
+export type SdkCashuAccount = Omit<
+  CashuAccount,
+  'keysetCounters' | 'proofs' | 'wallet'
+> & { balance: Money | null };
+export type SdkSparkAccount = Omit<SparkAccount, 'wallet'>;
+export type SdkAccount = SdkCashuAccount | SdkSparkAccount;
+
+export type SdkContact = Omit<Contact, 'ownerId'>;
+export type SdkTransaction = Omit<Transaction, 'userId'>;
+export type SdkCashuReceiveQuote = Omit<CashuReceiveQuote, 'userId'>;
+export type SdkSparkReceiveQuote = Omit<SparkReceiveQuote, 'userId'>;
+export type SdkCashuReceiveSwap = Omit<CashuReceiveSwap, 'userId'>;
+export type SdkCashuSendQuote = Omit<CashuSendQuote, 'userId'>;
+export type SdkCashuSendSwap = Omit<CashuSendSwap, 'userId'>;
+export type SdkSparkSendQuote = Omit<SparkSendQuote, 'userId'>;
 
 /**
  * Host-backed session persistence. Binds to the React-agnostic
@@ -161,30 +187,30 @@ export type UserApi = {
 };
 
 export type AccountsApi = {
-  get(id: string): Promise<Account | null>;
+  get(id: string): Promise<SdkAccount | null>;
   /** Active accounts of the current user. */
-  list(): Promise<Account[]>;
+  list(): Promise<SdkAccount[]>;
   cashu: {
-    add(params: AddCashuAccountParams): Promise<CashuAccount>;
+    add(params: AddCashuAccountParams): Promise<SdkCashuAccount>;
   };
 };
 
 export type ContactsApi = {
-  get(id: string): Promise<Contact | null>;
-  list(): Promise<Contact[]>;
-  create(params: CreateContactParams): Promise<Contact>;
+  get(id: string): Promise<SdkContact | null>;
+  list(): Promise<SdkContact[]>;
+  create(params: CreateContactParams): Promise<SdkContact>;
   delete(id: string): Promise<void>;
-  findContactCandidates(query: string): Promise<Contact[]>;
+  findContactCandidates(query: string): Promise<SdkContact[]>;
 };
 
 export type TransactionsApi = {
-  get(id: string): Promise<Transaction | null>;
+  get(id: string): Promise<SdkTransaction | null>;
   list(params: {
     /** Opaque pagination token from a previous page's `nextCursor`. */
     cursor?: Cursor;
     pageSize?: number;
     accountId?: string;
-  }): Promise<{ transactions: Transaction[]; nextCursor: Cursor | null }>;
+  }): Promise<{ transactions: SdkTransaction[]; nextCursor: Cursor | null }>;
   countPendingAck(): Promise<number>;
   acknowledge(transactionId: string): Promise<void>;
 };
@@ -203,8 +229,8 @@ export type ReceiveApi = {
     ): Promise<CashuReceiveLightningQuote>;
     createQuote(
       params: CreateCashuReceiveQuoteParams,
-    ): Promise<CashuReceiveQuote>;
-    getQuote(id: string): Promise<CashuReceiveQuote | null>;
+    ): Promise<SdkCashuReceiveQuote>;
+    getQuote(id: string): Promise<SdkCashuReceiveQuote | null>;
   };
   spark: {
     getLightningQuote(
@@ -212,8 +238,8 @@ export type ReceiveApi = {
     ): Promise<SparkReceiveLightningQuote>;
     createQuote(
       params: CreateSparkReceiveQuoteParams,
-    ): Promise<SparkReceiveQuote>;
-    getQuote(id: string): Promise<SparkReceiveQuote | null>;
+    ): Promise<SdkSparkReceiveQuote>;
+    getQuote(id: string): Promise<SdkSparkReceiveQuote | null>;
   };
   cashuToken: {
     getQuote(
@@ -248,7 +274,7 @@ export type SendApi = {
 
 export type TransferApi = {
   /** Stateless preview. */
-  getQuote(params: GetTransferQuoteParams): Promise<TransferQuote>;
+  getQuote(params: GetTransferQuoteParams): Promise<SdkTransferQuote>;
   initiate(params: InitiateTransferParams): Promise<{ transactionId: string }>;
 };
 
@@ -301,9 +327,9 @@ export type WalletEventMap = {
    */
   'auth.session-expired': Record<string, never>;
   'user.updated': { user: User };
-  'account.created': { account: Account };
+  'account.created': { account: SdkAccount };
   /** A persisted row changed; the payload carries a `version` consumers gate on. */
-  'account.updated': { account: Account };
+  'account.updated': { account: SdkAccount };
   /**
    * Versionless balance signal, both rails: cashu alongside the versioned
    * `account.updated` for the same change, spark from the SDK's internal
@@ -311,22 +337,22 @@ export type WalletEventMap = {
    * state, not rows).
    */
   'account.balance-changed': { accountId: string; balance: Money };
-  'contact.created': { contact: Contact };
-  'contact.deleted': { contact: Contact };
-  'transaction.created': { transaction: Transaction };
-  'transaction.updated': { transaction: Transaction };
-  'cashu-receive-quote.created': { quote: CashuReceiveQuote };
-  'cashu-receive-quote.updated': { quote: CashuReceiveQuote };
-  'cashu-receive-swap.created': { swap: CashuReceiveSwap };
-  'cashu-receive-swap.updated': { swap: CashuReceiveSwap };
-  'spark-receive-quote.created': { quote: SparkReceiveQuote };
-  'spark-receive-quote.updated': { quote: SparkReceiveQuote };
-  'cashu-send-quote.created': { quote: CashuSendQuote };
-  'cashu-send-quote.updated': { quote: CashuSendQuote };
-  'cashu-send-swap.created': { swap: CashuSendSwap };
-  'cashu-send-swap.updated': { swap: CashuSendSwap };
-  'spark-send-quote.created': { quote: SparkSendQuote };
-  'spark-send-quote.updated': { quote: SparkSendQuote };
+  'contact.created': { contact: SdkContact };
+  'contact.deleted': { contact: SdkContact };
+  'transaction.created': { transaction: SdkTransaction };
+  'transaction.updated': { transaction: SdkTransaction };
+  'cashu-receive-quote.created': { quote: SdkCashuReceiveQuote };
+  'cashu-receive-quote.updated': { quote: SdkCashuReceiveQuote };
+  'cashu-receive-swap.created': { swap: SdkCashuReceiveSwap };
+  'cashu-receive-swap.updated': { swap: SdkCashuReceiveSwap };
+  'spark-receive-quote.created': { quote: SdkSparkReceiveQuote };
+  'spark-receive-quote.updated': { quote: SdkSparkReceiveQuote };
+  'cashu-send-quote.created': { quote: SdkCashuSendQuote };
+  'cashu-send-quote.updated': { quote: SdkCashuSendQuote };
+  'cashu-send-swap.created': { swap: SdkCashuSendSwap };
+  'cashu-send-swap.updated': { swap: SdkCashuSendSwap };
+  'spark-send-quote.created': { quote: SdkSparkSendQuote };
+  'spark-send-quote.updated': { quote: SdkSparkSendQuote };
   /**
    * Emits on every transition into `connected` — including the initial
    * connection — as the host's invalidate-all signal. `error` is terminal:
@@ -427,3 +453,4 @@ export type GetSparkSendLightningQuoteParams = unknown; // settles in step 15 (s
 export type CreateSparkSendQuoteParams = unknown; // settles in step 15 (spark send quote)
 export type GetTransferQuoteParams = unknown; // settles in step 16 (transfer)
 export type InitiateTransferParams = unknown; // settles in step 16 (transfer)
+export type SdkTransferQuote = unknown; // settles in step 16 (transfer): public projection of today's TransferQuote — must not embed raw accounts
