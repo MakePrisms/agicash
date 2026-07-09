@@ -1,7 +1,21 @@
-// @agicash/wallet-sdk — public surface: domain types only.
-// Repositories, services, and the wallet DB layer are SDK-internal; during the
-// migration they're re-exported from '@agicash/wallet-sdk/temporary' instead,
-// so that deleting /temporary at the end compiler-enforces the boundary.
+// @agicash/wallet-sdk — public surface: the SDK contract (sdk.ts) + domain
+// types + typed errors. Repositories, services, and the wallet DB layer are
+// SDK-internal; during the migration they're re-exported from
+// '@agicash/wallet-sdk/temporary' instead, so that deleting /temporary at the
+// end compiler-enforces the boundary.
+// The explicit domain-type exports below SHADOW the same-named contract
+// projections from './sdk' (an explicit export beats `export *`); each slice
+// deletes its names here when it flips the web imports, surfacing the
+// projections.
+export * from './sdk';
+export {
+  ConcurrencyError,
+  DomainError,
+  NotFoundError,
+  SdkError,
+  UniqueConstraintError,
+} from './lib/error';
+export { WebAssemblyUnavailableError } from './lib/spark/errors';
 export type { DestinationDetails } from './lib/send-destination';
 export type { SparkNetwork } from './db/json-models/spark-account-details-db-data';
 export type { FeatureFlag, FeatureFlags } from './lib/feature-flag-service';
