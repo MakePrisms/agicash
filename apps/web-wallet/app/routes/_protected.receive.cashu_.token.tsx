@@ -13,7 +13,6 @@ import {
   SparkReceiveQuoteRepository,
   SparkReceiveQuoteService,
   UserService,
-  WriteUserRepository,
   decodeCashuToken,
   getEncryption,
 } from '@agicash/wallet-sdk/temporary';
@@ -39,6 +38,7 @@ import {
   encryptionPublicKeyQueryOptions,
 } from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
+import { sdk } from '~/features/shared/sdk.client';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark-query-options';
 import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
 import { getExchangeRate } from '~/hooks/use-exchange-rate';
@@ -89,9 +89,6 @@ const getServices = async () => {
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
   );
-  const userRepository = new WriteUserRepository(agicashDbClient);
-  const userService = new UserService(userRepository);
-
   const claimCashuTokenService = new ClaimCashuTokenService(
     accountService,
     receiveSwapService,
@@ -102,7 +99,7 @@ const getServices = async () => {
     (ticker) => getExchangeRate(queryClient, ticker),
   );
 
-  return { claimCashuTokenService, accountRepository, userService };
+  return { claimCashuTokenService, accountRepository };
 };
 
 /**
@@ -112,7 +109,6 @@ const getServices = async () => {
  * UX, so it lives here rather than in the claim service.
  */
 async function trySetReceiveAccountAsDefault(
-  userService: UserService,
   queryClient: QueryClient,
   user: User,
   account: Account,
@@ -124,7 +120,8 @@ async function trySetReceiveAccountAsDefault(
     return;
   }
   try {
-    const updatedUser = await userService.setDefaultAccount(user, account, {
+    const updatedUser = await sdk.user.setDefaultAccount({
+      accountId: account.id,
       setDefaultCurrency: true,
     });
     new UserCache(queryClient).set(updatedUser);
@@ -170,8 +167,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   if (claimTo) {
     const user = getUserFromCacheOrThrow();
-    const { claimCashuTokenService, accountRepository, userService } =
-      await getServices();
+    const { claimCashuTokenService, accountRepository } = await getServices();
     const queryClient = getQueryClient();
     const accounts = await queryClient.fetchQuery(
       accountsQueryOptions({ userId: user.id, accountRepository }),
@@ -192,7 +188,6 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
         accountsCache.upsert(account);
       }
       await trySetReceiveAccountAsDefault(
-        userService,
         queryClient,
         user,
         result.receiveAccount,
