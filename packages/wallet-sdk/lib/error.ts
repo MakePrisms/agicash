@@ -30,3 +30,11 @@ export class ConcurrencyError extends SdkError {
     this.name = 'ConcurrencyError';
   }
 }
+
+/** Thrown when a namespace method requiring an authenticated session runs without one. */
+export class NoSessionError extends SdkError {
+  constructor() {
+    super('No authenticated session');
+    this.name = 'NoSessionError';
+  }
+}
