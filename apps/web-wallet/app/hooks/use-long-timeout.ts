@@ -1,5 +1,5 @@
+import { clearLongTimeout, setLongTimeout } from '@agicash/utils';
 import { useEffect } from 'react';
-import { clearLongTimeout, setLongTimeout } from '~/lib/timeout';
 import { useLatest } from '~/lib/use-latest';
 
 /**
