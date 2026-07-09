@@ -332,6 +332,7 @@ only an id — the asymmetry is intentional, not an oversight.
 ```ts
 type WalletEventMap = {
   'auth.session-expired': Record<string, never>; // session died without signOut() (expiry / failed refresh)
+  'auth.session-refreshed': Record<string, never>; // SDK-initiated refresh (guest auto-extend); host verbs never fire it — added by the auth slice (step-5 plan, A13)
   'user.updated': { user: User };
   'account.created' | 'account.updated': { account: Account };
   'account.balance-changed': { accountId: string; balance: Money }; // both rails; no version

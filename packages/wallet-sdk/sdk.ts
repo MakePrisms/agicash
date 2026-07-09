@@ -6,7 +6,8 @@ import type {
   LNURLPayResult,
   LNURLVerifyResult,
 } from '@agicash/lnurl';
-import type { Money } from '@agicash/money';
+import type { Currency, Money } from '@agicash/money';
+import type { UserResponse } from '@agicash/opensecret';
 import type { SparkNetwork } from './db/json-models/spark-account-details-db-data';
 import type {
   CashuAccount as DomainCashuAccount,
@@ -57,11 +58,27 @@ export type CashuSendSwap = Omit<
 >;
 export type SparkSendQuote = Omit<DomainSparkSendQuote, 'userId'>;
 
-/** Host-backed session persistence. */
+/**
+ * Minimal key/value store — the Web Storage API subset the SDK persists auth
+ * state through. Methods may be sync (window.localStorage) or async (React
+ * Native AsyncStorage, SQLite); the SDK always awaits results. Matches the
+ * @agicash/opensecret StorageProvider interface verbatim, so one host object
+ * backs both.
+ */
+export type AuthKeyValueStore = {
+  getItem(key: string): string | null | Promise<string | null>;
+  setItem(key: string, value: string): void | Promise<void>;
+  removeItem(key: string): void | Promise<void>;
+};
+
+/**
+ * Host-backed session persistence. `persistent` must survive restarts (auth
+ * tokens, guest credentials); `session` is per-app-session (attestation
+ * handshake material). Browser hosts map them to localStorage/sessionStorage.
+ */
 export type AuthStorage = {
-  get(key: string): Promise<string | null>;
-  set(key: string, value: string): Promise<void>;
-  remove(key: string): Promise<void>;
+  persistent: AuthKeyValueStore;
+  session: AuthKeyValueStore;
 };
 
 /** Diagnostic sink; the SDK never writes to the console directly. */
@@ -81,6 +98,12 @@ export type SdkConfig = {
     apiUrl: string;
     clientId: string;
     storage: AuthStorage;
+    /**
+     * Host override for guest credential generation; resolve null to use the
+     * SDK's CSPRNG generator. Test seam (the web bridges its e2e password
+     * mock through it).
+     */
+    generateGuestPassword?: () => Promise<string | null>;
   };
   spark: {
     breezApiKey: string;
@@ -113,6 +136,9 @@ export type Sdk = {
    * the SDK does not lazy-load the WASM, so Spark calls without a completed
    * `init()` throw a typed `SdkError`. Non-Spark usage lazy-initializes on
    * first use.
+   *
+   * Migration note: until the first Spark slice lands, `init()` performs
+   * session restore only — the WASM load still runs host-side.
    */
   init(): Promise<void>;
   /**
@@ -128,7 +154,7 @@ export type SdkConstructor = {
   create(config: SdkConfig): Sdk;
 };
 
-export type AuthUser = unknown; // settles in step 5 (auth & user)
+export type AuthUser = UserResponse['user'];
 
 export type AuthSession =
   | { isLoggedIn: true; user: AuthUser }
@@ -291,6 +317,13 @@ export type BackgroundApi = {
 export type WalletEventMap = {
   /** The session died without a `signOut()` call (expiry / failed refresh). */
   'auth.session-expired': Record<string, never>;
+  /**
+   * The SDK refreshed the session without a host-initiated verb — today:
+   * guest auto-extension at refresh-token expiry. Host-initiated verbs never
+   * fire it (the host knows its own actions). Hosts re-sync session-derived
+   * state from it (the web: auth query + session-hint cookie).
+   */
+  'auth.session-refreshed': Record<string, never>;
   'user.updated': { user: User };
   'account.created': { account: Account };
   /** A persisted row changed; the payload carries a `version` consumers gate on. */
@@ -381,9 +414,20 @@ export type ServerSdkConstructor = {
 // Settles in step N — pinned by that slice PR to the public projection of
 // today's service types.
 
-export type AcceptTermsParams = unknown; // step 5 (auth & user)
-export type SetDefaultAccountParams = unknown; // step 5 (auth & user)
-export type SetDefaultCurrencyParams = unknown; // step 5 (auth & user)
+export type AcceptTermsParams = {
+  walletTerms?: boolean;
+  giftCardTerms?: boolean;
+};
+
+export type SetDefaultAccountParams = {
+  accountId: string;
+  /** Also switch the user's default currency to the account's currency. */
+  setDefaultCurrency?: boolean;
+};
+
+export type SetDefaultCurrencyParams = {
+  currency: Currency;
+};
 export type AddCashuAccountParams = unknown; // step 6 (accounts)
 export type CreateContactParams = unknown; // step 7 (contacts)
 export type GetCashuReceiveLightningQuoteParams = unknown; // step 9 (cashu receive quote)
