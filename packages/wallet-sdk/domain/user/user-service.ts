@@ -45,10 +45,12 @@ export class UserService {
   /**
    * Sets the account as the user's default account for the respective currency.
    * If setDefaultCurrency option is set to true, the user's default currency will also be set to the account's currency.
+   * Writes only the changed columns, so concurrent changes to the other
+   * defaults can't be clobbered by stale caller state.
    */
   async setDefaultAccount(
-    user: User,
-    account: Account,
+    user: Pick<User, 'id'>,
+    account: Pick<Account, 'id' | 'currency'>,
     options: SetDefaultAccountOptions = {
       setDefaultCurrency: false,
     },
@@ -60,13 +62,12 @@ export class UserService {
     return this.userRepository.update(
       user.id,
       {
-        defaultCurrency: options.setDefaultCurrency
-          ? account.currency
-          : user.defaultCurrency,
-        defaultBtcAccountId:
-          account.currency === 'BTC' ? account.id : user.defaultBtcAccountId,
-        defaultUsdAccountId:
-          account.currency === 'USD' ? account.id : user.defaultUsdAccountId,
+        ...(account.currency === 'BTC'
+          ? { defaultBtcAccountId: account.id }
+          : { defaultUsdAccountId: account.id }),
+        ...(options.setDefaultCurrency
+          ? { defaultCurrency: account.currency }
+          : {}),
       },
       { abortSignal: options.abortSignal },
     );

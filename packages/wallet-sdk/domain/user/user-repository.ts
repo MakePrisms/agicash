@@ -54,10 +54,7 @@ type AccountInput = {
 >;
 
 export class WriteUserRepository {
-  constructor(
-    private readonly db: AgicashDb,
-    private readonly accountRepository: AccountRepository,
-  ) {}
+  constructor(private readonly db: AgicashDb) {}
 
   /**
    * Updates a user in the database.
@@ -146,6 +143,7 @@ export class WriteUserRepository {
        */
       giftCardMintTermsAcceptedAt?: string;
     },
+    accountRepository: AccountRepository,
     options?: Options,
   ): Promise<{ user: User; accounts: Account[] }> {
     const accountsToAdd = user.accounts.map((account) => ({
@@ -195,7 +193,7 @@ export class WriteUserRepository {
     return {
       user: ReadUserRepository.toUser(upsertedUser),
       accounts: await Promise.all(
-        accounts.map((account) => this.accountRepository.toAccount(account)),
+        accounts.map((account) => accountRepository.toAccount(account)),
       ),
     };
   }

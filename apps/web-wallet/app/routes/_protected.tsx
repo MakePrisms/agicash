@@ -121,24 +121,24 @@ const ensureUserData = async (
       getSparkWalletMnemonic,
       { storageDir: './.spark-data', apiKey: breezApiKey },
     );
-    const writeUserRepository = new WriteUserRepository(
-      agicashDbClient,
-      accountRepository,
-    );
+    const writeUserRepository = new WriteUserRepository(agicashDbClient);
 
     const { user: upsertedUser, accounts } = await withRetry({
       fn: () =>
-        writeUserRepository.upsert({
-          id: authUser.id,
-          email: authUser.email,
-          emailVerified: authUser.email_verified,
-          accounts: [...defaultAccounts],
-          cashuLockingXpub,
-          encryptionPublicKey,
-          sparkIdentityPublicKey,
-          termsAcceptedAt,
-          giftCardMintTermsAcceptedAt,
-        }),
+        writeUserRepository.upsert(
+          {
+            id: authUser.id,
+            email: authUser.email,
+            emailVerified: authUser.email_verified,
+            accounts: [...defaultAccounts],
+            cashuLockingXpub,
+            encryptionPublicKey,
+            sparkIdentityPublicKey,
+            termsAcceptedAt,
+            giftCardMintTermsAcceptedAt,
+          },
+          accountRepository,
+        ),
       retry: (attemptIndex, error) => {
         if (error instanceof core.$ZodError) {
           return false;

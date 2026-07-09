@@ -2,7 +2,6 @@ import {
   ReadUserRepository,
   WriteUserRepository,
 } from '@agicash/wallet-sdk/temporary';
-import { useAccountRepository } from '~/features/accounts/account-repository-hooks';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 
 export function useReadUserRepository() {
@@ -10,6 +9,5 @@ export function useReadUserRepository() {
 }
 
 export function useWriteUserRepository() {
-  const accountRepository = useAccountRepository();
-  return new WriteUserRepository(agicashDbClient, accountRepository);
+  return new WriteUserRepository(agicashDbClient);
 }

@@ -89,10 +89,7 @@ const getServices = async () => {
     cashuReceiveQuoteService,
     sparkReceiveQuoteService,
   );
-  const userRepository = new WriteUserRepository(
-    agicashDbClient,
-    accountRepository,
-  );
+  const userRepository = new WriteUserRepository(agicashDbClient);
   const userService = new UserService(userRepository);
 
   const claimCashuTokenService = new ClaimCashuTokenService(
