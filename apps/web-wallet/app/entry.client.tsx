@@ -1,4 +1,4 @@
-import { configure } from '@agicash/opensecret';
+import { browserStorage, configure } from '@agicash/opensecret';
 import {
   configureFeatureFlags,
   ensureBreezWasm,
@@ -36,6 +36,7 @@ if (!openSecretClientId) {
 configure({
   apiUrl: openSecretApiUrl,
   clientId: openSecretClientId,
+  storage: browserStorage,
 });
 
 // Start Breez WASM fetch/compile as early as possible so it overlaps with
