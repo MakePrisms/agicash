@@ -1,19 +1,4 @@
-import {
-  type UserResponse,
-  fetchUser,
-  convertGuestToUserAccount as osConvertGuestToFullAccount,
-  initiateGoogleAuth as osInitiateGoogleAuth,
-  signIn as osSignIn,
-  signInGuest as osSignInGuest,
-  signOut as osSignOut,
-  signUp as osSignUp,
-  signUpGuest as osSignUpGuest,
-  verifyEmail as osVerifyEmail,
-} from '@agicash/opensecret';
-import {
-  clearAgicashMintAuthToken,
-  clearSparkWallets,
-} from '@agicash/wallet-sdk/temporary';
+import type { AuthUser } from '@agicash/wallet-sdk';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import {
@@ -22,25 +7,26 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { jwtDecode } from 'jwt-decode';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import {
   loadFeatureFlags,
   resetFeatureFlags,
 } from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
-import { useLongTimeout } from '~/hooks/use-long-timeout';
-import { generateRandomPassword } from '~/lib/password-generator';
-import { guestAccountStorage } from './guest-account-storage';
+import { sdk } from '~/features/shared/sdk.client';
+import { useLatest } from '~/lib/use-latest';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 import { sessionHintCookie } from './session-hint-cookie';
 
-export type AuthUser = UserResponse['user'];
+export type { AuthUser };
 
 type AuthState =
   | {
       isLoggedIn: true;
       user: AuthUser;
+      /** Unix seconds, captured at fetch time; drives the hint-cookie lifetime and query staleness. */
+      refreshTokenExpiresAt: number | null;
     }
   | {
       isLoggedIn: false;
@@ -49,43 +35,88 @@ type AuthState =
 
 export const authStateQueryKey = 'auth-state';
 
+// A corrupt stored token must degrade to "no value", never throw from a query
+// fn or staleTime callback (that would error-page every route, /login included).
+const safeJwtDecode = (
+  token: string,
+): { exp?: number; sub?: string } | null => {
+  try {
+    return jwtDecode(token);
+  } catch {
+    return null;
+  }
+};
+
+const getRefreshTokenExpiry = (): number | null => {
+  const refreshToken = window.localStorage.getItem('refresh_token');
+  if (!refreshToken) {
+    return null;
+  }
+  return safeJwtDecode(refreshToken)?.exp ?? null;
+};
+
 export const authQueryOptions = () =>
   queryOptions({
     queryKey: [authStateQueryKey],
-    queryFn: async () => {
-      const access_token = window.localStorage.getItem('access_token');
-      const refresh_token = window.localStorage.getItem('refresh_token');
-      if (!access_token || !refresh_token) {
-        sessionHintCookie.clear();
-        return { isLoggedIn: false } as const;
+    queryFn: async (): Promise<AuthState> => {
+      // Associate Sentry events with the user as early as possible, before
+      // session restore completes.
+      const accessToken = window.localStorage.getItem('access_token');
+      const sub = accessToken ? safeJwtDecode(accessToken)?.sub : undefined;
+      if (sub) {
+        Sentry.setUser({ id: sub });
       }
 
       try {
-        // We want to set Sentry user id here to make sure that Sentry events are associated with the user as soon as possible.
-        const { sub } = jwtDecode(access_token);
-        Sentry.setUser({ id: sub });
-
-        const response = await fetchUser();
-
-        // Set Sentry user again to include the isGuest flag
-        Sentry.setUser({ id: response.user.id, isGuest: !response.user.email });
-
-        // Mirror auth state into a hint cookie so the server can short-circuit
-        // SSR for unauthenticated visits. Lifetime matches the refresh token
-        // so we don't leave a stale "logged in" hint after the session
-        // genuinely expires.
-        const { exp } = jwtDecode<OpenSecretJwt>(refresh_token);
-        sessionHintCookie.set(exp - Math.floor(Date.now() / 1000));
-
-        return { isLoggedIn: true, user: response.user } as const;
+        await sdk.init();
       } catch (error) {
-        console.error('Failed to fetch user', { cause: error });
+        // Restore failed with tokens present (e.g. a network blip at boot).
+        // Boot anonymous; init()'s rejection is not memoized, so a later
+        // invalidateAuthQueries() retries the restore.
+        console.error('Failed to restore session', { cause: error });
         Sentry.setUser(null);
         sessionHintCookie.clear();
-        return { isLoggedIn: false } as const;
+        return { isLoggedIn: false };
       }
+      const session = sdk.auth.getSession();
+
+      if (!session.isLoggedIn) {
+        Sentry.setUser(null);
+        sessionHintCookie.clear();
+        return { isLoggedIn: false };
+      }
+
+      Sentry.setUser({ id: session.user.id, isGuest: !session.user.email });
+
+      // Mirror auth state into a hint cookie so the server can short-circuit
+      // SSR for unauthenticated visits. Lifetime matches the refresh token
+      // so we don't leave a stale "logged in" hint after the session
+      // genuinely expires.
+      const exp = getRefreshTokenExpiry();
+      if (exp) {
+        sessionHintCookie.set(exp - Math.floor(Date.now() / 1000));
+      }
+
+      return { ...session, refreshTokenExpiresAt: exp };
     },
-    staleTime: Number.POSITIVE_INFINITY,
+    // Logged-in state is fresh until the refresh token expires; a refetch
+    // after that point re-reads the (SDK-extended or ended) session and
+    // re-syncs the hint cookie. Anonymous state only changes through explicit
+    // invalidation. Staleness is pinned to the expiry captured AT FETCH TIME
+    // (not re-read from storage), so an SDK-internal guest extension can't
+    // slide freshness forward and postpone the cookie re-sync forever.
+    staleTime: ({ state: { data, dataUpdatedAt } }) => {
+      if (!data?.isLoggedIn) {
+        return Number.POSITIVE_INFINITY;
+      }
+      if (!data.refreshTokenExpiresAt) {
+        return 0;
+      }
+      return Math.max(
+        (data.refreshTokenExpiresAt - 5) * 1000 - dataUpdatedAt,
+        0,
+      );
+    },
   });
 
 /**
@@ -116,64 +147,19 @@ type SignOutOptions = {
 };
 
 type AuthActions = {
-  /**
-   * Creates a new full user account. Automatically signs in the user after sign up.
-   * @param email
-   * @param password
-   */
   signUp: (email: string, password: string) => Promise<void>;
-
-  /**
-   * Creates a new guest user account.  If the user has already signed up as a guest on the same device before, the sign
-   * in to that account will be performed instead. Automatically signs in the user after sign up.
-   */
   signUpGuest: () => Promise<void>;
-
-  /**
-   * Signs in the existing user
-   * @param email
-   * @param password
-   */
   signIn: (email: string, password: string) => Promise<void>;
-
-  /**
-   * Signs out the current user
-   * @param options Options for the sign out
-   */
   signOut: (options?: SignOutOptions) => Promise<void>;
-
-  /**
-   * Initiates a Google authentication flow
-   * Returns the auth URL to redirect the user to
-   */
-  initiateGoogleAuth: () => Promise<{
-    /**
-     * The auth URL to redirect the user to to perform the Google authentication flow
-     */
-    authUrl: string;
-  }>;
-
-  /**
-   * Verifies the email address
-   * @param code The code from the email verification
-   */
+  initiateGoogleAuth: () => Promise<{ authUrl: string }>;
   verifyEmail: (code: string) => Promise<void>;
-
-  /**
-   * Converts a guest account to a full account
-   * @param email The email address of the user
-   * @param password The password of the user
-   */
   convertGuestToFullAccount: (email: string, password: string) => Promise<void>;
 };
 
 /**
- * A hook that provides authentication actions by wrapping functionalities from the OpenSecret SDK.
- * The actions include user signing up, signing in, and signing out.
- * References for these actions are memoized to ensure consistent references across renders,
- * improving performance and preventing unnecessary re-renders or function evaluations.
- *
- * @returns {AuthActions}
+ * Authentication actions backed by the wallet SDK, wrapped with the web
+ * concerns the SDK doesn't own: query invalidation, navigation, Sentry user
+ * tracking, and the OAuth deep-link session.
  */
 export const useAuthActions = (): AuthActions => {
   const queryClient = useQueryClient();
@@ -194,7 +180,7 @@ export const useAuthActions = (): AuthActions => {
 
   const signUp = useCallback(
     async (email: string, password: string) => {
-      await osSignUp(email, password, '');
+      await sdk.auth.signUp(email, password);
       await refreshSession();
     },
     [refreshSession],
@@ -202,42 +188,36 @@ export const useAuthActions = (): AuthActions => {
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      await osSignIn(email, password);
+      await sdk.auth.signIn(email, password);
       await refreshSession();
     },
     [refreshSession],
   );
 
-  const signInGuest = useCallback(
-    async (id: string, password: string) => {
-      await osSignInGuest(id, password);
-      await refreshSession();
-    },
-    [refreshSession],
-  );
+  const signUpGuest = useCallback(async () => {
+    await sdk.auth.signUpGuest();
+    await refreshSession();
+  }, [refreshSession]);
 
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
-      await osSignOut();
+      await sdk.auth.signOut();
       // Before the refresh below so the previous user's flags are gone even if
       // the anon re-fetch fails, and so its result isn't clobbered afterwards.
       resetFeatureFlags();
       await refreshSession(options.redirectTo);
       Sentry.setUser(null);
       queryClient.clear();
-      // The SDK's module-level memos (spark wallet connections, agicash-mint
-      // CAT) live outside the query cache, so clear them alongside it so the
-      // next session starts fresh.
-      clearSparkWallets();
-      clearAgicashMintAuthToken();
     },
     [refreshSession, queryClient],
   );
 
   const initiateGoogleAuth = useCallback(async () => {
-    const response = await osInitiateGoogleAuth('');
+    const { authUrl } = await sdk.auth.initiateGoogleAuth();
 
-    const authLocation = new URL(response.auth_url);
+    // Stash the current location under a session id and thread it through the
+    // OAuth state param, so the callback route can restore the deep link.
+    const authLocation = new URL(authUrl);
     const stateParam = authLocation.searchParams.get('state');
     const state = stateParam
       ? JSON.parse(new TextDecoder().decode(decodeURLSafe(stateParam)))
@@ -257,28 +237,9 @@ export const useAuthActions = (): AuthActions => {
     return { authUrl: authLocation.href };
   }, []);
 
-  const signUpGuest = useCallback(async () => {
-    const existingGuestAccount = guestAccountStorage.get();
-    if (existingGuestAccount) {
-      return signInGuest(
-        existingGuestAccount.id,
-        existingGuestAccount.password,
-      );
-    }
-
-    const createGuestAccount = async () => {
-      const password = await generateRandomPassword(32);
-      const guestAccount = await osSignUpGuest(password, '');
-      guestAccountStorage.store({ id: guestAccount.id, password });
-      await refreshSession();
-    };
-
-    await createGuestAccount();
-  }, [signInGuest, refreshSession]);
-
   const verifyEmail = useCallback(
     async (code: string) => {
-      await osVerifyEmail(code);
+      await sdk.auth.verifyEmail(code);
       await refreshSession();
     },
     [refreshSession],
@@ -286,7 +247,7 @@ export const useAuthActions = (): AuthActions => {
 
   const convertGuestToFullAccount = useCallback(
     async (email: string, password: string) => {
-      await osConvertGuestToFullAccount(email, password);
+      await sdk.auth.convertGuestToFullAccount(email, password);
       await refreshSession();
     },
     [refreshSession],
@@ -315,94 +276,35 @@ export const useSignOut = () => {
   return { isSigningOut: loading, signOut: handleSignOut };
 };
 
-type OpenSecretJwt = {
-  /**
-   * Token expiration time. It's a unix timestamp in seconds
-   */
-  exp: number;
+/**
+ * Reacts to SDK-initiated session transitions the host didn't trigger.
+ * Expiry (refresh-token death with failed/impossible extension): notifies the
+ * user and resets the web session state. Refresh (guest auto-extension):
+ * re-runs the auth query so the session-hint cookie picks up the new expiry,
+ * matching master's extend-through-invalidation behavior.
+ */
+export const useHandleSessionEvents = (onSessionExpired: () => void) => {
+  const queryClient = useQueryClient();
+  const { revalidate } = useRevalidator();
+  const onSessionExpiredRef = useLatest(onSessionExpired);
 
-  /**
-   * Time when the token was issues. It's a unix timestamp in seconds
-   */
-  iat: number;
-
-  /**
-   * ID of the logged-in user
-   */
-  sub: string;
-
-  /**
-   * Audience
-   */
-  aud: 'access' | 'refresh';
-};
-
-const accessTokenKey = 'access_token';
-const refreshTokenKey = 'refresh_token';
-
-const getJwt = (key: string): OpenSecretJwt | null => {
-  const jwt = localStorage.getItem(key);
-  if (!jwt) {
-    return null;
-  }
-  return jwtDecode<OpenSecretJwt>(jwt);
-};
-
-const removeKeys = () => {
-  localStorage.removeItem(accessTokenKey);
-  localStorage.removeItem(refreshTokenKey);
-  sessionHintCookie.clear();
-};
-
-const getRefreshToken = () => getJwt(refreshTokenKey);
-
-const getRemainingSessionTimeInMs = (
-  token: OpenSecretJwt | null,
-): number | null => {
-  if (!token) {
-    return null;
-  }
-  // We are treating the session as expired 5 seconds before the actual expiry just in case
-  const fiveSecondsBeforeExpiry = token.exp - 5;
-  const fiveSecondsBeforeExpiryInMs = fiveSecondsBeforeExpiry * 1000;
-  const remainingTime = fiveSecondsBeforeExpiryInMs - Date.now();
-  return Math.max(remainingTime, 0);
-};
-
-type HandleSessionExpiryProps = {
-  isGuestAccount: boolean;
-  onLogout: () => void;
-};
-
-export const useHandleSessionExpiry = ({
-  isGuestAccount,
-  onLogout,
-}: HandleSessionExpiryProps) => {
-  const { signUpGuest: extendGuestSession, signOut } = useAuthActions();
-  const refreshToken = getRefreshToken();
-  const remainingSessionTime = getRemainingSessionTimeInMs(refreshToken);
-
-  const handleSessionExpiry = async () => {
-    try {
-      if (isGuestAccount) {
-        // Extend guest session will get new extended access and refresh token from Open Secret. The OS code can be seen
-        // here https://github.com/OpenSecretCloud/OpenSecret-SDK/blob/master/src/lib/main.tsx#L441. Because setState is
-        // called after this method is executed the new render will be triggered and useHandleSessionExpiry will be
-        // executed again which will result in new session expiry timeout being set.
-        await extendGuestSession();
-      } else {
-        onLogout();
-        // Open secret is already handling potential errors in signOut method and removes the keys from the storage so
-        // in that case our catch should never be triggered, which is fine. We are leaving it there for the guest use
-        // case and just in case.
-        await signOut();
-      }
-    } catch (e) {
-      console.error('Failed to handle session expiry', { cause: e });
-      removeKeys();
-      window.location.reload();
-    }
-  };
-
-  useLongTimeout(handleSessionExpiry, remainingSessionTime);
+  useEffect(() => {
+    const unsubscribeExpired = sdk.events.on('auth.session-expired', () => {
+      void (async () => {
+        onSessionExpiredRef.current();
+        resetFeatureFlags();
+        await invalidateAuthQueries();
+        await revalidate();
+        Sentry.setUser(null);
+        queryClient.clear();
+      })();
+    });
+    const unsubscribeRefreshed = sdk.events.on('auth.session-refreshed', () => {
+      void invalidateAuthQueries();
+    });
+    return () => {
+      unsubscribeExpired();
+      unsubscribeRefreshed();
+    };
+  }, [queryClient, revalidate]);
 };
