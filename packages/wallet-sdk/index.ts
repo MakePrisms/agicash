@@ -8,6 +8,7 @@
 // deletes its names here when it flips the web imports, surfacing the
 // projections.
 export * from './sdk';
+export { AgicashSdk } from './agicash-sdk';
 export {
   ConcurrencyError,
   DomainError,
