@@ -24,9 +24,9 @@ const getSupabaseUrl = () => {
   return supabaseUrl;
 };
 
-const supabaseUrl = getSupabaseUrl();
+export const supabaseUrl = getSupabaseUrl();
 
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
+export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 if (!supabaseAnonKey) {
   throw new Error('VITE_SUPABASE_ANON_KEY is not set');
 }

@@ -1,4 +1,3 @@
-import { browserStorage, configure } from '@agicash/opensecret';
 import {
   configureFeatureFlags,
   ensureBreezWasm,
@@ -15,6 +14,9 @@ import { HydratedRouter } from 'react-router/dom';
 import { getEnvironment, isServedLocally } from './environment';
 import { agicashDbClient } from './features/agicash-db/database.client';
 import { loadFeatureFlags } from './features/shared/feature-flags';
+// Importing the module constructs the SDK, which configures Open Secret as an
+// import-evaluation side effect — before any body code below runs.
+import './features/shared/sdk.client';
 import { registerMoneyDevToolsFormatter } from './lib/money-devtools-formatter';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
@@ -22,22 +24,6 @@ import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 if (process.env.NODE_ENV === 'development') {
   registerMoneyDevToolsFormatter();
 }
-
-const openSecretApiUrl = import.meta.env.VITE_OPEN_SECRET_API_URL ?? '';
-if (!openSecretApiUrl) {
-  throw new Error('VITE_OPEN_SECRET_API_URL is not set');
-}
-
-const openSecretClientId = import.meta.env.VITE_OPEN_SECRET_CLIENT_ID ?? '';
-if (!openSecretClientId) {
-  throw new Error('VITE_OPEN_SECRET_CLIENT_ID is not set');
-}
-
-configure({
-  apiUrl: openSecretApiUrl,
-  clientId: openSecretClientId,
-  storage: browserStorage,
-});
 
 // Start Breez WASM fetch/compile as early as possible so it overlaps with
 // hydration, Sentry init, and the auth query — by the time the _protected
