@@ -63,7 +63,8 @@ export type SdkConfig = {
   };
   /** lud16 domain. */
   lightningAddressDomain: string;
-  logger?: Logger;
+  /** Diagnostic sink; hosts that want no logging pass the package's `nullLogger` export. */
+  logger: Logger;
 };
 
 export type Sdk = {

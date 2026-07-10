@@ -64,7 +64,7 @@ type AuthServiceDeps = {
   events: WalletEventEmitter;
   /** Per-session cache cleanup on any session end (sign-out or expiry). */
   onSessionEnded?: () => void;
-  logger?: Logger;
+  logger: Logger;
 };
 
 export class AuthService implements AuthApi {
@@ -210,7 +210,7 @@ export class AuthService implements AuthApi {
       // web glue. endSession (not a bare snapshot clear) so the per-session
       // caches die with the session — the Supabase token cache in particular
       // must never outlive it.
-      this.deps.logger?.error(`Failed to fetch user (${context})`, error);
+      this.deps.logger.error(`Failed to fetch user (${context})`, error);
       this.endSession();
     }
   }
@@ -329,17 +329,17 @@ export class AuthService implements AuthApi {
         // expired token — also guards a hot extend loop — or a failed
         // post-extend user fetch), so the death path emits the event instead
         // of leaving a wedged half-session.
-        this.deps.logger?.warn(
+        this.deps.logger.warn(
           'Guest session extension did not produce a live session; ending it',
         );
       } catch (error) {
-        this.deps.logger?.error('Failed to extend guest session', error);
+        this.deps.logger.error('Failed to extend guest session', error);
       }
     }
     try {
       await this.deps.os.signOut();
     } catch (error) {
-      this.deps.logger?.warn('Sign out during session expiry failed', error);
+      this.deps.logger.warn('Sign out during session expiry failed', error);
     }
     this.endSession();
     this.deps.events.emit('auth.session-expired', {});

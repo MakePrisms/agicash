@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 import { WalletEventEmitter } from './events';
+import { nullLogger } from './logger';
 
 describe('WalletEventEmitter', () => {
   it('delivers payloads to subscribed handlers', () => {
-    const emitter = new WalletEventEmitter();
+    const emitter = new WalletEventEmitter(nullLogger);
     const received: unknown[] = [];
     emitter.on('auth.session-expired', (payload) => received.push(payload));
 
@@ -13,7 +14,7 @@ describe('WalletEventEmitter', () => {
   });
 
   it('stops delivering after unsubscribe', () => {
-    const emitter = new WalletEventEmitter();
+    const emitter = new WalletEventEmitter(nullLogger);
     let calls = 0;
     const unsubscribe = emitter.on('auth.session-expired', () => {
       calls += 1;

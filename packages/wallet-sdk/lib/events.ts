@@ -5,7 +5,7 @@ type Handler = (payload: never) => void;
 export class WalletEventEmitter implements WalletEvents {
   private readonly handlers = new Map<keyof WalletEventMap, Set<Handler>>();
 
-  constructor(private readonly logger?: Logger) {}
+  constructor(private readonly logger: Logger) {}
 
   on<K extends keyof WalletEventMap>(
     event: K,
@@ -31,7 +31,7 @@ export class WalletEventEmitter implements WalletEvents {
       try {
         (handler as (payload: WalletEventMap[K]) => void)(payload);
       } catch (error) {
-        this.logger?.error(`Event handler for ${event} threw`, error);
+        this.logger.error(`Event handler for ${event} threw`, error);
       }
     }
   }

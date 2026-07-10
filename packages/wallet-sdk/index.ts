@@ -9,6 +9,7 @@
 // projections.
 export * from './sdk';
 export { AgicashSdk } from './agicash-sdk';
+export { nullLogger } from './lib/logger';
 export {
   ConcurrencyError,
   DomainError,

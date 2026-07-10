@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { WalletEventEmitter } from '../../lib/events';
+import { nullLogger } from '../../lib/logger';
 import type { AuthKeyValueStore, AuthStorage } from '../../sdk';
 import { AuthService, type OpenSecretAuthApi } from './auth-service';
 import { createGuestAccountStorage } from './guest-account-storage';
@@ -98,14 +99,18 @@ const createService = (
 ) => {
   const storage = options.storage ?? createStorage();
   const { os, calls } = createOsFake(storage.persistent, options.os);
-  const events = new WalletEventEmitter();
+  const events = new WalletEventEmitter(nullLogger);
   const service = new AuthService({
     os,
     storage,
-    guestAccountStorage: createGuestAccountStorage(storage.persistent),
+    guestAccountStorage: createGuestAccountStorage(
+      storage.persistent,
+      nullLogger,
+    ),
     generateGuestPassword: async () => 'generated-pw',
     events,
     onSessionEnded: options.onSessionEnded,
+    logger: nullLogger,
   });
   return { service, storage, calls, events };
 };

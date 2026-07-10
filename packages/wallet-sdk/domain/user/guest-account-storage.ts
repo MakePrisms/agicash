@@ -21,7 +21,7 @@ export type GuestAccountStorage = {
 
 export function createGuestAccountStorage(
   store: AuthKeyValueStore,
-  logger?: Logger,
+  logger: Logger,
 ): GuestAccountStorage {
   return {
     async get() {
@@ -37,7 +37,7 @@ export function createGuestAccountStorage(
         parseResult.data,
       );
       if (!validationResult.success) {
-        logger?.warn('Invalid guest account data found in the storage');
+        logger.warn('Invalid guest account data found in the storage');
         return null;
       }
       return validationResult.data;

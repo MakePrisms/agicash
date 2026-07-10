@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { nullLogger } from '../../lib/logger';
 import type { AuthKeyValueStore } from '../../sdk';
 import { createGuestAccountStorage } from './guest-account-storage';
 
@@ -21,7 +22,7 @@ const createMemoryStore = (): AuthKeyValueStore & {
 describe('guestAccountStorage', () => {
   it('round-trips guest account details under the legacy key', async () => {
     const store = createMemoryStore();
-    const storage = createGuestAccountStorage(store);
+    const storage = createGuestAccountStorage(store, nullLogger);
 
     await storage.store({ id: 'guest-1', password: 'pw' });
 
@@ -30,14 +31,14 @@ describe('guestAccountStorage', () => {
   });
 
   it('returns null when nothing is stored', async () => {
-    const storage = createGuestAccountStorage(createMemoryStore());
+    const storage = createGuestAccountStorage(createMemoryStore(), nullLogger);
     expect(await storage.get()).toBeNull();
   });
 
   it('returns null for corrupt or invalid data', async () => {
     const store = createMemoryStore();
     store.data.set('guestAccount', 'not-json');
-    const storage = createGuestAccountStorage(store);
+    const storage = createGuestAccountStorage(store, nullLogger);
     expect(await storage.get()).toBeNull();
 
     store.data.set('guestAccount', JSON.stringify({ id: 42 }));
@@ -46,7 +47,7 @@ describe('guestAccountStorage', () => {
 
   it('clear removes the stored account', async () => {
     const store = createMemoryStore();
-    const storage = createGuestAccountStorage(store);
+    const storage = createGuestAccountStorage(store, nullLogger);
     await storage.store({ id: 'guest-1', password: 'pw' });
 
     await storage.clear();
