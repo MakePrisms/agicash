@@ -139,6 +139,36 @@ export const useAuthState = (): AuthState => {
   return data;
 };
 
+/**
+ * The web-side counterpart of the SDK's session end: forgets all
+ * session-derived web state after a session ends (sign-out or expiry).
+ * Ordering is load-bearing: the flags reset first, so the previous user's
+ * flags are gone even if the anonymous re-fetch fails and can't clobber its
+ * result; queryClient.clear() runs last, once navigation/revalidation has
+ * settled, so the still-mounted protected tree doesn't lose its suspended
+ * query data mid-transition.
+ */
+const useSessionEndCleanup = () => {
+  const queryClient = useQueryClient();
+  const { revalidate } = useRevalidator();
+  const navigate = useNavigate();
+
+  return useCallback(
+    async ({ redirectTo }: { redirectTo?: string } = {}) => {
+      resetFeatureFlags();
+      await invalidateAuthQueries();
+      if (redirectTo) {
+        await navigate(redirectTo);
+      } else {
+        await revalidate();
+      }
+      Sentry.setUser(null);
+      queryClient.clear();
+    },
+    [navigate, revalidate, queryClient],
+  );
+};
+
 type SignOutOptions = {
   /**
    * The URL to redirect to after signing out. If not provided, the user will be redirected to the singup page by the protected layout.
@@ -162,9 +192,9 @@ type AuthActions = {
  * tracking, and the OAuth deep-link session.
  */
 export const useAuthActions = (): AuthActions => {
-  const queryClient = useQueryClient();
   const { revalidate } = useRevalidator();
   const navigate = useNavigate();
+  const endSessionCleanup = useSessionEndCleanup();
 
   const refreshSession = useCallback(
     async (redirectTo?: string) => {
@@ -202,14 +232,9 @@ export const useAuthActions = (): AuthActions => {
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
       await sdk.auth.signOut();
-      // Before the refresh below so the previous user's flags are gone even if
-      // the anon re-fetch fails, and so its result isn't clobbered afterwards.
-      resetFeatureFlags();
-      await refreshSession(options.redirectTo);
-      Sentry.setUser(null);
-      queryClient.clear();
+      await endSessionCleanup({ redirectTo: options.redirectTo });
     },
-    [refreshSession, queryClient],
+    [endSessionCleanup],
   );
 
   const initiateGoogleAuth = useCallback(async () => {
@@ -284,20 +309,13 @@ export const useSignOut = () => {
  * matching master's extend-through-invalidation behavior.
  */
 export const useHandleSessionEvents = (onSessionExpired: () => void) => {
-  const queryClient = useQueryClient();
-  const { revalidate } = useRevalidator();
+  const endSessionCleanup = useSessionEndCleanup();
   const onSessionExpiredRef = useLatest(onSessionExpired);
 
   useEffect(() => {
     const handleSessionExpired = () => {
-      void (async () => {
-        onSessionExpiredRef.current();
-        resetFeatureFlags();
-        await invalidateAuthQueries();
-        await revalidate();
-        Sentry.setUser(null);
-        queryClient.clear();
-      })().catch((error) => {
+      onSessionExpiredRef.current();
+      void endSessionCleanup().catch((error) => {
         // Hard fallback: the SDK already ended the session, so a reload
         // boots anonymous even when the soft reset above fails mid-flight.
         console.error('Failed to handle session expiry', { cause: error });
@@ -325,5 +343,5 @@ export const useHandleSessionEvents = (onSessionExpired: () => void) => {
       unsubscribeExpired();
       unsubscribeRefreshed();
     };
-  }, [queryClient, revalidate]);
+  }, [endSessionCleanup]);
 };
