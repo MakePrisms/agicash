@@ -51,6 +51,7 @@ export const sdk = AgicashSdk.create({
 
 if (import.meta.hot) {
   // A hot reload of this module constructs a second SDK; dispose the old one
-  // so its expiry timer doesn't leak.
-  import.meta.hot.dispose(() => void sdk.dispose());
+  // so its expiry timer doesn't leak. Returning the promise makes Vite await
+  // the teardown before evaluating the replacement module.
+  import.meta.hot.dispose(() => sdk.dispose());
 }
