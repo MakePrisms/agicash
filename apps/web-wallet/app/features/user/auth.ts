@@ -38,6 +38,8 @@ export const authStateQueryKey = 'auth-state';
 // The stored token may be corrupt — safeJwtDecode keeps it from throwing out
 // of the queryFn or staleTime callback (that would error-page every route,
 // /login included).
+// Temporary leak: reads Open Secret's storage keys directly until step 18
+// exposes the refresh-token expiry on the SDK session.
 const getRefreshTokenExpiry = (): number | null => {
   const refreshToken = window.localStorage.getItem('refresh_token');
   if (!refreshToken) {
@@ -52,6 +54,8 @@ export const authQueryOptions = () =>
     queryFn: async (): Promise<AuthState> => {
       // Associate Sentry events with the user as early as possible, before
       // session restore completes.
+      // Temporary leak: reads Open Secret's storage keys directly until
+      // step 18 exposes a pre-restore session hint on the SDK.
       const accessToken = window.localStorage.getItem('access_token');
       const sub = accessToken ? safeJwtDecode(accessToken)?.sub : undefined;
       if (sub) {
