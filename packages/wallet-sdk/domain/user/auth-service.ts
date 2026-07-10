@@ -6,9 +6,9 @@ import type {
 import {
   type LongTimeout,
   clearLongTimeout,
+  safeJwtDecode,
   setLongTimeout,
 } from '@agicash/utils';
-import { jwtDecode } from 'jwt-decode';
 import type { WalletEventEmitter } from '../../lib/events';
 import type { AuthApi, AuthSession, AuthStorage, Logger } from '../../sdk';
 import type { GuestAccountStorage } from './guest-account-storage';
@@ -17,16 +17,6 @@ import type { GuestAccountStorage } from './guest-account-storage';
 // them (never writes) for session detection and expiry math.
 const accessTokenKey = 'access_token';
 const refreshTokenKey = 'refresh_token';
-
-// A corrupt stored token must degrade (no timer / expiry path), never throw
-// from a timer callback or a query fn.
-const decodeJwt = (token: string): { exp?: number } | null => {
-  try {
-    return jwtDecode(token);
-  } catch {
-    return null;
-  }
-};
 
 /** The subset of @agicash/opensecret the auth service drives. `import * as openSecret` satisfies it. */
 export type OpenSecretAuthApi = {
@@ -106,7 +96,7 @@ export class AuthService implements AuthApi {
     if (!accessToken || !refreshToken) {
       return;
     }
-    if (!decodeJwt(refreshToken)?.exp) {
+    if (!safeJwtDecode(refreshToken)?.exp) {
       // An undecodable (or exp-less) refresh token can't arm the expiry
       // machinery and can't be refreshed — the restored session would be
       // unmanaged and die unrecoverably mid-use. Restore anonymous instead.
@@ -288,7 +278,7 @@ export class AuthService implements AuthApi {
     if (!refreshToken) {
       return null;
     }
-    const decoded = decodeJwt(refreshToken);
+    const decoded = safeJwtDecode(refreshToken);
     if (!decoded?.exp) {
       return null;
     }

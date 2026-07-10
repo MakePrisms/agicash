@@ -1,5 +1,6 @@
 export * from './collections';
 export * from './json';
+export * from './jwt';
 export * from './zod';
 export * from './type-utils';
 export * from './sha256';

@@ -1,3 +1,4 @@
+import { safeJwtDecode } from '@agicash/utils';
 import type { AuthUser } from '@agicash/wallet-sdk';
 import * as Sentry from '@sentry/react-router';
 import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
@@ -6,7 +7,6 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query';
-import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import {
@@ -35,18 +35,9 @@ type AuthState =
 
 export const authStateQueryKey = 'auth-state';
 
-// A corrupt stored token must degrade to "no value", never throw from a query
-// fn or staleTime callback (that would error-page every route, /login included).
-const safeJwtDecode = (
-  token: string,
-): { exp?: number; sub?: string } | null => {
-  try {
-    return jwtDecode(token);
-  } catch {
-    return null;
-  }
-};
-
+// The stored token may be corrupt — safeJwtDecode keeps it from throwing out
+// of the queryFn or staleTime callback (that would error-page every route,
+// /login included).
 const getRefreshTokenExpiry = (): number | null => {
   const refreshToken = window.localStorage.getItem('refresh_token');
   if (!refreshToken) {
