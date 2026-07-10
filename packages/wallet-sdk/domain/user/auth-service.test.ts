@@ -232,6 +232,40 @@ describe('AuthService', () => {
       expect(calls.filter((c) => c === 'fetchUser')).toHaveLength(1);
       service.teardown();
     });
+
+    it('does not re-arm the expiry timer when the restore resolves after teardown', async () => {
+      let releaseRestoreFetch = (): void => undefined;
+      const restoreFetchGate = new Promise<void>((resolve) => {
+        releaseRestoreFetch = resolve;
+      });
+      const { service, storage, events } = createService({
+        os: {
+          fetchUser: async () => {
+            await restoreFetchGate;
+            return { user: fullUser };
+          },
+        },
+      });
+      storage.persistent.data.set('access_token', createJwt(600));
+      // Refresh token already inside the exp-5s window: a timer armed by the
+      // late-resolving restore would fire immediately and expire the session.
+      storage.persistent.data.set('refresh_token', createJwt(4));
+      const expired: unknown[] = [];
+      events.on('auth.session-expired', (payload) => expired.push(payload));
+
+      const restore = service.restoreSession();
+      // Flush microtasks so the gated fetchUser is in flight before teardown.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      service.teardown();
+      releaseRestoreFetch();
+      await restore;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(expired).toHaveLength(0);
+      // The stale apply still lands (teardown is not logout); only the
+      // expiry machinery stays off.
+      expect(service.getSession().isLoggedIn).toBe(true);
+    });
   });
 
   describe('signUpGuest', () => {

@@ -77,6 +77,7 @@ export class AuthService implements AuthApi {
   // restore captures it before its user fetch; a result from a generation
   // that has passed must not apply, or it would clobber the newer session.
   private sessionGeneration = 0;
+  private disposed = false;
 
   constructor(private readonly deps: AuthServiceDeps) {}
 
@@ -196,8 +197,13 @@ export class AuthService implements AuthApi {
     await this.refreshSessionSnapshot('google auth');
   }
 
-  /** Cancels the expiry timer; the instance stays usable. */
+  /**
+   * Terminally disarms the expiry machinery: cancels the timer and prevents
+   * in-flight continuations (a restore, a verb, a fired timer) from re-arming
+   * it. Auth verbs still work afterwards — disposal is not logout.
+   */
   teardown(): void {
+    this.disposed = true;
     this.disarmExpiryTimer();
   }
 
@@ -254,10 +260,11 @@ export class AuthService implements AuthApi {
 
   private async armExpiryTimer(): Promise<void> {
     const remaining = await this.getRemainingSessionTimeMs();
-    // Disarm only after the await, so disarm+assign form one synchronous
-    // block — two overlapping arms can't interleave and orphan a timer.
+    // Disarm only after the await, so disarm+check+assign form one
+    // synchronous block — two overlapping arms can't interleave and orphan a
+    // timer, and a teardown during the await can't be re-armed past.
     this.disarmExpiryTimer();
-    if (remaining === null) {
+    if (this.disposed || remaining === null) {
       return;
     }
     // Floor of 1ms: setLongTimeout fires synchronously at delay 0, which
@@ -297,7 +304,7 @@ export class AuthService implements AuthApi {
 
   private async handleSessionExpiry(): Promise<void> {
     const session = this.session;
-    if (!session.isLoggedIn) {
+    if (this.disposed || !session.isLoggedIn) {
       return;
     }
     // The Open Secret SDK rotates the refresh token during its internal
