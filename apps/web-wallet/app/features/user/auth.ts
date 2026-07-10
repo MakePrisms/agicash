@@ -289,7 +289,7 @@ export const useHandleSessionEvents = (onSessionExpired: () => void) => {
   const onSessionExpiredRef = useLatest(onSessionExpired);
 
   useEffect(() => {
-    const unsubscribeExpired = sdk.events.on('auth.session-expired', () => {
+    const handleSessionExpired = () => {
       void (async () => {
         onSessionExpiredRef.current();
         resetFeatureFlags();
@@ -297,11 +297,30 @@ export const useHandleSessionEvents = (onSessionExpired: () => void) => {
         await revalidate();
         Sentry.setUser(null);
         queryClient.clear();
-      })();
-    });
+      })().catch((error) => {
+        // Hard fallback: the SDK already ended the session, so a reload
+        // boots anonymous even when the soft reset above fails mid-flight.
+        console.error('Failed to handle session expiry', { cause: error });
+        window.location.reload();
+      });
+    };
+
+    const unsubscribeExpired = sdk.events.on(
+      'auth.session-expired',
+      handleSessionExpired,
+    );
     const unsubscribeRefreshed = sdk.events.on('auth.session-refreshed', () => {
       void invalidateAuthQueries();
     });
+
+    // The SDK arms its expiry timer during init(), before this subscription
+    // exists; an expiry firing in that window emitted to no subscribers.
+    // This hook mounts only under an authenticated layout, so an already-dead
+    // SDK session here means exactly that missed event — handle it now.
+    if (!sdk.auth.getSession().isLoggedIn) {
+      handleSessionExpired();
+    }
+
     return () => {
       unsubscribeExpired();
       unsubscribeRefreshed();
