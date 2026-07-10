@@ -170,6 +170,53 @@ describe('AuthService', () => {
       service.teardown();
     });
 
+    it('stays anonymous when the stored refresh token is undecodable', async () => {
+      const { service, storage, calls } = createService();
+      storage.persistent.data.set('access_token', createJwt(600));
+      storage.persistent.data.set('refresh_token', 'not-a-jwt');
+
+      await service.restoreSession();
+
+      expect(service.getSession().isLoggedIn).toBe(false);
+      expect(calls).not.toContain('fetchUser');
+    });
+
+    it('does not clobber a session a verb established while the restore fetch was in flight', async () => {
+      let releaseRestoreFetch = (): void => undefined;
+      const restoreFetchGate = new Promise<void>((resolve) => {
+        releaseRestoreFetch = resolve;
+      });
+      const verbUser = { ...fullUser, id: 'user-verb' };
+      let fetchCalls = 0;
+      const { service, storage } = createService({
+        os: {
+          fetchUser: async () => {
+            fetchCalls += 1;
+            if (fetchCalls === 1) {
+              await restoreFetchGate;
+              return { user: fullUser };
+            }
+            return { user: verbUser };
+          },
+        },
+      });
+      storage.persistent.data.set('access_token', createJwt(600));
+      storage.persistent.data.set('refresh_token', createJwt(3600));
+
+      const restore = service.restoreSession();
+      // Flush microtasks so the restore's gated fetchUser is in flight first.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await service.signIn('verb@b.c', 'pw');
+      releaseRestoreFetch();
+      await restore;
+
+      expect(service.getSession()).toEqual({
+        isLoggedIn: true,
+        user: verbUser,
+      });
+      service.teardown();
+    });
+
     it('is single-flight', async () => {
       const { service, storage, calls } = createService();
       storage.persistent.data.set('access_token', createJwt(600));
@@ -386,5 +433,15 @@ describe('AuthService', () => {
     expect(await service.initiateGoogleAuth()).toEqual({
       authUrl: 'https://accounts.google/x',
     });
+  });
+
+  it('completeGoogleAuth establishes the session', async () => {
+    const { service, calls } = createService();
+
+    await service.completeGoogleAuth({ code: 'auth-code', state: 'state' });
+
+    expect(calls).toContain('handleGoogleCallback');
+    expect(service.getSession()).toEqual({ isLoggedIn: true, user: fullUser });
+    service.teardown();
   });
 });

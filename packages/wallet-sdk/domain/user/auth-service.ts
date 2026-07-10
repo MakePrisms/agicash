@@ -73,6 +73,10 @@ export class AuthService implements AuthApi {
   private expiryTimeout: LongTimeout | undefined;
   // Survives endSession() deliberately — see applySessionFromServer.
   private lastUserId: string | undefined;
+  // Bumped on every session transition (login apply or session end). A
+  // restore captures it before its user fetch; a result from a generation
+  // that has passed must not apply, or it would clobber the newer session.
+  private sessionGeneration = 0;
 
   constructor(private readonly deps: AuthServiceDeps) {}
 
@@ -101,8 +105,16 @@ export class AuthService implements AuthApi {
     if (!accessToken || !refreshToken) {
       return;
     }
+    if (!decodeJwt(refreshToken)?.exp) {
+      // An undecodable (or exp-less) refresh token can't arm the expiry
+      // machinery and can't be refreshed — the restored session would be
+      // unmanaged and die unrecoverably mid-use. Restore anonymous instead.
+      return;
+    }
     try {
-      await this.applySessionFromServer();
+      await this.applySessionFromServer({
+        expectedGeneration: this.sessionGeneration,
+      });
     } catch (error) {
       if (this.session.isLoggedIn) {
         // An auth verb established a session while this restore was in
@@ -203,8 +215,19 @@ export class AuthService implements AuthApi {
     }
   }
 
-  private async applySessionFromServer(): Promise<void> {
+  private async applySessionFromServer(options?: {
+    /** Apply only while the session generation still matches; a speculative caller (restore) passes the generation it observed. */
+    expectedGeneration?: number;
+  }): Promise<void> {
     const response = await this.deps.os.fetchUser();
+    if (
+      options?.expectedGeneration !== undefined &&
+      options.expectedGeneration !== this.sessionGeneration
+    ) {
+      // A verb or session end won while this fetch was in flight; the stale
+      // result must not overwrite the newer session state.
+      return;
+    }
     // Compared against the last seen user rather than the live session: a
     // memo repopulated by a request that resolved after sign-out must still
     // be wiped when a DIFFERENT user's session begins, and by then the
@@ -213,11 +236,13 @@ export class AuthService implements AuthApi {
       this.deps.onSessionEnded?.();
     }
     this.lastUserId = response.user.id;
+    this.sessionGeneration += 1;
     this.session = { isLoggedIn: true, user: response.user };
     await this.armExpiryTimer();
   }
 
   private endSession(): void {
+    this.sessionGeneration += 1;
     this.session = { isLoggedIn: false };
     this.disarmExpiryTimer();
     // Un-memoize the restore so the next init() re-evaluates from storage —
