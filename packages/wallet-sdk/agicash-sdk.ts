@@ -8,14 +8,16 @@ import { clearAgicashMintAuthToken } from './lib/agicash-mint-auth-provider';
 import { WalletEventEmitter } from './lib/events';
 import { generateRandomPassword } from './lib/password';
 import { clearSparkWallets } from './lib/spark/wallet';
-import type { AuthApi, SdkConfig, UserApi, WalletEvents } from './sdk';
+import type { AuthApi, Sdk, SdkConfig, UserApi, WalletEvents } from './sdk';
 
 /**
  * Runtime implementation of the SDK contract, filled namespace-by-namespace
- * as the migration slices land (auth/user/events since step 5). It will
- * declare `implements Sdk` once every namespace exists.
+ * as the migration slices land (auth/user/events since step 5). Each slice
+ * adds its namespace to the `Pick` until it collapses to the full `Sdk`.
  */
-export class AgicashSdk {
+export class AgicashSdk
+  implements Pick<Sdk, 'auth' | 'user' | 'events' | 'init' | 'dispose'>
+{
   readonly auth: AuthApi;
   readonly user: UserApi;
   readonly events: WalletEvents;
