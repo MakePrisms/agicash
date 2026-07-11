@@ -138,22 +138,35 @@ const CashuReceiveQuoteFailedStateSchema = z.object({
   failureReason: z.string(),
 });
 
+const CashuReceiveQuoteTypeSchema = z.union([
+  CashuReceiveQuoteLightningTypeSchema,
+  CashuReceiveQuoteCashuTokenTypeSchema,
+]);
+
+const CashuReceiveQuoteStateSchema = z.union([
+  CashuReceiveQuoteUnpaidExpiredStateSchema,
+  CashuReceiveQuotePaidCompletedStateSchema,
+  CashuReceiveQuoteFailedStateSchema,
+]);
+
 /**
  * Schema for cashu receive quote.
  */
 export const CashuReceiveQuoteSchema = z.intersection(
   CashuReceiveQuoteBaseSchema,
-  z.intersection(
-    z.union([
-      CashuReceiveQuoteLightningTypeSchema,
-      CashuReceiveQuoteCashuTokenTypeSchema,
-    ]),
-    z.union([
-      CashuReceiveQuoteUnpaidExpiredStateSchema,
-      CashuReceiveQuotePaidCompletedStateSchema,
-      CashuReceiveQuoteFailedStateSchema,
-    ]),
-  ),
+  z.intersection(CashuReceiveQuoteTypeSchema, CashuReceiveQuoteStateSchema),
 );
 
 export type CashuReceiveQuote = z.infer<typeof CashuReceiveQuoteSchema>;
+
+/**
+ * The variant unions on their own, for projections that rebuild the
+ * intersection — a bare `Omit` over the full type collapses each union to its
+ * shared keys.
+ */
+export type CashuReceiveQuoteTypeVariant = z.infer<
+  typeof CashuReceiveQuoteTypeSchema
+>;
+export type CashuReceiveQuoteStateVariant = z.infer<
+  typeof CashuReceiveQuoteStateSchema
+>;

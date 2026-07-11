@@ -226,8 +226,14 @@ export const useAuthActions = (): AuthActions => {
 
   const signOut = useCallback(
     async (options: SignOutOptions = {}) => {
-      await sdk.auth.signOut();
-      await endSessionCleanup({ redirectTo: options.redirectTo });
+      try {
+        await sdk.auth.signOut();
+      } finally {
+        // The SDK ends the local session even when the sign-out throws, so
+        // the web state must be reset regardless — otherwise a dead session
+        // keeps a live-looking wallet on screen.
+        await endSessionCleanup({ redirectTo: options.redirectTo });
+      }
     },
     [endSessionCleanup],
   );
@@ -290,8 +296,11 @@ export const useSignOut = () => {
 
   const handleSignOut = async () => {
     setLoading(true);
-    await signOut({ redirectTo: '/home' });
-    setLoading(false);
+    try {
+      await signOut({ redirectTo: '/home' });
+    } finally {
+      setLoading(false);
+    }
   };
   return { isSigningOut: loading, signOut: handleSignOut };
 };
@@ -303,7 +312,12 @@ export const useSignOut = () => {
  * re-runs the auth query so the session-hint cookie picks up the new expiry,
  * matching master's extend-through-invalidation behavior.
  */
+// Guards the expiry hard-fallback below: at most one reload per window, so a
+// persistently failing cleanup can't reload-loop the tab.
+const expiryReloadAtKey = 'agicash.session-expiry-reload-at';
+
 export const useHandleSessionEvents = (onSessionExpired: () => void) => {
+  const queryClient = useQueryClient();
   const endSessionCleanup = useSessionEndCleanup();
   const onSessionExpiredRef = useLatest(onSessionExpired);
 
@@ -314,6 +328,13 @@ export const useHandleSessionEvents = (onSessionExpired: () => void) => {
         // Hard fallback: the SDK already ended the session, so a reload
         // boots anonymous even when the soft reset above fails mid-flight.
         console.error('Failed to handle session expiry', { cause: error });
+        const lastReloadAt = Number(
+          window.sessionStorage.getItem(expiryReloadAtKey) ?? 0,
+        );
+        if (Date.now() - lastReloadAt < 30_000) {
+          return;
+        }
+        window.sessionStorage.setItem(expiryReloadAtKey, String(Date.now()));
         window.location.reload();
       });
     };
@@ -332,11 +353,23 @@ export const useHandleSessionEvents = (onSessionExpired: () => void) => {
     // SDK session here means exactly that missed event — handle it now.
     if (!sdk.auth.getSession().isLoggedIn) {
       handleSessionExpired();
+    } else {
+      // The mirror gap for guests: an auto-extension during init() missed its
+      // auth.session-refreshed the same way. If the stored expiry moved past
+      // what the auth query captured, re-sync the query (and with it the
+      // session-hint cookie) now.
+      const authState = queryClient.getQueryData(authQueryOptions().queryKey);
+      if (
+        authState?.isLoggedIn &&
+        authState.refreshTokenExpiresAt !== getRefreshTokenExpiry()
+      ) {
+        void invalidateAuthQueries();
+      }
     }
 
     return () => {
       unsubscribeExpired();
       unsubscribeRefreshed();
     };
-  }, [endSessionCleanup]);
+  }, [endSessionCleanup, queryClient]);
 };

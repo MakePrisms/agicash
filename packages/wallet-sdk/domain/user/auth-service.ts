@@ -81,14 +81,27 @@ export class AuthService implements AuthApi {
    * fetch with tokens present) is not memoized, so a retry can recover.
    */
   restoreSession(): Promise<void> {
-    this.restorePromise ??= this.doRestore().catch((error) => {
-      this.restorePromise = undefined;
-      throw error;
-    });
+    if (!this.restorePromise) {
+      const restorePromise: Promise<void> = this.doRestore().catch((error) => {
+        // Un-memoize only our own memo: a session end may already have
+        // cleared it, and a newer restore may own the slot by now.
+        if (this.restorePromise === restorePromise) {
+          this.restorePromise = undefined;
+        }
+        throw error;
+      });
+      this.restorePromise = restorePromise;
+    }
     return this.restorePromise;
   }
 
   private async doRestore(): Promise<void> {
+    if (this.session.isLoggedIn) {
+      // A verb already established the session (and a previous session end
+      // un-memoized the restore); booting from storage would only repeat the
+      // verb's user fetch.
+      return;
+    }
     const [accessToken, refreshToken] = await Promise.all([
       this.deps.storage.persistent.getItem(accessTokenKey),
       this.deps.storage.persistent.getItem(refreshTokenKey),
@@ -102,15 +115,20 @@ export class AuthService implements AuthApi {
       // unmanaged and die unrecoverably mid-use. Restore anonymous instead.
       return;
     }
+    const generation = this.sessionGeneration;
     try {
-      await this.applySessionFromServer({
-        expectedGeneration: this.sessionGeneration,
-      });
+      await this.applySessionFromServer({ expectedGeneration: generation });
     } catch (error) {
       if (this.session.isLoggedIn) {
         // An auth verb established a session while this restore was in
         // flight; the restore result is moot.
         return;
+      }
+      if (this.sessionGeneration !== generation) {
+        // Another transition (a verb, sign-out, or a newer restore's apply)
+        // owns the session state now; ending the session here would bump the
+        // generation again and fence that owner's in-flight apply out.
+        throw error;
       }
       // Contract: init() rejects on refresh errors (tokens exist but can't
       // be validated). endSession keeps the instance consistent; the
@@ -126,21 +144,46 @@ export class AuthService implements AuthApi {
   }
 
   async signUpGuest(): Promise<void> {
+    await this.signInGuestAccount();
+    await this.refreshSessionSnapshot('guest sign up');
+  }
+
+  /**
+   * Signs into the stored guest account, creating and persisting a new one
+   * when none is stored. Fresh tokens land in storage as a side effect; the
+   * session snapshot is not touched.
+   */
+  private async signInGuestAccount(): Promise<void> {
     const existingGuestAccount = await this.deps.guestAccountStorage.get();
     if (existingGuestAccount) {
       await this.deps.os.signInGuest(
         existingGuestAccount.id,
         existingGuestAccount.password,
       );
-    } else {
-      const password = await this.deps.generateGuestPassword();
-      const guestAccount = await this.deps.os.signUpGuest(password, '');
+      return;
+    }
+    const password = await this.deps.generateGuestPassword();
+    const guestAccount = await this.deps.os.signUpGuest(password, '');
+    try {
       await this.deps.guestAccountStorage.store({
         id: guestAccount.id,
         password,
       });
+    } catch (error) {
+      // Credentials that can't be persisted strand the account at its first
+      // expiry (the extension would mint a fresh guest and the funds would be
+      // unreachable). Undo the sign-up and fail loudly so the retry lands on
+      // a recoverable account.
+      try {
+        await this.deps.os.signOut();
+      } catch (undoError) {
+        this.deps.logger.warn(
+          'Failed to sign out a guest account with unpersisted credentials',
+          undoError,
+        );
+      }
+      throw error;
     }
-    await this.refreshSessionSnapshot('guest sign up');
   }
 
   async signIn(email: string, password: string): Promise<void> {
@@ -292,6 +335,17 @@ export class AuthService implements AuthApi {
     }
   }
 
+  // KNOWN ISSUE (accepted for now — PR #1166 review, finding 1): this
+  // handler races concurrent session transitions, because a fired timer
+  // callback can't be cancelled. A sign-out landing while the guest
+  // re-sign-in below is in flight is silently undone — the re-sign-in
+  // rewrites fresh tokens over the sign-out's clear and the unfenced apply
+  // resurrects the session. Same class: an in-flight handler survives
+  // teardown() and can clear tokens a successor instance restored (HMR).
+  // Inherited from master's expiry hook, not a regression. The planned fix
+  // is structural — serialize all session transitions through a single
+  // command lane (single-writer) instead of fencing every await; the
+  // it.todo tests in auth-service.test.ts specify the required behavior.
   private async handleSessionExpiry(): Promise<void> {
     const session = this.session;
     if (this.disposed || !session.isLoggedIn) {

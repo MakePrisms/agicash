@@ -102,16 +102,27 @@ const CashuReceiveSwapFailedStateSchema = z.object({
   failureReason: z.string(),
 });
 
+const CashuReceiveSwapStateSchema = z.union([
+  CashuReceiveSwapPendingStateSchema,
+  CashuReceiveSwapCompletedStateSchema,
+  CashuReceiveSwapFailedStateSchema,
+]);
+
 /**
  * Schema for cashu receive swap.
  */
 export const CashuReceiveSwapSchema = z.intersection(
   CashuReceiveSwapBaseSchema,
-  z.union([
-    CashuReceiveSwapPendingStateSchema,
-    CashuReceiveSwapCompletedStateSchema,
-    CashuReceiveSwapFailedStateSchema,
-  ]),
+  CashuReceiveSwapStateSchema,
 );
 
 export type CashuReceiveSwap = z.infer<typeof CashuReceiveSwapSchema>;
+
+/**
+ * The state variant union on its own, for projections that rebuild the
+ * intersection — a bare `Omit` over the full type collapses the union to its
+ * shared keys.
+ */
+export type CashuReceiveSwapStateVariant = z.infer<
+  typeof CashuReceiveSwapStateSchema
+>;

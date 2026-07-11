@@ -125,22 +125,35 @@ const SparkReceiveQuoteFailedStateSchema = z.object({
   failureReason: z.string(),
 });
 
+const SparkReceiveQuoteTypeSchema = z.union([
+  SparkReceiveQuoteLightningTypeSchema,
+  SparkReceiveQuoteCashuTokenTypeSchema,
+]);
+
+const SparkReceiveQuoteStateSchema = z.union([
+  SparkReceiveQuoteUnpaidExpiredStateSchema,
+  SparkReceiveQuotePaidStateSchema,
+  SparkReceiveQuoteFailedStateSchema,
+]);
+
 /**
  * Schema for Spark receive quote.
  */
 export const SparkReceiveQuoteSchema = z.intersection(
   SparkReceiveQuoteBaseSchema,
-  z.intersection(
-    z.union([
-      SparkReceiveQuoteLightningTypeSchema,
-      SparkReceiveQuoteCashuTokenTypeSchema,
-    ]),
-    z.union([
-      SparkReceiveQuoteUnpaidExpiredStateSchema,
-      SparkReceiveQuotePaidStateSchema,
-      SparkReceiveQuoteFailedStateSchema,
-    ]),
-  ),
+  z.intersection(SparkReceiveQuoteTypeSchema, SparkReceiveQuoteStateSchema),
 );
 
 export type SparkReceiveQuote = z.infer<typeof SparkReceiveQuoteSchema>;
+
+/**
+ * The variant unions on their own, for projections that rebuild the
+ * intersection — a bare `Omit` over the full type collapses each union to its
+ * shared keys.
+ */
+export type SparkReceiveQuoteTypeVariant = z.infer<
+  typeof SparkReceiveQuoteTypeSchema
+>;
+export type SparkReceiveQuoteStateVariant = z.infer<
+  typeof SparkReceiveQuoteStateSchema
+>;

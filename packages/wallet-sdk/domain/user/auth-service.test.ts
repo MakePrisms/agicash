@@ -67,7 +67,12 @@ const createOsFake = (
     signUp: async () => login('user-1'),
     signUpGuest: async () => login('guest-1'),
     signInGuest: async () => login('guest-1'),
-    signOut: async () => undefined,
+    // The real SDK swallows the network logout failure and clears its token
+    // keys unconditionally.
+    signOut: async () => {
+      tokenStore.data.delete('access_token');
+      tokenStore.data.delete('refresh_token');
+    },
     verifyEmail: async () => undefined,
     requestNewVerificationCode: async () => undefined,
     convertGuestToUserAccount: async () => undefined,
@@ -222,6 +227,66 @@ describe('AuthService', () => {
       service.teardown();
     });
 
+    it('does not repeat the user fetch when a verb already established the session', async () => {
+      const { service, calls } = createService();
+
+      await service.signIn('a@b.c', 'pw');
+      await service.restoreSession();
+
+      expect(calls.filter((c) => c === 'fetchUser')).toHaveLength(1);
+      service.teardown();
+    });
+
+    it('does not fence out a newer restore when an older one fails late', async () => {
+      let fetchCalls = 0;
+      let releaseFirstFetch = (): void => undefined;
+      const firstFetchGate = new Promise<void>((resolve) => {
+        releaseFirstFetch = resolve;
+      });
+      let releaseThirdFetch = (): void => undefined;
+      const thirdFetchGate = new Promise<void>((resolve) => {
+        releaseThirdFetch = resolve;
+      });
+      const { service, storage } = createService({
+        os: {
+          fetchUser: async () => {
+            fetchCalls += 1;
+            if (fetchCalls === 1) {
+              // restore A: fails only after restore B is in flight
+              await firstFetchGate;
+              throw new Error('slow network failure');
+            }
+            if (fetchCalls === 2) {
+              // the verb's snapshot refresh: ends the session, un-memoizes A
+              throw new Error('verb fetch failed');
+            }
+            // restore B
+            await thirdFetchGate;
+            return { user: fullUser };
+          },
+        },
+      });
+      storage.persistent.data.set('access_token', createJwt(600));
+      storage.persistent.data.set('refresh_token', createJwt(3600));
+
+      const restoreA = service.restoreSession();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await service.signIn('a@b.c', 'pw');
+      const restoreB = service.restoreSession();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      releaseFirstFetch();
+      await expect(restoreA).rejects.toThrow('slow network failure');
+      releaseThirdFetch();
+      await restoreB;
+
+      // A's late failure neither bumped the generation (which would fence
+      // B's apply out) nor clobbered B's memo
+      expect(service.getSession().isLoggedIn).toBe(true);
+      await service.restoreSession();
+      expect(fetchCalls).toBe(3);
+      service.teardown();
+    });
+
     it('is single-flight', async () => {
       const { service, storage, calls } = createService();
       storage.persistent.data.set('access_token', createJwt(600));
@@ -285,6 +350,29 @@ describe('AuthService', () => {
       });
       expect(service.getSession().isLoggedIn).toBe(true);
       service.teardown();
+    });
+
+    it('undoes the guest sign-up when persisting the credentials fails', async () => {
+      const storage = createStorage();
+      const write = storage.persistent.setItem;
+      storage.persistent.setItem = (key, value) => {
+        if (key === 'guestAccount') {
+          throw new Error('quota exceeded');
+        }
+        write(key, value);
+      };
+      const { service, calls } = createService({
+        storage,
+        os: { fetchUser: async () => ({ user: guestUser }) },
+      });
+
+      await expect(service.signUpGuest()).rejects.toThrow('quota exceeded');
+
+      // no live session on unpersistable credentials — it would strand the
+      // account (and any funds) at its first expiry
+      expect(calls).toContain('signOut');
+      expect(service.getSession().isLoggedIn).toBe(false);
+      expect(storage.persistent.data.has('refresh_token')).toBe(false);
     });
 
     it('re-signs-in the stored guest account instead of creating a new one', async () => {
@@ -434,6 +522,108 @@ describe('AuthService', () => {
       expect(service.getSession().isLoggedIn).toBe(true);
       service.teardown();
     });
+
+    // Parked (it.todo) as the spec for the planned command-lane
+    // serialization of session transitions: the unfenced handler inherited
+    // from master fails this — see the KNOWN ISSUE note on
+    // handleSessionExpiry in auth-service.ts (PR #1166 review, finding 1).
+    it.todo(
+      'does not resurrect a session that was signed out while a guest extension was in flight',
+      async () => {
+        let releaseSignInGuest = (): void => undefined;
+        const signInGuestGate = new Promise<void>((resolve) => {
+          releaseSignInGuest = resolve;
+        });
+        const storage = createStorage();
+        const { service, calls, events } = createService({
+          storage,
+          os: {
+            fetchUser: async () => ({ user: guestUser }),
+            signInGuest: async () => {
+              // The extension's fresh tokens land only once the gate opens —
+              // i.e. after the concurrent sign-out already cleared storage.
+              await signInGuestGate;
+              storage.persistent.data.set(
+                'access_token',
+                createJwt(600, 'guest-1'),
+              );
+              storage.persistent.data.set(
+                'refresh_token',
+                createJwt(3600, 'guest-1'),
+              );
+              return { id: 'guest-1', access_token: 'a', refresh_token: 'r' };
+            },
+          },
+        });
+        storage.persistent.data.set(
+          'guestAccount',
+          JSON.stringify({ id: 'guest-1', password: 'pw' }),
+        );
+        storage.persistent.data.set('access_token', createJwt(600));
+        storage.persistent.data.set('refresh_token', createJwt(4));
+        const refreshed: unknown[] = [];
+        events.on('auth.session-refreshed', (payload) =>
+          refreshed.push(payload),
+        );
+        const expired: unknown[] = [];
+        events.on('auth.session-expired', (payload) => expired.push(payload));
+
+        await service.restoreSession();
+        // let the expiry timer fire and park the extension on the gated sign-in
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await service.signOut();
+        releaseSignInGuest();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        expect(service.getSession().isLoggedIn).toBe(false);
+        expect(refreshed).toHaveLength(0);
+        expect(expired).toHaveLength(0);
+        // the extension's freshly written tokens were cleared again instead of
+        // being left to resurrect the signed-out session on the next boot
+        expect(storage.persistent.data.has('refresh_token')).toBe(false);
+        expect(calls.filter((c) => c === 'fetchUser')).toHaveLength(1);
+      },
+    );
+
+    // Parked (it.todo) with the test above — the SDK-lifecycle variant of
+    // the same known issue, solved by the same command-lane serialization
+    // (dispose drains the lane).
+    it.todo(
+      'stops an in-flight expiry handler at teardown without clearing tokens',
+      async () => {
+        let gateReads = false;
+        let releaseTokenRead = (): void => undefined;
+        const readGate = new Promise<void>((resolve) => {
+          releaseTokenRead = resolve;
+        });
+        const storage = createStorage();
+        const readValue = storage.persistent.getItem;
+        storage.persistent.getItem = async (key) => {
+          if (gateReads) {
+            await readGate;
+          }
+          return readValue(key);
+        };
+        const { service, calls, events } = createService({ storage });
+        storage.persistent.data.set('access_token', createJwt(600));
+        storage.persistent.data.set('refresh_token', createJwt(4));
+        const expired: unknown[] = [];
+        events.on('auth.session-expired', (payload) => expired.push(payload));
+
+        await service.restoreSession();
+        // gate the handler's token re-read so teardown lands mid-handler
+        gateReads = true;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        service.teardown();
+        releaseTokenRead();
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        expect(calls).not.toContain('signOut');
+        expect(expired).toHaveLength(0);
+        // teardown is not logout: tokens survive for a successor instance
+        expect(storage.persistent.data.has('refresh_token')).toBe(true);
+      },
+    );
 
     it('ends the session when the extension cannot restore the guest user', async () => {
       let fetchCalls = 0;

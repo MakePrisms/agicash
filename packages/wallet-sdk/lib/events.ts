@@ -27,7 +27,9 @@ export class WalletEventEmitter implements WalletEvents {
     if (!set) {
       return;
     }
-    for (const handler of set) {
+    // Snapshot: a handler that (un)subscribes mid-emit must not change the
+    // current dispatch.
+    for (const handler of [...set]) {
       try {
         (handler as (payload: WalletEventMap[K]) => void)(payload);
       } catch (error) {

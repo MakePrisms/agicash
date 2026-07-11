@@ -10,6 +10,11 @@ import { generateRandomPassword } from './lib/password';
 import { clearSparkWallets } from './lib/spark/wallet';
 import type { AuthApi, Sdk, SdkConfig, UserApi, WalletEvents } from './sdk';
 
+// Makes the one-instance-per-process constraint (see the constructor note)
+// self-enforcing: create() refuses to run while an undisposed instance holds
+// the module-global Open Secret configuration.
+let liveInstance: AgicashSdk | undefined;
+
 /**
  * Runtime implementation of the SDK contract, filled namespace-by-namespace
  * as the migration slices land (auth/user/events since step 5). Each slice
@@ -78,9 +83,15 @@ export class AgicashSdk
     this.events = events;
   }
 
-  /** Sync; no I/O. */
+  /** Sync; no I/O. Throws when an undisposed instance already exists (see the constructor note). */
   static create(config: SdkConfig): AgicashSdk {
-    return new AgicashSdk(config);
+    if (liveInstance) {
+      throw new Error(
+        'An AgicashSdk instance already exists in this process. @agicash/opensecret holds module-global auth state, so dispose() the previous instance before creating another.',
+      );
+    }
+    liveInstance = new AgicashSdk(config);
+    return liveInstance;
   }
 
   /**
@@ -95,5 +106,8 @@ export class AgicashSdk
 
   async dispose(): Promise<void> {
     this.authService.teardown();
+    if (liveInstance === this) {
+      liveInstance = undefined;
+    }
   }
 }
