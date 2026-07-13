@@ -1,6 +1,7 @@
 import * as openSecret from '@agicash/opensecret';
 import { createAgicashDbClient } from './db/client';
 import { createSupabaseSessionTokenGetter } from './db/supabase-session';
+import type { AccountRepository } from './domain/accounts/account-repository';
 import { createAccountsApi } from './domain/accounts/accounts-api';
 import { AuthService } from './domain/user/auth-service';
 import { createGuestAccountStorage } from './domain/user/guest-account-storage';
@@ -23,6 +24,12 @@ import { createSessionKeys } from './session-keys';
 // self-enforcing: create() refuses to run while an undisposed instance holds
 // the module-global Open Secret configuration.
 let liveInstance: AgicashSdk | undefined;
+
+// The live instance's internal accounts repository builder, reached only
+// through the '@agicash/wallet-sdk/temporary' bridge (removed at step 18).
+// Module-scoped like liveInstance so the bridge never exposes the fat domain
+// repository on the public AgicashSdk surface.
+let liveAccountRepository: (() => Promise<AccountRepository>) | undefined;
 
 /**
  * Runtime implementation of the SDK contract, filled namespace-by-namespace
@@ -107,6 +114,7 @@ export class AgicashSdk
     });
     this.accounts = accounts.api;
     this.events = events;
+    liveAccountRepository = accounts.getRepository;
   }
 
   /** Sync; no I/O. Throws when an undisposed instance already exists (see the constructor note). */
@@ -134,6 +142,22 @@ export class AgicashSdk
     this.authService.teardown();
     if (liveInstance === this) {
       liveInstance = undefined;
+      liveAccountRepository = undefined;
     }
   }
+}
+
+/**
+ * The live instance's internal fat domain accounts repository, for unmigrated
+ * web flows (receive/send repo construction, realtime row mapping) that still
+ * read wallet/proofs. Re-exported from '@agicash/wallet-sdk/temporary'; not on
+ * the public surface.
+ *
+ * @remarks Removed at step 18 when those flows read wallet/proofs from the SDK.
+ */
+export function getInternalAccountRepository(): Promise<AccountRepository> {
+  if (!liveAccountRepository) {
+    throw new Error('No live AgicashSdk instance');
+  }
+  return liveAccountRepository();
 }

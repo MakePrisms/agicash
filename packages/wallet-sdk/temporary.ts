@@ -105,6 +105,15 @@ export {
 export { CashuProofSchema, toProof } from './domain/accounts/cashu-account';
 export { AccountRepository } from './domain/accounts/account-repository';
 export { AccountService } from './domain/accounts/account-service';
+// Accounts-slice bridge (step 6) — removed at step 18 when the projection
+// strip becomes physical: the internal-repo accessor for unmigrated flows and
+// realtime row mapping, the checked unwrap the getter hooks route through, and
+// the shared mapper for the web-side cache-entry paths.
+export { getInternalAccountRepository } from './agicash-sdk';
+export {
+  toAccountProjection,
+  toDomainAccount,
+} from './domain/accounts/account-projection';
 export {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,

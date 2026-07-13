@@ -27,3 +27,42 @@ export function toAccountProjection(account: DomainAccount): Account {
   }
   return account;
 }
+
+// The hidden domain fields each rail must carry for a projection to be
+// unwrapped back to a domain account during migration.
+const hiddenFieldsByType = {
+  cashu: ['proofs', 'wallet', 'keysetCounters'],
+  spark: ['wallet'],
+} as const;
+
+/** Thrown when {@link toDomainAccount} is handed a projection that lost its runtime-fat domain fields. */
+export class MissingDomainFieldsError extends Error {
+  constructor(accountType: string, missingFields: readonly string[]) {
+    super(
+      `Cannot unwrap ${accountType} account to a domain account: missing hidden field(s) ${missingFields.join(
+        ', ',
+      )}. A projection reached an unwrap site without the runtime-fat migration representation.`,
+    );
+    this.name = 'MissingDomainFieldsError';
+  }
+}
+
+/**
+ * Checked unwrap from a public projection back to the fat domain account, for
+ * the getter hooks that still read wallet/proofs/keysetCounters off the cache.
+ * Asserts the runtime-fat fields are present and throws
+ * {@link MissingDomainFieldsError} naming the missing ones — never a bare cast,
+ * so a mapper bug that produced a thin object fails loudly here instead of
+ * exploding later in a money path expecting `.wallet`/`.proofs`.
+ *
+ * @remarks Removed at step 18 when the projection strip becomes physical.
+ */
+export function toDomainAccount(account: Account): DomainAccount {
+  const missing = hiddenFieldsByType[account.type].filter(
+    (field) => !(field in account),
+  );
+  if (missing.length > 0) {
+    throw new MissingDomainFieldsError(account.type, missing);
+  }
+  return account as unknown as DomainAccount;
+}
