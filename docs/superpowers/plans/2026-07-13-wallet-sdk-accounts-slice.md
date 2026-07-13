@@ -67,11 +67,11 @@ The mutation calls `sdk.accounts.cashu.add()`; the projection-typed return is ru
 - `getAccountBalance` stays a root export typed over *domain* accounts for `/temporary`/SDK-internal use (the mapper itself uses it).
 - `ReadUserRepository.toUser` + realtime row mapping stay `/temporary` → step 18 (step-5 Deferred, unchanged).
 
-### B6 — `sparkDebugLog` inside the web's `AccountsCache` (OPEN, small)
+### B6 — `sparkDebugLog` inside the web's `AccountsCache` (RESOLVED, maintainer 2026-07-13)
 
-`updateSparkAccountBalance` (an in-place field update on an existing cache entry — not a cache-entry path, so not mapper-gated) logs through `sparkDebugLog`, which the mapping sends internal. Options: (a) root-export the debug fn until step 18 (parity default), (b) drop the log line (dev-telemetry-only delta). **Building on (a) per the parity doctrine (port master as-is); the drop option stays flagged here for a veto any time before the PR merges.**
+Ruling: neither root-export nor drop — the `/temporary` import **stays as a named exception**, same as the other spark consumers; it dies at step 18 with its call site. `/temporary` exists exactly for this. (`updateSparkAccountBalance` is an in-place field update on an existing cache entry — not a cache-entry path, so not mapper-gated.)
 
-### B7 — WASM posture (reframed by B1; stands as its direct consequence — veto open until PR)
+### B7 — WASM posture (RESOLVED, maintainer 2026-07-13: master parity confirmed, good to go)
 
 The fat cache must carry live spark `wallet` handles during migration (unmigrated flows unwrap and use them), so `sdk.accounts.list()`/`get()` **do** construct wallets on the fetch path until step 18 — the earlier "reads never touch WASM" gate cannot hold during migration; it becomes the **step-18 end-state property** (physical strip ⇒ no wallet construction on reads).
 
@@ -107,7 +107,7 @@ Migration-time acceptance instead = **master WASM-posture parity, byte-for-byte*
 | `useAccounts` → `UserService.getExtendedAccounts` | root export re-typed over projections (B5) |
 | `useBalance`/display → `getAccountBalance(account)` | `.balance` off the cache (B5); `getAccountBalance` stays root for domain contexts |
 | Money flows reading `wallet`/`proofs` off the cache | unchanged call sites via getter hooks, which unwrap through `/temporary` `toDomainAccount()` internally |
-| `AccountsCache.updateSparkAccountBalance` → `sparkDebugLog` | B6 |
+| `AccountsCache.updateSparkAccountBalance` → `sparkDebugLog` | unchanged — named `/temporary` exception, dies at 18 with its call site (B6) |
 | `sdk/accounts.ts` `AddCashuAccountParams = unknown` | pinned (B3, resolved) |
 
 ## Task outline
@@ -116,7 +116,8 @@ Migration-time acceptance instead = **master WASM-posture parity, byte-for-byte*
 2. **Shared mapper + `createAccountsApi`** — the domain→projection mapper (attach `balance` via `getAccountBalance`, keep hidden fields; fresh types — domain `RedactedAccount` strips only `proofs` and must not be reused); factory wraps repository/service; `cashu.add` re-injects `type`+`userId`; wired into `AgicashSdk` (`Pick` grows `'accounts'`); `AddCashuAccountParams` lands in `sdk/accounts.ts`.
 3. **`/temporary` bridge v2** — internal-repo accessor; **`toDomainAccount()` checked cast — the integrity linchpin of the fat-cache arrangement**: genuinely asserts the runtime object carries the hidden domain fields and throws a loud typed error naming the missing fields when handed a thin object. Never a bare `as`-cast — that would let a mapper bug flow a thin object into a money path expecting `.wallet`/`.proofs` and explode past the type checker. Mapper re-export; step-18 removal note on all three.
 4. **`sdk.user.ensure()`** — port `ensureUserData` internals verbatim (keys, repos, Zod-aware retry, default-accounts constant, change-detection memo semantics); return shape per B2 sub-call 1; web `_protected.tsx` flip with cache seeding through the mapper.
-5. **Web flip sweep** — scope map rows: queryFn/lazy-get/add/realtime re-source; delete the two hook files; root shadow deletion + flip web domain-type importers to `/temporary`; display consumers to `.balance`; unwrap sites consolidated into the getter hooks over `toDomainAccount()`.
+5. **Web flip sweep** — scope map rows: queryFn/lazy-get/add/realtime re-source; delete the two hook files; root shadow deletion + flip web domain-type importers to `/temporary`; display consumers to `.balance`; unwrap sites consolidated into the getter hooks over `toDomainAccount()`. **Glue-parity notes:** `_protected.tsx` keeps master's own structure around `sdk.user.ensure()` — the `getUserFromCache` + `hasUserChanged` short-circuit and the **conditional** cache seeding (seed only on the upsert branch; unconditional seeding would clobber a realtime-fresher cache with the SDK's memoized bootstrap snapshot on route remounts) and the `!user → prefetchQuery(supabaseSessionTokenQuery())` warm-up; `ensureBreezWasm` calls stay where master has them (B7).
+6. **PR declarations** (declared questions, not changes): `accounts.get(id)` is not session-gated (master's repository posture — RLS scopes it; `list()`/`add` gate on the session for `userId`) while `user.*` gates every verb — parity kept, consistency question declared; `withRetry`/`delay` are ported into the SDK lib while the web copies remain for unmigrated consumers (transitional duplication, dies with their slices).
 6. **Tests** — projections complete (type-level: no `wallet`/`proofs`/`keysetCounters` on public types; runtime: hidden fields present + `balance` correct through every mapper-fed path); mapper is the only cache-entry point (each path exercised); checked-cast failure on a stripped object; params; ensure memo/retry; key-getter fencing across session end; WASM-posture parity per B7 reframe.
 7. **Verification** — `bun run fix:all` + `bun run typecheck` (workspace incl. web), unit suite, production build; **hidden-fields grep** (no `.proofs`/`.wallet`/`.keysetCounters` outside sanctioned unwrap sites + `/temporary` importers); browser smoke: cold login (user+accounts bootstrap), add mint, accounts settings pages, default-account switch, balances render, send/receive still work off the cache (unwrap path intact).
 8. **PR** — base `master` after step 5 merges (two-green-PRs rule: rebase + re-verify against merged master pre-merge); title `feat(wallet-sdk): accounts slice (step 6)`.
