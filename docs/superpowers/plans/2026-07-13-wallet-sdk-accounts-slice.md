@@ -12,47 +12,36 @@ Sources of truth:
 1. **Behavior parity with `master`.** Where the port surfaces something improvable, port the master behavior as-is and flag the spot in the Decision Record for a now-vs-defer call. Nothing gets silently "fixed".
 2. Web keeps TanStack Query + its realtime layer until step 18. The SDK owns no cache.
 3. `userId` never crosses the public surface (contract decision #3); namespaces close over the session.
-4. Public projections stay honest: no `wallet` handles, `proofs`, or `keysetCounters` cross the contract surface (the #1164 review class).
+4. **Projection discipline per the B1 ruling:** the public types strip `wallet`/`proofs`/`keysetCounters` at the *type level* now; at runtime the objects stay fat during migration (hidden fields ride along) and the strip becomes physical at step 18. Hidden fields are reachable only through the sanctioned unwrap sites (B1.3); anywhere else is banned and grep-enforced.
 5. One instance per process; namespace factories close over the SDK's own db client + key getters (step-5 `AgicashSdk` pattern).
+6. **Single mapper choke point:** objects enter the `['accounts']` cache only through the shared domain→projection mapper (computes `balance`, keeps hidden fields). Cashu `balance` must be recomputed wherever proofs change — one entry point or it drifts.
 
-## Open Decision Points (need maintainer rulings before task bodies freeze)
+## Decision Record
 
-### B1 — The projection boundary vs the web's domain-account cache (central call)
+### B1 — Projection-typed cache over a runtime-fat migration representation (RESOLVED, maintainer 2026-07-13)
 
-**Fact:** the web's single accounts cache (`AccountsCache`, key `['accounts']`) holds **domain** accounts — cashu accounts carry `proofs`/`wallet`/`keysetCounters`, spark accounts carry live `wallet` handles. Every unmigrated money flow (send/receive/transfer, steps 9–16) reads those fields from this one cache (`useGetCashuAccount().wallet`, `canSendToLightning`, …). The contract's `Account` union deliberately strips exactly those fields.
+Ruling: `sdk.accounts.*` does **not** sit test-only until step 18 — each slice moves real consumers toward end-state; step 18 keeps only what truly depends on it.
 
-**Consequence:** the cache's fetch path cannot flip to `sdk.accounts.list()` returning honest projections without breaking every downstream money flow; and returning domain objects merely *typed* as projections would physically leak proofs/wallets across the contract surface — the class #1164's review closed.
+1. **The `['accounts']` cache holds projection-typed objects, fetched via `sdk.accounts.list()`** — a production consumer today. At runtime the objects stay fat during migration: domain fields ride along hidden, plus computed `balance` attached. The strip is type-level until step 18, when it becomes physical and this arrangement ends.
+2. **One shared mapper** (attach `balance`, keep hidden fields) is the only way objects enter the cache — queryFn, realtime row mapping, `add` onSuccess, `ensure` seed, claim upserts. Never hand-built elsewhere.
+3. **`/temporary` bridge shrinks to:** the internal-repo accessor (unmigrated receive/send repo constructors + realtime row mapping) and a **`toDomainAccount()` checked cast** (asserts hidden fields present). The shared mapper is also `/temporary`-exported for the web-side cache-entry paths (realtime) until step 18. All domain access routes through the existing getter hooks (`useGetCashuAccount`, spark listeners, selector→store handoffs), which unwrap internally; touching hidden fields anywhere else is banned (self-review grep).
+4. **Display consumers** read projections straight off the cache (`.balance` etc.). Root `Account` types flip to projections — the index.ts domain shadow for accounts types is deleted; code needing domain types imports them from `/temporary`.
 
-**Proposal (recommended):** the *migration bridge* pattern.
+Invariant (stands): the bridge and `sdk.accounts.*` are two faces of **one** instance-internal repository — a single data path with a dual type-surface. At no point do two sources of truth exist.
 
-- `sdk.accounts.*` ships with **honest projections** (strip + compute `balance`).
-- `/temporary` exports a bridge accessor over the SDK instance's *internal* accounts repository (domain-typed). The web's accounts data layer (query fn, realtime `toAccount`, lazy `get`) re-sources to the bridge: **one** repository (the SDK's, using SDK-internal keys), one cache, domain objects keep flowing to steps-9–16 consumers.
-- The web's own `AccountRepository`/`AccountService` construction (`account-repository-hooks.ts`, `account-service-hooks.ts`, and their `useEncryption`/`useCashuCryptography` pulls) is deleted — that is this slice's real import flip.
-- The bridge dies with `/temporary` (step 18/19). Until then `sdk.accounts.*` has no web consumer; it is exercised by tests. Later slices consume it as their flows move inside the SDK.
+### B2 — `ensureUserData` → `sdk.user.ensure()` (home resolved by A1 lineage; two sub-calls open)
 
-**Invariant (pinned):** the bridge and `sdk.accounts.*` are two faces of **one** instance-internal repository — a single data path with a dual type-surface (the step-5 shadowing shape). At no point do two sources of truth exist.
+Master (`_protected.tsx:75–152`): derives 4 keys + warms seed/mnemonic, constructs `AccountRepository` + `WriteUserRepository`, calls `writeUserRepository.upsert({...authUser fields, accounts: defaultAccounts, ...pubkeys, terms}, accountRepository)` with Zod-aware retry, seeds **both** the user cache and the accounts cache from the returned `{ user, accounts }`.
 
-**Precedent:** this is the established slice pattern, not a new exception. Step-5 A11 kept `UserService`/user repos on `/temporary` for unmigrated consumers while `sdk.user.*` took the migrated surface; A1 deferred `ensureUserData` to this slice precisely because it constructs `AccountRepository`.
+Key derivation, repositories, retry and the default-accounts constant move SDK-internal. The web middleware keeps: pending-terms storage reads, change-detection short-circuit semantics (SDK memoizes per session identity), redirect logic, cache seeding.
 
-**Alternatives considered:** (a) type-level flip returning domain objects as projections — rejected: physical leak, recreates the reviewed class; (b) honest projections + a second web fetch path for domain accounts — rejected: two sources for one cache, double-fetch, drift.
+`ensureUserData` is cross-domain (user row + default accounts in one operation) — A1 parked it here because of the `AccountRepository` dependency; the verb reads user-side (`sdk.user.ensure`, recommended).
 
-### B2 — `ensureUserData`'s contract home (step-5 A1 lands here)
+**Open sub-call 1 — return shape:** under B1 the seed no longer needs the bridge: propose `ensure(params): Promise<{ user: User; accounts: Account[] }>` with accounts projection-typed (runtime-fat, through the shared mapper) — the web seeds both caches exactly as master does, zero extra fetch, contract-legal now. Alternative: `Promise<User>` + a follow-up `sdk.accounts.list()` seed (+1 round-trip cold login).
 
-**Fact (master):** `_protected.tsx` middleware derives 4 keys (encryption keypair, cashu locking xpub, spark identity pubkey) + warms seed/mnemonic, constructs `AccountRepository` + `WriteUserRepository`, calls `writeUserRepository.upsert({...authUser fields, accounts: defaultAccounts, ...pubkeys, terms}, accountRepository)` with Zod-aware retry, then seeds **both** the user cache and the accounts cache from the returned `{ user, accounts }`.
+**Open sub-call 2 — terms param shape:** `EnsureUserParams = { termsAcceptedAt?, giftCardMintTermsAcceptedAt? }` carries *timestamps* (replayed from the web's pending-terms storage) while the existing `acceptTerms` takes *booleans* and stamps the time internally — two terms verbs, two philosophies on one `UserApi`. Intentional (bootstrap replays stored acceptance times) or harmonize? Maintainer call.
 
-**Proposal:** `sdk.user.ensure(params): Promise<User>` with `EnsureUserParams = { termsAcceptedAt?: string; giftCardMintTermsAcceptedAt?: string }` — key derivation, repositories, retry and the default-accounts constant all move SDK-internal. The web middleware keeps: pending-terms storage reads, `hasUserChanged` short-circuit semantics (SDK memoizes per session identity), redirect logic, and its cache seeding.
-
-**Cross-domain note for the ruling:** `ensureUserData` upserts the user row *and* the default accounts in one operation — A1 parked it with this slice because of the `AccountRepository` dependency, not because its home is settled. The verb reads user-side (`sdk.user.ensure` — user bootstrap, accounts as its effect; recommended), but an accounts-side home is arguable; weigh with the A1 lineage in view.
-
-**Sub-call for the accounts seed (pick one):**
-- **(a, recommended)** the bridge (B1) also exposes the domain-typed `{ user, accounts }` result of the ensure upsert, so the web seeds `AccountsCache` exactly as today — zero extra fetch, byte-parity.
-- **(b)** `ensure()` returns `User` only; the web seeds the accounts cache with a follow-up bridge `getAllActive` read — one extra round-trip on cold login (behavior delta to accept).
-
-**Param-shape sub-question:** `EnsureUserParams` carries *timestamps* (replayed from the web's pending-terms storage) while the existing `acceptTerms` takes *booleans* and derives the acceptance time internally — two terms verbs, two philosophies on one `UserApi`. Intentional (bootstrap replays stored acceptance times; interactive acceptance happens now) or harmonize? Maintainer call.
-
-### B3 — `AddCashuAccountParams` pin (the contract's one placeholder)
-
-Domain service residual after its omits ⇒ propose
+### B3 — `AddCashuAccountParams` (RESOLVED — verified exact against the domain signature)
 
 ```ts
 export type AddCashuAccountParams = {
@@ -63,37 +52,41 @@ export type AddCashuAccountParams = {
 };
 ```
 
-`type` implied by the rail-nested method; `userId` session-implicit. Return `Promise<CashuAccount>` (projection; fresh account `balance` = zero from empty proofs).
+`type` implied by the rail-nested method; `userId` session-implicit — the `cashu.add` mapper re-injects both before the service call. Return `Promise<CashuAccount>` (projection-typed; fresh account `balance` = zero from empty proofs).
 
-### B4 — `useAddCashuAccount` flip timing
+### B4 — `useAddCashuAccount` flips now (RESOLVED by B1)
 
-Under B1 the mutation can flip to `sdk.accounts.cashu.add()` only if its `onSuccess` re-sources a **domain** account for the cache (bridge `get(id)` — one extra read), since the projection return can't be upserted into a domain cache. Master's immediate-upsert exists so dependent hooks see the account instantly.
+The mutation calls `sdk.accounts.cashu.add()`; the projection-typed return is runtime-fat, so `onSuccess` upserts it into the cache through the shared mapper — master's immediate-availability semantics preserved, no extra read. (The cache's `version`-guarded upsert works unchanged: `version` is a public projection field.)
 
-- **(a, recommended)** keep the mutation on the bridge service this slice (pure parity, zero extra read); the public `add()` is test-covered and web-consumed when the cache itself flips (step 18).
-- **(b)** flip now + bridge re-read in `onSuccess` (one extra read on account creation; public method gets a real consumer today).
+### B5 — Statics and balance reads (updated per B1)
 
-### B5 — Homes for the `/temporary` statics `useAccounts` pulls (step-5 A11 residue)
+- `UserService.getExtendedAccounts` / `isDefaultAccount` → root exports, re-typed over the **projection** types (pure fns over public fields — id/currency/default ids; no hidden-field access). `useAccounts` flips its import; root `ExtendedAccount` flips with the root-type flip (B1.4).
+- Balance reads off the cache (`useBalance`, tiles, selectors) read the mapper-computed `.balance` field directly — same values and the same freshness as master's render-time `getAccountBalance` (both derive from the proofs of the object that last entered the cache).
+- `getAccountBalance` stays a root export typed over *domain* accounts for `/temporary`/SDK-internal use (the mapper itself uses it).
+- `ReadUserRepository.toUser` + realtime row mapping stay `/temporary` → step 18 (step-5 Deferred, unchanged).
 
-- `UserService.getExtendedAccounts(user, accounts)` (the `isDefault` join) and `UserService.isDefaultAccount` — pure fns over domain types ⇒ **root exports** per the migration mapping's predicate-helpers row; `useAccounts` flips its import. (`ReadUserRepository.toUser` stays `/temporary` → step 18, per step-5 Deferred.)
-- `getAccountBalance` — already mapping-ruled a root export; `account-hooks.ts` currently imports it from `/temporary` ⇒ import flip only.
+### B6 — `sparkDebugLog` inside the web's `AccountsCache` (OPEN, small)
 
-### B6 — `sparkDebugLog` inside the web's `AccountsCache`
+`updateSparkAccountBalance` (an in-place field update on an existing cache entry — not a cache-entry path, so not mapper-gated) logs through `sparkDebugLog`, which the mapping sends internal. Options: (a) root-export the debug fn until step 18 (parity default), (b) drop the log line (dev-telemetry-only delta). Maintainer taste.
 
-`updateSparkAccountBalance` logs through `sparkDebugLog`, which the mapping sends internal (logger port). The cache stays web-side. Options: (a) root-export the debug fn until step 18, (b) drop the log line (dev-telemetry-only delta). Maintainer taste; (a) is the parity default.
+### B7 — WASM posture (REFRAMED by B1 — needs maintainer nod)
 
-### B7 — Projection reads never touch WASM (hard acceptance gate)
+The fat cache must carry live spark `wallet` handles during migration (unmigrated flows unwrap and use them), so `sdk.accounts.list()`/`get()` **do** construct wallets on the fetch path until step 18 — the earlier "reads never touch WASM" gate cannot hold during migration; it becomes the **step-18 end-state property** (physical strip ⇒ no wallet construction on reads).
 
-The repository can construct spark wallet handles; step-5 A3 kept `init()` WASM-free precisely so auth surfaces don't break under WASM-unavailable (iOS Lockdown Mode). If `sdk.accounts.get`/`list` constructed a `BreezSdk` on the read path, account reads would throw in exactly that environment — A3's regression class. Domain `SparkAccount` already carries `balance` as a data field, so projection reads have no data need for a wallet. **Acceptance gate (tasks 6/7): `sdk.accounts.get`/`list`/`cashu.add` complete with WASM never initialized — projection mapping constructs no wallet.** The web's `ensureBreezWasm` guards stay as-is for the bridge/domain paths (parity); folding WASM into `init()` remains deferred to the first Spark slice.
+Migration-time acceptance instead = **master WASM-posture parity, byte-for-byte**: the web's `ensureBreezWasm` guards stay exactly where master has them (entry + `_protected` middleware before any accounts fetch), and `list()`/`get()`/`toAccount` preserve master's behavior under WASM-unavailable — including the offline/stub wallet path (`domain` spark accounts carry a throwing stub when not online). Build-time verify: what master's protected surface actually does under iOS Lockdown (stub-and-degrade vs throw) — `list()` must match it exactly, whatever it is. A3's login-page concern is untouched: auth surfaces fetch no accounts.
 
-## Accepted behavior deltas (candidates — final list settles with the rulings)
+## Accepted behavior deltas (candidates — settle with the remaining rulings)
 
-1. B2(b) or B4(b), if chosen, each add one lightweight read (cold login / account creation).
-2. SDK-internal key getters memoize per session **generation-fenced** (cleared in `onSessionEnded` alongside the existing spark-wallet/mint-CAT clears) — same lifetime as master's infinity-stale TanStack entries which die with `queryClient.clear()` on sign-out, so no observable delta expected; listed because the mechanism changes.
+1. **Runtime-fat projection-typed cache until step 18** (B1 ruling): public types understate the runtime objects during migration; contained by the mapper choke point, the checked-cast unwrap, and the hidden-fields grep. Ends physically at step 18.
+2. **`balance` becomes a cache-entry-computed field** read by display consumers (B5): equal values/freshness to master's render-time compute; listed because the mechanism changes.
+3. SDK-internal key getters memoize per session **generation-fenced** (cleared in `onSessionEnded` alongside the existing spark-wallet/mint-CAT clears) — same effective lifetime as master's infinity-stale TanStack entries dying with `queryClient.clear()` on sign-out; listed because the mechanism changes.
+4. B2 sub-call 1 alternative, if chosen: +1 round-trip on cold login.
 
 ## Deferred (tracked, out of scope)
 
-- `useAccountChangeHandlers` + `AgicashDbAccountWithProofs` row types: realtime row mapping stays on `/temporary` → step 18 (mapping's db-row-types row; same precedent as `ReadUserRepository.toUser`).
-- Web `encryption-hooks.ts` / `cashu-hooks.ts` / `spark-query-options.ts` remain for the *unmigrated* domains (transactions/receive/send construct their own repos until steps 8–16); accounts stops consuming them. They go fully internal when their last consumer flips.
+- **Physical projection strip + bridge/mapper deletion → step 18/19** (B1.1: "this whole arrangement ends"); the never-touch-WASM read property lands there too (B7).
+- `useAccountChangeHandlers`' row mapping (`toAccount` + `AgicashDbAccountWithProofs` row types) stays bridge-served → step 18; its cache writes go through the shared mapper now.
+- Web `encryption-hooks.ts` / `cashu-hooks.ts` / `spark-query-options.ts` remain for the *unmigrated* domains (transactions/receive/send construct their own repos until steps 8–16); accounts stops consuming them.
 - `sdk.accounts.spark.add` — no addable spark rail today; contract already reserves the shape.
 - WASM into `init()` → first Spark slice (A3, restated).
 - SdkError wrapping for repo-thrown errors → step 17/19 (step-5 deferred, unchanged by this slice).
@@ -102,32 +95,36 @@ The repository can construct spark wallet handles; step-5 A3 kept `init()` WASM-
 
 | Today (`/temporary` or web-local) | After step 6 |
 | --- | --- |
-| `account-repository-hooks.ts` (web builds `AccountRepository` + encryption/seed getters) | **deleted** — repository lives inside the SDK; web reaches it via the migration bridge |
-| `account-service-hooks.ts` (web builds `AccountService`) | **deleted** — service inside the SDK (`accounts.cashu.add` / bridge per B4) |
-| `ensureUserData` in `_protected.tsx` (keys + repos + upsert) | `sdk.user.ensure()` + web glue (B2) |
-| `accountsQueryOptions` queryFn `repository.getAllActive` | bridge call (B1); query key/staleTime/structuralSharing unchanged |
-| `useAccountOrNull` lazy `repository.get` | bridge call (B1) |
-| `useAccounts` → `UserService.getExtendedAccounts` | root export (B5) |
-| `useBalance`/others → `getAccountBalance` from `/temporary` | root export import flip (B5) |
+| `account-repository-hooks.ts` (web builds `AccountRepository` + encryption/seed getters) | **deleted** — repository lives inside the SDK |
+| `account-service-hooks.ts` (web builds `AccountService`) | **deleted** — service inside the SDK behind `accounts.cashu.add` |
+| `accountsQueryOptions` queryFn `repository.getAllActive` | `sdk.accounts.list()` (projection-typed, mapper-fed); query key/staleTime/structuralSharing unchanged |
+| `useAccountOrNull` lazy `repository.get` | `sdk.accounts.get(id)` + mapper-gated upsert |
+| `useAddCashuAccount` → `service.addCashuAccount` | `sdk.accounts.cashu.add()` (B4) |
+| `ensureUserData` in `_protected.tsx` | `sdk.user.ensure()` (B2) |
+| Realtime `ACCOUNT_CREATED/UPDATED` → `repository.toAccount` → upsert | bridge repo accessor → `toAccount` → **shared mapper** → upsert |
+| Root `Account`/`CashuAccount`/`SparkAccount`/`ExtendedAccount` = domain (index.ts shadow) | shadow **deleted** — root types are the projections; domain-type importers flip to `/temporary` |
+| `useAccounts` → `UserService.getExtendedAccounts` | root export re-typed over projections (B5) |
+| `useBalance`/display → `getAccountBalance(account)` | `.balance` off the cache (B5); `getAccountBalance` stays root for domain contexts |
+| Money flows reading `wallet`/`proofs` off the cache | unchanged call sites via getter hooks, which unwrap through `/temporary` `toDomainAccount()` internally |
 | `AccountsCache.updateSparkAccountBalance` → `sparkDebugLog` | B6 |
-| `useAccountChangeHandlers` → `repository.toAccount` + row types | stays `/temporary` → step 18 |
-| `sdk/accounts.ts` `AddCashuAccountParams = unknown` | pinned (B3) |
+| `sdk/accounts.ts` `AddCashuAccountParams = unknown` | pinned (B3, resolved) |
 
-## Task outline (bodies freeze after rulings)
+## Task outline
 
-1. **SDK-internal key plumbing** — encryption keypair (m/10111099'/0'), cashu seed, spark mnemonic, cashu locking xpub, spark identity pubkey: memoized getters over `@agicash/opensecret`, generation-fenced, cleared in `onSessionEnded`. (The "key getters AccountsApi closes over" from the step-5 skeleton charter.)
-2. **`createAccountsApi` factory** — wraps repository/service; projection mappers (strip + `balance`) built fresh against the contract Omits — domain `RedactedAccount` strips only `proofs` (not `wallet`/`keysetCounters`) and must not be reused; the `cashu.add` mapper re-injects `type: 'cashu'` + session `userId` before the service call; wired into `AgicashSdk` (`Pick` grows `'accounts'`); `AddCashuAccountParams` lands in `sdk/accounts.ts` (B3).
-3. **Migration bridge on `/temporary`** (B1) — domain-typed accessor over the instance's repository (+ ensure result per B2a).
-4. **`sdk.user.ensure()`** (B2) — port `ensureUserData` internals verbatim (incl. Zod-aware retry + `hasUserChanged` memo semantics); web `_protected.tsx` flip.
-5. **Web accounts data-layer flip** — hooks re-source per the scope map; delete the two hook files; static-import flips (B5, B6).
-6. **Tests** — unit: projections (no proofs/wallet/keysetCounters escape; balance math), params, ensure memo/retry, key-getter fencing across session end, **the B7 gate: accounts reads/add complete with WASM never initialized**; integration vs the step-5 harness patterns.
-7. **Verification** — `bun run fix:all` + `bun run typecheck` (workspace incl. web), unit suite, production build, browser smoke: cold login (user+accounts bootstrap), add mint, accounts settings pages, default-account switch, send/receive still working off the cache (domain objects intact).
+1. **SDK-internal key plumbing** — encryption keypair (m/10111099'/0'), cashu seed, spark mnemonic, cashu locking xpub, spark identity pubkey: memoized getters over `@agicash/opensecret`, generation-fenced, cleared in `onSessionEnded`.
+2. **Shared mapper + `createAccountsApi`** — the domain→projection mapper (attach `balance` via `getAccountBalance`, keep hidden fields; fresh types — domain `RedactedAccount` strips only `proofs` and must not be reused); factory wraps repository/service; `cashu.add` re-injects `type`+`userId`; wired into `AgicashSdk` (`Pick` grows `'accounts'`); `AddCashuAccountParams` lands in `sdk/accounts.ts`.
+3. **`/temporary` bridge v2** — internal-repo accessor, `toDomainAccount()` checked cast (asserts hidden fields, typed error on miss), mapper re-export; step-18 removal note on all three.
+4. **`sdk.user.ensure()`** — port `ensureUserData` internals verbatim (keys, repos, Zod-aware retry, default-accounts constant, change-detection memo semantics); return shape per B2 sub-call 1; web `_protected.tsx` flip with cache seeding through the mapper.
+5. **Web flip sweep** — scope map rows: queryFn/lazy-get/add/realtime re-source; delete the two hook files; root shadow deletion + flip web domain-type importers to `/temporary`; display consumers to `.balance`; unwrap sites consolidated into the getter hooks over `toDomainAccount()`.
+6. **Tests** — projections complete (type-level: no `wallet`/`proofs`/`keysetCounters` on public types; runtime: hidden fields present + `balance` correct through every mapper-fed path); mapper is the only cache-entry point (each path exercised); checked-cast failure on a stripped object; params; ensure memo/retry; key-getter fencing across session end; WASM-posture parity per B7 reframe.
+7. **Verification** — `bun run fix:all` + `bun run typecheck` (workspace incl. web), unit suite, production build; **hidden-fields grep** (no `.proofs`/`.wallet`/`.keysetCounters` outside sanctioned unwrap sites + `/temporary` importers); browser smoke: cold login (user+accounts bootstrap), add mint, accounts settings pages, default-account switch, balances render, send/receive still work off the cache (unwrap path intact).
 8. **PR** — base `master` after step 5 merges (two-green-PRs rule: rebase + re-verify against merged master pre-merge); title `feat(wallet-sdk): accounts slice (step 6)`.
 
 ## Self-Review Checklist
 
-1. Spec coverage: `AccountsApi` methods wrapped; web accounts imports flipped per scope map; step-5 deferred items A1/getEncryption landed here or explicitly re-deferred with reason.
+1. Spec coverage: `AccountsApi` methods wrapped and web-consumed (B1 ruling); web accounts imports flipped per scope map; step-5 deferred items A1/getEncryption landed here or explicitly re-deferred with reason.
 2. Parity scan: every master behavior preserved or listed under Accepted behavior deltas.
-3. Projection honesty: grep the built package surface for `proofs`/`wallet` reachability from `sdk.accounts.*` returns.
+3. Projection discipline: public types carry no hidden fields; hidden-fields grep clean; every cache write goes through the shared mapper; `toDomainAccount()` is the only cast site.
 4. Key-fencing: sign-out → sign-in as a different user cannot serve the first user's keys/seeds from any SDK memo.
-5. No new `/temporary` surface except the declared bridge; bridge carries a step-18 removal note.
+5. `/temporary` surface: only the declared bridge v2 (repo accessor, checked cast, mapper), each carrying a step-18 removal note.
+6. WASM posture: master parity verified per B7's build-time check, not assumed.
