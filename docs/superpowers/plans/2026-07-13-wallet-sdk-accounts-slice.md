@@ -48,6 +48,8 @@ Sources of truth:
 - **(a, recommended)** the bridge (B1) also exposes the domain-typed `{ user, accounts }` result of the ensure upsert, so the web seeds `AccountsCache` exactly as today — zero extra fetch, byte-parity.
 - **(b)** `ensure()` returns `User` only; the web seeds the accounts cache with a follow-up bridge `getAllActive` read — one extra round-trip on cold login (behavior delta to accept).
 
+**Param-shape sub-question:** `EnsureUserParams` carries *timestamps* (replayed from the web's pending-terms storage) while the existing `acceptTerms` takes *booleans* and derives the acceptance time internally — two terms verbs, two philosophies on one `UserApi`. Intentional (bootstrap replays stored acceptance times; interactive acceptance happens now) or harmonize? Maintainer call.
+
 ### B3 — `AddCashuAccountParams` pin (the contract's one placeholder)
 
 Domain service residual after its omits ⇒ propose
@@ -79,9 +81,9 @@ Under B1 the mutation can flip to `sdk.accounts.cashu.add()` only if its `onSucc
 
 `updateSparkAccountBalance` logs through `sparkDebugLog`, which the mapping sends internal (logger port). The cache stays web-side. Options: (a) root-export the debug fn until step 18, (b) drop the log line (dev-telemetry-only delta). Maintainer taste; (a) is the parity default.
 
-### B7 — WASM precondition on `accounts.*` (note, not a change)
+### B7 — Projection reads never touch WASM (hard acceptance gate)
 
-The repository constructs spark wallet handles; master guards with web-side `ensureBreezWasm()` before `ensureUserData`/accounts reads. `init()` stays WASM-free until the first Spark slice (step-5 A3). Under B1 the web keeps its existing guards (parity); the public `accounts.*` docs state the precondition, and folding WASM into `init()` remains deferred to step 11/15. During the build I verify whether wallet construction in `toAccount` is lazy enough that projection-only paths never touch WASM — if so the note narrows.
+The repository can construct spark wallet handles; step-5 A3 kept `init()` WASM-free precisely so auth surfaces don't break under WASM-unavailable (iOS Lockdown Mode). If `sdk.accounts.get`/`list` constructed a `BreezSdk` on the read path, account reads would throw in exactly that environment — A3's regression class. Domain `SparkAccount` already carries `balance` as a data field, so projection reads have no data need for a wallet. **Acceptance gate (tasks 6/7): `sdk.accounts.get`/`list`/`cashu.add` complete with WASM never initialized — projection mapping constructs no wallet.** The web's `ensureBreezWasm` guards stay as-is for the bridge/domain paths (parity); folding WASM into `init()` remains deferred to the first Spark slice.
 
 ## Accepted behavior deltas (candidates — final list settles with the rulings)
 
@@ -114,11 +116,11 @@ The repository constructs spark wallet handles; master guards with web-side `ens
 ## Task outline (bodies freeze after rulings)
 
 1. **SDK-internal key plumbing** — encryption keypair (m/10111099'/0'), cashu seed, spark mnemonic, cashu locking xpub, spark identity pubkey: memoized getters over `@agicash/opensecret`, generation-fenced, cleared in `onSessionEnded`. (The "key getters AccountsApi closes over" from the step-5 skeleton charter.)
-2. **`createAccountsApi` factory** — wraps repository/service; projection mappers (strip + `balance`); wired into `AgicashSdk` (`Pick` grows `'accounts'`); `AddCashuAccountParams` lands in `sdk/accounts.ts` (B3).
+2. **`createAccountsApi` factory** — wraps repository/service; projection mappers (strip + `balance`) built fresh against the contract Omits — domain `RedactedAccount` strips only `proofs` (not `wallet`/`keysetCounters`) and must not be reused; the `cashu.add` mapper re-injects `type: 'cashu'` + session `userId` before the service call; wired into `AgicashSdk` (`Pick` grows `'accounts'`); `AddCashuAccountParams` lands in `sdk/accounts.ts` (B3).
 3. **Migration bridge on `/temporary`** (B1) — domain-typed accessor over the instance's repository (+ ensure result per B2a).
 4. **`sdk.user.ensure()`** (B2) — port `ensureUserData` internals verbatim (incl. Zod-aware retry + `hasUserChanged` memo semantics); web `_protected.tsx` flip.
 5. **Web accounts data-layer flip** — hooks re-source per the scope map; delete the two hook files; static-import flips (B5, B6).
-6. **Tests** — unit: projections (no proofs/wallet/keysetCounters escape; balance math), params, ensure memo/retry, key-getter fencing across session end; integration vs the step-5 harness patterns.
+6. **Tests** — unit: projections (no proofs/wallet/keysetCounters escape; balance math), params, ensure memo/retry, key-getter fencing across session end, **the B7 gate: accounts reads/add complete with WASM never initialized**; integration vs the step-5 harness patterns.
 7. **Verification** — `bun run fix:all` + `bun run typecheck` (workspace incl. web), unit suite, production build, browser smoke: cold login (user+accounts bootstrap), add mint, accounts settings pages, default-account switch, send/receive still working off the cache (domain objects intact).
 8. **PR** — base `master` after step 5 merges (two-green-PRs rule: rebase + re-verify against merged master pre-merge); title `feat(wallet-sdk): accounts slice (step 6)`.
 
