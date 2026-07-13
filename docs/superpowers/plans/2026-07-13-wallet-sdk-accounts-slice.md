@@ -84,7 +84,7 @@ Migration-time acceptance instead = **master WASM-posture parity, byte-for-byte*
 
 ## Deferred (tracked, out of scope)
 
-- **Physical projection strip + bridge/mapper deletion → step 18/19** (B1.1: "this whole arrangement ends"); the never-touch-WASM read property lands there too (B7).
+- **Physical projection strip + bridge/mapper deletion → step 18/19** (B1.1: "this whole arrangement ends"); the never-touch-WASM read property lands there too (B7). **Strip precondition:** every unwrap site (the getter hooks over `toDomainAccount()`) must already read `wallet`/`proofs` from the SDK instead of the cache *before* the strip lands — once the mapper stops carrying hidden fields, `toDomainAccount()` can no longer unwrap. Cheap to carry now, expensive to discover at 18.
 - `useAccountChangeHandlers`' row mapping (`toAccount` + `AgicashDbAccountWithProofs` row types) stays bridge-served → step 18; its cache writes go through the shared mapper now.
 - Web `encryption-hooks.ts` / `cashu-hooks.ts` / `spark-query-options.ts` remain for the *unmigrated* domains (transactions/receive/send construct their own repos until steps 8–16); accounts stops consuming them.
 - `sdk.accounts.spark.add` — no addable spark rail today; contract already reserves the shape.
