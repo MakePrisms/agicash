@@ -1,5 +1,6 @@
-import type { Money } from '@agicash/money';
+import type { Currency, Money } from '@agicash/money';
 import type {
+  AccountPurpose,
   CashuAccount as DomainCashuAccount,
   SparkAccount as DomainSparkAccount,
 } from '../domain/accounts/account';
@@ -21,4 +22,9 @@ export type AccountsApi = {
   };
 };
 
-export type AddCashuAccountParams = unknown; // step 6 (accounts)
+export type AddCashuAccountParams = {
+  name: string;
+  mintUrl: string;
+  currency: Currency;
+  purpose: AccountPurpose;
+};

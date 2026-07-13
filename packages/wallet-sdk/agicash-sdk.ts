@@ -1,14 +1,22 @@
 import * as openSecret from '@agicash/opensecret';
 import { createAgicashDbClient } from './db/client';
 import { createSupabaseSessionTokenGetter } from './db/supabase-session';
+import { createAccountsApi } from './domain/accounts/accounts-api';
 import { AuthService } from './domain/user/auth-service';
 import { createGuestAccountStorage } from './domain/user/guest-account-storage';
 import { createUserApi } from './domain/user/user-api';
 import { clearAgicashMintAuthToken } from './lib/agicash-mint-auth-provider';
 import { WalletEventEmitter } from './lib/events';
 import { generateRandomPassword } from './lib/password';
-import { clearSparkWallets } from './lib/spark/wallet';
-import type { AuthApi, Sdk, SdkConfig, UserApi, WalletEvents } from './sdk';
+import { type SparkWalletConfig, clearSparkWallets } from './lib/spark/wallet';
+import type {
+  AccountsApi,
+  AuthApi,
+  Sdk,
+  SdkConfig,
+  UserApi,
+  WalletEvents,
+} from './sdk';
 import { createSessionKeys } from './session-keys';
 
 // Makes the one-instance-per-process constraint (see the constructor note)
@@ -22,10 +30,12 @@ let liveInstance: AgicashSdk | undefined;
  * adds its namespace to the `Pick` until it collapses to the full `Sdk`.
  */
 export class AgicashSdk
-  implements Pick<Sdk, 'auth' | 'user' | 'events' | 'init' | 'dispose'>
+  implements
+    Pick<Sdk, 'auth' | 'user' | 'accounts' | 'events' | 'init' | 'dispose'>
 {
   readonly auth: AuthApi;
   readonly user: UserApi;
+  readonly accounts: AccountsApi;
   readonly events: WalletEvents;
 
   private readonly authService: AuthService;
@@ -79,11 +89,23 @@ export class AgicashSdk
       accessToken: sessionToken.getToken,
     });
 
+    const sparkConfig: SparkWalletConfig = {
+      storageDir: config.spark.storageDir ?? './.spark-data',
+      apiKey: config.spark.breezApiKey,
+    };
+    const accounts = createAccountsApi({
+      db,
+      getSession: () => this.authService.getSession(),
+      keys,
+      sparkConfig,
+    });
+
     this.auth = this.authService;
     this.user = createUserApi({
       db,
       getSession: () => this.authService.getSession(),
     });
+    this.accounts = accounts.api;
     this.events = events;
   }
 
