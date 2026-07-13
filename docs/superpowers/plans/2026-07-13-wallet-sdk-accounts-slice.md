@@ -122,6 +122,14 @@ Migration-time acceptance instead = **master WASM-posture parity, byte-for-byte*
 7. **Verification** — `bun run fix:all` + `bun run typecheck` (workspace incl. web), unit suite, production build; **hidden-fields grep** (no `.proofs`/`.wallet`/`.keysetCounters` outside sanctioned unwrap sites + `/temporary` importers); browser smoke: cold login (user+accounts bootstrap), add mint, accounts settings pages, default-account switch, balances render, send/receive still work off the cache (unwrap path intact).
 8. **PR** — base `master` after step 5 merges (two-green-PRs rule: rebase + re-verify against merged master pre-merge); title `feat(wallet-sdk): accounts slice (step 6)`.
 
+## Gate record (2026-07-13, keeper-verified)
+
+Built state = commits `58742fca`/`b614b9a2`/`3c8c5b60`/`8a1e1125` (SDK, tasks 1–4) + `2da05af0`/`ccffcdba`/`c204b96b` (task 5). Full chain re-run on the frozen tree by the gate, not taken from the builder: `fix:all` clean, workspace typecheck green, tests exit 0 (wallet-sdk 96, web 36, money 14, bolt11 9, ecies 18, cashu 35).
+
+- **Selector boundary as built:** `account-selector` renders DOMAIN accounts via `getAccountBalance` (master verbatim) and the picker option-build sites unwrap via `toDomainAccount()` — a sanctioned B1.3 "selector→store handoff". Display hooks (`useAccounts`/`useAccount`/`useAccountOrNull`) stay projection-typed with `.balance`; the getter hooks and `useDefaultAccount`/`useAccountOrDefault` unwrap internally and return domain for the money flows. Hidden-fields grep clean; every `.wallet`/`.proofs` read passes `toDomainAccount()` at a named seam (seam list in the PR body).
+- **Declared deviation:** `account-repository-hooks` is relocated to `features/receive/` rather than deleted — its only remaining consumers are the unmigrated receive repos, which construct `AccountRepository` synchronously (the bridge accessor is async; reshaping them is step 8–16 scope). `account-service-hooks` is deleted. The accounts feature no longer imports either.
+- **Browser smoke scope (env-limited on the build box):** verified on the exact head — app boots, landing + signup render with zero console/page errors, guest flow drives to Terms of Service and initiates enclave registration. Registration itself is blocked by the dev enclave's server-side 403 for this box's origin (environmental; master fails identically here) — post-auth surfaces (wallet home, add mint, balances) were NOT browser-verified on this box and want a maintainer-env smoke at review. Compensating evidence: the ensure/mapper/projection/fencing paths are unit-covered (25 new tests), and the full suite is green.
+
 ## Self-Review Checklist
 
 1. Spec coverage: `AccountsApi` methods wrapped and web-consumed (B1 ruling); web accounts imports flipped per scope map; step-5 deferred items A1/getEncryption landed here or explicitly re-deferred with reason.
