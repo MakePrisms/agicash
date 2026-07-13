@@ -29,7 +29,9 @@ Ruling: `sdk.accounts.*` does **not** sit test-only until step 18 — each slice
 
 Invariant (stands): the bridge and `sdk.accounts.*` are two faces of **one** instance-internal repository — a single data path with a dual type-surface. At no point do two sources of truth exist.
 
-### B2 — `ensureUserData` → `sdk.user.ensure()` (home resolved by A1 lineage; two sub-calls open)
+### B2 — `ensureUserData` → `sdk.user.ensure()` (RESOLVED, maintainer 2026-07-13)
+
+Ruling: `sdk.user.ensure(params): Promise<{ user: User; accounts: Account[] }>` — accounts projection-typed, mapped through the same shared mapper; the web seeds its cache from the **public return**. No bridge involvement in the seed; the signature is already the end-state one. User-side home confirmed. The timestamp params are **intentional** (replayed acceptance times from pending-terms storage) — kept, documented in JSDoc. Both sub-calls below are closed by this ruling; retained as the rationale trail.
 
 Master (`_protected.tsx:75–152`): derives 4 keys + warms seed/mnemonic, constructs `AccountRepository` + `WriteUserRepository`, calls `writeUserRepository.upsert({...authUser fields, accounts: defaultAccounts, ...pubkeys, terms}, accountRepository)` with Zod-aware retry, seeds **both** the user cache and the accounts cache from the returned `{ user, accounts }`.
 
@@ -67,9 +69,9 @@ The mutation calls `sdk.accounts.cashu.add()`; the projection-typed return is ru
 
 ### B6 — `sparkDebugLog` inside the web's `AccountsCache` (OPEN, small)
 
-`updateSparkAccountBalance` (an in-place field update on an existing cache entry — not a cache-entry path, so not mapper-gated) logs through `sparkDebugLog`, which the mapping sends internal. Options: (a) root-export the debug fn until step 18 (parity default), (b) drop the log line (dev-telemetry-only delta). Maintainer taste.
+`updateSparkAccountBalance` (an in-place field update on an existing cache entry — not a cache-entry path, so not mapper-gated) logs through `sparkDebugLog`, which the mapping sends internal. Options: (a) root-export the debug fn until step 18 (parity default), (b) drop the log line (dev-telemetry-only delta). **Building on (a) per the parity doctrine (port master as-is); the drop option stays flagged here for a veto any time before the PR merges.**
 
-### B7 — WASM posture (REFRAMED by B1 — needs maintainer nod)
+### B7 — WASM posture (reframed by B1; stands as its direct consequence — veto open until PR)
 
 The fat cache must carry live spark `wallet` handles during migration (unmigrated flows unwrap and use them), so `sdk.accounts.list()`/`get()` **do** construct wallets on the fetch path until step 18 — the earlier "reads never touch WASM" gate cannot hold during migration; it becomes the **step-18 end-state property** (physical strip ⇒ no wallet construction on reads).
 
@@ -80,7 +82,6 @@ Migration-time acceptance instead = **master WASM-posture parity, byte-for-byte*
 1. **Reality-class record — `sdk.accounts.*` is TYPE-honest / RUNTIME-fat until step 18** (B1 ruling: "the strip is type-level until step 18"). Public types understate the runtime objects during migration — intended, not incidental. Holds under three conditions, all tracked: (i) **web-internal consumers only** — no external/untrusted host consumes `sdk.accounts.*` before the physical strip, so the fat is reachable only by code already holding the proofs (to confirm with the maintainer alongside the open B points); (ii) time-boxed to step 18, where the strip becomes physical and this record closes; (iii) nobody claims runtime projection-honesty for accounts returns meanwhile. Contained by the mapper choke point, the checked-cast unwrap, and the hidden-fields grep.
 2. **`balance` becomes a cache-entry-computed field** read by display consumers (B5): equal values/freshness to master's render-time compute; listed because the mechanism changes.
 3. SDK-internal key getters memoize per session **generation-fenced** (cleared in `onSessionEnded` alongside the existing spark-wallet/mint-CAT clears) — same effective lifetime as master's infinity-stale TanStack entries dying with `queryClient.clear()` on sign-out; listed because the mechanism changes.
-4. B2 sub-call 1 alternative, if chosen: +1 round-trip on cold login.
 
 ## Deferred (tracked, out of scope)
 
