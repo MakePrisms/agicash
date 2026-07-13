@@ -1,19 +1,85 @@
 import type { Currency } from '@agicash/money';
+import { core } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import { NoSessionError } from '../../lib/error';
-import type { AuthSession, UserApi } from '../../sdk';
+import type { SparkWalletConfig } from '../../lib/spark/wallet';
+import { withRetry } from '../../lib/with-retry';
+import type { Account, AuthSession, AuthUser, UserApi } from '../../sdk';
+import type { SessionKeys } from '../../session-keys';
+import { toAccountProjection } from '../accounts/account-projection';
+import { AccountRepository } from '../accounts/account-repository';
+import type { User } from './user';
 import { ReadUserRepository, WriteUserRepository } from './user-repository';
 import { UserService } from './user-service';
 
 type Deps = {
   db: AgicashDb;
   getSession: () => AuthSession;
+  keys: SessionKeys;
+  sparkConfig: SparkWalletConfig;
 };
 
-export function createUserApi(deps: Deps): UserApi {
+const isDevelopmentMode = import.meta.env.MODE === 'development';
+
+const defaultAccounts = [
+  {
+    type: 'spark',
+    currency: 'BTC',
+    name: 'Bitcoin',
+    network: 'MAINNET',
+    isDefault: true,
+    purpose: 'transactional',
+    expiresAt: null,
+  },
+  ...(isDevelopmentMode
+    ? ([
+        {
+          type: 'cashu',
+          currency: 'BTC',
+          name: 'Testnut BTC',
+          mintUrl: 'https://testnut.cashu.space',
+          isTestMint: true,
+          isDefault: false,
+          purpose: 'transactional',
+          expiresAt: null,
+        },
+        {
+          type: 'cashu',
+          currency: 'USD',
+          name: 'Testnut USD',
+          mintUrl: 'https://testnut.cashu.space',
+          isTestMint: true,
+          isDefault: true,
+          purpose: 'transactional',
+          expiresAt: null,
+        },
+      ] as const)
+    : []),
+] as const;
+
+const hasUserChanged = (user: User, authUser: AuthUser): boolean => {
+  const currentAuthUserEmail = authUser.email ?? null;
+  const currentUserEmail = user.isGuest ? null : user.email;
+
+  return (
+    currentUserEmail !== currentAuthUserEmail ||
+    user.emailVerified !== authUser.email_verified
+  );
+};
+
+export function createUserApi(deps: Deps): {
+  api: UserApi;
+  reset: () => void;
+} {
   const readRepository = new ReadUserRepository(deps.db);
   const writeRepository = new WriteUserRepository(deps.db);
   const userService = new UserService(writeRepository);
+
+  // Change-detection short-circuit, session-fenced: the ensure result is
+  // served again for an unchanged session and dropped on session end (the SDK
+  // memo standing in for master's TanStack user cache, which died with
+  // queryClient.clear() on sign-out).
+  let ensureMemo: { user: User; accounts: Account[] } | undefined;
 
   const requireUserId = (): string => {
     const session = deps.getSession();
@@ -43,7 +109,7 @@ export function createUserApi(deps: Deps): UserApi {
 
   // Methods are async so a missing session surfaces as a rejection, matching
   // the Promise-returning contract, not a synchronous throw.
-  return {
+  const api: UserApi = {
     get: async () => readRepository.get(requireUserId()),
     updateUsername: async (username) =>
       writeRepository.update(requireUserId(), { username }),
@@ -71,6 +137,75 @@ export function createUserApi(deps: Deps): UserApi {
       return userService.setDefaultAccount({ id: userId }, account, {
         setDefaultCurrency: params.setDefaultCurrency,
       });
+    },
+    ensure: async (params) => {
+      const session = deps.getSession();
+      if (!session.isLoggedIn) {
+        throw new NoSessionError();
+      }
+      const authUser = session.user;
+
+      if (ensureMemo && !hasUserChanged(ensureMemo.user, authUser)) {
+        return ensureMemo;
+      }
+
+      const [
+        encryptionPublicKey,
+        cashuLockingXpub,
+        sparkIdentityPublicKey,
+        encryption,
+      ] = await Promise.all([
+        deps.keys.getEncryptionPublicKey(),
+        deps.keys.getCashuLockingXpub(),
+        deps.keys.getSparkIdentityPublicKey(),
+        deps.keys.getEncryption(),
+      ]);
+
+      const accountRepository = new AccountRepository(
+        deps.db,
+        encryption,
+        deps.keys.getCashuSeed,
+        deps.keys.getSparkMnemonic,
+        deps.sparkConfig,
+      );
+
+      const { user, accounts } = await withRetry({
+        fn: () =>
+          writeRepository.upsert(
+            {
+              id: authUser.id,
+              email: authUser.email,
+              emailVerified: authUser.email_verified,
+              accounts: [...defaultAccounts],
+              cashuLockingXpub,
+              encryptionPublicKey,
+              sparkIdentityPublicKey,
+              termsAcceptedAt: params.termsAcceptedAt,
+              giftCardMintTermsAcceptedAt: params.giftCardMintTermsAcceptedAt,
+            },
+            accountRepository,
+          ),
+        retry: (attemptIndex, error) => {
+          if (error instanceof core.$ZodError) {
+            return false;
+          }
+          return attemptIndex < 2;
+        },
+      });
+
+      const result = {
+        user,
+        accounts: accounts.map((account) => toAccountProjection(account)),
+      };
+      ensureMemo = result;
+      return result;
+    },
+  };
+
+  return {
+    api,
+    reset: () => {
+      ensureMemo = undefined;
     },
   };
 }
