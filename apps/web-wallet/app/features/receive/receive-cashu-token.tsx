@@ -9,6 +9,7 @@ import {
   accountRequiresGiftCardTermsAcceptance,
   getAccountHomePath,
   isClaimingToSameCashuAccount,
+  toAccountProjection,
   tokenToMoney,
 } from '@agicash/wallet-sdk/temporary';
 import type { Token } from '@cashu/cashu-ts';
@@ -289,12 +290,15 @@ export default function ReceiveToken({
                 <div className="flex flex-col items-center gap-3">
                   {giftCard.purpose === 'gift-card' ? (
                     <GiftCardItem
-                      account={sourceAccount}
+                      account={toAccountProjection(sourceAccount)}
                       image={giftCard.image}
                       hideOverlayContent
                     />
                   ) : (
-                    <OfferItem account={sourceAccount} image={giftCard.image} />
+                    <OfferItem
+                      account={toAccountProjection(sourceAccount)}
+                      image={giftCard.image}
+                    />
                   )}
                   {giftCard.addCardDisclaimer && (
                     <p className="text-center text-muted-foreground text-sm">
@@ -462,12 +466,15 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
                 <div className="flex flex-col items-center gap-3">
                   {giftCard.purpose === 'gift-card' ? (
                     <GiftCardItem
-                      account={sourceAccount}
+                      account={toAccountProjection(sourceAccount)}
                       image={giftCard.image}
                       hideOverlayContent
                     />
                   ) : (
-                    <OfferItem account={sourceAccount} image={giftCard.image} />
+                    <OfferItem
+                      account={toAccountProjection(sourceAccount)}
+                      image={giftCard.image}
+                    />
                   )}
                   {giftCard.addCardDisclaimer && (
                     <p className="text-center text-muted-foreground text-sm">

@@ -1,6 +1,5 @@
 import { useNavigate, useViewTransitionState } from 'react-router';
 
-import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import {
   ClosePageButton,
   Page,
@@ -49,7 +48,7 @@ export default function GiftCardDetails({ cardId }: GiftCardDetailsProps) {
     );
   }
 
-  const balance = getAccountBalance(card);
+  const balance = card.balance;
 
   return (
     <Page>

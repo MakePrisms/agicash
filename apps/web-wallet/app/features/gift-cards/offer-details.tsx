@@ -1,7 +1,6 @@
 import { useNavigate, useViewTransitionState } from 'react-router';
 
 import type { CashuAccount } from '@agicash/wallet-sdk';
-import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import {
   ClosePageButton,
   Page,
@@ -39,7 +38,7 @@ export default function OfferDetails({ offer }: OfferDetailsProps) {
   };
 
   const isExpired = offer.state === 'expired';
-  const balance = isExpired ? null : getAccountBalance(offer);
+  const balance = isExpired ? null : offer.balance;
 
   return (
     <Page>

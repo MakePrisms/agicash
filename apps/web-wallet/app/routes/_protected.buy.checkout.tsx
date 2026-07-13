@@ -1,3 +1,4 @@
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import { Page } from '~/components/page';
 import { Redirect } from '~/components/redirect';
 import { useAccount } from '~/features/accounts/account-hooks';
@@ -8,7 +9,7 @@ export default function BuyCheckoutPage() {
   const buyAmount = useBuyStore((s) => s.amount);
   const buyAccountId = useBuyStore((s) => s.accountId);
   const quote = useBuyStore((s) => s.quote);
-  const account = useAccount(buyAccountId);
+  const account = toDomainAccount(useAccount(buyAccountId));
 
   if (!buyAmount || !quote) {
     return <Redirect to="/buy" />;

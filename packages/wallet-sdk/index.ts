@@ -25,12 +25,6 @@ export type {
   AccountType,
   AccountState,
   AccountPurpose,
-  Account,
-  ExtendedAccount,
-  CashuAccount,
-  SparkAccount,
-  ExtendedCashuAccount,
-  ExtendedSparkAccount,
   RedactedAccount,
   RedactedCashuAccount,
 } from './domain/accounts/account';

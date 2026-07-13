@@ -1,6 +1,6 @@
 import type { Money } from '@agicash/money';
-import type { CashuAccount, SparkAccount } from '@agicash/wallet-sdk';
 import { getDefaultUnit } from '@agicash/wallet-sdk';
+import type { CashuAccount, SparkAccount } from '@agicash/wallet-sdk/temporary';
 import { getAccountHomePath } from '@agicash/wallet-sdk/temporary';
 import { AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';

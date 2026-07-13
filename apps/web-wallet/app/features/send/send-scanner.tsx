@@ -1,5 +1,5 @@
 import type { Money } from '@agicash/money';
-import type { Account } from '@agicash/wallet-sdk';
+import type { Account } from '@agicash/wallet-sdk/temporary';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
 import {
   ClosePageButton,

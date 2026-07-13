@@ -17,10 +17,10 @@ import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { useAccountRepository } from '../accounts/account-repository-hooks';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
+import { useAccountRepository } from './account-repository-hooks';
 
 type CreateProps = {
   token: Token;

@@ -100,7 +100,6 @@ export function AddMintForm() {
         name: data.name,
         currency: ACCOUNT_CURRENCY,
         mintUrl: data.mintUrl,
-        type: 'cashu',
         purpose,
       });
       toast({

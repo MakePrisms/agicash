@@ -1,6 +1,7 @@
 import type { Money } from '@agicash/money';
-import type { CashuAccount, CashuReceiveQuote } from '@agicash/wallet-sdk';
+import type { CashuReceiveQuote } from '@agicash/wallet-sdk';
 import { getDefaultUnit } from '@agicash/wallet-sdk';
+import type { CashuAccount } from '@agicash/wallet-sdk/temporary';
 import { getAccountHomePath } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';

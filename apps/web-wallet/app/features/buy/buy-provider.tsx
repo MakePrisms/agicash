@@ -1,4 +1,4 @@
-import type { Account } from '@agicash/wallet-sdk';
+import type { Account } from '@agicash/wallet-sdk/temporary';
 import {
   type PropsWithChildren,
   createContext,

@@ -1,5 +1,6 @@
 import { extractCashuToken } from '@agicash/cashu';
 import { getDefaultUnit } from '@agicash/wallet-sdk';
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import { Clipboard, Scan } from 'lucide-react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
@@ -148,9 +149,11 @@ export default function ReceiveInput() {
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
             accounts={accounts.map((account) =>
-              toAccountSelectorOption(account),
+              toAccountSelectorOption(toDomainAccount(account)),
             )}
-            selectedAccount={toAccountSelectorOption(receiveAccount)}
+            selectedAccount={toAccountSelectorOption(
+              toDomainAccount(receiveAccount),
+            )}
             onSelect={(account) => {
               setReceiveAccount(account);
               if (account.currency !== inputValue.currency) {

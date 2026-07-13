@@ -1,3 +1,4 @@
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import { Outlet, useSearchParams } from 'react-router';
 import {
   useAccount,
@@ -10,7 +11,9 @@ export default function TransferLayout({ params }: Route.ComponentProps) {
   const [searchParams] = useSearchParams();
   const sourceAccountId = searchParams.get('sourceAccountId');
 
-  const destinationAccount = useAccount(params.destinationAccountId);
+  const destinationAccount = toDomainAccount(
+    useAccount(params.destinationAccountId),
+  );
   const sourceAccount = useAccountOrDefault(sourceAccountId);
 
   return (

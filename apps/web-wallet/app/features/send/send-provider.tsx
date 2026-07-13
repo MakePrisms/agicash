@@ -1,4 +1,6 @@
-import type { Account, SendDestination } from '@agicash/wallet-sdk';
+import type { SendDestination } from '@agicash/wallet-sdk';
+import type { Account } from '@agicash/wallet-sdk/temporary';
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import {
   type PropsWithChildren,
   createContext,
@@ -36,7 +38,8 @@ export const SendProvider = ({
     useCreateSparkLightningSendQuote();
   const getAccount = useGetAccount();
   const accountsCache = useAccountsCache();
-  const getAccounts = () => accountsCache.getAll() ?? [];
+  const getAccounts = () =>
+    (accountsCache.getAll() ?? []).map((account) => toDomainAccount(account));
 
   const [store] = useState(() =>
     createSendStore({

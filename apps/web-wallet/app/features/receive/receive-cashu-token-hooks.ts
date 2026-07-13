@@ -1,17 +1,21 @@
 import { getClaimableProofs, getUnspentProofsFromToken } from '@agicash/cashu';
 import { type Currency, Money } from '@agicash/money';
 import type {
-  Account,
-  CashuAccount,
   ExtendedAccount,
   ReceiveCashuTokenAccount,
 } from '@agicash/wallet-sdk';
+import type {
+  Account,
+  CashuAccount,
+  ExtendedAccount as DomainExtendedAccount,
+} from '@agicash/wallet-sdk/temporary';
 import {
   DomainError,
   ReceiveCashuTokenQuoteService,
   ReceiveCashuTokenService,
   canSendToLightning,
   createSparkWalletStub,
+  toDomainAccount,
   tokenToMoney,
 } from '@agicash/wallet-sdk/temporary';
 import { NetworkError, type Proof, type Token } from '@cashu/cashu-ts';
@@ -82,7 +86,9 @@ export function useCashuTokenSourceAccountQuery(
     queryFn: async () =>
       receiveCashuTokenService.getSourceAndDestinationAccounts(
         token,
-        existingAccounts,
+        existingAccounts.map(
+          (account) => toDomainAccount(account) as DomainExtendedAccount,
+        ),
       ),
     staleTime: 3 * 60 * 1000,
     retry: 1,
@@ -232,7 +238,7 @@ export function useReceiveCashuTokenAccounts(
   ): Promise<Account> => {
     let newAccount: Account;
     if (accountToAdd.type === 'cashu') {
-      newAccount = await addCashuAccount(accountToAdd);
+      newAccount = toDomainAccount(await addCashuAccount(accountToAdd));
     } else {
       // Only cashu accounts can be unknown, this should never happen
       throw new Error('Invalid account type');

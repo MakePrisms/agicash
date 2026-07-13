@@ -3,6 +3,7 @@ import type { Money } from '@agicash/money';
 import type { Contact } from '@agicash/wallet-sdk';
 import { getDefaultUnit } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import {
   AtSign,
   Clipboard,
@@ -208,7 +209,7 @@ export function SendInput() {
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
             accounts={accounts.map((account) =>
-              toAccountSelectorOption(account),
+              toAccountSelectorOption(toDomainAccount(account)),
             )}
             selectedAccount={toAccountSelectorOption(sendAccount)}
             onSelect={(account) => {

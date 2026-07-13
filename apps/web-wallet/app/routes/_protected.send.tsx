@@ -1,4 +1,5 @@
 import type { SendDestination } from '@agicash/wallet-sdk';
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import {
   findMatchingOfferOrGiftCardAccount,
   resolveSendDestination,
@@ -49,7 +50,9 @@ export async function clientLoader(): Promise<{
   let initialAccountId: string | null = null;
   if (initialDestination.sendType === 'BOLT11_INVOICE') {
     const accountsCache = new AccountsCache(getQueryClient());
-    const accounts = accountsCache.getAll() ?? [];
+    const accounts = (accountsCache.getAll() ?? []).map((account) =>
+      toDomainAccount(account),
+    );
     const matched = findMatchingOfferOrGiftCardAccount({
       decodedBolt11: initialDestination.decoded,
       accounts,

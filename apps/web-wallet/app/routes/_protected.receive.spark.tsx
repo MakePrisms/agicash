@@ -1,3 +1,4 @@
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import { Page } from '~/components/page';
 import { Redirect } from '~/components/redirect';
 import { useAccount } from '~/features/accounts/account-hooks';
@@ -7,7 +8,7 @@ import ReceiveSpark from '~/features/receive/receive-spark';
 export default function ReceiveSparkPage() {
   const receiveAmount = useReceiveStore((s) => s.amount);
   const receiveAccountId = useReceiveStore((s) => s.accountId);
-  const receiveAccount = useAccount(receiveAccountId);
+  const receiveAccount = toDomainAccount(useAccount(receiveAccountId));
 
   if (!receiveAmount || !receiveAccount || receiveAccount.type !== 'spark') {
     return (

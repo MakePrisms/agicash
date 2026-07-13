@@ -1,4 +1,3 @@
-import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import { PageBackButton, PageContent, PageHeader } from '~/components/page';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
@@ -30,7 +29,7 @@ export default function SingleAccount({ accountId }: { accountId: string }) {
   const { toast } = useToast();
   const account = useAccount(accountId);
   const setDefaultAccount = useSetDefaultAccount();
-  const balance = getAccountBalance(account);
+  const balance = account.balance;
 
   const makeDefault = async () => {
     try {

@@ -1,4 +1,3 @@
-import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import { Plus } from 'lucide-react';
 import {
   PageBackButton,
@@ -33,7 +32,7 @@ export default function AllAccounts() {
       <PageContent>
         <div className="scrollbar-none h-[calc(100vh-200px)] space-y-3 overflow-y-auto">
           {accounts.map((account) => {
-            const balance = getAccountBalance(account);
+            const balance = account.balance;
 
             return (
               <LinkWithViewTransition

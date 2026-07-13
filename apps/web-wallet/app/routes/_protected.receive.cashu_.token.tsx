@@ -1,5 +1,7 @@
 import { validateCashuToken } from '@agicash/cashu';
-import type { Account, User } from '@agicash/wallet-sdk';
+import { isDefaultAccount } from '@agicash/wallet-sdk';
+import type { User } from '@agicash/wallet-sdk';
+import type { Account } from '@agicash/wallet-sdk/temporary';
 import {
   AccountRepository,
   AccountService,
@@ -12,9 +14,10 @@ import {
   ReceiveCashuTokenService,
   SparkReceiveQuoteRepository,
   SparkReceiveQuoteService,
-  UserService,
   decodeCashuToken,
   getEncryption,
+  toAccountProjection,
+  toDomainAccount,
 } from '@agicash/wallet-sdk/temporary';
 import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
@@ -99,7 +102,7 @@ const getServices = async () => {
     (ticker) => getExchangeRate(queryClient, ticker),
   );
 
-  return { claimCashuTokenService, accountRepository };
+  return { claimCashuTokenService };
 };
 
 /**
@@ -115,7 +118,7 @@ async function trySetReceiveAccountAsDefault(
 ): Promise<void> {
   if (
     account.currency === user.defaultCurrency &&
-    UserService.isDefaultAccount(user, account)
+    isDefaultAccount(user, account)
   ) {
     return;
   }
@@ -167,10 +170,10 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   if (claimTo) {
     const user = getUserFromCacheOrThrow();
-    const { claimCashuTokenService, accountRepository } = await getServices();
+    const { claimCashuTokenService } = await getServices();
     const queryClient = getQueryClient();
-    const accounts = await queryClient.fetchQuery(
-      accountsQueryOptions({ userId: user.id, accountRepository }),
+    const accounts = (await queryClient.fetchQuery(accountsQueryOptions())).map(
+      (account) => toDomainAccount(account),
     );
 
     const result = await claimCashuTokenService.claimToken(
@@ -185,7 +188,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
       // screen renders them immediately after the redirect.
       const accountsCache = new AccountsCache(queryClient);
       for (const account of result.changedAccounts) {
-        accountsCache.upsert(account);
+        accountsCache.upsert(toAccountProjection(account));
       }
       await trySetReceiveAccountAsDefault(
         queryClient,

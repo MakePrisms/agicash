@@ -1,14 +1,13 @@
 import { decodeBolt11 } from '@agicash/bolt11';
 import type { Money } from '@agicash/money';
 import type {
-  CashuAccount,
   CashuLightningQuote,
   CashuSwapQuote,
   DestinationDetails,
-  SparkAccount,
   SparkLightningQuote,
 } from '@agicash/wallet-sdk';
 import { getDefaultUnit } from '@agicash/wallet-sdk';
+import type { CashuAccount, SparkAccount } from '@agicash/wallet-sdk/temporary';
 import { DomainError, getAccountHomePath } from '@agicash/wallet-sdk/temporary';
 import { AlertCircle } from 'lucide-react';
 import { MoneyDisplay } from '~/components/money-display';

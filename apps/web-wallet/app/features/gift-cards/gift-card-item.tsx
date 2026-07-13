@@ -1,6 +1,5 @@
 import type { CashuAccount } from '@agicash/wallet-sdk';
 import { getDefaultUnit } from '@agicash/wallet-sdk';
-import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import { MoneyDisplay } from '~/components/money-display';
 import {
   WalletCard,
@@ -26,7 +25,7 @@ export function GiftCardItem({
   className,
   hideOverlayContent,
 }: GiftCardItemProps) {
-  const balance = getAccountBalance(account);
+  const balance = account.balance;
   const name = account.name;
 
   return (

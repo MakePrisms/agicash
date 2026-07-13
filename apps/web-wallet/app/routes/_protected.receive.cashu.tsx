@@ -1,3 +1,4 @@
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import { Page } from '~/components/page';
 import { Redirect } from '~/components/redirect';
 import { useAccount } from '~/features/accounts/account-hooks';
@@ -7,7 +8,7 @@ import { useReceiveStore } from '~/features/receive/receive-provider';
 export default function ReceiveCashuPage() {
   const receiveAmount = useReceiveStore((state) => state.amount);
   const receiveAccountId = useReceiveStore((state) => state.accountId);
-  const receiveAccount = useAccount(receiveAccountId);
+  const receiveAccount = toDomainAccount(useAccount(receiveAccountId));
   const shouldRedirect = !receiveAmount || receiveAccount.type !== 'cashu';
 
   if (shouldRedirect) {

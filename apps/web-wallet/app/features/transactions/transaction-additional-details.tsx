@@ -1,10 +1,7 @@
 import { proofToY } from '@agicash/cashu';
-import type {
-  CashuAccount,
-  CashuProof,
-  Transaction,
-} from '@agicash/wallet-sdk';
-import { toProof } from '@agicash/wallet-sdk/temporary';
+import type { CashuProof, Transaction } from '@agicash/wallet-sdk';
+import type { CashuAccount } from '@agicash/wallet-sdk/temporary';
+import { toDomainAccount, toProof } from '@agicash/wallet-sdk/temporary';
 import { CheckStateEnum, type Proof } from '@cashu/cashu-ts';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
@@ -235,7 +232,10 @@ export function TransactionAdditionalDetails({
     return <div>Account is not a cashu account</div>;
   }
 
-  const details = getDetails(transaction, account);
+  const details = getDetails(
+    transaction,
+    toDomainAccount(account) as CashuAccount,
+  );
 
   return (
     <Page>

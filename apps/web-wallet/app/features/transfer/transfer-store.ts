@@ -1,5 +1,6 @@
 import type { Currency, Money } from '@agicash/money';
-import type { Account, TransferQuote } from '@agicash/wallet-sdk';
+import type { TransferQuote } from '@agicash/wallet-sdk';
+import type { Account } from '@agicash/wallet-sdk/temporary';
 import { create } from 'zustand';
 
 type TransferQuoteResult =

@@ -11,10 +11,10 @@ import {
   setLongTimeout,
 } from '@agicash/utils';
 import type {
-  CashuAccount,
   CashuReceiveQuote,
   TransactionPurpose,
 } from '@agicash/wallet-sdk';
+import type { CashuAccount } from '@agicash/wallet-sdk/temporary';
 import type { AgicashDbCashuReceiveQuote } from '@agicash/wallet-sdk/temporary';
 import {
   CashuReceiveQuoteRepository,
@@ -46,12 +46,12 @@ import {
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { useAccountRepository } from '../accounts/account-repository-hooks';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useCashuCryptography } from '../shared/cashu-hooks';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
+import { useAccountRepository } from './account-repository-hooks';
 
 type CreateProps = {
   account: CashuAccount;

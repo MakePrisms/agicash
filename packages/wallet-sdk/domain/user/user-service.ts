@@ -1,5 +1,5 @@
 import type { Currency } from '@agicash/money';
-import type { Account, ExtendedAccount } from '../accounts/account';
+import type { Account } from '../accounts/account';
 import type { User } from './user';
 import type { WriteUserRepository } from './user-repository';
 
@@ -48,24 +48,6 @@ type SetDefaultAccountOptions = {
 
 export class UserService {
   constructor(private readonly userRepository: WriteUserRepository) {}
-
-  /**
-   * Returns true if the account is the user's default account for the respective currency.
-   */
-  static isDefaultAccount(user: User, account: Account): boolean {
-    return isDefaultAccount(user, account);
-  }
-
-  /**
-   * Returns the accounts with the isDefault flag set to true if the account is the user's
-   * default account for the respective currency. Sorts the default account to the top.
-   */
-  static getExtendedAccounts(
-    user: User,
-    accounts: Account[],
-  ): ExtendedAccount[] {
-    return getExtendedAccounts(user, accounts);
-  }
 
   /**
    * Sets the account as the user's default account for the respective currency.

@@ -8,7 +8,9 @@ import { Button } from '~/components/ui/button';
 import { getCashuUnit, sumProofs } from '@agicash/cashu';
 import { Money } from '@agicash/money';
 import type { Currency } from '@agicash/money';
-import type { CashuAccount, CashuProof } from '@agicash/wallet-sdk';
+import type { CashuProof } from '@agicash/wallet-sdk';
+import type { CashuAccount } from '@agicash/wallet-sdk/temporary';
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import { useAccount } from '~/features/accounts/account-hooks';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
 
@@ -141,7 +143,7 @@ function useProofs(account: CashuAccount) {
 }
 
 export default function AccountProofs({ accountId }: { accountId: string }) {
-  const account = useAccount(accountId);
+  const account = toDomainAccount(useAccount(accountId));
 
   if (account.type !== 'cashu') {
     throw new Error('Account must be a cashu account');

@@ -1,6 +1,7 @@
 import type { SdkEvent } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
-import { sparkDebugLog } from '@agicash/wallet-sdk/temporary';
+import type { SparkAccount } from '@agicash/wallet-sdk/temporary';
+import { sparkDebugLog, toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import { useEffect } from 'react';
 import { useAccounts, useAccountsCache } from '../accounts/account-hooks';
 
@@ -12,7 +13,8 @@ export function useTrackAndUpdateSparkAccountBalances() {
   const accountCache = useAccountsCache();
 
   useEffect(() => {
-    const registrations = sparkOnlineAccounts.map((account) => {
+    const registrations = sparkOnlineAccounts.map((projection) => {
+      const account = toDomainAccount(projection) as SparkAccount;
       const listenerPromise = account.wallet.addEventListener({
         onEvent(event: SdkEvent) {
           sparkDebugLog('Breez event', {

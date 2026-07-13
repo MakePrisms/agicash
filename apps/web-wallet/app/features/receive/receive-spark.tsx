@@ -1,5 +1,6 @@
 import type { Money } from '@agicash/money';
-import type { SparkAccount, SparkReceiveQuote } from '@agicash/wallet-sdk';
+import type { SparkReceiveQuote } from '@agicash/wallet-sdk';
+import type { SparkAccount } from '@agicash/wallet-sdk/temporary';
 import { getAccountHomePath } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
 import { useCopyToClipboard } from 'usehooks-ts';

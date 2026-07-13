@@ -1,6 +1,7 @@
 import type { Money } from '@agicash/money';
 import { getDefaultUnit } from '@agicash/wallet-sdk';
 import { DomainError } from '@agicash/wallet-sdk/temporary';
+import { toDomainAccount } from '@agicash/wallet-sdk/temporary';
 import { useState } from 'react';
 import { MoneyInputDisplay } from '~/components/money-display';
 import { Numpad } from '~/components/numpad';
@@ -136,9 +137,11 @@ export default function BuyInput() {
         <div className="w-full max-w-sm sm:max-w-none">
           <AccountSelector
             accounts={accounts.map((account) =>
-              toAccountSelectorOption(account),
+              toAccountSelectorOption(toDomainAccount(account)),
             )}
-            selectedAccount={toAccountSelectorOption(buyAccount)}
+            selectedAccount={toAccountSelectorOption(
+              toDomainAccount(buyAccount),
+            )}
             onSelect={(account) => {
               setBuyAccount(account);
               if (account.currency !== inputValue.currency) {

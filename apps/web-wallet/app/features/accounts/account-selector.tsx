@@ -9,7 +9,7 @@ import {
   DrawerTrigger,
 } from '~/components/ui/drawer';
 
-import type { Account } from '@agicash/wallet-sdk';
+import type { Account } from '@agicash/wallet-sdk/temporary';
 import { getAccountBalance } from '@agicash/wallet-sdk/temporary';
 import { cn } from '~/lib/utils';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';

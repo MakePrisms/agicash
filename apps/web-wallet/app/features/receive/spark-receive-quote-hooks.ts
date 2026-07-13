@@ -7,10 +7,10 @@ import {
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
 import type {
-  SparkAccount,
   SparkReceiveQuote,
   TransactionPurpose,
 } from '@agicash/wallet-sdk';
+import type { SparkAccount } from '@agicash/wallet-sdk/temporary';
 import type { AgicashDbSparkReceiveQuote } from '@agicash/wallet-sdk/temporary';
 import {
   SparkReceiveQuoteRepository,
