@@ -46,6 +46,10 @@ export {
   shouldAcceptTerms,
   shouldVerifyEmail,
 } from './domain/user/user';
+export {
+  getExtendedAccounts,
+  isDefaultAccount,
+} from './domain/user/user-service';
 export type { Contact } from './domain/contacts/contact';
 export type {
   TransactionDirection,

@@ -1,6 +1,42 @@
+import type { Currency } from '@agicash/money';
 import type { Account, ExtendedAccount } from '../accounts/account';
 import type { User } from './user';
 import type { WriteUserRepository } from './user-repository';
+
+type UserDefaults = Pick<User, 'defaultBtcAccountId' | 'defaultUsdAccountId'>;
+
+/**
+ * Returns true if the account is the user's default account for its currency.
+ * Pure over public fields, so it accepts both domain and projection accounts.
+ */
+export function isDefaultAccount(
+  user: UserDefaults,
+  account: { id: string; currency: Currency },
+): boolean {
+  if (account.currency === 'BTC') {
+    return user.defaultBtcAccountId === account.id;
+  }
+  if (account.currency === 'USD') {
+    return user.defaultUsdAccountId === account.id;
+  }
+  return false;
+}
+
+/**
+ * Attaches `isDefault` to each account and sorts the default account to the top.
+ * Generic over the account shape (domain or projection): it reads only public
+ * fields and preserves the input element type.
+ */
+export function getExtendedAccounts<
+  A extends { id: string; currency: Currency },
+>(user: UserDefaults, accounts: A[]): (A & { isDefault: boolean })[] {
+  return accounts
+    .map((account): A & { isDefault: boolean } => ({
+      ...account,
+      isDefault: isDefaultAccount(user, account),
+    }))
+    .sort((_, b) => (b.isDefault ? 1 : -1));
+}
 
 type SetDefaultAccountOptions = {
   /**
@@ -16,14 +52,8 @@ export class UserService {
   /**
    * Returns true if the account is the user's default account for the respective currency.
    */
-  static isDefaultAccount(user: User, account: Account) {
-    if (account.currency === 'BTC') {
-      return user.defaultBtcAccountId === account.id;
-    }
-    if (account.currency === 'USD') {
-      return user.defaultUsdAccountId === account.id;
-    }
-    return false;
+  static isDefaultAccount(user: User, account: Account): boolean {
+    return isDefaultAccount(user, account);
   }
 
   /**
@@ -34,12 +64,7 @@ export class UserService {
     user: User,
     accounts: Account[],
   ): ExtendedAccount[] {
-    return accounts
-      .map((account) => ({
-        ...account,
-        isDefault: UserService.isDefaultAccount(user, account),
-      }))
-      .sort((_, b) => (b.isDefault ? 1 : -1)); // Sort the default account to the top;
+    return getExtendedAccounts(user, accounts);
   }
 
   /**
