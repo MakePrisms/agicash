@@ -1,47 +1,21 @@
-import type { User } from '@agicash/wallet-sdk';
+import type { AuthUser, User } from '@agicash/wallet-sdk';
 import { shouldAcceptTerms } from '@agicash/wallet-sdk';
-import type { AuthUser } from '@agicash/wallet-sdk';
-import {
-  AccountRepository,
-  BASE_CASHU_LOCKING_DERIVATION_PATH,
-  WriteUserRepository,
-  ensureBreezWasm,
-  getEncryption,
-} from '@agicash/wallet-sdk/temporary';
+import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
-import { core } from 'zod/mini';
 import { AccountsCache } from '~/features/accounts/account-hooks';
-import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
-import {
-  seedQueryOptions as cashuSeedQueryOptions,
-  xpubQueryOptions,
-} from '~/features/shared/cashu-query-options';
-import {
-  encryptionPrivateKeyQueryOptions,
-  encryptionPublicKeyQueryOptions,
-} from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
-import {
-  sparkIdentityPublicKeyQueryOptions,
-  sparkMnemonicQueryOptions,
-} from '~/features/shared/spark-query-options';
+import { sdk } from '~/features/shared/sdk.client';
 import { authQueryOptions, useAuthState } from '~/features/user/auth';
 import {
   pendingGiftCardMintTermsStorage,
   pendingWalletTermsStorage,
 } from '~/features/user/pending-terms-storage';
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
-import {
-  UserCache,
-  defaultAccounts,
-  getUserFromCache,
-} from '~/features/user/user-hooks';
+import { UserCache, getUserFromCache } from '~/features/user/user-hooks';
 import { Wallet } from '~/features/wallet/wallet';
-import { breezApiKey } from '~/lib/breez';
-import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
 
 const shouldUserVerifyEmail = (user: AuthUser) => {
@@ -85,63 +59,9 @@ const ensureUserData = async (
   }
 
   if (!user || hasUserChanged(user, authUser)) {
-    const [
-      encryptionPrivateKey,
-      encryptionPublicKey,
-      cashuLockingXpub,
-      sparkIdentityPublicKey,
-    ] = await Promise.all([
-      queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-      queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-      queryClient.ensureQueryData(
-        xpubQueryOptions({
-          queryClient,
-          derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
-        }),
-      ),
-      // TODO: how to handle this network? We specify the network on the account creation.
-      queryClient.ensureQueryData(
-        sparkIdentityPublicKeyQueryOptions({ queryClient, network: 'MAINNET' }),
-      ),
-      queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
-      queryClient.ensureQueryData(cashuSeedQueryOptions()),
-    ]);
-    const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-    const getCashuWalletSeed = () =>
-      queryClient.fetchQuery(cashuSeedQueryOptions());
-    const getSparkWalletMnemonic = () =>
-      queryClient.fetchQuery(sparkMnemonicQueryOptions());
-    const accountRepository = new AccountRepository(
-      agicashDbClient,
-      encryption,
-      getCashuWalletSeed,
-      getSparkWalletMnemonic,
-      { storageDir: './.spark-data', apiKey: breezApiKey },
-    );
-    const writeUserRepository = new WriteUserRepository(agicashDbClient);
-
-    const { user: upsertedUser, accounts } = await withRetry({
-      fn: () =>
-        writeUserRepository.upsert(
-          {
-            id: authUser.id,
-            email: authUser.email,
-            emailVerified: authUser.email_verified,
-            accounts: [...defaultAccounts],
-            cashuLockingXpub,
-            encryptionPublicKey,
-            sparkIdentityPublicKey,
-            termsAcceptedAt,
-            giftCardMintTermsAcceptedAt,
-          },
-          accountRepository,
-        ),
-      retry: (attemptIndex, error) => {
-        if (error instanceof core.$ZodError) {
-          return false;
-        }
-        return attemptIndex < 2;
-      },
+    const { user: upsertedUser, accounts } = await sdk.user.ensure({
+      termsAcceptedAt,
+      giftCardMintTermsAcceptedAt,
     });
     user = upsertedUser;
     queryClient.setQueryData([UserCache.Key], user);
