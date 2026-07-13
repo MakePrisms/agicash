@@ -62,10 +62,6 @@ export class AgicashSdk
 
     const keys = createSessionKeys();
 
-    // Wired to the user namespace's reset below; the ensure memo must die with
-    // the session like the other per-session caches.
-    let resetUserSession: () => void = () => undefined;
-
     // Created before authService — the isLoggedIn closure dereferences it
     // lazily at request time, after the constructor has assigned it.
     const sessionToken = createSupabaseSessionTokenGetter({
@@ -90,7 +86,6 @@ export class AgicashSdk
         clearSparkWallets();
         clearAgicashMintAuthToken();
         keys.reset();
-        resetUserSession();
       },
       logger: config.logger,
     });
@@ -112,16 +107,13 @@ export class AgicashSdk
       sparkConfig,
     });
 
-    const userApi = createUserApi({
+    this.auth = this.authService;
+    this.user = createUserApi({
       db,
       getSession: () => this.authService.getSession(),
       keys,
       sparkConfig,
     });
-    resetUserSession = userApi.reset;
-
-    this.auth = this.authService;
-    this.user = userApi.api;
     this.accounts = accounts.api;
     this.events = events;
     liveAccountRepository = accounts.getRepository;

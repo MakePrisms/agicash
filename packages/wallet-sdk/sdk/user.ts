@@ -12,8 +12,9 @@ export type UserApi = {
    * Bootstraps the signed-in user: upserts the user row (creating default
    * accounts and persisting the derived public keys on first sign-in) and
    * returns the user with their accounts, projection-typed, for the host to
-   * seed its caches. Memoized per session identity — repeated calls for an
-   * unchanged session short-circuit to the same result.
+   * seed its caches. Idempotent — performs the upsert on every call with the
+   * given params; the host owns caching and call-frequency (the web gates it
+   * behind its own user-cache short-circuit).
    */
   ensure(
     params: EnsureUserParams,

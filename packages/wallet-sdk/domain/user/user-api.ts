@@ -4,11 +4,10 @@ import type { AgicashDb } from '../../db/database';
 import { NoSessionError } from '../../lib/error';
 import type { SparkWalletConfig } from '../../lib/spark/wallet';
 import { withRetry } from '../../lib/with-retry';
-import type { Account, AuthSession, AuthUser, UserApi } from '../../sdk';
+import type { AuthSession, UserApi } from '../../sdk';
 import type { SessionKeys } from '../../session-keys';
 import { toAccountProjection } from '../accounts/account-projection';
 import { AccountRepository } from '../accounts/account-repository';
-import type { User } from './user';
 import { ReadUserRepository, WriteUserRepository } from './user-repository';
 import { UserService } from './user-service';
 
@@ -57,29 +56,10 @@ const defaultAccounts = [
     : []),
 ] as const;
 
-const hasUserChanged = (user: User, authUser: AuthUser): boolean => {
-  const currentAuthUserEmail = authUser.email ?? null;
-  const currentUserEmail = user.isGuest ? null : user.email;
-
-  return (
-    currentUserEmail !== currentAuthUserEmail ||
-    user.emailVerified !== authUser.email_verified
-  );
-};
-
-export function createUserApi(deps: Deps): {
-  api: UserApi;
-  reset: () => void;
-} {
+export function createUserApi(deps: Deps): UserApi {
   const readRepository = new ReadUserRepository(deps.db);
   const writeRepository = new WriteUserRepository(deps.db);
   const userService = new UserService(writeRepository);
-
-  // Change-detection short-circuit, session-fenced: the ensure result is
-  // served again for an unchanged session and dropped on session end (the SDK
-  // memo standing in for master's TanStack user cache, which died with
-  // queryClient.clear() on sign-out).
-  let ensureMemo: { user: User; accounts: Account[] } | undefined;
 
   const requireUserId = (): string => {
     const session = deps.getSession();
@@ -145,10 +125,6 @@ export function createUserApi(deps: Deps): {
       }
       const authUser = session.user;
 
-      if (ensureMemo && !hasUserChanged(ensureMemo.user, authUser)) {
-        return ensureMemo;
-      }
-
       const [
         encryptionPublicKey,
         cashuLockingXpub,
@@ -193,19 +169,12 @@ export function createUserApi(deps: Deps): {
         },
       });
 
-      const result = {
+      return {
         user,
         accounts: accounts.map((account) => toAccountProjection(account)),
       };
-      ensureMemo = result;
-      return result;
     },
   };
 
-  return {
-    api,
-    reset: () => {
-      ensureMemo = undefined;
-    },
-  };
+  return api;
 }

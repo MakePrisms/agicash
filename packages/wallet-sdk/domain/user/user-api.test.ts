@@ -123,7 +123,7 @@ describe('createUserApi', () => {
       let sessionUserId = 'user-a';
       let updatedUserId: unknown;
       let updatedData: Record<string, unknown> = {};
-      const { api } = createUserApi({
+      const api = createUserApi({
         db: createDbFake({
           onAccountRead: (filters) => {
             // the session switches while the account read is in flight
@@ -150,7 +150,7 @@ describe('createUserApi', () => {
   describe('ensure', () => {
     it('upserts with the derived keys and terms, returning the user and accounts', async () => {
       const { db, calls } = createUpsertDbFake([{ ok: true }]);
-      const { api } = createUserApi({
+      const api = createUserApi({
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
@@ -171,9 +171,23 @@ describe('createUserApi', () => {
       expect(result.accounts).toEqual([]);
     });
 
-    it('memoizes per unchanged session, skipping the second upsert', async () => {
-      const { db, calls } = createUpsertDbFake([{ ok: true }]);
-      const { api } = createUserApi({
+    it('upserts on every call and returns each call fresh result (no memo)', async () => {
+      const rows = [
+        dbUserRow('user-a'),
+        { ...dbUserRow('user-a'), username: 'renamed' },
+      ];
+      const calls: Record<string, unknown>[] = [];
+      const db = {
+        rpc: (_name: string, params: Record<string, unknown>) => {
+          const row = rows[Math.min(calls.length, rows.length - 1)];
+          calls.push(params);
+          return Promise.resolve({
+            data: { user: row, accounts: [] },
+            error: null,
+          });
+        },
+      } as unknown as AgicashDb;
+      const api = createUserApi({
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
@@ -183,44 +197,31 @@ describe('createUserApi', () => {
       const first = await api.ensure({});
       const second = await api.ensure({});
 
-      expect(calls).toHaveLength(1);
-      expect(second).toBe(first);
-    });
-
-    it('re-upserts when the session user has changed', async () => {
-      const { db, calls } = createUpsertDbFake([{ ok: true }]);
-      let verified = true;
-      const { api } = createUserApi({
-        db,
-        getSession: () => ({
-          isLoggedIn: true,
-          user: authUser('user-a', { email_verified: verified }),
-        }),
-        keys: fakeKeys(),
-        sparkConfig,
-      });
-
-      await api.ensure({});
-      verified = false;
-      await api.ensure({});
-
       expect(calls).toHaveLength(2);
+      expect(first.user.username).toBe('name');
+      expect(second.user.username).toBe('renamed');
     });
 
-    it('re-upserts after reset (session end)', async () => {
+    it('carries the terms params into the upsert on every call', async () => {
       const { db, calls } = createUpsertDbFake([{ ok: true }]);
-      const { api, reset } = createUserApi({
+      const api = createUserApi({
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
         sparkConfig,
       });
 
-      await api.ensure({});
-      reset();
-      await api.ensure({});
+      await api.ensure({ termsAcceptedAt: 't1' });
+      await api.ensure({
+        termsAcceptedAt: 't2',
+        giftCardMintTermsAcceptedAt: 'g2',
+      });
 
       expect(calls).toHaveLength(2);
+      expect(calls[0]?.p_terms_accepted_at).toBe('t1');
+      expect(calls[0]?.p_gift_card_mint_terms_accepted_at).toBeUndefined();
+      expect(calls[1]?.p_terms_accepted_at).toBe('t2');
+      expect(calls[1]?.p_gift_card_mint_terms_accepted_at).toBe('g2');
     });
 
     it('retries a generic upsert failure, then succeeds', async () => {
@@ -228,7 +229,7 @@ describe('createUserApi', () => {
         { reject: new Error('transient') },
         { ok: true },
       ]);
-      const { api } = createUserApi({
+      const api = createUserApi({
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
@@ -245,7 +246,7 @@ describe('createUserApi', () => {
       const zodError = makeZodError();
       expect(zodError).toBeInstanceOf(core.$ZodError);
       const { db, calls } = createUpsertDbFake([{ reject: zodError }]);
-      const { api } = createUserApi({
+      const api = createUserApi({
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
@@ -258,7 +259,7 @@ describe('createUserApi', () => {
 
     it('throws NoSessionError without a session', async () => {
       const { db } = createUpsertDbFake([{ ok: true }]);
-      const { api } = createUserApi({
+      const api = createUserApi({
         db,
         getSession: () => ({ isLoggedIn: false }),
         keys: fakeKeys(),
