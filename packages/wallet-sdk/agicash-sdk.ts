@@ -9,6 +9,7 @@ import { WalletEventEmitter } from './lib/events';
 import { generateRandomPassword } from './lib/password';
 import { clearSparkWallets } from './lib/spark/wallet';
 import type { AuthApi, Sdk, SdkConfig, UserApi, WalletEvents } from './sdk';
+import { createSessionKeys } from './session-keys';
 
 // Makes the one-instance-per-process constraint (see the constructor note)
 // self-enforcing: create() refuses to run while an undisposed instance holds
@@ -42,6 +43,8 @@ export class AgicashSdk
 
     const events = new WalletEventEmitter(config.logger);
 
+    const keys = createSessionKeys();
+
     // Created before authService — the isLoggedIn closure dereferences it
     // lazily at request time, after the constructor has assigned it.
     const sessionToken = createSupabaseSessionTokenGetter({
@@ -65,6 +68,7 @@ export class AgicashSdk
         sessionToken.reset();
         clearSparkWallets();
         clearAgicashMintAuthToken();
+        keys.reset();
       },
       logger: config.logger,
     });
