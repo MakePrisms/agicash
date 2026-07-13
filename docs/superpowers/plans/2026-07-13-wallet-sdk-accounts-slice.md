@@ -30,6 +30,10 @@ Sources of truth:
 - The web's own `AccountRepository`/`AccountService` construction (`account-repository-hooks.ts`, `account-service-hooks.ts`, and their `useEncryption`/`useCashuCryptography` pulls) is deleted — that is this slice's real import flip.
 - The bridge dies with `/temporary` (step 18/19). Until then `sdk.accounts.*` has no web consumer; it is exercised by tests. Later slices consume it as their flows move inside the SDK.
 
+**Invariant (pinned):** the bridge and `sdk.accounts.*` are two faces of **one** instance-internal repository — a single data path with a dual type-surface (the step-5 shadowing shape). At no point do two sources of truth exist.
+
+**Precedent:** this is the established slice pattern, not a new exception. Step-5 A11 kept `UserService`/user repos on `/temporary` for unmigrated consumers while `sdk.user.*` took the migrated surface; A1 deferred `ensureUserData` to this slice precisely because it constructs `AccountRepository`.
+
 **Alternatives considered:** (a) type-level flip returning domain objects as projections — rejected: physical leak, recreates the reviewed class; (b) honest projections + a second web fetch path for domain accounts — rejected: two sources for one cache, double-fetch, drift.
 
 ### B2 — `ensureUserData`'s contract home (step-5 A1 lands here)
@@ -37,6 +41,8 @@ Sources of truth:
 **Fact (master):** `_protected.tsx` middleware derives 4 keys (encryption keypair, cashu locking xpub, spark identity pubkey) + warms seed/mnemonic, constructs `AccountRepository` + `WriteUserRepository`, calls `writeUserRepository.upsert({...authUser fields, accounts: defaultAccounts, ...pubkeys, terms}, accountRepository)` with Zod-aware retry, then seeds **both** the user cache and the accounts cache from the returned `{ user, accounts }`.
 
 **Proposal:** `sdk.user.ensure(params): Promise<User>` with `EnsureUserParams = { termsAcceptedAt?: string; giftCardMintTermsAcceptedAt?: string }` — key derivation, repositories, retry and the default-accounts constant all move SDK-internal. The web middleware keeps: pending-terms storage reads, `hasUserChanged` short-circuit semantics (SDK memoizes per session identity), redirect logic, and its cache seeding.
+
+**Cross-domain note for the ruling:** `ensureUserData` upserts the user row *and* the default accounts in one operation — A1 parked it with this slice because of the `AccountRepository` dependency, not because its home is settled. The verb reads user-side (`sdk.user.ensure` — user bootstrap, accounts as its effect; recommended), but an accounts-side home is arguable; weigh with the A1 lineage in view.
 
 **Sub-call for the accounts seed (pick one):**
 - **(a, recommended)** the bridge (B1) also exposes the domain-typed `{ user, accounts }` result of the ensure upsert, so the web seeds `AccountsCache` exactly as today — zero extra fetch, byte-parity.
