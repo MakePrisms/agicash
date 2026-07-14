@@ -25,8 +25,6 @@ export type {
   AccountType,
   AccountState,
   AccountPurpose,
-  RedactedAccount,
-  RedactedCashuAccount,
 } from './domain/accounts/account';
 export type { CashuProof } from './domain/accounts/cashu-account';
 export type {
