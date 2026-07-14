@@ -274,6 +274,32 @@ describe('createUserApi', () => {
       expect(calls[1]?.p_gift_card_mint_terms_accepted_at).toBe('g2');
     });
 
+    it('retries a transient key-derivation failure before upserting', async () => {
+      const { db, calls } = createUpsertDbFake([{ ok: true }]);
+      let attempts = 0;
+      const keys = fakeKeys();
+      keys.getSparkIdentityPublicKey = async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error('transient enclave failure');
+        }
+        return 'spark-id';
+      };
+      const api = createUserApi({
+        db,
+        getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
+        keys,
+        sparkConfig,
+      });
+
+      const result = await api.ensure({});
+
+      expect(attempts).toBe(2);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.p_spark_identity_public_key).toBe('spark-id');
+      expect(result.user.id).toBe('user-a');
+    });
+
     it('retries a generic upsert failure, then succeeds', async () => {
       const { db, calls } = createUpsertDbFake([
         { reject: new Error('transient') },
