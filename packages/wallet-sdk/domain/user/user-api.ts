@@ -1,13 +1,12 @@
 import type { Currency } from '@agicash/money';
+import { withRetry } from '@agicash/utils';
 import { core } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import { NoSessionError } from '../../lib/error';
-import type { SparkWalletConfig } from '../../lib/spark/wallet';
-import { withRetry } from '@agicash/utils';
 import type { AuthSession, UserApi } from '../../sdk';
 import type { SessionKeys } from '../../session-keys';
 import { toAccountProjection } from '../accounts/account-projection';
-import { AccountRepository } from '../accounts/account-repository';
+import type { AccountRepository } from '../accounts/account-repository';
 import { ReadUserRepository, WriteUserRepository } from './user-repository';
 import { UserService } from './user-service';
 
@@ -15,9 +14,8 @@ type Deps = {
   db: AgicashDb;
   getSession: () => AuthSession;
   keys: SessionKeys;
-  sparkConfig: SparkWalletConfig;
-  /** Test seam; defaults to building the repository from db + session keys. */
-  createRepository?: () => Promise<AccountRepository>;
+  /** The accounts namespace's repository — one construction path for the whole instance. */
+  getAccountRepository: () => Promise<AccountRepository>;
 };
 
 const isDevelopmentMode = import.meta.env.MODE === 'development';
@@ -134,26 +132,16 @@ export function createUserApi(deps: Deps): UserApi {
         encryptionPublicKey,
         cashuLockingXpub,
         sparkIdentityPublicKey,
-        encryption,
+        accountRepository,
       ] = await withRetry({
         fn: () =>
           Promise.all([
             deps.keys.getEncryptionPublicKey(),
             deps.keys.getCashuLockingXpub(),
             deps.keys.getSparkIdentityPublicKey(),
-            deps.keys.getEncryption(),
+            deps.getAccountRepository(),
           ]),
       });
-
-      const accountRepository = deps.createRepository
-        ? await deps.createRepository()
-        : new AccountRepository(
-            deps.db,
-            encryption,
-            deps.keys.getCashuSeed,
-            deps.keys.getSparkMnemonic,
-            deps.sparkConfig,
-          );
 
       const { user, accounts } = await withRetry({
         fn: () =>

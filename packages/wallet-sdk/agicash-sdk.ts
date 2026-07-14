@@ -112,7 +112,7 @@ export class AgicashSdk
       db,
       getSession: () => this.authService.getSession(),
       keys,
-      sparkConfig,
+      getAccountRepository: accounts.getRepository,
     });
     this.accounts = accounts.api;
     this.events = events;

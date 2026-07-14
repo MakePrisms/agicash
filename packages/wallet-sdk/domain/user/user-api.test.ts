@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import { core, z } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import type { Encryption } from '../../lib/encryption';
-import type { SparkWalletConfig } from '../../lib/spark/wallet';
 import type { AuthUser } from '../../sdk';
 import type { SessionKeys } from '../../session-keys';
 import type { CashuAccount as DomainCashuAccount } from '../accounts/account';
@@ -38,7 +37,8 @@ const dbUserRow = (id: string) => ({
   gift_card_mint_terms_accepted_at: null,
 });
 
-const sparkConfig: SparkWalletConfig = { storageDir: '.', apiKey: 'k' };
+const fakeAccountRepository = {} as AccountRepository;
+const getAccountRepository = async () => fakeAccountRepository;
 
 const fakeKeys = (): SessionKeys => ({
   getEncryption: async () => ({}) as Encryption,
@@ -140,7 +140,7 @@ describe('createUserApi', () => {
         }),
         getSession: () => ({ isLoggedIn: true, user: authUser(sessionUserId) }),
         keys: fakeKeys(),
-        sparkConfig,
+        getAccountRepository,
       });
 
       await api.setDefaultAccount({ accountId: 'acct-1' });
@@ -157,7 +157,7 @@ describe('createUserApi', () => {
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
-        sparkConfig,
+        getAccountRepository,
       });
 
       const result = await api.ensure({
@@ -199,8 +199,7 @@ describe('createUserApi', () => {
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
-        sparkConfig,
-        createRepository: async () =>
+        getAccountRepository: async () =>
           ({
             toAccount: async (input: unknown) => {
               toAccountCalls.push(input);
@@ -241,7 +240,7 @@ describe('createUserApi', () => {
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
-        sparkConfig,
+        getAccountRepository,
       });
 
       const first = await api.ensure({});
@@ -258,7 +257,7 @@ describe('createUserApi', () => {
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
-        sparkConfig,
+        getAccountRepository,
       });
 
       await api.ensure({ termsAcceptedAt: 't1' });
@@ -289,7 +288,7 @@ describe('createUserApi', () => {
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys,
-        sparkConfig,
+        getAccountRepository,
       });
 
       const result = await api.ensure({});
@@ -309,7 +308,7 @@ describe('createUserApi', () => {
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
-        sparkConfig,
+        getAccountRepository,
       });
 
       const result = await api.ensure({});
@@ -326,7 +325,7 @@ describe('createUserApi', () => {
         db,
         getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
         keys: fakeKeys(),
-        sparkConfig,
+        getAccountRepository,
       });
 
       await expect(api.ensure({})).rejects.toBe(zodError);
@@ -339,7 +338,7 @@ describe('createUserApi', () => {
         db,
         getSession: () => ({ isLoggedIn: false }),
         keys: fakeKeys(),
-        sparkConfig,
+        getAccountRepository,
       });
 
       await expect(api.ensure({})).rejects.toThrow();
