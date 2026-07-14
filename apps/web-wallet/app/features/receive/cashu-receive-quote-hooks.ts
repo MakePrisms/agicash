@@ -10,6 +10,7 @@ import {
   clearLongTimeout,
   setLongTimeout,
 } from '@agicash/utils';
+import { withRetry } from '@agicash/utils';
 import type {
   CashuReceiveQuote,
   TransactionPurpose,
@@ -40,7 +41,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { MintQuoteSubscriptionManager } from '~/lib/cashu/mint-quote-subscription-manager';
 import { useLatest } from '~/lib/use-latest';
-import { withRetry } from '~/lib/with-retry';
 import {
   useGetCashuAccount,
   useGetCashuAccountByMintUrlAndCurrency,

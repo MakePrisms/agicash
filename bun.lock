@@ -103,6 +103,7 @@
       "name": "web-wallet-e2e",
       "devDependencies": {
         "@agicash/opensecret": "catalog:",
+        "@agicash/utils": "workspace:*",
         "@playwright/test": "1.49.1",
         "@stablelib/base64": "catalog:",
         "@stablelib/chacha20poly1305": "catalog:",

@@ -3,7 +3,7 @@ import { core } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import { NoSessionError } from '../../lib/error';
 import type { SparkWalletConfig } from '../../lib/spark/wallet';
-import { withRetry } from '../../lib/with-retry';
+import { withRetry } from '@agicash/utils';
 import type { AuthSession, UserApi } from '../../sdk';
 import type { SessionKeys } from '../../session-keys';
 import { toAccountProjection } from '../accounts/account-projection';
