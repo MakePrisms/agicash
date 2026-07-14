@@ -15,7 +15,6 @@ import {
   SparkReceiveQuoteRepository,
   SparkReceiveQuoteService,
   decodeCashuToken,
-  getEncryption,
   toAccountProjection,
   toDomainAccount,
 } from '@agicash/wallet-sdk/temporary';
@@ -36,10 +35,7 @@ import {
   getCashuCryptography,
   seedQueryOptions,
 } from '~/features/shared/cashu-query-options';
-import {
-  encryptionPrivateKeyQueryOptions,
-  encryptionPublicKeyQueryOptions,
-} from '~/features/shared/encryption-hooks';
+import { encryptionQueryOptions } from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
 import { sdk } from '~/features/shared/sdk.client';
 import { sparkMnemonicQueryOptions } from '~/features/shared/spark-query-options';
@@ -52,14 +48,12 @@ import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
 
 const getServices = async () => {
   const queryClient = getQueryClient();
-  const [encryptionPrivateKey, encryptionPublicKey] = await Promise.all([
-    queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-    queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-  ]);
   const getCashuWalletSeed = () => queryClient.fetchQuery(seedQueryOptions());
   const getSparkWalletMnemonic = () =>
     queryClient.fetchQuery(sparkMnemonicQueryOptions());
-  const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
+  const encryption = await queryClient.ensureQueryData(
+    encryptionQueryOptions(),
+  );
   const accountRepository = new AccountRepository(
     agicashDbClient,
     encryption,
