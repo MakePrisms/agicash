@@ -16,6 +16,8 @@ type Deps = {
   getSession: () => AuthSession;
   keys: SessionKeys;
   sparkConfig: SparkWalletConfig;
+  /** Test seam; defaults to building the repository from db + session keys. */
+  createRepository?: () => Promise<AccountRepository>;
 };
 
 const isDevelopmentMode = import.meta.env.MODE === 'development';
@@ -125,25 +127,33 @@ export function createUserApi(deps: Deps): UserApi {
       }
       const authUser = session.user;
 
+      // Master derived these through the host's query layer, which retried
+      // transient failures; the memoized getters make each retry re-fetch
+      // only the keys that failed.
       const [
         encryptionPublicKey,
         cashuLockingXpub,
         sparkIdentityPublicKey,
         encryption,
-      ] = await Promise.all([
-        deps.keys.getEncryptionPublicKey(),
-        deps.keys.getCashuLockingXpub(),
-        deps.keys.getSparkIdentityPublicKey(),
-        deps.keys.getEncryption(),
-      ]);
+      ] = await withRetry({
+        fn: () =>
+          Promise.all([
+            deps.keys.getEncryptionPublicKey(),
+            deps.keys.getCashuLockingXpub(),
+            deps.keys.getSparkIdentityPublicKey(),
+            deps.keys.getEncryption(),
+          ]),
+      });
 
-      const accountRepository = new AccountRepository(
-        deps.db,
-        encryption,
-        deps.keys.getCashuSeed,
-        deps.keys.getSparkMnemonic,
-        deps.sparkConfig,
-      );
+      const accountRepository = deps.createRepository
+        ? await deps.createRepository()
+        : new AccountRepository(
+            deps.db,
+            encryption,
+            deps.keys.getCashuSeed,
+            deps.keys.getSparkMnemonic,
+            deps.sparkConfig,
+          );
 
       const { user, accounts } = await withRetry({
         fn: () =>

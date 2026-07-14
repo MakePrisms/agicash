@@ -5,6 +5,8 @@ import type { Encryption } from '../../lib/encryption';
 import type { SparkWalletConfig } from '../../lib/spark/wallet';
 import type { AuthUser } from '../../sdk';
 import type { SessionKeys } from '../../session-keys';
+import type { CashuAccount as DomainCashuAccount } from '../accounts/account';
+import type { AccountRepository } from '../accounts/account-repository';
 import { createUserApi } from './user-api';
 
 const authUser = (id: string, overrides: Partial<AuthUser> = {}): AuthUser =>
@@ -87,6 +89,7 @@ const createDbFake = (deps: {
 /** Fake covering the single `upsert_user_with_accounts` RPC ensure issues. */
 const createUpsertDbFake = (
   outcomes: Array<{ reject: unknown } | { ok: true }>,
+  accountRows: Record<string, unknown>[] = [],
 ) => {
   const calls: Record<string, unknown>[] = [];
   const db = {
@@ -99,7 +102,7 @@ const createUpsertDbFake = (
       return Promise.resolve({
         data: {
           user: dbUserRow(String(params.p_user_id)),
-          accounts: [],
+          accounts: accountRows,
         },
         error: null,
       });
@@ -169,6 +172,53 @@ describe('createUserApi', () => {
       expect(calls[0]?.p_terms_accepted_at).toBe('2026-01-02T00:00:00Z');
       expect(result.user.id).toBe('user-a');
       expect(result.accounts).toEqual([]);
+    });
+
+    it('maps upserted account rows through the shared projection mapper, runtime-fat', async () => {
+      const row = { id: 'acct-cashu' };
+      const { db, calls } = createUpsertDbFake([{ ok: true }], [row]);
+      const fatCashuAccount = {
+        id: 'acct-cashu',
+        name: 'Testnut BTC',
+        type: 'cashu',
+        purpose: 'transactional',
+        state: 'active',
+        isOnline: true,
+        currency: 'BTC',
+        createdAt: '2026-01-01T00:00:00Z',
+        version: 1,
+        expiresAt: null,
+        mintUrl: 'https://testnut.cashu.space',
+        isTestMint: true,
+        keysetCounters: { ks1: 3 },
+        proofs: [{ amount: 100 }, { amount: 50 }],
+        wallet: { marker: 'cashu-wallet' },
+      } as unknown as DomainCashuAccount;
+      const toAccountCalls: unknown[] = [];
+      const api = createUserApi({
+        db,
+        getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
+        keys: fakeKeys(),
+        sparkConfig,
+        createRepository: async () =>
+          ({
+            toAccount: async (input: unknown) => {
+              toAccountCalls.push(input);
+              return fatCashuAccount;
+            },
+          }) as unknown as AccountRepository,
+      });
+
+      const result = await api.ensure({});
+
+      expect(calls).toHaveLength(1);
+      expect(toAccountCalls).toEqual([row]);
+      const account = result.accounts[0];
+      expect(account?.type).toBe('cashu');
+      expect(account?.balance?.amount('sat').toNumber()).toBe(150);
+      expect(account && 'proofs' in account).toBe(true);
+      expect(account && 'wallet' in account).toBe(true);
+      expect(account && 'keysetCounters' in account).toBe(true);
     });
 
     it('upserts on every call and returns each call fresh result (no memo)', async () => {
