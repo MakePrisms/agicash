@@ -26,6 +26,10 @@ export function isDefaultAccount(
  * Attaches `isDefault` to each account and sorts the default account to the top.
  * Generic over the account shape (domain or projection): it reads only public
  * fields and preserves the input element type.
+ *
+ * The generic signature exists only while domain and projection accounts
+ * coexist; at step 18 (physical projection strip) it reverts to
+ * `(user: User, accounts: Account[]): ExtendedAccount[]`.
  */
 export function getExtendedAccounts<
   A extends { id: string; currency: Currency },
