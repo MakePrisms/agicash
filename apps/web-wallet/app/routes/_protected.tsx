@@ -1,13 +1,25 @@
 import type { AuthUser, User } from '@agicash/wallet-sdk';
 import { shouldAcceptTerms } from '@agicash/wallet-sdk';
-import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
+import {
+  BASE_CASHU_LOCKING_DERIVATION_PATH,
+  ensureBreezWasm,
+} from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { AccountsCache } from '~/features/accounts/account-hooks';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
+import {
+  seedQueryOptions,
+  xpubQueryOptions,
+} from '~/features/shared/cashu-query-options';
+import {
+  encryptionPrivateKeyQueryOptions,
+  encryptionPublicKeyQueryOptions,
+} from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
 import { sdk } from '~/features/shared/sdk.client';
+import { sparkMnemonicQueryOptions } from '~/features/shared/spark-query-options';
 import { authQueryOptions, useAuthState } from '~/features/user/auth';
 import {
   pendingGiftCardMintTermsStorage,
@@ -59,10 +71,27 @@ const ensureUserData = async (
   }
 
   if (!user || hasUserChanged(user, authUser)) {
-    const { user: upsertedUser, accounts } = await sdk.user.ensure({
-      termsAcceptedAt,
-      giftCardMintTermsAcceptedAt,
-    });
+    // The SDK derives its own key copies (session-keys memos); these warms keep
+    // the web-side entries the unmigrated receive/send/claim repos read
+    // populated — and failing — in the middleware rather than at first Wallet
+    // render, as on master. Transitional double derivation until those domains
+    // migrate into the SDK (steps 8–16).
+    const [{ user: upsertedUser, accounts }] = await Promise.all([
+      sdk.user.ensure({
+        termsAcceptedAt,
+        giftCardMintTermsAcceptedAt,
+      }),
+      queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
+      queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
+      queryClient.ensureQueryData(
+        xpubQueryOptions({
+          queryClient,
+          derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
+        }),
+      ),
+      queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
+      queryClient.ensureQueryData(seedQueryOptions()),
+    ]);
     user = upsertedUser;
     queryClient.setQueryData([UserCache.Key], user);
     queryClient.setQueryData([AccountsCache.Key], accounts);
