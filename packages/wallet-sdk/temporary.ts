@@ -118,9 +118,13 @@ export type {
 } from './domain/accounts/account';
 // Accounts-slice bridge (step 6) — removed at step 18 when the projection
 // strip becomes physical: the internal-repo accessor for unmigrated flows and
-// realtime row mapping, the checked unwrap the getter hooks route through, and
-// the shared mapper for the web-side cache-entry paths.
-export { getInternalAccountRepository } from './agicash-sdk';
+// realtime row mapping, the checked unwrap the getter hooks route through, the
+// shared mapper for the web-side cache-entry paths, and the session-keys
+// accessor feeding the web-side key queries.
+export {
+  getInternalAccountRepository,
+  getInternalSessionKeys,
+} from './agicash-sdk';
 export {
   toAccountProjection,
   toDomainAccount,

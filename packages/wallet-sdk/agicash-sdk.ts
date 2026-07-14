@@ -18,7 +18,7 @@ import type {
   UserApi,
   WalletEvents,
 } from './sdk';
-import { createSessionKeys } from './session-keys';
+import { type SessionKeys, createSessionKeys } from './session-keys';
 
 // Makes the one-instance-per-process constraint (see the constructor note)
 // self-enforcing: create() refuses to run while an undisposed instance holds
@@ -30,6 +30,12 @@ let liveInstance: AgicashSdk | undefined;
 // Module-scoped like liveInstance so the bridge never exposes the fat domain
 // repository on the public AgicashSdk surface.
 let liveAccountRepository: (() => Promise<AccountRepository>) | undefined;
+
+// The live instance's session keys, reached only through the
+// '@agicash/wallet-sdk/temporary' bridge (removed at step 18). Module-scoped
+// like liveInstance so the bridge never exposes the key derivations on the
+// public AgicashSdk surface.
+let liveSessionKeys: SessionKeys | undefined;
 
 /**
  * Runtime implementation of the SDK contract, filled namespace-by-namespace
@@ -117,6 +123,7 @@ export class AgicashSdk
     this.accounts = accounts.api;
     this.events = events;
     liveAccountRepository = accounts.getRepository;
+    liveSessionKeys = keys;
   }
 
   /** Sync; no I/O. Throws when an undisposed instance already exists (see the constructor note). */
@@ -145,6 +152,7 @@ export class AgicashSdk
     if (liveInstance === this) {
       liveInstance = undefined;
       liveAccountRepository = undefined;
+      liveSessionKeys = undefined;
     }
   }
 }
@@ -162,4 +170,19 @@ export function getInternalAccountRepository(): Promise<AccountRepository> {
     throw new Error('No live AgicashSdk instance');
   }
   return liveAccountRepository();
+}
+
+/**
+ * The live instance's session keys, for the web-side key queries the unmigrated
+ * receive/send/claim flows still read (encryption, cashu seed, spark mnemonic).
+ * Re-exported from '@agicash/wallet-sdk/temporary'; not on the public surface.
+ *
+ * @remarks Removed at step 18 when those flows source their keys from the SDK
+ * and the web-side key queries die with them.
+ */
+export function getInternalSessionKeys(): SessionKeys {
+  if (!liveSessionKeys) {
+    throw new Error('No live AgicashSdk instance');
+  }
+  return liveSessionKeys;
 }
