@@ -19,8 +19,12 @@ import { createSupabaseSessionTokenGetter } from '../../db/supabase-session';
 import { clearAgicashMintAuthToken } from '../../lib/agicash-mint-auth-provider';
 import { NotImplementedError } from '../../lib/error';
 import { generateRandomPassword } from '../../lib/password';
-import { clearSparkWallets } from '../../lib/spark/wallet';
+import {
+  type SparkWalletConfig,
+  clearSparkWallets,
+} from '../../lib/spark/wallet';
 import { createSessionKeys } from '../../session-keys';
+import { createAccountsApi } from '../accounts/accounts-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
@@ -32,17 +36,15 @@ let liveInstance: AgicashSdk | undefined;
 
 /**
  * Runtime implementation of the SDK contract. Namespaces land slice by slice —
- * auth, user, and events so far; accessing a namespace whose migration slice
- * hasn't landed throws `NotImplementedError`.
+ * auth, user, accounts, and events so far; accessing a namespace whose migration
+ * slice hasn't landed throws `NotImplementedError`.
  */
 export class AgicashSdk implements Sdk {
   readonly auth: AuthApi;
   readonly user: UserApi;
+  readonly accounts: AccountsApi;
   readonly events: WalletEvents;
 
-  get accounts(): AccountsApi {
-    throw new NotImplementedError('accounts');
-  }
   get contacts(): ContactsApi {
     throw new NotImplementedError('contacts');
   }
@@ -116,11 +118,23 @@ export class AgicashSdk implements Sdk {
       accessToken: sessionToken.getToken,
     });
 
+    const sparkConfig: SparkWalletConfig = {
+      storageDir: config.spark.storageDir ?? './.spark-data',
+      apiKey: config.spark.breezApiKey,
+    };
+    const accounts = createAccountsApi({
+      db,
+      getSession: () => this.authService.getSession(),
+      keys,
+      sparkConfig,
+    });
+
     this.auth = this.authService;
     this.user = createUserApi({
       db,
       getSession: () => this.authService.getSession(),
     });
+    this.accounts = accounts.api;
     this.events = events;
   }
 
