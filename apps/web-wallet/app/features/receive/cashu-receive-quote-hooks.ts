@@ -5,6 +5,11 @@ import {
   sumProofs,
 } from '@agicash/cashu';
 import type { Money } from '@agicash/money';
+import {
+  type LongTimeout,
+  clearLongTimeout,
+  setLongTimeout,
+} from '@agicash/utils';
 import type {
   CashuAccount,
   CashuReceiveQuote,
@@ -34,11 +39,6 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { MintQuoteSubscriptionManager } from '~/lib/cashu/mint-quote-subscription-manager';
-import {
-  type LongTimeout,
-  clearLongTimeout,
-  setLongTimeout,
-} from '~/lib/timeout';
 import { useLatest } from '~/lib/use-latest';
 import { withRetry } from '~/lib/with-retry';
 import {

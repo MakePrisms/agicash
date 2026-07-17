@@ -16,8 +16,8 @@ import { base64url } from '@scure/base';
 import { z } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import { NotFoundError } from '../../lib/error';
-import { ExchangeRateService } from '../../lib/exchange-rate';
 import { type SparkWalletConfig, getSparkWallet } from '../../lib/spark/wallet';
+import { ExchangeRateService } from '../exchange-rate';
 import {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,

@@ -7,9 +7,11 @@ export type LongTimeout = {
 };
 
 /**
- * setTimeout alternative that supports bigger delays. Default setTimeout only supports delay up to ~24.8 days.
+ * setTimeout alternative that supports delays beyond setTimeout's ~24.8 day
+ * cap. Like setTimeout, the callback always runs asynchronously: a delay of 0
+ * or less schedules it on the next tick rather than invoking it inline.
  * @param callback Callback to be invoked after the delay
- * @param delay Delay after which callback should be executed
+ * @param delay Delay in milliseconds after which the callback runs
  * @returns {LongTimeout}. To clear the long timeout use `clearLongTimeout` function
  */
 export function setLongTimeout(
@@ -21,16 +23,11 @@ export function setLongTimeout(
   const longTimeout: LongTimeout = { id: null };
 
   function scheduleNext() {
-    const elapsed = Date.now() - start;
-
-    if (elapsed >= delay) {
-      callback();
+    const remaining = delay - (Date.now() - start);
+    if (remaining > maxSetTimeoutDelay) {
+      longTimeout.id = setTimeout(scheduleNext, maxSetTimeoutDelay);
     } else {
-      const remaining = delay - elapsed;
-      longTimeout.id = setTimeout(
-        scheduleNext,
-        Math.min(remaining, maxSetTimeoutDelay),
-      );
+      longTimeout.id = setTimeout(callback, Math.max(remaining, 0));
     }
   }
 

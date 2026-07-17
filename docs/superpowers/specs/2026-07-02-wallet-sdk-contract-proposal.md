@@ -44,7 +44,10 @@ type SdkConfig = {
     storageDir?: string;    // node hosts; browser default applies
   };
   lightningAddressDomain: string; // lud16 domain for contacts/display
-  logger?: Logger;          // diagnostic sink; MCP stdio hosts route to stderr
+  logger: Logger;           // diagnostic sink; MCP stdio hosts route to stderr.
+                            // Required; hosts that want no logging pass the
+                            // exported `nullLogger` (explicit choice over a
+                            // silently-absent default).
 };
 
 // Illustrative shape — binds to the React-agnostic @agicash/opensecret release's
@@ -332,6 +335,7 @@ only an id — the asymmetry is intentional, not an oversight.
 ```ts
 type WalletEventMap = {
   'auth.session-expired': Record<string, never>; // session died without signOut() (expiry / failed refresh)
+  'auth.session-refreshed': Record<string, never>; // SDK-initiated refresh (guest auto-extend); host verbs never fire it — added by the auth slice (step-5 plan, A13)
   'user.updated': { user: User };
   'account.created' | 'account.updated': { account: Account };
   'account.balance-changed': { accountId: string; balance: Money }; // both rails; no version
@@ -459,6 +463,8 @@ helpers the web consumes that need no instance state:
   WebAssembly is unavailable; web `instanceof`-checks it for the fallback UI).
   Subclass semantics are contract: `DomainError.message` is the only
   user-displayable message; `ConcurrencyError` always means retry.
+- logging: `nullLogger` — the no-op `Logger` hosts pass when they want no
+  diagnostics (the `logger` config port is required)
 - exchange rate: `exchangeRate` — provider fallback chain (mempool → coingecko →
   coinbase); holds no instance state or ports, so a rate lookup needs no `Sdk`.
 

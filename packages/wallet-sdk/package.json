@@ -35,7 +35,7 @@
     "@stablelib/base64": "catalog:",
     "@supabase/supabase-js": "2.95.2",
     "big.js": "catalog:",
-    "jwt-decode": "4.0.0",
+    "jwt-decode": "catalog:",
     "ky": "catalog:",
     "type-fest": "catalog:",
     "zod": "catalog:"

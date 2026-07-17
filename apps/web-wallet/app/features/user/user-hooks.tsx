@@ -1,7 +1,6 @@
 import type { Currency } from '@agicash/money';
-import { requestNewVerificationCode } from '@agicash/opensecret';
 import type { Account, User } from '@agicash/wallet-sdk';
-import type { AgicashDbUser, UpdateUser } from '@agicash/wallet-sdk/temporary';
+import type { AgicashDbUser } from '@agicash/wallet-sdk/temporary';
 import { ReadUserRepository } from '@agicash/wallet-sdk/temporary';
 import {
   type QueryClient,
@@ -11,14 +10,9 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { getQueryClient } from '~/features/shared/query-client';
+import { sdk } from '~/features/shared/sdk.client';
 import { useAuthActions, useAuthState } from '~/features/user/auth';
 import { useLatest } from '~/lib/use-latest';
-import { guestAccountStorage } from './guest-account-storage';
-import {
-  useReadUserRepository,
-  useWriteUserRepository,
-} from './user-repository-hooks';
-import { useUserService } from './user-service-hooks';
 
 export class UserCache {
   public static Key = 'user';
@@ -71,16 +65,12 @@ export const getUserFromCacheOrThrow = () => {
 };
 
 const userQueryOptions = <TData = User>({
-  userId,
-  userRepository,
   select,
 }: {
-  userId: string;
-  userRepository: ReadUserRepository;
   select?: (data: User) => TData;
 }) => ({
   queryKey: [UserCache.Key],
-  queryFn: () => userRepository.get(userId),
+  queryFn: () => sdk.user.get(),
   select,
 });
 
@@ -93,16 +83,11 @@ export const useUser = <TData = User>(
   select?: (data: User) => TData,
 ): TData => {
   const authState = useAuthState();
-  const authUser = authState.user;
-  if (!authUser) {
+  if (!authState.user) {
     throw new Error('Cannot use useUser hook in anonymous context');
   }
 
-  const userRepository = useReadUserRepository();
-
-  const { data } = useSuspenseQuery(
-    userQueryOptions({ userId: authUser.id, userRepository, select }),
-  );
+  const { data } = useSuspenseQuery(userQueryOptions({ select }));
 
   return data;
 };
@@ -164,12 +149,7 @@ export const useUpgradeGuestToFullAccount = (): ((
         throw new Error('User already has a full account');
       }
 
-      return convertGuestToFullAccount(
-        variables.email,
-        variables.password,
-      ).then(() => {
-        guestAccountStorage.clear();
-      });
+      return convertGuestToFullAccount(variables.email, variables.password);
     },
     scope: {
       id: 'upgrade-guest-to-full-account',
@@ -195,7 +175,7 @@ export const useRequestNewEmailVerificationCode = (): (() => Promise<void>) => {
         throw new Error('Email is already verified');
       }
 
-      return requestNewVerificationCode();
+      return sdk.auth.requestNewVerificationCode();
     },
     scope: {
       id: 'request-new-email-verification-code',
@@ -228,13 +208,13 @@ export const useVerifyEmail = (): ((code: string) => Promise<void>) => {
   return mutateAsync;
 };
 
-const useUpdateUser = () => {
+const useUserUpdatingMutation = <TVariables,>(
+  mutationFn: (variables: TVariables) => Promise<User>,
+) => {
   const queryClient = useQueryClient();
-  const userId = useUser((user) => user.id);
-  const userRepository = useWriteUserRepository();
 
   return useMutation({
-    mutationFn: (updates: UpdateUser) => userRepository.update(userId, updates),
+    mutationFn,
     onSuccess: (data) => {
       queryClient.setQueryData([UserCache.Key], data);
     },
@@ -242,53 +222,34 @@ const useUpdateUser = () => {
 };
 
 export const useSetDefaultCurrency = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
-
-  return useCallback(
-    (currency: Currency) => updateUser({ defaultCurrency: currency }),
-    [updateUser],
+  const { mutateAsync } = useUserUpdatingMutation((currency: Currency) =>
+    sdk.user.setDefaultCurrency({ currency }),
   );
+
+  return mutateAsync;
 };
 
 export const useSetDefaultAccount = () => {
-  const userService = useUserService();
-  const user = useUserRef();
-  const queryClient = useQueryClient();
-
-  const { mutateAsync } = useMutation({
-    mutationFn: (account: Account) =>
-      userService.setDefaultAccount(user.current, account),
-    onSuccess: (data) => {
-      queryClient.setQueryData([UserCache.Key], data);
-    },
-  });
+  const { mutateAsync } = useUserUpdatingMutation((account: Account) =>
+    sdk.user.setDefaultAccount({ account }),
+  );
 
   return mutateAsync;
 };
 
 export const useUpdateUsername = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
-
-  return useCallback(
-    (username: string) => updateUser({ username }),
-    [updateUser],
+  const { mutateAsync } = useUserUpdatingMutation((username: string) =>
+    sdk.user.updateUsername(username),
   );
+
+  return mutateAsync;
 };
 
 export const useAcceptTerms = () => {
-  const { mutateAsync: updateUser } = useUpdateUser();
-
-  return useCallback(
-    ({
-      walletTerms,
-      giftCardTerms,
-    }: { walletTerms?: boolean; giftCardTerms?: boolean }) => {
-      const now = new Date().toISOString();
-      const updates: UpdateUser = {};
-      if (walletTerms) updates.termsAcceptedAt = now;
-      if (giftCardTerms) updates.giftCardMintTermsAcceptedAt = now;
-      return updateUser(updates);
-    },
-    [updateUser],
+  const { mutateAsync } = useUserUpdatingMutation(
+    (params: { walletTerms?: boolean; giftCardTerms?: boolean }) =>
+      sdk.user.acceptTerms(params),
   );
+
+  return mutateAsync;
 };

@@ -53,11 +53,8 @@ type AccountInput = {
   | 'state'
 >;
 
-export class WriteUserRepository {
-  constructor(
-    private readonly db: AgicashDb,
-    private readonly accountRepository: AccountRepository,
-  ) {}
+export class UpdateUserRepository {
+  constructor(private readonly db: AgicashDb) {}
 
   /**
    * Updates a user in the database.
@@ -98,6 +95,13 @@ export class WriteUserRepository {
 
     return ReadUserRepository.toUser(updatedUser);
   }
+}
+
+export class UpsertUserRepository {
+  constructor(
+    private readonly db: AgicashDb,
+    private readonly accountRepository: AccountRepository,
+  ) {}
 
   /**
    * Inserts a user into the database. If the user already exists, it updates the user.

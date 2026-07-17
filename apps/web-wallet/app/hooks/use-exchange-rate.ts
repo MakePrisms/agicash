@@ -1,7 +1,4 @@
-import {
-  type Ticker,
-  exchangeRateService,
-} from '@agicash/wallet-sdk/temporary';
+import { type Ticker, exchangeRateService } from '@agicash/wallet-sdk';
 import {
   type QueryClient,
   queryOptions,

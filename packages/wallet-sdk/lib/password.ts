@@ -1,20 +1,13 @@
-interface PasswordOptions {
+type PasswordOptions = {
   letters?: boolean;
   numbers?: boolean;
   special?: boolean;
-}
+};
 
-export async function generateRandomPassword(
+export function generateRandomPassword(
   length = 24,
   options: PasswordOptions = { letters: true, numbers: true, special: true },
-): Promise<string> {
-  if (window.getMockPassword) {
-    const password = await window.getMockPassword();
-    if (password) {
-      return password;
-    }
-  }
-
+): string {
   let charset = '';
 
   if (options.letters)
@@ -30,9 +23,12 @@ export async function generateRandomPassword(
 
   const password: string[] = [];
 
+  // globalThis.crypto is the Web Crypto API, present in the browser, Node >=20,
+  // and Bun. There is no isomorphic import for it: node:crypto is Node-only and
+  // breaks browser bundling, so the global is the portable handle.
   for (let i = 0; i < length; i++) {
     const randomIndex =
-      window.crypto.getRandomValues(new Uint32Array(1))[0] % charset.length;
+      globalThis.crypto.getRandomValues(new Uint32Array(1))[0] % charset.length;
     password.push(charset[randomIndex]);
   }
 

@@ -27,7 +27,7 @@
       "Bash(pnpm:*)",
       "Read(.env)",
       "Read(.env.*)",
-      "Read(supabase/.env)"
+      "Read(packages/wallet-sdk/db/supabase/.env)"
     ]
   },
   "hooks": {
