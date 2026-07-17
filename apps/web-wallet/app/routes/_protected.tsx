@@ -1,3 +1,4 @@
+import { withRetry } from '@agicash/utils';
 import type { User } from '@agicash/wallet-sdk';
 import { shouldAcceptTerms } from '@agicash/wallet-sdk';
 import type { AuthUser } from '@agicash/wallet-sdk';
@@ -41,7 +42,6 @@ import {
 } from '~/features/user/user-hooks';
 import { Wallet } from '~/features/wallet/wallet';
 import { breezApiKey } from '~/lib/breez';
-import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
 
 const shouldUserVerifyEmail = (user: AuthUser) => {
