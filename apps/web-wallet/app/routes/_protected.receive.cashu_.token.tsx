@@ -1,5 +1,6 @@
 import { validateCashuToken } from '@agicash/cashu';
 import type { Account, User } from '@agicash/wallet-sdk';
+import { isDefaultAccount } from '@agicash/wallet-sdk';
 import {
   AccountRepository,
   AccountService,
@@ -12,7 +13,6 @@ import {
   ReceiveCashuTokenService,
   SparkReceiveQuoteRepository,
   SparkReceiveQuoteService,
-  UserService,
   decodeCashuToken,
   getEncryption,
 } from '@agicash/wallet-sdk/temporary';
@@ -99,7 +99,7 @@ const getServices = async () => {
     (ticker) => getExchangeRate(queryClient, ticker),
   );
 
-  return { claimCashuTokenService, accountRepository };
+  return { claimCashuTokenService };
 };
 
 /**
@@ -115,7 +115,7 @@ async function trySetReceiveAccountAsDefault(
 ): Promise<void> {
   if (
     account.currency === user.defaultCurrency &&
-    UserService.isDefaultAccount(user, account)
+    isDefaultAccount(user, account)
   ) {
     return;
   }
@@ -167,11 +167,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   if (claimTo) {
     const user = getUserFromCacheOrThrow();
-    const { claimCashuTokenService, accountRepository } = await getServices();
+    const { claimCashuTokenService } = await getServices();
     const queryClient = getQueryClient();
-    const accounts = await queryClient.fetchQuery(
-      accountsQueryOptions({ userId: user.id, accountRepository }),
-    );
+    const accounts = await queryClient.fetchQuery(accountsQueryOptions());
 
     const result = await claimCashuTokenService.claimToken(
       user,

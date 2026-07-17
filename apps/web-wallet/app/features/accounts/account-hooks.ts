@@ -1,20 +1,19 @@
 import { type Currency, Money } from '@agicash/money';
-import type {
-  Account,
-  AccountPurpose,
-  AccountState,
-  AccountType,
-  CashuAccount,
-  ExtendedAccount,
-  SparkAccount,
-} from '@agicash/wallet-sdk';
-import type {
-  AccountRepository,
-  AgicashDbAccountWithProofs,
-} from '@agicash/wallet-sdk/temporary';
 import {
-  UserService,
+  type Account,
+  type AccountPurpose,
+  type AccountState,
+  type AccountType,
+  type AddCashuAccountParams,
+  type CashuAccount,
+  type ExtendedAccount,
+  type SparkAccount,
+  getExtendedAccounts,
+} from '@agicash/wallet-sdk';
+import type { AgicashDbAccountWithProofs } from '@agicash/wallet-sdk/temporary';
+import {
   getAccountBalance,
+  getInternalAccountRepository,
   sparkDebugLog,
 } from '@agicash/wallet-sdk/temporary';
 import {
@@ -26,9 +25,8 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
+import { sdk } from '~/features/shared/sdk.client';
 import { useUser } from '../user/user-hooks';
-import { useAccountRepository } from './account-repository-hooks';
-import { useAccountService } from './account-service-hooks';
 
 export class AccountsCache {
   public static Key = 'accounts';
@@ -117,13 +115,13 @@ export function useAccountsCache() {
  * Hook that returns an account change handlers.
  */
 export function useAccountChangeHandlers() {
-  const accountRepository = useAccountRepository();
   const accountCache = useAccountsCache();
 
   return [
     {
       event: 'ACCOUNT_CREATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
+        const accountRepository = await getInternalAccountRepository();
         const addedAccount = await accountRepository.toAccount(payload);
         accountCache.upsert(addedAccount);
       },
@@ -131,6 +129,7 @@ export function useAccountChangeHandlers() {
     {
       event: 'ACCOUNT_UPDATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
+        const accountRepository = await getInternalAccountRepository();
         const updatedAccount = await accountRepository.toAccount(payload);
         accountCache.upsert(updatedAccount);
       },
@@ -138,13 +137,10 @@ export function useAccountChangeHandlers() {
   ];
 }
 
-export const accountsQueryOptions = ({
-  userId,
-  accountRepository,
-}: { userId: string; accountRepository: AccountRepository }) => {
+export const accountsQueryOptions = () => {
   return queryOptions({
     queryKey: [AccountsCache.Key],
-    queryFn: () => accountRepository.getAllActive(userId),
+    queryFn: () => sdk.accounts.list(),
     staleTime: Number.POSITIVE_INFINITY,
     // Refetches use `getAllActive`, so any expired account previously in the
     // cache (lazy-fetched via useAccountOrNull, or just expired before the
@@ -253,18 +249,17 @@ export function useAccounts<
   select?: UseAccountsSelect<T, P>,
 ): UseSuspenseQueryResult<ExtendedAccount<T>[]> {
   const user = useUser();
-  const accountRepository = useAccountRepository();
 
   const { currency, type, isOnline, purpose, state = 'active' } = select ?? {};
 
   return useSuspenseQuery({
-    ...accountsQueryOptions({ userId: user.id, accountRepository }),
+    ...accountsQueryOptions(),
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
     select: useCallback(
       (data: Account[]) => {
         const allowedStates = Array.isArray(state) ? state : [state];
-        const extendedData = UserService.getExtendedAccounts(user, data);
+        const extendedData = getExtendedAccounts(user, data);
 
         const filteredData = extendedData.filter((account) => {
           if (!allowedStates.includes(account.state)) {
@@ -330,14 +325,13 @@ const ALL_ACCOUNT_STATES: AccountState[] = ['active', 'expired'];
  */
 export function useAccountOrNull(id: string | null): Account | null {
   const accountsCache = useAccountsCache();
-  const accountRepository = useAccountRepository();
   const { data: accounts } = useAccounts({ state: ALL_ACCOUNT_STATES });
 
   useSuspenseQuery({
     queryKey: ['fetch-account-by-id', id],
     queryFn: async () => {
       if (!id || accountsCache.get(id)) return null;
-      const fetched = await accountRepository.get(id);
+      const fetched = await sdk.accounts.get(id);
       if (fetched) accountsCache.upsert(fetched);
       return null;
     },
@@ -468,14 +462,11 @@ export function useAccountOrDefault(accountId: string | null) {
 }
 
 export function useAddCashuAccount() {
-  const userId = useUser((x) => x.id);
   const accountCache = useAccountsCache();
-  const accountService = useAccountService();
 
   const { mutateAsync } = useMutation({
-    mutationFn: async (
-      account: Parameters<typeof accountService.addCashuAccount>[0]['account'],
-    ) => accountService.addCashuAccount({ userId, account }),
+    mutationFn: (params: AddCashuAccountParams) =>
+      sdk.accounts.cashu.add(params),
     onSuccess: (account) => {
       // We add the account as soon as it is created so that it is available in the cache immediately.
       // This is important when using other hooks that are trying to use the account immediately after it is created.

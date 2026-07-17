@@ -46,12 +46,12 @@ import {
   useGetCashuAccountByMintUrlAndCurrency,
   useSelectItemsWithOnlineAccount,
 } from '../accounts/account-hooks';
-import { useAccountRepository } from '../accounts/account-repository-hooks';
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useCashuCryptography } from '../shared/cashu-hooks';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
+import { useAccountRepository } from './account-repository-hooks';
 
 type CreateProps = {
   account: CashuAccount;
