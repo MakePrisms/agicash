@@ -104,6 +104,10 @@ export {
 export { CashuProofSchema, toProof } from './domain/accounts/cashu-account';
 export { AccountRepository } from './domain/accounts/account-repository';
 export { AccountService } from './domain/accounts/account-service';
+// Accounts-slice bridge (step 6): hands unmigrated receive/send flows and
+// realtime row mapping the live instance's internal domain accounts repository.
+// Removed at step 18 when those flows read wallet/proofs from the SDK.
+export { getInternalAccountRepository } from './domain/sdk/sdk';
 export {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,

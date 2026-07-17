@@ -24,6 +24,7 @@ import {
   clearSparkWallets,
 } from '../../lib/spark/wallet';
 import { createSessionKeys } from '../../session-keys';
+import type { AccountRepository } from '../accounts/account-repository';
 import { createAccountsApi } from '../accounts/accounts-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
@@ -33,6 +34,12 @@ import { WalletEventEmitter } from './events';
 // self-enforcing: create() refuses to run while an undisposed instance holds
 // the module-global Open Secret configuration.
 let liveInstance: AgicashSdk | undefined;
+
+// The live instance's internal accounts repository builder, reached only
+// through the '@agicash/wallet-sdk/temporary' bridge (removed at step 18).
+// Module-scoped like liveInstance so the bridge never exposes the domain
+// repository on the public AgicashSdk surface.
+let liveAccountRepository: (() => Promise<AccountRepository>) | undefined;
 
 /**
  * Runtime implementation of the SDK contract. Namespaces land slice by slice —
@@ -136,6 +143,7 @@ export class AgicashSdk implements Sdk {
     });
     this.accounts = accounts.api;
     this.events = events;
+    liveAccountRepository = accounts.getRepository;
   }
 
   /** Sync; no I/O. Throws when an undisposed instance already exists (see the constructor note). */
@@ -163,6 +171,22 @@ export class AgicashSdk implements Sdk {
     this.authService.teardown();
     if (liveInstance === this) {
       liveInstance = undefined;
+      liveAccountRepository = undefined;
     }
   }
+}
+
+/**
+ * The live instance's internal domain accounts repository, for unmigrated web
+ * flows (receive/send repo construction, realtime row mapping) that still read
+ * wallet/proofs. Re-exported from '@agicash/wallet-sdk/temporary'; not on the
+ * public surface.
+ *
+ * @remarks Removed at step 18 when those flows read wallet/proofs from the SDK.
+ */
+export function getInternalAccountRepository(): Promise<AccountRepository> {
+  if (!liveAccountRepository) {
+    throw new Error('No live AgicashSdk instance');
+  }
+  return liveAccountRepository();
 }
