@@ -1,6 +1,6 @@
 import type { Account, ExtendedAccount } from '../accounts/account';
 import type { User } from './user';
-import type { WriteUserRepository } from './user-repository';
+import type { UpdateUserRepository } from './user-repository';
 
 type SetDefaultAccountOptions = {
   /**
@@ -11,7 +11,7 @@ type SetDefaultAccountOptions = {
 };
 
 export class UserService {
-  constructor(private readonly userRepository: WriteUserRepository) {}
+  constructor(private readonly userRepository: UpdateUserRepository) {}
 
   /**
    * Returns true if the account is the user's default account for the respective currency.
@@ -45,9 +45,11 @@ export class UserService {
   /**
    * Sets the account as the user's default account for the respective currency.
    * If setDefaultCurrency option is set to true, the user's default currency will also be set to the account's currency.
+   * Writes only the changed columns, so concurrent changes to the other
+   * defaults can't be clobbered by stale caller state.
    */
   async setDefaultAccount(
-    user: User,
+    userId: string,
     account: Account,
     options: SetDefaultAccountOptions = {
       setDefaultCurrency: false,
@@ -58,15 +60,14 @@ export class UserService {
     }
 
     return this.userRepository.update(
-      user.id,
+      userId,
       {
-        defaultCurrency: options.setDefaultCurrency
-          ? account.currency
-          : user.defaultCurrency,
-        defaultBtcAccountId:
-          account.currency === 'BTC' ? account.id : user.defaultBtcAccountId,
-        defaultUsdAccountId:
-          account.currency === 'USD' ? account.id : user.defaultUsdAccountId,
+        ...(account.currency === 'BTC'
+          ? { defaultBtcAccountId: account.id }
+          : { defaultUsdAccountId: account.id }),
+        ...(options.setDefaultCurrency
+          ? { defaultCurrency: account.currency }
+          : {}),
       },
       { abortSignal: options.abortSignal },
     );

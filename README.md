@@ -178,18 +178,18 @@ hosted on Supabase. Sensitive data is encrypted with the key from the Open Secre
 logged-in user. While developing locally, the local Supabase stack is used. To start it, run `bun run supabase start` command.
 To stop it, run `bun run supabase stop` command. The start command will start the database and realtime service, plus other
 services useful for development, like Supabase Studio. You can use Supabase Studio to inspect the database and run queries.
-Supabase is configured in the `packages/wallet-sdk/supabase/config.toml` file.
+Supabase is configured in the `packages/wallet-sdk/db/supabase/config.toml` file.
 
 ### Database migrations
 
-Schema changes to the Postgres database should be done using migrations. Migrations are stored in the `packages/wallet-sdk/supabase/migrations`
+Schema changes to the Postgres database should be done using migrations. Migrations are stored in the `packages/wallet-sdk/db/supabase/migrations`
 folder. Always try to make the schema changes in a backward compatible way.
 
 Database migrations can be done in two ways:
 1. Using Supabase Studio. With this approach you can make db changes directly to your local database in the Studio UI
    and then run `bun supabase db diff --file <MIGRATION_NAME>` to create a migration file for the changes.
 2. Using `bun supabase migration new <MIGRATION_NAME>`. This command will create a new empty migration file in the 
-   `packages/wallet-sdk/supabase/migrations` folder where you can then write the SQL commands to make the changes. To apply the migration to
+   `packages/wallet-sdk/db/supabase/migrations` folder where you can then write the SQL commands to make the changes. To apply the migration to
    the local database run `bun supabase db push`.
 
 To keep the db TypeScript types in sync with the database schema run `bun run db:generate-types` command. If you forget

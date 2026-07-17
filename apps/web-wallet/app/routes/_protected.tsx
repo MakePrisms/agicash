@@ -1,9 +1,10 @@
 import type { User } from '@agicash/wallet-sdk';
 import { shouldAcceptTerms } from '@agicash/wallet-sdk';
+import type { AuthUser } from '@agicash/wallet-sdk';
 import {
   AccountRepository,
   BASE_CASHU_LOCKING_DERIVATION_PATH,
-  WriteUserRepository,
+  UpsertUserRepository,
   ensureBreezWasm,
   getEncryption,
 } from '@agicash/wallet-sdk/temporary';
@@ -27,11 +28,7 @@ import {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
 } from '~/features/shared/spark-query-options';
-import {
-  type AuthUser,
-  authQueryOptions,
-  useAuthState,
-} from '~/features/user/auth';
+import { authQueryOptions, useAuthState } from '~/features/user/auth';
 import {
   pendingGiftCardMintTermsStorage,
   pendingWalletTermsStorage,
@@ -121,14 +118,14 @@ const ensureUserData = async (
       getSparkWalletMnemonic,
       { storageDir: './.spark-data', apiKey: breezApiKey },
     );
-    const writeUserRepository = new WriteUserRepository(
+    const upsertUserRepository = new UpsertUserRepository(
       agicashDbClient,
       accountRepository,
     );
 
     const { user: upsertedUser, accounts } = await withRetry({
       fn: () =>
-        writeUserRepository.upsert({
+        upsertUserRepository.upsert({
           id: authUser.id,
           email: authUser.email,
           emailVerified: authUser.email_verified,

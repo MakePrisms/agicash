@@ -10,8 +10,8 @@ import { getPrivateKey as getMnemonic } from '@agicash/opensecret';
 import { computeSHA256 } from '@agicash/utils';
 import { bytesToHex } from '@noble/hashes/utils';
 import type { SparkNetwork } from '../../db/json-models/spark-account-details-db-data';
+import { getFeatureFlag } from '../../domain/feature-flags/feature-flag-service';
 import { getSeedPhraseDerivationPath } from '../cryptography';
-import { getFeatureFlag } from '../feature-flag-service';
 
 /** Host-provided Spark/Breez configuration. */
 export type SparkWalletConfig = {

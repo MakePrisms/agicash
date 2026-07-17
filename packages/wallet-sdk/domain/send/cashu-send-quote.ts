@@ -1,9 +1,9 @@
 import { Money } from '@agicash/money';
 import { z } from 'zod/mini';
-import { DestinationDetailsSchema } from '../../lib/send-destination';
 import { CashuProofSchema } from '../accounts/cashu-account';
+import { DestinationDetailsSchema } from './send-destination';
 
-export type { DestinationDetails } from '../../lib/send-destination';
+export type { DestinationDetails } from './send-destination';
 
 /**
  * Base schema for cashu send quote.

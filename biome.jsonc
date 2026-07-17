@@ -8,7 +8,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "ignore": ["packages/wallet-sdk/supabase/database.types.ts"]
+    "ignore": ["packages/wallet-sdk/db/supabase/database.types.ts"]
   },
   "formatter": {
     "enabled": true,

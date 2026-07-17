@@ -6,7 +6,7 @@
     "lib": ["ES2022"],
     "types": ["bun"],
     "baseUrl": ".",
-    "paths": { "supabase/database.types": ["./supabase/database.types.ts"] },
+    "paths": { "supabase/database.types": ["./db/supabase/database.types.ts"] },
     "noEmit": true
   }
 }

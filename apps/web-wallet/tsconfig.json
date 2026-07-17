@@ -18,7 +18,7 @@
     "paths": {
       "~/*": ["./app/*"],
       "supabase/database.types": [
-        "../../packages/wallet-sdk/supabase/database.types.ts"
+        "../../packages/wallet-sdk/db/supabase/database.types.ts"
       ]
     },
 

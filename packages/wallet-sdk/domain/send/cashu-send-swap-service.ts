@@ -14,10 +14,10 @@ import {
   splitAmount,
 } from '@cashu/cashu-ts';
 import { getTokenHash } from '../../lib/cashu';
-import { getDefaultUnit } from '../../lib/currencies';
 import { DomainError } from '../../lib/error';
 import type { CashuAccount } from '../accounts/account';
 import { type CashuProof, toProof } from '../accounts/cashu-account';
+import { getDefaultUnit } from '../currencies';
 import type { CashuReceiveSwapService } from '../receive/cashu-receive-swap-service';
 import type { CashuSendSwap } from './cashu-send-swap';
 import type { CashuSendSwapRepository } from './cashu-send-swap-repository';

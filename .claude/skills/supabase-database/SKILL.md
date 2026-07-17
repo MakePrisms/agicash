@@ -21,6 +21,6 @@ Expert guidance for Postgres database work in a Supabase environment.
 - Write all SQL in lowercase
 - Always enable RLS on new tables
 - Separate RLS policies per operation (select/insert/update/delete) and per role (anon/authenticated)
-- Migration files: `YYYYMMDDHHmmss_short_description.sql` in `packages/wallet-sdk/supabase/migrations/`
+- Migration files: `YYYYMMDDHHmmss_short_description.sql` in `packages/wallet-sdk/db/supabase/migrations/`
 - Functions default to `SECURITY INVOKER` with `set search_path = ''`
 - Use fully qualified names (e.g., `public.table_name`) in functions

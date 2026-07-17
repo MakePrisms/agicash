@@ -4,8 +4,8 @@ on:
   pull_request:
 
 env:
-  SELF_SIGNED_CERT_PATH: "../../../certs/ci-localhost-cert.pem"
-  SELF_SIGNED_CERT_KEY_PATH: "../../../certs/ci-localhost-key.pem"
+  SELF_SIGNED_CERT_PATH: "../../../../certs/ci-localhost-cert.pem"
+  SELF_SIGNED_CERT_KEY_PATH: "../../../../certs/ci-localhost-key.pem"
 
 jobs:
   code-checks:
@@ -28,7 +28,7 @@ jobs:
           MIGRATIONS_CHANGED=false
           CLI_VERSION_CHANGED=false
 
-          if ! git diff --quiet origin/${{ github.base_ref }}..HEAD -- packages/wallet-sdk/supabase/migrations/; then
+          if ! git diff --quiet origin/${{ github.base_ref }}..HEAD -- packages/wallet-sdk/db/supabase/migrations/; then
             MIGRATIONS_CHANGED=true
           fi
 
@@ -50,9 +50,9 @@ jobs:
           fi
 
           echo "Checking types..."
-          bun supabase db start --workdir packages/wallet-sdk
-          bun supabase gen types typescript --local --schema wallet --workdir packages/wallet-sdk > packages/wallet-sdk/supabase/database.types.ts
-          if ! git diff --ignore-space-at-eol --exit-code --quiet packages/wallet-sdk/supabase/database.types.ts; then
+          bun supabase db start --workdir packages/wallet-sdk/db
+          bun supabase gen types typescript --local --schema wallet --workdir packages/wallet-sdk/db > packages/wallet-sdk/db/supabase/database.types.ts
+          if ! git diff --ignore-space-at-eol --exit-code --quiet packages/wallet-sdk/db/supabase/database.types.ts; then
             echo "Detected uncommitted changes in database types. This means that db was changed but types were not updated. To fix regenerate the types and commit the changes. See missing types below:"
             git diff
             exit 1

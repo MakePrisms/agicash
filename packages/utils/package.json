@@ -12,6 +12,7 @@
   "dependencies": {
     "@noble/ciphers": "catalog:",
     "@noble/hashes": "catalog:",
+    "jwt-decode": "catalog:",
     "type-fest": "catalog:",
     "zod": "catalog:"
   },

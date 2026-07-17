@@ -30,3 +30,27 @@ export class ConcurrencyError extends SdkError {
     this.name = 'ConcurrencyError';
   }
 }
+
+/** Thrown when a namespace method requiring an authenticated session runs without one. */
+export class NoSessionError extends SdkError {
+  constructor() {
+    super('No authenticated session');
+    this.name = 'NoSessionError';
+  }
+}
+
+/** Thrown when a method is called on an SDK instance that has been disposed. */
+export class DisposedError extends SdkError {
+  constructor() {
+    super('The SDK instance has been disposed');
+    this.name = 'DisposedError';
+  }
+}
+
+/** Thrown when a namespace is accessed before its migration slice has landed. */
+export class NotImplementedError extends SdkError {
+  constructor(namespace: string) {
+    super(`${namespace} is not implemented yet.`);
+    this.name = 'NotImplementedError';
+  }
+}

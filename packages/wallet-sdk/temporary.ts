@@ -44,14 +44,13 @@ export {
   getEncryption,
 } from './lib/encryption';
 export * from './lib/spark';
-export * from './lib/exchange-rate';
 export {
   ConcurrencyError,
   DomainError,
   NotFoundError,
   UniqueConstraintError,
 } from './lib/error';
-export { DestinationDetailsSchema } from './lib/send-destination';
+export { DestinationDetailsSchema } from './domain/send/send-destination';
 export {
   deriveCashuXpub,
   derivePublicKey,
@@ -92,7 +91,7 @@ export {
   refreshFeatureFlags,
   resetFeatureFlags,
   subscribeToFeatureFlags,
-} from './lib/feature-flag-service';
+} from './domain/feature-flags/feature-flag-service';
 export {
   AccountPurposeSchema,
   AccountTypeSchema,
@@ -108,7 +107,8 @@ export { AccountService } from './domain/accounts/account-service';
 export {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,
-  WriteUserRepository,
+  UpdateUserRepository,
+  UpsertUserRepository,
 } from './domain/user/user-repository';
 export { UserService } from './domain/user/user-service';
 export { isContact } from './domain/contacts/contact';

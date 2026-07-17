@@ -1,4 +1,4 @@
-import type { AgicashDb } from '../db/database';
+import type { AgicashDb } from '../../db/database';
 
 export type FeatureFlag = 'GUEST_SIGNUP' | 'DEBUG_LOGGING_SPARK';
 export type FeatureFlags = Record<FeatureFlag, boolean>;

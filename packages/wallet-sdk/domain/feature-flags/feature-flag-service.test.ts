@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test';
-import type { AgicashDb } from '../db/database';
+import type { AgicashDb } from '../../db/database';
 import {
   FEATURE_FLAG_DEFAULTS,
   configureFeatureFlags,

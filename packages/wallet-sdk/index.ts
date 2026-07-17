@@ -1,13 +1,16 @@
-// @agicash/wallet-sdk — public surface: the SDK contract (sdk.ts) + domain
-// types + typed errors. Repositories, services, and the wallet DB layer are
+// @agicash/wallet-sdk — public surface: the SDK contract + domain types +
+// typed errors. Repositories, services, and the wallet DB layer are
 // SDK-internal; during the migration they're re-exported from
 // '@agicash/wallet-sdk/temporary' instead, so that deleting /temporary at the
 // end compiler-enforces the boundary.
 // The explicit domain-type exports below SHADOW the same-named contract
-// projections from './sdk' (an explicit export beats `export *`); each slice
+// projections from './domain/sdk' (an explicit export beats `export *`); each slice
 // deletes its names here when it flips the web imports, surfacing the
 // projections.
-export * from './sdk';
+export * from './domain/sdk';
+export { AgicashSdk } from './domain/sdk/sdk';
+export { nullLogger } from './lib/logger';
+export * from './domain/exchange-rate';
 export {
   ConcurrencyError,
   DomainError,
@@ -16,9 +19,12 @@ export {
   UniqueConstraintError,
 } from './lib/error';
 export { WebAssemblyUnavailableError } from './lib/spark/errors';
-export type { DestinationDetails } from './lib/send-destination';
+export type { DestinationDetails } from './domain/send/send-destination';
 export type { SparkNetwork } from './db/json-models/spark-account-details-db-data';
-export type { FeatureFlag, FeatureFlags } from './lib/feature-flag-service';
+export type {
+  FeatureFlag,
+  FeatureFlags,
+} from './domain/feature-flags/feature-flag-service';
 export type {
   AccountType,
   AccountState,
@@ -91,7 +97,7 @@ export type {
   GiftCardInfo,
 } from './domain/gift-cards/gift-card-config';
 export { GiftCardConfigSchema } from './domain/gift-cards/gift-card-config';
-export { getDefaultUnit } from './lib/currencies';
+export { getDefaultUnit } from './domain/currencies';
 export type { CashuSendQuote } from './domain/send/cashu-send-quote';
 export type {
   GetCashuLightningQuoteOptions,

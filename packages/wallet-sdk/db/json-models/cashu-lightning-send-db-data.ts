@@ -1,6 +1,6 @@
 import { Money } from '@agicash/money';
 import { z } from 'zod/mini';
-import { DestinationDetailsSchema } from '../../lib/send-destination';
+import { DestinationDetailsSchema } from '../../domain/send/send-destination';
 
 /**
  * Schema for cashu lightning send db data.

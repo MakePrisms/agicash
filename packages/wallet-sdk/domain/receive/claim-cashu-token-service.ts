@@ -1,9 +1,9 @@
 import type { Payment } from '@agicash/breez-sdk-spark';
 import type { Token } from '@cashu/cashu-ts';
 import { DomainError } from '../../lib/error';
-import type { Ticker } from '../../lib/exchange-rate';
 import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import type { AccountService } from '../accounts/account-service';
+import type { Ticker } from '../exchange-rate';
 import type { User } from '../user/user';
 import { UserService } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';

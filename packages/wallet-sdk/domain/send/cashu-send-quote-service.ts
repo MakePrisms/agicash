@@ -11,10 +11,10 @@ import {
   OutputData,
 } from '@cashu/cashu-ts';
 import type { Big } from 'big.js';
-import { getDefaultUnit } from '../../lib/currencies';
 import { DomainError } from '../../lib/error';
 import type { CashuAccount } from '../accounts/account';
 import { type CashuProof, toProof } from '../accounts/cashu-account';
+import { getDefaultUnit } from '../currencies';
 import type { TransactionPurpose } from '../transactions/transaction-enums';
 import type { CashuSendQuote, DestinationDetails } from './cashu-send-quote';
 import type { CashuSendQuoteRepository } from './cashu-send-quote-repository';
