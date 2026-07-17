@@ -140,6 +140,8 @@ export class AgicashSdk implements Sdk {
     this.user = createUserApi({
       db,
       getSession: () => this.authService.getSession(),
+      keys,
+      getAccountRepository: accounts.getRepository,
     });
     this.accounts = accounts.api;
     this.events = events;
