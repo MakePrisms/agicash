@@ -20,6 +20,7 @@ import { clearAgicashMintAuthToken } from '../../lib/agicash-mint-auth-provider'
 import { NotImplementedError } from '../../lib/error';
 import { generateRandomPassword } from '../../lib/password';
 import { clearSparkWallets } from '../../lib/spark/wallet';
+import { createSessionKeys } from '../../session-keys';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
@@ -79,6 +80,8 @@ export class AgicashSdk implements Sdk {
 
     const events = new WalletEventEmitter(config.logger);
 
+    const keys = createSessionKeys();
+
     // Created before authService — the isLoggedIn closure dereferences it
     // lazily at request time, after the constructor has assigned it.
     const sessionToken = createSupabaseSessionTokenGetter({
@@ -102,6 +105,7 @@ export class AgicashSdk implements Sdk {
         sessionToken.reset();
         clearSparkWallets();
         clearAgicashMintAuthToken();
+        keys.reset();
       },
       logger: config.logger,
     });
