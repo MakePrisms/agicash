@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import type { AuthKeyValueStore, SdkConfig } from '.';
 import { nullLogger } from '../../lib/logger';
-import { AgicashSdk, getInternalAccountRepository } from './sdk';
+import {
+  AgicashSdk,
+  getInternalAccountRepository,
+  getInternalSessionKeys,
+} from './sdk';
 
 const createMemoryStore = (): AuthKeyValueStore => {
   const data = new Map<string, string>();
@@ -67,6 +71,30 @@ describe('getInternalAccountRepository', () => {
     await sdk.dispose();
 
     expect(() => getInternalAccountRepository()).toThrow(
+      'No live AgicashSdk instance',
+    );
+  });
+});
+
+describe('getInternalSessionKeys', () => {
+  it('throws when no instance is live', () => {
+    expect(() => getInternalSessionKeys()).toThrow(
+      'No live AgicashSdk instance',
+    );
+  });
+
+  it('returns the live instance session keys and clears them on dispose', async () => {
+    const sdk = AgicashSdk.create(createConfig());
+
+    const keys = getInternalSessionKeys();
+    // Same reference every call: the accessor hands back the instance's single
+    // session-keys object, not a fresh derivation per call.
+    expect(getInternalSessionKeys()).toBe(keys);
+    expect(typeof keys.getEncryption).toBe('function');
+
+    await sdk.dispose();
+
+    expect(() => getInternalSessionKeys()).toThrow(
       'No live AgicashSdk instance',
     );
   });

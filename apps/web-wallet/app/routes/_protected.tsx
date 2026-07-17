@@ -1,47 +1,24 @@
-import { withRetry } from '@agicash/utils';
-import type { User } from '@agicash/wallet-sdk';
+import type { AuthUser, User } from '@agicash/wallet-sdk';
 import { shouldAcceptTerms } from '@agicash/wallet-sdk';
-import type { AuthUser } from '@agicash/wallet-sdk';
-import {
-  AccountRepository,
-  BASE_CASHU_LOCKING_DERIVATION_PATH,
-  UpsertUserRepository,
-  ensureBreezWasm,
-  getEncryption,
-} from '@agicash/wallet-sdk/temporary';
+import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
-import { core } from 'zod/mini';
 import { AccountsCache } from '~/features/accounts/account-hooks';
-import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
-import {
-  seedQueryOptions as cashuSeedQueryOptions,
-  xpubQueryOptions,
-} from '~/features/shared/cashu-query-options';
-import {
-  encryptionPrivateKeyQueryOptions,
-  encryptionPublicKeyQueryOptions,
-} from '~/features/shared/encryption-hooks';
+import { seedQueryOptions } from '~/features/shared/cashu-query-options';
+import { encryptionQueryOptions } from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
-import {
-  sparkIdentityPublicKeyQueryOptions,
-  sparkMnemonicQueryOptions,
-} from '~/features/shared/spark-query-options';
+import { sdk } from '~/features/shared/sdk.client';
+import { sparkMnemonicQueryOptions } from '~/features/shared/spark-query-options';
 import { authQueryOptions, useAuthState } from '~/features/user/auth';
 import {
   pendingGiftCardMintTermsStorage,
   pendingWalletTermsStorage,
 } from '~/features/user/pending-terms-storage';
 import { requireSessionHintOrRedirect } from '~/features/user/require-session-hint.server';
-import {
-  UserCache,
-  defaultAccounts,
-  getUserFromCache,
-} from '~/features/user/user-hooks';
+import { UserCache, getUserFromCache } from '~/features/user/user-hooks';
 import { Wallet } from '~/features/wallet/wallet';
-import { breezApiKey } from '~/lib/breez';
 import type { Route } from './+types/_protected';
 
 const shouldUserVerifyEmail = (user: AuthUser) => {
@@ -85,64 +62,21 @@ const ensureUserData = async (
   }
 
   if (!user || hasUserChanged(user, authUser)) {
-    const [
-      encryptionPrivateKey,
-      encryptionPublicKey,
-      cashuLockingXpub,
-      sparkIdentityPublicKey,
-    ] = await Promise.all([
-      queryClient.ensureQueryData(encryptionPrivateKeyQueryOptions()),
-      queryClient.ensureQueryData(encryptionPublicKeyQueryOptions()),
-      queryClient.ensureQueryData(
-        xpubQueryOptions({
-          queryClient,
-          derivationPath: BASE_CASHU_LOCKING_DERIVATION_PATH,
-        }),
-      ),
-      // TODO: how to handle this network? We specify the network on the account creation.
-      queryClient.ensureQueryData(
-        sparkIdentityPublicKeyQueryOptions({ queryClient, network: 'MAINNET' }),
-      ),
+    // ensure() derives the session keys SDK-side; these warms populate the
+    // web-side cache entries the unmigrated receive/send/claim repos still read
+    // from that same single derivation (the query fns delegate to the SDK).
+    // Keeping them here preserves master's fail-in-the-middleware property
+    // instead of deferring derivation failure to first Wallet render. Removed as
+    // those domains migrate into the SDK (steps 8–16).
+    const [{ user: upsertedUser, accounts }] = await Promise.all([
+      sdk.user.ensure({
+        termsAcceptedAt,
+        giftCardMintTermsAcceptedAt,
+      }),
+      queryClient.ensureQueryData(encryptionQueryOptions()),
       queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
-      queryClient.ensureQueryData(cashuSeedQueryOptions()),
+      queryClient.ensureQueryData(seedQueryOptions()),
     ]);
-    const encryption = getEncryption(encryptionPrivateKey, encryptionPublicKey);
-    const getCashuWalletSeed = () =>
-      queryClient.fetchQuery(cashuSeedQueryOptions());
-    const getSparkWalletMnemonic = () =>
-      queryClient.fetchQuery(sparkMnemonicQueryOptions());
-    const accountRepository = new AccountRepository(
-      agicashDbClient,
-      encryption,
-      getCashuWalletSeed,
-      getSparkWalletMnemonic,
-      { storageDir: './.spark-data', apiKey: breezApiKey },
-    );
-    const upsertUserRepository = new UpsertUserRepository(
-      agicashDbClient,
-      accountRepository,
-    );
-
-    const { user: upsertedUser, accounts } = await withRetry({
-      fn: () =>
-        upsertUserRepository.upsert({
-          id: authUser.id,
-          email: authUser.email,
-          emailVerified: authUser.email_verified,
-          accounts: [...defaultAccounts],
-          cashuLockingXpub,
-          encryptionPublicKey,
-          sparkIdentityPublicKey,
-          termsAcceptedAt,
-          giftCardMintTermsAcceptedAt,
-        }),
-      retry: (attemptIndex, error) => {
-        if (error instanceof core.$ZodError) {
-          return false;
-        }
-        return attemptIndex < 2;
-      },
-    });
     user = upsertedUser;
     queryClient.setQueryData([UserCache.Key], user);
     queryClient.setQueryData([AccountsCache.Key], accounts);
