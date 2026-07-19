@@ -46,18 +46,18 @@ type SessionKeysDeps = {
 };
 
 /**
- * Memoizes an async derivation, generation-fenced so a fetch started before
- * {@link clear} cannot populate the cache afterwards — its value belongs to the
- * ended session. A rejection is not cached, so a retry can recover.
+ * Memoizes an async derivation for the life of a session. A derivation started
+ * before a session ends belongs to that ended session: it captures the session
+ * scope's abort signal when it begins, and once that signal is aborted its
+ * result neither populates the cache nor releases the in-flight slot the next
+ * session owns. A rejection is not cached, so a retry can recover.
  */
-function createMemo<T>(fetcher: () => Promise<T>) {
+function createMemo<T>(fetcher: () => Promise<T>, getScope: () => AbortSignal) {
   let cached: { value: T } | undefined;
   let inFlight: Promise<T> | undefined;
-  let generation = 0;
 
   return {
     clear: () => {
-      generation += 1;
       cached = undefined;
       inFlight = undefined;
     },
@@ -66,16 +66,16 @@ function createMemo<T>(fetcher: () => Promise<T>) {
         return Promise.resolve(cached.value);
       }
       if (!inFlight) {
-        const startedGeneration = generation;
+        const scope = getScope();
         inFlight = (async () => {
           try {
             const value = await fetcher();
-            if (generation === startedGeneration) {
+            if (!scope.aborted) {
               cached = { value };
             }
             return value;
           } finally {
-            if (generation === startedGeneration) {
+            if (!scope.aborted) {
               inFlight = undefined;
             }
           }
@@ -97,22 +97,44 @@ const readEncryptionPublicKey = (): Promise<string> =>
   }).then((response) => response.public_key);
 
 export function createSessionKeys(deps: SessionKeysDeps = {}): SessionKeys {
+  // Aborted and replaced on every session end (see reset). A derivation in
+  // flight when the session ends holds the signal it started under; once that
+  // signal is aborted its result belongs to a session that no longer exists
+  // and must not be cached into the next one.
+  let sessionScope = new AbortController();
+  const getScope = () => sessionScope.signal;
+
   const encryptionPrivateKey = createMemo(
     deps.readEncryptionPrivateKey ?? readEncryptionPrivateKey,
+    getScope,
   );
   const encryptionPublicKey = createMemo(
     deps.readEncryptionPublicKey ?? readEncryptionPublicKey,
+    getScope,
   );
-  const cashuSeed = createMemo(deps.readCashuSeed ?? getCashuSeed);
-  const sparkMnemonic = createMemo(deps.readSparkMnemonic ?? getSparkMnemonic);
-  const cashuLockingXpub = createMemo(async () =>
-    deriveCashuXpub(await cashuSeed.get(), BASE_CASHU_LOCKING_DERIVATION_PATH),
+  const cashuSeed = createMemo(deps.readCashuSeed ?? getCashuSeed, getScope);
+  const sparkMnemonic = createMemo(
+    deps.readSparkMnemonic ?? getSparkMnemonic,
+    getScope,
   );
-  const sparkIdentityPublicKey = createMemo(async () =>
-    // FLAG(step-6 plan): master hardcodes MAINNET here (_protected.tsx TODO
-    // "how to handle this network? We specify the network on the account
-    // creation."); ported as-is rather than reading config.spark.network.
-    getSparkIdentityPublicKeyFromMnemonic(await sparkMnemonic.get(), 'mainnet'),
+  const cashuLockingXpub = createMemo(
+    async () =>
+      deriveCashuXpub(
+        await cashuSeed.get(),
+        BASE_CASHU_LOCKING_DERIVATION_PATH,
+      ),
+    getScope,
+  );
+  const sparkIdentityPublicKey = createMemo(
+    async () =>
+      // FLAG(step-6 plan): master hardcodes MAINNET here (_protected.tsx TODO
+      // "how to handle this network? We specify the network on the account
+      // creation."); ported as-is rather than reading config.spark.network.
+      getSparkIdentityPublicKeyFromMnemonic(
+        await sparkMnemonic.get(),
+        'mainnet',
+      ),
+    getScope,
   );
 
   return {
@@ -127,6 +149,8 @@ export function createSessionKeys(deps: SessionKeysDeps = {}): SessionKeys {
     getCashuLockingXpub: cashuLockingXpub.get,
     getSparkIdentityPublicKey: sparkIdentityPublicKey.get,
     reset: () => {
+      sessionScope.abort();
+      sessionScope = new AbortController();
       encryptionPrivateKey.clear();
       encryptionPublicKey.clear();
       cashuSeed.clear();
