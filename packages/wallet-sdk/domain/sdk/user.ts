@@ -13,7 +13,7 @@ export type UserApi = {
    * accounts and persisting the derived public keys on first sign-in) and
    * returns the user with their accounts for the host to seed its caches.
    * Idempotent — performs the upsert on every call with the given params; the
-   * host owns caching and call-frequency (the web gates it behind its own
+   * host owns caching and call-frequency (the host gates it behind its own
    * user-cache short-circuit).
    */
   ensure(
@@ -25,7 +25,7 @@ export type EnsureUserParams = {
   /**
    * ISO 8601 timestamp replayed from the host's pending-terms storage — the
    * time the user accepted wallet terms before the user row existed, not
-   * "now". `acceptTerms` is the in-session boolean verb that stamps the time
+   * "now". `acceptTerms` is the in-session boolean that stamps the time
    * itself.
    */
   termsAcceptedAt?: string;

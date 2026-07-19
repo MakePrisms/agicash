@@ -187,8 +187,8 @@ export class AgicashSdk implements Sdk {
 }
 
 /**
- * The live instance's internal domain accounts repository, for unmigrated web
- * flows (receive/send repo construction, realtime row mapping) that still read
+ * The live instance's internal domain accounts repository, for the host's
+ * unmigrated flows (receive/send repo construction, realtime row mapping) that still read
  * wallet/proofs. Re-exported from '@agicash/wallet-sdk/temporary'; not on the
  * public surface.
  *
@@ -202,12 +202,12 @@ export function getInternalAccountRepository(): Promise<AccountRepository> {
 }
 
 /**
- * The live instance's session keys, for the web-side key queries the unmigrated
+ * The live instance's session keys, for the host's key queries the unmigrated
  * receive/send/claim flows still read (encryption, cashu seed, spark mnemonic).
  * Re-exported from '@agicash/wallet-sdk/temporary'; not on the public surface.
  *
  * @remarks Removed at step 18 when those flows source their keys from the SDK
- * and the web-side key queries die with them.
+ * and the host's key queries die with them.
  */
 export function getInternalSessionKeys(): SessionKeys {
   if (!liveSessionKeys) {

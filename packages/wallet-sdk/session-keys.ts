@@ -127,9 +127,8 @@ export function createSessionKeys(deps: SessionKeysDeps = {}): SessionKeys {
   );
   const sparkIdentityPublicKey = createMemo(
     async () =>
-      // FLAG(step-6 plan): master hardcodes MAINNET here (_protected.tsx TODO
-      // "how to handle this network? We specify the network on the account
-      // creation."); ported as-is rather than reading config.spark.network.
+      // Network is fixed to mainnet here; per-account network selection is
+      // not yet wired to config.spark.network.
       getSparkIdentityPublicKeyFromMnemonic(
         await sparkMnemonic.get(),
         'mainnet',

@@ -62,12 +62,10 @@ const ensureUserData = async (
   }
 
   if (!user || hasUserChanged(user, authUser)) {
-    // ensure() derives the session keys SDK-side; these warms populate the
-    // web-side cache entries the unmigrated receive/send/claim repos still read
-    // from that same single derivation (the query fns delegate to the SDK).
-    // Keeping them here preserves master's fail-in-the-middleware property
-    // instead of deferring derivation failure to first Wallet render. Removed as
-    // those domains migrate into the SDK (steps 8–16).
+    // These warms populate the cache entries that the receive/send/claim
+    // repositories not yet migrated into the SDK still read, all sourced from
+    // the same derivation ensure() runs SDK-side. Removing a warm before its
+    // domain migrates into the SDK breaks that domain's bootstrap.
     const [{ user: upsertedUser, accounts }] = await Promise.all([
       sdk.user.ensure({
         termsAcceptedAt,

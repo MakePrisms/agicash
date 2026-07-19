@@ -99,9 +99,8 @@ export function createUserApi(deps: Deps): UserApi {
       }
       const authUser = session.user;
 
-      // Master derived these through the host's query layer, which retried
-      // transient failures; the memoized getters make each retry re-fetch only
-      // the keys that failed.
+      // The memoized getters re-fetch only on failure, so retrying the batch
+      // re-derives only the keys that failed, not the ones already resolved.
       const [
         encryptionPublicKey,
         cashuLockingXpub,
