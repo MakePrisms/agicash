@@ -21,7 +21,7 @@ export function MerchantsSection() {
           <div className="flex justify-center">
             <SectionLabel href="#merchants">for_merchants</SectionLabel>
           </div>
-          <h2 className="mt-7 font-medium font-mono text-2xl leading-[1.2] tracking-[-0.02em] md:text-3xl">
+          <h2 className="mt-7 font-medium text-2xl leading-[1.2] tracking-[-0.02em] [font-family:var(--mk-font-mono)] md:text-3xl">
             <a href="#merchants">
               Run a store? Issue bitcoin gift cards today.
             </a>
@@ -35,7 +35,7 @@ export function MerchantsSection() {
               href="https://waitlist.agi.cash/merchants"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center font-mono text-[color:var(--mk-text)] text-sm tracking-wide transition-colors duration-200 hover:text-[color:var(--mk-brand)]"
+              className="inline-flex items-center text-[color:var(--mk-text)] text-sm tracking-wide transition-colors duration-200 [font-family:var(--mk-font-mono)] hover:text-[color:var(--mk-brand)]"
             >
               <span
                 aria-hidden="true"
