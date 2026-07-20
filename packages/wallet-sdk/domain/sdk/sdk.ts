@@ -30,22 +30,23 @@ import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
 
-// Makes the one-instance-per-process constraint (see the constructor note)
-// self-enforcing: create() refuses to run while an undisposed instance holds
-// the module-global Open Secret configuration.
-let liveInstance: AgicashSdk | undefined;
+// The current instance: the instance currently constructed and not yet
+// disposed. Makes the one-instance-per-process constraint (see the constructor
+// note) self-enforcing: create() refuses to run while an undisposed instance
+// holds the module-global Open Secret configuration.
+let currentInstance: AgicashSdk | undefined;
 
-// The live instance's internal accounts repository builder, reached only
+// The current instance's internal accounts repository builder, reached only
 // through the '@agicash/wallet-sdk/temporary' bridge (removed at step 18).
-// Module-scoped like liveInstance so the bridge never exposes the domain
+// Module-scoped like currentInstance so the bridge never exposes the domain
 // repository on the public AgicashSdk surface.
-let liveAccountRepository: (() => Promise<AccountRepository>) | undefined;
+let currentAccountRepository: (() => Promise<AccountRepository>) | undefined;
 
-// The live instance's session keys, reached only through the
+// The current instance's session keys, reached only through the
 // '@agicash/wallet-sdk/temporary' bridge (removed at step 18). Module-scoped
-// like liveInstance so the bridge never exposes the key derivations on the
+// like currentInstance so the bridge never exposes the key derivations on the
 // public AgicashSdk surface.
-let liveSessionKeys: SessionKeys | undefined;
+let currentSessionKeys: SessionKeys | undefined;
 
 /**
  * Runtime implementation of the SDK contract. Namespaces land slice by slice —
@@ -151,19 +152,19 @@ export class AgicashSdk implements Sdk {
     });
     this.accounts = accounts.api;
     this.events = events;
-    liveAccountRepository = accounts.getRepository;
-    liveSessionKeys = keys;
+    currentAccountRepository = accounts.getRepository;
+    currentSessionKeys = keys;
   }
 
   /** Sync; no I/O. Throws when an undisposed instance already exists (see the constructor note). */
   static create(config: SdkConfig): AgicashSdk {
-    if (liveInstance) {
+    if (currentInstance) {
       throw new Error(
         'An AgicashSdk instance already exists in this process. @agicash/opensecret holds module-global auth state, so dispose() the previous instance before creating another.',
       );
     }
-    liveInstance = new AgicashSdk(config);
-    return liveInstance;
+    currentInstance = new AgicashSdk(config);
+    return currentInstance;
   }
 
   /**
@@ -178,16 +179,16 @@ export class AgicashSdk implements Sdk {
 
   async dispose(): Promise<void> {
     this.authService.teardown();
-    if (liveInstance === this) {
-      liveInstance = undefined;
-      liveAccountRepository = undefined;
-      liveSessionKeys = undefined;
+    if (currentInstance === this) {
+      currentInstance = undefined;
+      currentAccountRepository = undefined;
+      currentSessionKeys = undefined;
     }
   }
 }
 
 /**
- * The live instance's internal domain accounts repository, for the host's
+ * The current instance's internal domain accounts repository, for the host's
  * unmigrated flows (receive/send repo construction, realtime row mapping) that still read
  * wallet/proofs. Re-exported from '@agicash/wallet-sdk/temporary'; not on the
  * public surface.
@@ -195,14 +196,14 @@ export class AgicashSdk implements Sdk {
  * @remarks Removed at step 18 when those flows read wallet/proofs from the SDK.
  */
 export function getInternalAccountRepository(): Promise<AccountRepository> {
-  if (!liveAccountRepository) {
-    throw new Error('No live AgicashSdk instance');
+  if (!currentAccountRepository) {
+    throw new Error('No current AgicashSdk instance');
   }
-  return liveAccountRepository();
+  return currentAccountRepository();
 }
 
 /**
- * The live instance's session keys, for the host's key queries the unmigrated
+ * The current instance's session keys, for the host's key queries the unmigrated
  * receive/send/claim flows still read (encryption, cashu seed, spark mnemonic).
  * Re-exported from '@agicash/wallet-sdk/temporary'; not on the public surface.
  *
@@ -210,8 +211,8 @@ export function getInternalAccountRepository(): Promise<AccountRepository> {
  * and the host's key queries die with them.
  */
 export function getInternalSessionKeys(): SessionKeys {
-  if (!liveSessionKeys) {
-    throw new Error('No live AgicashSdk instance');
+  if (!currentSessionKeys) {
+    throw new Error('No current AgicashSdk instance');
   }
-  return liveSessionKeys;
+  return currentSessionKeys;
 }

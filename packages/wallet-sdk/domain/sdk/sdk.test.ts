@@ -51,11 +51,11 @@ describe('AgicashSdk.create', () => {
 describe('getInternalAccountRepository', () => {
   it('throws when no instance is live', () => {
     expect(() => getInternalAccountRepository()).toThrow(
-      'No live AgicashSdk instance',
+      'No current AgicashSdk instance',
     );
   });
 
-  it('resolves through the live instance and clears on dispose', async () => {
+  it('resolves through the current instance and clears on dispose', async () => {
     const sdk = AgicashSdk.create(createConfig());
 
     // While live the guard passes and the accessor returns the repository
@@ -71,7 +71,7 @@ describe('getInternalAccountRepository', () => {
     await sdk.dispose();
 
     expect(() => getInternalAccountRepository()).toThrow(
-      'No live AgicashSdk instance',
+      'No current AgicashSdk instance',
     );
   });
 });
@@ -79,11 +79,11 @@ describe('getInternalAccountRepository', () => {
 describe('getInternalSessionKeys', () => {
   it('throws when no instance is live', () => {
     expect(() => getInternalSessionKeys()).toThrow(
-      'No live AgicashSdk instance',
+      'No current AgicashSdk instance',
     );
   });
 
-  it('returns the live instance session keys and clears them on dispose', async () => {
+  it('returns the current instance session keys and clears them on dispose', async () => {
     const sdk = AgicashSdk.create(createConfig());
 
     const keys = getInternalSessionKeys();
@@ -95,7 +95,7 @@ describe('getInternalSessionKeys', () => {
     await sdk.dispose();
 
     expect(() => getInternalSessionKeys()).toThrow(
-      'No live AgicashSdk instance',
+      'No current AgicashSdk instance',
     );
   });
 });
