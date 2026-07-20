@@ -19,11 +19,11 @@ import { createSupabaseSessionTokenGetter } from '../../db/supabase-session';
 import { clearAgicashMintAuthToken } from '../../lib/agicash-mint-auth-provider';
 import { NotImplementedError } from '../../lib/error';
 import { generateRandomPassword } from '../../lib/password';
+import { type SessionKeys, createSessionKeys } from '../../lib/session-keys';
 import {
   type SparkWalletConfig,
   clearSparkWallets,
 } from '../../lib/spark/wallet';
-import { type SessionKeys, createSessionKeys } from '../../session-keys';
 import type { AccountRepository } from '../accounts/account-repository';
 import { createAccountsApi } from '../accounts/accounts-api';
 import { AuthService } from '../user/auth-service';

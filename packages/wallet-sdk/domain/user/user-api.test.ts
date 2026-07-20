@@ -3,7 +3,7 @@ import type { Currency } from '@agicash/money';
 import { core, z } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import type { Encryption } from '../../lib/encryption';
-import type { SessionKeys } from '../../session-keys';
+import type { SessionKeys } from '../../lib/session-keys';
 import {
   type Account,
   type CashuAccount as DomainCashuAccount,

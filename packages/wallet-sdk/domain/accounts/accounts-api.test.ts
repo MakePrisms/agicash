@@ -2,8 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { Money } from '@agicash/money';
 import type { AgicashDb } from '../../db/database';
 import { NoSessionError } from '../../lib/error';
+import { createSessionKeys } from '../../lib/session-keys';
 import type { SparkWalletConfig } from '../../lib/spark/wallet';
-import { createSessionKeys } from '../../session-keys';
 import type { AddCashuAccountParams, AuthSession, AuthUser } from '../sdk';
 import {
   type Account as DomainAccount,
