@@ -77,6 +77,12 @@ The fat cache must carry live spark `wallet` handles during migration (unmigrate
 
 Migration-time acceptance instead = **master WASM-posture parity, byte-for-byte**: the web's `ensureBreezWasm` guards stay exactly where master has them (entry + `_protected` middleware before any accounts fetch), and `list()`/`get()`/`toAccount` preserve master's behavior under WASM-unavailable — including the offline/stub wallet path (`domain` spark accounts carry a throwing stub when not online). Build-time verify: what master's protected surface actually does under iOS Lockdown (stub-and-degrade vs throw) — `list()` must match it exactly, whatever it is. A3's login-page concern is untouched: auth surfaces fetch no accounts.
 
+### B8 — Cache layering (maintainer-endorsed)
+
+The web caches what the user sees; the SDK holds what the session owns. Domain objects (accounts, user, transactions) live in the web query cache because their consumers are UX. Session plumbing (key derivations, wallet handles, connections) lives in SDK-internal memos because its lifetime is the session's. Test for placement: does a component render it, or does the session own it?
+
+Renames (2026-07-20, per #1167 review): `sdk.user.ensure` → `sdk.user.provision`, `session-keys.ts` → `lib/session-keys.ts`, `live*` instance accessors → `current*`. Reading rule: mentions of `ensure`/`ensureUserData`/`EnsureUserParams` elsewhere in this document are the historical spelling at decision time, kept as the rationale trail; the shipped API is `sdk.user.provision(params: ProvisionUserParams)`.
+
 ## Accepted behavior deltas (candidates — settle with the remaining rulings)
 
 1. **Reality-class record — `sdk.accounts.*` is TYPE-honest / RUNTIME-fat until step 18** (B1 ruling: "the strip is type-level until step 18"). Public types understate the runtime objects during migration — intended, not incidental. Holds under three conditions, all tracked: (i) **web-internal consumers only** — no external/untrusted host consumes `sdk.accounts.*` before the physical strip, so the fat is reachable only by code already holding the proofs (to confirm with the maintainer alongside the open B points); (ii) time-boxed to step 18, where the strip becomes physical and this record closes; (iii) nobody claims runtime projection-honesty for accounts returns meanwhile. Contained by the mapper choke point, the checked-cast unwrap, and the hidden-fields grep.

@@ -62,10 +62,11 @@ const ensureUserData = async (
   }
 
   if (!user || hasUserChanged(user, authUser)) {
-    // These warms populate the cache entries that the receive/send/claim
-    // repositories not yet migrated into the SDK still read, all sourced from
-    // the same derivation ensure() runs SDK-side. Removing a warm before its
-    // domain migrates into the SDK breaks that domain's bootstrap.
+    // TEMPORARY: these prefetches populate cache entries that receive/send/claim
+    // repositories not yet migrated into the SDK still read (encryption, seed,
+    // spark mnemonic). Each prefetched entry exists only for its unmigrated
+    // feature and is deleted when that feature migrates into the SDK — all gone
+    // by step 18.
     const [{ user: upsertedUser, accounts }] = await Promise.all([
       sdk.user.provision({
         termsAcceptedAt,
