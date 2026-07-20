@@ -93,7 +93,7 @@ const createDbFake = (
   return { from } as unknown as AgicashDb;
 };
 
-/** Fake covering the single `upsert_user_with_accounts` RPC ensure issues. */
+/** Fake covering the single `upsert_user_with_accounts` RPC provision issues. */
 const createUpsertDbFake = (
   outcomes: Array<{ reject: unknown } | { ok: true }>,
   accountRows: Record<string, unknown>[] = [],
@@ -149,7 +149,7 @@ describe('createUserApi', () => {
     });
   });
 
-  describe('ensure', () => {
+  describe('provision', () => {
     it('upserts with the derived keys and terms, returning the user and accounts', async () => {
       const { db, calls } = createUpsertDbFake([{ ok: true }]);
       const api = createUserApi({
@@ -159,7 +159,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      const result = await api.ensure({
+      const result = await api.provision({
         termsAcceptedAt: '2026-01-02T00:00:00Z',
       });
 
@@ -207,7 +207,7 @@ describe('createUserApi', () => {
           }) as unknown as AccountRepository,
       });
 
-      const result = await api.ensure({});
+      const result = await api.provision({});
 
       expect(calls).toHaveLength(1);
       expect(toAccountCalls).toEqual([row]);
@@ -243,8 +243,8 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      const first = await api.ensure({});
-      const second = await api.ensure({});
+      const first = await api.provision({});
+      const second = await api.provision({});
 
       expect(calls).toHaveLength(2);
       expect(first.user.username).toBe('name');
@@ -260,8 +260,8 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      await api.ensure({ termsAcceptedAt: 't1' });
-      await api.ensure({
+      await api.provision({ termsAcceptedAt: 't1' });
+      await api.provision({
         termsAcceptedAt: 't2',
         giftCardMintTermsAcceptedAt: 'g2',
       });
@@ -291,7 +291,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      const result = await api.ensure({});
+      const result = await api.provision({});
 
       expect(attempts).toBe(2);
       expect(calls).toHaveLength(1);
@@ -311,7 +311,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      const result = await api.ensure({});
+      const result = await api.provision({});
 
       expect(calls).toHaveLength(2);
       expect(result.user.id).toBe('user-a');
@@ -328,7 +328,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      await expect(api.ensure({})).rejects.toBe(zodError);
+      await expect(api.provision({})).rejects.toBe(zodError);
       expect(calls).toHaveLength(1);
     });
 
@@ -341,7 +341,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      await expect(api.ensure({})).rejects.toThrow();
+      await expect(api.provision({})).rejects.toThrow();
     });
   });
 });

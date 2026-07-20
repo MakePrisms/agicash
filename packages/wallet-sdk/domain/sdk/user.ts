@@ -9,19 +9,17 @@ export type UserApi = {
   setDefaultAccount(params: SetDefaultAccountParams): Promise<User>;
   setDefaultCurrency(params: SetDefaultCurrencyParams): Promise<User>;
   /**
-   * Bootstraps the signed-in user: upserts the user row (creating default
-   * accounts and persisting the derived public keys on first sign-in) and
-   * returns the user with their accounts for the host to seed its caches.
-   * Idempotent — performs the upsert on every call with the given params; the
-   * host owns caching and call-frequency (the host gates it behind its own
-   * user-cache short-circuit).
+   * Provisions the signed-in user. Idempotent — creates the user row and
+   * default accounts on first sign-in, applies updates when the auth data or
+   * terms params changed, and no-ops otherwise. Returns the user with their
+   * accounts for the host to seed its caches.
    */
-  ensure(
-    params: EnsureUserParams,
+  provision(
+    params: ProvisionUserParams,
   ): Promise<{ user: User; accounts: Account[] }>;
 };
 
-export type EnsureUserParams = {
+export type ProvisionUserParams = {
   /**
    * ISO 8601 timestamp replayed from the host's pending-terms storage — the
    * time the user accepted wallet terms before the user row existed, not

@@ -67,7 +67,7 @@ const ensureUserData = async (
     // the same derivation ensure() runs SDK-side. Removing a warm before its
     // domain migrates into the SDK breaks that domain's bootstrap.
     const [{ user: upsertedUser, accounts }] = await Promise.all([
-      sdk.user.ensure({
+      sdk.user.provision({
         termsAcceptedAt,
         giftCardMintTermsAcceptedAt,
       }),

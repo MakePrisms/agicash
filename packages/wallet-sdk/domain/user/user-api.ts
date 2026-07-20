@@ -92,7 +92,7 @@ export function createUserApi(deps: Deps): UserApi {
       userService.setDefaultAccount(requireUserId(), params.account, {
         setDefaultCurrency: params.setDefaultCurrency,
       }),
-    ensure: async (params) => {
+    provision: async (params) => {
       const session = deps.getSession();
       if (!session.isLoggedIn) {
         throw new NoSessionError();
