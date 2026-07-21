@@ -1,12 +1,15 @@
 import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
 import { hexToBytes } from '@noble/hashes/utils';
-import { BASE_CASHU_LOCKING_DERIVATION_PATH, getCashuSeed } from './cashu';
-import { deriveCashuXpub } from './cryptography';
-import { type Encryption, getEncryption } from './encryption';
+import {
+  BASE_CASHU_LOCKING_DERIVATION_PATH,
+  getCashuSeed,
+} from '../../lib/cashu';
+import { deriveCashuXpub } from '../../lib/cryptography';
+import { type Encryption, getEncryption } from '../../lib/encryption';
 import {
   getSparkIdentityPublicKeyFromMnemonic,
   getSparkMnemonic,
-} from './spark/wallet';
+} from '../../lib/spark/wallet';
 
 // 10111099 is 'enc' (for encryption) in ascii
 const encryptionKeyDerivationPath = `m/10111099'/0'`;

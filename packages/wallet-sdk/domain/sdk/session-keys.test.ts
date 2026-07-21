@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { BASE_CASHU_LOCKING_DERIVATION_PATH } from './cashu';
-import { deriveCashuXpub } from './cryptography';
+import { BASE_CASHU_LOCKING_DERIVATION_PATH } from '../../lib/cashu';
+import { deriveCashuXpub } from '../../lib/cryptography';
 import { createSessionKeys } from './session-keys';
 
 const seedA = new Uint8Array(64).fill(1);

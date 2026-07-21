@@ -3,7 +3,6 @@ import type { Currency } from '@agicash/money';
 import { core, z } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import type { Encryption } from '../../lib/encryption';
-import type { SessionKeys } from '../../lib/session-keys';
 import {
   type Account,
   type CashuAccount as DomainCashuAccount,
@@ -11,6 +10,7 @@ import {
 } from '../accounts/account';
 import type { AccountRepository } from '../accounts/account-repository';
 import type { AuthUser } from '../sdk';
+import type { SessionKeys } from '../sdk/session-keys';
 import { createUserApi } from './user-api';
 
 const authUser = (id: string): AuthUser =>

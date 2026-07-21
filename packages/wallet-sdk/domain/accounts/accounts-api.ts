@@ -1,8 +1,8 @@
 import type { AgicashDb } from '../../db/database';
 import { NoSessionError } from '../../lib/error';
-import type { SessionKeys } from '../../lib/session-keys';
 import type { SparkWalletConfig } from '../../lib/spark/wallet';
 import type { AccountsApi, AuthSession, CashuAccount } from '../sdk';
+import type { SessionKeys } from '../sdk/session-keys';
 import { AccountRepository } from './account-repository';
 import { AccountService } from './account-service';
 

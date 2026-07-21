@@ -19,7 +19,6 @@ import { createSupabaseSessionTokenGetter } from '../../db/supabase-session';
 import { clearAgicashMintAuthToken } from '../../lib/agicash-mint-auth-provider';
 import { NotImplementedError } from '../../lib/error';
 import { generateRandomPassword } from '../../lib/password';
-import { type SessionKeys, createSessionKeys } from '../../lib/session-keys';
 import {
   type SparkWalletConfig,
   clearSparkWallets,
@@ -29,6 +28,7 @@ import { createAccountsApi } from '../accounts/accounts-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
+import { type SessionKeys, createSessionKeys } from './session-keys';
 
 // The current instance: the instance currently constructed and not yet
 // disposed. Makes the one-instance-per-process constraint (see the constructor

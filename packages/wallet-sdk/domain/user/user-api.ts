@@ -2,9 +2,9 @@ import { withRetry } from '@agicash/utils';
 import { core } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import { NoSessionError } from '../../lib/error';
-import type { SessionKeys } from '../../lib/session-keys';
 import type { AccountRepository } from '../accounts/account-repository';
 import type { AuthSession, UserApi } from '../sdk';
+import type { SessionKeys } from '../sdk/session-keys';
 import {
   ReadUserRepository,
   UpdateUserRepository,
