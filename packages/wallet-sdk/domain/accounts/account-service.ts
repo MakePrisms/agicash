@@ -5,7 +5,6 @@ import {
 } from '@agicash/cashu';
 import { Mint } from '@cashu/cashu-ts';
 import type { DistributedOmit } from 'type-fest';
-import { SessionEndedError } from '../../lib/error';
 import type { CashuAccount } from './account';
 import type { AccountRepository } from './account-repository';
 
@@ -43,12 +42,6 @@ export class AccountService {
       if (activeKeyset) {
         expiresAt = getKeysetExpiry(activeKeyset)?.toISOString() ?? null;
       }
-    }
-
-    // The offer-path mint fetch above isn't cancellable; if the session ended
-    // during it, don't issue the create for a session that no longer owns it.
-    if (options?.abortSignal?.aborted) {
-      throw new SessionEndedError();
     }
 
     return this.accountRepository.create<CashuAccount>(
