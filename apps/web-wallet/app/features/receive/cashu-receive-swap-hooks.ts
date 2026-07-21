@@ -13,6 +13,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { useAccountRepository } from '~/features/accounts/account-repository-hooks';
 import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
@@ -20,7 +21,6 @@ import {
 import { agicashDbClient } from '../agicash-db/database.client';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useUser } from '../user/user-hooks';
-import { useAccountRepository } from './account-repository-hooks';
 
 type CreateProps = {
   token: Token;

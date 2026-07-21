@@ -23,7 +23,6 @@ import {
   type SparkWalletConfig,
   clearSparkWallets,
 } from '../../lib/spark/wallet';
-import type { AccountRepository } from '../accounts/account-repository';
 import { createAccountsApi } from '../accounts/accounts-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
@@ -35,12 +34,6 @@ import { type SessionKeys, createSessionKeys } from './session-keys';
 // note) self-enforcing: create() refuses to run while an undisposed instance
 // holds the module-global Open Secret configuration.
 let currentInstance: AgicashSdk | undefined;
-
-// The current instance's internal accounts repository builder, reached only
-// through the '@agicash/wallet-sdk/temporary' bridge (removed at step 18).
-// Module-scoped like currentInstance so the bridge never exposes the domain
-// repository on the public AgicashSdk surface.
-let currentAccountRepository: (() => Promise<AccountRepository>) | undefined;
 
 // The current instance's session keys, reached only through the
 // '@agicash/wallet-sdk/temporary' bridge (removed at step 18). Module-scoped
@@ -152,7 +145,6 @@ export class AgicashSdk implements Sdk {
     });
     this.accounts = accounts.api;
     this.events = events;
-    currentAccountRepository = accounts.getRepository;
     currentSessionKeys = keys;
   }
 
@@ -181,25 +173,9 @@ export class AgicashSdk implements Sdk {
     this.authService.teardown();
     if (currentInstance === this) {
       currentInstance = undefined;
-      currentAccountRepository = undefined;
       currentSessionKeys = undefined;
     }
   }
-}
-
-/**
- * The current instance's internal domain accounts repository, for the host's
- * unmigrated flows (receive/send repo construction, realtime row mapping) that still read
- * wallet/proofs. Re-exported from '@agicash/wallet-sdk/temporary'; not on the
- * public surface.
- *
- * @remarks Removed at step 18 when those flows read wallet/proofs from the SDK.
- */
-export function getInternalAccountRepository(): Promise<AccountRepository> {
-  if (!currentAccountRepository) {
-    throw new Error('No current AgicashSdk instance');
-  }
-  return currentAccountRepository();
 }
 
 /**

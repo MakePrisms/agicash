@@ -104,15 +104,10 @@ export {
 export { CashuProofSchema, toProof } from './domain/accounts/cashu-account';
 export { AccountRepository } from './domain/accounts/account-repository';
 export { AccountService } from './domain/accounts/account-service';
-// Accounts-slice bridge (step 6): the internal-repo accessor hands unmigrated
-// receive/send flows and realtime row mapping the current instance's domain
-// accounts repository, and the session-keys accessor feeds the host's key
-// queries the unmigrated flows still read. Removed at step 18 when those flows
-// read from the SDK.
-export {
-  getInternalAccountRepository,
-  getInternalSessionKeys,
-} from './domain/sdk/sdk';
+// Accounts-slice bridge (step 6): the session-keys accessor feeds the host's
+// key queries the unmigrated flows still read. Removed at step 18 when those
+// flows source their keys from the SDK.
+export { getInternalSessionKeys } from './domain/sdk/sdk';
 export {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,

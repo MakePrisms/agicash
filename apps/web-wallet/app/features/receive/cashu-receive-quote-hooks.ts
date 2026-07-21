@@ -38,6 +38,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAccountRepository } from '~/features/accounts/account-repository-hooks';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { MintQuoteSubscriptionManager } from '~/lib/cashu/mint-quote-subscription-manager';
 import { useLatest } from '~/lib/use-latest';
@@ -51,7 +52,6 @@ import { useCashuCryptography } from '../shared/cashu-hooks';
 import { useEncryption } from '../shared/encryption-hooks';
 import { useTransactionsCache } from '../transactions/transaction-hooks';
 import { useUser } from '../user/user-hooks';
-import { useAccountRepository } from './account-repository-hooks';
 
 type CreateProps = {
   account: CashuAccount;

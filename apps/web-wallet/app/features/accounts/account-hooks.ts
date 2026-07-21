@@ -13,7 +13,6 @@ import {
 import type { AgicashDbAccountWithProofs } from '@agicash/wallet-sdk/temporary';
 import {
   getAccountBalance,
-  getInternalAccountRepository,
   sparkDebugLog,
 } from '@agicash/wallet-sdk/temporary';
 import {
@@ -27,6 +26,7 @@ import {
 import { useCallback, useMemo, useRef } from 'react';
 import { sdk } from '~/features/shared/sdk.client';
 import { useUser } from '../user/user-hooks';
+import { useAccountRepository } from './account-repository-hooks';
 
 export class AccountsCache {
   public static Key = 'accounts';
@@ -116,12 +116,12 @@ export function useAccountsCache() {
  */
 export function useAccountChangeHandlers() {
   const accountCache = useAccountsCache();
+  const accountRepository = useAccountRepository();
 
   return [
     {
       event: 'ACCOUNT_CREATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const accountRepository = await getInternalAccountRepository();
         const addedAccount = await accountRepository.toAccount(payload);
         accountCache.upsert(addedAccount);
       },
@@ -129,7 +129,6 @@ export function useAccountChangeHandlers() {
     {
       event: 'ACCOUNT_UPDATED',
       handleEvent: async (payload: AgicashDbAccountWithProofs) => {
-        const accountRepository = await getInternalAccountRepository();
         const updatedAccount = await accountRepository.toAccount(payload);
         accountCache.upsert(updatedAccount);
       },
