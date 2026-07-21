@@ -19,29 +19,33 @@ import { createSupabaseSessionTokenGetter } from '../../db/supabase-session';
 import { clearAgicashMintAuthToken } from '../../lib/agicash-mint-auth-provider';
 import { NotImplementedError } from '../../lib/error';
 import { generateRandomPassword } from '../../lib/password';
-import { clearSparkWallets } from '../../lib/spark/wallet';
+import {
+  type SparkWalletConfig,
+  clearSparkWallets,
+} from '../../lib/spark/wallet';
+import { createAccountsApi } from '../accounts/accounts-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
+import { createSessionKeys } from './session-keys';
 
-// Makes the one-instance-per-process constraint (see the constructor note)
-// self-enforcing: create() refuses to run while an undisposed instance holds
-// the module-global Open Secret configuration.
-let liveInstance: AgicashSdk | undefined;
+// The current instance: the instance currently constructed and not yet
+// disposed. Makes the one-instance-per-process constraint (see the constructor
+// note) self-enforcing: create() refuses to run while an undisposed instance
+// holds the module-global Open Secret configuration.
+let currentInstance: AgicashSdk | undefined;
 
 /**
  * Runtime implementation of the SDK contract. Namespaces land slice by slice —
- * auth, user, and events so far; accessing a namespace whose migration slice
- * hasn't landed throws `NotImplementedError`.
+ * auth, user, accounts, and events so far; accessing a namespace whose migration
+ * slice hasn't landed throws `NotImplementedError`.
  */
 export class AgicashSdk implements Sdk {
   readonly auth: AuthApi;
   readonly user: UserApi;
+  readonly accounts: AccountsApi;
   readonly events: WalletEvents;
 
-  get accounts(): AccountsApi {
-    throw new NotImplementedError('accounts');
-  }
   get contacts(): ContactsApi {
     throw new NotImplementedError('contacts');
   }
@@ -79,6 +83,8 @@ export class AgicashSdk implements Sdk {
 
     const events = new WalletEventEmitter(config.logger);
 
+    const keys = createSessionKeys();
+
     // Created before authService — the isLoggedIn closure dereferences it
     // lazily at request time, after the constructor has assigned it.
     const sessionToken = createSupabaseSessionTokenGetter({
@@ -102,6 +108,7 @@ export class AgicashSdk implements Sdk {
         sessionToken.reset();
         clearSparkWallets();
         clearAgicashMintAuthToken();
+        keys.reset();
       },
       logger: config.logger,
     });
@@ -112,23 +119,37 @@ export class AgicashSdk implements Sdk {
       accessToken: sessionToken.getToken,
     });
 
+    const sparkConfig: SparkWalletConfig = {
+      storageDir: config.spark.storageDir ?? './.spark-data',
+      apiKey: config.spark.breezApiKey,
+    };
+    const accounts = createAccountsApi({
+      db,
+      getSession: () => this.authService.getSession(),
+      keys,
+      sparkConfig,
+    });
+
     this.auth = this.authService;
     this.user = createUserApi({
       db,
       getSession: () => this.authService.getSession(),
+      keys,
+      getAccountRepository: accounts.getRepository,
     });
+    this.accounts = accounts.api;
     this.events = events;
   }
 
   /** Sync; no I/O. Throws when an undisposed instance already exists (see the constructor note). */
   static create(config: SdkConfig): AgicashSdk {
-    if (liveInstance) {
+    if (currentInstance) {
       throw new Error(
         'An AgicashSdk instance already exists in this process. @agicash/opensecret holds module-global auth state, so dispose() the previous instance before creating another.',
       );
     }
-    liveInstance = new AgicashSdk(config);
-    return liveInstance;
+    currentInstance = new AgicashSdk(config);
+    return currentInstance;
   }
 
   /**
@@ -143,8 +164,8 @@ export class AgicashSdk implements Sdk {
 
   async dispose(): Promise<void> {
     this.authService.teardown();
-    if (liveInstance === this) {
-      liveInstance = undefined;
+    if (currentInstance === this) {
+      currentInstance = undefined;
     }
   }
 }

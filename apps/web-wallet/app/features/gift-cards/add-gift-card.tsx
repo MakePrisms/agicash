@@ -39,7 +39,6 @@ function useAddGiftCard() {
       name,
       currency,
       mintUrl: url,
-      type: 'cashu',
       purpose: 'gift-card',
     });
 }
