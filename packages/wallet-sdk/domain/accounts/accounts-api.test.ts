@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { Money } from '@agicash/money';
 import type { AgicashDb } from '../../db/database';
-import { NoSessionError } from '../../lib/error';
+import { NoSessionError, SessionEndedError } from '../../lib/error';
 import type { SparkWalletConfig } from '../../lib/spark/wallet';
 import type { AddCashuAccountParams, AuthSession, AuthUser } from '../sdk';
 import { createSessionKeys } from '../sdk/session-keys';
@@ -125,6 +125,39 @@ describe('createAccountsApi', () => {
         }),
       ).rejects.toBeInstanceOf(NoSessionError);
     });
+
+    it('rejects with SessionEndedError and creates nothing when the session ends before the write', async () => {
+      const keys = createSessionKeys();
+      let createCalls = 0;
+      const { api } = createAccountsApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        sparkConfig: {
+          storageDir: '.',
+          apiKey: 'k',
+        } satisfies SparkWalletConfig,
+        getSession: () => loggedIn('user-x'),
+        createRepository: async () => {
+          keys.reset();
+          return {
+            create: (async () => {
+              createCalls += 1;
+              return cashuDomain();
+            }) as unknown as AccountRepository['create'],
+          } as unknown as AccountRepository;
+        },
+      });
+
+      await expect(
+        api.cashu.add({
+          name: 'My mint',
+          mintUrl: 'https://testnut.cashu.space',
+          currency: 'BTC',
+          purpose: 'transactional',
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+      expect(createCalls).toBe(0);
+    });
   });
 
   describe('list', () => {
@@ -153,6 +186,56 @@ describe('createAccountsApi', () => {
     it('throws NoSessionError without a session', async () => {
       const { api } = makeApi({ session: { isLoggedIn: false } });
       await expect(api.list()).rejects.toBeInstanceOf(NoSessionError);
+    });
+
+    it('rejects with SessionEndedError and issues no read when the session ends before the read', async () => {
+      const keys = createSessionKeys();
+      let getAllActiveCalls = 0;
+      const { api } = createAccountsApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        sparkConfig: {
+          storageDir: '.',
+          apiKey: 'k',
+        } satisfies SparkWalletConfig,
+        getSession: () => loggedIn('user-x'),
+        createRepository: async () => {
+          // The session ends between the signal capture and the read.
+          keys.reset();
+          return {
+            getAllActive: (async () => {
+              getAllActiveCalls += 1;
+              return [];
+            }) as unknown as AccountRepository['getAllActive'],
+          } as unknown as AccountRepository;
+        },
+      });
+
+      await expect(api.list()).rejects.toBeInstanceOf(SessionEndedError);
+      expect(getAllActiveCalls).toBe(0);
+    });
+
+    it('rejects with SessionEndedError when the session ends while the read hydrates', async () => {
+      const keys = createSessionKeys();
+      const { api } = createAccountsApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        sparkConfig: {
+          storageDir: '.',
+          apiKey: 'k',
+        } satisfies SparkWalletConfig,
+        getSession: () => loggedIn('user-x'),
+        createRepository: async () =>
+          ({
+            getAllActive: (async () => {
+              // The session ends while the repository hydrates the rows.
+              keys.reset();
+              return [] as DomainAccount[];
+            }) as unknown as AccountRepository['getAllActive'],
+          }) as unknown as AccountRepository,
+      });
+
+      await expect(api.list()).rejects.toBeInstanceOf(SessionEndedError);
     });
   });
 
