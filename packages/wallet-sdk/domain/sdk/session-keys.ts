@@ -1,18 +1,18 @@
-import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
-import { hexToBytes } from '@noble/hashes/utils';
 import {
   BASE_CASHU_LOCKING_DERIVATION_PATH,
   getCashuSeed,
 } from '../../lib/cashu';
 import { deriveCashuXpub } from '../../lib/cryptography';
-import { type Encryption, getEncryption } from '../../lib/encryption';
+import {
+  type Encryption,
+  getEncryption,
+  readEncryptionPrivateKey,
+  readEncryptionPublicKey,
+} from '../../lib/encryption';
 import {
   getSparkIdentityPublicKeyFromMnemonic,
   getSparkMnemonic,
 } from '../../lib/spark/wallet';
-
-// 10111099 is 'enc' (for encryption) in ascii
-const encryptionKeyDerivationPath = `m/10111099'/0'`;
 
 /**
  * The per-session key material the accounts and user namespaces derive from
@@ -88,16 +88,6 @@ function createMemo<T>(fetcher: () => Promise<T>, getScope: () => AbortSignal) {
     },
   };
 }
-
-const readEncryptionPrivateKey = (): Promise<Uint8Array> =>
-  getPrivateKeyBytes({
-    private_key_derivation_path: encryptionKeyDerivationPath,
-  }).then((response) => hexToBytes(response.private_key));
-
-const readEncryptionPublicKey = (): Promise<string> =>
-  getPublicKey('schnorr', {
-    private_key_derivation_path: encryptionKeyDerivationPath,
-  }).then((response) => response.public_key);
 
 export function createSessionKeys(deps: SessionKeysDeps = {}): SessionKeys {
   // Aborted and replaced on every session end (see reset). A derivation in

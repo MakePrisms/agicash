@@ -27,19 +27,13 @@ import { createAccountsApi } from '../accounts/accounts-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
-import { type SessionKeys, createSessionKeys } from './session-keys';
+import { createSessionKeys } from './session-keys';
 
 // The current instance: the instance currently constructed and not yet
 // disposed. Makes the one-instance-per-process constraint (see the constructor
 // note) self-enforcing: create() refuses to run while an undisposed instance
 // holds the module-global Open Secret configuration.
 let currentInstance: AgicashSdk | undefined;
-
-// The current instance's session keys, reached only through the
-// '@agicash/wallet-sdk/temporary' bridge (removed at step 18). Module-scoped
-// like currentInstance so the bridge never exposes the key derivations on the
-// public AgicashSdk surface.
-let currentSessionKeys: SessionKeys | undefined;
 
 /**
  * Runtime implementation of the SDK contract. Namespaces land slice by slice —
@@ -145,7 +139,6 @@ export class AgicashSdk implements Sdk {
     });
     this.accounts = accounts.api;
     this.events = events;
-    currentSessionKeys = keys;
   }
 
   /** Sync; no I/O. Throws when an undisposed instance already exists (see the constructor note). */
@@ -173,22 +166,6 @@ export class AgicashSdk implements Sdk {
     this.authService.teardown();
     if (currentInstance === this) {
       currentInstance = undefined;
-      currentSessionKeys = undefined;
     }
   }
-}
-
-/**
- * The current instance's session keys, for the host's key queries the unmigrated
- * receive/send/claim flows still read (encryption, cashu seed, spark mnemonic).
- * Re-exported from '@agicash/wallet-sdk/temporary'; not on the public surface.
- *
- * @remarks Removed at step 18 when those flows source their keys from the SDK
- * and the host's key queries die with them.
- */
-export function getInternalSessionKeys(): SessionKeys {
-  if (!currentSessionKeys) {
-    throw new Error('No current AgicashSdk instance');
-  }
-  return currentSessionKeys;
 }

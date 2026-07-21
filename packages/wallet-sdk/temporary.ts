@@ -42,6 +42,8 @@ export {
   encryptBatchToPublicKey,
   encryptToPublicKey,
   getEncryption,
+  readEncryptionPrivateKey,
+  readEncryptionPublicKey,
 } from './lib/encryption';
 export * from './lib/spark';
 export {
@@ -104,10 +106,6 @@ export {
 export { CashuProofSchema, toProof } from './domain/accounts/cashu-account';
 export { AccountRepository } from './domain/accounts/account-repository';
 export { AccountService } from './domain/accounts/account-service';
-// Accounts-slice bridge (step 6): the session-keys accessor feeds the host's
-// key queries the unmigrated flows still read. Removed at step 18 when those
-// flows source their keys from the SDK.
-export { getInternalSessionKeys } from './domain/sdk/sdk';
 export {
   ReadUserDefaultAccountRepository,
   ReadUserRepository,

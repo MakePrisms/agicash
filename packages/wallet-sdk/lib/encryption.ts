@@ -5,6 +5,7 @@ import {
   eciesEncryptBatch,
 } from '@agicash/ecies';
 import { Money } from '@agicash/money';
+import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
 import { hexToBytes } from '@noble/hashes/utils';
 import { decode, encode } from '@stablelib/base64';
 
@@ -203,3 +204,25 @@ export const getEncryption = (
     ) => decryptBatchWithPrivateKey<T>(data, privateKey),
   };
 };
+
+// 10111099 is 'enc' (for encryption) in ascii
+const encryptionKeyDerivationPath = `m/10111099'/0'`;
+
+/**
+ * Derives the session's encryption private key from Open Secret.
+ * Network leaf: the caller memoizes (the SDK's session keys, or the web's
+ * TanStack cache).
+ */
+export const readEncryptionPrivateKey = (): Promise<Uint8Array> =>
+  getPrivateKeyBytes({
+    private_key_derivation_path: encryptionKeyDerivationPath,
+  }).then((response) => hexToBytes(response.private_key));
+
+/**
+ * Derives the session's encryption public key from Open Secret, hex-encoded
+ * as persisted on the user row. Network leaf: the caller memoizes.
+ */
+export const readEncryptionPublicKey = (): Promise<string> =>
+  getPublicKey('schnorr', {
+    private_key_derivation_path: encryptionKeyDerivationPath,
+  }).then((response) => response.public_key);

@@ -3,7 +3,7 @@ import {
   deriveCashuXpub,
   getAllMintKeysets,
   getCashuPrivateKey,
-  getInternalSessionKeys,
+  getCashuSeed,
   getMintInfo,
 } from '@agicash/wallet-sdk/temporary';
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
@@ -11,7 +11,7 @@ import { type QueryClient, queryOptions } from '@tanstack/react-query';
 export const seedQueryOptions = () =>
   queryOptions({
     queryKey: ['cashu-seed'],
-    queryFn: () => getInternalSessionKeys().getCashuSeed(),
+    queryFn: () => getCashuSeed(),
     staleTime: Number.POSITIVE_INFINITY,
   });
 
