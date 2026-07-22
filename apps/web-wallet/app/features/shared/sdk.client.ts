@@ -53,27 +53,58 @@ const consoleLogger = {
     meta === undefined ? console.error(message) : console.error(message, meta),
 };
 
-export const sdk = AgicashSdk.create({
-  db: {
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey,
-  },
-  auth: {
-    apiUrl: openSecretApiUrl,
-    clientId: openSecretClientId,
-    storage: browserStorage,
-    // e2e bridge: the Playwright fixture arms window.getMockPassword; in
-    // production it's absent, so this resolves null and the SDK generates.
-    generateGuestPassword: async () =>
-      (await window.getMockPassword?.()) ?? null,
-  },
-  spark: {
-    breezApiKey,
-    network: 'MAINNET',
-  },
-  lightningAddressDomain: window.location.host,
-  logger: consoleLogger,
-});
+const createSdk = () =>
+  AgicashSdk.create({
+    db: {
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+    },
+    auth: {
+      apiUrl: openSecretApiUrl,
+      clientId: openSecretClientId,
+      storage: browserStorage,
+      // e2e bridge: the Playwright fixture arms window.getMockPassword; in
+      // production it's absent, so this resolves null and the SDK generates.
+      generateGuestPassword: async () =>
+        (await window.getMockPassword?.()) ?? null,
+    },
+    spark: {
+      breezApiKey,
+      network: 'MAINNET',
+    },
+    lightningAddressDomain: window.location.host,
+    logger: consoleLogger,
+  });
+
+// Instance-per-identity: the SDK binds to one identity for its lifetime, so this
+// is a live binding, not a const. Consumers read `sdk` at call time and pick up
+// the replacement that rebuildSdk installs.
+export let sdk = createSdk();
+
+let rebuildInFlight: Promise<void> | undefined;
+
+/**
+ * Disposes the current SDK instance and installs a fresh one. Called on a
+ * session end (sign-out, expiry, or a different-user transition) so the next
+ * identity authenticates on an unused instance — the SDK refuses a second
+ * identity on an instance that already established one. Concurrent calls (a user
+ * sign-out racing an auth.session-expired handler) coalesce onto one rebuild, so
+ * create() never runs while the disposed instance is still the current one.
+ */
+export const rebuildSdk = (): Promise<void> => {
+  if (rebuildInFlight) {
+    return rebuildInFlight;
+  }
+  rebuildInFlight = (async () => {
+    try {
+      await sdk.dispose();
+      sdk = createSdk();
+    } finally {
+      rebuildInFlight = undefined;
+    }
+  })();
+  return rebuildInFlight;
+};
 
 if (import.meta.hot) {
   // A hot reload of this module constructs a second SDK; dispose the old one

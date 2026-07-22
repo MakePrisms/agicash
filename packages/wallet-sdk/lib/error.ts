@@ -48,6 +48,21 @@ export class DisposedError extends SdkError {
 }
 
 /**
+ * Thrown by an auth verb (`signIn`, `signUp`, `signUpGuest`) on an instance that
+ * already established an identity. One instance serves one identity: dispose it
+ * and create a fresh instance to authenticate as a different one. Distinct from
+ * {@link DisposedError} — the instance is still live, it has only been used.
+ */
+export class InstanceAlreadyUsedError extends SdkError {
+  constructor() {
+    super(
+      'This SDK instance already established an identity. Dispose it and create a fresh instance to authenticate as a different identity.',
+    );
+    this.name = 'InstanceAlreadyUsedError';
+  }
+}
+
+/**
  * Thrown when the session an operation belongs to ends (sign-out, a different
  * user's login, or expiry) while the operation is in flight, so its result must
  * not be used. Transient, unlike {@link DisposedError}: the instance stays

@@ -14,7 +14,7 @@ import {
   resetFeatureFlags,
 } from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
-import { sdk } from '~/features/shared/sdk.client';
+import { rebuildSdk, sdk } from '~/features/shared/sdk.client';
 import { evictDerivedKeyQueries } from '~/features/shared/session-key-queries';
 import { useLatest } from '~/lib/use-latest';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
@@ -150,6 +150,11 @@ const useSessionEndCleanup = () => {
 
   return useCallback(
     async ({ redirectTo }: { redirectTo?: string } = {}) => {
+      // Instance-per-identity: the ended session's instance is spent, so build a
+      // fresh one before the auth query re-runs sdk.init() on it and before the
+      // next sign-in. Sign-out already disposed the old instance and expiry did
+      // not, so rebuildSdk disposes it either way (dispose is idempotent).
+      await rebuildSdk();
       resetFeatureFlags();
       await invalidateAuthQueries();
       if (redirectTo) {

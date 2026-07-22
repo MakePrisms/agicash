@@ -14,6 +14,9 @@ export * from './domain/exchange-rate';
 export {
   ConcurrencyError,
   DomainError,
+  // Terminal for this instance: an identity was already established on it, so a
+  // second sign-in must dispose it and create a fresh instance rather than retry.
+  InstanceAlreadyUsedError,
   NotFoundError,
   SdkError,
   // Never retry: the operation's session ended (sign-out / different-user
