@@ -81,15 +81,29 @@ const createSdk = () =>
 // the replacement that rebuildSdk installs.
 export let sdk = createSdk();
 
+let rebuildInFlight: Promise<void> | undefined;
+
 /**
  * Disposes the current SDK instance and installs a fresh one. Called on a
  * session end (sign-out, expiry, or a different-user transition) so the next
  * identity authenticates on an unused instance — the SDK refuses a second
- * identity on an instance that already established one.
+ * identity on an instance that already established one. Concurrent calls (a user
+ * sign-out racing an auth.session-expired handler) coalesce onto one rebuild, so
+ * create() never runs while the disposed instance is still the current one.
  */
-export const rebuildSdk = async (): Promise<void> => {
-  await sdk.dispose();
-  sdk = createSdk();
+export const rebuildSdk = (): Promise<void> => {
+  if (rebuildInFlight) {
+    return rebuildInFlight;
+  }
+  rebuildInFlight = (async () => {
+    try {
+      await sdk.dispose();
+      sdk = createSdk();
+    } finally {
+      rebuildInFlight = undefined;
+    }
+  })();
+  return rebuildInFlight;
 };
 
 if (import.meta.hot) {

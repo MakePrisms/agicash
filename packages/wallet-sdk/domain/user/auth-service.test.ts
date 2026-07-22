@@ -602,6 +602,32 @@ describe('AuthService', () => {
       expect(expired).toHaveLength(1);
       expect(sessionEnded).toBe(true);
     });
+
+    it('refuses a foreign identity on a used instance even after the session goes anonymous, and revokes its tokens', async () => {
+      let fetchCalls = 0;
+      const { service, storage, events } = createService({
+        os: {
+          fetchUser: async () => ({
+            user: { ...fullUser, id: fetchCalls++ === 0 ? 'user-a' : 'user-b' },
+          }),
+        },
+      });
+      const expired: unknown[] = [];
+      events.on('auth.session-expired', (payload) => expired.push(payload));
+
+      await service.signIn('a@b.c', 'pw'); // binds the instance to user-a
+      await service.signOut(); // session goes anonymous; instance still bound to user-a
+
+      // completeGoogleAuth is unguarded: it writes fresh tokens then applies a
+      // DIFFERENT user (user-b) over the bound instance.
+      await service.completeGoogleAuth({ code: 'c', state: 's' });
+
+      // user-b is refused rather than adopted, and its tokens revoked — a rebuild
+      // cannot restore it, so the instance never serves a second identity.
+      expect(service.getSession().isLoggedIn).toBe(false);
+      expect(storage.persistent.data.has('refresh_token')).toBe(false);
+      expect(expired.length).toBeGreaterThan(0);
+    });
   });
 
   describe('convertGuestToFullAccount', () => {

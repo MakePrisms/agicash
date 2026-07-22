@@ -77,9 +77,11 @@ export class AuthService implements AuthApi {
   // exists and must not be applied.
   private sessionScope = new AbortController();
   private disposed = false;
-  // Set once the first session is established (see applySessionFromServer). An
-  // instance serves one identity: the auth verbs refuse a second establish.
-  private identityEstablished = false;
+  // The identity this instance is bound to, set at the first establish (see
+  // applySessionFromServer). An instance serves one identity for its lifetime:
+  // the auth verbs refuse a second establish, and an apply resolving to a
+  // different id is refused even after the session has gone anonymous.
+  private establishedIdentityId: string | undefined;
   private readonly guestAccountStorage: GuestAccountStorage;
 
   constructor(private readonly deps: AuthServiceDeps) {
@@ -287,7 +289,7 @@ export class AuthService implements AuthApi {
   }
 
   private assertUnused(): void {
-    if (this.identityEstablished) {
+    if (this.establishedIdentityId !== undefined) {
       throw new InstanceAlreadyUsedError();
     }
   }
@@ -326,19 +328,33 @@ export class AuthService implements AuthApi {
       // onSessionEnded.
       return false;
     }
-    if (this.session.isLoggedIn && this.session.user.id !== response.user.id) {
-      // Instance-per-identity: one instance serves one identity. A login without
-      // a prior sign-out is already refused by assertUnused; this covers a
-      // restore/refresh that resolves to a different user. End the session
-      // instead of re-keying in place — the host disposes this instance and
-      // builds a fresh one for the new identity.
+    if (
+      this.establishedIdentityId !== undefined &&
+      this.establishedIdentityId !== response.user.id
+    ) {
+      // Instance-per-identity: this instance is bound to one identity for its
+      // lifetime. A different identity surfacing here — a login without a prior
+      // sign-out (already refused by assertUnused), or foreign tokens written by
+      // an unguarded verb / an OAuth callback that a restore or refresh then
+      // resolves — is refused, not adopted, even once the session has gone
+      // anonymous. Revoke the foreign tokens first so the host's rebuild can't
+      // restore that identity from storage, then end the session and tell the
+      // host to build a fresh instance.
+      try {
+        await this.deps.os.signOut();
+      } catch (error) {
+        this.deps.logger.warn(
+          'Sign out revoking a cross-identity apply failed',
+          error,
+        );
+      }
       this.endSession();
       this.deps.events.emit('auth.session-expired', {});
       return false;
     }
     this.startNewSessionScope();
     this.session = { isLoggedIn: true, user: response.user };
-    this.identityEstablished = true;
+    this.establishedIdentityId = response.user.id;
     await this.setExpiryTimer();
     return true;
   }
