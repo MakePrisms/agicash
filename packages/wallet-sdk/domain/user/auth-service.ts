@@ -9,7 +9,7 @@ import {
   safeJwtDecode,
   setLongTimeout,
 } from '@agicash/utils';
-import { DisposedError } from '../../lib/error';
+import { DisposedError, InstanceAlreadyUsedError } from '../../lib/error';
 import {
   type GuestAccountStorage,
   createGuestAccountStorage,
@@ -57,6 +57,13 @@ type AuthServiceDeps = {
   events: WalletEventEmitter;
   /** Per-session cache cleanup on any session end (sign-out or expiry). */
   onSessionEnded?: () => void;
+  /**
+   * Terminal disposal of the owning instance, invoked on sign-out so the
+   * instance is never reused for a second identity (instance-per-identity).
+   * Distinct from {@link AuthServiceDeps.onSessionEnded}, which only clears
+   * per-session caches and leaves the instance usable.
+   */
+  requestDispose?: () => void;
   logger: Logger;
 };
 
@@ -70,6 +77,9 @@ export class AuthService implements AuthApi {
   // exists and must not be applied.
   private sessionScope = new AbortController();
   private disposed = false;
+  // Set once the first session is established (see applySessionFromServer). An
+  // instance serves one identity: the auth verbs refuse a second establish.
+  private identityEstablished = false;
   private readonly guestAccountStorage: GuestAccountStorage;
 
   constructor(private readonly deps: AuthServiceDeps) {
@@ -149,12 +159,14 @@ export class AuthService implements AuthApi {
 
   async signUp(email: string, password: string): Promise<void> {
     this.assertNotDisposed();
+    this.assertUnused();
     await this.deps.os.signUp(email, password, '');
     await this.refreshSessionSnapshot('sign up');
   }
 
   async signUpGuest(): Promise<void> {
     this.assertNotDisposed();
+    this.assertUnused();
     await this.signInGuestAccount();
     await this.refreshSessionSnapshot('guest sign up');
   }
@@ -199,6 +211,7 @@ export class AuthService implements AuthApi {
 
   async signIn(email: string, password: string): Promise<void> {
     this.assertNotDisposed();
+    this.assertUnused();
     await this.deps.os.signIn(email, password);
     await this.refreshSessionSnapshot('sign in');
   }
@@ -208,7 +221,11 @@ export class AuthService implements AuthApi {
     try {
       await this.deps.os.signOut();
     } finally {
+      // Clear per-session caches, then dispose: sign-out is terminal under
+      // instance-per-identity, so the instance is never reused for a second
+      // identity. The host builds a fresh instance for the next sign-in.
       this.endSession();
+      this.deps.requestDispose?.();
     }
   }
 
@@ -269,6 +286,12 @@ export class AuthService implements AuthApi {
     }
   }
 
+  private assertUnused(): void {
+    if (this.identityEstablished) {
+      throw new InstanceAlreadyUsedError();
+    }
+  }
+
   private async refreshSessionSnapshot(
     context: string,
     scope?: AbortSignal,
@@ -303,13 +326,19 @@ export class AuthService implements AuthApi {
       // onSessionEnded.
       return false;
     }
-    // A different user's session is starting over a live one (login without
-    // sign-out) — wipe the previous user's per-session caches.
     if (this.session.isLoggedIn && this.session.user.id !== response.user.id) {
-      this.deps.onSessionEnded?.();
+      // Instance-per-identity: one instance serves one identity. A login without
+      // a prior sign-out is already refused by assertUnused; this covers a
+      // restore/refresh that resolves to a different user. End the session
+      // instead of re-keying in place — the host disposes this instance and
+      // builds a fresh one for the new identity.
+      this.endSession();
+      this.deps.events.emit('auth.session-expired', {});
+      return false;
     }
     this.startNewSessionScope();
     this.session = { isLoggedIn: true, user: response.user };
+    this.identityEstablished = true;
     await this.setExpiryTimer();
     return true;
   }
