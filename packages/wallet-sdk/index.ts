@@ -16,9 +16,6 @@ export {
   DomainError,
   NotFoundError,
   SdkError,
-  // Never retry: the operation's session ended (sign-out / different-user
-  // login / expiry), so a retry would run under a session that no longer owns
-  // it. A fresh operation under the new session is what recovers.
   SessionEndedError,
   UniqueConstraintError,
 } from './lib/error';
