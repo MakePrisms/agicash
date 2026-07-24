@@ -3,6 +3,7 @@ import type { Currency } from '@agicash/money';
 import { core, z } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
 import type { Encryption } from '../../lib/encryption';
+import { SessionEndedError } from '../../lib/error';
 import {
   type Account,
   type CashuAccount as DomainCashuAccount,
@@ -47,13 +48,16 @@ const account = (id: string, currency: Currency): Account =>
 const fakeAccountRepository = {} as AccountRepository;
 const getAccountRepository = async () => fakeAccountRepository;
 
-const fakeKeys = (): SessionKeys => ({
+const fakeKeys = (
+  signal: AbortSignal = new AbortController().signal,
+): SessionKeys => ({
   getEncryption: async () => ({}) as Encryption,
   getEncryptionPublicKey: async () => 'enc-pub',
   getCashuSeed: async () => new Uint8Array(64),
   getSparkMnemonic: async () => 'mnemonic',
   getCashuLockingXpub: async () => 'xpub',
   getSparkIdentityPublicKey: async () => 'spark-id',
+  sessionSignal: () => signal,
   reset: () => undefined,
 });
 
@@ -93,6 +97,14 @@ const createDbFake = (
   return { from } as unknown as AgicashDb;
 };
 
+// The PostgREST builder upsert drives: awaitable (a real promise), with a
+// chainable no-op abortSignal() (the real builder wires the signal into the
+// underlying fetch).
+const rpcQuery = (result: Promise<{ data: unknown; error: unknown }>) => {
+  const query = Object.assign(result, { abortSignal: () => query });
+  return query;
+};
+
 /** Fake covering the single `upsert_user_with_accounts` RPC provision issues. */
 const createUpsertDbFake = (
   outcomes: Array<{ reject: unknown } | { ok: true }>,
@@ -103,16 +115,17 @@ const createUpsertDbFake = (
     rpc: (_name: string, params: Record<string, unknown>) => {
       const outcome = outcomes[Math.min(calls.length, outcomes.length - 1)];
       calls.push(params);
-      if (outcome && 'reject' in outcome) {
-        return Promise.reject(outcome.reject);
-      }
-      return Promise.resolve({
-        data: {
-          user: dbUserRow(String(params.p_user_id)),
-          accounts: accountRows,
-        },
-        error: null,
-      });
+      return rpcQuery(
+        outcome && 'reject' in outcome
+          ? Promise.reject(outcome.reject)
+          : Promise.resolve({
+              data: {
+                user: dbUserRow(String(params.p_user_id)),
+                accounts: accountRows,
+              },
+              error: null,
+            }),
+      );
     },
   } as unknown as AgicashDb;
   return { db, calls };
@@ -230,10 +243,9 @@ describe('createUserApi', () => {
         rpc: (_name: string, params: Record<string, unknown>) => {
           const row = rows[Math.min(calls.length, rows.length - 1)];
           calls.push(params);
-          return Promise.resolve({
-            data: { user: row, accounts: [] },
-            error: null,
-          });
+          return rpcQuery(
+            Promise.resolve({ data: { user: row, accounts: [] }, error: null }),
+          );
         },
       } as unknown as AgicashDb;
       const api = createUserApi({
@@ -342,6 +354,54 @@ describe('createUserApi', () => {
       });
 
       await expect(api.provision({})).rejects.toThrow();
+    });
+
+    it('rejects with SessionEndedError and issues no upsert when the session ends before the write', async () => {
+      const controller = new AbortController();
+      const { db, calls } = createUpsertDbFake([{ ok: true }]);
+      const keys = fakeKeys(controller.signal);
+      // The session ends while the keys the write depends on are being derived.
+      keys.getSparkIdentityPublicKey = async () => {
+        controller.abort();
+        return 'spark-id';
+      };
+      const api = createUserApi({
+        db,
+        getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
+        keys,
+        getAccountRepository,
+      });
+
+      await expect(api.provision({})).rejects.toBeInstanceOf(SessionEndedError);
+      expect(calls).toHaveLength(0);
+    });
+
+    it('rejects with SessionEndedError when the session ends while the upsert result is mapped', async () => {
+      const controller = new AbortController();
+      const keys = fakeKeys(controller.signal);
+      const db = {
+        rpc: (_name: string, params: Record<string, unknown>) => {
+          // The session ends while the committed row is mapped to accounts.
+          controller.abort();
+          return rpcQuery(
+            Promise.resolve({
+              data: {
+                user: dbUserRow(String(params.p_user_id)),
+                accounts: [],
+              },
+              error: null,
+            }),
+          );
+        },
+      } as unknown as AgicashDb;
+      const api = createUserApi({
+        db,
+        getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
+        keys,
+        getAccountRepository,
+      });
+
+      await expect(api.provision({})).rejects.toBeInstanceOf(SessionEndedError);
     });
   });
 });

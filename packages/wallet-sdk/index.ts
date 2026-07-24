@@ -16,6 +16,7 @@ export {
   DomainError,
   NotFoundError,
   SdkError,
+  SessionEndedError,
   UniqueConstraintError,
 } from './lib/error';
 export { WebAssemblyUnavailableError } from './lib/spark/errors';

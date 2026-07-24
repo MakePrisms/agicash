@@ -15,6 +15,7 @@ import {
 } from '~/features/shared/feature-flags';
 import { getQueryClient } from '~/features/shared/query-client';
 import { sdk } from '~/features/shared/sdk.client';
+import { evictDerivedKeyQueries } from '~/features/shared/session-key-queries';
 import { useLatest } from '~/lib/use-latest';
 import { oauthLoginSessionStorage } from './oauth-login-session-storage';
 import { sessionHintCookie } from './session-hint-cookie';
@@ -192,6 +193,9 @@ export const useAuthActions = (): AuthActions => {
 
   const refreshSession = useCallback(
     async (redirectTo?: string) => {
+      // A login can switch users without a prior sign-out; drop the previous
+      // user's infinity-stale derived keys so the next reads derive fresh.
+      evictDerivedKeyQueries(getQueryClient());
       await invalidateAuthQueries();
       if (redirectTo) {
         await navigate(redirectTo);

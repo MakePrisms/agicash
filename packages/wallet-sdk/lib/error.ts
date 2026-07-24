@@ -47,6 +47,20 @@ export class DisposedError extends SdkError {
   }
 }
 
+/**
+ * Thrown when the session an operation belongs to ends (sign-out, a different
+ * user's login, or expiry) while the operation is in flight, so its result must
+ * not be used. Never retry the same operation — it would run under a session
+ * that no longer owns it. Transient, unlike {@link DisposedError}: the instance
+ * stays usable, and a fresh operation under the new session is what recovers.
+ */
+export class SessionEndedError extends SdkError {
+  constructor() {
+    super('The session ended before the operation completed');
+    this.name = 'SessionEndedError';
+  }
+}
+
 /** Thrown when a namespace is accessed before its migration slice has landed. */
 export class NotImplementedError extends SdkError {
   constructor(namespace: string) {

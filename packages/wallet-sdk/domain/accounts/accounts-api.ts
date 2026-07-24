@@ -1,5 +1,5 @@
 import type { AgicashDb } from '../../db/database';
-import { NoSessionError } from '../../lib/error';
+import { NoSessionError, SessionEndedError } from '../../lib/error';
 import type { SparkWalletConfig } from '../../lib/spark/wallet';
 import type { AccountsApi, AuthSession, CashuAccount } from '../sdk';
 import type { SessionKeys } from '../sdk/session-keys';
@@ -49,23 +49,52 @@ export function createAccountsApi(deps: Deps): {
     getRepository,
     api: {
       get: async (id) => {
+        const signal = deps.keys.sessionSignal();
         const repository = await getRepository();
-        return repository.get(id);
+        if (signal.aborted) {
+          throw new SessionEndedError();
+        }
+        const account = await repository.get(id, { abortSignal: signal });
+        if (signal.aborted) {
+          throw new SessionEndedError();
+        }
+        return account;
       },
       list: async () => {
         const userId = requireUserId();
+        const signal = deps.keys.sessionSignal();
         const repository = await getRepository();
-        return repository.getAllActive(userId);
+        if (signal.aborted) {
+          throw new SessionEndedError();
+        }
+        const accounts = await repository.getAllActive(userId, {
+          abortSignal: signal,
+        });
+        if (signal.aborted) {
+          throw new SessionEndedError();
+        }
+        return accounts;
       },
       cashu: {
         add: async (params): Promise<CashuAccount> => {
           const userId = requireUserId();
+          const signal = deps.keys.sessionSignal();
           const repository = await getRepository();
+          if (signal.aborted) {
+            throw new SessionEndedError();
+          }
           const service = new AccountService(repository);
-          return service.addCashuAccount({
-            userId,
-            account: { ...params, type: 'cashu' },
-          });
+          const account = await service.addCashuAccount(
+            {
+              userId,
+              account: { ...params, type: 'cashu' },
+            },
+            { abortSignal: signal },
+          );
+          if (signal.aborted) {
+            throw new SessionEndedError();
+          }
+          return account;
         },
       },
     },

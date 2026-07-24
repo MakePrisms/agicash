@@ -2,6 +2,7 @@ import * as openSecret from '@agicash/opensecret';
 import type {
   AccountsApi,
   AuthApi,
+  AuthSession,
   ContactsApi,
   FeatureFlagsApi,
   ReceiveApi,
@@ -17,7 +18,7 @@ import type {
 import { createAgicashDbClient } from '../../db/client';
 import { createSupabaseSessionTokenGetter } from '../../db/supabase-session';
 import { clearAgicashMintAuthToken } from '../../lib/agicash-mint-auth-provider';
-import { NotImplementedError } from '../../lib/error';
+import { DisposedError, NotImplementedError } from '../../lib/error';
 import { generateRandomPassword } from '../../lib/password';
 import {
   type SparkWalletConfig,
@@ -27,7 +28,7 @@ import { createAccountsApi } from '../accounts/accounts-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
-import { createSessionKeys } from './session-keys';
+import { type OwnedSessionKeys, createSessionKeys } from './session-keys';
 
 // The current instance: the instance currently constructed and not yet
 // disposed. Makes the one-instance-per-process constraint (see the constructor
@@ -69,6 +70,8 @@ export class AgicashSdk implements Sdk {
   }
 
   private readonly authService: AuthService;
+  private readonly keys: OwnedSessionKeys;
+  private disposed = false;
 
   private constructor(config: SdkConfig) {
     // The Open Secret client is module-scoped in @agicash/opensecret, so auth
@@ -84,6 +87,7 @@ export class AgicashSdk implements Sdk {
     const events = new WalletEventEmitter(config.logger);
 
     const keys = createSessionKeys();
+    this.keys = keys;
 
     // Created before authService — the isLoggedIn closure dereferences it
     // lazily at request time, after the constructor has assigned it.
@@ -113,6 +117,16 @@ export class AgicashSdk implements Sdk {
       logger: config.logger,
     });
 
+    // The namespaces read the session through this, not the public
+    // auth.getSession(): a call on a namespace handle retained across dispose()
+    // rejects instead of acting on the dead instance's last session snapshot.
+    const getLiveSession = (): AuthSession => {
+      if (this.disposed) {
+        throw new DisposedError();
+      }
+      return this.authService.getSession();
+    };
+
     const db = createAgicashDbClient({
       url: config.db.url,
       anonKey: config.db.anonKey,
@@ -125,7 +139,7 @@ export class AgicashSdk implements Sdk {
     };
     const accounts = createAccountsApi({
       db,
-      getSession: () => this.authService.getSession(),
+      getSession: getLiveSession,
       keys,
       sparkConfig,
     });
@@ -133,7 +147,7 @@ export class AgicashSdk implements Sdk {
     this.auth = this.authService;
     this.user = createUserApi({
       db,
-      getSession: () => this.authService.getSession(),
+      getSession: getLiveSession,
       keys,
       getAccountRepository: accounts.getRepository,
     });
@@ -163,7 +177,9 @@ export class AgicashSdk implements Sdk {
   }
 
   async dispose(): Promise<void> {
+    this.disposed = true;
     this.authService.teardown();
+    this.keys.dispose();
     if (currentInstance === this) {
       currentInstance = undefined;
     }
