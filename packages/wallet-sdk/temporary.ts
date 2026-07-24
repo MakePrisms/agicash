@@ -36,12 +36,15 @@ export type {
   TransactionDetailsParserShape,
 } from './domain/transactions/transaction-details/transaction-details-types';
 export type { RepositoryCreateQuoteParams } from './domain/receive/spark-receive-quote-core';
+// TEMPORARY (the four ECIES primitives only — encryptToPublicKey,
+// encryptBatchToPublicKey, decryptWithPrivateKey, decryptBatchWithPrivateKey):
+// they back the web's encryption-hooks duplicate of the SDK session-key facade
+// and are deleted at step 18 with it. readEncryption{Private,Public}Key stay.
 export {
   decryptBatchWithPrivateKey,
   decryptWithPrivateKey,
   encryptBatchToPublicKey,
   encryptToPublicKey,
-  getEncryption,
   readEncryptionPrivateKey,
   readEncryptionPublicKey,
 } from './lib/encryption';

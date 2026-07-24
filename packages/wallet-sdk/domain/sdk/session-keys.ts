@@ -5,7 +5,10 @@ import {
 import { deriveCashuXpub } from '../../lib/cryptography';
 import {
   type Encryption,
-  getEncryption,
+  decryptBatchWithPrivateKey,
+  decryptWithPrivateKey,
+  encryptBatchToPublicKey,
+  encryptToPublicKey,
   readEncryptionPrivateKey,
   readEncryptionPublicKey,
 } from '../../lib/encryption';
@@ -213,29 +216,50 @@ export function createSessionKeys(
         throw new SessionEndedError();
       }
       // The returned capability is revocable: raw key bytes copied out can't be,
-      // but this callable facade rejects once its session ends or the instance
-      // disposes, so a handle a host caches can't keep encrypting with a dead
-      // session's keys.
-      const encryption = getEncryption(privateKey, publicKey);
-      return new Proxy(encryption, {
-        get(target, property, receiver) {
-          const member = Reflect.get(target, property, receiver);
-          if (typeof member !== 'function') {
-            return member;
+      // but each method on this facade rejects once its session ends or the
+      // instance disposes, so a handle a host caches can't keep encrypting with a
+      // dead session's keys. Explicit methods (not a Proxy) keep the Encryption
+      // generic signatures intact for callers and delegate to the lib primitives.
+      return {
+        encrypt: async <T = unknown>(data: T) => {
+          if (disposed) {
+            return Promise.reject(new DisposedError());
           }
-          // Every Encryption method is async, so reject rather than throw: a
-          // revoked handle rejects its promise instead of throwing synchronously.
-          return (...args: unknown[]) => {
-            if (disposed) {
-              return Promise.reject(new DisposedError());
-            }
-            if (signal.aborted) {
-              return Promise.reject(new SessionEndedError());
-            }
-            return Reflect.apply(member, target, args);
-          };
+          if (signal.aborted) {
+            return Promise.reject(new SessionEndedError());
+          }
+          return encryptToPublicKey(data, publicKey);
         },
-      });
+        decrypt: async <T = unknown>(data: string) => {
+          if (disposed) {
+            return Promise.reject(new DisposedError());
+          }
+          if (signal.aborted) {
+            return Promise.reject(new SessionEndedError());
+          }
+          return decryptWithPrivateKey<T>(data, privateKey);
+        },
+        encryptBatch: async <T extends readonly unknown[]>(data: T) => {
+          if (disposed) {
+            return Promise.reject(new DisposedError());
+          }
+          if (signal.aborted) {
+            return Promise.reject(new SessionEndedError());
+          }
+          return encryptBatchToPublicKey(data, publicKey);
+        },
+        decryptBatch: async <T extends readonly unknown[]>(
+          data: readonly [...{ [K in keyof T]: string }],
+        ) => {
+          if (disposed) {
+            return Promise.reject(new DisposedError());
+          }
+          if (signal.aborted) {
+            return Promise.reject(new SessionEndedError());
+          }
+          return decryptBatchWithPrivateKey<T>(data, privateKey);
+        },
+      };
     },
     getEncryptionPublicKey: encryptionPublicKey.get,
     getCashuSeed: cashuSeed.get,

@@ -189,4 +189,29 @@ describe('createSessionKeys', () => {
       DisposedError,
     );
   });
+
+  it('revokes a retained encryption handle once its session ends', async () => {
+    const privateKey = new Uint8Array(32);
+    privateKey[31] = 1;
+    const publicKey =
+      '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
+    const keys = createSessionKeys({
+      readEncryptionPrivateKey: async () => privateKey,
+      readEncryptionPublicKey: async () => publicKey,
+    });
+    const encryption = await keys.getEncryption();
+    const ciphertext = await encryption.encrypt({ owner: 'a' });
+
+    keys.reset();
+
+    // A handle retained across a session end (reset, not disposal) can't keep
+    // operating on the ended session's keys — it rejects rather than encrypting
+    // or decrypting under a key that no longer belongs to the live session.
+    await expect(encryption.encrypt({ owner: 'a' })).rejects.toBeInstanceOf(
+      SessionEndedError,
+    );
+    await expect(encryption.decrypt(ciphertext)).rejects.toBeInstanceOf(
+      SessionEndedError,
+    );
+  });
 });
