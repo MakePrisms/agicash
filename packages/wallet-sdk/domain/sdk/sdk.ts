@@ -114,6 +114,9 @@ export class AgicashSdk implements Sdk {
         clearAgicashMintAuthToken();
         keys.reset();
       },
+      requestDispose: () => {
+        void this.dispose();
+      },
       logger: config.logger,
     });
 

@@ -9,7 +9,7 @@ import {
   safeJwtDecode,
   setLongTimeout,
 } from '@agicash/utils';
-import { DisposedError } from '../../lib/error';
+import { DisposedError, InstanceAlreadyUsedError } from '../../lib/error';
 import {
   type GuestAccountStorage,
   createGuestAccountStorage,
@@ -57,6 +57,13 @@ type AuthServiceDeps = {
   events: WalletEventEmitter;
   /** Per-session cache cleanup on any session end (sign-out or expiry). */
   onSessionEnded?: () => void;
+  /**
+   * Terminal disposal of the owning instance, invoked on sign-out so the
+   * instance is never reused for a second identity (instance-per-identity).
+   * Distinct from {@link AuthServiceDeps.onSessionEnded}, which only clears
+   * per-session caches and leaves the instance usable.
+   */
+  requestDispose?: () => void;
   logger: Logger;
 };
 
@@ -70,6 +77,11 @@ export class AuthService implements AuthApi {
   // exists and must not be applied.
   private sessionScope = new AbortController();
   private disposed = false;
+  // The identity this instance is bound to, set at the first establish (see
+  // applySessionFromServer). An instance serves one identity for its lifetime:
+  // the auth verbs refuse a second establish, and an apply resolving to a
+  // different id is refused even after the session has gone anonymous.
+  private establishedIdentityId: string | undefined;
   private readonly guestAccountStorage: GuestAccountStorage;
 
   constructor(private readonly deps: AuthServiceDeps) {
@@ -149,12 +161,14 @@ export class AuthService implements AuthApi {
 
   async signUp(email: string, password: string): Promise<void> {
     this.assertNotDisposed();
+    this.assertUnused();
     await this.deps.os.signUp(email, password, '');
     await this.refreshSessionSnapshot('sign up');
   }
 
   async signUpGuest(): Promise<void> {
     this.assertNotDisposed();
+    this.assertUnused();
     await this.signInGuestAccount();
     await this.refreshSessionSnapshot('guest sign up');
   }
@@ -199,6 +213,7 @@ export class AuthService implements AuthApi {
 
   async signIn(email: string, password: string): Promise<void> {
     this.assertNotDisposed();
+    this.assertUnused();
     await this.deps.os.signIn(email, password);
     await this.refreshSessionSnapshot('sign in');
   }
@@ -208,7 +223,11 @@ export class AuthService implements AuthApi {
     try {
       await this.deps.os.signOut();
     } finally {
+      // Clear per-session caches, then dispose: sign-out is terminal under
+      // instance-per-identity, so the instance is never reused for a second
+      // identity. The host builds a fresh instance for the next sign-in.
       this.endSession();
+      this.deps.requestDispose?.();
     }
   }
 
@@ -269,6 +288,12 @@ export class AuthService implements AuthApi {
     }
   }
 
+  private assertUnused(): void {
+    if (this.establishedIdentityId !== undefined) {
+      throw new InstanceAlreadyUsedError();
+    }
+  }
+
   private async refreshSessionSnapshot(
     context: string,
     scope?: AbortSignal,
@@ -303,13 +328,33 @@ export class AuthService implements AuthApi {
       // onSessionEnded.
       return false;
     }
-    // A different user's session is starting over a live one (login without
-    // sign-out) — wipe the previous user's per-session caches.
-    if (this.session.isLoggedIn && this.session.user.id !== response.user.id) {
-      this.deps.onSessionEnded?.();
+    if (
+      this.establishedIdentityId !== undefined &&
+      this.establishedIdentityId !== response.user.id
+    ) {
+      // Instance-per-identity: this instance is bound to one identity for its
+      // lifetime. A different identity surfacing here — a login without a prior
+      // sign-out (already refused by assertUnused), or foreign tokens written by
+      // an unguarded verb / an OAuth callback that a restore or refresh then
+      // resolves — is refused, not adopted, even once the session has gone
+      // anonymous. Revoke the foreign tokens first so the host's rebuild can't
+      // restore that identity from storage, then end the session and tell the
+      // host to build a fresh instance.
+      try {
+        await this.deps.os.signOut();
+      } catch (error) {
+        this.deps.logger.warn(
+          'Sign out revoking a cross-identity apply failed',
+          error,
+        );
+      }
+      this.endSession();
+      this.deps.events.emit('auth.session-expired', {});
+      return false;
     }
     this.startNewSessionScope();
     this.session = { isLoggedIn: true, user: response.user };
+    this.establishedIdentityId = response.user.id;
     await this.setExpiryTimer();
     return true;
   }

@@ -193,7 +193,10 @@ export default function ProtectedRoute() {
   }
 
   return (
-    <Wallet>
+    // Instance-per-identity: re-key the authed subtree on the user id so an
+    // identity change remounts it — resetting session-derived state and
+    // re-subscribing the SDK event handlers to the fresh instance.
+    <Wallet key={user.id}>
       <Outlet />
     </Wallet>
   );

@@ -36,8 +36,9 @@ export type AuthApi = {
   signUpGuest(): Promise<void>;
   signIn(email: string, password: string): Promise<void>;
   /**
-   * Stops the task processor, tears down realtime, clears the stored session; the
-   * instance stays usable in anonymous state.
+   * Signs out and disposes the instance. The stored session is cleared and the
+   * instance becomes terminal — every subsequent call throws `DisposedError`.
+   * Signing in again requires a fresh instance: one instance serves one identity.
    */
   signOut(): Promise<void>;
   verifyEmail(code: string): Promise<void>;

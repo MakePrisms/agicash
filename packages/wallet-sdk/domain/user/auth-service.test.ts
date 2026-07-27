@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { DisposedError } from '../../lib/error';
+import { DisposedError, InstanceAlreadyUsedError } from '../../lib/error';
 import { nullLogger } from '../../lib/logger';
 import type { AuthKeyValueStore, AuthStorage } from '../sdk';
 import { WalletEventEmitter } from '../sdk/events';
@@ -100,6 +100,9 @@ const createService = (
     os?: Partial<OpenSecretAuthApi>;
     storage?: ReturnType<typeof createStorage>;
     onSessionEnded?: () => void;
+    // Wires requestDispose to teardown so sign-out is terminal, mirroring how
+    // AgicashSdk wires it to full instance disposal.
+    disposeOnRequest?: boolean;
   } = {},
 ) => {
   const storage = options.storage ?? createStorage();
@@ -111,6 +114,11 @@ const createService = (
     generateGuestPassword: async () => 'generated-pw',
     events,
     onSessionEnded: options.onSessionEnded,
+    // Referenced lazily: requestDispose only fires on a later signOut, by which
+    // point `service` is assigned.
+    requestDispose: options.disposeOnRequest
+      ? () => service.teardown()
+      : undefined,
     logger: nullLogger,
   });
   return { service, storage, calls, events };
@@ -444,49 +452,35 @@ describe('AuthService', () => {
       expect(storage.persistent.data.has('guestAccount')).toBe(true);
     });
 
-    it('wipes the previous user caches when a different user logs in without signing out', async () => {
-      let sessionEndedCount = 0;
-      let fetchCalls = 0;
-      const userIds = ['user-a', 'user-b'];
-      const { service } = createService({
-        os: {
-          fetchUser: async () => ({
-            user: { ...fullUser, id: userIds[Math.min(fetchCalls++, 1)] },
-          }),
-        },
-        onSessionEnded: () => {
-          sessionEndedCount += 1;
-        },
-      });
+    it('disposes the instance so it cannot be reused for another identity', async () => {
+      const { service } = createService({ disposeOnRequest: true });
 
-      await service.signIn('a@b.c', 'pw'); // no previous live session → no wipe
-      await service.signIn('b@b.c', 'pw'); // different user over a live session → wipe
+      await service.signIn('a@b.c', 'pw');
+      await service.signOut();
 
-      expect(sessionEndedCount).toBe(1);
-      service.teardown();
+      // sign-out is terminal under instance-per-identity: the disposed instance
+      // rejects every further call, so the host builds a fresh instance.
+      await expect(service.signIn('b@b.c', 'pw')).rejects.toBeInstanceOf(
+        DisposedError,
+      );
+      expect(service.getSession().isLoggedIn).toBe(false);
     });
 
-    it('does not wipe again when a different user logs in after signing out', async () => {
-      let sessionEndedCount = 0;
-      let fetchCalls = 0;
-      const userIds = ['user-a', 'user-b'];
+    it('clears per-session caches before disposing', async () => {
+      let sessionEnded = false;
       const { service } = createService({
-        os: {
-          fetchUser: async () => ({
-            user: { ...fullUser, id: userIds[Math.min(fetchCalls++, 1)] },
-          }),
-        },
+        disposeOnRequest: true,
         onSessionEnded: () => {
-          sessionEndedCount += 1;
+          sessionEnded = true;
         },
       });
 
       await service.signIn('a@b.c', 'pw');
-      await service.signOut(); // ends user-a's session → wipe once
-      await service.signIn('b@b.c', 'pw'); // session already anonymous → no second wipe
+      await service.signOut();
 
-      expect(sessionEndedCount).toBe(1);
-      service.teardown();
+      // dispose alone skips onSessionEnded (it protects a successor's caches),
+      // so sign-out must run the cache wipe itself before disposing.
+      expect(sessionEnded).toBe(true);
     });
 
     it('keeps caches warm when the same user re-applies via guest extension', async () => {
@@ -513,6 +507,126 @@ describe('AuthService', () => {
       expect(refreshed).toHaveLength(1);
       expect(sessionEndedCount).toBe(0);
       service.teardown();
+    });
+  });
+
+  describe('instance-per-identity', () => {
+    it('refuses a second sign-in once an identity is established', async () => {
+      const { service, calls } = createService();
+
+      await service.signIn('a@b.c', 'pw');
+      await expect(service.signIn('b@b.c', 'pw')).rejects.toBeInstanceOf(
+        InstanceAlreadyUsedError,
+      );
+
+      // the guard fires before Open Secret is touched, so a second identity's
+      // tokens are never written onto this instance
+      expect(calls.filter((c) => c === 'signIn')).toHaveLength(1);
+      service.teardown();
+    });
+
+    it('refuses signUp and signUpGuest once an identity is established', async () => {
+      const { service } = createService();
+
+      await service.signIn('a@b.c', 'pw');
+
+      await expect(service.signUp('c@b.c', 'pw')).rejects.toBeInstanceOf(
+        InstanceAlreadyUsedError,
+      );
+      await expect(service.signUpGuest()).rejects.toBeInstanceOf(
+        InstanceAlreadyUsedError,
+      );
+      service.teardown();
+    });
+
+    it('does not use up the instance when a sign-in fails before establishing', async () => {
+      let failOnce = true;
+      const { service } = createService({
+        os: {
+          signIn: async () => {
+            if (failOnce) {
+              failOnce = false;
+              throw new Error('bad credentials');
+            }
+            return { id: 'user-1', access_token: 'a', refresh_token: 'r' };
+          },
+        },
+      });
+
+      await expect(service.signIn('a@b.c', 'wrong')).rejects.toThrow(
+        'bad credentials',
+      );
+      // the failed attempt established no identity, so the retry is allowed
+      await service.signIn('a@b.c', 'right');
+
+      expect(service.getSession().isLoggedIn).toBe(true);
+      service.teardown();
+    });
+
+    it('ends the session instead of re-keying when a refresh resolves to a different user', async () => {
+      let fetchCalls = 0;
+      let sessionEnded = false;
+      const { service, storage, events } = createService({
+        os: {
+          fetchUser: async () => {
+            fetchCalls += 1;
+            // restore establishes the guest; the post-extension refresh then
+            // resolves to a different identity
+            return {
+              user:
+                fetchCalls === 1
+                  ? guestUser
+                  : { ...fullUser, id: 'someone-else' },
+            };
+          },
+        },
+        onSessionEnded: () => {
+          sessionEnded = true;
+        },
+      });
+      storage.persistent.data.set(
+        'guestAccount',
+        JSON.stringify({ id: 'guest-1', password: 'pw' }),
+      );
+      storage.persistent.data.set('access_token', createJwt(600));
+      storage.persistent.data.set('refresh_token', createJwt(4));
+      const expired: unknown[] = [];
+      events.on('auth.session-expired', (payload) => expired.push(payload));
+
+      await service.restoreSession();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // the different identity is refused rather than adopted: the session ends,
+      // the per-session caches are wiped, and the host is told to rebuild
+      expect(service.getSession().isLoggedIn).toBe(false);
+      expect(expired).toHaveLength(1);
+      expect(sessionEnded).toBe(true);
+    });
+
+    it('refuses a foreign identity on a used instance even after the session goes anonymous, and revokes its tokens', async () => {
+      let fetchCalls = 0;
+      const { service, storage, events } = createService({
+        os: {
+          fetchUser: async () => ({
+            user: { ...fullUser, id: fetchCalls++ === 0 ? 'user-a' : 'user-b' },
+          }),
+        },
+      });
+      const expired: unknown[] = [];
+      events.on('auth.session-expired', (payload) => expired.push(payload));
+
+      await service.signIn('a@b.c', 'pw'); // binds the instance to user-a
+      await service.signOut(); // session goes anonymous; instance still bound to user-a
+
+      // completeGoogleAuth is unguarded: it writes fresh tokens then applies a
+      // DIFFERENT user (user-b) over the bound instance.
+      await service.completeGoogleAuth({ code: 'c', state: 's' });
+
+      // user-b is refused rather than adopted, and its tokens revoked — a rebuild
+      // cannot restore it, so the instance never serves a second identity.
+      expect(service.getSession().isLoggedIn).toBe(false);
+      expect(storage.persistent.data.has('refresh_token')).toBe(false);
+      expect(expired.length).toBeGreaterThan(0);
     });
   });
 
