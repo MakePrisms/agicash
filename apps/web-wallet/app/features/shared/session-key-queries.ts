@@ -1,22 +1,19 @@
 import type { QueryClient } from '@tanstack/react-query';
 
-// The derived-key queries — encryption, cashu seed/xpub/private-key, and spark
-// mnemonic — cache Open Secret derivations with an infinity stale time. A
-// cross-user login without a prior sign-out (sign-out clears the whole cache)
-// must evict them so the next user re-derives, rather than reading — or being
-// left holding a revoked — previous session's key material. Prefixes evict the
-// parameterized derivation-path variants too.
-const derivedKeyQueryKeys = [
-  ['encryption'],
-  ['cashu-seed'],
-  ['cashu-xpub'],
-  ['cashu-private-key'],
-  ['spark-mnemonic'],
-];
+// Shared head segment for every session-derived-key query — encryption, cashu
+// seed/xpub/private-key, and spark mnemonic — which cache Open Secret derivations
+// with an infinity stale time. Keying them all under this prefix lets one
+// partial-prefix removeQueries drop them (and any future derived-key query) on an
+// auth change, so a cross-user login can't read — or leave a consumer holding a
+// revoked — the previous session's key material. The query defs import this, so
+// the defs and the eviction share one source of truth.
+export const derivedKeyQueryPrefix = 'derived-key';
 
-/** Drops every cached derived-key query so the next session derives fresh. */
+/**
+ * Drops every cached derived-key query — a partial-prefix match on
+ * {@link derivedKeyQueryPrefix}, so the parameterized derivation-path variants go
+ * too — so the next session derives fresh.
+ */
 export const evictDerivedKeyQueries = (queryClient: QueryClient): void => {
-  for (const queryKey of derivedKeyQueryKeys) {
-    queryClient.removeQueries({ queryKey });
-  }
+  queryClient.removeQueries({ queryKey: [derivedKeyQueryPrefix] });
 };

@@ -120,6 +120,10 @@ export const authQueryOptions = () =>
  */
 export const invalidateAuthQueries = async () => {
   const queryClient = getQueryClient();
+  // Auth changed ⇒ drop the previous user's infinity-stale derived keys so the
+  // next read re-derives under the new session. Every auth-change path funnels
+  // through here, so the eviction lives at this choke point, not each call site.
+  evictDerivedKeyQueries(queryClient);
   await Promise.all([
     queryClient.invalidateQueries({
       queryKey: [authStateQueryKey],
@@ -193,9 +197,8 @@ export const useAuthActions = (): AuthActions => {
 
   const refreshSession = useCallback(
     async (redirectTo?: string) => {
-      // A login can switch users without a prior sign-out; drop the previous
-      // user's infinity-stale derived keys so the next reads derive fresh.
-      evictDerivedKeyQueries(getQueryClient());
+      // invalidateAuthQueries drops the previous user's derived keys (a login can
+      // switch users without a prior sign-out), so no separate eviction here.
       await invalidateAuthQueries();
       if (redirectTo) {
         await navigate(redirectTo);

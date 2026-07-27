@@ -8,10 +8,11 @@ import {
   readEncryptionPublicKey,
 } from '@agicash/wallet-sdk/temporary';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
+import { derivedKeyQueryPrefix } from './session-key-queries';
 
 export const encryptionQueryOptions = () =>
   queryOptions({
-    queryKey: ['encryption'],
+    queryKey: [derivedKeyQueryPrefix, 'encryption'],
     // Derives then wraps so the raw private-key bytes are never stored in the
     // query cache — only the encrypt/decrypt closures that capture them are.
     // TEMPORARY: duplicates the SDK session-key facade's construction
