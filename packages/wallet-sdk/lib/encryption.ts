@@ -188,23 +188,6 @@ export type Encryption = {
   ) => Promise<T>;
 };
 
-export const getEncryption = (
-  privateKey: Uint8Array,
-  publicKeyHex: string,
-): Encryption => {
-  return {
-    encrypt: async <T = unknown>(data: T) =>
-      encryptToPublicKey(data, publicKeyHex),
-    decrypt: async <T = unknown>(data: string) =>
-      decryptWithPrivateKey<T>(data, privateKey),
-    encryptBatch: async <T extends readonly unknown[]>(data: T) =>
-      encryptBatchToPublicKey(data, publicKeyHex),
-    decryptBatch: async <T extends readonly unknown[]>(
-      data: readonly [...{ [K in keyof T]: string }],
-    ) => decryptBatchWithPrivateKey<T>(data, privateKey),
-  };
-};
-
 // 10111099 is 'enc' (for encryption) in ascii
 const encryptionKeyDerivationPath = `m/10111099'/0'`;
 

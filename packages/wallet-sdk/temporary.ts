@@ -41,7 +41,6 @@ export {
   decryptWithPrivateKey,
   encryptBatchToPublicKey,
   encryptToPublicKey,
-  getEncryption,
   readEncryptionPrivateKey,
   readEncryptionPublicKey,
 } from './lib/encryption';

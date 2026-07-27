@@ -1,7 +1,11 @@
 import { withRetry } from '@agicash/utils';
 import { core } from 'zod/mini';
 import type { AgicashDb } from '../../db/database';
-import { NoSessionError } from '../../lib/error';
+import {
+  DisposedError,
+  NoSessionError,
+  SessionEndedError,
+} from '../../lib/error';
 import type { AccountRepository } from '../accounts/account-repository';
 import type { AuthSession, UserApi } from '../sdk';
 import type { SessionKeys } from '../sdk/session-keys';
@@ -58,6 +62,11 @@ const defaultAccounts = [
     : []),
 ] as const;
 
+// A session ending mid-operation is terminal for that operation — retrying
+// would only re-derive keys for a session that no longer owns the work.
+const isSessionLifecycleError = (error: unknown): boolean =>
+  error instanceof SessionEndedError || error instanceof DisposedError;
+
 export function createUserApi(deps: Deps): UserApi {
   const readRepository = new ReadUserRepository(deps.db);
   const updateRepository = new UpdateUserRepository(deps.db);
@@ -98,6 +107,12 @@ export function createUserApi(deps: Deps): UserApi {
         throw new NoSessionError();
       }
       const authUser = session.user;
+      // Bind the operation to the session live at its start: the keys derived
+      // and the user id written below belong to it, so a session end mid-flight
+      // must abort the write rather than persist one user's data under the
+      // next session. Captured with no await after the session read so the two
+      // can't straddle a transition.
+      const signal = deps.keys.sessionSignal();
 
       // The memoized getters re-fetch only on failure, so retrying the batch
       // re-derives only the keys that failed, not the ones already resolved.
@@ -114,33 +129,54 @@ export function createUserApi(deps: Deps): UserApi {
             deps.keys.getSparkIdentityPublicKey(),
             deps.getAccountRepository(),
           ]),
+        retry: (attemptIndex, error) =>
+          !signal.aborted &&
+          !isSessionLifecycleError(error) &&
+          attemptIndex < 3,
       });
+
+      if (signal.aborted) {
+        throw new SessionEndedError();
+      }
 
       const upsertRepository = new UpsertUserRepository(
         deps.db,
         accountRepository,
       );
 
-      return withRetry({
+      const result = await withRetry({
         fn: () =>
-          upsertRepository.upsert({
-            id: authUser.id,
-            email: authUser.email,
-            emailVerified: authUser.email_verified,
-            accounts: [...defaultAccounts],
-            cashuLockingXpub,
-            encryptionPublicKey,
-            sparkIdentityPublicKey,
-            termsAcceptedAt: params.termsAcceptedAt,
-            giftCardMintTermsAcceptedAt: params.giftCardMintTermsAcceptedAt,
-          }),
+          upsertRepository.upsert(
+            {
+              id: authUser.id,
+              email: authUser.email,
+              emailVerified: authUser.email_verified,
+              accounts: [...defaultAccounts],
+              cashuLockingXpub,
+              encryptionPublicKey,
+              sparkIdentityPublicKey,
+              termsAcceptedAt: params.termsAcceptedAt,
+              giftCardMintTermsAcceptedAt: params.giftCardMintTermsAcceptedAt,
+            },
+            { abortSignal: signal },
+          ),
         retry: (attemptIndex, error) => {
           if (error instanceof core.$ZodError) {
+            return false;
+          }
+          if (signal.aborted || isSessionLifecycleError(error)) {
             return false;
           }
           return attemptIndex < 2;
         },
       });
+      // The RPC committed A's row, but its accounts were mapped through
+      // toAccount after; if the session ended meanwhile, don't resolve A's
+      // user/accounts into the next session's caller.
+      if (signal.aborted) {
+        throw new SessionEndedError();
+      }
+      return result;
     },
   };
 }
