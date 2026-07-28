@@ -14,7 +14,13 @@ import {
   type GuestAccountStorage,
   createGuestAccountStorage,
 } from '../../lib/guest-account-storage';
-import type { AuthApi, AuthSession, AuthStorage, Logger } from '../sdk';
+import type {
+  AuthApi,
+  AuthSession,
+  AuthStorage,
+  AuthUser,
+  Logger,
+} from '../sdk';
 import type { WalletEventEmitter } from '../sdk/events';
 
 // Keys are owned by @agicash/opensecret's token persistence; the service reads
@@ -57,6 +63,15 @@ type AuthServiceDeps = {
   events: WalletEventEmitter;
   /** Per-session cache cleanup on any session end (sign-out or expiry). */
   onSessionEnded?: () => void;
+  /**
+   * Notifies the higher layer that a session settled onto its current user — the
+   * session snapshot + keys are that settled identity — on every session-started
+   * transition. The higher layer decides what that means (today: provision the
+   * user). A terminal failure from the callback rejects and propagates to the
+   * caller (the auth verb, or `init()` on restore) so the host surfaces its error
+   * boundary; the session is kept.
+   */
+  onSessionStarted?: (authUser: AuthUser) => Promise<void>;
   logger: Logger;
 };
 
@@ -108,7 +123,11 @@ export class AuthService implements AuthApi {
     if (this.session.isLoggedIn) {
       // A sign-in (or another auth action) already established the session and
       // a preceding session end un-memoized the restore; booting from storage
-      // now would only repeat the user fetch that action already did.
+      // now would only repeat the user fetch that action already did. Still
+      // (re)notify that the session started: a prior notify whose downstream
+      // provisioning threw left it owed, and the higher layer's fingerprint guard
+      // makes this a no-op once provisioning has succeeded.
+      await this.notifySessionStarted();
       return;
     }
     const [accessToken, refreshToken] = await Promise.all([
@@ -145,6 +164,11 @@ export class AuthService implements AuthApi {
       this.endSession();
       throw error;
     }
+    // Restore started the session → notify the higher layer. A terminal failure
+    // from the callback propagates through init() so the host surfaces the error
+    // boundary; the session stays (it is not a restore failure that boots
+    // anonymous).
+    await this.notifySessionStarted();
   }
 
   async signUp(email: string, password: string): Promise<void> {
@@ -273,8 +297,11 @@ export class AuthService implements AuthApi {
     context: string,
     scope?: AbortSignal,
   ): Promise<boolean> {
+    let applied: boolean;
     try {
-      return await this.applySessionFromServer(scope ? { scope } : undefined);
+      applied = await this.applySessionFromServer(
+        scope ? { scope } : undefined,
+      );
     } catch (error) {
       // An auth action whose fetchUser fails leaves an anonymous session the
       // host discovers on its next read. endSession (not a bare snapshot clear)
@@ -285,6 +312,21 @@ export class AuthService implements AuthApi {
       this.endSession();
       return true;
     }
+    if (applied) {
+      await this.notifySessionStarted();
+    }
+    return applied;
+  }
+
+  // Notifies the higher layer that a session started onto its current user; that
+  // layer decides what it means (today: provision the user). A terminal failure
+  // from the callback propagates to the caller (the auth verb, or init() on
+  // restore) so the host surfaces its error boundary; the session is kept.
+  private async notifySessionStarted(): Promise<void> {
+    if (!this.session.isLoggedIn) {
+      return;
+    }
+    await this.deps.onSessionStarted?.(this.session.user);
   }
 
   /**

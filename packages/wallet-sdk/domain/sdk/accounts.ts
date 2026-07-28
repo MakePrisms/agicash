@@ -1,4 +1,10 @@
-import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
+import type { Currency } from '@agicash/money';
+import type {
+  Account,
+  AccountPurpose,
+  CashuAccount,
+  SparkAccount,
+} from '../accounts/account';
 
 // The public account types are the domain entities for now: only the apps
 // consume the SDK and they just read these shapes, so fields like proofs,
@@ -16,4 +22,9 @@ export type AccountsApi = {
   };
 };
 
-export type AddCashuAccountParams = unknown; // step 6 (accounts)
+export type AddCashuAccountParams = {
+  name: string;
+  mintUrl: string;
+  currency: Currency;
+  purpose: AccountPurpose;
+};

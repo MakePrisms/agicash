@@ -1,42 +1,41 @@
-import { getPrivateKeyBytes, getPublicKey } from '@agicash/opensecret';
 import type { Encryption } from '@agicash/wallet-sdk/temporary';
-import { getEncryption } from '@agicash/wallet-sdk/temporary';
-import { hexToBytes } from '@noble/hashes/utils';
+import {
+  decryptBatchWithPrivateKey,
+  decryptWithPrivateKey,
+  encryptBatchToPublicKey,
+  encryptToPublicKey,
+  readEncryptionPrivateKey,
+  readEncryptionPublicKey,
+} from '@agicash/wallet-sdk/temporary';
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { derivedKeyQueryPrefix } from './session-key-queries';
 
-// 10111099 is 'enc' (for encryption) in ascii
-const encryptionKeyDerivationPath = `m/10111099'/0'`;
-
-export const encryptionPrivateKeyQueryOptions = () =>
+export const encryptionQueryOptions = () =>
   queryOptions({
-    queryKey: ['encryption-private-key'],
-    queryFn: () =>
-      getPrivateKeyBytes({
-        private_key_derivation_path: encryptionKeyDerivationPath,
-      }).then((response) => hexToBytes(response.private_key)),
+    queryKey: [derivedKeyQueryPrefix, 'encryption'],
+    // Derives then wraps so the raw private-key bytes are never stored in the
+    // query cache — only the encrypt/decrypt closures that capture them are.
+    // TEMPORARY: duplicates the SDK session-key facade's construction
+    // (packages/wallet-sdk/domain/sdk/session-keys.ts builds the same object
+    // literal from these primitives). Deleted at step 18 when receive/send/claim
+    // migrate into the SDK and this query is removed.
+    queryFn: async (): Promise<Encryption> => {
+      const privateKey = await readEncryptionPrivateKey();
+      const publicKeyHex = await readEncryptionPublicKey();
+      return {
+        encrypt: async <T = unknown>(data: T) =>
+          encryptToPublicKey(data, publicKeyHex),
+        decrypt: async <T = unknown>(data: string) =>
+          decryptWithPrivateKey<T>(data, privateKey),
+        encryptBatch: async <T extends readonly unknown[]>(data: T) =>
+          encryptBatchToPublicKey(data, publicKeyHex),
+        decryptBatch: async <T extends readonly unknown[]>(
+          data: readonly [...{ [K in keyof T]: string }],
+        ) => decryptBatchWithPrivateKey<T>(data, privateKey),
+      };
+    },
     staleTime: Number.POSITIVE_INFINITY,
   });
-
-export const useEncryptionPrivateKey = () => {
-  const { data } = useSuspenseQuery(encryptionPrivateKeyQueryOptions());
-  return data;
-};
-
-export const encryptionPublicKeyQueryOptions = () =>
-  queryOptions({
-    queryKey: ['encryption-public-key'],
-    queryFn: () =>
-      getPublicKey('schnorr', {
-        private_key_derivation_path: encryptionKeyDerivationPath,
-      }).then((response) => response.public_key),
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-
-export const useEncryptionPublicKeyHex = () => {
-  const { data } = useSuspenseQuery(encryptionPublicKeyQueryOptions());
-  return data;
-};
 
 /**
  * Hook that provides the encryption functions.
@@ -48,11 +47,6 @@ export const useEncryptionPublicKeyHex = () => {
  * @returns The encryption functions.
  */
 export const useEncryption = (): Encryption => {
-  const privateKey = useEncryptionPrivateKey();
-  const publicKeyHex = useEncryptionPublicKeyHex();
-
-  return useMemo(
-    () => getEncryption(privateKey, publicKeyHex),
-    [privateKey, publicKeyHex],
-  );
+  const { data } = useSuspenseQuery(encryptionQueryOptions());
+  return data;
 };

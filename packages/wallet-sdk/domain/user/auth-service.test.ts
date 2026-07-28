@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { DisposedError } from '../../lib/error';
 import { nullLogger } from '../../lib/logger';
-import type { AuthKeyValueStore, AuthStorage } from '../sdk';
+import type { AuthKeyValueStore, AuthStorage, AuthUser } from '../sdk';
 import { WalletEventEmitter } from '../sdk/events';
 import { AuthService, type OpenSecretAuthApi } from './auth-service';
 
@@ -100,6 +100,7 @@ const createService = (
     os?: Partial<OpenSecretAuthApi>;
     storage?: ReturnType<typeof createStorage>;
     onSessionEnded?: () => void;
+    onSessionStarted?: (authUser: AuthUser) => Promise<void>;
   } = {},
 ) => {
   const storage = options.storage ?? createStorage();
@@ -111,6 +112,7 @@ const createService = (
     generateGuestPassword: async () => 'generated-pw',
     events,
     onSessionEnded: options.onSessionEnded,
+    onSessionStarted: options.onSessionStarted,
     logger: nullLogger,
   });
   return { service, storage, calls, events };
@@ -120,6 +122,113 @@ describe('AuthService', () => {
   it('starts anonymous', () => {
     const { service } = createService();
     expect(service.getSession()).toEqual({ isLoggedIn: false });
+  });
+
+  describe('onSessionStarted (provisioning)', () => {
+    const withTokens = (storage: ReturnType<typeof createStorage>) => {
+      storage.persistent.data.set('access_token', createJwt(600));
+      storage.persistent.data.set('refresh_token', createJwt(3600));
+    };
+
+    it('fires post-establish on restore, with the settled user', async () => {
+      const storage = createStorage();
+      withTokens(storage);
+      const established: AuthUser[] = [];
+      const { service } = createService({
+        storage,
+        onSessionStarted: async (user) => {
+          established.push(user);
+        },
+      });
+
+      await service.restoreSession();
+
+      expect(established).toHaveLength(1);
+      expect(established[0]?.id).toBe('user-1');
+      expect(service.getSession().isLoggedIn).toBe(true);
+    });
+
+    it('fires post-establish on a sign-in', async () => {
+      const established: AuthUser[] = [];
+      const { service } = createService({
+        onSessionStarted: async (user) => {
+          established.push(user);
+        },
+      });
+
+      await service.signIn('a@b.c', 'pw');
+
+      expect(established).toHaveLength(1);
+      expect(established[0]?.id).toBe('user-1');
+    });
+
+    it('propagates a terminal provisioning failure out of the verb, keeping the established session', async () => {
+      const { service } = createService({
+        onSessionStarted: async () => {
+          throw new Error('provision failed');
+        },
+      });
+
+      await expect(service.signIn('a@b.c', 'pw')).rejects.toThrow(
+        'provision failed',
+      );
+      // The identity is authenticated; only provisioning failed.
+      expect(service.getSession().isLoggedIn).toBe(true);
+    });
+
+    it('propagates a terminal provisioning failure out of restore', async () => {
+      const storage = createStorage();
+      withTokens(storage);
+      const { service } = createService({
+        storage,
+        onSessionStarted: async () => {
+          throw new Error('provision failed');
+        },
+      });
+
+      await expect(service.restoreSession()).rejects.toThrow(
+        'provision failed',
+      );
+      expect(service.getSession().isLoggedIn).toBe(true);
+    });
+
+    it('does not fire when restore establishes no session', async () => {
+      const established: AuthUser[] = [];
+      const { service } = createService({
+        onSessionStarted: async (user) => {
+          established.push(user);
+        },
+      });
+
+      await service.restoreSession();
+
+      expect(established).toHaveLength(0);
+      expect(service.getSession().isLoggedIn).toBe(false);
+    });
+
+    it('re-provisions on a later restore when a prior establish left it owed', async () => {
+      const storage = createStorage();
+      withTokens(storage);
+      let attempts = 0;
+      const { service } = createService({
+        storage,
+        onSessionStarted: async () => {
+          attempts += 1;
+          if (attempts === 1) {
+            throw new Error('provision failed');
+          }
+        },
+      });
+
+      await expect(service.restoreSession()).rejects.toThrow(
+        'provision failed',
+      );
+      // The session is already established; the retry must still re-provision.
+      await service.restoreSession();
+
+      expect(attempts).toBe(2);
+      expect(service.getSession().isLoggedIn).toBe(true);
+    });
   });
 
   describe('restoreSession', () => {

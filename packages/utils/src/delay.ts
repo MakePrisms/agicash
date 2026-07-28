@@ -7,7 +7,7 @@ export type DelayOptions = {
  * @param ms Number of milliseconds to wait
  * @param signal Abort signal that can be used to cancel the delay
  */
-export default async function delay(
+export async function delay(
   ms: number,
   { signal }: DelayOptions = {},
 ): Promise<void> {

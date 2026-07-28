@@ -1,4 +1,4 @@
-import delay from './delay';
+import { delay } from './delay';
 
 /**
  * Predicate that determines whether a function should be retried.

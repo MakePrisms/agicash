@@ -5,7 +5,7 @@ import type { Account, CashuAccount, SparkAccount } from '../accounts/account';
 import type { AccountService } from '../accounts/account-service';
 import type { Ticker } from '../exchange-rate';
 import type { User } from '../user/user';
-import { UserService } from '../user/user-service';
+import { getExtendedAccounts } from '../user/user-service';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import type { CashuReceiveSwapService } from './cashu-receive-swap-service';
@@ -82,7 +82,7 @@ export class ClaimCashuTokenService {
   ): Promise<ClaimTokenResult> {
     const changedAccounts: Account[] = [];
 
-    const extendedAccounts = UserService.getExtendedAccounts(user, accounts);
+    const extendedAccounts = getExtendedAccounts(user, accounts);
     const preferredReceiveAccountId =
       claimTo === 'spark'
         ? extendedAccounts.find((a) => a.type === 'spark')?.id

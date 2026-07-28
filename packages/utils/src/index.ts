@@ -6,3 +6,5 @@ export * from './type-utils';
 export * from './sha256';
 export * from './timeout';
 export * from './xchacha20poly1305';
+export * from './delay';
+export * from './with-retry';
