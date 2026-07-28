@@ -7,10 +7,11 @@ import {
   getMintInfo,
 } from '@agicash/wallet-sdk/temporary';
 import { type QueryClient, queryOptions } from '@tanstack/react-query';
+import { derivedKeyQueryPrefix } from './session-key-queries';
 
 export const seedQueryOptions = () =>
   queryOptions({
-    queryKey: ['cashu-seed'],
+    queryKey: [derivedKeyQueryPrefix, 'cashu-seed'],
     queryFn: () => getCashuSeed(),
     staleTime: Number.POSITIVE_INFINITY,
   });
@@ -20,7 +21,7 @@ export const xpubQueryOptions = ({
   derivationPath,
 }: { queryClient: QueryClient; derivationPath?: string }) =>
   queryOptions({
-    queryKey: ['cashu-xpub', derivationPath],
+    queryKey: [derivedKeyQueryPrefix, 'cashu-xpub', derivationPath],
     queryFn: async () =>
       deriveCashuXpub(
         await queryClient.fetchQuery(seedQueryOptions()),
@@ -33,7 +34,7 @@ const privateKeyQueryOptions = ({
   derivationPath,
 }: { derivationPath?: string } = {}) =>
   queryOptions({
-    queryKey: ['cashu-private-key', derivationPath],
+    queryKey: [derivedKeyQueryPrefix, 'cashu-private-key', derivationPath],
     queryFn: () => getCashuPrivateKey(derivationPath),
     staleTime: Number.POSITIVE_INFINITY,
   });

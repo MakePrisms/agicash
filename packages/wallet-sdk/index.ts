@@ -16,6 +16,7 @@ export {
   DomainError,
   NotFoundError,
   SdkError,
+  SessionEndedError,
   UniqueConstraintError,
 } from './lib/error';
 export { WebAssemblyUnavailableError } from './lib/spark/errors';
@@ -50,6 +51,10 @@ export {
   shouldAcceptTerms,
   shouldVerifyEmail,
 } from './domain/user/user';
+export {
+  getExtendedAccounts,
+  isDefaultAccount,
+} from './domain/user/user-service';
 export type { Contact } from './domain/contacts/contact';
 export type {
   TransactionDirection,

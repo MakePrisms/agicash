@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { nullLogger } from '../../lib/logger';
+import type { Account } from '../accounts/account';
+import type { User } from '../user/user';
 import { WalletEventEmitter } from './events';
 
 describe('WalletEventEmitter', () => {
@@ -69,5 +71,69 @@ describe('WalletEventEmitter', () => {
 
     expect(secondHandlerRan).toBe(true);
     expect(errors).toHaveLength(1);
+  });
+
+  describe('auth.session-started replay-latest', () => {
+    const startedPayload = (id: string) => ({
+      user: { id } as unknown as User,
+      accounts: [] as unknown as Account[],
+    });
+
+    it('replays the most recent payload to a handler subscribed after the emit', () => {
+      const emitter = new WalletEventEmitter(nullLogger);
+      const payload = startedPayload('user-1');
+      emitter.emit('auth.session-started', payload);
+
+      const received: unknown[] = [];
+      emitter.on('auth.session-started', (p) => received.push(p));
+
+      expect(received).toEqual([payload]);
+    });
+
+    it('replays only the latest payload', () => {
+      const emitter = new WalletEventEmitter(nullLogger);
+      emitter.emit('auth.session-started', startedPayload('user-1'));
+      const latest = startedPayload('user-2');
+      emitter.emit('auth.session-started', latest);
+
+      const received: unknown[] = [];
+      emitter.on('auth.session-started', (p) => received.push(p));
+
+      expect(received).toEqual([latest]);
+    });
+
+    it('delivers a live emit to an already-subscribed handler', () => {
+      const emitter = new WalletEventEmitter(nullLogger);
+      const received: unknown[] = [];
+      emitter.on('auth.session-started', (p) => received.push(p));
+
+      const payload = startedPayload('user-1');
+      emitter.emit('auth.session-started', payload);
+
+      expect(received).toEqual([payload]);
+    });
+
+    it('does not replay other event types to a late subscriber', () => {
+      const emitter = new WalletEventEmitter(nullLogger);
+      emitter.emit('auth.session-expired', {});
+
+      let calls = 0;
+      emitter.on('auth.session-expired', () => {
+        calls += 1;
+      });
+
+      expect(calls).toBe(0);
+    });
+
+    it('does not replay after the retained payload is cleared', () => {
+      const emitter = new WalletEventEmitter(nullLogger);
+      emitter.emit('auth.session-started', startedPayload('user-1'));
+      emitter.clear();
+
+      const received: unknown[] = [];
+      emitter.on('auth.session-started', (p) => received.push(p));
+
+      expect(received).toEqual([]);
+    });
   });
 });

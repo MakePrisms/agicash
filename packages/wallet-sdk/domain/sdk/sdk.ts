@@ -2,6 +2,7 @@ import * as openSecret from '@agicash/opensecret';
 import type {
   AccountsApi,
   AuthApi,
+  AuthSession,
   ContactsApi,
   FeatureFlagsApi,
   ReceiveApi,
@@ -17,31 +18,36 @@ import type {
 import { createAgicashDbClient } from '../../db/client';
 import { createSupabaseSessionTokenGetter } from '../../db/supabase-session';
 import { clearAgicashMintAuthToken } from '../../lib/agicash-mint-auth-provider';
-import { NotImplementedError } from '../../lib/error';
+import { DisposedError, NotImplementedError } from '../../lib/error';
 import { generateRandomPassword } from '../../lib/password';
-import { clearSparkWallets } from '../../lib/spark/wallet';
+import {
+  type SparkWalletConfig,
+  clearSparkWallets,
+} from '../../lib/spark/wallet';
+import { createAccountsApi } from '../accounts/accounts-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
+import { type OwnedSessionKeys, createSessionKeys } from './session-keys';
+import { createUserProvisioner } from './user-provisioner';
 
-// Makes the one-instance-per-process constraint (see the constructor note)
-// self-enforcing: create() refuses to run while an undisposed instance holds
-// the module-global Open Secret configuration.
-let liveInstance: AgicashSdk | undefined;
+// The current instance: the instance currently constructed and not yet
+// disposed. Makes the one-instance-per-process constraint (see the constructor
+// note) self-enforcing: create() refuses to run while an undisposed instance
+// holds the module-global Open Secret configuration.
+let currentInstance: AgicashSdk | undefined;
 
 /**
  * Runtime implementation of the SDK contract. Namespaces land slice by slice —
- * auth, user, and events so far; accessing a namespace whose migration slice
- * hasn't landed throws `NotImplementedError`.
+ * auth, user, accounts, and events so far; accessing a namespace whose migration
+ * slice hasn't landed throws `NotImplementedError`.
  */
 export class AgicashSdk implements Sdk {
   readonly auth: AuthApi;
   readonly user: UserApi;
+  readonly accounts: AccountsApi;
   readonly events: WalletEvents;
 
-  get accounts(): AccountsApi {
-    throw new NotImplementedError('accounts');
-  }
   get contacts(): ContactsApi {
     throw new NotImplementedError('contacts');
   }
@@ -65,6 +71,8 @@ export class AgicashSdk implements Sdk {
   }
 
   private readonly authService: AuthService;
+  private readonly keys: OwnedSessionKeys;
+  private disposed = false;
 
   private constructor(config: SdkConfig) {
     // The Open Secret client is module-scoped in @agicash/opensecret, so auth
@@ -79,11 +87,25 @@ export class AgicashSdk implements Sdk {
 
     const events = new WalletEventEmitter(config.logger);
 
+    const keys = createSessionKeys();
+    this.keys = keys;
+
     // Created before authService — the isLoggedIn closure dereferences it
     // lazily at request time, after the constructor has assigned it.
     const sessionToken = createSupabaseSessionTokenGetter({
       isLoggedIn: () => this.authService.getSession().isLoggedIn,
       generateToken: () => openSecret.generateThirdPartyToken(),
+    });
+
+    // Provisioning runs internally, post-establish, as the settled identity —
+    // fingerprint-guarded so it re-provisions only when the identity changes,
+    // held in memory, not persisted. A terminal failure propagates to the caller
+    // so the host surfaces its error boundary; a session-lifecycle abort is moot
+    // for the session that is starting. The guard resets on session end (below)
+    // so a same-user re-login re-provisions the caches the end cleared.
+    const userProvisioner = createUserProvisioner({
+      provision: () => this.user.provision(),
+      emit: (payload) => events.emit('auth.session-started', payload),
     });
 
     this.authService = new AuthService({
@@ -93,6 +115,7 @@ export class AgicashSdk implements Sdk {
         (await config.auth.generateGuestPassword?.()) ??
         generateRandomPassword(32),
       events,
+      onSessionStarted: userProvisioner.provision,
       onSessionEnded: () => {
         // The token cache must die with the session: a token minted for one
         // user must never serve the next login's queries. Anything wiped here
@@ -102,9 +125,25 @@ export class AgicashSdk implements Sdk {
         sessionToken.reset();
         clearSparkWallets();
         clearAgicashMintAuthToken();
+        keys.reset();
+        // Provisioning state is session-scoped too: after a sign-out the next
+        // login — even the same user — must re-provision and re-emit
+        // auth.session-started so the host reseeds the caches it cleared on end.
+        userProvisioner.reset();
+        events.clear();
       },
       logger: config.logger,
     });
+
+    // The namespaces read the session through this, not the public
+    // auth.getSession(): a call on a namespace handle retained across dispose()
+    // rejects instead of acting on the dead instance's last session snapshot.
+    const getLiveSession = (): AuthSession => {
+      if (this.disposed) {
+        throw new DisposedError();
+      }
+      return this.authService.getSession();
+    };
 
     const db = createAgicashDbClient({
       url: config.db.url,
@@ -112,23 +151,37 @@ export class AgicashSdk implements Sdk {
       accessToken: sessionToken.getToken,
     });
 
+    const sparkConfig: SparkWalletConfig = {
+      storageDir: config.spark.storageDir ?? './.spark-data',
+      apiKey: config.spark.breezApiKey,
+    };
+    const accounts = createAccountsApi({
+      db,
+      getSession: getLiveSession,
+      keys,
+      sparkConfig,
+    });
+
     this.auth = this.authService;
     this.user = createUserApi({
       db,
-      getSession: () => this.authService.getSession(),
+      getSession: getLiveSession,
+      keys,
+      getAccountRepository: accounts.getRepository,
     });
+    this.accounts = accounts.api;
     this.events = events;
   }
 
   /** Sync; no I/O. Throws when an undisposed instance already exists (see the constructor note). */
   static create(config: SdkConfig): AgicashSdk {
-    if (liveInstance) {
+    if (currentInstance) {
       throw new Error(
         'An AgicashSdk instance already exists in this process. @agicash/opensecret holds module-global auth state, so dispose() the previous instance before creating another.',
       );
     }
-    liveInstance = new AgicashSdk(config);
-    return liveInstance;
+    currentInstance = new AgicashSdk(config);
+    return currentInstance;
   }
 
   /**
@@ -142,9 +195,11 @@ export class AgicashSdk implements Sdk {
   }
 
   async dispose(): Promise<void> {
+    this.disposed = true;
     this.authService.teardown();
-    if (liveInstance === this) {
-      liveInstance = undefined;
+    this.keys.dispose();
+    if (currentInstance === this) {
+      currentInstance = undefined;
     }
   }
 }

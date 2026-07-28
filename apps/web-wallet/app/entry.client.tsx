@@ -21,6 +21,7 @@ import { loadFeatureFlags } from './features/shared/feature-flags';
 // later slice constructs the SDK explicitly at boot and moves feature flags
 // onto the instance, dropping this ordering dependency (PR #1166).
 import './features/shared/sdk.client';
+import { registerSessionStarted } from './features/user/session-started';
 import { registerMoneyDevToolsFormatter } from './lib/money-devtools-formatter';
 import { getTracesSampleRate, sanitizeUrl } from './tracing-utils';
 
@@ -47,6 +48,11 @@ ensureBreezWasm().catch(() => {
 // for user-targeted flags after login.
 configureFeatureFlags(agicashDbClient);
 void loadFeatureFlags();
+
+// Seed the user + accounts caches from the SDK's auth.session-started event once
+// provisioning settles the identity. Registered before the router so the first
+// protected middleware reads already-seeded caches.
+registerSessionStarted();
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN ?? '';
 if (!sentryDsn) {

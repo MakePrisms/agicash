@@ -92,44 +92,6 @@ export const useUser = <TData = User>(
   return data;
 };
 
-const isDevelopmentMode = import.meta.env.MODE === 'development';
-
-export const defaultAccounts = [
-  {
-    type: 'spark',
-    currency: 'BTC',
-    name: 'Bitcoin',
-    network: 'MAINNET',
-    isDefault: true,
-    purpose: 'transactional',
-    expiresAt: null,
-  },
-  ...(isDevelopmentMode
-    ? ([
-        {
-          type: 'cashu',
-          currency: 'BTC',
-          name: 'Testnut BTC',
-          mintUrl: 'https://testnut.cashu.space',
-          isTestMint: true,
-          isDefault: false,
-          purpose: 'transactional',
-          expiresAt: null,
-        },
-        {
-          type: 'cashu',
-          currency: 'USD',
-          name: 'Testnut USD',
-          mintUrl: 'https://testnut.cashu.space',
-          isTestMint: true,
-          isDefault: true,
-          purpose: 'transactional',
-          expiresAt: null,
-        },
-      ] as const)
-    : []),
-] as const;
-
 export const useUserRef = () => {
   const user = useUser();
   return useLatest(user);
@@ -247,8 +209,17 @@ export const useUpdateUsername = () => {
 
 export const useAcceptTerms = () => {
   const { mutateAsync } = useUserUpdatingMutation(
-    (params: { walletTerms?: boolean; giftCardTerms?: boolean }) =>
-      sdk.user.acceptTerms(params),
+    (params: { walletTerms?: boolean; giftCardTerms?: boolean }) => {
+      // The acceptance timestamp is the moment of this click, recorded here
+      // rather than server-side, so it reflects when the user actually accepted.
+      const acceptedAt = new Date().toISOString();
+      return sdk.user.acceptTerms({
+        walletTermsAcceptedAt: params.walletTerms ? acceptedAt : undefined,
+        giftCardMintTermsAcceptedAt: params.giftCardTerms
+          ? acceptedAt
+          : undefined,
+      });
+    },
   );
 
   return mutateAsync;
