@@ -29,6 +29,7 @@ import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
 import { type OwnedSessionKeys, createSessionKeys } from './session-keys';
+import { createUserProvisioner } from './user-provisioner';
 
 // The current instance: the instance currently constructed and not yet
 // disposed. Makes the one-instance-per-process constraint (see the constructor
@@ -96,6 +97,17 @@ export class AgicashSdk implements Sdk {
       generateToken: () => openSecret.generateThirdPartyToken(),
     });
 
+    // Provisioning runs internally, post-establish, as the settled identity —
+    // fingerprint-guarded so it re-provisions only when the identity changes,
+    // held in memory, not persisted. A terminal failure propagates to the caller
+    // so the host surfaces its error boundary; a session-lifecycle abort is moot
+    // for the session that is starting. The guard resets on session end (below)
+    // so a same-user re-login re-provisions the caches the end cleared.
+    const userProvisioner = createUserProvisioner({
+      provision: () => this.user.provision(),
+      emit: (payload) => events.emit('auth.session-started', payload),
+    });
+
     this.authService = new AuthService({
       os: openSecret,
       storage: config.auth.storage,
@@ -103,6 +115,7 @@ export class AgicashSdk implements Sdk {
         (await config.auth.generateGuestPassword?.()) ??
         generateRandomPassword(32),
       events,
+      onSessionStarted: userProvisioner.provision,
       onSessionEnded: () => {
         // The token cache must die with the session: a token minted for one
         // user must never serve the next login's queries. Anything wiped here
@@ -113,6 +126,11 @@ export class AgicashSdk implements Sdk {
         clearSparkWallets();
         clearAgicashMintAuthToken();
         keys.reset();
+        // Provisioning state is session-scoped too: after a sign-out the next
+        // login — even the same user — must re-provision and re-emit
+        // auth.session-started so the host reseeds the caches it cleared on end.
+        userProvisioner.reset();
+        events.clear();
       },
       logger: config.logger,
     });

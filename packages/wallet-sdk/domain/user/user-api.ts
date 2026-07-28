@@ -86,13 +86,11 @@ export function createUserApi(deps: Deps): UserApi {
     get: async () => readRepository.get(requireUserId()),
     updateUsername: async (username) =>
       updateRepository.update(requireUserId(), { username }),
-    acceptTerms: async (params) => {
-      const now = new Date().toISOString();
-      return updateRepository.update(requireUserId(), {
-        termsAcceptedAt: params.walletTerms ? now : undefined,
-        giftCardMintTermsAcceptedAt: params.giftCardTerms ? now : undefined,
-      });
-    },
+    acceptTerms: async (params) =>
+      updateRepository.update(requireUserId(), {
+        termsAcceptedAt: params.walletTermsAcceptedAt,
+        giftCardMintTermsAcceptedAt: params.giftCardMintTermsAcceptedAt,
+      }),
     setDefaultCurrency: async (params) =>
       updateRepository.update(requireUserId(), {
         defaultCurrency: params.currency,
@@ -101,7 +99,7 @@ export function createUserApi(deps: Deps): UserApi {
       userService.setDefaultAccount(requireUserId(), params.account, {
         setDefaultCurrency: params.setDefaultCurrency,
       }),
-    provision: async (params) => {
+    provision: async () => {
       const session = deps.getSession();
       if (!session.isLoggedIn) {
         throw new NoSessionError();
@@ -155,8 +153,6 @@ export function createUserApi(deps: Deps): UserApi {
               cashuLockingXpub,
               encryptionPublicKey,
               sparkIdentityPublicKey,
-              termsAcceptedAt: params.termsAcceptedAt,
-              giftCardMintTermsAcceptedAt: params.giftCardMintTermsAcceptedAt,
             },
             { abortSignal: signal },
           ),

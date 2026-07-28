@@ -209,8 +209,17 @@ export const useUpdateUsername = () => {
 
 export const useAcceptTerms = () => {
   const { mutateAsync } = useUserUpdatingMutation(
-    (params: { walletTerms?: boolean; giftCardTerms?: boolean }) =>
-      sdk.user.acceptTerms(params),
+    (params: { walletTerms?: boolean; giftCardTerms?: boolean }) => {
+      // The acceptance timestamp is the moment of this click, recorded here
+      // rather than server-side, so it reflects when the user actually accepted.
+      const acceptedAt = new Date().toISOString();
+      return sdk.user.acceptTerms({
+        walletTermsAcceptedAt: params.walletTerms ? acceptedAt : undefined,
+        giftCardMintTermsAcceptedAt: params.giftCardTerms
+          ? acceptedAt
+          : undefined,
+      });
+    },
   );
 
   return mutateAsync;

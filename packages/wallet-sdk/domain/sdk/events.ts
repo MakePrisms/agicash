@@ -29,6 +29,15 @@ export type WalletEventMap = {
    * session-derived state from it.
    */
   'auth.session-refreshed': Record<string, never>;
+  /**
+   * A session settled onto its current user (initial login/restore or a
+   * mid-session identity change) and the user was provisioned — carries the
+   * provisioned user and their accounts so the host seeds its caches by plain
+   * reads. Replay-latest: a handler that subscribes after the establish still
+   * receives the most recent payload immediately (the common React case, where
+   * the tree mounts after `init()` already established the session).
+   */
+  'auth.session-started': { user: User; accounts: Account[] };
   'user.updated': { user: User };
   'account.created': { account: Account };
   /** A persisted row changed; the payload carries a `version` consumers gate on. */
@@ -85,6 +94,11 @@ type Handler = (payload: never) => void;
 
 export class WalletEventEmitter implements WalletEvents {
   private readonly handlers = new Map<keyof WalletEventMap, Set<Handler>>();
+  // Retained for replay-latest: the most recent auth.session-started payload,
+  // replayed to a handler that subscribes after the establish.
+  private lastSessionStarted:
+    | WalletEventMap['auth.session-started']
+    | undefined;
 
   constructor(private readonly logger: Logger) {}
 
@@ -95,15 +109,38 @@ export class WalletEventEmitter implements WalletEvents {
     const set = this.handlers.get(event) ?? new Set<Handler>();
     set.add(handler as Handler);
     this.handlers.set(event, set);
+    if (event === 'auth.session-started' && this.lastSessionStarted) {
+      this.dispatch(
+        handler as (payload: WalletEventMap['auth.session-started']) => void,
+        'auth.session-started',
+        this.lastSessionStarted,
+      );
+    }
     return () => {
       set.delete(handler as Handler);
     };
+  }
+
+  private dispatch<K extends keyof WalletEventMap>(
+    handler: (payload: WalletEventMap[K]) => void,
+    event: K,
+    payload: WalletEventMap[K],
+  ): void {
+    try {
+      handler(payload);
+    } catch (error) {
+      this.logger.error(`Event handler for ${event} threw`, error);
+    }
   }
 
   emit<K extends keyof WalletEventMap>(
     event: K,
     payload: WalletEventMap[K],
   ): void {
+    if (event === 'auth.session-started') {
+      this.lastSessionStarted =
+        payload as WalletEventMap['auth.session-started'];
+    }
     const set = this.handlers.get(event);
     if (!set) {
       return;
@@ -111,11 +148,21 @@ export class WalletEventEmitter implements WalletEvents {
     // Snapshot: a handler that (un)subscribes mid-emit must not change the
     // current dispatch.
     for (const handler of [...set]) {
-      try {
-        (handler as (payload: WalletEventMap[K]) => void)(payload);
-      } catch (error) {
-        this.logger.error(`Event handler for ${event} threw`, error);
-      }
+      this.dispatch(
+        handler as (payload: WalletEventMap[K]) => void,
+        event,
+        payload,
+      );
     }
+  }
+
+  /**
+   * Drops all retained replay-latest payloads so a subscriber that registers
+   * after a session end is not replayed the previous session's events (today the
+   * retained `auth.session-started` user and accounts; extend here as more events
+   * adopt replay-latest). Called by the SDK on session end.
+   */
+  clear(): void {
+    this.lastSessionStarted = undefined;
   }
 }

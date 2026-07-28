@@ -65,9 +65,16 @@ export const authQueryOptions = () =>
       try {
         await sdk.init();
       } catch (error) {
-        // Restore failed with tokens present (e.g. a network blip at boot).
-        // Boot anonymous; init()'s rejection is not memoized, so a later
-        // invalidateAuthQueries() retries the restore.
+        // A session that established but whose provisioning threw is not an
+        // anonymous boot: the identity is authenticated, only provisioning as
+        // the settled user failed. Surface it to the error boundary rather than
+        // masking a half-provisioned session as logged-out. init()'s rejection
+        // is not memoized, so a later invalidateAuthQueries() retries.
+        if (sdk.auth.getSession().isLoggedIn) {
+          throw error;
+        }
+        // Restore genuinely failed with tokens present (e.g. a network blip at
+        // boot). Boot anonymous; the same un-memoized retry applies.
         console.error('Failed to initialize sdk', { cause: error });
         Sentry.setUser(null);
         sessionHintCookie.clear();

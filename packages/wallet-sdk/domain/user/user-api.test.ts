@@ -163,7 +163,7 @@ describe('createUserApi', () => {
   });
 
   describe('provision', () => {
-    it('upserts with the derived keys and terms, returning the user and accounts', async () => {
+    it('upserts with the derived keys, returning the user and accounts', async () => {
       const { db, calls } = createUpsertDbFake([{ ok: true }]);
       const api = createUserApi({
         db,
@@ -172,16 +172,13 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      const result = await api.provision({
-        termsAcceptedAt: '2026-01-02T00:00:00Z',
-      });
+      const result = await api.provision();
 
       expect(calls).toHaveLength(1);
       expect(calls[0]?.p_user_id).toBe('user-a');
       expect(calls[0]?.p_cashu_locking_xpub).toBe('xpub');
       expect(calls[0]?.p_encryption_public_key).toBe('enc-pub');
       expect(calls[0]?.p_spark_identity_public_key).toBe('spark-id');
-      expect(calls[0]?.p_terms_accepted_at).toBe('2026-01-02T00:00:00Z');
       expect(result.user.id).toBe('user-a');
       expect(result.accounts).toEqual([]);
     });
@@ -220,7 +217,7 @@ describe('createUserApi', () => {
           }) as unknown as AccountRepository,
       });
 
-      const result = await api.provision({});
+      const result = await api.provision();
 
       expect(calls).toHaveLength(1);
       expect(toAccountCalls).toEqual([row]);
@@ -255,15 +252,15 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      const first = await api.provision({});
-      const second = await api.provision({});
+      const first = await api.provision();
+      const second = await api.provision();
 
       expect(calls).toHaveLength(2);
       expect(first.user.username).toBe('name');
       expect(second.user.username).toBe('renamed');
     });
 
-    it('carries the terms params into the upsert on every call', async () => {
+    it('does not pass terms into the upsert — terms are decoupled to acceptTerms', async () => {
       const { db, calls } = createUpsertDbFake([{ ok: true }]);
       const api = createUserApi({
         db,
@@ -272,17 +269,11 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      await api.provision({ termsAcceptedAt: 't1' });
-      await api.provision({
-        termsAcceptedAt: 't2',
-        giftCardMintTermsAcceptedAt: 'g2',
-      });
+      await api.provision();
 
-      expect(calls).toHaveLength(2);
-      expect(calls[0]?.p_terms_accepted_at).toBe('t1');
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.p_terms_accepted_at).toBeUndefined();
       expect(calls[0]?.p_gift_card_mint_terms_accepted_at).toBeUndefined();
-      expect(calls[1]?.p_terms_accepted_at).toBe('t2');
-      expect(calls[1]?.p_gift_card_mint_terms_accepted_at).toBe('g2');
     });
 
     it('retries a transient key-derivation failure before upserting', async () => {
@@ -303,7 +294,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      const result = await api.provision({});
+      const result = await api.provision();
 
       expect(attempts).toBe(2);
       expect(calls).toHaveLength(1);
@@ -323,7 +314,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      const result = await api.provision({});
+      const result = await api.provision();
 
       expect(calls).toHaveLength(2);
       expect(result.user.id).toBe('user-a');
@@ -340,7 +331,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      await expect(api.provision({})).rejects.toBe(zodError);
+      await expect(api.provision()).rejects.toBe(zodError);
       expect(calls).toHaveLength(1);
     });
 
@@ -353,7 +344,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      await expect(api.provision({})).rejects.toThrow();
+      await expect(api.provision()).rejects.toThrow();
     });
 
     it('rejects with SessionEndedError and issues no upsert when the session ends before the write', async () => {
@@ -372,7 +363,7 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      await expect(api.provision({})).rejects.toBeInstanceOf(SessionEndedError);
+      await expect(api.provision()).rejects.toBeInstanceOf(SessionEndedError);
       expect(calls).toHaveLength(0);
     });
 
@@ -401,7 +392,31 @@ describe('createUserApi', () => {
         getAccountRepository,
       });
 
-      await expect(api.provision({})).rejects.toBeInstanceOf(SessionEndedError);
+      await expect(api.provision()).rejects.toBeInstanceOf(SessionEndedError);
+    });
+  });
+
+  describe('acceptTerms', () => {
+    it('records the real click timestamps the host passes, not now()', async () => {
+      let updatedData: Record<string, unknown> = {};
+      const api = createUserApi({
+        db: createDbFake((_filters, data) => {
+          updatedData = data;
+        }),
+        getSession: () => ({ isLoggedIn: true, user: authUser('user-a') }),
+        keys: fakeKeys(),
+        getAccountRepository,
+      });
+
+      await api.acceptTerms({
+        walletTermsAcceptedAt: '2026-01-02T03:04:05Z',
+        giftCardMintTermsAcceptedAt: '2026-01-03T00:00:00Z',
+      });
+
+      expect(updatedData.terms_accepted_at).toBe('2026-01-02T03:04:05Z');
+      expect(updatedData.gift_card_mint_terms_accepted_at).toBe(
+        '2026-01-03T00:00:00Z',
+      );
     });
   });
 });

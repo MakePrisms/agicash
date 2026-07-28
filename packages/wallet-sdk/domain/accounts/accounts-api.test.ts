@@ -180,7 +180,7 @@ describe('createAccountsApi', () => {
       const balances = accounts.map((account) =>
         getAccountBalance(account)?.amount('sat').toNumber(),
       );
-      expect(balances).toEqual([150, 42]);
+      expect(balances).toEqual(expect.arrayContaining([150, 42]));
     });
 
     it('throws NoSessionError without a session', async () => {

@@ -1,9 +1,7 @@
-import type { AuthUser, User } from '@agicash/wallet-sdk';
+import type { AuthUser } from '@agicash/wallet-sdk';
 import { shouldAcceptTerms } from '@agicash/wallet-sdk';
 import { ensureBreezWasm } from '@agicash/wallet-sdk/temporary';
-import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
-import { AccountsCache } from '~/features/accounts/account-hooks';
 import { supabaseSessionTokenQuery } from '~/features/agicash-db/supabase-session';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { seedQueryOptions } from '~/features/shared/cashu-query-options';
@@ -37,51 +35,6 @@ const buildRedirectWithReturnUrl = (
   }
   const search = `?${searchParams.toString()}`;
   return redirect(`${destinationRoute}${search}${hash}`);
-};
-
-const hasUserChanged = (user: User, authUser: AuthUser) => {
-  const currentAuthUserEmail = authUser.email ?? null;
-  const currentUserEmail = user.isGuest ? null : user.email;
-
-  return (
-    currentUserEmail !== currentAuthUserEmail ||
-    user.emailVerified !== authUser.email_verified
-  );
-};
-
-const ensureUserData = async (
-  queryClient: QueryClient,
-  authUser: AuthUser,
-  termsAcceptedAt?: string,
-  giftCardMintTermsAcceptedAt?: string,
-): Promise<User> => {
-  let user = getUserFromCache(queryClient);
-
-  if (!user) {
-    queryClient.prefetchQuery(supabaseSessionTokenQuery());
-  }
-
-  if (!user || hasUserChanged(user, authUser)) {
-    // TEMPORARY: these prefetches populate cache entries that receive/send/claim
-    // repositories not yet migrated into the SDK still read (encryption, seed,
-    // spark mnemonic). Each prefetched entry exists only for its unmigrated
-    // feature and is deleted when that feature migrates into the SDK — all gone
-    // by step 18.
-    const [{ user: upsertedUser, accounts }] = await Promise.all([
-      sdk.user.provision({
-        termsAcceptedAt,
-        giftCardMintTermsAcceptedAt,
-      }),
-      queryClient.ensureQueryData(encryptionQueryOptions()),
-      queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
-      queryClient.ensureQueryData(seedQueryOptions()),
-    ]);
-    user = upsertedUser;
-    queryClient.setQueryData([UserCache.Key], user);
-    queryClient.setQueryData([AccountsCache.Key], accounts);
-  }
-
-  return user;
 };
 
 const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
@@ -125,6 +78,23 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     throw redirect(`/home${search}${hash}`);
   }
 
+  // TEMPORARY: these prefetches populate cache entries that receive/send/claim
+  // repositories not yet migrated into the SDK still read (session token,
+  // encryption, seed, spark mnemonic); each is deleted when its feature migrates
+  // into the SDK. ensureBreezWasm first: the spark mnemonic prefetch derives the
+  // Spark identity via defaultExternalSigner(), which requires WASM. Shared with
+  // entry.client.tsx so the init is typically already in-flight here.
+  await ensureBreezWasm();
+  queryClient.prefetchQuery(supabaseSessionTokenQuery());
+  await Promise.all([
+    queryClient.ensureQueryData(encryptionQueryOptions()),
+    queryClient.ensureQueryData(sparkMnemonicQueryOptions()),
+    queryClient.ensureQueryData(seedQueryOptions()),
+  ]);
+
+  // The provisioned user and accounts arrive via the SDK's auth.session-started
+  // event (seeded into cache at boot). Replay any terms accepted before this
+  // session existed, then gate on the result.
   const pendingTermsAcceptedAt = pendingWalletTermsStorage.get();
   if (pendingTermsAcceptedAt) {
     pendingWalletTermsStorage.remove();
@@ -136,16 +106,14 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
     pendingGiftCardMintTermsStorage.remove();
   }
 
-  // ensureUserData derives the Spark identity public key via defaultExternalSigner(),
-  // which requires WASM to be initialized. Shared with entry.client.tsx so the init
-  // is typically already in-flight (or complete) by the time we await here.
-  await ensureBreezWasm();
-  const user = await ensureUserData(
-    queryClient,
-    authUser,
-    pendingTermsAcceptedAt,
-    pendingGiftCardMintTermsAcceptedAt,
-  );
+  let user = getUserFromCache(queryClient) ?? (await sdk.user.get());
+  if (pendingTermsAcceptedAt || pendingGiftCardMintTermsAcceptedAt) {
+    user = await sdk.user.acceptTerms({
+      walletTermsAcceptedAt: pendingTermsAcceptedAt,
+      giftCardMintTermsAcceptedAt: pendingGiftCardMintTermsAcceptedAt,
+    });
+    queryClient.setQueryData([UserCache.Key], user);
+  }
 
   const shouldRedirectToAcceptTerms =
     shouldAcceptTerms(user) && !isAcceptTermsRoute;
