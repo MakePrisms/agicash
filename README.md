@@ -53,14 +53,11 @@ If needed, update the `apps/web-wallet/.env` file with alternative values. This 
 
 2. Create the Supabase `.env` file:
 
-The local Supabase stack serves its API over HTTPS using the self-signed certificate. The Supabase CLI reads its environment variables from its own directory — not from `apps/web-wallet/.env` — so the certificate paths have to be provided separately. Create `packages/wallet-sdk/db/supabase/.env` with:
-
 ```sh
-SELF_SIGNED_CERT_PATH='../../../../certs/localhost-cert.pem'
-SELF_SIGNED_CERT_KEY_PATH='../../../../certs/localhost-key.pem'
+cp packages/wallet-sdk/db/supabase/.env.example packages/wallet-sdk/db/supabase/.env
 ```
 
-The paths are relative to `packages/wallet-sdk/db/supabase/` (where `config.toml` lives). This file is ignored by git and is also where any local Supabase secrets referenced from `config.toml` (e.g. `OPENAI_API_KEY`, `S3_ACCESS_KEY`) belong.
+The Supabase CLI reads its environment variables from its own directory — not from `apps/web-wallet/.env` — so it needs a separate `.env`. It provides the self-signed certificate the local Supabase stack uses to serve its API over HTTPS, and is also where any local Supabase secrets referenced from `config.toml` (e.g. `OPENAI_API_KEY`, `S3_ACCESS_KEY`) go. This file is ignored by git.
 
 3. Start Supabase local stack:
 
