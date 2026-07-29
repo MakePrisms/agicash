@@ -43,7 +43,7 @@ To target a single package, filter by its name: `bun --filter=web-wallet run <sc
 
 ## Development
 
-1. Create `.env` file:
+1. Create the app `.env` file:
 
 ```sh
 cp apps/web-wallet/.env.example apps/web-wallet/.env
@@ -51,13 +51,24 @@ cp apps/web-wallet/.env.example apps/web-wallet/.env
 
 If needed, update the `apps/web-wallet/.env` file with alternative values. This file is ignored by git and used only for local development.
 
-2. Start Supabase local stack:
+2. Create the Supabase `.env` file:
+
+The local Supabase stack serves its API over HTTPS using the self-signed certificate. The Supabase CLI reads its environment variables from its own directory — not from `apps/web-wallet/.env` — so the certificate paths have to be provided separately. Create `packages/wallet-sdk/db/supabase/.env` with:
+
+```sh
+SELF_SIGNED_CERT_PATH='../../../../certs/localhost-cert.pem'
+SELF_SIGNED_CERT_KEY_PATH='../../../../certs/localhost-key.pem'
+```
+
+The paths are relative to `packages/wallet-sdk/db/supabase/` (where `config.toml` lives). This file is ignored by git and is also where any local Supabase secrets referenced from `config.toml` (e.g. `OPENAI_API_KEY`, `S3_ACCESS_KEY`) belong.
+
+3. Start Supabase local stack:
 
 ```sh
 bun run supabase start
 ```
 
-3. Run the dev server:
+4. Run the dev server:
 
 ```sh
 bun run dev
