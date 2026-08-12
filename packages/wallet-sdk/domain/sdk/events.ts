@@ -2,6 +2,7 @@ import type { Money } from '@agicash/money';
 import type { Logger } from '.';
 import type { SdkError } from '../../lib/error';
 import type { Contact } from '../contacts/contact';
+import type { Transaction } from '../transactions/transaction';
 import type { User } from '../user/user';
 import type { Account } from './accounts';
 import type {
@@ -11,7 +12,6 @@ import type {
 } from './receive';
 import type { CashuSendQuote, CashuSendSwap, SparkSendQuote } from './send';
 import type { TaskProcessorState } from './task-processor';
-import type { Transaction } from './transactions';
 
 /**
  * Payloads are decrypted domain objects. Naming: `<entity>.<action>` (e.g.

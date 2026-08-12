@@ -24,11 +24,11 @@ export type Cursor = {
   stateSortOrder: number;
   createdAt: string;
   id: string;
-} | null;
+};
 
 type ListOptions = Options & {
   userId: string;
-  cursor?: Cursor;
+  cursor?: Cursor | null;
   pageSize?: number;
   accountId?: string;
 };
@@ -88,13 +88,14 @@ export class TransactionRepository {
 
     return {
       transactions,
-      nextCursor: lastTransaction
-        ? {
-            stateSortOrder: lastTransaction.state === 'PENDING' ? 2 : 1,
-            createdAt: lastTransaction.createdAt,
-            id: lastTransaction.id,
-          }
-        : null,
+      nextCursor:
+        lastTransaction && transactions.length === pageSize
+          ? {
+              stateSortOrder: lastTransaction.state === 'PENDING' ? 2 : 1,
+              createdAt: lastTransaction.createdAt,
+              id: lastTransaction.id,
+            }
+          : null,
     };
   }
 
@@ -180,7 +181,6 @@ export class TransactionRepository {
 
     return TransactionSchema.parse({
       id: data.id,
-      userId: data.user_id,
       accountId: data.account_id,
       accountName: data.account_name,
       accountType: data.account_type,

@@ -1,9 +1,9 @@
-import type { Transaction } from '@agicash/wallet-sdk';
-import type {
-  AgicashDbTransaction,
-  Cursor,
-} from '@agicash/wallet-sdk/temporary';
-import { NotFoundError } from '@agicash/wallet-sdk/temporary';
+import {
+  type Cursor,
+  NotFoundError,
+  type Transaction,
+} from '@agicash/wallet-sdk';
+import type { AgicashDbTransaction } from '@agicash/wallet-sdk/temporary';
 import {
   type InfiniteData,
   type QueryClient,
@@ -14,13 +14,13 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { sdk } from '~/features/shared/sdk.client';
 import { useLatest } from '~/lib/use-latest';
 import { useGetCashuAccount } from '../accounts/account-hooks';
 import {
   useCashuSendSwapRepository,
   useCashuSendSwapService,
 } from '../send/cashu-send-swap-hooks';
-import { useUser } from '../user/user-hooks';
 import { useTransactionRepository } from './transaction-repository-hooks';
 
 /**
@@ -89,12 +89,10 @@ export function useTransactionsCache() {
 }
 
 export function useTransaction(id: string) {
-  const transactionRepository = useTransactionRepository();
-
   return useSuspenseQuery({
     queryKey: [TransactionsCache.Key, id],
     queryFn: async () => {
-      const transaction = await transactionRepository.get(id);
+      const transaction = await sdk.transactions.get(id);
 
       if (!transaction) {
         throw new NotFoundError(`Transaction not found for id: ${id}`);
@@ -117,16 +115,13 @@ export function useTransaction(id: string) {
 const PAGE_SIZE = 25;
 
 export function useTransactions(accountId?: string) {
-  const userId = useUser((user) => user.id);
-  const transactionRepository = useTransactionRepository();
   const transactionsCache = useTransactionsCache();
 
   const result = useInfiniteQuery({
     queryKey: [TransactionsCache.AllTransactionsKey, accountId],
     initialPageParam: null,
     queryFn: async ({ pageParam }: { pageParam: Cursor | null }) => {
-      const result = await transactionRepository.list({
-        userId,
+      const result = await sdk.transactions.list({
         cursor: pageParam,
         pageSize: PAGE_SIZE,
         accountId,
@@ -136,11 +131,7 @@ export function useTransactions(accountId?: string) {
         transactionsCache.upsert(transaction);
       }
 
-      return {
-        transactions: result.transactions,
-        nextCursor:
-          result.transactions.length === PAGE_SIZE ? result.nextCursor : null,
-      };
+      return result;
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     refetchOnWindowFocus: 'always',
@@ -152,13 +143,9 @@ export function useTransactions(accountId?: string) {
 }
 
 export function useHasTransactionsPendingAck() {
-  const transactionRepository = useTransactionRepository();
-  const userId = useUser((user) => user.id);
-
   const result = useQuery({
     queryKey: [TransactionsCache.UnacknowledgedCountKey],
-    queryFn: () =>
-      transactionRepository.countTransactionsPendingAck({ userId }),
+    queryFn: () => sdk.transactions.countPendingAck(),
     select: (data) => data > 0,
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
@@ -199,17 +186,12 @@ const acknowledgeTransactionInHistoryCache = (
 };
 
 export function useAcknowledgeTransaction() {
-  const transactionRepository = useTransactionRepository();
-  const userId = useUser((user) => user.id);
   const queryClient = useQueryClient();
   const transactionsCache = useTransactionsCache();
 
   return useMutation({
     mutationFn: async ({ transaction }: { transaction: Transaction }) => {
-      await transactionRepository.acknowledgeTransaction({
-        userId,
-        transactionId: transaction.id,
-      });
+      await sdk.transactions.acknowledge(transaction.id);
     },
     onSuccess: (_, { transaction }) => {
       acknowledgeTransactionInHistoryCache(queryClient, transaction);
