@@ -124,3 +124,11 @@ export type Cursor = {
 | Types (4 pkgs) | `bun run typecheck` | exit 0 |
 | Unit tests | `bun run test` | green (existing suites + new transactions-api tests) |
 | Smoke | manual, browser | app boots; transaction history renders + paginates; transaction detail opens; pending-ack badge works; no `sdk.transactions.*` console errors |
+
+## Execution notes (post-integration)
+
+- All four marketplace jobs (canary prune, SDK namespace, tests, web flip) delivered exactly to the pinned specs; the only integration-time correction was a single biome line-width reformat in the delivered test file.
+- The `Cursor` re-export in `temporary.ts` was pruned at integration after the web flip landed, as planned (decision 9).
+- The post-integration adversarial review returned READY (0 Critical, 0 Important, 2 Minor, 2 Nit). Follow-up commit abc84f86 added the two tests it identified as missing: direct `TransactionRepository.list` pagination-rule coverage (full page / pending-first cursor / short page / empty page) and an `acknowledge` mid-write session-fence test.
+- Two review items were kept as-is for sibling-namespace consistency: `get` throws no `NoSessionError` (id-scoped reads rely on RLS, same as the contacts and accounts namespaces), and the repository factory runs before the first abort check (accounts fence order).
+- The browser smoke included a live testnut receive: the money path created a real transaction end-to-end, exercising `sdk.transactions.list`, `get`, `acknowledge`, and `countPendingAck` with zero console errors.
