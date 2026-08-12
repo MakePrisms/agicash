@@ -269,5 +269,24 @@ describe('createTransactionsApi', () => {
         NoSessionError,
       );
     });
+
+    it('rejects with SessionEndedError when the session ends during the write', async () => {
+      const keys = createSessionKeys();
+      const api = createTransactionsApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        createRepository: async () =>
+          ({
+            acknowledgeTransaction: (async () => {
+              keys.reset();
+            }) as TransactionRepository['acknowledgeTransaction'],
+          }) as unknown as TransactionRepository,
+      });
+
+      await expect(api.acknowledge('tx-1')).rejects.toBeInstanceOf(
+        SessionEndedError,
+      );
+    });
   });
 });
