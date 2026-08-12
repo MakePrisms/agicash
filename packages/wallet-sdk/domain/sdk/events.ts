@@ -1,9 +1,9 @@
 import type { Money } from '@agicash/money';
 import type { Logger } from '.';
 import type { SdkError } from '../../lib/error';
+import type { Contact } from '../contacts/contact';
 import type { User } from '../user/user';
 import type { Account } from './accounts';
-import type { Contact } from './contacts';
 import type {
   CashuReceiveQuote,
   CashuReceiveSwap,

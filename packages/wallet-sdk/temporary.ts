@@ -112,7 +112,6 @@ export {
   UpsertUserRepository,
 } from './domain/user/user-repository';
 export { UserService } from './domain/user/user-service';
-export { isContact } from './domain/contacts/contact';
 export { ContactRepository } from './domain/contacts/contact-repository';
 export {
   TransactionDirectionSchema,

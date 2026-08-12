@@ -25,6 +25,7 @@ import {
   clearSparkWallets,
 } from '../../lib/spark/wallet';
 import { createAccountsApi } from '../accounts/accounts-api';
+import { createContactsApi } from '../contacts/contacts-api';
 import { AuthService } from '../user/auth-service';
 import { createUserApi } from '../user/user-api';
 import { WalletEventEmitter } from './events';
@@ -46,11 +47,9 @@ export class AgicashSdk implements Sdk {
   readonly auth: AuthApi;
   readonly user: UserApi;
   readonly accounts: AccountsApi;
+  readonly contacts: ContactsApi;
   readonly events: WalletEvents;
 
-  get contacts(): ContactsApi {
-    throw new NotImplementedError('contacts');
-  }
   get transactions(): TransactionsApi {
     throw new NotImplementedError('transactions');
   }
@@ -170,6 +169,12 @@ export class AgicashSdk implements Sdk {
       getAccountRepository: accounts.getRepository,
     });
     this.accounts = accounts.api;
+    this.contacts = createContactsApi({
+      db,
+      getSession: getLiveSession,
+      keys,
+      lightningAddressDomain: config.lightningAddressDomain,
+    });
     this.events = events;
   }
 
