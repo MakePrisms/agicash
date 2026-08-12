@@ -16,16 +16,23 @@ export class ContactRepository {
     private readonly domain: string,
   ) {}
 
-  async get(contactId: string) {
+  async get(
+    contactId: string,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<Contact | null> {
     const query = this.db.from('contacts').select().eq('id', contactId);
 
-    const { data, error } = await query.single();
+    if (options?.abortSignal) {
+      query.abortSignal(options.abortSignal);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       throw new Error('Failed to get contact', error);
     }
 
-    return ContactRepository.toContact(data, this.domain);
+    return data ? ContactRepository.toContact(data, this.domain) : null;
   }
 
   /**
@@ -156,7 +163,6 @@ export class ContactRepository {
     return {
       id: dbContact.id,
       createdAt: dbContact.created_at,
-      ownerId: dbContact.owner_id,
       username: dbContact.username ?? '',
       lud16: `${dbContact.username}@${domain}`,
     };
