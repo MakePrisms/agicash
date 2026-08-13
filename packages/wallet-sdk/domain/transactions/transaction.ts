@@ -33,10 +33,6 @@ export const BaseTransactionSchema = z.object({
    */
   id: z.string(),
   /**
-   * UUID of the user that the transaction belongs to.
-   */
-  userId: z.string(),
-  /**
    * Direction of the transaction.
    */
   direction: TransactionDirectionSchema,

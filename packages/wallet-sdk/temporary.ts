@@ -30,11 +30,6 @@ export type { SparkLightningSendDbData } from './db/json-models/spark-lightning-
 export type { CashuCryptography } from './lib/cashu';
 export type { Encryption } from './lib/encryption';
 export type { UpdateUser } from './domain/user/user-repository';
-export type { Cursor } from './domain/transactions/transaction-repository';
-export type {
-  TransactionDetailsParserInput,
-  TransactionDetailsParserShape,
-} from './domain/transactions/transaction-details/transaction-details-types';
 export type { RepositoryCreateQuoteParams } from './domain/receive/spark-receive-quote-core';
 export {
   decryptBatchWithPrivateKey,
@@ -113,51 +108,6 @@ export {
 } from './domain/user/user-repository';
 export { UserService } from './domain/user/user-service';
 export { ContactRepository } from './domain/contacts/contact-repository';
-export {
-  TransactionDirectionSchema,
-  TransactionTypeSchema,
-  TransactionStateSchema,
-  TransactionPurposeSchema,
-} from './domain/transactions/transaction-enums';
-export {
-  BaseTransactionSchema,
-  TransactionSchema,
-} from './domain/transactions/transaction';
-export {
-  CashuLightningReceiveTransactionDetailsSchema,
-  CashuLightningReceiveTransactionDetailsParser,
-} from './domain/transactions/transaction-details/cashu-lightning-receive-transaction-details';
-export {
-  IncompleteCashuLightningSendTransactionDetailsSchema,
-  CompletedCashuLightningSendTransactionDetailsSchema,
-  CashuLightningSendTransactionDetailsSchema,
-  CashuLightningSendTransactionDetailsParser,
-} from './domain/transactions/transaction-details/cashu-lightning-send-transaction-details';
-export {
-  CashuTokenReceiveTransactionDetailsSchema,
-  CashuTokenReceiveTransactionDetailsParser,
-} from './domain/transactions/transaction-details/cashu-token-receive-transaction-details';
-export {
-  CashuTokenSendTransactionDetailsSchema,
-  CashuTokenSendTransactionDetailsParser,
-} from './domain/transactions/transaction-details/cashu-token-send-transaction-details';
-export {
-  IncompleteSparkLightningReceiveTransactionDetailsSchema,
-  CompletedSparkLightningReceiveTransactionDetailsSchema,
-  SparkLightningReceiveTransactionDetailsSchema,
-  SparkLightningReceiveTransactionDetailsParser,
-} from './domain/transactions/transaction-details/spark-lightning-receive-transaction-details';
-export {
-  IncompleteSparkLightningSendTransactionDetailsSchema,
-  CompletedSparkLightningSendTransactionDetailsSchema,
-  SparkLightningSendTransactionDetailsSchema,
-  SparkLightningSendTransactionDetailsParser,
-} from './domain/transactions/transaction-details/spark-lightning-send-transaction-details';
-export {
-  TransactionDetailsDbDataSchema,
-  TransactionDetailsSchema,
-} from './domain/transactions/transaction-details/transaction-details-types';
-export { TransactionDetailsParser } from './domain/transactions/transaction-details/transaction-details-parser';
 export { TransactionRepository } from './domain/transactions/transaction-repository';
 export { CashuTokenMeltDataSchema } from './domain/receive/cashu-token-melt-data';
 export { SparkReceiveQuoteSchema } from './domain/receive/spark-receive-quote';
