@@ -28,6 +28,14 @@ reads the DB instead of an in-memory copy — negligible. In exchange the SDK st
 simple: no resident store, no cache-coherence/version-gating, no embedded query
 engine to keep in sync.
 
+**Corollary (foreground parity):** the "only effect" claim above is a rule, not
+an observation — a flipped web flow must issue no additional network requests
+versus master. Host-facing contract methods therefore take the domain objects
+the caller already fetched (`account: CashuAccount`, not `accountId`); fetch-by-id
+inside the SDK is reserved for background/orchestrator work and server routes,
+where no caller state exists. Binding form: contract proposal → "Conventions
+across all namespaces". (Codified after the step-9 review, #1176.)
+
 ## Boundary mechanism (the spine)
 
 - `packages/wallet-sdk` holds the domain layer: `*-repository`, `*-service`,
@@ -89,6 +97,14 @@ is **step 2 (cycle-break) before step 3 (move)**.
     1. move the shared runtime (task runner + leader-election lock + change-feed) into the SDK behind the contract; web calls `sdk.background.start/stop`;
     2. port each flow's processor into the SDK one at a time;
     3. web drops its realtime layer and subscribes to SDK events to keep its cache fresh.
+    - **Split the receive/send repos + services along the host/processing line**
+      (decided in the #1176 review discussion): the background-only verbs
+      (`processPayment`/`completeReceive`/`expire`/`fail`/`markMeltInitiated` and
+      their peers) and the account row-mapper dependency move to the background
+      domain; host-facing construction (`createReceiveApi` and peers) keeps only
+      create/read with db + encryption deps. Ends the accounts-bridge threading
+      in host APIs; may shrink the `.server` repo twins. Row-mapping (`toQuote`,
+      `toAccount`) stays in one shared place so the halves cannot drift.
     - Live money-path verification is mandatory here.
 19. **Cleanup** — delete `@agicash/wallet-sdk/temporary`; route remaining consumers through the contract. Boundary now build-enforced.
 

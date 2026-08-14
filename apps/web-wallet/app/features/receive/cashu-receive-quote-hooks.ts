@@ -39,6 +39,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAccountRepository } from '~/features/accounts/account-repository-hooks';
+import { sdk } from '~/features/shared/sdk.client';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { MintQuoteSubscriptionManager } from '~/lib/cashu/mint-quote-subscription-manager';
 import { useLatest } from '~/lib/use-latest';
@@ -182,8 +183,6 @@ export function usePendingCashuReceiveQuotesCache() {
 }
 
 export function useCreateCashuReceiveQuote() {
-  const userId = useUser((user) => user.id);
-  const cashuReceiveQuoteService = useCashuReceiveQuoteService();
   const cashuReceiveQuoteCache = useCashuReceiveQuoteCache();
 
   return useMutation({
@@ -197,16 +196,13 @@ export function useCreateCashuReceiveQuote() {
       purpose,
       transferId,
     }: CreateProps) => {
-      const lightningQuote = await cashuReceiveQuoteService.getLightningQuote({
-        wallet: account.wallet,
+      const lightningQuote = await sdk.receive.cashu.getLightningQuote({
+        account,
         amount,
         description,
       });
-
-      return cashuReceiveQuoteService.createReceiveQuote({
-        userId,
+      return sdk.receive.cashu.createQuote({
         account,
-        receiveType: 'LIGHTNING',
         lightningQuote,
         purpose,
         transferId,
@@ -248,12 +244,11 @@ export function useTrackCashuReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const cashuReceiveQuoteRepository = useCashuReceiveQuoteRepository();
 
   const { data } = useQuery({
     queryKey: [CashuReceiveQuoteCache.Key, quoteId],
     // biome-ignore lint/style/noNonNullAssertion: quoteId is guaranteed by enabled
-    queryFn: () => cashuReceiveQuoteRepository.get(quoteId!),
+    queryFn: () => sdk.receive.cashu.getQuote(quoteId!),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',

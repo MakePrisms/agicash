@@ -58,6 +58,7 @@ export class CashuReceiveQuoteService {
    */
   async createReceiveQuote(
     params: CreateQuoteParams,
+    options?: { abortSignal?: AbortSignal },
   ): Promise<CashuReceiveQuote> {
     const {
       userId,
@@ -93,24 +94,30 @@ export class CashuReceiveQuoteService {
     };
 
     if (receiveType === 'CASHU_TOKEN') {
-      return this.cashuReceiveQuoteRepository.create({
-        ...baseParams,
-        receiveType,
-        meltData: {
-          tokenMintUrl: params.sourceMintUrl,
-          tokenAmount: params.tokenAmount,
-          tokenProofs: params.tokenProofs,
-          meltQuoteId: params.meltQuoteId,
-          cashuReceiveFee: params.cashuReceiveFee,
-          lightningFeeReserve: params.lightningFeeReserve,
+      return this.cashuReceiveQuoteRepository.create(
+        {
+          ...baseParams,
+          receiveType,
+          meltData: {
+            tokenMintUrl: params.sourceMintUrl,
+            tokenAmount: params.tokenAmount,
+            tokenProofs: params.tokenProofs,
+            meltQuoteId: params.meltQuoteId,
+            cashuReceiveFee: params.cashuReceiveFee,
+            lightningFeeReserve: params.lightningFeeReserve,
+          },
         },
-      });
+        options,
+      );
     }
 
-    return this.cashuReceiveQuoteRepository.create({
-      ...baseParams,
-      receiveType,
-    });
+    return this.cashuReceiveQuoteRepository.create(
+      {
+        ...baseParams,
+        receiveType,
+      },
+      options,
+    );
   }
 
   /**

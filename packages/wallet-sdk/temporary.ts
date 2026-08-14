@@ -118,11 +118,6 @@ export {
 } from './domain/receive/spark-receive-quote-core';
 export { SparkReceiveQuoteRepository } from './domain/receive/spark-receive-quote-repository';
 export { SparkReceiveQuoteService } from './domain/receive/spark-receive-quote-service';
-export { CashuReceiveQuoteSchema } from './domain/receive/cashu-receive-quote';
-export {
-  computeTotalFee,
-  deriveNut20LockingPublicKey,
-} from './domain/receive/cashu-receive-quote-core';
 export { CashuReceiveQuoteRepository } from './domain/receive/cashu-receive-quote-repository';
 export { CashuReceiveQuoteService } from './domain/receive/cashu-receive-quote-service';
 export { CashuReceiveSwapSchema } from './domain/receive/cashu-receive-swap';
