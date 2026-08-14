@@ -1,7 +1,10 @@
+import type { Money } from '@agicash/money';
+import type { CashuAccount } from '../accounts/account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from '../receive/cashu-receive-quote-core';
 import type { SparkReceiveQuote } from '../receive/spark-receive-quote';
 import type { SparkReceiveLightningQuote } from '../receive/spark-receive-quote-core';
+import type { TransactionPurpose } from '../transactions/transaction-enums';
 
 // The public receive types are the domain entities for now: only the apps
 // consume the SDK and they just read these shapes, so the extra domain fields
@@ -41,8 +44,25 @@ export type ReceiveApi = {
   };
 };
 
-export type GetCashuReceiveLightningQuoteParams = unknown; // step 9 (cashu receive quote)
-export type CreateCashuReceiveQuoteParams = unknown; // step 9 (cashu receive quote)
+export type GetCashuReceiveLightningQuoteParams = {
+  /** The cashu account to receive into. */
+  account: CashuAccount;
+  /** The amount to receive. */
+  amount: Money;
+  /** The description of the receive request. */
+  description?: string;
+};
+
+export type CreateCashuReceiveQuoteParams = {
+  /** The cashu account to receive into. */
+  account: CashuAccount;
+  /** The lightning quote to create the receive quote from (see `getLightningQuote`). */
+  lightningQuote: CashuReceiveLightningQuote;
+  /** The purpose of the transaction. When not provided, PAYMENT is used. */
+  purpose?: TransactionPurpose;
+  /** UUID linking paired send/receive transactions in a transfer. */
+  transferId?: string;
+};
 export type GetSparkReceiveLightningQuoteParams = unknown; // step 11 (spark receive quote)
 export type CreateSparkReceiveQuoteParams = unknown; // step 11 (spark receive quote)
 export type GetReceiveCashuTokenQuoteParams = unknown; // step 12 (receive cashu token)

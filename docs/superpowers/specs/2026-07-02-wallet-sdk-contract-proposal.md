@@ -304,6 +304,16 @@ Conventions across all namespaces:
   `create*` methods persist and enter the entity into the background lifecycle
   (`createQuote`, `createSwap`, `accounts.cashu.add`). A slice never re-decides
   which is which.
+- **Callers pass the domain objects they already hold.** Host-initiated methods
+  take the full entity (`account: CashuAccount`), never an id the SDK re-fetches.
+  The host fetched the entity from its own cache, and the no-cache premise
+  (production design, "Core decision") holds only if foreground flows add no
+  reads — an in-SDK `accounts.get` costs a proofs-inclusive row read plus a
+  fresh wallet init (three mint HTTP requests) per call. Fetch-by-id is reserved
+  for paths with no caller state: background/orchestrator work (off
+  `quote.accountId` and the like) and server routes. Per-slice check: a flipped
+  web flow issues no additional network requests versus master. (Set by the
+  step-9 review, #1176; slices 10–16 follow it. A slice never re-decides this.)
 - **Completion is not the host's job.** Methods like `expire`/`fail`/
   `completeSwap` that today's hooks call from background processors do NOT
   appear on the public namespaces — they move behind `sdk.background`
