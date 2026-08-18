@@ -13,6 +13,7 @@ import {
   splitAmount,
 } from '@cashu/cashu-ts';
 import { tokenToMoney } from '../../lib/cashu';
+import { DomainError } from '../../lib/error';
 import type { CashuAccount } from '../accounts/account';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import type { CashuReceiveSwapRepository } from './cashu-receive-swap-repository';
@@ -59,14 +60,14 @@ export class CashuReceiveSwapService {
     account: CashuAccount;
   }> {
     if (!areMintUrlsEqual(account.mintUrl, token.mint)) {
-      throw new Error('Cannot swap a token to a different mint');
+      throw new DomainError('Cannot swap a token to a different mint');
     }
 
     const inputAmount = tokenToMoney(token);
     const currency = inputAmount.currency;
 
     if (currency !== account.currency) {
-      throw new Error('Cannot swap a token to a different currency.');
+      throw new DomainError('Cannot swap a token to a different currency.');
     }
 
     const wallet = account.wallet;
@@ -76,7 +77,7 @@ export class CashuReceiveSwapService {
     const amountToReceive = sumProofs(token.proofs) - fee;
 
     if (amountToReceive <= 0) {
-      throw new Error('Token is too small to claim.');
+      throw new DomainError('Token is too small to claim.');
     }
 
     const cashuUnit = getCashuUnit(currency);

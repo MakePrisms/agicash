@@ -133,14 +133,19 @@ const makeApi = (deps: {
     keys: createSessionKeys(),
     getSession: () => deps.session,
     getAccountRepository: async () => ({}) as unknown as AccountRepository,
-    createRepository: async () =>
-      (deps.repository ?? {}) as unknown as CashuReceiveQuoteRepository,
-    createService: async () =>
-      (deps.service ?? {}) as unknown as CashuReceiveQuoteService,
-    createSwapRepository: async () =>
-      (deps.swapRepository ?? {}) as unknown as CashuReceiveSwapRepository,
-    createSwapService: async () =>
-      (deps.swapService ?? {}) as unknown as CashuReceiveSwapService,
+    createRepository:
+      deps.repository &&
+      (async () => deps.repository as unknown as CashuReceiveQuoteRepository),
+    createService:
+      deps.service &&
+      (async () => deps.service as unknown as CashuReceiveQuoteService),
+    createSwapRepository:
+      deps.swapRepository &&
+      (async () =>
+        deps.swapRepository as unknown as CashuReceiveSwapRepository),
+    createSwapService:
+      deps.swapService &&
+      (async () => deps.swapService as unknown as CashuReceiveSwapService),
   });
 
 describe('createReceiveApi', () => {
@@ -368,7 +373,8 @@ describe('createReceiveApi', () => {
 
   describe('cashu.createSwap', () => {
     it('throws NoSessionError without a session, before any repository work', async () => {
-      let createSwapServiceCalls = 0;
+      // No seams injected: the default builders are live, so the counter below
+      // is on the path a broken fence would take.
       let getAccountRepositoryCalls = 0;
       const api = createReceiveApi({
         db: {} as unknown as AgicashDb,
@@ -378,15 +384,6 @@ describe('createReceiveApi', () => {
           getAccountRepositoryCalls += 1;
           return {} as unknown as AccountRepository;
         },
-        createRepository: async () =>
-          ({}) as unknown as CashuReceiveQuoteRepository,
-        createService: async () => ({}) as unknown as CashuReceiveQuoteService,
-        createSwapRepository: async () =>
-          ({}) as unknown as CashuReceiveSwapRepository,
-        createSwapService: async () => {
-          createSwapServiceCalls += 1;
-          return {} as unknown as CashuReceiveSwapService;
-        },
       });
 
       await expect(
@@ -395,7 +392,6 @@ describe('createReceiveApi', () => {
           token: makeToken(),
         }),
       ).rejects.toBeInstanceOf(NoSessionError);
-      expect(createSwapServiceCalls).toBe(0);
       expect(getAccountRepositoryCalls).toBe(0);
     });
 
@@ -428,6 +424,50 @@ describe('createReceiveApi', () => {
       expect(result).toBe(swapResult);
     });
 
+    it('assembles the default swap service over the repository and computes the swap from the account wallet', async () => {
+      let captured: Record<string, unknown> | undefined;
+      let capturedOptions: { abortSignal?: AbortSignal } | undefined;
+      const repoResult = { swap: makeSwap(), account: cashuDomain() };
+      const keysetKeys = Object.fromEntries(
+        [1, 2, 4, 8, 16, 32, 64].map((amount) => [amount, '02aa']),
+      );
+      const wallet = {
+        keysetId: 'keyset-1',
+        getKeyset: () => ({ keys: keysetKeys }),
+        getFeesForProofs: () => 1,
+      };
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        swapRepository: {
+          create: (async (
+            params: Record<string, unknown>,
+            options?: { abortSignal?: AbortSignal },
+          ) => {
+            captured = params;
+            capturedOptions = options;
+            return repoResult;
+          }) as unknown as CashuReceiveSwapRepository['create'],
+        },
+      });
+
+      const result = await api.cashu.createSwap({
+        account: cashuDomain({ wallet }),
+        token: makeToken(),
+      });
+
+      expect(captured?.userId).toBe('user-x');
+      expect(captured?.accountId).toBe('acct-cashu');
+      expect(captured?.keysetId).toBe('keyset-1');
+      expect((captured?.inputAmount as Money).toNumber('sat')).toBe(64);
+      expect((captured?.cashuReceiveFee as Money).toNumber('sat')).toBe(1);
+      expect((captured?.receiveAmount as Money).toNumber('sat')).toBe(63);
+      expect(
+        [...(captured?.outputAmounts as number[])].sort((a, b) => a - b),
+      ).toEqual([1, 2, 4, 8, 16, 32]);
+      expect(capturedOptions?.abortSignal).toBeDefined();
+      expect(result).toBe(repoResult);
+    });
+
     it('rejects with SessionEndedError and never calls the service when the session ends during service construction', async () => {
       const keys = createSessionKeys();
       let createCalls = 0;
@@ -436,11 +476,6 @@ describe('createReceiveApi', () => {
         keys,
         getSession: () => loggedIn('user-x'),
         getAccountRepository: async () => ({}) as unknown as AccountRepository,
-        createRepository: async () =>
-          ({}) as unknown as CashuReceiveQuoteRepository,
-        createService: async () => ({}) as unknown as CashuReceiveQuoteService,
-        createSwapRepository: async () =>
-          ({}) as unknown as CashuReceiveSwapRepository,
         createSwapService: async () => {
           // The session ends between the signal capture and the write.
           keys.reset();
@@ -469,11 +504,6 @@ describe('createReceiveApi', () => {
         keys,
         getSession: () => loggedIn('user-x'),
         getAccountRepository: async () => ({}) as unknown as AccountRepository,
-        createRepository: async () =>
-          ({}) as unknown as CashuReceiveQuoteRepository,
-        createService: async () => ({}) as unknown as CashuReceiveQuoteService,
-        createSwapRepository: async () =>
-          ({}) as unknown as CashuReceiveSwapRepository,
         createSwapService: async () =>
           ({
             create: (async () => {
@@ -499,11 +529,6 @@ describe('createReceiveApi', () => {
         keys,
         getSession: () => loggedIn('user-x'),
         getAccountRepository: async () => ({}) as unknown as AccountRepository,
-        createRepository: async () =>
-          ({}) as unknown as CashuReceiveQuoteRepository,
-        createService: async () => ({}) as unknown as CashuReceiveQuoteService,
-        createSwapRepository: async () =>
-          ({}) as unknown as CashuReceiveSwapRepository,
         createSwapService: async () =>
           ({
             create: (async (

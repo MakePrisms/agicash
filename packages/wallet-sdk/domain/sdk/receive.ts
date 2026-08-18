@@ -27,9 +27,15 @@ export type ReceiveApi = {
       params: CreateCashuReceiveQuoteParams,
     ): Promise<CashuReceiveQuote>;
     getQuote(id: string): Promise<CashuReceiveQuote | null>;
+    /**
+     * Claims a token into a same-mint account by creating a receive swap.
+     * @throws {DomainError} When the token does not match the account's mint
+     * or currency, or is too small to cover the mint fee.
+     * @throws {UniqueConstraintError} When a swap for this token already exists.
+     */
     createSwap(
       params: CreateCashuReceiveSwapParams,
-    ): Promise<CreateCashuReceiveSwapResult>;
+    ): Promise<CreatedCashuReceiveSwap>;
   };
   spark: {
     getLightningQuote(
@@ -74,8 +80,8 @@ export type CreateCashuReceiveSwapParams = {
   token: Token;
 };
 
-export type CreateCashuReceiveSwapResult = {
-  /** The created receive swap. Completion is background-driven; observe `cashu-receive-swap.updated`. */
+export type CreatedCashuReceiveSwap = {
+  /** The created receive swap. Completion is background-driven, never called by the host. */
   swap: CashuReceiveSwap;
   /** The receiving account with the keyset counter advanced for the swap's reserved outputs. */
   account: CashuAccount;

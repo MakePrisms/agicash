@@ -18,7 +18,7 @@ type Deps = {
   db: AgicashDb;
   getSession: () => AuthSession;
   keys: SessionKeys;
-  /** Accounts bridge; feeds the quote and swap repositories (sdk.ts wires accounts.getRepository). */
+  /** Accounts bridge (sdk.ts wires accounts.getRepository). */
   getAccountRepository: () => Promise<AccountRepository>;
   /** Test seam; defaults to building the repository from db + session keys + account repository. */
   createRepository?: () => Promise<CashuReceiveQuoteRepository>;
@@ -122,8 +122,8 @@ export function createReceiveApi(deps: Deps): ReceiveApi {
         if (signal.aborted) throw new SessionEndedError();
         return quote;
       },
-      // Reversal (reversedTransactionId) stays in-package: only the send-swap
-      // reversal (step 14) and the claim orchestration (step 12) pass it.
+      // reversedTransactionId is intentionally absent from the public params:
+      // reversal is internal orchestration, not host surface.
       createSwap: async (params) => {
         const userId = requireUserId();
         const signal = deps.keys.sessionSignal();
