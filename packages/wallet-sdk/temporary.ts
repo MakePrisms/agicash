@@ -21,7 +21,6 @@ export type { AccountDetailsDbData } from './db/json-models/account-details-db-d
 export type { CashuAccountDetailsDbData } from './db/json-models/cashu-account-details-db-data';
 export type { CashuLightningReceiveDbData } from './db/json-models/cashu-lightning-receive-db-data';
 export type { CashuLightningSendDbData } from './db/json-models/cashu-lightning-send-db-data';
-export type { CashuSwapReceiveDbData } from './db/json-models/cashu-swap-receive-db-data';
 export type { CashuSwapSendDbData } from './db/json-models/cashu-swap-send-db-data';
 export type { CashuTokenMeltDbData } from './db/json-models/cashu-token-melt-db-data';
 export type { SparkAccountDetailsDbData } from './db/json-models/spark-account-details-db-data';
@@ -74,7 +73,6 @@ export { AccountDetailsDbDataSchema } from './db/json-models/account-details-db-
 export { CashuAccountDetailsDbDataSchema } from './db/json-models/cashu-account-details-db-data';
 export { CashuLightningReceiveDbDataSchema } from './db/json-models/cashu-lightning-receive-db-data';
 export { CashuLightningSendDbDataSchema } from './db/json-models/cashu-lightning-send-db-data';
-export { CashuSwapReceiveDbDataSchema } from './db/json-models/cashu-swap-receive-db-data';
 export { CashuSwapSendDbDataSchema } from './db/json-models/cashu-swap-send-db-data';
 export { CashuTokenMeltDbDataSchema } from './db/json-models/cashu-token-melt-db-data';
 export { SparkAccountDetailsDbDataSchema } from './db/json-models/spark-account-details-db-data';
@@ -120,7 +118,6 @@ export { SparkReceiveQuoteRepository } from './domain/receive/spark-receive-quot
 export { SparkReceiveQuoteService } from './domain/receive/spark-receive-quote-service';
 export { CashuReceiveQuoteRepository } from './domain/receive/cashu-receive-quote-repository';
 export { CashuReceiveQuoteService } from './domain/receive/cashu-receive-quote-service';
-export { CashuReceiveSwapSchema } from './domain/receive/cashu-receive-swap';
 export { CashuReceiveSwapRepository } from './domain/receive/cashu-receive-swap-repository';
 export { CashuReceiveSwapService } from './domain/receive/cashu-receive-swap-service';
 export { isClaimingToSameCashuAccount } from './domain/receive/receive-cashu-token-models';

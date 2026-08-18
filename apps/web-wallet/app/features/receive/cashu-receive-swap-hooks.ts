@@ -14,6 +14,7 @@ import {
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useAccountRepository } from '~/features/accounts/account-repository-hooks';
+import { sdk } from '~/features/shared/sdk.client';
 import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
@@ -97,8 +98,6 @@ export function usePendingCashuReceiveSwapsCache() {
 }
 
 export function useCreateCashuReceiveSwap() {
-  const userId = useUser((user) => user.id);
-  const receiveSwapService = useCashuReceiveSwapService();
   const getCashuAccount = useGetCashuAccount();
 
   return useMutation({
@@ -108,11 +107,7 @@ export function useCreateCashuReceiveSwap() {
     },
     mutationFn: ({ token, accountId }: CreateProps) => {
       const account = getCashuAccount(accountId);
-      return receiveSwapService.create({
-        userId,
-        token,
-        account,
-      });
+      return sdk.receive.cashu.createSwap({ token, account });
     },
   });
 }

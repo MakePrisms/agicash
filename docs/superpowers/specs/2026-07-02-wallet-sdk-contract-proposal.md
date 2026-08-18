@@ -143,6 +143,7 @@ type ReceiveApi = {
     getLightningQuote(params): Promise<CashuReceiveLightningQuote>;
     createQuote(params): Promise<CashuReceiveQuote>;
     getQuote(id: string): Promise<CashuReceiveQuote | null>;
+    createSwap(params): Promise<{ swap: CashuReceiveSwap; account: CashuAccount }>; // same-mint token claim (step 10)
   };
   spark: {
     getLightningQuote(params): Promise<SparkReceiveLightningQuote>;
