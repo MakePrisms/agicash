@@ -1,4 +1,4 @@
-import type { CashuReceiveSwap } from '@agicash/wallet-sdk';
+import type { CashuAccount, CashuReceiveSwap } from '@agicash/wallet-sdk';
 import type { AgicashDbCashuReceiveSwap } from '@agicash/wallet-sdk/temporary';
 import {
   CashuReceiveSwapRepository,
@@ -14,6 +14,7 @@ import {
 } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useAccountRepository } from '~/features/accounts/account-repository-hooks';
+import { sdk } from '~/features/shared/sdk.client';
 import {
   useGetCashuAccount,
   useSelectItemsWithOnlineAccount,
@@ -24,7 +25,7 @@ import { useUser } from '../user/user-hooks';
 
 type CreateProps = {
   token: Token;
-  accountId: string;
+  account: CashuAccount;
 };
 
 export function useCashuReceiveSwapRepository() {
@@ -97,23 +98,13 @@ export function usePendingCashuReceiveSwapsCache() {
 }
 
 export function useCreateCashuReceiveSwap() {
-  const userId = useUser((user) => user.id);
-  const receiveSwapService = useCashuReceiveSwapService();
-  const getCashuAccount = useGetCashuAccount();
-
   return useMutation({
     mutationKey: ['create-cashu-receive-swap'],
     scope: {
       id: 'create-cashu-receive-swap',
     },
-    mutationFn: ({ token, accountId }: CreateProps) => {
-      const account = getCashuAccount(accountId);
-      return receiveSwapService.create({
-        userId,
-        token,
-        account,
-      });
-    },
+    mutationFn: ({ token, account }: CreateProps) =>
+      sdk.receive.cashu.createSwap({ token, account }),
   });
 }
 

@@ -11,6 +11,8 @@ import type { AuthSession, ReceiveApi } from '../sdk';
 import type { SessionKeys } from '../sdk/session-keys';
 import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
+import { CashuReceiveSwapRepository } from './cashu-receive-swap-repository';
+import { CashuReceiveSwapService } from './cashu-receive-swap-service';
 
 type Deps = {
   db: AgicashDb;
@@ -22,6 +24,10 @@ type Deps = {
   createRepository?: () => Promise<CashuReceiveQuoteRepository>;
   /** Test seam; defaults to building the service from session-keys cryptography + the repository. */
   createService?: () => Promise<CashuReceiveQuoteService>;
+  /** Test seam; defaults to building the swap repository from db + session keys + account repository. */
+  createSwapRepository?: () => Promise<CashuReceiveSwapRepository>;
+  /** Test seam; defaults to building the swap service from the swap repository. */
+  createSwapService?: () => Promise<CashuReceiveSwapService>;
 };
 
 /** Creates the `receive` SDK namespace. */
@@ -57,6 +63,23 @@ export function createReceiveApi(deps: Deps): ReceiveApi {
     deps.createService ??
     (async (): Promise<CashuReceiveQuoteService> =>
       new CashuReceiveQuoteService(cryptography, await getRepository()));
+
+  const getSwapRepository =
+    deps.createSwapRepository ??
+    (async (): Promise<CashuReceiveSwapRepository> => {
+      const encryption = await deps.keys.getEncryption();
+      const accountRepository = await deps.getAccountRepository();
+      return new CashuReceiveSwapRepository(
+        deps.db,
+        encryption,
+        accountRepository,
+      );
+    });
+
+  const getSwapService =
+    deps.createSwapService ??
+    (async (): Promise<CashuReceiveSwapService> =>
+      new CashuReceiveSwapService(await getSwapRepository()));
 
   return {
     cashu: {
@@ -98,6 +121,18 @@ export function createReceiveApi(deps: Deps): ReceiveApi {
         const quote = await repository.get(id, { abortSignal: signal });
         if (signal.aborted) throw new SessionEndedError();
         return quote;
+      },
+      createSwap: async (params) => {
+        const userId = requireUserId();
+        const signal = deps.keys.sessionSignal();
+        const service = await getSwapService();
+        if (signal.aborted) throw new SessionEndedError();
+        const result = await service.create(
+          { userId, token: params.token, account: params.account },
+          { abortSignal: signal },
+        );
+        if (signal.aborted) throw new SessionEndedError();
+        return result;
       },
     },
     get spark(): ReceiveApi['spark'] {

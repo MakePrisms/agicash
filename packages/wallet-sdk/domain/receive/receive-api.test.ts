@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { type Currency, Money } from '@agicash/money';
+import type { Token } from '@cashu/cashu-ts';
 import type { AgicashDb } from '../../db/database';
 import { BASE_CASHU_LOCKING_DERIVATION_PATH } from '../../lib/cashu';
 import { derivePublicKey } from '../../lib/cryptography';
@@ -7,6 +8,7 @@ import {
   NoSessionError,
   NotImplementedError,
   SessionEndedError,
+  UniqueConstraintError,
 } from '../../lib/error';
 import type { CashuAccount as DomainCashuAccount } from '../accounts/account';
 import type { AccountRepository } from '../accounts/account-repository';
@@ -16,6 +18,9 @@ import type { CashuReceiveQuote } from './cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from './cashu-receive-quote-core';
 import type { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
+import type { CashuReceiveSwap } from './cashu-receive-swap';
+import type { CashuReceiveSwapRepository } from './cashu-receive-swap-repository';
+import type { CashuReceiveSwapService } from './cashu-receive-swap-service';
 import { createReceiveApi } from './receive-api';
 
 const authUser = (id: string): AuthUser =>
@@ -94,10 +99,46 @@ const makeQuote = (
     ...overrides,
   }) as unknown as CashuReceiveQuote;
 
+const makeToken = (): Token =>
+  ({
+    mint: 'https://testnut.cashu.space',
+    proofs: [{ id: '00ad', amount: 100, secret: 's', C: 'c' }],
+    unit: 'sat',
+  }) as Token;
+
+const makeSwap = (
+  overrides: Partial<Record<string, unknown>> = {},
+): CashuReceiveSwap =>
+  ({
+    tokenHash: 'token-hash-1',
+    tokenProofs: [{ amount: 100 }],
+    userId: 'user-x',
+    accountId: 'acct-cashu',
+    inputAmount: new Money({ amount: 100, currency: 'BTC', unit: 'sat' }),
+    amountReceived: new Money({ amount: 100, currency: 'BTC', unit: 'sat' }),
+    feeAmount: Money.zero('BTC'),
+    keysetId: '00ad',
+    keysetCounter: 0,
+    outputAmounts: [100],
+    transactionId: 'tx-swap-1',
+    createdAt: '2026-01-01T00:00:00Z',
+    version: 1,
+    state: 'PENDING',
+    ...overrides,
+  }) as unknown as CashuReceiveSwap;
+
+const swapWallet = {
+  getKeyset: () => ({ keys: { 1: '02abc' } }),
+  getFeesForProofs: () => 0,
+  keysetId: '00ad',
+};
+
 const makeApi = (deps: {
   session: AuthSession;
   repository?: Partial<CashuReceiveQuoteRepository>;
   service?: Partial<CashuReceiveQuoteService>;
+  swapRepository?: Partial<CashuReceiveSwapRepository>;
+  swapService?: Partial<CashuReceiveSwapService>;
 }) =>
   createReceiveApi({
     db: {} as unknown as AgicashDb,
@@ -108,6 +149,10 @@ const makeApi = (deps: {
       (deps.repository ?? {}) as unknown as CashuReceiveQuoteRepository,
     createService: async () =>
       (deps.service ?? {}) as unknown as CashuReceiveQuoteService,
+    createSwapRepository: async () =>
+      (deps.swapRepository ?? {}) as unknown as CashuReceiveSwapRepository,
+    createSwapService: async () =>
+      (deps.swapService ?? {}) as unknown as CashuReceiveSwapService,
   });
 
 describe('createReceiveApi', () => {
@@ -333,6 +378,157 @@ describe('createReceiveApi', () => {
     });
   });
 
+  describe('cashu.createSwap', () => {
+    it('throws NoSessionError without a session, before any repository/service construction', async () => {
+      let createSwapServiceCalls = 0;
+      let createSwapRepositoryCalls = 0;
+      let getAccountRepositoryCalls = 0;
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys: createSessionKeys(),
+        getSession: () => ({ isLoggedIn: false }),
+        getAccountRepository: async () => {
+          getAccountRepositoryCalls += 1;
+          return {} as unknown as AccountRepository;
+        },
+        createRepository: async () =>
+          ({}) as unknown as CashuReceiveQuoteRepository,
+        createService: async () => ({}) as unknown as CashuReceiveQuoteService,
+        createSwapRepository: async () => {
+          createSwapRepositoryCalls += 1;
+          return {} as unknown as CashuReceiveSwapRepository;
+        },
+        createSwapService: async () => {
+          createSwapServiceCalls += 1;
+          return {} as unknown as CashuReceiveSwapService;
+        },
+      });
+
+      await expect(
+        api.cashu.createSwap({
+          account: cashuDomain(),
+          token: makeToken(),
+        }),
+      ).rejects.toBeInstanceOf(NoSessionError);
+      expect(createSwapServiceCalls).toBe(0);
+      expect(createSwapRepositoryCalls).toBe(0);
+      expect(getAccountRepositoryCalls).toBe(0);
+    });
+
+    it('passes the session userId, the given token and account, and the abort signal to the service', async () => {
+      let captured: Record<string, unknown> | undefined;
+      let capturedOptions: { abortSignal?: AbortSignal } | undefined;
+      const account = cashuDomain();
+      const token = makeToken();
+      const swap = makeSwap();
+      const serviceResult = { swap, account };
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        swapService: {
+          create: (async (
+            params: Record<string, unknown>,
+            options?: { abortSignal?: AbortSignal },
+          ) => {
+            captured = params;
+            capturedOptions = options;
+            return serviceResult;
+          }) as unknown as CashuReceiveSwapService['create'],
+        },
+      });
+
+      const result = await api.cashu.createSwap({
+        account,
+        token,
+      });
+
+      expect(captured).toEqual({ userId: 'user-x', token, account });
+      expect(captured?.userId).toBe('user-x');
+      expect(captured?.token).toBe(token);
+      expect(captured?.account).toBe(account);
+      expect(capturedOptions?.abortSignal).toBeDefined();
+      expect(result).toBe(serviceResult);
+    });
+
+    it('rejects with SessionEndedError and never calls the service when the session ends during service construction', async () => {
+      const keys = createSessionKeys();
+      let createCalls = 0;
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createRepository: async () =>
+          ({}) as unknown as CashuReceiveQuoteRepository,
+        createService: async () => ({}) as unknown as CashuReceiveQuoteService,
+        createSwapRepository: async () =>
+          ({}) as unknown as CashuReceiveSwapRepository,
+        createSwapService: async () => {
+          keys.reset();
+          return {
+            create: (async () => {
+              createCalls += 1;
+              return { swap: makeSwap(), account: cashuDomain() };
+            }) as unknown as CashuReceiveSwapService['create'],
+          } as unknown as CashuReceiveSwapService;
+        },
+      });
+
+      await expect(
+        api.cashu.createSwap({
+          account: cashuDomain(),
+          token: makeToken(),
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+      expect(createCalls).toBe(0);
+    });
+
+    it('propagates UniqueConstraintError from the service unchanged', async () => {
+      const error = new UniqueConstraintError(
+        'This token has already been claimed',
+      );
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        swapService: {
+          create: (async () => {
+            throw error;
+          }) as unknown as CashuReceiveSwapService['create'],
+        },
+      });
+
+      await expect(
+        api.cashu.createSwap({
+          account: cashuDomain(),
+          token: makeToken(),
+        }),
+      ).rejects.toBe(error);
+    });
+
+    it('builds the default swap service from the repository without CashuCryptography', async () => {
+      const account = cashuDomain({ wallet: swapWallet });
+      const token = makeToken();
+      const swap = makeSwap();
+      const serviceResult = { swap, account };
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys: createSessionKeys(),
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createRepository: async () =>
+          ({}) as unknown as CashuReceiveQuoteRepository,
+        createService: async () => ({}) as unknown as CashuReceiveQuoteService,
+        createSwapRepository: async () =>
+          ({
+            create: (async () =>
+              serviceResult) as CashuReceiveSwapRepository['create'],
+          }) as unknown as CashuReceiveSwapRepository,
+      });
+
+      const result = await api.cashu.createSwap({ account, token });
+
+      expect(result).toBe(serviceResult);
+    });
+  });
+
   describe('session fences', () => {
     it('rejects getLightningQuote with SessionEndedError and never calls the mint when the session ends during service construction', async () => {
       const keys = createSessionKeys();
@@ -453,6 +649,67 @@ describe('createReceiveApi', () => {
       });
 
       expect(writeSignal).toBe(keys.sessionSignal());
+    });
+
+    it('rejects createSwap with SessionEndedError when the session ends during the write', async () => {
+      const keys = createSessionKeys();
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createRepository: async () =>
+          ({}) as unknown as CashuReceiveQuoteRepository,
+        createService: async () => ({}) as unknown as CashuReceiveQuoteService,
+        createSwapRepository: async () =>
+          ({}) as unknown as CashuReceiveSwapRepository,
+        createSwapService: async () =>
+          ({
+            create: (async () => {
+              keys.reset();
+              return { swap: makeSwap(), account: cashuDomain() };
+            }) as unknown as CashuReceiveSwapService['create'],
+          }) as unknown as CashuReceiveSwapService,
+      });
+
+      await expect(
+        api.cashu.createSwap({
+          account: cashuDomain(),
+          token: makeToken(),
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+    });
+
+    it('threads the session signal through the default swap service into the repository write', async () => {
+      const keys = createSessionKeys();
+      let writeOptions: { abortSignal?: AbortSignal } | undefined;
+      const account = cashuDomain({ wallet: swapWallet });
+      const token = makeToken();
+      const swap = makeSwap();
+      const serviceResult = { swap, account };
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createRepository: async () =>
+          ({}) as unknown as CashuReceiveQuoteRepository,
+        createService: async () => ({}) as unknown as CashuReceiveQuoteService,
+        createSwapRepository: async () =>
+          ({
+            create: (async (
+              _params: unknown,
+              options?: { abortSignal?: AbortSignal },
+            ) => {
+              writeOptions = options;
+              return serviceResult;
+            }) as CashuReceiveSwapRepository['create'],
+          }) as unknown as CashuReceiveSwapRepository,
+      });
+
+      await api.cashu.createSwap({ account, token });
+
+      expect(writeOptions?.abortSignal).toBe(keys.sessionSignal());
     });
   });
 

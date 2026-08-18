@@ -163,12 +163,12 @@ export default function ReceiveToken({
         sourceAccount,
       );
 
-      if (isSameAccountClaim) {
+      if (isSameAccountClaim && account.type === 'cashu') {
         const {
           swap: { transactionId },
         } = await createCashuReceiveSwap({
           token,
-          accountId: account.id,
+          account,
         });
         return { transactionId, account };
       }
