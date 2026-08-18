@@ -27,29 +27,34 @@ export class CashuReceiveSwapService {
    * @returns The created receive swap and updated account.
    * @throws An error if creating the swap fails.
    */
-  async create({
-    userId,
-    token,
-    account,
-    reversedTransactionId,
-  }: {
-    /**
-     * The id of the user that is creating the swap.
-     */
-    userId: string;
-    /**
-     * The token to receive.
-     */
-    token: Token;
-    /**
-     * The account to receive the proofs into.
-     */
-    account: CashuAccount;
-    /**
-     * The id of the transaction that this swap is reversing.
-     */
-    reversedTransactionId?: string;
-  }): Promise<{
+  async create(
+    {
+      userId,
+      token,
+      account,
+      reversedTransactionId,
+    }: {
+      /**
+       * The id of the user that is creating the swap.
+       */
+      userId: string;
+      /**
+       * The token to receive.
+       */
+      token: Token;
+      /**
+       * The account to receive the proofs into.
+       */
+      account: CashuAccount;
+      /**
+       * The id of the transaction that this swap is reversing.
+       */
+      reversedTransactionId?: string;
+    },
+    options?: {
+      abortSignal?: AbortSignal;
+    },
+  ): Promise<{
     swap: CashuReceiveSwap;
     account: CashuAccount;
   }> {
@@ -88,17 +93,20 @@ export class CashuReceiveSwapService {
 
     const outputAmounts = splitAmount(amountToReceive, keyset.keys);
 
-    return await this.receiveSwapRepository.create({
-      token,
-      userId,
-      accountId: account.id,
-      keysetId: wallet.keysetId,
-      inputAmount,
-      cashuReceiveFee: feeAmount,
-      receiveAmount,
-      outputAmounts,
-      reversedTransactionId,
-    });
+    return await this.receiveSwapRepository.create(
+      {
+        token,
+        userId,
+        accountId: account.id,
+        keysetId: wallet.keysetId,
+        inputAmount,
+        cashuReceiveFee: feeAmount,
+        receiveAmount,
+        outputAmounts,
+        reversedTransactionId,
+      },
+      options,
+    );
   }
 
   /**
