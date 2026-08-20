@@ -16,7 +16,6 @@ import {
   SparkReceiveQuoteRepository,
   SparkReceiveQuoteService,
   getInitializedCashuWallet,
-  getLightningQuote,
   sparkDebugLog,
 } from '@agicash/wallet-sdk/temporary';
 import { MintOperationError, NetworkError } from '@cashu/cashu-ts';
@@ -27,6 +26,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
+import { sdk } from '~/features/shared/sdk.client';
 import { useOnMeltQuoteStateChange } from '~/lib/cashu/melt-quote-subscription';
 import { useLatest } from '~/lib/use-latest';
 import {
@@ -108,12 +108,11 @@ export function useTrackSparkReceiveQuote({
   const enabled = !!quoteId;
   const onPaidRef = useLatest(onPaid);
   const onExpiredRef = useLatest(onExpired);
-  const sparkReceiveQuoteRepository = useSparkReceiveQuoteRepository();
 
   const { data } = useQuery({
     queryKey: [SparkReceiveQuoteCache.Key, quoteId],
     // biome-ignore lint/style/noNonNullAssertion: quoteId is guaranteed by enabled
-    queryFn: () => sparkReceiveQuoteRepository.get(quoteId!),
+    queryFn: () => sdk.receive.spark.getQuote(quoteId!),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
@@ -303,8 +302,6 @@ type CreateProps = {
  * The quote is stored in the database and will be tracked by the background task processor.
  */
 export function useCreateSparkReceiveQuote() {
-  const userId = useUser((user) => user.id);
-  const sparkReceiveQuoteService = useSparkReceiveQuoteService();
   const sparkReceiveQuoteCache = useSparkReceiveQuoteCache();
 
   return useMutation({
@@ -318,17 +315,14 @@ export function useCreateSparkReceiveQuote() {
       purpose,
       transferId,
     }: CreateProps) => {
-      const lightningQuote = await getLightningQuote({
-        wallet: account.wallet,
+      const lightningQuote = await sdk.receive.spark.getLightningQuote({
+        account,
         amount,
         description,
       });
-
-      return sparkReceiveQuoteService.createReceiveQuote({
-        userId,
+      return sdk.receive.spark.createQuote({
         account,
         lightningQuote,
-        receiveType: 'LIGHTNING',
         purpose,
         transferId,
       });

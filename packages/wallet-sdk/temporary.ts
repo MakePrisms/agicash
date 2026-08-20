@@ -112,7 +112,6 @@ export { SparkReceiveQuoteSchema } from './domain/receive/spark-receive-quote';
 export {
   computeQuoteExpiry,
   getAmountAndFee,
-  getLightningQuote,
 } from './domain/receive/spark-receive-quote-core';
 export { SparkReceiveQuoteRepository } from './domain/receive/spark-receive-quote-repository';
 export { SparkReceiveQuoteService } from './domain/receive/spark-receive-quote-service';
