@@ -13,6 +13,8 @@ import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import { CashuReceiveSwapRepository } from './cashu-receive-swap-repository';
 import { CashuReceiveSwapService } from './cashu-receive-swap-service';
+import { SparkReceiveQuoteRepository } from './spark-receive-quote-repository';
+import { SparkReceiveQuoteService } from './spark-receive-quote-service';
 
 type Deps = {
   db: AgicashDb;
@@ -28,6 +30,10 @@ type Deps = {
   createSwapRepository?: () => Promise<CashuReceiveSwapRepository>;
   /** Test seam; defaults to building the swap service from the swap repository. */
   createSwapService?: () => Promise<CashuReceiveSwapService>;
+  /** Test seam; defaults to building the spark repository from db + session keys. */
+  createSparkRepository?: () => Promise<SparkReceiveQuoteRepository>;
+  /** Test seam; defaults to building the spark service from the spark repository. */
+  createSparkService?: () => Promise<SparkReceiveQuoteService>;
 };
 
 /** Creates the `receive` SDK namespace. */
@@ -80,6 +86,18 @@ export function createReceiveApi(deps: Deps): ReceiveApi {
     deps.createSwapService ??
     (async (): Promise<CashuReceiveSwapService> =>
       new CashuReceiveSwapService(await getSwapRepository()));
+
+  const getSparkRepository =
+    deps.createSparkRepository ??
+    (async (): Promise<SparkReceiveQuoteRepository> => {
+      const encryption = await deps.keys.getEncryption();
+      return new SparkReceiveQuoteRepository(deps.db, encryption);
+    });
+
+  const getSparkService =
+    deps.createSparkService ??
+    (async (): Promise<SparkReceiveQuoteService> =>
+      new SparkReceiveQuoteService(await getSparkRepository()));
 
   return {
     cashu: {
@@ -135,8 +153,49 @@ export function createReceiveApi(deps: Deps): ReceiveApi {
         return result;
       },
     },
-    get spark(): ReceiveApi['spark'] {
-      throw new NotImplementedError('receive.spark');
+    spark: {
+      getLightningQuote: async (params) => {
+        if (params.amount.currency !== 'BTC') {
+          throw new Error('Spark receive quotes support BTC amounts only');
+        }
+        const signal = deps.keys.sessionSignal();
+        const service = await getSparkService();
+        if (signal.aborted) throw new SessionEndedError();
+        const quote = await service.getLightningQuote({
+          wallet: params.account.wallet,
+          amount: params.amount,
+          description: params.description,
+        });
+        if (signal.aborted) throw new SessionEndedError();
+        return quote;
+      },
+      createQuote: async (params) => {
+        const userId = requireUserId();
+        const signal = deps.keys.sessionSignal();
+        const service = await getSparkService();
+        if (signal.aborted) throw new SessionEndedError();
+        const quote = await service.createReceiveQuote(
+          {
+            userId,
+            account: params.account,
+            receiveType: 'LIGHTNING',
+            lightningQuote: params.lightningQuote,
+            purpose: params.purpose,
+            transferId: params.transferId,
+          },
+          { abortSignal: signal },
+        );
+        if (signal.aborted) throw new SessionEndedError();
+        return quote;
+      },
+      getQuote: async (id) => {
+        const signal = deps.keys.sessionSignal();
+        const repository = await getSparkRepository();
+        if (signal.aborted) throw new SessionEndedError();
+        const quote = await repository.get(id, { abortSignal: signal });
+        if (signal.aborted) throw new SessionEndedError();
+        return quote;
+      },
     },
     get cashuToken(): ReceiveApi['cashuToken'] {
       throw new NotImplementedError('receive.cashuToken');

@@ -24,6 +24,7 @@ import {
   type SparkWalletConfig,
   clearSparkWallets,
 } from '../../lib/spark/wallet';
+import { ensureBreezWasm } from '../../lib/spark/wasm';
 import { createAccountsApi } from '../accounts/accounts-api';
 import { createContactsApi } from '../contacts/contacts-api';
 import { createReceiveApi } from '../receive/receive-api';
@@ -199,13 +200,16 @@ export class AgicashSdk implements Sdk {
   }
 
   /**
-   * Session restore only for now — the Breez WASM load folds in when the
-   * first Spark slice lands. Resolves when no session exists. Delegates
-   * to the auth service, which is single-flight and memoizes success but
-   * clears a rejection, so the host's query retries can recover.
+   * Front-loads session restore and the Breez WASM load (see the `Sdk.init`
+   * contract). Session restore delegates to the auth service, which is
+   * single-flight and memoizes success but clears a rejection, so the host's
+   * query retries can recover.
    */
   init(): Promise<void> {
-    return this.authService.restoreSession();
+    return Promise.all([
+      this.authService.restoreSession(),
+      ensureBreezWasm(),
+    ]).then(() => undefined);
   }
 
   async dispose(): Promise<void> {

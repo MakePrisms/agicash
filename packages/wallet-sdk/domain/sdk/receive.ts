@@ -1,6 +1,6 @@
 import type { Money } from '@agicash/money';
 import type { Token } from '@cashu/cashu-ts';
-import type { CashuAccount } from '../accounts/account';
+import type { CashuAccount, SparkAccount } from '../accounts/account';
 import type { CashuReceiveQuote } from '../receive/cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from '../receive/cashu-receive-quote-core';
 import type { CashuReceiveSwap } from '../receive/cashu-receive-swap';
@@ -83,8 +83,26 @@ export type CreateCashuReceiveSwapResult = {
   account: CashuAccount;
 };
 
-export type GetSparkReceiveLightningQuoteParams = unknown; // step 11 (spark receive quote)
-export type CreateSparkReceiveQuoteParams = unknown; // step 11 (spark receive quote)
+export type GetSparkReceiveLightningQuoteParams = {
+  /** The spark account to receive into. */
+  account: SparkAccount;
+  /** The amount to receive. */
+  amount: Money;
+  /** The description of the receive request. */
+  description?: string;
+};
+
+export type CreateSparkReceiveQuoteParams = {
+  /** The spark account to receive into. */
+  account: SparkAccount;
+  /** The lightning quote to create the receive quote from (see `getLightningQuote`). */
+  lightningQuote: SparkReceiveLightningQuote;
+  /** The purpose of the transaction. When not provided, PAYMENT is used. */
+  purpose?: TransactionPurpose;
+  /** UUID linking paired send/receive transactions in a transfer. */
+  transferId?: string;
+};
+
 export type GetReceiveCashuTokenQuoteParams = unknown; // step 12 (receive cashu token)
 export type ReceiveCashuTokenQuote = unknown; // step 12 (receive cashu token)
 export type ClaimCashuTokenParams = unknown; // step 12 (receive cashu token)

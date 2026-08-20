@@ -107,6 +107,13 @@ is **step 2 (cycle-break) before step 3 (move)**.
       `toAccount`) stays in one shared place so the halves cannot drift.
     - Live money-path verification is mandatory here.
 19. **Cleanup** — delete `@agicash/wallet-sdk/temporary`; route remaining consumers through the contract. Boundary now build-enforced.
+    - **Swap the web hosts' direct `ensureBreezWasm` calls to `sdk.init()`**
+      (decided in the #1179 review discussion): `entry.client.tsx`'s module-scope
+      warm-up and `_protected.tsx`'s await before the temporary spark-mnemonic
+      prefetch both import it from `/temporary`, so this step cannot compile
+      without the swap; land it with (or before) the slice that removes that
+      prefetch. The entry-file swap starts session restore at module scope —
+      re-verify the OAuth deep-link boot order when it lands.
 
 ## Verification
 

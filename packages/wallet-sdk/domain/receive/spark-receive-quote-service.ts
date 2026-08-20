@@ -1,8 +1,11 @@
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import {
   type CreateQuoteBaseParams,
+  type GetLightningQuoteParams,
+  type SparkReceiveLightningQuote,
   computeQuoteExpiry,
   getAmountAndFee,
+  getLightningQuote,
 } from './spark-receive-quote-core';
 import type { SparkReceiveQuoteRepository } from './spark-receive-quote-repository';
 
@@ -12,11 +15,22 @@ export class SparkReceiveQuoteService {
   constructor(private readonly repository: SparkReceiveQuoteRepository) {}
 
   /**
+   * Gets a Breez SDK lightning receive quote for the given amount.
+   * @returns The Spark lightning receive quote.
+   */
+  async getLightningQuote(
+    params: GetLightningQuoteParams,
+  ): Promise<SparkReceiveLightningQuote> {
+    return getLightningQuote(params);
+  }
+
+  /**
    * Creates a new Spark Lightning receive quote for the given amount.
    * This creates a lightning invoice via Spark and stores the quote in the database.
    */
   async createReceiveQuote(
     params: CreateQuoteParams,
+    options?: { abortSignal?: AbortSignal },
   ): Promise<SparkReceiveQuote> {
     const { userId, account, lightningQuote, purpose, transferId } = params;
     const expiresAt = computeQuoteExpiry(params);
@@ -38,24 +52,30 @@ export class SparkReceiveQuoteService {
     };
 
     if (params.receiveType === 'CASHU_TOKEN') {
-      return this.repository.create({
-        ...baseParams,
-        receiveType: 'CASHU_TOKEN',
-        meltData: {
-          tokenMintUrl: params.sourceMintUrl,
-          tokenAmount: params.tokenAmount,
-          tokenProofs: params.tokenProofs,
-          meltQuoteId: params.meltQuoteId,
-          cashuReceiveFee: params.cashuReceiveFee,
-          lightningFeeReserve: params.lightningFeeReserve,
+      return this.repository.create(
+        {
+          ...baseParams,
+          receiveType: 'CASHU_TOKEN',
+          meltData: {
+            tokenMintUrl: params.sourceMintUrl,
+            tokenAmount: params.tokenAmount,
+            tokenProofs: params.tokenProofs,
+            meltQuoteId: params.meltQuoteId,
+            cashuReceiveFee: params.cashuReceiveFee,
+            lightningFeeReserve: params.lightningFeeReserve,
+          },
         },
-      });
+        options,
+      );
     }
 
-    return this.repository.create({
-      ...baseParams,
-      receiveType: 'LIGHTNING',
-    });
+    return this.repository.create(
+      {
+        ...baseParams,
+        receiveType: 'LIGHTNING',
+      },
+      options,
+    );
   }
 
   /**

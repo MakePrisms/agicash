@@ -86,9 +86,6 @@ export type Sdk = {
    * the SDK does not lazy-load the WASM, so Spark calls without a completed
    * `init()` throw a typed `SdkError`. Non-Spark usage lazy-initializes on
    * first use.
-   *
-   * Migration note: until the first Spark slice lands, `init()` performs
-   * session restore only — the WASM load still runs host-side.
    */
   init(): Promise<void>;
   /**
