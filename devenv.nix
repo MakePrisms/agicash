@@ -13,6 +13,7 @@
     pkgs.mkcert
     pkgs.nss.tools
     pkgs.gh
+    pkgs.typescript-language-server
     (pkgs.callPackage ./tools/convert-to-webp {})
   ];
 
