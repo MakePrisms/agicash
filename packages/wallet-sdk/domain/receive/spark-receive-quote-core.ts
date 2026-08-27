@@ -239,7 +239,7 @@ export async function getLightningQuote({
       type: 'bolt11Invoice',
       description: description ?? '',
       amountSats: amount.toNumber('sat'),
-      receiverIdentityPubkey,
+      receiverIdentityPublicKey: receiverIdentityPubkey,
       descriptionHash,
     },
   });

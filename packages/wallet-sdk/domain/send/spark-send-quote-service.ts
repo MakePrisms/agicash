@@ -145,7 +145,7 @@ export class SparkSendQuoteService {
     }
 
     const prepareResponse = await account.wallet.prepareSendPayment({
-      paymentRequest,
+      paymentRequest: { type: 'input', input: paymentRequest },
       amount: BigInt(amountRequestedInBtc.toNumber('sat')),
     });
 
@@ -256,7 +256,7 @@ export class SparkSendQuoteService {
     }
 
     const prepareResponse = await account.wallet.prepareSendPayment({
-      paymentRequest: sendQuote.paymentRequest,
+      paymentRequest: { type: 'input', input: sendQuote.paymentRequest },
       amount: BigInt(sendQuote.amount.toNumber('sat')),
     });
 

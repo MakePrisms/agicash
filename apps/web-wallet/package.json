@@ -19,7 +19,7 @@
   "dependencies": {
     "@agicash/bc-ur": "0.1.0",
     "@agicash/bolt11": "workspace:*",
-    "@agicash/breez-sdk-spark": "0.13.5-1",
+    "@agicash/breez-sdk-spark": "catalog:",
     "@agicash/cashu": "workspace:*",
     "@agicash/ecies": "workspace:*",
     "@agicash/lnurl": "workspace:*",
