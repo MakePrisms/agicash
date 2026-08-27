@@ -231,7 +231,7 @@ export class LightningAddressService {
       const lightningQuote = await sparkReceiveQuoteService.getLightningQuote({
         wallet: account.wallet,
         amount: amountToReceive,
-        receiverIdentityPubkey: user.sparkIdentityPublicKey,
+        receiverIdentityPublicKey: user.sparkIdentityPublicKey,
         descriptionHash,
       });
 
