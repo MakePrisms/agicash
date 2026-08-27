@@ -1,4 +1,7 @@
-import { type BreezSdk, defaultExternalSigner } from '@agicash/breez-sdk-spark';
+import {
+  type BreezSdk,
+  defaultExternalSigners,
+} from '@agicash/breez-sdk-spark';
 import { bytesToHex } from '@noble/hashes/utils';
 
 /**
@@ -7,12 +10,12 @@ import { bytesToHex } from '@noble/hashes/utils';
  * @param network - The Breez SDK network ('mainnet' or 'regtest').
  * @returns Hex-encoded compressed public key.
  */
-export function getSparkIdentityPublicKeyFromMnemonic(
+export async function getSparkIdentityPublicKeyFromMnemonic(
   mnemonic: string,
   network: 'mainnet' | 'regtest',
-): string {
-  const signer = defaultExternalSigner(mnemonic, null, network);
-  const publicKey = signer.identityPublicKey();
+): Promise<string> {
+  const signers = defaultExternalSigners(mnemonic, null, network);
+  const publicKey = await signers.sparkSigner.getIdentityPublicKey();
   return bytesToHex(new Uint8Array(publicKey.bytes));
 }
 

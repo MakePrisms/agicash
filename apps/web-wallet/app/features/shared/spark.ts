@@ -110,7 +110,7 @@ export const sparkWalletQueryOptions = ({
               apiKey,
               lnurlDomain: undefined, // Disables Breez's built-in lightning address recovery — we use our own ln address system
               privateEnabledDefault: true,
-              optimizationConfig: {
+              leafOptimizationConfig: {
                 autoEnabled: true,
                 multiplicity: 2,
               },
