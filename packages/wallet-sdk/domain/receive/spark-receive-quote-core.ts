@@ -47,7 +47,7 @@ export type GetLightningQuoteParams = {
    * If provided, the incoming payment can only be claimed by the Spark wallet that controls the specified public key.
    * If not provided, the invoice will be created for the user that owns the Spark wallet.
    */
-  receiverIdentityPubkey?: string;
+  receiverIdentityPublicKey?: string;
   /**
    * The description of the receive request (BOLT11 `d` tag).
    */
@@ -230,7 +230,7 @@ export type RepositoryCreateQuoteParams = {
 export async function getLightningQuote({
   wallet,
   amount,
-  receiverIdentityPubkey,
+  receiverIdentityPublicKey,
   description,
   descriptionHash,
 }: GetLightningQuoteParams): Promise<SparkReceiveLightningQuote> {
@@ -239,7 +239,7 @@ export async function getLightningQuote({
       type: 'bolt11Invoice',
       description: description ?? '',
       amountSats: amount.toNumber('sat'),
-      receiverIdentityPubkey,
+      receiverIdentityPublicKey,
       descriptionHash,
     },
   });
@@ -274,7 +274,7 @@ export async function getLightningQuote({
       memo: description,
     },
     status,
-    receiverIdentityPublicKey: receiverIdentityPubkey,
+    receiverIdentityPublicKey,
   };
 }
 

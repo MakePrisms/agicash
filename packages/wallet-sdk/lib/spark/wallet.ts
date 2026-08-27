@@ -2,7 +2,7 @@ import {
   type BreezSdk,
   connect,
   defaultConfig,
-  defaultExternalSigner,
+  defaultExternalSigners,
   initLogging,
 } from '@agicash/breez-sdk-spark';
 import { Money } from '@agicash/money';
@@ -27,12 +27,12 @@ export type SparkWalletConfig = {
  * @param network - The Breez SDK network ('mainnet' or 'regtest').
  * @returns Hex-encoded compressed public key.
  */
-export function getSparkIdentityPublicKeyFromMnemonic(
+export async function getSparkIdentityPublicKeyFromMnemonic(
   mnemonic: string,
   network: 'mainnet' | 'regtest',
-): string {
-  const signer = defaultExternalSigner(mnemonic, null, network);
-  const publicKey = signer.identityPublicKey();
+): Promise<string> {
+  const signers = defaultExternalSigners(mnemonic, null, network);
+  const publicKey = await signers.sparkSigner.getIdentityPublicKey();
   return bytesToHex(new Uint8Array(publicKey.bytes));
 }
 
@@ -128,7 +128,7 @@ export function getSparkWallet({
       apiKey,
       lnurlDomain: undefined, // Disables Breez's built-in lightning address recovery — we use our own ln address system
       privateEnabledDefault: true,
-      optimizationConfig: {
+      leafOptimizationConfig: {
         autoEnabled: true,
         multiplicity: 2,
       },
