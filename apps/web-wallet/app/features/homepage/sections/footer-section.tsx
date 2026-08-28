@@ -38,12 +38,12 @@ export function FooterSection() {
               aria-label={s.label}
               target="_blank"
               rel="noopener noreferrer"
-              className="footer-social-link inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--mk-border)] text-[color:var(--mk-text-muted)] transition-[color,border-color,background-color] duration-200 hover:border-[color:var(--mk-border-bright)] hover:bg-[rgba(255,255,255,0.03)] hover:text-[color:var(--mk-text)]"
+              className="group inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--mk-border)] text-[color:var(--mk-text-muted)] transition-[color,border-color,background-color] duration-200 hover:border-[color:var(--mk-border-bright)] hover:bg-[rgba(255,255,255,0.03)] hover:text-[color:var(--mk-text)]"
             >
               <img
                 src={s.src}
                 alt=""
-                className="footer-social-img block h-4 w-4"
+                className="block h-4 w-4 opacity-90 transition-[filter,opacity] duration-200 [filter:invert(56%)_sepia(8%)_saturate(750%)_hue-rotate(190deg)_brightness(95%)_contrast(85%)] group-hover:opacity-100 group-hover:[filter:invert(94%)_sepia(5%)_saturate(380%)_hue-rotate(190deg)_brightness(102%)_contrast(94%)]"
               />
             </a>
           ))}
