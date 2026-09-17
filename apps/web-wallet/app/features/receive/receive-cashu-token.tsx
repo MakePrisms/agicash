@@ -2,12 +2,6 @@ import type { Token } from '@cashu/cashu-ts';
 import { useMutation } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { useState } from 'react';
-import {
-  type Location,
-  type NavigateFunction,
-  useLocation,
-  useNavigate,
-} from 'react-router';
 import { useCopyToClipboard } from 'usehooks-ts';
 import {
   ClosePageButton,
@@ -40,11 +34,6 @@ import { tokenToMoney } from '../shared/cashu';
 import { getErrorMessage } from '../shared/error';
 import { MoneyWithConvertedAmount } from '../shared/money-with-converted-amount';
 import { AcceptTerms } from '../user/accept-terms';
-import { useAuthActions } from '../user/auth';
-import {
-  pendingGiftCardMintTermsStorage,
-  pendingWalletTermsStorage,
-} from '../user/pending-terms-storage';
 import { shouldAcceptGiftCardMintTerms } from '../user/user';
 import { useAcceptTerms, useUser } from '../user/user-hooks';
 import { useCreateCashuReceiveSwap } from './cashu-receive-swap-hooks';
@@ -344,35 +333,8 @@ export default function ReceiveToken({
   );
 }
 
-const addClaimToSearchParam = (
-  navigate: NavigateFunction,
-  location: Location,
-  claimTo: 'spark' | 'cashu',
-) => {
-  const searchParams = new URLSearchParams(location.search);
-  searchParams.set('claimTo', claimTo);
-  navigate(
-    {
-      search: `?${searchParams.toString()}`,
-      hash: location.hash,
-    },
-    {
-      replace: true,
-    },
-  );
-};
-
-type PublicReceiveStep = 'show-token' | 'accept-terms';
-
 export function PublicReceiveCashuToken({ token }: { token: Token }) {
-  const [step, setStep] = useState<PublicReceiveStep>('show-token');
-  const [signingUpGuest, setSigningUpGuest] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
   const buildLinkWithSearchParams = useBuildLinkWithSearchParams();
-  const { signUpGuest } = useAuthActions();
-  const { toast } = useToast();
-  const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
   const walletOperationsEnabled = useFeatureFlag('WALLET_OPERATIONS');
   const {
     selectableAccounts,
@@ -392,63 +354,10 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
       'Token from this mint cannot be claimed');
 
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
-  const mintRequiresTerms =
-    accountRequiresGiftCardTermsAcceptance(sourceAccount);
 
   const encodedToken = encodeToken(claimableToken ?? token, {
     removeDleq: true,
   });
-
-  const handleClaimAsGuest = async () => {
-    if (!claimableToken) {
-      return;
-    }
-
-    setSigningUpGuest(true);
-    try {
-      // Store terms acceptance timestamps so they're available when user record is created
-      pendingWalletTermsStorage.set(new Date().toISOString());
-      if (mintRequiresTerms) {
-        pendingGiftCardMintTermsStorage.set(new Date().toISOString());
-      }
-
-      // Modify the URL before signing up because as soon as the user is logged in,
-      // they will be redirected to the protected receive cashu token page
-      addClaimToSearchParam(navigate, location, receiveAccount.type);
-
-      await signUpGuest();
-
-      // We are not setting signingUpGuest to false here because the navigation
-      // after signup will trigger a new render and the component will unmount.
-      // If we would set it to false here, the component would show clickable
-      // button for a brief moment before the navigation is complete (awaiting
-      // navigate to complete is not enough for some reason).
-    } catch (error) {
-      console.error('Error signing up guest', { cause: error });
-      toast({
-        title: 'Failed to create guest account',
-        description: 'Please try again or contact support',
-        variant: 'destructive',
-      });
-      setSigningUpGuest(false);
-    }
-  };
-
-  if (step === 'accept-terms') {
-    return (
-      <>
-        <PageContent className="justify-center">
-          <AcceptTerms
-            requireWalletTerms
-            requireGiftCardMintTerms={mintRequiresTerms}
-            onAccept={handleClaimAsGuest}
-            onBack={() => setStep('show-token')}
-            loading={signingUpGuest}
-          />
-        </PageContent>
-      </>
-    );
-  }
 
   return (
     <>
@@ -506,33 +415,18 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
 
       {canClaim && (
         <PageFooter className="pb-14">
-          <div className="flex flex-col gap-4">
-            {guestSignupEnabled && (
-              <Button
-                onClick={() => setStep('accept-terms')}
-                loading={signingUpGuest}
-                className="w-[200px]"
-              >
-                Claim as Guest
-              </Button>
-            )}
-
-            <LinkWithViewTransition
-              to={{
-                ...buildLinkWithSearchParams('/signup', {
-                  redirectTo: '/receive/cashu/token',
-                  ...(mintRequiresTerms && {
-                    requireGiftCardMintTerms: 'true',
-                  }),
-                }),
-                hash: encodedToken,
-              }}
-              transition="slideUp"
-              applyTo="newView"
-            >
-              <Button className="w-[200px]">Claim</Button>
-            </LinkWithViewTransition>
-          </div>
+          <LinkWithViewTransition
+            to={{
+              ...buildLinkWithSearchParams('/login', {
+                redirectTo: '/receive/cashu/token',
+              }),
+              hash: encodedToken,
+            }}
+            transition="slideUp"
+            applyTo="newView"
+          >
+            <Button className="w-[200px]">Log in to claim</Button>
+          </LinkWithViewTransition>
         </PageFooter>
       )}
     </>

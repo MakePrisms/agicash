@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, type Location, type To, useLocation } from 'react-router';
-import { useFeatureFlagOrDefault } from '~/features/shared/feature-flags';
+import { Link, useLocation } from 'react-router';
 import { authQueryOptions } from '~/features/user/auth';
 import { cn } from '~/lib/utils';
 
@@ -9,20 +8,6 @@ type JoinBetaButtonProps = {
   className?: string;
 };
 
-function getCallToAction(
-  isLoggedIn: boolean,
-  signupEnabled: boolean,
-  location: Location,
-): { to: To; label: string } {
-  if (isLoggedIn) {
-    return { to: '/', label: 'Go to Wallet' };
-  }
-  if (signupEnabled) {
-    return { to: { ...location, pathname: '/signup' }, label: 'Get Started' };
-  }
-  return { to: { ...location, pathname: '/login' }, label: 'Log in' };
-}
-
 export function JoinBetaButton({
   size = 'default',
   className,
@@ -30,8 +15,8 @@ export function JoinBetaButton({
   const location = useLocation();
   const { data: authState } = useQuery(authQueryOptions());
   const isLoggedIn = authState?.isLoggedIn ?? false;
-  const signupEnabled = useFeatureFlagOrDefault('WALLET_OPERATIONS');
-  const { to, label } = getCallToAction(isLoggedIn, signupEnabled, location);
+  const to = isLoggedIn ? '/' : { ...location, pathname: '/login' };
+  const label = isLoggedIn ? 'Go to Wallet' : 'Log in';
 
   const sizeClasses =
     size === 'lg' ? 'h-12 px-7 text-base' : 'h-10 px-5 text-sm';

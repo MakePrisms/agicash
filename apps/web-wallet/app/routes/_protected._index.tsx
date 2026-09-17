@@ -18,7 +18,7 @@ import { CASH_APP_LOGO_URL } from '~/features/buy/cash-app';
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
-import { SEND_RECEIVE_DISABLED_MESSAGE } from '~/features/shared/wallet-operations';
+import { WALLET_OPERATIONS_DISABLED_MESSAGE } from '~/features/shared/wallet-operations';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
 import { useUser } from '~/features/user/user-hooks';
 import useIsPwa from '~/hooks/use-is-pwa';
@@ -134,7 +134,7 @@ export default function Index() {
         <div className={cn('flex w-72 flex-col gap-4', isPwa && 'pb-20')}>
           {!walletOperationsEnabled && (
             <p className="text-center text-muted-foreground text-sm">
-              {SEND_RECEIVE_DISABLED_MESSAGE}
+              {WALLET_OPERATIONS_DISABLED_MESSAGE}
             </p>
           )}
           <div className="grid grid-cols-2 gap-4">
@@ -145,7 +145,11 @@ export default function Index() {
             >
               Receive
             </ActionButton>
-            <ActionButton to="/buy" variant="secondary">
+            <ActionButton
+              to="/buy"
+              variant="secondary"
+              disabled={!walletOperationsEnabled}
+            >
               Buy
             </ActionButton>
           </div>
