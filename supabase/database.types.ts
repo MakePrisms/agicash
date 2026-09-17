@@ -1635,6 +1635,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      user_exists: { Args: { p_user_id: string }; Returns: boolean }
     }
     Enums: {
       account_purpose: "transactional" | "gift-card" | "offer"
