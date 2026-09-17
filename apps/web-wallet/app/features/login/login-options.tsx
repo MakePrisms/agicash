@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router';
 import { Button } from '~/components/ui/button';
 import {
   Card,
@@ -8,15 +7,12 @@ import {
   CardHeader,
   CardTitle,
 } from '~/components/ui/card';
-import { useFeatureFlag } from '~/features/shared/feature-flags';
 
 type Option = 'email' | 'google';
 type Props = { onSelect: (option: Option) => Promise<void> };
 
 export function LoginOptions({ onSelect }: Props) {
   const [submitting, setSubmitting] = useState<Option | null>(null);
-  const location = useLocation();
-  const signupEnabled = useFeatureFlag('WALLET_OPERATIONS');
   const handeSelect = async (option: Option) => {
     if (submitting) return;
 
@@ -49,17 +45,6 @@ export function LoginOptions({ onSelect }: Props) {
             Log in with Google
           </Button>
         </div>
-        {signupEnabled && (
-          <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{' '}
-            <Link
-              to={{ ...location, pathname: '/signup' }}
-              className="underline"
-            >
-              Sign up
-            </Link>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

@@ -18,6 +18,8 @@ import {
   WalletCardBackgroundImage,
 } from '~/components/wallet-card';
 import { useAddCashuAccount } from '~/features/accounts/account-hooks';
+import { useFeatureFlag } from '~/features/shared/feature-flags';
+import { WALLET_OPERATIONS_DISABLED_MESSAGE } from '~/features/shared/wallet-operations';
 import { AcceptTerms } from '~/features/user/accept-terms';
 import { shouldAcceptGiftCardMintTerms } from '~/features/user/user';
 import { useAcceptTerms, useUser } from '~/features/user/user-hooks';
@@ -62,6 +64,7 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
   const user = useUser();
   const acceptTerms = useAcceptTerms();
   const isTransitioning = useViewTransitionState('/gift-cards');
+  const walletOperationsEnabled = useFeatureFlag('WALLET_OPERATIONS');
 
   const runAdd = async () => {
     setIsAdding(true);
@@ -152,9 +155,15 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
             />
           </WalletCard>
         </Link>
-        {giftCard.addCardDisclaimer && (
+        {walletOperationsEnabled ? (
+          giftCard.addCardDisclaimer && (
+            <p className="max-w-sm px-4 text-center text-muted-foreground text-sm">
+              {giftCard.addCardDisclaimer}
+            </p>
+          )
+        ) : (
           <p className="max-w-sm px-4 text-center text-muted-foreground text-sm">
-            {giftCard.addCardDisclaimer}
+            {WALLET_OPERATIONS_DISABLED_MESSAGE}
           </p>
         )}
       </PageContent>
@@ -164,6 +173,7 @@ export function AddGiftCard({ giftCard }: AddGiftCardProps) {
           className="w-[200px]"
           onClick={handleAddCard}
           loading={isAdding}
+          disabled={!walletOperationsEnabled}
         >
           Add Card
         </Button>
