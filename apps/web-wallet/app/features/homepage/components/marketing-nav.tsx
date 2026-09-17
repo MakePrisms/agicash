@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router';
 import logoUrl from '~/assets/full_logo.png';
+import { useFeatureFlagOrDefault } from '~/features/shared/feature-flags';
 import { authQueryOptions } from '~/features/user/auth';
 
 const navBtnBase =
@@ -16,6 +17,7 @@ export function MarketingNav() {
   const location = useLocation();
   const { data: authState } = useQuery(authQueryOptions());
   const isLoggedIn = authState?.isLoggedIn ?? false;
+  const signupEnabled = useFeatureFlagOrDefault('WALLET_OPERATIONS');
 
   return (
     <header className="sticky top-0 z-50 w-full border-[color:var(--mk-border)] border-b bg-[rgba(4,8,15,0.78)] backdrop-blur-[14px] backdrop-saturate-[140%]">
@@ -50,12 +52,14 @@ export function MarketingNav() {
               >
                 Log in
               </Link>
-              <Link
-                to={{ ...location, pathname: '/signup' }}
-                className={`${navBtnBase} ${signupBtn}`}
-              >
-                Sign up
-              </Link>
+              {signupEnabled && (
+                <Link
+                  to={{ ...location, pathname: '/signup' }}
+                  className={`${navBtnBase} ${signupBtn}`}
+                >
+                  Sign up
+                </Link>
+              )}
             </>
           )}
         </nav>

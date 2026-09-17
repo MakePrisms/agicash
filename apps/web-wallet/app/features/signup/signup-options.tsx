@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from '~/components/ui/card';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
+import { SIGNUP_DISABLED_MESSAGE } from '~/features/shared/wallet-operations';
 import { AcceptTerms } from '~/features/user/accept-terms';
 import {
   pendingGiftCardMintTermsStorage,
@@ -29,6 +30,7 @@ export function SignupOptions({ onSelect }: Props) {
   const requireGiftCardMintTerms =
     searchParams.get('requireGiftCardMintTerms') === 'true';
   const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
+  const signupEnabled = useFeatureFlag('WALLET_OPERATIONS');
 
   const selectOption = (option: Option) =>
     setStep({
@@ -68,23 +70,29 @@ export function SignupOptions({ onSelect }: Props) {
     <Card className="mx-auto w-full max-w-sm">
       <CardHeader>
         <CardTitle className="text-2xl">Sign Up</CardTitle>
-        <CardDescription>Choose your preferred sign-up method</CardDescription>
+        <CardDescription>
+          {signupEnabled
+            ? 'Choose your preferred sign-up method'
+            : SIGNUP_DISABLED_MESSAGE}
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-4">
-          {/* TEMPORARILY DISABLED: email signup (revert to re-enable) */}
-          {/* <Button onClick={() => selectOption('email')}>
-            Create wallet with Email
-          </Button> */}
-          <Button onClick={() => selectOption('google')}>
-            Create wallet with Google
-          </Button>
-          {guestSignupEnabled && (
-            <Button onClick={() => selectOption('guest')}>
-              Create wallet as Guest
+        {signupEnabled && (
+          <div className="grid gap-4">
+            {/* TEMPORARILY DISABLED: email signup (revert to re-enable) */}
+            {/* <Button onClick={() => selectOption('email')}>
+              Create wallet with Email
+            </Button> */}
+            <Button onClick={() => selectOption('google')}>
+              Create wallet with Google
             </Button>
-          )}
-        </div>
+            {guestSignupEnabled && (
+              <Button onClick={() => selectOption('guest')}>
+                Create wallet as Guest
+              </Button>
+            )}
+          </div>
+        )}
         <div className="mt-4 text-center text-sm">
           Already have an account?{' '}
           <Link to={{ ...location, pathname: '/login' }} className="underline">

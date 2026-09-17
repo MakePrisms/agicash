@@ -21,6 +21,7 @@ import { jwtDecode } from 'jwt-decode';
 import { useCallback, useState } from 'react';
 import { useNavigate, useRevalidator } from 'react-router';
 import { getQueryClient } from '~/features/shared/query-client';
+import { assertSignupEnabled } from '~/features/shared/wallet-operations';
 import { useLongTimeout } from '~/hooks/use-long-timeout';
 import { generateRandomPassword } from '~/lib/password-generator';
 import { guestAccountStorage } from './guest-account-storage';
@@ -189,6 +190,7 @@ export const useAuthActions = (): AuthActions => {
 
   const signUp = useCallback(
     async (email: string, password: string) => {
+      assertSignupEnabled();
       await osSignUp(email, password, '');
       await refreshSession();
     },
@@ -254,6 +256,7 @@ export const useAuthActions = (): AuthActions => {
     }
 
     const createGuestAccount = async () => {
+      assertSignupEnabled();
       const password = await generateRandomPassword(32);
       const guestAccount = await osSignUpGuest(password, '');
       guestAccountStorage.store({ id: guestAccount.id, password });

@@ -1,4 +1,5 @@
 import { Clock, GiftIcon, Scan, UserCircle2 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import type { LinksFunction } from 'react-router';
 import agicashIcon192 from '~/assets/icon-192x192.png';
 import {
@@ -15,7 +16,9 @@ import {
 import { DefaultCurrencySwitcher } from '~/features/accounts/default-currency-switcher';
 import { CASH_APP_LOGO_URL } from '~/features/buy/cash-app';
 import { InstallPwaPrompt } from '~/features/pwa/install-pwa-prompt';
+import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { MoneyWithConvertedAmount } from '~/features/shared/money-with-converted-amount';
+import { SEND_RECEIVE_DISABLED_MESSAGE } from '~/features/shared/wallet-operations';
 import { useHasTransactionsPendingAck } from '~/features/transactions/transaction-hooks';
 import { useUser } from '~/features/user/user-hooks';
 import useIsPwa from '~/hooks/use-is-pwa';
@@ -29,6 +32,40 @@ export const links: LinksFunction = () => [
   { rel: 'prefetch', href: CASH_APP_LOGO_URL, as: 'image' },
 ];
 
+type ActionButtonProps = {
+  to: string;
+  variant?: 'default' | 'secondary';
+  disabled?: boolean;
+  children: ReactNode;
+};
+
+function ActionButton({
+  to,
+  variant,
+  disabled = false,
+  children,
+}: ActionButtonProps) {
+  const button = (
+    <Button
+      variant={variant}
+      className="w-full px-7 py-6 text-lg"
+      disabled={disabled}
+    >
+      {children}
+    </Button>
+  );
+
+  if (disabled) {
+    return button;
+  }
+
+  return (
+    <LinkWithViewTransition to={to} transition="slideUp" applyTo="newView">
+      {button}
+    </LinkWithViewTransition>
+  );
+}
+
 export default function Index() {
   const balanceBTC = useBalance('BTC');
   const balanceUSD = useBalance('USD');
@@ -37,6 +74,7 @@ export default function Index() {
   const defaultCurrency = useDefaultAccount().currency;
   const hasTransactionsPendingAck = useHasTransactionsPendingAck();
   const isPwa = useIsPwa();
+  const walletOperationsEnabled = useFeatureFlag('WALLET_OPERATIONS');
 
   return (
     <Page>
@@ -94,33 +132,26 @@ export default function Index() {
         )}
 
         <div className={cn('flex w-72 flex-col gap-4', isPwa && 'pb-20')}>
+          {!walletOperationsEnabled && (
+            <p className="text-center text-muted-foreground text-sm">
+              {SEND_RECEIVE_DISABLED_MESSAGE}
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-4">
-            <LinkWithViewTransition
+            <ActionButton
               to="/receive"
-              transition="slideUp"
-              applyTo="newView"
+              variant="secondary"
+              disabled={!walletOperationsEnabled}
             >
-              <Button variant="secondary" className="w-full px-7 py-6 text-lg">
-                Receive
-              </Button>
-            </LinkWithViewTransition>
-            <LinkWithViewTransition
-              to="/buy"
-              transition="slideUp"
-              applyTo="newView"
-            >
-              <Button variant="secondary" className="w-full px-7 py-6 text-lg">
-                Buy
-              </Button>
-            </LinkWithViewTransition>
+              Receive
+            </ActionButton>
+            <ActionButton to="/buy" variant="secondary">
+              Buy
+            </ActionButton>
           </div>
-          <LinkWithViewTransition
-            to="/send"
-            transition="slideUp"
-            applyTo="newView"
-          >
-            <Button className="w-full px-7 py-6 text-lg">Send</Button>
-          </LinkWithViewTransition>
+          <ActionButton to="/send" disabled={!walletOperationsEnabled}>
+            Send
+          </ActionButton>
         </div>
       </PageContent>
 

@@ -23,7 +23,7 @@ import {
   getInitializedCashuWallet,
   getMintAuthProvider,
 } from '../shared/cashu';
-import { UniqueConstraintError } from '../shared/error';
+import { PermissionDeniedError, UniqueConstraintError } from '../shared/error';
 import { getInitializedSparkWallet } from '../shared/spark';
 import type { User } from './user';
 
@@ -190,6 +190,9 @@ export class WriteUserRepository {
     const { data, error } = await query;
 
     if (error) {
+      if (error.code === '42501') {
+        throw new PermissionDeniedError(error.message);
+      }
       throw new Error('Failed to upsert user', { cause: error });
     }
 

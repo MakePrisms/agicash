@@ -1,3 +1,5 @@
+import { signOut as osSignOut } from '@agicash/opensecret';
+import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { Outlet, redirect } from 'react-router';
 import { core } from 'zod/mini';
@@ -16,14 +18,17 @@ import {
   encryptionPublicKeyQueryOptions,
   getEncryption,
 } from '~/features/shared/encryption';
+import { PermissionDeniedError } from '~/features/shared/error';
 import { getQueryClient } from '~/features/shared/query-client';
 import {
   sparkIdentityPublicKeyQueryOptions,
   sparkMnemonicQueryOptions,
 } from '~/features/shared/spark';
+import { SIGNUP_DISABLED_MESSAGE } from '~/features/shared/wallet-operations';
 import {
   type AuthUser,
   authQueryOptions,
+  invalidateAuthQueries,
   useAuthState,
 } from '~/features/user/auth';
 import {
@@ -39,6 +44,7 @@ import {
 } from '~/features/user/user-hooks';
 import { WriteUserRepository } from '~/features/user/user-repository';
 import { Wallet } from '~/features/wallet/wallet';
+import { toast } from '~/hooks/use-toast';
 import { ensureBreezWasm } from '~/lib/spark';
 import { withRetry } from '~/lib/with-retry';
 import type { Route } from './+types/_protected';
@@ -137,7 +143,10 @@ const ensureUserData = async (
           giftCardMintTermsAcceptedAt,
         }),
       retry: (attemptIndex, error) => {
-        if (error instanceof core.$ZodError) {
+        if (
+          error instanceof core.$ZodError ||
+          error instanceof PermissionDeniedError
+        ) {
           return false;
         }
         return attemptIndex < 2;
@@ -149,6 +158,22 @@ const ensureUserData = async (
   }
 
   return user;
+};
+
+/**
+ * The users insert policy rejects new wallet users while signups are closed, which happens for a
+ * Google login that has no wallet yet. Signs the auth user out again and sends them to the public home.
+ */
+const signOutRejectedNewUser = async () => {
+  await osSignOut();
+  Sentry.setUser(null);
+  await invalidateAuthQueries();
+  toast({
+    title: 'Signups are closed',
+    description: SIGNUP_DISABLED_MESSAGE,
+    duration: 8000,
+  });
+  return redirect('/home');
 };
 
 const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
@@ -207,12 +232,20 @@ const routeGuardMiddleware: Route.ClientMiddlewareFunction = async (
   // which requires WASM to be initialized. Shared with entry.client.tsx so the init
   // is typically already in-flight (or complete) by the time we await here.
   await ensureBreezWasm();
-  const user = await ensureUserData(
-    queryClient,
-    authUser,
-    pendingTermsAcceptedAt,
-    pendingGiftCardMintTermsAcceptedAt,
-  );
+  let user: User;
+  try {
+    user = await ensureUserData(
+      queryClient,
+      authUser,
+      pendingTermsAcceptedAt,
+      pendingGiftCardMintTermsAcceptedAt,
+    );
+  } catch (error) {
+    if (error instanceof PermissionDeniedError) {
+      throw await signOutRejectedNewUser();
+    }
+    throw error;
+  }
 
   const shouldRedirectToAcceptTerms =
     shouldAcceptTerms(user) && !isAcceptTermsRoute;

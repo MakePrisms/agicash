@@ -19,6 +19,7 @@ import {
 } from '~/components/page';
 import { Button } from '~/components/ui/button';
 import { useFeatureFlag } from '~/features/shared/feature-flags';
+import { TOKEN_CLAIM_DISABLED_MESSAGE } from '~/features/shared/wallet-operations';
 import { useBuildLinkWithSearchParams } from '~/hooks/use-search-params-link';
 import { useToast } from '~/hooks/use-toast';
 import { encodeToken } from '~/lib/cashu/token';
@@ -372,6 +373,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
   const { signUpGuest } = useAuthActions();
   const { toast } = useToast();
   const guestSignupEnabled = useFeatureFlag('GUEST_SIGNUP');
+  const walletOperationsEnabled = useFeatureFlag('WALLET_OPERATIONS');
   const {
     selectableAccounts,
     receiveAccount,
@@ -382,6 +384,12 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
     useCashuTokenWithClaimableProofs({
       token,
     });
+  const canClaim =
+    !!claimableToken && sourceAccount.canReceive && walletOperationsEnabled;
+  const cannotClaimMessage = !claimableToken
+    ? cannotClaimReason
+    : (sourceAccount.cannotReceiveReason ??
+      'Token from this mint cannot be claimed');
 
   const giftCard = getGiftCardByUrl(sourceAccount.mintUrl);
   const mintRequiresTerms =
@@ -456,7 +464,7 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
         />
 
         <div className="absolute top-0 right-0 bottom-0 left-0 mx-auto flex max-w-sm items-center justify-center">
-          {claimableToken && sourceAccount.canReceive ? (
+          {canClaim ? (
             <div className="w-full max-w-sm px-4">
               {giftCard ? (
                 <div className="flex flex-col items-center gap-3">
@@ -487,17 +495,16 @@ export function PublicReceiveCashuToken({ token }: { token: Token }) {
           ) : (
             <TokenErrorDisplay
               message={
-                !claimableToken
-                  ? cannotClaimReason
-                  : (sourceAccount.cannotReceiveReason ??
-                    'Token from this mint cannot be claimed')
+                walletOperationsEnabled
+                  ? cannotClaimMessage
+                  : TOKEN_CLAIM_DISABLED_MESSAGE
               }
             />
           )}
         </div>
       </PageContent>
 
-      {claimableToken && sourceAccount.canReceive && (
+      {canClaim && (
         <PageFooter className="pb-14">
           <div className="flex flex-col gap-4">
             {guestSignupEnabled && (
