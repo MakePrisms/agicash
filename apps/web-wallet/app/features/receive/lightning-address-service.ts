@@ -19,6 +19,7 @@ import {
 } from '~/lib/xchacha20poly1305';
 import type { AgicashDb } from '../agicash-db/database';
 import { NotFoundError } from '../shared/error';
+import type { FeatureFlag } from '../shared/feature-flags';
 import { sparkWalletQueryOptions } from '../shared/spark';
 import {
   ReadUserDefaultAccountRepository,
@@ -44,6 +45,11 @@ if (!encryptionKey) {
   throw new Error('LNURL_SERVER_ENCRYPTION_KEY is not set');
 }
 const encryptionKeyBytes = hexToBytes(encryptionKey);
+
+const SUNSET_ERROR: LNURLError = {
+  status: 'ERROR',
+  reason: 'Agicash is shutting down and no longer accepts payments.',
+};
 
 /**
  * This data needed to verify the status of lnurl-pay request is encrypted
@@ -109,6 +115,10 @@ export class LightningAddressService {
     username: string,
   ): Promise<LNURLPayParams | LNURLError> {
     try {
+      if (!(await this.isWalletOperationsEnabled())) {
+        return SUNSET_ERROR;
+      }
+
       const user = await this.userRepository.getByUsername(username);
 
       if (!user) {
@@ -156,6 +166,10 @@ export class LightningAddressService {
     }
 
     try {
+      if (!(await this.isWalletOperationsEnabled())) {
+        return SUNSET_ERROR;
+      }
+
       const user = await this.userRepository.get(userId);
 
       if (!user) {
@@ -349,6 +363,19 @@ export class LightningAddressService {
       preimage: receiveRequest.paymentPreimage ?? null,
       pr: receiveRequest.invoice,
     };
+  }
+
+  /**
+   * The WALLET_OPERATIONS flag gates Lightning Address receives. Its row is missing until the
+   * migration runs, so a missing key counts as enabled.
+   */
+  private async isWalletOperationsEnabled(): Promise<boolean> {
+    const { data, error } = await this.db.rpc('evaluate_feature_flags');
+    if (error) {
+      throw new Error('Failed to evaluate feature flags', { cause: error });
+    }
+    const flags = data as Partial<Record<FeatureFlag, boolean>>;
+    return flags.WALLET_OPERATIONS ?? true;
   }
 
   private buildLnurlpMetadata(username: string): string {

@@ -11,8 +11,13 @@ import {
   resolveSendDestination,
 } from '~/features/send/resolve-destination';
 import { getQueryClient } from '~/features/shared/query-client';
+import { requireWalletOperations } from '~/features/shared/wallet-operations';
 import { toast } from '~/hooks/use-toast';
 import type { Route } from './+types/_protected.send';
+
+export const clientMiddleware: Route.ClientMiddlewareFunction[] = [
+  requireWalletOperations,
+];
 
 export async function clientLoader(): Promise<{
   initialDestination: SendDestination | null;

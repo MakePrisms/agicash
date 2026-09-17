@@ -1,15 +1,24 @@
 import * as Sentry from '@sentry/react-router';
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query';
+import {
+  queryOptions,
+  useQuery,
+  useSuspenseQuery,
+} from '@tanstack/react-query';
 import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { getQueryClient } from '~/features/shared/query-client';
 
-export type FeatureFlag = 'GUEST_SIGNUP' | 'DEBUG_LOGGING_SPARK';
+export type FeatureFlag =
+  | 'GUEST_SIGNUP'
+  | 'DEBUG_LOGGING_SPARK'
+  | 'WALLET_OPERATIONS';
 
 type FeatureFlags = Record<FeatureFlag, boolean>;
 
 const FEATURE_FLAG_DEFAULTS: FeatureFlags = {
   GUEST_SIGNUP: false,
   DEBUG_LOGGING_SPARK: false,
+  // Gates the core wallet, so a failed fetch must not lock users out.
+  WALLET_OPERATIONS: true,
 };
 
 const MAX_RETRIES = 3;
@@ -19,7 +28,8 @@ async function fetchFeatureFlags(): Promise<FeatureFlags> {
   if (error) {
     throw new Error('Failed to fetch feature flags', { cause: error });
   }
-  return data as FeatureFlags;
+  // A flag row is missing until its migration runs, so defaults fill the gaps.
+  return { ...FEATURE_FLAG_DEFAULTS, ...(data as Partial<FeatureFlags>) };
 }
 
 export const featureFlagsQueryOptions = queryOptions({
@@ -46,6 +56,15 @@ export const featureFlagsQueryOptions = queryOptions({
 export function useFeatureFlag(flag: FeatureFlag): boolean {
   const { data } = useSuspenseQuery(featureFlagsQueryOptions);
   return data[flag];
+}
+
+/**
+ * Like {@link useFeatureFlag} but never suspends, so it is safe in server-rendered trees.
+ * Returns the default value until the flags are fetched.
+ */
+export function useFeatureFlagOrDefault(flag: FeatureFlag): boolean {
+  const { data } = useQuery(featureFlagsQueryOptions);
+  return data?.[flag] ?? FEATURE_FLAG_DEFAULTS[flag];
 }
 
 /**

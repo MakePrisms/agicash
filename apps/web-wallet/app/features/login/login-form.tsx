@@ -10,6 +10,7 @@ import {
 } from '~/components/ui/card';
 import { Input } from '~/components/ui/input';
 import { Label } from '~/components/ui/label';
+import { useFeatureFlag } from '~/features/shared/feature-flags';
 import { useAuthActions } from '~/features/user/auth';
 import { useToast } from '~/hooks/use-toast';
 import { buildEmailValidator } from '~/lib/validation';
@@ -24,6 +25,7 @@ export function LoginForm({ onBack }: Props) {
   const { signIn } = useAuthActions();
   const { toast } = useToast();
   const location = useLocation();
+  const signupEnabled = useFeatureFlag('WALLET_OPERATIONS');
   const {
     register,
     handleSubmit,
@@ -112,12 +114,17 @@ export function LoginForm({ onBack }: Props) {
             Back
           </Button>
         </form>
-        <div className="mt-4 text-center text-sm">
-          Don&apos;t have a wallet?{' '}
-          <Link to={{ ...location, pathname: '/signup' }} className="underline">
-            Sign up
-          </Link>
-        </div>
+        {signupEnabled && (
+          <div className="mt-4 text-center text-sm">
+            Don&apos;t have a wallet?{' '}
+            <Link
+              to={{ ...location, pathname: '/signup' }}
+              className="underline"
+            >
+              Sign up
+            </Link>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
