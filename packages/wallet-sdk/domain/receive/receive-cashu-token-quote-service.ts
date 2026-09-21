@@ -89,13 +89,16 @@ export class ReceiveCashuTokenQuoteService {
    * For Cashu destinations: creates a cashu-receive-quote in the database.
    * For Spark destinations: creates a spark-receive-quote in the database.
    */
-  async createCrossAccountReceiveQuotes({
-    userId,
-    token,
-    sourceAccount,
-    destinationAccount,
-    exchangeRate,
-  }: CreateCrossAccountReceiveQuotesProps): Promise<CrossAccountReceiveQuotesResult> {
+  async createCrossAccountReceiveQuotes(
+    {
+      userId,
+      token,
+      sourceAccount,
+      destinationAccount,
+      exchangeRate,
+    }: CreateCrossAccountReceiveQuotesProps,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<CrossAccountReceiveQuotesResult> {
     const tokenAmount = tokenToMoney(token);
     const sourceCashuUnit = getCashuUnit(sourceAccount.currency);
 
@@ -136,19 +139,22 @@ export class ReceiveCashuTokenQuoteService {
 
     if (destinationAccount.type === 'cashu') {
       const cashuReceiveQuote =
-        await this.cashuReceiveQuoteService.createReceiveQuote({
-          userId,
-          account: destinationAccount,
-          receiveType: 'CASHU_TOKEN',
-          lightningQuote: quotes.lightningQuote as CashuReceiveLightningQuote,
-          tokenAmount,
-          sourceMintUrl: sourceAccount.mintUrl,
-          tokenProofs: token.proofs,
-          meltQuoteId: quotes.meltQuote.quote,
-          meltQuoteExpiresAt,
-          cashuReceiveFee,
-          lightningFeeReserve,
-        });
+        await this.cashuReceiveQuoteService.createReceiveQuote(
+          {
+            userId,
+            account: destinationAccount,
+            receiveType: 'CASHU_TOKEN',
+            lightningQuote: quotes.lightningQuote as CashuReceiveLightningQuote,
+            tokenAmount,
+            sourceMintUrl: sourceAccount.mintUrl,
+            tokenProofs: token.proofs,
+            meltQuoteId: quotes.meltQuote.quote,
+            meltQuoteExpiresAt,
+            cashuReceiveFee,
+            lightningFeeReserve,
+          },
+          options,
+        );
 
       return {
         destinationType: 'cashu',
@@ -166,19 +172,22 @@ export class ReceiveCashuTokenQuoteService {
     }
 
     const sparkReceiveQuote =
-      await this.sparkLightningReceiveService.createReceiveQuote({
-        userId,
-        account: destinationAccount,
-        receiveType: 'CASHU_TOKEN',
-        lightningQuote: quotes.lightningQuote as SparkReceiveLightningQuote,
-        tokenAmount,
-        sourceMintUrl: sourceAccount.mintUrl,
-        tokenProofs: token.proofs,
-        meltQuoteId: quotes.meltQuote.quote,
-        meltQuoteExpiresAt,
-        cashuReceiveFee,
-        lightningFeeReserve,
-      });
+      await this.sparkLightningReceiveService.createReceiveQuote(
+        {
+          userId,
+          account: destinationAccount,
+          receiveType: 'CASHU_TOKEN',
+          lightningQuote: quotes.lightningQuote as SparkReceiveLightningQuote,
+          tokenAmount,
+          sourceMintUrl: sourceAccount.mintUrl,
+          tokenProofs: token.proofs,
+          meltQuoteId: quotes.meltQuote.quote,
+          meltQuoteExpiresAt,
+          cashuReceiveFee,
+          lightningFeeReserve,
+        },
+        options,
+      );
 
     return {
       destinationType: 'spark',

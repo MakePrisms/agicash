@@ -8,7 +8,6 @@ import type {
 } from '@agicash/wallet-sdk';
 import {
   DomainError,
-  ReceiveCashuTokenQuoteService,
   ReceiveCashuTokenService,
   canSendToLightning,
   createSparkWalletStub,
@@ -21,26 +20,15 @@ import {
   useAccounts,
   useAddCashuAccount,
 } from '~/features/accounts/account-hooks';
+import { sdk } from '~/features/shared/sdk.client';
 import { useGetExchangeRate } from '~/hooks/use-exchange-rate';
 import {
   type AccountSelectorOption,
   toAccountSelectorOption,
 } from '../accounts/account-selector';
-import { useUser } from '../user/user-hooks';
-import { useCashuReceiveQuoteService } from './cashu-receive-quote-hooks';
-import { useSparkReceiveQuoteService } from './spark-receive-quote-hooks';
 
 export function useReceiveCashuTokenService() {
   return new ReceiveCashuTokenService();
-}
-
-export function useReceiveCashuTokenQuoteService() {
-  const cashuReceiveQuoteService = useCashuReceiveQuoteService();
-  const sparkLightningReceiveService = useSparkReceiveQuoteService();
-  return new ReceiveCashuTokenQuoteService(
-    cashuReceiveQuoteService,
-    sparkLightningReceiveService,
-  );
 }
 
 type UseGetClaimableTokenProps = {
@@ -269,9 +257,7 @@ type CreateCrossAccountReceiveQuotesProps = {
  * The actual melting of proofs should be done by the caller.
  */
 export function useCreateCrossAccountReceiveQuotes() {
-  const userId = useUser((user) => user.id);
   const getExchangeRate = useGetExchangeRate();
-  const receiveCashuTokenQuoteService = useReceiveCashuTokenQuoteService();
 
   return useMutation({
     mutationFn: async ({
@@ -285,15 +271,12 @@ export function useCreateCrossAccountReceiveQuotes() {
         `${tokenCurrency}-${accountCurrency}`,
       );
 
-      return await receiveCashuTokenQuoteService.createCrossAccountReceiveQuotes(
-        {
-          userId,
-          token,
-          sourceAccount,
-          destinationAccount,
-          exchangeRate,
-        },
-      );
+      return await sdk.receive.cashuToken.createQuotes({
+        token,
+        sourceAccount,
+        destinationAccount,
+        exchangeRate,
+      });
     },
     retry: (failureCount, error) => {
       if (error instanceof DomainError) {

@@ -1,18 +1,19 @@
 import type { AgicashDb } from '../../db/database';
 import { type CashuCryptography, getCashuPrivateKey } from '../../lib/cashu';
 import { deriveCashuXpub } from '../../lib/cryptography';
-import {
-  NoSessionError,
-  NotImplementedError,
-  SessionEndedError,
-} from '../../lib/error';
+import { NoSessionError, SessionEndedError } from '../../lib/error';
 import type { AccountRepository } from '../accounts/account-repository';
+import { AccountService } from '../accounts/account-service';
+import { exchangeRateService } from '../exchange-rate';
 import type { AuthSession, ReceiveApi } from '../sdk';
 import type { SessionKeys } from '../sdk/session-keys';
 import { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
 import { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import { CashuReceiveSwapRepository } from './cashu-receive-swap-repository';
 import { CashuReceiveSwapService } from './cashu-receive-swap-service';
+import { ClaimCashuTokenService } from './claim-cashu-token-service';
+import { ReceiveCashuTokenQuoteService } from './receive-cashu-token-quote-service';
+import { ReceiveCashuTokenService } from './receive-cashu-token-service';
 import { SparkReceiveQuoteRepository } from './spark-receive-quote-repository';
 import { SparkReceiveQuoteService } from './spark-receive-quote-service';
 
@@ -34,6 +35,10 @@ type Deps = {
   createSparkRepository?: () => Promise<SparkReceiveQuoteRepository>;
   /** Test seam; defaults to building the spark service from the spark repository. */
   createSparkService?: () => Promise<SparkReceiveQuoteService>;
+  /** Test seam; defaults to building the token-quote service from the cashu + spark services. */
+  createTokenQuoteService?: () => Promise<ReceiveCashuTokenQuoteService>;
+  /** Test seam; defaults to building the claim service from accounts + swap + cashu + spark + token-quote. */
+  createClaimService?: () => Promise<ClaimCashuTokenService>;
 };
 
 /** Creates the `receive` SDK namespace. */
@@ -98,6 +103,27 @@ export function createReceiveApi(deps: Deps): ReceiveApi {
     deps.createSparkService ??
     (async (): Promise<SparkReceiveQuoteService> =>
       new SparkReceiveQuoteService(await getSparkRepository()));
+
+  const getTokenQuoteService =
+    deps.createTokenQuoteService ??
+    (async (): Promise<ReceiveCashuTokenQuoteService> =>
+      new ReceiveCashuTokenQuoteService(
+        await getService(),
+        await getSparkService(),
+      ));
+
+  const getClaimService =
+    deps.createClaimService ??
+    (async (): Promise<ClaimCashuTokenService> =>
+      new ClaimCashuTokenService(
+        new AccountService(await deps.getAccountRepository()),
+        await getSwapService(),
+        await getService(),
+        await getSparkService(),
+        new ReceiveCashuTokenService(),
+        await getTokenQuoteService(),
+        (ticker) => exchangeRateService.getRate(ticker),
+      ));
 
   return {
     cashu: {
@@ -197,8 +223,40 @@ export function createReceiveApi(deps: Deps): ReceiveApi {
         return quote;
       },
     },
-    get cashuToken(): ReceiveApi['cashuToken'] {
-      throw new NotImplementedError('receive.cashuToken');
+    cashuToken: {
+      createQuotes: async (params) => {
+        const userId = requireUserId();
+        const signal = deps.keys.sessionSignal();
+        const service = await getTokenQuoteService();
+        if (signal.aborted) throw new SessionEndedError();
+        const result = await service.createCrossAccountReceiveQuotes(
+          {
+            userId,
+            token: params.token,
+            sourceAccount: params.sourceAccount,
+            destinationAccount: params.destinationAccount,
+            exchangeRate: params.exchangeRate,
+          },
+          { abortSignal: signal },
+        );
+        if (signal.aborted) throw new SessionEndedError();
+        return result;
+      },
+      claim: async (params) => {
+        requireUserId();
+        const signal = deps.keys.sessionSignal();
+        const service = await getClaimService();
+        if (signal.aborted) throw new SessionEndedError();
+        const result = await service.claimToken(
+          params.user,
+          params.token,
+          params.claimTo,
+          params.accounts,
+          { abortSignal: signal },
+        );
+        if (signal.aborted) throw new SessionEndedError();
+        return result;
+      },
     },
   };
 }
