@@ -1,20 +1,7 @@
 import { validateCashuToken } from '@agicash/cashu';
 import type { Account, User } from '@agicash/wallet-sdk';
 import { isDefaultAccount } from '@agicash/wallet-sdk';
-import {
-  AccountRepository,
-  AccountService,
-  CashuReceiveQuoteRepository,
-  CashuReceiveQuoteService,
-  CashuReceiveSwapRepository,
-  CashuReceiveSwapService,
-  ClaimCashuTokenService,
-  ReceiveCashuTokenQuoteService,
-  ReceiveCashuTokenService,
-  SparkReceiveQuoteRepository,
-  SparkReceiveQuoteService,
-  decodeCashuToken,
-} from '@agicash/wallet-sdk/temporary';
+import { decodeCashuToken } from '@agicash/wallet-sdk/temporary';
 import * as Sentry from '@sentry/react-router';
 import type { QueryClient } from '@tanstack/react-query';
 import { Suspense } from 'react';
@@ -24,77 +11,15 @@ import {
   AccountsCache,
   accountsQueryOptions,
 } from '~/features/accounts/account-hooks';
-import { agicashDbClient } from '~/features/agicash-db/database.client';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { ReceiveCashuToken } from '~/features/receive';
 import { UnsupportedCashuTokenPage } from '~/features/receive/unsupported-cashu-token-page';
-import {
-  getCashuCryptography,
-  seedQueryOptions,
-} from '~/features/shared/cashu-query-options';
-import { encryptionQueryOptions } from '~/features/shared/encryption-hooks';
 import { getQueryClient } from '~/features/shared/query-client';
 import { sdk } from '~/features/shared/sdk.client';
-import { sparkMnemonicQueryOptions } from '~/features/shared/spark-query-options';
 import { UserCache, getUserFromCacheOrThrow } from '~/features/user/user-hooks';
-import { getExchangeRate } from '~/hooks/use-exchange-rate';
 import { toast } from '~/hooks/use-toast';
-import { breezApiKey } from '~/lib/breez';
 import type { Route } from './+types/_protected.receive.cashu_.token';
 import { ReceiveCashuTokenSkeleton } from './receive-cashu-token-skeleton';
-
-const getServices = async () => {
-  const queryClient = getQueryClient();
-  const getCashuWalletSeed = () => queryClient.fetchQuery(seedQueryOptions());
-  const getSparkWalletMnemonic = () =>
-    queryClient.fetchQuery(sparkMnemonicQueryOptions());
-  const encryption = await queryClient.ensureQueryData(
-    encryptionQueryOptions(),
-  );
-  const accountRepository = new AccountRepository(
-    agicashDbClient,
-    encryption,
-    getCashuWalletSeed,
-    getSparkWalletMnemonic,
-    { storageDir: './.spark-data', apiKey: breezApiKey },
-  );
-  const accountService = new AccountService(accountRepository);
-  const receiveSwapRepository = new CashuReceiveSwapRepository(
-    agicashDbClient,
-    encryption,
-    accountRepository,
-  );
-  const receiveSwapService = new CashuReceiveSwapService(receiveSwapRepository);
-  const cashuReceiveQuoteRepository = new CashuReceiveQuoteRepository(
-    agicashDbClient,
-    encryption,
-    accountRepository,
-  );
-  const cashuCryptography = getCashuCryptography(queryClient);
-  const cashuReceiveQuoteService = new CashuReceiveQuoteService(
-    cashuCryptography,
-    cashuReceiveQuoteRepository,
-  );
-  const sparkReceiveQuoteService = new SparkReceiveQuoteService(
-    new SparkReceiveQuoteRepository(agicashDbClient, encryption),
-  );
-  const receiveCashuTokenService = new ReceiveCashuTokenService();
-  const receiveCashuTokenQuoteService = new ReceiveCashuTokenQuoteService(
-    cashuReceiveQuoteService,
-    sparkReceiveQuoteService,
-  );
-  const claimCashuTokenService = new ClaimCashuTokenService(
-    accountService,
-    receiveSwapService,
-    cashuReceiveQuoteService,
-    sparkReceiveQuoteService,
-    receiveCashuTokenService,
-    receiveCashuTokenQuoteService,
-    (ticker) => getExchangeRate(queryClient, ticker),
-  );
-
-  return { claimCashuTokenService };
-};
 
 /**
  * Sets the just-received account as the user's default when it isn't already —
@@ -161,16 +86,15 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   if (claimTo) {
     const user = getUserFromCacheOrThrow();
-    const { claimCashuTokenService } = await getServices();
     const queryClient = getQueryClient();
     const accounts = await queryClient.fetchQuery(accountsQueryOptions());
 
-    const result = await claimCashuTokenService.claimToken(
-      user,
+    const result = await sdk.receive.cashuToken.claim({
       token,
       claimTo,
       accounts,
-    );
+      user,
+    });
 
     if (result.success) {
       // Apply the claim's account changes to the cache so the destination

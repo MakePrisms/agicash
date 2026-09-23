@@ -5,8 +5,8 @@ import type { AgicashDb } from '../../db/database';
 import { BASE_CASHU_LOCKING_DERIVATION_PATH } from '../../lib/cashu';
 import { derivePublicKey } from '../../lib/cryptography';
 import {
+  DomainError,
   NoSessionError,
-  NotImplementedError,
   SessionEndedError,
   UniqueConstraintError,
 } from '../../lib/error';
@@ -17,6 +17,7 @@ import type {
 import type { AccountRepository } from '../accounts/account-repository';
 import type { AuthSession, AuthUser } from '../sdk';
 import { createSessionKeys } from '../sdk/session-keys';
+import type { User } from '../user/user';
 import type { CashuReceiveQuote } from './cashu-receive-quote';
 import type { CashuReceiveLightningQuote } from './cashu-receive-quote-core';
 import type { CashuReceiveQuoteRepository } from './cashu-receive-quote-repository';
@@ -24,7 +25,12 @@ import type { CashuReceiveQuoteService } from './cashu-receive-quote-service';
 import type { CashuReceiveSwap } from './cashu-receive-swap';
 import type { CashuReceiveSwapRepository } from './cashu-receive-swap-repository';
 import type { CashuReceiveSwapService } from './cashu-receive-swap-service';
+import type { ClaimCashuTokenService } from './claim-cashu-token-service';
 import { createReceiveApi } from './receive-api';
+import type {
+  CrossAccountReceiveQuotesResult,
+  ReceiveCashuTokenQuoteService,
+} from './receive-cashu-token-quote-service';
 import type { SparkReceiveQuote } from './spark-receive-quote';
 import type { SparkReceiveLightningQuote } from './spark-receive-quote-core';
 import type { SparkReceiveQuoteRepository } from './spark-receive-quote-repository';
@@ -208,6 +214,46 @@ const makeSparkQuote = (
     ...overrides,
   }) as unknown as SparkReceiveQuote;
 
+const makeUser = (): User =>
+  ({
+    id: 'user-x',
+    defaultBtcAccountId: 'acct-btc',
+    defaultUsdAccountId: 'acct-usd',
+  }) as User;
+
+const makeMeltQuote = () => ({
+  quote: 'melt-quote-1',
+  amount: 90,
+  fee_reserve: 0,
+  expiry: 1767229200,
+});
+
+const makeCrossAccountQuotes = (): CrossAccountReceiveQuotesResult =>
+  ({
+    destinationType: 'cashu',
+    destinationAccount: cashuDomain(),
+    cashuReceiveQuote: makeQuote(),
+    cashuMeltQuote: makeMeltQuote(),
+    lightningReceiveQuote: {
+      id: 'quote-1',
+      paymentRequest: 'lnbc100n1payme',
+      amount: new Money({ amount: 100, currency: 'BTC', unit: 'sat' }),
+      transactionId: 'tx-1',
+      destinationType: 'cashu',
+    },
+  }) as unknown as CrossAccountReceiveQuotesResult;
+
+const makeClaimSuccess = () => ({
+  success: true as const,
+  receiveAccount: cashuDomain(),
+  changedAccounts: [],
+});
+
+const tokenQuoteSourceWallet = {
+  getFeesForProofs: () => 0,
+  createMeltQuoteBolt11: async () => makeMeltQuote(),
+};
+
 const makeApi = (deps: {
   session: AuthSession;
   keys?: ReturnType<typeof createSessionKeys>;
@@ -217,6 +263,8 @@ const makeApi = (deps: {
   swapService?: Partial<CashuReceiveSwapService>;
   sparkRepository?: Partial<SparkReceiveQuoteRepository>;
   sparkService?: Partial<SparkReceiveQuoteService>;
+  tokenQuoteService?: unknown;
+  claimService?: unknown;
 }) =>
   createReceiveApi({
     db: {} as unknown as AgicashDb,
@@ -235,6 +283,11 @@ const makeApi = (deps: {
       (deps.sparkRepository ?? {}) as unknown as SparkReceiveQuoteRepository,
     createSparkService: async () =>
       (deps.sparkService ?? {}) as unknown as SparkReceiveQuoteService,
+    createTokenQuoteService: async () =>
+      (deps.tokenQuoteService ??
+        {}) as unknown as ReceiveCashuTokenQuoteService,
+    createClaimService: async () =>
+      (deps.claimService ?? {}) as unknown as ClaimCashuTokenService,
   });
 
 describe('createReceiveApi', () => {
@@ -611,6 +664,10 @@ describe('createReceiveApi', () => {
     });
   });
 
+  // BOLT11 spec test-vector invoice; the cores decode it for the payment hash.
+  const fixtureInvoice =
+    'lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpuaztrnwngzn3kdzw5hydlzf03qdgm2hdq27cqv3agm2awhz5se903vruatfhq77w3ls4evs3ch9zw97j25emudupq63nyw24cg27h2rspfj9srp';
+
   describe('session fences', () => {
     it('rejects getLightningQuote with SessionEndedError and never calls the mint when the session ends during service construction', async () => {
       const keys = createSessionKeys();
@@ -833,11 +890,92 @@ describe('createReceiveApi', () => {
 
       expect(writeOptions?.abortSignal).toBe(keys.sessionSignal());
     });
-  });
 
-  // BOLT11 spec test-vector invoice; the cores decode it for the payment hash.
-  const fixtureInvoice =
-    'lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpuaztrnwngzn3kdzw5hydlzf03qdgm2hdq27cqv3agm2awhz5se903vruatfhq77w3ls4evs3ch9zw97j25emudupq63nyw24cg27h2rspfj9srp';
+    it('threads the session signal through the default token-quote service', async () => {
+      const keys = createSessionKeys();
+      let writeOptions: { abortSignal?: AbortSignal } | undefined;
+      const sourceAccount = cashuDomain({ wallet: tokenQuoteSourceWallet });
+      const destinationAccount = cashuDomain({
+        id: 'acct-dest',
+        mintUrl: 'https://mint.other.example',
+      });
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createRepository: async () =>
+          ({}) as unknown as CashuReceiveQuoteRepository,
+        createService: async () =>
+          ({
+            getLightningQuote: (async () =>
+              makeLightningQuote()) as unknown as CashuReceiveQuoteService['getLightningQuote'],
+            createReceiveQuote: (async (
+              _params: unknown,
+              options?: { abortSignal?: AbortSignal },
+            ) => {
+              writeOptions = options;
+              return makeQuote();
+            }) as unknown as CashuReceiveQuoteService['createReceiveQuote'],
+          }) as unknown as CashuReceiveQuoteService,
+        createSparkService: async () =>
+          ({}) as unknown as SparkReceiveQuoteService,
+      });
+
+      await api.cashuToken.createQuotes({
+        token: makeToken(),
+        sourceAccount,
+        destinationAccount,
+        exchangeRate: '1',
+      });
+
+      expect(writeOptions?.abortSignal).toBe(keys.sessionSignal());
+    });
+
+    it('createQuotes spark destination never reads the cashu seed', async () => {
+      const keys = createSessionKeys({
+        readCashuSeed: async () => {
+          throw new Error('cashu seed must not be read');
+        },
+      });
+      const sourceAccount = cashuDomain({ wallet: tokenQuoteSourceWallet });
+      const wallet = {
+        receivePayment: async () => {
+          return {
+            paymentRequest: fixtureInvoice,
+            lightningReceiveDetails: {
+              receiveRequestId: 'receive-request-1',
+              status: 'created',
+              createdAt: 1767229200,
+              updatedAt: 1767229200,
+            },
+          };
+        },
+      };
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createRepository: async () =>
+          ({}) as unknown as CashuReceiveQuoteRepository,
+        createSparkService: async () =>
+          ({
+            createReceiveQuote: (async () =>
+              makeSparkQuote()) as unknown as SparkReceiveQuoteService['createReceiveQuote'],
+          }) as unknown as SparkReceiveQuoteService,
+      });
+
+      await expect(
+        api.cashuToken.createQuotes({
+          token: makeToken(),
+          sourceAccount,
+          destinationAccount: sparkDomain({ wallet }),
+          exchangeRate: '1',
+        }),
+      ).resolves.toBeDefined();
+    });
+  });
 
   describe('default service cryptography', () => {
     it('locks the mint quote to a key derived from the session cashu locking xpub', async () => {
@@ -1366,11 +1504,330 @@ describe('createReceiveApi', () => {
     });
   });
 
-  describe('cashuToken', () => {
-    it('throws NotImplementedError until its slice lands', () => {
-      const api = makeApi({ session: loggedIn('user-x') });
+  describe('cashuToken.createQuotes', () => {
+    it('throws NoSessionError without a session, before any repository/service construction', async () => {
+      let createTokenQuoteServiceCalls = 0;
+      let createClaimServiceCalls = 0;
+      let createServiceCalls = 0;
+      let createSparkServiceCalls = 0;
+      let getAccountRepositoryCalls = 0;
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys: createSessionKeys(),
+        getSession: () => ({ isLoggedIn: false }),
+        getAccountRepository: async () => {
+          getAccountRepositoryCalls += 1;
+          return {} as unknown as AccountRepository;
+        },
+        createService: async () => {
+          createServiceCalls += 1;
+          return {} as unknown as CashuReceiveQuoteService;
+        },
+        createSparkService: async () => {
+          createSparkServiceCalls += 1;
+          return {} as unknown as SparkReceiveQuoteService;
+        },
+        createTokenQuoteService: async () => {
+          createTokenQuoteServiceCalls += 1;
+          return {} as unknown as ReceiveCashuTokenQuoteService;
+        },
+        createClaimService: async () => {
+          createClaimServiceCalls += 1;
+          return {} as unknown as ClaimCashuTokenService;
+        },
+      });
 
-      expect(() => api.cashuToken).toThrow(NotImplementedError);
+      await expect(
+        api.cashuToken.createQuotes({
+          token: makeToken(),
+          sourceAccount: cashuDomain(),
+          destinationAccount: cashuDomain({
+            mintUrl: 'https://mint.other.example',
+          }),
+          exchangeRate: '1',
+        }),
+      ).rejects.toBeInstanceOf(NoSessionError);
+      expect(createTokenQuoteServiceCalls).toBe(0);
+      expect(createClaimServiceCalls).toBe(0);
+      expect(createServiceCalls).toBe(0);
+      expect(createSparkServiceCalls).toBe(0);
+      expect(getAccountRepositoryCalls).toBe(0);
+    });
+
+    it('passes the session userId, token, accounts, exchangeRate, and abort signal to the service', async () => {
+      let captured: Record<string, unknown> | undefined;
+      let capturedOptions: { abortSignal?: AbortSignal } | undefined;
+      const token = makeToken();
+      const sourceAccount = cashuDomain();
+      const destinationAccount = cashuDomain({
+        mintUrl: 'https://mint.other.example',
+      });
+      const quotes = makeCrossAccountQuotes();
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        tokenQuoteService: {
+          createCrossAccountReceiveQuotes: (async (
+            params: Record<string, unknown>,
+            options?: { abortSignal?: AbortSignal },
+          ) => {
+            captured = params;
+            capturedOptions = options;
+            return quotes;
+          }) as unknown as ReceiveCashuTokenQuoteService['createCrossAccountReceiveQuotes'],
+        },
+      });
+
+      const result = await api.cashuToken.createQuotes({
+        token,
+        sourceAccount,
+        destinationAccount,
+        exchangeRate: '1.25',
+      });
+
+      expect(captured).toEqual({
+        userId: 'user-x',
+        token,
+        sourceAccount,
+        destinationAccount,
+        exchangeRate: '1.25',
+      });
+      expect(capturedOptions?.abortSignal).toBeDefined();
+      expect(result).toBe(quotes);
+    });
+
+    it('rejects with SessionEndedError and never calls the service when the session ends during service construction', async () => {
+      const keys = createSessionKeys();
+      let createCrossAccountReceiveQuotesCalls = 0;
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createTokenQuoteService: async () => {
+          keys.reset();
+          return {
+            createCrossAccountReceiveQuotes: (async () => {
+              createCrossAccountReceiveQuotesCalls += 1;
+              return makeCrossAccountQuotes();
+            }) as unknown as ReceiveCashuTokenQuoteService['createCrossAccountReceiveQuotes'],
+          } as unknown as ReceiveCashuTokenQuoteService;
+        },
+      });
+
+      await expect(
+        api.cashuToken.createQuotes({
+          token: makeToken(),
+          sourceAccount: cashuDomain(),
+          destinationAccount: cashuDomain({
+            mintUrl: 'https://mint.other.example',
+          }),
+          exchangeRate: '1',
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+      expect(createCrossAccountReceiveQuotesCalls).toBe(0);
+    });
+
+    it('rejects with SessionEndedError when the session ends after the service call resolves', async () => {
+      const keys = createSessionKeys();
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createTokenQuoteService: async () =>
+          ({
+            createCrossAccountReceiveQuotes: (async () => {
+              keys.reset();
+              return makeCrossAccountQuotes();
+            }) as unknown as ReceiveCashuTokenQuoteService['createCrossAccountReceiveQuotes'],
+          }) as unknown as ReceiveCashuTokenQuoteService,
+      });
+
+      await expect(
+        api.cashuToken.createQuotes({
+          token: makeToken(),
+          sourceAccount: cashuDomain(),
+          destinationAccount: cashuDomain({
+            mintUrl: 'https://mint.other.example',
+          }),
+          exchangeRate: '1',
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+    });
+
+    it('propagates DomainError from the service unchanged', async () => {
+      const error = new DomainError(
+        'Token amount is too small to cover cashu fees.',
+      );
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        tokenQuoteService: {
+          createCrossAccountReceiveQuotes: (async () => {
+            throw error;
+          }) as unknown as ReceiveCashuTokenQuoteService['createCrossAccountReceiveQuotes'],
+        },
+      });
+
+      await expect(
+        api.cashuToken.createQuotes({
+          token: makeToken(),
+          sourceAccount: cashuDomain(),
+          destinationAccount: cashuDomain({
+            mintUrl: 'https://mint.other.example',
+          }),
+          exchangeRate: '1',
+        }),
+      ).rejects.toBe(error);
+    });
+  });
+
+  describe('cashuToken.claim', () => {
+    it('throws NoSessionError without a session, before any repository/service construction', async () => {
+      let createTokenQuoteServiceCalls = 0;
+      let createClaimServiceCalls = 0;
+      let createServiceCalls = 0;
+      let createSparkServiceCalls = 0;
+      let getAccountRepositoryCalls = 0;
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys: createSessionKeys(),
+        getSession: () => ({ isLoggedIn: false }),
+        getAccountRepository: async () => {
+          getAccountRepositoryCalls += 1;
+          return {} as unknown as AccountRepository;
+        },
+        createService: async () => {
+          createServiceCalls += 1;
+          return {} as unknown as CashuReceiveQuoteService;
+        },
+        createSparkService: async () => {
+          createSparkServiceCalls += 1;
+          return {} as unknown as SparkReceiveQuoteService;
+        },
+        createTokenQuoteService: async () => {
+          createTokenQuoteServiceCalls += 1;
+          return {} as unknown as ReceiveCashuTokenQuoteService;
+        },
+        createClaimService: async () => {
+          createClaimServiceCalls += 1;
+          return {} as unknown as ClaimCashuTokenService;
+        },
+      });
+
+      await expect(
+        api.cashuToken.claim({
+          token: makeToken(),
+          claimTo: 'cashu',
+          accounts: [cashuDomain()],
+          user: makeUser(),
+        }),
+      ).rejects.toBeInstanceOf(NoSessionError);
+      expect(createTokenQuoteServiceCalls).toBe(0);
+      expect(createClaimServiceCalls).toBe(0);
+      expect(createServiceCalls).toBe(0);
+      expect(createSparkServiceCalls).toBe(0);
+      expect(getAccountRepositoryCalls).toBe(0);
+    });
+
+    it('passes the wallet user, token, claimTo, accounts, and abort signal to the service', async () => {
+      let capturedUser: unknown;
+      let capturedToken: unknown;
+      let capturedClaimTo: unknown;
+      let capturedAccounts: unknown;
+      let capturedOptions: { abortSignal?: AbortSignal } | undefined;
+      const token = makeToken();
+      const user = makeUser();
+      const accounts = [cashuDomain()];
+      const serviceResult = { success: false as const, message: 'too small' };
+      const api = makeApi({
+        session: loggedIn('user-x'),
+        claimService: {
+          claimToken: (async (
+            claimUser: User,
+            claimToken: Token,
+            claimTo: 'cashu' | 'spark',
+            claimAccounts: unknown,
+            options?: { abortSignal?: AbortSignal },
+          ) => {
+            capturedUser = claimUser;
+            capturedToken = claimToken;
+            capturedClaimTo = claimTo;
+            capturedAccounts = claimAccounts;
+            capturedOptions = options;
+            return serviceResult;
+          }) as unknown as ClaimCashuTokenService['claimToken'],
+        },
+      });
+
+      const result = await api.cashuToken.claim({
+        token,
+        claimTo: 'spark',
+        accounts,
+        user,
+      });
+
+      expect(capturedUser).toBe(user);
+      expect(capturedToken).toBe(token);
+      expect(capturedClaimTo).toBe('spark');
+      expect(capturedAccounts).toBe(accounts);
+      expect(capturedOptions?.abortSignal).toBeDefined();
+      expect(result).toBe(serviceResult);
+    });
+
+    it('rejects with SessionEndedError and never calls the service when the session ends during service construction', async () => {
+      const keys = createSessionKeys();
+      let claimTokenCalls = 0;
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createClaimService: async () => {
+          keys.reset();
+          return {
+            claimToken: (async () => {
+              claimTokenCalls += 1;
+              return makeClaimSuccess();
+            }) as unknown as ClaimCashuTokenService['claimToken'],
+          } as unknown as ClaimCashuTokenService;
+        },
+      });
+
+      await expect(
+        api.cashuToken.claim({
+          token: makeToken(),
+          claimTo: 'cashu',
+          accounts: [cashuDomain()],
+          user: makeUser(),
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
+      expect(claimTokenCalls).toBe(0);
+    });
+
+    it('rejects with SessionEndedError when the session ends after a successful service result', async () => {
+      const keys = createSessionKeys();
+      const api = createReceiveApi({
+        db: {} as unknown as AgicashDb,
+        keys,
+        getSession: () => loggedIn('user-x'),
+        getAccountRepository: async () => ({}) as unknown as AccountRepository,
+        createClaimService: async () =>
+          ({
+            claimToken: (async () => {
+              keys.reset();
+              return makeClaimSuccess();
+            }) as unknown as ClaimCashuTokenService['claimToken'],
+          }) as unknown as ClaimCashuTokenService,
+      });
+
+      await expect(
+        api.cashuToken.claim({
+          token: makeToken(),
+          claimTo: 'cashu',
+          accounts: [cashuDomain()],
+          user: makeUser(),
+        }),
+      ).rejects.toBeInstanceOf(SessionEndedError);
     });
   });
 });

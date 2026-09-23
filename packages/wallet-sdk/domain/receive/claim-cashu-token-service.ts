@@ -48,6 +48,7 @@ export class ClaimCashuTokenService {
    * @param token - The token to claim.
    * @param claimTo - Whether to claim the token to a cashu or spark account.
    * @param accounts - The user's accounts used to resolve the token's source and possible destination accounts.
+   * @param options - The options for the claim's database writes.
    * @returns The result of the claim.
    */
   async claimToken(
@@ -55,9 +56,10 @@ export class ClaimCashuTokenService {
     token: Token,
     claimTo: 'cashu' | 'spark',
     accounts: Account[],
+    options?: { abortSignal?: AbortSignal },
   ): Promise<ClaimTokenResult> {
     try {
-      return await this.handleClaim(user, token, claimTo, accounts);
+      return await this.handleClaim(user, token, claimTo, accounts, options);
     } catch (error) {
       if (error instanceof DomainError) {
         return {
@@ -79,6 +81,7 @@ export class ClaimCashuTokenService {
     token: Token,
     claimTo: 'cashu' | 'spark',
     accounts: Account[],
+    options?: { abortSignal?: AbortSignal },
   ): Promise<ClaimTokenResult> {
     const changedAccounts: Account[] = [];
 
@@ -108,10 +111,13 @@ export class ClaimCashuTokenService {
     }
 
     if (receiveAccount.isUnknown && receiveAccount.type === 'cashu') {
-      const addedAccount = await this.accountService.addCashuAccount({
-        userId: user.id,
-        account: receiveAccount,
-      });
+      const addedAccount = await this.accountService.addCashuAccount(
+        {
+          userId: user.id,
+          account: receiveAccount,
+        },
+        options,
+      );
       changedAccounts.push(addedAccount);
       receiveAccount = { ...receiveAccount, ...addedAccount };
     }
@@ -122,11 +128,14 @@ export class ClaimCashuTokenService {
     );
 
     if (isSameAccountClaim) {
-      const { swap, account } = await this.receiveSwapService.create({
-        userId: user.id,
-        token,
-        account: receiveAccount as CashuAccount,
-      });
+      const { swap, account } = await this.receiveSwapService.create(
+        {
+          userId: user.id,
+          token,
+          account: receiveAccount as CashuAccount,
+        },
+        options,
+      );
       changedAccounts.push(account);
 
       // We want to fail the entire claim flow if completing the swap fails only if the swap is in failed state (non
@@ -156,6 +165,7 @@ export class ClaimCashuTokenService {
             destinationAccount: receiveAccount,
             exchangeRate,
           },
+          options,
         );
 
       await sourceAccount.wallet.meltProofsIdempotent(
