@@ -1,37 +1,34 @@
+import { sha256 } from '@noble/hashes/sha2';
+import { bytesToHex } from '@noble/hashes/utils';
+
 const oauthLoginSessionStorageKeyPrefix = 'oauthLoginSession_';
 
 type OauthLoginSession = {
-  sessionId: string;
   search: string;
   hash: string;
   createdAt: string;
 };
 
+const storageKey = (state: string) =>
+  `${oauthLoginSessionStorageKeyPrefix}_${bytesToHex(sha256(new TextEncoder().encode(state)))}`;
+
 export const oauthLoginSessionStorage = {
-  get: (sessionId: string): OauthLoginSession | null => {
-    const session = sessionStorage.getItem(
-      `${oauthLoginSessionStorageKeyPrefix}_${sessionId}`,
-    );
+  get: (state: string): OauthLoginSession | null => {
+    const session = sessionStorage.getItem(storageKey(state));
     return session ? (JSON.parse(session) as OauthLoginSession) : null;
   },
   create: (
-    session: Omit<OauthLoginSession, 'sessionId' | 'createdAt'>,
+    state: string,
+    location: Omit<OauthLoginSession, 'createdAt'>,
   ): OauthLoginSession => {
-    const sessionId = crypto.randomUUID();
     const sessionToStore = {
-      ...session,
-      sessionId,
+      ...location,
       createdAt: new Date().toISOString(),
     };
-    sessionStorage.setItem(
-      `${oauthLoginSessionStorageKeyPrefix}_${sessionId}`,
-      JSON.stringify(sessionToStore),
-    );
+    sessionStorage.setItem(storageKey(state), JSON.stringify(sessionToStore));
     return sessionToStore;
   },
-  remove: (sessionId: string) => {
-    sessionStorage.removeItem(
-      `${oauthLoginSessionStorageKeyPrefix}_${sessionId}`,
-    );
+  remove: (state: string) => {
+    sessionStorage.removeItem(storageKey(state));
   },
 };
