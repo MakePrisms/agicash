@@ -1,7 +1,6 @@
 import { safeJwtDecode } from '@agicash/utils';
 import type { AuthUser } from '@agicash/wallet-sdk';
 import * as Sentry from '@sentry/react-router';
-import { decodeURLSafe, encodeURLSafe } from '@stablelib/base64';
 import {
   queryOptions,
   useQueryClient,
@@ -252,26 +251,19 @@ export const useAuthActions = (): AuthActions => {
   const initiateGoogleAuth = useCallback(async () => {
     const { authUrl } = await sdk.auth.initiateGoogleAuth();
 
-    // Stash the current location under a session id and thread it through the
-    // OAuth state param, so the callback route can restore the deep link.
-    const authLocation = new URL(authUrl);
-    const stateParam = authLocation.searchParams.get('state');
-    const state = stateParam
-      ? JSON.parse(new TextDecoder().decode(decodeURLSafe(stateParam)))
-      : {};
+    // The enclave matches the returned `state` by exact equality, so it must go
+    // back untouched (Maple repo, services/opensecret/docs/oauth-callbacks.md).
+    // The current location is stashed under it so the callback route can
+    // restore the deep link.
+    const state = new URL(authUrl).searchParams.get('state');
+    if (state) {
+      oauthLoginSessionStorage.create(state, {
+        search: location.search,
+        hash: location.hash,
+      });
+    }
 
-    const oauthLoginSession = oauthLoginSessionStorage.create({
-      search: location.search,
-      hash: location.hash,
-    });
-    state.sessionId = oauthLoginSession.sessionId;
-
-    const stateEncoded = encodeURLSafe(
-      new TextEncoder().encode(JSON.stringify(state)),
-    );
-    authLocation.searchParams.set('state', stateEncoded);
-
-    return { authUrl: authLocation.href };
+    return { authUrl };
   }, []);
 
   const verifyEmail = useCallback(
