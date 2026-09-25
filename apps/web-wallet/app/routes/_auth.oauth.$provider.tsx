@@ -1,5 +1,4 @@
 import { handleGoogleCallback } from '@agicash/opensecret';
-import { decodeURLSafe } from '@stablelib/base64';
 import { redirect } from 'react-router';
 import { LoadingScreen } from '~/features/loading/LoadingScreen';
 import { getErrorMessage } from '~/features/shared/error';
@@ -64,10 +63,7 @@ export async function clientLoader({
 
   await invalidateAuthQueries();
 
-  const stateValue = JSON.parse(new TextDecoder().decode(decodeURLSafe(state)));
-  const oauthLoginSession = oauthLoginSessionStorage.get(
-    stateValue.sessionId ?? '',
-  );
+  const oauthLoginSession = oauthLoginSessionStorage.get(state);
 
   if (!oauthLoginSession) {
     throw redirect('/');
@@ -79,7 +75,7 @@ export async function clientLoader({
   const passthroughSearch = searchParams.size > 0 ? `?${searchParams}` : '';
   const url = `${redirectTo}${passthroughSearch}${oauthLoginSession.hash}`;
 
-  oauthLoginSessionStorage.remove(oauthLoginSession.sessionId);
+  oauthLoginSessionStorage.remove(state);
 
   // The hash needs to be set manually before navigating or clientLoader of the destination route won't see it
   // See https://github.com/remix-run/remix/discussions/10721
