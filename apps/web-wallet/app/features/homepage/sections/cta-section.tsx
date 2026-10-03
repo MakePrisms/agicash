@@ -13,7 +13,7 @@ export function CtaSection() {
           <div className="flex justify-center">
             <SectionLabel href="#join">for_users</SectionLabel>
           </div>
-          <h2 className="mt-7 font-medium font-mono text-2xl leading-[1.2] tracking-[-0.02em] md:text-3xl">
+          <h2 className="mt-7 font-medium text-2xl leading-[1.2] tracking-[-0.02em] [font-family:var(--mk-font-mono)] md:text-3xl">
             <a href="#join">Be early.</a>
           </h2>
           <p className="mt-4 text-[color:var(--mk-text-dim)] text-base leading-relaxed">

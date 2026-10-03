@@ -19,6 +19,7 @@ export function Section({
       id={id}
       className={cn(
         'relative w-full px-5 py-20 md:px-8 md:py-32',
+        id && 'scroll-mt-[64px] md:scroll-mt-[70px]',
         hairline && 'border-[color:var(--mk-border)] border-t',
         className,
       )}

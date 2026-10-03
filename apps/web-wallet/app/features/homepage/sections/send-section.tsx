@@ -65,7 +65,7 @@ export function SendSection() {
       <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2 md:gap-20">
         <div className="text-center md:text-left">
           <SectionLabel href="#send">02_send</SectionLabel>
-          <h2 className="mt-8 font-medium font-mono text-3xl leading-[1.15] tracking-[-0.02em] md:mt-10 md:text-5xl">
+          <h2 className="mt-8 font-medium text-3xl leading-[1.15] tracking-[-0.02em] [font-family:var(--mk-font-mono)] md:mt-10 md:text-5xl">
             <a href="#send">Send over text or email.</a>
           </h2>
           <p className="mt-6 text-[color:var(--mk-text-dim)] text-base leading-relaxed md:text-lg">
@@ -73,7 +73,7 @@ export function SendSection() {
             Gift cards settle instantly and can immediately be spent at the
             merchant&apos;s point of sale.
           </p>
-          <div className="mt-6 font-mono text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]">
+          <div className="mt-6 text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] [font-family:var(--mk-font-mono)]">
             text · email · qr
           </div>
         </div>
@@ -81,19 +81,24 @@ export function SendSection() {
         <div className="flex flex-col items-center">
           <div
             ref={railRef}
-            className={`transit-rail relative mx-auto w-full max-w-[560px] px-3 ${played ? 'played' : ''}`}
+            data-played={played}
+            className="group/played transit-rail relative mx-auto w-full max-w-[560px] px-3"
           >
             <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
               <div className="rounded-md border border-[color:var(--mk-border)] bg-[color:var(--mk-bg-card)] px-3 py-2 text-left">
-                <div className="font-mono text-[9px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em]">
+                <div className="text-[9px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em] [font-family:var(--mk-font-mono)]">
                   origin
                 </div>
-                <div className="mt-1 font-mono text-[color:var(--mk-text)] text-xs">
+                <div className="mt-1 text-[color:var(--mk-text)] text-xs [font-family:var(--mk-font-mono)]">
                   @you
                 </div>
               </div>
 
               <div className="transit-track relative mx-3 h-20">
+                <div
+                  aria-hidden="true"
+                  className="-translate-y-1/2 absolute top-1/2 right-0 left-0 h-px bg-[length:8px_1px] bg-[linear-gradient(to_right,var(--mk-border)_50%,transparent_50%)]"
+                />
                 <span
                   aria-hidden="true"
                   className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-2 w-px bg-[color:var(--mk-text-muted)]"
@@ -104,21 +109,26 @@ export function SendSection() {
                 />
                 <div
                   aria-hidden="true"
-                  className="transit-card -translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-7 w-11 rounded border border-[color:var(--mk-border)] bg-[color:var(--mk-bg-card)] opacity-0 shadow-[0_4px_14px_rgba(0,0,0,0.6)]"
-                />
+                  className="transit-card -translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-0 h-7 w-11 rounded border border-[color:var(--mk-border)] bg-[color:var(--mk-bg-card)] opacity-0 shadow-[0_4px_14px_rgba(0,0,0,0.6)] group-data-[played=true]/played:animate-transit-fly"
+                >
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-1 rounded-[2px] bg-[linear-gradient(135deg,rgba(0,212,255,0.18),rgba(0,212,255,0.05))]"
+                  />
+                </div>
               </div>
 
               <div className="rounded-md border border-[color:var(--mk-border)] bg-[color:var(--mk-bg-card)] px-3 py-2 text-left">
-                <div className="font-mono text-[9px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em]">
+                <div className="text-[9px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.2em] [font-family:var(--mk-font-mono)]">
                   destination
                 </div>
-                <div className="mt-1 font-mono text-[color:var(--mk-text)] text-xs">
+                <div className="mt-1 text-[color:var(--mk-text)] text-xs [font-family:var(--mk-font-mono)]">
                   @satoshi
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 flex items-center justify-between font-mono text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em]">
+            <div className="mt-6 flex items-center justify-between text-[10px] text-[color:var(--mk-text-muted)] uppercase tracking-[0.18em] [font-family:var(--mk-font-mono)]">
               <span>transit · {formattedTime}s</span>
               <button
                 type="button"

@@ -23,6 +23,10 @@ export const links: LinksFunction = () => [
   // bundled JS finishing before the image request even starts. The other
   // 5 cards are pre-decoded post-mount by HeroSection's decodedImagesRef.
   { rel: 'preload', href: pubkeyCard, as: 'image', type: 'image/webp' },
+  {
+    rel: 'stylesheet',
+    href: 'https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap',
+  },
 ];
 
 export default function HomePage() {
