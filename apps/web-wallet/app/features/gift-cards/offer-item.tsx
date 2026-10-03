@@ -20,7 +20,7 @@ export function OfferItem({ account, image }: OfferItemProps) {
         <>
           <WalletCardBlank />
           <WalletCardOverlay className="flex items-center justify-center px-4">
-            <span className="truncate text-card-foreground text-lg">
+            <span className="truncate text-foreground text-lg">
               {account.name}
             </span>
           </WalletCardOverlay>
