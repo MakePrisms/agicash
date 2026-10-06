@@ -21,7 +21,7 @@
 - Session fences follow the merged `receive-api.ts` template (decision 7).
 - **Canary rule for `temporary.ts`:** prune only the re-exports this flip makes dead, verified by repo-wide grep. This flip makes **none** dead (decision 10), so `temporary.ts` is untouched. Do not prune pre-existing dead re-exports.
 - Do not touch other domains' `/temporary` imports. Only the files in the File map change.
-- Root `packages/wallet-sdk/index.ts` is untouched. `export * from './domain/sdk'` (`index.ts:10`) re-exports `domain/sdk/index.ts`, which does `export * from './send'` (`domain/sdk/index.ts:26`), so the two filled param types ship automatically. `CashuAccount`, `CashuLightningQuote`, `DestinationDetails`, and `SendQuoteRequest` are already root-exported (`index.ts:33–36`, `:23`, `:107–111`).
+- Root `packages/wallet-sdk/index.ts` is untouched. `export * from './domain/sdk'` (`index.ts:10`) re-exports `domain/sdk/index.ts`, which does `export * from './send'` (`domain/sdk/index.ts:26`), so the two filled param types ship automatically. `CashuAccount`, `CashuLightningQuote`, `DestinationDetails`, and `SendQuoteRequest` are already root-exported (`index.ts:35`, `:23`, `:108–110`).
 - **`.server.ts` twins are untouched** (step 17). The send domain has none today.
 - Package manager: `bun` / `bunx` only. Base branch: `master`. Work branch: `sdk/cashu-send-quote-slice`.
 
@@ -44,7 +44,7 @@
 
 3. **`exchangeRate` is omitted from `GetCashuSendLightningQuoteParams`. Not `Big`, not `string`.** Evidence:
    - **No caller passes it.** The web hook *declares* `exchangeRate?: Big` (`cashu-send-quote-hooks.ts:122`, `:127`), but its only caller's type has no such field (`send-store.ts:152–156`), and the call omits it (`:384–388`). `transfer-service.ts:189–192` omits it too.
-   - **The service cannot use it on any path that returns.** `exchangeRate` is read only when the invoice has no amount (`cashu-send-quote-service.ts:128–135`). Seven lines later that branch throws unconditionally: `'Cashu accounts do not support amountless lightning invoices'` (`:141–145`). With an amount-bearing invoice, `amountRequestedInBtc` comes from the invoice (`:122–127`), and `exchangeRate` is ignored. The only effect it has today is *which* plain `Error` an amountless invoice gets, and the web never sends one, because `selectDestination` sets `allowZeroAmountBolt11: account.type === 'spark'` (`send-store.ts:261–263`).
+   - **The service cannot use it on any path that returns.** `exchangeRate` is read only when the invoice has no amount (`cashu-send-quote-service.ts:128–135`). Seven lines later that branch throws unconditionally: `'Cashu accounts do not support amountless lightning invoices'` (`:141–145`). With an amount-bearing invoice, `amountRequestedInBtc` comes from the invoice (`:122–127`), and `exchangeRate` is ignored. The only effect it has today is *which* plain `Error` an amountless invoice gets. `selectDestination` blocks amountless invoices for cashu (`send-store.ts:261–263`), but the `/send#<bolt11>` deep link allows them (`routes/_protected.send.tsx:33–36`). On that path master already throws a plain `Error` (non-BTC: "Exchange rate is required…", `:131–134`; BTC: "…amountless…", `:141–145`) because it never passes `exchangeRate`, so omitting the field is behavior-identical.
    - **Cost of each option:**
      - `Big` would put a `big.js` type on the public contract for a dead input. No other contract param uses `Big`.
      - `string` would match step 12 (`receive.ts:119`) and the SDK's own FX output (`exchangeRateService.getRate` returns a decimal string, see the step-12 plan decision 3). But it would need a runtime `new Big(...)` in the API, or a widening of the service type, for a value nothing supplies.
@@ -63,7 +63,7 @@
 5. **`resolveDestination` stays out of scope and keeps throwing `NotImplementedError('send.resolveDestination')`.**
    - The contract signature `(input: string) => Promise<DestinationDetails>` (`send.ts:14`) does not match the implementation `resolveSendDestination(input: string | Contact, { allowZeroAmountBolt11 })` → `Promise<ResolveResult>` (`domain/send/resolve-destination.ts:36–39`, result union at `:32–34`).
    - The mismatch spans input (contacts), options, and output: a `SendDestination` with `sendType`/`destination`/`destinationDisplay` that the store destructures (`send-store.ts:268–272`), versus `DestinationDetails`. Error style differs too: a `{ success: false, error }` result is toasted (`routes/_protected.send.tsx:33–44`), not thrown.
-   - Both web callers (`send-store.ts:261`, `routes/_protected.send.tsx:33`) depend on the current shape. Implementing it here means a contract-shape decision that no step owns and that affects spark send (step 15) equally. The function is pure (no DB, no session), so leaving it on `/temporary` (`temporary.ts:135`) costs no parity.
+   - Both web callers (`send-store.ts:261`, `routes/_protected.send.tsx:33`) depend on the current shape. Implementing it here means a contract-shape decision that no step owns and that affects spark send (step 15) equally. The function uses no DB or session, but it validates lightning addresses with LNURL HTTP (`resolve-destination.ts:52–53` → `packages/lnurl/src/index.ts:95–98`). Leaving this existing path on `/temporary` (`temporary.ts:135`) preserves that request behavior and costs no parity.
    - *Rejected:* implementing it in step 13. That would widen this slice into an unowned contract redesign. Track it as Open question 1.
 
 6. **Unimplemented members are throwing getters, per the step-9 precedent.** Step 9 shipped `get spark(): ReceiveApi['spark'] { throw new NotImplementedError('receive.spark'); }` and the same for `cashuToken` (commit `5004d67`, `receive-api.ts` at that commit). `NotImplementedError`'s contract is "thrown when a namespace is accessed before its migration slice has landed" (`lib/error.ts:64–70`). So:
@@ -92,7 +92,7 @@
    - `CashuSendQuoteService`'s constructor takes only the repository (`cashu-send-quote-service.ts:96`). `CashuSendQuoteRepository` takes `(db, encryption)` (`cashu-send-quote-repository.ts:103–106`), with **no** `AccountRepository`. The web builds it the same way: `new CashuSendQuoteRepository(agicashDbClient, encryption)` (`cashu-send-quote-hooks.ts:43–46`).
    - So `Deps` has no `getAccountRepository`, unlike receive (`receive-api.ts:24–25`), and the factory builds no `CashuCryptography`.
    - **Seed non-access (verified by reading):** `getLightningQuote` touches `account.wallet.createMeltQuoteBolt11`, `selectProofsToSend`, and `getFeesForProofs` (`:150`, `:549–566`). `createSendQuote` touches `wallet.getKeyset()`, the same proof selection, `decodeBolt11`, and `repository.create` (`:247–322`). Neither touches `wallet.seed`; only `completeSendQuote` does (`:436–439`, step 18). Neither calls `keys.getCashuSeed`. Test **m** locks this for the create path.
-   - `keys.getEncryption()` is the only key material read, and it is memoized per session (`domain/sdk/session-keys.ts:200–262`). It is already warm from `sdk.accounts.list()` (`accounts-api.ts:35–39` builds its repository from `getEncryption`; the protected layout calls it through `account-hooks.ts:142`).
+   - `keys.getEncryption()` is the only key material read, and it is memoized per session (`domain/sdk/session-keys.ts:200–262`). It is already warm from session start: `user.provision` awaits `getAccountRepository()` (`user-api.ts:118–129`), whose builder calls `getEncryption` (`accounts-api.ts:35–39`), before `auth.session-started` seeds the accounts cache (`features/user/session-started.ts:15–20`).
    - `sdk.ts` constructs it as `createSendApi({ db, getSession: getLiveSession, keys })` after `this.receive` (`sdk.ts:182–187`).
 
 10. **Canary: no `/temporary` re-export becomes dead. `temporary.ts` is untouched.**
@@ -103,13 +103,14 @@
     - Run a repo-wide grep before delivering to confirm. Do **not** prune anything else (e.g. `CashuSendQuoteSchema`, `temporary.ts:124`, or `toDecryptedCashuProofs`, `:133`, even if they look dead; that is step-19 cleanup).
 
 11. **Web flip: two hook bodies in `cashu-send-quote-hooks.ts`. `send-confirmation.tsx`, `send-provider.tsx`, and `send-store.ts` are byte-identical.**
-    - **`useInitiateCashuSendQuote` keeps `accountId` + the per-attempt cache lookup inside `mutationFn`.** This is a deliberate, evidence-backed difference from step 10, which moved `useCreateCashuReceiveSwap` to an `account` prop (commit `a16a7a4`). The send hook retries `ConcurrencyError` **forever** (`cashu-send-quote-hooks.ts:181–184`). `create_cashu_send_quote` raises `CONCURRENCY_ERROR` exactly when a selected proof is no longer `UNSPENT` (`packages/wallet-sdk/db/supabase/migrations/20260420152512_denormalize_account_on_transactions.sql:419–431`), i.e. when the proofs it chose came from a stale account.
-      - Master recovers because `getCashuAccount(accountId)` re-reads the TanStack accounts cache on **every attempt** (`:169`). Realtime account updates refresh that cache between attempts.
+    - **`useInitiateCashuSendQuote` keeps `accountId` + the per-attempt cache lookup inside `mutationFn`.** This is a deliberate, evidence-backed difference from step 10, which moved `useCreateCashuReceiveSwap` to an `account` prop (commit `a16a7a4`). The send hook retries `ConcurrencyError` **forever** (`cashu-send-quote-hooks.ts:181–184`). `create_cashu_send_quote` raises `CONCURRENCY_ERROR` when it cannot reserve every requested proof for this account (`packages/wallet-sdk/db/supabase/migrations/20260420152512_denormalize_account_on_transactions.sql:416–432`). Stale proofs (a proof no longer `UNSPENT`) are the normal web cause; missing or duplicate ids can also produce the count mismatch.
+      - Master recovers because `getCashuAccount(accountId)` re-reads the TanStack accounts cache on **every attempt** (`:169`). Between attempts, the winning RPC's `update wallet.accounts … version = version + 1` (migration `20260420152512_denormalize_account_on_transactions.sql:341–345`) fires the deferred `broadcast_accounts_changes_trigger` (`20260112150000_initial_db.sql:3606`); the web's `ACCOUNT_UPDATED` handler upserts the cache (`account-hooks.ts:130–135`). TanStack's default mutation `retryDelay` (exponential from 1 s, capped at 30 s; the app's `new QueryClient()` at `features/shared/query-client.ts:6` sets no override) gives the broadcast time to land, and each retry re-invokes `mutationFn(variables)`, so `getCashuAccount(accountId)` re-reads. The RPC raises `CONCURRENCY_ERROR` only when the reserved-proof count differs from the requested count (`20260420152512_denormalize_account_on_transactions.sql:416–432`), and `CashuSendQuoteRepository.create` maps it to `ConcurrencyError` (`cashu-send-quote-repository.ts:174–177`).
       - If the hook took the caller's `account` as a mutation variable, every retry would re-send the same stale proofs and loop. Step 10's mutation had no such retry (`retry` absent, default 0), so its precedent does not carry over.
       - The lookup is a pure cache read (`useGetAccount`, `features/accounts/account-hooks.ts:355–375`, `useGetCashuAccount` at `:381–383`): zero network. The SDK still receives the full object, so the convention ("the host fetched the entity from its own cache", `contract-proposal.md:307–316`) holds.
       - `send-confirmation.tsx:182–186` therefore does not change. *Rejected:* `account` prop (it breaks ConcurrencyError recovery).
     - `useInitiateCashuSendQuote` drops `useUser` (userId is implicit; `useUser` stays imported for `:195`) and `useCashuSendQuoteService` (the function stays defined for the processor).
-    - `useCreateCashuLightningSendQuote` drops `useCashuSendQuoteService` and the `exchangeRate` field. Its `scope` and `retry` are unchanged.
+    - `useCreateCashuLightningSendQuote` drops `useCashuSendQuoteService` and the `exchangeRate` field. Its `scope` is unchanged.
+    - **Both flipped hooks never retry `SessionEndedError`.** The SDK fences introduce this error on these paths, and its contract is "never retry the same operation — it would run under a session that no longer owns it" (`packages/wallet-sdk/lib/error.ts:50–56`). Both master retry predicates fall through to `failureCount < 1` for it (`cashu-send-quote-hooks.ts:135–140`, `:181–188`), and TanStack re-invokes `mutationFn(variables)` on retry, so after a quick same-user re-login the retry would persist the old send intent under the new session. Each retry predicate therefore returns `false` for `SessionEndedError` first. Every other retry behavior (DomainError → no retry, ConcurrencyError → retry, one ordinary retry) is unchanged. `SessionEndedError` is imported from the package root (`packages/wallet-sdk/index.ts:14–21`), not `/temporary`. The receive hooks flipped in steps 9–12 have the same gap (e.g. `useCreateCashuReceiveQuote`'s `retry: 1`, `cashu-receive-quote-hooks.ts:214`); fixing them is out of scope here (see Out of scope).
     - Imports: add `import { sdk } from '~/features/shared/sdk.client';` (same form as `contact-hooks.ts:12`). Replace `SendQuoteRequest` with `CashuLightningQuote` in the `@agicash/wallet-sdk` type import (`:3–8`). Delete `import type Big from 'big.js';` (`:29`). Everything else in the file is byte-identical.
 
 12. **No `index.ts` / `events.ts` / `temporary.ts` / `.server.ts` changes.** See Global constraints. `domain/sdk/index.ts` is untouched (it already re-exports `./send`, `:26`).
@@ -295,7 +296,7 @@ Nothing else in the file changes. `purpose` / `transferId` stay on the service f
 
 ### Web flip (`apps/web-wallet/app/features/send/cashu-send-quote-hooks.ts`)
 
-1. Imports: in the `@agicash/wallet-sdk` type import (`:3–8`), replace `SendQuoteRequest` with `CashuLightningQuote`. Keep `CashuAccount`, `CashuSendQuote`, `DestinationDetails`. Delete `import type Big from 'big.js';` (`:29`). Add `import { sdk } from '~/features/shared/sdk.client';`. Keep every other import: `useUser` (`:195`), `useGetCashuAccount` (`:153`, `:272`), `CashuSendQuoteService`/`Repository`, `ConcurrencyError`, `DomainError`, and `Money`.
+1. Imports: in the `@agicash/wallet-sdk` type import (`:3–8`), replace `SendQuoteRequest` with `CashuLightningQuote`. Keep `CashuAccount`, `CashuSendQuote`, `DestinationDetails`. Delete `import type Big from 'big.js';` (`:29`). Add `import { sdk } from '~/features/shared/sdk.client';` and `import { SessionEndedError } from '@agicash/wallet-sdk';` (a value import next to the existing type import, the same split this file already uses for `/temporary`). Keep every other import: `useUser` (`:195`), `useGetCashuAccount` (`:153`, `:272`), `CashuSendQuoteService`/`Repository`, `ConcurrencyError`, `DomainError`, and `Money`.
 2. Replace `useCreateCashuLightningSendQuote` (`:111–142`) with:
 
 ```ts
@@ -319,6 +320,9 @@ export function useCreateCashuLightningSendQuote() {
         paymentRequest,
       }),
     retry: (failureCount, error) => {
+      if (error instanceof SessionEndedError) {
+        return false;
+      }
       if (error instanceof DomainError) {
         return false;
       }
@@ -368,6 +372,9 @@ export function useInitiateCashuSendQuote({
     },
     onError: onError,
     retry: (failureCount, error) => {
+      if (error instanceof SessionEndedError) {
+        return false;
+      }
       if (error instanceof ConcurrencyError) {
         return true;
       }
@@ -386,7 +393,7 @@ The comment meets the CLAUDE.md bar: it records a non-obvious constraint (decisi
 
 - Modify: `packages/wallet-sdk/domain/sdk/send.ts` (two param types; decisions 2–3)
 - Create: `packages/wallet-sdk/domain/send/send-api.ts` (factory; decisions 4–7, 9)
-- Create: `packages/wallet-sdk/domain/send/send-api.test.ts` (tests a–o)
+- Create: `packages/wallet-sdk/domain/send/send-api.test.ts` (tests a–o; there is no test j)
 - Modify: `packages/wallet-sdk/domain/send/cashu-send-quote-service.ts` (options param; decision 8)
 - Modify: `packages/wallet-sdk/domain/sdk/sdk.ts` (wire `send`; decision 9)
 - Modify: `packages/wallet-sdk/domain/sdk/sdk.test.ts` (wiring test p; decision 6)
@@ -415,7 +422,7 @@ The comment meets the CLAUDE.md bar: it records a non-obvious constraint (decisi
 
    Fixtures:
    - `cashuDomain(overrides)`: copy `receive-api.test.ts:54–75`. The default `wallet` marker object is fine for fake-service tests.
-   - `fixtureInvoice`: the BOLT11 spec test vector at `receive-api.test.ts:668–669`. It decodes (payment hash `0001020304050607080900010203040506070809000102030405060708090102`) but **expired in 2017**. That is deliberate: `decodeBolt11` does not check expiry (`packages/bolt11/src/index.ts:29–79`), so `createSendQuote` accepts it, while `getLightningQuote` rejects it (`cashu-send-quote-service.ts:113–115`).
+   - `fixtureInvoice`: the BOLT11 spec test vector at `receive-api.test.ts:668–669`. It decodes (payment hash `0001020304050607080900010203040506070809000102030405060708090102`) but **expired in 2017**. That is deliberate: `decodeBolt11` does not check expiry (`packages/bolt11/src/index.ts:29–80`), so `createSendQuote` accepts it, while `getLightningQuote` rejects it (`cashu-send-quote-service.ts:113–115`).
    - `makeMeltQuote()`: `{ quote: 'mq-1', amount: 50, fee_reserve: 2, expiry: Math.floor(Date.now() / 1000) + 600, state: 'UNPAID', request: fixtureInvoice, unit: 'sat' }`, cast. A future `expiry` is required (`:240–245`).
    - `makeLightningQuote(): CashuLightningQuote`: cast, with `paymentRequest: fixtureInvoice`, `amountRequested` / `amountRequestedInBtc` = `new Money({ amount: 50, currency: 'BTC', unit: 'sat' })`, `meltQuote: makeMeltQuote()`, and the remaining fields as any `Money`.
    - `makeSendQuote(): CashuSendQuote`: cast, with `id: 'sq-1'`, `transactionId: 'tx-1'`, and non-empty `proofs` (so the narrowing test can see they don't leak).
@@ -423,7 +430,7 @@ The comment meets the CLAUDE.md bar: it records a non-obvious constraint (decisi
    Exact test list:
 
    - **`cashu.getLightningQuote`:**
-     - (a) **Passthrough:** calls `service.getLightningQuote` with exactly `{ account, paymentRequest, amount }`. Assert with `toEqual` plus `captured.account` `toBe` the given account. Returns the service result verbatim (`toBe`).
+     - (a) **Passthrough:** calls `service.getLightningQuote` with exactly `{ account, paymentRequest, amount }`. Assert with `toEqual` plus `captured.account` `toBe` the given account. Returns the service result verbatim (`toBe`). Build it with a counting `getSession` that returns `{ isLoggedIn: false }`: the call still resolves and `getSession` is called 0 times (decision 7: the preview never reads the session).
      - (b) **Mid-construction fence:** `createService` calls `keys.reset()` before returning a service whose `getLightningQuote` counts calls. Rejects `SessionEndedError`, with 0 service calls (pattern: `receive-api.test.ts:672–705`).
      - (c) **Post-op fence:** the service's `getLightningQuote` calls `keys.reset()` and then resolves. Rejects `SessionEndedError` (pattern: `:707–735`).
      - (d) **Error propagation:** a service rejection `new DomainError('Insufficient balance. …')` propagates as the **same instance** (`rejects.toBe(error)`).
@@ -436,12 +443,12 @@ The comment meets the CLAUDE.md bar: it records a non-obvious constraint (decisi
      - (k) **Post-op fence:** `createSendQuote` calls `keys.reset()` and then resolves `makeSendQuote()`. Rejects `SessionEndedError`, so no `transactionId` comes back for an ended session.
      - (l) **Retry-relevant errors propagate unchanged:** a `ConcurrencyError` and, in a separate case, a `DomainError('Quote has expired')` from the service each reject as the **same instance**. The web retry policy depends on `instanceof ConcurrencyError` (`cashu-send-quote-hooks.ts:182`).
      - (m) **Abort-signal identity and seed non-access through the real default service.** Call `createSendApi` directly **without** `createService`, with `keys = createSessionKeys({ readCashuSeed: async () => { throw new Error('cashu seed must not be read'); } })`, and `createRepository` returning `{ create }`. `create` records `(args, options)` and returns `makeSendQuote()`.
-       - Account: `cashuDomain` with `proofs: [{ id: 'p1', keysetId: 'ks-1', amount: 64, secret: 's1', unblindedSignature: 'C1' }]` and `wallet: { getKeyset: () => ({ id: 'ks-1' }), selectProofsToSend: (proofs) => ({ send: proofs, keep: [] }), getFeesForProofs: () => 0 }`.
+       - Account: `cashuDomain` with `proofs: [{ id: 'p1', keysetId: 'ks-1', amount: 64, secret: 's1', unblindedSignature: 'C1' }]` and `wallet: { getKeyset: () => ({ id: 'ks-1' }), selectProofsToSend: (proofs: Proof[]) => ({ send: proofs, keep: [] }), getFeesForProofs: () => 0, get seed(): Uint8Array { throw new Error('wallet.seed must not be read'); } }`. Add `import type { Proof } from '@cashu/cashu-ts';`. The parameter annotation is required: `cashuDomain`'s `overrides` is `Partial<Record<string, unknown>>` (`receive-api.test.ts:54–56`), so an unannotated nested arrow parameter is an implicit `any` (TS7006) and fails `bun run typecheck` (test files are typechecked, `packages/wallet-sdk/tsconfig.json:3`).
        - Quote: `makeLightningQuote()` (melt `amount 50 + fee_reserve 2 ≤ 64`).
        - Assert that the call resolves to `{ transactionId: 'tx-1' }`.
        - Assert `options?.abortSignal` `toBe(keys.sessionSignal())`. This locks the new service → repository hop, which (g)'s fake service cannot see.
        - Assert `args.userId === 'user-x'`, `args.accountId === 'acct-cashu'`, `args.quoteId === 'mq-1'`, `args.keysetId === 'ks-1'`, `args.paymentHash` = the vector hash above, and `args.purpose` / `args.transferId` are `undefined`.
-       - The seed error is never thrown.
+       - Neither the `readCashuSeed` error nor the fake wallet's throwing `seed` getter fires. (With the `createRepository` seam injected, `keys` is never consulted for the seed; the real risk is `account.wallet.seed`, which only `completeSendQuote` reads, `cashu-send-quote-service.ts:436`.)
    - **Unimplemented members:**
      - (n) Accessing `api.resolveDestination`, `api.cashu.getSwapQuote`, `api.cashu.createSwap`, and `api.spark` each throws `NotImplementedError`. Messages: `'send.resolveDestination is not implemented yet.'`, `'send.cashu.getSwapQuote is not implemented yet.'`, `'send.cashu.createSwap is not implemented yet.'`, `'send.spark is not implemented yet.'` (`lib/error.ts:65–69`).
      - (o) **Lazy construction:** build the api with counting `createRepository` / `createService` / `getSession` seams. Construct it, access `api.cashu`, and trigger the throwing getters (inside `expect(...).toThrow`). Every counter stays 0. Construction does no I/O; `sdk.ts` calls the factory in the constructor, and `AgicashSdk.create` is sync with no I/O (`sdk.ts:191–200`).
@@ -458,7 +465,7 @@ The comment meets the CLAUDE.md bar: it records a non-obvious constraint (decisi
 
 **Gates in the implementer's fork, all mandatory:**
 - `bun install`
-- `bun run fix:all` exits 0
+- `bun run fix:all` exits 0, then `git status --porcelain` lists only the seven File-map paths (`fix:all` is a repo-wide `biome check --write`; revert any other file it touched)
 - `bun run typecheck` exits 0
 - `cd packages/wallet-sdk && bun test` is green: the existing suites plus `send-api.test.ts` and the new `sdk.test.ts` case
 - `cd apps/web-wallet && bun test` is green
@@ -472,6 +479,7 @@ The delivered branch's changed-file set must equal the seven-file list exactly. 
 - Fence order versus `receive-api.ts:130–160`, including **no** `requireUserId()` on the preview.
 - The `{ transactionId }` runtime narrowing.
 - The `accountId`-in-hook exception and the ConcurrencyError reasoning behind it (decision 11).
+- Both flipped hooks return `false` for `SessionEndedError` before any other retry rule (decision 11, last bullet).
 - Omitting `exchangeRate`, `purpose`, and `transferId` (decisions 2–3).
 - Throwing-getter shape (decision 6).
 - Backward compatibility of `createSendQuote` for `transfer-service.ts:253`.
@@ -487,31 +495,31 @@ Findings route back through the orchestrator; only confirmed findings trigger a 
 | Install | `bun install` | exit 0, lockfile unchanged |
 | Lint/format + write | `bun run fix:all` | exit 0 |
 | Types (all pkgs) | `bun run typecheck` | exit 0 |
-| SDK unit tests | `cd packages/wallet-sdk && bun test` | green (existing + `send-api.test.ts` a–o + `sdk.test.ts` p) |
+| SDK unit tests | `cd packages/wallet-sdk && bun test` | green (existing + `send-api.test.ts` a–i, k–o + `sdk.test.ts` p) |
 | Web unit tests | `cd apps/web-wallet && bun test` | green |
 | Smoke | manual, browser, local stack | see below |
 
 **Smoke plan** (local stack: `bun run dev`, local Supabase, guest signup):
 
 Background facts:
-- Guest signup provisions, in development mode only, **Testnut BTC** and **Testnut USD** cashu accounts on `https://testnut.cashu.space` with `isTestMint: true` (`domain/user/user-api.ts:27–62`), next to the default Spark BTC account (`:29–38`).
+- Guest signup provisions, in development mode only, **Testnut BTC** and **Testnut USD** cashu accounts on `https://testnut.cashu.space` with `isTestMint: true` (`domain/user/user-api.ts:39–62`), next to the default Spark BTC account (`:29–38`).
 - **The send flow does not gate on `canSendToLightning`.** That check (`domain/accounts/account.ts:106–114`, false for test mints at `:110`) is only called by transfer (`transfer-service.ts:84`) and token receive (`receive-cashu-token-service.ts:177`, `:228`; `receive-cashu-token-hooks.ts:357`). A grep of `features/send/` finds no call. `send-store.ts:169–170` lists `BOLT11_INVOICE` / `LN_ADDRESS` / `AGICASH_CONTACT` as supported for every cashu account.
 - A testnut account can therefore request a melt quote and create a send quote for any amount-bearing bolt11.
 - Lightning **receive** into a testnut account is not gated either (`canReceiveFromLightning` is used only at `transfer-service.ts:89` and `receive-cashu-token-service.ts:212`).
 - Testnut runs Nutshell's `FakeWallet`. With `fakewallet_brr` on, which is what makes testnut mint quotes self-pay, `create_invoice` marks its own invoices paid, and `pay_invoice` settles *any* invoice whose hash it issued or, with brr, any invoice at all (Nutshell `cashu/lightning/fake.py`, `pay_invoice` / `mark_invoice_paid`).
-- That testnut has brr on is an external, observed property, not a repo fact. Step 1 below verifies it: if funding does not complete, testnut's config changed, and steps 4–5 degrade to "quote created, payment not settled".
+- That testnut has brr on is an external, observed property, not a repo fact. Step 1 below verifies it: if funding does not complete, testnut's config changed. Steps 3–4 need spendable proofs (`cashu-send-quote-service.ts:154–176`, `:254–282`), so then use an already-funded test account or stop the positive smoke. Only with prior funding can send creation succeed while settlement fails.
 
 Steps:
 
 1. **Fund (runnable locally; needs internet to testnut).** Sign up as guest. Receive Lightning into **Testnut BTC** for e.g. 1,000 sat: `sdk.receive.cashu.createQuote`, step 9. Testnut auto-pays the mint quote; the receive processor (`/temporary`) mints, and the balance shows 1,000 sat.
-2. **Get a payable invoice locally.** Open Receive → Lightning on **Testnut USD** (or Testnut BTC from a second guest in another browser profile) for a small amount, and copy the bolt11. That is a testnut mint quote invoice, which carries an amount (cashu accounts reject amountless invoices, `cashu-send-quote-service.ts:141–145`). Do **not** use a Spark-account invoice: that is a real mainnet Breez invoice, and a fake melt would mark the send paid with no sats arriving.
+2. **Get a payable invoice locally.** Open Receive → Lightning on **Testnut USD** for a small amount and copy the bolt11 (if the screen auto-completes first, because testnut self-pays its mint quotes, take `request` from the `POST https://testnut.cashu.space/v1/mint/quote/bolt11` response in DevTools). That is a testnut mint quote invoice, which carries an amount (cashu accounts reject amountless invoices, `cashu-send-quote-service.ts:141–145`). Do **not** use a Testnut BTC invoice: a same-unit melt takes Nutshell's internal-settlement path, which rejects an already-paid mint quote ("mint quote already paid"), so the preview fails. Do **not** use a Spark-account invoice: that is a real mainnet Breez invoice, and a fake melt would mark the send paid with no sats arriving.
 3. **Quote preview (flipped hook a; runnable).** Send → choose Testnut BTC → paste the invoice → Continue. `send-store.ts:384` → `sdk.send.cashu.getLightningQuote`. The confirmation page shows amount, fee reserve, and total.
    - Network: exactly one `POST https://testnut.cashu.space/v1/melt/quote/bolt11`. No Supabase request. No Open Secret key read (encryption is already memoized).
-   - Negative check: paste a bolt11 with a past expiry (e.g. the BOLT11 spec vector). Expect the toast "Lightning invoice has expired" and no mint request.
+   - Negative check: paste a bolt11 with a past expiry (e.g. the BOLT11 spec vector). Expect destination validation to reject it ("Invoice expired", `domain/send/validation.ts:32–40`) before any SDK call: no mint request. The SDK-level "Lightning invoice has expired" path is covered by unit test (e), not the UI.
 4. **Confirm (flipped hook b; runnable).** Click Confirm. `send-confirmation.tsx:182` → `sdk.send.cashu.createQuote`.
    - Network: exactly one `POST …/rest/v1/rpc/create_cashu_send_quote` to the local Supabase. No `accounts` select and no `users` select.
    - The app navigates to `/transactions/<transactionId>` (`send-confirmation.tsx:128`), which proves the narrowed `{ transactionId }` result is enough.
-5. **Background completion (runnable with testnut brr; still `/temporary`).** The realtime `CASHU_SEND_QUOTE_CREATED` → `useProcessCashuSendQuoteTasks` path subscribes to the melt quote, initiates the melt (`initiateSend`), and marks it pending then paid. The transaction shows Paid, and the Testnut BTC balance drops by amount + fee − change. For a testnut-issued invoice, the receiving Testnut USD/BTC quote also completes (internal settlement). This step verifies the step-18 boundary is intact, not new SDK code.
+5. **Background completion (runnable with testnut brr; still `/temporary`).** The realtime `CASHU_SEND_QUOTE_CREATED` → `useProcessCashuSendQuoteTasks` path subscribes to the melt quote, initiates the melt (`initiateSend`), and marks it pending then paid. The transaction shows Paid, and the Testnut BTC balance drops by amount + fee − change. The Testnut USD receive will already have completed on its own (testnut brr self-pays mint quotes at creation); the melt settles through FakeWallet's external `pay_invoice` (units differ), so only the sender-side Paid state and balance drop verify this step. This step verifies the step-18 boundary is intact, not new SDK code.
 6. **ConcurrencyError path (optional, runnable):** open the confirm page in two tabs for two different invoices that would each select the same proofs. Confirm both quickly. The second either succeeds after retry with re-read proofs or fails with "Insufficient balance". It must **not** spin indefinitely. This exercises decision 11.
 7. **Spark default account (regression only):** Send → Spark account → any invoice → Continue should still show the spark quote (step 15's hooks are untouched). Do not confirm with a real Spark balance unless you intend a real payment.
 
@@ -524,8 +532,8 @@ No console errors on any runnable path.
 ## Foreground parity accounting
 
 Rule: the flipped flow adds **zero** network requests versus master. Notes for both tables:
-- **Encryption.** `keys.getEncryption()` is memoized per session (`session-keys.ts:200–262`) and warmed by `sdk.accounts.list()` (`accounts-api.ts:35–39`, called from the protected layout via `account-hooks.ts:142`). Master's `useEncryption()` is a warm suspense query. Encrypting the payload and `computeSHA256` are local (`cashu-send-quote-repository.ts:147–150`).
-- **Supabase JWT.** The SDK's db client (`sdk.ts:146–150`) reuses the third-party token already minted for `accounts.list`. Master's `agicashDbClient` (`features/agicash-db/database.client.ts:11–17`) has its own warm token. Both: 0 token requests on this flow.
+- **Encryption.** `keys.getEncryption()` is memoized per session (`session-keys.ts:200–262`) and warmed at session start: `user.provision` awaits `getAccountRepository()` (`user-api.ts:118–129`), whose builder calls `getEncryption` (`accounts-api.ts:35–39`), before `auth.session-started` seeds the accounts cache (`features/user/session-started.ts:15–20`). Master's `useEncryption()` is a warm suspense query (`_protected.tsx:88–92` prefetch). Encrypting the payload and `computeSHA256` are local (`cashu-send-quote-repository.ts:147–150`).
+- **Supabase JWT.** During the migration the SDK db client (`sdk.ts:146–150`, cached until 5 s before expiry by `db/supabase-session.ts:20–24`, `:52–62`) and master's `agicashDbClient` (`features/agicash-db/database.client.ts:11–17`, its own TanStack token cache) each hold a separate third-party token. With both warm (the normal case: the SDK token is minted at provisioning and refreshed by every flipped read/write since step 5), this flow costs 0 token requests on both sides. If the SDK token has expired while the web token is warm, the flipped confirm costs one token exchange that master would not; the converse case favors the flipped path. This is the cross-cutting two-client cost of the migration period, shared by every flipped write since step 5, not specific to this slice; it ends when steps 18–19 remove the web db client. A shared token-source port is out of scope (Open question 3).
 
 ### A. Quote preview (`send-store.ts:384` → `getCashuLightningQuote`)
 
@@ -563,8 +571,34 @@ The `getInvoiceFromLud16` LNURL fetch before the preview (LN address / contact) 
 - **Amountless invoice support / `exchangeRate`:** forward path in decision 3.
 - **`temporary.ts` pruning:** none made dead (decision 10). `index.ts`, `events.ts`, `.server.ts`: untouched.
 - **No DB schema, RPC, dependency, or migration changes.**
+- **`SessionEndedError` retries in the receive hooks flipped by steps 9–12** (e.g. `useCreateCashuReceiveQuote`'s `retry: 1`, `cashu-receive-quote-hooks.ts:214`): same gap as decision 11's last bullet, fixed here only for the two send hooks this slice rewrites. Follow-up, not this slice.
+- **A shared Supabase token source between the web and SDK db clients** (Foreground parity, "Supabase JWT"; Open question 3).
 
 ## Open questions
 
 1. **`resolveDestination` contract shape and owner.** The contract has `(input: string) => Promise<DestinationDetails>`, while the implementation takes `string | Contact` plus `{ allowZeroAmountBolt11 }` and returns a `SendDestination` result union. Which step owns reconciling them (15, 19, or a dedicated slice), and should the public verb return `SendDestination` and throw `DomainError` instead of returning `{ success: false }`? This does not block step 13.
-2. **Testnut FakeWallet settings** are external. If testnut ever disables brr, smoke steps 1 and 5 stop completing locally. Steps 3–4, the two flipped calls, still run. A local Nutshell FakeWallet mint (`MINT_BACKEND_BOLT11_SAT=FakeWallet`) would remove the dependency, but that is tooling outside this slice.
+2. **Testnut FakeWallet settings** are external. If testnut ever disables brr, smoke steps 1 and 5 stop completing locally, and steps 3–4 (the two flipped calls) then need an already-funded test account, because both check for spendable proofs. A local Nutshell FakeWallet mint (`MINT_BACKEND_BOLT11_SAT=FakeWallet`) would remove the dependency, but that is tooling outside this slice.
+3. **Two Supabase token caches during the migration.** The SDK db client and the web `agicashDbClient` each mint and cache their own Open Secret third-party token (Foreground parity, "Supabase JWT"). A flipped write can therefore cost one token exchange that master would not, when only the SDK token has expired. Every slice since step 5 shares this; it disappears when steps 18–19 remove the web db client. Should the maintainer want it closed earlier, the shape is an optional `SdkConfig` token-source port that the web wires to its own cache. Not part of step 13.
+
+## Plan-attack corrections (2026-10-06)
+
+Two independent adversarial reviews ran against plan commit `4250e17` (maxplayer contribution jobs on the ditto seat: one claude harness, one codex harness). Both returned NOT READY with 0 Critical; every accepted finding is a text fix and is folded into the body above. Where this section and older wording disagree, the body as now written wins.
+
+Accepted and folded in:
+
+- **Test (m) fixture typing** (both reviews): the nested `selectProofsToSend` arrow is now annotated `(proofs: Proof[])` with `import type { Proof } from '@cashu/cashu-ts'`; the unannotated form is TS7006 under `cashuDomain`'s `Partial<Record<string, unknown>>` overrides and fails `bun run typecheck`.
+- **Test (m) seed guard** (both): the fake wallet carries a throwing `seed` getter, so a direct `account.wallet.seed` read now fails the test instead of passing silently.
+- **Test (a) preview session** (claude): the preview runs with a logged-out, counting `getSession` and must read it 0 times, which locks decision 7.
+- **`SessionEndedError` is never retried by the two flipped hooks** (codex; claude had proposed deferring it): decision 11's new last bullet, the web-flip imports, and both pinned `retry` predicates.
+- **Smoke step 2 invoice source** (claude): Testnut USD only. A same-unit Testnut BTC invoice takes Nutshell's internal-settlement path, which rejects the already self-paid mint quote.
+- **Smoke step 3 negative check** (both): an expired pasted invoice is rejected by destination validation ("Invoice expired") before any SDK call; unit test (e) covers the SDK branch.
+- **Smoke step 5 and the funding fallback** (both): the receive self-completes under brr, the melt settles through FakeWallet's external `pay_invoice`, and steps 3–4 need spendable proofs.
+- **Evidence corrections, conclusions unchanged:** decision 3 (the `/send#<bolt11>` deep link does allow amountless invoices; master still throws on that path), decisions 9 and the parity "Encryption" note (SDK encryption is warmed by `user.provision` at session start, not by an `accounts.list()` call in the protected layout), decision 5 (`resolveSendDestination` makes LNURL HTTP calls for lightning addresses), decision 11 (the full `ConcurrencyError` recovery chain is now cited, and the RPC raises on any reservation-count mismatch), and four drifted line citations.
+- **Gate hygiene** (claude): after the repo-wide `bun run fix:all`, `git status --porcelain` must list only the seven File-map paths.
+
+Recorded, not implemented:
+
+- **Separate Supabase token caches** (codex I3): documented as a migration-period parity delta in the parity notes, Out of scope, and Open question 3. Codex proposed adding a shared token-source port to `SdkConfig` in this slice; that widens the file map into SDK config and web db wiring for a cost every slice since step 5 already carries, so it stays a maintainer decision.
+- **Test lettering** (both): there is no test (j); the lists say so instead of re-lettering every cross-reference.
+- **`bun run test` instead of `cd <pkg> && bun test`** (claude nit): both run the same `bun test` scripts; the per-package form is kept because it matches steps 9–12.
+
