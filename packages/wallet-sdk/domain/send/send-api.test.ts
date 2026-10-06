@@ -134,7 +134,7 @@ const makeApi = (deps: {
 
 describe('createSendApi', () => {
   describe('cashu.getLightningQuote', () => {
-    it('passes the account, payment request, and amount to the service and returns its quote without reading the session', async () => {
+    it('passes the account, payment request, and amount to the service and returns its quote without calling getSession', async () => {
       let captured: Record<string, unknown> | undefined;
       let getSessionCalls = 0;
       const account = cashuDomain();
