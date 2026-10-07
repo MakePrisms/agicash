@@ -188,6 +188,7 @@ export class AgicashSdk implements Sdk {
       db,
       getSession: getLiveSession,
       keys,
+      getAccountRepository: accounts.getRepository,
     });
     this.events = events;
   }

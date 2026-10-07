@@ -4,6 +4,7 @@ import type {
   CashuSendSwap,
   PendingCashuSendSwap,
 } from '@agicash/wallet-sdk';
+import { SessionEndedError } from '@agicash/wallet-sdk';
 import type {
   AgicashDbCashuProof,
   AgicashDbCashuSendSwap,
@@ -25,6 +26,7 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { sdk } from '~/features/shared/sdk.client';
 import { useLatest } from '~/lib/use-latest';
 import {
   useAccount,
@@ -131,22 +133,17 @@ export function useCashuSendSwapCache() {
 }
 
 export function useCreateCashuSendSwapQuote() {
-  const cashuSendSwapService = useCashuSendSwapService();
-
   return useMutation({
     mutationFn: ({
       amount,
       account,
-      senderPaysFee = true,
     }: {
       amount: Money;
       account: CashuAccount;
-      senderPaysFee?: boolean;
     }) => {
-      return cashuSendSwapService.getQuote({
+      return sdk.send.cashu.getSwapQuote({
         amount,
         account,
-        senderPaysFee,
       });
     },
   });
@@ -159,8 +156,6 @@ export function useCreateCashuSendSwap({
   onSuccess: (swap: CashuSendSwap) => void;
   onError: (error: Error) => void;
 }) {
-  const cashuSendSwapService = useCashuSendSwapService();
-  const userId = useUser((user) => user.id);
   const getCashuAccount = useGetCashuAccount();
   const cashuSendSwapCache = useCashuSendSwapCache();
 
@@ -168,21 +163,24 @@ export function useCreateCashuSendSwap({
     mutationFn: ({
       amount,
       accountId,
-      senderPaysFee = true,
     }: {
       amount: Money;
       accountId: string;
-      senderPaysFee?: boolean;
     }) => {
+      // Read per attempt: a ConcurrencyError retry must reselect proofs from
+      // the latest cached account, not the one the first attempt saw.
       const account = getCashuAccount(accountId);
-      return cashuSendSwapService.create({
-        userId,
-        amount,
-        account,
-        senderPaysFee,
-      });
+      return sdk.send.cashu
+        .createSwap({
+          account,
+          amount,
+        })
+        .then(({ swap }) => swap);
     },
     retry: (failureCount, error) => {
+      if (error instanceof SessionEndedError) {
+        return false;
+      }
       if (error instanceof ConcurrencyError) {
         return true;
       }

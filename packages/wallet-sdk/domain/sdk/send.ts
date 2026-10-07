@@ -1,6 +1,7 @@
 import type { Money } from '@agicash/money';
 import type { CashuAccount } from '../accounts/account';
 import type { CashuLightningQuote } from '../send/cashu-send-quote-service';
+import type { CashuSendSwap } from '../send/cashu-send-swap';
 import type { CashuSwapQuote } from '../send/cashu-send-swap-service';
 import type { DestinationDetails } from '../send/send-destination';
 import type { SparkLightningQuote } from '../send/spark-send-quote-service';
@@ -9,7 +10,7 @@ import type { SparkLightningQuote } from '../send/spark-send-quote-service';
 // the SDK and they just read these shapes, so fields like proofs and userId
 // ride along until a later slice narrows the surface (#1164).
 export type { CashuSendQuote } from '../send/cashu-send-quote';
-export type { CashuSendSwap } from '../send/cashu-send-swap';
+export type { CashuSendSwap };
 export type { SparkSendQuote } from '../send/spark-send-quote';
 
 export type SendApi = {
@@ -58,8 +59,23 @@ export type CreateCashuSendQuoteParams = {
    */
   destinationDetails?: DestinationDetails;
 };
-export type GetCashuSwapQuoteParams = unknown; // step 14 (cashu send swap)
-export type CreateCashuSwapParams = unknown; // step 14 (cashu send swap)
-export type CreateCashuSwapResult = unknown; // step 14 (cashu send swap)
+export type GetCashuSwapQuoteParams = {
+  /** The cashu account to send from. */
+  account: CashuAccount;
+  /** The amount the receiver should get, in the account's currency. */
+  amount: Money;
+};
+
+export type CreateCashuSwapParams = {
+  /** The cashu account to send from. */
+  account: CashuAccount;
+  /** The amount the receiver should get, in the account's currency. */
+  amount: Money;
+};
+
+export type CreateCashuSwapResult = {
+  /** The created send swap; the token is produced in the background. */
+  swap: CashuSendSwap;
+};
 export type GetSparkSendLightningQuoteParams = unknown; // step 15 (spark send quote)
 export type CreateSparkSendQuoteParams = unknown; // step 15 (spark send quote)

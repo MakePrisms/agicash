@@ -4,10 +4,15 @@ import {
   NotImplementedError,
   SessionEndedError,
 } from '../../lib/error';
+import type { AccountRepository } from '../accounts/account-repository';
+import { CashuReceiveSwapRepository } from '../receive/cashu-receive-swap-repository';
+import { CashuReceiveSwapService } from '../receive/cashu-receive-swap-service';
 import type { AuthSession, SendApi } from '../sdk';
 import type { SessionKeys } from '../sdk/session-keys';
 import { CashuSendQuoteRepository } from './cashu-send-quote-repository';
 import { CashuSendQuoteService } from './cashu-send-quote-service';
+import { CashuSendSwapRepository } from './cashu-send-swap-repository';
+import { CashuSendSwapService } from './cashu-send-swap-service';
 
 type Deps = {
   db: AgicashDb;
@@ -17,6 +22,12 @@ type Deps = {
   createRepository?: () => Promise<CashuSendQuoteRepository>;
   /** Test seam; defaults to building the service from the repository. */
   createService?: () => Promise<CashuSendQuoteService>;
+  /** Accounts bridge; feeds the receive-swap repository the send-swap service constructor requires. */
+  getAccountRepository: () => Promise<AccountRepository>;
+  /** Test seam; defaults to building the swap repository from db + session-keys encryption. */
+  createSwapRepository?: () => Promise<CashuSendSwapRepository>;
+  /** Test seam; defaults to building the swap service from the swap repository + a receive-swap service. */
+  createSwapService?: () => Promise<CashuSendSwapService>;
 };
 
 /** Creates the `send` SDK namespace. */
@@ -38,6 +49,27 @@ export function createSendApi(deps: Deps): SendApi {
     deps.createService ??
     (async (): Promise<CashuSendQuoteService> =>
       new CashuSendQuoteService(await getRepository()));
+
+  const getSwapRepository =
+    deps.createSwapRepository ??
+    (async (): Promise<CashuSendSwapRepository> =>
+      new CashuSendSwapRepository(deps.db, await deps.keys.getEncryption()));
+
+  const getReceiveSwapService = async (): Promise<CashuReceiveSwapService> => {
+    const encryption = await deps.keys.getEncryption();
+    const accountRepository = await deps.getAccountRepository();
+    return new CashuReceiveSwapService(
+      new CashuReceiveSwapRepository(deps.db, encryption, accountRepository),
+    );
+  };
+
+  const getSwapService =
+    deps.createSwapService ??
+    (async (): Promise<CashuSendSwapService> =>
+      new CashuSendSwapService(
+        await getSwapRepository(),
+        await getReceiveSwapService(),
+      ));
 
   return {
     get resolveDestination(): SendApi['resolveDestination'] {
@@ -73,11 +105,34 @@ export function createSendApi(deps: Deps): SendApi {
         if (signal.aborted) throw new SessionEndedError();
         return { transactionId: quote.transactionId };
       },
-      get getSwapQuote(): SendApi['cashu']['getSwapQuote'] {
-        throw new NotImplementedError('send.cashu.getSwapQuote');
+      getSwapQuote: async (params) => {
+        const signal = deps.keys.sessionSignal();
+        const service = await getSwapService();
+        if (signal.aborted) throw new SessionEndedError();
+        const quote = await service.getQuote({
+          account: params.account,
+          amount: params.amount,
+          senderPaysFee: true,
+        });
+        if (signal.aborted) throw new SessionEndedError();
+        return quote;
       },
-      get createSwap(): SendApi['cashu']['createSwap'] {
-        throw new NotImplementedError('send.cashu.createSwap');
+      createSwap: async (params) => {
+        const userId = requireUserId();
+        const signal = deps.keys.sessionSignal();
+        const service = await getSwapService();
+        if (signal.aborted) throw new SessionEndedError();
+        const swap = await service.create(
+          {
+            userId,
+            account: params.account,
+            amount: params.amount,
+            senderPaysFee: true,
+          },
+          { abortSignal: signal },
+        );
+        if (signal.aborted) throw new SessionEndedError();
+        return { swap };
       },
     },
     get spark(): SendApi['spark'] {
