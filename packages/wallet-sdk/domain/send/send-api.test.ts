@@ -711,6 +711,7 @@ describe('createSendApi', () => {
     it('builds the default service and quotes from the account proofs with no repository write and no account read', async () => {
       let createCalls = 0;
       let getCalls = 0;
+      let getAccountRepositoryCalls = 0;
       const keys = createSessionKeys({
         readEncryptionPrivateKey: async () => new Uint8Array(32).fill(7),
         readEncryptionPublicKey: async () => 'pub',
@@ -720,13 +721,15 @@ describe('createSendApi', () => {
         db: {} as unknown as AgicashDb,
         keys,
         getSession: () => loggedIn('user-x'),
-        getAccountRepository: async () =>
-          ({
+        getAccountRepository: async () => {
+          getAccountRepositoryCalls += 1;
+          return {
             get: async () => {
               getCalls += 1;
               return null;
             },
-          }) as unknown as AccountRepository,
+          } as unknown as AccountRepository;
+        },
         createSwapRepository: async () =>
           ({
             create: async (
@@ -761,6 +764,7 @@ describe('createSendApi', () => {
       expect(quote.senderPaysFee).toBe(true);
       expect(createCalls).toBe(0);
       expect(getCalls).toBe(0);
+      expect(getAccountRepositoryCalls).toBe(1);
     });
   });
 
@@ -956,6 +960,7 @@ describe('createSendApi', () => {
       let capturedArgs: Record<string, unknown> | undefined;
       let capturedOptions: { abortSignal?: AbortSignal } | undefined;
       const swap = makeSendSwap();
+      let getAccountRepositoryCalls = 0;
       const keys = createSessionKeys({
         readEncryptionPrivateKey: async () => new Uint8Array(32).fill(7),
         readEncryptionPublicKey: async () => 'pub',
@@ -967,12 +972,14 @@ describe('createSendApi', () => {
         db: {} as unknown as AgicashDb,
         keys,
         getSession: () => loggedIn('user-x'),
-        getAccountRepository: async () =>
-          ({
+        getAccountRepository: async () => {
+          getAccountRepositoryCalls += 1;
+          return {
             get: async () => {
               throw new Error('accountRepository.get must not be called');
             },
-          }) as unknown as AccountRepository,
+          } as unknown as AccountRepository;
+        },
         createSwapRepository: async () =>
           ({
             create: async (
@@ -1002,6 +1009,7 @@ describe('createSendApi', () => {
       expect(String(capturedArgs?.tokenHash).length).toBeGreaterThan(0);
       expect(capturedArgs?.keysetId).toBeUndefined();
       expect(capturedArgs?.outputAmounts).toBeUndefined();
+      expect(getAccountRepositoryCalls).toBe(1);
     });
   });
 
