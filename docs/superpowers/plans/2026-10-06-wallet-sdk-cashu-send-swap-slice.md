@@ -32,27 +32,27 @@
    - (b) `useCreateCashuSendSwap` (`cashu-send-swap-hooks.ts:155–199`). It calls `cashuSendSwapService.create` (`:178`) and is consumed only by `send-confirmation.tsx:304–335` (`CreateCashuTokenConfirmation`; mutate at `:332–335`). The confirm route picks this component for `sendType === 'CASHU_TOKEN'` (`routes/_protected.send.confirm.tsx:61–68`).
    - The only other `CashuSendSwapService` method callers stay on `/temporary`:
      - `useCashuSendSwapService` (`cashu-send-swap-hooks.ts:44–50`) is still used by `useProcessCashuSendSwapTasks` (`:419`, `swapForProofsToSend` at `:433`, `complete` at `:457`; step 18) and by `useReverseTransaction` (`features/transactions/transaction-hooks.ts:226`, `reverse` at `:246`).
-     - `useCashuSendSwapRepository` (`:39–41`) stays: unresolved reads (`:203`, `:209`), `useCashuSendSwap` (`:233–239`), `useTrackCashuSendSwap` (`:294`, `:298`), and change handlers (`:382`, `:392`). Also `transaction-additional-details.tsx:119` and `transaction-hooks.ts:228` (`getByTransactionId`).
+     - `useCashuSendSwapRepository` (`:39–41`) stays: unresolved reads (`:203`, `:209`), `useCashuSendSwap` (`:233–239`), `useTrackCashuSendSwap` (`:294`, `:298`), and change handlers (`:382`, `:392`). Also `transaction-additional-details.tsx:119` and `transaction-hooks.ts:228` (repository hook; `getByTransactionId` at `:239`).
    - There is **no in-package caller** of `CashuSendSwapService.create` or `getQuote`. The receive-swap `create` that send-swap `reverse` calls (`cashu-send-swap-service.ts:280`) is a different class and stays in-package (step 18).
    - Neighbors stay put: spark send = step 15 (`useInitiateSparkSendQuote`, `useCreateSparkLightningSendQuote`), transfer = step 16, `resolveDestination` = unowned (step-13 decision 5).
 
-2. **`GetCashuSwapQuoteParams` = `{ account: CashuAccount, amount: Money, senderPaysFee?: boolean }`.** Evidence:
-   - These are the fields the only caller types (`send-store.ts:157–161`) and the fields the service reads (`getQuote`, `cashu-send-swap-service.ts:45–55`), minus making `senderPaysFee` required (decision 3).
+2. **`GetCashuSwapQuoteParams` = `{ account: CashuAccount, amount: Money }`.** Evidence:
+   - These are the fields the only caller passes (`send-store.ts:343–346`, typed at `:157–161`) and the fields of the service's `getQuote` (`cashu-send-swap-service.ts:45–55`) other than the constant `senderPaysFee` (below).
    - **`account`:** the full object. The service needs `account.wallet`, `account.proofs`, and `account.currency` (`:57–71`). No in-SDK `accounts.get`, which would cost a proofs-inclusive row read plus a wallet init (`contract-proposal.md:307–316`; `account-repository.ts:61–80`, `lib/cashu.ts:182–186`).
    - **`amount: Money`:** the amount the user entered. The store passes `amountToSend` (`send-store.ts:345`).
-   - **`senderPaysFee` is on the public param as optional.** Who passes it today: only the two web hooks, both defaulting `senderPaysFee = true` in the destructuring (`cashu-send-swap-hooks.ts:140`, `:171`). The store type allows it (`send-store.ts:160`) but the only call omits it (`:343–346`). The service requires a boolean (`:55`, `:108`) and uses it as `includeFeesInSendAmount` (`:71`, `:129`, `:296`). `false` is not implemented: `prepareProofsAndFee` throws `'Sender must pay fees - this feature is not yet implemented'` (`:303–306`). This is not a dead input in the step-13 `exchangeRate` sense (step-13 decision 3): the service *reads* it on every returning path. Omitting the field from the contract would hardcode `true` and hide a real service input. Making it required would force every host to know the default. Optional-with-default is the current web surface.
-   - **The default `true` lives in the API layer** (`params.senderPaysFee ?? true` when calling the service) so every host gets the same default. The flipped hooks keep `senderPaysFee = true` in their destructuring so `send-store.ts:157–161` and the confirm mutate (`send-confirmation.tsx:332–335`, which also omits it) stay byte-identical. *Rejected:* omitting `senderPaysFee` (it is a live service input). *Rejected:* required `senderPaysFee` (no caller passes it today). *Rejected:* defaulting only in the hook (a non-web host would then hit the service's required boolean).
+   - **`senderPaysFee` is omitted from the public params.** `prepareProofsAndFee` throws a plain `Error('Sender must pay fees - this feature is not yet implemented')` when the flag is `false` (`cashu-send-swap-service.ts:303–306`), before any fee math, on both `getQuote` (`:67–72`) and `create` (`:125–130`). So `true` is the only value that returns. The throw is not a `DomainError`, so a host that passed `false` would show a generic failure toast (`send-confirmation.tsx:315–324`). No caller passes the field: both hooks default it to `true` (`cashu-send-swap-hooks.ts:140`, `:171`), the store's only call omits it (`send-store.ts:343–346`), and the confirm mutate omits it (`send-confirmation.tsx:332–335`). This is the step-13 `exchangeRate` case (step-13 decision 3): one legal value, no caller, and adding an optional field later is non-breaking while removing one is breaking. The API passes the literal `senderPaysFee: true` to the service. *Rejected:* optional `senderPaysFee?: boolean` with an API default (it advertises an always-throwing `false` on a stable contract). *Rejected:* required `senderPaysFee` (no caller passes it).
+   - The flipped hooks drop `senderPaysFee` from their variables (decision 11). `send-store.ts:157–161` keeps its dead `senderPaysFee?` field; the store's `(params: { account; amount; senderPaysFee? }) => …` type still accepts a `mutateAsync` whose variables are `{ amount; account }`, because the store's parameter type is assignable to the narrower variables type. Removing the store field is a follow-up, not this slice.
 
-3. **`CreateCashuSwapParams` mirrors the service (`{ account, amount, senderPaysFee? }`), not a preview-pairing `{ account, swapQuote }`.** Evidence:
+3. **`CreateCashuSwapParams` mirrors the service minus the implicit `userId` and the constant `senderPaysFee` (`{ account, amount }`), not a preview-pairing `{ account, swapQuote }`.** Evidence:
    - `create` (`cashu-send-swap-service.ts:95–109`) takes `{ userId, account, amount, senderPaysFee }` and **never reads a `CashuSwapQuote`**. It recomputes fees from the current proofs via `prepareProofsAndFee` (`:125–130`) — the same helper `getQuote` uses (`:67–72`).
    - The only confirm caller already passes `amount: quote.amountRequested`, not the quote object (`send-confirmation.tsx:332–335`). The displayed `quote.totalFee` / `quote.totalAmount` (`:330`, `:352–357`) are preview numbers; create is allowed to recompute if proofs changed.
    - Step 13 paired `createQuote` with `lightningQuote` because `createSendQuote` *reads* the quote (`cashu-send-quote-service.ts:242`, `:301`, `:306–310`: melt quote id, amounts, expiry). Pairing here would imply the quoted fee is locked in, which the service does not honor. On a `ConcurrencyError` retry (decision 11) proofs may have changed, so a locked quote would be stale anyway — and master already recomputes.
-   - `userId` stays implicit (decision 2 / `contract-proposal.md:299–301`). `senderPaysFee` follows decision 2.
+   - `userId` stays implicit (`contract-proposal.md:299–301`). `senderPaysFee` is hardcoded `true` in the API (decision 2).
    - *Rejected:* `{ account, swapQuote: CashuSwapQuote }`. It copies step 13's `get*` → `create*` pairing onto a service that ignores the quote, and it would make a host think the confirmation-page fee is the persisted fee.
 
 4. **`CreateCashuSwapResult` is `{ swap: CashuSendSwap }` at runtime. Not a bare `CashuSendSwap`, not `{ transactionId }`.** The contract placeholder is `unknown` (`send.ts:63`); the proposal sketches `createSwap(params): Promise<…>` (`contract-proposal.md:164`) and this slice fills the ellipsis.
-   - **The `{ transactionId }` rule does not cover swaps.** "Observing an initiated payment" (`contract-proposal.md:326–341`) is about lightning send: `createQuote` returns `{ transactionId }` (`contract-proposal.md:162`, `:168`; shipped in step 13, `send.ts:21–23`) and completion is observed via events. That section's "send returns only an id — the asymmetry is intentional" sentence is about that lightning observation idiom. `createSwap` is the undecided `Promise<…>` on the next line (`:164`).
-   - **The web needs the full `CashuSendSwap`.** `useCreateCashuSendSwap`'s `onSuccess` seeds `cashuSendSwapCache.add(swap)` (`cashu-send-swap-hooks.ts:194–196`) and then calls the caller's `onSuccess(swap)` (`:196`). The only caller navigates to `/send/share/${swap.id}` (`send-confirmation.tsx:306–313`). The share route reads `useCashuSendSwap(params.swapId)` (`routes/_protected.send.share.$swapId.tsx:16`), whose `queryFn` is `cashuSendSwapRepository.get(id)` (`cashu-send-swap-hooks.ts:236–243`) keyed `[CashuSendSwapCache.Key, id]` (`:237`) with `staleTime: Number.POSITIVE_INFINITY` (`:251`). Master's `cache.add` (`:62–66`) writes that same key, so the share page is a cache hit and `queryFn` does not run on landing. `useAccount` (`:256`) is a TanStack accounts-cache read (`account-hooks.ts:355–375`), zero network.
+   - **The `{ transactionId }` rule does not cover swaps.** "Observing an initiated payment" (`contract-proposal.md:326–341`) is about lightning send: `createQuote` returns `{ transactionId }` (`contract-proposal.md:162`, `:168`; shipped in step 13, `send.ts:21–23`) and completion is observed via events. That section's "send returns only an id — the asymmetry is intentional" sentence is about that lightning observation idiom. `createSwap` is the undecided `Promise<…>` on the next line (`:164`). The proposal's own reason for receive returning full objects (it must hand back the generated invoice, `:326–341`) applies here too: `createSwap` must hand back the token's proofs (`swap.proofsToSend`, read by the share route, `routes/_protected.send.share.$swapId.tsx:33–40`).
+   - **The web needs the full `CashuSendSwap`.** `useCreateCashuSendSwap`'s `onSuccess` seeds `cashuSendSwapCache.add(swap)` (`cashu-send-swap-hooks.ts:194–196`) and then calls the caller's `onSuccess(swap)` (`:196`). The only caller navigates to `/send/share/${swap.id}` (`send-confirmation.tsx:306–313`). The share route reads `useCashuSendSwap(params.swapId)` (`routes/_protected.send.share.$swapId.tsx:16`), whose `queryFn` is `cashuSendSwapRepository.get(id)` (`cashu-send-swap-hooks.ts:236–243`) keyed `[CashuSendSwapCache.Key, id]` (`:237`) with `staleTime: Number.POSITIVE_INFINITY` (`:251`). Master's `cache.add` (`:62–66`) writes that same key, so the share page is a cache hit and `queryFn` does not run on landing. `useTrackCashuSendSwap` (`:296–303`) shares the same key and `staleTime`, so it does not fetch on landing either. `useAccount` (`cashu-send-swap-hooks.ts:256`) is `account-hooks.ts:298–307` → `useSuspenseQuery(accountsQueryOptions())` (`:139–142`); the accounts query is seeded at session start (`features/user/session-started.ts:15–20`) and has `staleTime: Infinity`, so landing does not call `sdk.accounts.list` — zero network, and master mounts the same query. Proof-state subscriptions (`useOnProofStateChange`) run from the pre-existing processor, not the share route.
    - **A `{ transactionId }` result would add a fetch versus master.** The share route is `/send/share/${swap.id}`, not a transaction id. Without the swap object the hook cannot seed the cache; `useCashuSendSwap` would run `repository.get` (a `cashu_send_swaps` select, `cashu-send-swap-repository.ts:284–302`). That is an added request. Changing the route to a transaction id is out of scope (it would touch `send-confirmation.tsx` and the share route, which this slice leaves byte-identical).
    - **Wrapper vs bare.** Receive `createSwap` returns `{ swap: CashuReceiveSwap, account: CashuAccount }` (`receive.ts:81–86`) because *that* service returns both (the receive RPC updates the keyset counter). Send `create` returns `Promise<CashuSendSwap>` (`cashu-send-swap-service.ts:109`); the RPC updates the account version (`20260420152512_denormalize_account_on_transactions.sql:661–664`, `:685–697`) but the service does not return the account, and the web does not read an updated account from the mutation result (it relies on `ACCOUNT_UPDATED` → `accountCache.upsert`, `account-hooks.ts:130–134`). A bare `CashuSendSwap` would match the service return and make the hook a thinner wrap. The named `CreateCashuSwapResult` placeholder (`send.ts:26`, `:63`) and the receive-swap envelope both point at an object wrapper: `{ swap }` can grow later without breaking, and `#1164` can still narrow fields inside `swap` (the standing note at `send.ts:8–10`). The API wraps: `return { swap }`. The hook unwraps so `onSuccess` stays `(swap: CashuSendSwap) => void` and `send-confirmation.tsx` / the share route stay byte-identical.
    - *Rejected:* bare `CashuSendSwap` (it works, but it burns the named result type as an alias and makes adding fields a breaking change). *Rejected:* `{ transactionId }` (parity violation + wrong identifier for the share route). *Rejected:* `{ swap, account }` (the service does not return `account`; inventing a second accounts-cache write would be new behavior).
@@ -63,7 +63,7 @@
 
 7. **Session fences follow the merged receive / step-13 template.**
    - **`getSwapQuote` (preview)** matches `send-api.ts:47–58` / `receive-api.ts:130–141`: **no `requireUserId()`**, capture `deps.keys.sessionSignal()` → `await getSwapService()` → re-check → service call → re-check. The preview persists nothing (`getQuote` returns a plain object, `cashu-send-swap-service.ts:81–89`; the repository is unused). There is no mint HTTP to abort either (decision 12), so pre/post checks are the only fence. The service takes no options here.
-   - **`createSwap`** matches `send-api.ts:59–75` / `receive-api.ts:169–179`: `requireUserId()` → capture `sessionSignal()` → `await getSwapService()` → re-check → `create({ userId, account, amount, senderPaysFee }, { abortSignal: signal })` → re-check → return `{ swap }`. A result is never returned for an ended session.
+   - **`createSwap`** matches `send-api.ts:59–75` / `receive-api.ts:169–179`: `requireUserId()` → capture `sessionSignal()` → `await getSwapService()` → re-check → `create({ userId, account, amount, senderPaysFee: true }, { abortSignal: signal })` → re-check → return `{ swap }`. A result is never returned for an ended session.
 
 8. **`CashuSendSwapService.create` gains `options?: { abortSignal?: AbortSignal }` as a second positional param, forwarded to `cashuSendSwapRepository.create(..., options)`.**
    - The repository already accepts and applies it (`cashu-send-swap-repository.ts:93–109`, `:149–150`).
@@ -91,13 +91,13 @@
 11. **Web flip: two hook bodies in `cashu-send-swap-hooks.ts`. `send-confirmation.tsx`, `send-provider.tsx`, `send-store.ts`, and `routes/_protected.send.share.$swapId.tsx` are byte-identical.**
     - **`useCreateCashuSendSwap` keeps `accountId` + the per-attempt cache lookup inside `mutationFn`.** Same exception as step-13 decision 11, and the chain is the same shape:
       - The hook retries `ConcurrencyError` **forever** (`cashu-send-swap-hooks.ts:185–187`).
-      - `create_cashu_send_swap` raises `CONCURRENCY_ERROR` when it cannot reserve every requested proof for this account (`packages/wallet-sdk/db/supabase/migrations/20260420152512_denormalize_account_on_transactions.sql:754–772`): the reserved-proof count must equal `array_length(p_input_proofs, 1)`. Stale proofs (a proof no longer `UNSPENT`) are the normal web cause; missing or duplicate ids can also produce the count mismatch.
-      - `CashuSendSwapRepository.create` maps `error.hint === 'CONCURRENCY_ERROR'` to `ConcurrencyError` (`cashu-send-swap-repository.ts:156–158`).
+      - `create_cashu_send_swap` raises `CONCURRENCY_ERROR` when it cannot reserve every requested proof for this account (`packages/wallet-sdk/db/supabase/migrations/20260420152512_denormalize_account_on_transactions.sql:754–773`): the reserved-proof count must equal `array_length(p_input_proofs, 1)`. Stale proofs (a proof no longer `UNSPENT`) are the normal web cause; missing or duplicate ids can also produce the count mismatch.
+      - The check and `raise` are at `:768–773`. `CashuSendSwapRepository.create` maps `error.hint === 'CONCURRENCY_ERROR'` to `ConcurrencyError` (`cashu-send-swap-repository.ts:156–158`).
       - Master recovers because `getCashuAccount(accountId)` re-reads the TanStack accounts cache on **every attempt** (`cashu-send-swap-hooks.ts:177`). Between attempts, the winning RPC's `update wallet.accounts … version = version + 1` (`20260420152512_denormalize_account_on_transactions.sql:661–664`, `:685–697`) fires the deferred `broadcast_accounts_changes_trigger` (`20260112150000_initial_db.sql:3606`); the web's `ACCOUNT_UPDATED` handler upserts the cache (`account-hooks.ts:130–134`). TanStack's default mutation `retryDelay` (exponential from 1 s, capped at 30 s; `new QueryClient()` at `features/shared/query-client.ts:6` sets no override) gives the broadcast time to land, and each retry re-invokes `mutationFn(variables)`, so `getCashuAccount(accountId)` re-reads. The lookup is a pure cache read (`useGetAccount`, `account-hooks.ts:355–375`, `useGetCashuAccount` at `:381–383`): zero network.
       - If the hook took the caller's `account` as a mutation variable, every retry would re-send the same stale proofs and loop. Step 10's receive-swap mutation had no such retry (`retry` absent, default 0), so its `account` prop precedent does not carry over. Step 13 already made this call for lightning send; the swap RPC is a sibling of `create_cashu_send_quote` (same reservation-count check at `:416–432` of the same migration).
       - `send-confirmation.tsx:332–335` therefore does not change. *Rejected:* `account` prop (it breaks ConcurrencyError recovery).
-    - `useCreateCashuSendSwap` drops `useUser` (userId is implicit; `useUser` stays imported for `useUnresolvedCashuSendSwaps` at `:204`) and `useCashuSendSwapService` (the function stays defined for the processor and reverse). It unwraps `{ swap }` before `cashuSendSwapCache.add` and `onSuccess(swap)`.
-    - `useCreateCashuSendSwapQuote` drops `useCashuSendSwapService`. Its mutation has **no `retry` option** today (`:136–152`); TanStack Query v5's mutation default is 0 retries. **Leave it with no `retry` option.** Adding the step-13 preview predicate (`failureCount < 1` for ordinary errors) would *add* a retry versus master. `SessionEndedError` is therefore not retried on the preview (0 retries). Do not invent a predicate the preview never had.
+    - `useCreateCashuSendSwap` drops `useUser` (userId is implicit; `useUser` stays imported for `useUnresolvedCashuSendSwaps` at `:204`), `useCashuSendSwapService` (the function stays defined for the processor and reverse), and `senderPaysFee` (decision 2). Its variables become `{ amount: Money; accountId: string }`. It unwraps `{ swap }` before `cashuSendSwapCache.add` and `onSuccess(swap)`.
+    - `useCreateCashuSendSwapQuote` drops `useCashuSendSwapService` and `senderPaysFee` (decision 2). Its variables become `{ amount: Money; account: CashuAccount }`. Do not keep a `senderPaysFee = true` destructure default once the value is not forwarded (`noUnusedVariables` is an error, `biome.jsonc:64`). Its mutation has **no `retry` option** today (`:136–152`); TanStack Query v5's mutation default is 0 retries. **Leave it with no `retry` option.** Adding the step-13 preview predicate (`failureCount < 1` for ordinary errors) would *add* a retry versus master. `SessionEndedError` is therefore not retried on the preview (0 retries). Do not invent a predicate the preview never had.
     - **The create hook never retries `SessionEndedError`.** The SDK fences introduce this error on the create path, and its contract is "never retry the same operation — it would run under a session that no longer owns it" (`packages/wallet-sdk/lib/error.ts:50–56`). Master's retry predicate falls through to `failureCount < 1` for it (`cashu-send-swap-hooks.ts:185–193`), and TanStack re-invokes `mutationFn(variables)` on retry, so after a quick same-user re-login the retry would persist the old send-to-token intent under the new session. The retry predicate therefore returns `false` for `SessionEndedError` first. Every other retry behavior (ConcurrencyError → forever, DomainError → no retry, one ordinary retry) is unchanged. `SessionEndedError` is imported from the package root (`packages/wallet-sdk/index.ts:14–21`), not `/temporary`. The receive hooks flipped in steps 9–12 and the send-swap preview (no retry) are out of scope for this fix (see Out of scope).
     - Imports: add `import { sdk } from '~/features/shared/sdk.client';` (same form as `cashu-send-quote-hooks.ts:31`) and `import { SessionEndedError } from '@agicash/wallet-sdk';` (a value import next to the existing type import from `@agicash/wallet-sdk`, the same split `cashu-send-quote-hooks.ts:3–9` uses). Keep every other import: `useUser` (`:204`), `useGetCashuAccount` (`:164`, `:340`, `:420`), `CashuSendSwapService`/`Repository`, `ConcurrencyError`, `DomainError`, `Money`.
     - Everything else in the file is byte-identical: `useCashuSendSwapService`, `useCashuSendSwapRepository`, the two cache classes, `useUnresolvedCashuSendSwaps`, `useCashuSendSwap`, `useTrackCashuSendSwap`, `useOnProofStateChange`, `useCashuSendSwapChangeHandlers`, `useProcessCashuSendSwapTasks`.
@@ -114,7 +114,7 @@
 
 ### Contract (`packages/wallet-sdk/domain/sdk/send.ts`)
 
-Replace lines 61–63 with the following. Lines 38–60 (the step-13 quote types) and lines 64–65 (the step-15 placeholders) and the `SendApi` type stay byte-identical. `CashuSwapQuote` is already imported (`send.ts:4`); `CashuSendSwap` is already imported-and-re-exported (`:12`). `CashuAccount` and `Money` are already imported (`:1–2`).
+Replace lines 61–63 with the following. Lines 38–60 (the step-13 quote types) and lines 64–65 (the step-15 placeholders) and the `SendApi` type stay byte-identical. `CashuSwapQuote` is already imported (`send.ts:4`). `CashuAccount` and `Money` are already imported (`:1–2`).
 
 ```ts
 export type GetCashuSwapQuoteParams = {
@@ -122,11 +122,6 @@ export type GetCashuSwapQuoteParams = {
   account: CashuAccount;
   /** The amount the receiver should get, in the account's currency. */
   amount: Money;
-  /**
-   * When true (the default), the sender pays the swap fee by including it in
-   * the reserved proofs. `false` is not implemented by the service.
-   */
-  senderPaysFee?: boolean;
 };
 
 export type CreateCashuSwapParams = {
@@ -134,11 +129,6 @@ export type CreateCashuSwapParams = {
   account: CashuAccount;
   /** The amount the receiver should get, in the account's currency. */
   amount: Money;
-  /**
-   * When true (the default), the sender pays the swap fee by including it in
-   * the reserved proofs. `false` is not implemented by the service.
-   */
-  senderPaysFee?: boolean;
 };
 
 export type CreateCashuSwapResult = {
@@ -147,7 +137,11 @@ export type CreateCashuSwapResult = {
 };
 ```
 
-`CashuSendSwap` is already in scope via `export type { CashuSendSwap } from '../send/cashu-send-swap'` (`send.ts:12`). If the type-only re-export is not locally usable as a value-type (it is; the file already uses `import type` + `export type` for the quote types' neighbors), convert line 12 to the receive.ts line-13 pattern: `import type { CashuSendSwap } from '../send/cashu-send-swap';` + `export type { CashuSendSwap };`. Let `bun run fix:all` order the imports.
+**Mandatory import edit (TS2304 otherwise).** `send.ts:12` is `export type { CashuSendSwap } from '../send/cashu-send-swap';`. A re-export-from does **not** bind the name in local scope, so `CreateCashuSwapResult` cannot reference it as written. Mirror `receive.ts:6` (import) + `:16` (re-export of the local binding), used at `receive.ts:83`:
+- add `import type { CashuSendSwap } from '../send/cashu-send-swap';` next to the other `../send/*` type imports (`send.ts:3–6`);
+- replace line 12 with `export type { CashuSendSwap };`, keeping its position between the `CashuSendQuote` and `SparkSendQuote` re-exports.
+
+Let `bun run fix:all` confirm the import order.
 
 ### API factory (`packages/wallet-sdk/domain/send/send-api.ts`)
 
@@ -199,7 +193,7 @@ Replace the two throwing getters inside `cashu` (`:76–81`) with:
         const quote = await service.getQuote({
           account: params.account,
           amount: params.amount,
-          senderPaysFee: params.senderPaysFee ?? true,
+          senderPaysFee: true,
         });
         if (signal.aborted) throw new SessionEndedError();
         return quote;
@@ -214,7 +208,7 @@ Replace the two throwing getters inside `cashu` (`:76–81`) with:
             userId,
             account: params.account,
             amount: params.amount,
-            senderPaysFee: params.senderPaysFee ?? true,
+            senderPaysFee: true,
           },
           { abortSignal: signal },
         );
@@ -225,7 +219,7 @@ Replace the two throwing getters inside `cashu` (`:76–81`) with:
 
 `resolveDestination` and `spark` stay throwing getters (`:43–45`, `:83–85`). The quote methods stay byte-identical. Do **not** switch the remaining unimplemented members to rejecting methods (decision 6).
 
-`getReceiveSwapService` is an internal default-builder helper, not a `Deps` seam. Tests that need to avoid constructing it inject `createSwapService`. Tests that exercise the default swap service inject `createSwapRepository` and a fake `getAccountRepository` whose methods are never invoked.
+`getReceiveSwapService` is an internal default-builder helper, not a `Deps` seam, and it is **not** behind `createSwapRepository`: it awaits `keys.getEncryption()` on its own. Tests that need to avoid constructing it inject `createSwapService`. Tests that exercise the default swap service inject `createSwapRepository`, a fake `getAccountRepository` whose methods are never invoked, **and** `createSessionKeys({ readEncryptionPrivateKey: async () => new Uint8Array(32).fill(7), readEncryptionPublicKey: async () => 'pub', … })` (the pattern of `session-keys.test.ts:88–90`). Without the two encryption fakes, `createSessionKeys()` falls back to the real Open Secret readers (`session-keys.ts:149–158`, `lib/encryption.ts:199–211`) and the test rejects or hits the network. `encrypt` is never called on these paths (the send-swap repository is faked; the receive-swap repository is only constructed), so the fake key bytes are never parsed.
 
 ### Service change (`packages/wallet-sdk/domain/send/cashu-send-swap-service.ts`)
 
@@ -281,26 +275,17 @@ No new import. `accounts` is already in scope (`:155–160`). Leave the class JS
 ```ts
 export function useCreateCashuSendSwapQuote() {
   return useMutation({
-    mutationFn: ({
-      amount,
-      account,
-      senderPaysFee = true,
-    }: {
-      amount: Money;
-      account: CashuAccount;
-      senderPaysFee?: boolean;
-    }) => {
+    mutationFn: ({ amount, account }: { amount: Money; account: CashuAccount }) => {
       return sdk.send.cashu.getSwapQuote({
         amount,
         account,
-        senderPaysFee,
       });
     },
   });
 }
 ```
 
-No `retry` option (decision 11). The hook default stays so `send-store.ts:157–161` / `:343–346` compile unchanged.
+No `retry` option (decision 11). `send-store.ts:157–161` / `:343–346` and `send-provider.tsx:34` compile unchanged: the store's `(params: { account; amount; senderPaysFee? }) => Promise<CashuSwapQuote>` prop accepts a `mutateAsync` whose variables are `{ amount; account }` (decision 2). Let `bun run fix:all` format the parameter line.
 
 3. Replace `useCreateCashuSendSwap` (`:155–199`) with:
 
@@ -316,15 +301,7 @@ export function useCreateCashuSendSwap({
   const cashuSendSwapCache = useCashuSendSwapCache();
 
   return useMutation({
-    mutationFn: ({
-      amount,
-      accountId,
-      senderPaysFee = true,
-    }: {
-      amount: Money;
-      accountId: string;
-      senderPaysFee?: boolean;
-    }) => {
+    mutationFn: ({ amount, accountId }: { amount: Money; accountId: string }) => {
       // Read per attempt: a ConcurrencyError retry must reselect proofs from
       // the latest cached account, not the one the first attempt saw.
       const account = getCashuAccount(accountId);
@@ -332,7 +309,6 @@ export function useCreateCashuSendSwap({
         .createSwap({
           account,
           amount,
-          senderPaysFee,
         })
         .then(({ swap }) => swap);
     },
@@ -357,7 +333,7 @@ export function useCreateCashuSendSwap({
 }
 ```
 
-The comment meets the CLAUDE.md bar: it records a non-obvious constraint (decision 11) that a future "pass the account object" refactor would break. Unwrapping `{ swap }` in `mutationFn` keeps `onSuccess: (swap: CashuSendSwap) => void`, so `send-confirmation.tsx:304–335` compiles unchanged. `send-store.ts:157–161` still matches the preview hook's variables.
+The comment meets the CLAUDE.md bar: it records a non-obvious constraint (decision 11) that a future "pass the account object" refactor would break. Unwrapping `{ swap }` in `mutationFn` keeps `onSuccess: (swap: CashuSendSwap) => void`, so `send-confirmation.tsx:304–335` compiles unchanged; its mutate passes `{ accountId, amount }` (`:332–335`), which matches the new variables exactly. `send-store.ts:157–161` still accepts the preview hook's `mutateAsync` (decision 2).
 
 ## File map
 
@@ -388,32 +364,38 @@ The comment meets the CLAUDE.md bar: it records a non-obvious constraint (decisi
    - Fake `getSession` (existing `authUser` / `loggedIn` at `:24–38`).
    - Real `createSessionKeys` from `../sdk/session-keys`, with `keys.reset()` as the session-end trigger.
    - Seam injection. Fakes are typed `as unknown as CashuSendSwapService` / `CashuSendSwapRepository`, as the quote tests already do for the quote types (`:129–132`).
+   - New imports (biome `noUnusedImports` / `organizeImports` apply; `Proof` is already imported at `:3`, do not import it again):
+     - `import type { AccountRepository } from '../accounts/account-repository';`
+     - `import type { CashuSendSwap } from './cashu-send-swap';`
+     - `import type { CashuSendSwapRepository } from './cashu-send-swap-repository';`
+     - `import type { CashuSendSwapService, CashuSwapQuote } from './cashu-send-swap-service';`
    - **`makeApi` grows.** Add `getAccountRepository: async () => ({}) as unknown as AccountRepository` and optional `swapRepository?` / `swapService?` seams that inject `createSwapRepository` / `createSwapService` (mirror `receive-api.test.ts:257–279`). Every existing `createSendApi({` in this file (the `makeApi` helper at `:125` and the direct calls in tests a, b, e, f, i, m, o) gains the same `getAccountRepository` fake so `Deps` typechecks. Quote tests do not invoke it.
    - Tests that need a **default** swap-service builder call `createSendApi` directly and omit `createSwapService`.
 
    New fixtures (next to `makeSendQuote`):
-   - `makeSwapQuote(): CashuSwapQuote`: `{ amountRequested, amountToSend, totalAmount, totalFee, senderPaysFee: true, cashuReceiveFee, cashuSendFee }` as `Money<'BTC'>` via the existing `sats()` helper (`:80–81`).
-   - `makeSendSwap(): CashuSendSwap`: cast, with `id: 'swap-1'`, `transactionId: 'tx-swap-1'`, `accountId: 'acct-cashu'`, `userId: 'user-x'`, `state: 'PENDING'`, non-empty `proofsToSend` / `inputProofs` (so the wrap test can see they ride along inside `swap` and do not leak as sibling keys on the result).
+   - `makeSwapQuote(): CashuSwapQuote`: `{ amountRequested, amountToSend, totalAmount, totalFee, senderPaysFee: true, cashuReceiveFee, cashuSendFee }` as `Money<'BTC'>` via the existing `sats()` helper (`:80–81`), returned through `as unknown as CashuSwapQuote` like `makeLightningQuote` (`:83–95`).
+   - `makeSendSwap(): CashuSendSwap`: with `id: 'swap-1'`, `transactionId: 'tx-swap-1'`, `accountId: 'acct-cashu'`, `userId: 'user-x'`, `state: 'PENDING'`, non-empty `proofsToSend` / `inputProofs` (so the wrap test can see they ride along inside `swap` and do not leak as sibling keys on the result), returned through `as unknown as CashuSendSwap`.
+   - Proof fixture used by (u) and (ac): `{ id: 'p1', keysetId: '009a1f293253e41e', amount: 64, secret: 's1', unblindedSignature: '02698c4e2b5f9534cd0687d87513c759790cf829aa5739184a3e3735471fbda904' }` (a real hex keyset id and `C` from `packages/cashu/src/token.test.ts:10–13`, so `getTokenHash` encodes a V4 token like production; non-hex values still encode, as a V3 `cashuA` token, but prefer the realistic shape).
 
    Exact test list. Quote tests **a–i, k–m** stay; their assertions do not change (only the `getAccountRepository` dep is added to their `createSendApi` calls). There is still no test **j**.
 
    - **`cashu.getSwapQuote`:**
-     - (q) **Passthrough:** calls `service.getQuote` with exactly `{ account, amount, senderPaysFee: true }` when the caller passes `senderPaysFee: true`. Assert with `toEqual` plus `captured.account` `toBe` the given account. Returns the service result verbatim (`toBe`). Build it with a counting `getSession` that returns `{ isLoggedIn: false }`: the call still resolves and `getSession` is called 0 times (decision 7: the preview never reads the session). Annotate the fake `getQuote` callback param (`params: Record<string, unknown>`) — TS7006 otherwise.
+     - (q) **Passthrough:** called with `{ account, amount }` (the public params have no `senderPaysFee`), calls `service.getQuote` with exactly `{ account, amount, senderPaysFee: true }`. Assert with `toEqual` plus `captured.account` `toBe` the given account. Returns the service result verbatim (`toBe`). Build it with a counting `getSession` that returns `{ isLoggedIn: false }`: the call still resolves and `getSession` is called 0 times (decision 7: the preview never reads the session). Annotate the fake `getQuote` callback param (`params: Record<string, unknown>`) — TS7006 otherwise.
      - (r) **Mid-construction fence:** `createSwapService` calls `keys.reset()` before returning a service whose `getQuote` counts calls. Rejects `SessionEndedError`, with 0 service calls (pattern: `send-api.test.ts:181–209`).
      - (s) **Post-op fence:** the service's `getQuote` calls `keys.reset()` and then resolves. Rejects `SessionEndedError` (pattern: `:211–230`).
      - (t) **Error propagation:** a service rejection `new DomainError('Insufficient balance. …')` propagates as the **same instance** (`rejects.toBe(error)`).
-     - (u) **Default service, no DB or mint work:** call `createSendApi` directly **without** `createSwapService`, with `createSwapRepository` returning a repository whose `create` increments a counter, and `getAccountRepository` returning `{ get: async () => { getCalls += 1; return null; } }` (annotate `get` if the fake is a method). The account `wallet` is `selectProofsToSend: (proofs: Proof[]) => ({ send: proofs, keep: [] })`, `getFeesForProofs: () => 0`, `getFeesEstimateToReceiveAtLeast: () => 0`, plus a throwing `seed` getter (TS7006: annotate `(proofs: Proof[])`; add `import type { Proof } from '@cashu/cashu-ts'` if not already imported — it is, `:3`). Proofs: one 64-sat proof with `secret: 's1'`. Call `getSwapQuote` with `amount: sats(64)`. Resolves a `CashuSwapQuote` whose `amountRequested` equals that amount and `senderPaysFee` is `true`. `create` counter stays 0. `accountRepository.get` counter stays 0 (construction of `CashuReceiveSwapService` must not read accounts). No mint method is on the fake wallet; if the service reached one the call would throw.
+     - (u) **Default service, no DB or mint work:** call `createSendApi` directly **without** `createSwapService`, with `keys = createSessionKeys({ readEncryptionPrivateKey: async () => new Uint8Array(32).fill(7), readEncryptionPublicKey: async () => 'pub' })` (the default builder's receive-swap leg awaits `keys.getEncryption()`; without these fakes it calls Open Secret), `createSwapRepository` returning a repository whose `create` increments a counter (annotate it: `create: async (_args: Record<string, unknown>, _options?: { abortSignal?: AbortSignal }) => { … }`), and `getAccountRepository` returning `{ get: async () => { getCalls += 1; return null; } }` (annotate `get` if the fake is a method). The account `wallet` is `selectProofsToSend: (proofs: Proof[]) => ({ send: proofs, keep: [] })`, `getFeesForProofs: () => 0`, `getFeesEstimateToReceiveAtLeast: () => 0`, plus a throwing `seed` getter (TS7006: annotate `(proofs: Proof[])`; add `import type { Proof } from '@cashu/cashu-ts'` if not already imported — it is, `:3`). Proofs: the 64-sat proof fixture above. Call `getSwapQuote` with `{ account, amount: sats(64) }`. Resolves a `CashuSwapQuote` whose `amountRequested` equals that amount and `senderPaysFee` is `true`. `create` counter stays 0. `accountRepository.get` counter stays 0 (construction of `CashuReceiveSwapService` must not read accounts). No mint method is on the fake wallet; if the service reached one the call would throw.
 
    - **`cashu.createSwap`:**
      - (v) **No session:** with `getSession: () => ({ isLoggedIn: false })`, throws `NoSessionError` before any construction. The `createSwapService`, `createSwapRepository`, and `getAccountRepository` call counters stay 0 (pattern: `receive-api.test.ts:517–550`).
-     - (w) **Passthrough + wrap:** passes exactly `{ userId: 'user-x', account, amount, senderPaysFee: true }` (`account` `toBe` the given account, `amount` `toBe` the given `Money`) and `{ abortSignal: keys.sessionSignal() }` as the second argument (`toBe` identity on the signal). The service returns `makeSendSwap()`. Assert the result `toStrictEqual({ swap })`, `result.swap` `toBe` the service return, and `Object.keys(result)` equals `['swap']` (no leaked sibling `proofsToSend` / `id`). Annotate the fake `create` params (`params: Record<string, unknown>`, `options?: { abortSignal?: AbortSignal }`).
-     - (x) **Default `senderPaysFee`:** called without `senderPaysFee`, the captured first argument's sorted keys are exactly `['account', 'amount', 'senderPaysFee', 'userId']`, and `senderPaysFee` is `true`. No extra fields.
+     - (w) **Passthrough + wrap:** called with `{ account, amount }`, passes exactly `{ userId: 'user-x', account, amount, senderPaysFee: true }` (`account` `toBe` the given account, `amount` `toBe` the given `Money`) and `{ abortSignal: keys.sessionSignal() }` as the second argument (`toBe` identity on the signal). The service returns `makeSendSwap()`. Assert the result `toStrictEqual({ swap })`, `result.swap` `toBe` the service return, and `Object.keys(result)` equals `['swap']` (no leaked sibling `proofsToSend` / `id`). Annotate the fake `create` params (`params: Record<string, unknown>`, `options?: { abortSignal?: AbortSignal }`).
+     - (x) **Constant `senderPaysFee`:** a public call cannot pass the field; the captured first argument's sorted keys are exactly `['account', 'amount', 'senderPaysFee', 'userId']`, and `senderPaysFee` is `true`. No extra fields.
      - (y) **Mid-construction fence:** `createSwapService` calls `keys.reset()`. Rejects `SessionEndedError`, and `create` is never called.
      - (z) **Post-op fence:** `create` calls `keys.reset()` and then resolves `makeSendSwap()`. Rejects `SessionEndedError`, so no `{ swap }` comes back for an ended session.
      - (aa) **Retry-relevant errors propagate unchanged:** a `ConcurrencyError` from the service rejects as the **same instance**. The web retry policy depends on `instanceof ConcurrencyError` (`cashu-send-swap-hooks.ts:186`).
      - (ab) **`DomainError` identity:** a `DomainError('Insufficient balance. …')` from the service rejects as the **same instance**.
-     - (ac) **Abort-signal identity and seed non-access through the real default service.** Call `createSendApi` directly **without** `createSwapService`, with `keys = createSessionKeys({ readCashuSeed: async () => { throw new Error('cashu seed must not be read'); } })`, `getAccountRepository` returning `{ get: async () => { throw new Error('accountRepository.get must not be called'); } }`, and `createSwapRepository` returning `{ create }`. `create` records `(args, options)` and returns `makeSendSwap()`.
-       - Account: `cashuDomain` with `proofs: [{ id: 'p1', keysetId: 'ks-1', amount: 64, secret: 's1', unblindedSignature: 'C1' }]` and `wallet: { selectProofsToSend: (proofs: Proof[]) => ({ send: proofs, keep: [] }), getFeesForProofs: () => 0, getFeesEstimateToReceiveAtLeast: () => 0, getKeyset: () => { throw new Error('wallet.getKeyset must not be read on the exact-proofs path'); }, get seed(): Uint8Array { throw new Error('wallet.seed must not be read'); } }`. The `(proofs: Proof[])` annotation is required (TS7006; step-13 plan-attack).
+     - (ac) **Abort-signal identity and seed non-access through the real default service.** Call `createSendApi` directly **without** `createSwapService`, with `keys = createSessionKeys({ readEncryptionPrivateKey: async () => new Uint8Array(32).fill(7), readEncryptionPublicKey: async () => 'pub', readCashuSeed: async () => { throw new Error('cashu seed must not be read'); } })` (the encryption fakes are required: `getReceiveSwapService` awaits `keys.getEncryption()`), `getAccountRepository` returning `{ get: async () => { throw new Error('accountRepository.get must not be called'); } }`, and `createSwapRepository` returning `{ create }`. `create` records `(args: Record<string, unknown>, options?: { abortSignal?: AbortSignal })` and returns `makeSendSwap()`.
+       - Account: `cashuDomain` with `proofs: [<the 64-sat proof fixture above>]` and `wallet: { selectProofsToSend: (proofs: Proof[]) => ({ send: proofs, keep: [] }), getFeesForProofs: () => 0, getFeesEstimateToReceiveAtLeast: () => 0, getKeyset: () => { throw new Error('wallet.getKeyset must not be read on the exact-proofs path'); }, get seed(): Uint8Array { throw new Error('wallet.seed must not be read'); } }`. The `(proofs: Proof[])` annotation is required (TS7006; step-13 plan-attack).
        - Amount: `sats(64)` so `prepareProofsAndFee`'s exact-proofs branch fires (`cashu-send-swap-service.ts:335–341`) and `create` takes the `getTokenHash` path (`:138–144`), not `wallet.getKeyset()` (`:146`).
        - Assert that the call resolves to `{ swap }` with `result.swap` `toBe` the repository return (or `toStrictEqual({ swap: makeSendSwap() })` if the fixture is rebuilt — prefer one fixture instance and `toBe`).
        - Assert `options?.abortSignal` `toBe(keys.sessionSignal())`. This locks the new service → repository hop, which (w)'s fake service cannot see.
@@ -432,7 +414,7 @@ The comment meets the CLAUDE.md bar: it records a non-obvious constraint (decisi
 
    Existing suites (`receive-api.test.ts`, the other `*-api.test.ts`, the quote half of `send-api.test.ts`, the other `sdk.test.ts` cases) stay green. Do not re-letter tests a–i, k–m.
 
-5. **Web flip** (pinned). The flipped hooks must not reference `useCashuSendSwapService` or `useUser`. Every other hook, the cache classes, the change handlers, and `useProcessCashuSendSwapTasks` stay byte-identical.
+5. **Web flip** (pinned). The flipped hooks must not reference `useCashuSendSwapService`, `useUser`, or `senderPaysFee`. Every other hook, the cache classes, the change handlers, and `useProcessCashuSendSwapTasks` stay byte-identical.
 
 **Gates in the implementer's fork, all mandatory:**
 - `bun install --frozen-lockfile`
@@ -452,7 +434,7 @@ The delivered branch's changed-file set must equal the seven-file list exactly. 
 - `CreateCashuSwapParams` mirrors the service (`amount`, not `swapQuote`).
 - The `accountId`-in-hook exception and the ConcurrencyError reasoning behind it (decision 11).
 - The flipped **create** hook returns `false` for `SessionEndedError` before any other retry rule; the preview hook has no `retry` option (decision 11).
-- `senderPaysFee` optional with API default `true` (decision 2).
+- `senderPaysFee` is not on the public params; the API always passes `true` (decision 2).
 - Default swap-service construction of `CashuReceiveSwapService` via `getAccountRepository` without a host/processing split (decision 9) and without `AccountRepository.get` / seed reads on these paths (decision 12).
 - Throwing-getter shape for `spark` / `resolveDestination` only (decision 6); tests n, o, p updated not duplicated.
 - No canary prune (decision 10).
@@ -475,17 +457,17 @@ Findings route back through the orchestrator; only confirmed findings trigger a 
 
 Background facts:
 - Guest signup provisions, in development mode only, **Testnut BTC** and **Testnut USD** cashu accounts on `https://testnut.cashu.space` with `isTestMint: true` (`domain/user/user-api.ts:39–62`), next to the default Spark BTC account (`:29–38`).
-- Cashu accounts default to `CASHU_TOKEN` send type (`send-store.ts:21–23`, `:169–171`). No destination is required. The confirm route renders `CreateCashuTokenConfirmation` (`routes/_protected.send.confirm.tsx:61–68`).
+- Cashu accounts default to `CASHU_TOKEN` send type (`send-store.ts:20–29`, `:169–171`). No destination is required. The confirm route renders `CreateCashuTokenConfirmation` (`routes/_protected.send.confirm.tsx:61–68`).
 - `getQuote` / `create` do **not** call the mint (decision 12). Spendable proofs are still required (`prepareProofsAndFee`, `cashu-send-swap-service.ts:347–358`). Steps 3–4 therefore need a funded testnut account; step 1 provides that.
 - After `create`, the swap is `DRAFT` when input proofs must be swapped for the exact send amount, or `PENDING` when proofs are already exact (`20260420152512_denormalize_account_on_transactions.sql:652–657`; domain notes at `cashu-send-swap.ts:11–17`). The share page encodes a token only for `PENDING` / `COMPLETED` (`routes/_protected.send.share.$swapId.tsx:33–40`). The DRAFT → PENDING mint swap is `useProcessCashuSendSwapTasks` (`cashu-send-swap-hooks.ts:417–489`), still `/temporary` (step 18).
-- Testnut fee rates are an external property. A non-zero fee means the common path is DRAFT + a processor mint swap; a zero-fee exact-proofs path is PENDING immediately. Both are valid; the share page waits either way.
+- The swap is PENDING when the selected proofs already sum to `amountRequested + cashuReceiveFee` (`cashu-send-swap-repository.ts:111`, RPC `:652–657`). That path can still show a non-zero receive fee (`cashu-send-swap-service.ts:335–341`) and does not mint. It is DRAFT when the selected proofs sum to more than that amount, so the processor must swap. A fee on the confirmation page does not by itself mean DRAFT. Both are valid; the share page shows a token only for PENDING / COMPLETED. Testnut fee rates are an external property.
 
 Steps:
 
 1. **Fund (runnable locally; needs internet to testnut).** Sign up as guest. Receive Lightning into **Testnut BTC** for e.g. 1,000 sat: `sdk.receive.cashu.createQuote`, step 9. Testnut auto-pays the mint quote when `fakewallet_brr` is on (external; if funding does not complete, testnut's config changed — use an already-funded test account or stop the positive smoke). The receive processor (`/temporary`) mints, and the balance shows 1,000 sat.
 2. **Token preview (flipped hook a; runnable).** Send → choose **Testnut BTC** (default type is already Cashu token; do not paste an invoice) → enter e.g. 100 sat → Continue. `send-store.ts:343` → `sdk.send.cashu.getSwapQuote`. The confirmation page shows "Recipient gets", "Estimated fee", and total (`send-confirmation.tsx:341–357`).
    - Network: **no** mint HTTP (no `/v1/melt/quote`, no `/v1/swap`, no `/v1/keys`). **No** Supabase request. No Open Secret key read (encryption is already memoized). This is different from the step-13 lightning preview, which does one melt-quote POST.
-   - Negative check: enter an amount larger than the balance. Expect the preview to fail with the service `DomainError` (`Insufficient balance. Total amount including fees is …`, `cashu-send-swap-service.ts:355–357`) toasted by the store (`send-store.ts:349–352`). No mint request, no write.
+   - Negative check: enter an amount larger than the balance. Expect the preview to fail with the service `DomainError` (`Insufficient balance. Total amount including fees is …`, `cashu-send-swap-service.ts:355–357`) stored as the error by `send-store.ts:349–352` and toasted by `send-input.tsx:109–124`. No mint request, no write.
 3. **Confirm (flipped hook b; runnable).** Click Confirm. `send-confirmation.tsx:332` → `sdk.send.cashu.createSwap`.
    - Network: exactly one `POST …/rest/v1/rpc/create_cashu_send_swap` to the local Supabase. No `accounts` select and no `users` select. No mint HTTP.
    - The app navigates to `/send/share/<swap.id>` (`send-confirmation.tsx:308`). That proves the `{ swap }` result exposed `swap.id` and that the hook unwrapped it.
@@ -538,7 +520,7 @@ Rule: the flipped flow adds **zero** network requests versus master. Notes for a
 | Request | Master | Flipped | Notes |
 |---|---|---|---|
 | `GET cashu_send_swaps?id=eq.<id>` | 0 | 0 | `useCashuSendSwap` (`cashu-send-swap-hooks.ts:233–254`) hits `cashuSendSwapCache.add(swap)` (`:62–66`, `:194–196`) via `queryKey [CashuSendSwapCache.Key, id]` and `staleTime: Infinity`. `{ transactionId }` would have made this 1 (decision 4). |
-| `useAccount(swap.accountId)` | 0 network | 0 network | Accounts cache (`:256`). |
+| `useAccount(swap.accountId)` | 0 network | 0 network | `cashu-send-swap-hooks.ts:256` → `account-hooks.ts:298–307` → `accountsQueryOptions()` (`:139–142`), seeded at session start, `staleTime: Infinity`. |
 | Mint HTTP | 0 on landing | 0 on landing | Token encode is local (`share-cashu-token.tsx:43–44`). A later DRAFT→PENDING mint swap is the processor (table B). |
 | Window-focus refetch | 1 select (master) | 1 select (flipped) | `refetchOnWindowFocus: 'always'` (`:252`) is unchanged and is not landing. |
 | **Net added** | | **0** | |
@@ -561,3 +543,21 @@ Rule: the flipped flow adds **zero** network requests versus master. Notes for a
 1. **`resolveDestination` contract shape and owner.** Carried from step 13. The contract has `(input: string) => Promise<DestinationDetails>` (`send.ts:16`), while the implementation takes `string | Contact` plus `{ allowZeroAmountBolt11 }` and returns a `SendDestination` result union. Which step owns reconciling them (15, 19, or a dedicated slice)? This does not block step 14.
 2. **Testnut FakeWallet settings** are external. If testnut ever disables brr, smoke step 1 stops completing locally, and steps 2–4 (the two flipped calls plus share landing) then need an already-funded test account, because `getQuote` / `create` check for spendable proofs. A local Nutshell FakeWallet mint would remove the dependency, but that is tooling outside this slice.
 3. **Two Supabase token caches during the migration.** The SDK db client and the web `agicashDbClient` each mint and cache their own Open Secret third-party token (Foreground parity, "Supabase JWT"). A flipped write can therefore cost one token exchange that master would not, when only the SDK token has expired. Every slice since step 5 shares this; it disappears when steps 18–19 remove the web db client. Should the maintainer want it closed earlier, the shape is an optional `SdkConfig` token-source port that the web wires to its own cache. Not part of step 14.
+
+## Plan-attack corrections (2026-10-07)
+
+Two independent adversarial reviews ran against plan commit `486e097` (maxplayer open-pool contribution jobs: one claude harness, one cursor harness). Both returned NOT READY. Every accepted finding is folded into the body above. Where this section and older wording disagree, the body as now written wins.
+
+Accepted and folded in:
+
+- **`CashuSendSwap` is not in local scope in `send.ts`** (both; Critical in one): `export type { CashuSendSwap } from …` (`send.ts:12`) does not bind the name, so `CreateCashuSwapResult` was TS2304. The contract seam now makes the `receive.ts:6` + `:16` import/re-export edit mandatory.
+- **Tests (u) and (ac) called Open Secret** (both; Critical): `getReceiveSwapService` awaits `keys.getEncryption()` outside `createSwapRepository`, and `createSessionKeys()` falls back to the real readers (`session-keys.ts:149–158`). Both tests now inject fake `readEncryptionPrivateKey` / `readEncryptionPublicKey`, and the builder note says why.
+- **`senderPaysFee` is omitted from the public params** (both; Important): `false` throws a plain `Error` before any fee math (`cashu-send-swap-service.ts:303–306`), so `true` is the only legal value — the step-13 `exchangeRate` case. Decision 2 is reversed: the API hardcodes `senderPaysFee: true`; both hooks drop the field; tests (q), (w), (x) and the Task 3 prompt are updated. `send-store.ts` / `send-provider.tsx` / `send-confirmation.tsx` stay byte-identical.
+- **Test fixtures** (claude Minor/Important): the new test imports are pinned; `makeSwapQuote` / `makeSendSwap` return through `as unknown as`; the fake repository `create` in (u) and (ac) is annotated (TS7006); the 64-sat proof uses a real hex keyset id and `C` (`packages/cashu/src/token.test.ts:10–13`). Orchestrator check: the old non-hex fixture also encodes (cashu-ts 3.6.1 falls back to a V3 `cashuA` token), so this is realism, not a blocker.
+- **Share-page landing evidence** (both; Minor): `useAccount` on the share page is `account-hooks.ts:298–307` (the accounts suspense query, seeded at session start, `staleTime: Infinity`), not `useGetAccount` (`:355–375`); `useTrackCashuSendSwap` shares the swap cache key. Conclusion unchanged: 0 requests on landing. Table C is corrected.
+- **Smoke DRAFT/PENDING fact** (cursor; Minor): the state follows `requiresInputProofsSwap` (`cashu-send-swap-repository.ts:111`, RPC `:652–657`), not the displayed fee; an exact-proofs send can show a non-zero receive fee and still be PENDING.
+- **Decision 4 rationale** (claude; Minor): the contract proposal's own reason for receive returning full objects (hand back the invoice) applies to send-to-token (hand back the token's proofs).
+- **Citation fixes** (both; Nit): the RPC check ends at `:773` (`raise` at `:768–773`), `send-store.ts:20–29` (default send type), `transaction-hooks.ts:239` (`getByTransactionId`), and the insufficient-balance toast is `send-input.tsx:109–124`.
+
+Verified by both reviews and unchanged: slice scope and callers (no gift-card, offer, transfer, or buy consumer), the `{ swap }` result over bare / `{ transactionId }`, the `getAccountRepository` wiring and its construction-only cost, the `accountId` + per-attempt cache read for `ConcurrencyError` recovery, no `retry` on the preview hook, seed and mint-HTTP non-access on `getQuote` / `create`, the canary (no `/temporary` re-export becomes dead), and parity tables A and B.
+
