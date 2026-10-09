@@ -92,21 +92,24 @@ export class CashuSendSwapService {
   /**
    * @throws Error if the account does not have enough balance
    */
-  async create({
-    userId,
-    account,
-    amount,
-    senderPaysFee,
-  }: {
-    /** The id of the user creating the swap */
-    userId: string;
-    /** The account to send from.  */
-    account: CashuAccount;
-    /** The amount to send in the account's currency */
-    amount: Money;
-    /** Whether the sender pays the fee for the swap by including the fee in the proofs to send */
-    senderPaysFee: boolean;
-  }): Promise<CashuSendSwap> {
+  async create(
+    {
+      userId,
+      account,
+      amount,
+      senderPaysFee,
+    }: {
+      /** The id of the user creating the swap */
+      userId: string;
+      /** The account to send from.  */
+      account: CashuAccount;
+      /** The amount to send in the account's currency */
+      amount: Money;
+      /** Whether the sender pays the fee for the swap by including the fee in the proofs to send */
+      senderPaysFee: boolean;
+    },
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<CashuSendSwap> {
     if (account.currency !== amount.currency) {
       throw new Error(
         'Currency mismatch. Account currency to send from must match the amount to send currency.',
@@ -160,21 +163,24 @@ export class CashuSendSwapService {
         unit: cashuUnit,
       });
 
-    return this.cashuSendSwapRepository.create({
-      accountId: account.id,
-      userId,
-      tokenMintUrl: account.mintUrl,
-      inputProofs,
-      inputAmount: toMoney(sumProofs(inputProofs)),
-      amountRequested: amount,
-      amountToSend: toMoney(totalAmountToSend),
-      cashuSendFee: toMoney(cashuSendFee),
-      cashuReceiveFee: toMoney(cashuReceiveFee),
-      totalAmount: toMoney(totalAmountToSend + cashuSendFee),
-      tokenHash,
-      keysetId,
-      outputAmounts,
-    });
+    return this.cashuSendSwapRepository.create(
+      {
+        accountId: account.id,
+        userId,
+        tokenMintUrl: account.mintUrl,
+        inputProofs,
+        inputAmount: toMoney(sumProofs(inputProofs)),
+        amountRequested: amount,
+        amountToSend: toMoney(totalAmountToSend),
+        cashuSendFee: toMoney(cashuSendFee),
+        cashuReceiveFee: toMoney(cashuReceiveFee),
+        totalAmount: toMoney(totalAmountToSend + cashuSendFee),
+        tokenHash,
+        keysetId,
+        outputAmounts,
+      },
+      options,
+    );
   }
 
   async swapForProofsToSend({

@@ -161,7 +161,7 @@ type SendApi = {
     getLightningQuote(params): Promise<CashuLightningQuote>;
     createQuote(params): Promise<{ transactionId: string }>;
     getSwapQuote(params): Promise<CashuSwapQuote>;   // send-to-token
-    createSwap(params): Promise<…>;
+    createSwap(params): Promise<{ swap: CashuSendSwap }>;   // hands back the token's proofs
   };
   spark: {
     getLightningQuote(params): Promise<SparkLightningQuote>;
@@ -325,8 +325,8 @@ Conventions across all namespaces:
 
 ### Observing an initiated payment
 
-Send returns a bare `{ transactionId }` and completion is background-only, so
-"pay this and tell me the result" is an **observation**. The contract idiom is
+Lightning send (`createQuote`) returns a bare `{ transactionId }` and completion is
+background-only, so "pay this and tell me the result" is an **observation**. The contract idiom is
 subscribe-then-read (a dedicated `transactions.waitForTerminal` is deferred —
 hosts hand-roll correlation for now):
 
@@ -337,8 +337,10 @@ hosts hand-roll correlation for now):
 Order matters: subscribing before the baseline read closes the race where an
 update lands between the read and the subscription (TanStack hides this today;
 a bare event consumer must get it right by hand). Receive methods return full
-quote objects (they must hand back the generated invoice) while send returns
-only an id — the asymmetry is intentional, not an oversight.
+quote objects (they must hand back the generated invoice) while lightning send
+returns only an id — the asymmetry is intentional, not an oversight. Send-to-token
+(`cashu.createSwap`) returns `{ swap }` for the receive reason: the host must hand
+the token's proofs to the recipient (decided in step 14).
 
 ## Events
 
