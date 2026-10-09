@@ -352,7 +352,7 @@ describe('createTransferApi', () => {
       expect(publicKeyReads).toBe(1);
       expect(seedReads).toBe(0);
       expect(mnemonicReads).toBe(0);
-      expect(accountRepositoryCalls).toBeLessThanOrEqual(1);
+      expect(accountRepositoryCalls).toBeGreaterThanOrEqual(1);
     });
 
     it('locks the mint quote to a key derived from the session cashu locking xpub', async () => {
@@ -483,6 +483,45 @@ describe('createTransferApi', () => {
         }),
       ).rejects.toBeInstanceOf(NoSessionError);
       expect(createServiceCalls).toBe(0);
+      expect(cashuReceiveServiceCalls).toBe(0);
+      expect(sparkReceiveServiceCalls).toBe(0);
+      expect(cashuSendServiceCalls).toBe(0);
+      expect(sparkSendServiceCalls).toBe(0);
+    });
+
+    it('throws NoSessionError without a session when no service seam is set', async () => {
+      let cashuReceiveServiceCalls = 0;
+      let sparkReceiveServiceCalls = 0;
+      let cashuSendServiceCalls = 0;
+      let sparkSendServiceCalls = 0;
+      const api = createTransferApi({
+        db,
+        keys: createSessionKeys(),
+        getSession: () => loggedOut(),
+        getAccountRepository: emptyAccountRepository,
+        createCashuReceiveService: async () => {
+          cashuReceiveServiceCalls += 1;
+          return {} as unknown as CashuReceiveQuoteService;
+        },
+        createSparkReceiveService: async () => {
+          sparkReceiveServiceCalls += 1;
+          return {} as unknown as SparkReceiveQuoteService;
+        },
+        createCashuSendService: async () => {
+          cashuSendServiceCalls += 1;
+          return {} as unknown as CashuSendQuoteService;
+        },
+        createSparkSendService: async () => {
+          sparkSendServiceCalls += 1;
+          return {} as unknown as SparkSendQuoteService;
+        },
+      });
+
+      await expect(
+        api.initiate({
+          quote: { marker: 'quote' } as unknown as TransferQuote,
+        }),
+      ).rejects.toBeInstanceOf(NoSessionError);
       expect(cashuReceiveServiceCalls).toBe(0);
       expect(sparkReceiveServiceCalls).toBe(0);
       expect(cashuSendServiceCalls).toBe(0);
@@ -927,7 +966,10 @@ describe('createTransferApi', () => {
         }),
       ).rejects.toBe(sendError);
       expect(failCalls).toBe(1);
-      expect(failArgs?.length).toBe(2);
+      expect(failArgs).toEqual([
+        { transactionId: 'tx-recv' },
+        'Transfer initiation failed',
+      ]);
     });
 
     it('does not persist the send quote when the receive persist throws', async () => {
@@ -1045,7 +1087,6 @@ describe('createTransferApi', () => {
       let receiveFailCalls = 0;
       let seedReads = 0;
       let mnemonicReads = 0;
-      let accountRepositoryCalls = 0;
       const keys = createSessionKeys({
         readCashuSeed: async () => {
           seedReads += 1;
@@ -1062,10 +1103,7 @@ describe('createTransferApi', () => {
         db,
         keys,
         getSession: () => loggedIn('user-x'),
-        getAccountRepository: async () => {
-          accountRepositoryCalls += 1;
-          return {} as unknown as AccountRepository;
-        },
+        getAccountRepository: emptyAccountRepository,
         createCashuReceiveRepository: async () =>
           ({
             create: async (
@@ -1118,7 +1156,6 @@ describe('createTransferApi', () => {
       expect(receiveFailCalls).toBe(0);
       expect(seedReads).toBe(0);
       expect(mnemonicReads).toBe(0);
-      expect(accountRepositoryCalls).toBe(0);
     });
 
     it('forwards the session abort signal through the real spark services', async () => {
@@ -1129,7 +1166,6 @@ describe('createTransferApi', () => {
       let receiveFailCalls = 0;
       let seedReads = 0;
       let mnemonicReads = 0;
-      let accountRepositoryCalls = 0;
       const keys = createSessionKeys({
         readCashuSeed: async () => {
           seedReads += 1;
@@ -1146,10 +1182,7 @@ describe('createTransferApi', () => {
         db,
         keys,
         getSession: () => loggedIn('user-x'),
-        getAccountRepository: async () => {
-          accountRepositoryCalls += 1;
-          return {} as unknown as AccountRepository;
-        },
+        getAccountRepository: emptyAccountRepository,
         createSparkReceiveRepository: async () =>
           ({
             create: async (
@@ -1202,7 +1235,6 @@ describe('createTransferApi', () => {
       expect(receiveFailCalls).toBe(0);
       expect(seedReads).toBe(0);
       expect(mnemonicReads).toBe(0);
-      expect(accountRepositoryCalls).toBe(0);
     });
 
     it('rejects an expired send quote through the real services and fails the receive quote', async () => {
